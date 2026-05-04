@@ -13,4 +13,14 @@ describe("GET /terms", () => {
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
 	});
+
+	it("returns markdown when Accept: text/markdown is sent", async () => {
+		const response = await request(app)
+			.get("/terms")
+			.set("Accept", "text/markdown");
+
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
+		expect(response.text).toMatch(/^# /);
+	});
 });

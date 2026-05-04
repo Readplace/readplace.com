@@ -83,7 +83,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		const totalSelected =
 			pageResult.session.totalUrls - pageResult.session.deselected.size;
 		const vm = toImportViewModel(pageResult, totalSelected);
-		sendComponent(res, renderPage(req, ImportPage(vm)));
+		sendComponent(req, res, renderPage(req, ImportPage(vm)));
 	});
 
 	router.post("/:id/toggle", async (req: Request, res: Response) => {

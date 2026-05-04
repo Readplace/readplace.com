@@ -29,6 +29,14 @@ describe("blog posts", () => {
 		}
 	});
 
+	it("should retain the raw markdown body for every post", () => {
+		for (const post of posts) {
+			expect(typeof post.markdownContent).toBe("string");
+			expect(post.markdownContent.length).toBeGreaterThan(0);
+			expect(post.markdownContent).not.toContain("---\ntitle:");
+		}
+	});
+
 	it("should have formatted dates for every post", () => {
 		for (const post of posts) {
 			expect(post.formattedDate).toMatch(/\d{1,2} \w+ \d{4}/);

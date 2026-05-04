@@ -14,8 +14,11 @@ import {
 	UTILITY_STYLES,
 } from "./base.styles";
 import type { BannerState } from "./banner-state";
-import type { Component } from "./component.types";
+import type { Component, ParsedComponent } from "./component.types";
 import { HtmlPage } from "./html-page";
+import { htmlToMarkdown } from "./html-to-markdown";
+import { MarkdownPage } from "./markdown-page";
+import { buildMarkdownFrontmatter } from "./markdown-frontmatter";
 import type { PageBody, SeoMetadata } from "./page-body.types";
 import { render } from "./render";
 import { getEnv, requireEnv } from "../require-env";
@@ -203,6 +206,21 @@ function renderBaseTemplate(body: PageBody, state: BannerState): string {
 	});
 }
 
+function renderMarkdown(body: PageBody): string {
+	const frontmatter = buildMarkdownFrontmatter(body.seo, {
+		formattedDate: body.markdownFormattedDate,
+	});
+	const content = body.markdownContent ?? htmlToMarkdown(body.content);
+	return `${frontmatter}\n\n${content}`;
+}
+
 export function Base(body: PageBody, state: BannerState): Component {
-	return HtmlPage(renderBaseTemplate(body, state), body.statusCode);
+	return {
+		to: (mediaType): ParsedComponent => {
+			if (mediaType === "text/markdown") {
+				return MarkdownPage(renderMarkdown(body), body.statusCode).to(mediaType);
+			}
+			return HtmlPage(renderBaseTemplate(body, state), body.statusCode).to(mediaType);
+		},
+	};
 }

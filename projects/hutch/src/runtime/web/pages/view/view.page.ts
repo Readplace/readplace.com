@@ -22,6 +22,10 @@ import type {
 	MarkSummaryPending,
 } from "@packages/test-fixtures/providers/article-summary";
 import type { PublishSaveAnonymousLink } from "@packages/test-fixtures/providers/events";
+import { wantsMarkdown } from "../../content-negotiation";
+import { htmlToMarkdown } from "../../html-to-markdown";
+import { buildMarkdownFrontmatter } from "../../markdown-frontmatter";
+import { MarkdownPage } from "../../markdown-page";
 import { renderPage } from "../../render-page";
 import { sendComponent } from "../../send-component";
 import { extensionInstallUrlIfMissing } from "../../onboarding/extension-install";
@@ -50,7 +54,7 @@ interface ViewDependencies {
 function renderError(req: Request, res: Response) {
 	const redirectUrl = req.userId ? "/queue" : "/";
 	const linkLabel = req.userId ? "Go to your queue" : "Go to homepage";
-	sendComponent(res, renderPage(req, SaveErrorPage({ redirectUrl, linkLabel })));
+	sendComponent(req, res, renderPage(req, SaveErrorPage({ redirectUrl, linkLabel })));
 }
 
 function hostnameFrom(validatedUrl: string): string {
@@ -68,7 +72,7 @@ function handleViewLanding(req: Request, res: Response) {
 	const submittedUrl =
 		typeof req.query.url === "string" ? req.query.url : undefined;
 	if (submittedUrl === undefined) {
-		sendComponent(res, renderPage(req, ViewLandingPage()));
+		sendComponent(req, res, renderPage(req, ViewLandingPage()));
 		return;
 	}
 	const parsed = ViewUrlSchema.safeParse(submittedUrl);
@@ -137,6 +141,17 @@ function handleViewArticle(deps: ViewDependencies) {
 			pollUrlBuilder,
 		});
 
+		if (wantsMarkdown(req)) {
+			const frontmatter = buildMarkdownFrontmatter({
+				title: metadata.title,
+				description: metadata.excerpt,
+				canonicalUrl: articleUrl,
+			});
+			const articleMarkdown = state.content ? htmlToMarkdown(state.content) : "";
+			sendComponent(req, res, MarkdownPage(`${frontmatter}\n\n${articleMarkdown}`));
+			return;
+		}
+
 		const utmParams = collectUtmParams(req.query);
 
 		const actions: ViewAction[] = [
@@ -153,7 +168,7 @@ function handleViewArticle(deps: ViewDependencies) {
 		];
 
 		sendComponent(
-			res,
+			req, res,
 			renderPage(req, ViewPage({
 				articleUrl,
 				metadata,
@@ -186,7 +201,7 @@ function handleViewSummary(deps: ViewDependencies) {
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
 		});
-		sendComponent(res, component);
+		sendComponent(req, res, component);
 	};
 }
 
@@ -206,7 +221,7 @@ function handleViewReader(deps: ViewDependencies) {
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 		});
-		sendComponent(res, component);
+		sendComponent(req, res, component);
 	};
 }
 

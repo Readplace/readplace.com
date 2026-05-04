@@ -63,6 +63,8 @@
     "isbot": "5.1.39",
     "linkedom": "0.18.12",
     "markdown-it": "14.1.1",
+    "node-html-markdown": "2.0.0",
+    "parse-srcset": "1.0.2",
     "resend": "6.9.3",
     "save-link": "workspace:*",
     "serverless-http": "4.0.0",

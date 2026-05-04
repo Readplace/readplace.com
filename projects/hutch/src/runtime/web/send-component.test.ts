@@ -1,6 +1,7 @@
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import type { Component } from "./component.types";
 import { HtmlPage } from "./html-page";
+import { MarkdownPage } from "./markdown-page";
 import { sendComponent } from "./send-component";
 
 interface FakeResponse {
@@ -27,11 +28,15 @@ function createFakeResponse(): FakeResponse {
 	return { calls, res };
 }
 
+function requestWithAccept(accept?: string): Request {
+	return { get: (header: string) => header === "Accept" ? accept : undefined } as unknown as Request;
+}
+
 describe("sendComponent", () => {
 	it("passes the component's statusCode, headers, and body through to the response", () => {
 		const { calls, res } = createFakeResponse();
 
-		sendComponent(res, HtmlPage("<p>Hello</p>"));
+		sendComponent(requestWithAccept(), res, HtmlPage("<p>Hello</p>"));
 
 		expect(calls.status).toEqual([200]);
 		expect(calls.set).toEqual([{ "content-type": "text/html; charset=utf-8" }]);
@@ -41,7 +46,7 @@ describe("sendComponent", () => {
 	it("uses the statusCode that the component carries", () => {
 		const { calls, res } = createFakeResponse();
 
-		sendComponent(res, HtmlPage("<p>Not found</p>", 404));
+		sendComponent(requestWithAccept(), res, HtmlPage("<p>Not found</p>", 404));
 
 		expect(calls.status).toEqual([404]);
 		expect(calls.set).toEqual([{ "content-type": "text/html; charset=utf-8" }]);
@@ -58,10 +63,30 @@ describe("sendComponent", () => {
 			}),
 		};
 
-		sendComponent(res, siren);
+		sendComponent(requestWithAccept(), res, siren);
 
 		expect(calls.status).toEqual([201]);
 		expect(calls.set).toEqual([{ "content-type": "application/vnd.siren+json" }]);
 		expect(calls.send).toEqual(['{"class":["article"]}']);
+	});
+
+	it("returns the markdown branch when Accept is text/markdown and the component supports it", () => {
+		const { calls, res } = createFakeResponse();
+
+		sendComponent(requestWithAccept("text/markdown"), res, MarkdownPage("# Hi"));
+
+		expect(calls.status).toEqual([200]);
+		expect(calls.set[0]["content-type"]).toBe("text/markdown; charset=utf-8");
+		expect(calls.send).toEqual(["# Hi"]);
+	});
+
+	it("falls back to text/html when the component returns 406 for the markdown branch", () => {
+		const { calls, res } = createFakeResponse();
+
+		sendComponent(requestWithAccept("text/markdown"), res, HtmlPage("<p>Hi</p>"));
+
+		expect(calls.status).toEqual([200]);
+		expect(calls.set[0]["content-type"]).toBe("text/html; charset=utf-8");
+		expect(calls.send).toEqual(["<p>Hi</p>"]);
 	});
 });

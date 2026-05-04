@@ -17,12 +17,12 @@ export function initEmbedRoutes(deps: { appOrigin: string }): Router {
 		}),
 	);
 
-	router.get("/", (_req, res) => {
-		sendComponent(res, EmbedPage({ appOrigin: deps.appOrigin, embedOrigin }));
+	router.get("/", (req, res) => {
+		sendComponent(req, res, EmbedPage({ appOrigin: deps.appOrigin, embedOrigin }));
 	});
 
-	router.get("/preview", (_req, res) => {
-		sendComponent(res, PreviewPage({ appOrigin: deps.appOrigin, embedOrigin }));
+	router.get("/preview", (req, res) => {
+		sendComponent(req, res, PreviewPage({ appOrigin: deps.appOrigin, embedOrigin }));
 	});
 
 	router.get("/icon.svg", (_req, res) => {

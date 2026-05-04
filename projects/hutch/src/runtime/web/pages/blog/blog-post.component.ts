@@ -77,5 +77,7 @@ export function BlogPostPage(params: { post: BlogPost }): PageBody {
 			author: post.author,
 			htmlContent: post.htmlContent,
 		}),
+		markdownContent: post.markdownContent,
+		markdownFormattedDate: post.formattedDate,
 	};
 }

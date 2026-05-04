@@ -75,7 +75,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 		}
 
 		sendComponent(
-			res,
+			req, res,
 			renderPage(req, OAuthAuthorizePage({
 				clientName: client.name,
 				clientId: client_id,
@@ -163,7 +163,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 	});
 
 	router.get("/callback", (req: Request, res: Response) => {
-		sendComponent(res, renderPage(req, OAuthCallbackPage()));
+		sendComponent(req, res, renderPage(req, OAuthCallbackPage()));
 	});
 
 	return router;

@@ -2,6 +2,8 @@
 
 > Readplace is a privacy-first read-it-later app and browser extension. A direct alternative to Pocket (shut down July 2025) and Omnivore (shut down late 2024). Built in Australia by Fayner Brack, creator of js-cookie (22 billion+ annual CDN downloads on jsDelivr).
 
+> Markdown of any page is also available via Accept: text/markdown.
+
 Readplace lets you save articles with one click using browser extensions for Firefox and Chrome, read them later in a distraction-free reader view, and get an AI-generated TL;DR summary for every article. User data is hosted in Sydney, Australia under the Australian Privacy Act. No third-party tracking, no ads, no analytics in the app. Source-available under AGPL on GitHub.
 
 ## Pricing

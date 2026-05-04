@@ -17,10 +17,10 @@ describe("HtmlPage", () => {
 		expect(result.body).toBe("<p>Not found</p>");
 	});
 
-	it("returns 415 with empty body and no headers for unsupported media types", () => {
-		const result = HtmlPage("<p>Hello</p>").to("application/vnd.siren+json");
+	it("returns 406 with empty body and no headers when text/markdown is requested", () => {
+		const result = HtmlPage("<p>Hello</p>").to("text/markdown");
 
-		expect(result.statusCode).toBe(415);
+		expect(result.statusCode).toBe(406);
 		expect(result.headers).toEqual({});
 		expect(result.body).toBe("");
 	});

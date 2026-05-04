@@ -1711,4 +1711,62 @@ describe("View routes", () => {
 			expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: ARTICLE_URL });
 		});
 	});
+
+	describe("GET /view/<encoded-url> with Accept: text/markdown", () => {
+		it("returns the article body as markdown without the share/save UI", async () => {
+			const parseArticle: ParseArticle = async () =>
+				buildParseResult({
+					title: "Hello Markdown",
+					excerpt: "An article rendered as markdown.",
+					content: "<p>The article body.</p>",
+				});
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const { app } = createTestApp({
+				...fixture,
+				parser: {
+					parseArticle,
+					crawlArticle: fixture.parser.crawlArticle,
+				},
+				events: {
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+				},
+			});
+
+			const response = await request(app)
+				.get(`/view/${ENCODED}`)
+				.set("Accept", "text/markdown");
+
+			expect(response.status).toBe(200);
+			expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
+			expect(response.text.startsWith("# Hello Markdown")).toBe(true);
+			expect(response.text).toContain("An article rendered as markdown.");
+			expect(response.text).toContain(`Canonical: ${ARTICLE_URL}`);
+			expect(response.text).toContain("The article body.");
+			expect(response.text).not.toContain("<script");
+			expect(response.text).not.toContain("data-test-");
+			expect(response.text).not.toContain("hx-boost");
+		});
+
+		it("renders the landing page as markdown when /view is requested without a URL", async () => {
+			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(app)
+				.get("/view")
+				.set("Accept", "text/markdown");
+
+			expect(response.status).toBe(200);
+			expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
+			expect(response.text).toMatch(/^# /);
+		});
+	});
 });

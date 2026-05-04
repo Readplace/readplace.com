@@ -90,7 +90,8 @@ import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middl
 import { initOAuthRoutes } from "./web/oauth/oauth.routes";
 import { renderPage } from "./web/render-page";
 import { sendComponent } from "./web/send-component";
-import { wantsSiren } from "./web/content-negotiation";
+import { wantsMarkdown, wantsSiren } from "./web/content-negotiation";
+import { contentSignalMiddleware } from "./web/content-signal.middleware";
 import { HomePage } from "./web/pages/home";
 import { PrivacyPage } from "./web/pages/privacy";
 import { TermsPage } from "./web/pages/terms";
@@ -197,6 +198,8 @@ export function createApp(dependencies: AppDependencies): Express {
 			fallthrough: false,
 		}),
 	);
+
+	app.use(contentSignalMiddleware);
 
 	app.use(async (req: Request, _res: Response, next: NextFunction) => {
 		const sessionId = req.cookies?.[SESSION_COOKIE_NAME];
@@ -317,7 +320,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	/** Firefox extensions enforce CORS preflight for fetches with non-simple headers (Accept: application/vnd.siren+json, Authorization). Register OPTIONS so the preflight succeeds; without this it returns 404 and firefox aborts the fetch with NetworkError. */
 	app.options("/", extensionCors);
 	app.get("/", extensionCors, async (req: Request, res: Response) => {
-		if (wantsSiren(req)) {
+		if (wantsSiren(req) && !wantsMarkdown(req)) {
 			res.redirect(303, "/queue");
 			return;
 		}
@@ -328,15 +331,15 @@ export function createApp(dependencies: AppDependencies): Express {
 			: ua.includes("Chrome/") ? "chrome"
 			: "other";
 		const userCount = await countUsers().catch(() => 0);
-		sendComponent(res, renderPage(req, HomePage({ userCount, staticBaseUrl, browser })));
+		sendComponent(req, res, renderPage(req, HomePage({ userCount, staticBaseUrl, browser })));
 	});
 
 	app.get("/privacy", (req: Request, res: Response) => {
-		sendComponent(res, renderPage(req, PrivacyPage()));
+		sendComponent(req, res, renderPage(req, PrivacyPage()));
 	});
 
 	app.get("/terms", (req: Request, res: Response) => {
-		sendComponent(res, renderPage(req, TermsPage()));
+		sendComponent(req, res, renderPage(req, TermsPage()));
 	});
 
 	// Path-uniqued article fixture for staging e2e tests. The :id segment is
@@ -348,7 +351,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	// both expose it.
 	if (getEnv("NODE_ENV") !== "production") {
 		app.get("/e2e/article/:id", (req: Request, res: Response) => {
-			sendComponent(res, renderPage(req, E2EFixturePage()));
+			sendComponent(req, res, renderPage(req, E2EFixturePage()));
 		});
 	}
 
@@ -358,7 +361,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			fetchFirefoxDownloadUrl(),
 			fetchChromeDownloadUrl(),
 		]);
-		sendComponent(res, renderPage(req, InstallPage({ firefox, chrome, browser })));
+		sendComponent(req, res, renderPage(req, InstallPage({ firefox, chrome, browser })));
 	});
 
 	const blogRouter = initBlogRoutes();
@@ -520,7 +523,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use("/oauth", oauthRouter);
 
 	app.use((req: Request, res: Response) => {
-		sendComponent(res, renderPage(req, NotFoundPage()));
+		sendComponent(req, res, renderPage(req, NotFoundPage()));
 	});
 
 	return app;

@@ -4,7 +4,7 @@ export interface ParsedComponent {
   body: string;
 }
 
-export type SupportedMediaType = 'text/html' | 'application/vnd.siren+json';
+export type SupportedMediaType = 'text/html' | 'text/markdown';
 
 export type Component = {
   to: (mediaType: SupportedMediaType) => ParsedComponent;

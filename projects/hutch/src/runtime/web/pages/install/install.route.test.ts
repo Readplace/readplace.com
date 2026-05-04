@@ -205,4 +205,15 @@ describe("GET /install", () => {
 		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
 		expect(chromeTab?.getAttribute("href")).toBe("/install?browser=chrome");
 	});
+
+	it("returns markdown when Accept: text/markdown is sent", async () => {
+		const response = await request(app)
+			.get("/install")
+			.set("Accept", "text/markdown");
+
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
+		expect(response.text).toMatch(/^# /);
+		expect(response.text).not.toContain("<script");
+	});
 });

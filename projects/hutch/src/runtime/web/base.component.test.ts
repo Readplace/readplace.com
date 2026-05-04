@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { Base } from "./base.component";
 import type { BannerState } from "./banner-state";
-import type { SupportedMediaType } from "./component.types";
 import type { PageBody } from "./page-body.types";
 
 function createTestPageBody(overrides: Partial<PageBody> = {}): PageBody {
@@ -113,12 +112,37 @@ describe("Base component", () => {
 		expect(meta?.getAttribute("content")).toBe("My desc");
 	});
 
-	it("should return 415 for unsupported media type", () => {
-		const page = createTestPageBody();
-		const result = Base(page, GUEST_STATE).to("application/vnd.siren+json" as SupportedMediaType);
+	it("renders markdown when text/markdown is requested, prefixing the title and description", () => {
+		const page = createTestPageBody({
+			seo: {
+				title: "My Markdown Title",
+				description: "Markdown description.",
+				canonicalUrl: "https://readplace.com/test",
+			},
+			content: "<main><h2>Section</h2><p>Body copy.</p></main>",
+		});
 
-		expect(result.statusCode).toBe(415);
-		expect(result.body).toBe("");
+		const result = Base(page, GUEST_STATE).to("text/markdown");
+
+		expect(result.statusCode).toBe(200);
+		expect(result.headers["content-type"]).toBe("text/markdown; charset=utf-8");
+		expect(result.body.startsWith("# My Markdown Title")).toBe(true);
+		expect(result.body).toContain("Markdown description.");
+		expect(result.body).toContain("Body copy.");
+		expect(result.body).not.toContain("<main>");
+	});
+
+	it("uses markdownContent verbatim when provided, skipping HTML conversion", () => {
+		const page = createTestPageBody({
+			content: "<main><p>HTML body.</p></main>",
+			markdownContent: "## Article\n\nClean prose.",
+		});
+
+		const result = Base(page, GUEST_STATE).to("text/markdown");
+
+		expect(result.body).toContain("## Article");
+		expect(result.body).toContain("Clean prose.");
+		expect(result.body).not.toContain("HTML body.");
 	});
 
 	it("should render structured data when provided", () => {
