@@ -41,7 +41,13 @@ export interface QueueViewModel {
 	totalPages: number;
 	currentPage: number;
 	total: number;
-	unreadCount: number;
+	/**
+	 * Undefined while the asynchronous /queue/counts fragment is still in flight.
+	 * The synchronous render emits a "…" placeholder; htmx swaps in the real
+	 * number once the deferred query resolves. See queue.page.ts GET /counts.
+	 */
+	totalArticles: number | undefined;
+	unreadCount: number | undefined;
 	filterUrls: {
 		unread: string;
 		read: string;
@@ -143,6 +149,7 @@ export function toQueueViewModel(
 		saveError?: string;
 		importFlash?: string;
 		unreadCount?: number;
+		totalArticles?: number;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
 	},
 ): QueueViewModel {
@@ -162,7 +169,8 @@ export function toQueueViewModel(
 		totalPages,
 		currentPage: result.page,
 		total: result.total,
-		unreadCount: options?.unreadCount ?? result.total,
+		totalArticles: options?.totalArticles,
+		unreadCount: options?.unreadCount,
 		filterUrls: {
 			unread: buildQueueUrl({ ...baseFilters, tab: "queue" }),
 			read: buildQueueUrl({ ...baseFilters, tab: "done" }),

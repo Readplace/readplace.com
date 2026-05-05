@@ -11,6 +11,7 @@ import type { PublishSaveLinkRawHtmlCommand } from "@packages/test-fixtures/prov
 import type { PublishUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
 import type { PutPendingHtml } from "@packages/test-fixtures/providers/pending-html";
 import type {
+	FindGeneratedSummariesByUrls,
 	FindGeneratedSummary,
 	ForceMarkSummaryPending,
 	MarkSummaryPending,
@@ -166,6 +167,7 @@ export interface PendingHtmlBundle {
 
 export interface SummaryBundle {
 	findGeneratedSummary: FindGeneratedSummary;
+	findGeneratedSummariesByUrls: FindGeneratedSummariesByUrls;
 	markSummaryPending: MarkSummaryPending;
 	forceMarkSummaryPending: ForceMarkSummaryPending;
 }
@@ -302,6 +304,7 @@ function flattenFixtureToAppDependencies(
 		publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 		putPendingHtml: fixture.pendingHtml.putPendingHtml,
 		findGeneratedSummary: fixture.summary.findGeneratedSummary,
+		findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
 		markSummaryPending: fixture.summary.markSummaryPending,
 		forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
 		refreshArticleIfStale: fixture.freshness.refreshArticleIfStale,

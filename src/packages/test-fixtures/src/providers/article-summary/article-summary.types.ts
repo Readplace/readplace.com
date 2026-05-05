@@ -8,6 +8,17 @@ export type GeneratedSummary =
 
 export type FindGeneratedSummary = (url: string) => Promise<GeneratedSummary | undefined>;
 
+/**
+ * Batched lookup keyed by the same URL the caller passes in. The returned Map
+ * is keyed by the input URL (not the canonicalised resource id) so the queue
+ * page handler can look up summaries directly by `article.url`. Missing rows
+ * map to `undefined`. An empty input returns an empty Map without hitting
+ * DynamoDB.
+ */
+export type FindGeneratedSummariesByUrls = (
+	urls: readonly string[],
+) => Promise<Map<string, GeneratedSummary | undefined>>;
+
 export type MarkSummaryPending = (params: { url: string }) => Promise<void>;
 
 /**

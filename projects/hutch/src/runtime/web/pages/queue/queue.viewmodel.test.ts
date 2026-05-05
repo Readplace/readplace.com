@@ -337,10 +337,32 @@ describe("toQueueViewModel", () => {
 		expect(vm.unreadCount).toBe(42);
 	});
 
-	it("should default unreadCount to result total when not provided", () => {
+	it("should leave unreadCount undefined when not provided so the template renders a loading placeholder", () => {
+		// The two partition-wide COUNT queries that used to feed unreadCount /
+		// totalArticles synchronously have been moved to GET /queue/counts so
+		// they don't sit on the page's critical render path. The synchronous
+		// viewmodel must therefore expose "unknown" instead of silently falling
+		// back to result.total — the template uses this to render a "…"
+		// placeholder until htmx swaps in the real number.
 		const vm = toQueueViewModel(makeResult([], 7), DEFAULT_FILTERS, { now: NOW });
 
-		expect(vm.unreadCount).toBe(7);
+		expect(vm.unreadCount).toBeUndefined();
+	});
+
+	it("should include totalArticles from options independent of current filter", () => {
+		const vm = toQueueViewModel(makeResult([], 0), DEFAULT_FILTERS, {
+			now: NOW,
+			totalArticles: 8,
+		});
+
+		expect(vm.totalArticles).toBe(8);
+		expect(vm.total).toBe(0);
+	});
+
+	it("should leave totalArticles undefined when not provided so the template renders a loading placeholder", () => {
+		const vm = toQueueViewModel(makeResult([], 5), DEFAULT_FILTERS, { now: NOW });
+
+		expect(vm.totalArticles).toBeUndefined();
 	});
 
 	it("should prefer the AI-generated excerpt over the summary when status is ready", () => {

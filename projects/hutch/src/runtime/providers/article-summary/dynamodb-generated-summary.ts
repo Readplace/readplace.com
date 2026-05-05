@@ -4,6 +4,7 @@ import { SummaryStatusSchema } from "@packages/article-state-types";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
+	batchGetFromTable,
 	defineDynamoTable,
 	dynamoField,
 } from "@packages/hutch-storage-client";
@@ -11,6 +12,7 @@ import { z } from "zod";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {
 	GeneratedSummary,
+	FindGeneratedSummariesByUrls,
 	FindGeneratedSummary,
 	ForceMarkSummaryPending,
 	MarkSummaryPending,
@@ -68,6 +70,7 @@ export function initDynamoDbGeneratedSummary(deps: {
 	tableName: string;
 }): {
 	findGeneratedSummary: FindGeneratedSummary;
+	findGeneratedSummariesByUrls: FindGeneratedSummariesByUrls;
 	markSummaryPending: MarkSummaryPending;
 	forceMarkSummaryPending: ForceMarkSummaryPending;
 } {
@@ -81,6 +84,39 @@ export function initDynamoDbGeneratedSummary(deps: {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const row = await table.get({ url: articleResourceUniqueId.value });
 		return rowToGeneratedSummary(row);
+	};
+
+	const findGeneratedSummariesByUrls: FindGeneratedSummariesByUrls = async (urls) => {
+		const result = new Map<string, GeneratedSummary | undefined>();
+		if (urls.length === 0) return result;
+
+		// Two URLs may canonicalise to the same row (e.g. utm-stripped duplicates).
+		// Dedupe keys for the BatchGet, then fan results back out to every input URL.
+		const urlsByCanonical = new Map<string, string[]>();
+		for (const url of urls) {
+			const canonical = ArticleResourceUniqueId.parse(url).value;
+			const bucket = urlsByCanonical.get(canonical);
+			if (bucket) bucket.push(url);
+			else urlsByCanonical.set(canonical, [url]);
+		}
+
+		const rows = await batchGetFromTable({
+			client: deps.client,
+			tableName: deps.tableName,
+			schema: ArticleSummaryRow,
+			keys: Array.from(urlsByCanonical.keys()).map((url) => ({ url })),
+		});
+		const summaryByCanonical = new Map<string, GeneratedSummary | undefined>(
+			rows.map((row) => [row.url, rowToGeneratedSummary(row)] as const),
+		);
+
+		for (const [canonical, originalUrls] of urlsByCanonical) {
+			const summary = summaryByCanonical.get(canonical);
+			for (const original of originalUrls) {
+				result.set(original, summary);
+			}
+		}
+		return result;
 	};
 
 	const markSummaryPending: MarkSummaryPending = async ({ url }) => {
@@ -113,6 +149,6 @@ export function initDynamoDbGeneratedSummary(deps: {
 		});
 	};
 
-	return { findGeneratedSummary, markSummaryPending, forceMarkSummaryPending };
+	return { findGeneratedSummary, findGeneratedSummariesByUrls, markSummaryPending, forceMarkSummaryPending };
 }
 /* c8 ignore stop */

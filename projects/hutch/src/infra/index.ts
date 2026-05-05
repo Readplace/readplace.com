@@ -132,7 +132,7 @@ const lambda = new HutchLambda("hutch", {
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/hutch-api",
 	assetDir: "./src/runtime",
-	memorySize: 512,
+	memorySize: 1024,
 	timeout: 30,
 	environment: {
 		NODE_ENV: stage === "production" ? "production" : "development",

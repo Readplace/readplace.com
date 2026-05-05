@@ -173,6 +173,7 @@ function initProviders() {
 			publishExportUserDataCommand,
 			putPendingHtml,
 			findGeneratedSummary: summaryStore.findGeneratedSummary,
+			findGeneratedSummariesByUrls: summaryStore.findGeneratedSummariesByUrls,
 			markSummaryPending: summaryStore.markSummaryPending,
 			forceMarkSummaryPending: summaryStore.forceMarkSummaryPending,
 			findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
@@ -260,6 +261,8 @@ function initProviders() {
 	const { publishExportUserDataCommand } = initInMemoryExportUserDataCommand({ logger: consoleLogger });
 	const { putPendingHtml } = initInMemoryPendingHtml();
 	const stubFindGeneratedSummary = async (_url: string) => undefined;
+	const stubFindGeneratedSummariesByUrls = async (urls: readonly string[]) =>
+		new Map(urls.map((url) => [url, undefined] as const));
 	const stubMarkSummaryPending = async (_params: { url: string }) => {};
 	const stubForceMarkSummaryPending = async (_params: { url: string }) => {};
 	const { refreshArticleIfStale } = initRefreshArticleIfStale({
@@ -302,6 +305,7 @@ function initProviders() {
 		publishExportUserDataCommand,
 		putPendingHtml,
 		findGeneratedSummary: stubFindGeneratedSummary,
+		findGeneratedSummariesByUrls: stubFindGeneratedSummariesByUrls,
 		markSummaryPending: stubMarkSummaryPending,
 		forceMarkSummaryPending: stubForceMarkSummaryPending,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,

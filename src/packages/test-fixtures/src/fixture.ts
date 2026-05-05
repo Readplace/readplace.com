@@ -24,6 +24,7 @@ import {
 } from "./providers/oauth/oauth-model";
 import { createValidateAccessToken } from "./providers/oauth/validate-access-token";
 import type {
+	FindGeneratedSummariesByUrls,
 	FindGeneratedSummary,
 	ForceMarkSummaryPending,
 	GeneratedSummary,
@@ -86,6 +87,7 @@ export const createNoopLogError = (): ((msg: string, err?: Error) => void) =>
 
 export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): {
 	findGeneratedSummary: FindGeneratedSummary;
+	findGeneratedSummariesByUrls: FindGeneratedSummariesByUrls;
 	markSummaryPending: MarkSummaryPending;
 	forceMarkSummaryPending: ForceMarkSummaryPending;
 	markSummaryReady: (params: { url: string; summary: string; excerpt: string }) => void;
@@ -110,6 +112,13 @@ export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): 
 		}
 		return state.get(id);
 	};
+	const findGeneratedSummariesByUrls: FindGeneratedSummariesByUrls = async (urls) => {
+		const result = new Map<string, GeneratedSummary | undefined>();
+		for (const url of urls) {
+			result.set(url, await findGeneratedSummary(url));
+		}
+		return result;
+	};
 	const markSummaryPending: MarkSummaryPending = async ({ url }) => {
 		const id = ArticleResourceUniqueId.parse(url).value;
 		if (state.get(id)?.status === "ready") return;
@@ -126,7 +135,7 @@ export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): 
 		state.set(id, { status: "ready", summary, excerpt });
 		reads.set(id, 0);
 	};
-	return { findGeneratedSummary, markSummaryPending, forceMarkSummaryPending, markSummaryReady };
+	return { findGeneratedSummary, findGeneratedSummariesByUrls, markSummaryPending, forceMarkSummaryPending, markSummaryReady };
 }
 
 export function createFakeApplyParseResult(deps: {

@@ -20,7 +20,12 @@
       {{#if saveError}}<p class="queue__save-error" data-test-save-error>{{saveError}}</p>{{/if}}
       {{#if importFlash}}<p class="queue__import-flash" data-test-import-flash>{{importFlash}}</p>{{/if}}
       <nav class="queue__filters" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-filters>
-        <a class="{{filterUnreadClass}}" href="{{filterUnreadUrl}}" data-test-filter="unread">{{filterUnreadLabel}}</a>
+        <a class="{{filterUnreadClass}}" href="{{filterUnreadUrl}}" data-test-filter="unread">{{!--
+          The label text starts as "To read (…)" and a hx-get fires on load to
+          /queue/counts, which returns the real count as a <span>. Keeping the
+          partition-wide COUNT off the synchronous render path is what gets the
+          page under the 1s budget on accounts with hundreds of articles.
+        --}}<span class="queue__filter-counts" data-test-queue-counts hx-get="/queue/counts" hx-trigger="load" hx-target="this" hx-swap="outerHTML">{{filterUnreadLabel}}</span></a>
         <a class="{{filterReadClass}}" href="{{filterReadUrl}}" data-test-filter="read">Done</a>
       </nav>
       <div class="queue__sort" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">

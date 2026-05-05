@@ -48,6 +48,7 @@ import type {
 	MarkCrawlPending,
 } from "@packages/test-fixtures/providers/article-crawl";
 import type {
+	FindGeneratedSummariesByUrls,
 	FindGeneratedSummary,
 	ForceMarkSummaryPending,
 	MarkSummaryPending,
@@ -147,6 +148,7 @@ interface AppDependencies {
 	findEmailByUserId: FindEmailByUserId;
 	putPendingHtml: PutPendingHtml;
 	findGeneratedSummary: FindGeneratedSummary;
+	findGeneratedSummariesByUrls: FindGeneratedSummariesByUrls;
 	markSummaryPending: MarkSummaryPending;
 	forceMarkSummaryPending: ForceMarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
@@ -444,6 +446,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
 		putPendingHtml: deps.putPendingHtml,
 		findGeneratedSummary: deps.findGeneratedSummary,
+		findGeneratedSummariesByUrls: deps.findGeneratedSummariesByUrls,
 		markSummaryPending: deps.markSummaryPending,
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
 		markCrawlPending: deps.markCrawlPending,

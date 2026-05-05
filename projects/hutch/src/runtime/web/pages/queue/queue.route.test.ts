@@ -942,6 +942,7 @@ describe("Queue routes", () => {
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
+ 	findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
  	markSummaryPending: fixture.summary.markSummaryPending,
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
@@ -1057,6 +1058,7 @@ describe("Queue routes", () => {
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
+ 	findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
  	markSummaryPending: fixture.summary.markSummaryPending,
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
@@ -1122,6 +1124,7 @@ describe("Queue routes", () => {
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
+ 	findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
  	markSummaryPending: fixture.summary.markSummaryPending,
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
@@ -1285,6 +1288,7 @@ describe("Queue routes", () => {
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
+ 	findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
  	markSummaryPending: fixture.summary.markSummaryPending,
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
@@ -1585,6 +1589,7 @@ describe("Queue routes", () => {
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
+ 	findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
  	markSummaryPending: fixture.summary.markSummaryPending,
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
@@ -1636,6 +1641,7 @@ describe("Queue routes", () => {
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
+ 	findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
  	markSummaryPending: fixture.summary.markSummaryPending,
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
@@ -1795,6 +1801,8 @@ describe("Queue routes", () => {
 				},
 				summary: {
 					findGeneratedSummary: async () => undefined,
+					findGeneratedSummariesByUrls: async (urls) =>
+						new Map(urls.map((url) => [url, undefined] as const)),
 					markSummaryPending: async (_params) => {
 						markSummaryPendingCalls += 1;
 					},
@@ -2411,7 +2419,7 @@ describe("Queue routes", () => {
 	});
 
 	describe("Unread tab count", () => {
-		it("should show unread count on the Unread tab", async () => {
+		it("should defer the unread count to /queue/counts so the partition-wide COUNT query stays off the synchronous render path", async () => {
 			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(app, auth);
 
@@ -2420,27 +2428,27 @@ describe("Queue routes", () => {
 
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
-			const unreadTab = doc.querySelector('[data-test-filter="unread"]');
-			expect(unreadTab?.textContent).toBe("To read (2)");
+			const counts = doc.querySelector("[data-test-queue-counts]");
+			assert.ok(counts, "queue-counts placeholder must always render so htmx can swap it");
+			expect(counts.getAttribute("hx-get")).toBe("/queue/counts");
+			expect(counts.getAttribute("hx-trigger")).toBe("load");
+			expect(counts.textContent).toBe("To read (…)");
 		});
 
-		it("should show unread count when viewing read tab", async () => {
+		it("GET /queue/counts returns the unread count fragment that htmx swaps into the badge", async () => {
 			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(app, auth);
 
 			await agent.post("/queue/save").type("form").send({ url: "https://example.com/1" });
 			await agent.post("/queue/save").type("form").send({ url: "https://example.com/2" });
-			await agent.post("/queue/save").type("form").send({ url: "https://example.com/3" });
 
-			const queueResponse = await agent.get("/queue");
-			const doc = new JSDOM(queueResponse.text).window.document;
-			const articleId = doc.querySelector("[data-test-article-list] .queue-article")?.getAttribute("data-test-article");
-			await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "read" });
-
-			const readResponse = await agent.get("/queue?status=read");
-			const readDoc = new JSDOM(readResponse.text).window.document;
-			const unreadTab = readDoc.querySelector('[data-test-filter="unread"]');
-			expect(unreadTab?.textContent).toBe("To read (2)");
+			const response = await agent.get("/queue/counts");
+			const doc = new JSDOM(`<!doctype html><body>${response.text}</body>`).window.document;
+			const counts = doc.querySelector("[data-test-queue-counts]");
+			assert.ok(counts, "fragment must contain the queue-counts span");
+			expect(counts.textContent).toBe("To read (2)");
+			expect(counts.getAttribute("data-unread-count")).toBe("2");
+			expect(counts.getAttribute("data-total-articles")).toBe("2");
 		});
 
 		it("should not show count on the Read tab", async () => {
@@ -2452,15 +2460,44 @@ describe("Queue routes", () => {
 			const readTab = doc.querySelector('[data-test-filter="read"]');
 			expect(readTab?.textContent).toBe("Done");
 		});
+	});
 
-		it("should show zero unread count on empty queue", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+	describe("Loading article summaries on /queue", () => {
+		it("issues a single batched summary lookup for the page rather than one GET per article (kills the N+1)", async () => {
+			// This test is the regression guard for the queue-tab perf fix:
+			// before the fix, /queue?tab=done called findGeneratedSummary once per
+			// article (20 sequential GetItems on a typical page), adding ~1.5 s
+			// of latency to the warm-Lambda render. The fix replaced that loop
+			// with a single batched call. We assert the call shape directly so a
+			// future refactor that re-introduces per-row reads fails this test.
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			let perRowCalls = 0;
+			const batchCalls: number[] = [];
+			const summary = {
+				...fixture.summary,
+				findGeneratedSummary: async (url: string) => {
+					perRowCalls += 1;
+					return fixture.summary.findGeneratedSummary(url);
+				},
+				findGeneratedSummariesByUrls: async (urls: readonly string[]) => {
+					batchCalls.push(urls.length);
+					return fixture.summary.findGeneratedSummariesByUrls(urls);
+				},
+			};
+			const { app, auth } = createTestApp({ ...fixture, summary });
 			const agent = await loginAgent(app, auth);
 
+			for (let i = 0; i < 3; i++) {
+				await agent.post("/queue/save").type("form").send({ url: `https://example.com/article-${i}` });
+			}
+			perRowCalls = 0;
+			batchCalls.length = 0;
+
 			const response = await agent.get("/queue");
-			const doc = new JSDOM(response.text).window.document;
-			const unreadTab = doc.querySelector('[data-test-filter="unread"]');
-			expect(unreadTab?.textContent).toBe("To read (0)");
+
+			expect(response.status).toBe(200);
+			expect(perRowCalls).toBe(0);
+			expect(batchCalls).toEqual([3]);
 		});
 	});
 

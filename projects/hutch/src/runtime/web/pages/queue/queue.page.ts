@@ -24,8 +24,8 @@ import type {
 	MarkCrawlPending,
 } from "@packages/test-fixtures/providers/article-crawl";
 import type {
+	FindGeneratedSummariesByUrls,
 	FindGeneratedSummary,
-	GeneratedSummary,
 	MarkSummaryPending,
 } from "@packages/test-fixtures/providers/article-summary";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
@@ -45,7 +45,7 @@ import { tabQuery } from "./queue.tabs";
 import type { HttpErrorMessageMapping } from "./queue.error";
 import { importFlashMapping } from "./queue.error";
 import { toQueueViewModel } from "./queue.viewmodel";
-import { QueuePage } from "./queue.component";
+import { QueuePage, formatUnreadLabel } from "./queue.component";
 import { ReaderPage } from "../reader/reader.component";
 import { ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import {
@@ -75,6 +75,7 @@ interface QueueDependencies {
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	putPendingHtml: PutPendingHtml;
 	findGeneratedSummary: FindGeneratedSummary;
+	findGeneratedSummariesByUrls: FindGeneratedSummariesByUrls;
 	markSummaryPending: MarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
@@ -90,14 +91,10 @@ interface QueueDependencies {
 import type { SavedArticle } from "@packages/domain/article";
 
 async function loadSummaries(
-	findGeneratedSummary: FindGeneratedSummary,
+	findGeneratedSummariesByUrls: FindGeneratedSummariesByUrls,
 	articles: readonly SavedArticle[],
-): Promise<Map<string, GeneratedSummary | undefined>> {
-	const results = await Promise.allSettled(articles.map((a) => findGeneratedSummary(a.url)));
-	return new Map(articles.map((a, i) => {
-		const r = results[i];
-		return [a.url, r.status === "fulfilled" ? r.value : undefined] as const;
-	}));
+) {
+	return findGeneratedSummariesByUrls(articles.map((a) => a.url));
 }
 
 export function initQueueRoutes(deps: QueueDependencies): Router {
@@ -139,13 +136,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			return;
 		}
 
-		const unreadCount = urlState.tab === "queue"
-			? result.total
-			: (await deps.findArticlesByUser({ userId, status: "unread", page: 1, pageSize: 1 })).total;
 		const saveError = deps.httpErrorMessageMapping(req.query);
 		const importFlash = importFlashMapping(req.query);
-		const summaryByUrl = await loadSummaries(deps.findGeneratedSummary, result.articles);
-		const vm = toQueueViewModel(result, urlState, { unreadCount, saveError, importFlash, summaryByUrl });
 		const extensionInstalled = isExtensionInstalled(req);
 		const extensionSavedArticle = isExtensionSavedArticle(req);
 		/** Dismissal only counts when the extension is also installed in *this* browser.
@@ -155,10 +147,40 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		 * again so they can install the extension here. */
 		const onboardingDismissed = extensionInstalled && req.cookies?.[DISMISS_COOKIE_NAME] === ONBOARDING_VERSION;
 		const browser = detectBrowser(req);
+		/* unreadCount stays off the synchronous critical path — the unread tab
+		 * label renders a "…" placeholder and hx-get="/queue/counts" hydrates
+		 * it ~150 ms after first paint.
+		 *
+		 * totalArticles is the awkward case: the onboarding checklist's
+		 * "save your first article" step depends on it, and onboarding is part
+		 * of the synchronous SSR render (htmx does not re-render the checklist
+		 * from /queue/counts). For users who have dismissed onboarding (the
+		 * common case after the first session) we skip the query entirely.
+		 * Only users still seeing the checklist pay the COUNT query, and even
+		 * for them the per-row summary BatchGet (the bigger win) already lands. */
+		const [summaryByUrl, totalArticles] = await Promise.all([
+			loadSummaries(deps.findGeneratedSummariesByUrls, result.articles),
+			onboardingDismissed
+				? Promise.resolve(undefined)
+				: deps.findArticlesByUser({ userId, page: 1, pageSize: 1 }).then((r) => r.total),
+		]);
+		const vm = toQueueViewModel(result, urlState, { saveError, importFlash, summaryByUrl, totalArticles });
 		const showImportForm = req.query.feature === "import";
 		sendComponent(
 			res,
 			renderPage(req, QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, extensionSavedArticle, browser, onboardingDismissed, showImportForm })),
+		);
+	});
+
+	router.get("/counts", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const [unread, all] = await Promise.all([
+			deps.findArticlesByUser({ userId, status: "unread", page: 1, pageSize: 1 }),
+			deps.findArticlesByUser({ userId, page: 1, pageSize: 1 }),
+		]);
+		res.type("html").send(
+			`<span class="queue__filter-counts" data-test-queue-counts data-unread-count="${unread.total}" data-total-articles="${all.total}">${formatUnreadLabel(unread.total)}</span>`,
 		);
 	});
 
@@ -320,11 +342,9 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		if (!parsedBody.success) {
 			const urlState = parseQueueUrl({});
 			const result = await deps.findArticlesByUser({ userId });
-			const unreadCount = (await deps.findArticlesByUser({ userId, status: "unread", page: 1, pageSize: 1 })).total;
-			const summaryByUrl = await loadSummaries(deps.findGeneratedSummary, result.articles);
+			const summaryByUrl = await loadSummaries(deps.findGeneratedSummariesByUrls, result.articles);
 			const vm = toQueueViewModel(result, urlState, {
 				saveError: "Please enter a valid URL",
-				unreadCount,
 				summaryByUrl,
 			});
 			sendComponent(res, renderPage(req, QueuePage(vm, { statusCode: 422 })));

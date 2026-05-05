@@ -711,6 +711,7 @@ describe("View routes", () => {
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
+ 	findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
  	markSummaryPending: fixture.summary.markSummaryPending,
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
@@ -756,6 +757,7 @@ describe("View routes", () => {
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
+ 	findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
  	markSummaryPending: fixture.summary.markSummaryPending,
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
@@ -801,6 +803,7 @@ describe("View routes", () => {
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
+ 	findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
  	markSummaryPending: fixture.summary.markSummaryPending,
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
@@ -850,6 +853,7 @@ describe("View routes", () => {
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
+ 	findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
  	markSummaryPending: fixture.summary.markSummaryPending,
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
@@ -899,6 +903,7 @@ describe("View routes", () => {
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
+ 	findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
  	markSummaryPending: fixture.summary.markSummaryPending,
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
@@ -928,6 +933,7 @@ describe("View routes", () => {
 				...fixture,
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
+ 	findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
  	markSummaryPending: fixture.summary.markSummaryPending,
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
@@ -952,6 +958,7 @@ describe("View routes", () => {
 				...fixture,
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
+ 	findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
  	markSummaryPending: fixture.summary.markSummaryPending,
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
@@ -975,6 +982,7 @@ describe("View routes", () => {
 				...fixture,
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
+ 	findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
  	markSummaryPending: fixture.summary.markSummaryPending,
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
@@ -1021,6 +1029,7 @@ describe("View routes", () => {
  },
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
+ 	findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
  	markSummaryPending: fixture.summary.markSummaryPending,
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
@@ -1572,6 +1581,7 @@ describe("View routes", () => {
 				freshness: { refreshArticleIfStale: async () => ({ action: "skip" }) },
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
+ 	findGeneratedSummariesByUrls: fixture.summary.findGeneratedSummariesByUrls,
  	markSummaryPending: fixture.summary.markSummaryPending,
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },

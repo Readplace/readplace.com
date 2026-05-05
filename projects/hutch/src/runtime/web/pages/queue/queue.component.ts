@@ -69,7 +69,8 @@ function filterLinkClass(isActive: boolean): string {
 	return `queue__filter-link${isActive ? " queue__filter-link--active" : ""}`;
 }
 
-export function formatUnreadLabel(count: number): string {
+export function formatUnreadLabel(count: number | undefined): string {
+	if (count === undefined) return "To read (…)";
 	return count > 99 ? "To read (99+)" : `To read (${count})`;
 }
 
@@ -80,9 +81,18 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 	const sortLabel = effectiveOrder === "desc" ? "Newest first ↓" : "Oldest first ↑";
 	const sortUrl = buildQueueUrl({ tab: activeTab, order: nextOrder });
 
+	/* totalArticles is undefined until /queue/counts hydrates. For the
+	 * synchronous onboarding render we fall back to result.total so the
+	 * "save your first article" step ticks correctly for the common case
+	 * (new user with zero saves). For users with a populated queue who
+	 * haven't dismissed onboarding, the worst case is a brief mismatch
+	 * until the user dismisses the checklist; htmx does not re-render
+	 * onboarding from the /queue/counts response. */
+	const savedArticleCount = vm.totalArticles ?? vm.total;
 	const onboardingHtml = options.onboardingDismissed
 		? ""
 		: OnboardingChecklist({
+			savedArticleCount,
 			extensionInstalled: options.extensionInstalled,
 			extensionSavedArticle: options.extensionSavedArticle,
 			browser: options.browser,

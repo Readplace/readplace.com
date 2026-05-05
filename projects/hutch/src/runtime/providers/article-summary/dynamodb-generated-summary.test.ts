@@ -165,6 +165,61 @@ describe("initDynamoDbGeneratedSummary", () => {
 		expect(result).toEqual({ status: "skipped" });
 	});
 
+	describe("findGeneratedSummariesByUrls", () => {
+		it("returns an empty map for an empty input without hitting DynamoDB", async () => {
+			let sendCalls = 0;
+			const client: Partial<DynamoDBDocumentClient> = {
+				send: async () => {
+					sendCalls += 1;
+					return {};
+				},
+			};
+			const { findGeneratedSummariesByUrls } = initDynamoDbGeneratedSummary({
+				client: client as typeof client & DynamoDBDocumentClient,
+				tableName: "test-table",
+			});
+
+			const result = await findGeneratedSummariesByUrls([]);
+
+			expect(result.size).toBe(0);
+			expect(sendCalls).toBe(0);
+		});
+
+		it("maps each input URL to its summary, with missing rows mapped to undefined and the input URL preserved as the map key", async () => {
+			const client: Partial<DynamoDBDocumentClient> = {
+				send: async () => ({
+					Responses: {
+						"test-table": [
+							// example.com/a is ready, example.com/b is pending, example.com/missing has no row at all.
+							{ url: "example.com/a", summary: "Summary A", summaryStatus: "ready" },
+							{ url: "example.com/b", summaryStatus: "pending" },
+						],
+					},
+				}),
+			};
+			const { findGeneratedSummariesByUrls } = initDynamoDbGeneratedSummary({
+				client: client as typeof client & DynamoDBDocumentClient,
+				tableName: "test-table",
+			});
+
+			const inputs = [
+				"https://example.com/a",
+				"https://example.com/b",
+				"https://example.com/missing",
+			];
+			const result = await findGeneratedSummariesByUrls(inputs);
+
+			expect(result.get("https://example.com/a")).toEqual({ status: "ready", summary: "Summary A" });
+			expect(result.get("https://example.com/b")).toEqual({ status: "pending" });
+			// "missing" had no row; we still emit a Map entry mapped to undefined
+			// so the caller can distinguish "not yet looked up" from "looked up
+			// and not present" — important because the queue render uses the Map
+			// to decide whether to fall back to metadata excerpt.
+			expect(result.has("https://example.com/missing")).toBe(true);
+			expect(result.get("https://example.com/missing")).toBeUndefined();
+		});
+	});
+
 	it("returns skipped with reason when summarySkippedReason is present", async () => {
 		const client = createFakeClient({
 			url: "https://example.com/article",

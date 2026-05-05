@@ -16,4 +16,12 @@ describe("formatUnreadLabel", () => {
 	it("should cap at 99+ when count exceeds 99", () => {
 		expect(formatUnreadLabel(100)).toBe("To read (99+)");
 	});
+
+	it("should render an ellipsis placeholder while the count is loading", () => {
+		// undefined indicates that the deferred /queue/counts fragment hasn't yet
+		// hydrated the badge — the template still needs a string to render in
+		// the synchronous response, so the placeholder shows "…" inside the
+		// label until htmx swaps in the real number.
+		expect(formatUnreadLabel(undefined)).toBe("To read (…)");
+	});
 });
