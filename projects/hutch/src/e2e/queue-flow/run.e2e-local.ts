@@ -38,8 +38,8 @@ test.describe('Queue management flow (local)', () => {
 
     const onboardingProgress: OnboardingProgress = {
       installedExtension: false,
-      savedFirstArticle: false,
-      savedFirstArticleReappeared: false,
+      savedViaExtension: false,
+      persistedAfterLogin: false,
     }
 
     const savePermalinkProgress: SavePermalinkProgress = {
@@ -62,7 +62,7 @@ test.describe('Queue management flow (local)', () => {
           { baseUrl: BASE_URL, testUrl: `${BASE_URL}/privacy?view=1`, unfetchableUrl: `${BASE_URL}/e2e/unfetchable` },
           viewPageProgress,
         ),
-        onboarding: createOnboardingActions(onboardingProgress),
+        onboarding: createOnboardingActions(onboardingProgress, { sirenSaveUrl: `${BASE_URL}/privacy?onboarding-e2e=1` }),
         seed: createSeedActions(seedProgress, [`${BASE_URL}/privacy?seed=1`, `${BASE_URL}/privacy?seed=2`]),
         cleanup: createCleanupActions(cleanupProgress),
         passwordReset: createPasswordResetActions(

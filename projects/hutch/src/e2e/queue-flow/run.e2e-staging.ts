@@ -77,8 +77,8 @@ test.describe('Queue management flow (staging)', () => {
     // with local by registering no-op actions under the same keys.
     const onboardingProgress: OnboardingProgress = {
       installedExtension: true,
-      savedFirstArticle: true,
-      savedFirstArticleReappeared: true,
+      savedViaExtension: true,
+      persistedAfterLogin: true,
     }
 
     const seedProgress: SeedProgress = {
