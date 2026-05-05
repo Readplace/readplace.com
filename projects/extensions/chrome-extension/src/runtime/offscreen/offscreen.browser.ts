@@ -11,7 +11,9 @@ interface SerializedImageData {
 }
 
 async function tintIcon(size: number, color: string): Promise<SerializedImageData> {
-	const url = browser.runtime.getURL(`icons/icon-${size}.png`);
+	// Tint the dark-colored variant — it has no halo, so the source-in composite
+	// produces a cleanly-tinted shape without a colored halo around it.
+	const url = browser.runtime.getURL(`icons/dark/icon-${size}.png`);
 	const response = await fetch(url);
 	const blob = await response.blob();
 	const bitmap = await createImageBitmap(blob);
@@ -48,6 +50,12 @@ async function getSavedIconData(): Promise<Record<number, SerializedImageData>> 
 	return savedIconCache;
 }
 
+function getCurrentTheme(): "dark" | "light" {
+	return window.matchMedia("(prefers-color-scheme: dark)").matches
+		? "dark"
+		: "light";
+}
+
 browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 	const message = raw as { target?: string; type?: string };
 	if (message.target !== "offscreen") return;
@@ -55,6 +63,11 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 	if (message.type === "get-saved-icon-data") {
 		getSavedIconData().then(sendResponse);
 		return true;
+	}
+
+	if (message.type === "get-current-theme") {
+		sendResponse(getCurrentTheme());
+		return undefined;
 	}
 
 	return undefined;
