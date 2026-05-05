@@ -17,10 +17,13 @@ const OnboardingRowSchema = z.object({
 	"save-via-extension": z.string().optional(),
 });
 
-const ALL_STEP_IDS: readonly OnboardingStepId[] = [
+type AssertExhaustive<U, Tuple extends readonly U[]> =
+	[Exclude<U, Tuple[number]>] extends [never] ? Tuple : ['missing keys', Exclude<U, Tuple[number]>];
+
+const ALL_STEP_IDS = [
 	"install-extension",
 	"save-via-extension",
-];
+] as const satisfies AssertExhaustive<OnboardingStepId, readonly OnboardingStepId[]>;
 
 export function initDynamoDbOnboarding(deps: {
 	client: DynamoDBDocumentClient;

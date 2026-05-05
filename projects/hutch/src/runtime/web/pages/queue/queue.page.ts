@@ -217,7 +217,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			const freshness = await deps.refreshArticleIfStale({ url: parsed.data.url });
 			const result = await saveArticleFromUrl(deps, { userId, url: parsed.data.url, freshness });
 			await deps.markOnboardingStepCompleted({ userId, stepId: "save-via-extension", completedAt: deps.now() })
-				.catch(() => { deps.logError("Failed to persist save-via-extension completion"); });
+				.catch((err: unknown) => { deps.logError(`Failed to persist save-via-extension completion: ${String(err)}`); });
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
@@ -295,7 +295,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					const freshness = await deps.refreshArticleIfStale({ url: urlOnly.data.url });
 					const result = await saveArticleFromUrl(deps, { userId, url: urlOnly.data.url, freshness });
 					await deps.markOnboardingStepCompleted({ userId, stepId: "save-via-extension", completedAt: deps.now() })
-						.catch(() => { deps.logError("Failed to persist save-via-extension completion"); });
+						.catch((err: unknown) => { deps.logError(`Failed to persist save-via-extension completion: ${String(err)}`); });
 					res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 					return;
 				}
@@ -316,7 +316,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 			const result = await saveArticleFromUrl(deps, { userId, url: parsed.data.url, freshness });
 			await deps.markOnboardingStepCompleted({ userId, stepId: "save-via-extension", completedAt: deps.now() })
-				.catch(() => { deps.logError("Failed to persist save-via-extension completion"); });
+				.catch((err: unknown) => { deps.logError(`Failed to persist save-via-extension completion: ${String(err)}`); });
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
 			deps.logError("Failed to save article from html", error instanceof Error ? error : undefined);
