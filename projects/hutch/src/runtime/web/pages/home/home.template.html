@@ -232,7 +232,7 @@
           <h2 class="section-header__title">Free for the first 100 members.</h2>
         </div>
         {{{foundingProgressHtml}}}
-        <!-- <div class="pricing-grid">
+        <div class="pricing-grid {{pricingGridStateClass}}">
           <div class="pricing-card pricing-card--featured" data-test-plan="founding">
             <span class="pricing-card__badge">First 100 Users</span>
             <h3 class="pricing-card__name">Founding Member</h3>
@@ -245,11 +245,11 @@
               <li class="pricing-card__feature">All features as they ship</li>
               <li class="pricing-card__feature">Direct access to the developer</li>
             </ul>
-            <a href="/signup" class="btn btn--brand pricing-card__cta" data-test-cta="founding">Signup</a>
+            <a href="/signup?utm_source=homepage&utm_medium=internal&utm_content=founding-card" class="btn btn--brand pricing-card__cta" data-test-cta="founding">Signup</a>
           </div>
-        </div> -->
-        <div>
-          <a href="/signup?utm_source=homepage&utm_medium=internal&utm_content=signup-body" class="btn btn--brand pricing-card__cta">Become a Member</a>
+        </div>
+        <div class="home-pricing__fallback-cta {{fallbackCtaStateClass}}">
+          <a href="/signup?utm_source=homepage&utm_medium=internal&utm_content=signup-body" class="btn btn--brand pricing-card__cta" data-test-cta="become-member">Become a Member</a>
         </div>
       </div>
     </section>

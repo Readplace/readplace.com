@@ -101,6 +101,7 @@ export interface AuthBundle {
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
+	deleteUser: (email: string) => Promise<void>;
 }
 
 export interface StripeCheckoutBundle {

@@ -24,10 +24,11 @@ import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
 describe("Email verification", () => {
 	describe("POST /signup → Stripe → success", () => {
 		it("should send a verification email after successful Stripe checkout", async () => {
-			const { app, email, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { app, auth, email, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			await completeStripeSignup({
 				app,
+				auth,
 				stripe,
 				email: "new@example.com",
 				password: "password123",
@@ -97,6 +98,7 @@ describe("Email verification", () => {
 
 			const { successResponse } = await completeStripeSignup({
 				app,
+				auth,
 				stripe,
 				email: "fail-email@example.com",
 				password: "password123",
@@ -123,10 +125,11 @@ describe("Email verification", () => {
 
 	describe("GET /verify-email", () => {
 		it("should verify email with a valid token", async () => {
-			const { app, email, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { app, auth, email, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			await completeStripeSignup({
 				app,
+				auth,
 				stripe,
 				email: "verify@example.com",
 				password: "password123",
@@ -165,10 +168,11 @@ describe("Email verification", () => {
 		});
 
 		it("should reject a token that has already been used", async () => {
-			const { app, email, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { app, auth, email, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			await completeStripeSignup({
 				app,
+				auth,
 				stripe,
 				email: "once@example.com",
 				password: "password123",
@@ -192,6 +196,7 @@ describe("Email verification", () => {
 
 			const { successResponse } = await completeStripeSignup({
 				app,
+				auth,
 				stripe,
 				email: "flag@example.com",
 				password: "password123",
@@ -224,6 +229,7 @@ describe("Email verification", () => {
 
 			const { successResponse } = await completeStripeSignup({
 				app,
+				auth,
 				stripe,
 				email: "noverify@example.com",
 				password: "password123",
@@ -243,10 +249,11 @@ describe("Email verification", () => {
 		});
 
 		it("should send a welcome email after successful verification", async () => {
-			const { app, email, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { app, auth, email, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			await completeStripeSignup({
 				app,
+				auth,
 				stripe,
 				email: "welcome@example.com",
 				password: "password123",
@@ -271,10 +278,11 @@ describe("Email verification", () => {
 		});
 
 		it("should not send a welcome email when the verification token is invalid", async () => {
-			const { app, email, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { app, auth, email, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			await completeStripeSignup({
 				app,
+				auth,
 				stripe,
 				email: "nowelcome@example.com",
 				password: "password123",

@@ -4,6 +4,8 @@ import request from "supertest";
 import type { Express } from "express";
 import { CheckoutSessionIdSchema } from "../../../providers/stripe-checkout/stripe-checkout.schema";
 import type { CheckoutSessionId } from "../../../providers/stripe-checkout/stripe-checkout.types";
+import type { AuthBundle } from "../../../test-app";
+import { FOUNDING_MEMBER_LIMIT } from "../../shared/founding-progress/founding-allocation";
 
 interface StripeBundle {
 	markPaid: (id: CheckoutSessionId) => void;
@@ -12,9 +14,15 @@ interface StripeBundle {
 /** Drives an email-signup flow through the Stripe checkout boundary in a single
  * step: posts to /signup, asserts the redirect to the Stripe URL, marks the
  * session paid via the in-memory Stripe fake, then GETs the success URL using
- * the shared agent so the session cookie persists. */
+ * the shared agent so the session cookie persists.
+ *
+ * Stripe checkout is gated behind the founding-member allocation: signups only
+ * route through Stripe once the user count exceeds FOUNDING_MEMBER_LIMIT. This
+ * helper seeds enough fake users to push past that boundary so callers can
+ * exercise the paid path without needing to know about it. */
 export async function completeStripeSignup(params: {
 	app: Express;
+	auth: AuthBundle;
 	stripe: StripeBundle;
 	email: string;
 	password: string;
@@ -25,6 +33,14 @@ export async function completeStripeSignup(params: {
 	successResponse: import("supertest").Response;
 	checkoutSessionId: CheckoutSessionId;
 }> {
+	for (let i = 0; i < FOUNDING_MEMBER_LIMIT + 1; i++) {
+		const seedEmail = `stripe-seed-${i}@test.invalid`;
+		const existing = await params.auth.findUserByEmail(seedEmail);
+		if (!existing) {
+			await params.auth.createUser({ email: seedEmail, password: "password123" });
+		}
+	}
+
 	const agent = params.agent ?? request.agent(params.app);
 	const signupPath = params.returnUrl
 		? `/signup?return=${encodeURIComponent(params.returnUrl)}`

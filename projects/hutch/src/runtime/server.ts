@@ -403,13 +403,17 @@ export function createApp(dependencies: AppDependencies): Express {
 			googleClientId: deps.googleAuth.clientId,
 			googleClientSecret: deps.googleAuth.clientSecret,
 			appOrigin,
+			baseUrl: deps.baseUrl,
+			staticBaseUrl,
 			createSession: deps.createSession,
+			createGoogleUser: deps.createGoogleUser,
 			findUserByEmail: deps.findUserByEmail,
 			countUsers,
 			markEmailVerified: deps.markEmailVerified,
 			exchangeGoogleCode: deps.googleAuth.exchangeGoogleCode,
 			createCheckoutSession: deps.createCheckoutSession,
 			storePendingSignup: deps.storePendingSignup,
+			sendEmail: deps.sendEmail,
 			logError: deps.logError,
 		});
 		app.use(googleAuthRouter);

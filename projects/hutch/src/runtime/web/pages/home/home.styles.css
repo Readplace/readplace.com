@@ -689,6 +689,22 @@
   align-items: start;
 }
 
+.pricing-grid--visible {
+  display: grid;
+}
+
+.pricing-grid--hidden {
+  display: none;
+}
+
+.home-pricing__fallback-cta--visible {
+  display: block;
+}
+
+.home-pricing__fallback-cta--hidden {
+  display: none;
+}
+
 .pricing-card {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);

@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "../../render";
-
-const FOUNDING_MEMBER_LIMIT = 100;
+import {
+	FOUNDING_MEMBER_LIMIT,
+	isFoundingAllocationExhausted,
+} from "./founding-allocation";
 
 const FOUNDING_PROGRESS_TEMPLATE = readFileSync(
 	join(__dirname, "founding-progress.template.html"),
@@ -15,7 +17,7 @@ export function renderFoundingProgress(input: { userCount: number }): string {
 		Math.round((userCount / FOUNDING_MEMBER_LIMIT) * 100),
 		100,
 	);
-	const allocationExhausted = userCount >= FOUNDING_MEMBER_LIMIT;
+	const allocationExhausted = isFoundingAllocationExhausted(userCount);
 	const exhaustedStateClass = allocationExhausted
 		? "founding-progress__exhausted--visible"
 		: "founding-progress__exhausted--hidden";

@@ -259,8 +259,91 @@ describe("Auth routes", () => {
 	});
 
 	describe("POST /signup", () => {
-		it("should redirect new visitors to a Stripe checkout URL", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		it("should create the account directly and redirect to /queue when at or below the founding limit", async () => {
+			const { app, auth, pendingSignup } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			for (let i = 0; i < 100; i++) {
+				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+
+			const response = await request(app).post("/signup").type("form").send({
+				email: "free@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
+			expect(response.headers["set-cookie"].length).toBeGreaterThan(0);
+
+			const lookup = await auth.findUserByEmail("free@example.com");
+			assert(lookup, "free signup must persist a user");
+			expect(lookup.emailVerified).toBe(false);
+
+			const consumed = await pendingSignup.consumePendingSignup(
+				CheckoutSessionIdSchema.parse("cs_test_never_created"),
+			);
+			expect(consumed).toBeNull();
+		}, 30000);
+
+		it("should redirect to Stripe checkout when over the founding limit", async () => {
+			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			for (let i = 0; i < 101; i++) {
+				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+
+			const response = await request(app).post("/signup").type("form").send({
+				email: "paid@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toMatch(/^https:\/\/checkout\.stripe\.test\//);
+		}, 30000);
+
+		it("should fall back to free signup after a manual deletion drops the count back to the limit", async () => {
+			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			for (let i = 0; i < 102; i++) {
+				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+			await auth.deleteUser("seed0@test.com");
+			await auth.deleteUser("seed1@test.com");
+
+			const response = await request(app).post("/signup").type("form").send({
+				email: "after-delete@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
+		}, 30000);
+
+		it("should send the email verification email on free signup", async () => {
+			const { app, email } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(app).post("/signup").type("form").send({
+				email: "verify-free@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			const sent = email.getSentEmails();
+			const verification = sent.find((m) => m.to === "verify-free@example.com");
+			assert(verification, "verification email must be sent on free signup");
+			expect(verification.subject).toBe("Verify your email — Readplace");
+		});
+
+		it("should redirect new visitors to a Stripe checkout URL when over the founding limit", async () => {
+			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			for (let i = 0; i < 101; i++) {
+				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
 
 			const response = await request(app).post("/signup").type("form").send({
 				email: "new@example.com",
@@ -271,13 +354,14 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toMatch(/^https:\/\/checkout\.stripe\.test\//);
-		});
+		}, 30000);
 
 		it("should create the account on successful Stripe checkout and redirect to /queue", async () => {
-			const { app, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { app, auth, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			const { successResponse } = await completeStripeSignup({
 				app,
+				auth,
 				stripe,
 				email: "new@example.com",
 				password: "password123",
@@ -286,13 +370,14 @@ describe("Auth routes", () => {
 			expect(successResponse.status).toBe(303);
 			expect(successResponse.headers.location).toBe("/queue");
 			expect(successResponse.headers["set-cookie"].length).toBeGreaterThan(0);
-		});
+		}, 30000);
 
 		it("should redirect to return URL after successful Stripe checkout", async () => {
-			const { app, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { app, auth, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			const { successResponse } = await completeStripeSignup({
 				app,
+				auth,
 				stripe,
 				email: "new@example.com",
 				password: "password123",
@@ -301,13 +386,14 @@ describe("Auth routes", () => {
 
 			expect(successResponse.status).toBe(303);
 			expect(successResponse.headers.location).toBe("/oauth/authorize?client_id=test");
-		});
+		}, 30000);
 
 		it("should ignore protocol-relative return URLs on signup", async () => {
-			const { app, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { app, auth, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			const { successResponse } = await completeStripeSignup({
 				app,
+				auth,
 				stripe,
 				email: "new@example.com",
 				password: "password123",
@@ -316,13 +402,14 @@ describe("Auth routes", () => {
 
 			expect(successResponse.status).toBe(303);
 			expect(successResponse.headers.location).toBe("/queue");
-		});
+		}, 30000);
 
 		it("should ignore non-relative return URLs on signup", async () => {
-			const { app, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { app, auth, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			const { successResponse } = await completeStripeSignup({
 				app,
+				auth,
 				stripe,
 				email: "new@example.com",
 				password: "password123",
@@ -331,7 +418,7 @@ describe("Auth routes", () => {
 
 			expect(successResponse.status).toBe(303);
 			expect(successResponse.headers.location).toBe("/queue");
-		});
+		}, 30000);
 
 		it("should show error for duplicate email", async () => {
 			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -585,8 +672,11 @@ describe("Auth routes", () => {
 			expect(consumed).toBeNull();
 		});
 
-		it("falls through to the existing happy path (303 to Stripe) when the honeypot is empty and loadedAt is older than 2.5s", async () => {
-			const { app, botDefense } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		it("falls through to the existing happy path (303 to Stripe) when the honeypot is empty, loadedAt is older than 2.5s, and the founding allocation is exhausted", async () => {
+			const { app, auth, botDefense } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			for (let i = 0; i < 101; i++) {
+				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
 
 			const response = await request(app).post("/signup").type("form").send({
 				email: "real@example.com",
@@ -599,7 +689,7 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toMatch(/^https:\/\/checkout\.stripe\.test\//);
 			expect(botDefense.events).toEqual([]);
-		});
+		}, 30000);
 	});
 
 	describe("GET /verify-email", () => {

@@ -182,16 +182,23 @@ describe("GET /", () => {
 		expect(backstory).not.toBeNull();
 	});
 
-	// it("should render one pricing plan for founding members", async () => {
-	// 	const response = await request(app).get("/");
-	// 	const doc = new JSDOM(response.text).window.document;
+	it("should render the founding pricing card and hide the fallback CTA when under the limit", async () => {
+		const response = await request(app).get("/");
+		const doc = new JSDOM(response.text).window.document;
 
-	// 	const pricingSection = doc.querySelector('[data-test-section="pricing"]');
-	// 	const plans = pricingSection?.querySelectorAll(".pricing-card");
-	// 	expect(plans?.length).toBe(1);
-	// 	expect(doc.querySelector('[data-test-plan="founding"] .pricing-card__name')?.textContent).toBe("Founding Member");
-	// 	expect(doc.querySelector('[data-test-plan="founding"] .pricing-card__price')?.textContent).toContain("$0");
-	// });
+		const founding = doc.querySelector('[data-test-plan="founding"]');
+		assert(founding, "founding pricing card must be rendered");
+		expect(founding.querySelector(".pricing-card__name")?.textContent).toBe("Founding Member");
+		expect(founding.querySelector(".pricing-card__price")?.textContent).toContain("$0");
+
+		const grid = founding.closest(".pricing-grid");
+		assert(grid, "pricing-grid wrapper must be rendered");
+		expect(grid.classList.contains("pricing-grid--visible")).toBe(true);
+
+		const fallback = doc.querySelector(".home-pricing__fallback-cta");
+		assert(fallback, "fallback CTA wrapper must be rendered");
+		expect(fallback.classList.contains("home-pricing__fallback-cta--hidden")).toBe(true);
+	});
 
 	it("should render the founding members progress bar with zero users", async () => {
 		const response = await request(app).get("/");
@@ -344,7 +351,28 @@ describe("GET / with exhausted founding allocation", () => {
 
 		const label = doc.querySelector(".founding-progress__label");
 		expect(label?.textContent).toBe("101 / 100 founding members");
-	});
+	}, 30000);
+
+	it("should hide the founding pricing card and show the fallback CTA when over the limit", async () => {
+		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		for (let i = 0; i < 102; i++) {
+			await auth.createUser({ email: `over${i}@test.com`, password: "password123" });
+		}
+
+		const response = await request(app).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const founding = doc.querySelector('[data-test-plan="founding"]');
+		assert(founding, "founding pricing card must be rendered");
+		const grid = founding.closest(".pricing-grid");
+		assert(grid, "pricing-grid wrapper must be rendered");
+		expect(grid.classList.contains("pricing-grid--hidden")).toBe(true);
+
+		const fallback = doc.querySelector(".home-pricing__fallback-cta");
+		assert(fallback, "fallback CTA wrapper must be rendered");
+		expect(fallback.classList.contains("home-pricing__fallback-cta--visible")).toBe(true);
+	}, 30000);
 });
 
 describe("GET /robots.txt", () => {
