@@ -17,7 +17,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 				: "Install a browser extension";
 		},
 		description:
-			"Add Readplace to your browser so you can save any page with one click.",
+			"Add Readplace to your browser and log-in so you can save any page with one click.",
 		isComplete: (ctx) => ctx.extensionInstalled,
 		actions: (ctx) => [{
 			label: BROWSER_LABELS[ctx.browser] ? "Install" : "Choose browser",
