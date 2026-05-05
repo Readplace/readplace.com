@@ -48,6 +48,8 @@ import { initPutPendingHtml } from "./providers/pending-html/put-pending-html";
 import { initInMemoryPendingHtml } from "./providers/pending-html/in-memory-pending-html";
 import { initInMemoryImportSession } from "./providers/import-session/in-memory-import-session";
 import { initDynamoDbImportSession } from "./providers/import-session/dynamodb-import-session";
+import { initInMemoryOnboarding } from "./providers/onboarding/in-memory-onboarding";
+import { initDynamoDbOnboarding } from "./providers/onboarding/dynamodb-onboarding";
 import { initExchangeGoogleCode } from "./providers/google-auth/google-token";
 import { initInMemoryStripeCheckout } from "./providers/stripe-checkout/in-memory-stripe-checkout";
 import { initStripeCheckout } from "./providers/stripe-checkout/stripe-checkout";
@@ -91,6 +93,7 @@ function initProviders() {
 		const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 		const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
 		const importSessionsTable = requireEnv("DYNAMODB_IMPORT_SESSIONS_TABLE");
+		const onboardingTable = requireEnv("DYNAMODB_ONBOARDING_TABLE");
 		const client = createDynamoDocumentClient();
 		const s3Client = new S3Client({});
 
@@ -150,12 +153,14 @@ function initProviders() {
 			tableName: importSessionsTable,
 			now: () => new Date(),
 		});
+		const onboarding = initDynamoDbOnboarding({ client, tableName: onboardingTable });
 
 		return {
 			auth,
 			articleStore,
 			readArticleContent,
 			importSessionStore,
+			...onboarding,
 
 			...initResendEmail(resendApiKey),
 			...initDynamoDbEmailVerification({ client, tableName: verificationTokensTable }),
@@ -274,6 +279,7 @@ function initProviders() {
 	});
 
 	const importSessionStore = initInMemoryImportSession({ now: () => new Date() });
+	const onboarding = initInMemoryOnboarding();
 
 	return {
 		auth,
@@ -283,6 +289,8 @@ function initProviders() {
 			logError,
 		}),
 		importSessionStore,
+		findCompletedOnboardingSteps: onboarding.findCompletedOnboardingSteps,
+		markOnboardingStepCompleted: onboarding.markOnboardingStepCompleted,
 
 		...initLogEmail(),
 		...initInMemoryEmailVerification(),

@@ -77,6 +77,10 @@ import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initQueueRoutes } from "./web/pages/queue/queue.page";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "./domain/import-session/import-session.types";
+import type {
+	FindCompletedOnboardingSteps,
+	MarkOnboardingStepCompleted,
+} from "./providers/onboarding/onboarding.types";
 import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { initSaveRoutes } from "./web/pages/save/save.page";
 import { initViewRoutes } from "./web/pages/view/view.page";
@@ -160,6 +164,8 @@ interface AppDependencies {
 	httpErrorMessageMapping: HttpErrorMessageMapping;
 	logParseError: LogParseError;
 	importSessionStore: ImportSessionStore;
+	findCompletedOnboardingSteps: FindCompletedOnboardingSteps;
+	markOnboardingStepCompleted: MarkOnboardingStepCompleted;
 	now: () => Date;
 	createCheckoutSession: CreateCheckoutSession;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
@@ -449,6 +455,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		httpErrorMessageMapping: deps.httpErrorMessageMapping,
 		logError: deps.logError,
 		logParseError: deps.logParseError,
+		findCompletedOnboardingSteps: deps.findCompletedOnboardingSteps,
+		markOnboardingStepCompleted: deps.markOnboardingStepCompleted,
 		now: deps.now,
 	});
 	app.use("/queue", extensionCors, dualAuthMiddleware, queueRouter);

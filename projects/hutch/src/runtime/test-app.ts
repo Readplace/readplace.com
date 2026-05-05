@@ -83,6 +83,7 @@ import type { ExchangeGoogleCode } from "./providers/google-auth/google-token.ty
 import type { OAuthModel } from "./providers/oauth/oauth-model";
 import type { ValidateAccessToken } from "./web/dual-auth.middleware";
 import type { ImportSessionStore } from "./domain/import-session/import-session.types";
+import type { InMemoryOnboarding } from "./providers/onboarding/in-memory-onboarding";
 import { createApp } from "./server";
 import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
 
@@ -216,6 +217,10 @@ export interface ImportSessionBundle {
 	importSessionStore: ImportSessionStore;
 }
 
+export interface OnboardingBundle {
+	onboarding: InMemoryOnboarding;
+}
+
 export interface BotDefenseBundle {
 	logger: HutchLogger.Typed<BotDefenseEvent>;
 	events: BotDefenseEvent[];
@@ -237,6 +242,7 @@ export interface TestAppFixture {
 	google: GoogleAuthBundle | undefined;
 	admin: AdminBundle;
 	importSession: ImportSessionBundle;
+	onboarding: OnboardingBundle;
 	shared: SharedBundle;
 	stripe: StripeCheckoutBundle;
 	pendingSignup: PendingSignupBundle;
@@ -244,6 +250,7 @@ export interface TestAppFixture {
 }
 
 export interface TestAppResult {
+	onboarding: InMemoryOnboarding;
 	app: Express;
 	auth: AuthBundle;
 	articleStore: ArticleStoreBundle;
@@ -315,6 +322,8 @@ function flattenFixtureToAppDependencies(
 		adminEmails: fixture.admin.adminEmails,
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,
 		importSessionStore: fixture.importSession.importSessionStore,
+		findCompletedOnboardingSteps: fixture.onboarding.onboarding.findCompletedOnboardingSteps,
+		markOnboardingStepCompleted: fixture.onboarding.onboarding.markOnboardingStepCompleted,
 		now: fixture.shared.now,
 		createCheckoutSession: fixture.stripe.createCheckoutSession,
 		retrieveCheckoutSession: fixture.stripe.retrieveCheckoutSession,
@@ -339,5 +348,6 @@ export function createTestApp(fixture: TestAppFixture): TestAppResult {
 		stripe: fixture.stripe,
 		pendingSignup: fixture.pendingSignup,
 		botDefense: fixture.botDefense,
+		onboarding: fixture.onboarding.onboarding,
 	};
 }

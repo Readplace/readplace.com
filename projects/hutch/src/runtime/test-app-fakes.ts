@@ -18,6 +18,7 @@ import { initInMemoryPendingHtml } from "./providers/pending-html/in-memory-pend
 import { initInMemoryPendingSignup } from "./providers/pending-signup/in-memory-pending-signup";
 import { initInMemoryStripeCheckout } from "./providers/stripe-checkout/in-memory-stripe-checkout";
 import { initInMemoryImportSession } from "./providers/import-session/in-memory-import-session";
+import { initInMemoryOnboarding } from "./providers/onboarding/in-memory-onboarding";
 import { initInMemorySaveLinkRawHtmlCommand } from "./providers/events/in-memory-save-link-raw-html-command";
 import { initInMemoryExportUserDataCommand } from "./providers/events/in-memory-export-user-data-command";
 import {
@@ -273,6 +274,9 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		},
 		importSession: {
 			importSessionStore: initInMemoryImportSession({ now: () => new Date() }),
+		},
+		onboarding: {
+			onboarding: initInMemoryOnboarding(),
 		},
 		shared: {
 			appOrigin,

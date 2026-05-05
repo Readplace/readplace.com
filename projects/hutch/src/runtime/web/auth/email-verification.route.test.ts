@@ -17,6 +17,7 @@ import { initInMemoryPendingSignup } from "../../providers/pending-signup/in-mem
 import { createOAuthModel, initInMemoryOAuthModel } from "../../providers/oauth/oauth-model";
 import { createValidateAccessToken } from "../../providers/oauth/validate-access-token";
 import { initInMemoryImportSession } from "../../providers/import-session/in-memory-import-session";
+import { initInMemoryOnboarding } from "../../providers/onboarding/in-memory-onboarding";
 import { createApp } from "../../server";
 import { httpErrorMessageMapping } from "../pages/queue/queue.error";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
@@ -49,6 +50,7 @@ describe("Email verification", () => {
 			const passwordReset = initInMemoryPasswordReset();
 			const stripe = initInMemoryStripeCheckout();
 			const pendingSignup = initInMemoryPendingSignup();
+			const onboarding = initInMemoryOnboarding();
 
 			let resolveErrorLogged: () => void;
 			const errorLogged = new Promise<void>((resolve) => {
@@ -91,6 +93,8 @@ describe("Email verification", () => {
 				httpErrorMessageMapping,
 				logParseError: () => {},
 				importSessionStore: initInMemoryImportSession({ now: () => new Date() }),
+				findCompletedOnboardingSteps: onboarding.findCompletedOnboardingSteps,
+				markOnboardingStepCompleted: onboarding.markOnboardingStepCompleted,
 				now: () => new Date(),
 				botDefenseLogger: { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} },
 			});

@@ -18,6 +18,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 		},
 		description:
 			"Add Readplace to your browser so you can save any page with one click.",
+		derivable: true,
 		isComplete: (ctx) => ctx.extensionInstalled,
 		isApplicable: (ctx) => !ctx.isMobile,
 		actions: (ctx) => [{
@@ -26,14 +27,22 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 		}],
 	},
 	{
-		id: "save-first-article",
-		title: () => "Save your first article",
+		id: "save-via-extension",
+		title: () => "Save your first article with the extension",
 		description:
-			"Paste a URL to save, or press your browser extension button on any page you want to read later to save the current tab to your reading list. Saving via the extension is more reliable — it captures the page directly from your browser, so anti-bot protections can't block the content from being retrieved.",
-		isComplete: (ctx) => ctx.savedArticleCount > 0,
+			"Press the Readplace button on any page you want to read later. The extension captures the page directly from your browser, so anti-bot protections can't block it.",
+		derivable: false,
+		isComplete: (ctx) => ctx.savedViaExtension,
 	},
 ];
 
+/**
+ * The version hash is derived from the step IDs. Renaming or adding a step
+ * invalidates every existing dismiss cookie (by design — a renamed step has
+ * different meaning, and a new step is fresh work for the user). The Phase 2
+ * rename of save-first-article → save-via-extension intentionally re-opens the
+ * checklist for users who dismissed the old version.
+ */
 export const ONBOARDING_VERSION = createHash("sha256")
 	.update(ONBOARDING_STEPS.map((step) => step.id).sort().join("|"))
 	.digest("hex")

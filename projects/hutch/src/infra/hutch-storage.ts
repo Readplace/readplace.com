@@ -11,6 +11,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly passwordResetTokensTable: aws.dynamodb.Table;
 	public readonly pendingSignupsTable: aws.dynamodb.Table;
 	public readonly importSessionsTable: aws.dynamodb.Table;
+	public readonly onboardingTable: aws.dynamodb.Table;
 
 	constructor(name: string, args: { deletionProtection: boolean; tableNames: {
 		articles: string;
@@ -22,6 +23,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		passwordResetTokens: string;
 		pendingSignups: string;
 		importSessions: string;
+		onboarding: string;
 	} }, opts?: pulumi.ComponentResourceOptions) {
 		super("hutch:infra:HutchStorage", name, {}, opts);
 
@@ -158,6 +160,15 @@ export class HutchStorage extends pulumi.ComponentResource {
 				attributeName: "expiresAt",
 				enabled: true,
 			},
+		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+
+		this.onboardingTable = new aws.dynamodb.Table(`hutch-onboarding`, {
+			name: args.tableNames.onboarding,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "userId",
+			attributes: [{ name: "userId", type: "S" }],
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 
 		this.registerOutputs();

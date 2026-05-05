@@ -33,6 +33,7 @@ const tableNames = {
 	passwordResetTokens: config.require("dynamodbPasswordResetTokensTable"),
 	pendingSignups: config.require("dynamodbPendingSignupsTable"),
 	importSessions: config.require("dynamodbImportSessionsTable"),
+	onboarding: config.require("dynamodbOnboardingTable"),
 };
 
 const storage = new HutchStorage("hutch", {
@@ -101,6 +102,7 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.passwordResetTokensTable.arn, includeIndexes: false },
 		{ arn: storage.pendingSignupsTable.arn, includeIndexes: false },
 		{ arn: storage.importSessionsTable.arn, includeIndexes: false },
+		{ arn: storage.onboardingTable.arn, includeIndexes: false },
 	],
 	actions: [
 		"dynamodb:GetItem",
@@ -147,6 +149,7 @@ const lambda = new HutchLambda("hutch", {
 		DYNAMODB_PASSWORD_RESET_TOKENS_TABLE: storage.passwordResetTokensTable.name,
 		DYNAMODB_PENDING_SIGNUPS_TABLE: storage.pendingSignupsTable.name,
 		DYNAMODB_IMPORT_SESSIONS_TABLE: storage.importSessionsTable.name,
+		DYNAMODB_ONBOARDING_TABLE: storage.onboardingTable.name,
 		GOOGLE_LOGIN_CLIENT_ID: requireEnv("GOOGLE_LOGIN_CLIENT_ID"),
 		GOOGLE_LOGIN_CLIENT_SECRET: requireEnv("GOOGLE_LOGIN_CLIENT_SECRET"),
 		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),

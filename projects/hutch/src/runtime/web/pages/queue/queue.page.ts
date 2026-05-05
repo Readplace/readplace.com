@@ -45,13 +45,17 @@ import { importFlashMapping } from "./queue.error";
 import { toQueueViewModel } from "./queue.viewmodel";
 import { QueuePage } from "./queue.component";
 import { ReaderPage } from "../reader/reader.component";
-import { ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
+import { ONBOARDING_STEPS, ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import {
 	detectBrowser,
 	extensionInstallUrlIfMissing,
 	isExtensionInstalled,
 } from "../../onboarding/extension-install";
 import { detectMobile } from "../../onboarding/mobile-detection";
+import type {
+	FindCompletedOnboardingSteps,
+	MarkOnboardingStepCompleted,
+} from "../../../providers/onboarding/onboarding.types";
 
 interface QueueDependencies {
 	findArticlesByUser: FindArticlesByUser;
@@ -72,6 +76,8 @@ interface QueueDependencies {
 	httpErrorMessageMapping: HttpErrorMessageMapping;
 	logError: (message: string, error?: Error) => void;
 	logParseError: LogParseError;
+	findCompletedOnboardingSteps: FindCompletedOnboardingSteps;
+	markOnboardingStepCompleted: MarkOnboardingStepCompleted;
 	now: () => Date;
 }
 
@@ -135,14 +141,30 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const importFlash = importFlashMapping(req.query);
 		const summaryByUrl = await loadSummaries(deps.findGeneratedSummary, result.articles);
 		const vm = toQueueViewModel(result, urlState, { unreadCount, totalArticles, saveError, importFlash, summaryByUrl });
-		const extensionInstalled = isExtensionInstalled(req);
 		const onboardingDismissed = req.cookies?.[DISMISS_COOKIE_NAME] === ONBOARDING_VERSION;
 		const browser = detectBrowser(req);
 		const isMobile = detectMobile(req);
+		const cookieExtensionInstalled = isExtensionInstalled(req);
+		const completedSteps = await deps.findCompletedOnboardingSteps({ userId });
+
+		const extensionInstalled = cookieExtensionInstalled || completedSteps.has("install-extension");
+		const savedViaExtension = completedSteps.has("save-via-extension");
+
+		/** Persist derivable completions (currently only install-extension via the
+		 * cookie) so a future cookie clear doesn't re-open the step, and so any
+		 * future derivable step plugs into the same loop. */
+		const derivedCtx = { extensionInstalled, savedViaExtension, browser, isMobile };
+		for (const step of ONBOARDING_STEPS) {
+			if (!step.derivable) continue;
+			if (!step.isComplete(derivedCtx)) continue;
+			if (completedSteps.has(step.id)) continue;
+			await deps.markOnboardingStepCompleted({ userId, stepId: step.id, completedAt: deps.now() });
+		}
+
 		const showImportForm = req.query.feature === "import";
 		sendComponent(
 			res,
-			renderPage(req, QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, browser, isMobile, onboardingDismissed, showImportForm })),
+			renderPage(req, QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, browser, isMobile, savedViaExtension, onboardingDismissed, showImportForm })),
 		);
 	});
 
@@ -189,6 +211,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		try {
 			const freshness = await deps.refreshArticleIfStale({ url: parsed.data.url });
 			const result = await saveArticleFromUrl(deps, { userId, url: parsed.data.url, freshness });
+			await deps.markOnboardingStepCompleted({ userId, stepId: "save-via-extension", completedAt: deps.now() });
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
@@ -265,6 +288,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					);
 					const freshness = await deps.refreshArticleIfStale({ url: urlOnly.data.url });
 					const result = await saveArticleFromUrl(deps, { userId, url: urlOnly.data.url, freshness });
+					await deps.markOnboardingStepCompleted({ userId, stepId: "save-via-extension", completedAt: deps.now() });
 					res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 					return;
 				}
@@ -284,6 +308,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			});
 
 			const result = await saveArticleFromUrl(deps, { userId, url: parsed.data.url, freshness });
+			await deps.markOnboardingStepCompleted({ userId, stepId: "save-via-extension", completedAt: deps.now() });
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
 			deps.logError("Failed to save article from html", error instanceof Error ? error : undefined);
