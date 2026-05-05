@@ -3,15 +3,10 @@ import type { SetIcon } from "browser-extension-core";
 const SAVED_COLOR = "#3D8B6E";
 const ICON_SIZES = [16, 32, 48, 64] as const;
 
-const DEFAULT_PATHS: Record<number, string> = {
-	16: browser.runtime.getURL("icons/icon-16.png"),
-	32: browser.runtime.getURL("icons/icon-32.png"),
-	48: browser.runtime.getURL("icons/icon-48.png"),
-	64: browser.runtime.getURL("icons/icon-64.png"),
-};
-
 async function tintIcon(size: number, color: string): Promise<ImageData> {
-	const url = browser.runtime.getURL(`icons/icon-${size}.png`);
+	// Tint the dark-colored variant — it has no halo, so the source-in composite
+	// produces a cleanly-tinted shape without a colored halo around it.
+	const url = browser.runtime.getURL(`icons/dark/icon-${size}.png`);
 	const response = await fetch(url);
 	const blob = await response.blob();
 	const bitmap = await createImageBitmap(blob);
@@ -50,7 +45,9 @@ export function createBrowserSetIcon(): SetIcon {
 			await browser.browserAction.setIcon({ tabId, imageData });
 		},
 		showDefault: async (tabId) => {
-			await browser.browserAction.setIcon({ tabId, path: DEFAULT_PATHS });
+			// Pass no path/imageData so Firefox falls back to the manifest's
+			// browser_action.theme_icons, which adapts to the active browser theme.
+			await browser.browserAction.setIcon({ tabId });
 		},
 	};
 }

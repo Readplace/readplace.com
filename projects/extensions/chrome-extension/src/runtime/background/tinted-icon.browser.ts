@@ -7,11 +7,23 @@ interface SerializedImageData {
 	data: number[];
 }
 
-const DEFAULT_PATHS: Record<number, string> = {
-	16: browser.runtime.getURL("icons/icon-16.png"),
-	32: browser.runtime.getURL("icons/icon-32.png"),
-	48: browser.runtime.getURL("icons/icon-48.png"),
-	64: browser.runtime.getURL("icons/icon-64.png"),
+type Theme = "dark" | "light";
+
+// Dark variant = navy "&" + amber dot, no halo. Used on light browser themes.
+// Light variant = same shapes wrapped in a white halo. Used on dark browser themes.
+const VARIANT_PATHS: Record<Theme, Record<number, string>> = {
+	dark: {
+		16: browser.runtime.getURL("icons/dark/icon-16.png"),
+		32: browser.runtime.getURL("icons/dark/icon-32.png"),
+		48: browser.runtime.getURL("icons/dark/icon-48.png"),
+		64: browser.runtime.getURL("icons/dark/icon-64.png"),
+	},
+	light: {
+		16: browser.runtime.getURL("icons/light/icon-16.png"),
+		32: browser.runtime.getURL("icons/light/icon-32.png"),
+		48: browser.runtime.getURL("icons/light/icon-48.png"),
+		64: browser.runtime.getURL("icons/light/icon-64.png"),
+	},
 };
 
 let offscreenCreated = false;
@@ -55,6 +67,17 @@ async function getSavedIconData(): Promise<Record<number, ImageData>> {
 	return result;
 }
 
+async function getDefaultPathsForCurrentTheme(): Promise<Record<number, string>> {
+	await ensureOffscreen();
+	const theme = (await browser.runtime.sendMessage({
+		target: "offscreen",
+		type: "get-current-theme",
+	})) as Theme;
+	// User prefers dark UI → toolbar is dark → light-colored icon contrasts against it.
+	// User prefers light UI → toolbar is light → dark-colored icon contrasts against it.
+	return theme === "dark" ? VARIANT_PATHS.light : VARIANT_PATHS.dark;
+}
+
 export function createBrowserSetIcon(): SetIcon {
 	return {
 		showSaved: async (tabId) => {
@@ -62,7 +85,8 @@ export function createBrowserSetIcon(): SetIcon {
 			await browser.action.setIcon({ tabId, imageData });
 		},
 		showDefault: async (tabId) => {
-			await browser.action.setIcon({ tabId, path: DEFAULT_PATHS });
+			const path = await getDefaultPathsForCurrentTheme();
+			await browser.action.setIcon({ tabId, path });
 		},
 	};
 }
