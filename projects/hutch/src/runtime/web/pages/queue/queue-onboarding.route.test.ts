@@ -365,6 +365,77 @@ describe("Queue onboarding", () => {
 		expect(step.getAttribute("data-test-onboarding-complete")).toBe("true");
 	});
 
+	it("POST /queue still returns 201 when markOnboardingStepCompleted throws", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const throwing: typeof fixture.onboarding = {
+			onboarding: {
+				...fixture.onboarding.onboarding,
+				markOnboardingStepCompleted: async () => { throw new Error("DynamoDB transient failure"); },
+				debugStateFor: fixture.onboarding.onboarding.debugStateFor,
+			},
+		};
+		const testApp = createTestApp({ ...fixture, onboarding: throwing });
+		const { accessToken } = await bootstrap(testApp);
+
+		const response = await request(testApp.app)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.send({ url: "https://example.com/siren-save-resilient" });
+
+		expect(response.status).toBe(201);
+	});
+
+	it("POST /queue/save-html still returns 201 when markOnboardingStepCompleted throws", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const throwing: typeof fixture.onboarding = {
+			onboarding: {
+				...fixture.onboarding.onboarding,
+				markOnboardingStepCompleted: async () => { throw new Error("DynamoDB transient failure"); },
+				debugStateFor: fixture.onboarding.onboarding.debugStateFor,
+			},
+		};
+		const testApp = createTestApp({ ...fixture, onboarding: throwing });
+		const { accessToken } = await bootstrap(testApp);
+
+		const response = await request(testApp.app)
+			.post("/queue/save-html")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.send({
+				url: "https://example.com/html-save-resilient",
+				rawHtml: "<html><body><p>test</p></body></html>",
+				title: "Test",
+			});
+
+		expect(response.status).toBe(201);
+	});
+
+	it("POST /queue/save-html rawHtml-too-big fallback still returns 201 when markOnboardingStepCompleted throws", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const throwing: typeof fixture.onboarding = {
+			onboarding: {
+				...fixture.onboarding.onboarding,
+				markOnboardingStepCompleted: async () => { throw new Error("DynamoDB transient failure"); },
+				debugStateFor: fixture.onboarding.onboarding.debugStateFor,
+			},
+		};
+		const testApp = createTestApp({ ...fixture, onboarding: throwing });
+		const { accessToken } = await bootstrap(testApp);
+
+		const oversizedHtml = "x".repeat(2_000_001);
+		const response = await request(testApp.app)
+			.post("/queue/save-html")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.send({
+				url: "https://example.com/fallback-save-resilient",
+				rawHtml: oversizedHtml,
+			});
+
+		expect(response.status).toBe(201);
+	});
+
 	it("POST /queue/dismiss-onboarding sets dismiss cookie to current version and redirects to /queue", async () => {
 		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { agent } = await bootstrap(testApp);
