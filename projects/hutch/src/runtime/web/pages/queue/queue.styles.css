@@ -89,6 +89,10 @@
   font-size: 0.875rem;
 }
 
+.queue__import-form--hidden {
+  display: none;
+}
+
 .queue__import-label {
   display: inline-flex;
   align-items: center;

@@ -2563,7 +2563,7 @@ describe("Queue routes", () => {
 
 			const response = await agent.get("/queue?feature=import");
 
-			expect(response.text).toContain("form.queue__import-form");
+			expect(response.text).toContain("input.addEventListener");
 			expect(response.text).toContain("requestSubmit");
 		});
 
@@ -2575,8 +2575,9 @@ describe("Queue routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("form.queue__import-form")).toBeNull();
-			expect(response.text).not.toContain("form.queue__import-form");
+			const form = doc.querySelector("form.queue__import-form");
+			assert(form, "import form must always be rendered");
+			expect(form.classList.contains("queue__import-form--hidden")).toBe(true);
 		});
 	});
 });

@@ -8,15 +8,13 @@
         <input class="queue__save-input" type="url" name="url" placeholder="Paste a URL to save an article…" required value="{{saveUrl}}">
         <button class="queue__save-btn" type="submit"><span class="queue__save-btn-label">Save</span><span class="queue__save-btn-saving">Saving…</span></button>
       </form>
-      {{#if showImportForm}}
-      <form class="queue__import-form" method="POST" action="/import" enctype="multipart/form-data" data-test-form="import-file">
+      <form class="queue__import-form{{importFormHiddenClass}}" method="POST" action="/import" enctype="multipart/form-data" data-test-form="import-file">
         <label class="queue__import-label">
           <span>Import from a file</span>
           <input type="file" name="file" required data-test-import-file-input>
         </label>
         <button class="queue__import-btn" type="submit" data-test-action="import-upload">Upload</button>
       </form>
-      {{/if}}
       {{#if saveError}}<p class="queue__save-error" data-test-save-error>{{saveError}}</p>{{/if}}
       {{#if importFlash}}<p class="queue__import-flash" data-test-import-flash>{{importFlash}}</p>{{/if}}
       <nav class="queue__filters" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-filters>
