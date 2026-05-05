@@ -334,7 +334,7 @@ describe("GET / with exhausted founding allocation", () => {
 	it("should render the exhausted message and cap progress at 100% when users exceed the limit", async () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		for (let i = 0; i < 101; i++) {
+		for (let i = 0; i < 100; i++) {
 			await auth.createUser({ email: `user${i}@test.com`, password: "password123" });
 		}
 
@@ -350,13 +350,13 @@ describe("GET / with exhausted founding allocation", () => {
 		expect(fill?.getAttribute("style")).toBe("width: 100%");
 
 		const label = doc.querySelector(".founding-progress__label");
-		expect(label?.textContent).toBe("101 / 100 founding members");
+		expect(label?.textContent).toBe("100 / 100 founding members");
 	}, 30000);
 
 	it("should hide the founding pricing card and show the fallback CTA when over the limit", async () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		for (let i = 0; i < 102; i++) {
+		for (let i = 0; i < 100; i++) {
 			await auth.createUser({ email: `over${i}@test.com`, password: "password123" });
 		}
 

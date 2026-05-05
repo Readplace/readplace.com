@@ -205,7 +205,7 @@ describe("Google auth routes", () => {
 			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("not verified");
 		});
 
-		it("creates the user directly and skips Stripe when at or below the founding limit", async () => {
+		it("creates the user directly and skips Stripe when below the founding limit", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { app, auth, pendingSignup } = createTestApp({
 				...fixture,
@@ -215,7 +215,7 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
-			for (let i = 0; i < 100; i++) {
+			for (let i = 0; i < 99; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 			const state = signState(freshState());
@@ -337,7 +337,7 @@ describe("Google auth routes", () => {
 			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("Account creation failed");
 		});
 
-		it("redirects a brand-new user through Stripe when over the founding limit", async () => {
+		it("redirects a brand-new user through Stripe when at the founding limit", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { app, auth } = createTestApp({
 				...fixture,
@@ -347,7 +347,7 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
-			for (let i = 0; i < 101; i++) {
+			for (let i = 0; i < 100; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 			const state = signState(freshState());
@@ -363,7 +363,7 @@ describe("Google auth routes", () => {
 			expect(lookup).toBeNull();
 		}, 30000);
 
-		it("should create the Google user only after successful Stripe checkout when over the founding limit", async () => {
+		it("should create the Google user only after successful Stripe checkout when at the founding limit", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { app, auth, stripe } = createTestApp({
 				...fixture,
@@ -373,7 +373,7 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
-			for (let i = 0; i < 101; i++) {
+			for (let i = 0; i < 100; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 			const state = signState(freshState());
@@ -399,7 +399,7 @@ describe("Google auth routes", () => {
 			expect(lookup?.emailVerified).toBe(true);
 		}, 30000);
 
-		it("should preserve the return URL through the Stripe checkout boundary when over the founding limit", async () => {
+		it("should preserve the return URL through the Stripe checkout boundary when at the founding limit", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { app, auth, stripe } = createTestApp({
 				...fixture,
@@ -409,7 +409,7 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
-			for (let i = 0; i < 101; i++) {
+			for (let i = 0; i < 100; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 			const state = signState(freshState({ returnUrl: "/save?url=https%3A%2F%2Fexample.com" }));

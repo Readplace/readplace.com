@@ -259,9 +259,9 @@ describe("Auth routes", () => {
 	});
 
 	describe("POST /signup", () => {
-		it("should create the account directly and redirect to /queue when at or below the founding limit", async () => {
+		it("should create the account directly and redirect to /queue when below the founding limit", async () => {
 			const { app, auth, pendingSignup } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			for (let i = 0; i < 100; i++) {
+			for (let i = 0; i < 99; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 
@@ -286,9 +286,9 @@ describe("Auth routes", () => {
 			expect(consumed).toBeNull();
 		}, 30000);
 
-		it("should redirect to Stripe checkout when over the founding limit", async () => {
+		it("should redirect to Stripe checkout when at the founding limit", async () => {
 			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			for (let i = 0; i < 101; i++) {
+			for (let i = 0; i < 100; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 
@@ -303,9 +303,9 @@ describe("Auth routes", () => {
 			expect(response.headers.location).toMatch(/^https:\/\/checkout\.stripe\.test\//);
 		}, 30000);
 
-		it("should fall back to free signup after a manual deletion drops the count back to the limit", async () => {
+		it("should fall back to free signup after a manual deletion drops the count below the limit", async () => {
 			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			for (let i = 0; i < 102; i++) {
+			for (let i = 0; i < 101; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 			await auth.deleteUser("seed0@test.com");
@@ -369,9 +369,9 @@ describe("Auth routes", () => {
 			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("already exists");
 		});
 
-		it("should redirect new visitors to a Stripe checkout URL when over the founding limit", async () => {
+		it("should redirect new visitors to a Stripe checkout URL when at the founding limit", async () => {
 			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			for (let i = 0; i < 101; i++) {
+			for (let i = 0; i < 100; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 
@@ -704,7 +704,7 @@ describe("Auth routes", () => {
 
 		it("falls through to the existing happy path (303 to Stripe) when the honeypot is empty, loadedAt is older than 2.5s, and the founding allocation is exhausted", async () => {
 			const { app, auth, botDefense } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			for (let i = 0; i < 101; i++) {
+			for (let i = 0; i < 100; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 
@@ -878,9 +878,9 @@ describe("Auth routes", () => {
 	});
 
 	describe("Founding members progress — exhausted allocation", () => {
-		it("should render the exhausted message on /signup when over the limit", async () => {
+		it("should render the exhausted message on /signup when at the limit", async () => {
 			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			for (let i = 0; i < 101; i++) {
+			for (let i = 0; i < 100; i++) {
 				await auth.createUser({ email: `user${i}@test.com`, password: "password123" });
 			}
 

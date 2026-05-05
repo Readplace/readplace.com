@@ -8,7 +8,7 @@ import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
 import { FOUNDING_MEMBER_LIMIT } from "../shared/founding-progress/founding-allocation";
 
 async function seedAboveFoundingLimit(auth: { createUser: (params: { email: string; password: string }) => Promise<{ ok: boolean }> }) {
-	for (let i = 0; i < FOUNDING_MEMBER_LIMIT + 1; i++) {
+	for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
 		await auth.createUser({ email: `gate-${i}@test.invalid`, password: "password123" });
 	}
 }

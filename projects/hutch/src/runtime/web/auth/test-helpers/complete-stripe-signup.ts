@@ -17,8 +17,8 @@ interface StripeBundle {
  * the shared agent so the session cookie persists.
  *
  * Stripe checkout is gated behind the founding-member allocation: signups only
- * route through Stripe once the user count exceeds FOUNDING_MEMBER_LIMIT. This
- * helper seeds enough fake users to push past that boundary so callers can
+ * route through Stripe once the user count reaches FOUNDING_MEMBER_LIMIT. This
+ * helper seeds enough fake users to meet that boundary so callers can
  * exercise the paid path without needing to know about it. */
 export async function completeStripeSignup(params: {
 	app: Express;
@@ -33,7 +33,7 @@ export async function completeStripeSignup(params: {
 	successResponse: import("supertest").Response;
 	checkoutSessionId: CheckoutSessionId;
 }> {
-	for (let i = 0; i < FOUNDING_MEMBER_LIMIT + 1; i++) {
+	for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
 		const seedEmail = `stripe-seed-${i}@test.invalid`;
 		const existing = await params.auth.findUserByEmail(seedEmail);
 		if (!existing) {
