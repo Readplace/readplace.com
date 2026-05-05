@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Readplace — Save Articles & Read Later",
-  "version": "1.0.84",
+  "version": "1.0.85",
   "description": "Save articles with one click. A privacy-first read-it-later app and Pocket alternative.",
   "browser_specific_settings": {
     "gecko": {
@@ -40,10 +40,26 @@
       "64": "icons/dark/icon-64.png"
     },
     "theme_icons": [
-      { "size": 16, "light": "icons/light/icon-16.png", "dark": "icons/dark/icon-16.png" },
-      { "size": 32, "light": "icons/light/icon-32.png", "dark": "icons/dark/icon-32.png" },
-      { "size": 48, "light": "icons/light/icon-48.png", "dark": "icons/dark/icon-48.png" },
-      { "size": 64, "light": "icons/light/icon-64.png", "dark": "icons/dark/icon-64.png" }
+      {
+        "size": 16,
+        "light": "icons/light/icon-16.png",
+        "dark": "icons/dark/icon-16.png"
+      },
+      {
+        "size": 32,
+        "light": "icons/light/icon-32.png",
+        "dark": "icons/dark/icon-32.png"
+      },
+      {
+        "size": 48,
+        "light": "icons/light/icon-48.png",
+        "dark": "icons/dark/icon-48.png"
+      },
+      {
+        "size": 64,
+        "light": "icons/light/icon-64.png",
+        "dark": "icons/dark/icon-64.png"
+      }
     ]
   },
   "background": {
