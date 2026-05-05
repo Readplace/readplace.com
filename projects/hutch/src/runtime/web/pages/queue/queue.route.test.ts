@@ -2575,9 +2575,8 @@ describe("Queue routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			const form = doc.querySelector("form.queue__import-form");
-			assert(form, "import form must always be rendered");
-			expect(form.classList.contains("queue__import-form--hidden")).toBe(true);
+			expect(doc.querySelector("form.queue__import-form")).toBeNull();
+			expect(response.text).not.toContain("input.addEventListener");
 		});
 	});
 });
