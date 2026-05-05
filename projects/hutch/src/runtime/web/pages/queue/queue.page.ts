@@ -51,6 +51,7 @@ import {
 	extensionInstallUrlIfMissing,
 	isExtensionInstalled,
 } from "../../onboarding/extension-install";
+import { detectMobile } from "../../onboarding/mobile-detection";
 
 interface QueueDependencies {
 	findArticlesByUser: FindArticlesByUser;
@@ -137,10 +138,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const extensionInstalled = isExtensionInstalled(req);
 		const onboardingDismissed = req.cookies?.[DISMISS_COOKIE_NAME] === ONBOARDING_VERSION;
 		const browser = detectBrowser(req);
+		const isMobile = detectMobile(req);
 		const showImportForm = req.query.feature === "import";
 		sendComponent(
 			res,
-			renderPage(req, QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, browser, onboardingDismissed, showImportForm })),
+			renderPage(req, QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, browser, isMobile, onboardingDismissed, showImportForm })),
 		);
 	});
 

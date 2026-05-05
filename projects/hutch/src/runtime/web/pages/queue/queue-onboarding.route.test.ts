@@ -193,6 +193,61 @@ describe("Queue onboarding", () => {
 		expect(onboarding.classList.contains("onboarding--visible")).toBe(true);
 	});
 
+	it("hides install-extension step for iPhone user-agent", async () => {
+		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(app, auth);
+
+		const response = await agent
+			.get("/queue")
+			.set("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1");
+
+		const doc = new JSDOM(response.text).window.document;
+		const onboarding = doc.querySelector("[data-test-onboarding]");
+		assert(onboarding, "onboarding container must still be rendered");
+		expect(onboarding.classList.contains("onboarding--visible")).toBe(true);
+
+		const installStep = doc.querySelector('[data-test-onboarding-step="install-extension"]');
+		expect(installStep).toBeNull();
+
+		const saveStep = doc.querySelector('[data-test-onboarding-step="save-first-article"]');
+		assert(saveStep, "save step must remain on mobile");
+	});
+
+	it("hides install-extension step for Android Chrome user-agent", async () => {
+		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(app, auth);
+
+		const response = await agent
+			.get("/queue")
+			.set("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36");
+
+		const doc = new JSDOM(response.text).window.document;
+		const installStep = doc.querySelector('[data-test-onboarding-step="install-extension"]');
+		expect(installStep).toBeNull();
+	});
+
+	it("shows the success state on mobile after a single save", async () => {
+		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(app, auth);
+
+		await agent
+			.post("/queue/save")
+			.type("form")
+			.send({ url: "https://example.com/article" });
+
+		const response = await agent
+			.get("/queue")
+			.set("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1");
+
+		const doc = new JSDOM(response.text).window.document;
+		const onboarding = doc.querySelector("[data-test-onboarding]");
+		assert(onboarding, "onboarding container must be rendered");
+		expect(onboarding.classList.contains("onboarding--complete")).toBe(true);
+
+		const success = doc.querySelector("[data-test-onboarding-success]");
+		assert(success, "success section must be rendered");
+	});
+
 	it("POST /queue/dismiss-onboarding sets dismiss cookie to current version and redirects to /queue", async () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(app, auth);

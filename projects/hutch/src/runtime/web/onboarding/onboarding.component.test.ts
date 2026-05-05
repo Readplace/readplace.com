@@ -8,6 +8,7 @@ function contextWith(overrides: Partial<OnboardingContext> = {}): OnboardingCont
 		savedArticleCount: 0,
 		extensionInstalled: false,
 		browser: "chrome",
+		isMobile: false,
 		...overrides,
 	};
 }
@@ -156,6 +157,32 @@ describe("OnboardingChecklist", () => {
 
 		const avatar = success.querySelector(".onboarding__avatar");
 		assert(avatar, "founder avatar must be shown in success state");
+	});
+
+	it("hides install-extension step on mobile and keeps the panel visible while save is incomplete", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ isMobile: true })));
+
+		const container = doc.querySelector("[data-test-onboarding]");
+		assert(container, "onboarding container must be rendered");
+		assert(container.classList.contains("onboarding--visible"));
+
+		const installStep = doc.querySelector('[data-test-onboarding-step="install-extension"]');
+		assert.equal(installStep, null, "install-extension must be omitted on mobile");
+
+		const saveStep = doc.querySelector('[data-test-onboarding-step="save-first-article"]');
+		assert(saveStep, "save step must still render on mobile");
+		assert.equal(saveStep.getAttribute("data-test-onboarding-complete"), "false");
+	});
+
+	it("renders the success state on mobile when the save step is complete", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ isMobile: true, savedArticleCount: 1 })));
+
+		const container = doc.querySelector("[data-test-onboarding]");
+		assert(container, "onboarding container must be rendered");
+		assert(container.classList.contains("onboarding--complete"));
+
+		const success = doc.querySelector("[data-test-onboarding-success]");
+		assert(success, "success section must be rendered on mobile when save is complete");
 	});
 
 	it("does not show steps list when all complete", () => {

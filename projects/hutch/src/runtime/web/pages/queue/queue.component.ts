@@ -73,7 +73,7 @@ export function formatUnreadLabel(count: number): string {
 	return count > 99 ? "To read (99+)" : `To read (${count})`;
 }
 
-function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: boolean; browser: BrowserName; onboardingDismissed: boolean; showImportForm: boolean }): QueueDisplayModel {
+function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: boolean; browser: BrowserName; isMobile: boolean; onboardingDismissed: boolean; showImportForm: boolean }): QueueDisplayModel {
 	const activeTab = vm.filters.tab;
 	const effectiveOrder = vm.filters.order ?? tabQuery(activeTab).defaultOrder;
 	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
@@ -86,6 +86,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 			savedArticleCount: vm.totalArticles,
 			extensionInstalled: options.extensionInstalled,
 			browser: options.browser,
+			isMobile: options.isMobile,
 		});
 
 	return {
@@ -131,9 +132,9 @@ const AUTO_SUBMIT_SCRIPT = `
 </script>
 `;
 
-export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; extensionInstalled?: boolean; browser?: BrowserName; onboardingDismissed?: boolean; showImportForm?: boolean; statusCode?: number }): PageBody {
+export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; extensionInstalled?: boolean; browser?: BrowserName; isMobile?: boolean; onboardingDismissed?: boolean; showImportForm?: boolean; statusCode?: number }): PageBody {
 	const saveUrl = options?.saveUrl;
-	const displayModel = toQueueDisplayModel(vm, { extensionInstalled: options?.extensionInstalled ?? false, browser: options?.browser ?? "other", onboardingDismissed: options?.onboardingDismissed ?? false, showImportForm: options?.showImportForm ?? false });
+	const displayModel = toQueueDisplayModel(vm, { extensionInstalled: options?.extensionInstalled ?? false, browser: options?.browser ?? "other", isMobile: options?.isMobile ?? false, onboardingDismissed: options?.onboardingDismissed ?? false, showImportForm: options?.showImportForm ?? false });
 	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl });
 
 	return {

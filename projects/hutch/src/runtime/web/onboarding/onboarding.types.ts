@@ -4,6 +4,7 @@ export interface OnboardingContext {
 	savedArticleCount: number;
 	extensionInstalled: boolean;
 	browser: BrowserName;
+	isMobile: boolean;
 }
 
 export interface OnboardingAction {
@@ -17,4 +18,5 @@ export interface OnboardingStep {
 	description: string;
 	isComplete: (ctx: OnboardingContext) => boolean;
 	actions?: (ctx: OnboardingContext) => OnboardingAction[];
+	isApplicable?: (ctx: OnboardingContext) => boolean;
 }

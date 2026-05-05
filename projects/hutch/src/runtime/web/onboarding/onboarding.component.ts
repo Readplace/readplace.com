@@ -46,13 +46,14 @@ function toStepDisplayModel(
 	};
 }
 
-function allStepsComplete(ctx: OnboardingContext): boolean {
-	return ONBOARDING_STEPS.every((step) => step.isComplete(ctx));
+function isApplicable(step: OnboardingStep, ctx: OnboardingContext): boolean {
+	return (step.isApplicable ?? (() => true))(ctx);
 }
 
 export function OnboardingChecklist(ctx: OnboardingContext): string {
-	const steps = ONBOARDING_STEPS.map((step) => toStepDisplayModel(step, ctx));
-	const allComplete = allStepsComplete(ctx);
+	const applicableSteps = ONBOARDING_STEPS.filter((step) => isApplicable(step, ctx));
+	const steps = applicableSteps.map((step) => toStepDisplayModel(step, ctx));
+	const allComplete = applicableSteps.every((step) => step.isComplete(ctx));
 	const stateClass = allComplete
 		? "onboarding--complete"
 		: "onboarding--visible";
