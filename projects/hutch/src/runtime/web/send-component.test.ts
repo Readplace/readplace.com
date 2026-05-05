@@ -29,7 +29,22 @@ function createFakeResponse(): FakeResponse {
 }
 
 function requestWithAccept(accept?: string): Request {
-	return { get: (header: string) => header === "Accept" ? accept : undefined } as unknown as Request;
+	const types = (accept || "").split(",").map(entry => {
+		const [type, ...params] = entry.trim().split(";");
+		const qParam = params.find(p => p.trim().startsWith("q="));
+		const q = qParam ? Number.parseFloat(qParam.trim().slice(2)) : 1;
+		return { type: type.trim(), q };
+	});
+	return {
+		get: (header: string) => header === "Accept" ? accept : undefined,
+		accepts: (...args: string[]) => {
+			for (const candidate of args.flat()) {
+				const match = types.find(t => t.type === candidate);
+				if (match && match.q > 0) return candidate;
+			}
+			return false;
+		},
+	} as unknown as Request;
 }
 
 describe("sendComponent", () => {
