@@ -5,6 +5,13 @@ import { createTestApp } from "../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "../../test-app-fakes";
 import { CheckoutSessionIdSchema } from "../../providers/stripe-checkout/stripe-checkout.schema";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
+import { FOUNDING_MEMBER_LIMIT } from "../shared/founding-progress/founding-allocation";
+
+async function seedAboveFoundingLimit(auth: { createUser: (params: { email: string; password: string }) => Promise<{ ok: boolean }> }) {
+	for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
+		await auth.createUser({ email: `gate-${i}@test.invalid`, password: "password123" });
+	}
+}
 
 describe("GET /auth/checkout/success", () => {
 	it("renders an error and 400 when the session_id query param is missing", async () => {
@@ -28,7 +35,8 @@ describe("GET /auth/checkout/success", () => {
 	});
 
 	it("renders 402 when the checkout has not been paid yet", async () => {
-		const { app, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { app, auth, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		await seedAboveFoundingLimit(auth);
 
 		const signup = await request(app).post("/signup").type("form").send({
 			email: "unpaid@example.com",
@@ -52,10 +60,11 @@ describe("GET /auth/checkout/success", () => {
 	});
 
 	it("renders 409 when the checkout has been paid but the pending signup was already consumed", async () => {
-		const { app, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { app, auth, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		const { checkoutSessionId } = await completeStripeSignup({
 			app,
+			auth,
 			stripe,
 			email: "double@example.com",
 			password: "password123",
@@ -75,6 +84,7 @@ describe("GET /auth/checkout/success", () => {
 
 		const { successResponse } = await completeStripeSignup({
 			app,
+			auth,
 			stripe,
 			email: "buyer@example.com",
 			password: "password123",
@@ -97,6 +107,7 @@ describe("GET /auth/checkout/success", () => {
 
 	it("renders 409 when the email has been claimed since the Stripe redirect started", async () => {
 		const { app, auth, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		await seedAboveFoundingLimit(auth);
 
 		const signup = await request(app).post("/signup").type("form").send({
 			email: "race@example.com",

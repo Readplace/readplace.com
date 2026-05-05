@@ -3,6 +3,8 @@ import { join } from "node:path";
 import type { PageBody } from "../page-body.types";
 import { render } from "../render";
 import { renderFoundingProgress } from "../shared/founding-progress/founding-progress.component";
+import { isFoundingAllocationExhausted } from "../shared/founding-progress/founding-allocation";
+import { STRIPE_TRIAL_PERIOD_DAYS } from "../../providers/stripe-checkout/stripe-trial-config";
 import { AUTH_STYLES } from "./auth.styles";
 
 const LOGIN_TEMPLATE = readFileSync(join(__dirname, "login.template.html"), "utf-8");
@@ -89,6 +91,9 @@ export function VerifyEmailPage(data: { success: boolean; error?: string }): Pag
 export function SignupPage(data: SignupFormData, options?: { statusCode?: number }): PageBody {
 	const email = data.email ?? "";
 	const errors = data.errors;
+	const trialSuffix = isFoundingAllocationExhausted(data.userCount)
+		? ` (${STRIPE_TRIAL_PERIOD_DAYS} days free)`
+		: "";
 
 	const content = render(SIGNUP_TEMPLATE, {
 		email,
@@ -98,6 +103,8 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		emailField: toFieldViewModel(errors, "email"),
 		passwordField: toFieldViewModel(errors, "password"),
 		confirmPasswordField: toFieldViewModel(errors, "confirmPassword"),
+		submitLabel: `Join Readplace${trialSuffix}`,
+		googleLabel: `Sign up with Google${trialSuffix}`,
 		foundingProgressHtml: renderFoundingProgress({
 			userCount: data.userCount,
 		}),

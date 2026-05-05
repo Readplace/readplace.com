@@ -1,6 +1,7 @@
 /* c8 ignore start -- thin Stripe API wrapper, tested via integration */
 import { z } from "zod";
 import { CheckoutSessionIdSchema } from "./stripe-checkout.schema";
+import { STRIPE_TRIAL_PERIOD_DAYS } from "./stripe-trial-config";
 import type {
 	CreateCheckoutSession,
 	RetrieveCheckoutSession,
@@ -46,7 +47,7 @@ export function initStripeCheckout(deps: {
 			mode: "subscription",
 			"line_items[0][price]": deps.priceId,
 			"line_items[0][quantity]": "1",
-			"subscription_data[trial_period_days]": "14",
+			"subscription_data[trial_period_days]": String(STRIPE_TRIAL_PERIOD_DAYS),
 			customer_email: customerEmail,
 			success_url: successUrl,
 			cancel_url: cancelUrl,

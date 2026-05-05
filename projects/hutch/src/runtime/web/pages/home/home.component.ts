@@ -4,6 +4,7 @@ import type { PageBody } from "../../page-body.types";
 import { render } from "../../render";
 import { switchHelpers } from "../../handlebars-switch";
 import { renderFoundingProgress } from "../../shared/founding-progress/founding-progress.component";
+import { isFoundingAllocationExhausted } from "../../shared/founding-progress/founding-allocation";
 import { HOME_PAGE_STYLES } from "./home.styles";
 
 const HOME_TEMPLATE = readFileSync(join(__dirname, "home.template.html"), "utf-8");
@@ -102,6 +103,13 @@ const HOME_SCROLL_HINT_SCRIPT = `<script>
 export function HomePage(params: { userCount: number; staticBaseUrl: string; browser: "firefox" | "chrome" | "other" }): PageBody {
 	const { userCount, staticBaseUrl, browser } = params;
 	const foundingProgressHtml = renderFoundingProgress({ userCount });
+	const foundingAllocationAvailable = !isFoundingAllocationExhausted(userCount);
+	const pricingGridStateClass = foundingAllocationAvailable
+		? "pricing-grid--visible"
+		: "pricing-grid--hidden";
+	const fallbackCtaStateClass = foundingAllocationAvailable
+		? "home-pricing__fallback-cta--hidden"
+		: "home-pricing__fallback-cta--visible";
 	return {
 		seo: {
 			title: "Readplace — Read-It-Later App | Save Articles, Read Them Later",
@@ -277,6 +285,8 @@ export function HomePage(params: { userCount: number; staticBaseUrl: string; bro
 			browserName: browser,
 			founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
 			foundingProgressHtml,
+			pricingGridStateClass,
+			fallbackCtaStateClass,
 			featuredFeatures: [
 				{
 					name: "Reader View",

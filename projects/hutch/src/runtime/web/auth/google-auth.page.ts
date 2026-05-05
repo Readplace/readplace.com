@@ -5,13 +5,17 @@ import { z } from "zod";
 import { UserIdSchema } from "../../domain/user/user.schema";
 import type {
 	CountUsers,
+	CreateGoogleUser,
 	CreateSession,
 	FindUserByEmail,
 	MarkEmailVerified,
 } from "../../providers/auth/auth.types";
+import type { SendEmail } from "../../providers/email/email.types";
 import type { ExchangeGoogleCode } from "../../providers/google-auth/google-token.types";
 import type { StorePendingSignup } from "../../providers/pending-signup/pending-signup.types";
 import type { CreateCheckoutSession } from "../../providers/stripe-checkout/stripe-checkout.types";
+import { isFoundingAllocationExhausted } from "../shared/founding-progress/founding-allocation";
+import { initSendWelcomeEmail } from "./send-welcome-email";
 import { renderPage } from "../render-page";
 import { sendComponent } from "../send-component";
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
@@ -37,13 +41,17 @@ interface GoogleAuthDependencies {
 	googleClientId: string;
 	googleClientSecret: string;
 	appOrigin: string;
+	baseUrl: string;
+	staticBaseUrl: string;
 	createSession: CreateSession;
+	createGoogleUser: CreateGoogleUser;
 	findUserByEmail: FindUserByEmail;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	exchangeGoogleCode: ExchangeGoogleCode;
 	createCheckoutSession: CreateCheckoutSession;
 	storePendingSignup: StorePendingSignup;
+	sendEmail: SendEmail;
 	logError: (message: string, error?: Error) => void;
 }
 
@@ -70,6 +78,12 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		countUsers: deps.countUsers,
 		logError: deps.logError,
 		logPrefix: "[Google Auth]",
+	});
+	const sendWelcomeEmail = initSendWelcomeEmail({
+		sendEmail: deps.sendEmail,
+		baseUrl: deps.baseUrl,
+		staticBaseUrl: deps.staticBaseUrl,
+		logError: deps.logError,
 	});
 
 	router.get("/auth/google", (req: Request, res: Response) => {
@@ -151,6 +165,35 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 		const newUserId = UserIdSchema.parse(randomBytes(16).toString("hex"));
 		const safeReturnUrl = extractReturnUrl({ return: stateData.returnUrl });
+
+		const userCount = await fetchUserCount();
+		if (!isFoundingAllocationExhausted(userCount)) {
+			const created = await deps.createGoogleUser({
+				email: tokenResult.email,
+				userId: newUserId,
+			});
+			if (!created.ok) {
+				const lookup = await deps.findUserByEmail(tokenResult.email);
+				if (lookup) {
+					if (!lookup.emailVerified) {
+						await deps.markEmailVerified(tokenResult.email);
+					}
+					const sessionId = await deps.createSession({ userId: lookup.userId, emailVerified: true });
+					res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+					res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
+					return;
+				}
+				await renderError("Account creation failed. Please try again.");
+				return;
+			}
+
+			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
+			res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+			sendWelcomeEmail(tokenResult.email);
+			res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
+			return;
+		}
+
 		const returnSuffix = safeReturnUrl
 			? `&return=${encodeURIComponent(safeReturnUrl)}`
 			: "";

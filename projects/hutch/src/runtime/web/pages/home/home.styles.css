@@ -683,10 +683,25 @@
 }
 
 .pricing-grid {
-  display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 24px;
   align-items: start;
+}
+
+.pricing-grid--visible {
+  display: grid;
+}
+
+.pricing-grid--hidden {
+  display: none;
+}
+
+.home-pricing__fallback-cta--visible {
+  display: block;
+}
+
+.home-pricing__fallback-cta--hidden {
+  display: none;
 }
 
 .pricing-card {

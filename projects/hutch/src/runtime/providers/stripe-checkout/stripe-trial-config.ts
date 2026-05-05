@@ -1,0 +1,1 @@
+export const STRIPE_TRIAL_PERIOD_DAYS = 14;

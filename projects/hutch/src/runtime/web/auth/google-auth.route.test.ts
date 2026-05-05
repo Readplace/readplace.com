@@ -205,7 +205,139 @@ describe("Google auth routes", () => {
 			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("not verified");
 		});
 
-		it("should redirect a brand-new user to a Stripe checkout URL", async () => {
+		it("creates the user directly and skips Stripe when below the founding limit", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const { app, auth, pendingSignup } = createTestApp({
+				...fixture,
+				google: {
+					exchangeGoogleCode: stubExchange({ email: "free-google@example.com" }),
+					clientId: "test-google-client-id",
+					clientSecret: "test-google-client-secret",
+				},
+			});
+			for (let i = 0; i < 99; i++) {
+				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+			const state = signState(freshState());
+
+			const response = await request(app)
+				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
+			expect(cookiesFrom(response).join(";")).toContain("hutch_sid=");
+
+			const lookup = await auth.findUserByEmail("free-google@example.com");
+			expect(lookup?.emailVerified).toBe(true);
+
+			const consumed = await pendingSignup.consumePendingSignup(
+				CheckoutSessionIdSchema.parse("cs_test_never_created"),
+			);
+			expect(consumed).toBeNull();
+		}, 30000);
+
+		it("logs in the existing user when a race condition causes createGoogleUser to fail during free signup", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			let raceFindCount = 0;
+			const { app } = createTestApp({
+				...fixture,
+				auth: {
+					...fixture.auth,
+					findUserByEmail: async (email) => {
+						if (email === "race-google@example.com") {
+							raceFindCount++;
+							if (raceFindCount === 1) return null;
+						}
+						return fixture.auth.findUserByEmail(email);
+					},
+				},
+				google: {
+					exchangeGoogleCode: stubExchange({ email: "race-google@example.com" }),
+					clientId: "test-google-client-id",
+					clientSecret: "test-google-client-secret",
+				},
+			});
+			await fixture.auth.createUser({ email: "race-google@example.com", password: "existing" });
+			const state = signState(freshState());
+
+			const response = await request(app)
+				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
+			expect(cookiesFrom(response).join(";")).toContain("hutch_sid=");
+
+			const lookup = await fixture.auth.findUserByEmail("race-google@example.com");
+			expect(lookup?.emailVerified).toBe(true);
+		});
+
+		it("marks email verified during race condition when existing user is unverified", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			let raceFindCount = 0;
+			const { app } = createTestApp({
+				...fixture,
+				auth: {
+					...fixture.auth,
+					findUserByEmail: async (email) => {
+						if (email === "unverified-race@example.com") {
+							raceFindCount++;
+							if (raceFindCount === 1) return null;
+						}
+						return fixture.auth.findUserByEmail(email);
+					},
+				},
+				google: {
+					exchangeGoogleCode: stubExchange({ email: "unverified-race@example.com" }),
+					clientId: "test-google-client-id",
+					clientSecret: "test-google-client-secret",
+				},
+			});
+			await fixture.auth.createUser({ email: "unverified-race@example.com", password: "existing" });
+			const beforeLookup = await fixture.auth.findUserByEmail("unverified-race@example.com");
+			expect(beforeLookup?.emailVerified).toBe(false);
+			const state = signState(freshState());
+
+			const response = await request(app)
+				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+
+			expect(response.status).toBe(303);
+			const afterLookup = await fixture.auth.findUserByEmail("unverified-race@example.com");
+			expect(afterLookup?.emailVerified).toBe(true);
+		});
+
+		it("renders error when race condition causes createGoogleUser to fail and user cannot be found", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const { app } = createTestApp({
+				...fixture,
+				auth: {
+					...fixture.auth,
+					findUserByEmail: async (email) => {
+						if (email === "vanished@example.com") return null;
+						return fixture.auth.findUserByEmail(email);
+					},
+					createGoogleUser: async () => ({ ok: false, reason: "email-already-exists" }),
+				},
+				google: {
+					exchangeGoogleCode: stubExchange({ email: "vanished@example.com" }),
+					clientId: "test-google-client-id",
+					clientSecret: "test-google-client-secret",
+				},
+			});
+			const state = signState(freshState());
+
+			const response = await request(app)
+				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+
+			expect(response.status).toBe(400);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("Account creation failed");
+		});
+
+		it("redirects a brand-new user through Stripe when at the founding limit", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { app, auth } = createTestApp({
 				...fixture,
@@ -215,6 +347,9 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
+			for (let i = 0; i < 100; i++) {
+				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
 			const state = signState(freshState());
 
 			const response = await request(app)
@@ -226,9 +361,9 @@ describe("Google auth routes", () => {
 
 			const lookup = await auth.findUserByEmail("brand-new@example.com");
 			expect(lookup).toBeNull();
-		});
+		}, 30000);
 
-		it("should create the Google user only after successful Stripe checkout", async () => {
+		it("should create the Google user only after successful Stripe checkout when at the founding limit", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { app, auth, stripe } = createTestApp({
 				...fixture,
@@ -238,6 +373,9 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
+			for (let i = 0; i < 100; i++) {
+				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
 			const state = signState(freshState());
 			const agent = request.agent(app);
 			const callbackResponse = await agent
@@ -259,11 +397,11 @@ describe("Google auth routes", () => {
 
 			const lookup = await auth.findUserByEmail("brand-new@example.com");
 			expect(lookup?.emailVerified).toBe(true);
-		});
+		}, 30000);
 
-		it("should preserve the return URL through the Stripe checkout boundary", async () => {
+		it("should preserve the return URL through the Stripe checkout boundary when at the founding limit", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app, stripe } = createTestApp({
+			const { app, auth, stripe } = createTestApp({
 				...fixture,
 				google: {
 					exchangeGoogleCode: stubExchange({ email: "return@example.com" }),
@@ -271,6 +409,9 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
+			for (let i = 0; i < 100; i++) {
+				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
 			const state = signState(freshState({ returnUrl: "/save?url=https%3A%2F%2Fexample.com" }));
 			const agent = request.agent(app);
 			const callbackResponse = await agent
@@ -287,7 +428,7 @@ describe("Google auth routes", () => {
 
 			expect(successResponse.status).toBe(303);
 			expect(successResponse.headers.location).toBe("/save?url=https%3A%2F%2Fexample.com");
-		});
+		}, 30000);
 
 		it("should reuse an existing verified email/password account and keep the password working", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);

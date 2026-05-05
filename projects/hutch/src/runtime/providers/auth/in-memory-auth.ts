@@ -49,6 +49,7 @@ export function initInMemoryAuth(): {
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
+	deleteUser: (email: string) => Promise<void>;
 } {
 	const users = new Map<string, StoredUser>();
 	const sessions = new Map<string, StoredSession>();
@@ -190,6 +191,10 @@ export function initInMemoryAuth(): {
 		user.passwordHash = await hashPassword(password);
 	};
 
+	const deleteUser = async (email: string): Promise<void> => {
+		users.delete(normalizeEmail(email));
+	};
+
 	return {
 		createUser,
 		createUserWithPasswordHash,
@@ -205,5 +210,6 @@ export function initInMemoryAuth(): {
 		userExistsByEmail,
 		updatePassword,
 		findEmailByUserId,
+		deleteUser,
 	};
 }
