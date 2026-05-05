@@ -93,14 +93,31 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--text-muted);
+  color: var(--muted-foreground);
 }
 
 .queue__import-flash {
-  color: var(--text-muted);
+  color: var(--muted-foreground);
   font-size: 0.875rem;
   margin-top: -8px;
   margin-bottom: 16px;
+}
+
+.queue__import-btn {
+  padding: 8px 16px;
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.queue__import-btn:hover {
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 .queue__filters {
