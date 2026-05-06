@@ -54,6 +54,18 @@ import {
 	isExtensionInstalled,
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
+import type { BrowserName } from "../../onboarding/onboarding.types";
+
+/** TODO: Remove the chrome suffix once Chrome extension v1.0.108+ is published.
+ * The bypass auto-completes onboarding for Chrome users; suffixing the dismiss
+ * cookie value during the bypass means dismissals recorded now won't match
+ * ONBOARDING_VERSION after the suffix is removed — so re-enabling the real
+ * checks restores onboarding for Chrome users automatically.
+ * https://chromewebstore.google.com/detail/hutch-%E2%80%94-save-articles-rea/klblengmhlfnmjoagchagfcdbpbocgbf
+ */
+function dismissCookieValueFor(browser: BrowserName): string {
+	return browser === "chrome" ? `${ONBOARDING_VERSION}-chrome-bypass` : ONBOARDING_VERSION;
+}
 
 function markExtensionSavedArticle(res: Response): void {
 	// Only Siren-only save endpoints call this; the form-based /queue/save path doesn't, so the onboarding step is gated on extension saves alone.
@@ -153,8 +165,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		 * is complete, so a dismiss without the install cookie means the user is in a
 		 * different browser context (or has lost the install cookie) — show the popup
 		 * again so they can install the extension here. */
-		const onboardingDismissed = extensionInstalled && req.cookies?.[DISMISS_COOKIE_NAME] === ONBOARDING_VERSION;
 		const browser = detectBrowser(req);
+		const onboardingDismissed = extensionInstalled && req.cookies?.[DISMISS_COOKIE_NAME] === dismissCookieValueFor(browser);
 		const showImportForm = req.query.feature === "import";
 		sendComponent(
 			res,
@@ -162,8 +174,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		);
 	});
 
-	router.post("/dismiss-onboarding", (_req: Request, res: Response) => {
-		res.cookie(DISMISS_COOKIE_NAME, ONBOARDING_VERSION, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true });
+	router.post("/dismiss-onboarding", (req: Request, res: Response) => {
+		res.cookie(DISMISS_COOKIE_NAME, dismissCookieValueFor(detectBrowser(req)), { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true });
 		res.redirect(303, "/queue");
 	});
 

@@ -4,10 +4,13 @@ import { OnboardingChecklist } from "./onboarding.component";
 import type { OnboardingContext } from "./onboarding.types";
 
 function contextWith(overrides: Partial<OnboardingContext> = {}): OnboardingContext {
+	/** Default browser is firefox while the Chrome bypass auto-completes both
+	 * onboarding steps for Chrome users (see onboarding.steps.ts TODO). Tests
+	 * that need Chrome behaviour set browser explicitly. */
 	return {
 		extensionInstalled: false,
 		extensionSavedArticle: false,
-		browser: "chrome",
+		browser: "firefox",
 		...overrides,
 	};
 }
@@ -100,7 +103,11 @@ describe("OnboardingChecklist", () => {
 		assert(container.classList.contains("onboarding--visible"));
 	});
 
-	it("shows 'Install the Chrome browser extension' for Chrome users", () => {
+	// TODO: Re-enable once Chrome extension v1.0.108+ is published and the bypass
+	// in onboarding.steps.ts is removed. While the bypass is active, allComplete
+	// is true for Chrome users so the steps list is not rendered.
+	// https://chromewebstore.google.com/detail/hutch-%E2%80%94-save-articles-rea/klblengmhlfnmjoagchagfcdbpbocgbf
+	it.skip("shows 'Install the Chrome browser extension' for Chrome users", () => {
 		const doc = parse(OnboardingChecklist(contextWith({ browser: "chrome" })));
 		const title = doc.querySelector('[data-test-onboarding-step="install-extension"] .onboarding__step-title');
 		assert(title);
@@ -121,7 +128,11 @@ describe("OnboardingChecklist", () => {
 		assert.equal(title.textContent, "Install a browser extension");
 	});
 
-	it("shows an 'Install' action linking to /install?browser=chrome for Chrome users", () => {
+	// TODO: Re-enable once Chrome extension v1.0.108+ is published and the bypass
+	// in onboarding.steps.ts is removed. The Chrome install button is currently
+	// surfaced inside the success state instead — see the "Chrome bypass" tests below.
+	// https://chromewebstore.google.com/detail/hutch-%E2%80%94-save-articles-rea/klblengmhlfnmjoagchagfcdbpbocgbf
+	it.skip("shows an 'Install' action linking to /install?browser=chrome for Chrome users", () => {
 		const doc = parse(OnboardingChecklist(contextWith({ browser: "chrome" })));
 		const action = doc.querySelector('[data-test-onboarding-step="install-extension"] [data-test-onboarding-action]');
 		assert(action, "action link must be rendered");
@@ -145,7 +156,10 @@ describe("OnboardingChecklist", () => {
 		assert.equal(action.getAttribute("href"), "/install");
 	});
 
-	it("shows 'Save your first article using the browser extension' for Chrome users", () => {
+	// TODO: Re-enable once Chrome extension v1.0.108+ is published and the bypass
+	// in onboarding.steps.ts is removed.
+	// https://chromewebstore.google.com/detail/hutch-%E2%80%94-save-articles-rea/klblengmhlfnmjoagchagfcdbpbocgbf
+	it.skip("shows 'Save your first article using the browser extension' for Chrome users", () => {
 		const doc = parse(OnboardingChecklist(contextWith({ browser: "chrome" })));
 		const title = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__step-title');
 		assert(title);
@@ -167,7 +181,7 @@ describe("OnboardingChecklist", () => {
 	});
 
 	it("does not render actions on save-first-article for browsers with an extension", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ browser: "chrome" })));
+		const doc = parse(OnboardingChecklist(contextWith({ browser: "firefox" })));
 		const actions = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__actions');
 		assert.equal(actions, null);
 	});
@@ -208,5 +222,45 @@ describe("OnboardingChecklist", () => {
 
 		const steps = doc.querySelector("[data-test-onboarding-steps]");
 		assert.equal(steps, null);
+	});
+
+	/** TODO: Remove this Chrome-bypass block once Chrome extension v1.0.108+ is
+	 * published and the bypass in onboarding.steps.ts is removed.
+	 * https://chromewebstore.google.com/detail/hutch-%E2%80%94-save-articles-rea/klblengmhlfnmjoagchagfcdbpbocgbf
+	 */
+	describe("Chrome bypass", () => {
+		it("auto-completes both steps and shows success state for Chrome users without any cookies", () => {
+			const doc = parse(OnboardingChecklist(contextWith({ browser: "chrome" })));
+
+			const container = doc.querySelector("[data-test-onboarding]");
+			assert(container, "onboarding container must be rendered");
+			assert(container.classList.contains("onboarding--complete"));
+
+			const success = doc.querySelector("[data-test-onboarding-success]");
+			assert(success, "success state must be rendered for Chrome bypass");
+		});
+
+		it("renders the Chrome install button inside the success state when Chrome user has no extension cookie", () => {
+			const doc = parse(OnboardingChecklist(contextWith({ browser: "chrome" })));
+
+			const action = doc.querySelector("[data-test-onboarding-success-action]");
+			assert(action, "install action must be surfaced inside the success state");
+			assert.equal(action.textContent, "Install");
+			assert.equal(action.getAttribute("href"), "/install?browser=chrome");
+		});
+
+		it("hides the install button in success state when Chrome user already has the extension installed", () => {
+			const doc = parse(OnboardingChecklist(contextWith({ browser: "chrome", extensionInstalled: true })));
+
+			const action = doc.querySelector("[data-test-onboarding-success-action]");
+			assert.equal(action, null);
+		});
+
+		it("does not surface the success-state install button for non-Chrome browsers", () => {
+			const doc = parse(OnboardingChecklist(contextWith({ browser: "firefox", extensionInstalled: true, extensionSavedArticle: true })));
+
+			const action = doc.querySelector("[data-test-onboarding-success-action]");
+			assert.equal(action, null);
+		});
 	});
 });

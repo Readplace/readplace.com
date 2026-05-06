@@ -14,6 +14,15 @@ export type OnboardingProgress = {
   savedFirstArticle: boolean
 }
 
+/** TODO: Once Chrome extension v1.0.108+ is published and the bypass in
+ * onboarding.steps.ts is removed, restore the per-step `data-test-onboarding-complete`
+ * checks in isAvailable and the post-reload assertion in execute (see git
+ * history for the pre-bypass implementation). Playwright runs as Chromium so
+ * under the bypass the install/save step elements never render — gating on
+ * `[data-test-onboarding]` instead lets the cookie-set + reload path work
+ * unchanged for both bypass and non-bypass.
+ * https://chromewebstore.google.com/detail/hutch-%E2%80%94-save-articles-rea/klblengmhlfnmjoagchagfcdbpbocgbf
+ */
 export function createOnboardingActions(
   progress: OnboardingProgress,
 ): (authProgress: AuthProgress) => Record<OnboardingActionKey, PageAction> {
@@ -22,12 +31,9 @@ export function createOnboardingActions(
       isAvailable: async (page) => {
         if (!authProgress.accountCreated) return false
         if (progress.installedExtension) return false
-        return (await page.locator('[data-test-onboarding-step="install-extension"]').count()) > 0
+        return (await page.locator('[data-test-onboarding]').count()) > 0
       },
       execute: async (page) => {
-        const step = page.locator('[data-test-onboarding-step="install-extension"]')
-        await expect(step).toHaveAttribute('data-test-onboarding-complete', 'false')
-
         await page.context().addCookies([{
           name: COOKIE_NAME,
           value: COOKIE_VALUE,
@@ -35,16 +41,6 @@ export function createOnboardingActions(
           domain: new URL(page.url()).hostname,
         }])
         await page.reload({ waitUntil: 'domcontentloaded' })
-
-        // After reload, install-extension is complete; save-first-article is
-        // independently gated on a save through the extension's Siren endpoint
-        // (POST /queue or /queue/save-html), so the success view never appears
-        // on this reload alone — that's simulated by onboarding-save-first-article.
-        const stillIncomplete = await page.locator(
-          '[data-test-onboarding-step="install-extension"][data-test-onboarding-complete="false"]',
-        ).count()
-        expect(stillIncomplete).toBe(0)
-
         progress.installedExtension = true
       },
     },
@@ -54,8 +50,7 @@ export function createOnboardingActions(
         if (!authProgress.accountCreated) return false
         if (!progress.installedExtension) return false
         if (progress.savedFirstArticle) return false
-        const step = page.locator('[data-test-onboarding-step="save-first-article-via-extension"][data-test-onboarding-complete="false"]')
-        return (await step.count()) > 0
+        return (await page.locator('[data-test-onboarding]').count()) > 0
       },
       execute: async (page) => {
         // Stand in for the extension calling POST /queue: in production the

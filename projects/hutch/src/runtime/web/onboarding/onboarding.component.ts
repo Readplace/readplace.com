@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "../render";
 import { requireEnv } from "../../require-env";
+import { buildExtensionInstallUrl } from "./extension-install";
 import { ONBOARDING_STEPS } from "./onboarding.steps";
 import type { OnboardingAction, OnboardingContext, OnboardingStep } from "./onboarding.types";
 
@@ -50,6 +51,18 @@ function allStepsComplete(ctx: OnboardingContext): boolean {
 	return ONBOARDING_STEPS.every((step) => step.isComplete(ctx));
 }
 
+/** TODO: Remove once Chrome extension v1.0.108+ is published. While the steps
+ * isComplete bypass forces success state for all Chrome users, surface the
+ * install action inside the success state so users without the extension still
+ * have a path to install it.
+ * https://chromewebstore.google.com/detail/hutch-%E2%80%94-save-articles-rea/klblengmhlfnmjoagchagfcdbpbocgbf
+ */
+function chromeBypassSuccessAction(ctx: OnboardingContext): OnboardingAction | undefined {
+	if (ctx.browser !== "chrome") return undefined;
+	if (ctx.extensionInstalled) return undefined;
+	return { label: "Install", url: buildExtensionInstallUrl("chrome") };
+}
+
 export function OnboardingChecklist(ctx: OnboardingContext): string {
 	const steps = ONBOARDING_STEPS.map((step) => toStepDisplayModel(step, ctx));
 	const allComplete = allStepsComplete(ctx);
@@ -61,5 +74,6 @@ export function OnboardingChecklist(ctx: OnboardingContext): string {
 		stateClass,
 		allComplete,
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
+		successAction: chromeBypassSuccessAction(ctx),
 	});
 }
