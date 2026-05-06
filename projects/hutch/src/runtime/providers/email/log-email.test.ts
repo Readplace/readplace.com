@@ -16,8 +16,10 @@ describe("initLogEmail", () => {
 			from: "sender@example.com",
 			to: "recipient@example.com",
 			bcc: undefined,
+			replyTo: undefined,
 			subject: "Test Subject",
 			html: "<p>Test</p>",
+			text: undefined,
 		});
 
 		consoleSpy.mockRestore();

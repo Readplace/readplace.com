@@ -44,6 +44,7 @@
     "dev:lambda": "tsx watch src/runtime/lambda.main.ts",
     "permalink": "tsx src/runtime/web/pages/save/save-permalink.cli.main.ts",
     "backfill-registered-at": "tsx src/runtime/providers/auth/backfill-registered-at.cli.main.ts",
+    "send-checkout-recovery-emails": "tsx src/runtime/checkout-recovery/send-checkout-recovery-emails.cli.main.ts",
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
     "test:sequential": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000 --runInBand",
     "test-integration": "jest --testMatch='**/dist/**/*.integration.js' --testTimeout=30000",

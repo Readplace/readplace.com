@@ -62,7 +62,7 @@ const applyParseResult = createFakeApplyParseResult({
 // E2E-specific Stripe checkout: generates local URLs so the browser can follow
 // the redirect chain (POST /signup → local checkout → /auth/checkout/success)
 // instead of hitting the unreachable https://checkout.stripe.test domain.
-const e2eStripe = initInMemoryStripeCheckout({ checkoutBaseUrl: `${origin}/e2e/stripe-checkout` })
+const e2eStripe = initInMemoryStripeCheckout({ checkoutBaseUrl: `${origin}/e2e/stripe-checkout`, now: () => new Date() })
 
 const { app: hutchApp, email } = createTestApp({
   ...fixture,

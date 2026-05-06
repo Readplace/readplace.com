@@ -12,8 +12,16 @@ export type CreateCheckoutSession = (params: {
 	cancelUrl: string;
 }) => Promise<CheckoutSession>;
 
+export type CheckoutSessionStatus = "open" | "complete" | "expired";
+
 export type RetrieveCheckoutSession = (id: CheckoutSessionId) => Promise<
-	| { ok: true; paid: boolean; customerEmail: string }
+	| {
+			ok: true;
+			paid: boolean;
+			customerEmail: string;
+			status: CheckoutSessionStatus;
+			created: number;
+	  }
 	| { ok: false; reason: "not-found" }
 >;
 /* c8 ignore stop */

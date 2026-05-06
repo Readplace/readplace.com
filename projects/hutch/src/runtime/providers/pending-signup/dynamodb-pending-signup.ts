@@ -9,6 +9,8 @@ import { UserIdSchema } from "../../domain/user/user.schema";
 import { CheckoutSessionIdSchema } from "../stripe-checkout/stripe-checkout.schema";
 import type {
 	ConsumePendingSignup,
+	ListAllPendingSignups,
+	MarkCheckoutRecoveryEmailSent,
 	PendingSignup,
 	StorePendingSignup,
 } from "./pending-signup.types";
@@ -20,6 +22,13 @@ const PendingSignupRow = z.object({
 	passwordHash: dynamoField(z.string()),
 	userId: dynamoField(UserIdSchema),
 	returnUrl: dynamoField(z.string()),
+	checkoutRecoveryEmailSentAt: dynamoField(z.number()),
+});
+
+const PendingSignupSummaryRow = z.object({
+	checkoutSessionId: CheckoutSessionIdSchema,
+	email: z.string(),
+	checkoutRecoveryEmailSentAt: dynamoField(z.number()),
 });
 
 export function initDynamoDbPendingSignup(deps: {
@@ -28,11 +37,19 @@ export function initDynamoDbPendingSignup(deps: {
 }): {
 	storePendingSignup: StorePendingSignup;
 	consumePendingSignup: ConsumePendingSignup;
+	listAllPendingSignups: ListAllPendingSignups;
+	markCheckoutRecoveryEmailSent: MarkCheckoutRecoveryEmailSent;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.tableName,
 		schema: PendingSignupRow,
+	});
+
+	const summaryTable = defineDynamoTable({
+		client: deps.client,
+		tableName: deps.tableName,
+		schema: PendingSignupSummaryRow,
 	});
 
 	const storePendingSignup: StorePendingSignup = async ({ checkoutSessionId, signup }) => {
@@ -79,6 +96,45 @@ export function initDynamoDbPendingSignup(deps: {
 		return signup;
 	};
 
-	return { storePendingSignup, consumePendingSignup };
+	const listAllPendingSignups: ListAllPendingSignups = async () => {
+		const summaries = [];
+		let lastEvaluatedKey: Record<string, unknown> | undefined;
+		do {
+			const page = await summaryTable.scan({
+				ProjectionExpression:
+					"checkoutSessionId, email, checkoutRecoveryEmailSentAt",
+				ExclusiveStartKey: lastEvaluatedKey,
+			});
+			for (const row of page.items) {
+				summaries.push({
+					checkoutSessionId: row.checkoutSessionId,
+					email: row.email,
+					...(row.checkoutRecoveryEmailSentAt !== undefined
+						? { checkoutRecoveryEmailSentAt: row.checkoutRecoveryEmailSentAt }
+						: {}),
+				});
+			}
+			lastEvaluatedKey = page.lastEvaluatedKey;
+		} while (lastEvaluatedKey !== undefined);
+		return summaries;
+	};
+
+	const markCheckoutRecoveryEmailSent: MarkCheckoutRecoveryEmailSent = async ({
+		checkoutSessionId,
+		sentAt,
+	}) => {
+		await table.update({
+			Key: { checkoutSessionId },
+			UpdateExpression: "SET checkoutRecoveryEmailSentAt = :sentAt",
+			ExpressionAttributeValues: { ":sentAt": sentAt },
+		});
+	};
+
+	return {
+		storePendingSignup,
+		consumePendingSignup,
+		listAllPendingSignups,
+		markCheckoutRecoveryEmailSent,
+	};
 }
 /* c8 ignore stop */

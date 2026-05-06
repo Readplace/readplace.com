@@ -11,7 +11,9 @@ export function initResendEmail(apiKey: string): { sendEmail: SendEmail } {
 			to: message.to,
 			subject: message.subject,
 			html: message.html,
+			...(message.text && { text: message.text }),
 			...(message.bcc && { bcc: message.bcc }),
+			...(message.replyTo && { replyTo: message.replyTo }),
 		});
 		if (result.error) {
 			throw new Error(`Resend ${result.error.name}: ${result.error.message}`);

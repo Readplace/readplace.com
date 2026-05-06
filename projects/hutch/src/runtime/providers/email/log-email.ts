@@ -6,8 +6,10 @@ export function initLogEmail(): { sendEmail: SendEmail } {
 			from: message.from,
 			to: message.to,
 			bcc: message.bcc,
+			replyTo: message.replyTo,
 			subject: message.subject,
 			html: message.html,
+			text: message.text,
 		});
 	};
 

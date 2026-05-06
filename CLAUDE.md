@@ -82,6 +82,20 @@ const proxyUrl = getEnv('HTTPS_PROXY');
 
 **Exception:** Playwright config files (`playwright.config.*.ts`) must use `process.env` directly. Importing `getEnv`/`requireEnv` causes the playwright process to load `require-env.ts` outside V8 coverage instrumentation, creating uncovered function entries that break the 100% function coverage threshold.
 
+### Logging
+
+Use `HutchLogger` from `@packages/hutch-logger` for all logging. Never use raw `console.log`/`console.error` in application code. In composition roots, create the logger with `HutchLogger.from(consoleLogger)`.
+
+```typescript
+// BAD - Raw console
+console.log("[recovery] Starting…");
+
+// GOOD - HutchLogger
+import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+const logger = HutchLogger.from(consoleLogger);
+logger.info("[recovery] Starting…");
+```
+
 ### Comments Document Why, Not What
 
 Do not add comments that explain what code does. Only add comments to explain **why** when the reasoning isn't obvious.

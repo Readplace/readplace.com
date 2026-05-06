@@ -48,7 +48,7 @@ describe("Email verification", () => {
 			const oauthModel = createOAuthModel(initInMemoryOAuthModel());
 			const emailVerification = initInMemoryEmailVerification();
 			const passwordReset = initInMemoryPasswordReset();
-			const stripe = initInMemoryStripeCheckout();
+			const stripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 			const pendingSignup = initInMemoryPendingSignup();
 
 			let resolveErrorLogged: () => void;

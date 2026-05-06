@@ -203,7 +203,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		logger: noopLogger,
 	});
 	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), { appOrigin });
-	const stripe = initInMemoryStripeCheckout();
+	const stripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const pendingSignup = initInMemoryPendingSignup();
 
 	const botDefenseEvents: BotDefenseEvent[] = [];

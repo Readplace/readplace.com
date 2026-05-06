@@ -185,7 +185,7 @@ function initProviders() {
 	const auth = initInMemoryAuth();
 	const articleStore = initInMemoryArticleStore();
 	const oauthModel = createOAuthModel(initInMemoryOAuthModel());
-	const devStripe = initInMemoryStripeCheckout();
+	const devStripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const devPendingSignup = initInMemoryPendingSignup();
 	const devGoogleClientId = getEnv("GOOGLE_LOGIN_CLIENT_ID");
 	const devGoogleClientSecret = getEnv("GOOGLE_LOGIN_CLIENT_SECRET");

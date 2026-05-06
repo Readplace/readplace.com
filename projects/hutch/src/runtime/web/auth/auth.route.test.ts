@@ -256,6 +256,30 @@ describe("Auth routes", () => {
 			expect(loginLink).toContain("/login");
 			expect(loginLink).toContain("return=");
 		});
+
+		it("should pre-fill the email field when a valid email is provided in the query string", async () => {
+			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(app).get(
+				"/signup?email=jane%40example.com&utm_source=recovery",
+			);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const emailInput = doc.querySelector('input[name="email"]');
+			assert(emailInput, "email input must be rendered");
+			expect(emailInput.getAttribute("value")).toBe("jane@example.com");
+		});
+
+		it("should leave the email field empty when the query email is invalid", async () => {
+			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(app).get("/signup?email=not-an-email");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const emailInput = doc.querySelector('input[name="email"]');
+			assert(emailInput, "email input must be rendered");
+			expect(emailInput.getAttribute("value")).toBe("");
+		});
 	});
 
 	describe("POST /signup", () => {
