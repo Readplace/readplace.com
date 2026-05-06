@@ -207,6 +207,7 @@ export interface AdminBundle {
 
 export interface SharedBundle {
 	appOrigin: string;
+	staticBaseUrl: string;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
 	logError: (message: string, error?: Error) => void;
 	logParseError: LogParseError;
@@ -264,7 +265,7 @@ function flattenFixtureToAppDependencies(
 ): Parameters<typeof createApp>[0] {
 	return {
 		appOrigin: fixture.shared.appOrigin,
-		staticBaseUrl: "",
+		staticBaseUrl: fixture.shared.staticBaseUrl,
 		baseUrl: fixture.shared.appOrigin,
 		logError: fixture.shared.logError,
 		logParseError: fixture.shared.logParseError,

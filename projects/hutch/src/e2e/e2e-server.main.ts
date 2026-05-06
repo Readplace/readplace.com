@@ -80,6 +80,7 @@ const { app: hutchApp, email } = createTestApp({
   summary,
   shared: {
     appOrigin: fixture.shared.appOrigin,
+    staticBaseUrl: fixture.shared.staticBaseUrl,
     httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,
     logError,
     logParseError: fixture.shared.logParseError,

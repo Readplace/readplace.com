@@ -295,6 +295,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		},
 		shared: {
 			appOrigin,
+			staticBaseUrl: "https://static.test",
 			httpErrorMessageMapping,
 			logError: createNoopLogError(),
 			logParseError: () => {},

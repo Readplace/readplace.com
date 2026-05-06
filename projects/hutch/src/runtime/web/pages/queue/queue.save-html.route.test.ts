@@ -143,6 +143,7 @@ describe("POST /queue/save-html", () => {
 			freshness: { refreshArticleIfStale: async () => { throw new Error("boom"); } },
 			shared: {
 				appOrigin: fixture.shared.appOrigin,
+				staticBaseUrl: fixture.shared.staticBaseUrl,
 				httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,
 				logError: (_msg, err) => { if (err) errors.push(err); },
 				logParseError: fixture.shared.logParseError,
@@ -238,6 +239,7 @@ describe("POST /queue/save-html", () => {
 			...fixture,
 			shared: {
 				appOrigin: fixture.shared.appOrigin,
+				staticBaseUrl: fixture.shared.staticBaseUrl,
 				httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,
 				logError: () => {},
 				logParseError: (params) => { parseErrorCalls.push(params); },

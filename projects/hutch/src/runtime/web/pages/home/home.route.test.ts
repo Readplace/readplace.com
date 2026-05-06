@@ -358,6 +358,36 @@ describe("GET / with exhausted founding allocation", () => {
 	}, 30000);
 });
 
+describe("GET /favicon.ico", () => {
+	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+	it("should 301 redirect to the static CDN's favicon.ico", async () => {
+		const response = await request(app).get("/favicon.ico");
+		expect(response.status).toBe(301);
+		expect(response.headers.location).toBe("https://static.test/favicon.ico");
+	});
+});
+
+describe("GET /apple-touch-icon*.png", () => {
+	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+	it.each([
+		"/apple-touch-icon.png",
+		"/apple-touch-icon-precomposed.png",
+		"/apple-touch-icon-57x57.png",
+		"/apple-touch-icon-180x180.png",
+	])("should 301 redirect %s to the static CDN", async (path) => {
+		const response = await request(app).get(path);
+		expect(response.status).toBe(301);
+		expect(response.headers.location).toBe(`https://static.test${path}`);
+	});
+
+	it("should fall through to 404 for paths that don't match the apple-touch-icon shape", async () => {
+		const response = await request(app).get("/apple-touch-icon-invalid.png");
+		expect(response.status).toBe(404);
+	});
+});
+
 describe("GET /robots.txt", () => {
 	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 

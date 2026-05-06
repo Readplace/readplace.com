@@ -212,6 +212,7 @@ export interface AdminBundle {
 
 export interface SharedBundle {
 	appOrigin: string;
+	staticBaseUrl: string;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
 	logError: (message: string, error?: Error) => void;
 	logParseError: LogParseError;

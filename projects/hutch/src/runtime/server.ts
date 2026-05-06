@@ -213,6 +213,15 @@ export function createApp(dependencies: AppDependencies): Express {
 	const markExtensionInstalled = initMarkExtensionInstalled();
 	app.use(markExtensionInstalled);
 
+	app.get("/favicon.ico", (_req: Request, res: Response) => {
+		res.redirect(301, `${staticBaseUrl}/favicon.ico`);
+	});
+
+	/** iOS Safari and other clients auto-fetch /apple-touch-icon[-NxN][-precomposed].png from the root before reading <link rel="apple-touch-icon"> in the HTML. Redirect every shape to the static CDN. */
+	app.get(/^\/apple-touch-icon(?:-\d+x\d+)?(?:-precomposed)?\.png$/, (req: Request, res: Response) => {
+		res.redirect(301, `${staticBaseUrl}${req.path}`);
+	});
+
 	app.get("/robots.txt", (_req: Request, res: Response) => {
 		res.type("text/plain").send(
 			[
