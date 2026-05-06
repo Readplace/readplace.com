@@ -12,10 +12,10 @@ const ARTICLE_TITLE = "Hello World";
 const FIXTURE = `<!DOCTYPE html><html><body>
 <span data-share-balloon-status></span>
 <div data-share-balloon-wrap hidden>
-  <button type="button" data-share-balloon-close></button>
   <div data-share-balloon-buttons>
-    <button type="button" data-share-balloon data-share-url="${ARTICLE_URL}" data-share-title="${ARTICLE_TITLE}"></button>
     <button type="button" data-share-balloon-copy></button>
+    <button type="button" data-share-balloon data-share-url="${ARTICLE_URL}" data-share-title="${ARTICLE_TITLE}"></button>
+    <button type="button" data-share-balloon-close></button>
   </div>
   <span data-share-balloon-copied>Link copied!</span>
 </div>

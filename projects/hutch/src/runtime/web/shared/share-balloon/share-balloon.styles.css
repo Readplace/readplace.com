@@ -3,57 +3,58 @@
   pointer-events: auto;
 }
 
-.share-balloon__close {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  z-index: 2;
-  width: 22px;
-  height: 22px;
-  padding: 0;
+.share-balloon__buttons {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.5rem;
   background: var(--color-surface-elevated);
   color: var(--color-text-primary);
   border: 1px solid var(--color-border);
-  border-radius: 50%;
+  border-radius: 999px;
   box-shadow: var(--shadow-md);
+  transition: border-radius 300ms ease, padding 300ms ease;
+}
+
+.share-balloon__wrap--open .share-balloon__buttons {
+  border-radius: 18px;
+  padding: 0.5rem 0.75rem;
+}
+
+.share-balloon__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0;
+  overflow: hidden;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--color-text-primary);
   font-family: inherit;
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
   opacity: 0;
   visibility: hidden;
-  transform: scale(0.7);
-  transition: opacity 180ms ease, transform 240ms ease, visibility 0s linear 240ms;
+  transition: opacity 180ms ease, width 240ms ease, visibility 0s linear 240ms;
 }
 
 .share-balloon__wrap--open .share-balloon__close {
+  width: 1.5rem;
   opacity: 1;
   visibility: visible;
-  transform: scale(1);
-  transition: opacity 2000ms ease 2200ms, transform 2400ms ease 2200ms, visibility 0s linear 2200ms;
-}
-
-.share-balloon__buttons {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
+  transition: opacity 2000ms ease 2200ms, width 2400ms ease 2200ms, visibility 0s linear 2200ms;
 }
 
 .share-balloon__copy {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  padding: 0.5rem;
-  background: var(--color-surface-elevated);
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
-  border-radius: 50%;
-  box-shadow: var(--shadow-md);
+  padding: 0;
+  background: none;
+  color: inherit;
+  border: none;
   cursor: pointer;
   transition: transform 120ms ease, filter 120ms ease;
 }
@@ -71,21 +72,14 @@
   display: inline-flex;
   align-items: center;
   max-width: 100%;
-  padding: 0.5rem;
-  background: var(--color-surface-elevated);
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
-  border-radius: 50%;
-  box-shadow: var(--shadow-md);
+  padding: 0;
+  background: none;
+  color: inherit;
+  border: none;
   cursor: pointer;
   font: inherit;
   text-align: left;
-  transition: transform 120ms ease, filter 120ms ease, background 120ms ease, color 120ms ease, border-color 120ms ease, border-radius 300ms ease, padding 300ms ease;
-}
-
-.share-balloon__wrap--open .share-balloon {
-  border-radius: 18px;
-  padding: 0.5rem 0.75rem 0.5rem 0.5rem;
+  transition: transform 120ms ease, filter 120ms ease;
 }
 
 .share-balloon:hover {
@@ -177,6 +171,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .share-balloon,
+  .share-balloon__buttons,
   .share-balloon__chat,
   .share-balloon__close,
   .share-balloon__copy {
