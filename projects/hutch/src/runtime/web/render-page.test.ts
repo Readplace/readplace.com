@@ -13,7 +13,7 @@ function createTestPageBody(): PageBody {
 			canonicalUrl: "https://readplace.com/test",
 		},
 		styles: "",
-		content: "<main><p>Test content</p></main>",
+		content: { html: "<main><p>Test content</p></main>" },
 	};
 }
 

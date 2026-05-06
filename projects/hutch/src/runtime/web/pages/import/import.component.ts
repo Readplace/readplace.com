@@ -25,7 +25,7 @@ export function ImportPage(vm: ImportViewModel): PageBody {
 		},
 		styles: IMPORT_STYLES,
 		bodyClass: "page-import",
-		content,
+		content: { html: content },
 		scripts: IMPORT_CLIENT_SCRIPT,
 	};
 }

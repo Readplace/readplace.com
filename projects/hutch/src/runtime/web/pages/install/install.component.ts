@@ -79,10 +79,10 @@ export function InstallPage(params: { firefox: string | null; chrome: string | n
 		},
 		styles: INSTALL_PAGE_STYLES,
 		bodyClass: "page-install",
-		content: render(INSTALL_TEMPLATE, {
+		content: { html: render(INSTALL_TEMPLATE, {
 			browser: params.browser,
 			firefoxDownloadUrl: params.firefox,
 			chromeDownloadUrl: params.chrome,
-		}, { helpers: switchHelpers }),
+		}, { helpers: switchHelpers }) },
 	};
 }

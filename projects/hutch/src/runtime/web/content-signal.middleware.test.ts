@@ -31,7 +31,7 @@ describe("contentSignalMiddleware", () => {
 		const { headers, res } = createFakeRes();
 		const next = jest.fn() as unknown as NextFunction;
 
-		contentSignalMiddleware({ method: "GET" } as Request, res, next);
+		contentSignalMiddleware({ method: "GET", path: "/" } as Request, res, next);
 
 		expect(headers["Content-Signal"]).toBe(CONTENT_SIGNAL_VALUE);
 		expect(next).toHaveBeenCalled();
@@ -41,7 +41,7 @@ describe("contentSignalMiddleware", () => {
 		const { varied, res } = createFakeRes();
 		const next = jest.fn() as unknown as NextFunction;
 
-		contentSignalMiddleware({ method: "GET" } as Request, res, next);
+		contentSignalMiddleware({ method: "GET", path: "/" } as Request, res, next);
 
 		expect(varied).toEqual(["Accept"]);
 	});
@@ -56,4 +56,18 @@ describe("contentSignalMiddleware", () => {
 		expect(varied).toEqual([]);
 		expect(next).toHaveBeenCalled();
 	});
+
+	it.each(["/robots.txt", "/llms.txt", "/llms-full.txt", "/sitemap.xml", "/health"])(
+		"skips Content-Signal and Vary on non-page GET %s",
+		(path) => {
+			const { headers, varied, res } = createFakeRes();
+			const next = jest.fn() as unknown as NextFunction;
+
+			contentSignalMiddleware({ method: "GET", path } as Request, res, next);
+
+			expect(headers["Content-Signal"]).toBeUndefined();
+			expect(varied).toEqual([]);
+			expect(next).toHaveBeenCalled();
+		},
+	);
 });

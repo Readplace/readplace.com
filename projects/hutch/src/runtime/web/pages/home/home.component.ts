@@ -280,7 +280,7 @@ export function HomePage(params: { userCount: number; staticBaseUrl: string; bro
 		styles: HOME_PAGE_STYLES,
 		scripts: HOME_HEADLINE_SCRIPT + HOME_SCROLL_HINT_SCRIPT,
 		bodyClass: "page-home",
-		content: render(HOME_TEMPLATE, {
+		content: { html: render(HOME_TEMPLATE, {
 			staticBaseUrl,
 			browserName: browser,
 			founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
@@ -375,6 +375,6 @@ export function HomePage(params: { userCount: number; staticBaseUrl: string; bro
 						"Export everything, anytime. Your data is yours. Cancel and your saved articles stay available for export.",
 				},
 			],
-		}, { helpers: switchHelpers }),
+		}, { helpers: switchHelpers }) },
 	};
 }

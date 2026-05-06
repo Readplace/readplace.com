@@ -16,7 +16,7 @@ export function NotFoundPage(): PageBody {
 		},
 		styles: NOT_FOUND_STYLES,
 		bodyClass: "page-not-found",
-		content: render(NOT_FOUND_TEMPLATE, {}),
+		content: { html: render(NOT_FOUND_TEMPLATE, {}) },
 		statusCode: 404,
 	};
 }

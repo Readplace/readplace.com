@@ -97,7 +97,7 @@ export function OAuthAuthorizePage(params: AuthorizePageParams): PageBody {
 		},
 		styles: OAUTH_AUTHORIZE_STYLES,
 		bodyClass: "page-oauth-authorize",
-		content,
+		content: { html: content },
 	};
 }
 
@@ -111,6 +111,6 @@ export function OAuthCallbackPage(): PageBody {
 		},
 		styles: OAUTH_CALLBACK_STYLES,
 		bodyClass: "page-oauth-callback",
-		content: render(OAUTH_CALLBACK_TEMPLATE, {}),
+		content: { html: render(OAUTH_CALLBACK_TEMPLATE, {}) },
 	};
 }

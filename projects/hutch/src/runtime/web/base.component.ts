@@ -198,7 +198,7 @@ function renderBaseTemplate(body: PageBody, state: BannerState): string {
 		showVerificationBanner: state.isAuthenticated && state.emailVerified === false,
 		bodyClass: body.bodyClass,
 		header: renderHeader(headerVariant, state.isAuthenticated),
-		content: injectPageStylesIntoMain(body.content, body.styles),
+		content: injectPageStylesIntoMain(body.content.html, body.styles),
 		footer: renderFooter(),
 		navScript: NAV_SCRIPT,
 		offlineScript: OFFLINE_INDICATOR_SCRIPT,
@@ -210,7 +210,7 @@ function renderMarkdown(body: PageBody): string {
 	const frontmatter = buildMarkdownFrontmatter(body.seo, {
 		formattedDate: body.markdownFormattedDate,
 	});
-	const content = body.markdownContent ?? htmlToMarkdown(body.content);
+	const content = body.content.markdown ?? htmlToMarkdown(body.content.html);
 	return `${frontmatter}\n\n${content}`;
 }
 

@@ -5,7 +5,8 @@ export const MARKDOWN_MEDIA_TYPE = "text/markdown";
 
 export function wantsSiren(req: Request): boolean {
 	const acceptHeader = req.get("Accept") || "";
-	return acceptHeader.includes(SIREN_MEDIA_TYPE);
+	if (!acceptHeader.includes(SIREN_MEDIA_TYPE)) return false;
+	return req.accepts(SIREN_MEDIA_TYPE) === SIREN_MEDIA_TYPE;
 }
 
 export function wantsMarkdown(req: Request): boolean {

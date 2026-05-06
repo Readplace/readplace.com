@@ -32,6 +32,6 @@ export function AdminRecrawlLandingPage(): PageBody {
 		},
 		styles: RECRAWL_STYLES,
 		bodyClass: "page-admin-recrawl",
-		content,
+		content: { html: content },
 	};
 }

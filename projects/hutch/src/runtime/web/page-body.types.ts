@@ -19,12 +19,7 @@ export interface PageBody {
 	styles: string;
 	headerVariant?: "default" | "transparent";
 	bodyClass?: string;
-	content: string;
-	/** When set, the markdown branch of `Base()` serves this verbatim instead
-	 * of converting `content` from HTML. Used by routes that want to ship a
-	 * subset of the page (e.g., /view returns only the article body, not the
-	 * surrounding share/save UI). */
-	markdownContent?: string;
+	content: { html: string; markdown?: string };
 	markdownFormattedDate?: string;
 	scripts?: string;
 	statusCode?: number;

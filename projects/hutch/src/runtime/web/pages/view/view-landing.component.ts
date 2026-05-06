@@ -21,6 +21,6 @@ export function ViewLandingPage(): PageBody {
 		},
 		styles: VIEW_LANDING_STYLES,
 		bodyClass: "page-view-landing",
-		content: render(VIEW_LANDING_TEMPLATE, {}),
+		content: { html: render(VIEW_LANDING_TEMPLATE, {}) },
 	};
 }

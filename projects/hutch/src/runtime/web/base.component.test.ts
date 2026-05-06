@@ -12,7 +12,7 @@ function createTestPageBody(overrides: Partial<PageBody> = {}): PageBody {
 			canonicalUrl: "https://readplace.com/test",
 		},
 		styles: "",
-		content: "<main><p>Test content</p></main>",
+		content: { html: "<main><p>Test content</p></main>" },
 		...overrides,
 	};
 }
@@ -40,7 +40,7 @@ describe("Base component", () => {
 	});
 
 	it("should include page content in the body", () => {
-		const page = createTestPageBody({ content: "<main><h1>Hello World</h1></main>" });
+		const page = createTestPageBody({ content: { html: "<main><h1>Hello World</h1></main>" } });
 		const result = Base(page, GUEST_STATE).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
@@ -119,7 +119,7 @@ describe("Base component", () => {
 				description: "Markdown description.",
 				canonicalUrl: "https://readplace.com/test",
 			},
-			content: "<main><h2>Section</h2><p>Body copy.</p></main>",
+			content: { html: "<main><h2>Section</h2><p>Body copy.</p></main>" },
 		});
 
 		const result = Base(page, GUEST_STATE).to("text/markdown");
@@ -132,10 +132,9 @@ describe("Base component", () => {
 		expect(result.body).not.toContain("<main>");
 	});
 
-	it("uses markdownContent verbatim when provided, skipping HTML conversion", () => {
+	it("uses markdown content verbatim when provided, skipping HTML conversion", () => {
 		const page = createTestPageBody({
-			content: "<main><p>HTML body.</p></main>",
-			markdownContent: "## Article\n\nClean prose.",
+			content: { html: "<main><p>HTML body.</p></main>", markdown: "## Article\n\nClean prose." },
 		});
 
 		const result = Base(page, GUEST_STATE).to("text/markdown");

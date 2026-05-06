@@ -117,7 +117,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		},
 		styles: VIEW_STYLES,
 		bodyClass: "page-view",
-		content,
+		content: { html: content },
 		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT,
 	};
 }

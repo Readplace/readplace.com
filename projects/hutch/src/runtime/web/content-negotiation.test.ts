@@ -39,8 +39,14 @@ describe("wantsSiren", () => {
 		expect(wantsSiren(req)).toBe(false);
 	});
 
+	it("returns false when Siren has quality 0", () => {
+		const req = requestWithAccept("application/vnd.siren+json;q=0, text/html");
+
+		expect(wantsSiren(req)).toBe(false);
+	});
+
 	it("returns false when no Accept header is present", () => {
-		const req = { get: () => undefined } as unknown as Request;
+		const req = { get: () => undefined, accepts: () => false } as unknown as Request;
 
 		expect(wantsSiren(req)).toBe(false);
 	});

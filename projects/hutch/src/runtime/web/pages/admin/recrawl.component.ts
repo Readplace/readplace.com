@@ -66,7 +66,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		},
 		styles: RECRAWL_STYLES,
 		bodyClass: "page-admin-recrawl",
-		content,
+		content: { html: content },
 		scripts: PROGRESS_BAR_SCRIPT,
 	};
 }

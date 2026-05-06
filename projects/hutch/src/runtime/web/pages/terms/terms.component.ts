@@ -17,6 +17,6 @@ export function TermsPage(): PageBody {
 		},
 		styles: LEGAL_PAGE_STYLES,
 		bodyClass: "page-terms",
-		content: render(TERMS_TEMPLATE, {}),
+		content: { html: render(TERMS_TEMPLATE, {}) },
 	};
 }
