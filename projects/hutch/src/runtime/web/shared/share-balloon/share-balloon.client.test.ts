@@ -322,6 +322,21 @@ describe("initShareBalloon — copy click", () => {
 		expect(status.textContent).toBe("Link copied to clipboard");
 	});
 
+	it("fades the copied feedback out after COPIED_FADE_MS", async () => {
+		const writeText = jest.fn(() => Promise.resolve());
+		const { document, ctrl } = setup({ navigator: { clipboard: { writeText } } });
+		const copiedLabel = element(document, "[data-share-balloon-copied]");
+		const status = element(document, "[data-share-balloon-status]");
+		ctrl.attach();
+
+		fireEvent.click(element(document, "[data-share-balloon-copy]"));
+		await flushPromises();
+		jest.advanceTimersByTime(3000);
+
+		expect(copiedLabel.classList.contains(COPIED_VISIBLE_CLASS)).toBe(false);
+		expect(status.textContent).toBe("");
+	});
+
 	it("reports 'Unable to copy link' to the status region when writeText rejects", async () => {
 		const writeText = jest.fn(() => Promise.reject(new Error("denied")));
 		const { document, ctrl } = setup({ navigator: { clipboard: { writeText } } });
