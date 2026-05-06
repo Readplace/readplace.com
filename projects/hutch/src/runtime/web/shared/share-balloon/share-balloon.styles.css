@@ -6,7 +6,6 @@
 .share-balloon__buttons {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
   padding: 0.5rem;
   background: var(--color-surface-elevated);
   color: var(--color-text-primary);
@@ -22,44 +21,63 @@
 }
 
 .share-balloon__close {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 0;
-  overflow: hidden;
-  padding: 0;
-  background: none;
-  border: none;
+  background: var(--color-surface-elevated);
   color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  box-shadow: var(--shadow-md);
   font-family: inherit;
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 180ms ease, width 240ms ease, visibility 0s linear 240ms;
+  transform: scale(0.7);
+  transition: opacity 180ms ease, transform 240ms ease, visibility 0s linear 240ms;
 }
 
+/**
+ * 1. Reveal the close button right after the chat open animation finishes
+ *    (~400ms) so users immediately see how to dismiss the bubble.
+ */
 .share-balloon__wrap--open .share-balloon__close {
-  width: 1.5rem;
   opacity: 1;
   visibility: visible;
-  transition: opacity 2000ms ease 2200ms, width 2400ms ease 2200ms, visibility 0s linear 2200ms;
+  transform: scale(1);
+  transition: opacity 250ms ease 500ms, transform 250ms ease 500ms, visibility 0s linear 500ms; /* 1 */
 }
 
+/**
+ * 1. Padding on every side gives a 38px tap target around the 18px icon.
+ * 2. The right margin keeps copy and share separated by a constant 0.625rem
+ *    so adjacent tap targets do not overlap on mobile.
+ */
 .share-balloon__copy {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
+  padding: 0.625rem; /* 1 */
+  margin-right: 0.625rem; /* 2 */
   background: none;
   color: inherit;
   border: none;
+  border-radius: 50%;
   cursor: pointer;
-  transition: transform 120ms ease, filter 120ms ease;
+  transition: transform 120ms ease, filter 120ms ease, background 120ms ease;
 }
 
 .share-balloon__copy:hover {
+  background: var(--color-surface);
   filter: brightness(0.97);
 }
 
@@ -71,18 +89,20 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  max-width: 100%;
-  padding: 0;
+  justify-content: center;
+  padding: 0.625rem;
   background: none;
   color: inherit;
   border: none;
+  border-radius: 50%;
   cursor: pointer;
   font: inherit;
   text-align: left;
-  transition: transform 120ms ease, filter 120ms ease;
+  transition: transform 120ms ease, filter 120ms ease, background 120ms ease;
 }
 
 .share-balloon:hover {
+  background: var(--color-surface);
   filter: brightness(0.97);
 }
 

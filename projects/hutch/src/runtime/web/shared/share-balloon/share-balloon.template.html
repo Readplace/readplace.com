@@ -1,6 +1,22 @@
 <span class="sr-only" role="status" aria-live="polite" data-share-balloon-status></span>
 <div class="share-balloon__wrap" data-share-balloon-wrap data-test-share-balloon-wrap hidden>
   <div class="share-balloon__buttons" data-share-balloon-buttons>
+    <div class="share-balloon__chat" data-share-balloon-chat>
+      <img
+        class="share-balloon__avatar"
+        src="{{founderAvatarUrl}}"
+        alt=""
+        width="32"
+        height="32"
+        aria-hidden="true"
+        data-test-share-balloon-avatar
+      />
+      <span class="share-balloon__text">
+        <span class="share-balloon__greeting" data-test-share-balloon-greeting>Hi, I'm Fayner Brack.</span>
+        <span class="share-balloon__hint" data-test-share-balloon-hint>Thanks for trying Readplace.</span>
+        <span class="share-balloon__hint" data-test-share-balloon-hint>{{shareHint}}</span>
+      </span>
+    </div>
     <button
       type="button"
       class="share-balloon__copy"
@@ -19,33 +35,17 @@
       aria-label="Share this article"
       data-test-share-balloon
     >
-      <div class="share-balloon__chat" data-share-balloon-chat>
-        <img
-          class="share-balloon__avatar"
-          src="{{founderAvatarUrl}}"
-          alt=""
-          width="32"
-          height="32"
-          aria-hidden="true"
-          data-test-share-balloon-avatar
-        />
-        <span class="share-balloon__text">
-          <span class="share-balloon__greeting" data-test-share-balloon-greeting>Hi, I'm Fayner Brack.</span>
-          <span class="share-balloon__hint" data-test-share-balloon-hint>Thanks for trying Readplace.</span>
-          <span class="share-balloon__hint" data-test-share-balloon-hint>{{shareHint}}</span>
-        </span>
-      </div>
       <span class="share-balloon__icon" aria-hidden="true">{{{shareIconSvg}}}</span>
     </button>
-    <button
-      type="button"
-      class="share-balloon__close"
-      data-share-balloon-close
-      data-test-share-balloon-close
-      aria-label="Dismiss message"
-    >
-      <span aria-hidden="true">&times;</span>
-    </button>
   </div>
+  <button
+    type="button"
+    class="share-balloon__close"
+    data-share-balloon-close
+    data-test-share-balloon-close
+    aria-label="Dismiss message"
+  >
+    <span aria-hidden="true">&times;</span>
+  </button>
   <span class="share-balloon__copied" data-share-balloon-copied data-test-share-balloon-copied aria-hidden="true">Link copied!</span>
 </div>
