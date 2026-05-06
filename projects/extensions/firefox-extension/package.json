@@ -1,6 +1,6 @@
 {
   "name": "firefox-extension",
-  "version": "1.0.92",
+  "version": "1.0.93",
   "description": "Readplace — Where reading still matters",
   "main": "src/infra/index.ts",
   "private": true,
