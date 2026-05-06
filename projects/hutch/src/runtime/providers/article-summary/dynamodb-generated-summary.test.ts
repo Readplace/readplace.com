@@ -185,6 +185,38 @@ describe("initDynamoDbGeneratedSummary", () => {
 			expect(sendCalls).toBe(0);
 		});
 
+		it("deduplicates URLs that canonicalise to the same resource ID and maps both originals to the same summary", async () => {
+			let batchKeys: Record<string, unknown>[] = [];
+			const client: Partial<DynamoDBDocumentClient> = {
+				send: async (cmd: { input?: { RequestItems?: Record<string, { Keys?: Record<string, unknown>[] }> } }) => {
+					batchKeys = cmd.input?.RequestItems?.["test-table"]?.Keys ?? [];
+					return {
+						Responses: {
+							"test-table": [
+								{ url: "example.com/article", summary: "Deduped summary", summaryStatus: "ready" },
+							],
+						},
+					};
+				},
+			};
+			const { findGeneratedSummariesByUrls } = initDynamoDbGeneratedSummary({
+				client: client as typeof client & DynamoDBDocumentClient,
+				tableName: "test-table",
+			});
+
+			const inputs = [
+				"https://example.com/article?utm_source=twitter",
+				"https://example.com/article",
+			];
+			const result = await findGeneratedSummariesByUrls(inputs);
+
+			// Only one key sent to DynamoDB — dedup worked
+			expect(batchKeys).toEqual([{ url: "example.com/article" }]);
+			// Both original URLs map to the same summary
+			expect(result.get("https://example.com/article?utm_source=twitter")).toEqual({ status: "ready", summary: "Deduped summary" });
+			expect(result.get("https://example.com/article")).toEqual({ status: "ready", summary: "Deduped summary" });
+		});
+
 		it("maps each input URL to its summary, with missing rows mapped to undefined and the input URL preserved as the map key", async () => {
 			const client: Partial<DynamoDBDocumentClient> = {
 				send: async () => ({
