@@ -7,13 +7,6 @@ const BROWSER_LABELS: Record<string, string> = {
 	chrome: "Chrome",
 };
 
-/** TODO: Remove the `ctx.browser === "chrome"` short-circuits below once Chrome
- * extension v1.0.108+ is published to the web store, then revert this file to
- * the pre-bypass version. The bypass auto-marks both onboarding steps complete
- * for Chrome users so they can reach the success state without the unreleased
- * extension cookies firing.
- * https://chromewebstore.google.com/detail/hutch-%E2%80%94-save-articles-rea/klblengmhlfnmjoagchagfcdbpbocgbf
- */
 export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 	{
 		id: "install-extension",
@@ -25,7 +18,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 		},
 		description:
 			"Add Readplace to your browser and log-in so you can save any page with one click.",
-		isComplete: (ctx) => ctx.browser === "chrome" || ctx.extensionInstalled,
+		isComplete: (ctx) => ctx.extensionInstalled,
 		actions: (ctx) => [{
 			label: BROWSER_LABELS[ctx.browser] ? "Install" : "Choose browser",
 			url: buildExtensionInstallUrl(ctx.browser),
@@ -39,7 +32,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 				: "Save your first article using a browser extension",
 		description:
 			"Click the Readplace button in your browser toolbar on a page you want to read later. The save bar on this page doesn't count for this step.",
-		isComplete: (ctx) => ctx.browser === "chrome" || ctx.extensionSavedArticle,
+		isComplete: (ctx) => ctx.extensionSavedArticle,
 		actions: (ctx) =>
 			ctx.browser !== "other"
 				? []

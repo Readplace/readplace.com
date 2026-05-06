@@ -113,11 +113,7 @@ describe("Queue onboarding", () => {
 		expect(success.querySelector(".onboarding__success-title")?.textContent).toMatch(/You did it!/);
 	});
 
-	// TODO: Re-enable once Chrome extension v1.0.108+ is published and the bypass
-	// in onboarding.steps.ts is removed. While the bypass is active, allComplete
-	// is true for Chrome users so the steps list is not rendered (success state shows instead).
-	// https://chromewebstore.google.com/detail/hutch-%E2%80%94-save-articles-rea/klblengmhlfnmjoagchagfcdbpbocgbf
-	it.skip("shows 'Install the Chrome browser extension' for Chrome user-agent", async () => {
+	it("shows 'Install the Chrome browser extension' for Chrome user-agent", async () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(app, auth);
 
@@ -254,72 +250,5 @@ describe("Queue onboarding", () => {
 		assert(cookies, "set-cookie header must be present");
 		const cookieStr = Array.isArray(cookies) ? cookies.join("; ") : cookies;
 		expect(cookieStr).toContain(`${DISMISS_COOKIE_NAME}=${ONBOARDING_VERSION}`);
-	});
-
-	/** TODO: Remove this Chrome-bypass block once Chrome extension v1.0.108+ is
-	 * published and the bypass in onboarding.steps.ts is removed.
-	 * https://chromewebstore.google.com/detail/hutch-%E2%80%94-save-articles-rea/klblengmhlfnmjoagchagfcdbpbocgbf
-	 */
-	describe("Chrome bypass", () => {
-		const CHROME_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
-		const CHROME_DISMISS_VALUE = `${ONBOARDING_VERSION}-chrome-bypass`;
-
-		it("Chrome user-agent gets the success state with install button on an empty queue", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
-
-			const response = await agent.get("/queue").set("User-Agent", CHROME_UA);
-
-			const doc = new JSDOM(response.text).window.document;
-			const onboarding = doc.querySelector("[data-test-onboarding]");
-			assert(onboarding, "onboarding container must be rendered");
-			expect(onboarding.classList.contains("onboarding--complete")).toBe(true);
-
-			const action = doc.querySelector("[data-test-onboarding-success-action]");
-			assert(action, "Chrome install button must be surfaced inside the success state");
-			expect(action.getAttribute("href")).toBe("/install?browser=chrome");
-		});
-
-		it("POST /queue/dismiss-onboarding sets the suffixed dismiss cookie for Chrome user-agent", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
-
-			const response = await agent
-				.post("/queue/dismiss-onboarding")
-				.set("User-Agent", CHROME_UA);
-
-			const cookies = response.headers["set-cookie"];
-			assert(cookies, "set-cookie header must be present");
-			const cookieStr = Array.isArray(cookies) ? cookies.join("; ") : cookies;
-			expect(cookieStr).toContain(`${DISMISS_COOKIE_NAME}=${CHROME_DISMISS_VALUE}`);
-		});
-
-		it("Chrome dismiss cookie hides onboarding when extension is installed", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
-
-			const response = await agent
-				.get("/queue")
-				.set("User-Agent", CHROME_UA)
-				.set("Cookie", `${DISMISS_COOKIE_NAME}=${CHROME_DISMISS_VALUE}; ${COOKIE_NAME}=${COOKIE_VALUE}`);
-
-			const doc = new JSDOM(response.text).window.document;
-			const onboarding = doc.querySelector("[data-test-onboarding]");
-			expect(onboarding).toBeNull();
-		});
-
-		it("unsuffixed dismiss cookie does not hide onboarding for Chrome user-agent (re-prompt after bypass removal)", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
-
-			const response = await agent
-				.get("/queue")
-				.set("User-Agent", CHROME_UA)
-				.set("Cookie", `${DISMISS_COOKIE_NAME}=${ONBOARDING_VERSION}; ${COOKIE_NAME}=${COOKIE_VALUE}`);
-
-			const doc = new JSDOM(response.text).window.document;
-			const onboarding = doc.querySelector("[data-test-onboarding]");
-			assert(onboarding, "onboarding must re-render — the unsuffixed value isn't a valid Chrome dismissal during the bypass");
-		});
 	});
 });

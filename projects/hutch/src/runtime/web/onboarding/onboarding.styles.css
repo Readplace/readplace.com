@@ -192,10 +192,6 @@
   line-height: 1.5;
 }
 
-.onboarding__success-actions {
-  margin-top: 16px;
-}
-
 @media (max-width: 600px) {
   .onboarding {
     padding: 20px;

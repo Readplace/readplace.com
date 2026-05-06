@@ -7,11 +7,6 @@
     <img class="onboarding__avatar" src="{{founderAvatarUrl}}" alt="Fayner Brack" width="72" height="72">
     <h2 class="onboarding__success-title">You did it! ✅</h2>
     <p class="onboarding__success-message">You're officially one of us. Welcome to Readplace.</p>
-    {{#if successAction}}
-    <div class="onboarding__success-actions">
-      <a href="{{successAction.url}}" class="onboarding__action" data-test-onboarding-success-action>{{successAction.label}}</a>
-    </div>
-    {{/if}}
   </div>
   {{else}}
   <header class="onboarding__intro">
