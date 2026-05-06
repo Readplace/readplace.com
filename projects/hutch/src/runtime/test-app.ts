@@ -1,14 +1,5 @@
-import { resolve } from "node:path";
 import type { Express } from "express";
 import type { CrawlArticle } from "@packages/crawl-article";
-
-/**
- * Stand-in copies of llms.txt / llms-full.txt that meet the assertions in route tests
- * for `/llms.txt` and `/llms-full.txt` without depending on hutch's production content
- * file. Production hutch reads its real files and passes them via createApp directly.
- */
-const TEST_LLMS_TXT = "# Readplace\n\nA read-it-later app for people who actually read what they save.\n\n## Pages\n\n- /\n- /queue\n- /install\n";
-const TEST_LLMS_FULL_TXT = "# Readplace\n\n## Features\n\n- Save articles for later\n\n## About\n\nA read-it-later app.\n\n## Privacy\n\nWe respect your privacy.\n\n## Terms\n\nUse at your own risk.\n";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
@@ -331,11 +322,6 @@ function flattenFixtureToAppDependencies(
 		storePendingSignup: fixture.pendingSignup.storePendingSignup,
 		consumePendingSignup: fixture.pendingSignup.consumePendingSignup,
 		botDefenseLogger: fixture.botDefense.logger,
-		indexNowKey: undefined,
-		exposeE2eFixtureRoute: true,
-		llmsTxt: TEST_LLMS_TXT,
-		llmsFullTxt: TEST_LLMS_FULL_TXT,
-		clientDistDir: resolve(__dirname, "web", "client-dist"),
 	};
 }
 

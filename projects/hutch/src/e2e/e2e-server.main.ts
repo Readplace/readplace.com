@@ -1,7 +1,7 @@
 import assert from 'node:assert'
 import express from 'express'
 import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
-import { createTestApp } from '@packages/app/test-app'
+import { createTestApp } from '../runtime/test-app'
 import {
   createDefaultTestAppFixture,
   createFakeApplyParseResult,

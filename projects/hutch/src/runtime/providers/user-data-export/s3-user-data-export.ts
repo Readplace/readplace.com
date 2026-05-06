@@ -4,7 +4,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import {
 	EXPORT_DOWNLOAD_TTL_SECONDS,
 	EXPORT_S3_KEY_PREFIX,
-} from "@packages/app/web/pages/export/export-ttl";
+} from "../../web/pages/export/export-ttl";
 import type { UploadUserDataExport } from "./user-data-export.types";
 
 export function initS3UserDataExport(deps: {

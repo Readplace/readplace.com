@@ -1,9 +1,0 @@
-{
-  "all": true,
-  "src": "src",
-  "reporter": ["html", "json-summary"],
-  "reports-dir": "./coverage",
-  "resolve": ".",
-  "source-map": true,
-  "exclude-after-remap": true
-}

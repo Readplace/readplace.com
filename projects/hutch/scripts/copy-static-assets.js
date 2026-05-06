@@ -1,8 +1,11 @@
 /**
- * Cross-platform replacement for rsync to copy non-TypeScript files from src/ to dist/.
- * Copies: *.css, *.html, *.js, *.json, *.map, *.md, *.txt
+ * Copy Static Assets Script
  *
- * In hutch this is what ships `banned-visitors.txt` alongside the compiled handler.
+ * Cross-platform replacement for rsync to copy non-TypeScript files from src/ to dist/.
+ * Copies: *.css, *.html, *.json, *.md, *.txt
+ *
+ * This script exists because rsync is not available on all platforms (e.g., Windows,
+ * some CI environments). Node.js fs operations work everywhere.
  */
 const fs = require('fs')
 const path = require('path')

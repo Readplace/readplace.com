@@ -4,8 +4,8 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initDynamoDbPendingSignup } from "../providers/pending-signup/dynamodb-pending-signup";
 import { initResendEmail } from "../providers/email/resend-email";
 import { initStripeCheckout } from "../providers/stripe-checkout/stripe-checkout";
-import { CheckoutRecoveryEmail } from "@packages/app/web/auth/checkout-recovery-email";
-import { buildSignupResumeUrl } from "@packages/app/web/auth/signup-resume-url";
+import { CheckoutRecoveryEmail } from "../web/auth/checkout-recovery-email";
+import { buildSignupResumeUrl } from "../web/auth/signup-resume-url";
 import { requireEnv } from "../require-env";
 import { selectRecipients } from "./select-recipients";
 

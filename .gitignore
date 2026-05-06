@@ -5,7 +5,6 @@ node_modules/
 dist/
 .lib/
 projects/hutch/src/runtime/web/client-dist/
-src/packages/app/src/web/client-dist/
 
 # IDE
 .idea/

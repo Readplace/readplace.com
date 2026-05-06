@@ -94,11 +94,6 @@ describe("Email verification", () => {
 				importSessionStore: initInMemoryImportSession({ now: () => new Date() }),
 				now: () => new Date(),
 				botDefenseLogger: { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} },
-				indexNowKey: undefined,
-				exposeE2eFixtureRoute: false,
-				llmsTxt: "",
-				llmsFullTxt: "",
-				clientDistDir: __dirname,
 			});
 
 			const { successResponse } = await completeStripeSignup({

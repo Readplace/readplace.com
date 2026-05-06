@@ -1,7 +1,5 @@
 /* c8 ignore start -- composition root, no logic to test */
 import assert from "node:assert";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import type { Express } from "express";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import type { Logger } from "./logger";
@@ -57,8 +55,9 @@ import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pen
 import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-pending-signup";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initLogParseError, type ParseErrorEvent } from "@packages/hutch-infra-components";
-import { createApp, httpErrorMessageMapping } from "@packages/app";
-import type { BotDefenseEvent } from "@packages/app";
+import { createApp } from "./server";
+import type { BotDefenseEvent } from "./web/auth/auth.page";
+import { httpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { getEnv, requireEnv } from "./require-env";
 
 function initProviders() {
@@ -352,11 +351,6 @@ export function createHutchApp(deps?: {
 		importSessionStore,
 		now: () => new Date(),
 		botDefenseLogger: HutchLogger.fromJSON<BotDefenseEvent>(),
-		indexNowKey: getEnv("INDEXNOW_KEY"),
-		exposeE2eFixtureRoute: getEnv("NODE_ENV") !== "production",
-		llmsTxt: readFileSync(resolve(__dirname, "llms.txt"), "utf-8"),
-		llmsFullTxt: readFileSync(resolve(__dirname, "llms-full.txt"), "utf-8"),
-		clientDistDir: resolve(__dirname, "web", "client-dist"),
 	});
 
 	return { app, auth, articleStore, oauthModel };

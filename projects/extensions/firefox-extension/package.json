@@ -27,9 +27,9 @@
     "@packages/onboarding-extension-signal": "workspace:*"
   },
   "devDependencies": {
-    "@packages/app": "workspace:*",
     "@packages/test-fixtures": "workspace:*",
     "@packages/test-phase-runner": "workspace:*",
+    "hutch": "workspace:*",
     "@pulumi/aws": "7.20.0",
     "@pulumi/pulumi": "3.224.0",
     "@types/jest": "29.5.14",

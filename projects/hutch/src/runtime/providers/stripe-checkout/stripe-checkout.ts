@@ -1,7 +1,7 @@
 /* c8 ignore start -- thin Stripe API wrapper, tested via integration */
 import { z } from "zod";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
-import { STRIPE_TRIAL_PERIOD_DAYS } from "@packages/app/providers/stripe-checkout/stripe-trial-config";
+import { STRIPE_TRIAL_PERIOD_DAYS } from "./stripe-trial-config";
 import type {
 	CreateCheckoutSession,
 	RetrieveCheckoutSession,
