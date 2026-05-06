@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Readplace — Save Articles & Read Later",
-  "version": "1.0.118",
+  "version": "1.0.119",
   "description": "Save articles with one click. A privacy-first read-it-later app and Pocket alternative.",
   "permissions": [
     "activeTab",
