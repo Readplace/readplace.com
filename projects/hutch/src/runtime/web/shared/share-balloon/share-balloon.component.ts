@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { requireEnv } from "../../../require-env";
 import { render } from "../../render";
+import { COPY_ICON_SVG } from "./copy-icon";
 import { SHARE_ICON_SVG } from "./share-icon";
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
@@ -27,6 +28,7 @@ export function renderShareBalloon(input: ShareBalloonInput): string {
 		shareTitle: input.shareTitle,
 		shareHint: input.shareHint,
 		shareIconSvg: SHARE_ICON_SVG,
+		copyIconSvg: COPY_ICON_SVG,
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
 	});
 }

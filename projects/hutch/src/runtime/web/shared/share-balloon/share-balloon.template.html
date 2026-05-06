@@ -1,23 +1,6 @@
 <span class="sr-only" role="status" aria-live="polite" data-share-balloon-status></span>
 <div class="share-balloon__wrap" data-share-balloon-wrap data-test-share-balloon-wrap hidden>
-  <button
-    type="button"
-    class="share-balloon__close"
-    data-share-balloon-close
-    data-test-share-balloon-close
-    aria-label="Dismiss message"
-  >
-    <span aria-hidden="true">&times;</span>
-  </button>
-  <button
-    type="button"
-    class="share-balloon"
-    data-share-balloon
-    data-share-url="{{shareUrl}}"
-    data-share-title="{{shareTitle}}"
-    aria-label="Share this article"
-    data-test-share-balloon
-  >
+  <div class="share-balloon__buttons" data-share-balloon-buttons>
     <div class="share-balloon__chat" data-share-balloon-chat>
       <img
         class="share-balloon__avatar"
@@ -34,7 +17,35 @@
         <span class="share-balloon__hint" data-test-share-balloon-hint>{{shareHint}}</span>
       </span>
     </div>
-    <span class="share-balloon__icon" aria-hidden="true">{{{shareIconSvg}}}</span>
+    <button
+      type="button"
+      class="share-balloon__copy"
+      data-share-balloon-copy
+      aria-label="Copy link"
+      data-test-share-balloon-copy
+    >
+      <span class="share-balloon__icon" aria-hidden="true">{{{copyIconSvg}}}</span>
+    </button>
+    <button
+      type="button"
+      class="share-balloon"
+      data-share-balloon
+      data-share-url="{{shareUrl}}"
+      data-share-title="{{shareTitle}}"
+      aria-label="Share this article"
+      data-test-share-balloon
+    >
+      <span class="share-balloon__icon" aria-hidden="true">{{{shareIconSvg}}}</span>
+    </button>
+  </div>
+  <button
+    type="button"
+    class="share-balloon__close"
+    data-share-balloon-close
+    data-test-share-balloon-close
+    aria-label="Dismiss message"
+  >
+    <span aria-hidden="true">&times;</span>
   </button>
   <span class="share-balloon__copied" data-share-balloon-copied data-test-share-balloon-copied aria-hidden="true">Link copied!</span>
 </div>

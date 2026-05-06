@@ -77,6 +77,7 @@ export function initShareBalloon(
 
 	const wrap = pickElement(deps.document, "[data-share-balloon-wrap]");
 	const btn = pickElement(wrap, "[data-share-balloon]");
+	const copyBtn = pickElement(wrap, "[data-share-balloon-copy]");
 	const closeBtn = pickElement(wrap, "[data-share-balloon-close]");
 	const copiedLabel = pickElement(wrap, "[data-share-balloon-copied]");
 	const status = pickElement(deps.document, "[data-share-balloon-status]");
@@ -92,6 +93,7 @@ export function initShareBalloon(
 	let scrollListener: (() => void) | null = null;
 	let closeListener: ((event: Event) => void) | null = null;
 	let clickListener: (() => void) | null = null;
+	let copyListener: (() => void) | null = null;
 	let attached = false;
 
 	function openBalloon() {
@@ -145,6 +147,14 @@ export function initShareBalloon(
 		}
 	}
 
+	function onCopyClick() {
+		if (deps.navigator.clipboard !== undefined) {
+			deps.navigator.clipboard.writeText(url).then(flashCopied, () => {
+				status.textContent = "Unable to copy link";
+			});
+		}
+	}
+
 	function onCloseClick(event: Event) {
 		event.stopPropagation();
 		cancelPendingOpen();
@@ -172,6 +182,8 @@ export function initShareBalloon(
 		closeBtn.addEventListener("click", closeListener);
 		clickListener = onShareClick;
 		btn.addEventListener("click", clickListener);
+		copyListener = onCopyClick;
+		copyBtn.addEventListener("click", copyListener);
 	}
 
 	function detach(): void {
@@ -190,6 +202,10 @@ export function initShareBalloon(
 		if (clickListener !== null) {
 			btn.removeEventListener("click", clickListener);
 			clickListener = null;
+		}
+		if (copyListener !== null) {
+			copyBtn.removeEventListener("click", copyListener);
+			copyListener = null;
 		}
 	}
 
