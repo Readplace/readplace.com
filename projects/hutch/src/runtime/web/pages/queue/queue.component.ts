@@ -158,9 +158,8 @@ export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; exte
 	const displayModel = toQueueDisplayModel(vm, { extensionInstalled: options?.extensionInstalled ?? false, extensionSavedArticle: options?.extensionSavedArticle ?? false, browser: options?.browser ?? "other", onboardingDismissed: options?.onboardingDismissed ?? false, showImportForm });
 	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl });
 
-	const scriptParts: string[] = [];
+	const scriptParts: string[] = [IMPORT_AUTO_SUBMIT_SCRIPT];
 	if (saveUrl) scriptParts.push(AUTO_SUBMIT_SCRIPT);
-	if (showImportForm) scriptParts.push(IMPORT_AUTO_SUBMIT_SCRIPT);
 
 	return {
 		seo: {
@@ -172,7 +171,7 @@ export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; exte
 		styles: `${QUEUE_STYLES}\n${ONBOARDING_STYLES}`,
 		bodyClass: "page-queue",
 		content,
-		scripts: scriptParts.length > 0 ? scriptParts.join("\n") : undefined,
+		scripts: scriptParts.join("\n"),
 		statusCode: options?.statusCode,
 	};
 }

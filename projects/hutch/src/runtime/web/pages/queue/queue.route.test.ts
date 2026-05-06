@@ -2567,16 +2567,15 @@ describe("Queue routes", () => {
 			expect(response.text).toContain("requestSubmit");
 		});
 
-		it("should not include the import script when the import form is hidden", async () => {
+		it("should include the import auto-submit script even when the import form is hidden", async () => {
 			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(app, auth);
 
 			const response = await agent.get("/queue");
 
 			expect(response.status).toBe(200);
-			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("form.queue__import-form")).toBeNull();
-			expect(response.text).not.toContain("input.addEventListener");
+			expect(response.text).toContain("input.addEventListener");
+			expect(response.text).toContain("requestSubmit");
 		});
 	});
 });
