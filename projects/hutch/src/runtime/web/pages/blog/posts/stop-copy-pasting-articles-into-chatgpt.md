@@ -2,7 +2,7 @@
 title: "Stop Copy-Pasting Articles into ChatGPT. There's a Better Way."
 description: "You copy articles into ChatGPT for summaries. It works, but it's slow, manual, and nothing gets saved. Readplace does it in one click."
 slug: "stop-copy-pasting-articles-into-chatgpt"
-date: "2026-04-06"
+date: "2026-05-06"
 author: "Fayner Brack"
 keywords: "chatgpt article summary, read it later, article summarizer, chatgpt alternative for articles"
 ---
@@ -61,9 +61,9 @@ Readplace [caches summaries by URL](/blog/how-ai-tldr-actually-works). If fifty 
 
 ## One click vs. seven steps
 
-The difference is not just speed. It's whether your reading adds up to something.
+Speed is part of it. The bigger thing is whether your reading adds up to something.
 
-With copy-paste, every article is disposable. You extract a summary and throw away the source. There is no trail, no personal library, and no way to revisit what you read last month.
+With copy-paste, every article is disposable. You extract a summary and throw away the source. You have no trail back to the piece, no personal library to browse, and no way to revisit what you read last month.
 
 With Readplace, every saved article becomes part of your personal archive. Summaries are there for a quick scan. Full articles are there when you want depth. Your reading list is a queue you can manage, not a pile of browser tabs about to crash.
 

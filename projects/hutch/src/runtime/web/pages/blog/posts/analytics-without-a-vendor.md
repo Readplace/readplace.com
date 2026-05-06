@@ -2,7 +2,7 @@
 title: "You Don't Need an Analytics Vendor to Count Pageviews"
 description: "The HTTP request already contains the fields that matter. The rest is a hash function and a log line, not a third-party tracker and a consent banner."
 slug: "analytics-without-a-vendor"
-date: "2026-04-16"
+date: "2026-05-06"
 author: "Fayner Brack"
 keywords: "privacy analytics, cookieless analytics, IP hashing, read it later privacy, Google Analytics alternative, privacy first, visitor hash"
 ---
@@ -11,7 +11,7 @@ keywords: "privacy analytics, cookieless analytics, IP hashing, read it later pr
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readplace tracks pageviews without cookies, third-party scripts, or consent banners. An Express middleware hashes each visitor's IP with a secret salt (SHA-256, truncated to 16 chars) and logs a JSON line to stdout. Same IP produces the same hash, so distinct visitors are countable — but the hash is one-way and cannot be reversed into an IP. The logs flow to CloudWatch; the dashboard is infrastructure-as-code. About eighty lines of TypeScript replace an analytics vendor.
+Readplace tracks pageviews without cookies, third-party scripts, or consent banners. An Express middleware hashes each visitor's IP with a secret salt (SHA-256, truncated to 16 chars) and logs a JSON line to stdout. Same IP produces the same hash, so distinct visitors are countable, and the hash is one-way and cannot be reversed into an IP. The logs flow to CloudWatch. The dashboard is infrastructure-as-code. About eighty lines of TypeScript replace an analytics vendor.
 
 </div>
 </details>
@@ -46,7 +46,7 @@ Only `visitor_hash` required design work.
 
 I want to tell 100 pageviews from 100 people apart from 100 pageviews from three people refreshing. That is the single job of a unique-visitor identifier.
 
-Most analytics tools do that job with a cookie. They drop a first-party or third-party identifier on the visitor and recognise it on each subsequent request. The cookie is the identity.
+Most analytics tools do that job with a cookie. They drop a first-party or third-party identifier on the visitor and recognise it on each new request. The cookie is the identity.
 
 Readplace does it with a salted hash. Take the visitor's IP address. Add a secret salt that lives only on the server. Run SHA-256 over the result. Truncate to sixteen characters.
 
@@ -88,4 +88,4 @@ The approach is portable. Write a middleware that reads the HTTP headers you alr
 
 Log a JSON object. Point your cloud provider's log query tool at the output.
 
-Prefer to write a middleware than paying a vendor to count pageviews.
+Prefer writing a middleware over paying a vendor to count pageviews.

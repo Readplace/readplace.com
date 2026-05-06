@@ -11,7 +11,7 @@ keywords: "newsletter overload, developer newsletters, read it later, email news
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-You subscribe to dozens of newsletters and read almost none. The fix is not discipline — it is routing links into a read-it-later app, triaging with summaries, and archiving the email. Each issue costs 30 seconds of triage instead of guilt. Readplace is building a Gmail import feature that will automate this: connect once and newsletter links flow into your reading list with AI summaries.
+You subscribe to dozens of newsletters and read almost none. The fix is not discipline. Route links into a read-it-later app, triage with summaries, and archive the email. Each issue costs 30 seconds of triage instead of guilt. Readplace is building a Gmail import feature that will automate this: connect once and newsletter links flow into your reading list with AI summaries.
 
 </div>
 </details>

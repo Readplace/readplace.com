@@ -2,7 +2,7 @@
 title: "Free Read-It-Later Apps in 2026: What You Actually Get"
 description: "An honest look at what free really means for read-it-later apps, from hosted tiers to self-hosted options to paying a few dollars a month."
 slug: "free-read-it-later-apps-2026"
-date: "2026-05-01"
+date: "2026-05-06"
 author: "Fayner Brack"
 keywords: "free read it later app, read it later free, instapaper free, wallabag, karakeep, raindrop free tier"
 ---
@@ -11,7 +11,7 @@ keywords: "free read it later app, read it later free, instapaper free, wallabag
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Free read-it-later options in 2026: Instapaper and Raindrop.io have usable free tiers. Karakeep and Wallabag are free and self-hosted but cost time and server money. Browser bookmarks cost nothing but offer no reader view. Pocket and Omnivore were free and both shut down. Free hosted services have a shelf life — the money situation changes and the service goes with it. Readplace costs $3.99/mo because the price is the business model.
+Free read-it-later options in 2026: Instapaper and Raindrop.io have usable free tiers. Karakeep and Wallabag are free and self-hosted but cost time and server money. Browser bookmarks cost nothing but offer no reader view. Pocket and Omnivore were free and both shut down. Free hosted services have a shelf life. The money situation changes, and the service goes with it. Readplace costs $3.99/mo because the price is the business model.
 
 </div>
 </details>
@@ -22,7 +22,7 @@ You want a free read-it-later app. You have options. But "free" means different 
 
 ### Instapaper (Free Tier)
 
-Instapaper's free tier covers the basics. Save articles. Read them later. Sync across devices. The premium tier adds full-text search and text-to-speech for $2.99/month.
+Instapaper's free tier covers the basics: saving articles, reading them later, syncing across devices. The premium tier adds full-text search and text-to-speech for $2.99/month.
 
 Instapaper has been around since 2008. It changed hands from Betaworks to Pinterest to Instant Paper Inc. It has survived longer than most apps in this category. Whether it will still be around in five years, nobody knows.
 
@@ -44,7 +44,7 @@ Wallabag has been around since 2013. It's the longest-running open-source read-i
 
 ### Browser Bookmarks
 
-The genuinely free option everyone forgets. Create a "Read Later" folder right now, for nothing. There are no sync issues and no service shutdowns.
+The genuinely free option most people overlook. Create a "Read Later" folder right now, for nothing. There are no sync issues and no service shutdowns.
 
 The reading experience is whatever the original website gives you, ads and paywalls included. You get no offline access, clean reader view, or tagging. But it's real, it's free, and sometimes simple is enough.
 
@@ -58,7 +58,7 @@ Free hosted services need a business model. They need to pay for servers, storag
 
 After the Omnivore shutdown, Steph Ango, the founder of Obsidian, made an observation that stuck with me. He pointed out that a product with no clear revenue model survives only as long as the founders' runway lasts, or until an acquirer shows interest, or until someone decides to stop subsidising it.
 
-Users become dependent on someone else's goodwill. The product isn't sustainable. It's just not dead yet.
+Users become dependent on someone else's goodwill. The product isn't sustainable. It's just running on borrowed time.
 
 That's not a criticism of the people who built Pocket or Omnivore. They made good products. But the pattern is clear.
 
@@ -82,7 +82,7 @@ Readplace is free for the first 100 founding members. After that, it's $3.99/mon
 
 The price is the business model. There is no venture capital to run out, no acqui-hire that pulls the team onto someone else's priorities, and no ad network that needs your reading data. Subscriptions pay for servers and development. If the product is good enough that people keep paying, it keeps running.
 
-That's not the right choice for everyone. If you want free and you're comfortable with the risks, Instapaper or Raindrop will serve you well today. If you have the technical skills, Karakeep or Wallabag give you full control. If you want something that just works and has a clear reason to keep existing, that's what Readplace is for.
+That's not the right choice for every reader. If you want free and you're comfortable with the risks, Instapaper or Raindrop will serve you well today. If you have the technical skills, Karakeep or Wallabag give you full control. If you want something that just works and has a clear reason to keep existing, that's what Readplace is for.
 
 ## The Short Version
 

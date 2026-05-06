@@ -2,7 +2,7 @@
 title: "Best Read-It-Later Apps in 2026 (Honest Comparison)"
 description: "Honest comparison of read-it-later apps in 2026: Readplace, Readwise Reader, Instapaper, Raindrop.io, Karakeep, Wallabag, and Matter."
 slug: "best-read-it-later-apps-2026"
-date: "2026-04-03"
+date: "2026-05-06"
 author: "Fayner Brack"
 keywords: "read it later apps, Pocket alternative, Omnivore alternative, best read it later 2026, Readwise Reader, Instapaper, Karakeep, Wallabag, Raindrop, Matter, Readplace"
 ---
@@ -11,7 +11,7 @@ keywords: "read it later apps, Pocket alternative, Omnivore alternative, best re
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Pocket is dead, Omnivore shut down. The real alternatives in 2026: Readwise Reader ($12.99/mo) for power users who need highlight sync to Obsidian/Notion. Instapaper (free tier) for a simple Pocket replacement with Kobo support. Karakeep (free, self-hosted) for developers who want full data control. Raindrop.io ($3/mo) for bookmark-heavy workflows. Wallabag (free, self-hosted) for proven stability. Matter ($8/mo) for social reading. Readplace ($3.99/mo) for AI summaries and privacy without the cost of Readwise.
+Pocket shut down, Omnivore shut down. The real alternatives in 2026: Readwise Reader ($12.99/mo) for power users who need highlight sync to Obsidian/Notion. Instapaper (free tier) for a simple Pocket replacement with Kobo support. Karakeep (free, self-hosted) for developers who want full data control. Raindrop.io ($3/mo) for bookmark-heavy workflows. Wallabag (free, self-hosted) for long-term stability. Matter ($8/mo) for social reading. Readplace ($3.99/mo) for AI summaries and privacy without the cost of Readwise.
 
 </div>
 </details>
@@ -62,7 +62,7 @@ Readwise Reader packs more features than any other read-it-later app. It combine
 ### Strengths
 
 - The deepest feature set of any read-it-later app: RSS, highlights, annotations, YouTube transcripts, PDF support, and Ghostreader AI.
-- Highlight sync to Obsidian, Notion, and Logseq is the strongest in this category. Nothing else comes close for this workflow.
+- Highlight sync to Obsidian, Notion, and Logseq is the strongest in this category. Few alternatives come close for this workflow.
 - Polished mobile apps with genuine offline support.
 
 ### Limitations
@@ -91,7 +91,7 @@ It is now the default reading app on Kobo e-readers, giving it a real edge for p
 - Development pace has been slow. No AI features and limited new functionality in recent years.
 - Has been acquired multiple times. That raises questions about long-term continuity, the same concern people had with Pocket.
 
-**Good fit for:** Readers who want a simple, proven Pocket replacement with Kobo support and do not need AI features.
+**Good fit for:** Readers who want a simple, reliable Pocket replacement with Kobo support and do not need AI features.
 
 ## Raindrop.io
 
@@ -139,7 +139,7 @@ Wallabag is the longest-standing open source read-it-later application. It has b
 
 ### Strengths
 
-- The most battle-tested open source option. Stable, reliable, and proven over many years.
+- One of the longest-running open source options. Stable and reliable over many years.
 - Managed hosting available if you do not want to self-host.
 
 ### Limitations
@@ -147,7 +147,7 @@ Wallabag is the longest-standing open source read-it-later application. It has b
 - The user interface feels dated. This is the most common criticism, and it is fair.
 - No AI features. Development is slower than newer alternatives like Karakeep.
 
-**Good fit for:** Users who want a proven, self-hosted option and prioritise stability over modern design.
+**Good fit for:** Users who want a long-running, self-hosted option and prioritise stability over modern design.
 
 ## Matter
 
@@ -169,14 +169,14 @@ Matter takes a different approach to read-it-later. It adds social discovery and
 
 ## How I Would Choose
 
-> **No single option fits everyone. Your priorities determine the right pick.**
+> **No single option fits every reader. Your priorities determine the right pick.**
 
-- **If you want the most features:** Readwise Reader. Nothing else matches its depth, especially for highlight sync to Obsidian or Notion.
+- **If you want the most features:** Readwise Reader. Few options match its depth, especially for highlight sync to Obsidian or Notion.
 - **If you want to self-host:** Karakeep. It is the most actively developed self-hosted option with AI features included.
 - **If you want AI summaries without the complexity or cost:** Readplace. One price, no tiers, summaries included.
 - **If you want the simplest Pocket replacement:** Instapaper. Mature, stable, and it works on Kobo e-readers.
 - **If you need a bookmark manager that reads too:** Raindrop.io.
-- **If you want proven open source stability:** Wallabag.
+- **If you want long-running open source stability:** Wallabag.
 - **If you want social reading and AI co-reading:** Matter.
 
 ## Frequently Asked Questions
@@ -191,7 +191,7 @@ Omnivore was an open source read-it-later app with a loyal following. In late 20
 
 ### Do any of these apps import from Pocket?
 
-Most of them do. Readwise Reader, Instapaper, and Raindrop.io all have self-serve Pocket import built into the app. Readplace also offers a self-serve "Import from a file" picker on your queue — upload any text-shaped export and Readplace pulls the URLs out for review. Files over 5 MiB or imports above 2,000 links fall back to emailing the file to [hutch+migrate@readplace.com](mailto:hutch+migrate@readplace.com), which I import by hand within 24–48 hours. Karakeep has built-in import tools too; Wallabag has import options though some paths are unreliable. Check each app's documentation for the current import process.
+Most of them do. Readwise Reader, Instapaper, and Raindrop.io all have self-serve Pocket import built into the app. Readplace also offers a self-serve "Import from a file" picker on your queue. Upload any text-shaped export and Readplace pulls the URLs out for review. Files over 5 MiB or imports above 2,000 links fall back to emailing the file to [hutch+migrate@readplace.com](mailto:hutch+migrate@readplace.com), which I import by hand within 24 to 48 hours. Karakeep has built-in import tools too. Wallabag has import options, though some paths are unreliable. Check each app's documentation for the current import process.
 
 ### Which app has the best mobile experience?
 

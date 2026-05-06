@@ -2,7 +2,7 @@
 title: "Readplace: An AI Reading Assistant That Helps You Read More, Not Less"
 description: "Most AI reading tools replace reading with summaries and auto-curation. Readplace uses AI to help you read more of the right things, not less of everything."
 slug: "ai-reading-assistant"
-date: "2026-04-07"
+date: "2026-05-06"
 author: "Fayner Brack"
 keywords: "AI reading assistant, read it later, AI summaries, reading tool, article triage, Pocket alternative"
 ---
@@ -11,7 +11,7 @@ keywords: "AI reading assistant, read it later, AI summaries, reading tool, arti
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Most "AI reading assistants" replace reading with summaries and algorithmic curation. Readplace takes a different approach: it generates a TL;DR for every saved article so you can triage your list faster, then read the real thing. The AI never curates, hides, or reorders your content. You save what you want, scan summaries to prioritise, and read in a clean reader view. The workflow is save, summarise, triage, read.
+Most "AI reading assistants" replace reading with summaries and algorithmic curation. Readplace takes a different approach: it generates a TL;DR for every saved article so you can triage your list faster, then read the real thing. The AI does not curate, hide, or reorder your content. You save what you want, scan summaries to prioritise, and read in a clean reader view. The workflow is save, summarise, triage, read.
 
 </div>
 </details>
@@ -20,7 +20,7 @@ The phrase "AI reading assistant" now describes tools that want to read for you.
 
 That is replacement dressed up as help.
 
-A real AI reading assistant removes friction from your reading workflow. It helps you decide what to read faster so you spend more time reading. The goal isn't fewer articles in less time. It's more of the right articles that brings value to you, read properly.
+A real AI reading assistant removes friction from your reading workflow. It helps you decide what to read faster so you spend more time reading. The goal isn't fewer articles in less time. It's more of the right articles, read properly.
 
 ## How Readplace uses AI
 
@@ -38,9 +38,9 @@ Most AI reading tools sit between you and your content. They filter, rank, and c
 
 The algorithm chooses for you. Your reading diet narrows to whatever the model thinks you want.
 
-Readplace works differently. I despise the social media dumbification of mankind. Every article in your list is one you saved yourself.
+Readplace works differently. Every article in your list is one you saved yourself.
 
-The AI summary helps you scan your own list faster, but it never removes, hides, or reorders anything. Your reading list is yours.
+The AI summary helps you scan your own list faster, but it does not remove, hide, or reorder anything. Your reading list is yours.
 
 This is a deliberate design choice.
 

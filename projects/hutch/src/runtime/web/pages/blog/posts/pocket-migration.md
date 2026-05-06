@@ -1,8 +1,8 @@
 ---
 title: "Pocket Shut Down in 2025. Here's How to Recover and Move Your Reading List."
-description: "Pocket closed on July 8, 2025. If you never exported, your articles may still be recoverable. Here's how to find them and move to Readplace."
+description: "Pocket closed on July 8, 2025. If you never exported, your articles are often still recoverable. Here's how to find them and move to Readplace."
 slug: "pocket-migration"
-date: "2026-04-05"
+date: "2026-05-06"
 author: "Fayner Brack"
 keywords: "Pocket migration, Pocket export, Pocket alternative, move from Pocket, Pocket shut down 2025, Pocket replacement"
 ---
@@ -11,7 +11,7 @@ keywords: "Pocket migration, Pocket export, Pocket alternative, move from Pocket
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Pocket shut down July 8, 2025. If you missed the export window, check your email for Pocket confirmation messages, browser history for getpocket.com URLs, the Wayback Machine, and linked services like IFTTT. If you have the HTML export file, sign in to Readplace, open your queue, and use the "Import from a file" picker — pick the file, untick anything you don't want, then click Import. Files over 5 MiB or above 2,000 links fall back to emailing hutch+migrate@readplace.com (24–48 hour concierge turnaround).
+Pocket shut down July 8, 2025. If you missed the export window, check your email for Pocket confirmation messages, browser history for getpocket.com URLs, the Wayback Machine, and linked services like IFTTT. If you have the HTML export file, sign in to Readplace, open your queue, and use the "Import from a file" picker. Pick the file, untick anything you don't want, then click Import. Files over 5 MiB or above 2,000 links fall back to emailing hutch+migrate@readplace.com (24 to 48 hour concierge turnaround).
 
 </div>
 </details>
@@ -44,11 +44,11 @@ The Pocket servers are offline, but copies of your saved articles likely still e
 
 ## How to import into Readplace
 
-If you have a Pocket export file (the HTML file from before the shutdown), sign in and go to your [reading list](/queue). Next to the save bar there's an "Import from a file" picker — choose the file, click Upload, and Readplace shows every URL it found. Untick anything you don't want, then click "Import N selected". Cards appear in your queue immediately and the titles and excerpts fill in over the next minute or two.
+If you have a Pocket export file (the HTML file from before the shutdown), sign in and go to your [reading list](/queue). Next to the save bar there's an "Import from a file" picker. Choose the file, click Upload, and Readplace shows every URL it found. Untick anything you don't want, then click "Import N selected". Cards appear in your queue immediately and the titles and excerpts fill in over the next minute or two.
 
-What gets imported: every URL the file contains. What does not get imported: tags, highlights, and read/unread status. Pocket's export format only included URLs and titles, and the in-app importer treats every text-shaped file the same way.
+The importer brings in every URL the file contains. Tags, highlights, and read/unread status do not transfer. Pocket's export format only included URLs and titles, and the in-app importer treats every text-shaped file the same way.
 
-If your file is over 5 MiB, has more than 2,000 links, or the picker fails for any reason, send it to [hutch+migrate@readplace.com](mailto:hutch+migrate@readplace.com) and I import it by hand within 24–48 hours.
+If your file is over 5 MiB, has more than 2,000 links, or the picker fails for any reason, send it to [hutch+migrate@readplace.com](mailto:hutch+migrate@readplace.com) and I import it by hand within 24 to 48 hours.
 
 Open your [reading list](/queue) and spot-check a few entries to make sure titles and URLs match. Something look wrong? Send a follow-up to hutch+migrate@readplace.com.
 
@@ -89,7 +89,7 @@ If you downloaded the HTML export file before the shutdown, you can still use it
 
 **How do I import Pocket articles into another app?**
 
-Most read-it-later apps accept the HTML export file that Pocket provided. Readwise Reader, Instapaper, and Raindrop.io all support it. Readplace accepts it too — go to your queue, upload the file with the "Import from a file" picker, and confirm the link list. For files over 5 MiB or imports above the 2,000-URL cap, email hutch+migrate@readplace.com and the import is handled for you within 24–48 hours.
+Most read-it-later apps accept the HTML export file that Pocket provided. Readwise Reader, Instapaper, and Raindrop.io all support it. Readplace accepts it too. Go to your queue, upload the file with the "Import from a file" picker, and confirm the link list. For files over 5 MiB or imports above the 2,000-URL cap, email hutch+migrate@readplace.com and the import is handled for you within 24 to 48 hours.
 
 **I lost my Omnivore reading list too. Can Readplace help?**
 

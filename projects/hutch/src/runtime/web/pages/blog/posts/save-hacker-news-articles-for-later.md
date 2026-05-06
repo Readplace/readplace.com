@@ -2,7 +2,7 @@
 title: "The Best Way to Save Hacker News Articles for Later"
 description: "You open 15 tabs from the HN front page and read 3. The rest haunt your browser for weeks. There's a better system."
 slug: "save-hacker-news-articles-for-later"
-date: "2026-04-07"
+date: "2026-05-06"
 author: "Fayner Brack"
 keywords: "hacker news, save articles, read it later, hn reader, readplace"
 ---
@@ -11,7 +11,7 @@ keywords: "hacker news, save articles, read it later, hn reader, readplace"
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Tabs are a guilt system, not a reading system. Separate discovery from reading: save HN articles to a queue during your morning scan, then read from the queue when you have time. AI summaries let you triage 30-40 saved articles in minutes. Readplace's browser extension works on news.ycombinator.com — one click saves the article and generates a summary.
+Tabs are a guilt system, not a reading system. Separate discovery from reading: save HN articles to a queue during your morning scan, then read from the queue when you have time. AI summaries let you triage 30-40 saved articles in minutes. Readplace's browser extension works on news.ycombinator.com. One click saves the article and generates a summary.
 
 </div>
 </details>
@@ -42,7 +42,7 @@ You need to save both: the article *and* the discussion. A system that only capt
 
 I spent ten years processing articles through r/programming, r/webdev, and HN. I landed on a rhythm that works:
 
-**Morning scan.** Quick pass through the front page. Anything interesting gets saved to a queue. Not opened in a tab. Not "I'll read it later." Saved.
+**Morning scan.** Quick pass through the front page. Anything interesting gets saved to a queue.
 
 **Lunch or commute.** The 5-to-10-minute reads. Practical posts, release announcements, short opinion pieces.
 
@@ -64,7 +64,7 @@ And when an article disappears from the web (personal blogs, academic papers, st
 
 After a full week of HN browsing, you might have 30 or 40 articles saved. You will not read all of them. Some seemed interesting at the time but aren't anymore. Some cover the same ground as others you already read.
 
-AI-generated summaries let you scan your queue in a few minutes. You can pick what deserves a deep read and skip the rest. This is not about replacing reading. It's about deciding *what* to read.
+AI-generated summaries let you scan your queue in a few minutes. You can pick what deserves a deep read and skip the rest. The summaries help you decide *what* to read.
 
 Does that 25-minute article on event sourcing cover ground you already know? A two-sentence summary tells you in seconds.
 
@@ -78,4 +78,4 @@ The Readplace browser extension works on news.ycombinator.com. Save any article 
 
 The tab guilt goes away, the lost links go away, and the "I read something about this last week, where was it?" goes away. Just a clean list of things worth reading, ready when you are.
 
-If your current system is "open tabs and hope," you already know it's broken. The fix is not more discipline. It's a better tool.
+If your current system is "open tabs and hope," you already know it's broken. A better tool fixes it faster than more discipline ever will.

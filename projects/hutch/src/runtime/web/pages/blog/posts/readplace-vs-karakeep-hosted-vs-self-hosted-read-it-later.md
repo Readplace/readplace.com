@@ -2,7 +2,7 @@
 title: "Readplace vs Karakeep: Hosted vs Self-Hosted Read-It-Later"
 description: "A fair comparison of two developer-focused read-it-later tools, one self-hosted and one managed, and the tradeoffs each makes."
 slug: "readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later"
-date: "2026-04-06"
+date: "2026-05-06"
 author: "Fayner Brack"
 keywords: "karakeep, hoarder, readplace, read it later, self-hosted, pocket alternative"
 ---
@@ -30,9 +30,7 @@ This post lays out the differences so you can pick the one that fits how you wor
 
 ## The real comparison: deployment model
 
-The feature lists overlap enough that features aren't the interesting comparison.
-
-> **The deployment model is. Everything flows from that one choice.**
+The feature lists overlap enough that features aren't the interesting comparison. The deployment model is, and every other choice flows from that one.
 
 ### Self-hosted (Karakeep)
 
@@ -59,7 +57,7 @@ If you self-host, you've probably been burned before. A service you relied on go
 - **Australian hosting.** Data stays in Australia under Australian privacy law. No US jurisdiction complications.
 - **Clear revenue model.** $3.99/month. The service runs without ads, tracking, venture capital, or growth-at-all-costs pressure. You pay for the service. I keep running it. That's the whole model.
 
-No one can guarantee the future. But these are structural choices that make a hosted service as trustworthy as it can be.
+Future guarantees are impossible. But these structural choices make a hosted service as trustworthy as it can be.
 
 ## Feature comparison
 
@@ -100,9 +98,9 @@ No one can guarantee the future. But these are structural choices that make a ho
 
 If you enjoy running Docker containers and want full control over your data, Karakeep is excellent. It's well-built, actively maintained, and backed by a strong community. The 38K GitHub stars aren't an accident. It solves a real problem well.
 
-If you'd rather not maintain infrastructure for your reading list, that's the tradeoff Readplace makes for you. You give up self-hosted control in exchange for something that just works when you hit the save button.
+If you'd rather not maintain infrastructure for your reading list, that's the tradeoff Readplace makes for you. You give up self-hosted control in exchange for an app that runs the moment you hit the save button.
 
-These aren't competing philosophies. They're different answers to the same question: how much of the stack do you want to own? Both are valid. Pick the one that matches how you actually want to spend your time.
+Both tools answer the same question with different philosophies: how much of the stack do you want to own? Both answers are valid. Pick the one that matches how you actually want to spend your time.
 
 ---
 

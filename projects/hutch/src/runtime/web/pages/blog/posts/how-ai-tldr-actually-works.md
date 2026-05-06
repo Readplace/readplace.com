@@ -2,7 +2,7 @@
 title: "How AI TL;DR Actually Works in Readplace (And Why It's Not Slop)"
 description: "Readplace uses AI to generate short article summaries for triage, not replacement. Here's how it works technically, and why it avoids the usual AI content problems."
 slug: "how-ai-tldr-actually-works"
-date: "2026-04-06"
+date: "2026-05-06"
 author: "Fayner Brack"
 keywords: "ai summary, read it later, article tl;dr, deepseek, ai slop, readplace app"
 ---
@@ -11,7 +11,7 @@ keywords: "ai summary, read it later, article tl;dr, deepseek, ai slop, readplac
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readplace generates a short TL;DR for every saved article using DeepSeek V3. Summaries are cached globally by URL — one API call serves everyone who saves the same link. The prompt bans corporate jargon and forces plain language. The summary is a triage tool to help you decide when to read, not a replacement for reading. Readplace will not generate smart highlights, AI commentary, or daily briefings.
+Readplace generates a short TL;DR for each saved article using DeepSeek V3. Summaries are cached globally by URL, so one API call serves anyone who saves the same link. The prompt bans corporate jargon and forces plain language. The summary is a triage tool to help you decide when to read, not a replacement for reading. Readplace skips smart highlights, AI commentary, and daily briefings.
 
 </div>
 </details>
@@ -50,11 +50,11 @@ Summaries come from DeepSeek V3 (the `deepseek-chat` model). I picked DeepSeek f
 
 The part that matters most: **one summary per URL, cached globally**.
 
-When you save an article, Readplace checks a cache first. If someone else saved the same URL before you, you get their summary. No API call, no cost, no wait. On a cache miss, DeepSeek generates the summary and stores it for everyone.
+When you save an article, Readplace checks a cache first. If someone saved the same URL before you, you get their summary instantly with no API call. On a cache miss, DeepSeek generates the summary and stores it for the next person.
 
 This design does two things.
 
-**It keeps costs manageable.** A per-user model would burn through API credits. Ten people saving the same article would mean ten API calls for ten identical summaries. Global caching means one call total, no matter how many people save it.
+**It keeps costs manageable.** A per-user model burns through API credits. Ten people saving the same article means ten API calls for ten identical summaries. Global caching means one call total, no matter how many people save it.
 
 **It removes personalisation bias.** Every user sees the same summary for the same URL. There is no filter bubble and no reframing based on your reading history. The summary describes what the article says. That's all.
 
@@ -74,7 +74,7 @@ I built Readplace for people who read, not people who skim or "consume content."
 
 Does a TL;DR feature contradict that? No. It's the difference between a shelf card on a library book and a book summary that replaces reading the book. One helps you pick. The other pretends you don't need to.
 
-Readplace will not generate "smart highlights" that let you skip the article, produce AI commentary on what you saved, or roll your reading list into a daily briefing. Those features would turn Readplace into a tool for avoiding reading.
+Readplace will not generate "smart highlights" that let you skip the article, produce AI commentary on what you saved, or roll your reading list into a daily briefing. Those features turn a reading app into a tool for avoiding reading.
 
 The summary helps you choose what to read. Then you read it.
 

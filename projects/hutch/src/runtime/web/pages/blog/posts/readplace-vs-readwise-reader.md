@@ -16,9 +16,7 @@ Readwise Reader ($12.99/mo) has deeper features: Ghostreader AI, highlight sync 
 </div>
 </details>
 
-Readplace and Readwise Reader both save articles from the web. Both strip away ads and clutter. Both use AI to help you read faster.
-
-But they serve different people.
+Readplace and Readwise Reader both save articles from the web. Each one strips away ads and clutter, and each one uses AI to help you read faster. They serve different people.
 
 Readwise Reader is a full reading platform with dozens of integrations. Readplace is smaller, cheaper, and built around privacy and simplicity.
 
@@ -60,7 +58,7 @@ Readplace covers the most common need: quick summaries to sort your reading list
 
 This is where Readwise wins, and I want to be direct about it.
 
-Readwise was built around highlighting from day one. You can highlight passages, tag them, and review them with spaced repetition. You can sync everything to Obsidian, Notion, and Logseq.
+Readwise was built around highlighting from day one. You can highlight passages, tag them, and review them with spaced repetition. You can sync your highlights and notes to Obsidian, Notion, and Logseq.
 
 > **Years of work have gone into this feature set.**
 

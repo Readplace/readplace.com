@@ -99,7 +99,7 @@ The other side of that trade-off: Readplace ships new features every week. It's 
 
 Instapaper is the closest thing to Pocket that still exists. If you want exactly what Pocket was, a clean and simple read-it-later app with mobile apps and a free tier, it's the safe choice. It has done that job well for close to two decades.
 
-If you want AI summaries and a product that's actively growing, Readplace is a different bet. It's newer. It's smaller. It doesn't have native mobile apps. But it's built with a clear direction, and it ships toward that direction every week.
+If you want AI summaries and a product that's actively growing, Readplace is a different bet. It's newer, smaller, and lacks native mobile apps for now. But it's built with a clear direction, and it ships toward that direction every week.
 
 Neither choice is wrong. They solve the same problem from different starting points.
 

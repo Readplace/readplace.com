@@ -2,7 +2,7 @@
 title: "Omnivore Shut Down. Here's a Read-It-Later App That Won't."
 description: "Omnivore shut down with two weeks notice. Readplace is a privacy-first read-it-later app built by a developer and no VC funding."
 slug: "omnivore-alternative"
-date: "2026-05-01"
+date: "2026-05-06"
 author: "Fayner Brack"
 keywords: "Omnivore alternative, Omnivore replacement, Omnivore shut down, read it later app, ElevenLabs Omnivore, Readwise Reader alternative, Pocket alternative"
 ---
@@ -11,7 +11,7 @@ keywords: "Omnivore alternative, Omnivore replacement, Omnivore shut down, read 
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Omnivore shut down two weeks after ElevenLabs acquired it. The problem was venture capital needing an exit. Readplace is self-funded at $3.99/mo — subscriptions pay for servers, no investors expecting an exit. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, full data export, and source-available code under AGPL. Hosted in Sydney under Australian privacy law.
+Omnivore shut down two weeks after ElevenLabs acquired it. The problem was venture capital needing an exit. Readplace is self-funded at $3.99/mo. Subscriptions pay for servers, with no investors expecting an exit. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, full data export, and source-available code under AGPL. Hosted in Sydney under Australian privacy law.
 
 </div>
 </details>
@@ -24,7 +24,7 @@ Omnivore was open source, community-loved, and had a clear mission. None of that
 
 ## The problem was the business model
 
-The problem was not Omnivore's intentions. The team built a good product. The problem was venture capital. VC-funded apps need an exit. When the exit comes, users are an afterthought.
+The problem was not Omnivore's intentions. The team built a good product. The problem was venture capital. VC-funded apps need an exit. The exit arrives, and users become an afterthought.
 
 Many Omnivore users moved to [Readwise Reader](https://readwise.io/read) at $12.99/month. Others went to self-hosted options like Karakeep or Wallabag. Each option has trade-offs. Readwise is feature-rich but expensive. Self-hosted tools are free but need you to run a server and deal with updates.
 
@@ -44,7 +44,7 @@ These features are shipped and live right now:
 - **Web app.** Manage your reading list from any browser. No app store needed.
 - **Auto dark mode.** Matches your system preference.
 - **Secure auth.** OAuth with PKCE. Tokens stored locally in your browser.
-- **Full data export.** Export everything, anytime. Even after you cancel.
+- **Full data export.** Export your saved articles anytime. Even after you cancel.
 - **Privacy first.** Hosted in Sydney under the Australian Privacy Act, with no tracking scripts or ads.
 
 ## What Omnivore had, and where Readplace stands
@@ -75,7 +75,7 @@ Features ship one at a time, and the [roadmap is public](https://readplace.com/#
 
 **AGPL source-available.** The full source code is [on GitHub](https://github.com/Readplace/readplace.com). If Readplace disappears tomorrow, anyone can run it. That's the point.
 
-**Full export, always.** Export all your data anytime, even after you cancel. Data export is not an afterthought. It is a core promise: your saved articles stay available for export regardless of your subscription status.
+**Full export, anytime.** Export all your data, even after you cancel. Data export is a core promise: your saved articles stay available for export regardless of your subscription status.
 
 **Australian hosting.** Hosted in Sydney, governed by the Australian Privacy Act, outside US jurisdiction. The app runs without tracking scripts, ads, or data sales.
 
@@ -85,7 +85,7 @@ Features ship one at a time, and the [roadmap is public](https://readplace.com/#
 
 $3.99/month. TL;DR summaries are included.
 
-Readwise Reader is a great choice for power users at $12.99/month. Readplace is simpler and cheaper. A focused read-it-later tool, not a full research platform.
+Readwise Reader is a great choice for power users at $12.99/month. Readplace is simpler and cheaper. The product stays focused on saving and reading articles rather than building a full research platform.
 
 The first 100 founding members get full access free, forever. [Sign up here](https://readplace.com/signup).
 
