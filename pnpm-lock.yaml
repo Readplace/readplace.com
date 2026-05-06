@@ -269,6 +269,9 @@ importers:
       isbot:
         specifier: 5.1.39
         version: 5.1.39
+      linkedom:
+        specifier: 0.18.12
+        version: 0.18.12
       markdown-it:
         specifier: 14.1.1
         version: 14.1.1
