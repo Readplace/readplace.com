@@ -212,14 +212,6 @@ describe("GET /", () => {
 		expect(fill?.getAttribute("style")).toBe("width: 0%");
 	});
 
-	it("should hide the exhausted message when under the limit", async () => {
-		const response = await request(app).get("/");
-		const doc = new JSDOM(response.text).window.document;
-
-		const exhausted = doc.querySelector("[data-test-founding-exhausted]");
-		assert(exhausted, "exhausted message must be rendered");
-		expect(exhausted.classList.contains("founding-progress__exhausted--hidden")).toBe(true);
-	});
 
 	it("should render the comparison table", async () => {
 		const response = await request(app).get("/");
@@ -331,7 +323,7 @@ describe("GET /", () => {
 });
 
 describe("GET / with exhausted founding allocation", () => {
-	it("should render the exhausted message and cap progress at 100% when users exceed the limit", async () => {
+	it("should hide the founding progress when users exceed the limit", async () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		for (let i = 0; i < 100; i++) {
@@ -341,16 +333,7 @@ describe("GET / with exhausted founding allocation", () => {
 		const response = await request(app).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
-		const exhausted = doc.querySelector("[data-test-founding-exhausted]");
-		assert(exhausted, "exhausted message must be rendered");
-		expect(exhausted.textContent).toBe("The free allocation has been exhausted. Join now for only $3.99/month.");
-		expect(exhausted.classList.contains("founding-progress__exhausted--visible")).toBe(true);
-
-		const fill = doc.querySelector(".founding-progress__fill");
-		expect(fill?.getAttribute("style")).toBe("width: 100%");
-
-		const label = doc.querySelector(".founding-progress__label");
-		expect(label?.textContent).toBe("100 / 100 founding members");
+		expect(doc.querySelector("[data-test-founding-progress]")).toBeNull();
 	}, 30000);
 
 	it("should hide the founding pricing card and show the fallback CTA when over the limit", async () => {

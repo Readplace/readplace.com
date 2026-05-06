@@ -24,13 +24,3 @@
   color: var(--muted-foreground);
   font-weight: 500;
 }
-
-.founding-progress__exhausted {
-  font-size: 0.875rem;
-  color: var(--muted-foreground);
-  margin-top: 8px;
-  line-height: 1.6;
-}
-
-.founding-progress__exhausted--visible { display: block; }
-.founding-progress__exhausted--hidden { display: none; }

@@ -13,18 +13,13 @@ const FOUNDING_PROGRESS_TEMPLATE = readFileSync(
 
 export function renderFoundingProgress(input: { userCount: number }): string {
 	const { userCount } = input;
-	const progressPercent = Math.min(
-		Math.round((userCount / FOUNDING_MEMBER_LIMIT) * 100),
-		100,
-	);
-	const allocationExhausted = isFoundingAllocationExhausted(userCount);
-	const exhaustedStateClass = allocationExhausted
-		? "founding-progress__exhausted--visible"
-		: "founding-progress__exhausted--hidden";
+	if (isFoundingAllocationExhausted(userCount)) {
+		return "";
+	}
+	const progressPercent = Math.round((userCount / FOUNDING_MEMBER_LIMIT) * 100);
 	return render(FOUNDING_PROGRESS_TEMPLATE, {
 		userCount,
 		foundingMemberLimit: FOUNDING_MEMBER_LIMIT,
 		progressPercent,
-		exhaustedStateClass
 	});
 }
