@@ -248,48 +248,6 @@ describe("initShareBalloon — close button", () => {
 });
 
 describe("initShareBalloon — share click", () => {
-	it("copies the data-share-url to the clipboard and flashes the copied feedback", async () => {
-		const writeText = jest.fn(() => Promise.resolve());
-		const { document, ctrl } = setup({ navigator: { clipboard: { writeText } } });
-		const copiedLabel = element(document, "[data-share-balloon-copied]");
-		const status = element(document, "[data-share-balloon-status]");
-		ctrl.attach();
-
-		fireEvent.click(element(document, "[data-share-balloon]"));
-		expect(writeText).toHaveBeenCalledWith(ARTICLE_URL);
-
-		await flushPromises();
-		expect(copiedLabel.classList.contains(COPIED_VISIBLE_CLASS)).toBe(true);
-		expect(status.textContent).toBe("Link copied to clipboard");
-	});
-
-	it("fades the copied feedback out after COPIED_FADE_MS", async () => {
-		const writeText = jest.fn(() => Promise.resolve());
-		const { document, ctrl } = setup({ navigator: { clipboard: { writeText } } });
-		const copiedLabel = element(document, "[data-share-balloon-copied]");
-		const status = element(document, "[data-share-balloon-status]");
-		ctrl.attach();
-
-		fireEvent.click(element(document, "[data-share-balloon]"));
-		await flushPromises();
-		jest.advanceTimersByTime(3000);
-
-		expect(copiedLabel.classList.contains(COPIED_VISIBLE_CLASS)).toBe(false);
-		expect(status.textContent).toBe("");
-	});
-
-	it("reports 'Unable to copy link' to the status region when writeText rejects", async () => {
-		const writeText = jest.fn(() => Promise.reject(new Error("denied")));
-		const { document, ctrl } = setup({ navigator: { clipboard: { writeText } } });
-		const status = element(document, "[data-share-balloon-status]");
-		ctrl.attach();
-
-		fireEvent.click(element(document, "[data-share-balloon]"));
-		await flushPromises();
-
-		expect(status.textContent).toBe("Unable to copy link");
-	});
-
 	it("calls navigator.share with the title and url from the data attributes", () => {
 		const share = jest.fn(() => Promise.resolve());
 		const { document, ctrl } = setup({ navigator: { share } });
@@ -324,24 +282,27 @@ describe("initShareBalloon — share click", () => {
 		await expect(flushPromises()).resolves.toBeUndefined();
 	});
 
-	it("only uses navigator.share when the API is available (clipboard-only fallback)", () => {
+	it("does not copy to the clipboard when only the share button is clicked", () => {
 		const writeText = jest.fn(() => Promise.resolve());
-		const { document, ctrl } = setup({ navigator: { clipboard: { writeText } } });
-		ctrl.attach();
-
-		fireEvent.click(element(document, "[data-share-balloon]"));
-
-		expect(writeText).toHaveBeenCalledTimes(1);
-	});
-
-	it("only uses clipboard.writeText when the API is available (share-only fallback)", () => {
 		const share = jest.fn(() => Promise.resolve());
-		const { document, ctrl } = setup({ navigator: { share } });
+		const { document, ctrl } = setup({
+			navigator: { clipboard: { writeText }, share },
+		});
 		ctrl.attach();
 
 		fireEvent.click(element(document, "[data-share-balloon]"));
 
 		expect(share).toHaveBeenCalledTimes(1);
+		expect(writeText).not.toHaveBeenCalled();
+	});
+
+	it("hides the share button when navigator.share is unavailable", () => {
+		const writeText = jest.fn(() => Promise.resolve());
+		const { document, ctrl } = setup({ navigator: { clipboard: { writeText } } });
+		ctrl.attach();
+
+		const btn = element(document, "[data-share-balloon]");
+		expect(btn.hasAttribute("hidden")).toBe(true);
 	});
 });
 
@@ -479,13 +440,13 @@ describe("initShareBalloon — detach()", () => {
 		expect(() => ctrl.detach()).not.toThrow();
 	});
 
-	it("cancels a pending fade timer after a share click", async () => {
+	it("cancels a pending fade timer after a copy click", async () => {
 		const writeText = jest.fn(() => Promise.resolve());
 		const { document, ctrl } = setup({ navigator: { clipboard: { writeText } } });
 		const copiedLabel = element(document, "[data-share-balloon-copied]");
 		ctrl.attach();
 
-		fireEvent.click(element(document, "[data-share-balloon]"));
+		fireEvent.click(element(document, "[data-share-balloon-copy]"));
 		await flushPromises();
 		expect(copiedLabel.classList.contains(COPIED_VISIBLE_CLASS)).toBe(true);
 
@@ -495,13 +456,13 @@ describe("initShareBalloon — detach()", () => {
 	});
 
 	it("prevents subsequent share clicks from firing handlers", () => {
-		const writeText = jest.fn(() => Promise.resolve());
-		const { document, ctrl } = setup({ navigator: { clipboard: { writeText } } });
+		const share = jest.fn(() => Promise.resolve());
+		const { document, ctrl } = setup({ navigator: { share } });
 		ctrl.attach();
 		ctrl.detach();
 
 		fireEvent.click(element(document, "[data-share-balloon]"));
 
-		expect(writeText).not.toHaveBeenCalled();
+		expect(share).not.toHaveBeenCalled();
 	});
 });
