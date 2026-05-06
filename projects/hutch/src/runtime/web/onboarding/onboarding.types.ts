@@ -1,6 +1,7 @@
 export type BrowserName = "firefox" | "chrome" | "other";
 
 export interface OnboardingContext {
+	savedArticleCount: number;
 	extensionInstalled: boolean;
 	extensionSavedArticle: boolean;
 	browser: BrowserName;

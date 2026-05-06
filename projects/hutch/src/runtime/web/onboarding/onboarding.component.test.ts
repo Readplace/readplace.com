@@ -5,6 +5,7 @@ import type { OnboardingContext } from "./onboarding.types";
 
 function contextWith(overrides: Partial<OnboardingContext> = {}): OnboardingContext {
 	return {
+		savedArticleCount: 0,
 		extensionInstalled: false,
 		extensionSavedArticle: false,
 		browser: "chrome",
