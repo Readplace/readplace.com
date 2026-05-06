@@ -30,7 +30,7 @@ function toStepDisplayModel(
 	ctx: OnboardingContext,
 ): OnboardingStepDisplayModel {
 	const isComplete = step.isComplete(ctx);
-	const actions = step.actions?.(ctx) ?? [];
+	const actions = step.actions(ctx);
 	return {
 		id: step.id,
 		title: step.title(ctx),

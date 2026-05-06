@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { COOKIE_NAME, COOKIE_VALUE, DISMISS_COOKIE_NAME } from "@packages/onboarding-extension-signal";
+import {
+	COOKIE_NAME,
+	COOKIE_VALUE,
+	DISMISS_COOKIE_NAME,
+	SAVE_COOKIE_NAME,
+	SAVE_COOKIE_VALUE,
+} from "@packages/onboarding-extension-signal";
 import { ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import { createTestApp, type TestAppResult } from "../../../test-app";
 
@@ -36,12 +42,12 @@ describe("Queue onboarding", () => {
 		assert(installStep, "install-extension step must be rendered");
 		expect(installStep.getAttribute("data-test-onboarding-complete")).toBe("false");
 
-		const saveFirstStep = doc.querySelector('[data-test-onboarding-step="save-first-article"]');
+		const saveFirstStep = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"]');
 		assert(saveFirstStep, "save-first-article step must be rendered");
 		expect(saveFirstStep.getAttribute("data-test-onboarding-complete")).toBe("false");
 	});
 
-	it("keeps onboarding visible after saving an article when extension cookie is absent", async () => {
+	it("does not complete save-first-article when the article was saved via the web form", async () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(app, auth);
 
@@ -56,13 +62,23 @@ describe("Queue onboarding", () => {
 		assert(onboarding, "onboarding container must be rendered");
 		expect(onboarding.classList.contains("onboarding--visible")).toBe(true);
 
-		const installStep = doc.querySelector('[data-test-onboarding-step="install-extension"]');
-		assert(installStep);
-		expect(installStep.getAttribute("data-test-onboarding-complete")).toBe("false");
-
-		const saveStep = doc.querySelector('[data-test-onboarding-step="save-first-article"]');
+		const saveStep = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"]');
 		assert(saveStep);
-		expect(saveStep.getAttribute("data-test-onboarding-complete")).toBe("true");
+		expect(saveStep.getAttribute("data-test-onboarding-complete")).toBe("false");
+	});
+
+	it("marks save-first-article complete when extension save cookie is present", async () => {
+		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(app, auth);
+
+		const response = await agent
+			.get("/queue")
+			.set("Cookie", `${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`);
+
+		const doc = new JSDOM(response.text).window.document;
+		const step = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"]');
+		assert(step, "save-first-article step must be rendered");
+		expect(step.getAttribute("data-test-onboarding-complete")).toBe("true");
 	});
 
 	it("marks install-extension complete when extension cookie is present", async () => {
@@ -79,18 +95,13 @@ describe("Queue onboarding", () => {
 		expect(step.getAttribute("data-test-onboarding-complete")).toBe("true");
 	});
 
-	it("shows success message when both extension cookie and saved article are present", async () => {
+	it("shows success message when both the install and extension-save cookies are present", async () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(app, auth);
 
-		await agent
-			.post("/queue/save")
-			.type("form")
-			.send({ url: "https://example.com/article" });
-
 		const response = await agent
 			.get("/queue")
-			.set("Cookie", `${COOKIE_NAME}=${COOKIE_VALUE}`);
+			.set("Cookie", `${COOKIE_NAME}=${COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`);
 
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
@@ -148,14 +159,9 @@ describe("Queue onboarding", () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(app, auth);
 
-		await agent
-			.post("/queue/save")
-			.type("form")
-			.send({ url: "https://example.com/article-on-unread-tab" });
-
 		const response = await agent
 			.get("/queue?status=read")
-			.set("Cookie", `${COOKIE_NAME}=${COOKIE_VALUE}`);
+			.set("Cookie", `${COOKIE_NAME}=${COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`);
 
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");

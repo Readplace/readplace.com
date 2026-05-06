@@ -1,5 +1,10 @@
 import { expect } from '@playwright/test'
-import { COOKIE_NAME, COOKIE_VALUE } from '@packages/onboarding-extension-signal'
+import {
+  COOKIE_NAME,
+  COOKIE_VALUE,
+  SAVE_COOKIE_NAME,
+  SAVE_COOKIE_VALUE,
+} from '@packages/onboarding-extension-signal'
 import type { PageAction } from '../hateoas/navigation-handler.types'
 import type { OnboardingActionKey } from './action-catalog'
 import type { AuthProgress } from './auth-actions'
@@ -7,7 +12,6 @@ import type { AuthProgress } from './auth-actions'
 export type OnboardingProgress = {
   installedExtension: boolean
   savedFirstArticle: boolean
-  savedFirstArticleReappeared: boolean
 }
 
 export function createOnboardingActions(
@@ -32,11 +36,10 @@ export function createOnboardingActions(
         }])
         await page.reload({ waitUntil: 'domcontentloaded' })
 
-        // After reload the step is complete. If other steps are still pending the
-        // step row renders with data-test-onboarding-complete="true"; if every
-        // step is already complete (e.g. when an article was auto-saved via the
-        // /view → /save → signup flow) the step list is replaced by the success
-        // view. Assert neither branch leaves this step marked incomplete.
+        // After reload, install-extension is complete; save-first-article is
+        // independently gated on a save through the extension's Siren endpoint
+        // (POST /queue or /queue/save-html), so the success view never appears
+        // on this reload alone — that's simulated by onboarding-save-first-article.
         const stillIncomplete = await page.locator(
           '[data-test-onboarding-step="install-extension"][data-test-onboarding-complete="false"]',
         ).count()
@@ -51,9 +54,21 @@ export function createOnboardingActions(
         if (!authProgress.accountCreated) return false
         if (!progress.installedExtension) return false
         if (progress.savedFirstArticle) return false
-        return (await page.locator('[data-test-onboarding].onboarding--complete').count()) > 0
+        const step = page.locator('[data-test-onboarding-step="save-first-article-via-extension"][data-test-onboarding-complete="false"]')
+        return (await step.count()) > 0
       },
       execute: async (page) => {
+        // Stand in for the extension calling POST /queue: in production the
+        // server sets SAVE_COOKIE_NAME on the Siren save response. Adding it
+        // here directly avoids running the full extension stack in this flow.
+        await page.context().addCookies([{
+          name: SAVE_COOKIE_NAME,
+          value: SAVE_COOKIE_VALUE,
+          path: '/',
+          domain: new URL(page.url()).hostname,
+        }])
+        await page.reload({ waitUntil: 'domcontentloaded' })
+
         const container = page.locator('[data-test-onboarding]')
         await expect(container).toHaveClass(/onboarding--complete/)
 
@@ -61,24 +76,6 @@ export function createOnboardingActions(
         await expect(success).toBeVisible()
 
         progress.savedFirstArticle = true
-      },
-    },
-
-    'onboarding-save-first-article-reappears': {
-      isAvailable: async (page) => {
-        if (!progress.savedFirstArticle) return false
-        if (progress.savedFirstArticleReappeared) return false
-        return page.locator('[data-test-onboarding].onboarding--visible').isVisible().catch(() => false)
-      },
-      execute: async (page) => {
-        const container = page.locator('[data-test-onboarding]')
-        await expect(container).toHaveClass(/onboarding--visible/)
-        await expect(container).toBeVisible()
-
-        const step = page.locator('[data-test-onboarding-step="save-first-article"]')
-        await expect(step).toHaveAttribute('data-test-onboarding-complete', 'false')
-
-        progress.savedFirstArticleReappeared = true
       },
     },
   })

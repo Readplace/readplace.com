@@ -25,11 +25,18 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 		}],
 	},
 	{
-		id: "save-first-article",
-		title: () => "Save your first article",
+		id: "save-first-article-via-extension",
+		title: (ctx) =>
+			ctx.browser !== "other"
+				? "Save your first article using the browser extension"
+				: "Save your first article using a browser extension",
 		description:
-			"Paste a URL to save, or press your browser extension button on any page you want to read later to save the current tab to your reading list. Saving via the extension is more reliable — it captures the page directly from your browser, so anti-bot protections can't block the content from being retrieved.",
-		isComplete: (ctx) => ctx.savedArticleCount > 0,
+			"Click the Readplace button in your browser toolbar on a page you want to read later. The save bar on this page doesn't count for this step.",
+		isComplete: (ctx) => ctx.extensionSavedArticle,
+		actions: (ctx) =>
+			ctx.browser !== "other"
+				? []
+				: [{ label: "Choose browser", url: buildExtensionInstallUrl(ctx.browser) }],
 	},
 ];
 

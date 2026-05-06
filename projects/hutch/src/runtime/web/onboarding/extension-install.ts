@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { COOKIE_NAME, COOKIE_VALUE } from "@packages/onboarding-extension-signal";
+import { COOKIE_NAME, COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
 import type { BrowserName } from "./onboarding.types";
 
 const INSTALL_URLS: Record<BrowserName, string> = {
@@ -10,6 +10,10 @@ const INSTALL_URLS: Record<BrowserName, string> = {
 
 export function isExtensionInstalled(req: Request): boolean {
 	return req.cookies?.[COOKIE_NAME] === COOKIE_VALUE;
+}
+
+export function isExtensionSavedArticle(req: Request): boolean {
+	return req.cookies?.[SAVE_COOKIE_NAME] === SAVE_COOKIE_VALUE;
 }
 
 export function detectBrowser(req: Request): BrowserName {

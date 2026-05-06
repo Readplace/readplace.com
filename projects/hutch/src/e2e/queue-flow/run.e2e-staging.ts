@@ -78,7 +78,6 @@ test.describe('Queue management flow (staging)', () => {
     const onboardingProgress: OnboardingProgress = {
       installedExtension: true,
       savedFirstArticle: true,
-      savedFirstArticleReappeared: true,
     }
 
     const seedProgress: SeedProgress = {

@@ -1,6 +1,8 @@
 import assert from "node:assert";
 import {
 	DISMISS_COOKIE_NAME,
+	SAVE_COOKIE_NAME,
+	SAVE_COOKIE_VALUE,
 } from "@packages/onboarding-extension-signal";
 import type { ErrorRequestHandler, Request, Response, Router } from "express";
 import express from "express";
@@ -50,7 +52,18 @@ import {
 	detectBrowser,
 	extensionInstallUrlIfMissing,
 	isExtensionInstalled,
+	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
+
+function markExtensionSavedArticle(res: Response): void {
+	// Only Siren-only save endpoints call this; the form-based /queue/save path doesn't, so the onboarding step is gated on extension saves alone.
+	res.cookie(SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE, {
+		path: "/",
+		maxAge: 365 * 24 * 60 * 60 * 1000,
+		sameSite: "lax",
+		httpOnly: true,
+	});
+}
 
 interface QueueDependencies {
 	findArticlesByUser: FindArticlesByUser;
@@ -129,12 +142,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const unreadCount = urlState.tab === "queue"
 			? result.total
 			: (await deps.findArticlesByUser({ userId, status: "unread", page: 1, pageSize: 1 })).total;
-		const totalArticles = (await deps.findArticlesByUser({ userId, page: 1, pageSize: 1 })).total;
 		const saveError = deps.httpErrorMessageMapping(req.query);
 		const importFlash = importFlashMapping(req.query);
 		const summaryByUrl = await loadSummaries(deps.findGeneratedSummary, result.articles);
-		const vm = toQueueViewModel(result, urlState, { unreadCount, totalArticles, saveError, importFlash, summaryByUrl });
+		const vm = toQueueViewModel(result, urlState, { unreadCount, saveError, importFlash, summaryByUrl });
 		const extensionInstalled = isExtensionInstalled(req);
+		const extensionSavedArticle = isExtensionSavedArticle(req);
 		/** Dismissal only counts when the extension is also installed in *this* browser.
 		 * The dismiss button only appears once every step (including install-extension)
 		 * is complete, so a dismiss without the install cookie means the user is in a
@@ -145,7 +158,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const showImportForm = req.query.feature === "import";
 		sendComponent(
 			res,
-			renderPage(req, QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, browser, onboardingDismissed, showImportForm })),
+			renderPage(req, QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, extensionSavedArticle, browser, onboardingDismissed, showImportForm })),
 		);
 	});
 
@@ -192,6 +205,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		try {
 			const freshness = await deps.refreshArticleIfStale({ url: parsed.data.url });
 			const result = await saveArticleFromUrl(deps, { userId, url: parsed.data.url, freshness });
+			markExtensionSavedArticle(res);
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
@@ -268,6 +282,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					);
 					const freshness = await deps.refreshArticleIfStale({ url: urlOnly.data.url });
 					const result = await saveArticleFromUrl(deps, { userId, url: urlOnly.data.url, freshness });
+					markExtensionSavedArticle(res);
 					res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 					return;
 				}
@@ -287,6 +302,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			});
 
 			const result = await saveArticleFromUrl(deps, { userId, url: parsed.data.url, freshness });
+			markExtensionSavedArticle(res);
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
 			deps.logError("Failed to save article from html", error instanceof Error ? error : undefined);

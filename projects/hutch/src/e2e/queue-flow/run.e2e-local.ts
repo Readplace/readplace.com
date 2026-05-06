@@ -39,7 +39,6 @@ test.describe('Queue management flow (local)', () => {
     const onboardingProgress: OnboardingProgress = {
       installedExtension: false,
       savedFirstArticle: false,
-      savedFirstArticleReappeared: false,
     }
 
     const savePermalinkProgress: SavePermalinkProgress = {

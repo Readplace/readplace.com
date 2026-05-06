@@ -41,7 +41,6 @@ export interface QueueViewModel {
 	totalPages: number;
 	currentPage: number;
 	total: number;
-	totalArticles: number;
 	unreadCount: number;
 	filterUrls: {
 		unread: string;
@@ -144,7 +143,6 @@ export function toQueueViewModel(
 		saveError?: string;
 		importFlash?: string;
 		unreadCount?: number;
-		totalArticles?: number;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
 	},
 ): QueueViewModel {
@@ -164,7 +162,6 @@ export function toQueueViewModel(
 		totalPages,
 		currentPage: result.page,
 		total: result.total,
-		totalArticles: options?.totalArticles ?? result.total,
 		unreadCount: options?.unreadCount ?? result.total,
 		filterUrls: {
 			unread: buildQueueUrl({ ...baseFilters, tab: "queue" }),
