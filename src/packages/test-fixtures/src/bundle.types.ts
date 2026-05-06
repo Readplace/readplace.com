@@ -17,6 +17,7 @@ import type {
 import type { PutPendingHtml } from "./providers/pending-html/pending-html.types";
 import type {
 	FindGeneratedSummary,
+	FindGeneratedSummariesByUrls,
 	ForceMarkSummaryPending,
 	MarkSummaryPending,
 } from "./providers/article-summary/article-summary.types";
@@ -171,6 +172,7 @@ export interface PendingHtmlBundle {
 
 export interface SummaryBundle {
 	findGeneratedSummary: FindGeneratedSummary;
+	findGeneratedSummariesByUrls: FindGeneratedSummariesByUrls;
 	markSummaryPending: MarkSummaryPending;
 	forceMarkSummaryPending: ForceMarkSummaryPending;
 }
