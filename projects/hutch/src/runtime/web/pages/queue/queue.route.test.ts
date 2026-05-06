@@ -2540,4 +2540,42 @@ describe("Queue routes", () => {
 			expect(input?.getAttribute("value")).toBe("");
 		});
 	});
+
+	describe("GET /queue?feature=import", () => {
+		it("should render the import form with the no-JS Upload button", async () => {
+			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(app, auth);
+
+			const response = await agent.get("/queue?feature=import");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const form = doc.querySelector("form.queue__import-form");
+			assert(form, "import form must be rendered");
+			const button = form.querySelector("button.queue__import-btn");
+			assert(button, "Upload button must remain in the DOM as the no-JS fallback");
+			expect(button.textContent).toBe("Upload");
+		});
+
+		it("should include the import auto-submit script", async () => {
+			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(app, auth);
+
+			const response = await agent.get("/queue?feature=import");
+
+			expect(response.text).toContain("input.addEventListener");
+			expect(response.text).toContain("requestSubmit");
+		});
+
+		it("should include the import auto-submit script even when the import form is hidden", async () => {
+			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(app, auth);
+
+			const response = await agent.get("/queue");
+
+			expect(response.status).toBe(200);
+			expect(response.text).toContain("input.addEventListener");
+			expect(response.text).toContain("requestSubmit");
+		});
+	});
 });
