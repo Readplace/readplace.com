@@ -31,6 +31,14 @@
   margin-bottom: 32px;
 }
 
+.auth-card__founding-blurb {
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  text-align: center;
+  margin-top: -20px;
+  margin-bottom: 24px;
+}
+
 .auth-form {
   display: flex;
   flex-direction: column;

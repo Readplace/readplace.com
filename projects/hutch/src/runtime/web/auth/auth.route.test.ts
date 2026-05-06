@@ -875,10 +875,18 @@ describe("Auth routes", () => {
 			const label = doc.querySelector("[data-test-founding-progress] .founding-progress__label");
 			expect(label?.textContent).toBe("0 / 100 founding members");
 		});
+
+		it("should render the founding blurb on GET /signup when allocation is available", async () => {
+			const response = await request(app).get("/signup");
+			const doc = new JSDOM(response.text).window.document;
+
+			const blurb = doc.querySelector("[data-test-founding-blurb]");
+			expect(blurb?.textContent).toBe("Free account for the first 100 readers");
+		});
 	});
 
 	describe("Founding members progress — exhausted allocation", () => {
-		it("should render the exhausted message on /signup when at the limit", async () => {
+		it("should render the exhausted message and hide the founding blurb on /signup when at the limit", async () => {
 			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			for (let i = 0; i < 100; i++) {
 				await auth.createUser({ email: `user${i}@test.com`, password: "password123" });
@@ -889,6 +897,7 @@ describe("Auth routes", () => {
 			assert(signupExhausted, "exhausted message must be rendered on /signup");
 			expect(signupExhausted.textContent).toContain("The free allocation has been exhausted");
 			expect(signupExhausted.classList.contains("founding-progress__exhausted--visible")).toBe(true);
+			expect(signupDoc.querySelector("[data-test-founding-blurb]")).toBeNull();
 		}, 30000);
 	});
 });

@@ -3,6 +3,7 @@
         <h1 class="auth-card__title">Create your account</h1>
         <p class="auth-card__subtitle">Start saving articles to read later</p>
         {{{foundingProgressHtml}}}
+        {{#if foundingAvailable}}<p class="auth-card__founding-blurb" data-test-founding-blurb>Free account for the first 100 readers</p>{{/if}}
         {{#if globalError}}<div class="auth-form__global-error" data-test-global-error>{{globalError}}</div>{{/if}}
         <form class="auth-form" method="POST" action="/signup{{#if returnUrl}}?return={{returnUrl}}{{/if}}" data-test-form="signup">
           <div class="auth-form__visually-hidden" aria-hidden="true">

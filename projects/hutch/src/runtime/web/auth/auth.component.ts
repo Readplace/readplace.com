@@ -108,6 +108,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		foundingProgressHtml: renderFoundingProgress({
 			userCount: data.userCount,
 		}),
+		foundingAvailable: !isFoundingAllocationExhausted(data.userCount),
 	});
 
 	return {
