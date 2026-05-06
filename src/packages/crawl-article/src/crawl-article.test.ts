@@ -104,6 +104,24 @@ describe("initCrawlArticle — regular first-save fetch", () => {
 		});
 	});
 
+	it("returns status 'fetched' when content-type is application/xhtml+xml", async () => {
+		const fakeFetch: typeof fetch = async () =>
+			new Response("<html>XHTML content</html>", {
+				status: 200,
+				headers: { "content-type": "application/xhtml+xml; charset=utf-8" },
+			});
+		const crawlArticle = initCrawl({ fetch: fakeFetch });
+
+		const result = await crawlArticle({ url: "https://example.com" });
+
+		expect(result).toEqual({
+			status: "fetched",
+			html: "<html>XHTML content</html>",
+			etag: undefined,
+			lastModified: undefined,
+		});
+	});
+
 	it("passes the URL through to the fetch function unchanged", async () => {
 		let capturedInput: unknown;
 		const fakeFetch: typeof fetch = async (input) => {

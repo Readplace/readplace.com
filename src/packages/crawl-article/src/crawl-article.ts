@@ -56,7 +56,7 @@ export function initCrawlArticle(deps: {
 				return { status: "failed" };
 			}
 			const contentType = response.headers.get("content-type") ?? "";
-			if (!contentType.includes("text/html")) {
+			if (!isHtmlContentType(contentType)) {
 				deps.logError(`[CrawlArticle] Unexpected Content-Type "${contentType}" for ${params.url}`);
 				return { status: "failed" };
 			}
@@ -229,4 +229,9 @@ function isValidHttpUrl(url: string): boolean {
 	} catch {
 		return false;
 	}
+}
+
+/** Accept text/html and application/xhtml+xml — both are HTML-parseable by linkedom. */
+function isHtmlContentType(contentType: string): boolean {
+	return contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
 }
