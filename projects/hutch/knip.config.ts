@@ -30,9 +30,8 @@ export default {
 		// Used in app.ts (reached via infra entry point which knip ignores)
 		"@packages/hutch-infra-components",
 		"@packages/hutch-storage-client",
-		// Used by scripts/check-unused-css.js (not a source-level import)
-		"@packages/check-unused-css",
 		// knip doesn't resolve workspace subpath for @packages/* imports
+		"@packages/app",
 		"@packages/article-resource-unique-id",
 		"@packages/article-state-types",
 		"@packages/crawl-article",

@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import type { Express, NextFunction, Request, Response } from "express";
@@ -97,10 +95,7 @@ import { TermsPage } from "./web/pages/terms";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { InstallPage, fetchFirefoxDownloadUrl, fetchChromeDownloadUrl } from "./web/pages/install";
 import { NotFoundPage } from "./web/pages/not-found";
-import { requireEnv, getEnv } from "./require-env";
 import "./web/session.types";
-
-export const PORT = requireEnv("PORT", { defaultValue: "3000" });
 
 interface AppDependencies {
 	appOrigin: string;
@@ -166,6 +161,11 @@ interface AppDependencies {
 	storePendingSignup: StorePendingSignup;
 	consumePendingSignup: ConsumePendingSignup;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
+	indexNowKey: string | undefined;
+	exposeE2eFixtureRoute: boolean;
+	llmsTxt: string;
+	llmsFullTxt: string;
+	clientDistDir: string;
 }
 
 function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -176,23 +176,27 @@ function requireAuth(req: Request, res: Response, next: NextFunction): void {
 	next();
 }
 
-const LLMS_TXT = readFileSync(join(__dirname, "llms.txt"), "utf-8");
-const LLMS_FULL_TXT = readFileSync(join(__dirname, "llms-full.txt"), "utf-8");
-const INDEXNOW_KEY = getEnv("INDEXNOW_KEY");
-
 export function createApp(dependencies: AppDependencies): Express {
-	const { appOrigin, staticBaseUrl, getSessionUserId, countUsers, ...deps } = dependencies;
+	const {
+		appOrigin,
+		staticBaseUrl,
+		getSessionUserId,
+		countUsers,
+		indexNowKey,
+		exposeE2eFixtureRoute,
+		llmsTxt,
+		llmsFullTxt,
+		clientDistDir,
+		...deps
+	} = dependencies;
 	const app: Express = express();
 
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());
 
-	// Same-origin client bundles — the Lambda packaging step copies
-	// src/runtime/web/client-dist/ into the bundle, so `__dirname/web/client-dist`
-	// resolves both in dev (tsx → src/runtime/) and in prod (Lambda → /var/task/).
 	app.use(
 		"/client-dist",
-		express.static(resolve(__dirname, "web", "client-dist"), {
+		express.static(clientDistDir, {
 			maxAge: "5m",
 			fallthrough: false,
 		}),
@@ -241,16 +245,16 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 
 	app.get("/llms.txt", (_req: Request, res: Response) => {
-		res.type("text/plain").send(LLMS_TXT);
+		res.type("text/plain").send(llmsTxt);
 	});
 
 	app.get("/llms-full.txt", (_req: Request, res: Response) => {
-		res.type("text/plain").send(LLMS_FULL_TXT);
+		res.type("text/plain").send(llmsFullTxt);
 	});
 
-	if (INDEXNOW_KEY) {
-		app.get(`/${INDEXNOW_KEY}.txt`, (_req: Request, res: Response) => {
-			res.type("text/plain").send(INDEXNOW_KEY);
+	if (indexNowKey) {
+		app.get(`/${indexNowKey}.txt`, (_req: Request, res: Response) => {
+			res.type("text/plain").send(indexNowKey);
 		});
 	}
 
@@ -343,10 +347,9 @@ export function createApp(dependencies: AppDependencies): Express {
 	// ignored — body is identical for every id — so tests pass a per-run unique
 	// value to ensure each CI run targets a fresh article row instead of
 	// inheriting whatever state the previous run left in DynamoDB. Gated off
-	// when NODE_ENV is "production" so the route does not exist on the prod
-	// Lambda; tests (NODE_ENV=test via Jest) and local dev (NODE_ENV unset)
-	// both expose it.
-	if (getEnv("NODE_ENV") !== "production") {
+	// in prod by composition root passing exposeE2eFixtureRoute=false; tests
+	// and local dev pass true so the route is mounted.
+	if (exposeE2eFixtureRoute) {
 		app.get("/e2e/article/:id", (req: Request, res: Response) => {
 			sendComponent(res, renderPage(req, E2EFixturePage()));
 		});

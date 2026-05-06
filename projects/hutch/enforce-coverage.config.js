@@ -19,5 +19,10 @@ config.enforceCoverage({
     ...(config.extraExcludePatterns || []),
     // Infrastructure layer — deployed via Pulumi, not testable in CI
     'src/infra/**',
+    // Browser bundles + llms text are mirrored from @packages/app at compile-time
+    // by scripts/prepare-app-assets.js — they're tested in @packages/app, not here.
+    'src/runtime/web/**',
+    'src/runtime/llms.txt',
+    'src/runtime/llms-full.txt',
   ],
 })

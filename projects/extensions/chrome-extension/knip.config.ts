@@ -24,7 +24,7 @@ export default {
 		"@packages/hutch-logger",
 		"@packages/onboarding-extension-signal",
 		// Dynamic import in E2E test — knip can't trace dynamic imports
-		"hutch",
+		"@packages/app",
 		"@packages/test-fixtures",
 		// Used by scripts/check-unused-css.js (not a source-level import)
 		"@packages/check-unused-css",

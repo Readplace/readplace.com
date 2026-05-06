@@ -1,5 +1,7 @@
 import { createHutchApp } from "./app";
-import { PORT } from "./server";
+import { requireEnv } from "./require-env";
+
+const PORT = requireEnv("PORT", { defaultValue: "3000" });
 
 const { app } = createHutchApp();
 

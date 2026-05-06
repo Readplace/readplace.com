@@ -6,7 +6,7 @@
  * meant any developer who pointed STATIC_BASE_URL at staging got a stale/404
  * response from CloudFront for the latest bundle.
  *
- * Output goes under `src/runtime/web/client-dist/` so the Lambda `copyAssetFiles`
+ * Output goes under `src/web/client-dist/` so the Lambda `copyAssetFiles`
  * step (everything in src/runtime that isn't .ts) ships it alongside the
  * handler, and `copy-static-assets.js` mirrors it into dist/ for test runs.
  */
@@ -15,7 +15,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
-const OUT_DIR = path.join(PROJECT_ROOT, "src", "runtime", "web", "client-dist");
+const OUT_DIR = path.join(PROJECT_ROOT, "src", "web", "client-dist");
 
 /**
  * 1. `globalName` exposes the module exports on `window.ShareBalloon` inside the IIFE.
@@ -30,7 +30,7 @@ const BUNDLES = [
 	{
 		entry: path.join(
 			PROJECT_ROOT,
-			"src/runtime/web/shared/share-balloon/share-balloon.client.ts",
+			"src/web/shared/share-balloon/share-balloon.client.ts",
 		),
 		outfile: path.join(OUT_DIR, "share-balloon.client.js"),
 		globalName: "ShareBalloon",
@@ -48,7 +48,7 @@ const BUNDLES = [
 	{
 		entry: path.join(
 			PROJECT_ROOT,
-			"src/runtime/web/shared/article-body/progress-bar.client.ts",
+			"src/web/shared/article-body/progress-bar.client.ts",
 		),
 		outfile: path.join(OUT_DIR, "progress-bar.client.js"),
 		globalName: "ProgressBar",
@@ -71,7 +71,7 @@ const BUNDLES = [
 	{
 		entry: path.join(
 			PROJECT_ROOT,
-			"src/runtime/web/pages/import/import.client.ts",
+			"src/web/pages/import/import.client.ts",
 		),
 		outfile: path.join(OUT_DIR, "import.client.js"),
 		globalName: "ImportClient",
