@@ -135,11 +135,6 @@ export function initShareBalloon(
 	}
 
 	function onShareClick() {
-		if (deps.navigator.clipboard !== undefined) {
-			deps.navigator.clipboard.writeText(url).then(flashCopied, () => {
-				status.textContent = "Unable to copy link";
-			});
-		}
 		if (deps.navigator.share !== undefined) {
 			deps.navigator.share({ title, url }).catch((err) => {
 				if (err && err.name === "AbortError") return;
@@ -171,6 +166,8 @@ export function initShareBalloon(
 		if (!canShare && !canCopy) return;
 		attached = true;
 		wrap.hidden = false;
+		btn.hidden = !canShare;
+		copyBtn.hidden = !canCopy;
 
 		if (!readDismissed()) {
 			scrollListener = onScroll;
