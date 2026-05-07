@@ -23,9 +23,6 @@ export default {
 		"browser-extension-core",
 		"@packages/hutch-logger",
 		"@packages/onboarding-extension-signal",
-		// Dynamic import in E2E test — knip can't trace dynamic imports
-		"hutch",
-		"@packages/test-fixtures",
 		// Used by scripts/check-unused-css.js (not a source-level import)
 		"@packages/check-unused-css",
 		// Used via scripts/run-tests-with-coverage.js (not a source import)

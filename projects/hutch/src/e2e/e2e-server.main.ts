@@ -1,5 +1,6 @@
 import assert from 'node:assert'
 import express from 'express'
+import { z } from 'zod'
 import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
 import { createTestApp } from '../runtime/test-app'
 import {
@@ -21,7 +22,11 @@ import { initInMemoryStripeCheckout } from '@packages/test-fixtures/providers/st
 import { CheckoutSessionIdSchema } from '@packages/test-fixtures/providers/stripe-checkout'
 
 const PORT = Number(requireEnv('E2E_PORT'))
-const origin = `http://localhost:${PORT}`
+// Use 127.0.0.1 (not localhost) so the appOrigin passed into the test fixture
+// matches the URL the extensions actually call — extension popups dial
+// http://127.0.0.1:${PORT} (built with HUTCH_SERVER_URL=127.0.0.1:port), and a
+// "localhost" appOrigin would cause CORS rejections on the OAuth/Siren routes.
+const origin = `http://127.0.0.1:${PORT}`
 const logger = HutchLogger.from(consoleLogger)
 
 const logError = (message: string, error?: Error) => console.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }))
@@ -64,7 +69,7 @@ const applyParseResult = createFakeApplyParseResult({
 // instead of hitting the unreachable https://checkout.stripe.test domain.
 const e2eStripe = initInMemoryStripeCheckout({ checkoutBaseUrl: `${origin}/e2e/stripe-checkout`, now: () => new Date() })
 
-const { app: hutchApp, email } = createTestApp({
+const { app: hutchApp, auth, email } = createTestApp({
   ...fixture,
   stripe: e2eStripe,
   parser: { parseArticle, crawlArticle },
@@ -88,6 +93,29 @@ const { app: hutchApp, email } = createTestApp({
 })
 
 const server = express()
+
+// JSON body parser for /e2e/* fixture POSTs. Mounted on the outer router only;
+// hutch's app keeps urlencoded for its own forms.
+server.use('/e2e', express.json())
+
+const CreateUserBody = z.object({
+  email: z.email(),
+  password: z.string().min(8),
+})
+
+// Test fixture: create a user out-of-band so extension e2e tests can spawn this
+// server as a subprocess and seed login credentials over HTTP instead of
+// reaching for `auth.createUser` in-process. The single legitimate way the
+// extension can ask for a new test capability is by adding an endpoint here.
+server.post('/e2e/users', async (req, res) => {
+  const parsed = CreateUserBody.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() })
+    return
+  }
+  await auth.createUser(parsed.data)
+  res.status(201).json({ ok: true })
+})
 
 // Expose sent emails for E2E tests (password reset flow needs the reset token from email)
 server.get('/e2e/sent-emails', (_req, res) => {
@@ -118,6 +146,9 @@ server.use(hutchApp)
 process.on('SIGTERM', () => process.exit(0))
 process.on('SIGINT', () => process.exit(0))
 
-server.listen(PORT, () => {
-  logger.info(`E2E server running on http://localhost:${PORT}`)
+// Bind explicitly to 127.0.0.1 so the listening socket matches what the
+// extension popup connects to (Firefox treats 127.0.0.1 and IPv6 ::1 as
+// distinct origins; binding to 0.0.0.0 + IPv6 ::1 has surfaced flakes).
+server.listen(PORT, '127.0.0.1', () => {
+  logger.info(`E2E server running on http://127.0.0.1:${PORT}`)
 })

@@ -8,6 +8,9 @@
     "compile": {
       "outputs": ["{projectRoot}/dist-extension-compiled", "{projectRoot}/dist-extension-files"]
     },
+    "test:e2e": {
+      "dependsOn": ["compile", "hutch:compile"]
+    },
     "check": {
       "command": "pnpm lint && pnpm test-with-coverage",
       "options": { "cwd": "{projectRoot}" }
