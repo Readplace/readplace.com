@@ -206,7 +206,7 @@ describe("GET /", () => {
 
 		const progress = doc.querySelector("[data-test-founding-progress]");
 		const label = progress?.querySelector(".founding-progress__label");
-		expect(label?.textContent).toBe("0 / 100 founding members");
+		expect(label?.textContent).toBe("0 / 50 founding members");
 
 		const fill = progress?.querySelector(".founding-progress__fill");
 		expect(fill?.getAttribute("style")).toBe("width: 0%");

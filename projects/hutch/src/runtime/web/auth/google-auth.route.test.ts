@@ -216,9 +216,8 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
-			for (let i = 0; i < 99; i++) {
-				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
+			// Only one founding member
+			await auth.createUser({ email: `seed1@test.com`, password: "password123" });
 			const state = signState(freshState());
 
 			const response = await request(app)

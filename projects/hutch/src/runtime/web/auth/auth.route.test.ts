@@ -9,6 +9,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
+import { FOUNDING_MEMBER_LIMIT } from "../shared/founding-progress/founding-allocation"
 
 /** A loadedAt value safely older than the bot-defense minimum submit window
  * (2.5s), so the form submission passes the timing gate. */
@@ -285,9 +286,8 @@ describe("Auth routes", () => {
 	describe("POST /signup", () => {
 		it("should create the account directly and redirect to /queue when below the founding limit", async () => {
 			const { app, auth, pendingSignup } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			for (let i = 0; i < 99; i++) {
-				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
+			// One founding member
+			await auth.createUser({ email: `seed1@test.com`, password: "password123" });
 
 			const response = await request(app).post("/signup").type("form").send({
 				email: "free@example.com",
@@ -329,7 +329,7 @@ describe("Auth routes", () => {
 
 		it("should fall back to free signup after a manual deletion drops the count below the limit", async () => {
 			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			for (let i = 0; i < 101; i++) {
+			for (let i = 0; i < FOUNDING_MEMBER_LIMIT + 1; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 			await auth.deleteUser("seed0@test.com");
@@ -885,7 +885,7 @@ describe("Auth routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 
 			const label = doc.querySelector("[data-test-founding-progress] .founding-progress__label");
-			expect(label?.textContent).toBe("0 / 100 founding members");
+			expect(label?.textContent).toBe("0 / 50 founding members");
 		});
 
 		it("should keep the progress bar on POST /signup 422 responses", async () => {
@@ -897,7 +897,7 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
 			const label = doc.querySelector("[data-test-founding-progress] .founding-progress__label");
-			expect(label?.textContent).toBe("0 / 100 founding members");
+			expect(label?.textContent).toBe("0 / 50 founding members");
 		});
 
 		it("should render the founding blurb on GET /signup when allocation is available", async () => {
