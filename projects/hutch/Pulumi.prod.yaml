@@ -29,5 +29,7 @@ config:
   hutch:pendingHtmlBucketName: hutch-pending-html-prod
   hutch:userExportBucketName: hutch-user-exports-prod
   hutch:alertEmail: hutch+devops@readplace.com
-  hutch:excludedVisitorHashes: []
+  hutch:excludedVisitorHashes: [
+    b4248a499303636a
+  ]
 encryptionsalt: v1:l9Qbc2Rjk0w=:v1:atrW398hQVu5eMhu:NQ2XG9vAOXAa+XxkU2+ksKYFAJJLTA==
