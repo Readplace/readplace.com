@@ -117,7 +117,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 		const renderError = async (globalError: string) => {
 			const userCount = await fetchUserCount();
-			sendComponent(res, renderPage(req, LoginPage({ userCount, globalError }, { statusCode: 400 })));
+			sendComponent(req, res, renderPage(req, LoginPage({ userCount, globalError }, { statusCode: 400 })));
 		};
 
 		if (!parsedQuery.success || !stateCookie || parsedQuery.data.state !== stateCookie) {

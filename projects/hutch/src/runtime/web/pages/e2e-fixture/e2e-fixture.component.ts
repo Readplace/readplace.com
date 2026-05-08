@@ -14,6 +14,6 @@ export function E2EFixturePage(): PageBody {
 			robots: "noindex, nofollow",
 		},
 		styles: "",
-		content: render(TEMPLATE, {}),
+		content: { html: render(TEMPLATE, {}) },
 	};
 }

@@ -63,7 +63,7 @@ export function ReaderPage(
 		},
 		styles: READER_STYLES,
 		bodyClass: "page-reader",
-		content,
+		content: { html: content },
 		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT,
 	};
 }

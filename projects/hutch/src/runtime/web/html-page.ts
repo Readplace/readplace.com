@@ -6,7 +6,7 @@ export function HtmlPage(body: string, statusCode: number = 200): Component {
   return {
     to: (mediaType): ParsedComponent => {
       if (mediaType !== 'text/html') {
-        return { statusCode: 415, headers: {}, body: '' };
+        return { statusCode: 406, headers: {}, body: '' };
       }
       return {
         statusCode,

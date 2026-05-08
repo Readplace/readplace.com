@@ -31,12 +31,12 @@ export function SaveErrorPage(input: { redirectUrl: string; linkLabel: string })
 		},
 		styles: SAVE_ERROR_STYLES,
 		bodyClass: "page-save-error",
-		content: render(SAVE_ERROR_TEMPLATE, {
+		content: { html: render(SAVE_ERROR_TEMPLATE, {
 			refreshDelay: COUNTDOWN_SECONDS,
 			seconds: COUNTDOWN_SECONDS,
 			redirectUrl: input.redirectUrl,
 			linkLabel: input.linkLabel,
-		}),
+		}) },
 		scripts: COUNTDOWN_SCRIPT,
 	};
 }

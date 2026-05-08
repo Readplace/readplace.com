@@ -19,7 +19,8 @@ export interface PageBody {
 	styles: string;
 	headerVariant?: "default" | "transparent";
 	bodyClass?: string;
-	content: string;
+	content: { html: string; markdown?: string };
+	markdownFormattedDate?: string;
 	scripts?: string;
 	statusCode?: number;
 }

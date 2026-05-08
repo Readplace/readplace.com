@@ -33,7 +33,7 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 	const router = express.Router();
 
 	router.get("/forgot-password", (req: Request, res: Response) => {
-		sendComponent(res, renderPage(req, ForgotPasswordPage()));
+		sendComponent(req, res, renderPage(req, ForgotPasswordPage()));
 	});
 
 	router.post("/forgot-password", async (req: Request, res: Response) => {
@@ -41,7 +41,7 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 
 		if (!parsed.success) {
 			sendComponent(
-				res,
+				req, res,
 				renderPage(req, ForgotPasswordPage(
 					{
 						email: req.body?.email,
@@ -55,7 +55,7 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 
 		const { email } = parsed.data;
 
-		sendComponent(res, renderPage(req, ForgotPasswordPage({ sent: true })));
+		sendComponent(req, res, renderPage(req, ForgotPasswordPage({ sent: true })));
 
 		deps.userExistsByEmail(email)
 			.then(async (exists) => {
@@ -82,13 +82,13 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 
 		if (!token) {
 			sendComponent(
-				res,
+				req, res,
 				renderPage(req, ResetPasswordPage({ error: "No reset token provided." }, { statusCode: 400 })),
 			);
 			return;
 		}
 
-		sendComponent(res, renderPage(req, ResetPasswordPage({ token })));
+		sendComponent(req, res, renderPage(req, ResetPasswordPage({ token })));
 	});
 
 	router.post("/reset-password", async (req: Request, res: Response) => {
@@ -97,7 +97,7 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 
 		if (!token) {
 			sendComponent(
-				res,
+				req, res,
 				renderPage(req, ResetPasswordPage({ error: "No reset token provided." }, { statusCode: 400 })),
 			);
 			return;
@@ -107,7 +107,7 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 
 		if (!parsed.success) {
 			sendComponent(
-				res,
+				req, res,
 				renderPage(req, ResetPasswordPage(
 					{
 						token,
@@ -123,7 +123,7 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 
 		if (!verifyResult.ok) {
 			sendComponent(
-				res,
+				req, res,
 				renderPage(req, ResetPasswordPage(
 					{ error: "This reset link is invalid or has already been used." },
 					{ statusCode: 400 },
@@ -134,7 +134,7 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 
 		await deps.updatePassword({ email: verifyResult.email, password: parsed.data.password });
 
-		sendComponent(res, renderPage(req, ResetPasswordPage({ success: true })));
+		sendComponent(req, res, renderPage(req, ResetPasswordPage({ success: true })));
 	});
 
 	return router;

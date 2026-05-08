@@ -30,6 +30,6 @@ export function ExportPage(params: { status: "idle" | "preparing" }): PageBody {
 		},
 		styles: EXPORT_STYLES,
 		bodyClass: "page-export",
-		content,
+		content: { html: content },
 	};
 }

@@ -66,7 +66,7 @@ export function LoginPage(data: AuthFormData, options?: { statusCode?: number })
 		},
 		styles: AUTH_STYLES,
 		bodyClass: "page-login",
-		content,
+		content: { html: content },
 		statusCode: options?.statusCode,
 	};
 }
@@ -83,7 +83,7 @@ export function VerifyEmailPage(data: { success: boolean; error?: string }): Pag
 		},
 		styles: AUTH_STYLES,
 		bodyClass: "page-verify-email",
-		content,
+		content: { html: content },
 		statusCode: data.success ? 200 : 400,
 	};
 }
@@ -120,7 +120,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		},
 		styles: AUTH_STYLES,
 		bodyClass: "page-signup",
-		content,
+		content: { html: content },
 		statusCode: options?.statusCode,
 	};
 }
@@ -148,7 +148,7 @@ export function ForgotPasswordPage(
 		},
 		styles: AUTH_STYLES,
 		bodyClass: "page-forgot-password",
-		content,
+		content: { html: content },
 		statusCode: options?.statusCode,
 	};
 }
@@ -177,7 +177,7 @@ export function ResetPasswordPage(
 		},
 		styles: AUTH_STYLES,
 		bodyClass: "page-reset-password",
-		content,
+		content: { html: content },
 		statusCode: options?.statusCode,
 	};
 }

@@ -18,7 +18,7 @@ export function initBlogRoutes(): Router {
 
 	router.get("/", (req: Request, res: Response) => {
 		const posts = getAllPosts();
-		sendComponent(res, renderPage(req, BlogIndexPage({ posts })));
+		sendComponent(req, res, renderPage(req, BlogIndexPage({ posts })));
 	});
 
 	router.get("/:slug", (req: Request, res: Response) => {
@@ -29,10 +29,10 @@ export function initBlogRoutes(): Router {
 		}
 		const post = findPostBySlug(req.params.slug);
 		if (!post) {
-			sendComponent(res, renderPage(req, NotFoundPage()));
+			sendComponent(req, res, renderPage(req, NotFoundPage()));
 			return;
 		}
-		sendComponent(res, renderPage(req, BlogPostPage({ post })));
+		sendComponent(req, res, renderPage(req, BlogPostPage({ post })));
 	});
 
 	return router;

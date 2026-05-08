@@ -59,6 +59,6 @@ export function BlogIndexPage(params: { posts: BlogPost[] }): PageBody {
 		},
 		styles: BLOG_STYLES,
 		bodyClass: "page-blog",
-		content: render(BLOG_INDEX_TEMPLATE, { posts: params.posts }),
+		content: { html: render(BLOG_INDEX_TEMPLATE, { posts: params.posts }) },
 	};
 }

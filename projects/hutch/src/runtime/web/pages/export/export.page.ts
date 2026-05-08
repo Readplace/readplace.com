@@ -19,7 +19,7 @@ export function initExportRoutes(deps: ExportDependencies): Router {
 
 	router.get("/", (req: Request, res: Response) => {
 		const status = req.query.status === "preparing" ? "preparing" : "idle";
-		sendComponent(res, renderPage(req, ExportPage({ status })));
+		sendComponent(req, res, renderPage(req, ExportPage({ status })));
 	});
 
 	router.post("/start", async (req: Request, res: Response) => {

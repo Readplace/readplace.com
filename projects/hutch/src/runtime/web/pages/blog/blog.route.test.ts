@@ -306,3 +306,76 @@ describe("GET /sitemap.xml", () => {
 		);
 	});
 });
+
+describe("GET /blog with Accept: text/markdown", () => {
+	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+	it("returns 200 with text/markdown content-type and an x-markdown-tokens header", async () => {
+		const response = await request(app).get("/blog").set("Accept", "text/markdown");
+
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
+		expect(Number(response.headers["x-markdown-tokens"])).toBeGreaterThan(0);
+	});
+
+	it("emits the site-wide Content-Signal policy and Vary: Accept", async () => {
+		const response = await request(app).get("/blog").set("Accept", "text/markdown");
+
+		expect(response.headers["content-signal"]).toBe(
+			"search=yes, ai-input=yes, ai-train=no",
+		);
+		expect(response.headers.vary).toMatch(/\bAccept\b/);
+	});
+
+	it("renders the page heading as the markdown h1 and lists the first post title", async () => {
+		const response = await request(app).get("/blog").set("Accept", "text/markdown");
+
+		expect(response.text.startsWith("# Blog")).toBe(true);
+		expect(response.text).toContain(firstPost.title);
+	});
+
+	it("does not include the rendered HTML chrome (no <script>, no htmx, no data-test-*)", async () => {
+		const response = await request(app).get("/blog").set("Accept", "text/markdown");
+
+		expect(response.text).not.toContain("<script");
+		expect(response.text).not.toContain("hx-boost");
+		expect(response.text).not.toContain("data-test-");
+	});
+});
+
+describe("GET /blog/:slug with Accept: text/markdown", () => {
+	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+	it("returns 200 with text/markdown content-type and the canonical URL header in frontmatter", async () => {
+		const response = await request(app)
+			.get(`/blog/${firstPost.slug}`)
+			.set("Accept", "text/markdown");
+
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
+		expect(response.text.startsWith(`# ${firstPost.title}`)).toBe(true);
+		expect(response.text).toContain(`Canonical: https://readplace.com/blog/${firstPost.slug}`);
+		expect(response.text).toContain(`Author: ${firstPost.author}`);
+	});
+
+	it("serves the raw markdown source verbatim, without going through HTML conversion", async () => {
+		const response = await request(app)
+			.get(`/blog/${firstPost.slug}`)
+			.set("Accept", "text/markdown");
+
+		expect(response.text).toContain(firstPost.markdownContent.trim().split("\n")[0]);
+	});
+});
+
+describe("HTML responses now carry the Content-Signal header", () => {
+	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+	it("sets Content-Signal: search=yes, ai-input=yes, ai-train=no on a plain HTML GET", async () => {
+		const response = await request(app).get(`/blog/${firstPost.slug}`);
+
+		expect(response.headers["content-signal"]).toBe(
+			"search=yes, ai-input=yes, ai-train=no",
+		);
+		expect(response.headers.vary).toMatch(/\bAccept\b/);
+	});
+});

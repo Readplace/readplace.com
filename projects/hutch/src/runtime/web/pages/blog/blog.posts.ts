@@ -18,6 +18,7 @@ const BlogFrontmatter = z.object({
 
 export type BlogPost = z.infer<typeof BlogFrontmatter> & {
 	htmlContent: string;
+	markdownContent: string;
 	formattedDate: string;
 };
 
@@ -50,6 +51,7 @@ const posts: BlogPost[] = files
 		return {
 			...frontmatter,
 			htmlContent: md.render(content),
+			markdownContent: content,
 			formattedDate: formatDate(frontmatter.date),
 		};
 	})

@@ -170,7 +170,7 @@ export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; exte
 		},
 		styles: `${QUEUE_STYLES}\n${ONBOARDING_STYLES}`,
 		bodyClass: "page-queue",
-		content,
+		content: { html: content },
 		scripts: scriptParts.join("\n"),
 		statusCode: options?.statusCode,
 	};

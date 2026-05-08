@@ -23,7 +23,7 @@ export function initSaveRoutes(): Router {
 		if (!url) {
 			const redirectUrl = req.userId ? "/queue" : "/";
 			const linkLabel = req.userId ? "Go to your queue" : "Go to homepage";
-			sendComponent(res, renderPage(req, SaveErrorPage({ redirectUrl, linkLabel })));
+			sendComponent(req, res, renderPage(req, SaveErrorPage({ redirectUrl, linkLabel })));
 			return;
 		}
 

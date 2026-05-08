@@ -413,6 +413,51 @@ describe("GET /llms.txt", () => {
 		expect(response.text).toContain("read-it-later");
 		expect(response.text).toContain("## Pages");
 	});
+
+	it("advertises the markdown content-negotiation capability", async () => {
+		const response = await request(app).get("/llms.txt");
+		expect(response.text).toContain("Accept: text/markdown");
+	});
+});
+
+describe("GET / with Accept: text/markdown", () => {
+	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+	it("returns 200 with text/markdown content-type instead of redirecting to /queue", async () => {
+		const response = await request(app).get("/").set("Accept", "text/markdown");
+
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
+		expect(response.headers.location).toBeUndefined();
+	});
+
+	it("converts the comparison table into markdown table syntax", async () => {
+		const response = await request(app).get("/").set("Accept", "text/markdown");
+
+		expect(response.text).toMatch(/\|\s+-+\s+\|/);
+	});
+
+	it("emits the Content-Signal policy and Vary: Accept", async () => {
+		const response = await request(app).get("/").set("Accept", "text/markdown");
+
+		expect(response.headers["content-signal"]).toBe(
+			"search=yes, ai-input=yes, ai-train=no",
+		);
+		expect(response.headers.vary).toMatch(/\bAccept\b/);
+	});
+});
+
+describe("GET / HTML response gains the Content-Signal header", () => {
+	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+	it("sets the site-wide Content-Signal policy on plain HTML GETs", async () => {
+		const response = await request(app).get("/");
+
+		expect(response.headers["content-signal"]).toBe(
+			"search=yes, ai-input=yes, ai-train=no",
+		);
+		expect(response.headers.vary).toMatch(/\bAccept\b/);
+	});
 });
 
 describe("GET /llms-full.txt", () => {

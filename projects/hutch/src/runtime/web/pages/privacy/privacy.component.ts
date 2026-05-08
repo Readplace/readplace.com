@@ -17,6 +17,6 @@ export function PrivacyPage(): PageBody {
 		},
 		styles: LEGAL_PAGE_STYLES,
 		bodyClass: "page-privacy",
-		content: render(PRIVACY_TEMPLATE, {}),
+		content: { html: render(PRIVACY_TEMPLATE, {}) },
 	};
 }

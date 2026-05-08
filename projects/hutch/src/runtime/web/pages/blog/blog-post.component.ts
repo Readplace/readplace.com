@@ -70,12 +70,16 @@ export function BlogPostPage(params: { post: BlogPost }): PageBody {
 		},
 		styles: BLOG_STYLES,
 		bodyClass: "page-blog-post",
-		content: render(BLOG_POST_TEMPLATE, {
-			title: post.title,
-			date: post.date,
-			formattedDate: post.formattedDate,
-			author: post.author,
-			htmlContent: post.htmlContent,
-		}),
+		content: {
+			html: render(BLOG_POST_TEMPLATE, {
+				title: post.title,
+				date: post.date,
+				formattedDate: post.formattedDate,
+				author: post.author,
+				htmlContent: post.htmlContent,
+			}),
+			markdown: post.markdownContent,
+		},
+		markdownFormattedDate: post.formattedDate,
 	};
 }
