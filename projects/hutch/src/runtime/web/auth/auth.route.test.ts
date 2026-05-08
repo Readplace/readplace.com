@@ -905,7 +905,7 @@ describe("Auth routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 
 			const blurb = doc.querySelector("[data-test-founding-blurb]");
-			expect(blurb?.textContent).toBe("Free account for the first 100 readers");
+			expect(blurb?.textContent).toBe("Free account for the first 50 readers");
 		});
 	});
 
