@@ -1,7 +1,14 @@
 {
   "name": "hutch",
   "targets": {
-    "compile": {},
+    "install-deps": {
+      "command": "pnpm install --frozen-lockfile",
+      "options": { "cwd": "{workspaceRoot}" },
+      "cache": false
+    },
+    "compile": {
+      "dependsOn": ["install-deps"]
+    },
     "deploy-infra": {
       "command": "PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\" $([ \"$CI\" = true ] && echo --yes)",
       "options": { "cwd": "{projectRoot}" },
@@ -17,6 +24,10 @@
       "dependsOn": ["compile"]
     },
     "test": {},
-    "test-integration": {}
+    "test-integration": {},
+    "e2e-server": {
+      "dependsOn": ["compile"],
+      "cache": false
+    }
   }
 }
