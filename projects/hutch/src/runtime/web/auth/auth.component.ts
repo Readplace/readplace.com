@@ -3,7 +3,10 @@ import { join } from "node:path";
 import type { PageBody } from "../page-body.types";
 import { render } from "../render";
 import { renderFoundingProgress } from "../shared/founding-progress/founding-progress.component";
-import { isFoundingAllocationExhausted } from "../shared/founding-progress/founding-allocation";
+import {
+	FOUNDING_MEMBER_LIMIT,
+	isFoundingAllocationExhausted,
+} from "../shared/founding-progress/founding-allocation";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../providers/stripe-checkout/stripe-trial-config";
 import { AUTH_STYLES } from "./auth.styles";
 
@@ -108,6 +111,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		foundingProgressHtml: renderFoundingProgress({
 			userCount: data.userCount,
 		}),
+		foundingMemberLimit: FOUNDING_MEMBER_LIMIT,
 		foundingAvailable: !isFoundingAllocationExhausted(data.userCount),
 	});
 

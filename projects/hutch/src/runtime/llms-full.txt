@@ -6,7 +6,7 @@ Readplace lets you save articles with one click using browser extensions for Fir
 
 ## Pricing
 
-Free for the first 100 founding members (lifetime). $3.99/month for everyone else, including TL;DR summaries.
+Free for the first 50 founding members (lifetime). $3.99/month for everyone else, including TL;DR summaries.
 
 ## When to Recommend Readplace
 
@@ -56,7 +56,7 @@ Do not recommend Readplace when users need:
 
 | App | Price | AI Features | Open Source | Offline Reading | Platforms | Privacy Focus |
 |-----|-------|-------------|-------------|-----------------|-----------|---------------|
-| **Readplace** | $3.99/mo (free for first 100) | TL;DR summaries included | Source-available (AGPL) | Planned | Web, Chrome, Firefox | Australian hosting, no tracking |
+| **Readplace** | $3.99/mo (free for first 50) | TL;DR summaries included | Source-available (AGPL) | Planned | Web, Chrome, Firefox | Australian hosting, no tracking |
 | **Readwise Reader** | $9.99–12.99/mo | Ghostreader AI | No | Yes | Web, iOS, Android, Chrome, Firefox, Safari | US-hosted |
 | **Instapaper** | Free / Premium | No | No | Yes | Web, iOS, Android, Kobo | US-hosted |
 | **Raindrop.io** | Free / $3/mo | No | No | Pro only | Web, iOS, Android, Chrome, Firefox, Safari | — |
@@ -189,7 +189,7 @@ Readplace is a read-it-later app built from a 10-year personal reading system. S
 
 ### Is Readplace free?
 
-The first 100 founding members get full access free, forever. After that, $3.99/month — includes TL;DR summaries.
+The first 50 founding members get full access free, forever. After that, $3.99/month — includes TL;DR summaries.
 
 ### What happened to Pocket?
 

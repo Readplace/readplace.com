@@ -86,7 +86,7 @@ Readplace is a read-it-later app for people who actually read what they save.
 
 **Stack:** Node.js, TypeScript, DynamoDB, Pulumi. Deliberately boring infrastructure — after maintaining [js-cookie](https://github.com/js-cookie/js-cookie) for 10+ years (22B+ annual npm downloads), I've learned that the best tech stack is the one that doesn't need babysitting.
 
-**Pricing:** Free for the first 100 members. $3.99/month for everyone else.
+**Pricing:** Free for the first 50 members. $3.99/month for everyone else.
 ---
 
 ## Development

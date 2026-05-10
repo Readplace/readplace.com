@@ -56,7 +56,7 @@ Readplace is browser-first. It's a web app with a browser extension, not a nativ
 
 Readplace is hosted in Australia. Your reading data stays on Australian infrastructure under Australian privacy law. That matters if you care about where your data lives.
 
-On pricing: the first 100 Readplace members got a free founding-member tier. After that, the price is $3.99 per month. There's no ongoing free tier the way Instapaper offers one. Readplace is a paid product from the start.
+On pricing: the first {{foundingMemberLimit}} Readplace members got a free founding-member tier. After that, the price is $3.99 per month. There's no ongoing free tier the way Instapaper offers one. Readplace is a paid product from the start.
 
 The other side of that trade-off: Readplace ships new features every week. It's a product you can watch evolve in real time. That momentum is real, but so is the risk that comes with any newer product.
 
@@ -68,7 +68,7 @@ The other side of that trade-off: Readplace ships new features every week. It's 
 | **AI summaries** | No | Yes |
 | **Mobile apps** | iOS and Android | Browser-based (no native apps) |
 | **Browser extension** | Yes | Yes (Firefox, Chrome) |
-| **Free tier** | Yes | Founding members only (first 100) |
+| **Free tier** | Yes | Founding members only (first {{foundingMemberLimit}}) |
 | **Paid price** | $5.99/mo or $59.99/yr | $3.99/mo |
 | **E-reader integration** | Kobo (built-in) | No |
 | **Pocket import** | Yes | Yes |

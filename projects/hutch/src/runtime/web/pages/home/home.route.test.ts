@@ -8,6 +8,7 @@ import {
 } from "@packages/test-fixtures";
 
 import { getAllSlugs } from "../blog/blog.posts";
+import { FOUNDING_MEMBER_LIMIT } from "../../shared/founding-progress/founding-allocation";
 
 describe("GET /", () => {
 	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -206,7 +207,7 @@ describe("GET /", () => {
 
 		const progress = doc.querySelector("[data-test-founding-progress]");
 		const label = progress?.querySelector(".founding-progress__label");
-		expect(label?.textContent).toBe("0 / 50 founding members");
+		expect(label?.textContent).toBe(`0 / ${FOUNDING_MEMBER_LIMIT} founding members`);
 
 		const fill = progress?.querySelector(".founding-progress__fill");
 		expect(fill?.getAttribute("style")).toBe("width: 0%");
@@ -326,7 +327,7 @@ describe("GET / with exhausted founding allocation", () => {
 	it("should hide the founding progress when users exceed the limit", async () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		for (let i = 0; i < 100; i++) {
+		for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
 			await auth.createUser({ email: `user${i}@test.com`, password: "password123" });
 		}
 
@@ -339,7 +340,7 @@ describe("GET / with exhausted founding allocation", () => {
 	it("should hide the founding pricing card and show the fallback CTA when over the limit", async () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		for (let i = 0; i < 100; i++) {
+		for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
 			await auth.createUser({ email: `over${i}@test.com`, password: "password123" });
 		}
 

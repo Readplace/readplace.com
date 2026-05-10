@@ -312,7 +312,7 @@ describe("Auth routes", () => {
 
 		it("should redirect to Stripe checkout when at the founding limit", async () => {
 			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			for (let i = 0; i < 100; i++) {
+			for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 
@@ -395,7 +395,7 @@ describe("Auth routes", () => {
 
 		it("should redirect new visitors to a Stripe checkout URL when at the founding limit", async () => {
 			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			for (let i = 0; i < 100; i++) {
+			for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 
@@ -728,7 +728,7 @@ describe("Auth routes", () => {
 
 		it("falls through to the existing happy path (303 to Stripe) when the honeypot is empty, loadedAt is older than 2.5s, and the founding allocation is exhausted", async () => {
 			const { app, auth, botDefense } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			for (let i = 0; i < 100; i++) {
+			for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 
@@ -885,7 +885,7 @@ describe("Auth routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 
 			const label = doc.querySelector("[data-test-founding-progress] .founding-progress__label");
-			expect(label?.textContent).toBe("0 / 50 founding members");
+			expect(label?.textContent).toBe(`0 / ${FOUNDING_MEMBER_LIMIT} founding members`);
 		});
 
 		it("should keep the progress bar on POST /signup 422 responses", async () => {
@@ -897,7 +897,7 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
 			const label = doc.querySelector("[data-test-founding-progress] .founding-progress__label");
-			expect(label?.textContent).toBe("0 / 50 founding members");
+			expect(label?.textContent).toBe(`0 / ${FOUNDING_MEMBER_LIMIT} founding members`);
 		});
 
 		it("should render the founding blurb on GET /signup when allocation is available", async () => {
@@ -905,14 +905,14 @@ describe("Auth routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 
 			const blurb = doc.querySelector("[data-test-founding-blurb]");
-			expect(blurb?.textContent).toBe("Free account for the first 50 readers");
+			expect(blurb?.textContent).toBe(`Free account for the first ${FOUNDING_MEMBER_LIMIT} readers`);
 		});
 	});
 
 	describe("Founding members progress — exhausted allocation", () => {
 		it("should hide the founding progress and blurb on /signup when at the limit", async () => {
 			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			for (let i = 0; i < 100; i++) {
+			for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `user${i}@test.com`, password: "password123" });
 			}
 

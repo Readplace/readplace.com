@@ -26,7 +26,6 @@
     "test": {},
     "test-integration": {},
     "e2e-server": {
-      "dependsOn": ["compile"],
       "cache": false
     }
   }
