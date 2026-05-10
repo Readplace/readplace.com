@@ -1,7 +1,10 @@
 import type { SavedArticle } from "@packages/domain/article";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
 import { pickExcerpt } from "../../../providers/article-summary/article-summary.helpers";
+import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
+import { buildCardPollUrl } from "./queue-card/queue-card-poll-url";
+import { isCardTerminal } from "./queue-card/is-card-terminal";
 import type { QueueUrlState } from "./queue.url";
 import { buildQueueUrl } from "./queue.url";
 
@@ -32,6 +35,13 @@ export interface QueueArticleViewModel {
 	imageUrl?: string;
 	hasContent: boolean;
 	actions: ArticleAction[];
+	/**
+	 * Set when the row's crawl/summary state machines are still in flight.
+	 * The card renders an htmx poll against this URL every 3s; once both
+	 * pipelines reach a terminal state the field is undefined and the card
+	 * stops ticking. See isCardTerminal for the rules.
+	 */
+	cardPollUrl?: string;
 }
 
 export interface QueueViewModel {
@@ -53,6 +63,14 @@ export interface QueueViewModel {
 	saveError?: string;
 	importFlash?: string;
 }
+
+/**
+ * Hard cap on how many `every 3s` ticks a single card emits before stopping.
+ * 40 ticks ≈ 2 minutes — long enough that ordinary crawl + summary completion
+ * lands inside the window, short enough that a hung row doesn't poll forever
+ * on a backgrounded tab. Mirrors the reader-poll cap in article-reader.ts.
+ */
+export const MAX_CARD_POLLS = 40;
 
 function formatRelativeDate(date: Date, now: Date): string {
 	const diffMs = now.getTime() - date.getTime();
@@ -111,14 +129,24 @@ function toArticleActions(
 	return actions;
 }
 
-function toArticleViewModel(
-	article: SavedArticle,
-	now: Date,
-	returnQuery: string,
-	summary: GeneratedSummary | undefined,
-): QueueArticleViewModel {
+export function toQueueArticleViewModel(params: {
+	article: SavedArticle;
+	now: Date;
+	returnQuery: string;
+	summary: GeneratedSummary | undefined;
+	crawl: ArticleCrawl | undefined;
+	filters: QueueUrlState;
+	pollCount?: number;
+	maxPolls: number;
+}): QueueArticleViewModel {
+	const { article, now, returnQuery, summary, crawl, filters, maxPolls } = params;
+	const pollCount = params.pollCount ?? 1;
 	const readTime = article.estimatedReadTime;
 	const id = article.id.value;
+	const cardPollUrl =
+		isCardTerminal(crawl, summary) || pollCount > maxPolls
+			? undefined
+			: buildCardPollUrl({ articleId: id, pollCount, filters });
 	return {
 		id,
 		title: article.metadata.title,
@@ -132,6 +160,7 @@ function toArticleViewModel(
 		imageUrl: article.metadata.imageUrl,
 		hasContent: Boolean(article.content),
 		actions: toArticleActions({ id, status: article.status }, returnQuery),
+		cardPollUrl,
 	};
 }
 
@@ -144,6 +173,7 @@ export function toQueueViewModel(
 		importFlash?: string;
 		unreadCount?: number;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
+		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 	},
 ): QueueViewModel {
 	const now = options?.now ?? new Date();
@@ -155,7 +185,15 @@ export function toQueueViewModel(
 
 	return {
 		articles: result.articles.map((a) =>
-			toArticleViewModel(a, now, returnQuery, options?.summaryByUrl?.get(a.url)),
+			toQueueArticleViewModel({
+				article: a,
+				now,
+				returnQuery,
+				summary: options?.summaryByUrl?.get(a.url),
+				crawl: options?.crawlByUrl?.get(a.url),
+				filters,
+				maxPolls: MAX_CARD_POLLS,
+			}),
 		),
 		filters,
 		isEmpty: result.total === 0,

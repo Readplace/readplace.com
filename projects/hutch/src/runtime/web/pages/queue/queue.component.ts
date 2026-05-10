@@ -5,39 +5,12 @@ import type { BrowserName } from "../../onboarding/onboarding.types";
 import type { PageBody } from "../../page-body.types";
 import { render } from "../../render";
 import { QUEUE_STYLES } from "./queue.styles";
-import type { ArticleAction, QueueArticleViewModel, QueueViewModel } from "./queue.viewmodel";
+import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
+import type { QueueViewModel } from "./queue.viewmodel";
 import { buildQueueUrl } from "./queue.url";
 import { tabQuery } from "./queue.tabs";
 
 const QUEUE_TEMPLATE = readFileSync(join(__dirname, "queue.template.html"), "utf-8");
-
-interface ActionDisplayModel extends ArticleAction {
-	buttonClass: string;
-}
-
-interface ArticleDisplayModel extends QueueArticleViewModel {
-	linkUrl: string;
-	unreadClass: string;
-	actions: ActionDisplayModel[];
-}
-
-function toActionDisplayModel(action: ArticleAction): ActionDisplayModel {
-	return {
-		...action,
-		buttonClass: action.testAction === "delete"
-			? "queue-article__action-btn queue-article__action-btn--delete"
-			: "queue-article__action-btn",
-	};
-}
-
-function toArticleDisplayModel(article: QueueArticleViewModel): ArticleDisplayModel {
-	return {
-		...article,
-		linkUrl: `/queue/${article.id}/read`,
-		unreadClass: article.isUnread ? " queue-article--unread" : "",
-		actions: article.actions.map(toActionDisplayModel),
-	};
-}
 
 interface QueueDisplayModel {
 	total: number;
@@ -47,7 +20,7 @@ interface QueueDisplayModel {
 	isEmpty: boolean;
 	hasArticles: boolean;
 	onboardingHtml: string;
-	articles: ArticleDisplayModel[];
+	articleHtmls: string[];
 	filterUnreadClass: string;
 	filterUnreadLabel: string;
 	filterReadClass: string;
@@ -95,7 +68,9 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		isEmpty: vm.isEmpty,
 		hasArticles: !vm.isEmpty,
 		onboardingHtml,
-		articles: vm.articles.map(toArticleDisplayModel),
+		articleHtmls: vm.articles.map((article, index) =>
+			renderQueueCard(toQueueCardDisplayModel(article, { isFirst: index === 0 })),
+		),
 		filterUnreadClass: filterLinkClass(activeTab === "queue"),
 		filterUnreadLabel: formatUnreadLabel(vm.unreadCount),
 		filterReadClass: filterLinkClass(activeTab === "done"),
