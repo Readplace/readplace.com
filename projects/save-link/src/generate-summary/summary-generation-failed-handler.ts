@@ -1,4 +1,4 @@
-import type { SQSBatchItemFailure, SQSBatchResponse, SQSHandler } from "aws-lambda";
+import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
 	PARSE_ERROR_STREAM,
@@ -10,7 +10,7 @@ export function initSummaryGenerationFailedHandler(deps: {
 	parseErrorLogger: HutchLogger.Typed<ParseErrorEvent>;
 	logger: HutchLogger;
 	now: () => Date;
-}): SQSHandler {
+}): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
 

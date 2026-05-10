@@ -20,6 +20,8 @@ export class HutchSQSBackedLambda extends pulumi.ComponentResource {
 			 * record at a time, raise it later without touching the handler
 			 * because every handler returns SQSBatchResponse and the mapping
 			 * always wires ReportBatchItemFailures.
+			 *
+			 * Valid range: 1–10 (AWS SQS EventSourceMapping limit for standard queues).
 			 */
 			batchSize: number;
 		},

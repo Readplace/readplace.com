@@ -23,6 +23,7 @@ export class HutchDLQEventHandler extends pulumi.ComponentResource {
 			tableArn: pulumi.Input<string>;
 			tableName: pulumi.Input<string>;
 			eventBus: HutchEventBus;
+			/** Valid range: 1–10 (AWS SQS EventSourceMapping limit for standard queues). */
 			batchSize: number;
 		},
 		opts?: pulumi.ComponentResourceOptions,

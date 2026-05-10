@@ -1,4 +1,4 @@
-import type { SQSBatchItemFailure, SQSBatchResponse, SQSHandler } from "aws-lambda";
+import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { DispatchCommand } from "@packages/hutch-infra-components/runtime";
 import type { GenerateSummaryCommand } from "@packages/hutch-infra-components";
@@ -9,7 +9,7 @@ export function initLinkSavedHandler(deps: {
 	dispatchGenerateSummary: DispatchCommand<typeof GenerateSummaryCommand>;
 	findArticleContent: FindArticleContent;
 	logger: HutchLogger;
-}): SQSHandler {
+}): Handler<SQSEvent, SQSBatchResponse> {
 	const { dispatchGenerateSummary, findArticleContent, logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {

@@ -1,10 +1,10 @@
-import type { SQSBatchItemFailure, SQSBatchResponse, SQSHandler } from "aws-lambda";
+import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { SummaryGeneratedEvent } from "./index";
 
 export function initSummaryGeneratedHandler(deps: {
 	logger: HutchLogger;
-}): SQSHandler {
+}): Handler<SQSEvent, SQSBatchResponse> {
 	const { logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {

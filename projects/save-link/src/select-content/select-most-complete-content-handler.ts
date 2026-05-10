@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { SQSBatchItemFailure, SQSBatchResponse, SQSHandler } from "aws-lambda";
+import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import {
@@ -22,7 +22,7 @@ export function initSelectMostCompleteContentHandler(deps: {
 	findContentSourceTier: FindContentSourceTier;
 	publishEvent: PublishEvent;
 	logger: HutchLogger;
-}): SQSHandler {
+}): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		listAvailableTierSources,
 		selectMostCompleteContent,

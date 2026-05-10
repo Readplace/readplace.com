@@ -1,4 +1,4 @@
-import type { SQSBatchItemFailure, SQSBatchResponse, SQSHandler } from "aws-lambda";
+import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import {
@@ -32,7 +32,7 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;
-}): SQSHandler {
+}): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		readPendingHtml,
 		parseHtml,

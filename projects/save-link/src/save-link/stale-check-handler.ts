@@ -1,4 +1,4 @@
-import type { SQSBatchItemFailure, SQSBatchResponse, SQSHandler } from "aws-lambda";
+import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { StaleCheckRequestedEvent } from "@packages/hutch-infra-components";
 import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
@@ -8,7 +8,7 @@ export function initStaleCheckHandler(deps: {
 	refreshArticleIfStale: RefreshArticleIfStale;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	logger: HutchLogger;
-}): SQSHandler {
+}): Handler<SQSEvent, SQSBatchResponse> {
 	const { refreshArticleIfStale, publishSaveAnonymousLink, logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {

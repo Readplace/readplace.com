@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { SQSBatchItemFailure, SQSBatchResponse, SQSHandler } from "aws-lambda";
+import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { DispatchCommand, PublishEvent } from "@packages/hutch-infra-components/runtime";
 import {
@@ -24,7 +24,7 @@ export function initRecrawlContentExtractedHandler(deps: {
 	publishEvent: PublishEvent;
 	imagesCdnBaseUrl: string;
 	logger: HutchLogger;
-}): SQSHandler {
+}): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		listAvailableTierSources,
 		selectMostCompleteContent,

@@ -1,4 +1,4 @@
-import type { SQSBatchItemFailure, SQSBatchResponse, SQSHandler } from "aws-lambda";
+import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { RefreshArticleContentCommand } from "./index";
 
@@ -20,7 +20,7 @@ export type RefreshArticleContent = (params: {
 export function initRefreshArticleContentHandler(deps: {
 	refreshArticleContent: RefreshArticleContent;
 	logger: HutchLogger;
-}): SQSHandler {
+}): Handler<SQSEvent, SQSBatchResponse> {
 	const { refreshArticleContent, logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {

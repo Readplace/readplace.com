@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { SQSBatchItemFailure, SQSBatchResponse, SQSHandler } from "aws-lambda";
+import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import {
@@ -17,7 +17,7 @@ interface GenerateSummaryHandlerDeps {
 }
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
-export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): SQSHandler {
+export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Handler<SQSEvent, SQSBatchResponse> {
 	const { summarizeArticle, findArticleContent, publishEvent, logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
