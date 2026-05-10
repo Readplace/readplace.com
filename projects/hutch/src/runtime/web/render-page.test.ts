@@ -89,4 +89,36 @@ describe("renderPage", () => {
 		assert(banner, "verify banner must be rendered");
 		expect(banner.classList.contains("verify-banner--hidden")).toBe(true);
 	});
+
+	it("renders the Import Links nav item when ?feature=import is set on an authenticated request", () => {
+		const result = renderPage(
+			createSource({ userId: USER_ID, query: { feature: "import" } }),
+			createTestPageBody(),
+		).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const link = doc.querySelector('[data-test-nav-item="import"]');
+		assert(link, "Import Links nav item must be rendered when the feature flag is set");
+		expect(link.getAttribute("href")).toBe("/import?feature=import");
+	});
+
+	it("hides the Import Links nav item when the request has no feature flag", () => {
+		const result = renderPage(
+			createSource({ userId: USER_ID }),
+			createTestPageBody(),
+		).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(doc.querySelector('[data-test-nav-item="import"]')).toBeNull();
+	});
+
+	it("hides the Import Links nav item when the feature query value is something else", () => {
+		const result = renderPage(
+			createSource({ userId: USER_ID, query: { feature: "something-else" } }),
+			createTestPageBody(),
+		).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(doc.querySelector('[data-test-nav-item="import"]')).toBeNull();
+	});
 });

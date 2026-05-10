@@ -30,6 +30,90 @@ function multipartBody(filename: string, content: Buffer): { body: Buffer; conte
 }
 
 describe("Import routes", () => {
+	describe("GET /import (unauthenticated)", () => {
+		it("redirects to /login", async () => {
+			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(app).get("/import?feature=import");
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/login");
+		});
+	});
+
+	describe("GET /import (authenticated)", () => {
+		it("renders the upload form when the feature flag is on", async () => {
+			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(app, auth);
+
+			const response = await agent.get("/import?feature=import");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const form = doc.querySelector('[data-test-form="import-file"]');
+			assert(form, "upload form must be rendered");
+			expect(form.getAttribute("action")).toBe("/import?feature=import");
+			const button = form.querySelector('[data-test-action="import-upload"]');
+			assert(button, "Upload button must remain in the DOM as the no-JS fallback");
+			expect(button.textContent).toBe("Upload");
+		});
+
+		it("redirects to /queue when the feature flag is missing", async () => {
+			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(app, auth);
+
+			const response = await agent.get("/import");
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
+		});
+
+		it("renders the import_no_urls message when error_code=import_no_urls", async () => {
+			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(app, auth);
+
+			const response = await agent.get("/import?feature=import&error_code=import_no_urls");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const error = doc.querySelector("[data-test-import-error]");
+			assert(error, "error banner must be rendered when an error code is present");
+			expect(error.textContent).toBe("We couldn't find any links in that file.");
+		});
+
+		it("renders the import_too_large message when error_code=import_too_large", async () => {
+			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(app, auth);
+
+			const response = await agent.get("/import?feature=import&error_code=import_too_large");
+
+			const doc = new JSDOM(response.text).window.document;
+			const error = doc.querySelector("[data-test-import-error]");
+			assert(error, "error banner must be rendered");
+			expect(error.textContent).toContain("hutch+migrate@readplace.com");
+		});
+
+		it("renders the import_session_not_found message when error_code=import_session_not_found", async () => {
+			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(app, auth);
+
+			const response = await agent.get("/import?feature=import&error_code=import_session_not_found");
+
+			const doc = new JSDOM(response.text).window.document;
+			const error = doc.querySelector("[data-test-import-error]");
+			assert(error, "error banner must be rendered");
+			expect(error.textContent).toBe("That import session has expired. Please upload the file again.");
+		});
+
+		it("does not render the error banner when no error_code is present", async () => {
+			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(app, auth);
+
+			const response = await agent.get("/import?feature=import");
+
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-import-error]")).toBeNull();
+		});
+	});
+
 	describe("POST /import (unauthenticated)", () => {
 		it("redirects to /login", async () => {
 			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -68,7 +152,7 @@ describe("Import routes", () => {
 				.send(body);
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?error_code=import_no_urls");
+			expect(response.headers.location).toBe("/import?feature=import&error_code=import_no_urls");
 		});
 
 		it("redirects with import_too_large when the upload exceeds the size cap", async () => {
@@ -86,7 +170,7 @@ describe("Import routes", () => {
 				.send(body);
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?error_code=import_too_large");
+			expect(response.headers.location).toBe("/import?feature=import&error_code=import_too_large");
 		});
 
 		it("redirects with import_no_urls for non-multipart bodies", async () => {
@@ -99,7 +183,7 @@ describe("Import routes", () => {
 				.send("https://example.com/x");
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?error_code=import_no_urls");
+			expect(response.headers.location).toBe("/import?feature=import&error_code=import_no_urls");
 		});
 	});
 
@@ -156,7 +240,7 @@ describe("Import routes", () => {
 			const response = await intruder.get(sessionPath);
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?error_code=import_session_not_found");
+			expect(response.headers.location).toBe("/import?feature=import&error_code=import_session_not_found");
 		});
 
 		it("paginates results across pages", async () => {
@@ -429,7 +513,7 @@ describe("Import routes", () => {
 
 			const reuse = await agent.get(sessionPath);
 			expect(reuse.status).toBe(303);
-			expect(reuse.headers.location).toBe("/queue?error_code=import_session_not_found");
+			expect(reuse.headers.location).toBe("/import?feature=import&error_code=import_session_not_found");
 		});
 
 		it("redirects when the session id is malformed", async () => {
@@ -439,7 +523,7 @@ describe("Import routes", () => {
 			const response = await agent.post("/import/not-an-id/commit");
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?error_code=import_session_not_found");
+			expect(response.headers.location).toBe("/import?feature=import&error_code=import_session_not_found");
 		});
 
 		it("redirects when the session no longer exists", async () => {
@@ -449,7 +533,7 @@ describe("Import routes", () => {
 			const response = await agent.post("/import/00000000000000000000000000000000/commit");
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/queue?error_code=import_session_not_found");
+			expect(response.headers.location).toBe("/import?feature=import&error_code=import_session_not_found");
 		});
 	});
 });

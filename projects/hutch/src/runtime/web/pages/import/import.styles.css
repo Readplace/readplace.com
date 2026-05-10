@@ -27,3 +27,36 @@
 .import__pagination { display: flex; gap: 1rem; align-items: center; margin: 1rem 0; }
 .import__pagination-info { color: var(--muted-foreground); }
 .import__row-toggle-btn { font-size: 0.85rem; padding: 0.2rem 0.5rem; cursor: pointer; }
+.import__intro { color: var(--muted-foreground); margin: 0 0 1rem; }
+.import__intro code { font-family: var(--font-mono, monospace); font-size: 0.875em; }
+.import__upload-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+  flex-wrap: wrap;
+}
+.import__upload-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted-foreground);
+}
+.import__upload-error {
+  color: var(--error);
+  font-size: 0.875rem;
+  margin: 0 0 1rem;
+}
+.import__upload-btn {
+  height: var(--input-height);
+  padding: 0 24px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.import__upload-btn:hover { opacity: 0.9; }

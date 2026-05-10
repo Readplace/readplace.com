@@ -26,7 +26,7 @@ const baseInput: ViewPageInput = {
 };
 
 function render(input = baseInput) {
-	const html = Base(ViewPage(input), { isAuthenticated: false, emailVerified: undefined }).to("text/html").body;
+	const html = Base(ViewPage(input), { isAuthenticated: false, emailVerified: undefined, featureImport: false }).to("text/html").body;
 	return new JSDOM(html).window.document;
 }
 

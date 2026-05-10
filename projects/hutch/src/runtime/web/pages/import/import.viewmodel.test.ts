@@ -1,7 +1,7 @@
 import { ImportSessionIdSchema } from "@packages/domain/import-session";
 import type { ImportSession } from "@packages/domain/import-session";
 import { UserIdSchema } from "@packages/domain/user";
-import { toImportViewModel } from "./import.viewmodel";
+import { toImportUploadViewModel, toImportViewModel } from "./import.viewmodel";
 
 function makeSession(overrides: Partial<ImportSession> = {}): ImportSession {
 	return {
@@ -134,5 +134,22 @@ describe("toImportViewModel", () => {
 
 		expect(vm.truncated).toBe(true);
 		expect(vm.totalFoundInFile).toBe(2_345);
+	});
+});
+
+describe("toImportUploadViewModel", () => {
+	it("returns the upload action URL pre-baked with the feature flag so the form preserves the toggle", () => {
+		const vm = toImportUploadViewModel({});
+		expect(vm.uploadAction).toBe("/import?feature=import");
+	});
+
+	it("passes through an error message when provided", () => {
+		const vm = toImportUploadViewModel({ errorMessage: "We couldn't find any links in that file." });
+		expect(vm.errorMessage).toBe("We couldn't find any links in that file.");
+	});
+
+	it("leaves errorMessage undefined when no message is provided", () => {
+		const vm = toImportUploadViewModel({});
+		expect(vm.errorMessage).toBeUndefined();
 	});
 });

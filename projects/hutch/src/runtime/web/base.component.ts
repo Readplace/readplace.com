@@ -29,11 +29,12 @@ const BASE_TEMPLATE = readFileSync(join(__dirname, "base.template.html"), "utf-8
 
 function renderHeader(
 	variant: "default" | "transparent",
-	isAuthenticated: boolean,
+	options: { isAuthenticated: boolean; featureImport: boolean },
 ): string {
 	return render(HEADER_TEMPLATE, {
 		transparent: variant === "transparent",
-		isAuthenticated,
+		isAuthenticated: options.isAuthenticated,
+		featureImport: options.featureImport,
 	});
 }
 
@@ -197,7 +198,7 @@ function renderBaseTemplate(body: PageBody, state: BannerState): string {
 		verifyBannerStyles: VERIFY_BANNER_STYLES,
 		showVerificationBanner: state.isAuthenticated && state.emailVerified === false,
 		bodyClass: body.bodyClass,
-		header: renderHeader(headerVariant, state.isAuthenticated),
+		header: renderHeader(headerVariant, { isAuthenticated: state.isAuthenticated, featureImport: state.featureImport }),
 		content: injectPageStylesIntoMain(body.content.html, body.styles),
 		footer: renderFooter(),
 		navScript: NAV_SCRIPT,

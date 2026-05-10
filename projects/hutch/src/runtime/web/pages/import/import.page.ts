@@ -14,8 +14,9 @@ import type { ImportSessionStore } from "@packages/domain/import-session";
 import { renderPage } from "../../render-page";
 import { sendComponent } from "../../send-component";
 import { saveArticleFromUrl, type SaveArticleFromUrlDependencies } from "../../shared/save-article/save-article-from-url";
-import { ImportPage } from "./import.component";
-import { toImportViewModel } from "./import.viewmodel";
+import { ImportPage, ImportUploadPage } from "./import.component";
+import { importErrorMessageMapping } from "./import.error";
+import { toImportUploadViewModel, toImportViewModel } from "./import.viewmodel";
 import { initMultipartUpload } from "./multipart-upload";
 import { parseImportPage } from "./import.url";
 
@@ -24,29 +25,46 @@ interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	logError: (message: string, error?: Error) => void;
 }
 
+const UPLOAD_ERROR_REDIRECT = {
+	tooLarge: "/import?feature=import&error_code=import_too_large",
+	noUrls: "/import?feature=import&error_code=import_no_urls",
+	sessionNotFound: "/import?feature=import&error_code=import_session_not_found",
+} as const;
+
 export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 	const router = express.Router();
 	const { rawBodyParser, parseRequest } = initMultipartUpload({ maxBytes: MAX_IMPORT_FILE_BYTES });
 
 	const sizeLimitHandler: ErrorRequestHandler = (err, _req, res, next) => {
 		if (err && typeof err === "object" && "type" in err && err.type === "entity.too.large") {
-			res.redirect(303, "/queue?error_code=import_too_large");
+			res.redirect(303, UPLOAD_ERROR_REDIRECT.tooLarge);
 			return;
 		}
 		next(err);
 	};
 
+	router.get("/", (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		if (req.query.feature !== "import") {
+			res.redirect(303, "/queue");
+			return;
+		}
+		const errorMessage = importErrorMessageMapping(req.query);
+		const vm = toImportUploadViewModel({ errorMessage });
+		sendComponent(req, res, renderPage(req, ImportUploadPage(vm)));
+	});
+
 	router.post("/", rawBodyParser, sizeLimitHandler, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const parsed = parseRequest(req);
 		if (!parsed.ok) {
-			res.redirect(303, "/queue?error_code=import_no_urls");
+			res.redirect(303, UPLOAD_ERROR_REDIRECT.noUrls);
 			return;
 		}
 
 		const { urls, truncated, totalFoundInFile } = extractUrls(parsed.file.content);
 		if (urls.length === 0) {
-			res.redirect(303, "/queue?error_code=import_no_urls");
+			res.redirect(303, UPLOAD_ERROR_REDIRECT.noUrls);
 			return;
 		}
 
@@ -76,7 +94,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		});
 
 		if (!pageResult) {
-			res.redirect(303, "/queue?error_code=import_session_not_found");
+			res.redirect(303, UPLOAD_ERROR_REDIRECT.sessionNotFound);
 			return;
 		}
 
@@ -130,7 +148,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		const userId = req.userId;
 		const parsedId = ImportSessionIdSchema.safeParse(req.params.id);
 		if (!parsedId.success) {
-			res.redirect(303, "/queue?error_code=import_session_not_found");
+			res.redirect(303, UPLOAD_ERROR_REDIRECT.sessionNotFound);
 			return;
 		}
 
@@ -139,7 +157,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			userId,
 		});
 		if (!session) {
-			res.redirect(303, "/queue?error_code=import_session_not_found");
+			res.redirect(303, UPLOAD_ERROR_REDIRECT.sessionNotFound);
 			return;
 		}
 

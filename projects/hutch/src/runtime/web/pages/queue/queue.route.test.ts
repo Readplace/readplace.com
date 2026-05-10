@@ -2576,7 +2576,7 @@ describe("Queue routes", () => {
 	});
 
 	describe("GET /queue?feature=import", () => {
-		it("should render the import form with the no-JS Upload button", async () => {
+		it("surfaces the Import Links nav item but no longer renders the upload form on /queue", async () => {
 			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(app, auth);
 
@@ -2584,32 +2584,22 @@ describe("Queue routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			const form = doc.querySelector("form.queue__import-form");
-			assert(form, "import form must be rendered");
-			const button = form.querySelector("button.queue__import-btn");
-			assert(button, "Upload button must remain in the DOM as the no-JS fallback");
-			expect(button.textContent).toBe("Upload");
+			const navLink = doc.querySelector('[data-test-nav-item="import"]');
+			assert(navLink, "Import Links nav item must be rendered when the feature flag is on");
+			expect(navLink.getAttribute("href")).toBe("/import?feature=import");
+			expect(doc.querySelector("form.queue__import-form")).toBeNull();
+			expect(doc.querySelector('[data-test-form="import-file"]')).toBeNull();
 		});
 
-		it("should include the import auto-submit script", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
-
-			const response = await agent.get("/queue?feature=import");
-
-			expect(response.text).toContain("input.addEventListener");
-			expect(response.text).toContain("requestSubmit");
-		});
-
-		it("should include the import auto-submit script even when the import form is hidden", async () => {
+		it("does not surface the Import Links nav item when the feature flag is missing", async () => {
 			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(app, auth);
 
 			const response = await agent.get("/queue");
 
 			expect(response.status).toBe(200);
-			expect(response.text).toContain("input.addEventListener");
-			expect(response.text).toContain("requestSubmit");
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector('[data-test-nav-item="import"]')).toBeNull();
 		});
 	});
 });

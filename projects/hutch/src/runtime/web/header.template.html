@@ -11,6 +11,9 @@
           <ul class="nav__list" data-test-nav-variant="{{#if isAuthenticated}}authenticated{{else}}guest{{/if}}">
             {{#if isAuthenticated}}
             <li><a href="/queue" class="nav__link" data-test-nav-item="queue">Queue</a></li>
+            {{#if featureImport}}
+            <li><a href="/import?feature=import" class="nav__link" data-test-nav-item="import">Import Links</a></li>
+            {{/if}}
             <li><a href="/export" class="nav__link" data-test-nav-item="export">Export</a></li>
             <li>
               <form method="POST" action="/logout">

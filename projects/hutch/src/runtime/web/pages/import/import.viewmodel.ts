@@ -1,6 +1,18 @@
 import type { ImportSessionPage } from "@packages/domain/import-session";
 import { buildImportUrl } from "./import.url";
 
+export interface ImportUploadViewModel {
+	readonly errorMessage?: string;
+	readonly uploadAction: string;
+}
+
+export function toImportUploadViewModel(input: { errorMessage?: string }): ImportUploadViewModel {
+	return {
+		errorMessage: input.errorMessage,
+		uploadAction: "/import?feature=import",
+	};
+}
+
 export interface ImportRowViewModel {
 	readonly index: number;
 	readonly url: string;
