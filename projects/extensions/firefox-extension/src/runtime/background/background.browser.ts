@@ -1,4 +1,5 @@
 /* c8 ignore start -- composition root, all browser API glue, tested via Selenium E2E */
+// (test 4/4 probe: firefox-only edit must publish firefox but skip chrome)
 import {
 	BrowserExtensionCore,
 	initOAuthAuth,
