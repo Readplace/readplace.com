@@ -34,32 +34,7 @@
       {{/if}}
       {{#if hasArticles}}
       <div class="queue__list" data-test-article-list>
-        {{#each articles}}
-        <div class="queue-article{{unreadClass}}" data-test-article="{{id}}"{{#if @first}} id="latest-saved"{{/if}}>
-          {{!-- onerror is a vestigial safety net for legacy DynamoDB rows whose imageUrl still points at an external host that can 404 over time. New saves go through the S3-only thumbnail path in @packages/crawl-article, so once a backfill migration rewrites every legacy row to a CDN URL, this onerror (and the paired onload) can be deleted. --}}
-          {{#if imageUrl}}<a href="{{linkUrl}}" class="queue-article__thumbnail-link" tabindex="-1" aria-hidden="true"><img class="queue-article__thumbnail" src="{{imageUrl}}" alt="" onload="this.parentElement.classList.add('queue-article__thumbnail-link--loaded')" onerror="this.parentElement.remove()"></a>{{/if}}
-          <div class="queue-article__content">
-            <div class="queue-article__title-row">
-              {{#if isUnread}}<span class="queue-article__unread-dot" aria-label="Unread"></span>{{/if}}
-              <a class="queue-article__title" href="{{linkUrl}}" data-test-article-title>{{title}}</a>
-            </div>
-            <div class="queue-article__meta">
-              {{#if siteName}}<a class="queue-article__url" href="{{url}}" target="_blank" rel="noopener" data-test-article-url>{{siteName}}</a>{{/if}}
-              <span>{{readTimeLabel}}</span>
-              <span>{{savedAgo}}</span>
-            </div>
-            <p class="queue-article__excerpt">{{excerpt}}</p>
-          </div>
-          <div class="queue-article__actions">
-            {{#each actions}}
-            <form method="{{method}}" action="{{url}}" class="queue-article__action-form" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
-              {{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
-              <button class="{{buttonClass}}" type="submit" title="{{title}}" data-test-action="{{testAction}}">{{text}}</button>
-            </form>
-            {{/each}}
-          </div>
-        </div>
-        {{/each}}
+        {{#each articleHtmls}}{{{this}}}{{/each}}
       </div>
       {{/if}}
       {{#if showPagination}}

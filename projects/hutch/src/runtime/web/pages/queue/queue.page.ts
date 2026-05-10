@@ -20,6 +20,7 @@ import type {
 import type { PublishUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
 import type { ReadArticleContent } from "@packages/test-fixtures/providers/article-store";
 import type {
+	ArticleCrawl,
 	FindArticleCrawlStatus,
 	MarkCrawlPending,
 } from "@packages/test-fixtures/providers/article-crawl";
@@ -44,8 +45,13 @@ import { parseQueueUrl, buildQueueUrl } from "./queue.url";
 import { tabQuery } from "./queue.tabs";
 import type { HttpErrorMessageMapping } from "./queue.error";
 import { importFlashMapping } from "./queue.error";
-import { toQueueViewModel } from "./queue.viewmodel";
+import { MAX_CARD_POLLS, toQueueArticleViewModel, toQueueViewModel } from "./queue.viewmodel";
 import { QueuePage } from "./queue.component";
+import {
+	renderQueueCard,
+	toQueueCardDisplayModel,
+} from "./queue-card/queue-card.component";
+import { computeQueueCardEtag, etagMatches } from "./queue-card/queue-card.etag";
 import { ReaderPage } from "../reader/reader.component";
 import { ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import {
@@ -100,6 +106,17 @@ async function loadSummaries(
 	}));
 }
 
+async function loadCrawls(
+	findArticleCrawlStatus: FindArticleCrawlStatus,
+	articles: readonly SavedArticle[],
+): Promise<Map<string, ArticleCrawl | undefined>> {
+	const results = await Promise.allSettled(articles.map((a) => findArticleCrawlStatus(a.url)));
+	return new Map(articles.map((a, i) => {
+		const r = results[i];
+		return [a.url, r.status === "fulfilled" ? r.value : undefined] as const;
+	}));
+}
+
 export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
 
@@ -144,8 +161,17 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			: (await deps.findArticlesByUser({ userId, status: "unread", page: 1, pageSize: 1 })).total;
 		const saveError = deps.httpErrorMessageMapping(req.query);
 		const importFlash = importFlashMapping(req.query);
-		const summaryByUrl = await loadSummaries(deps.findGeneratedSummary, result.articles);
-		const vm = toQueueViewModel(result, urlState, { unreadCount, saveError, importFlash, summaryByUrl });
+		const [summaryByUrl, crawlByUrl] = await Promise.all([
+			loadSummaries(deps.findGeneratedSummary, result.articles),
+			loadCrawls(deps.findArticleCrawlStatus, result.articles),
+		]);
+		const vm = toQueueViewModel(result, urlState, {
+			unreadCount,
+			saveError,
+			importFlash,
+			summaryByUrl,
+			crawlByUrl,
+		});
 		const extensionInstalled = isExtensionInstalled(req);
 		const extensionSavedArticle = isExtensionSavedArticle(req);
 		/** Dismissal only counts when the extension is also installed in *this* browser.
@@ -321,11 +347,15 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			const urlState = parseQueueUrl({});
 			const result = await deps.findArticlesByUser({ userId });
 			const unreadCount = (await deps.findArticlesByUser({ userId, status: "unread", page: 1, pageSize: 1 })).total;
-			const summaryByUrl = await loadSummaries(deps.findGeneratedSummary, result.articles);
+			const [summaryByUrl, crawlByUrl] = await Promise.all([
+				loadSummaries(deps.findGeneratedSummary, result.articles),
+				loadCrawls(deps.findArticleCrawlStatus, result.articles),
+			]);
 			const vm = toQueueViewModel(result, urlState, {
 				saveError: "Please enter a valid URL",
 				unreadCount,
 				summaryByUrl,
+				crawlByUrl,
 			});
 			sendComponent(req, res, renderPage(req, QueuePage(vm, { statusCode: 422 })));
 			return;
@@ -434,6 +464,59 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 		});
 		sendComponent(req, res, component);
+	});
+
+	router.get("/:id/card", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const article = parsedId.success
+			? await deps.findArticleById(parsedId.data, userId)
+			: null;
+
+		if (!article) {
+			res.status(404).type("html").send("");
+			return;
+		}
+
+		const [crawl, summary] = await Promise.all([
+			deps.findArticleCrawlStatus(article.url),
+			deps.findGeneratedSummary(article.url),
+		]);
+
+		const etag = computeQueueCardEtag({ article, crawl, summary });
+		/** Per-user data — never share across CDN edges or between users on a
+		 * shared cache. `no-cache` requires revalidation on every request, which
+		 * is exactly what we want: the browser always asks, the server cheaply
+		 * returns 304 when the row hasn't changed during the wait window. */
+		res.set("Cache-Control", "private, no-cache");
+		res.set("Vary", "Cookie");
+		res.set("ETag", etag);
+
+		if (etagMatches(req.get("If-None-Match"), etag)) {
+			res.status(304).end();
+			return;
+		}
+
+		const filters = parseQueueUrl(req.query);
+		const queueUrl = buildQueueUrl(filters);
+		const queryIndex = queueUrl.indexOf("?");
+		const returnQuery = queryIndex !== -1 ? queueUrl.slice(queryIndex) : "";
+		const requestedPoll = Number(req.query.poll ?? "0");
+		const articleVm = toQueueArticleViewModel({
+			article,
+			now: deps.now(),
+			returnQuery,
+			summary,
+			crawl,
+			filters,
+			pollCount: requestedPoll + 1,
+			maxPolls: MAX_CARD_POLLS,
+		});
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(articleVm, { isFirst: false }),
+		);
+		res.status(200).type("html").send(html);
 	});
 
 	router.post("/:id/status", async (req: Request, res: Response) => {
