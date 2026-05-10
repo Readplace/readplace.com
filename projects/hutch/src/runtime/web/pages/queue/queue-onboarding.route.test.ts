@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import {
+	ALIVE_COOKIE_NAME,
+	ALIVE_COOKIE_VALUE,
 	COOKIE_NAME,
 	COOKIE_VALUE,
 	DISMISS_COOKIE_NAME,
@@ -81,7 +83,25 @@ describe("Queue onboarding", () => {
 		expect(step.getAttribute("data-test-onboarding-complete")).toBe("true");
 	});
 
-	it("marks install-extension complete when extension cookie is present", async () => {
+	it("marks install-extension complete when alive cookie is present", async () => {
+		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(app, auth);
+
+		const response = await agent
+			.get("/queue")
+			.set("Cookie", `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}`);
+
+		const doc = new JSDOM(response.text).window.document;
+		const step = doc.querySelector('[data-test-onboarding-step="install-extension"]');
+		assert(step, "install-extension step must be rendered");
+		expect(step.getAttribute("data-test-onboarding-complete")).toBe("true");
+	});
+
+	/** The legacy hutch_ext_installed cookie is writable from the extension's
+	 * content script and persists for a year, so its presence does not prove
+	 * the extension is currently installed. The server must ignore it for
+	 * onboarding purposes — only the httpOnly hutch_ext_alive cookie counts. */
+	it("does not mark install-extension complete when only the legacy hutch_ext_installed cookie is present", async () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(app, auth);
 
@@ -92,16 +112,16 @@ describe("Queue onboarding", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const step = doc.querySelector('[data-test-onboarding-step="install-extension"]');
 		assert(step, "install-extension step must be rendered");
-		expect(step.getAttribute("data-test-onboarding-complete")).toBe("true");
+		expect(step.getAttribute("data-test-onboarding-complete")).toBe("false");
 	});
 
-	it("shows success message when both the install and extension-save cookies are present", async () => {
+	it("shows success message when both the alive and extension-save cookies are present", async () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(app, auth);
 
 		const response = await agent
 			.get("/queue")
-			.set("Cookie", `${COOKIE_NAME}=${COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`);
+			.set("Cookie", `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`);
 
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
@@ -161,7 +181,7 @@ describe("Queue onboarding", () => {
 
 		const response = await agent
 			.get("/queue?status=read")
-			.set("Cookie", `${COOKIE_NAME}=${COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`);
+			.set("Cookie", `${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}; ${SAVE_COOKIE_NAME}=${SAVE_COOKIE_VALUE}`);
 
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
@@ -175,39 +195,41 @@ describe("Queue onboarding", () => {
 	/** Dismissal hides the onboarding only when *both* cookies are present together.
 	 *
 	 * The dismiss button only appears in the success state, which requires the
-	 * install-extension step to be complete — meaning the install cookie was set in
+	 * install-extension step to be complete — meaning the alive cookie was set in
 	 * this browser at the moment of dismissal. So the only way to reach
-	 * "dismiss cookie present, install cookie absent" is if the user has moved to
-	 * a different context where the install cookie doesn't apply:
+	 * "dismiss cookie present, alive cookie absent" is if the user has moved to
+	 * a different context where the alive cookie doesn't apply:
 	 *
 	 *   - Same user, different browser. The user installed the extension in
 	 *     Browser A and dismissed there. Cookies are browser-scoped, so Browser B
 	 *     normally has neither cookie — but if the dismiss cookie is carried over
-	 *     (profile import, manual cookie copy, sync tooling) without the install
+	 *     (profile import, manual cookie copy, sync tooling) without the alive
 	 *     cookie, Browser B still needs the extension installed locally.
-	 *   - Same browser, install cookie lost. The user uninstalled the extension
-	 *     after dismissing, or cleared the install cookie selectively. The dismiss
-	 *     should not silently suppress the prompt to reinstall.
+	 *   - Same browser, extension uninstalled after dismissing. The alive cookie
+	 *     stops being renewed and lapses; the dismiss should not silently
+	 *     suppress the prompt to reinstall once that happens.
 	 *
-	 * The two tests below pin both directions of the rule:
+	 * The three tests below pin all directions of the rule:
 	 *   1. Both cookies present → onboarding stays hidden (the happy path).
 	 *   2. Dismiss cookie alone → onboarding re-renders with install-extension
 	 *      marked incomplete, so the user is prompted to install in this browser.
+	 *   3. Dismiss + legacy hutch_ext_installed without alive → onboarding
+	 *      re-renders, proving the legacy cookie does not satisfy dismissal.
 	 */
-	it("does not render onboarding when dismiss cookie matches current version and extension is installed", async () => {
+	it("does not render onboarding when dismiss cookie matches current version and extension is alive", async () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(app, auth);
 
 		const response = await agent
 			.get("/queue")
-			.set("Cookie", `${DISMISS_COOKIE_NAME}=${ONBOARDING_VERSION}; ${COOKIE_NAME}=${COOKIE_VALUE}`);
+			.set("Cookie", `${DISMISS_COOKIE_NAME}=${ONBOARDING_VERSION}; ${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}`);
 
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		expect(onboarding).toBeNull();
 	});
 
-	it("re-renders onboarding when dismiss cookie is present but extension cookie is missing", async () => {
+	it("re-renders onboarding when dismiss cookie is present but alive cookie is missing", async () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(app, auth);
 
@@ -224,13 +246,35 @@ describe("Queue onboarding", () => {
 		expect(installStep.getAttribute("data-test-onboarding-complete")).toBe("false");
 	});
 
+	/** The exact bug this branch fixes: user installs the extension, completes
+	 * onboarding, dismisses it, then uninstalls the extension. The legacy
+	 * hutch_ext_installed cookie persists in the browser jar (1-year TTL,
+	 * written by the content script) but the httpOnly hutch_ext_alive lapses
+	 * once Siren requests stop. Onboarding must come back. */
+	it("re-renders onboarding after uninstall (dismiss + legacy cookie present, alive cookie missing)", async () => {
+		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(app, auth);
+
+		const response = await agent
+			.get("/queue")
+			.set("Cookie", `${DISMISS_COOKIE_NAME}=${ONBOARDING_VERSION}; ${COOKIE_NAME}=${COOKIE_VALUE}`);
+
+		const doc = new JSDOM(response.text).window.document;
+		const onboarding = doc.querySelector("[data-test-onboarding]");
+		assert(onboarding, "onboarding must re-render once the extension stops renewing the alive cookie");
+		expect(onboarding.classList.contains("onboarding--visible")).toBe(true);
+		const installStep = doc.querySelector('[data-test-onboarding-step="install-extension"]');
+		assert(installStep);
+		expect(installStep.getAttribute("data-test-onboarding-complete")).toBe("false");
+	});
+
 	it("re-renders onboarding when dismiss cookie has a stale version", async () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(app, auth);
 
 		const response = await agent
 			.get("/queue")
-			.set("Cookie", `${DISMISS_COOKIE_NAME}=stale-version; ${COOKIE_NAME}=${COOKIE_VALUE}`);
+			.set("Cookie", `${DISMISS_COOKIE_NAME}=stale-version; ${ALIVE_COOKIE_NAME}=${ALIVE_COOKIE_VALUE}`);
 
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");

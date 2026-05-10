@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { COOKIE_NAME, COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
+import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE } from "@packages/onboarding-extension-signal";
 import type { BrowserName } from "./onboarding.types";
 
 const INSTALL_URLS: Record<BrowserName, string> = {
@@ -8,8 +8,13 @@ const INSTALL_URLS: Record<BrowserName, string> = {
 	other: "/install",
 };
 
+/** Reads the server-only liveness cookie. The legacy hutch_ext_installed
+ * cookie (writable from the extension's content script) is intentionally
+ * ignored here — its presence does not prove the extension is currently
+ * installed, only that an extension was once installed in this browser
+ * within the last year. See mark-extension-installed.middleware.ts. */
 export function isExtensionInstalled(req: Request): boolean {
-	return req.cookies?.[COOKIE_NAME] === COOKIE_VALUE;
+	return req.cookies?.[ALIVE_COOKIE_NAME] === ALIVE_COOKIE_VALUE;
 }
 
 export function isExtensionSavedArticle(req: Request): boolean {

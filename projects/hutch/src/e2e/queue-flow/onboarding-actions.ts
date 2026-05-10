@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test'
 import {
-  COOKIE_NAME,
-  COOKIE_VALUE,
+  ALIVE_COOKIE_NAME,
+  ALIVE_COOKIE_VALUE,
   SAVE_COOKIE_NAME,
   SAVE_COOKIE_VALUE,
 } from '@packages/onboarding-extension-signal'
@@ -29,8 +29,8 @@ export function createOnboardingActions(
         await expect(step).toHaveAttribute('data-test-onboarding-complete', 'false')
 
         await page.context().addCookies([{
-          name: COOKIE_NAME,
-          value: COOKIE_VALUE,
+          name: ALIVE_COOKIE_NAME,
+          value: ALIVE_COOKIE_VALUE,
           path: '/',
           domain: new URL(page.url()).hostname,
         }])

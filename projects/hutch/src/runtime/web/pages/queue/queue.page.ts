@@ -56,10 +56,11 @@ import {
 } from "../../onboarding/extension-install";
 
 function markExtensionSavedArticle(res: Response): void {
-	// Only Siren-only save endpoints call this; the form-based /queue/save path doesn't, so the onboarding step is gated on extension saves alone.
+	/** 1. Only Siren-only save endpoints call this; the form-based /queue/save path doesn't, so the onboarding step is gated on extension saves alone.
+	 *  2. 30 days. mark-extension-installed.middleware.ts refreshes this cookie on every Siren request while it's present, so an active extension keeps the step ticked and an uninstalled one lets it lapse — same liveness model as ALIVE_COOKIE_NAME. */
 	res.cookie(SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE, {
 		path: "/",
-		maxAge: 365 * 24 * 60 * 60 * 1000,
+		maxAge: 30 * 24 * 60 * 60 * 1000, /* 2 */
 		sameSite: "lax",
 		httpOnly: true,
 	});

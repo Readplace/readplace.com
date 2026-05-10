@@ -490,8 +490,8 @@ describe("POST /queue/:id/delete (Siren)", () => {
 	});
 });
 
-describe("extension-installed cookie middleware", () => {
-	it("sets the extension-installed cookie on the Siren entry point before login", async () => {
+describe("extension-alive cookie middleware", () => {
+	it("sets the alive cookie as httpOnly on the Siren entry point before login", async () => {
 		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 		const response = await request(testApp.app)
@@ -502,15 +502,18 @@ describe("extension-installed cookie middleware", () => {
 		expect(response.status).toBe(303);
 		const setCookie = response.headers["set-cookie"];
 		assert(Array.isArray(setCookie), "expected Set-Cookie header");
-		const cookie = setCookie.find((c: string) => c.startsWith("hutch_ext_installed="));
-		assert(cookie, "expected hutch_ext_installed cookie");
-		expect(cookie).toContain("hutch_ext_installed=1");
+		const cookie = setCookie.find((c: string) => c.startsWith("hutch_ext_alive="));
+		assert(cookie, "expected hutch_ext_alive cookie");
+		expect(cookie).toContain("hutch_ext_alive=1");
 		expect(cookie).toContain("Path=/");
 		expect(cookie).toContain("SameSite=Lax");
 		expect(cookie).toContain("Max-Age=");
+		// httpOnly is what blocks the extension content script (or any other JS)
+		// from forging or renewing this cookie via document.cookie.
+		expect(cookie).toContain("HttpOnly");
 	});
 
-	it("does not set the cookie on browser session requests", async () => {
+	it("does not set the alive cookie on browser session requests", async () => {
 		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		await testApp.auth.createUser({ email: "test@example.com", password: "password123" });
 		const agent = request.agent(testApp.app);
@@ -526,7 +529,41 @@ describe("extension-installed cookie middleware", () => {
 		expect(response.status).toBe(200);
 		const setCookie = response.headers["set-cookie"];
 		const cookies = Array.isArray(setCookie) ? setCookie : [];
-		const cookie = cookies.find((c: string) => c.startsWith("hutch_ext_installed="));
+		const cookie = cookies.find((c: string) => c.startsWith("hutch_ext_alive="));
+		expect(cookie).toBeUndefined();
+	});
+
+	it("renews the hutch_ext_saved cookie on a Siren request when it is already present", async () => {
+		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(testApp.app)
+			.get("/")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Cookie", "hutch_ext_saved=1")
+			.redirects(0);
+
+		expect(response.status).toBe(303);
+		const setCookie = response.headers["set-cookie"];
+		assert(Array.isArray(setCookie), "expected Set-Cookie header");
+		const cookie = setCookie.find((c: string) => c.startsWith("hutch_ext_saved="));
+		assert(cookie, "expected hutch_ext_saved cookie to be renewed");
+		expect(cookie).toContain("hutch_ext_saved=1");
+		expect(cookie).toContain("Max-Age=");
+		expect(cookie).toContain("HttpOnly");
+	});
+
+	it("does not set hutch_ext_saved on a Siren request when the cookie is absent", async () => {
+		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(testApp.app)
+			.get("/")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.redirects(0);
+
+		expect(response.status).toBe(303);
+		const setCookie = response.headers["set-cookie"];
+		const cookies = Array.isArray(setCookie) ? setCookie : [];
+		const cookie = cookies.find((c: string) => c.startsWith("hutch_ext_saved="));
 		expect(cookie).toBeUndefined();
 	});
 });
