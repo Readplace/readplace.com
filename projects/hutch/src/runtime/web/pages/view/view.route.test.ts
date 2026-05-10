@@ -1076,6 +1076,75 @@ describe("View routes", () => {
 		});
 	});
 
+	describe("GET /view/reader fragment auto-update", () => {
+		it("emits header + <title> OOB fragments and an ETag, and 304s when If-None-Match matches", async () => {
+			// Steady-state contract for the public reader: while the crawl is
+			// still in flight the /view/reader poll must include the addressable
+			// header (#article-header) and document <title> (#document-title) as
+			// hx-swap-oob fragments, plus an ETag so an unchanged body collapses
+			// to 304 instead of re-shipping the same payload every 3s.
+			//
+			// The progress bar OOB carries `tickAt: now.toISOString()`, so a real
+			// `() => new Date()` clock would bust the ETag on every poll and
+			// defeat the steady-state 304 contract. Pinning `now` to a fixed
+			// instant gives a deterministic body across the two requests.
+			const parseArticle: ParseArticle = async () => buildParseResult();
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const fixedNow = new Date("2026-04-25T12:00:00.000Z");
+			const { app } = createTestApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
+				events: {
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+				},
+				articleCrawl: {
+					...fixture.articleCrawl,
+					findArticleCrawlStatus: async () => ({ status: "pending" as const }),
+				},
+				shared: { ...fixture.shared, now: () => fixedNow },
+			});
+
+			// Land on /view first so the row exists; then the reader poll has
+			// something to read back.
+			await request(app).get(`/view/${ENCODED}`);
+
+			const first = await request(app).get(
+				`/view/reader?url=${encodeURIComponent(ARTICLE_URL)}&poll=1`,
+			);
+			expect(first.status).toBe(200);
+			const etag = first.headers.etag;
+			assert(etag, "view reader poll must emit an ETag for steady-state 304s");
+			expect(first.headers["cache-control"]).toBe("private, no-cache");
+
+			const doc = new JSDOM(first.text).window.document;
+			const header = doc.querySelector("#article-header");
+			assert(header, "header OOB fragment must accompany the reader-slot");
+			expect(header.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			const titleEl = doc.querySelector("title#document-title");
+			assert(titleEl, "<title> OOB fragment must accompany the reader-slot");
+			expect(titleEl.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			// Format owned by view.component.ts — keep in sync if you change it there.
+			expect(titleEl.textContent).toMatch(/\| Reader View$/);
+
+			const second = await request(app)
+				.get(`/view/reader?url=${encodeURIComponent(ARTICLE_URL)}&poll=1`)
+				.set("If-None-Match", etag);
+			expect(second.status).toBe(304);
+			expect(second.text).toBe("");
+		});
+	});
+
 	describe("OG metadata", () => {
 		it("emits article title, excerpt, image, type and canonical as the publisher URL", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();

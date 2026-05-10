@@ -22,7 +22,7 @@ import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.types";
 import { SaveErrorPage } from "../save/save-error.component";
 import { AdminRecrawlLandingPage } from "./recrawl-landing.component";
-import { AdminRecrawlPage } from "./recrawl.component";
+import { AdminRecrawlPage, formatRecrawlDocumentTitle } from "./recrawl.component";
 import { initRequireAdmin } from "./require-admin.middleware";
 
 const RecrawlUrlSchema = z.url();
@@ -205,6 +205,8 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 		findGeneratedSummary: deps.findGeneratedSummary,
 		markSummaryPending: deps.markSummaryPending,
 		readArticleContent: deps.readArticleContent,
+		findArticleByUrl: deps.findArticleByUrl,
+		formatDocumentTitle: formatRecrawlDocumentTitle,
 		now: deps.now,
 	});
 

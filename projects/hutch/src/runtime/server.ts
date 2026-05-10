@@ -454,6 +454,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		validateSaveableUrl: deps.validateSaveableUrl,
 		findArticlesByUser: deps.findArticlesByUser,
 		findArticleById: deps.findArticleById,
+		findArticleByUrl: deps.findArticleByUrl,
 		saveArticle: deps.saveArticle,
 		deleteArticle: deps.deleteArticle,
 		updateArticleStatus: deps.updateArticleStatus,

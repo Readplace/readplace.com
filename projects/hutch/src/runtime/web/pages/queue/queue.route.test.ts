@@ -1854,6 +1854,62 @@ describe("Queue routes", () => {
 			expect(response.status).toBe(404);
 		});
 
+		it("GET /queue/:id/reader emits header + <title> OOB fragments and an ETag, and 304s when If-None-Match matches", async () => {
+			// Steady-state contract: while the crawl is in flight the reader poll
+			// fragment must include the addressable header (#article-header) and
+			// document <title> (#document-title) as hx-swap-oob fragments, plus
+			// an ETag so an unchanged body collapses to 304 instead of re-shipping
+			// a few KB on every 3s tick.
+			//
+			// The progress bar OOB carries `tickAt: now.toISOString()`, so a real
+			// `() => new Date()` clock would bust the ETag on every poll and
+			// defeat the steady-state 304 contract. Pinning `now` to a fixed
+			// instant gives a deterministic body across the two requests.
+			const findArticleCrawlStatus = async () => ({ status: "pending" as const });
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const fixedNow = new Date("2026-04-25T12:00:00.000Z");
+			const { app, auth } = createTestApp({
+				...fixture,
+				articleCrawl: {
+					...fixture.articleCrawl,
+					findArticleCrawlStatus,
+				},
+				shared: { ...fixture.shared, now: () => fixedNow },
+			});
+			const agent = await loginAgent(app, auth);
+
+			await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: "https://example.com/auto-update" });
+
+			const queueResponse = await agent.get("/queue");
+			const articleId = new JSDOM(queueResponse.text).window.document
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "saved article must have an id");
+
+			const first = await agent.get(`/queue/${articleId}/reader?poll=1`);
+			expect(first.status).toBe(200);
+			const etag = first.headers.etag;
+			assert(etag, "reader poll must emit an ETag for steady-state 304s");
+			expect(first.headers["cache-control"]).toBe("private, no-cache");
+
+			const doc = new JSDOM(first.text).window.document;
+			const header = doc.querySelector("#article-header");
+			assert(header, "header OOB fragment must accompany the reader-slot");
+			expect(header.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			const titleEl = doc.querySelector("title#document-title");
+			assert(titleEl, "<title> OOB fragment must accompany the reader-slot");
+			expect(titleEl.getAttribute("hx-swap-oob")).toBe("outerHTML");
+
+			const second = await agent
+				.get(`/queue/${articleId}/reader?poll=1`)
+				.set("If-None-Match", etag);
+			expect(second.status).toBe(304);
+			expect(second.text).toBe("");
+		});
+
 		it("GET /queue/:id/read heals a legacy row by re-priming both state machines when both state attrs are missing", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			// State-machine providers always report "no state" so the cached row

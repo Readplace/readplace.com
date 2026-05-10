@@ -20,6 +20,7 @@ import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/ar
 import type {
 	DeleteArticle,
 	FindArticleById,
+	FindArticleByUrl,
 	FindArticlesByUser,
 	SaveArticle,
 	UpdateArticleStatus,
@@ -44,6 +45,7 @@ import type { PutPendingHtml } from "@packages/test-fixtures/providers/pending-h
 import { saveArticleFromUrl, saveUnsaveableUrlStub } from "../../shared/save-article/save-article-from-url";
 import { renderPage } from "../../render-page";
 import { sendComponent } from "../../send-component";
+import { sendConditionalHtml } from "../../conditional-get";
 import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
@@ -59,7 +61,7 @@ import {
 	toQueueCardDisplayModel,
 } from "./queue-card/queue-card.component";
 import { computeQueueCardEtag, etagMatches } from "./queue-card/queue-card.etag";
-import { ReaderPage } from "../reader/reader.component";
+import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.component";
 import { ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import {
 	detectBrowser,
@@ -100,6 +102,7 @@ interface QueueDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
 	findArticlesByUser: FindArticlesByUser;
 	findArticleById: FindArticleById;
+	findArticleByUrl: FindArticleByUrl;
 	saveArticle: SaveArticle;
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
@@ -423,7 +426,17 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 	});
 
-	const reader = initArticleReader(deps);
+	const reader = initArticleReader({
+		findArticleCrawlStatus: deps.findArticleCrawlStatus,
+		markCrawlPending: deps.markCrawlPending,
+		findGeneratedSummary: deps.findGeneratedSummary,
+		markSummaryPending: deps.markSummaryPending,
+		readArticleContent: deps.readArticleContent,
+		findArticleByUrl: deps.findArticleByUrl,
+		formatDocumentTitle: formatReaderDocumentTitle,
+		backLink: { href: "/queue", label: "← Back to queue" },
+		now: deps.now,
+	});
 
 	function pollUrlBuilderForId(articleId: string): PollUrlBuilder {
 		return {
@@ -492,7 +505,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderForId(article.id.value),
 		});
-		sendComponent(req, res, component);
+		sendConditionalHtml(req, res, component);
 	});
 
 	router.get("/:id/reader", async (req: Request, res: Response) => {
@@ -515,7 +528,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			pollUrlBuilder: pollUrlBuilderForId(article.id.value),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 		});
-		sendComponent(req, res, component);
+		sendConditionalHtml(req, res, component);
 	});
 
 	router.get("/:id/card", async (req: Request, res: Response) => {

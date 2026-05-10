@@ -25,6 +25,7 @@ import type {
 	PublishStaleCheckRequested,
 } from "@packages/test-fixtures/providers/events";
 import { wantsMarkdown } from "../../content-negotiation";
+import { sendConditionalHtml } from "../../conditional-get";
 import { htmlToMarkdown } from "../../html-to-markdown";
 import { buildMarkdownFrontmatter } from "../../markdown-frontmatter";
 import { MarkdownPage } from "../../markdown-page";
@@ -32,11 +33,14 @@ import { renderPage } from "../../render-page";
 import { sendComponent } from "../../send-component";
 import { extensionInstallUrlIfMissing } from "../../onboarding/extension-install";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
-import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.types";
+import type {
+	ArticleReaderDeps,
+	PollUrlBuilder,
+} from "../../shared/article-reader/article-reader.types";
 import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { ViewLandingPage } from "./view-landing.component";
-import { ViewPage, type ViewAction } from "./view.component";
+import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.component";
 
 interface ViewDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
@@ -69,6 +73,19 @@ function pollUrlBuilderFor(articleUrl: string): PollUrlBuilder {
 	};
 }
 
+function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
+	return {
+		findArticleCrawlStatus: deps.findArticleCrawlStatus,
+		markCrawlPending: deps.markCrawlPending,
+		findGeneratedSummary: deps.findGeneratedSummary,
+		markSummaryPending: deps.markSummaryPending,
+		readArticleContent: deps.readArticleContent,
+		findArticleByUrl: deps.findArticleByUrl,
+		formatDocumentTitle: formatViewDocumentTitle,
+		now: deps.now,
+	};
+}
+
 function handleViewLanding(deps: ViewDependencies) {
 	return (req: Request, res: Response) => {
 		const submittedUrl =
@@ -87,7 +104,7 @@ function handleViewLanding(deps: ViewDependencies) {
 }
 
 function handleViewArticle(deps: ViewDependencies) {
-	const reader = initArticleReader(deps);
+	const reader = initArticleReader(buildArticleReaderDeps(deps));
 	return async (
 		req: Request<Record<string, string>>,
 		res: Response,
@@ -188,7 +205,7 @@ function handleViewArticle(deps: ViewDependencies) {
 }
 
 function handleViewSummary(deps: ViewDependencies) {
-	const reader = initArticleReader(deps);
+	const reader = initArticleReader(buildArticleReaderDeps(deps));
 	return async (req: Request, res: Response): Promise<void> => {
 		const validation = deps.validateSaveableUrl(req.query.url);
 		if (validation.status === "ERROR") {
@@ -202,12 +219,12 @@ function handleViewSummary(deps: ViewDependencies) {
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
 		});
-		sendComponent(req, res, component);
+		sendConditionalHtml(req, res, component);
 	};
 }
 
 function handleViewReader(deps: ViewDependencies) {
-	const reader = initArticleReader(deps);
+	const reader = initArticleReader(buildArticleReaderDeps(deps));
 	return async (req: Request, res: Response): Promise<void> => {
 		const validation = deps.validateSaveableUrl(req.query.url);
 		if (validation.status === "ERROR") {
@@ -222,7 +239,7 @@ function handleViewReader(deps: ViewDependencies) {
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 		});
-		sendComponent(req, res, component);
+		sendConditionalHtml(req, res, component);
 	};
 }
 
