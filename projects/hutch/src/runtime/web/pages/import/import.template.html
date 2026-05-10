@@ -1,34 +1,59 @@
-    <main class="import">
-      <h1 class="import__title">Review imported links</h1>
-      <form method="POST" action="{{toggleAllUrl}}" class="import__select-all"
-            hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
-            data-test-form="import-toggle-all">
-        <input type="hidden" name="checked" value="{{#if allSelected}}false{{else}}true{{/if}}">
-        <label class="import__select-all-label">
-          <input type="checkbox"
-                 name="confirm"
-                 {{#if allSelected}}checked{{/if}}
-                 {{#if someSelected}}data-import-indeterminate{{/if}}
-                 onclick="this.form.requestSubmit()"
-                 data-test-import-select-all>
-          <span class="import__summary" data-test-import-summary>{{totalSelected}} of {{totalUrls}} selected</span>
-        </label>
-        <noscript><button type="submit" class="import__row-toggle-btn">Toggle all</button></noscript>
-      </form>
+    <main class="import import--review">
+      <header class="import__header">
+        <h1 class="import__title">Review imported <span class="import__title-mark">links</span></h1>
+        <p class="import__subtitle">Pick the ones you want to save. Everything else will be discarded.</p>
+      </header>
+
       {{#if truncated}}
-      <p class="import__truncated-banner" data-test-import-truncated>Your file contained {{totalFoundInFile}} links. We&rsquo;ve imported the first {{totalUrls}}.</p>
+      <p class="import__truncated-banner" role="status" data-test-import-truncated>
+        Your file contained {{totalFoundInFile}} links. The first {{totalUrls}} were imported.
+      </p>
       {{/if}}
-      <form class="import__commit-form" method="POST" action="{{commitUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-form="import-commit">
-        <button class="import__commit-btn" type="submit" data-test-action="import-commit">Import {{totalSelected}} selected</button>
-      </form>
+
+      <section class="import__toolbar" aria-label="Import selection">
+        <form method="POST" action="{{toggleAllUrl}}" class="import__select-all"
+              hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
+              data-test-form="import-toggle-all">
+          <input type="hidden" name="checked" value="{{#if allSelected}}false{{else}}true{{/if}}">
+          <label class="import__select-all-label">
+            <input type="checkbox"
+                   name="confirm"
+                   class="import__checkbox"
+                   {{#if allSelected}}checked{{/if}}
+                   {{#if someSelected}}data-import-indeterminate{{/if}}
+                   onclick="this.form.requestSubmit()"
+                   data-test-import-select-all>
+            <span class="import__summary" data-test-import-summary>
+              <strong class="import__summary-count">{{totalSelected}}</strong>
+              <span class="import__summary-label">of {{totalUrls}} selected</span>
+            </span>
+          </label>
+          <noscript><button type="submit" class="import__row-toggle-btn">Toggle all</button></noscript>
+        </form>
+
+        <form class="import__commit-form" method="POST" action="{{commitUrl}}"
+              hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
+              data-test-form="import-commit">
+          <button class="import__commit-btn" type="submit" data-test-action="import-commit">
+            Import {{totalSelected}} selected
+          </button>
+        </form>
+      </section>
+
       <ul class="import__list" data-test-import-list>
         {{#each rows}}
-        <li class="import__row" data-test-import-row="{{index}}">
-          <form method="POST" action="{{../toggleUrl}}" class="import__row-form" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+        <li class="import__row {{#if checked}}import__row--checked{{/if}}" data-test-import-row="{{index}}">
+          <form method="POST" action="{{../toggleUrl}}" class="import__row-form"
+                hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
             <input type="hidden" name="index" value="{{index}}">
             <input type="hidden" name="checked" value="{{#if checked}}false{{else}}true{{/if}}">
             <label class="import__row-label">
-              <input type="checkbox" name="confirm" {{#if checked}}checked{{/if}} onclick="this.form.requestSubmit()" data-test-import-checkbox="{{index}}">
+              <input type="checkbox"
+                     name="confirm"
+                     class="import__checkbox"
+                     {{#if checked}}checked{{/if}}
+                     onclick="this.form.requestSubmit()"
+                     data-test-import-checkbox="{{index}}">
               <span class="import__row-url" data-test-import-url>{{url}}</span>
             </label>
             <noscript><button type="submit" class="import__row-toggle-btn">Toggle</button></noscript>
@@ -36,11 +61,30 @@
         </li>
         {{/each}}
       </ul>
+
       {{#if showPagination}}
-      <nav class="import__pagination" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-import-pagination>
-        {{#if hasPrev}}<a class="import__pagination-link" href="{{prevUrl}}" data-test-import-pagination-prev>← Previous</a>{{/if}}
-        <span class="import__pagination-info">Page {{currentPage}} of {{totalPages}}</span>
-        {{#if hasNext}}<a class="import__pagination-link" href="{{nextUrl}}" data-test-import-pagination-next>Next →</a>{{/if}}
+      <nav class="import__pagination" aria-label="Pagination"
+           hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
+           data-test-import-pagination>
+        {{#if hasPrev}}
+        <a class="import__pagination-link import__pagination-link--prev" href="{{prevUrl}}" data-test-import-pagination-prev>
+          <span aria-hidden="true">&larr;</span> Previous
+        </a>
+        {{else}}
+        <span class="import__pagination-link import__pagination-link--disabled" aria-disabled="true">
+          <span aria-hidden="true">&larr;</span> Previous
+        </span>
+        {{/if}}
+        <span class="import__pagination-info">Page <strong>{{currentPage}}</strong> of {{totalPages}}</span>
+        {{#if hasNext}}
+        <a class="import__pagination-link import__pagination-link--next" href="{{nextUrl}}" data-test-import-pagination-next>
+          Next <span aria-hidden="true">&rarr;</span>
+        </a>
+        {{else}}
+        <span class="import__pagination-link import__pagination-link--disabled" aria-disabled="true">
+          Next <span aria-hidden="true">&rarr;</span>
+        </span>
+        {{/if}}
       </nav>
       {{/if}}
     </main>

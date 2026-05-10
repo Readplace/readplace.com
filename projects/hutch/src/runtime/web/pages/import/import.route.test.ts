@@ -17,6 +17,10 @@ async function loginAgent(app: TestAppResult["app"], auth: TestAppResult["auth"]
 	return agent;
 }
 
+function summaryText(doc: Document): string {
+	return doc.querySelector("[data-test-import-summary]")?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+}
+
 function multipartBody(filename: string, content: Buffer): { body: Buffer; contentType: string } {
 	const boundary = "----TestBoundary123456";
 	const head = Buffer.from(
@@ -210,7 +214,7 @@ describe("Import routes", () => {
 			for (const cb of checkboxes) {
 				expect(cb.hasAttribute("checked")).toBe(true);
 			}
-			expect(doc.querySelector("[data-test-import-summary]")?.textContent).toContain("3 of 3 selected");
+			expect(summaryText(doc)).toContain("3 of 3 selected");
 		});
 
 		it("redirects to /queue for an invalid session id", async () => {
@@ -283,7 +287,7 @@ describe("Import routes", () => {
 			assert(second, "second checkbox must exist");
 			expect(first.hasAttribute("checked")).toBe(false);
 			expect(second.hasAttribute("checked")).toBe(true);
-			expect(doc.querySelector("[data-test-import-summary]")?.textContent).toContain("1 of 2 selected");
+			expect(summaryText(doc)).toContain("1 of 2 selected");
 		});
 
 		it("returns 422 for malformed body", async () => {
@@ -392,7 +396,7 @@ describe("Import routes", () => {
 			for (const cb of checkboxes) {
 				expect(cb.hasAttribute("checked")).toBe(false);
 			}
-			expect(doc.querySelector("[data-test-import-summary]")?.textContent).toContain("0 of 3 selected");
+			expect(summaryText(doc)).toContain("0 of 3 selected");
 		});
 
 		it("re-selects every row from a partially-deselected state", async () => {
@@ -419,7 +423,7 @@ describe("Import routes", () => {
 			for (const cb of checkboxes) {
 				expect(cb.hasAttribute("checked")).toBe(true);
 			}
-			expect(doc.querySelector("[data-test-import-summary]")?.textContent).toContain("2 of 2 selected");
+			expect(summaryText(doc)).toContain("2 of 2 selected");
 		});
 
 		it("deselects rows on pages the user is not currently viewing", async () => {

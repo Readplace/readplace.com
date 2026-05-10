@@ -1,21 +1,34 @@
-    <main class="import">
-      <h1 class="import__title">Import Links</h1>
-      <p class="import__intro">
-        Upload any text-shaped export (HTML, JSON, plain text) and Readplace will
-        pull every <code>http(s)://</code> URL out for you to review before
-        saving. Files larger than 5&nbsp;MiB or imports above 2,000 links?
-        Get in touch at
-        <a href="mailto:fayner@readplace.com">fayner@readplace.com</a>
-        to increase the limit.
-      </p>
+    <main class="import import--upload">
+      <header class="import__header">
+        <h1 class="import__title">Import <span class="import__title-mark">links</span></h1>
+        <p class="import__intro">
+          Upload any text-shaped export &mdash; HTML, JSON, plain text &mdash; and Readplace will pull every <code>http(s)://</code> URL out for you to review before saving.
+        </p>
+      </header>
       {{#if errorMessage}}
-      <p class="import__upload-error" data-test-import-error>{{errorMessage}}</p>
+      <p class="import__upload-error" role="alert" data-test-import-error>{{errorMessage}}</p>
       {{/if}}
       <form class="import__upload-form" method="POST" action="{{uploadAction}}" enctype="multipart/form-data" data-test-form="import-file">
-        <label class="import__upload-label">
-          <span>Choose a file</span>
-          <input type="file" name="file" required data-test-import-file-input>
+        <label class="import__dropzone" data-import-dropzone>
+          <input type="file" name="file" required class="import__file-input" data-test-import-file-input>
+          <span class="import__dropzone-icon" aria-hidden="true">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </span>
+          <span class="import__dropzone-primary">
+            <span class="import__dropzone-link">Choose a file</span>
+            <span class="import__dropzone-or"> or drag it here</span>
+          </span>
+          <span class="import__dropzone-meta" data-import-dropzone-meta>HTML, JSON, or plain text &middot; up to 5&nbsp;MiB &middot; up to 2,000 links</span>
         </label>
         <button class="import__upload-btn" type="submit" data-test-action="import-upload">Upload</button>
       </form>
+      <p class="import__fallback">
+        Larger files or more than 2,000 links? Email
+        <a class="import__fallback-link" href="mailto:fayner@readplace.com">fayner@readplace.com</a>
+        and I&rsquo;ll lift the limit for you.
+      </p>
     </main>

@@ -16,9 +16,39 @@ const UPLOAD_AUTO_SUBMIT_SCRIPT = `
 			var form = document.querySelector('form.import__upload-form');
 			if (!form) return;
 			var input = form.querySelector('input[type="file"]');
-			if (!input) return;
+			var dropzone = form.querySelector('[data-import-dropzone]');
+			var meta = form.querySelector('[data-import-dropzone-meta]');
+			if (!input || !dropzone) return;
+			var defaultMeta = meta ? meta.textContent : '';
+
+			function showFilename() {
+				if (!input.files || input.files.length === 0) return;
+				dropzone.classList.add('import__dropzone--has-file');
+				if (meta) meta.textContent = input.files[0].name;
+			}
+
 			input.addEventListener('change', function () {
+				showFilename();
 				if (input.files && input.files.length > 0) form.requestSubmit();
+			});
+
+			['dragenter', 'dragover'].forEach(function (event) {
+				dropzone.addEventListener(event, function (e) {
+					e.preventDefault();
+					dropzone.classList.add('import__dropzone--dragover');
+				});
+			});
+			['dragleave', 'dragend', 'drop'].forEach(function (event) {
+				dropzone.addEventListener(event, function () {
+					dropzone.classList.remove('import__dropzone--dragover');
+				});
+			});
+			dropzone.addEventListener('drop', function (e) {
+				e.preventDefault();
+				if (!e.dataTransfer || !e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
+				input.files = e.dataTransfer.files;
+				showFilename();
+				form.requestSubmit();
 			});
 		}
 		if (document.readyState === 'loading') {
