@@ -4,7 +4,10 @@ import type { PageBody } from "../../page-body.types";
 import { render } from "../../render";
 import { switchHelpers } from "../../handlebars-switch";
 import { renderFoundingProgress } from "../../shared/founding-progress/founding-progress.component";
-import { isFoundingAllocationExhausted } from "../../shared/founding-progress/founding-allocation";
+import {
+	FOUNDING_MEMBER_LIMIT,
+	isFoundingAllocationExhausted,
+} from "../../shared/founding-progress/founding-allocation";
 import { HOME_PAGE_STYLES } from "./home.styles";
 
 const HOME_TEMPLATE = readFileSync(join(__dirname, "home.template.html"), "utf-8");
@@ -150,10 +153,10 @@ export function HomePage(params: { userCount: number; staticBaseUrl: string; bro
 							name: "Founding Member",
 							price: "0",
 							priceCurrency: "USD",
-							description: "Free forever for the first 100 founding members",
+							description: `Free forever for the first ${FOUNDING_MEMBER_LIMIT} founding members`,
 							eligibleQuantity: {
 								"@type": "QuantitativeValue",
-								value: 100,
+								value: FOUNDING_MEMBER_LIMIT,
 							},
 						},
 						{
@@ -246,7 +249,7 @@ export function HomePage(params: { userCount: number; staticBaseUrl: string; bro
 							name: "Is Readplace free?",
 							acceptedAnswer: {
 								"@type": "Answer",
-								text: "The first 100 founding members get full access free, forever. After that, $3.99/month — includes TL;DR summaries.",
+								text: `The first ${FOUNDING_MEMBER_LIMIT} founding members get full access free, forever. After that, $3.99/month — includes TL;DR summaries.`,
 							},
 						},
 						{
@@ -285,6 +288,7 @@ export function HomePage(params: { userCount: number; staticBaseUrl: string; bro
 			browserName: browser,
 			founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
 			foundingProgressHtml,
+			foundingMemberLimit: FOUNDING_MEMBER_LIMIT,
 			pricingGridStateClass,
 			fallbackCtaStateClass,
 			featuredFeatures: [

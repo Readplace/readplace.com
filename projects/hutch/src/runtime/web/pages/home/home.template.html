@@ -229,15 +229,15 @@
     <section id="pricing" class="home-pricing" data-test-section="pricing" aria-label="Pricing">
       <div class="home-pricing__container">
         <div class="section-header">
-          <h2 class="section-header__title">Free for the first 100 members.</h2>
+          <h2 class="section-header__title">Free for the first {{foundingMemberLimit}} members.</h2>
         </div>
         {{{foundingProgressHtml}}}
         <div class="pricing-grid {{pricingGridStateClass}}">
           <div class="pricing-card pricing-card--featured" data-test-plan="founding">
-            <span class="pricing-card__badge">First 100 Users</span>
+            <span class="pricing-card__badge">First {{foundingMemberLimit}} Users</span>
             <h3 class="pricing-card__name">Founding Member</h3>
             <p class="pricing-card__price">$0<span class="pricing-card__price-suffix"> forever</span></p>
-            <p class="pricing-card__description">Be one of the first 100 users. Get full access free, forever. Help shape the product. $3.99/month for everyone else &mdash; includes TL;DR summaries.</p>
+            <p class="pricing-card__description">Be one of the first {{foundingMemberLimit}} users. Get full access free, forever. Help shape the product. $3.99/month for everyone else &mdash; includes TL;DR summaries.</p>
             <ul class="pricing-card__features">
               <li class="pricing-card__feature">Save unlimited articles</li>
               <li class="pricing-card__feature">Firefox and Chrome extensions</li>

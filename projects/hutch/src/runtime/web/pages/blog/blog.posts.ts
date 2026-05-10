@@ -4,6 +4,8 @@ import { join, basename } from "node:path";
 import { z } from "zod";
 import matter from "gray-matter";
 import MarkdownIt from "markdown-it";
+import { render } from "../../render";
+import { FOUNDING_MEMBER_LIMIT } from "../../shared/founding-progress/founding-allocation";
 
 const md = new MarkdownIt({ html: true });
 
@@ -48,10 +50,11 @@ const posts: BlogPost[] = files
 			`Slug "${frontmatter.slug}" in ${file} does not match filename "${expectedSlug}"`,
 		);
 
+		const substituted = render(content, { foundingMemberLimit: FOUNDING_MEMBER_LIMIT });
 		return {
 			...frontmatter,
-			htmlContent: md.render(content),
-			markdownContent: content,
+			htmlContent: md.render(substituted),
+			markdownContent: substituted,
 			formattedDate: formatDate(frontmatter.date),
 		};
 	})
