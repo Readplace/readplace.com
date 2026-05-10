@@ -409,6 +409,9 @@ importers:
       '@packages/hutch-storage-client':
         specifier: workspace:*
         version: link:../../src/packages/hutch-storage-client
+      '@packages/test-fixtures':
+        specifier: workspace:*
+        version: link:../../src/packages/test-fixtures
       '@types/parse-srcset':
         specifier: 1.0.0
         version: 1.0.0

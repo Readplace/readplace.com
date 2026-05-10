@@ -1,9 +1,11 @@
 import { noopLogger } from "@packages/hutch-logger";
+import type { CrawlFetch } from "@packages/crawl-article";
 import { initDownloadMedia } from "./download-media";
 import type { PutImageObject } from "./s3-put-image-object";
 import { ArticleResourceUniqueId } from "./article-resource-unique-id";
 
-const articleResourceUniqueId = ArticleResourceUniqueId.parse("https://example.com/article");
+const ARTICLE_URL = "https://example.com/article";
+const articleResourceUniqueId = ArticleResourceUniqueId.parse(ARTICLE_URL);
 
 function createPngResponse(): Response {
 	const pixel = Buffer.from(
@@ -26,11 +28,12 @@ function createOversizedResponse(): Response {
 function createDownloadMedia(overrides?: { putImageObject?: PutImageObject; fetch?: jest.Mock }) {
 	const putImageObject: PutImageObject = overrides?.putImageObject ?? jest.fn().mockResolvedValue(undefined);
 	const fakeFetch = overrides?.fetch ?? jest.fn().mockImplementation(() => Promise.resolve(createPngResponse()));
+	const crawlFetch: CrawlFetch = (url, init) => fakeFetch(url, init);
 
 	const downloadMedia = initDownloadMedia({
 		putImageObject,
 		logger: noopLogger,
-		fetch: fakeFetch,
+		crawlFetch,
 		imagesCdnBaseUrl: "https://d123.cloudfront.net",
 	});
 
@@ -38,11 +41,26 @@ function createDownloadMedia(overrides?: { putImageObject?: PutImageObject; fetc
 }
 
 describe("initDownloadMedia", () => {
+	it("sends the article URL as Referer so hotlink-protected origins serve the image", async () => {
+		const { downloadMedia, fakeFetch } = createDownloadMedia();
+
+		await downloadMedia({
+			html: '<img src="https://hotlinkprotected.example/photo.png">',
+			articleUrl: "https://hotlinkprotected.example/post",
+			articleResourceUniqueId,
+		});
+
+		expect(fakeFetch).toHaveBeenCalledTimes(1);
+		const init = fakeFetch.mock.calls[0][1];
+		expect(init.referer).toBe("https://hotlinkprotected.example/post");
+	});
+
 	it("downloads image and returns mapping with CDN URL", async () => {
 		const { downloadMedia, putImageObject } = createDownloadMedia();
 
 		const media = await downloadMedia({
 			html: '<p><img src="https://example.com/photo.png"></p>',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -64,6 +82,7 @@ describe("initDownloadMedia", () => {
 
 		await downloadMedia({
 			html: '<img src="https://example.com/photo.png">',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId: nestedArticle,
 		});
 
@@ -80,6 +99,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img src="https://example.com/photo.png">',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId: nestedArticle,
 		});
 
@@ -91,6 +111,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img srcset="https://example.com/small.png 300w, https://example.com/large.png 600w">',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -104,6 +125,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img srcset="https://cdn.example.com/image/fetch/w_424,c_limit,f_webp,q_auto:good/photo.png 424w, https://cdn.example.com/image/fetch/w_848,c_limit,f_webp,q_auto:good/photo.png 848w">',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -126,6 +148,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img src="https://example.com/photo.png"><img srcset="https://example.com/p/w_424 424w">',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -138,6 +161,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img src="https://example.com/photo.png" srcset="https://example.com/photo.png 1x">',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -151,6 +175,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<p><img src="https://example.com/broken.png"></p>',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -164,6 +189,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<p><img src="https://example.com/huge.jpg"></p>',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -176,6 +202,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img src="https://example.com/photo.png"><img src="https://example.com/photo.png">',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -193,6 +220,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: imgs,
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -205,6 +233,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img src="data:image/png;base64,iVBORw0KGgo=">',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -217,6 +246,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: "<p>Plain text article</p>",
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -230,6 +260,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img src="https://example.com/photo.png">',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -247,6 +278,7 @@ describe("initDownloadMedia", () => {
 
 		await downloadMedia({
 			html: '<img src="https://example.com/unknown">',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -266,6 +298,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img src="https://example.com/huge-no-header.jpg">',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -281,6 +314,7 @@ describe("initDownloadMedia", () => {
 
 		const media = await downloadMedia({
 			html: '<img src="https://example.com/missing.png">',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -299,6 +333,7 @@ describe("initDownloadMedia", () => {
 
 		await downloadMedia({
 			html: '<img src="https://example.com/photo.tiff">',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 
@@ -318,6 +353,7 @@ describe("initDownloadMedia", () => {
 
 		await downloadMedia({
 			html: '<img src="https://example.com/image">',
+			articleUrl: ARTICLE_URL,
 			articleResourceUniqueId,
 		});
 

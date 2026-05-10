@@ -32,6 +32,7 @@ import type {
 import { initInMemoryLinkSaved } from "./providers/events/in-memory-link-saved";
 import { initInMemoryRecrawlLinkInitiated } from "./providers/events/in-memory-recrawl-link-initiated";
 import { initInMemorySaveAnonymousLink } from "./providers/events/in-memory-save-anonymous-link";
+import { initInMemoryStaleCheckRequested } from "./providers/events/in-memory-stale-check-requested";
 import { initInMemoryUpdateFetchTimestamp } from "./providers/events/in-memory-update-fetch-timestamp";
 import type { PublishLinkSaved } from "./providers/events/publish-link-saved.types";
 import type { PublishRecrawlLinkInitiated } from "./providers/events/publish-recrawl-link-initiated.types";
@@ -269,6 +270,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 			publishSaveLinkRawHtmlCommand,
+			publishStaleCheckRequested: initInMemoryStaleCheckRequested({ logger: noopLogger }).publishStaleCheckRequested,
 			publishUpdateFetchTimestamp: createInMemoryPublishUpdateFetchTimestamp(),
 			publishExportUserDataCommand,
 		},

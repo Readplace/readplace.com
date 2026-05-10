@@ -7,6 +7,7 @@ import type { ParseArticle } from "@packages/test-fixtures/providers/article-par
 import type { PublishLinkSaved } from "@packages/test-fixtures/providers/events";
 import type { PublishRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
 import type { PublishSaveAnonymousLink } from "@packages/test-fixtures/providers/events";
+import type { PublishStaleCheckRequested } from "@packages/test-fixtures/providers/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/test-fixtures/providers/events";
 import type { PublishUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
 import type { PutPendingHtml } from "@packages/test-fixtures/providers/pending-html";
@@ -154,6 +155,7 @@ export interface EventsBundle {
 	publishLinkSaved: PublishLinkSaved;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
+	publishStaleCheckRequested: PublishStaleCheckRequested;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	publishExportUserDataCommand: PublishExportUserDataCommand;
@@ -298,6 +300,7 @@ function flattenFixtureToAppDependencies(
 		publishLinkSaved: fixture.events.publishLinkSaved,
 		publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
 		publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
+		publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 		publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 		publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 		publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,

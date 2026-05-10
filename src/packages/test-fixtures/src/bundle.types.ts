@@ -11,6 +11,7 @@ import type {
 	PublishRecrawlLinkInitiated,
 	PublishSaveAnonymousLink,
 	PublishSaveLinkRawHtmlCommand,
+	PublishStaleCheckRequested,
 	PublishUpdateFetchTimestamp,
 	PublishExportUserDataCommand,
 } from "./providers/events";
@@ -160,6 +161,7 @@ export interface EventsBundle {
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
+	publishStaleCheckRequested: PublishStaleCheckRequested;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	publishExportUserDataCommand: PublishExportUserDataCommand;
 }

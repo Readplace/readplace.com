@@ -14,7 +14,7 @@ import {
 } from '@packages/test-fixtures'
 import { requireEnv } from '../runtime/require-env'
 import { initRefreshArticleIfStale } from '@packages/test-fixtures/providers/article-freshness'
-import { DEFAULT_CRAWL_HEADERS, initCrawlArticle } from '@packages/crawl-article'
+import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch } from '@packages/crawl-article'
 import { theInformationPreParser } from '@packages/test-fixtures/providers/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
 import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/providers/events'
@@ -30,7 +30,8 @@ const origin = `http://127.0.0.1:${PORT}`
 const logger = HutchLogger.from(consoleLogger)
 
 const logError = (message: string, error?: Error) => console.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }))
-const crawlArticle = initCrawlArticle({ fetch: globalThis.fetch, logError, headers: { ...DEFAULT_CRAWL_HEADERS } })
+const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, defaultHeaders: { ...DEFAULT_CRAWL_HEADERS } })
+const crawlArticle = initCrawlArticle({ crawlFetch, logError })
 const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, sitePreParsers: [theInformationPreParser], logError })
 
 const fixture = createDefaultTestAppFixture(origin)
@@ -78,6 +79,7 @@ const { app: hutchApp, auth, email } = createTestApp({
     publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
     publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
     publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+    publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
     publishUpdateFetchTimestamp,
     publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
   },

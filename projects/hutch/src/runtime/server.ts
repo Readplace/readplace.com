@@ -55,6 +55,7 @@ import type {
 import type { PublishLinkSaved } from "@packages/test-fixtures/providers/events";
 import type { PublishRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
 import type { PublishSaveAnonymousLink } from "@packages/test-fixtures/providers/events";
+import type { PublishStaleCheckRequested } from "@packages/test-fixtures/providers/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/test-fixtures/providers/events";
 import type { PublishExportUserDataCommand } from "@packages/test-fixtures/providers/events";
 import type { PutPendingHtml } from "@packages/test-fixtures/providers/pending-html";
@@ -143,6 +144,7 @@ interface AppDependencies {
 	publishLinkSaved: PublishLinkSaved;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
+	publishStaleCheckRequested: PublishStaleCheckRequested;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishExportUserDataCommand: PublishExportUserDataCommand;
 	findEmailByUserId: FindEmailByUserId;
@@ -492,9 +494,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		markSummaryPending: deps.markSummaryPending,
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
 		markCrawlPending: deps.markCrawlPending,
-		refreshArticleIfStale: deps.refreshArticleIfStale,
 		saveArticleGlobally: deps.saveArticleGlobally,
 		publishSaveAnonymousLink: deps.publishSaveAnonymousLink,
+		publishStaleCheckRequested: deps.publishStaleCheckRequested,
 		now: deps.now,
 	});
 	app.use("/view", viewRouter);

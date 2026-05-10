@@ -16,12 +16,14 @@ import type {
 	FindArticleCrawlStatus,
 	MarkCrawlPending,
 } from "@packages/test-fixtures/providers/article-crawl";
-import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 import type {
 	FindGeneratedSummary,
 	MarkSummaryPending,
 } from "@packages/test-fixtures/providers/article-summary";
-import type { PublishSaveAnonymousLink } from "@packages/test-fixtures/providers/events";
+import type {
+	PublishSaveAnonymousLink,
+	PublishStaleCheckRequested,
+} from "@packages/test-fixtures/providers/events";
 import { wantsMarkdown } from "../../content-negotiation";
 import { htmlToMarkdown } from "../../html-to-markdown";
 import { buildMarkdownFrontmatter } from "../../markdown-frontmatter";
@@ -45,9 +47,9 @@ interface ViewDependencies {
 	markSummaryPending: MarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
-	refreshArticleIfStale: RefreshArticleIfStale;
 	saveArticleGlobally: SaveArticleGlobally;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
+	publishStaleCheckRequested: PublishStaleCheckRequested;
 	now: () => Date;
 }
 
@@ -101,9 +103,12 @@ function handleViewArticle(deps: ViewDependencies) {
 		}
 		const articleUrl = parsedUrl.data;
 
-		const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
-
-		if (freshness.action === "new") {
+		// Freshness/conditional-GET is delegated to the stale-check Lambda so
+		// /view never blocks on a remote crawl (Medium-hosted articles can take
+		// 5-30s). On first visit we still write a stub synchronously so the page
+		// has metadata to render and the existing summary/reader pollers see a row.
+		const existing = await deps.findArticleByUrl(articleUrl);
+		if (!existing) {
 			const hostname = hostnameFrom(articleUrl);
 			await deps.saveArticleGlobally({
 				url: articleUrl,
@@ -119,12 +124,7 @@ function handleViewArticle(deps: ViewDependencies) {
 			await deps.markSummaryPending({ url: articleUrl });
 			await deps.publishSaveAnonymousLink({ url: articleUrl });
 		}
-
-		if (freshness.action === "reprime") {
-			await deps.markCrawlPending({ url: articleUrl });
-			await deps.markSummaryPending({ url: articleUrl });
-			await deps.publishSaveAnonymousLink({ url: articleUrl });
-		}
+		await deps.publishStaleCheckRequested({ url: articleUrl });
 
 		// Re-read metadata after any first-visit save. In production this returns
 		// the stub we just wrote (the worker is async); in tests where the

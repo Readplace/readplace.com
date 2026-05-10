@@ -61,6 +61,18 @@ export type SaveAnonymousLinkDetail = z.infer<
 	typeof SaveAnonymousLinkCommand.detailSchema
 >;
 
+export const StaleCheckRequestedEvent = defineEvent({
+	name: "stale-check-requested",
+	source: "hutch.api",
+	detailType: "StaleCheckRequested",
+	detailSchema: z.object({
+		url: z.string(),
+	}),
+});
+export type StaleCheckRequestedDetail = z.infer<
+	typeof StaleCheckRequestedEvent.detailSchema
+>;
+
 export const LinkSavedEvent = defineEvent({
 	name: "link-saved",
 	source: "hutch.save-link",

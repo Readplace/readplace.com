@@ -73,8 +73,31 @@ jobs:
           # Full history needed for nx affected to compare commits
           fetch-depth: 0
 
-      # Sets NX_BASE and NX_HEAD so nx affected knows what commits to compare
-      - uses: nrwl/nx-set-shas@v4
+      # NX_BASE / NX_HEAD anchor the `nx affected` diff. We deliberately set
+      # them to this push's exact range (`github.event.before`..`github.sha`)
+      # instead of using `nrwl/nx-set-shas`, which defaults to "last successful
+      # workflow run" as NX_BASE.
+      #
+      # Why: the extension publish workflows (`publish-chrome-extension.yml`,
+      # `submit-ff-extension-for-signing.yml`) commit version bumps to
+      # `chrome-extension`/`firefox-extension` package.json + manifest.json
+      # directly on main with GITHUB_TOKEN. GitHub deliberately does NOT
+      # trigger workflows for GITHUB_TOKEN-pushed commits, so those bumps
+      # have no CI run associated with them. With nx-set-shas, the next
+      # human push's NX_BASE skips back past every bot bump to the previous
+      # human commit's CI — which puts every bot bump back into the diff,
+      # makes `nx affected --target=compile` flag the extensions, and the
+      # publish gate below republishes them, committing more bumps. A loop.
+      #
+      # Using `github.event.before` gives the diff of *just this push*,
+      # regardless of bot commits in between. Bot pushes still don't trigger
+      # CI, so they invisibly accumulate in NX_BASE on the next human push.
+      # If the push is hutch-only and Phase 3 has decoupled the graph, the
+      # extension publish gate stays false and the loop terminates.
+      - name: Set NX_BASE / NX_HEAD to this push's exact range
+        run: |
+          echo "NX_BASE=${{ github.event.before }}" >> "$GITHUB_ENV"
+          echo "NX_HEAD=${{ github.sha }}" >> "$GITHUB_ENV"
 
       - uses: pnpm/action-setup@v4
         with:

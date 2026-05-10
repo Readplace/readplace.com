@@ -7,7 +7,7 @@ import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
-import { DEFAULT_CRAWL_HEADERS, initCrawlArticle } from "@packages/crawl-article";
+import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
 import { initReadabilityParser } from "@packages/test-fixtures/providers/article-parser";
 import { theInformationPreParser } from "@packages/test-fixtures/providers/article-parser";
 import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
@@ -33,6 +33,7 @@ import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-inf
 import { initEventBridgeLinkSaved } from "./providers/events/eventbridge-link-saved";
 import { initEventBridgeRecrawlLinkInitiated } from "./providers/events/eventbridge-recrawl-link-initiated";
 import { initEventBridgeSaveAnonymousLink } from "./providers/events/eventbridge-save-anonymous-link";
+import { initEventBridgeStaleCheckRequested } from "./providers/events/eventbridge-stale-check-requested";
 import { initEventBridgeSaveLinkRawHtmlCommand } from "./providers/events/eventbridge-save-link-raw-html-command";
 import { initEventBridgeRefreshArticleContent } from "./providers/events/eventbridge-refresh-article-content";
 import { initEventBridgeUpdateFetchTimestamp } from "./providers/events/eventbridge-update-fetch-timestamp";
@@ -41,6 +42,7 @@ import { initInMemoryExportUserDataCommand } from "@packages/test-fixtures/provi
 import { initInMemoryLinkSaved } from "@packages/test-fixtures/providers/events";
 import { initInMemoryRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
 import { initInMemorySaveAnonymousLink } from "@packages/test-fixtures/providers/events";
+import { initInMemoryStaleCheckRequested } from "@packages/test-fixtures/providers/events";
 import { initInMemorySaveLinkRawHtmlCommand } from "@packages/test-fixtures/providers/events";
 import { initInMemoryRefreshArticleContent } from "@packages/test-fixtures/providers/events";
 import { initInMemoryUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
@@ -64,7 +66,8 @@ function initProviders() {
 	const persistence = requireEnv<"prod" | "development">("PERSISTENCE");
 	const logError = (message: string, error?: Error) => console.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
 
-	const crawlArticle = initCrawlArticle({ fetch: globalThis.fetch, logError, headers: { ...DEFAULT_CRAWL_HEADERS } });
+	const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, defaultHeaders: { ...DEFAULT_CRAWL_HEADERS } });
+	const crawlArticle = initCrawlArticle({ crawlFetch, logError });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
 		sitePreParsers: [theInformationPreParser],
@@ -113,6 +116,7 @@ function initProviders() {
 		const { publishLinkSaved } = initEventBridgeLinkSaved({ publishEvent });
 		const { publishRecrawlLinkInitiated } = initEventBridgeRecrawlLinkInitiated({ publishEvent });
 		const { publishSaveAnonymousLink } = initEventBridgeSaveAnonymousLink({ publishEvent });
+		const { publishStaleCheckRequested } = initEventBridgeStaleCheckRequested({ publishEvent });
 		const { publishSaveLinkRawHtmlCommand } = initEventBridgeSaveLinkRawHtmlCommand({ publishEvent });
 		const { publishRefreshArticleContent } = initEventBridgeRefreshArticleContent({ publishEvent });
 		const { publishUpdateFetchTimestamp } = initEventBridgeUpdateFetchTimestamp({ publishEvent });
@@ -168,6 +172,7 @@ function initProviders() {
 			publishLinkSaved,
 			publishRecrawlLinkInitiated,
 			publishSaveAnonymousLink,
+			publishStaleCheckRequested,
 			publishSaveLinkRawHtmlCommand,
 			publishUpdateFetchTimestamp,
 			publishExportUserDataCommand,
@@ -256,6 +261,7 @@ function initProviders() {
 	};
 	const { publishRefreshArticleContent } = initInMemoryRefreshArticleContent({ logger: consoleLogger });
 	const { publishUpdateFetchTimestamp } = initInMemoryUpdateFetchTimestamp({ logger: consoleLogger });
+	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
 	const { publishSaveLinkRawHtmlCommand } = initInMemorySaveLinkRawHtmlCommand({ logger: consoleLogger });
 	const { publishExportUserDataCommand } = initInMemoryExportUserDataCommand({ logger: consoleLogger });
 	const { putPendingHtml } = initInMemoryPendingHtml();
@@ -297,6 +303,7 @@ function initProviders() {
 		publishLinkSaved,
 		publishRecrawlLinkInitiated,
 		publishSaveAnonymousLink,
+		publishStaleCheckRequested,
 		publishSaveLinkRawHtmlCommand,
 		publishUpdateFetchTimestamp,
 		publishExportUserDataCommand,

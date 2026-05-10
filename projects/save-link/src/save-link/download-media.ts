@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { parseHTML } from "linkedom";
 import parseSrcset from "parse-srcset";
+import type { CrawlFetch } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { ArticleResourceUniqueId } from "./article-resource-unique-id";
 import type { PutImageObject } from "./s3-put-image-object";
@@ -14,18 +15,19 @@ export type DownloadedMedia = { originalUrl: string; cdnUrl: string };
 
 export type DownloadMedia = (params: {
 	html: string;
+	articleUrl: string;
 	articleResourceUniqueId: ArticleResourceUniqueId;
 }) => Promise<DownloadedMedia[]>;
 
 export function initDownloadMedia(deps: {
 	putImageObject: PutImageObject;
 	logger: HutchLogger;
-	fetch: typeof globalThis.fetch;
+	crawlFetch: CrawlFetch;
 	imagesCdnBaseUrl: string;
 }): DownloadMedia {
-	const { putImageObject, logger, fetch: fetchFn, imagesCdnBaseUrl } = deps;
+	const { putImageObject, logger, crawlFetch, imagesCdnBaseUrl } = deps;
 
-	return async ({ html, articleResourceUniqueId }) => {
+	return async ({ html, articleUrl, articleResourceUniqueId }) => {
 		const results: DownloadedMedia[] = [];
 
 		const imageUrls = extractImageUrls(html);
@@ -36,7 +38,7 @@ export function initDownloadMedia(deps: {
 			const batch = uniqueUrls.slice(i, i + CONCURRENCY);
 			await Promise.all(batch.map(async (originalUrl) => {
 				try {
-					const downloaded = await downloadImage(fetchFn, originalUrl);
+					const downloaded = await downloadImage({ crawlFetch, url: originalUrl, referer: articleUrl });
 					if (!downloaded) return;
 
 					const hash = createHash("sha256").update(originalUrl).digest("hex").slice(0, 16);
@@ -80,12 +82,16 @@ function extractImageUrls(html: string): string[] {
 	return urls;
 }
 
-async function downloadImage(
-	fetchFn: typeof globalThis.fetch,
-	url: string,
-): Promise<{ body: Buffer; contentType: string } | undefined> {
-	const response = await fetchFn(url, {
+async function downloadImage(args: {
+	crawlFetch: CrawlFetch;
+	url: string;
+	referer: string;
+}): Promise<{ body: Buffer; contentType: string } | undefined> {
+	const { crawlFetch, url, referer } = args;
+	const response = await crawlFetch(url, {
 		signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+		headers: { accept: "image/*,*/*;q=0.8" },
+		referer,
 	});
 
 	if (!response.ok) return undefined;

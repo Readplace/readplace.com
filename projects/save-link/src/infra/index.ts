@@ -15,6 +15,7 @@ import {
 	SaveLinkRawHtmlCommand,
 	LinkSavedEvent,
 	AnonymousLinkSavedEvent,
+	StaleCheckRequestedEvent,
 	SummaryGeneratedEvent,
 	SummaryGenerationFailedEvent,
 	RefreshArticleContentCommand,
@@ -94,6 +95,10 @@ const summaryGenerationFailedQueue = new HutchSQS("summary-generation-failed", {
 });
 
 const recrawlLinkInitiatedQueue = new HutchSQS("recrawl-link-initiated", {
+	visibilityTimeoutSeconds: 60,
+});
+
+const staleCheckRequestedQueue = new HutchSQS("stale-check-requested", {
 	visibilityTimeoutSeconds: 60,
 });
 
@@ -246,6 +251,45 @@ new HutchDLQEventHandler("save-anonymous-link-dlq", {
 	tableName: articlesTableName,
 	eventBus,
 });
+
+// --- StaleCheckRequested handler ---
+// Background worker that runs the freshness/conditional-GET path that used to
+// happen inline on /view. Reads freshness + crawl status from DDB; on a stale
+// row publishes RefreshArticleContent (200) or UpdateFetchTimestamp (304); on
+// a failed/missing crawl status republishes SaveAnonymousLinkCommand to redrive
+// the crawl pipeline. No DLQ row-mutator is wired: a stale-check failure must
+// not flip the article to crawlStatus='failed' — the row already has whatever
+// state the upstream pipeline produced, and the user can still read it.
+
+const staleCheckRequestedDynamodb = new HutchDynamoDBAccess("stale-check-requested-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem"],
+});
+
+const staleCheckRequestedLambda = new HutchLambda("stale-check-requested", {
+	entryPoint: "./src/runtime/stale-check.main.ts",
+	outputDir: ".lib/stale-check-requested",
+	assetDir: "./src",
+	memorySize: 256,
+	timeout: 30,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [
+		...staleCheckRequestedDynamodb.policies,
+	],
+});
+
+eventBus.grantPublish(staleCheckRequestedLambda);
+
+const staleCheckRequestedLambdaWithSQS = new HutchSQSBackedLambda("stale-check-requested", {
+	lambda: staleCheckRequestedLambda,
+	queue: staleCheckRequestedQueue,
+	alertEmailDLQEntry: alertEmail,
+});
+
+eventBus.subscribe(StaleCheckRequestedEvent, staleCheckRequestedLambdaWithSQS);
 
 // --- SelectMostCompleteContent handler ---
 // Subscribes to TierContentExtractedEvent emitted by the three save-link
@@ -644,5 +688,7 @@ export const recrawlLinkInitiatedQueueUrl = recrawlLinkInitiatedQueue.queueUrl;
 export const recrawlLinkInitiatedDlqUrl = recrawlLinkInitiatedQueue.dlqUrl;
 export const recrawlContentExtractedQueueUrl = recrawlContentExtractedQueue.queueUrl;
 export const recrawlContentExtractedDlqUrl = recrawlContentExtractedQueue.dlqUrl;
+export const staleCheckRequestedQueueUrl = staleCheckRequestedQueue.queueUrl;
+export const staleCheckRequestedDlqUrl = staleCheckRequestedQueue.dlqUrl;
 export const contentBucketOutputName = contentBucket.bucket;
 export const contentBucketOutputArn = contentBucket.arn;

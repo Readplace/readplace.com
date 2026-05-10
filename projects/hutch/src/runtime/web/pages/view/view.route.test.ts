@@ -69,6 +69,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -105,6 +106,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -138,6 +140,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -173,6 +176,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -209,6 +213,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -247,6 +252,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -288,6 +294,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -330,6 +337,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -375,6 +383,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -418,6 +427,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -457,6 +467,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -489,6 +500,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -523,6 +535,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -556,6 +569,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -589,6 +603,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -630,6 +645,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -662,6 +678,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -706,6 +723,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -751,6 +769,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -796,6 +815,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -845,6 +865,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -894,6 +915,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -1059,6 +1081,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -1122,6 +1145,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -1159,6 +1183,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -1193,6 +1218,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -1332,6 +1358,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -1355,6 +1382,7 @@ describe("View routes", () => {
 				async (_url: string): Promise<ParseArticleResult> => buildParseResult(),
 			);
 			const parseArticle = parseSpy;
+			const publishStaleCheckRequested = jest.fn(async () => {});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
@@ -1372,10 +1400,10 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
-				freshness: { refreshArticleIfStale: async () => ({ action: "skip" }) },
 			});
 			await articleStore.saveArticle({
 				userId: UserIdSchema.parse("seed-user"),
@@ -1406,9 +1434,12 @@ describe("View routes", () => {
 			expect(
 				doc.querySelector("[data-test-reader-content]")?.innerHTML.trim(),
 			).toBe("<p>Cached body.</p>");
+			// Background freshness check is always requested — the stale-check
+			// Lambda decides whether to refresh, /view never blocks on it.
+			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: ARTICLE_URL });
 		});
 
-		it("re-crawls a previously failed article on view, rendering the failed state when the retry also fails", async () => {
+		it("renders the cached failed state immediately and requests a background stale-check (no inline re-crawl)", async () => {
 			const parseSpy = jest.fn(
 				async (_url: string): Promise<ParseArticleResult> => ({
 					ok: false,
@@ -1416,6 +1447,7 @@ describe("View routes", () => {
 				}),
 			);
 			const parseArticle = parseSpy;
+			const publishStaleCheckRequested = jest.fn(async () => {});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
@@ -1433,10 +1465,10 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
-				freshness: { refreshArticleIfStale: async () => ({ action: "reprime" }) },
 			});
 			await articleStore.saveArticle({
 				userId: UserIdSchema.parse("seed-user"),
@@ -1454,7 +1486,8 @@ describe("View routes", () => {
 			const response = await request(app).get(`/view/${ENCODED}`);
 
 			expect(response.status).toBe(200);
-			expect(parseSpy).toHaveBeenCalled();
+			// /view never re-parses inline; recovery happens in the stale-check Lambda.
+			expect(parseSpy).not.toHaveBeenCalled();
 			const doc = new JSDOM(response.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, "reader slot must be rendered");
@@ -1462,6 +1495,7 @@ describe("View routes", () => {
 			expect(
 				doc.querySelector('meta[property="og:title"]')?.getAttribute("content"),
 			).toBe("Cached Only Title | Reader View");
+			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: ARTICLE_URL });
 		});
 	});
 
@@ -1486,6 +1520,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: publishSaveAnonymousLink,
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -1524,6 +1559,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: publishSaveAnonymousLink,
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -1542,9 +1578,10 @@ describe("View routes", () => {
 			expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: ARTICLE_URL });
 		});
 
-		it("skips priming when the cached article has terminal crawl and summary state", async () => {
+		it("skips priming SaveAnonymousLinkCommand when the cached article already exists, but still requests a background stale-check", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const publishSaveAnonymousLink = jest.fn(async () => {});
+			const publishStaleCheckRequested = jest.fn(async () => {});
 			const findGeneratedSummary: FindGeneratedSummary = async () => ({
 				status: "ready",
 				summary: "Cached summary.",
@@ -1566,10 +1603,10 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: publishSaveAnonymousLink,
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
-				freshness: { refreshArticleIfStale: async () => ({ action: "skip" }) },
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
  	markSummaryPending: fixture.summary.markSummaryPending,
@@ -1592,15 +1629,17 @@ describe("View routes", () => {
 			await request(app).get(`/view/${ENCODED}`);
 
 			expect(publishSaveAnonymousLink).not.toHaveBeenCalled();
+			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: ARTICLE_URL });
 		});
 
-		it("re-primes the pipeline for a legacy stub (cached row with no crawl and no summary state)", async () => {
-			// refreshArticleIfStale returns "reprime" for legacy stubs (freshness
-			// exists but crawl status is undefined). The view handler then
-			// re-publishes SaveAnonymousLinkCommand so the worker populates the
-			// state-machine rows.
+		it("requests a background stale-check for a legacy stub (cached row with no crawl and no summary state)", async () => {
+			// The cached row exists, so the view layer's first-visit branch is
+			// skipped — recovery is the stale-check Lambda's job. /view publishes
+			// StaleCheckRequestedEvent and the Lambda inspects crawl status to
+			// decide whether to re-publish SaveAnonymousLinkCommand.
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const publishSaveAnonymousLink = jest.fn(async () => {});
+			const publishStaleCheckRequested = jest.fn(async () => {});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
@@ -1618,10 +1657,10 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: publishSaveAnonymousLink,
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
-				freshness: { refreshArticleIfStale: async () => ({ action: "reprime" }) },
 			});
 			await articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
@@ -1636,12 +1675,14 @@ describe("View routes", () => {
 
 			await request(app).get(`/view/${ENCODED}`);
 
-			expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: ARTICLE_URL });
+			expect(publishSaveAnonymousLink).not.toHaveBeenCalled();
+			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: ARTICLE_URL });
 		});
 
-		it("re-primes the pipeline for a cached article with a failed crawl status", async () => {
+		it("requests a background stale-check for a cached article with a failed crawl status", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const publishSaveAnonymousLink = jest.fn(async () => {});
+			const publishStaleCheckRequested = jest.fn(async () => {});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
 				articleStore: fixture.articleStore,
@@ -1659,10 +1700,10 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: publishSaveAnonymousLink,
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
-				freshness: { refreshArticleIfStale: async () => ({ action: "reprime" }) },
 			});
 			await articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
@@ -1678,7 +1719,8 @@ describe("View routes", () => {
 
 			await request(app).get(`/view/${ENCODED}`);
 
-			expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: ARTICLE_URL });
+			expect(publishSaveAnonymousLink).not.toHaveBeenCalled();
+			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: ARTICLE_URL });
 		});
 
 		it("primes the async crawl pipeline regardless of eventual parse outcome (worker owns failure handling)", async () => {
@@ -1701,6 +1743,7 @@ describe("View routes", () => {
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 					publishSaveAnonymousLink: publishSaveAnonymousLink,
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
@@ -1739,6 +1782,7 @@ describe("View routes", () => {
 					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 				},
 			});
 

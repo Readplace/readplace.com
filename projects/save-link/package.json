@@ -45,6 +45,7 @@
     "@packages/hutch-infra-components": "workspace:*",
     "@packages/hutch-logger": "workspace:*",
     "@packages/hutch-storage-client": "workspace:*",
+    "@packages/test-fixtures": "workspace:*",
     "@types/parse-srcset": "1.0.0",
     "linkedom": "0.18.12",
     "openai": "6.33.0",

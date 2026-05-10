@@ -2,7 +2,7 @@
   "name": "hutch",
   "targets": {
     "install-deps": {
-      "command": "pnpm install --frozen-lockfile",
+      "command": "test -d projects/hutch/node_modules || pnpm install --frozen-lockfile",
       "options": { "cwd": "{workspaceRoot}" },
       "cache": false
     },
