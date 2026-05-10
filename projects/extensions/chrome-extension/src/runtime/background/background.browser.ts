@@ -1,4 +1,5 @@
 /* c8 ignore start -- composition root, all browser API glue, tested via Selenium E2E */
+// (test 3/4 probe: chrome-only edit must publish chrome but skip firefox)
 import browser from "webextension-polyfill";
 import {
 	BrowserExtensionCore,
