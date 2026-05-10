@@ -8,7 +8,6 @@ export default {
 	ignore: [
 		...(base.ignore ?? []),
 		// CLI scripts (not entry points)
-		"scripts/bump-version.js",
 		"scripts/sync-signed-extension.js",
 		"scripts/submit-to-amo.js",
 		// PurgeCSS config loaded via CLI, not imported in source

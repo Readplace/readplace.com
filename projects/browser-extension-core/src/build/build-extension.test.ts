@@ -6,11 +6,11 @@ describe("createBuildPlan", () => {
 	const projectDir = "/projects/firefox-extension";
 	const corePackageJsonPath = "/projects/browser-extension-core/package.json";
 
-	function createBuildPlan(input: { config: { target: string }; projectDir: string; serverUrl: string; appDomains?: readonly string[] }) {
+	function createBuildPlan(input: { config: { target: string }; projectDir: string; serverUrl: string; version?: string; appDomains?: readonly string[] }) {
 		const { createBuildPlan } = initBuildExtension({
 			resolveCorePackageJson: () => corePackageJsonPath,
 		});
-		return createBuildPlan({ ...input, appDomains: input.appDomains ?? [] });
+		return createBuildPlan({ ...input, version: input.version ?? "1.2.3", appDomains: input.appDomains ?? [] });
 	}
 
 	it("sets esbuild target from config", () => {
@@ -147,6 +147,7 @@ describe("createBuildPlan", () => {
 				config: { target: "firefox91" },
 				projectDir,
 				serverUrl: "",
+				version: "1.2.3",
 				appDomains: [],
 			}),
 		).toThrow("HUTCH_SERVER_URL");
@@ -162,9 +163,42 @@ describe("createBuildPlan", () => {
 				config: { target: "firefox91" },
 				projectDir,
 				serverUrl: undefined,
+				version: "1.2.3",
 				appDomains: [],
 			}),
 		).toThrow("HUTCH_SERVER_URL");
+	});
+
+	it("throws when version is empty", () => {
+		const { createBuildPlan } = initBuildExtension({
+			resolveCorePackageJson: () => corePackageJsonPath,
+		});
+
+		expect(() =>
+			createBuildPlan({
+				config: { target: "firefox91" },
+				projectDir,
+				serverUrl: "https://readplace.com",
+				version: "",
+				appDomains: [],
+			}),
+		).toThrow("EXTENSION_VERSION");
+	});
+
+	it("throws when version is undefined", () => {
+		const { createBuildPlan } = initBuildExtension({
+			resolveCorePackageJson: () => corePackageJsonPath,
+		});
+
+		expect(() =>
+			createBuildPlan({
+				config: { target: "firefox91" },
+				projectDir,
+				serverUrl: "https://readplace.com",
+				version: undefined,
+				appDomains: [],
+			}),
+		).toThrow("EXTENSION_VERSION");
 	});
 });
 
@@ -175,6 +209,7 @@ describe("initBuildExtension defaults", () => {
 			config: { target: "firefox91" },
 			projectDir: "/test",
 			serverUrl: "https://example.com",
+			version: "1.2.3",
 			appDomains: [],
 		});
 
@@ -189,7 +224,7 @@ describe("plan.buildExtension", () => {
 		const writtenFiles: Map<string, string> = new Map();
 		let esbuildCallCount = 0;
 		let lastEsbuildOptions: { target: string } | null = null;
-		let manifestContent = JSON.stringify({ host_permissions: ["https://readplace.com/*"], permissions: ["activeTab"] });
+		let manifestContent = JSON.stringify({ version: "0.0.0-managed-by-tag", host_permissions: ["https://readplace.com/*"], permissions: ["activeTab"] });
 
 		const deps = {
 			esbuild: async (options: { target: string }) => {
@@ -227,6 +262,7 @@ describe("plan.buildExtension", () => {
 			config: { target: "firefox91" },
 			projectDir: "/projects/firefox-extension",
 			serverUrl: "https://readplace.com",
+			version: "1.2.3",
 			appDomains: [],
 		});
 
@@ -243,6 +279,7 @@ describe("plan.buildExtension", () => {
 			config: { target: "chrome109" },
 			projectDir: "/projects/chrome-extension",
 			serverUrl: "https://readplace.com",
+			version: "1.2.3",
 			appDomains: [],
 		});
 
@@ -259,6 +296,7 @@ describe("plan.buildExtension", () => {
 			config: { target: "firefox91" },
 			projectDir: "/projects/firefox-extension",
 			serverUrl: "https://readplace.com",
+			version: "1.2.3",
 			appDomains: [],
 		});
 
@@ -275,6 +313,7 @@ describe("plan.buildExtension", () => {
 			config: { target: "firefox91" },
 			projectDir: "/projects/firefox-extension",
 			serverUrl: "https://readplace.com",
+			version: "1.2.3",
 			appDomains: [],
 		});
 
@@ -289,12 +328,13 @@ describe("plan.buildExtension", () => {
 
 	it("adds localhost host_permissions for dev builds", async () => {
 		const { deps, writtenFiles, setManifestContent } = createInMemoryDeps();
-		setManifestContent(JSON.stringify({ host_permissions: ["https://readplace.com/*"] }));
+		setManifestContent(JSON.stringify({ version: "0.0.0-managed-by-tag", host_permissions: ["https://readplace.com/*"] }));
 		const { createBuildPlan } = initBuildExtension(deps);
 		const plan = createBuildPlan({
 			config: { target: "chrome109" },
 			projectDir: "/projects/chrome-extension",
 			serverUrl: "http://127.0.0.1:3000",
+			version: "1.2.3",
 			appDomains: [],
 		});
 
@@ -309,12 +349,13 @@ describe("plan.buildExtension", () => {
 
 	it("adds localhost to permissions for Firefox MV2 dev builds", async () => {
 		const { deps, writtenFiles, setManifestContent } = createInMemoryDeps();
-		setManifestContent(JSON.stringify({ permissions: ["activeTab", "tabs", "https://readplace.com/*"] }));
+		setManifestContent(JSON.stringify({ version: "0.0.0-managed-by-tag", permissions: ["activeTab", "tabs", "https://readplace.com/*"] }));
 		const { createBuildPlan } = initBuildExtension(deps);
 		const plan = createBuildPlan({
 			config: { target: "firefox91" },
 			projectDir: "/projects/firefox-extension",
 			serverUrl: "http://127.0.0.1:3000",
+			version: "1.2.3",
 			appDomains: [],
 		});
 
@@ -327,19 +368,45 @@ describe("plan.buildExtension", () => {
 		expect(manifest.permissions).toEqual(["activeTab", "tabs", "https://readplace.com/*", "http://127.0.0.1:3000/*"]);
 	});
 
-	it("does not modify manifest for production builds", async () => {
+	it("writes version into output manifest, overriding source placeholder", async () => {
 		const { deps, writtenFiles } = createInMemoryDeps();
 		const { createBuildPlan } = initBuildExtension(deps);
 		const plan = createBuildPlan({
 			config: { target: "chrome109" },
 			projectDir: "/projects/chrome-extension",
 			serverUrl: "https://readplace.com",
+			version: "1.2.3",
 			appDomains: [],
 		});
 
 		await plan.buildExtension();
 
-		expect(writtenFiles.size).toBe(0);
+		const manifestPath = join("/projects/chrome-extension", "dist-extension-compiled", "manifest.json");
+		const written = writtenFiles.get(manifestPath);
+		assert(written, `Expected manifest written at ${manifestPath}`);
+		const manifest = JSON.parse(written);
+		expect(manifest.version).toBe("1.2.3");
+	});
+
+	it("writes manifest with version even on production builds (no localhost permissions)", async () => {
+		const { deps, writtenFiles } = createInMemoryDeps();
+		const { createBuildPlan } = initBuildExtension(deps);
+		const plan = createBuildPlan({
+			config: { target: "chrome109" },
+			projectDir: "/projects/chrome-extension",
+			serverUrl: "https://readplace.com",
+			version: "1.2.3",
+			appDomains: [],
+		});
+
+		await plan.buildExtension();
+
+		const manifestPath = join("/projects/chrome-extension", "dist-extension-compiled", "manifest.json");
+		const written = writtenFiles.get(manifestPath);
+		assert(written, `Expected manifest written at ${manifestPath}`);
+		const manifest = JSON.parse(written);
+		expect(manifest.host_permissions).toEqual(["https://readplace.com/*"]);
+		expect(manifest.version).toBe("1.2.3");
 	});
 });
 
@@ -370,6 +437,7 @@ describe("plan.packExtension", () => {
 			config: { target: "firefox91" },
 			projectDir: "/projects/firefox-extension",
 			serverUrl: "https://readplace.com",
+			version: "1.2.3",
 			appDomains: [],
 			pack: (params) => {
 				packCalledWith = params;
@@ -392,6 +460,7 @@ describe("plan.packExtension", () => {
 			config: { target: "firefox91" },
 			projectDir: "/projects/firefox-extension",
 			serverUrl: "https://readplace.com",
+			version: "1.2.3",
 			appDomains: [],
 			pack: () => {},
 		});
@@ -411,6 +480,7 @@ describe("plan.packExtension", () => {
 			config: { target: "firefox91" },
 			projectDir: "/projects/firefox-extension",
 			serverUrl: "https://readplace.com",
+			version: "1.2.3",
 			appDomains: [],
 		});
 
