@@ -25,7 +25,7 @@ import type {
 	PublishStaleCheckRequested,
 } from "@packages/test-fixtures/providers/events";
 import { wantsMarkdown } from "../../content-negotiation";
-import { sendConditionalHtml } from "../../conditional-get";
+import { CacheableComponent } from "../../conditional-get";
 import { htmlToMarkdown } from "../../html-to-markdown";
 import { buildMarkdownFrontmatter } from "../../markdown-frontmatter";
 import { MarkdownPage } from "../../markdown-page";
@@ -219,7 +219,7 @@ function handleViewSummary(deps: ViewDependencies) {
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
 		});
-		sendConditionalHtml(req, res, component);
+		sendComponent(req, res, CacheableComponent(component, req));
 	};
 }
 
@@ -239,7 +239,7 @@ function handleViewReader(deps: ViewDependencies) {
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 		});
-		sendConditionalHtml(req, res, component);
+		sendComponent(req, res, CacheableComponent(component, req));
 	};
 }
 

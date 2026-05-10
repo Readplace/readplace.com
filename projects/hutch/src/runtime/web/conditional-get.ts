@@ -1,16 +1,8 @@
 import { createHash } from "node:crypto";
-import type { Component } from "./component.types";
+import type { Component, ParsedComponent } from "./component.types";
 
 export interface ConditionalGetRequest {
 	headers: Record<string, string | string[] | undefined>;
-}
-
-export interface ConditionalGetResponse {
-	setHeader(name: string, value: string | number | readonly string[]): unknown;
-	status(code: number): ConditionalGetResponse;
-	set(field: Record<string, string>): ConditionalGetResponse;
-	send(body: string): unknown;
-	end(): unknown;
 }
 
 /**
@@ -26,19 +18,24 @@ export interface ConditionalGetResponse {
  * 3. 304 leaves the previous body in place; htmx applies the cached response,
  *    which means OOB swaps run again on the same HTML — visibly idempotent.
  */
-export function sendConditionalHtml(
-	req: ConditionalGetRequest,
-	res: ConditionalGetResponse,
-	component: Component,
-): void {
-	const parsed = component.to("text/html");
-	const body = parsed.body;
-	const etag = `W/"${createHash("sha1").update(body).digest("base64")}"`; /* 1 */
-	res.setHeader("Cache-Control", "private, no-cache"); /* 2 */
-	res.setHeader("ETag", etag);
-	if (req.headers["if-none-match"] === etag) {
-		res.status(304).end(); /* 3 */
-		return;
-	}
-	res.status(parsed.statusCode).set(parsed.headers).send(body);
+export function CacheableComponent(inner: Component, req: ConditionalGetRequest): Component {
+	return {
+		to: (mediaType): ParsedComponent => {
+			const parsed = inner.to(mediaType);
+			if (mediaType !== "text/html") return parsed;
+
+			const etag = `W/"${createHash("sha1").update(parsed.body).digest("base64")}"`; /* 1 */
+			const headers = {
+				...parsed.headers,
+				"Cache-Control": "private, no-cache", /* 2 */
+				"ETag": etag,
+			};
+
+			if (req.headers["if-none-match"] === etag) { /* 3 */
+				return { statusCode: 304, headers, body: "" };
+			}
+
+			return { statusCode: parsed.statusCode, headers, body: parsed.body };
+		},
+	};
 }

@@ -45,7 +45,7 @@ import type { PutPendingHtml } from "@packages/test-fixtures/providers/pending-h
 import { saveArticleFromUrl, saveUnsaveableUrlStub } from "../../shared/save-article/save-article-from-url";
 import { renderPage } from "../../render-page";
 import { sendComponent } from "../../send-component";
-import { sendConditionalHtml } from "../../conditional-get";
+import { CacheableComponent } from "../../conditional-get";
 import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
@@ -505,7 +505,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderForId(article.id.value),
 		});
-		sendConditionalHtml(req, res, component);
+		sendComponent(req, res, CacheableComponent(component, req));
 	});
 
 	router.get("/:id/reader", async (req: Request, res: Response) => {
@@ -528,7 +528,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			pollUrlBuilder: pollUrlBuilderForId(article.id.value),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 		});
-		sendConditionalHtml(req, res, component);
+		sendComponent(req, res, CacheableComponent(component, req));
 	});
 
 	router.get("/:id/card", async (req: Request, res: Response) => {

@@ -1,49 +1,7 @@
-import type {
-	ConditionalGetRequest,
-	ConditionalGetResponse,
-} from "./conditional-get";
-import { sendConditionalHtml } from "./conditional-get";
+import type { ConditionalGetRequest } from "./conditional-get";
+import { CacheableComponent } from "./conditional-get";
 import { HtmlPage } from "./html-page";
 import type { Component } from "./component.types";
-
-interface FakeResponse {
-	statusCode: number;
-	headers: Record<string, string>;
-	body: string;
-	ended: boolean;
-}
-
-function fakeRes(): { res: ConditionalGetResponse; result: FakeResponse } {
-	const result: FakeResponse = {
-		statusCode: 200,
-		headers: {},
-		body: "",
-		ended: false,
-	};
-	const res: ConditionalGetResponse = {
-		setHeader: (name: string, value: string | number | readonly string[]) => {
-			result.headers[String(name).toLowerCase()] = String(value);
-		},
-		set: (field: Record<string, string>) => {
-			for (const [k, v] of Object.entries(field)) {
-				result.headers[k.toLowerCase()] = v;
-			}
-			return res;
-		},
-		status: (code: number) => {
-			result.statusCode = code;
-			return res;
-		},
-		send: (body: string) => {
-			result.body = body;
-			result.ended = true;
-		},
-		end: () => {
-			result.ended = true;
-		},
-	};
-	return { res, result };
-}
 
 function fakeReq(headers: Record<string, string> = {}): ConditionalGetRequest {
 	return { headers };
@@ -53,78 +11,65 @@ function htmlComponent(body: string): Component {
 	return HtmlPage(body);
 }
 
-describe("sendConditionalHtml", () => {
+describe("CacheableComponent", () => {
 	it("emits a 200 with the body and a weak ETag on the first request", () => {
-		const { res, result } = fakeRes();
-
-		sendConditionalHtml(fakeReq(), res, htmlComponent("<p>hi</p>"));
+		const result = CacheableComponent(htmlComponent("<p>hi</p>"), fakeReq()).to("text/html");
 
 		expect(result.statusCode).toBe(200);
 		expect(result.body).toBe("<p>hi</p>");
-		const etag = result.headers.etag;
-		expect(etag).toMatch(/^W\/".+"$/);
+		expect(result.headers.ETag).toMatch(/^W\/".+"$/);
 	});
 
 	it("returns 304 with no body when the request If-None-Match matches the freshly-computed ETag", () => {
 		const body = "<p>hi</p>";
-		const { res: firstRes, result: firstResult } = fakeRes();
-		sendConditionalHtml(fakeReq(), firstRes, htmlComponent(body));
-		const etag = firstResult.headers.etag;
+		const first = CacheableComponent(htmlComponent(body), fakeReq()).to("text/html");
+		const etag = first.headers.ETag;
 
-		const { res: secondRes, result: secondResult } = fakeRes();
-		sendConditionalHtml(
-			fakeReq({ "if-none-match": etag }),
-			secondRes,
+		const second = CacheableComponent(
 			htmlComponent(body),
-		);
+			fakeReq({ "if-none-match": etag }),
+		).to("text/html");
 
-		expect(secondResult.statusCode).toBe(304);
-		expect(secondResult.body).toBe("");
-		expect(secondResult.ended).toBe(true);
-		expect(secondResult.headers.etag).toBe(etag);
+		expect(second.statusCode).toBe(304);
+		expect(second.body).toBe("");
+		expect(second.headers.ETag).toBe(etag);
 	});
 
 	it("re-renders 200 with a fresh ETag when the body changes (the title settled, the saved-article row is no longer the hostname stub)", () => {
-		const { res: firstRes, result: firstResult } = fakeRes();
-		sendConditionalHtml(
-			fakeReq(),
-			firstRes,
+		const first = CacheableComponent(
 			htmlComponent("<h1>medium.com</h1>"),
-		);
-		const oldEtag = firstResult.headers.etag;
+			fakeReq(),
+		).to("text/html");
+		const oldEtag = first.headers.ETag;
 
-		const { res: secondRes, result: secondResult } = fakeRes();
-		sendConditionalHtml(
-			fakeReq({ "if-none-match": oldEtag }),
-			secondRes,
+		const second = CacheableComponent(
 			htmlComponent("<h1>Why Rust beats Go</h1>"),
-		);
+			fakeReq({ "if-none-match": oldEtag }),
+		).to("text/html");
 
-		expect(secondResult.statusCode).toBe(200);
-		expect(secondResult.body).toBe("<h1>Why Rust beats Go</h1>");
-		expect(secondResult.headers.etag).not.toBe(oldEtag);
+		expect(second.statusCode).toBe(200);
+		expect(second.body).toBe("<h1>Why Rust beats Go</h1>");
+		expect(second.headers.ETag).not.toBe(oldEtag);
 	});
 
 	it("forces revalidation on every poll via Cache-Control: private, no-cache so a freshly-settled article does not wait for a TTL", () => {
-		const { res, result } = fakeRes();
+		const result = CacheableComponent(htmlComponent("<p>hi</p>"), fakeReq()).to("text/html");
 
-		sendConditionalHtml(fakeReq(), res, htmlComponent("<p>hi</p>"));
-
-		expect(result.headers["cache-control"]).toBe("private, no-cache");
+		expect(result.headers["Cache-Control"]).toBe("private, no-cache");
 	});
 
 	it("computes the same ETag for identical bodies across calls so the in-flight steady-state polls collapse to 304", () => {
-		const { result: first } = (() => {
-			const r = fakeRes();
-			sendConditionalHtml(fakeReq(), r.res, htmlComponent("<p>same</p>"));
-			return r;
-		})();
-		const { result: second } = (() => {
-			const r = fakeRes();
-			sendConditionalHtml(fakeReq(), r.res, htmlComponent("<p>same</p>"));
-			return r;
-		})();
+		const first = CacheableComponent(htmlComponent("<p>same</p>"), fakeReq()).to("text/html");
+		const second = CacheableComponent(htmlComponent("<p>same</p>"), fakeReq()).to("text/html");
 
-		expect(first.headers.etag).toBe(second.headers.etag);
+		expect(first.headers.ETag).toBe(second.headers.ETag);
+	});
+
+	it("passes through non-HTML media types to the inner component without adding cache headers", () => {
+		const result = CacheableComponent(htmlComponent("<p>hi</p>"), fakeReq()).to("text/markdown");
+
+		expect(result.statusCode).toBe(406);
+		expect(result.headers.ETag).toBeUndefined();
+		expect(result.headers["Cache-Control"]).toBeUndefined();
 	});
 });
