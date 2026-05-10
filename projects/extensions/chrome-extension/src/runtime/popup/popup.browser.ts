@@ -297,6 +297,11 @@ async function saveAndShowList() {
 		return;
 	}
 
+	const savingTitle = document.querySelector(".saving-view__title");
+	if (savingTitle) savingTitle.textContent = "Saving\u2026";
+	const progressBar = document.querySelector(".saving-view__progress");
+	if (progressBar) progressBar.setAttribute("aria-label", "Saving article");
+
 	const saveResult = (await send({
 		type: "save-current-tab",
 		url: activeTab.url,
