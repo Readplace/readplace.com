@@ -36,14 +36,17 @@ function requireEnv(name: string): string {
 const ORIGIN = process.env.READPLACE_ORIGIN ?? "https://readplace.com";
 const SERVICE_TOKEN = requireEnv("RECRAWL_SERVICE_TOKEN");
 
-// 3s poll interval × 60 polls = 180s budget per source. A successful
-// Lambda cold start + crawl + parse + write lands well inside that.
-// The upper bound also covers save-link's SQS retry → DLQ → terminal
-// markCrawlFailed path, which takes ~90s on an origin that blocks the
-// Lambda egress or a parser crash — both of which this canary MUST
+// 3s poll interval × 440 polls = 1320s (22 min) budget per source. A
+// successful Lambda cold start + crawl + parse + write still lands in a
+// few seconds; the budget exists to cover save-link's SQS retry → DLQ →
+// terminal markCrawlFailed path. Phase 2 of the unstick-articles plan
+// raised saveLinkWork's Lambda timeout 30→180s and matched SQS visibility
+// 60→360s, so worst-case wall clock to DLQ is now visibility × maxReceiveCount
+// = 360s × 3 = 1080s (~18 min). 22 min adds 4 min slack for cold starts
+// and the DLQ handler's terminal write — both of which this canary MUST
 // surface as a failing test, not a timeout.
 const POLL_INTERVAL_MS = 3000;
-const POLL_TIMEOUT_MS = 180_000;
+const POLL_TIMEOUT_MS = 1_320_000;
 
 type TerminalReaderStatus = Exclude<ReaderStatus, "pending">;
 
