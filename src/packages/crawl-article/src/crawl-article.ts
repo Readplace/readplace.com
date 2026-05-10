@@ -1,8 +1,6 @@
 import { parseHTML } from "linkedom";
-import { withAiaChasing } from "./aia-fetch";
 import type { CrawlArticle, CrawlArticleResult, ThumbnailImage } from "./crawl-article.types";
-import type { fetchCurl } from "./curl-fetch";
-import { type fetchH2, withH2Fallback } from "./h2-fetch";
+import type { CrawlFetch } from "./crawl-fetch";
 import { headerOrUndefined } from "./header-utils";
 
 const FETCH_TIMEOUT_MS = 10000;
@@ -23,28 +21,21 @@ export const DEFAULT_CRAWL_HEADERS = {
 const X_TWITTER_PATTERN = /^https?:\/\/(x\.com|twitter\.com)\//;
 
 export function initCrawlArticle(deps: {
-	fetch: typeof globalThis.fetch;
+	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
-	headers: Record<string, string>;
-	fetchH2?: typeof fetchH2;
-	fetchCurl?: typeof fetchCurl;
 }): CrawlArticle {
-	const fetchWithFallback = withH2Fallback(
-		withAiaChasing(deps.fetch),
-		deps.fetchH2,
-		deps.fetchCurl,
-	);
+	const { crawlFetch, logError } = deps;
 	return async (params) => {
 		if (X_TWITTER_PATTERN.test(params.url)) {
-			return fetchViaOembed(deps, params);
+			return fetchViaOembed({ crawlFetch, logError }, params);
 		}
 
-		const headers: Record<string, string> = { ...deps.headers };
+		const headers: Record<string, string> = {};
 		if (params.etag) headers["if-none-match"] = params.etag;
 		if (params.lastModified) headers["if-modified-since"] = params.lastModified;
 
 		try {
-			const response = await fetchWithFallback(params.url, {
+			const response = await crawlFetch(params.url, {
 				signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 				headers,
 			});
@@ -64,7 +55,7 @@ export function initCrawlArticle(deps: {
 			const candidates = extractThumbnailCandidates({ html, baseUrl: params.url });
 			const thumbnailUrl = candidates[0];
 			const thumbnailImage = params.fetchThumbnail
-				? await fetchThumbnailImage({ fetchWithFallback, logError: deps.logError, candidates })
+				? await fetchThumbnailImage({ crawlFetch, logError, candidates, referer: params.url })
 				: undefined;
 			const result: CrawlArticleResult & { status: "fetched" } = {
 				status: "fetched",
@@ -83,14 +74,15 @@ export function initCrawlArticle(deps: {
 }
 
 async function fetchThumbnailImage(args: {
-	fetchWithFallback: typeof globalThis.fetch;
+	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
 	candidates: string[];
+	referer: string;
 }): Promise<ThumbnailImage | undefined> {
-	const { fetchWithFallback, logError, candidates } = args;
+	const { crawlFetch, logError, candidates, referer } = args;
 
 	for (const candidateUrl of candidates) {
-		const result = await tryFetchImage({ fetchWithFallback, logError, url: candidateUrl });
+		const result = await tryFetchImage({ crawlFetch, logError, url: candidateUrl, referer });
 		if (result) return result;
 	}
 
@@ -98,15 +90,17 @@ async function fetchThumbnailImage(args: {
 }
 
 async function tryFetchImage(args: {
-	fetchWithFallback: typeof globalThis.fetch;
+	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
 	url: string;
+	referer: string;
 }): Promise<ThumbnailImage | undefined> {
-	const { fetchWithFallback, logError, url } = args;
+	const { crawlFetch, logError, url, referer } = args;
 	try {
-		const response = await fetchWithFallback(url, {
+		const response = await crawlFetch(url, {
 			signal: AbortSignal.timeout(THUMBNAIL_FETCH_TIMEOUT_MS),
 			headers: { accept: "image/*,*/*;q=0.8" },
+			referer,
 		});
 		if (!response.ok) {
 			logError(`[CrawlArticle] Thumbnail HTTP ${response.status} for ${url}`);
@@ -137,12 +131,12 @@ async function tryFetchImage(args: {
 
 /** X/Twitter returns a JS app shell with no content. The oembed API returns the actual tweet text. */
 async function fetchViaOembed(
-	deps: { fetch: typeof globalThis.fetch; logError: (message: string, error?: Error) => void },
+	deps: { crawlFetch: CrawlFetch; logError: (message: string, error?: Error) => void },
 	params: { url: string },
 ) {
 	const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(params.url)}`;
 	try {
-		const response = await deps.fetch(oembedUrl, {
+		const response = await deps.crawlFetch(oembedUrl, {
 			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
 		});
 		if (!response.ok) {

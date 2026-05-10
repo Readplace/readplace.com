@@ -7,7 +7,7 @@ import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
-import { DEFAULT_CRAWL_HEADERS, initCrawlArticle } from "@packages/crawl-article";
+import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
 import { initReadabilityParser } from "@packages/test-fixtures/providers/article-parser";
 import { theInformationPreParser } from "@packages/test-fixtures/providers/article-parser";
 import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
@@ -64,7 +64,8 @@ function initProviders() {
 	const persistence = requireEnv<"prod" | "development">("PERSISTENCE");
 	const logError = (message: string, error?: Error) => console.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
 
-	const crawlArticle = initCrawlArticle({ fetch: globalThis.fetch, logError, headers: { ...DEFAULT_CRAWL_HEADERS } });
+	const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, defaultHeaders: { ...DEFAULT_CRAWL_HEADERS } });
+	const crawlArticle = initCrawlArticle({ crawlFetch, logError });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
 		sitePreParsers: [theInformationPreParser],

@@ -4,7 +4,7 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initLogParseError, type ParseErrorEvent, initLogCrawlOutcome, type CrawlOutcomeEvent } from "@packages/hutch-infra-components";
 import { requireEnv } from "../require-env";
-import { DEFAULT_CRAWL_HEADERS, initCrawlArticle } from "@packages/crawl-article";
+import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
 import { initReadabilityParser } from "../article-parser/readability-parser";
 import { theInformationPreParser } from "../article-parser/the-information-pre-parser";
 import { initS3PutImageObject } from "../save-link/s3-put-image-object";
@@ -29,7 +29,8 @@ const client = createDynamoDocumentClient();
 const s3Client = new S3Client({});
 const logError = (message: string, error?: Error) => consoleLogger.error(message, { error });
 
-const crawlArticle = initCrawlArticle({ fetch: globalThis.fetch, logError, headers: { ...DEFAULT_CRAWL_HEADERS } });
+const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, defaultHeaders: { ...DEFAULT_CRAWL_HEADERS } });
+const crawlArticle = initCrawlArticle({ crawlFetch, logError });
 
 const { parseHtml } = initReadabilityParser({
 	crawlArticle,
@@ -60,7 +61,7 @@ const { markCrawlFailed, markCrawlStage } = initDynamoDbArticleCrawl({
 const downloadMedia = initDownloadMedia({
 	putImageObject,
 	logger: consoleLogger,
-	fetch: globalThis.fetch,
+	crawlFetch,
 	imagesCdnBaseUrl,
 });
 
