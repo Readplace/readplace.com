@@ -13,6 +13,7 @@ export class HutchSQSBackedLambda extends pulumi.ComponentResource {
 			lambda: HutchLambda;
 			queue: HutchSQS;
 			alertEmailDLQEntry: string;
+			reportBatchItemFailures?: boolean;
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -39,6 +40,9 @@ export class HutchSQSBackedLambda extends pulumi.ComponentResource {
 			eventSourceArn: args.queue.queueArn,
 			functionName: args.lambda.arn,
 			batchSize: 1,
+			...(args.reportBatchItemFailures
+				? { functionResponseTypes: ["ReportBatchItemFailures"] }
+				: {}),
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 
 		const topic = new aws.sns.Topic(`${name}-dlq-topic`, {
