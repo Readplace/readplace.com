@@ -3,6 +3,7 @@ import type { CrawlStatus, SummaryStatus } from "@packages/article-state-types";
 export type StuckReason =
 	| "summary-pending"
 	| "summary-failed"
+	| "summary-ready-without-text"
 	| "crawl-pending"
 	| "crawl-failed"
 	| "legacy-stub";
@@ -13,6 +14,12 @@ export type StuckReason =
  * `summary`). The two switches use exhaustive `never` defaults so a new
  * SummaryStatus or CrawlStatus added to @packages/article-state-types breaks
  * `tsc --noEmit` until the classifier handles it.
+ *
+ * "summary-ready-without-text" catches the writer-contract violation that
+ * left fagnerbrack.com/why-developers-become-frustrated-… stuck on
+ * 2026-05-10: a row with summaryStatus="ready" but no `summary` text. The
+ * status enums alone do not surface this — a row in that state passes both
+ * status checks and would otherwise fall through as healthy.
  */
 export function classifyRow(
 	row: {
@@ -31,6 +38,10 @@ export function classifyRow(
 				reasons.push("summary-failed");
 				break;
 			case "ready":
+				if (row.summary === undefined) {
+					reasons.push("summary-ready-without-text");
+				}
+				break;
 			case "skipped":
 				break;
 			default: {

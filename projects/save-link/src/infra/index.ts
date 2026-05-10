@@ -640,9 +640,11 @@ const refreshArticleContentLambda = new HutchLambda("refresh-article-content", {
 	timeout: 30,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 	},
 	policies: [
 		...refreshArticleContentDynamodb.policies,
+		...generateSummaryQueue.policies.map((p) => ({ ...p, name: `refresh-${p.name}` })),
 	],
 });
 

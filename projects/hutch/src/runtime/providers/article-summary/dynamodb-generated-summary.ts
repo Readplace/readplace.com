@@ -32,6 +32,18 @@ const ArticleSummaryRow = z.object({
 
 type ArticleSummaryRowShape = z.infer<typeof ArticleSummaryRow>;
 
+function readyFromRow(
+	summary: string,
+	excerpt: string | undefined,
+): { status: "ready"; summary: string; excerpt?: string } {
+	const ready: { status: "ready"; summary: string; excerpt?: string } = {
+		status: "ready",
+		summary,
+	};
+	if (excerpt) ready.excerpt = excerpt;
+	return ready;
+}
+
 function rowToGeneratedSummary(
 	row: ArticleSummaryRowShape | undefined,
 ): GeneratedSummary | undefined {
@@ -50,17 +62,20 @@ function rowToGeneratedSummary(
 			? { status: "pending", stage: row.summaryStage }
 			: { status: "pending" };
 	}
+	if (row.summaryStatus === "ready") {
+		// Status and text must move together. A row with status=ready and no
+		// summary text means a writer dropped the text without resetting the
+		// status (or vice versa) — fail loud here so the inconsistency surfaces
+		// instead of degrading silently to a forever-polling reader UI.
+		assert(row.summary, "summaryStatus=ready row must carry a summary");
+		return readyFromRow(row.summary, row.summaryExcerpt);
+	}
 	// Legacy row (summaryStatus absent). A backfilled `summary` column means the
 	// row pre-dates the state machine but carried a pre-computed summary — expose
 	// as ready. Otherwise return undefined so the caller can re-prime the pipeline
 	// rather than rendering a stuck pending row that polls forever.
 	if (!row.summary) return undefined;
-	const ready: { status: "ready"; summary: string; excerpt?: string } = {
-		status: "ready",
-		summary: row.summary,
-	};
-	if (row.summaryExcerpt) ready.excerpt = row.summaryExcerpt;
-	return ready;
+	return readyFromRow(row.summary, row.summaryExcerpt);
 }
 
 export function initDynamoDbGeneratedSummary(deps: {

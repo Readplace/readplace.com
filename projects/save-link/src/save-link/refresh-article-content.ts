@@ -33,10 +33,16 @@ export function initRefreshArticleContent(deps: {
 
 	const refreshArticleContent: RefreshArticleContent = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		// Refreshing content invalidates the cached summary. Atomically (a) clear
+		// every summary-derived attribute and (b) flip summaryStatus back to
+		// pending so the row never sits in the inconsistent (status=ready,
+		// summary=missing) state that the reader UI maps to a forever-polling
+		// "Generating summary…". Caller dispatches GenerateSummaryCommand
+		// immediately after this resolves so the worker picks the row up.
 		await table.update({
 			Key: { url: articleResourceUniqueId.value },
 			UpdateExpression:
-				"SET title = :title, siteName = :siteName, excerpt = :excerpt, wordCount = :wordCount, estimatedReadTime = :ert, contentFetchedAt = :cfa, etag = :etag, lastModified = :lm, imageUrl = :img REMOVE summary, summaryInputTokens, summaryOutputTokens",
+				"SET title = :title, siteName = :siteName, excerpt = :excerpt, wordCount = :wordCount, estimatedReadTime = :ert, contentFetchedAt = :cfa, etag = :etag, lastModified = :lm, imageUrl = :img, summaryStatus = :pending REMOVE summary, summaryExcerpt, summaryInputTokens, summaryOutputTokens, summaryStage, summaryFailureReason, summarySkippedReason",
 			ExpressionAttributeValues: {
 				":title": params.metadata.title,
 				":siteName": params.metadata.siteName,
@@ -47,6 +53,7 @@ export function initRefreshArticleContent(deps: {
 				":etag": params.etag ?? null,
 				":lm": params.lastModified ?? null,
 				":img": params.metadata.imageUrl ?? null,
+				":pending": "pending",
 			},
 		});
 	};
