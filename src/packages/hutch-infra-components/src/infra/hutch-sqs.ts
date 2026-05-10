@@ -12,13 +12,14 @@ export class HutchSQS extends pulumi.ComponentResource {
 
 	constructor(
 		name: string,
-		args: { visibilityTimeoutSeconds: number },
+		args: { visibilityTimeoutSeconds: number; dlqMaxReceiveCount?: number },
 		opts?: pulumi.ComponentResourceOptions,
 	) {
 		super("hutch:infra:HutchSQS", name, {}, opts);
 
 		const queue = new HutchSqsQueue(name, {
 			visibilityTimeoutSeconds: args.visibilityTimeoutSeconds,
+			dlqMaxReceiveCount: args.dlqMaxReceiveCount,
 		}, { parent: this });
 
 		this.queueArn = queue.queueArn;

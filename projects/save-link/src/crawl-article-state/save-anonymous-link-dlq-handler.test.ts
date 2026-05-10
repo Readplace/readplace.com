@@ -62,7 +62,7 @@ describe("initSaveAnonymousLinkDlqHandler", () => {
 		});
 
 		await handler(
-			createSqsEvent({ url: "https://example.com/failed" }, 4),
+			createSqsEvent({ url: "https://example.com/failed" }, 2),
 			stubContext,
 			() => {},
 		);
@@ -81,7 +81,7 @@ describe("initSaveAnonymousLinkDlqHandler", () => {
 			detail: JSON.stringify({
 				url: "https://example.com/failed",
 				reason: "exceeded SQS maxReceiveCount",
-				receiveCount: 4,
+				receiveCount: 2,
 			}),
 		});
 	});
