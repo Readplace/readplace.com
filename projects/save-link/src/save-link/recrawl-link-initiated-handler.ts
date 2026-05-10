@@ -1,4 +1,4 @@
-import type { SQSHandler } from "aws-lambda";
+import type { SQSBatchItemFailure, SQSBatchResponse, SQSHandler } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -55,23 +55,35 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 		logPrefix: "[RecrawlLinkInitiated]",
 	});
 
-	return async (event) => {
+	return async (event): Promise<SQSBatchResponse> => {
+		const batchItemFailures: SQSBatchItemFailure[] = [];
+
 		for (const record of event.Records) {
-			const envelope = JSON.parse(record.body);
-			const detail = RecrawlLinkInitiatedEvent.detailSchema.parse(envelope.detail);
+			try {
+				const envelope = JSON.parse(record.body);
+				const detail = RecrawlLinkInitiatedEvent.detailSchema.parse(envelope.detail);
 
-			logger.info("[RecrawlLinkInitiated] processing", { url: detail.url });
+				logger.info("[RecrawlLinkInitiated] processing", { url: detail.url });
 
-			await saveLinkWork(detail.url);
+				await saveLinkWork(detail.url);
 
-			await publishEvent({
-				source: RecrawlContentExtractedEvent.source,
-				detailType: RecrawlContentExtractedEvent.detailType,
-				detail: JSON.stringify({ url: detail.url }),
-			});
-			logger.info("[RecrawlLinkInitiated] emitted RecrawlContentExtractedEvent", {
-				url: detail.url,
-			});
+				await publishEvent({
+					source: RecrawlContentExtractedEvent.source,
+					detailType: RecrawlContentExtractedEvent.detailType,
+					detail: JSON.stringify({ url: detail.url }),
+				});
+				logger.info("[RecrawlLinkInitiated] emitted RecrawlContentExtractedEvent", {
+					url: detail.url,
+				});
+			} catch (error) {
+				logger.error("[RecrawlLinkInitiated] record failed", {
+					messageId: record.messageId,
+					error,
+				});
+				batchItemFailures.push({ itemIdentifier: record.messageId });
+			}
 		}
+
+		return { batchItemFailures };
 	};
 }

@@ -1,4 +1,4 @@
-import type { SQSHandler } from "aws-lambda";
+import type { SQSBatchItemFailure, SQSBatchResponse, SQSHandler } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
@@ -58,24 +58,36 @@ export function initSaveAnonymousLinkCommandHandler(deps: {
 		logPrefix: "[SaveAnonymousLinkCommand]",
 	});
 
-	return async (event) => {
+	return async (event): Promise<SQSBatchResponse> => {
+		const batchItemFailures: SQSBatchItemFailure[] = [];
+
 		for (const record of event.Records) {
-			const envelope = JSON.parse(record.body);
-			const detail = SaveAnonymousLinkCommand.detailSchema.parse(envelope.detail);
+			try {
+				const envelope = JSON.parse(record.body);
+				const detail = SaveAnonymousLinkCommand.detailSchema.parse(envelope.detail);
 
-			logger.info("[SaveAnonymousLinkCommand] processing", { url: detail.url });
+				logger.info("[SaveAnonymousLinkCommand] processing", { url: detail.url });
 
-			await saveLinkWork(detail.url);
+				await saveLinkWork(detail.url);
 
-			await publishEvent({
-				source: TierContentExtractedEvent.source,
-				detailType: TierContentExtractedEvent.detailType,
-				detail: JSON.stringify({ url: detail.url, tier: "tier-1" }),
-			});
-			logger.info("[SaveAnonymousLinkCommand] emitted TierContentExtractedEvent", {
-				url: detail.url,
-				tier: "tier-1",
-			});
+				await publishEvent({
+					source: TierContentExtractedEvent.source,
+					detailType: TierContentExtractedEvent.detailType,
+					detail: JSON.stringify({ url: detail.url, tier: "tier-1" }),
+				});
+				logger.info("[SaveAnonymousLinkCommand] emitted TierContentExtractedEvent", {
+					url: detail.url,
+					tier: "tier-1",
+				});
+			} catch (error) {
+				logger.error("[SaveAnonymousLinkCommand] record failed", {
+					messageId: record.messageId,
+					error,
+				});
+				batchItemFailures.push({ itemIdentifier: record.messageId });
+			}
 		}
+
+		return { batchItemFailures };
 	};
 }

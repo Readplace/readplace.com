@@ -137,29 +137,46 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		expect(calls).toEqual(["putTierSource", "publishEvent"]);
 	});
 
-	it("marks crawl 'failed' inline on terminal parse errors and rethrows so SQS retries observe the failure", async () => {
+	it("marks crawl 'failed' inline on terminal parse errors and reports the record as a batch failure so SQS redelivers it", async () => {
 		const failedParse: ParseHtml = () => ({ ok: false, reason: "Readability returned null" });
 		const markCrawlFailed = jest.fn().mockResolvedValue(undefined);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const error = jest.fn();
+		const logger = { ...noopLogger, error };
 
 		const { handler } = createHandler({
 			parseHtml: failedParse,
 			markCrawlFailed,
 			putTierSource,
 			publishEvent,
+			logger,
 		});
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }), stubContext, () => {}),
-		).rejects.toThrow("save-link-raw-html parse failed for https://example.com/bad: Readability returned null");
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(markCrawlFailed).toHaveBeenCalledWith({
 			url: "https://example.com/bad",
 			reason: "Readability returned null",
 		});
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
+		// Confirms the throw inside the worker propagated to the per-record catch
+		// with the expected diagnostic, even though it no longer escapes the handler.
+		expect(error).toHaveBeenCalledWith(
+			"[SaveLinkRawHtmlCommand] record failed",
+			expect.objectContaining({
+				messageId: "msg-1",
+				error: expect.objectContaining({
+					message: "save-link-raw-html parse failed for https://example.com/bad: Readability returned null",
+				}),
+			}),
+		);
 	});
 
 	it("threads downloaded media into processContent so HTML references the CDN URLs", async () => {
@@ -189,21 +206,24 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		);
 	});
 
-	it("emits logParseError before throwing when the parser rejects the captured html, so the failure reaches the parse-errors dashboard", async () => {
+	it("emits logParseError before reporting the record as a batch failure, so the failure reaches the parse-errors dashboard", async () => {
 		const failedParse: ParseHtml = () => ({ ok: false, reason: "no-readable-content" });
 		const { handler, deps } = createHandler({ parseHtml: failedParse });
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }), stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(deps.logParseError).toHaveBeenCalledWith({
 			url: "https://example.com/bad",
 			reason: "no-readable-content",
 		});
 	});
 
-	it("emits a tier-0 failure crawl-outcome before throwing, reflecting tier-1's snapshot at emission time", async () => {
+	it("emits a tier-0 failure crawl-outcome before reporting the batch failure, reflecting tier-1's snapshot at emission time", async () => {
 		const failedParse: ParseHtml = () => ({ ok: false, reason: "no-readable-content" });
 		const readTierSnapshot = jest.fn().mockResolvedValue({
 			tier0Status: "not_attempted",
@@ -212,10 +232,13 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		});
 		const { handler, deps } = createHandler({ parseHtml: failedParse, readTierSnapshot });
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }), stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(deps.logCrawlOutcome).toHaveBeenCalledWith({
 			url: "https://example.com/bad",
 			thisTier: "tier-0",
@@ -234,10 +257,13 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		});
 		const { handler, deps } = createHandler({ parseHtml: failedParse, readTierSnapshot });
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }), stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(deps.logCrawlOutcome).toHaveBeenCalledWith({
 			url: "https://example.com/bad",
 			thisTier: "tier-0",
@@ -302,7 +328,7 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		);
 	});
 
-	it("throws on invalid event detail", async () => {
+	it("reports the record as a batch failure on invalid event detail (Zod failure)", async () => {
 		const { handler } = createHandler();
 
 		const invalidEvent: SQSEvent = {
@@ -319,9 +345,8 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 			}],
 		};
 
-		await expect(
-			handler(invalidEvent, stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(invalidEvent, stubContext, () => {});
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 
 });

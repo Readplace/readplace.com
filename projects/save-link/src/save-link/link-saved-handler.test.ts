@@ -73,7 +73,7 @@ describe("initLinkSavedHandler", () => {
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
 
-	it("throws on invalid event detail", async () => {
+	it("reports the record as a batch failure on invalid event detail (Zod failure)", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
 		const findArticleContent: FindArticleContent = async () => ({ content: "content" });
 
@@ -97,8 +97,7 @@ describe("initLinkSavedHandler", () => {
 			}],
 		};
 
-		await expect(
-			handler(invalidEvent, stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(invalidEvent, stubContext, () => {});
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

@@ -294,6 +294,7 @@ const exportUserDataLambdaWithSQS = new HutchSQSBackedLambda("export-user-data",
 	lambda: exportUserDataLambda,
 	queue: exportUserDataQueue,
 	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
 });
 
 eventBus.subscribe(ExportUserDataCommand, exportUserDataLambdaWithSQS);

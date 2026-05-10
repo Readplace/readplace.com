@@ -86,7 +86,7 @@ describe("initSaveLinkDlqHandler", () => {
 		});
 	});
 
-	it("throws on an invalid command envelope", async () => {
+	it("reports the record as a batch failure on invalid command envelope (Zod failure)", async () => {
 		const markCrawlFailed: MarkCrawlFailed = jest.fn();
 		const markSummaryFailed: MarkSummaryFailed = jest.fn();
 		const publishEvent: PublishEvent = jest.fn();
@@ -112,7 +112,8 @@ describe("initSaveLinkDlqHandler", () => {
 			}],
 		};
 
-		await expect(handler(invalidEvent, stubContext, () => {})).rejects.toThrow();
+		const result = await handler(invalidEvent, stubContext, () => {});
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(markCrawlFailed).not.toHaveBeenCalled();
 		expect(markSummaryFailed).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();

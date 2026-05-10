@@ -108,7 +108,7 @@ describe("initSelectMostCompleteContentDlqHandler", () => {
 		expect(publishEvent).toHaveBeenCalled();
 	});
 
-	it("throws on invalid envelope detail", async () => {
+	it("reports the record as a batch failure on invalid envelope detail (Zod failure)", async () => {
 		const handler = initSelectMostCompleteContentDlqHandler({
 			markCrawlFailed: jest.fn(),
 			markSummaryFailed: jest.fn(),
@@ -130,6 +130,7 @@ describe("initSelectMostCompleteContentDlqHandler", () => {
 			}],
 		};
 
-		await expect(handler(invalid, stubContext, () => {})).rejects.toThrow();
+		const result = await handler(invalid, stubContext, () => {});
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

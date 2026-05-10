@@ -1,4 +1,4 @@
-import type { SQSHandler } from "aws-lambda";
+import type { SQSBatchItemFailure, SQSBatchResponse, SQSHandler } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import {
@@ -19,26 +19,38 @@ interface SaveLinkRawHtmlDlqHandlerDeps {
 export function initSaveLinkRawHtmlDlqHandler(deps: SaveLinkRawHtmlDlqHandlerDeps): SQSHandler {
 	const { markCrawlFailed, markSummaryFailed, publishEvent, logger } = deps;
 
-	return async (event) => {
+	return async (event): Promise<SQSBatchResponse> => {
+		const batchItemFailures: SQSBatchItemFailure[] = [];
+
 		for (const record of event.Records) {
-			const envelope = JSON.parse(record.body);
-			const command = SaveLinkRawHtmlCommand.detailSchema.parse(envelope.detail);
-			const receiveCount = Number(record.attributes.ApproximateReceiveCount);
-			const reason = "exceeded SQS maxReceiveCount";
+			try {
+				const envelope = JSON.parse(record.body);
+				const command = SaveLinkRawHtmlCommand.detailSchema.parse(envelope.detail);
+				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
+				const reason = "exceeded SQS maxReceiveCount";
 
-			logger.info("[SaveLinkRawHtmlDlq] marking crawl failed", {
-				url: command.url,
-				receiveCount,
-			});
+				logger.info("[SaveLinkRawHtmlDlq] marking crawl failed", {
+					url: command.url,
+					receiveCount,
+				});
 
-			await markCrawlFailed({ url: command.url, reason });
-			await markSummaryFailed({ url: command.url, reason: "crawl failed" });
+				await markCrawlFailed({ url: command.url, reason });
+				await markSummaryFailed({ url: command.url, reason: "crawl failed" });
 
-			await publishEvent({
-				source: CrawlArticleFailedEvent.source,
-				detailType: CrawlArticleFailedEvent.detailType,
-				detail: JSON.stringify({ url: command.url, reason, receiveCount }),
-			});
+				await publishEvent({
+					source: CrawlArticleFailedEvent.source,
+					detailType: CrawlArticleFailedEvent.detailType,
+					detail: JSON.stringify({ url: command.url, reason, receiveCount }),
+				});
+			} catch (error) {
+				logger.error("[SaveLinkRawHtmlDlq] record failed", {
+					messageId: record.messageId,
+					error,
+				});
+				batchItemFailures.push({ itemIdentifier: record.messageId });
+			}
 		}
+
+		return { batchItemFailures };
 	};
 }

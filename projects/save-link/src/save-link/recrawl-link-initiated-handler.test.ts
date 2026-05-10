@@ -108,7 +108,7 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		});
 	});
 
-	it("does not emit RecrawlContentExtractedEvent when the crawl fails (saveLinkWork rethrows for SQS retry)", async () => {
+	it("reports the record as a batch failure when saveLinkWork throws on a failed crawl (so SQS redelivers just that record)", async () => {
 		const failingCrawl: CrawlArticle = async () => ({ status: "failed" });
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
@@ -117,14 +117,17 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 			publishEvent,
 		});
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/unreachable" }), stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/unreachable" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
-	it("throws when the event detail is invalid", async () => {
+	it("reports the record as a batch failure when the event detail is invalid (Zod failure)", async () => {
 		const handler = createHandler();
 		const invalidEvent: SQSEvent = {
 			Records: [{
@@ -140,6 +143,7 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 			}],
 		};
 
-		await expect(handler(invalidEvent, stubContext, () => {})).rejects.toThrow();
+		const result = await handler(invalidEvent, stubContext, () => {});
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

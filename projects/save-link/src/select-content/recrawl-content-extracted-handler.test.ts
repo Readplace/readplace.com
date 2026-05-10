@@ -82,15 +82,18 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 }
 
 describe("initRecrawlContentExtractedHandler", () => {
-	it("throws when no tier sources are available so SQS retries after visibility timeout", async () => {
+	it("reports as a batch failure when no tier sources are available so SQS redelivers the record after the visibility timeout", async () => {
 		const { handler, deps } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([]),
 		});
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {}),
-		).rejects.toThrow(/no tier sources available/);
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/a" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(deps.promoteTierToCanonical).not.toHaveBeenCalled();
 		expect(deps.dispatchGenerateSummary).not.toHaveBeenCalled();
 		expect(deps.publishEvent).not.toHaveBeenCalled();

@@ -74,23 +74,38 @@ describe("initGenerateSummaryHandler", () => {
 		});
 	});
 
-	it("should throw when article content not found (SQS will retry, DLQ consumer handles terminal failure)", async () => {
+	it("reports the record as a batch failure when article content not found (SQS will retry, DLQ consumer handles terminal failure)", async () => {
 		const summarizeArticle: SummarizeArticle = async () => null;
 		const findArticleContent: FindArticleContent = async () => undefined;
 		const publishEvent: PublishEvent = jest.fn();
+		const error = jest.fn();
+		const logger = { ...noopLogger, error };
 
 		const handler = initGenerateSummaryHandler({
 			summarizeArticle,
 			findArticleContent,
 			publishEvent,
-			logger: noopLogger,
+			logger,
 		});
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/missing" }), stubContext, () => {}),
-		).rejects.toThrow("Article content not found");
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/missing" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(publishEvent).not.toHaveBeenCalled();
+		// Confirms the assert(article) propagated to the per-record catch.
+		expect(error).toHaveBeenCalledWith(
+			"[GenerateGlobalSummary] record failed",
+			expect.objectContaining({
+				messageId: "msg-1",
+				error: expect.objectContaining({
+					message: expect.stringContaining("Article content not found"),
+				}),
+			}),
+		);
 	});
 
 	it("should skip publishing when summarization returns null (cache hit or skipped)", async () => {
@@ -110,7 +125,7 @@ describe("initGenerateSummaryHandler", () => {
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
-	it("should throw on invalid command schema", async () => {
+	it("reports the record as a batch failure on invalid command schema (Zod failure)", async () => {
 		const summarizeArticle: SummarizeArticle = async () => null;
 		const findArticleContent: FindArticleContent = async () => ({ content: "content" });
 		const publishEvent: PublishEvent = jest.fn();
@@ -136,8 +151,7 @@ describe("initGenerateSummaryHandler", () => {
 			}],
 		};
 
-		await expect(
-			handler(invalidEvent, stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(invalidEvent, stubContext, () => {});
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

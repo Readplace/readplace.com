@@ -146,6 +146,7 @@ const saveLinkCommandLambdaWithSQS = new HutchSQSBackedLambda("save-link-command
 	lambda: saveLinkCommandLambda,
 	queue: saveLinkCommandQueue,
 	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
 });
 
 eventBus.subscribe(SaveLinkCommand, saveLinkCommandLambdaWithSQS);
@@ -159,6 +160,7 @@ new HutchDLQEventHandler("save-link-dlq", {
 	tableArn: articlesTableArn,
 	tableName: articlesTableName,
 	eventBus,
+	batchSize: 1,
 });
 
 // --- SaveLinkRawHtmlCommand handler ---
@@ -198,6 +200,7 @@ const saveLinkRawHtmlCommandLambdaWithSQS = new HutchSQSBackedLambda("save-link-
 	lambda: saveLinkRawHtmlCommandLambda,
 	queue: saveLinkRawHtmlCommandQueue,
 	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
 });
 
 eventBus.subscribe(SaveLinkRawHtmlCommand, saveLinkRawHtmlCommandLambdaWithSQS);
@@ -212,6 +215,7 @@ new HutchDLQEventHandler("save-link-raw-html-dlq", {
 	tableArn: articlesTableArn,
 	tableName: articlesTableName,
 	eventBus,
+	batchSize: 1,
 });
 
 // --- SaveAnonymousLinkCommand handler ---
@@ -247,6 +251,7 @@ const saveAnonymousLinkCommandLambdaWithSQS = new HutchSQSBackedLambda("save-ano
 	lambda: saveAnonymousLinkCommandLambda,
 	queue: saveAnonymousLinkCommandQueue,
 	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
 });
 
 eventBus.subscribe(SaveAnonymousLinkCommand, saveAnonymousLinkCommandLambdaWithSQS);
@@ -257,6 +262,7 @@ new HutchDLQEventHandler("save-anonymous-link-dlq", {
 	tableArn: articlesTableArn,
 	tableName: articlesTableName,
 	eventBus,
+	batchSize: 1,
 });
 
 // --- StaleCheckRequested handler ---
@@ -294,7 +300,7 @@ const staleCheckRequestedLambdaWithSQS = new HutchSQSBackedLambda("stale-check-r
 	lambda: staleCheckRequestedLambda,
 	queue: staleCheckRequestedQueue,
 	alertEmailDLQEntry: alertEmail,
-	reportBatchItemFailures: true,
+	batchSize: 1,
 });
 
 eventBus.subscribe(StaleCheckRequestedEvent, staleCheckRequestedLambdaWithSQS);
@@ -342,6 +348,7 @@ const selectMostCompleteContentLambdaWithSQS = new HutchSQSBackedLambda("select-
 	lambda: selectMostCompleteContentLambda,
 	queue: selectMostCompleteContentQueue,
 	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
 });
 
 eventBus.subscribe(TierContentExtractedEvent, selectMostCompleteContentLambdaWithSQS);
@@ -355,6 +362,7 @@ new HutchDLQEventHandler("select-most-complete-content-dlq", {
 	tableArn: articlesTableArn,
 	tableName: articlesTableName,
 	eventBus,
+	batchSize: 1,
 });
 
 // --- GenerateSummary handler ---
@@ -388,6 +396,7 @@ new HutchSQSBackedLambda("generate-summary", {
 	lambda: generateSummaryLambda,
 	queue: generateSummaryQueue,
 	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
 });
 
 // --- GenerateSummary DLQ consumer ---
@@ -399,6 +408,7 @@ new HutchDLQEventHandler("generate-summary-dlq", {
 	tableArn: articlesTableArn,
 	tableName: articlesTableName,
 	eventBus,
+	batchSize: 1,
 });
 
 // --- LinkSaved handler ---
@@ -430,6 +440,7 @@ const linkSavedLambdaWithSQS = new HutchSQSBackedLambda("link-saved", {
 	lambda: linkSavedLambda,
 	queue: linkSavedQueue,
 	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
 });
 
 eventBus.subscribe(LinkSavedEvent, linkSavedLambdaWithSQS);
@@ -465,6 +476,7 @@ const anonymousLinkSavedLambdaWithSQS = new HutchSQSBackedLambda("anonymous-link
 	lambda: anonymousLinkSavedLambda,
 	queue: anonymousLinkSavedQueue,
 	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
 });
 
 eventBus.subscribe(AnonymousLinkSavedEvent, anonymousLinkSavedLambdaWithSQS);
@@ -502,6 +514,7 @@ const recrawlLinkInitiatedLambdaWithSQS = new HutchSQSBackedLambda("recrawl-link
 	lambda: recrawlLinkInitiatedLambda,
 	queue: recrawlLinkInitiatedQueue,
 	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
 });
 
 eventBus.subscribe(RecrawlLinkInitiatedEvent, recrawlLinkInitiatedLambdaWithSQS);
@@ -512,6 +525,7 @@ new HutchDLQEventHandler("recrawl-link-initiated-dlq", {
 	tableArn: articlesTableArn,
 	tableName: articlesTableName,
 	eventBus,
+	batchSize: 1,
 });
 
 // --- RecrawlContentExtracted handler ---
@@ -551,6 +565,7 @@ const recrawlContentExtractedLambdaWithSQS = new HutchSQSBackedLambda("recrawl-c
 	lambda: recrawlContentExtractedLambda,
 	queue: recrawlContentExtractedQueue,
 	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
 });
 
 eventBus.subscribe(RecrawlContentExtractedEvent, recrawlContentExtractedLambdaWithSQS);
@@ -561,6 +576,7 @@ new HutchDLQEventHandler("recrawl-content-extracted-dlq", {
 	tableArn: articlesTableArn,
 	tableName: articlesTableName,
 	eventBus,
+	batchSize: 1,
 });
 
 // --- SummaryGenerated handler ---
@@ -579,6 +595,7 @@ const summaryGeneratedLambdaWithSQS = new HutchSQSBackedLambda("summary-generate
 	lambda: summaryGeneratedLambda,
 	queue: summaryGeneratedQueue,
 	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
 });
 
 eventBus.subscribe(SummaryGeneratedEvent, summaryGeneratedLambdaWithSQS);
@@ -599,6 +616,7 @@ const summaryGenerationFailedLambdaWithSQS = new HutchSQSBackedLambda("summary-g
 	lambda: summaryGenerationFailedLambda,
 	queue: summaryGenerationFailedQueue,
 	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
 });
 
 eventBus.subscribe(SummaryGenerationFailedEvent, summaryGenerationFailedLambdaWithSQS);
@@ -632,6 +650,7 @@ const refreshArticleContentWithSQS = new HutchSQSBackedLambda("refresh-article-c
 	lambda: refreshArticleContentLambda,
 	queue: refreshArticleContentQueue,
 	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
 });
 
 eventBus.subscribe(RefreshArticleContentCommand, refreshArticleContentWithSQS);
@@ -665,6 +684,7 @@ const updateFetchTimestampWithSQS = new HutchSQSBackedLambda("update-fetch-times
 	lambda: updateFetchTimestampLambda,
 	queue: updateFetchTimestampQueue,
 	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
 });
 
 eventBus.subscribe(UpdateFetchTimestampCommand, updateFetchTimestampWithSQS);

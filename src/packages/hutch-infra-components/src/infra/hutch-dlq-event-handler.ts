@@ -8,11 +8,12 @@ import type { HutchSQS } from "./hutch-sqs";
 /**
  * Attaches a Lambda to the DLQ of an existing `HutchSQS` so dead-lettered
  * messages drive a state transition on the articles table and publish a
- * domain failure event. All configuration is fixed — callers get the current
- * convention (256MB memory, 30s timeout, batchSize 1, dynamodb:UpdateItem
- * only, DYNAMODB_ARTICLES_TABLE + EVENT_BUS_NAME env vars, entry point
- * derived from the component name). New knobs are added here only when a
- * real second caller demands them.
+ * domain failure event. Most configuration is fixed (256MB memory, 30s
+ * timeout, dynamodb:UpdateItem only, DYNAMODB_ARTICLES_TABLE +
+ * EVENT_BUS_NAME env vars, entry point derived from the component name);
+ * `batchSize` is required so every callsite makes the choice explicit. The
+ * mapping always wires ReportBatchItemFailures so a future `batchSize > 1`
+ * does not silently drop sibling records on a partial failure.
  */
 export class HutchDLQEventHandler extends pulumi.ComponentResource {
 	constructor(
@@ -22,6 +23,7 @@ export class HutchDLQEventHandler extends pulumi.ComponentResource {
 			tableArn: pulumi.Input<string>;
 			tableName: pulumi.Input<string>;
 			eventBus: HutchEventBus;
+			batchSize: number;
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -65,7 +67,8 @@ export class HutchDLQEventHandler extends pulumi.ComponentResource {
 		new aws.lambda.EventSourceMapping(`${name}-mapping`, {
 			eventSourceArn: args.sourceQueue.dlqArn,
 			functionName: lambda.arn,
-			batchSize: 1,
+			batchSize: args.batchSize,
+			functionResponseTypes: ["ReportBatchItemFailures"],
 		}, { parent: this });
 
 		this.registerOutputs();

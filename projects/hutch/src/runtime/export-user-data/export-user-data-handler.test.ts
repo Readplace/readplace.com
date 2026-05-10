@@ -1,5 +1,5 @@
 import { noopLogger, HutchLogger } from "@packages/hutch-logger";
-import type { SQSEvent, SQSRecord, SQSRecordAttributes } from "aws-lambda";
+import type { SQSBatchResponse, SQSEvent, SQSRecord, SQSRecordAttributes } from "aws-lambda";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import type { Minutes } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
@@ -81,9 +81,11 @@ function createHarness(): HandlerHarness {
 async function invokeHandler(
 	harness: HandlerHarness,
 	detail: { userId: string; email: string; requestedAt: string },
-): Promise<void> {
+): Promise<SQSBatchResponse> {
 	const result = harness.handler(createSqsEvent(detail), {} as never, () => {});
-	if (result instanceof Promise) await result;
+	const awaited = result instanceof Promise ? await result : result;
+	if (!awaited) throw new Error("handler returned void; expected SQSBatchResponse");
+	return awaited;
 }
 
 describe("initExportUserDataHandler", () => {
@@ -102,12 +104,13 @@ describe("initExportUserDataHandler", () => {
 			estimatedReadTime: 1 as Minutes,
 		});
 
-		await invokeHandler(harness, {
+		const response = await invokeHandler(harness, {
 			userId,
 			email: "user@example.com",
 			requestedAt: "2026-04-30T11:59:00.000Z",
 		});
 
+		expect(response).toEqual({ batchItemFailures: [] });
 		expect(harness.uploadCalls).toHaveLength(1);
 		const upload = harness.uploadCalls[0];
 		expect(upload.userId).toBe(userId);
@@ -182,6 +185,32 @@ describe("initExportUserDataHandler", () => {
 		expect(harness.emailCalls[0].html).toContain("0 articles");
 	});
 
+	it("reports the record as a batch failure on invalid event detail (Zod failure)", async () => {
+		const harness = createHarness();
+
+		const invalidEvent: SQSEvent = {
+			Records: [{
+				messageId: "msg-1",
+				receiptHandle: "receipt-1",
+				body: JSON.stringify({ detail: { invalid: true } }),
+				attributes: stubAttributes,
+				messageAttributes: {},
+				md5OfBody: "",
+				eventSource: "aws:sqs",
+				eventSourceARN: "arn:aws:sqs:ap-southeast-2:123456789:export-user-data",
+				awsRegion: "ap-southeast-2",
+			}],
+		};
+
+		const result = harness.handler(invalidEvent, {} as never, () => {});
+		const response = result instanceof Promise ? await result : result;
+
+		expect(response).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(harness.uploadCalls).toHaveLength(0);
+		expect(harness.emailCalls).toHaveLength(0);
+		expect(harness.publishedEvents).toHaveLength(0);
+	});
+
 	it("stops on the first empty page when total claims more rows (orphaned user_articles)", async () => {
 		// findArticlesByUser drops orphans, so total can exceed the rows the
 		// handler will ever see; termination must come from an empty page.
@@ -238,6 +267,7 @@ describe("initExportUserDataHandler", () => {
 		if (result instanceof Promise) await result;
 
 		expect(findArticlesByUser).toHaveBeenCalledTimes(2);
+		expect(result).toBeInstanceOf(Promise);
 		const body = uploadCalls[0].parsedBody as { articleCount: number };
 		expect(body.articleCount).toBe(1);
 		expect(emailCalls).toHaveLength(1);

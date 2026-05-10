@@ -76,7 +76,7 @@ describe("initRefreshArticleContentHandler", () => {
 		});
 	});
 
-	it("throws on invalid event detail", async () => {
+	it("reports the record as a batch failure on invalid event detail (Zod failure)", async () => {
 		const handler = initRefreshArticleContentHandler({
 			refreshArticleContent: jest.fn(),
 			logger: noopLogger,
@@ -96,8 +96,7 @@ describe("initRefreshArticleContentHandler", () => {
 			}],
 		};
 
-		await expect(
-			handler(invalidEvent, stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(invalidEvent, stubContext, () => {});
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

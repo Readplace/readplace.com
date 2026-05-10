@@ -1,4 +1,4 @@
-import type { SQSHandler } from "aws-lambda";
+import type { SQSBatchItemFailure, SQSBatchResponse, SQSHandler } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { RefreshArticleContentCommand } from "./index";
 
@@ -23,16 +23,28 @@ export function initRefreshArticleContentHandler(deps: {
 }): SQSHandler {
 	const { refreshArticleContent, logger } = deps;
 
-	return async (event) => {
+	return async (event): Promise<SQSBatchResponse> => {
+		const batchItemFailures: SQSBatchItemFailure[] = [];
+
 		for (const record of event.Records) {
-			const envelope = JSON.parse(record.body);
-			const detail = RefreshArticleContentCommand.detailSchema.parse(envelope.detail);
+			try {
+				const envelope = JSON.parse(record.body);
+				const detail = RefreshArticleContentCommand.detailSchema.parse(envelope.detail);
 
-			logger.info("[RefreshArticleContent] processing", { url: detail.url });
+				logger.info("[RefreshArticleContent] processing", { url: detail.url });
 
-			await refreshArticleContent(detail);
+				await refreshArticleContent(detail);
 
-			logger.info("[RefreshArticleContent] completed", { url: detail.url });
+				logger.info("[RefreshArticleContent] completed", { url: detail.url });
+			} catch (error) {
+				logger.error("[RefreshArticleContent] record failed", {
+					messageId: record.messageId,
+					error,
+				});
+				batchItemFailures.push({ itemIdentifier: record.messageId });
+			}
 		}
+
+		return { batchItemFailures };
 	};
 }

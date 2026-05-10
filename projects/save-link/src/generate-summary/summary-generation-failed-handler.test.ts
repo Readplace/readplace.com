@@ -1,4 +1,4 @@
-import type { HutchLogger } from "@packages/hutch-logger";
+import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
 import type { ParseErrorEvent } from "@packages/hutch-infra-components";
 import { initSummaryGenerationFailedHandler } from "./summary-generation-failed-handler";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
@@ -44,10 +44,10 @@ function createSqsEvent(detail: { url: string; reason: string; receiveCount: num
 describe("initSummaryGenerationFailedHandler", () => {
 	it("logs a parse-error record with source=generate-summary", async () => {
 		const infoSpy = jest.fn();
-		const logger = { info: infoSpy } as unknown as HutchLogger.Typed<ParseErrorEvent>;
+		const parseErrorLogger = { info: infoSpy } as unknown as HutchLogger.Typed<ParseErrorEvent>;
 		const now = () => new Date("2026-04-19T12:00:00.000Z");
 
-		const handler = initSummaryGenerationFailedHandler({ logger, now });
+		const handler = initSummaryGenerationFailedHandler({ parseErrorLogger, logger: noopLogger, now });
 
 		await handler(
 			createSqsEvent({
@@ -69,10 +69,14 @@ describe("initSummaryGenerationFailedHandler", () => {
 		});
 	});
 
-	it("rejects invalid envelopes", async () => {
+	it("reports invalid envelopes as a batch failure without logging the parse-error stream", async () => {
 		const infoSpy = jest.fn();
-		const logger = { info: infoSpy } as unknown as HutchLogger.Typed<ParseErrorEvent>;
-		const handler = initSummaryGenerationFailedHandler({ logger, now: () => new Date() });
+		const parseErrorLogger = { info: infoSpy } as unknown as HutchLogger.Typed<ParseErrorEvent>;
+		const handler = initSummaryGenerationFailedHandler({
+			parseErrorLogger,
+			logger: noopLogger,
+			now: () => new Date(),
+		});
 
 		const invalid: SQSEvent = {
 			Records: [{
@@ -88,7 +92,8 @@ describe("initSummaryGenerationFailedHandler", () => {
 			}],
 		};
 
-		await expect(handler(invalid, stubContext, () => {})).rejects.toThrow();
+		const result = await handler(invalid, stubContext, () => {});
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(infoSpy).not.toHaveBeenCalled();
 	});
 });

@@ -158,47 +158,56 @@ describe("initSaveLinkCommandHandler", () => {
 		});
 	});
 
-	it("does not write a tier source or publish anything when the crawl fails (DLQ owns transient failures)", async () => {
+	it("does not write a tier source or publish anything when the crawl fails (record reported as batch failure for SQS redelivery)", async () => {
 		const failedCrawl: CrawlArticle = async () => ({ status: "failed" });
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = createHandler({ crawlArticle: failedCrawl, putTierSource, publishEvent });
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/unreachable", userId: "user-1" }), stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/unreachable", userId: "user-1" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
-	it("reports crawl failures via logParseError with the crawl status as reason and rethrows for SQS retry", async () => {
+	it("reports crawl failures via logParseError with the crawl status as reason (record routed to batchItemFailures for SQS retry)", async () => {
 		const logParseError = jest.fn();
 		const failedCrawl: CrawlArticle = async () => ({ status: "failed" });
 
 		const handler = createHandler({ crawlArticle: failedCrawl, logParseError });
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/unreachable", userId: "user-1" }), stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/unreachable", userId: "user-1" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(logParseError).toHaveBeenCalledWith({
 			url: "https://example.com/unreachable",
 			reason: "crawl-failed",
 		});
 	});
 
-	it("reports parse failures via logParseError with the parser's reason and rethrows for SQS retry", async () => {
+	it("reports parse failures via logParseError with the parser's reason (record routed to batchItemFailures for SQS retry)", async () => {
 		const logParseError = jest.fn();
 		const failedParse: ParseHtml = () => ({ ok: false, reason: "Invalid URL" });
 
 		const handler = createHandler({ parseHtml: failedParse, logParseError });
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }), stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(logParseError).toHaveBeenCalledWith({
 			url: "https://example.com/bad",
 			reason: "Invalid URL",
@@ -237,10 +246,13 @@ describe("initSaveLinkCommandHandler", () => {
 
 		const handler = createHandler({ crawlArticle: failedCrawl, logCrawlOutcome, readTierSnapshot });
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/unreachable", userId: "user-1" }), stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/unreachable", userId: "user-1" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(logCrawlOutcome).toHaveBeenCalledWith({
 			url: "https://example.com/unreachable",
 			thisTier: "tier-1",
@@ -261,10 +273,13 @@ describe("initSaveLinkCommandHandler", () => {
 
 		const handler = createHandler({ parseHtml: failedParse, logCrawlOutcome, readTierSnapshot });
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }), stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(logCrawlOutcome).toHaveBeenCalledWith({
 			url: "https://example.com/bad",
 			thisTier: "tier-1",
@@ -293,17 +308,33 @@ describe("initSaveLinkCommandHandler", () => {
 	it("marks crawl 'failed' inline on terminal parse errors so readers see failure at t+0 instead of waiting ~90s for the DLQ", async () => {
 		const markCrawlFailed = jest.fn().mockResolvedValue(undefined);
 		const failedParse: ParseHtml = () => ({ ok: false, reason: "Readability crashed on this DOM" });
+		const error = jest.fn();
+		const logger = { ...noopLogger, error };
 
-		const handler = createHandler({ parseHtml: failedParse, markCrawlFailed });
+		const handler = createHandler({ parseHtml: failedParse, markCrawlFailed, logger });
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }), stubContext, () => {}),
-		).rejects.toThrow("crawl failed for https://example.com/bad: Readability crashed on this DOM");
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(markCrawlFailed).toHaveBeenCalledWith({
 			url: "https://example.com/bad",
 			reason: "Readability crashed on this DOM",
 		});
+		// Confirms the throw inside the worker propagated to the per-record catch
+		// with the expected diagnostic, even though it no longer escapes the handler.
+		expect(error).toHaveBeenCalledWith(
+			"[SaveLinkCommand] record failed",
+			expect.objectContaining({
+				messageId: "msg-1",
+				error: expect.objectContaining({
+					message: "crawl failed for https://example.com/bad: Readability crashed on this DOM",
+				}),
+			}),
+		);
 	});
 
 	it("does NOT mark crawl 'failed' on a transient fetch failure (those stay on the SQS retry / DLQ path)", async () => {
@@ -312,10 +343,13 @@ describe("initSaveLinkCommandHandler", () => {
 
 		const handler = createHandler({ crawlArticle: failedCrawl, markCrawlFailed });
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/unreachable", userId: "user-1" }), stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/unreachable", userId: "user-1" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(markCrawlFailed).not.toHaveBeenCalled();
 	});
 
@@ -397,7 +431,7 @@ describe("initSaveLinkCommandHandler", () => {
 		);
 	});
 
-	it("throws on invalid event detail (a Zod failure surfaces before the worker runs)", async () => {
+	it("reports the record as a batch failure on invalid event detail (Zod failure surfaces before the worker runs)", async () => {
 		const handler = createHandler();
 
 		const invalidEvent: SQSEvent = {
@@ -414,8 +448,7 @@ describe("initSaveLinkCommandHandler", () => {
 			}],
 		};
 
-		await expect(
-			handler(invalidEvent, stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(invalidEvent, stubContext, () => {});
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

@@ -1,4 +1,4 @@
-import type { SQSHandler } from "aws-lambda";
+import type { SQSBatchItemFailure, SQSBatchResponse, SQSHandler } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import {
@@ -21,27 +21,39 @@ export function initSelectMostCompleteContentDlqHandler(
 ): SQSHandler {
 	const { markCrawlFailed, markSummaryFailed, publishEvent, logger } = deps;
 
-	return async (event) => {
+	return async (event): Promise<SQSBatchResponse> => {
+		const batchItemFailures: SQSBatchItemFailure[] = [];
+
 		for (const record of event.Records) {
-			const envelope = JSON.parse(record.body);
-			const detail = TierContentExtractedEvent.detailSchema.parse(envelope.detail);
-			const receiveCount = Number(record.attributes.ApproximateReceiveCount);
-			const reason = "exceeded SQS maxReceiveCount";
+			try {
+				const envelope = JSON.parse(record.body);
+				const detail = TierContentExtractedEvent.detailSchema.parse(envelope.detail);
+				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
+				const reason = "exceeded SQS maxReceiveCount";
 
-			logger.info("[SelectMostCompleteContentDlq] marking crawl failed", {
-				url: detail.url,
-				tier: detail.tier,
-				receiveCount,
-			});
+				logger.info("[SelectMostCompleteContentDlq] marking crawl failed", {
+					url: detail.url,
+					tier: detail.tier,
+					receiveCount,
+				});
 
-			await markCrawlFailed({ url: detail.url, reason });
-			await markSummaryFailed({ url: detail.url, reason: "crawl failed" });
+				await markCrawlFailed({ url: detail.url, reason });
+				await markSummaryFailed({ url: detail.url, reason: "crawl failed" });
 
-			await publishEvent({
-				source: CrawlArticleFailedEvent.source,
-				detailType: CrawlArticleFailedEvent.detailType,
-				detail: JSON.stringify({ url: detail.url, reason, receiveCount }),
-			});
+				await publishEvent({
+					source: CrawlArticleFailedEvent.source,
+					detailType: CrawlArticleFailedEvent.detailType,
+					detail: JSON.stringify({ url: detail.url, reason, receiveCount }),
+				});
+			} catch (error) {
+				logger.error("[SelectMostCompleteContentDlq] record failed", {
+					messageId: record.messageId,
+					error,
+				});
+				batchItemFailures.push({ itemIdentifier: record.messageId });
+			}
 		}
+
+		return { batchItemFailures };
 	};
 }

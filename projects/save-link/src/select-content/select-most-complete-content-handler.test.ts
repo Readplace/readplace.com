@@ -79,15 +79,18 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 }
 
 describe("initSelectMostCompleteContentHandler", () => {
-	it("no sources available — throws so SQS retries after the visibility timeout (covers worker→S3→EventBridge→SQS races)", async () => {
+	it("no sources available — reports as a batch failure so SQS redelivers the record (covers worker→S3→EventBridge→SQS races)", async () => {
 		const { handler, deps } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([]),
 		});
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1" }), stubContext, () => {}),
-		).rejects.toThrow(/no tier sources available/);
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/a", tier: "tier-1" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(deps.promoteTierToCanonical).not.toHaveBeenCalled();
 		expect(deps.publishEvent).not.toHaveBeenCalled();
 	});
@@ -285,7 +288,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 		);
 	});
 
-	it("throws on invalid event detail (Zod failure surfaces before processing)", async () => {
+	it("reports the record as a batch failure on invalid event detail (Zod failure surfaces before processing)", async () => {
 		const { handler } = createHandler();
 
 		const invalidEvent: SQSEvent = {
@@ -302,6 +305,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			}],
 		};
 
-		await expect(handler(invalidEvent, stubContext, () => {})).rejects.toThrow();
+		const result = await handler(invalidEvent, stubContext, () => {});
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

@@ -113,47 +113,56 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		});
 	});
 
-	it("does not write a tier source or publish anything when the crawl fails", async () => {
+	it("does not write a tier source or publish anything when the crawl fails (record reported as batch failure)", async () => {
 		const failedCrawl: CrawlArticle = async () => ({ status: "failed" });
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = createHandler({ crawlArticle: failedCrawl, putTierSource, publishEvent });
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/unreachable" }), stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/unreachable" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
-	it("reports crawl failures via logParseError with the crawl status as reason and rethrows for SQS retry", async () => {
+	it("reports crawl failures via logParseError with the crawl status as reason (record routed to batchItemFailures for SQS retry)", async () => {
 		const logParseError = jest.fn();
 		const failedCrawl: CrawlArticle = async () => ({ status: "failed" });
 
 		const handler = createHandler({ crawlArticle: failedCrawl, logParseError });
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/unreachable" }), stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/unreachable" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(logParseError).toHaveBeenCalledWith({
 			url: "https://example.com/unreachable",
 			reason: "crawl-failed",
 		});
 	});
 
-	it("reports parse failures via logParseError with the parser's reason and rethrows for SQS retry", async () => {
+	it("reports parse failures via logParseError with the parser's reason (record routed to batchItemFailures for SQS retry)", async () => {
 		const logParseError = jest.fn();
 		const failedParse: ParseHtml = () => ({ ok: false, reason: "Invalid URL" });
 
 		const handler = createHandler({ parseHtml: failedParse, logParseError });
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/bad" }), stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/bad" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(logParseError).toHaveBeenCalledWith({
 			url: "https://example.com/bad",
 			reason: "Invalid URL",
@@ -166,17 +175,20 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 
 		const handler = createHandler({ parseHtml: failedParse, markCrawlFailed });
 
-		await expect(
-			handler(createSqsEvent({ url: "https://example.com/bad" }), stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/bad" }),
+			stubContext,
+			() => {},
+		);
 
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(markCrawlFailed).toHaveBeenCalledWith({
 			url: "https://example.com/bad",
 			reason: "Readability crashed on this DOM",
 		});
 	});
 
-	it("throws on invalid event detail", async () => {
+	it("reports the record as a batch failure on invalid event detail (Zod failure)", async () => {
 		const handler = createHandler();
 
 		const invalidEvent: SQSEvent = {
@@ -193,8 +205,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 			}],
 		};
 
-		await expect(
-			handler(invalidEvent, stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(invalidEvent, stubContext, () => {});
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

@@ -1,4 +1,9 @@
-import type { Handler, SQSEvent } from "aws-lambda";
+import type {
+	Handler,
+	SQSBatchItemFailure,
+	SQSBatchResponse,
+	SQSEvent,
+} from "aws-lambda";
 import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
@@ -30,13 +35,27 @@ export interface ExportUserDataDependencies {
 	now: () => Date;
 }
 
-export function initExportUserDataHandler(deps: ExportUserDataDependencies): Handler<SQSEvent> {
+export function initExportUserDataHandler(
+	deps: ExportUserDataDependencies,
+): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event) => {
+		const batchItemFailures: SQSBatchItemFailure[] = [];
+
 		for (const record of event.Records) {
-			const envelope = z.object({ detail: z.unknown() }).parse(JSON.parse(record.body));
-			const detail = ExportUserDataCommand.detailSchema.parse(envelope.detail);
-			await processCommand(detail, deps);
+			try {
+				const envelope = z.object({ detail: z.unknown() }).parse(JSON.parse(record.body));
+				const detail = ExportUserDataCommand.detailSchema.parse(envelope.detail);
+				await processCommand(detail, deps);
+			} catch (error) {
+				deps.logger.error("[ExportUserData] record failed", {
+					messageId: record.messageId,
+					error,
+				});
+				batchItemFailures.push({ itemIdentifier: record.messageId });
+			}
 		}
+
+		return { batchItemFailures };
 	};
 }
 

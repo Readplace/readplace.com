@@ -63,7 +63,7 @@ describe("initSummaryGeneratedHandler", () => {
 		});
 	});
 
-	it("should throw on invalid event detail", async () => {
+	it("reports the record as a batch failure on invalid event detail (Zod failure)", async () => {
 		const logger = {
 			info: jest.fn(),
 			error: jest.fn(),
@@ -87,8 +87,7 @@ describe("initSummaryGeneratedHandler", () => {
 			}],
 		};
 
-		await expect(
-			handler(invalidEvent, stubContext, () => {}),
-		).rejects.toThrow();
+		const result = await handler(invalidEvent, stubContext, () => {});
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });
