@@ -70,16 +70,19 @@ const linkSavedQueue = new HutchSQS("link-saved", {
 	visibilityTimeoutSeconds: 60,
 });
 
+// saveLinkWork-bearing queues use 360s visibility = 2× the 180s Lambda
+// timeout (AWS guidance) so a long-running invocation never has the message
+// re-delivered to a second worker before the first finishes.
 const saveLinkCommandQueue = new HutchSQS("save-link-command", {
-	visibilityTimeoutSeconds: 60,
+	visibilityTimeoutSeconds: 360,
 });
 
 const saveAnonymousLinkCommandQueue = new HutchSQS("save-anonymous-link-command", {
-	visibilityTimeoutSeconds: 60,
+	visibilityTimeoutSeconds: 360,
 });
 
 const saveLinkRawHtmlCommandQueue = new HutchSQS("save-link-raw-html-command", {
-	visibilityTimeoutSeconds: 60,
+	visibilityTimeoutSeconds: 360,
 });
 
 const anonymousLinkSavedQueue = new HutchSQS("anonymous-link-saved", {
@@ -95,7 +98,7 @@ const summaryGenerationFailedQueue = new HutchSQS("summary-generation-failed", {
 });
 
 const recrawlLinkInitiatedQueue = new HutchSQS("recrawl-link-initiated", {
-	visibilityTimeoutSeconds: 60,
+	visibilityTimeoutSeconds: 360,
 });
 
 const staleCheckRequestedQueue = new HutchSQS("stale-check-requested", {
@@ -118,7 +121,11 @@ const saveLinkCommandLambda = new HutchLambda("save-link-command", {
 	outputDir: ".lib/save-link-command",
 	assetDir: "./src",
 	memorySize: 256,
-	timeout: 30,
+	// 180s budget for saveLinkWork: large XHTML/HTML pages (e.g. iana media-types)
+	// take >30s to fetch + parse end-to-end. Paired with 360s SQS visibility
+	// (≥2× Lambda timeout per AWS guidance) so the message stays held for the
+	// full execution. Phase 2 of the unstick-articles plan.
+	timeout: 180,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -166,7 +173,7 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda("save-link-raw-html-command
 	outputDir: ".lib/save-link-raw-html-command",
 	assetDir: "./src",
 	memorySize: 256,
-	timeout: 30,
+	timeout: 180,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -219,7 +226,7 @@ const saveAnonymousLinkCommandLambda = new HutchLambda("save-anonymous-link-comm
 	outputDir: ".lib/save-anonymous-link-command",
 	assetDir: "./src",
 	memorySize: 256,
-	timeout: 30,
+	timeout: 180,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -473,7 +480,7 @@ const recrawlLinkInitiatedLambda = new HutchLambda("recrawl-link-initiated", {
 	outputDir: ".lib/recrawl-link-initiated",
 	assetDir: "./src",
 	memorySize: 256,
-	timeout: 30,
+	timeout: 180,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
