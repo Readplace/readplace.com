@@ -54,7 +54,7 @@ jobs:
       - name: Build and package extension
         env:
           EXTENSION_VERSION: ${{ steps.version.outputs.version }}
-        run: npx nx run-many --target=compile --projects=browser-extension-core,firefox-extension
+        run: pnpm nx run-many --target=compile --projects=browser-extension-core,firefox-extension
 
       - name: Create source code archive for AMO review
         run: |

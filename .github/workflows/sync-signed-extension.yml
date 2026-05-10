@@ -30,7 +30,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: npx nx compile browser-extension-core
+      - run: pnpm nx compile browser-extension-core
 
       - name: Sync signed extension from AMO to S3
         run: node projects/extensions/firefox-extension/scripts/sync-signed-extension.js
