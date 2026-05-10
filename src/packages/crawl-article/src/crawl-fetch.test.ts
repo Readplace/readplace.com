@@ -11,9 +11,9 @@ function createCrawlFetch() {
 }
 
 describe("initCrawlFetch", () => {
-	it("throws when referer is passed in both `referer` field and `headers`", () => {
+	it("throws when referer is passed in both `referer` field and `headers`", async () => {
 		const crawlFetch = createCrawlFetch();
-		assert.rejects(
+		await assert.rejects(
 			() =>
 				crawlFetch("https://example.com", {
 					referer: "https://article.com",
