@@ -287,6 +287,7 @@ const staleCheckRequestedLambdaWithSQS = new HutchSQSBackedLambda("stale-check-r
 	lambda: staleCheckRequestedLambda,
 	queue: staleCheckRequestedQueue,
 	alertEmailDLQEntry: alertEmail,
+	reportBatchItemFailures: true,
 });
 
 eventBus.subscribe(StaleCheckRequestedEvent, staleCheckRequestedLambdaWithSQS);
