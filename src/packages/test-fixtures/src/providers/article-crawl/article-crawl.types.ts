@@ -21,7 +21,7 @@ export type MarkCrawlPending = (params: { url: string }) => Promise<void>;
 export type ForceMarkCrawlPending = (params: { url: string }) => Promise<void>;
 
 /**
- * Atomically attempts to record an auto-heal reprime against a failed row.
+ * Attempts to record an auto-heal reprime against a failed row.
  * Returns 'reprimed' when the cap is not yet hit (the call also bumps the
  * counter and timestamp), or 'capped' when the row has already used up its
  * budget of attempts inside the configured TTL window.
@@ -38,3 +38,24 @@ export type IncrementCrawlAutoHealAttempt = (params: {
 	maxAttempts: number;
 	ttlMs: number;
 }) => Promise<"reprimed" | "capped">;
+
+export interface AutoHealState {
+	attempts: number;
+	lastAttemptAtIso: string;
+}
+
+/**
+ * Reads the current auto-heal counter state for a URL. Returns undefined
+ * when no attempts have been recorded yet.
+ */
+export type FindAutoHealState = (url: string) => Promise<AutoHealState | undefined>;
+
+/**
+ * Persists the auto-heal counter + timestamp. Unconditional write — the
+ * caller (domain function) has already evaluated the cap condition.
+ */
+export type WriteAutoHealAttempt = (params: {
+	url: string;
+	attempts: number;
+	lastAttemptAtIso: string;
+}) => Promise<void>;

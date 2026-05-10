@@ -219,86 +219,82 @@ describe("initDynamoDbArticleCrawl", () => {
 		});
 	});
 
-	describe("incrementCrawlAutoHealAttempt", () => {
-		it("issues an atomic ADD with a cap-or-TTL guard and returns 'reprimed' when the condition passes", async () => {
+	describe("findAutoHealState", () => {
+		it("returns undefined when the row has no auto-heal attributes", async () => {
+			const { findAutoHealState } = initDynamoDbArticleCrawl({
+				client: clientReturning({ url: URL, crawlStatus: "failed", crawlFailureReason: "blocked" }),
+				tableName: TABLE,
+			});
+
+			expect(await findAutoHealState(URL)).toBeUndefined();
+		});
+
+		it("returns the auto-heal state when both attributes are present", async () => {
+			const { findAutoHealState } = initDynamoDbArticleCrawl({
+				client: clientReturning({
+					url: URL,
+					crawlStatus: "failed",
+					crawlFailureReason: "blocked",
+					crawlAutoHealAttempts: 2,
+					crawlAutoHealLastAttemptAt: "2026-05-10T05:00:00.000Z",
+				}),
+				tableName: TABLE,
+			});
+
+			expect(await findAutoHealState(URL)).toEqual({
+				attempts: 2,
+				lastAttemptAtIso: "2026-05-10T05:00:00.000Z",
+			});
+		});
+	});
+
+	describe("writeAutoHealAttempt", () => {
+		it("issues a SET with the provided count and timestamp", async () => {
 			let received: unknown;
 			const client = createFakeClient((input) => {
 				received = input;
 				return {};
 			});
-			const { incrementCrawlAutoHealAttempt } = initDynamoDbArticleCrawl({
+			const { writeAutoHealAttempt } = initDynamoDbArticleCrawl({
 				client: client as DynamoDBDocumentClient,
 				tableName: TABLE,
 			});
 
-			const result = await incrementCrawlAutoHealAttempt({
+			await writeAutoHealAttempt({
 				url: URL,
-				nowIso: "2026-05-10T05:00:00.000Z",
-				maxAttempts: 3,
-				ttlMs: 24 * 60 * 60 * 1000,
+				attempts: 3,
+				lastAttemptAtIso: "2026-05-10T05:00:00.000Z",
 			});
 
-			expect(result).toBe("reprimed");
 			const command = received as {
 				input: {
 					UpdateExpression?: string;
-					ConditionExpression?: string;
 					ExpressionAttributeValues?: Record<string, unknown>;
 				};
 			};
 			expect(command.input.UpdateExpression).toBe(
-				"ADD crawlAutoHealAttempts :one SET crawlAutoHealLastAttemptAt = :nowIso",
+				"SET crawlAutoHealAttempts = :attempts, crawlAutoHealLastAttemptAt = :lastAt",
 			);
-			expect(command.input.ConditionExpression).toBe(
-				"attribute_not_exists(crawlAutoHealAttempts) OR crawlAutoHealAttempts < :maxAttempts OR crawlAutoHealLastAttemptAt < :ttlCutoffIso",
-			);
-			expect(command.input.ExpressionAttributeValues?.[":one"]).toBe(1);
-			expect(command.input.ExpressionAttributeValues?.[":nowIso"]).toBe(
+			expect(command.input.ExpressionAttributeValues?.[":attempts"]).toBe(3);
+			expect(command.input.ExpressionAttributeValues?.[":lastAt"]).toBe(
 				"2026-05-10T05:00:00.000Z",
 			);
-			expect(command.input.ExpressionAttributeValues?.[":maxAttempts"]).toBe(3);
-			expect(command.input.ExpressionAttributeValues?.[":ttlCutoffIso"]).toBe(
-				"2026-05-09T05:00:00.000Z",
-			);
 		});
 
-		it("returns 'capped' when the conditional check fails (cap reached inside TTL)", async () => {
-			const client = createFakeClient(() => {
-				throw new ConditionalCheckFailedException({
-					$metadata: {},
-					message: "condition failed",
-				});
-			});
-			const { incrementCrawlAutoHealAttempt } = initDynamoDbArticleCrawl({
-				client: client as DynamoDBDocumentClient,
-				tableName: TABLE,
-			});
-
-			const result = await incrementCrawlAutoHealAttempt({
-				url: URL,
-				nowIso: "2026-05-10T05:00:00.000Z",
-				maxAttempts: 3,
-				ttlMs: 24 * 60 * 60 * 1000,
-			});
-
-			expect(result).toBe("capped");
-		});
-
-		it("rethrows non-ConditionalCheck errors (e.g. throttling)", async () => {
+		it("propagates DynamoDB errors", async () => {
 			const client = createFakeClient(() => {
 				throw new Error("throttled");
 			});
-			const { incrementCrawlAutoHealAttempt } = initDynamoDbArticleCrawl({
+			const { writeAutoHealAttempt } = initDynamoDbArticleCrawl({
 				client: client as DynamoDBDocumentClient,
 				tableName: TABLE,
 			});
 
 			await expect(
-				incrementCrawlAutoHealAttempt({
+				writeAutoHealAttempt({
 					url: URL,
-					nowIso: "2026-05-10T05:00:00.000Z",
-					maxAttempts: 3,
-					ttlMs: 24 * 60 * 60 * 1000,
+					attempts: 1,
+					lastAttemptAtIso: "2026-05-10T05:00:00.000Z",
 				}),
 			).rejects.toThrow("throttled");
 		});

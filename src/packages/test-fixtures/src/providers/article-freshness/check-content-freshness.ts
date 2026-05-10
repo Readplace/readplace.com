@@ -23,12 +23,14 @@ export type RefreshArticleIfStale = (params: {
 	url: string;
 }) => Promise<ContentFreshnessResult>;
 
-// 3 attempts per 24h: a structurally-unparseable URL (e.g. a 100MB PDF the
-// parser will never finish) is allowed to retry a few times to ride out
-// transient failures, then the cap kicks in to stop /view from republishing
-// SaveAnonymousLinkCommand on every page load. The window resets when the
-// row is successfully promoted (promoteTierToCanonical clears the counter)
-// or when the TTL since the last attempt expires.
+// 3 initial attempts, then 1 retry per TTL window: a structurally-unparseable
+// URL (e.g. a 100MB PDF the parser will never finish) gets 3 chances to ride
+// out transient failures, then the cap kicks in. Once capped, the counter is
+// not reset — only one retry is allowed per expired TTL window (the counter
+// keeps growing: 4, 5, …). This is intentional: structurally-broken URLs
+// waste less compute with a single periodic heartbeat retry than with 3 every
+// window. The counter fully resets when the row is successfully promoted
+// (promoteTierToCanonical clears it) or when an admin triggers a recrawl.
 const AUTO_HEAL_MAX_ATTEMPTS = 3;
 const AUTO_HEAL_TTL_MS = 24 * 60 * 60 * 1000;
 

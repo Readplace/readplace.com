@@ -25,7 +25,7 @@ import { initInMemoryPasswordReset } from "@packages/test-fixtures/providers/pas
 import { initDynamoDbPasswordReset } from "./providers/password-reset/dynamodb-password-reset";
 import { initDynamoDbGeneratedSummary } from "./providers/article-summary/dynamodb-generated-summary";
 import { initDynamoDbArticleCrawl } from "./providers/article-crawl/dynamodb-article-crawl";
-import { initInMemoryArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
+import { initInMemoryArticleCrawl, initIncrementCrawlAutoHealAttempt } from "@packages/test-fixtures/providers/article-crawl";
 import { S3Client } from "@aws-sdk/client-s3";
 import { initS3ReadContent } from "./providers/article-store/s3-read-content";
 import { initReadArticleContent } from "@packages/test-fixtures/providers/article-store";
@@ -122,10 +122,14 @@ function initProviders() {
 		const { publishUpdateFetchTimestamp } = initEventBridgeUpdateFetchTimestamp({ publishEvent });
 		const { publishExportUserDataCommand } = initEventBridgeExportUserDataCommand({ publishEvent });
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
+		const { incrementCrawlAutoHealAttempt } = initIncrementCrawlAutoHealAttempt({
+			findAutoHealState: crawlStore.findAutoHealState,
+			writeAutoHealAttempt: crawlStore.writeAutoHealAttempt,
+		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale({
 			findArticleFreshness: articleStore.findArticleFreshness,
 			findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
-			incrementCrawlAutoHealAttempt: crawlStore.incrementCrawlAutoHealAttempt,
+			incrementCrawlAutoHealAttempt,
 			crawlArticle,
 			parseHtml,
 			publishRefreshArticleContent,

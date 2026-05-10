@@ -2,11 +2,15 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { CrawlStage } from "@packages/domain/article";
 import type {
 	ArticleCrawl,
+	AutoHealState,
 	FindArticleCrawlStatus,
+	FindAutoHealState,
 	ForceMarkCrawlPending,
 	IncrementCrawlAutoHealAttempt,
 	MarkCrawlPending,
+	WriteAutoHealAttempt,
 } from "./article-crawl.types";
+import { initIncrementCrawlAutoHealAttempt } from "./increment-crawl-auto-heal-attempt";
 
 export type InMemoryMarkCrawlReady = (params: { url: string }) => Promise<void>;
 export type InMemoryMarkCrawlFailed = (params: {
@@ -17,11 +21,6 @@ export type InMemoryMarkCrawlStage = (params: {
 	url: string;
 	stage: CrawlStage;
 }) => Promise<void>;
-
-interface AutoHealState {
-	attempts: number;
-	lastAttemptAtIso: string;
-}
 
 export function initInMemoryArticleCrawl(): {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
@@ -89,27 +88,24 @@ export function initInMemoryArticleCrawl(): {
 		states.set(id.value, { status: "pending", stage });
 	};
 
-	const incrementCrawlAutoHealAttempt: IncrementCrawlAutoHealAttempt = async ({
+	const findAutoHealState: FindAutoHealState = async (url) => {
+		const id = ArticleResourceUniqueId.parse(url);
+		return autoHeal.get(id.value);
+	};
+
+	const writeAutoHealAttempt: WriteAutoHealAttempt = async ({
 		url,
-		nowIso,
-		maxAttempts,
-		ttlMs,
+		attempts,
+		lastAttemptAtIso,
 	}) => {
 		const id = ArticleResourceUniqueId.parse(url);
-		const current = autoHeal.get(id.value);
-		if (current) {
-			const elapsed = new Date(nowIso).getTime() - new Date(current.lastAttemptAtIso).getTime();
-			const withinTtlWindow = elapsed < ttlMs;
-			if (current.attempts >= maxAttempts && withinTtlWindow) {
-				return "capped";
-			}
-		}
-		autoHeal.set(id.value, {
-			attempts: (current?.attempts ?? 0) + 1,
-			lastAttemptAtIso: nowIso,
-		});
-		return "reprimed";
+		autoHeal.set(id.value, { attempts, lastAttemptAtIso });
 	};
+
+	const { incrementCrawlAutoHealAttempt } = initIncrementCrawlAutoHealAttempt({
+		findAutoHealState,
+		writeAutoHealAttempt,
+	});
 
 	return {
 		findArticleCrawlStatus,

@@ -1,64 +1,67 @@
 /* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
 import {
-	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
+	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { ArticleResourceUniqueId } from "../save-link/article-resource-unique-id";
-import type { IncrementCrawlAutoHealAttempt } from "@packages/test-fixtures/providers/article-crawl";
+import type {
+	FindAutoHealState,
+	WriteAutoHealAttempt,
+} from "@packages/test-fixtures/providers/article-crawl";
 
 const Row = z.object({
 	url: z.string(),
+	crawlAutoHealAttempts: dynamoField(z.number()),
+	crawlAutoHealLastAttemptAt: dynamoField(z.string()),
 });
 
-export function initIncrementCrawlAutoHealAttempt(deps: {
+export function initAutoHealStore(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
-}): { incrementCrawlAutoHealAttempt: IncrementCrawlAutoHealAttempt } {
+}): {
+	findAutoHealState: FindAutoHealState;
+	writeAutoHealAttempt: WriteAutoHealAttempt;
+} {
 	const table = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.tableName,
 		schema: Row,
 	});
 
-	const incrementCrawlAutoHealAttempt: IncrementCrawlAutoHealAttempt = async ({
-		url,
-		nowIso,
-		maxAttempts,
-		ttlMs,
-	}) => {
+	const findAutoHealState: FindAutoHealState = async (url) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const ttlCutoffIso = new Date(new Date(nowIso).getTime() - ttlMs).toISOString();
-		try {
-			await table.update({
-				Key: { url: articleResourceUniqueId.value },
-				// ADD treats a missing attribute as 0 + delta. Both writes happen
-				// atomically, so two concurrent reprimes can never both slip
-				// through at attempts=maxAttempts-1.
-				UpdateExpression:
-					"ADD crawlAutoHealAttempts :one SET crawlAutoHealLastAttemptAt = :nowIso",
-				// Allow the increment when any of:
-				//   - first attempt (counter not yet present)
-				//   - attempts strictly under the cap
-				//   - last attempt is older than the TTL window (operator/world
-				//     state may have changed; let the user try again)
-				ConditionExpression:
-					"attribute_not_exists(crawlAutoHealAttempts) OR crawlAutoHealAttempts < :maxAttempts OR crawlAutoHealLastAttemptAt < :ttlCutoffIso",
-				ExpressionAttributeValues: {
-					":one": 1,
-					":nowIso": nowIso,
-					":maxAttempts": maxAttempts,
-					":ttlCutoffIso": ttlCutoffIso,
-				},
-			});
-			return "reprimed";
-		} catch (err) {
-			if (err instanceof ConditionalCheckFailedException) return "capped";
-			throw err;
+		const row = await table.get({ url: articleResourceUniqueId.value });
+		if (
+			row?.crawlAutoHealAttempts === undefined ||
+			row?.crawlAutoHealLastAttemptAt === undefined
+		) {
+			return undefined;
 		}
+		return {
+			attempts: row.crawlAutoHealAttempts,
+			lastAttemptAtIso: row.crawlAutoHealLastAttemptAt,
+		};
 	};
 
-	return { incrementCrawlAutoHealAttempt };
+	const writeAutoHealAttempt: WriteAutoHealAttempt = async ({
+		url,
+		attempts,
+		lastAttemptAtIso,
+	}) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		await table.update({
+			Key: { url: articleResourceUniqueId.value },
+			UpdateExpression:
+				"SET crawlAutoHealAttempts = :attempts, crawlAutoHealLastAttemptAt = :lastAt",
+			ExpressionAttributeValues: {
+				":attempts": attempts,
+				":lastAt": lastAttemptAtIso,
+			},
+		});
+	};
+
+	return { findAutoHealState, writeAutoHealAttempt };
 }
 /* c8 ignore stop */

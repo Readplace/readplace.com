@@ -11,9 +11,10 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {
 	ArticleCrawl,
 	FindArticleCrawlStatus,
+	FindAutoHealState,
 	ForceMarkCrawlPending,
-	IncrementCrawlAutoHealAttempt,
 	MarkCrawlPending,
+	WriteAutoHealAttempt,
 } from "@packages/test-fixtures/providers/article-crawl";
 
 const ArticleCrawlRow = z.object({
@@ -29,6 +30,8 @@ const ArticleCrawlRow = z.object({
 			"crawl-content-uploaded",
 		]),
 	),
+	crawlAutoHealAttempts: dynamoField(z.number()),
+	crawlAutoHealLastAttemptAt: dynamoField(z.string()),
 });
 
 type ArticleCrawlRowShape = z.infer<typeof ArticleCrawlRow>;
@@ -65,7 +68,8 @@ export function initDynamoDbArticleCrawl(deps: {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
-	incrementCrawlAutoHealAttempt: IncrementCrawlAutoHealAttempt;
+	findAutoHealState: FindAutoHealState;
+	writeAutoHealAttempt: WriteAutoHealAttempt;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -109,47 +113,43 @@ export function initDynamoDbArticleCrawl(deps: {
 		});
 	};
 
-	const incrementCrawlAutoHealAttempt: IncrementCrawlAutoHealAttempt = async ({
+	const findAutoHealState: FindAutoHealState = async (url) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const row = await table.get({ url: articleResourceUniqueId.value });
+		if (
+			row?.crawlAutoHealAttempts === undefined ||
+			row?.crawlAutoHealLastAttemptAt === undefined
+		) {
+			return undefined;
+		}
+		return {
+			attempts: row.crawlAutoHealAttempts,
+			lastAttemptAtIso: row.crawlAutoHealLastAttemptAt,
+		};
+	};
+
+	const writeAutoHealAttempt: WriteAutoHealAttempt = async ({
 		url,
-		nowIso,
-		maxAttempts,
-		ttlMs,
+		attempts,
+		lastAttemptAtIso,
 	}) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const ttlCutoffIso = new Date(new Date(nowIso).getTime() - ttlMs).toISOString();
-		try {
-			await table.update({
-				Key: { url: articleResourceUniqueId.value },
-				// ADD treats a missing attribute as 0 + delta. Both writes happen
-				// atomically, so two concurrent reprimes can never both slip
-				// through at attempts=maxAttempts-1.
-				UpdateExpression:
-					"ADD crawlAutoHealAttempts :one SET crawlAutoHealLastAttemptAt = :nowIso",
-				// Allow the increment when any of:
-				//   - first attempt (counter not yet present)
-				//   - attempts strictly under the cap
-				//   - last attempt is older than the TTL window (operator/world
-				//     state may have changed; let the user try again)
-				ConditionExpression:
-					"attribute_not_exists(crawlAutoHealAttempts) OR crawlAutoHealAttempts < :maxAttempts OR crawlAutoHealLastAttemptAt < :ttlCutoffIso",
-				ExpressionAttributeValues: {
-					":one": 1,
-					":nowIso": nowIso,
-					":maxAttempts": maxAttempts,
-					":ttlCutoffIso": ttlCutoffIso,
-				},
-			});
-			return "reprimed";
-		} catch (err) {
-			if (err instanceof ConditionalCheckFailedException) return "capped";
-			throw err;
-		}
+		await table.update({
+			Key: { url: articleResourceUniqueId.value },
+			UpdateExpression:
+				"SET crawlAutoHealAttempts = :attempts, crawlAutoHealLastAttemptAt = :lastAt",
+			ExpressionAttributeValues: {
+				":attempts": attempts,
+				":lastAt": lastAttemptAtIso,
+			},
+		});
 	};
 
 	return {
 		findArticleCrawlStatus,
 		markCrawlPending,
 		forceMarkCrawlPending,
-		incrementCrawlAutoHealAttempt,
+		findAutoHealState,
+		writeAutoHealAttempt,
 	};
 }
