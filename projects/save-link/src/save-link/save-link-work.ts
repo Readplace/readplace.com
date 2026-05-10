@@ -96,6 +96,7 @@ export function initSaveLinkWork(deps: {
 
 		const media = await downloadMedia({
 			html: article.content,
+			articleUrl: url,
 			articleResourceUniqueId,
 		});
 

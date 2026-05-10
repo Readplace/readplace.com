@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import { initCrawlArticle, DEFAULT_CRAWL_HEADERS } from "./crawl-article";
 import type { CrawlArticleResult } from "./crawl-article.types";
+import { initCrawlFetch } from "./crawl-fetch";
 import type { fetchCurl } from "./curl-fetch";
 
 const noopLogError = () => {};
@@ -21,11 +22,14 @@ function initCrawl(overrides?: {
 			status: 200,
 			headers: { "content-type": "text/html" },
 		});
-	return initCrawlArticle({
+	const crawlFetch = initCrawlFetch({
 		fetch: overrides?.fetch ?? defaultFetch,
-		logError: overrides?.logError ?? noopLogError,
-		headers: { ...DEFAULT_CRAWL_HEADERS },
+		defaultHeaders: { ...DEFAULT_CRAWL_HEADERS },
 		fetchCurl: overrides?.fetchCurl ?? stubFetchCurl,
+	});
+	return initCrawlArticle({
+		crawlFetch,
+		logError: overrides?.logError ?? noopLogError,
 	});
 }
 
@@ -268,13 +272,15 @@ describe("initCrawlArticle — X/Twitter oembed fallback", () => {
 	it("returns 'failed' when oembed API throws a network error", async () => {
 		const networkError = new Error("timeout");
 		const fakeFetch: typeof fetch = async () => { throw networkError; };
+		const curlError = new Error("curl also failed");
+		const stubCurl: typeof fetchCurl = async () => { throw curlError; };
 		const logError = jest.fn();
-		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
+		const crawlArticle = initCrawl({ fetch: fakeFetch, fetchCurl: stubCurl, logError });
 
 		const result = await crawlArticle({ url: "https://x.com/user/status/123" });
 
 		expect(result).toEqual({ status: "failed" });
-		expect(logError).toHaveBeenCalledWith("[CrawlArticle] oembed error for https://x.com/user/status/123", networkError);
+		expect(logError).toHaveBeenCalledWith("[CrawlArticle] oembed error for https://x.com/user/status/123", curlError);
 	});
 
 	it("encodes the tweet URL in the oembed request", async () => {

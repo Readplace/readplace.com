@@ -77,6 +77,7 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 			const articleResourceUniqueId = ArticleResourceUniqueId.parse(detail.url);
 			const media = await downloadMedia({
 				html: parseResult.article.content,
+				articleUrl: detail.url,
 				articleResourceUniqueId,
 			});
 			const processedHtml = await processContent({ html: parseResult.article.content, media });
