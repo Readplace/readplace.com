@@ -263,6 +263,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			markCrawlReady: articleCrawl.markCrawlReady,
 			markCrawlFailed: articleCrawl.markCrawlFailed,
 			markCrawlStage: articleCrawl.markCrawlStage,
+			incrementCrawlAutoHealAttempt: articleCrawl.incrementCrawlAutoHealAttempt,
 		},
 		parser: { parseArticle, crawlArticle },
 		events: {

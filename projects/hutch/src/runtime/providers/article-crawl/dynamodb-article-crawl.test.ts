@@ -218,4 +218,85 @@ describe("initDynamoDbArticleCrawl", () => {
 			);
 		});
 	});
+
+	describe("findAutoHealState", () => {
+		it("returns undefined when the row has no auto-heal attributes", async () => {
+			const { findAutoHealState } = initDynamoDbArticleCrawl({
+				client: clientReturning({ url: URL, crawlStatus: "failed", crawlFailureReason: "blocked" }),
+				tableName: TABLE,
+			});
+
+			expect(await findAutoHealState(URL)).toBeUndefined();
+		});
+
+		it("returns the auto-heal state when both attributes are present", async () => {
+			const { findAutoHealState } = initDynamoDbArticleCrawl({
+				client: clientReturning({
+					url: URL,
+					crawlStatus: "failed",
+					crawlFailureReason: "blocked",
+					crawlAutoHealAttempts: 2,
+					crawlAutoHealLastAttemptAt: "2026-05-10T05:00:00.000Z",
+				}),
+				tableName: TABLE,
+			});
+
+			expect(await findAutoHealState(URL)).toEqual({
+				attempts: 2,
+				lastAttemptAtIso: "2026-05-10T05:00:00.000Z",
+			});
+		});
+	});
+
+	describe("writeAutoHealAttempt", () => {
+		it("issues a SET with the provided count and timestamp", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { writeAutoHealAttempt } = initDynamoDbArticleCrawl({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await writeAutoHealAttempt({
+				url: URL,
+				attempts: 3,
+				lastAttemptAtIso: "2026-05-10T05:00:00.000Z",
+			});
+
+			const command = received as {
+				input: {
+					UpdateExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.UpdateExpression).toBe(
+				"SET crawlAutoHealAttempts = :attempts, crawlAutoHealLastAttemptAt = :lastAt",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":attempts"]).toBe(3);
+			expect(command.input.ExpressionAttributeValues?.[":lastAt"]).toBe(
+				"2026-05-10T05:00:00.000Z",
+			);
+		});
+
+		it("propagates DynamoDB errors", async () => {
+			const client = createFakeClient(() => {
+				throw new Error("throttled");
+			});
+			const { writeAutoHealAttempt } = initDynamoDbArticleCrawl({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await expect(
+				writeAutoHealAttempt({
+					url: URL,
+					attempts: 1,
+					lastAttemptAtIso: "2026-05-10T05:00:00.000Z",
+				}),
+			).rejects.toThrow("throttled");
+		});
+	});
 });

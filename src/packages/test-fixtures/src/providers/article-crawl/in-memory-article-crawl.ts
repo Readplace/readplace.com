@@ -2,10 +2,15 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { CrawlStage } from "@packages/domain/article";
 import type {
 	ArticleCrawl,
+	AutoHealState,
 	FindArticleCrawlStatus,
+	FindAutoHealState,
 	ForceMarkCrawlPending,
+	IncrementCrawlAutoHealAttempt,
 	MarkCrawlPending,
+	WriteAutoHealAttempt,
 } from "./article-crawl.types";
+import { initIncrementCrawlAutoHealAttempt } from "./increment-crawl-auto-heal-attempt";
 
 export type InMemoryMarkCrawlReady = (params: { url: string }) => Promise<void>;
 export type InMemoryMarkCrawlFailed = (params: {
@@ -24,8 +29,10 @@ export function initInMemoryArticleCrawl(): {
 	markCrawlReady: InMemoryMarkCrawlReady;
 	markCrawlFailed: InMemoryMarkCrawlFailed;
 	markCrawlStage: InMemoryMarkCrawlStage;
+	incrementCrawlAutoHealAttempt: IncrementCrawlAutoHealAttempt;
 } {
 	const states = new Map<string, ArticleCrawl>();
+	const autoHeal = new Map<string, AutoHealState>();
 
 	const findArticleCrawlStatus: FindArticleCrawlStatus = async (url) => {
 		const id = ArticleResourceUniqueId.parse(url);
@@ -58,6 +65,10 @@ export function initInMemoryArticleCrawl(): {
 	const markCrawlReady: InMemoryMarkCrawlReady = async ({ url }) => {
 		const id = ArticleResourceUniqueId.parse(url);
 		states.set(id.value, { status: "ready" });
+		// Mirror the prod reset path (promoteTierToCanonical clears auto-heal
+		// counters when promoting): a successful crawl should not leave a
+		// pre-existing cap in place to bite the next failure.
+		autoHeal.delete(id.value);
 	};
 
 	const markCrawlFailed: InMemoryMarkCrawlFailed = async ({ url, reason }) => {
@@ -77,6 +88,25 @@ export function initInMemoryArticleCrawl(): {
 		states.set(id.value, { status: "pending", stage });
 	};
 
+	const findAutoHealState: FindAutoHealState = async (url) => {
+		const id = ArticleResourceUniqueId.parse(url);
+		return autoHeal.get(id.value);
+	};
+
+	const writeAutoHealAttempt: WriteAutoHealAttempt = async ({
+		url,
+		attempts,
+		lastAttemptAtIso,
+	}) => {
+		const id = ArticleResourceUniqueId.parse(url);
+		autoHeal.set(id.value, { attempts, lastAttemptAtIso });
+	};
+
+	const { incrementCrawlAutoHealAttempt } = initIncrementCrawlAutoHealAttempt({
+		findAutoHealState,
+		writeAutoHealAttempt,
+	});
+
 	return {
 		findArticleCrawlStatus,
 		markCrawlPending,
@@ -84,5 +114,6 @@ export function initInMemoryArticleCrawl(): {
 		markCrawlReady,
 		markCrawlFailed,
 		markCrawlStage,
+		incrementCrawlAutoHealAttempt,
 	};
 }

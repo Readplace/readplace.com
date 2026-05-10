@@ -11,8 +11,10 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {
 	ArticleCrawl,
 	FindArticleCrawlStatus,
+	FindAutoHealState,
 	ForceMarkCrawlPending,
 	MarkCrawlPending,
+	WriteAutoHealAttempt,
 } from "@packages/test-fixtures/providers/article-crawl";
 
 const ArticleCrawlRow = z.object({
@@ -28,6 +30,8 @@ const ArticleCrawlRow = z.object({
 			"crawl-content-uploaded",
 		]),
 	),
+	crawlAutoHealAttempts: dynamoField(z.number()),
+	crawlAutoHealLastAttemptAt: dynamoField(z.string()),
 });
 
 type ArticleCrawlRowShape = z.infer<typeof ArticleCrawlRow>;
@@ -64,6 +68,8 @@ export function initDynamoDbArticleCrawl(deps: {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
+	findAutoHealState: FindAutoHealState;
+	writeAutoHealAttempt: WriteAutoHealAttempt;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -107,5 +113,43 @@ export function initDynamoDbArticleCrawl(deps: {
 		});
 	};
 
-	return { findArticleCrawlStatus, markCrawlPending, forceMarkCrawlPending };
+	const findAutoHealState: FindAutoHealState = async (url) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const row = await table.get({ url: articleResourceUniqueId.value });
+		if (
+			row?.crawlAutoHealAttempts === undefined ||
+			row?.crawlAutoHealLastAttemptAt === undefined
+		) {
+			return undefined;
+		}
+		return {
+			attempts: row.crawlAutoHealAttempts,
+			lastAttemptAtIso: row.crawlAutoHealLastAttemptAt,
+		};
+	};
+
+	const writeAutoHealAttempt: WriteAutoHealAttempt = async ({
+		url,
+		attempts,
+		lastAttemptAtIso,
+	}) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		await table.update({
+			Key: { url: articleResourceUniqueId.value },
+			UpdateExpression:
+				"SET crawlAutoHealAttempts = :attempts, crawlAutoHealLastAttemptAt = :lastAt",
+			ExpressionAttributeValues: {
+				":attempts": attempts,
+				":lastAt": lastAttemptAtIso,
+			},
+		});
+	};
+
+	return {
+		findArticleCrawlStatus,
+		markCrawlPending,
+		forceMarkCrawlPending,
+		findAutoHealState,
+		writeAutoHealAttempt,
+	};
 }

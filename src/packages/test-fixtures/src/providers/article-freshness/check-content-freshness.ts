@@ -3,7 +3,10 @@ import type {
 	ParseArticleResult,
 	ParseHtml,
 } from "../article-parser/article-parser.types";
-import type { FindArticleCrawlStatus } from "../article-crawl/article-crawl.types";
+import type {
+	FindArticleCrawlStatus,
+	IncrementCrawlAutoHealAttempt,
+} from "../article-crawl/article-crawl.types";
 import type { FindArticleFreshness } from "../article-store/article-store.types";
 import type { PublishRefreshArticleContent } from "../events/publish-refresh-article-content.types";
 import type { PublishUpdateFetchTimestamp } from "../events/publish-update-fetch-timestamp.types";
@@ -20,9 +23,21 @@ export type RefreshArticleIfStale = (params: {
 	url: string;
 }) => Promise<ContentFreshnessResult>;
 
+// 3 initial attempts, then 1 retry per TTL window: a structurally-unparseable
+// URL (e.g. a 100MB PDF the parser will never finish) gets 3 chances to ride
+// out transient failures, then the cap kicks in. Once capped, the counter is
+// not reset — only one retry is allowed per expired TTL window (the counter
+// keeps growing: 4, 5, …). This is intentional: structurally-broken URLs
+// waste less compute with a single periodic heartbeat retry than with 3 every
+// window. The counter fully resets when the row is successfully promoted
+// (promoteTierToCanonical clears it) or when an admin triggers a recrawl.
+const AUTO_HEAL_MAX_ATTEMPTS = 3;
+const AUTO_HEAL_TTL_MS = 24 * 60 * 60 * 1000;
+
 export function initRefreshArticleIfStale(deps: {
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
+	incrementCrawlAutoHealAttempt: IncrementCrawlAutoHealAttempt;
 	crawlArticle: CrawlArticle;
 	parseHtml: ParseHtml;
 	publishRefreshArticleContent: PublishRefreshArticleContent;
@@ -38,8 +53,21 @@ export function initRefreshArticleIfStale(deps: {
 		}
 
 		const crawl = await deps.findArticleCrawlStatus(params.url);
-		if (!crawl || crawl.status === "failed") {
+		if (!crawl) {
+			// Legacy stub (freshness row exists but no crawl status). Always
+			// reprime — the worker has never run, so the cap doesn't apply
+			// (we want it to run at least once to discover whether this URL
+			// is parseable).
 			return { action: "reprime" };
+		}
+		if (crawl.status === "failed") {
+			const result = await deps.incrementCrawlAutoHealAttempt({
+				url: params.url,
+				nowIso: deps.now().toISOString(),
+				maxAttempts: AUTO_HEAL_MAX_ATTEMPTS,
+				ttlMs: AUTO_HEAL_TTL_MS,
+			});
+			return result === "capped" ? { action: "skip" } : { action: "reprime" };
 		}
 
 		if (freshness.contentFetchedAt) {

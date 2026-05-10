@@ -1714,6 +1714,7 @@ describe("Queue routes", () => {
  	markCrawlReady: fixture.articleCrawl.markCrawlReady,
  	markCrawlFailed: fixture.articleCrawl.markCrawlFailed,
  	markCrawlStage: fixture.articleCrawl.markCrawlStage,
+ 	incrementCrawlAutoHealAttempt: fixture.articleCrawl.incrementCrawlAutoHealAttempt,
  },
 			});
 			const agent = await loginAgent(app, auth);
@@ -1768,6 +1769,7 @@ describe("Queue routes", () => {
  	markCrawlReady: fixture.articleCrawl.markCrawlReady,
  	markCrawlFailed: fixture.articleCrawl.markCrawlFailed,
  	markCrawlStage: fixture.articleCrawl.markCrawlStage,
+ 	incrementCrawlAutoHealAttempt: fixture.articleCrawl.incrementCrawlAutoHealAttempt,
  },
 			});
 			const agent = await loginAgent(app, auth);
@@ -1818,6 +1820,7 @@ describe("Queue routes", () => {
 					markCrawlReady: fixture.articleCrawl.markCrawlReady,
 					markCrawlFailed: fixture.articleCrawl.markCrawlFailed,
 					markCrawlStage: fixture.articleCrawl.markCrawlStage,
+					incrementCrawlAutoHealAttempt: fixture.articleCrawl.incrementCrawlAutoHealAttempt,
 				},
 				summary: {
 					findGeneratedSummary: async () => undefined,

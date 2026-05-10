@@ -94,7 +94,12 @@ export function initPromoteTierToCanonical(deps: {
 
 		await articleTable.update({
 			Key: { url: id.value },
-			UpdateExpression: `SET ${setClauses.join(", ")} REMOVE crawlFailureReason, crawlFailedAt`,
+			// Clear the auto-heal counters atomically with the promote so a row
+			// that recovered (e.g. after Phase 2's bigger Lambda budget) gets a
+			// fresh budget against the next failure window. The cap (Phase 3)
+			// only applies inside the freshness path; resetting here is what
+			// keeps it from carrying stale state across successful crawls.
+			UpdateExpression: `SET ${setClauses.join(", ")} REMOVE crawlFailureReason, crawlFailedAt, crawlAutoHealAttempts, crawlAutoHealLastAttemptAt`,
 			ExpressionAttributeValues: values,
 		});
 	};

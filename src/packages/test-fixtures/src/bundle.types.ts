@@ -24,6 +24,7 @@ import type {
 import type {
 	FindArticleCrawlStatus,
 	ForceMarkCrawlPending,
+	IncrementCrawlAutoHealAttempt,
 	MarkCrawlPending,
 } from "./providers/article-crawl/article-crawl.types";
 import type {
@@ -149,6 +150,7 @@ export interface ArticleCrawlBundle {
 	markCrawlReady: InMemoryMarkCrawlReady;
 	markCrawlFailed: InMemoryMarkCrawlFailed;
 	markCrawlStage: InMemoryMarkCrawlStage;
+	incrementCrawlAutoHealAttempt: IncrementCrawlAutoHealAttempt;
 }
 
 export interface ParserBundle {

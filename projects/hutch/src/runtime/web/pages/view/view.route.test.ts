@@ -1040,6 +1040,7 @@ describe("View routes", () => {
  	markCrawlReady: fixture.articleCrawl.markCrawlReady,
  	markCrawlFailed: fixture.articleCrawl.markCrawlFailed,
  	markCrawlStage: fixture.articleCrawl.markCrawlStage,
+ 	incrementCrawlAutoHealAttempt: fixture.articleCrawl.incrementCrawlAutoHealAttempt,
  },
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,

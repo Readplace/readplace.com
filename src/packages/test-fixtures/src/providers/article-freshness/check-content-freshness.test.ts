@@ -4,6 +4,9 @@ function createDeps(overrides?: Record<string, unknown>) {
 	return {
 		findArticleFreshness: async (_url: string) => null,
 		findArticleCrawlStatus: async (_url: string) => undefined,
+		// Default: never capped — most tests don't touch the failed branch, and
+		// the few that do override this to simulate the cap.
+		incrementCrawlAutoHealAttempt: async () => "reprimed" as const,
 		crawlArticle: async () => ({ status: "failed" as const }),
 		parseHtml: () => ({
 			ok: true as const,
@@ -59,6 +62,67 @@ describe("refreshArticleIfStale", () => {
 		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
 
 		expect(result.action).toBe("reprime");
+	});
+
+	it("does not call incrementCrawlAutoHealAttempt for the legacy-stub branch (cap only applies to a known-failing crawl)", async () => {
+		const incrementCalls: unknown[] = [];
+		const deps = createDeps({
+			findArticleFreshness: async () => ({
+				contentFetchedAt: "2026-03-20T09:00:00Z",
+			}),
+			findArticleCrawlStatus: async () => undefined,
+			incrementCrawlAutoHealAttempt: async (params: unknown) => {
+				incrementCalls.push(params);
+				return "reprimed" as const;
+			},
+		});
+		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
+
+		await refreshArticleIfStale({ url: "https://example.com/article" });
+
+		expect(incrementCalls).toEqual([]);
+	});
+
+	it("returns action 'skip' when the auto-heal cap is hit on a failed crawl", async () => {
+		const deps = createDeps({
+			findArticleFreshness: async () => ({
+				contentFetchedAt: "2026-03-20T09:00:00Z",
+			}),
+			findArticleCrawlStatus: async () => ({ status: "failed" as const, reason: "blocked" }),
+			incrementCrawlAutoHealAttempt: async () => "capped" as const,
+		});
+		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
+
+		const result = await refreshArticleIfStale({ url: "https://example.com/article" });
+
+		expect(result.action).toBe("skip");
+	});
+
+	it("forwards now / max / ttl to incrementCrawlAutoHealAttempt for the failed branch", async () => {
+		const incrementCalls: { url: string; nowIso: string; maxAttempts: number; ttlMs: number }[] = [];
+		const deps = createDeps({
+			findArticleFreshness: async () => ({
+				contentFetchedAt: "2026-03-20T09:00:00Z",
+			}),
+			findArticleCrawlStatus: async () => ({ status: "failed" as const, reason: "blocked" }),
+			incrementCrawlAutoHealAttempt: async (params: typeof incrementCalls[number]) => {
+				incrementCalls.push(params);
+				return "reprimed" as const;
+			},
+			now: () => new Date("2026-03-20T10:00:00Z"),
+		});
+		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
+
+		await refreshArticleIfStale({ url: "https://example.com/article" });
+
+		expect(incrementCalls).toEqual([
+			{
+				url: "https://example.com/article",
+				nowIso: "2026-03-20T10:00:00.000Z",
+				maxAttempts: 3,
+				ttlMs: 86_400_000,
+			},
+		]);
 	});
 
 	it("returns action 'skip' when contentFetchedAt is within TTL", async () => {
