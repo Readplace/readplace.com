@@ -540,6 +540,29 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 						view: "table",
 					}),
 				),
+				/**
+				 * Top Medium Posts by Clicks — counts inbound pageviews where the
+				 * Medium `source=post_page-----<id>` parameter is present, grouped
+				 * by post id. The middleware extracts the id into `medium_post_id`;
+				 * this widget answers "which Medium post is sending readers to
+				 * Readplace?" at per-post fidelity (utm_source only gives per-author).
+				 * To resolve an id back to a post, open https://medium.com/p/<id>.
+				 */
+				logWidget({
+					title: "Top Medium Posts by Clicks",
+					logGroupNames: [hutchLogGroupName],
+					query: [
+						"fields @timestamp, medium_post_id",
+						"| filter stream = \"analytics\" and event = \"pageview\"",
+						"| filter ispresent(medium_post_id) and medium_post_id != \"\"",
+						...excludeVisitorHashesClause(),
+						"| stats count(*) as clicks by medium_post_id",
+						"| sort clicks desc",
+						"| limit 10",
+					].join(" "),
+					x: 0, y: 72, width: 12, height: 8,
+					view: "pie",
+				}),
 			],
 		}),
 	),

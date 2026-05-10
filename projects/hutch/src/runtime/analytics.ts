@@ -13,6 +13,7 @@ export interface AnalyticsPageview {
 	utm_campaign?: string;
 	utm_content?: string;
 	referrer_host?: string;
+	medium_post_id?: string;
 	visitor_hash: string | null;
 	is_authenticated: 0 | 1;
 }
@@ -53,6 +54,20 @@ function extractReferrerHost(req: Request): string | undefined {
 	}
 }
 
+/**
+ * Medium attaches `source=post_page-----<id>---------------------------------------`
+ * to every outbound link from a post. The 12-char alnum segment after
+ * `post_page-----` is the post's canonical Medium identifier — same one Medium
+ * uses for `https://medium.com/p/<id>`. We capture only the ID (not the
+ * trailing dashes) so the dashboard's group-by key is the post itself.
+ */
+function extractMediumPostId(req: Request): string | undefined {
+	const source = req.query.source;
+	if (typeof source !== "string") return undefined;
+	const match = source.match(/^post_page-----([A-Za-z0-9]+)/);
+	return match ? match[1] : undefined;
+}
+
 export function hashIp(deps: { ip: string | undefined; salt: string }): string | null {
 	if (!deps.ip) return null;
 	return createHash("sha256")
@@ -79,6 +94,7 @@ export function createAnalyticsMiddleware(deps: {
 				utm_campaign: extractQueryString(req, "utm_campaign"),
 				utm_content: extractQueryString(req, "utm_content"),
 				referrer_host: extractReferrerHost(req),
+				medium_post_id: extractMediumPostId(req),
 				visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
 				is_authenticated: req.userId ? 1 : 0,
 			});

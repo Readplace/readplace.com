@@ -69,6 +69,7 @@ describe("createAnalyticsMiddleware", () => {
 		expect(serialized).not.toContain("utm_campaign");
 		expect(serialized).not.toContain("utm_content");
 		expect(serialized).not.toContain("referrer_host");
+		expect(serialized).not.toContain("medium_post_id");
 		expect(event).toEqual({
 			stream: "analytics",
 			event: "pageview",
@@ -124,6 +125,26 @@ describe("createAnalyticsMiddleware", () => {
 		const req = createReq({ query: { utm_source: "" } });
 		const [event] = runMiddleware(req, createRes(200));
 		expect(JSON.stringify(event)).not.toContain("utm_source");
+	});
+
+	it("extracts the Medium post id from source=post_page-----<id>--- — Medium attaches this to every outbound link from a post and the alnum segment is the canonical post id (same one used at https://medium.com/p/<id>)", () => {
+		const req = createReq({
+			path: "/view",
+			query: { source: "post_page-----b07aa10a0d93---------------------------------------" },
+		});
+		const [event] = runMiddleware(req, createRes(200));
+		expect(event).toMatchObject({ medium_post_id: "b07aa10a0d93" });
+	});
+
+	it("omits medium_post_id from the emitted JSON when the source param does not match Medium's post_page-----<id> shape (some Medium URLs carry source=user_profile_page or empty)", () => {
+		const req = createReq({ query: { source: "user_profile_page" } });
+		const [event] = runMiddleware(req, createRes(200));
+		expect(JSON.stringify(event)).not.toContain("medium_post_id");
+	});
+
+	it("omits medium_post_id from the emitted JSON when the source param is absent", () => {
+		const [event] = runMiddleware(createReq({ query: {} }), createRes(200));
+		expect(JSON.stringify(event)).not.toContain("medium_post_id");
 	});
 });
 
