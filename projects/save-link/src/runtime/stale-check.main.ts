@@ -22,6 +22,7 @@ import { requireEnv } from "../require-env";
 import { initStaleCheckHandler } from "../save-link/stale-check-handler";
 import { initFindArticleFreshness } from "../crawl-article-state/find-article-freshness";
 import { initFindArticleCrawlStatus } from "../crawl-article-state/find-article-crawl-status";
+import { initIncrementCrawlAutoHealAttempt } from "../crawl-article-state/increment-crawl-auto-heal-attempt";
 
 // 24h: mirrors hutch app.ts's staleTtlMs. Reads of an article older than this
 // trigger a conditional GET against the source (304 → noop, 200 → re-extract).
@@ -92,9 +93,15 @@ const { findArticleCrawlStatus } = initFindArticleCrawlStatus({
 	tableName: articlesTable,
 });
 
+const { incrementCrawlAutoHealAttempt } = initIncrementCrawlAutoHealAttempt({
+	client,
+	tableName: articlesTable,
+});
+
 const { refreshArticleIfStale } = initRefreshArticleIfStale({
 	findArticleFreshness,
 	findArticleCrawlStatus,
+	incrementCrawlAutoHealAttempt,
 	crawlArticle,
 	parseHtml,
 	publishRefreshArticleContent,

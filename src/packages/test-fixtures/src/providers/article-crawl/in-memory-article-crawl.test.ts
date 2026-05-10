@@ -56,4 +56,58 @@ describe("initInMemoryArticleCrawl", () => {
 			});
 		});
 	});
+
+	describe("incrementCrawlAutoHealAttempt", () => {
+		const NOW_ISO = "2026-05-10T05:00:00.000Z";
+		const MAX = 3;
+		const TTL_MS = 24 * 60 * 60 * 1000;
+
+		it("returns 'reprimed' on the first attempt and records the count", async () => {
+			const crawl = initInMemoryArticleCrawl();
+			expect(
+				await crawl.incrementCrawlAutoHealAttempt({ url: URL, nowIso: NOW_ISO, maxAttempts: MAX, ttlMs: TTL_MS }),
+			).toBe("reprimed");
+		});
+
+		it("returns 'reprimed' for attempts strictly under the cap", async () => {
+			const crawl = initInMemoryArticleCrawl();
+			await crawl.incrementCrawlAutoHealAttempt({ url: URL, nowIso: NOW_ISO, maxAttempts: MAX, ttlMs: TTL_MS });
+			await crawl.incrementCrawlAutoHealAttempt({ url: URL, nowIso: NOW_ISO, maxAttempts: MAX, ttlMs: TTL_MS });
+			expect(
+				await crawl.incrementCrawlAutoHealAttempt({ url: URL, nowIso: NOW_ISO, maxAttempts: MAX, ttlMs: TTL_MS }),
+			).toBe("reprimed");
+		});
+
+		it("returns 'capped' once the cap is hit within the TTL window", async () => {
+			const crawl = initInMemoryArticleCrawl();
+			for (let i = 0; i < MAX; i += 1) {
+				await crawl.incrementCrawlAutoHealAttempt({ url: URL, nowIso: NOW_ISO, maxAttempts: MAX, ttlMs: TTL_MS });
+			}
+			expect(
+				await crawl.incrementCrawlAutoHealAttempt({ url: URL, nowIso: NOW_ISO, maxAttempts: MAX, ttlMs: TTL_MS }),
+			).toBe("capped");
+		});
+
+		it("re-allows reprime once the TTL window since the last attempt has elapsed", async () => {
+			const crawl = initInMemoryArticleCrawl();
+			for (let i = 0; i < MAX; i += 1) {
+				await crawl.incrementCrawlAutoHealAttempt({ url: URL, nowIso: NOW_ISO, maxAttempts: MAX, ttlMs: TTL_MS });
+			}
+			const laterIso = new Date(new Date(NOW_ISO).getTime() + TTL_MS + 1).toISOString();
+			expect(
+				await crawl.incrementCrawlAutoHealAttempt({ url: URL, nowIso: laterIso, maxAttempts: MAX, ttlMs: TTL_MS }),
+			).toBe("reprimed");
+		});
+
+		it("clears the auto-heal counter when markCrawlReady runs (mirrors prod promote reset)", async () => {
+			const crawl = initInMemoryArticleCrawl();
+			for (let i = 0; i < MAX; i += 1) {
+				await crawl.incrementCrawlAutoHealAttempt({ url: URL, nowIso: NOW_ISO, maxAttempts: MAX, ttlMs: TTL_MS });
+			}
+			await crawl.markCrawlReady({ url: URL });
+			expect(
+				await crawl.incrementCrawlAutoHealAttempt({ url: URL, nowIso: NOW_ISO, maxAttempts: MAX, ttlMs: TTL_MS }),
+			).toBe("reprimed");
+		});
+	});
 });

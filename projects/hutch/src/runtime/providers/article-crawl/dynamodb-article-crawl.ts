@@ -12,6 +12,7 @@ import type {
 	ArticleCrawl,
 	FindArticleCrawlStatus,
 	ForceMarkCrawlPending,
+	IncrementCrawlAutoHealAttempt,
 	MarkCrawlPending,
 } from "@packages/test-fixtures/providers/article-crawl";
 
@@ -64,6 +65,7 @@ export function initDynamoDbArticleCrawl(deps: {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
+	incrementCrawlAutoHealAttempt: IncrementCrawlAutoHealAttempt;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -107,5 +109,47 @@ export function initDynamoDbArticleCrawl(deps: {
 		});
 	};
 
-	return { findArticleCrawlStatus, markCrawlPending, forceMarkCrawlPending };
+	const incrementCrawlAutoHealAttempt: IncrementCrawlAutoHealAttempt = async ({
+		url,
+		nowIso,
+		maxAttempts,
+		ttlMs,
+	}) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const ttlCutoffIso = new Date(new Date(nowIso).getTime() - ttlMs).toISOString();
+		try {
+			await table.update({
+				Key: { url: articleResourceUniqueId.value },
+				// ADD treats a missing attribute as 0 + delta. Both writes happen
+				// atomically, so two concurrent reprimes can never both slip
+				// through at attempts=maxAttempts-1.
+				UpdateExpression:
+					"ADD crawlAutoHealAttempts :one SET crawlAutoHealLastAttemptAt = :nowIso",
+				// Allow the increment when any of:
+				//   - first attempt (counter not yet present)
+				//   - attempts strictly under the cap
+				//   - last attempt is older than the TTL window (operator/world
+				//     state may have changed; let the user try again)
+				ConditionExpression:
+					"attribute_not_exists(crawlAutoHealAttempts) OR crawlAutoHealAttempts < :maxAttempts OR crawlAutoHealLastAttemptAt < :ttlCutoffIso",
+				ExpressionAttributeValues: {
+					":one": 1,
+					":nowIso": nowIso,
+					":maxAttempts": maxAttempts,
+					":ttlCutoffIso": ttlCutoffIso,
+				},
+			});
+			return "reprimed";
+		} catch (err) {
+			if (err instanceof ConditionalCheckFailedException) return "capped";
+			throw err;
+		}
+	};
+
+	return {
+		findArticleCrawlStatus,
+		markCrawlPending,
+		forceMarkCrawlPending,
+		incrementCrawlAutoHealAttempt,
+	};
 }

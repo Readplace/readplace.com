@@ -218,4 +218,89 @@ describe("initDynamoDbArticleCrawl", () => {
 			);
 		});
 	});
+
+	describe("incrementCrawlAutoHealAttempt", () => {
+		it("issues an atomic ADD with a cap-or-TTL guard and returns 'reprimed' when the condition passes", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { incrementCrawlAutoHealAttempt } = initDynamoDbArticleCrawl({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const result = await incrementCrawlAutoHealAttempt({
+				url: URL,
+				nowIso: "2026-05-10T05:00:00.000Z",
+				maxAttempts: 3,
+				ttlMs: 24 * 60 * 60 * 1000,
+			});
+
+			expect(result).toBe("reprimed");
+			const command = received as {
+				input: {
+					UpdateExpression?: string;
+					ConditionExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.UpdateExpression).toBe(
+				"ADD crawlAutoHealAttempts :one SET crawlAutoHealLastAttemptAt = :nowIso",
+			);
+			expect(command.input.ConditionExpression).toBe(
+				"attribute_not_exists(crawlAutoHealAttempts) OR crawlAutoHealAttempts < :maxAttempts OR crawlAutoHealLastAttemptAt < :ttlCutoffIso",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":one"]).toBe(1);
+			expect(command.input.ExpressionAttributeValues?.[":nowIso"]).toBe(
+				"2026-05-10T05:00:00.000Z",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":maxAttempts"]).toBe(3);
+			expect(command.input.ExpressionAttributeValues?.[":ttlCutoffIso"]).toBe(
+				"2026-05-09T05:00:00.000Z",
+			);
+		});
+
+		it("returns 'capped' when the conditional check fails (cap reached inside TTL)", async () => {
+			const client = createFakeClient(() => {
+				throw new ConditionalCheckFailedException({
+					$metadata: {},
+					message: "condition failed",
+				});
+			});
+			const { incrementCrawlAutoHealAttempt } = initDynamoDbArticleCrawl({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const result = await incrementCrawlAutoHealAttempt({
+				url: URL,
+				nowIso: "2026-05-10T05:00:00.000Z",
+				maxAttempts: 3,
+				ttlMs: 24 * 60 * 60 * 1000,
+			});
+
+			expect(result).toBe("capped");
+		});
+
+		it("rethrows non-ConditionalCheck errors (e.g. throttling)", async () => {
+			const client = createFakeClient(() => {
+				throw new Error("throttled");
+			});
+			const { incrementCrawlAutoHealAttempt } = initDynamoDbArticleCrawl({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await expect(
+				incrementCrawlAutoHealAttempt({
+					url: URL,
+					nowIso: "2026-05-10T05:00:00.000Z",
+					maxAttempts: 3,
+					ttlMs: 24 * 60 * 60 * 1000,
+				}),
+			).rejects.toThrow("throttled");
+		});
+	});
 });

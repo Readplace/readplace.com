@@ -125,6 +125,7 @@ function initProviders() {
 		const { refreshArticleIfStale } = initRefreshArticleIfStale({
 			findArticleFreshness: articleStore.findArticleFreshness,
 			findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
+			incrementCrawlAutoHealAttempt: crawlStore.incrementCrawlAutoHealAttempt,
 			crawlArticle,
 			parseHtml,
 			publishRefreshArticleContent,
@@ -271,6 +272,7 @@ function initProviders() {
 	const { refreshArticleIfStale } = initRefreshArticleIfStale({
 		findArticleFreshness: articleStore.findArticleFreshness,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
+		incrementCrawlAutoHealAttempt: crawlStore.incrementCrawlAutoHealAttempt,
 		crawlArticle,
 		parseHtml,
 		publishRefreshArticleContent,
