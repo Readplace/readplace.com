@@ -1,6 +1,7 @@
 import { parseHTML } from "linkedom";
 import type { CrawlArticle, CrawlArticleResult, ThumbnailImage } from "./crawl-article.types";
 import type { CrawlFetch } from "./crawl-fetch";
+import { extensionFromContentType } from "./extension-from-content-type";
 import { headerOrUndefined } from "./header-utils";
 
 const FETCH_TIMEOUT_MS = 10000;
@@ -152,28 +153,6 @@ async function fetchViaOembed(
 		deps.logError(`[CrawlArticle] oembed error for ${params.url}`, error instanceof Error ? error : undefined);
 		return { status: "failed" } as const;
 	}
-}
-
-function extensionFromContentType(params: { contentType: string; url: string }): string {
-	const { contentType, url } = params;
-	const mimeMap: Record<string, string> = {
-		"image/png": ".png",
-		"image/jpeg": ".jpg",
-		"image/gif": ".gif",
-		"image/webp": ".webp",
-		"image/svg+xml": ".svg",
-		"image/avif": ".avif",
-	};
-	const mimeBase = contentType.split(";")[0].trim().toLowerCase();
-	if (mimeMap[mimeBase]) return mimeMap[mimeBase];
-	try {
-		const pathname = new URL(url).pathname;
-		const match = pathname.match(/\.(\w{2,5})$/);
-		if (match) return `.${match[1]}`;
-	} catch {
-		// malformed URL
-	}
-	return ".bin";
 }
 
 function extractThumbnailCandidates(params: {
