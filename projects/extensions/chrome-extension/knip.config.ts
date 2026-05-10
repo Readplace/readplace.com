@@ -8,7 +8,6 @@ export default {
 	ignore: [
 		...(base.ignore ?? []),
 		// CLI scripts (not entry points)
-		"scripts/bump-version.js",
 		"scripts/install-chrome-for-testing.js",
 		"scripts/submit-to-chrome-web-store.js",
 		// PurgeCSS config loaded via CLI, not imported in source

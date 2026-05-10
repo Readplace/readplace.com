@@ -37,6 +37,7 @@ interface BuildPlanInput {
 	config: ExtensionBuildConfig;
 	projectDir: string;
 	serverUrl: string | undefined;
+	version: string | undefined;
 	appDomains: readonly string[];
 	pack?: (params: { sourceDir: string; outputPath: string }) => void;
 }
@@ -101,7 +102,9 @@ export function initBuildExtension(deps: Partial<BuildExtensionDeps> = {}) {
 	return {
 		createBuildPlan(input: BuildPlanInput) {
 			assert(input.serverUrl, "HUTCH_SERVER_URL environment variable is required.\nSet it before building (e.g. HUTCH_SERVER_URL=https://readplace.com)");
+			assert(input.version, "EXTENSION_VERSION environment variable is required.\nSet it before building (e.g. EXTENSION_VERSION=1.2.3)");
 			const serverUrl = input.serverUrl;
+			const version = input.version;
 
 			const planData = createPlanData({
 				config: input.config,
@@ -128,9 +131,11 @@ export function initBuildExtension(deps: Partial<BuildExtensionDeps> = {}) {
 						}
 					}
 
+					const manifestDest = join(input.projectDir, "dist-extension-compiled", "manifest.json");
+					const manifest = JSON.parse(resolvedDeps.readFileSync(manifestDest, "utf-8"));
+					manifest.version = version;
+
 					if (serverUrl.includes("127.0.0.1")) {
-						const manifestDest = join(input.projectDir, "dist-extension-compiled", "manifest.json");
-						const manifest = JSON.parse(resolvedDeps.readFileSync(manifestDest, "utf-8"));
 						const localhostPattern = `${serverUrl}/*`;
 
 						if (Array.isArray(manifest.host_permissions)) {
@@ -140,9 +145,9 @@ export function initBuildExtension(deps: Partial<BuildExtensionDeps> = {}) {
 						if (Array.isArray(manifest.permissions)) {
 							manifest.permissions.push(localhostPattern);
 						}
-
-						resolvedDeps.writeFileSync(manifestDest, `${JSON.stringify(manifest, null, 2)}\n`);
 					}
+
+					resolvedDeps.writeFileSync(manifestDest, `${JSON.stringify(manifest, null, 2)}\n`);
 
 					console.log("Extension built to dist-extension-compiled/");
 				},

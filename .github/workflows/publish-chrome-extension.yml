@@ -17,7 +17,13 @@ jobs:
     runs-on: ubuntu-latest
     environment: prod
     steps:
+      # fetch-tags pulls the chrome-extension@v* tag history needed to
+      # compute the next version. fetch-depth: 0 keeps git tag --list
+      # cheap and consistent across re-runs.
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - uses: pnpm/action-setup@v4
         with:
@@ -30,37 +36,27 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Compile bump-version script
-        run: pnpm --filter chrome-extension exec tsc --outDir dist --rootDir src --module commonjs --esModuleInterop --skipLibCheck src/bump-version.ts
-
-      - name: Bump extension version
-        run: node projects/extensions/chrome-extension/scripts/bump-version.js patch
+      - name: Compute next version from latest chrome-extension tag
+        id: version
+        run: |
+          LATEST=$(git tag --list 'chrome-extension@v*' --sort=-v:refname | head -n1 | sed 's/^chrome-extension@v//')
+          if [ -z "$LATEST" ]; then
+            # Bootstrap value matches the last commit-based version published to
+            # the Chrome Web Store (1.0.128). Used only when no chrome-extension@v*
+            # tag exists yet — once the first tag is created, this branch is dead.
+            LATEST="1.0.128"
+            echo "No prior tag found, bootstrapping from $LATEST"
+          fi
+          PATCH="${LATEST##*.}"
+          PREFIX="${LATEST%.*}"
+          NEXT="${PREFIX}.$((PATCH + 1))"
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "Latest tag: chrome-extension@v$LATEST → publishing v$NEXT"
 
       - name: Build and package extension
-        run: npx nx run-many --target=compile --projects=browser-extension-core,chrome-extension
-
-      - name: Commit and push bumped version to main
         env:
-          HUSKY: '0'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add projects/extensions/chrome-extension/package.json projects/extensions/chrome-extension/src/runtime/manifest.json
-          git commit -m "chore: bump chrome extension version to $(node -p "require('./projects/extensions/chrome-extension/package.json').version")"
-          push_succeeded=false
-          for i in 1 2 3 4 5; do
-            git pull --rebase origin main
-            if git push origin main; then
-              push_succeeded=true
-              break
-            fi
-            echo "Push attempt $i failed, retrying..."
-            sleep 2
-          done
-          if [ "$push_succeeded" = false ]; then
-            echo "ERROR: All 5 push attempts failed"
-            exit 1
-          fi
+          EXTENSION_VERSION: ${{ steps.version.outputs.version }}
+        run: npx nx run-many --target=compile --projects=browser-extension-core,chrome-extension
 
       - name: Submit to Chrome Web Store
         run: node projects/extensions/chrome-extension/scripts/submit-to-chrome-web-store.js
@@ -69,3 +65,24 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
           CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+
+      - name: Tag the published commit
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG="chrome-extension@v${{ steps.version.outputs.version }}"
+          git tag "$TAG"
+          push_succeeded=false
+          for i in 1 2 3 4 5; do
+            if git push origin "$TAG"; then
+              push_succeeded=true
+              break
+            fi
+            echo "Tag push attempt $i failed, retrying..."
+            sleep 2
+          done
+          if [ "$push_succeeded" = false ]; then
+            echo "ERROR: All 5 tag push attempts failed"
+            exit 1
+          fi

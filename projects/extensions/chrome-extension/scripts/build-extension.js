@@ -1,3 +1,4 @@
+const assert = require('node:assert');
 const { join } = require('node:path');
 const { execSync } = require('node:child_process');
 const { cpSync, mkdirSync } = require('node:fs');
@@ -10,6 +11,10 @@ const serverUrl = process.env.HUTCH_SERVER_URL;
 const gitHash = execSync('git rev-parse --short=6 HEAD').toString().trim();
 const isDev = serverUrl && serverUrl.includes('127.0.0.1');
 const filename = isDev ? `hutch-${gitHash}-dev.zip` : `hutch-${gitHash}.zip`;
+// Chrome's manifest validator requires 1-4 numeric dot-separated parts, so the
+// dev fallback is plain 0.0.0 rather than something like 0.0.0-dev.
+const version = process.env.EXTENSION_VERSION ?? (isDev ? '0.0.0' : undefined);
+assert(version, 'EXTENSION_VERSION environment variable is required for production builds.\nSet it before building (e.g. EXTENSION_VERSION=1.2.3)');
 
 const appDomains = ['readplace.com'];
 
@@ -19,6 +24,7 @@ const plan = createBuildPlan({
   config,
   projectDir,
   serverUrl,
+  version,
   appDomains,
   pack: ({ sourceDir, outputPath }) => {
     const zipFlags = process.env.CI === 'true' ? '-rq' : '-r';

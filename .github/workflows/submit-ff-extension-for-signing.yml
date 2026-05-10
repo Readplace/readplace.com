@@ -15,7 +15,13 @@ jobs:
     env:
       AWS_REGION: ap-southeast-2
     steps:
+      # fetch-tags pulls the firefox-extension@v* tag history needed to
+      # compute the next version. fetch-depth: 0 keeps git tag --list
+      # cheap and consistent across re-runs.
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - uses: pnpm/action-setup@v4
         with:
@@ -28,37 +34,27 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Compile bump-version script
-        run: pnpm --filter firefox-extension exec tsc --outDir dist --rootDir src --module commonjs --esModuleInterop --skipLibCheck src/bump-version.ts
-
-      - name: Bump extension version
-        run: node projects/extensions/firefox-extension/scripts/bump-version.js patch
+      - name: Compute next version from latest firefox-extension tag
+        id: version
+        run: |
+          LATEST=$(git tag --list 'firefox-extension@v*' --sort=-v:refname | head -n1 | sed 's/^firefox-extension@v//')
+          if [ -z "$LATEST" ]; then
+            # Bootstrap value matches the last commit-based version published to
+            # AMO (1.0.104). Used only when no firefox-extension@v* tag exists
+            # yet — once the first tag is created, this branch is dead.
+            LATEST="1.0.104"
+            echo "No prior tag found, bootstrapping from $LATEST"
+          fi
+          PATCH="${LATEST##*.}"
+          PREFIX="${LATEST%.*}"
+          NEXT="${PREFIX}.$((PATCH + 1))"
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "Latest tag: firefox-extension@v$LATEST → publishing v$NEXT"
 
       - name: Build and package extension
-        run: npx nx run-many --target=compile --projects=browser-extension-core,firefox-extension
-
-      - name: Commit and push bumped version to main
         env:
-          HUSKY: '0'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add projects/extensions/firefox-extension/package.json projects/extensions/firefox-extension/src/runtime/manifest.json
-          git commit -m "chore: bump firefox extension version to $(node -p "require('./projects/extensions/firefox-extension/package.json').version")"
-          push_succeeded=false
-          for i in 1 2 3 4 5; do
-            git pull --rebase origin main
-            if git push origin main; then
-              push_succeeded=true
-              break
-            fi
-            echo "Push attempt $i failed, retrying..."
-            sleep 2
-          done
-          if [ "$push_succeeded" = false ]; then
-            echo "ERROR: All 5 push attempts failed"
-            exit 1
-          fi
+          EXTENSION_VERSION: ${{ steps.version.outputs.version }}
+        run: npx nx run-many --target=compile --projects=browser-extension-core,firefox-extension
 
       - name: Create source code archive for AMO review
         run: |
@@ -82,3 +78,24 @@ jobs:
         env:
           AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
           AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+
+      - name: Tag the published commit
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG="firefox-extension@v${{ steps.version.outputs.version }}"
+          git tag "$TAG"
+          push_succeeded=false
+          for i in 1 2 3 4 5; do
+            if git push origin "$TAG"; then
+              push_succeeded=true
+              break
+            fi
+            echo "Tag push attempt $i failed, retrying..."
+            sleep 2
+          done
+          if [ "$push_succeeded" = false ]; then
+            echo "ERROR: All 5 tag push attempts failed"
+            exit 1
+          fi
