@@ -9,7 +9,7 @@ import {
 	SaveAnonymousLinkCommand,
 	UpdateFetchTimestampCommand,
 } from "@packages/hutch-infra-components";
-import { DEFAULT_CRAWL_HEADERS, initCrawlArticle } from "@packages/crawl-article";
+import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
 import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 import { initReadabilityParser } from "../article-parser/readability-parser";
 import { theInformationPreParser } from "../article-parser/the-information-pre-parser";
@@ -34,11 +34,8 @@ const client = createDynamoDocumentClient();
 const logError = (message: string, error?: Error) =>
 	consoleLogger.error(message, { error });
 
-const crawlArticle = initCrawlArticle({
-	fetch: globalThis.fetch,
-	logError,
-	headers: { ...DEFAULT_CRAWL_HEADERS },
-});
+const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, defaultHeaders: { ...DEFAULT_CRAWL_HEADERS } });
+const crawlArticle = initCrawlArticle({ crawlFetch, logError });
 
 const { parseHtml } = initReadabilityParser({
 	crawlArticle,
