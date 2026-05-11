@@ -68,6 +68,10 @@ describe("validateSaveableUrl", () => {
 			"http://[fe80::1]/",
 			"http://[fc00::1]/",
 			"http://[fd00::abcd]/",
+			"http://[::ffff:127.0.0.1]/",
+			"http://[::ffff:169.254.169.254]/",
+			"http://[::ffff:192.168.1.1]/",
+			"http://[::ffff:10.0.0.1]/",
 		];
 
 		for (const url of cases) {

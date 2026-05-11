@@ -63,10 +63,26 @@ function unwrapIpv6(host: string): string {
 	return bracketStripped.split("%")[0];
 }
 
+/** Node.js normalises `::ffff:a.b.c.d` to `::ffff:AABB:CCDD` (hex). */
+const IPV4_MAPPED_RE = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i;
+
+function ipv4MappedToIpv4(h1: string, h2: string): string {
+	const p1 = h1.padStart(4, "0");
+	const p2 = h2.padStart(4, "0");
+	return `${Number.parseInt(p1.slice(0, 2), 16)}.${Number.parseInt(p1.slice(2, 4), 16)}.${Number.parseInt(p2.slice(0, 2), 16)}.${Number.parseInt(p2.slice(2, 4), 16)}`;
+}
+
 function isPrivateIPv6(host: string): boolean {
 	const inner = unwrapIpv6(host);
 	if (!isIPv6(inner)) return false;
 	if (SINGLETON_LOCAL_IPV6.has(inner)) return true;
+	const mapped = IPV4_MAPPED_RE.exec(inner);
+	if (mapped) {
+		const [, h1, h2] = mapped;
+		assert(h1, "IPv4-mapped regex must capture hextet 1");
+		assert(h2, "IPv4-mapped regex must capture hextet 2");
+		return isPrivateIPv4(ipv4MappedToIpv4(h1, h2));
+	}
 	/** Addresses written with leading `::` have 16+ zero high bits, which
 	 * places them outside fc00::/7 (high bit must be 1) and fe80::/10. */
 	if (inner.startsWith("::")) return false;
