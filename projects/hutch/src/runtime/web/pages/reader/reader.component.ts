@@ -54,7 +54,11 @@ export function ReaderPage(
 		summaryOpen: true,
 		progress: options?.progress,
 		audioEnabled: options?.audioEnabled,
-		backLink: { href: "/queue", label: "← Back to queue" },
+		backLink: {
+			topHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-top",
+			bottomHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-bottom",
+			label: "← Back to queue",
+		},
 		extensionInstallUrl: options?.extensionInstallUrl,
 	});
 	const shareBalloon = renderShareBalloon({

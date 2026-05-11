@@ -852,7 +852,8 @@ describe("Queue routes", () => {
 			const doc = new JSDOM(readerResponse.text).window.document;
 			expect(doc.querySelector("[data-test-reader-content]")?.textContent).toContain("archived content");
 			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("Saved Post");
-			expect(doc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe("/queue");
+			expect(doc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe("/queue?utm_source=reader&utm_medium=internal&utm_content=back-top");
+			expect(doc.querySelector("[data-test-back-bottom-link]")?.getAttribute("href")).toBe("/queue?utm_source=reader&utm_medium=internal&utm_content=back-bottom");
 			expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe("https://example.com/saved-post");
 		});
 

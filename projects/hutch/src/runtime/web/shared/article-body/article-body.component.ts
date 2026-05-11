@@ -30,7 +30,7 @@ export interface ArticleBodyInput {
 	summaryPollUrl?: string;
 	summaryOpen?: boolean;
 	audioEnabled?: boolean;
-	backLink?: { href: string; label: string };
+	backLink?: { topHref: string; bottomHref: string; label: string };
 	extensionInstallUrl?: string;
 	/**
 	 * Single unified progress tick. When omitted (everything terminal, or
@@ -64,7 +64,9 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		siteName: input.siteName,
 		estimatedReadTime: input.estimatedReadTime,
 		url: input.url,
-		backLink: input.backLink,
+		backLink: input.backLink
+			? { href: input.backLink.topHref, label: input.backLink.label }
+			: undefined,
 	});
 
 	return render(ARTICLE_BODY_TEMPLATE, {
@@ -74,5 +76,6 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		progressBarHtml,
 		audioEnabled: input.audioEnabled,
 		staticBaseUrl: STATIC_BASE_URL,
+		backLink: input.backLink,
 	});
 }

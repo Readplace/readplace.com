@@ -54,7 +54,11 @@ describe("renderArticleBody", () => {
 		const html = renderArticleBody({
 			...baseInput,
 			content: "<p>Body</p>",
-			backLink: { href: "/queue", label: "← Back" },
+			backLink: {
+				topHref: "/queue?utm_content=back-top",
+				bottomHref: "/queue?utm_content=back-bottom",
+				label: "← Back",
+			},
 		});
 		const doc = parse(html);
 
@@ -65,7 +69,7 @@ describe("renderArticleBody", () => {
 		);
 		const link = slot.querySelector("[data-test-back-link]");
 		assert(link, "back link must be rendered when backLink is provided");
-		expect(link.getAttribute("href")).toBe("/queue");
+		expect(link.getAttribute("href")).toBe("/queue?utm_content=back-top");
 		expect(link.textContent).toBe("← Back");
 	});
 
@@ -80,6 +84,67 @@ describe("renderArticleBody", () => {
 		assert(slot, "back slot must be rendered");
 		expect(slot.classList.contains("article-body__back-slot--hidden")).toBe(
 			true,
+		);
+	});
+
+	it("renders the bottom back link inside the bottom back slot when backLink is provided", () => {
+		const html = renderArticleBody({
+			...baseInput,
+			content: "<p>Body</p>",
+			backLink: {
+				topHref: "/queue?utm_content=back-top",
+				bottomHref: "/queue?utm_content=back-bottom",
+				label: "← Back",
+			},
+		});
+		const doc = parse(html);
+
+		const slot = doc.querySelector("[data-test-back-bottom-slot]");
+		assert(slot, "bottom back slot must be rendered");
+		expect(
+			slot.classList.contains("article-body__back-bottom-slot--visible"),
+		).toBe(true);
+		const link = slot.querySelector("[data-test-back-bottom-link]");
+		assert(link, "bottom back link must be rendered when backLink is provided");
+		expect(link.getAttribute("href")).toBe("/queue?utm_content=back-bottom");
+		expect(link.textContent).toBe("← Back");
+	});
+
+	it("marks the bottom back slot as hidden when backLink is not provided", () => {
+		const html = renderArticleBody({
+			...baseInput,
+			content: "<p>Body</p>",
+		});
+		const doc = parse(html);
+
+		const slot = doc.querySelector("[data-test-back-bottom-slot]");
+		assert(slot, "bottom back slot must be rendered");
+		expect(
+			slot.classList.contains("article-body__back-bottom-slot--hidden"),
+		).toBe(true);
+	});
+
+	it("renders independent hrefs for the top and bottom back links so they can carry distinct UTM markers", () => {
+		const html = renderArticleBody({
+			...baseInput,
+			content: "<p>Body</p>",
+			backLink: {
+				topHref: "/queue?utm_source=reader&utm_content=back-top",
+				bottomHref: "/queue?utm_source=reader&utm_content=back-bottom",
+				label: "← Back to queue",
+			},
+		});
+		const doc = parse(html);
+
+		const topLink = doc.querySelector("[data-test-back-link]");
+		const bottomLink = doc.querySelector("[data-test-back-bottom-link]");
+		assert(topLink, "top back link must be rendered");
+		assert(bottomLink, "bottom back link must be rendered");
+		expect(topLink.getAttribute("href")).toBe(
+			"/queue?utm_source=reader&utm_content=back-top",
+		);
+		expect(bottomLink.getAttribute("href")).toBe(
+			"/queue?utm_source=reader&utm_content=back-bottom",
 		);
 	});
 

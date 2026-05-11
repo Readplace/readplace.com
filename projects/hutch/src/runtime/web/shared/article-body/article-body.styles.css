@@ -375,3 +375,25 @@
   display: block;
   margin-top: 0.5rem;
 }
+
+.article-body__back-bottom-slot--visible {
+  display: block;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.article-body__back-bottom-slot--hidden {
+  display: none;
+}
+
+.article-body__back-bottom {
+  display: inline-block;
+  font-size: 0.875rem;
+  color: var(--color-brand);
+  text-decoration: none;
+}
+
+.article-body__back-bottom:hover {
+  text-decoration: underline;
+}

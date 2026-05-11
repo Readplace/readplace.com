@@ -55,6 +55,16 @@ describe("ViewPage", () => {
 		);
 	});
 
+	it("marks the bottom back slot as hidden on the view page", () => {
+		const doc = render();
+
+		const slot = doc.querySelector("[data-test-back-bottom-slot]");
+		assert(slot, "bottom back slot must be rendered");
+		expect(
+			slot.classList.contains("article-body__back-bottom-slot--hidden"),
+		).toBe(true);
+	});
+
 	it("renders each action as an anchor with name and href from the model", () => {
 		const doc = render({
 			...baseInput,
