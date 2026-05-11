@@ -1,30 +1,17 @@
-import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import type {
+	RefreshContentInput,
+	TransitionAndPersist,
+} from "@packages/domain/article-aggregate";
+import { refreshContent } from "@packages/domain/article-aggregate";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { DispatchCommand } from "@packages/hutch-infra-components/runtime";
-import type { GenerateSummaryCommand } from "@packages/hutch-infra-components";
+import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import { RefreshArticleContentCommand } from "./index";
 
-export type RefreshArticleContent = (params: {
-	url: string;
-	metadata: {
-		title: string;
-		siteName: string;
-		excerpt: string;
-		wordCount: number;
-		imageUrl?: string;
-	};
-	estimatedReadTime: number;
-	etag?: string;
-	lastModified?: string;
-	contentFetchedAt: string;
-}) => Promise<void>;
-
 export function initRefreshArticleContentHandler(deps: {
-	refreshArticleContent: RefreshArticleContent;
-	dispatchGenerateSummary: DispatchCommand<typeof GenerateSummaryCommand>;
+	transitionAndPersist: TransitionAndPersist;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	const { refreshArticleContent, dispatchGenerateSummary, logger } = deps;
+	const { transitionAndPersist, logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -36,13 +23,35 @@ export function initRefreshArticleContentHandler(deps: {
 
 				logger.info("[RefreshArticleContent] processing", { url: detail.url });
 
-				await refreshArticleContent(detail);
+				const input: RefreshContentInput = {
+					metadata: detail.metadata,
+					freshness: {
+						etag: detail.etag,
+						lastModified: detail.lastModified,
+						contentFetchedAt: detail.contentFetchedAt,
+					},
+					estimatedReadTime: detail.estimatedReadTime,
+				};
 
-				// refreshArticleContent has already reset summaryStatus to pending and
-				// cleared the cached summary text, so the worker won't short-circuit
-				// on the cache-hit branch in summarizeArticle. Mirrors the
-				// recrawl-content-extracted handler's unconditional dispatch.
-				await dispatchGenerateSummary({ url: detail.url });
+				/**
+				 * 1. transitionAndPersist enforces save → dispatch order: the row
+				 *    flips to summaryStatus=pending in DDB before the
+				 *    GenerateSummaryCommand fires. The summary worker
+				 *    short-circuits on cached `ready` rows, so dispatching first
+				 *    would let a fast worker read the stale cache and skip the
+				 *    regen — exactly the race the previous handler guarded
+				 *    against by ordering refresh → dispatch in the handler body.
+				 *
+				 * 2. The aggregate's refreshContent transition pairs the
+				 *    summary-state reset with the generate-summary effect, so a
+				 *    future writer can't drop the regen command — that omission
+				 *    fails the transition's unit test rather than producing the
+				 *    forever-pending row from 2026-05-10.
+				 */
+				await transitionAndPersist(refreshContent, {
+					url: detail.url,
+					input,
+				});
 
 				logger.info("[RefreshArticleContent] completed", { url: detail.url });
 			} catch (error) {

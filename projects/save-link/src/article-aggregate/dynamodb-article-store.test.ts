@@ -1,0 +1,504 @@
+import type { Article } from "@packages/domain/article-aggregate";
+import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { initDynamoDbArticleStore } from "./dynamodb-article-store";
+
+type SendFn = DynamoDBDocumentClient["send"];
+
+function createFakeClient(
+	impl: (input: unknown) => unknown,
+): Partial<DynamoDBDocumentClient> {
+	return {
+		send: (async (input: unknown) => impl(input)) as unknown as SendFn,
+	};
+}
+
+const TABLE = "test-articles";
+const URL = "https://example.com/article";
+
+function buildArticle(overrides: Partial<Article> = {}): Article {
+	return {
+		url: URL,
+		metadata: {
+			title: "New title",
+			siteName: "Example",
+			excerpt: "New excerpt",
+			wordCount: 250,
+			imageUrl: "https://example.com/image.jpg",
+		},
+		freshness: {
+			etag: '"new-etag"',
+			lastModified: "Sun, 10 May 2026 12:00:00 GMT",
+			contentFetchedAt: "2026-05-10T12:00:00.000Z",
+		},
+		estimatedReadTime: 2,
+		crawl: { kind: "ready" },
+		summary: { kind: "pending" },
+		...overrides,
+	};
+}
+
+describe("initDynamoDbArticleStore (unit)", () => {
+	describe("load", () => {
+		it("returns undefined when no row exists for the URL", async () => {
+			const client = createFakeClient(() => ({ Item: undefined }));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article).toBeUndefined();
+		});
+
+		it("maps a populated row into an Article aggregate", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					title: "Old title",
+					siteName: "Example",
+					excerpt: "Old excerpt",
+					wordCount: 100,
+					estimatedReadTime: 1,
+					imageUrl: "https://example.com/img.jpg",
+					etag: '"old-etag"',
+					lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
+					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+					crawlStatus: "ready",
+					summaryStatus: "ready",
+					summary: "Old summary",
+					summaryExcerpt: "Old summary excerpt",
+					summaryInputTokens: 1234,
+					summaryOutputTokens: 567,
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article).toEqual({
+				url: URL,
+				metadata: {
+					title: "Old title",
+					siteName: "Example",
+					excerpt: "Old excerpt",
+					wordCount: 100,
+					imageUrl: "https://example.com/img.jpg",
+				},
+				freshness: {
+					etag: '"old-etag"',
+					lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
+					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				},
+				estimatedReadTime: 1,
+				crawl: { kind: "ready" },
+				summary: {
+					kind: "ready",
+					summary: "Old summary",
+					excerpt: "Old summary excerpt",
+					inputTokens: 1234,
+					outputTokens: 567,
+				},
+			});
+		});
+
+		it("maps a crawl-failed row into a failed crawl state with the persisted reason", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					crawlStatus: "failed",
+					crawlFailureReason: "fetch timeout",
+					summaryStatus: "pending",
+					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article?.crawl).toEqual({ kind: "failed", reason: "fetch timeout" });
+		});
+
+		it("maps a crawl-unsupported row into an unsupported crawl state", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					crawlStatus: "unsupported",
+					crawlUnsupportedReason: "non-html content type: application/pdf",
+					summaryStatus: "skipped",
+					summarySkippedReason: "crawl-unsupported",
+					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article?.crawl).toEqual({
+				kind: "unsupported",
+				reason: "non-html content type: application/pdf",
+			});
+			expect(article?.summary).toEqual({
+				kind: "skipped",
+				reason: "crawl-unsupported",
+			});
+		});
+
+		it("defaults missing fields to safe values so legacy rows load cleanly", async () => {
+			const client = createFakeClient(() => ({ Item: {} }));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article).toEqual({
+				url: URL,
+				metadata: {
+					title: "",
+					siteName: "",
+					excerpt: "",
+					wordCount: 0,
+				},
+				freshness: { contentFetchedAt: "" },
+				estimatedReadTime: 0,
+				crawl: { kind: "pending" },
+				summary: { kind: "pending" },
+			});
+		});
+
+		it("maps a summary-failed row into a failed summary state with the persisted reason", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					crawlStatus: "ready",
+					summaryStatus: "failed",
+					summaryFailureReason: "rate limited",
+					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article?.summary).toEqual({ kind: "failed", reason: "rate limited" });
+		});
+
+		it("maps a summary-skipped row without a reason to a skipped state with no reason", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					crawlStatus: "ready",
+					summaryStatus: "skipped",
+					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article?.summary).toEqual({ kind: "skipped" });
+		});
+
+		it("normalizes the URL to derive the partition key but preserves the original on the aggregate", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return { Item: { contentFetchedAt: "2026-01-01T00:00:00.000Z" } };
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load("https://example.com/article?utm_source=x");
+
+			const command = received as { input: { Key?: Record<string, unknown> } };
+			expect(command.input.Key).toEqual({ url: "example.com/article" });
+			expect(article?.url).toBe("https://example.com/article?utm_source=x");
+		});
+	});
+
+	describe("save (refresh-content shape)", () => {
+		it("issues an UpdateItem that writes metadata, freshness, estimatedReadTime, and resets summary to pending", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save(buildArticle());
+
+			const command = received as {
+				input: {
+					Key?: Record<string, unknown>;
+					UpdateExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.Key).toEqual({ url: "example.com/article" });
+			expect(command.input.UpdateExpression).toContain("title = :title");
+			expect(command.input.UpdateExpression).toContain("siteName = :siteName");
+			expect(command.input.UpdateExpression).toContain("excerpt = :excerpt");
+			expect(command.input.UpdateExpression).toContain("wordCount = :wordCount");
+			expect(command.input.UpdateExpression).toContain("estimatedReadTime = :ert");
+			expect(command.input.UpdateExpression).toContain("contentFetchedAt = :cfa");
+			expect(command.input.UpdateExpression).toContain("etag = :etag");
+			expect(command.input.UpdateExpression).toContain("lastModified = :lm");
+			expect(command.input.UpdateExpression).toContain("imageUrl = :img");
+			expect(command.input.UpdateExpression).toContain(
+				"summaryStatus = :summaryStatus",
+			);
+			expect(command.input.UpdateExpression).toContain("REMOVE summary");
+			expect(command.input.UpdateExpression).toContain("summaryExcerpt");
+			expect(command.input.UpdateExpression).toContain("summaryInputTokens");
+			expect(command.input.UpdateExpression).toContain("summaryOutputTokens");
+			expect(command.input.UpdateExpression).toContain("summaryStage");
+			expect(command.input.UpdateExpression).toContain("summaryFailureReason");
+			expect(command.input.UpdateExpression).toContain("summarySkippedReason");
+			expect(command.input.ExpressionAttributeValues?.[":title"]).toBe(
+				"New title",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":summaryStatus"]).toBe(
+				"pending",
+			);
+		});
+
+		it("never touches crawl attributes so a concurrent crawl writer is not clobbered (Phase 1)", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save(buildArticle({ crawl: { kind: "failed", reason: "x" } }));
+
+			const command = received as {
+				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.UpdateExpression).not.toContain("crawlStatus");
+			expect(command.input.UpdateExpression).not.toContain("crawlFailureReason");
+			expect(command.input.UpdateExpression).not.toContain(
+				"crawlUnsupportedReason",
+			);
+		});
+
+		it("writes a ready summary with body, excerpt, and tokens", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save(
+				buildArticle({
+					summary: {
+						kind: "ready",
+						summary: "abc",
+						excerpt: "abridged",
+						inputTokens: 100,
+						outputTokens: 50,
+					},
+				}),
+			);
+
+			const command = received as {
+				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.UpdateExpression).toContain("summary = :summary");
+			expect(command.input.UpdateExpression).toContain(
+				"summaryExcerpt = :summaryExcerpt",
+			);
+			expect(command.input.UpdateExpression).toContain(
+				"summaryInputTokens = :summaryInputTokens",
+			);
+			expect(command.input.UpdateExpression).toContain(
+				"summaryOutputTokens = :summaryOutputTokens",
+			);
+			expect(command.input.UpdateExpression).toContain(
+				"REMOVE summaryFailureReason, summarySkippedReason",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":summary"]).toBe("abc");
+			expect(command.input.ExpressionAttributeValues?.[":summaryStatus"]).toBe(
+				"ready",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":summaryInputTokens"]).toBe(
+				100,
+			);
+			expect(command.input.ExpressionAttributeValues?.[":summaryOutputTokens"]).toBe(
+				50,
+			);
+		});
+
+		it("writes a ready summary with null excerpt/tokens when those fields are omitted", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save(
+				buildArticle({ summary: { kind: "ready", summary: "abc" } }),
+			);
+
+			const command = received as {
+				input: { ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.ExpressionAttributeValues?.[":summaryExcerpt"]).toBeNull();
+			expect(
+				command.input.ExpressionAttributeValues?.[":summaryInputTokens"],
+			).toBeNull();
+			expect(
+				command.input.ExpressionAttributeValues?.[":summaryOutputTokens"],
+			).toBeNull();
+		});
+
+		it("writes a failed summary with status, reason, and clears any prior skipped marker", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save(
+				buildArticle({ summary: { kind: "failed", reason: "rate limited" } }),
+			);
+
+			const command = received as {
+				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.UpdateExpression).toContain(
+				"summaryFailureReason = :summaryFailureReason",
+			);
+			expect(command.input.UpdateExpression).toContain(
+				"REMOVE summarySkippedReason",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":summaryStatus"]).toBe(
+				"failed",
+			);
+			expect(
+				command.input.ExpressionAttributeValues?.[":summaryFailureReason"],
+			).toBe("rate limited");
+		});
+
+		it("writes a skipped summary with reason and clears any prior failure marker", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save(
+				buildArticle({
+					summary: { kind: "skipped", reason: "content-too-short" },
+				}),
+			);
+
+			const command = received as {
+				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.UpdateExpression).toContain(
+				"summarySkippedReason = :summarySkippedReason",
+			);
+			expect(command.input.UpdateExpression).toContain(
+				"REMOVE summaryFailureReason",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":summaryStatus"]).toBe(
+				"skipped",
+			);
+			expect(
+				command.input.ExpressionAttributeValues?.[":summarySkippedReason"],
+			).toBe("content-too-short");
+		});
+
+		it("writes a skipped summary without reason and removes both reason attributes", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save(buildArticle({ summary: { kind: "skipped" } }));
+
+			const command = received as {
+				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.UpdateExpression).toContain(
+				"REMOVE summarySkippedReason, summaryFailureReason",
+			);
+			expect(
+				command.input.ExpressionAttributeValues?.[":summarySkippedReason"],
+			).toBeUndefined();
+		});
+
+		it("encodes missing freshness fields as nulls so DynamoDB stores them as null (not the prior value)", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save(
+				buildArticle({
+					freshness: { contentFetchedAt: "2026-05-10T12:00:00.000Z" },
+					metadata: {
+						title: "x",
+						siteName: "x",
+						excerpt: "x",
+						wordCount: 1,
+					},
+				}),
+			);
+
+			const command = received as {
+				input: { ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.ExpressionAttributeValues?.[":etag"]).toBeNull();
+			expect(command.input.ExpressionAttributeValues?.[":lm"]).toBeNull();
+			expect(command.input.ExpressionAttributeValues?.[":img"]).toBeNull();
+		});
+	});
+});

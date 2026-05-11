@@ -42,6 +42,7 @@
     "@packages/article-resource-unique-id": "workspace:*",
     "@packages/article-state-types": "workspace:*",
     "@packages/crawl-article": "workspace:*",
+    "@packages/domain": "workspace:*",
     "@packages/hutch-infra-components": "workspace:*",
     "@packages/hutch-logger": "workspace:*",
     "@packages/hutch-storage-client": "workspace:*",
