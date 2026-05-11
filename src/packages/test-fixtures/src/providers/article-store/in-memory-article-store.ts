@@ -28,6 +28,7 @@ interface GlobalArticle {
 	content?: string;
 
 	estimatedReadTime: Minutes;
+	savedAt: Date;
 	summary?: string;
 	etag?: string;
 	lastModified?: string;
@@ -97,27 +98,30 @@ export function initInMemoryArticleStore(): {
 				routeId,
 				metadata: params.metadata,
 				estimatedReadTime: params.estimatedReadTime,
+				savedAt: params.savedAt,
 			});
 		}
 	};
 
 	const saveArticle: SaveArticle = async (params) => {
+		const now = new Date();
 		await saveArticleGlobally({
 			url: params.url,
 			metadata: params.metadata,
 			estimatedReadTime: params.estimatedReadTime,
+			savedAt: now,
 		});
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 
 		const uaKey = userArticleKey(params.userId, articleResourceUniqueId.value);
 		const existing = userArticles.get(uaKey);
 		userArticles.set(uaKey, existing
-			? { ...existing, savedAt: new Date() }
+			? { ...existing, savedAt: now }
 			: {
 				userId: params.userId,
 				url: articleResourceUniqueId.value,
 				status: "unread",
-				savedAt: new Date(),
+				savedAt: now,
 			});
 
 		const article = articles.get(articleResourceUniqueId.value);

@@ -194,6 +194,7 @@ describe("Queue routes", () => {
 				url: "https://example.com/article",
 				metadata: { title: "Failed", siteName: "example.com", excerpt: "", wordCount: 0 },
 				estimatedReadTime: MinutesSchema.parse(0),
+				savedAt: new Date(),
 			});
 			await articleCrawl.markCrawlFailed({ url: "https://example.com/article", reason: "blocked" });
 

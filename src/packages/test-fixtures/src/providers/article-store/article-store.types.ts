@@ -39,6 +39,7 @@ export interface SaveArticleGloballyParams {
 	url: string;
 	metadata: SavedArticle["metadata"];
 	estimatedReadTime: SavedArticle["estimatedReadTime"];
+	savedAt: Date;
 }
 
 export type SaveArticleGlobally = (

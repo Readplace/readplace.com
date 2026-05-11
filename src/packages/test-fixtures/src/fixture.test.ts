@@ -197,6 +197,7 @@ describe("createFakeApplyParseResult", () => {
 			url,
 			metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
 			estimatedReadTime: calculateReadTime(0),
+			savedAt: new Date(),
 		});
 	};
 

@@ -25,7 +25,12 @@ import { writeFile } from "node:fs/promises";
 import { test } from "node:test";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { filterReachable } from "./check-reachable";
-import { type StuckRow, collectStuckRows } from "./collect-stuck-rows";
+import {
+	CRAWL_MIN_AGE_MS,
+	SUMMARY_MIN_AGE_MS,
+	type StuckRow,
+	collectStuckRows,
+} from "./collect-stuck-rows";
 
 function requireEnv(name: string): string {
 	const value = process.env[name];
@@ -65,7 +70,15 @@ test("Stuck articles canary", async (t) => {
 	const tableName = requireEnv("DYNAMODB_ARTICLES_TABLE");
 	const origin = requireEnv("READPLACE_ORIGIN");
 	const client = createDynamoDocumentClient({ region });
-	const stuck = await collectStuckRows({ client, tableName, origin });
+	process.stderr.write(
+		`[info] min-age gate: crawl-pending ≥ ${CRAWL_MIN_AGE_MS / 60_000}min, summary-pending ≥ ${SUMMARY_MIN_AGE_MS / 60_000}min\n`,
+	);
+	const stuck = await collectStuckRows({
+		client,
+		tableName,
+		origin,
+		now: () => new Date(),
+	});
 	const reachable = await filterReachable(stuck, {
 		fetch: globalThis.fetch,
 		timeoutMs: REACHABILITY_TIMEOUT_MS,

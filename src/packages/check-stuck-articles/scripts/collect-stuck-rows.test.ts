@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
-import { collectStuckRows } from "./collect-stuck-rows";
+import {
+	CRAWL_MIN_AGE_MS,
+	SUMMARY_MIN_AGE_MS,
+	buildScanInput,
+	collectStuckRows,
+} from "./collect-stuck-rows";
 
 type SendFn = DynamoDBDocumentClient["send"];
 
@@ -24,40 +29,122 @@ interface ScanResultLike {
 
 function createFakeClient(
 	impl: (input: ScanCommandLike) => ScanResultLike,
-): { client: Partial<DynamoDBDocumentClient>; calls: ScanCommandLike[] } {
+): { client: DynamoDBDocumentClient; calls: ScanCommandLike[] } {
 	const calls: ScanCommandLike[] = [];
 	const send = (async (command: ScanCommandLike) => {
 		calls.push(command);
 		return impl(command);
 	}) as unknown as SendFn;
-	return { client: { send }, calls };
+	const client = { send } as Partial<DynamoDBDocumentClient> as DynamoDBDocumentClient;
+	return { client, calls };
 }
 
+const NOW = new Date("2026-05-11T12:00:00.000Z");
 const TABLE = "test-articles";
 const ORIGIN = "https://example.test";
 
+describe("buildScanInput", () => {
+	it("anchors the age-gate thresholds to (now - constant) per axis", () => {
+		const input = buildScanInput(NOW);
+		assert.equal(
+			input.ExpressionAttributeValues[":crawlMinAge"],
+			new Date(NOW.getTime() - CRAWL_MIN_AGE_MS).toISOString(),
+		);
+		assert.equal(
+			input.ExpressionAttributeValues[":summaryMinAge"],
+			new Date(NOW.getTime() - SUMMARY_MIN_AGE_MS).toISOString(),
+		);
+	});
+
+	it("age-gates the crawl-pending disjunct with contentFetchedAt OR savedAt OR neither-present", () => {
+		const input = buildScanInput(NOW);
+		assert.match(
+			input.FilterExpression,
+			/crawlStatus = :pending AND \(contentFetchedAt < :crawlMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND savedAt < :crawlMinAge\) OR \(attribute_not_exists\(contentFetchedAt\) AND attribute_not_exists\(savedAt\)\)\)/,
+		);
+	});
+
+	it("age-gates the summary-pending disjunct with contentFetchedAt OR savedAt OR neither-present", () => {
+		const input = buildScanInput(NOW);
+		assert.match(
+			input.FilterExpression,
+			/summaryStatus = :pending AND \(contentFetchedAt < :summaryMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND savedAt < :summaryMinAge\) OR \(attribute_not_exists\(contentFetchedAt\) AND attribute_not_exists\(savedAt\)\)\)/,
+		);
+	});
+
+	it("does NOT age-gate the legacy-stub disjunct (legacy stubs are stuck forever regardless of age)", () => {
+		const input = buildScanInput(NOW);
+		assert.match(
+			input.FilterExpression,
+			/OR \(attribute_not_exists\(summaryStatus\) AND attribute_not_exists\(crawlStatus\) AND attribute_not_exists\(summary\)\)/,
+		);
+		const legacyClause =
+			"(attribute_not_exists(summaryStatus) AND attribute_not_exists(crawlStatus) AND attribute_not_exists(summary))";
+		const idx = input.FilterExpression.indexOf(legacyClause);
+		const after = input.FilterExpression.slice(idx + legacyClause.length);
+		assert.ok(
+			!after.startsWith(" AND "),
+			"legacy-stub disjunct must not be followed by an age conjunction",
+		);
+	});
+
+	it("does NOT age-gate the summary-ready-without-text writer-contract violation (never a timing artefact)", () => {
+		const input = buildScanInput(NOW);
+		assert.match(
+			input.FilterExpression,
+			/OR \(summaryStatus = :ready AND attribute_not_exists\(summary\)\)/,
+		);
+		assert.ok(
+			!input.FilterExpression.includes(
+				"summaryStatus = :ready AND attribute_not_exists(summary) AND",
+			),
+			"summary-ready-without-text disjunct must not carry an age conjunction",
+		);
+	});
+
+	it("projects savedAt so the canary can diagnose age-gate decisions in stderr", () => {
+		const input = buildScanInput(NOW);
+		assert.ok(
+			input.ProjectionExpression.includes("savedAt"),
+			"savedAt must be projected — without it the canary cannot tell why a row crossed the gate",
+		);
+	});
+
+	it("aliases the reserved 'url' keyword via #u to keep ProjectionExpression valid", () => {
+		const input = buildScanInput(NOW);
+		assert.equal(input.ExpressionAttributeNames["#u"], "url");
+		assert.match(input.ProjectionExpression, /#u/);
+	});
+});
+
 describe("collectStuckRows", () => {
-	it("issues a Scan against the configured table with the canary FilterExpression", async () => {
+	it("issues a Scan against the configured table with the buildScanInput body", async () => {
 		const { client, calls } = createFakeClient(() => ({ Items: [], Count: 0 }));
-		await collectStuckRows({ client: client as DynamoDBDocumentClient, tableName: TABLE, origin: ORIGIN });
+		await collectStuckRows({
+			client,
+			tableName: TABLE,
+			origin: ORIGIN,
+			now: () => NOW,
+		});
 		assert.equal(calls.length, 1);
 		assert.equal(calls[0]?.input.TableName, TABLE);
-		assert.equal(
-			calls[0]?.input.FilterExpression,
-			"summaryStatus = :pending " +
-				"OR crawlStatus = :pending " +
-				"OR (attribute_not_exists(summaryStatus) AND attribute_not_exists(crawlStatus) AND attribute_not_exists(summary)) " +
-				"OR (summaryStatus = :ready AND attribute_not_exists(summary))",
+		const expected = buildScanInput(NOW);
+		assert.equal(calls[0]?.input.FilterExpression, expected.FilterExpression);
+		assert.equal(calls[0]?.input.ProjectionExpression, expected.ProjectionExpression);
+		assert.deepEqual(
+			calls[0]?.input.ExpressionAttributeValues,
+			expected.ExpressionAttributeValues,
 		);
-		assert.deepEqual(calls[0]?.input.ExpressionAttributeValues, {
-			":pending": "pending",
-			":ready": "ready",
-		});
 	});
 
 	it("projects the attributes classifyRow and checkTerminalState consume", async () => {
 		const { client, calls } = createFakeClient(() => ({ Items: [], Count: 0 }));
-		await collectStuckRows({ client: client as DynamoDBDocumentClient, tableName: TABLE, origin: ORIGIN });
+		await collectStuckRows({
+			client,
+			tableName: TABLE,
+			origin: ORIGIN,
+			now: () => NOW,
+		});
 		const projection = calls[0]?.input.ProjectionExpression ?? "";
 		for (const attr of [
 			"originalUrl",
@@ -66,6 +153,7 @@ describe("collectStuckRows", () => {
 			"summaryFailureReason",
 			"crawlFailureReason",
 			"contentFetchedAt",
+			"savedAt",
 			"summary",
 		]) {
 			assert.ok(projection.includes(attr), `ProjectionExpression must include ${attr}`);
@@ -74,18 +162,26 @@ describe("collectStuckRows", () => {
 		assert.match(projection, /#u/);
 	});
 
-	it("returns a stuck row for a crawl-pending row, with reasons and a recrawl URL bound to origin", async () => {
+	it("returns a stuck row for a crawl-pending row that DDB surfaced (server-side age gate has already let it through)", async () => {
+		// DDB's FilterExpression applies the age gate server-side, so we only
+		// need to simulate a row that has already crossed it.
 		const { client } = createFakeClient(() => ({
 			Items: [
 				{
 					url: "example.test/article",
 					originalUrl: "https://example.test/article",
 					crawlStatus: "pending",
+					savedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
 				},
 			],
 			Count: 1,
 		}));
-		const stuck = await collectStuckRows({ client: client as DynamoDBDocumentClient, tableName: TABLE, origin: ORIGIN });
+		const stuck = await collectStuckRows({
+			client,
+			tableName: TABLE,
+			origin: ORIGIN,
+			now: () => NOW,
+		});
 		assert.equal(stuck.length, 1);
 		assert.equal(stuck[0]?.originalUrl, "https://example.test/article");
 		assert.deepEqual(stuck[0]?.reasons, ["crawl-pending"]);
@@ -112,7 +208,12 @@ describe("collectStuckRows", () => {
 			],
 			Count: 1,
 		}));
-		const stuck = await collectStuckRows({ client: client as DynamoDBDocumentClient, tableName: TABLE, origin: ORIGIN });
+		const stuck = await collectStuckRows({
+			client,
+			tableName: TABLE,
+			origin: ORIGIN,
+			now: () => NOW,
+		});
 		assert.deepEqual(stuck, []);
 	});
 
@@ -127,7 +228,12 @@ describe("collectStuckRows", () => {
 			],
 			Count: 1,
 		}));
-		const stuck = await collectStuckRows({ client: client as DynamoDBDocumentClient, tableName: TABLE, origin: ORIGIN });
+		const stuck = await collectStuckRows({
+			client,
+			tableName: TABLE,
+			origin: ORIGIN,
+			now: () => NOW,
+		});
 		assert.deepEqual(stuck, []);
 	});
 
@@ -141,7 +247,12 @@ describe("collectStuckRows", () => {
 			],
 			Count: 1,
 		}));
-		const stuck = await collectStuckRows({ client: client as DynamoDBDocumentClient, tableName: TABLE, origin: ORIGIN });
+		const stuck = await collectStuckRows({
+			client,
+			tableName: TABLE,
+			origin: ORIGIN,
+			now: () => NOW,
+		});
 		assert.deepEqual(stuck, []);
 	});
 
@@ -156,6 +267,7 @@ describe("collectStuckRows", () => {
 							url: "page1.test/a",
 							originalUrl: "https://page1.test/a",
 							crawlStatus: "pending",
+							savedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
 						},
 					],
 					Count: 1,
@@ -168,12 +280,18 @@ describe("collectStuckRows", () => {
 						url: "page2.test/b",
 						originalUrl: "https://page2.test/b",
 						summaryStatus: "pending",
+						savedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
 					},
 				],
 				Count: 1,
 			};
 		});
-		const stuck = await collectStuckRows({ client: client as DynamoDBDocumentClient, tableName: TABLE, origin: ORIGIN });
+		const stuck = await collectStuckRows({
+			client,
+			tableName: TABLE,
+			origin: ORIGIN,
+			now: () => NOW,
+		});
 		assert.equal(calls.length, 2);
 		assert.equal(calls[0]?.input.ExclusiveStartKey, undefined);
 		assert.deepEqual(calls[1]?.input.ExclusiveStartKey, { url: "page1.test/a" });
@@ -192,7 +310,12 @@ describe("collectStuckRows", () => {
 			],
 			Count: 1,
 		}));
-		const stuck = await collectStuckRows({ client: client as DynamoDBDocumentClient, tableName: TABLE, origin: ORIGIN });
+		const stuck = await collectStuckRows({
+			client,
+			tableName: TABLE,
+			origin: ORIGIN,
+			now: () => NOW,
+		});
 		assert.equal(stuck.length, 1);
 		assert.deepEqual(stuck[0]?.reasons, ["summary-ready-without-text"]);
 	});

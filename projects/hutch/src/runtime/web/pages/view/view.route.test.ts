@@ -1739,6 +1739,7 @@ describe("View routes", () => {
 					imageUrl: "https://cdn.example.com/cached.jpg",
 				},
 				estimatedReadTime: MinutesSchema.parse(2),
+				savedAt: new Date(),
 			});
 			await articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
@@ -1787,6 +1788,7 @@ describe("View routes", () => {
 					wordCount: 0,
 				},
 				estimatedReadTime: MinutesSchema.parse(0),
+				savedAt: new Date(),
 			});
 
 			await request(app).get(`/view/${ENCODED}`);
@@ -1830,6 +1832,7 @@ describe("View routes", () => {
 					wordCount: 0,
 				},
 				estimatedReadTime: MinutesSchema.parse(0),
+				savedAt: new Date(),
 			});
 			await articleCrawl.markCrawlFailed({ url: ARTICLE_URL, reason: "exceeded SQS maxReceiveCount" });
 
@@ -1862,6 +1865,7 @@ describe("View routes", () => {
 					wordCount: 0,
 				},
 				estimatedReadTime: MinutesSchema.parse(0),
+				savedAt: new Date(),
 			});
 			await articleCrawl.markCrawlUnsupported({
 				url: ARTICLE_URL,

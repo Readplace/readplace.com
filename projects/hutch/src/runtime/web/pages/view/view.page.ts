@@ -134,6 +134,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 					wordCount: 0,
 				},
 				estimatedReadTime: calculateReadTime(0),
+				savedAt: new Date(),
 			});
 			await deps.markCrawlPending({ url: articleUrl });
 			await deps.markSummaryPending({ url: articleUrl });
