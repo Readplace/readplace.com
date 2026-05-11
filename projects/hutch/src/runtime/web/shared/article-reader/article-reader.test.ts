@@ -74,20 +74,14 @@ function initFakeDeps(initial: {
 		summary: initial.summary,
 		content: initial.content,
 		article: initial.article === undefined ? defaultFakeArticle() : initial.article,
+		// Auto-heal was removed: the reader no longer marks anything pending.
+		// The counters stay so the regression test can assert they don't tick.
 		markCrawlPendingCalls: 0,
 		markSummaryPendingCalls: 0,
 	};
 	const deps: ArticleReaderDeps = {
 		findArticleCrawlStatus: async () => state.crawl,
-		markCrawlPending: async () => {
-			state.markCrawlPendingCalls += 1;
-			if (state.crawl === undefined) state.crawl = { status: "pending" };
-		},
 		findGeneratedSummary: async () => state.summary,
-		markSummaryPending: async () => {
-			state.markSummaryPendingCalls += 1;
-			if (state.summary === undefined) state.summary = { status: "pending" };
-		},
 		readArticleContent: async () => state.content,
 		findArticleByUrl: async () => state.article,
 		formatDocumentTitle: (title) => `${title} — TestReader`,
@@ -287,7 +281,7 @@ describe("initArticleReader", () => {
 			expect(result.crawl).toEqual({ status: "failed", reason: "blocked" });
 		});
 
-		it("heals a legacy stub by re-priming both state machines when crawl and summary are both missing", async () => {
+		it("does NOT re-prime a legacy stub from the reader path (auto-heal removed; recovery is operator-driven via /admin/recrawl)", async () => {
 			const { state, deps } = initFakeDeps({
 				crawl: undefined,
 				summary: undefined,
@@ -300,11 +294,13 @@ describe("initArticleReader", () => {
 				pollUrlBuilder: makePollUrlBuilder(),
 			});
 
-			expect(state.markCrawlPendingCalls).toBe(1);
-			expect(state.markSummaryPendingCalls).toBe(1);
-			// Re-read after priming surfaces the new pending state on the same request.
-			expect(result.crawl).toEqual({ status: "pending" });
-			expect(result.summary).toEqual({ status: "pending" });
+			expect(state.markCrawlPendingCalls).toBe(0);
+			expect(state.markSummaryPendingCalls).toBe(0);
+			// crawl + summary stay undefined; the read-after-write race branch in
+			// shouldKeepPollingReader still emits a poll URL so the page keeps
+			// asking while the stale-check Lambda decides what to do.
+			expect(result.crawl).toBeUndefined();
+			expect(result.summary).toBeUndefined();
 			expect(result.readerPollUrl).toBe("/test/reader?poll=1");
 			expect(result.summaryPollUrl).toBe("/test/summary?poll=1");
 		});

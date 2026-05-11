@@ -9,7 +9,9 @@ import {
 import type {
 	MarkCrawlFailed,
 	MarkCrawlStage,
+	MarkCrawlUnsupported,
 } from "../crawl-article-state/article-crawl.types";
+import type { MarkSummarySkipped } from "../generate-summary/article-summary.types";
 import type { ParseHtml } from "../article-parser/article-parser.types";
 import type { DownloadMedia } from "./download-media";
 import type { PutImageObject } from "./s3-put-image-object";
@@ -26,7 +28,9 @@ export function initSaveLinkCommandHandler(deps: {
 	putImageObject: PutImageObject;
 	updateFetchTimestamp: UpdateFetchTimestamp;
 	markCrawlFailed: MarkCrawlFailed;
+	markCrawlUnsupported: MarkCrawlUnsupported;
 	markCrawlStage: MarkCrawlStage;
+	markSummarySkipped: MarkSummarySkipped;
 	publishEvent: PublishEvent;
 	downloadMedia: DownloadMedia;
 	processContent: ProcessContent;
@@ -46,7 +50,9 @@ export function initSaveLinkCommandHandler(deps: {
 		putImageObject: deps.putImageObject,
 		updateFetchTimestamp: deps.updateFetchTimestamp,
 		markCrawlFailed: deps.markCrawlFailed,
+		markCrawlUnsupported: deps.markCrawlUnsupported,
 		markCrawlStage: deps.markCrawlStage,
+		markSummarySkipped: deps.markSummarySkipped,
 		downloadMedia: deps.downloadMedia,
 		processContent: deps.processContent,
 		imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
@@ -66,7 +72,13 @@ export function initSaveLinkCommandHandler(deps: {
 				const envelope = JSON.parse(record.body);
 				const detail = SaveLinkCommand.detailSchema.parse(envelope.detail);
 
-				await saveLinkWork(detail.url);
+				const result = await saveLinkWork(detail.url);
+				if (result === "unsupported") {
+					logger.info("[SaveLinkCommand] crawl unsupported — terminal", {
+						url: detail.url,
+					});
+					continue;
+				}
 
 				await publishEvent({
 					source: TierContentExtractedEvent.source,

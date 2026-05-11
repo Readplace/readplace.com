@@ -11,7 +11,7 @@ describe("SummaryStatusSchema", () => {
 });
 
 describe("CrawlStatusSchema", () => {
-	it.each(["pending", "ready", "failed"])("accepts %s", (value) => {
+	it.each(["pending", "ready", "failed", "unsupported"])("accepts %s", (value) => {
 		expect(CrawlStatusSchema.parse(value)).toBe(value);
 	});
 
@@ -22,7 +22,7 @@ describe("CrawlStatusSchema", () => {
 });
 
 describe("ReaderStatusSchema", () => {
-	it.each(["pending", "ready", "failed", "unavailable"])("accepts %s", (value) => {
+	it.each(["pending", "ready", "failed", "unsupported", "unavailable"])("accepts %s", (value) => {
 		expect(ReaderStatusSchema.parse(value)).toBe(value);
 	});
 

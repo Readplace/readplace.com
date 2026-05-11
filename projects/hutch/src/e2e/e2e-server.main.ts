@@ -68,7 +68,6 @@ const { publishUpdateFetchTimestamp } = initInMemoryUpdateFetchTimestamp({ logge
 const { refreshArticleIfStale } = initRefreshArticleIfStale({
   findArticleFreshness: fixture.articleStore.findArticleFreshness,
   findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
-  incrementCrawlAutoHealAttempt: fixture.articleCrawl.incrementCrawlAutoHealAttempt,
   crawlArticle,
   parseHtml,
   publishRefreshArticleContent,

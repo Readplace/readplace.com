@@ -127,20 +127,26 @@ async function collectStuckRows(): Promise<StuckRow[]> {
 			`pagination cap reached (${MAX_PAGES} pages) — refine FilterExpression or raise the cap if the table is legitimately growing`,
 		);
 		const page = await table.scan({
-			// The fourth disjunct catches the `summaryStatus="ready" AND
+			// The third disjunct catches the `summaryStatus="ready" AND
 			// attribute_not_exists(summary)` inconsistency the 2026-05-10
 			// freshness-refresh regression introduced — without it the row
 			// passes both status checks and the canary reports green while the
 			// reader UI polls "Generating summary…" forever.
+			//
+			// Terminal failures (crawlStatus / summaryStatus = `failed` or
+			// `unsupported`) are excluded from the scan: the operator owns
+			// recovery via /admin/recrawl and the DLQ → SNS email alarm is the
+			// redrive signal, so flagging them here would drown actionable
+			// pending-row reports in noise.
 			FilterExpression:
-				"summaryStatus IN (:pending, :failed) " +
-				"OR crawlStatus IN (:pending, :failed) " +
+				"summaryStatus = :pending " +
+				"OR crawlStatus = :pending " +
 				"OR (attribute_not_exists(summaryStatus) AND attribute_not_exists(crawlStatus) AND attribute_not_exists(summary)) " +
 				"OR (summaryStatus = :ready AND attribute_not_exists(summary))",
 			ProjectionExpression:
 				"originalUrl, #u, summaryStatus, crawlStatus, summaryFailureReason, crawlFailureReason, contentFetchedAt, summary",
 			ExpressionAttributeNames: { "#u": "url" },
-			ExpressionAttributeValues: { ":pending": "pending", ":failed": "failed", ":ready": "ready" },
+			ExpressionAttributeValues: { ":pending": "pending", ":ready": "ready" },
 			ExclusiveStartKey: lastEvaluatedKey,
 		});
 		for (const row of page.items) {

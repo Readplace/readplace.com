@@ -19,6 +19,7 @@ import { initDownloadMedia } from "../save-link/download-media";
 import { initRecrawlLinkInitiatedHandler } from "../save-link/recrawl-link-initiated-handler";
 import { initProcessContentWithLocalMedia } from "../save-link/process-content-with-local-media";
 import { initPutTierSource } from "../select-content/put-tier-source";
+import { initDynamoDbGeneratedSummary } from "../generate-summary/dynamodb-generated-summary";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
@@ -53,7 +54,12 @@ const { updateFetchTimestamp } = initUpdateFetchTimestamp({
 	tableName: articlesTable,
 });
 
-const { markCrawlFailed, markCrawlStage } = initDynamoDbArticleCrawl({
+const { markCrawlFailed, markCrawlUnsupported, markCrawlStage } = initDynamoDbArticleCrawl({
+	client,
+	tableName: articlesTable,
+});
+
+const { markSummarySkipped } = initDynamoDbGeneratedSummary({
 	client,
 	tableName: articlesTable,
 });
@@ -110,7 +116,9 @@ export const handler = initRecrawlLinkInitiatedHandler({
 	putImageObject,
 	updateFetchTimestamp,
 	markCrawlFailed,
+	markCrawlUnsupported,
 	markCrawlStage,
+	markSummarySkipped,
 	publishEvent,
 	downloadMedia,
 	processContent,

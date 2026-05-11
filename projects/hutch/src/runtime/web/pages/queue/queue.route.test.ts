@@ -173,7 +173,7 @@ describe("Queue routes", () => {
 			expect(doc.querySelector("[data-test-save-error]")?.textContent).toBe("Could not save article. Please try again.");
 		});
 
-		it("re-primes pipeline when refreshArticleIfStale returns reprime", async () => {
+		it("does NOT re-prime via /queue/save when refreshArticleIfStale returns 'skip' for a previously-failed crawl (auto-heal removed; operator owns recovery)", async () => {
 			const publishedLinkSaved: { url: string; userId: string }[] = [];
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { app, auth, articleStore, articleCrawl } = createTestApp({
@@ -187,7 +187,7 @@ describe("Queue routes", () => {
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
-				freshness: { refreshArticleIfStale: async () => ({ action: "reprime" }) },
+				freshness: { refreshArticleIfStale: async () => ({ action: "skip" }) },
 			});
 			const agent = await loginAgent(app, auth);
 			await articleStore.saveArticleGlobally({
@@ -203,8 +203,7 @@ describe("Queue routes", () => {
 				.send({ url: "https://example.com/article" });
 
 			expect(response.status).toBe(303);
-			expect(publishedLinkSaved).toHaveLength(1);
-			expect(publishedLinkSaved[0].url).toBe("https://example.com/article");
+			expect(publishedLinkSaved).toHaveLength(0);
 		});
 
 		it("should bump a re-saved article to the top so #latest-saved points to it", async () => {
@@ -1766,7 +1765,7 @@ describe("Queue routes", () => {
  	markCrawlReady: fixture.articleCrawl.markCrawlReady,
  	markCrawlFailed: fixture.articleCrawl.markCrawlFailed,
  	markCrawlStage: fixture.articleCrawl.markCrawlStage,
- 	incrementCrawlAutoHealAttempt: fixture.articleCrawl.incrementCrawlAutoHealAttempt,
+ 	markCrawlUnsupported: fixture.articleCrawl.markCrawlUnsupported,
  },
 			});
 			const agent = await loginAgent(app, auth);
@@ -1821,7 +1820,7 @@ describe("Queue routes", () => {
  	markCrawlReady: fixture.articleCrawl.markCrawlReady,
  	markCrawlFailed: fixture.articleCrawl.markCrawlFailed,
  	markCrawlStage: fixture.articleCrawl.markCrawlStage,
- 	incrementCrawlAutoHealAttempt: fixture.articleCrawl.incrementCrawlAutoHealAttempt,
+ 	markCrawlUnsupported: fixture.articleCrawl.markCrawlUnsupported,
  },
 			});
 			const agent = await loginAgent(app, auth);
@@ -1910,7 +1909,7 @@ describe("Queue routes", () => {
 			expect(second.text).toBe("");
 		});
 
-		it("GET /queue/:id/read heals a legacy row by re-priming both state machines when both state attrs are missing", async () => {
+		it("GET /queue/:id/read does NOT re-prime a legacy row from the reader path (auto-heal removed; recovery is operator-driven via /admin/recrawl)", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			// State-machine providers always report "no state" so the cached row
 			// looks like a legacy stub to the reader core.
@@ -1927,8 +1926,8 @@ describe("Queue routes", () => {
 					forceMarkCrawlPending: fixture.articleCrawl.forceMarkCrawlPending,
 					markCrawlReady: fixture.articleCrawl.markCrawlReady,
 					markCrawlFailed: fixture.articleCrawl.markCrawlFailed,
+					markCrawlUnsupported: fixture.articleCrawl.markCrawlUnsupported,
 					markCrawlStage: fixture.articleCrawl.markCrawlStage,
-					incrementCrawlAutoHealAttempt: fixture.articleCrawl.incrementCrawlAutoHealAttempt,
 				},
 				summary: {
 					findGeneratedSummary: async () => undefined,
@@ -1956,11 +1955,11 @@ describe("Queue routes", () => {
 
 			await agent.get(`/queue/${articleId}/read`);
 
-			// The shared reader core re-primed both state machines because the
-			// overridden findArticleCrawlStatus + findGeneratedSummary return
-			// undefined (simulating a legacy row with no state attributes).
-			expect(markCrawlPendingCalls).toBe(baseline.crawl + 1);
-			expect(markSummaryPendingCalls).toBe(baseline.summary + 1);
+			// Auto-heal has been removed: the /read path must not bump either
+			// pending counter past the save-time baseline. Recovery for legacy
+			// stubs now goes through /admin/recrawl + the stale-check Lambda.
+			expect(markCrawlPendingCalls).toBe(baseline.crawl);
+			expect(markSummaryPendingCalls).toBe(baseline.summary);
 		});
 
 		describe("Share balloon", () => {

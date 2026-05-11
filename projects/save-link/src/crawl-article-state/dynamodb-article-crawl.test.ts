@@ -93,6 +93,88 @@ describe("initDynamoDbArticleCrawl (unit)", () => {
 		});
 	});
 
+	describe("markCrawlUnsupported", () => {
+		it("issues an UpdateItem with a guard against regressing from ready", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { markCrawlUnsupported } = initDynamoDbArticleCrawl({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await markCrawlUnsupported({ url: URL, reason: "non-html content type: application/pdf" });
+
+			const command = received as {
+				input: {
+					UpdateExpression?: string;
+					ConditionExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.UpdateExpression).toContain(
+				"crawlStatus = :unsupported",
+			);
+			expect(command.input.UpdateExpression).toContain(
+				"crawlUnsupportedReason = :reason",
+			);
+			expect(command.input.UpdateExpression).toContain(
+				"crawlFailedAt = :failedAt",
+			);
+			expect(command.input.ConditionExpression).toContain(
+				"attribute_not_exists(crawlStatus)",
+			);
+			expect(command.input.ConditionExpression).toContain(
+				"crawlStatus = :pending",
+			);
+			expect(command.input.ConditionExpression).toContain(
+				"crawlStatus = :failed",
+			);
+			expect(command.input.ConditionExpression).toContain(
+				"crawlStatus = :unsupported",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":reason"]).toBe(
+				"non-html content type: application/pdf",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":unsupported"]).toBe(
+				"unsupported",
+			);
+		});
+
+		it("swallows ConditionalCheckFailedException (ready row preserved)", async () => {
+			const client = createFakeClient(() => {
+				throw new ConditionalCheckFailedException({
+					$metadata: {},
+					message: "condition failed",
+				});
+			});
+			const { markCrawlUnsupported } = initDynamoDbArticleCrawl({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await expect(
+				markCrawlUnsupported({ url: URL, reason: "r" }),
+			).resolves.toBeUndefined();
+		});
+
+		it("rethrows non-ConditionalCheck errors", async () => {
+			const client = createFakeClient(() => {
+				throw new Error("throttled");
+			});
+			const { markCrawlUnsupported } = initDynamoDbArticleCrawl({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await expect(
+				markCrawlUnsupported({ url: URL, reason: "r" }),
+			).rejects.toThrow("throttled");
+		});
+	});
+
 	describe("markCrawlStage", () => {
 		it("issues an unconditional UpdateItem that sets crawlStage", async () => {
 			let received: unknown;

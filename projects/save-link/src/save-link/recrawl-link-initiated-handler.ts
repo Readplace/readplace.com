@@ -6,7 +6,12 @@ import {
 	RecrawlLinkInitiatedEvent,
 	RecrawlContentExtractedEvent,
 } from "@packages/hutch-infra-components";
-import type { MarkCrawlFailed, MarkCrawlStage } from "../crawl-article-state/article-crawl.types";
+import type {
+	MarkCrawlFailed,
+	MarkCrawlStage,
+	MarkCrawlUnsupported,
+} from "../crawl-article-state/article-crawl.types";
+import type { MarkSummarySkipped } from "../generate-summary/article-summary.types";
 import type { ParseHtml } from "../article-parser/article-parser.types";
 import type { DownloadMedia } from "./download-media";
 import type { PutImageObject } from "./s3-put-image-object";
@@ -23,7 +28,9 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 	putImageObject: PutImageObject;
 	updateFetchTimestamp: UpdateFetchTimestamp;
 	markCrawlFailed: MarkCrawlFailed;
+	markCrawlUnsupported: MarkCrawlUnsupported;
 	markCrawlStage: MarkCrawlStage;
+	markSummarySkipped: MarkSummarySkipped;
 	publishEvent: PublishEvent;
 	downloadMedia: DownloadMedia;
 	processContent: ProcessContent;
@@ -43,7 +50,9 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 		putImageObject: deps.putImageObject,
 		updateFetchTimestamp: deps.updateFetchTimestamp,
 		markCrawlFailed: deps.markCrawlFailed,
+		markCrawlUnsupported: deps.markCrawlUnsupported,
 		markCrawlStage: deps.markCrawlStage,
+		markSummarySkipped: deps.markSummarySkipped,
 		downloadMedia: deps.downloadMedia,
 		processContent: deps.processContent,
 		imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
@@ -65,7 +74,13 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 
 				logger.info("[RecrawlLinkInitiated] processing", { url: detail.url });
 
-				await saveLinkWork(detail.url);
+				const result = await saveLinkWork(detail.url);
+				if (result === "unsupported") {
+					logger.info("[RecrawlLinkInitiated] crawl unsupported — terminal", {
+						url: detail.url,
+					});
+					continue;
+				}
 
 				await publishEvent({
 					source: RecrawlContentExtractedEvent.source,

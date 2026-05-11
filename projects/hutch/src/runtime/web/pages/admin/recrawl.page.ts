@@ -194,16 +194,9 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 		serviceToken: deps.serviceToken,
 	});
 
-	// The admin path always calls forceMarkCrawlPending before resolveReaderState,
-	// so the reader core's legacy-stub healing branch (which uses markCrawlPending)
-	// never fires in this flow. We still thread the real markCrawlPending through
-	// so the ArticleReaderDeps contract is satisfied with the same function
-	// reference the /view and /queue paths use.
 	const reader = initArticleReader({
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
-		markCrawlPending: deps.markCrawlPending,
 		findGeneratedSummary: deps.findGeneratedSummary,
-		markSummaryPending: deps.markSummaryPending,
 		readArticleContent: deps.readArticleContent,
 		findArticleByUrl: deps.findArticleByUrl,
 		formatDocumentTitle: formatRecrawlDocumentTitle,

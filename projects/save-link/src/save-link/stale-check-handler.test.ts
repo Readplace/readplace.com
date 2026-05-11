@@ -44,29 +44,6 @@ function createSqsEvent(detail: { url: string }): SQSEvent {
 const URL_UNDER_TEST = "https://example.com/article";
 
 describe("initStaleCheckHandler", () => {
-	it("re-publishes SaveAnonymousLinkCommand when refreshArticleIfStale returns 'reprime'", async () => {
-		const refreshArticleIfStale: RefreshArticleIfStale = async () => ({
-			action: "reprime",
-		});
-		const publishSaveAnonymousLink = jest.fn().mockResolvedValue(undefined);
-
-		const handler = initStaleCheckHandler({
-			refreshArticleIfStale,
-			publishSaveAnonymousLink,
-			logger: noopLogger,
-		});
-
-		const result = await handler(
-			createSqsEvent({ url: URL_UNDER_TEST }),
-			stubContext,
-			() => {},
-		);
-
-		expect(publishSaveAnonymousLink).toHaveBeenCalledTimes(1);
-		expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: URL_UNDER_TEST });
-		expect(result).toEqual({ batchItemFailures: [] });
-	});
-
 	it("re-publishes SaveAnonymousLinkCommand when refreshArticleIfStale returns 'new' (e.g. row was evicted between view and worker)", async () => {
 		const refreshArticleIfStale: RefreshArticleIfStale = async () => ({
 			action: "new",
@@ -150,7 +127,7 @@ describe("initStaleCheckHandler", () => {
 		const refreshArticleIfStale = jest.fn<
 			ReturnType<RefreshArticleIfStale>,
 			Parameters<RefreshArticleIfStale>
-		>().mockResolvedValue({ action: "reprime" });
+		>().mockResolvedValue({ action: "new" });
 		const publishSaveAnonymousLink = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initStaleCheckHandler({
@@ -198,7 +175,7 @@ describe("initStaleCheckHandler", () => {
 	it("reports the failed record (and only that record) when refreshArticleIfStale throws mid-batch", async () => {
 		const refreshArticleIfStale = jest
 			.fn<ReturnType<RefreshArticleIfStale>, Parameters<RefreshArticleIfStale>>()
-			.mockResolvedValueOnce({ action: "reprime" })
+			.mockResolvedValueOnce({ action: "new" })
 			.mockRejectedValueOnce(new Error("upstream failure"));
 		const publishSaveAnonymousLink = jest.fn().mockResolvedValue(undefined);
 

@@ -79,7 +79,9 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		putImageObject: jest.fn().mockResolvedValue(undefined),
 		updateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		markCrawlFailed: jest.fn().mockResolvedValue(undefined),
+		markCrawlUnsupported: jest.fn().mockResolvedValue(undefined),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
+		markSummarySkipped: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		downloadMedia: noopDownloadMedia,
 		processContent,
@@ -124,6 +126,40 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(publishEvent).not.toHaveBeenCalled();
+	});
+
+	it("flips a non-html origin (e.g. PDF) directly to crawlStatus='unsupported' + summaryStatus='skipped', does NOT throw, and does NOT emit RecrawlContentExtracted", async () => {
+		const markCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
+		const markSummarySkipped = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const unsupportedCrawl: CrawlArticle = async () => ({
+			status: "unsupported",
+			reason: "non-html content type: application/pdf",
+		});
+
+		const handler = createHandler({
+			crawlArticle: unsupportedCrawl,
+			markCrawlUnsupported,
+			markSummarySkipped,
+			publishEvent,
+		});
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/doc.pdf" }),
+			stubContext,
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(markCrawlUnsupported).toHaveBeenCalledWith({
+			url: "https://example.com/doc.pdf",
+			reason: "non-html content type: application/pdf",
+		});
+		expect(markSummarySkipped).toHaveBeenCalledWith({
+			url: "https://example.com/doc.pdf",
+			reason: "crawl-unsupported",
+		});
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 

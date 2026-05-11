@@ -4,7 +4,9 @@ import type { CrawlArticle, ThumbnailImage } from "@packages/crawl-article";
 import type {
 	MarkCrawlFailed,
 	MarkCrawlStage,
+	MarkCrawlUnsupported,
 } from "../crawl-article-state/article-crawl.types";
+import type { MarkSummarySkipped } from "../generate-summary/article-summary.types";
 import { ArticleResourceUniqueId } from "./article-resource-unique-id";
 import type { ParseHtml } from "../article-parser/article-parser.types";
 import type { DownloadMedia, DownloadedMedia } from "./download-media";
@@ -17,6 +19,17 @@ import type { PutTierSource } from "../select-content/put-tier-source";
 
 export type ProcessContent = (params: { html: string; media: DownloadedMedia[] }) => Promise<string>;
 
+/**
+ * `"tier-1-written"` — the worker fetched, parsed, and wrote a tier-1 source.
+ * The caller should publish TierContentExtractedEvent so the selector runs.
+ *
+ * `"unsupported"` — the origin returned a non-html content type (PDF, image,
+ * archive, …). The row is now in the terminal `crawlStatus="unsupported"`
+ * state. No tier-1 source was written; the caller must NOT publish
+ * TierContentExtractedEvent or the selector will trip on a missing source.
+ */
+export type SaveLinkWorkResult = "tier-1-written" | "unsupported";
+
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initSaveLinkWork(deps: {
 	crawlArticle: CrawlArticle;
@@ -25,7 +38,9 @@ export function initSaveLinkWork(deps: {
 	putImageObject: PutImageObject;
 	updateFetchTimestamp: UpdateFetchTimestamp;
 	markCrawlFailed: MarkCrawlFailed;
+	markCrawlUnsupported: MarkCrawlUnsupported;
 	markCrawlStage: MarkCrawlStage;
+	markSummarySkipped: MarkSummarySkipped;
 	downloadMedia: DownloadMedia;
 	processContent: ProcessContent;
 	imagesCdnBaseUrl: string;
@@ -35,7 +50,7 @@ export function initSaveLinkWork(deps: {
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;
 	logPrefix: string;
-}): { saveLinkWork: (url: string) => Promise<void> } {
+}): { saveLinkWork: (url: string) => Promise<SaveLinkWorkResult> } {
 	const {
 		crawlArticle,
 		parseHtml,
@@ -43,7 +58,9 @@ export function initSaveLinkWork(deps: {
 		putImageObject,
 		updateFetchTimestamp,
 		markCrawlFailed,
+		markCrawlUnsupported,
 		markCrawlStage,
+		markSummarySkipped,
 		downloadMedia,
 		processContent,
 		imagesCdnBaseUrl,
@@ -66,9 +83,20 @@ export function initSaveLinkWork(deps: {
 		});
 	};
 
-	const saveLinkWork = async (url: string): Promise<void> => {
+	const saveLinkWork = async (url: string): Promise<SaveLinkWorkResult> => {
 		await markCrawlStage({ url, stage: "crawl-fetching" });
 		const crawlResult = await crawlArticle({ url, fetchThumbnail: true });
+		if (crawlResult.status === "unsupported") {
+			// Permanently non-html origin (PDF, image, archive, …). Flip directly
+			// to the terminal `unsupported` state and mark the summary axis
+			// skipped so the canary doesn't keep flagging the row. No throw:
+			// this is a successful terminal outcome, not work to retry.
+			logParseError({ url, reason: `crawl-unsupported: ${crawlResult.reason}` });
+			await markCrawlUnsupported({ url, reason: crawlResult.reason });
+			await markSummarySkipped({ url, reason: "crawl-unsupported" });
+			await emitTier1Failure(url);
+			return "unsupported";
+		}
 		if (crawlResult.status !== "fetched") {
 			const reason = `crawl-${crawlResult.status}`;
 			logParseError({ url, reason });
@@ -151,6 +179,7 @@ export function initSaveLinkWork(deps: {
 			url,
 			hasThumbnail: crawlResult.thumbnailImage ? 1 : 0,
 		});
+		return "tier-1-written";
 	};
 
 	return { saveLinkWork };

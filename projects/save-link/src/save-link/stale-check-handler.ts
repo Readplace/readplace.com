@@ -23,7 +23,7 @@ export function initStaleCheckHandler(deps: {
 
 				const result = await refreshArticleIfStale({ url: detail.url });
 
-				if (result.action === "reprime" || result.action === "new") {
+				if (result.action === "new") {
 					await publishSaveAnonymousLink({ url: detail.url });
 					logger.info("[StaleCheckRequested] re-published SaveAnonymousLinkCommand", {
 						url: detail.url,

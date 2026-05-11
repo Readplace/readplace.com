@@ -9,9 +9,9 @@ describe("classifyRow", () => {
 			assert.deepStrictEqual(reasons, ["summary-pending"]);
 		});
 
-		it("returns summary-failed for failed", () => {
+		it("returns no reason for failed (terminal — operator owns recovery via /admin/recrawl, DLQ alarm is the signal)", () => {
 			const reasons = classifyRow({ summaryStatus: "failed", crawlStatus: "ready", summary: undefined });
-			assert.deepStrictEqual(reasons, ["summary-failed"]);
+			assert.deepStrictEqual(reasons, []);
 		});
 
 		it("returns no reason for ready when summary text is present", () => {
@@ -45,9 +45,14 @@ describe("classifyRow", () => {
 			assert.deepStrictEqual(reasons, ["crawl-pending"]);
 		});
 
-		it("returns crawl-failed for failed", () => {
+		it("returns no reason for failed (terminal — DLQ → email is the redrive signal)", () => {
 			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "failed", summary: "the summary" });
-			assert.deepStrictEqual(reasons, ["crawl-failed"]);
+			assert.deepStrictEqual(reasons, []);
+		});
+
+		it("returns no reason for unsupported (terminal — non-html origin, no recovery to drive)", () => {
+			const reasons = classifyRow({ summaryStatus: "skipped", crawlStatus: "unsupported", summary: undefined });
+			assert.deepStrictEqual(reasons, []);
 		});
 
 		it("returns no reason for ready", () => {
@@ -62,9 +67,9 @@ describe("classifyRow", () => {
 			assert.deepStrictEqual(reasons, ["summary-pending", "crawl-pending"]);
 		});
 
-		it("returns both reasons when summary and crawl are failed", () => {
+		it("returns no reasons when summary and crawl are both terminal failures", () => {
 			const reasons = classifyRow({ summaryStatus: "failed", crawlStatus: "failed", summary: undefined });
-			assert.deepStrictEqual(reasons, ["summary-failed", "crawl-failed"]);
+			assert.deepStrictEqual(reasons, []);
 		});
 	});
 

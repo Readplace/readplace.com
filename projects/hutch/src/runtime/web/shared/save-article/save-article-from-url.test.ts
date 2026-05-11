@@ -87,19 +87,6 @@ describe("saveArticleFromUrl", () => {
 		});
 	});
 
-	it("re-primes the crawl pipeline on a 'reprime' verdict", async () => {
-		const tracker = makeTracker();
-
-		await saveArticleFromUrl(tracker.deps, {
-			userId,
-			url: exampleUrl,
-			freshness: { action: "reprime" },
-		});
-
-		expect(tracker.calls.markCrawlPending).toBe(1);
-		expect(tracker.calls.publishLinkSaved).toBe(1);
-	});
-
 	it("publishes a link saved event when 'refreshed' has fresh content", async () => {
 		const tracker = makeTracker();
 

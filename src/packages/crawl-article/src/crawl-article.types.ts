@@ -15,7 +15,8 @@ export type CrawlArticleResult =
 			lastModified?: string;
 	  }
 	| { status: "not-modified" }
-	| { status: "failed" };
+	| { status: "failed" }
+	| { status: "unsupported"; reason: string };
 
 export type CrawlArticle = (params: {
 	url: string;

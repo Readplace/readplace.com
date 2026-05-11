@@ -38,6 +38,19 @@ describe("renderSummarySkipped", () => {
 		);
 	});
 
+	it("renders the crawl-unsupported message when the source isn't a webpage", () => {
+		const doc = parse(renderSummarySkipped({ reason: "crawl-unsupported" }));
+
+		const info = doc.querySelector(".article-body__summary-info");
+		assert(info, "info card must be rendered");
+		expect(info.getAttribute("data-test-reader-summary-skip-reason")).toBe(
+			"crawl-unsupported",
+		);
+		expect(info.textContent).toBe(
+			"This isn't a webpage we can save, so there's nothing to summarise.",
+		);
+	});
+
 	it("falls back to a generic message when reason is undefined (legacy rows)", () => {
 		const doc = parse(renderSummarySkipped({ reason: undefined }));
 

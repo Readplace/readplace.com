@@ -58,23 +58,6 @@ async function saveByFreshness(
 		return { saved: await markUnreadIfRead(deps.updateArticleStatus, saved) };
 	}
 
-	if (freshness.action === "reprime") {
-		const saved = await deps.saveArticle({
-			userId,
-			url,
-			metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
-			estimatedReadTime: calculateReadTime(0),
-		});
-		await deps.markCrawlPending({ url });
-		await deps.markSummaryPending({ url });
-		await deps.publishUpdateFetchTimestamp({
-			url,
-			contentFetchedAt: new Date().toISOString(),
-		});
-		await deps.publishLinkSaved({ url, userId });
-		return { saved: await markUnreadIfRead(deps.updateArticleStatus, saved) };
-	}
-
 	const saved = await deps.saveArticle({
 		userId,
 		url,

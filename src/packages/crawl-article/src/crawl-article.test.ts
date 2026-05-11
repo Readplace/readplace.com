@@ -312,7 +312,7 @@ describe("initCrawlArticle — failure modes", () => {
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 403 for https://example.com");
 	});
 
-	it("returns status 'failed' and logs content-type when not text/html", async () => {
+	it("returns status 'unsupported' with the content-type reason when the origin serves a non-html body (PDF, JSON, …)", async () => {
 		const fakeFetch: typeof fetch = async () =>
 			new Response("{}", {
 				status: 200,
@@ -323,11 +323,14 @@ describe("initCrawlArticle — failure modes", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed" });
+		expect(result).toEqual({
+			status: "unsupported",
+			reason: "non-html content type: application/json",
+		});
 		expect(logError).toHaveBeenCalledWith('[CrawlArticle] Unexpected Content-Type "application/json" for https://example.com');
 	});
 
-	it("returns status 'failed' and logs empty content-type when header is missing", async () => {
+	it("returns status 'unsupported' with an empty content-type reason when the header is missing", async () => {
 		// Buffer body bypasses Response's auto-assigned text/plain Content-Type, so headers.get returns null
 		const fakeFetch: typeof fetch = async () =>
 			new Response(Buffer.from("<html>Content</html>"), { status: 200, headers: {} });
@@ -336,7 +339,7 @@ describe("initCrawlArticle — failure modes", () => {
 
 		const result = await crawlArticle({ url: "https://example.com" });
 
-		expect(result).toEqual({ status: "failed" });
+		expect(result).toEqual({ status: "unsupported", reason: "non-html content type: " });
 		expect(logError).toHaveBeenCalledWith('[CrawlArticle] Unexpected Content-Type "" for https://example.com');
 	});
 

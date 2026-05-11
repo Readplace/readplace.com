@@ -53,15 +53,15 @@ function shouldKeepPollingReader(
  * legacy-row path) the summary takes over on the upper half.
  *
  * Returns undefined when there is nothing left to animate — both pipelines
- * terminal, or the crawl has failed and the summary slot has collapsed
- * (rendering a half-full bar there would just stall forever).
+ * terminal, or the crawl has failed/unsupported and the summary slot has
+ * collapsed (rendering a half-full bar there would just stall forever).
  */
 function buildUnifiedProgress(
 	crawl: ArticleCrawl | undefined,
 	summary: GeneratedSummary | undefined,
 	now: Date,
 ): ProgressTick | undefined {
-	if (crawl?.status === "failed") return undefined;
+	if (crawl?.status === "failed" || crawl?.status === "unsupported") return undefined;
 
 	if (crawl?.status === "pending") {
 		const stage: CrawlStage = crawl.stage ?? DEFAULT_CRAWL_STAGE;
@@ -94,21 +94,8 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		params: ResolveReaderStateParams,
 	): Promise<ReaderState> {
 		const { article, pollUrlBuilder } = params;
-		let crawl = await deps.findArticleCrawlStatus(article.url);
-		let summary = await deps.findGeneratedSummary(article.url);
-
-		// Legacy-stub healing: a row that exists but carries neither a crawl nor a
-		// summary state attribute pre-dates the state machines. Re-prime both so it
-		// reaches a terminal state instead of sitting on "Generating summary…"
-		// forever on every render. Re-read so the same request picks up any state
-		// the synchronous in-memory worker wrote during priming (real workers are
-		// async; the re-read just surfaces whatever is durable now).
-		if (crawl === undefined && summary === undefined) {
-			await deps.markCrawlPending({ url: article.url });
-			await deps.markSummaryPending({ url: article.url });
-			crawl = await deps.findArticleCrawlStatus(article.url);
-			summary = await deps.findGeneratedSummary(article.url);
-		}
+		const crawl = await deps.findArticleCrawlStatus(article.url);
+		const summary = await deps.findGeneratedSummary(article.url);
 
 		const content = await deps.readArticleContent(article.url);
 		const summaryStatus = summary?.status ?? "pending";
@@ -162,9 +149,10 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			deps.findGeneratedSummary(articleUrl),
 			deps.findArticleByUrl(articleUrl),
 		]);
-		const crawlFailed = crawl?.status === "failed";
+		const crawlTerminalFailure =
+			crawl?.status === "failed" || crawl?.status === "unsupported";
 		const status = summary?.status ?? "pending";
-		const summaryPollUrl = !crawlFailed && status === "pending" && pollCount < MAX_POLLS
+		const summaryPollUrl = !crawlTerminalFailure && status === "pending" && pollCount < MAX_POLLS
 			? pollUrlBuilder.summary(pollCount + 1)
 			: undefined;
 		const slot = renderSummarySlot({

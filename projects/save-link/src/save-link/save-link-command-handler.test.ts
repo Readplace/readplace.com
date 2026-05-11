@@ -81,7 +81,9 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		putImageObject: jest.fn().mockResolvedValue(undefined),
 		updateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		markCrawlFailed: jest.fn().mockResolvedValue(undefined),
+		markCrawlUnsupported: jest.fn().mockResolvedValue(undefined),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
+		markSummarySkipped: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		downloadMedia: noopDownloadMedia,
 		processContent,
@@ -351,6 +353,47 @@ describe("initSaveLinkCommandHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(markCrawlFailed).not.toHaveBeenCalled();
+	});
+
+	it("flips a non-html origin (e.g. PDF) directly to crawlStatus='unsupported' + summaryStatus='skipped', does NOT throw, and does NOT emit TierContentExtracted", async () => {
+		const markCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
+		const markCrawlFailed = jest.fn().mockResolvedValue(undefined);
+		const markSummarySkipped = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
+		const unsupportedCrawl: CrawlArticle = async () => ({
+			status: "unsupported",
+			reason: "non-html content type: application/pdf",
+		});
+
+		const handler = createHandler({
+			crawlArticle: unsupportedCrawl,
+			markCrawlUnsupported,
+			markCrawlFailed,
+			markSummarySkipped,
+			publishEvent,
+			putTierSource,
+		});
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/doc.pdf", userId: "user-1" }),
+			stubContext,
+			() => {},
+		);
+
+		// Successful terminal outcome — no batch failure, no SQS retry.
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(markCrawlUnsupported).toHaveBeenCalledWith({
+			url: "https://example.com/doc.pdf",
+			reason: "non-html content type: application/pdf",
+		});
+		expect(markSummarySkipped).toHaveBeenCalledWith({
+			url: "https://example.com/doc.pdf",
+			reason: "crawl-unsupported",
+		});
+		expect(markCrawlFailed).not.toHaveBeenCalled();
+		expect(putTierSource).not.toHaveBeenCalled();
+		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
 	it("uploads the crawled thumbnail to S3 and threads the resolved CDN URL into the tier-source metadata", async () => {

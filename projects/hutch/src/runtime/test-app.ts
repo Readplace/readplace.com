@@ -19,13 +19,13 @@ import type {
 import type {
 	FindArticleCrawlStatus,
 	ForceMarkCrawlPending,
-	IncrementCrawlAutoHealAttempt,
 	MarkCrawlPending,
 } from "@packages/test-fixtures/providers/article-crawl";
 import type {
 	InMemoryMarkCrawlFailed,
 	InMemoryMarkCrawlReady,
 	InMemoryMarkCrawlStage,
+	InMemoryMarkCrawlUnsupported,
 } from "@packages/test-fixtures/providers/article-crawl";
 import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 import type {
@@ -146,8 +146,8 @@ export interface ArticleCrawlBundle {
 	forceMarkCrawlPending: ForceMarkCrawlPending;
 	markCrawlReady: InMemoryMarkCrawlReady;
 	markCrawlFailed: InMemoryMarkCrawlFailed;
+	markCrawlUnsupported: InMemoryMarkCrawlUnsupported;
 	markCrawlStage: InMemoryMarkCrawlStage;
-	incrementCrawlAutoHealAttempt: IncrementCrawlAutoHealAttempt;
 }
 
 export interface ParserBundle {

@@ -11,16 +11,15 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {
 	ArticleCrawl,
 	FindArticleCrawlStatus,
-	FindAutoHealState,
 	ForceMarkCrawlPending,
 	MarkCrawlPending,
-	WriteAutoHealAttempt,
 } from "@packages/test-fixtures/providers/article-crawl";
 
 const ArticleCrawlRow = z.object({
 	url: z.string(),
 	crawlStatus: dynamoField(CrawlStatusSchema),
 	crawlFailureReason: dynamoField(z.string()),
+	crawlUnsupportedReason: dynamoField(z.string()),
 	crawlStage: dynamoField(
 		z.enum([
 			"crawl-fetching",
@@ -30,8 +29,6 @@ const ArticleCrawlRow = z.object({
 			"crawl-content-uploaded",
 		]),
 	),
-	crawlAutoHealAttempts: dynamoField(z.number()),
-	crawlAutoHealLastAttemptAt: dynamoField(z.string()),
 });
 
 type ArticleCrawlRowShape = z.infer<typeof ArticleCrawlRow>;
@@ -46,6 +43,13 @@ function rowToArticleCrawl(
 			"crawlStatus=failed row must carry a crawlFailureReason",
 		);
 		return { status: "failed", reason: row.crawlFailureReason };
+	}
+	if (row.crawlStatus === "unsupported") {
+		assert(
+			row.crawlUnsupportedReason,
+			"crawlStatus=unsupported row must carry a crawlUnsupportedReason",
+		);
+		return { status: "unsupported", reason: row.crawlUnsupportedReason };
 	}
 	if (row.crawlStatus === "pending") {
 		return row.crawlStage
@@ -68,8 +72,6 @@ export function initDynamoDbArticleCrawl(deps: {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
-	findAutoHealState: FindAutoHealState;
-	writeAutoHealAttempt: WriteAutoHealAttempt;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -106,41 +108,9 @@ export function initDynamoDbArticleCrawl(deps: {
 		await table.update({
 			Key: { url: articleResourceUniqueId.value },
 			UpdateExpression:
-				"SET crawlStatus = :pending REMOVE crawlFailureReason",
+				"SET crawlStatus = :pending REMOVE crawlFailureReason, crawlUnsupportedReason",
 			ExpressionAttributeValues: {
 				":pending": "pending",
-			},
-		});
-	};
-
-	const findAutoHealState: FindAutoHealState = async (url) => {
-		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		const row = await table.get({ url: articleResourceUniqueId.value });
-		if (
-			row?.crawlAutoHealAttempts === undefined ||
-			row?.crawlAutoHealLastAttemptAt === undefined
-		) {
-			return undefined;
-		}
-		return {
-			attempts: row.crawlAutoHealAttempts,
-			lastAttemptAtIso: row.crawlAutoHealLastAttemptAt,
-		};
-	};
-
-	const writeAutoHealAttempt: WriteAutoHealAttempt = async ({
-		url,
-		attempts,
-		lastAttemptAtIso,
-	}) => {
-		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-		await table.update({
-			Key: { url: articleResourceUniqueId.value },
-			UpdateExpression:
-				"SET crawlAutoHealAttempts = :attempts, crawlAutoHealLastAttemptAt = :lastAt",
-			ExpressionAttributeValues: {
-				":attempts": attempts,
-				":lastAt": lastAttemptAtIso,
 			},
 		});
 	};
@@ -149,7 +119,5 @@ export function initDynamoDbArticleCrawl(deps: {
 		findArticleCrawlStatus,
 		markCrawlPending,
 		forceMarkCrawlPending,
-		findAutoHealState,
-		writeAutoHealAttempt,
 	};
 }

@@ -50,7 +50,7 @@ export function initCrawlArticle(deps: {
 			const contentType = response.headers.get("content-type") ?? "";
 			if (!isHtmlContentType(contentType)) {
 				deps.logError(`[CrawlArticle] Unexpected Content-Type "${contentType}" for ${params.url}`);
-				return { status: "failed" };
+				return { status: "unsupported", reason: `non-html content type: ${contentType}` };
 			}
 			const html = await response.text();
 			const candidates = extractThumbnailCandidates({ html, baseUrl: params.url });

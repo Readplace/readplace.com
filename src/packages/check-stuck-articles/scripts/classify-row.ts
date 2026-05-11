@@ -2,24 +2,28 @@ import type { CrawlStatus, SummaryStatus } from "@packages/article-state-types";
 
 export type StuckReason =
 	| "summary-pending"
-	| "summary-failed"
 	| "summary-ready-without-text"
 	| "crawl-pending"
-	| "crawl-failed"
 	| "legacy-stub";
 
 /**
  * Map a row to the reasons it is "stuck". Empty array = the row is healthy
- * (terminal-good state machines, or a legacy row carrying a pre-state-machine
- * `summary`). The two switches use exhaustive `never` defaults so a new
- * SummaryStatus or CrawlStatus added to @packages/article-state-types breaks
- * `tsc --noEmit` until the classifier handles it.
+ * (terminal state machines — ready/failed/unsupported/skipped — or a legacy
+ * row carrying a pre-state-machine `summary`). The two switches use exhaustive
+ * `never` defaults so a new SummaryStatus or CrawlStatus added to
+ * @packages/article-state-types breaks `tsc --noEmit` until the classifier
+ * handles it.
+ *
+ * Why terminal failures (failed / unsupported) are NOT flagged: the canary
+ * only reports rows that are not making progress. failed and unsupported are
+ * terminal states the operator owns via /admin/recrawl and the DLQ → SNS
+ * email signal. Flagging them in the stuck-articles report would drown the
+ * actionable pending-row signals in noise that the operator can't resolve
+ * without per-URL judgement (recrawl vs. exclude vs. live with).
  *
  * "summary-ready-without-text" catches the writer-contract violation that
  * left fagnerbrack.com/why-developers-become-frustrated-… stuck on
- * 2026-05-10: a row with summaryStatus="ready" but no `summary` text. The
- * status enums alone do not surface this — a row in that state passes both
- * status checks and would otherwise fall through as healthy.
+ * 2026-05-10: a row with summaryStatus="ready" but no `summary` text.
  */
 export function classifyRow(
 	row: {
@@ -34,14 +38,12 @@ export function classifyRow(
 			case "pending":
 				reasons.push("summary-pending");
 				break;
-			case "failed":
-				reasons.push("summary-failed");
-				break;
 			case "ready":
 				if (row.summary === undefined) {
 					reasons.push("summary-ready-without-text");
 				}
 				break;
+			case "failed":
 			case "skipped":
 				break;
 			default: {
@@ -57,10 +59,9 @@ export function classifyRow(
 			case "pending":
 				reasons.push("crawl-pending");
 				break;
-			case "failed":
-				reasons.push("crawl-failed");
-				break;
 			case "ready":
+			case "failed":
+			case "unsupported":
 				break;
 			default: {
 				const _exhaustive: never = row.crawlStatus;

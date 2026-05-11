@@ -9,6 +9,7 @@ import type {
 	MarkCrawlFailed,
 	MarkCrawlReady,
 	MarkCrawlStage,
+	MarkCrawlUnsupported,
 } from "./article-crawl.types";
 
 const CrawlStateRow = z.object({
@@ -32,6 +33,7 @@ export function initDynamoDbArticleCrawl(deps: {
 }): {
 	markCrawlReady: MarkCrawlReady;
 	markCrawlFailed: MarkCrawlFailed;
+	markCrawlUnsupported: MarkCrawlUnsupported;
 	markCrawlStage: MarkCrawlStage;
 } {
 	const table = defineDynamoTable({
@@ -76,6 +78,29 @@ export function initDynamoDbArticleCrawl(deps: {
 		);
 	};
 
+	const markCrawlUnsupported: MarkCrawlUnsupported = async ({ url, reason }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		// Allow pending → unsupported (normal) and failed → unsupported (e.g. an
+		// operator recrawl that hit a non-html origin this time). Block ready from
+		// regressing. Reuses crawlFailedAt as the terminal-failure timestamp.
+		await swallowConditionalCheckFailure(() =>
+			table.update({
+				Key: { url: articleResourceUniqueId.value },
+				UpdateExpression:
+					"SET crawlStatus = :unsupported, crawlUnsupportedReason = :reason, crawlFailedAt = :failedAt",
+				ConditionExpression:
+					"attribute_not_exists(crawlStatus) OR crawlStatus = :pending OR crawlStatus = :failed OR crawlStatus = :unsupported",
+				ExpressionAttributeValues: {
+					":unsupported": "unsupported",
+					":pending": "pending",
+					":failed": "failed",
+					":reason": reason,
+					":failedAt": new Date().toISOString(),
+				},
+			}),
+		);
+	};
+
 	const markCrawlStage: MarkCrawlStage = async ({ url, stage }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		// Unconditional write: stages are monotonic by code order in the
@@ -90,5 +115,5 @@ export function initDynamoDbArticleCrawl(deps: {
 		});
 	};
 
-	return { markCrawlReady, markCrawlFailed, markCrawlStage };
+	return { markCrawlReady, markCrawlFailed, markCrawlUnsupported, markCrawlStage };
 }

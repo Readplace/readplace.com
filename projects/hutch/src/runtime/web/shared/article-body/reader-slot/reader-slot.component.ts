@@ -12,10 +12,13 @@ export interface ReaderSlotInput {
 }
 
 export function renderReaderSlot(input: ReaderSlotInput): string {
-	// Valid terminal states first.
-	if (input.crawl?.status === "failed") {
+	// Valid terminal states first. `unsupported` (PDF, image, archive, …) and
+	// `failed` (everything else) share the same template with a one-line copy
+	// variant — neither emits an htmx polling stub.
+	if (input.crawl?.status === "failed" || input.crawl?.status === "unsupported") {
 		return renderReaderFailed({
 			url: input.url,
+			variant: input.crawl.status,
 			extensionInstallUrl: input.extensionInstallUrl,
 		});
 	}

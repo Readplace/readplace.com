@@ -5,12 +5,10 @@ import type {
 import type {
 	ArticleCrawl,
 	FindArticleCrawlStatus,
-	MarkCrawlPending,
 } from "@packages/test-fixtures/providers/article-crawl";
 import type {
 	FindGeneratedSummary,
 	GeneratedSummary,
-	MarkSummaryPending,
 } from "@packages/test-fixtures/providers/article-summary";
 import type {
 	FindArticleByUrl,
@@ -20,9 +18,7 @@ import type { ProgressTick } from "@packages/domain/article";
 
 export interface ArticleReaderDeps {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
-	markCrawlPending: MarkCrawlPending;
 	findGeneratedSummary: FindGeneratedSummary;
-	markSummaryPending: MarkSummaryPending;
 	readArticleContent: ReadArticleContent;
 	/**
 	 * Used by the poll handlers to read the latest metadata on every tick so

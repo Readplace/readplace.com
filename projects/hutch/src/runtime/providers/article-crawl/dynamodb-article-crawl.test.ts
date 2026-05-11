@@ -103,6 +103,24 @@ describe("initDynamoDbArticleCrawl", () => {
 			expect(result).toEqual({ status: "failed", reason: "connect timeout" });
 		});
 
+		it("returns unsupported with reason when crawlStatus=unsupported", async () => {
+			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
+				client: clientReturning({
+					url: URL,
+					crawlStatus: "unsupported",
+					crawlUnsupportedReason: "non-html content type: application/pdf",
+				}),
+				tableName: TABLE,
+			});
+
+			const result = await findArticleCrawlStatus(URL);
+
+			expect(result).toEqual({
+				status: "unsupported",
+				reason: "non-html content type: application/pdf",
+			});
+		});
+
 		it("throws when crawlStatus=failed is persisted without a crawlFailureReason", async () => {
 			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
 				client: clientReturning({ url: URL, crawlStatus: "failed" }),
@@ -111,6 +129,17 @@ describe("initDynamoDbArticleCrawl", () => {
 
 			await expect(findArticleCrawlStatus(URL)).rejects.toThrow(
 				"crawlStatus=failed row must carry a crawlFailureReason",
+			);
+		});
+
+		it("throws when crawlStatus=unsupported is persisted without a crawlUnsupportedReason", async () => {
+			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
+				client: clientReturning({ url: URL, crawlStatus: "unsupported" }),
+				tableName: TABLE,
+			});
+
+			await expect(findArticleCrawlStatus(URL)).rejects.toThrow(
+				"crawlStatus=unsupported row must carry a crawlUnsupportedReason",
 			);
 		});
 	});
@@ -175,7 +204,7 @@ describe("initDynamoDbArticleCrawl", () => {
 	});
 
 	describe("forceMarkCrawlPending", () => {
-		it("issues an unconditional UpdateItem that sets crawlStatus=pending and clears crawlFailureReason", async () => {
+		it("issues an unconditional UpdateItem that sets crawlStatus=pending and clears the terminal-failure reason columns", async () => {
 			let received: unknown;
 			const client = createFakeClient((input) => {
 				received = input;
@@ -196,7 +225,7 @@ describe("initDynamoDbArticleCrawl", () => {
 				};
 			};
 			expect(command.input.UpdateExpression).toBe(
-				"SET crawlStatus = :pending REMOVE crawlFailureReason",
+				"SET crawlStatus = :pending REMOVE crawlFailureReason, crawlUnsupportedReason",
 			);
 			expect(command.input.ConditionExpression).toBeUndefined();
 			expect(command.input.ExpressionAttributeValues?.[":pending"]).toBe(
@@ -216,87 +245,6 @@ describe("initDynamoDbArticleCrawl", () => {
 			await expect(forceMarkCrawlPending({ url: URL })).rejects.toThrow(
 				"throttled",
 			);
-		});
-	});
-
-	describe("findAutoHealState", () => {
-		it("returns undefined when the row has no auto-heal attributes", async () => {
-			const { findAutoHealState } = initDynamoDbArticleCrawl({
-				client: clientReturning({ url: URL, crawlStatus: "failed", crawlFailureReason: "blocked" }),
-				tableName: TABLE,
-			});
-
-			expect(await findAutoHealState(URL)).toBeUndefined();
-		});
-
-		it("returns the auto-heal state when both attributes are present", async () => {
-			const { findAutoHealState } = initDynamoDbArticleCrawl({
-				client: clientReturning({
-					url: URL,
-					crawlStatus: "failed",
-					crawlFailureReason: "blocked",
-					crawlAutoHealAttempts: 2,
-					crawlAutoHealLastAttemptAt: "2026-05-10T05:00:00.000Z",
-				}),
-				tableName: TABLE,
-			});
-
-			expect(await findAutoHealState(URL)).toEqual({
-				attempts: 2,
-				lastAttemptAtIso: "2026-05-10T05:00:00.000Z",
-			});
-		});
-	});
-
-	describe("writeAutoHealAttempt", () => {
-		it("issues a SET with the provided count and timestamp", async () => {
-			let received: unknown;
-			const client = createFakeClient((input) => {
-				received = input;
-				return {};
-			});
-			const { writeAutoHealAttempt } = initDynamoDbArticleCrawl({
-				client: client as DynamoDBDocumentClient,
-				tableName: TABLE,
-			});
-
-			await writeAutoHealAttempt({
-				url: URL,
-				attempts: 3,
-				lastAttemptAtIso: "2026-05-10T05:00:00.000Z",
-			});
-
-			const command = received as {
-				input: {
-					UpdateExpression?: string;
-					ExpressionAttributeValues?: Record<string, unknown>;
-				};
-			};
-			expect(command.input.UpdateExpression).toBe(
-				"SET crawlAutoHealAttempts = :attempts, crawlAutoHealLastAttemptAt = :lastAt",
-			);
-			expect(command.input.ExpressionAttributeValues?.[":attempts"]).toBe(3);
-			expect(command.input.ExpressionAttributeValues?.[":lastAt"]).toBe(
-				"2026-05-10T05:00:00.000Z",
-			);
-		});
-
-		it("propagates DynamoDB errors", async () => {
-			const client = createFakeClient(() => {
-				throw new Error("throttled");
-			});
-			const { writeAutoHealAttempt } = initDynamoDbArticleCrawl({
-				client: client as DynamoDBDocumentClient,
-				tableName: TABLE,
-			});
-
-			await expect(
-				writeAutoHealAttempt({
-					url: URL,
-					attempts: 1,
-					lastAttemptAtIso: "2026-05-10T05:00:00.000Z",
-				}),
-			).rejects.toThrow("throttled");
 		});
 	});
 });

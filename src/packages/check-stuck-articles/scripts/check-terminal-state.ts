@@ -26,11 +26,9 @@ type TerminalCheckResult = { terminal: true } | { terminal: false; message: stri
  */
 const REASON_MESSAGES: Record<StuckReason, string> = {
 	"summary-pending": "summaryStatus is 'pending' — summary worker never produced a terminal outcome",
-	"summary-failed": "summaryStatus is 'failed' — summary worker recorded a non-recoverable failure",
 	"summary-ready-without-text":
 		"summaryStatus is 'ready' but the summary text is missing (writer-contract violation: a producer dropped 'summary' without resetting 'summaryStatus' to 'pending')",
 	"crawl-pending": "crawlStatus is 'pending' — crawl worker never produced a terminal outcome",
-	"crawl-failed": "crawlStatus is 'failed' — crawl worker recorded a non-recoverable failure",
 	"legacy-stub":
 		"legacy stub — row pre-dates the state machines and carries neither status attributes nor a backfilled summary",
 };

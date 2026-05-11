@@ -1053,8 +1053,8 @@ describe("View routes", () => {
  	forceMarkCrawlPending: fixture.articleCrawl.forceMarkCrawlPending,
  	markCrawlReady: fixture.articleCrawl.markCrawlReady,
  	markCrawlFailed: fixture.articleCrawl.markCrawlFailed,
+ 	markCrawlUnsupported: fixture.articleCrawl.markCrawlUnsupported,
  	markCrawlStage: fixture.articleCrawl.markCrawlStage,
- 	incrementCrawlAutoHealAttempt: fixture.articleCrawl.incrementCrawlAutoHealAttempt,
  },
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
@@ -1795,7 +1795,7 @@ describe("View routes", () => {
 			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: ARTICLE_URL });
 		});
 
-		it("requests a background stale-check for a cached article with a failed crawl status", async () => {
+		it("requests a background stale-check for a cached article with a failed crawl status, but does NOT re-publish SaveAnonymousLinkCommand on view (auto-heal removed; operator owns recovery)", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const publishSaveAnonymousLink = jest.fn(async () => {});
 			const publishStaleCheckRequested = jest.fn(async () => {});
@@ -1833,10 +1833,49 @@ describe("View routes", () => {
 			});
 			await articleCrawl.markCrawlFailed({ url: ARTICLE_URL, reason: "exceeded SQS maxReceiveCount" });
 
+			// Visit twice to exercise the regression: under auto-heal the second
+			// visit would have re-published SaveAnonymousLinkCommand. Now it must
+			// stay quiet for both — the stale-check Lambda observes a failed row
+			// and short-circuits to action=skip.
+			await request(app).get(`/view/${ENCODED}`);
 			await request(app).get(`/view/${ENCODED}`);
 
 			expect(publishSaveAnonymousLink).not.toHaveBeenCalled();
 			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: ARTICLE_URL });
+		});
+
+		it("renders the unsupported reader slot for a cached article whose crawl was marked unsupported, with no polling stub", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const { app, articleStore, articleCrawl } = createTestApp({
+				...fixture,
+				events: {
+					...fixture.events,
+					publishSaveAnonymousLink: async () => {},
+				},
+			});
+			await articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: {
+					title: "PDF doc",
+					siteName: "example.com",
+					excerpt: "",
+					wordCount: 0,
+				},
+				estimatedReadTime: MinutesSchema.parse(0),
+			});
+			await articleCrawl.markCrawlUnsupported({
+				url: ARTICLE_URL,
+				reason: "non-html content type: application/pdf",
+			});
+
+			const response = await request(app).get(`/view/${ENCODED}`);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			expect(slot.getAttribute("data-reader-status")).toBe("unsupported");
+			expect(slot.hasAttribute("hx-get")).toBe(false);
 		});
 
 		it("primes the async crawl pipeline regardless of eventual parse outcome (worker owns failure handling)", async () => {

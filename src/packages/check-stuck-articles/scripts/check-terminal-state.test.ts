@@ -51,32 +51,51 @@ describe("checkTerminalState", () => {
 		});
 	});
 
-	it("concatenates messages when BOTH state machines are non-terminal", () => {
+	it("concatenates messages when summaryStatus is pending while crawlStatus is also pending", () => {
 		// Why this matters: a single row can stall on more than one axis at
-		// the same time (e.g. a crawl that failed before the summary worker
-		// got a chance to run, with a leftover pending summaryStatus from a
-		// prior attempt). The output has to surface both axes so the operator
-		// fixes the right one first — not just the one classifyRow happened
-		// to list first.
+		// the same time (e.g. a crawl that has not progressed beyond pending
+		// while the summary worker is also waiting). The output has to surface
+		// both axes so the operator fixes the right one first — not just the
+		// one classifyRow happened to list first.
 		const result = checkTerminalState({
 			summaryStatus: "pending",
-			crawlStatus: "failed",
+			crawlStatus: "pending",
 			summary: undefined,
 		});
 		assert.equal(result.terminal, false);
 		assert.equal(
 			result.terminal === false ? result.message : "",
-			"summaryStatus is 'pending' — summary worker never produced a terminal outcome; crawlStatus is 'failed' — crawl worker recorded a non-recoverable failure",
+			"summaryStatus is 'pending' — summary worker never produced a terminal outcome; crawlStatus is 'pending' — crawl worker never produced a terminal outcome",
 		);
+	});
+
+	it("treats crawl/summary terminal failures as terminal (operator owns recovery via /admin/recrawl)", () => {
+		// Why this matters: `failed` and `unsupported` are now terminal in the
+		// canary — the DLQ → SNS email path is the redrive signal, and surfacing
+		// them in the stuck-articles report would drown actionable pending-row
+		// signals in noise the operator can't resolve without per-URL judgement.
+		const failedCrawl = checkTerminalState({
+			summaryStatus: "ready",
+			crawlStatus: "failed",
+			summary: "the summary",
+		});
+		assert.deepStrictEqual(failedCrawl, { terminal: true });
+
+		const unsupportedCrawl = checkTerminalState({
+			summaryStatus: "skipped",
+			crawlStatus: "unsupported",
+			summary: undefined,
+		});
+		assert.deepStrictEqual(unsupportedCrawl, { terminal: true });
 	});
 
 	it("returns terminal:false with the legacy-stub message for rows with no statuses and no summary", () => {
 		// Why this matters: legacy stubs pre-date the state machines. The
-		// canary surfaces them so they can be re-primed via the existing
-		// resolveReaderState heal branch (article-reader.ts:101); the
-		// operator-facing message must say "legacy stub" — not "pending" —
-		// so the operator knows the fix is "kick the row through /view"
-		// rather than "wait for the worker to finish".
+		// canary surfaces them so an operator can recrawl manually; the
+		// reader-side legacy-stub healing path was removed when auto-heal
+		// was retired (Plan 3.2). The message must say "legacy stub" — not
+		// "pending" — so the operator knows the fix is to recrawl manually,
+		// not wait for the worker to finish.
 		const result = checkTerminalState({
 			summaryStatus: undefined,
 			crawlStatus: undefined,

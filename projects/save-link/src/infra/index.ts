@@ -78,12 +78,12 @@ const saveLinkCommandQueue = new HutchSQS("save-link-command", {
 });
 
 // maxReceiveCount=1: SQS retries are removed for the anonymous save path.
-// The retry channel is now the freshness/auto-heal flow — when a row sits at
-// crawlStatus='failed', the next /view click triggers stale-check → reprime,
-// republishing this command. The auto-heal cap (3 attempts per 24h TTL)
-// prevents structurally-broken URLs from looping. Other queues that aren't
-// user-retriable (select-most-complete-content, generate-summary) keep the
-// default maxReceiveCount=3 so transient Deepseek/DDB blips still self-heal.
+// Auto-heal-on-view is gone (Plan 3.2): a failed save no longer reprimes when
+// the user re-visits /view. The DLQ → SNS email alarm wired by HutchSQSBackedLambda
+// is the operator's redrive signal, and /admin/recrawl is the manual retry.
+// Other queues that aren't user-retriable (select-most-complete-content,
+// generate-summary) keep the default maxReceiveCount=3 so transient
+// Deepseek/DDB blips still self-heal at the SQS layer.
 const saveAnonymousLinkCommandQueue = new HutchSQS("save-anonymous-link-command", {
 	visibilityTimeoutSeconds: 360,
 	dlqMaxReceiveCount: 1,

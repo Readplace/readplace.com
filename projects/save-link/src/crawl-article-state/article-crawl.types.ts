@@ -3,6 +3,10 @@ export type MarkCrawlFailed = (params: {
 	url: string;
 	reason: string;
 }) => Promise<void>;
+export type MarkCrawlUnsupported = (params: {
+	url: string;
+	reason: string;
+}) => Promise<void>;
 
 /**
  * Worker-side stage strings for the unified article-body progress bar. Mirrors

@@ -48,7 +48,28 @@ describe("renderReaderSlot", () => {
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("failed");
+		expect(slot.getAttribute("hx-get")).toBeNull();
 		expect(slot.querySelector("a")?.getAttribute("href")).toBe(URL);
+	});
+
+	it("routes status=unsupported to the same template with the unsupported reader-status (terminal, no polling stub)", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: {
+					status: "unsupported",
+					reason: "non-html content type: application/pdf",
+				},
+				url: URL,
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("unsupported");
+		expect(slot.getAttribute("hx-get")).toBeNull();
+		expect(
+			doc.querySelector(".article-body__reader-failed-title")?.textContent,
+		).toBe("This isn't a webpage we can save");
 	});
 
 	it("routes status=ready with content to the ready component", () => {
