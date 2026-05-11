@@ -5,10 +5,7 @@
  * Read-only DDB scan: returns one failing node:test sub-test per article
  * whose state machines never reached a terminal-good state. Zero stuck
  * rows = green. Replaces /tmp/list-stuck-articles.sh — same FilterExpression
- * and same exclude-regex semantics, but the classifier and the Zod schemas
- * are bound to @packages/article-state-types so a new summaryStatus or
- * crawlStatus value upstream fails `tsc --noEmit` immediately, instead of
- * producing a quiet false-negative on tomorrow's cron.
+ * and same exclude-regex semantics.
  *
  * Required env:
  *   - AWS_REGION

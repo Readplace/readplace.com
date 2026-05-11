@@ -17,9 +17,7 @@ import { z } from "zod";
 import { checkTerminalState } from "./check-terminal-state";
 import { type StuckReason, classifyRow } from "./classify-row";
 
-/* `dynamoField` normalises DDB's `null` for absent attributes to `undefined`.
- * Shared status enums surface a new upstream status as a tsc error in
- * `classifyRow`. */
+/* `dynamoField` normalises DDB's `null` for absent attributes to `undefined`. */
 const StuckArticleRow = z.object({
 	url: z.string(),
 	originalUrl: z.string(),
