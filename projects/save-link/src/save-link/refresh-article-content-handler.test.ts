@@ -48,11 +48,21 @@ function createSqsEvent(detail: {
 }
 
 describe("initRefreshArticleContentHandler", () => {
-	it("calls refreshArticleContent with parsed detail", async () => {
+	it("calls refreshArticleContent with parsed detail and dispatches GenerateSummaryCommand", async () => {
+		// Why this matters: refreshArticleContent invalidates the cached summary
+		// (clears summary text + flips status back to pending). If the handler
+		// did not also dispatch GenerateSummaryCommand the row would sit in the
+		// pending state forever — no worker would ever pick it up — and the
+		// reader would render "Generating summary…" indefinitely. This is
+		// exactly the regression that left
+		// fagnerbrack.com/why-developers-become-frustrated-… stuck after the
+		// 2026-05-10 freshness refresh.
 		const refreshArticleContent = jest.fn().mockResolvedValue(undefined);
+		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initRefreshArticleContentHandler({
 			refreshArticleContent,
+			dispatchGenerateSummary,
 			logger: noopLogger,
 		});
 
@@ -74,11 +84,46 @@ describe("initRefreshArticleContentHandler", () => {
 			lastModified: "Thu, 10 Apr 2026 12:00:00 GMT",
 			contentFetchedAt: "2026-04-10T12:00:00Z",
 		});
+		expect(dispatchGenerateSummary).toHaveBeenCalledTimes(1);
+		expect(dispatchGenerateSummary).toHaveBeenCalledWith({ url: "https://example.com/article" });
+	});
+
+	it("dispatches AFTER refreshArticleContent so the worker never reads a status=ready cache hit", async () => {
+		// Why this matters: summarizeArticle short-circuits when the cached
+		// summaryStatus is "ready" or "skipped" (link-summariser.ts:52). If we
+		// dispatched the command before refreshArticleContent flipped the row
+		// out of "ready", a fast-running worker could read the stale cache,
+		// log "already summarized", and return — leaving the row with the
+		// new content but no regenerated summary. Locking the order eliminates
+		// that race.
+		const order: string[] = [];
+		const refreshArticleContent = jest.fn().mockImplementation(async () => {
+			order.push("refresh");
+		});
+		const dispatchGenerateSummary = jest.fn().mockImplementation(async () => {
+			order.push("dispatch");
+		});
+
+		const handler = initRefreshArticleContentHandler({
+			refreshArticleContent,
+			dispatchGenerateSummary,
+			logger: noopLogger,
+		});
+
+		await handler(createSqsEvent({
+			url: "https://example.com/article",
+			metadata: { title: "Test", siteName: "example.com", excerpt: "Excerpt", wordCount: 100 },
+			estimatedReadTime: 1,
+			contentFetchedAt: "2026-04-10T12:00:00Z",
+		}), stubContext, () => {});
+
+		expect(order).toEqual(["refresh", "dispatch"]);
 	});
 
 	it("reports the record as a batch failure on invalid event detail (Zod failure)", async () => {
 		const handler = initRefreshArticleContentHandler({
 			refreshArticleContent: jest.fn(),
+			dispatchGenerateSummary: jest.fn(),
 			logger: noopLogger,
 		});
 
@@ -97,6 +142,31 @@ describe("initRefreshArticleContentHandler", () => {
 		};
 
 		const result = await handler(invalidEvent, stubContext, () => {});
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+	});
+
+	it("does not dispatch when refreshArticleContent throws", async () => {
+		// Why this matters: dispatching a regen command for an URL whose row
+		// the DDB update could not write would summarise stale content (or
+		// stamp a row that does not exist) — the handler must let the SQS
+		// retry replay the whole transaction.
+		const refreshArticleContent = jest.fn().mockRejectedValue(new Error("DDB throttled"));
+		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
+
+		const handler = initRefreshArticleContentHandler({
+			refreshArticleContent,
+			dispatchGenerateSummary,
+			logger: noopLogger,
+		});
+
+		const result = await handler(createSqsEvent({
+			url: "https://example.com/article",
+			metadata: { title: "Test", siteName: "example.com", excerpt: "Excerpt", wordCount: 100 },
+			estimatedReadTime: 1,
+			contentFetchedAt: "2026-04-10T12:00:00Z",
+		}), stubContext, () => {});
+
+		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

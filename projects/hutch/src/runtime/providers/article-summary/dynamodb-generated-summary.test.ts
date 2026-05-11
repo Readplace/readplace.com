@@ -67,6 +67,31 @@ describe("initDynamoDbGeneratedSummary", () => {
 		expect(result).toEqual({ status: "ready", summary: "Fresh summary" });
 	});
 
+	it("throws when summaryStatus=ready is persisted without summary text (data inconsistency)", async () => {
+		// Why this matters: this is the exact state the
+		// fagnerbrack.com/why-developers-become-frustrated-… row was left in
+		// after the 2026-05-10 freshness refresh ran an UpdateExpression that
+		// REMOVEd `summary` without resetting `summaryStatus`. With the previous
+		// code path the mapper silently returned undefined, the reader UI
+		// rendered "Generating summary…" and polled `/view/summary` every 3s
+		// forever. The explicit assert turns that silent stuck-pending state
+		// into a loud 500 the moment any future writer reintroduces the same
+		// inconsistency, and keeps the consumer honest about the writer
+		// contract: status=ready ⇒ summary text MUST be present.
+		const client = createFakeClient({
+			url: "https://example.com/article",
+			summaryStatus: "ready",
+		});
+		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
+			client: client as typeof client & DynamoDBDocumentClient,
+			tableName: "test-table",
+		});
+
+		await expect(findGeneratedSummary("https://example.com/article")).rejects.toThrow(
+			"summaryStatus=ready row must carry a summary",
+		);
+	});
+
 	it("returns ready with both summary and excerpt when summaryExcerpt is present", async () => {
 		const client = createFakeClient({
 			url: "https://example.com/article",

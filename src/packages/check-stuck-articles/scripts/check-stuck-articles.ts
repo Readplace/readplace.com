@@ -34,6 +34,7 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { filterReachable } from "./check-reachable";
+import { checkTerminalState } from "./check-terminal-state";
 import { type StuckReason, classifyRow } from "./classify-row";
 import { EXCLUDE_PATTERNS } from "./exclude-patterns";
 
@@ -75,6 +76,13 @@ interface StuckRow {
 	contentFetchedAt: string | undefined;
 	failureReason: string | undefined;
 	recrawlUrl: string;
+	/**
+	 * Human-readable explanation of which sub-state(s) are non-terminal,
+	 * computed via checkTerminalState. Surfaced in the failing test message
+	 * so an operator reading the GitHub Actions output knows at a glance
+	 * which writer to suspect without cross-referencing the reason enum.
+	 */
+	terminalCheckMessage: string;
 }
 
 /**
@@ -119,19 +127,26 @@ async function collectStuckRows(): Promise<StuckRow[]> {
 			`pagination cap reached (${MAX_PAGES} pages) — refine FilterExpression or raise the cap if the table is legitimately growing`,
 		);
 		const page = await table.scan({
+			// The fourth disjunct catches the `summaryStatus="ready" AND
+			// attribute_not_exists(summary)` inconsistency the 2026-05-10
+			// freshness-refresh regression introduced — without it the row
+			// passes both status checks and the canary reports green while the
+			// reader UI polls "Generating summary…" forever.
 			FilterExpression:
 				"summaryStatus IN (:pending, :failed) " +
 				"OR crawlStatus IN (:pending, :failed) " +
-				"OR (attribute_not_exists(summaryStatus) AND attribute_not_exists(crawlStatus) AND attribute_not_exists(summary))",
+				"OR (attribute_not_exists(summaryStatus) AND attribute_not_exists(crawlStatus) AND attribute_not_exists(summary)) " +
+				"OR (summaryStatus = :ready AND attribute_not_exists(summary))",
 			ProjectionExpression:
 				"originalUrl, #u, summaryStatus, crawlStatus, summaryFailureReason, crawlFailureReason, contentFetchedAt, summary",
 			ExpressionAttributeNames: { "#u": "url" },
-			ExpressionAttributeValues: { ":pending": "pending", ":failed": "failed" },
+			ExpressionAttributeValues: { ":pending": "pending", ":failed": "failed", ":ready": "ready" },
 			ExclusiveStartKey: lastEvaluatedKey,
 		});
 		for (const row of page.items) {
+			const verdict = checkTerminalState(row);
+			if (verdict.terminal) continue;
 			const reasons = classifyRow(row);
-			if (reasons.length === 0) continue;
 			if (row.originalUrl === undefined) {
 				skippedNoOriginal += 1;
 				continue;
@@ -146,6 +161,7 @@ async function collectStuckRows(): Promise<StuckRow[]> {
 				contentFetchedAt: row.contentFetchedAt,
 				failureReason: row.summaryFailureReason ?? row.crawlFailureReason,
 				recrawlUrl: `${ORIGIN}/admin/recrawl/${encodeURIComponent(row.originalUrl)}`,
+				terminalCheckMessage: verdict.message,
 			});
 		}
 		lastEvaluatedKey = page.lastEvaluatedKey;
@@ -184,7 +200,7 @@ test("Stuck articles canary", async (t) => {
 		const label = `[${row.reasons.join(",")}] ${row.originalUrl}`;
 		await t.test(label, () => {
 			assert.fail(
-				`Stuck article — fetched: ${row.contentFetchedAt ?? "-"}; failure: ${row.failureReason ?? "-"}; recrawl: ${row.recrawlUrl}`,
+				`Stuck article — ${row.terminalCheckMessage}; fetched: ${row.contentFetchedAt ?? "-"}; failure: ${row.failureReason ?? "-"}; recrawl: ${row.recrawlUrl}`,
 			);
 		});
 	}

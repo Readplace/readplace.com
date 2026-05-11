@@ -14,9 +14,23 @@ describe("classifyRow", () => {
 			assert.deepStrictEqual(reasons, ["summary-failed"]);
 		});
 
-		it("returns no reason for ready", () => {
-			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "ready", summary: undefined });
+		it("returns no reason for ready when summary text is present", () => {
+			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "ready", summary: "the summary" });
 			assert.deepStrictEqual(reasons, []);
+		});
+
+		it("returns summary-ready-without-text when status=ready but the text is missing", () => {
+			// Why this matters: this is the smoking-gun state the
+			// fagnerbrack.com/why-developers-become-frustrated-… row was left
+			// in after the 2026-05-10 freshness refresh — summaryStatus="ready"
+			// but `summary` removed by the UpdateExpression. The original
+			// FilterExpression only matched (pending|failed) statuses and
+			// "all-fields-absent" legacy stubs, so the canary missed this
+			// entire class of stuck row. The reason name is in the report
+			// body the @claude tracking issue prints, so it is also the
+			// single string operators search for when triaging this regression.
+			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "ready", summary: undefined });
+			assert.deepStrictEqual(reasons, ["summary-ready-without-text"]);
 		});
 
 		it("returns no reason for skipped", () => {
@@ -27,17 +41,17 @@ describe("classifyRow", () => {
 
 	describe("crawlStatus", () => {
 		it("returns crawl-pending for pending", () => {
-			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "pending", summary: undefined });
+			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "pending", summary: "the summary" });
 			assert.deepStrictEqual(reasons, ["crawl-pending"]);
 		});
 
 		it("returns crawl-failed for failed", () => {
-			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "failed", summary: undefined });
+			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "failed", summary: "the summary" });
 			assert.deepStrictEqual(reasons, ["crawl-failed"]);
 		});
 
 		it("returns no reason for ready", () => {
-			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "ready", summary: undefined });
+			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "ready", summary: "the summary" });
 			assert.deepStrictEqual(reasons, []);
 		});
 	});

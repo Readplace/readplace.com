@@ -45,7 +45,14 @@ describe("initDynamoDbGeneratedSummary (unit)", () => {
 			expect(await findGeneratedSummary(URL)).toEqual({ status: "ready", summary: "done" });
 		});
 
-		it("returns ready with both summary and excerpt when summaryExcerpt is present", async () => {
+		it("returns ready with both summary and excerpt when summaryStatus is set and excerpt is present", async () => {
+			// Why this matters: covers the explicit summaryStatus="ready"
+			// branch with the excerpt-truthy sub-branch — the path the
+			// production summariser hits on every fresh save once
+			// `saveGeneratedSummary` writes summary, summaryExcerpt and
+			// summaryStatus together. Without this test the new ready branch's
+			// `if (row.summaryExcerpt)` true side stays uncovered and the
+			// 100% branch threshold trips.
 			const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
 				client: clientForGet({
 					summaryStatus: "ready",
@@ -59,6 +66,24 @@ describe("initDynamoDbGeneratedSummary (unit)", () => {
 				summary: "done",
 				excerpt: "blurb",
 			});
+		});
+
+		it("throws when summaryStatus=ready is persisted without summary text (data inconsistency)", async () => {
+			// Why this matters: this is the exact state the
+			// fagnerbrack.com/why-developers-become-frustrated-… row was left in
+			// after the 2026-05-10 freshness refresh ran an UpdateExpression that
+			// REMOVEd `summary` without resetting `summaryStatus`. With the
+			// previous code path the mapper silently returned undefined and the
+			// reader UI rendered "Generating summary…" forever. The explicit
+			// assert turns that silent stuck-pending state into a loud error
+			// the moment any future writer reintroduces the same inconsistency.
+			const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
+				client: clientForGet({ summaryStatus: "ready" }) as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+			await expect(findGeneratedSummary(URL)).rejects.toThrow(
+				"summaryStatus=ready row must carry a summary",
+			);
 		});
 
 		it("returns failed with reason when status=failed", async () => {
