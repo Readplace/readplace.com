@@ -90,7 +90,7 @@ test("Stuck articles canary", async (t) => {
 		const label = `[${row.reasons.join(",")}] ${row.originalUrl}`;
 		await t.test(label, () => {
 			assert.fail(
-				`Stuck article — ${row.terminalCheckMessage}; fetched: ${row.contentFetchedAt ?? "-"}; failure: ${row.failureReason ?? "-"}; recrawl: ${row.recrawlUrl}`,
+				`Stuck article — ${row.terminalCheckMessage}; fetched: ${row.contentFetchedAt ?? "-"}; recrawl: ${row.recrawlUrl}`,
 			);
 		});
 	}

@@ -16,32 +16,23 @@ import {
 import { z } from "zod";
 import { checkTerminalState } from "./check-terminal-state";
 import { type StuckReason, classifyRow } from "./classify-row";
-import { EXCLUDE_PATTERNS } from "./exclude-patterns";
 
 /* `dynamoField` normalises DDB's `null` for absent attributes to `undefined`.
  * Shared status enums surface a new upstream status as a tsc error in
  * `classifyRow`. */
 const StuckArticleRow = z.object({
 	url: z.string(),
-	originalUrl: dynamoField(z.string()),
+	originalUrl: z.string(),
 	summaryStatus: dynamoField(SummaryStatusSchema),
 	crawlStatus: dynamoField(CrawlStatusSchema),
-	summaryFailureReason: dynamoField(z.string()),
-	crawlFailureReason: dynamoField(z.string()),
 	contentFetchedAt: dynamoField(z.string()),
-	savedAt: dynamoField(z.string()),
-	summary: dynamoField(z.string()),
+	savedAt: z.string(),
 });
-
-function isExcluded(url: string): boolean {
-	return EXCLUDE_PATTERNS.some((pattern) => pattern.test(url));
-}
 
 export interface StuckRow {
 	originalUrl: string;
 	reasons: StuckReason[];
 	contentFetchedAt: string | undefined;
-	failureReason: string | undefined;
 	recrawlUrl: string;
 	/**
 	 * Surfaced in the failing test message so an operator reading the GitHub
@@ -63,23 +54,16 @@ const MAX_PAGES = 50;
  *    1080s = 18 min); after that exhausts, `HutchDLQEventHandler` flips
  *    `crawlStatus` to `failed`. Allow 2 min margin for AWS dispatch variance
  *    and writer/canary clock skew → 20 min.
- *
- * 2. Tune via Phase 2 measurement loop in plan-5 once a week of clean signal
- *    is available — do NOT lower below 18 min without re-checking the queue
- *    budgets in `projects/save-link/src/infra/index.ts`.
  */
-export const CRAWL_MIN_AGE_MS = 20 * 60_000; /* 1, 2 */
+export const CRAWL_MIN_AGE_MS = 20 * 60_000; /* 1 */
 
 /**
  * 1. Generate-summary retry chain is visibility 300s × default maxReceiveCount
  *    3 = 900s = 15 min. Bumped to 20 min to absorb DeepSeek slow periods
  *    documented in #251 — DeepSeek occasionally drags an in-flight summary
  *    past the SQS budget without the chain failing.
- *
- * 2. Tune via Phase 2 measurement loop in plan-5; if Phase 2 shows summary
- *    transitions consistently inside 15 min, drop to match the crawl threshold.
  */
-export const SUMMARY_MIN_AGE_MS = 20 * 60_000; /* 1, 2 */
+export const SUMMARY_MIN_AGE_MS = 20 * 60_000; /* 1 */
 
 /**
  * Age-gate disjunction per axis:
@@ -88,46 +72,22 @@ export const SUMMARY_MIN_AGE_MS = 20 * 60_000; /* 1, 2 */
  *      `contentFetchedAt` is still the old value and counts as old enough.
  *   2. `attribute_not_exists(contentFetchedAt) AND savedAt < :axisMinAge`
  *      — first-time pending row that has never crawled successfully.
- *   3. `attribute_not_exists(contentFetchedAt) AND attribute_not_exists(savedAt)`
- *      — pre-savedAt rows (no timestamps at all). Without this disjunct
- *      they would be silently filtered out by the age gate, and a legacy row
- *      stuck pending forever would never surface.
- *
- * The "legacy-stub" disjunct (no statuses, no summary) and the
- * "summary-ready-without-text" writer-contract violation disjunct are NOT
- * age-gated: neither is a timing artefact, so flagging them at any age is
- * correct.
  */
 export function buildScanInput(now: Date) {
 	const crawlMinAge = new Date(now.getTime() - CRAWL_MIN_AGE_MS).toISOString();
 	const summaryMinAge = new Date(now.getTime() - SUMMARY_MIN_AGE_MS).toISOString();
 	const ageGate = (axisMinAgeKey: string) =>
 		`(contentFetchedAt < ${axisMinAgeKey}` +
-		` OR (attribute_not_exists(contentFetchedAt) AND savedAt < ${axisMinAgeKey})` +
-		` OR (attribute_not_exists(contentFetchedAt) AND attribute_not_exists(savedAt)))`;
+		` OR (attribute_not_exists(contentFetchedAt) AND savedAt < ${axisMinAgeKey}))`;
 	return {
-		// The third disjunct catches the `summaryStatus="ready" AND
-		// attribute_not_exists(summary)` inconsistency the 2026-05-10
-		// freshness-refresh regression introduced — without it the row
-		// passes both status checks and the canary reports green while the
-		// reader UI polls "Generating summary…" forever.
-		//
-		// Terminal failures (crawlStatus / summaryStatus = `failed` or
-		// `unsupported`) are excluded from the scan: the operator owns
-		// recovery via /admin/recrawl and the DLQ → SNS email alarm is the
-		// redrive signal, so flagging them here would drown actionable
-		// pending-row reports in noise.
 		FilterExpression:
 			`(summaryStatus = :pending AND ${ageGate(":summaryMinAge")}) ` +
-			`OR (crawlStatus = :pending AND ${ageGate(":crawlMinAge")}) ` +
-			"OR (attribute_not_exists(summaryStatus) AND attribute_not_exists(crawlStatus) AND attribute_not_exists(summary)) " +
-			"OR (summaryStatus = :ready AND attribute_not_exists(summary))",
+			`OR (crawlStatus = :pending AND ${ageGate(":crawlMinAge")})`,
 		ProjectionExpression:
-			"originalUrl, #u, summaryStatus, crawlStatus, summaryFailureReason, crawlFailureReason, contentFetchedAt, savedAt, summary",
+			"originalUrl, #u, summaryStatus, crawlStatus, contentFetchedAt, savedAt",
 		ExpressionAttributeNames: { "#u": "url" },
 		ExpressionAttributeValues: {
 			":pending": "pending",
-			":ready": "ready",
 			":crawlMinAge": crawlMinAge,
 			":summaryMinAge": summaryMinAge,
 		},
@@ -146,8 +106,6 @@ export async function collectStuckRows(deps: {
 		schema: StuckArticleRow,
 	});
 	const stuck: StuckRow[] = [];
-	let skippedNoOriginal = 0;
-	let excludedDomain = 0;
 	let pageCount = 0;
 	let lastEvaluatedKey: Record<string, unknown> | undefined;
 	const scanInput = buildScanInput(deps.now());
@@ -165,30 +123,15 @@ export async function collectStuckRows(deps: {
 			const verdict = checkTerminalState(row);
 			if (verdict.terminal) continue;
 			const reasons = classifyRow(row);
-			if (row.originalUrl === undefined) {
-				skippedNoOriginal += 1;
-				continue;
-			}
-			if (isExcluded(row.originalUrl)) {
-				excludedDomain += 1;
-				continue;
-			}
 			stuck.push({
 				originalUrl: row.originalUrl,
 				reasons,
 				contentFetchedAt: row.contentFetchedAt,
-				failureReason: row.summaryFailureReason ?? row.crawlFailureReason,
 				recrawlUrl: `${deps.origin}/admin/recrawl/${encodeURIComponent(row.originalUrl)}`,
 				terminalCheckMessage: verdict.message,
 			});
 		}
 		lastEvaluatedKey = page.lastEvaluatedKey;
 	} while (lastEvaluatedKey !== undefined);
-	if (skippedNoOriginal > 0) {
-		process.stderr.write(`[info] skipped ${skippedNoOriginal} row(s) without originalUrl\n`);
-	}
-	if (excludedDomain > 0) {
-		process.stderr.write(`[info] excluded ${excludedDomain} row(s) by domain filter\n`);
-	}
 	return stuck;
 }

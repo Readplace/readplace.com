@@ -96,7 +96,7 @@ jobs:
               stuckCount = report.stuck.length;
               if (stuckCount > 0) {
                 stuckList = report.stuck
-                  .map((row) => `- [${row.reasons.join(',')}] ${row.originalUrl} — ${row.terminalCheckMessage}; fetched: ${row.contentFetchedAt ?? '-'}; failure: ${row.failureReason ?? '-'}; recrawl: ${row.recrawlUrl}`)
+                  .map((row) => `- [${row.reasons.join(',')}] ${row.originalUrl} — ${row.terminalCheckMessage}; fetched: ${row.contentFetchedAt ?? '-'}; recrawl: ${row.recrawlUrl}`)
                   .join('\n');
               }
             }
