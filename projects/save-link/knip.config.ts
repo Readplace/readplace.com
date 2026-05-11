@@ -19,6 +19,7 @@ export default {
 		"@packages/article-resource-unique-id",
 		"@packages/article-state-types",
 		"@packages/crawl-article",
+		"@packages/domain",
 		"@packages/test-fixtures",
 		// Used only in infra code (Pulumi IaC, compiled separately)
 		"@pulumi/aws",

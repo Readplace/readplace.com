@@ -13,6 +13,10 @@
       "types": "./dist/article/index.d.ts",
       "default": "./dist/article/index.js"
     },
+    "./article-aggregate": {
+      "types": "./dist/article-aggregate/index.d.ts",
+      "default": "./dist/article-aggregate/index.js"
+    },
     "./user": {
       "types": "./dist/user/index.d.ts",
       "default": "./dist/user/index.js"
@@ -29,6 +33,7 @@
   "typesVersions": {
     "*": {
       "article": ["./dist/article/index.d.ts"],
+      "article-aggregate": ["./dist/article-aggregate/index.d.ts"],
       "user": ["./dist/user/index.d.ts"],
       "oauth": ["./dist/oauth/index.d.ts"],
       "import-session": ["./dist/import-session/index.d.ts"]

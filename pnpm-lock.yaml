@@ -388,6 +388,9 @@ importers:
       '@packages/crawl-article':
         specifier: workspace:*
         version: link:../../src/packages/crawl-article
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../../src/packages/domain
       '@packages/hutch-infra-components':
         specifier: workspace:*
         version: link:../../src/packages/hutch-infra-components

@@ -13,6 +13,10 @@
       "types": "./dist/fixture.d.ts",
       "default": "./dist/fixture.js"
     },
+    "./providers/article-aggregate": {
+      "types": "./dist/providers/article-aggregate/index.d.ts",
+      "default": "./dist/providers/article-aggregate/index.js"
+    },
     "./providers/article-crawl": {
       "types": "./dist/providers/article-crawl/index.d.ts",
       "default": "./dist/providers/article-crawl/index.js"
@@ -81,6 +85,7 @@
   "typesVersions": {
     "*": {
       "fixture": ["./dist/fixture.d.ts"],
+      "providers/article-aggregate": ["./dist/providers/article-aggregate/index.d.ts"],
       "providers/article-crawl": ["./dist/providers/article-crawl/index.d.ts"],
       "providers/article-store": ["./dist/providers/article-store/index.d.ts"],
       "providers/article-freshness": ["./dist/providers/article-freshness/index.d.ts"],
