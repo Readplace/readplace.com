@@ -159,6 +159,43 @@ describe("initTransitionAndPersist", () => {
 		);
 	});
 
+	it("redelivery: dispatch fails after save, SQS retries, second attempt re-loads persisted state and dispatches", async () => {
+		const { store, saved } = createFakeStore([seededArticle(URL)]);
+		const dispatched: Effect[] = [];
+		let dispatchCallCount = 0;
+
+		const dispatchEffect: DispatchEffect = async (effect) => {
+			dispatchCallCount++;
+			if (dispatchCallCount === 1) throw new Error("sqs send failed");
+			dispatched.push(effect);
+		};
+
+		const transition: Transition<undefined> = (article) => ({
+			article: { ...article, summary: { kind: "pending" } },
+			effects: [{ kind: "generate-summary", url: article.url }],
+		});
+
+		const { transitionAndPersist } = initTransitionAndPersist({
+			store,
+			dispatchEffect,
+		});
+
+		await assert.rejects(
+			transitionAndPersist(transition, { url: URL, input: undefined }),
+			/sqs send failed/,
+		);
+
+		assert.equal(saved.length, 1, "first call persisted the transition");
+		assert.equal(saved[0]?.summary.kind, "pending");
+		assert.deepEqual(dispatched, [], "first call did not dispatch");
+
+		await transitionAndPersist(transition, { url: URL, input: undefined });
+
+		assert.equal(saved.length, 2, "second call re-saved idempotently");
+		assert.equal(saved[1]?.summary.kind, "pending");
+		assert.deepEqual(dispatched, [{ kind: "generate-summary", url: URL }]);
+	});
+
 	it("dispatches every effect emitted by the transition in declared order", async () => {
 		const { store } = createFakeStore([seededArticle(URL)]);
 		const dispatched: Effect[] = [];
