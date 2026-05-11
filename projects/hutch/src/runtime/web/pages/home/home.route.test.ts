@@ -7,8 +7,16 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 
-import { getAllSlugs } from "../blog/blog.posts";
-import { FOUNDING_MEMBER_LIMIT } from "../../shared/founding-progress/founding-allocation";
+import { initBlogPosts } from "../blog/blog.posts";
+
+/** Matches the default test fixture's `foundingAllocation.foundingMemberLimit`.
+ * Tests own this constant so production changes to `PROD_FOUNDING_MEMBER_LIMIT`
+ * cannot ripple through seed loops or assertions. */
+const TEST_FOUNDING_MEMBER_LIMIT = 3;
+
+/** Re-initialised here with the same limit as the test fixture so the sitemap
+ * test can enumerate blog slugs without reaching into the app's internals. */
+const blogPosts = initBlogPosts({ foundingMemberLimit: TEST_FOUNDING_MEMBER_LIMIT });
 
 describe("GET /", () => {
 	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -207,7 +215,7 @@ describe("GET /", () => {
 
 		const progress = doc.querySelector("[data-test-founding-progress]");
 		const label = progress?.querySelector(".founding-progress__label");
-		expect(label?.textContent).toBe(`0 / ${FOUNDING_MEMBER_LIMIT} founding members`);
+		expect(label?.textContent).toBe(`0 / ${TEST_FOUNDING_MEMBER_LIMIT} founding members`);
 
 		const fill = progress?.querySelector(".founding-progress__fill");
 		expect(fill?.getAttribute("style")).toBe("width: 0%");
@@ -327,7 +335,7 @@ describe("GET / with exhausted founding allocation", () => {
 	it("should hide the founding progress when users exceed the limit", async () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
+		for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 			await auth.createUser({ email: `user${i}@test.com`, password: "password123" });
 		}
 
@@ -340,7 +348,7 @@ describe("GET / with exhausted founding allocation", () => {
 	it("should hide the founding pricing card and show the fallback CTA when over the limit", async () => {
 		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
+		for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 			await auth.createUser({ email: `over${i}@test.com`, password: "password123" });
 		}
 
@@ -484,7 +492,7 @@ describe("GET /sitemap.xml", () => {
 		expect(response.headers["content-type"]).toMatch(/application\/xml/);
 
 		const urls = Array.from(response.text.matchAll(/<loc>([^<]+)<\/loc>/g)).map((m) => m[1]);
-		const blogPostUrls = getAllSlugs().map((slug) => `http://localhost:3000/blog/${slug}`);
+		const blogPostUrls = blogPosts.getAllSlugs().map((slug) => `http://localhost:3000/blog/${slug}`);
 		expect(urls).toEqual([
 			"http://localhost:3000/",
 			"http://localhost:3000/blog",

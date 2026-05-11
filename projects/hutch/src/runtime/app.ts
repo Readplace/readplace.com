@@ -61,6 +61,10 @@ import { validateSaveableUrl } from "@packages/domain/article";
 import { createApp } from "./server";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import { httpErrorMessageMapping } from "./web/pages/queue/queue.error";
+import {
+	PROD_FOUNDING_MEMBER_LIMIT,
+	initFoundingAllocation,
+} from "./web/shared/founding-progress/founding-allocation";
 import { getEnv, requireEnv } from "./require-env";
 
 function initProviders() {
@@ -366,6 +370,9 @@ export function createHutchApp(deps?: {
 		importSessionStore,
 		now: () => new Date(),
 		botDefenseLogger: HutchLogger.fromJSON<BotDefenseEvent>(),
+		foundingAllocation: initFoundingAllocation({
+			foundingMemberLimit: PROD_FOUNDING_MEMBER_LIMIT,
+		}),
 	});
 
 	return { app, auth, articleStore, oauthModel };

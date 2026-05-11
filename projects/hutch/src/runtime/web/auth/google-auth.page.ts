@@ -14,7 +14,7 @@ import type { SendEmail } from "@packages/test-fixtures/providers/email";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
 import type { StorePendingSignup } from "@packages/test-fixtures/providers/pending-signup";
 import type { CreateCheckoutSession } from "@packages/test-fixtures/providers/stripe-checkout";
-import { isFoundingAllocationExhausted } from "../shared/founding-progress/founding-allocation";
+import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { initSendWelcomeEmail } from "./send-welcome-email";
 import { renderPage } from "../render-page";
 import { sendComponent } from "../send-component";
@@ -53,6 +53,7 @@ interface GoogleAuthDependencies {
 	storePendingSignup: StorePendingSignup;
 	sendEmail: SendEmail;
 	logError: (message: string, error?: Error) => void;
+	foundingAllocation: FoundingAllocation;
 }
 
 const signState = (payload: string, secret: string): string => {
@@ -117,7 +118,14 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 		const renderError = async (globalError: string) => {
 			const userCount = await fetchUserCount();
-			sendComponent(req, res, renderPage(req, LoginPage({ userCount, globalError }, { statusCode: 400 })));
+			sendComponent(
+				req,
+				res,
+				renderPage(req, LoginPage(
+					{ userCount, foundingAllocation: deps.foundingAllocation, globalError },
+					{ statusCode: 400 },
+				)),
+			);
 		};
 
 		if (!parsedQuery.success || !stateCookie || parsedQuery.data.state !== stateCookie) {
@@ -167,7 +175,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		const safeReturnUrl = extractReturnUrl({ return: stateData.returnUrl });
 
 		const userCount = await fetchUserCount();
-		if (!isFoundingAllocationExhausted(userCount)) {
+		if (!deps.foundingAllocation.isFoundingAllocationExhausted(userCount)) {
 			const created = await deps.createGoogleUser({
 				email: tokenResult.email,
 				userId: newUserId,

@@ -40,7 +40,7 @@ import { buildVerificationEmailHtml } from "./verification-email";
 import { flattenZodErrors } from "./flatten-zod-errors";
 import { initFetchUserCount } from "./fetch-user-count";
 import { initSendWelcomeEmail } from "./send-welcome-email";
-import { isFoundingAllocationExhausted } from "../shared/founding-progress/founding-allocation";
+import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 
 const TokenQuerySchema = z.object({ token: z.string().optional() }).passthrough();
 const CheckoutSuccessQuerySchema = z.object({ session_id: z.string().min(1) }).passthrough();
@@ -76,6 +76,7 @@ interface AuthDependencies {
 	logError: (message: string, error?: Error) => void;
 	now: () => Date;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
+	foundingAllocation: FoundingAllocation;
 }
 
 type BotDefenseResult =
@@ -171,7 +172,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		}
 		const returnUrl = extractReturnUrl(req.query);
 		const userCount = await fetchUserCount();
-		sendComponent(req, res, renderPage(req, LoginPage({ returnUrl, userCount })));
+		sendComponent(req, res, renderPage(req, LoginPage({ returnUrl, userCount, foundingAllocation: deps.foundingAllocation })));
 	});
 
 	router.post("/login", async (req: Request, res: Response) => {
@@ -186,6 +187,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					{
 						returnUrl,
 						userCount,
+						foundingAllocation: deps.foundingAllocation,
 						email: req.body?.email,
 						errors: flattenZodErrors(parsed.error.issues),
 					},
@@ -206,6 +208,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					{
 						returnUrl,
 						userCount,
+						foundingAllocation: deps.foundingAllocation,
 						email,
 						globalError: "Invalid email or password",
 					},
@@ -229,7 +232,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const userCount = await fetchUserCount();
 		const parsed = SignupQuerySchema.safeParse(req.query);
 		const email = parsed.success ? parsed.data.email : undefined;
-		sendComponent(req, res, renderPage(req, SignupPage({ returnUrl, userCount, loadedAt: deps.now().getTime(), email })));
+		sendComponent(req, res, renderPage(req, SignupPage({ returnUrl, userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), email })));
 	});
 
 	router.post("/signup", async (req: Request, res: Response) => {
@@ -265,6 +268,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					{
 						returnUrl,
 						userCount,
+						foundingAllocation: deps.foundingAllocation,
 						loadedAt: deps.now().getTime(),
 						email: req.body?.email,
 						errors: flattenZodErrors(parsed.error.issues),
@@ -286,6 +290,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					{
 						returnUrl,
 						userCount,
+						foundingAllocation: deps.foundingAllocation,
 						loadedAt: deps.now().getTime(),
 						email,
 						globalError: "An account with this email already exists",
@@ -299,7 +304,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const passwordHash = await hashPassword(password);
 
 		const userCount = await fetchUserCount();
-		if (!isFoundingAllocationExhausted(userCount)) {
+		if (!deps.foundingAllocation.isFoundingAllocationExhausted(userCount)) {
 			const created = await deps.createUserWithPasswordHash({ email, passwordHash });
 			if (!created.ok) {
 				const refreshedCount = await fetchUserCount();
@@ -310,6 +315,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						{
 							returnUrl,
 							userCount: refreshedCount,
+							foundingAllocation: deps.foundingAllocation,
 							loadedAt: deps.now().getTime(),
 							email,
 							globalError: "An account with this email already exists",
@@ -355,6 +361,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				renderPage(req, SignupPage(
 					{
 						userCount,
+						foundingAllocation: deps.foundingAllocation,
 						loadedAt: deps.now().getTime(),
 						globalError: "Missing checkout session — please start again.",
 					},
@@ -371,7 +378,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			const userCount = await fetchUserCount();
 			sendComponent(
 				req, res,
-				renderPage(req, SignupPage({ userCount, loadedAt: deps.now().getTime(), globalError }, { statusCode })),
+				renderPage(req, SignupPage({ userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), globalError }, { statusCode })),
 			);
 		};
 

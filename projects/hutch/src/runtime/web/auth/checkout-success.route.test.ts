@@ -5,10 +5,14 @@ import { createTestApp } from "../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
-import { FOUNDING_MEMBER_LIMIT } from "../shared/founding-progress/founding-allocation";
+
+/** Matches the default test fixture's `foundingAllocation.foundingMemberLimit`.
+ * Tests own this constant so production changes to `PROD_FOUNDING_MEMBER_LIMIT`
+ * cannot ripple through seed loops or assertions. */
+const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
 async function seedAboveFoundingLimit(auth: { createUser: (params: { email: string; password: string }) => Promise<{ ok: boolean }> }) {
-	for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
+	for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 		await auth.createUser({ email: `gate-${i}@test.invalid`, password: "password123" });
 	}
 }

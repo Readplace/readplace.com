@@ -86,7 +86,8 @@ import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
 import { initEmbedRoutes } from "./web/pages/embed/embed.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initBlogRoutes } from "./web/pages/blog";
-import { getAllPostMetadata } from "./web/pages/blog/blog.posts";
+import { initBlogPosts } from "./web/pages/blog/blog.posts";
+import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth, type ValidateAccessToken } from "./web/dual-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
 import { initOAuthRoutes } from "./web/oauth/oauth.routes";
@@ -171,6 +172,7 @@ interface AppDependencies {
 	storePendingSignup: StorePendingSignup;
 	consumePendingSignup: ConsumePendingSignup;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
+	foundingAllocation: FoundingAllocation;
 }
 
 function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -186,8 +188,12 @@ const LLMS_FULL_TXT = readFileSync(join(__dirname, "llms-full.txt"), "utf-8");
 const INDEXNOW_KEY = getEnv("INDEXNOW_KEY");
 
 export function createApp(dependencies: AppDependencies): Express {
-	const { appOrigin, staticBaseUrl, getSessionUserId, countUsers, ...deps } = dependencies;
+	const { appOrigin, staticBaseUrl, getSessionUserId, countUsers, foundingAllocation, ...deps } = dependencies;
 	const app: Express = express();
+
+	const blogPosts = initBlogPosts({
+		foundingMemberLimit: foundingAllocation.foundingMemberLimit,
+	});
 
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());
@@ -293,7 +299,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			{ loc: "/llms-full.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
 		];
 
-		for (const post of getAllPostMetadata()) {
+		for (const post of blogPosts.getAllPostMetadata()) {
 			pages.push({
 				loc: `/blog/${post.slug}`,
 				priority: blogPriorityMap[post.slug] ?? "0.7",
@@ -344,7 +350,11 @@ export function createApp(dependencies: AppDependencies): Express {
 			: ua.includes("Chrome/") ? "chrome"
 			: "other";
 		const userCount = await countUsers().catch(() => 0);
-		sendComponent(req, res, renderPage(req, HomePage({ userCount, staticBaseUrl, browser })));
+		sendComponent(
+			req,
+			res,
+			renderPage(req, HomePage({ userCount, staticBaseUrl, browser, foundingAllocation })),
+		);
 	});
 
 	app.get("/privacy", (req: Request, res: Response) => {
@@ -377,7 +387,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		sendComponent(req, res, renderPage(req, InstallPage({ firefox, chrome, browser })));
 	});
 
-	const blogRouter = initBlogRoutes();
+	const blogRouter = initBlogRoutes({ blogPosts });
 	app.use("/blog", (req: Request, res: Response, next: NextFunction) => {
 		if (req.headers.host === "hutch-app.com") {
 			res.redirect(301, `${appOrigin}${req.originalUrl}`);
@@ -411,6 +421,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		logError: deps.logError,
 		now: deps.now,
 		botDefenseLogger: deps.botDefenseLogger,
+		foundingAllocation,
 	});
 	app.use(authRouter);
 
@@ -431,6 +442,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			storePendingSignup: deps.storePendingSignup,
 			sendEmail: deps.sendEmail,
 			logError: deps.logError,
+			foundingAllocation,
 		});
 		app.use(googleAuthRouter);
 	}

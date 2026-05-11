@@ -5,7 +5,6 @@ import { z } from "zod";
 import matter from "gray-matter";
 import MarkdownIt from "markdown-it";
 import { render } from "../../render";
-import { FOUNDING_MEMBER_LIMIT } from "../../shared/founding-progress/founding-allocation";
 
 const md = new MarkdownIt({ html: true });
 
@@ -34,47 +33,48 @@ function formatDate(isoDate: string): string {
 	});
 }
 
-const postsDir = join(__dirname, "posts");
-
-const files = readdirSync(postsDir).filter((f) => f.endsWith(".md"));
-
-const posts: BlogPost[] = files
-	.map((file) => {
-		const raw = readFileSync(join(postsDir, file), "utf-8");
-		const { data, content } = matter(raw);
-		const frontmatter = BlogFrontmatter.parse(data);
-
-		const expectedSlug = basename(file, ".md");
-		assert(
-			frontmatter.slug === expectedSlug,
-			`Slug "${frontmatter.slug}" in ${file} does not match filename "${expectedSlug}"`,
-		);
-
-		const substituted = render(content, { foundingMemberLimit: FOUNDING_MEMBER_LIMIT });
-		return {
-			...frontmatter,
-			htmlContent: md.render(substituted),
-			markdownContent: substituted,
-			formattedDate: formatDate(frontmatter.date),
-		};
-	})
-	.sort((a, b) => b.date.localeCompare(a.date));
-
-const slugSet = new Set(posts.map((p) => p.slug));
-assert(slugSet.size === posts.length, "Duplicate blog post slugs detected");
-
-export function getAllPosts(): BlogPost[] {
-	return posts;
+export interface BlogPosts {
+	getAllPosts: () => BlogPost[];
+	findPostBySlug: (slug: string) => BlogPost | undefined;
+	getAllSlugs: () => string[];
+	getAllPostMetadata: () => { slug: string; date: string }[];
 }
 
-export function findPostBySlug(slug: string): BlogPost | undefined {
-	return posts.find((p) => p.slug === slug);
-}
+export function initBlogPosts(deps: { foundingMemberLimit: number }): BlogPosts {
+	const postsDir = join(__dirname, "posts");
+	const files = readdirSync(postsDir).filter((f) => f.endsWith(".md"));
 
-export function getAllSlugs(): string[] {
-	return posts.map((p) => p.slug);
-}
+	const posts: BlogPost[] = files
+		.map((file) => {
+			const raw = readFileSync(join(postsDir, file), "utf-8");
+			const { data, content } = matter(raw);
+			const frontmatter = BlogFrontmatter.parse(data);
 
-export function getAllPostMetadata(): { slug: string; date: string }[] {
-	return posts.map((p) => ({ slug: p.slug, date: p.date }));
+			const expectedSlug = basename(file, ".md");
+			assert(
+				frontmatter.slug === expectedSlug,
+				`Slug "${frontmatter.slug}" in ${file} does not match filename "${expectedSlug}"`,
+			);
+
+			const substituted = render(content, {
+				foundingMemberLimit: deps.foundingMemberLimit,
+			});
+			return {
+				...frontmatter,
+				htmlContent: md.render(substituted),
+				markdownContent: substituted,
+				formattedDate: formatDate(frontmatter.date),
+			};
+		})
+		.sort((a, b) => b.date.localeCompare(a.date));
+
+	const slugSet = new Set(posts.map((p) => p.slug));
+	assert(slugSet.size === posts.length, "Duplicate blog post slugs detected");
+
+	return {
+		getAllPosts: () => posts,
+		findPostBySlug: (slug) => posts.find((p) => p.slug === slug),
+		getAllSlugs: () => posts.map((p) => p.slug),
+		getAllPostMetadata: () => posts.map((p) => ({ slug: p.slug, date: p.date })),
+	};
 }

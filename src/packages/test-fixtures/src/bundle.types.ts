@@ -233,6 +233,14 @@ export interface BotDefenseBundle {
 	events: BotDefenseEvent[];
 }
 
+/** Holds the founding-member cap as a plain number. The hutch composition
+ * root builds the runtime predicate from this so this package stays free of
+ * cross-project imports — same reason `httpErrorMessageMapping` is duplicated
+ * inline in fixture.ts instead of imported from projects/hutch. */
+export interface FoundingAllocationBundle {
+	foundingMemberLimit: number;
+}
+
 export interface TestAppFixture {
 	auth: AuthBundle;
 	articleStore: ArticleStoreBundle;
@@ -253,4 +261,5 @@ export interface TestAppFixture {
 	stripe: StripeCheckoutBundle;
 	pendingSignup: PendingSignupBundle;
 	botDefense: BotDefenseBundle;
+	foundingAllocation: FoundingAllocationBundle;
 }

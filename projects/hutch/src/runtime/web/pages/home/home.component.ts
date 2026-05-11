@@ -4,10 +4,7 @@ import type { PageBody } from "../../page-body.types";
 import { render } from "../../render";
 import { switchHelpers } from "../../handlebars-switch";
 import { renderFoundingProgress } from "../../shared/founding-progress/founding-progress.component";
-import {
-	FOUNDING_MEMBER_LIMIT,
-	isFoundingAllocationExhausted,
-} from "../../shared/founding-progress/founding-allocation";
+import type { FoundingAllocation } from "../../shared/founding-progress/founding-allocation";
 import { HOME_PAGE_STYLES } from "./home.styles";
 
 const HOME_TEMPLATE = readFileSync(join(__dirname, "home.template.html"), "utf-8");
@@ -103,10 +100,16 @@ const HOME_SCROLL_HINT_SCRIPT = `<script>
 })();
 </script>`;
 
-export function HomePage(params: { userCount: number; staticBaseUrl: string; browser: "firefox" | "chrome" | "other" }): PageBody {
-	const { userCount, staticBaseUrl, browser } = params;
-	const foundingProgressHtml = renderFoundingProgress({ userCount });
-	const foundingAllocationAvailable = !isFoundingAllocationExhausted(userCount);
+export function HomePage(params: {
+	userCount: number;
+	staticBaseUrl: string;
+	browser: "firefox" | "chrome" | "other";
+	foundingAllocation: FoundingAllocation;
+}): PageBody {
+	const { userCount, staticBaseUrl, browser, foundingAllocation } = params;
+	const foundingMemberLimit = foundingAllocation.foundingMemberLimit;
+	const foundingProgressHtml = renderFoundingProgress({ userCount, foundingAllocation });
+	const foundingAllocationAvailable = !foundingAllocation.isFoundingAllocationExhausted(userCount);
 	const pricingGridStateClass = foundingAllocationAvailable
 		? "pricing-grid--visible"
 		: "pricing-grid--hidden";
@@ -153,10 +156,10 @@ export function HomePage(params: { userCount: number; staticBaseUrl: string; bro
 							name: "Founding Member",
 							price: "0",
 							priceCurrency: "USD",
-							description: `Free forever for the first ${FOUNDING_MEMBER_LIMIT} founding members`,
+							description: `Free forever for the first ${foundingMemberLimit} founding members`,
 							eligibleQuantity: {
 								"@type": "QuantitativeValue",
-								value: FOUNDING_MEMBER_LIMIT,
+								value: foundingMemberLimit,
 							},
 						},
 						{
@@ -249,7 +252,7 @@ export function HomePage(params: { userCount: number; staticBaseUrl: string; bro
 							name: "Is Readplace free?",
 							acceptedAnswer: {
 								"@type": "Answer",
-								text: `The first ${FOUNDING_MEMBER_LIMIT} founding members get full access free, forever. After that, $3.99/month — includes TL;DR summaries.`,
+								text: `The first ${foundingMemberLimit} founding members get full access free, forever. After that, $3.99/month — includes TL;DR summaries.`,
 							},
 						},
 						{
@@ -288,7 +291,7 @@ export function HomePage(params: { userCount: number; staticBaseUrl: string; bro
 			browserName: browser,
 			founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
 			foundingProgressHtml,
-			foundingMemberLimit: FOUNDING_MEMBER_LIMIT,
+			foundingMemberLimit,
 			pricingGridStateClass,
 			fallbackCtaStateClass,
 			featuredFeatures: [

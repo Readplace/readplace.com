@@ -6,9 +6,12 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 
-import { getAllPosts } from "./blog.posts";
+import { initBlogPosts } from "./blog.posts";
 
-const firstPost = getAllPosts()[0];
+/** Initialised with the same limit as the default test fixture so post markdown
+ * substitution matches what the running app produces. */
+const blogPosts = initBlogPosts({ foundingMemberLimit: 3 });
+const firstPost = blogPosts.getAllPosts()[0];
 
 describe("GET /blog", () => {
 	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));

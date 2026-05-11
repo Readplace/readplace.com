@@ -3,10 +3,7 @@ import { join } from "node:path";
 import type { PageBody } from "../page-body.types";
 import { render } from "../render";
 import { renderFoundingProgress } from "../shared/founding-progress/founding-progress.component";
-import {
-	FOUNDING_MEMBER_LIMIT,
-	isFoundingAllocationExhausted,
-} from "../shared/founding-progress/founding-allocation";
+import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../providers/stripe-checkout/stripe-trial-config";
 import { AUTH_STYLES } from "./auth.styles";
 
@@ -27,6 +24,7 @@ interface AuthFormData {
 	globalError?: string;
 	returnUrl?: string;
 	userCount: number;
+	foundingAllocation: FoundingAllocation;
 }
 
 interface SignupFormData extends AuthFormData {
@@ -94,7 +92,7 @@ export function VerifyEmailPage(data: { success: boolean; error?: string }): Pag
 export function SignupPage(data: SignupFormData, options?: { statusCode?: number }): PageBody {
 	const email = data.email ?? "";
 	const errors = data.errors;
-	const trialSuffix = isFoundingAllocationExhausted(data.userCount)
+	const trialSuffix = data.foundingAllocation.isFoundingAllocationExhausted(data.userCount)
 		? ` (${STRIPE_TRIAL_PERIOD_DAYS} days free)`
 		: "";
 
@@ -110,9 +108,10 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		googleLabel: `Sign up with Google${trialSuffix}`,
 		foundingProgressHtml: renderFoundingProgress({
 			userCount: data.userCount,
+			foundingAllocation: data.foundingAllocation,
 		}),
-		foundingMemberLimit: FOUNDING_MEMBER_LIMIT,
-		foundingAvailable: !isFoundingAllocationExhausted(data.userCount),
+		foundingMemberLimit: data.foundingAllocation.foundingMemberLimit,
+		foundingAvailable: !data.foundingAllocation.isFoundingAllocationExhausted(data.userCount),
 	});
 
 	return {

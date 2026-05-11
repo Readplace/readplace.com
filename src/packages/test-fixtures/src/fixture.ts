@@ -308,5 +308,9 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		stripe,
 		pendingSignup,
 		botDefense: { logger: botDefenseLogger, events: botDefenseEvents },
+		/** Small enough that founding-allocation seed loops finish in
+		 * milliseconds while still leaving room for "one above the limit" tests
+		 * to seed N+1 distinct emails. Production injects 50 via app.ts. */
+		foundingAllocation: { foundingMemberLimit: 3 },
 	};
 }

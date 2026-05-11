@@ -64,6 +64,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 			stripe: fixture.stripe,
 			pendingSignup: fixture.pendingSignup,
 			botDefense: fixture.botDefense,
+			foundingAllocation: fixture.foundingAllocation,
 		});
 
 		expect(typeof result.app).toBe("function");

@@ -11,7 +11,11 @@ import {
 import { GoogleIdSchema } from "@packages/test-fixtures/providers/google-auth";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
-import { FOUNDING_MEMBER_LIMIT } from "../shared/founding-progress/founding-allocation";
+
+/** Matches the default test fixture's `foundingAllocation.foundingMemberLimit`.
+ * Tests own this constant so production changes to `PROD_FOUNDING_MEMBER_LIMIT`
+ * cannot ripple through seed loops or assertions. */
+const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
 const TEST_CLIENT_ID = "test-google-client-id";
 const TEST_CLIENT_SECRET = "test-google-client-secret";
@@ -349,7 +353,7 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
-			for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 			const state = signState(freshState());
@@ -375,7 +379,7 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
-			for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 			const state = signState(freshState());
@@ -411,7 +415,7 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
-			for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 			const state = signState(freshState({ returnUrl: "/save?url=https%3A%2F%2Fexample.com" }));

@@ -5,7 +5,6 @@ import type { Express } from "express";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
 import type { CheckoutSessionId } from "@packages/test-fixtures/providers/stripe-checkout";
 import type { AuthBundle } from "../../../test-app";
-import { FOUNDING_MEMBER_LIMIT } from "../../shared/founding-progress/founding-allocation";
 
 interface StripeBundle {
 	markPaid: (id: CheckoutSessionId) => void;
@@ -17,9 +16,10 @@ interface StripeBundle {
  * the shared agent so the session cookie persists.
  *
  * Stripe checkout is gated behind the founding-member allocation: signups only
- * route through Stripe once the user count reaches FOUNDING_MEMBER_LIMIT. This
- * helper seeds enough fake users to meet that boundary so callers can
- * exercise the paid path without needing to know about it. */
+ * route through Stripe once the user count reaches the configured limit. The
+ * default test fixture uses limit=3, so seeding 3 fake users here pushes any
+ * subsequent signup onto the paid path. Tests with custom limits pass
+ * `foundingMemberLimit` explicitly. */
 export async function completeStripeSignup(params: {
 	app: Express;
 	auth: AuthBundle;
@@ -28,12 +28,14 @@ export async function completeStripeSignup(params: {
 	password: string;
 	returnUrl?: string;
 	agent?: SuperTest<Test>;
+	foundingMemberLimit?: number;
 }): Promise<{
 	signupResponse: import("supertest").Response;
 	successResponse: import("supertest").Response;
 	checkoutSessionId: CheckoutSessionId;
 }> {
-	for (let i = 0; i < FOUNDING_MEMBER_LIMIT; i++) {
+	const seedCount = params.foundingMemberLimit ?? 3;
+	for (let i = 0; i < seedCount; i++) {
 		const seedEmail = `stripe-seed-${i}@test.invalid`;
 		const existing = await params.auth.findUserByEmail(seedEmail);
 		if (!existing) {

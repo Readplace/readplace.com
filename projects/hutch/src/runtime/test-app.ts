@@ -88,6 +88,7 @@ import type { ImportSessionStore } from "@packages/domain/import-session";
 import { createApp } from "./server";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
+import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 
 export interface AuthBundle {
 	createUser: CreateUser;
@@ -229,6 +230,14 @@ export interface BotDefenseBundle {
 	events: BotDefenseEvent[];
 }
 
+/** Carries the founding-member cap as a plain number. The runtime predicate is
+ * constructed via `initFoundingAllocation` inside `flattenFixtureToAppDependencies`
+ * so the test-fixtures package can keep the same shape without importing from
+ * projects/hutch (mirrors the SharedBundle.validateSaveableUrl pattern). */
+export interface FoundingAllocationBundle {
+	foundingMemberLimit: number;
+}
+
 export interface TestAppFixture {
 	auth: AuthBundle;
 	articleStore: ArticleStoreBundle;
@@ -249,6 +258,7 @@ export interface TestAppFixture {
 	stripe: StripeCheckoutBundle;
 	pendingSignup: PendingSignupBundle;
 	botDefense: BotDefenseBundle;
+	foundingAllocation: FoundingAllocationBundle;
 }
 
 export interface TestAppResult {
@@ -331,6 +341,9 @@ function flattenFixtureToAppDependencies(
 		storePendingSignup: fixture.pendingSignup.storePendingSignup,
 		consumePendingSignup: fixture.pendingSignup.consumePendingSignup,
 		botDefenseLogger: fixture.botDefense.logger,
+		foundingAllocation: initFoundingAllocation({
+			foundingMemberLimit: fixture.foundingAllocation.foundingMemberLimit,
+		}),
 	};
 }
 

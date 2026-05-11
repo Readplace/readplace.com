@@ -21,6 +21,7 @@ import { validateSaveableUrl } from "@packages/domain/article";
 import { createApp } from "../../server";
 import { httpErrorMessageMapping } from "../pages/queue/queue.error";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
+import { initFoundingAllocation } from "../shared/founding-progress/founding-allocation";
 
 describe("Email verification", () => {
 	describe("POST /signup → Stripe → success", () => {
@@ -97,6 +98,7 @@ describe("Email verification", () => {
 				importSessionStore: initInMemoryImportSession({ now: () => new Date() }),
 				now: () => new Date(),
 				botDefenseLogger: { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} },
+				foundingAllocation: initFoundingAllocation({ foundingMemberLimit: 3 }),
 			});
 
 			const { successResponse } = await completeStripeSignup({

@@ -5,7 +5,7 @@ import { sendComponent } from "../../send-component";
 import { BlogIndexPage } from "./blog-index.component";
 import { BlogPostPage } from "./blog-post.component";
 import { NotFoundPage } from "../not-found";
-import { getAllPosts, findPostBySlug } from "./blog.posts";
+import type { BlogPosts } from "./blog.posts";
 
 const SLUG_REDIRECTS: Record<string, string> = {
 	"hutch-vs-readwise-reader": "readplace-vs-readwise-reader",
@@ -13,11 +13,12 @@ const SLUG_REDIRECTS: Record<string, string> = {
 	"hutch-vs-karakeep-hosted-vs-self-hosted-read-it-later": "readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later",
 };
 
-export function initBlogRoutes(): Router {
+export function initBlogRoutes(deps: { blogPosts: BlogPosts }): Router {
 	const router = express.Router();
+	const { blogPosts } = deps;
 
 	router.get("/", (req: Request, res: Response) => {
-		const posts = getAllPosts();
+		const posts = blogPosts.getAllPosts();
 		sendComponent(req, res, renderPage(req, BlogIndexPage({ posts })));
 	});
 
@@ -27,7 +28,7 @@ export function initBlogRoutes(): Router {
 			res.redirect(301, `/blog/${newSlug}`);
 			return;
 		}
-		const post = findPostBySlug(req.params.slug);
+		const post = blogPosts.findPostBySlug(req.params.slug);
 		if (!post) {
 			sendComponent(req, res, renderPage(req, NotFoundPage()));
 			return;

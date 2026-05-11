@@ -1,7 +1,9 @@
-import { getAllPosts, findPostBySlug, getAllSlugs } from "./blog.posts";
+import { initBlogPosts } from "./blog.posts";
+
+const blogPosts = initBlogPosts({ foundingMemberLimit: 3 });
 
 describe("blog posts", () => {
-	const posts = getAllPosts();
+	const posts = blogPosts.getAllPosts();
 
 	it("should load at least one post", () => {
 		expect(posts.length).toBeGreaterThan(0);
@@ -53,25 +55,33 @@ describe("blog posts", () => {
 		const slugs = posts.map((p) => p.slug);
 		expect(new Set(slugs).size).toBe(slugs.length);
 	});
+
+	it("should substitute the injected foundingMemberLimit into markdown placeholders", () => {
+		const customLimit = 17;
+		const customBlogPosts = initBlogPosts({ foundingMemberLimit: customLimit });
+		const omnivore = customBlogPosts.findPostBySlug("omnivore-alternative");
+		expect(omnivore).toBeDefined();
+		expect(omnivore?.markdownContent).toContain(`The first ${customLimit} founding members`);
+	});
 });
 
 describe("findPostBySlug", () => {
 	it("should return a post for a known slug", () => {
-		const firstPost = getAllPosts()[0];
-		const post = findPostBySlug(firstPost.slug);
+		const firstPost = blogPosts.getAllPosts()[0];
+		const post = blogPosts.findPostBySlug(firstPost.slug);
 		expect(post).toBeDefined();
 		expect(post?.title).toBe(firstPost.title);
 	});
 
 	it("should return undefined for an unknown slug", () => {
-		expect(findPostBySlug("nonexistent-post")).toBeUndefined();
+		expect(blogPosts.findPostBySlug("nonexistent-post")).toBeUndefined();
 	});
 });
 
 describe("getAllSlugs", () => {
 	it("should return slugs matching loaded posts", () => {
-		const slugs = getAllSlugs();
-		const posts = getAllPosts();
+		const slugs = blogPosts.getAllSlugs();
+		const posts = blogPosts.getAllPosts();
 		expect(slugs).toEqual(posts.map((p) => p.slug));
 	});
 });
