@@ -163,10 +163,8 @@ describe("collectStuckRows", () => {
 	});
 
 	it("returns a stuck row for a crawl-pending row that DDB surfaced (server-side age gate has already let it through)", async () => {
-		// We trust DDB's FilterExpression engine to apply the age gate, so the
-		// test simulates DDB returning a row that has already crossed the gate.
-		// The canary's job from here is to classify, exclude, and tag it with a
-		// recrawl URL — this asserts that the row makes it out the other side.
+		// DDB's FilterExpression applies the age gate server-side, so we only
+		// need to simulate a row that has already crossed it.
 		const { client } = createFakeClient(() => ({
 			Items: [
 				{
