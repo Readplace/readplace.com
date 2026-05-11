@@ -1,4 +1,7 @@
-import type { DispatchEffect } from "@packages/domain/article-aggregate";
+import type {
+	DispatchEffect,
+	Effect,
+} from "@packages/domain/article-aggregate";
 import type { GenerateSummaryCommand } from "@packages/hutch-infra-components";
 import type { DispatchCommand } from "@packages/hutch-infra-components/runtime";
 
@@ -8,10 +11,8 @@ import type { DispatchCommand } from "@packages/hutch-infra-components/runtime";
  * thrown SQS failure propagates back to the Lambda handler and SQS retries
  * the whole transition.
  *
- * The function body is intentionally narrow: when a new Effect variant is
- * added to `@packages/domain/article-aggregate`, TypeScript will refuse to
- * compile the unconditional access to `effect.url` (the new variant's shape
- * won't carry it) — forcing the dispatcher to be extended in lockstep.
+ * The `satisfies Record<Effect["kind"], ...>` assertion ensures that adding
+ * a new Effect variant without a handler here is a compile error.
  */
 export function initLambdaEffectDispatcher(deps: {
 	dispatchGenerateSummary: DispatchCommand<typeof GenerateSummaryCommand>;
@@ -19,7 +20,12 @@ export function initLambdaEffectDispatcher(deps: {
 	const { dispatchGenerateSummary } = deps;
 
 	const dispatchEffect: DispatchEffect = async (effect) => {
-		await dispatchGenerateSummary({ url: effect.url });
+		const handlers = {
+			"generate-summary": () =>
+				dispatchGenerateSummary({ url: effect.url }),
+		} satisfies Record<Effect["kind"], () => Promise<void>>;
+
+		await handlers[effect.kind]();
 	};
 
 	return { dispatchEffect };
