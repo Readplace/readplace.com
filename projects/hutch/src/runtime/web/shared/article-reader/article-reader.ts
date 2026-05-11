@@ -1,7 +1,12 @@
 import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
+import type { GlobalArticleData } from "@packages/test-fixtures/providers/article-store";
 import type { Component } from "../../component.types";
 import { HtmlPage } from "../../html-page";
+import {
+	renderArticleHeaderOob,
+	renderDocumentTitleOob,
+} from "../article-body/article-header/article-header.component";
 import { renderProgressBarOob } from "../article-body/progress-bar.component";
 import {
 	CRAWL_STAGE_TO_PCT,
@@ -124,10 +129,39 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		};
 	}
 
+	/**
+	 * Header + <title> OOB fragments. Concatenated onto every poll response so
+	 * the title that was rendered as a hostname stub at t=0 settles in place
+	 * the moment the crawl writes the real metadata, instead of leaving the
+	 * page stale until the user manually refreshes. Returns "" when the row
+	 * has gone missing (deleted between renders); the slot fragment still
+	 * swaps and the existing header/title stay put.
+	 */
+	function buildMetadataOob(
+		article: GlobalArticleData | null,
+		articleUrl: string,
+	): string {
+		if (!article) return "";
+		const headerOob = renderArticleHeaderOob({
+			title: article.metadata.title,
+			siteName: article.metadata.siteName,
+			estimatedReadTime: article.estimatedReadTime,
+			url: articleUrl,
+			backLink: deps.backLink,
+		});
+		const titleOob = renderDocumentTitleOob(
+			deps.formatDocumentTitle(article.metadata.title),
+		);
+		return headerOob + titleOob;
+	}
+
 	async function handleSummaryPoll(params: HandlePollParams): Promise<Component> {
 		const { articleUrl, pollCount, pollUrlBuilder } = params;
-		const crawl = await deps.findArticleCrawlStatus(articleUrl);
-		const summary = await deps.findGeneratedSummary(articleUrl);
+		const [crawl, summary, article] = await Promise.all([
+			deps.findArticleCrawlStatus(articleUrl),
+			deps.findGeneratedSummary(articleUrl),
+			deps.findArticleByUrl(articleUrl),
+		]);
 		const crawlFailed = crawl?.status === "failed";
 		const status = summary?.status ?? "pending";
 		const summaryPollUrl = !crawlFailed && status === "pending" && pollCount < MAX_POLLS
@@ -142,14 +176,18 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		const oobBar = renderProgressBarOob({
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 		});
-		return HtmlPage(slot + oobBar);
+		const oobMetadata = buildMetadataOob(article, articleUrl);
+		return HtmlPage(slot + oobBar + oobMetadata);
 	}
 
 	async function handleReaderPoll(params: HandlePollParams): Promise<Component> {
 		const { articleUrl, pollCount, pollUrlBuilder, extensionInstallUrl } = params;
-		const crawl = await deps.findArticleCrawlStatus(articleUrl);
-		const summary = await deps.findGeneratedSummary(articleUrl);
-		const content = await deps.readArticleContent(articleUrl);
+		const [crawl, summary, content, article] = await Promise.all([
+			deps.findArticleCrawlStatus(articleUrl),
+			deps.findGeneratedSummary(articleUrl),
+			deps.readArticleContent(articleUrl),
+			deps.findArticleByUrl(articleUrl),
+		]);
 		const readerPollUrl = shouldKeepPollingReader(crawl, content) && pollCount < MAX_POLLS
 			? pollUrlBuilder.reader(pollCount + 1)
 			: undefined;
@@ -163,7 +201,8 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		const oobBar = renderProgressBarOob({
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 		});
-		return HtmlPage(slot + oobBar);
+		const oobMetadata = buildMetadataOob(article, articleUrl);
+		return HtmlPage(slot + oobBar + oobMetadata);
 	}
 
 	return { resolveReaderState, handleSummaryPoll, handleReaderPoll };

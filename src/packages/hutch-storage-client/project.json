@@ -1,0 +1,9 @@
+{
+  "name": "@packages/hutch-storage-client",
+  "targets": {
+    "check": {
+      "command": "pnpm lint",
+      "options": { "cwd": "{projectRoot}" }
+    }
+  }
+}

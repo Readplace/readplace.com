@@ -19,6 +19,16 @@ const CANONICAL_BASE_URL = "https://readplace.com";
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
 
+/**
+ * Both the initial SSR <title> and the OOB <title> swap emitted by reader
+ * polls have to use the same format — otherwise the browser tab flickers
+ * between formats every time the title settles after a crawl completes.
+ * Exported so the queue route can hand it to initArticleReader.
+ */
+export function formatReaderDocumentTitle(articleTitle: string): string {
+	return `${articleTitle} — Readplace Reader`;
+}
+
 export function ReaderPage(
 	article: SavedArticle,
 	options?: {
@@ -57,7 +67,7 @@ export function ReaderPage(
 
 	return {
 		seo: {
-			title: `${article.metadata.title} — Readplace Reader`,
+			title: formatReaderDocumentTitle(article.metadata.title),
 			description: truncateForSeo(pickExcerpt(options?.summary, article.metadata.excerpt)),
 			canonicalUrl: `/queue/${article.id.value}/read`,
 			robots: "noindex, nofollow",

@@ -1,0 +1,9 @@
+{
+  "name": "@packages/hutch-infra-components",
+  "targets": {
+    "check": {
+      "command": "pnpm lint",
+      "options": { "cwd": "{projectRoot}" }
+    }
+  }
+}

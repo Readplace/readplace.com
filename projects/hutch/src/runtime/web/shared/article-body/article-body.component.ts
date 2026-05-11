@@ -5,6 +5,7 @@ import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-cra
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { requireEnv } from "../../../require-env";
 import { render } from "../../render";
+import { renderArticleHeader } from "./article-header/article-header.component";
 import { renderProgressBar } from "./progress-bar.component";
 import type { ProgressTick } from "@packages/domain/article";
 import { renderReaderSlot } from "./reader-slot/reader-slot.component";
@@ -58,16 +59,20 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 
 	const progressBarHtml = renderProgressBar({ progress: input.progress });
 
-	return render(ARTICLE_BODY_TEMPLATE, {
+	const headerHtml = renderArticleHeader({
 		title: input.title,
 		siteName: input.siteName,
 		estimatedReadTime: input.estimatedReadTime,
 		url: input.url,
+		backLink: input.backLink,
+	});
+
+	return render(ARTICLE_BODY_TEMPLATE, {
+		headerHtml,
 		readerSlotHtml,
 		summarySlotHtml,
 		progressBarHtml,
 		audioEnabled: input.audioEnabled,
-		backLink: input.backLink,
 		staticBaseUrl: STATIC_BASE_URL,
 	});
 }

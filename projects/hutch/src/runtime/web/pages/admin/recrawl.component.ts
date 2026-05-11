@@ -11,6 +11,16 @@ import { RECRAWL_STYLES } from "./recrawl.styles";
 
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
 
+/**
+ * Both the initial SSR <title> and the OOB <title> swap emitted by recrawl
+ * polls have to use the same format — otherwise the browser tab flickers
+ * between formats every time the title settles after a recrawl completes.
+ * Exported so the recrawl route can hand it to initArticleReader.
+ */
+export function formatRecrawlDocumentTitle(articleTitle: string): string {
+	return `Admin recrawl: ${articleTitle}`;
+}
+
 export interface AdminRecrawlPageInput {
 	articleUrl: string;
 	metadata: ArticleMetadata;
@@ -59,7 +69,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 
 	return {
 		seo: {
-			title: `Admin recrawl: ${input.metadata.title}`,
+			title: formatRecrawlDocumentTitle(input.metadata.title),
 			description: "Operator recrawl view. Not for public consumption.",
 			canonicalUrl: `/admin/recrawl/${encodeURIComponent(input.articleUrl)}`,
 			robots: "noindex, nofollow",

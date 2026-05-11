@@ -1,19 +1,16 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import type { Minutes } from "@packages/domain/article";
-import type {
-	ArticleCrawl,
-	FindArticleCrawlStatus,
-	MarkCrawlPending,
-} from "@packages/test-fixtures/providers/article-crawl";
-import type {
-	FindGeneratedSummary,
-	GeneratedSummary,
-	MarkSummaryPending,
-} from "@packages/test-fixtures/providers/article-summary";
-import type { ReadArticleContent } from "@packages/test-fixtures/providers/article-store";
+import { ReaderArticleHashId } from "@packages/domain/article";
+import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
+import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
+import type { GlobalArticleData } from "@packages/test-fixtures/providers/article-store";
 import { initArticleReader } from "./article-reader";
-import type { ArticleSnapshot, PollUrlBuilder } from "./article-reader.types";
+import type {
+	ArticleReaderDeps,
+	ArticleSnapshot,
+	PollUrlBuilder,
+} from "./article-reader.types";
 
 const ARTICLE_URL = "https://example.com/post";
 
@@ -41,31 +38,46 @@ interface FakeState {
 	crawl: ArticleCrawl | undefined;
 	summary: GeneratedSummary | undefined;
 	content: string | undefined;
+	article: GlobalArticleData | null;
 	markCrawlPendingCalls: number;
 	markSummaryPendingCalls: number;
 }
 
 const FIXED_NOW = new Date("2026-04-25T12:00:00.000Z");
 
-function initFakeDeps(initial?: Partial<FakeState>): {
-	state: FakeState;
-	deps: {
-		findArticleCrawlStatus: FindArticleCrawlStatus;
-		markCrawlPending: MarkCrawlPending;
-		findGeneratedSummary: FindGeneratedSummary;
-		markSummaryPending: MarkSummaryPending;
-		readArticleContent: ReadArticleContent;
-		now: () => Date;
+function defaultFakeArticle(): GlobalArticleData {
+	return {
+		id: ReaderArticleHashId.from(ARTICLE_URL),
+		url: ARTICLE_URL,
+		metadata: {
+			title: "Post",
+			siteName: "example.com",
+			excerpt: "Excerpt.",
+			wordCount: 100,
+		},
+		estimatedReadTime: 1 as Minutes,
 	};
+}
+
+function initFakeDeps(initial: {
+	crawl?: ArticleCrawl;
+	summary?: GeneratedSummary;
+	content?: string;
+	/** undefined means "use the default fake article"; null means "row missing". */
+	article?: GlobalArticleData | null;
+} = {}): {
+	state: FakeState;
+	deps: ArticleReaderDeps;
 } {
 	const state: FakeState = {
-		crawl: initial?.crawl,
-		summary: initial?.summary,
-		content: initial?.content,
+		crawl: initial.crawl,
+		summary: initial.summary,
+		content: initial.content,
+		article: initial.article === undefined ? defaultFakeArticle() : initial.article,
 		markCrawlPendingCalls: 0,
 		markSummaryPendingCalls: 0,
 	};
-	const deps = {
+	const deps: ArticleReaderDeps = {
 		findArticleCrawlStatus: async () => state.crawl,
 		markCrawlPending: async () => {
 			state.markCrawlPendingCalls += 1;
@@ -77,6 +89,8 @@ function initFakeDeps(initial?: Partial<FakeState>): {
 			if (state.summary === undefined) state.summary = { status: "pending" };
 		},
 		readArticleContent: async () => state.content,
+		findArticleByUrl: async () => state.article,
+		formatDocumentTitle: (title) => `${title} — TestReader`,
 		now: () => FIXED_NOW,
 	};
 	return { state, deps };
@@ -633,6 +647,148 @@ describe("initArticleReader", () => {
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
 			assert(slot, "reader slot must be rendered");
 			expect(slot.getAttribute("data-reader-status")).toBe("failed");
+		});
+
+		it("includes the article header as an hx-swap-oob fragment carrying the latest title so the H1 settles in place once the crawl writes it over the hostname stub", async () => {
+			const { state, deps } = initFakeDeps({
+				crawl: { status: "pending" },
+				content: undefined,
+			});
+			state.article = {
+				...defaultFakeArticle(),
+				metadata: {
+					title: "Why Rust beats Go",
+					siteName: "example.com",
+					excerpt: "",
+					wordCount: 0,
+				},
+			};
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			const doc = parse(toHtml(component));
+			const header = doc.querySelector("#article-header");
+			assert(header, "header OOB fragment must accompany the reader-slot");
+			expect(header.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			expect(header.querySelector("[data-test-reader-title]")?.textContent).toBe(
+				"Why Rust beats Go",
+			);
+		});
+
+		it("includes a <title> hx-swap-oob fragment formatted via deps.formatDocumentTitle so the browser tab updates without any client-side JS", async () => {
+			const { state, deps } = initFakeDeps({
+				crawl: { status: "pending" },
+				content: undefined,
+			});
+			state.article = {
+				...defaultFakeArticle(),
+				metadata: {
+					title: "Why Rust beats Go",
+					siteName: "example.com",
+					excerpt: "",
+					wordCount: 0,
+				},
+			};
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			const doc = parse(toHtml(component));
+			const titleEl = doc.querySelector("title#document-title");
+			assert(titleEl, "<title> OOB fragment must accompany the reader-slot");
+			expect(titleEl.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			expect(titleEl.textContent).toBe("Why Rust beats Go — TestReader");
+		});
+
+		it("renders header + <title> with the back-link slot when initArticleReader was given a backLink — proving deps.backLink is wired into the OOB header", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "pending" },
+				content: undefined,
+			});
+			const reader = initArticleReader({
+				...deps,
+				backLink: { href: "/queue", label: "← Back to queue" },
+			});
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			const doc = parse(toHtml(component));
+			const slot = doc.querySelector("#article-header [data-test-back-slot]");
+			assert(slot, "back slot must be rendered inside the OOB header");
+			expect(slot.classList.contains("article-body__back-slot--visible")).toBe(true);
+			const link = slot.querySelector("[data-test-back-link]");
+			assert(link, "back link must be present");
+			expect(link.getAttribute("href")).toBe("/queue");
+		});
+
+		it("omits the header + <title> OOB fragments when the row has gone missing — falling back to swapping only the slot so the existing header text stays put", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "pending" },
+				content: undefined,
+				article: null,
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			const doc = parse(toHtml(component));
+			expect(doc.querySelector("#article-header")).toBeNull();
+			expect(doc.querySelector("title#document-title")).toBeNull();
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, "reader-slot fragment must still be emitted even with no article row");
+		});
+	});
+
+	describe("handleSummaryPoll header + title OOB", () => {
+		it("emits the header and <title> OOB fragments alongside the summary-slot so a settled title can land via the summary-poll path too (whichever poll fires first wins)", async () => {
+			const { state, deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "pending", stage: "summary-generating" },
+			});
+			state.article = {
+				...defaultFakeArticle(),
+				metadata: {
+					title: "Why Rust beats Go",
+					siteName: "example.com",
+					excerpt: "",
+					wordCount: 0,
+				},
+			};
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleSummaryPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			const doc = parse(toHtml(component));
+			const header = doc.querySelector("#article-header");
+			assert(header, "header OOB fragment must accompany the summary-slot");
+			expect(header.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			expect(header.querySelector("[data-test-reader-title]")?.textContent).toBe(
+				"Why Rust beats Go",
+			);
+			const titleEl = doc.querySelector("title#document-title");
+			assert(titleEl, "<title> OOB fragment must accompany the summary-slot");
+			expect(titleEl.textContent).toBe("Why Rust beats Go — TestReader");
 		});
 	});
 });

@@ -1,12 +1,4 @@
-    <div class="article-body__header">
-      {{#if backLink}}<div class="article-body__back-slot article-body__back-slot--visible" data-test-back-slot><a class="article-body__back" href="{{backLink.href}}" data-test-back-link>{{backLink.label}}</a></div>{{else}}<div class="article-body__back-slot article-body__back-slot--hidden" data-test-back-slot></div>{{/if}}
-      <h1 class="article-body__title" data-test-reader-title>{{title}}</h1>
-      <div class="article-body__meta">
-        <span data-test-reader-site>{{siteName}}</span>
-        <span>{{estimatedReadTime}} min read</span>
-      </div>
-      <a class="article-body__original-link" href="{{url}}" target="_blank" rel="noopener" data-test-original-link>View original</a>
-    </div>
+    {{{headerHtml}}}
     {{{progressBarHtml}}}
     {{{summarySlotHtml}}}
     {{#if audioEnabled}}<div class="article-body__audio-slot article-body__audio-slot--visible" data-test-audio-player><div class="article-body__audio-player">

@@ -12,7 +12,10 @@ import type {
 	GeneratedSummary,
 	MarkSummaryPending,
 } from "@packages/test-fixtures/providers/article-summary";
-import type { ReadArticleContent } from "@packages/test-fixtures/providers/article-store";
+import type {
+	FindArticleByUrl,
+	ReadArticleContent,
+} from "@packages/test-fixtures/providers/article-store";
 import type { ProgressTick } from "@packages/domain/article";
 
 export interface ArticleReaderDeps {
@@ -21,6 +24,23 @@ export interface ArticleReaderDeps {
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
 	readArticleContent: ReadArticleContent;
+	/**
+	 * Used by the poll handlers to read the latest metadata on every tick so
+	 * the header (title, siteName, readTime) and document <title> can settle
+	 * in place once the crawl writes the real title over the hostname stub.
+	 */
+	findArticleByUrl: FindArticleByUrl;
+	/**
+	 * Each reader keeps its own browser-tab title format
+	 * (queue: "X — Readplace Reader", view: "X | Reader View"). The article-
+	 * reader emits the OOB <title> fragment using whatever the caller decides.
+	 */
+	formatDocumentTitle: (articleTitle: string) => string;
+	/**
+	 * Static for a given reader (queue → /queue, view → none). Lives at init
+	 * time, not per-poll, because it never changes during a reader session.
+	 */
+	backLink?: { href: string; label: string };
 	now: () => Date;
 }
 

@@ -25,6 +25,7 @@ import type {
 	PublishStaleCheckRequested,
 } from "@packages/test-fixtures/providers/events";
 import { wantsMarkdown } from "../../content-negotiation";
+import { CacheableComponent } from "../../conditional-get";
 import { htmlToMarkdown } from "../../html-to-markdown";
 import { buildMarkdownFrontmatter } from "../../markdown-frontmatter";
 import { MarkdownPage } from "../../markdown-page";
@@ -32,11 +33,14 @@ import { renderPage } from "../../render-page";
 import { sendComponent } from "../../send-component";
 import { extensionInstallUrlIfMissing } from "../../onboarding/extension-install";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
-import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.types";
+import type {
+	ArticleReaderDeps,
+	PollUrlBuilder,
+} from "../../shared/article-reader/article-reader.types";
 import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { ViewLandingPage } from "./view-landing.component";
-import { ViewPage, type ViewAction } from "./view.component";
+import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.component";
 
 interface ViewDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
@@ -69,6 +73,19 @@ function pollUrlBuilderFor(articleUrl: string): PollUrlBuilder {
 	};
 }
 
+function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
+	return {
+		findArticleCrawlStatus: deps.findArticleCrawlStatus,
+		markCrawlPending: deps.markCrawlPending,
+		findGeneratedSummary: deps.findGeneratedSummary,
+		markSummaryPending: deps.markSummaryPending,
+		readArticleContent: deps.readArticleContent,
+		findArticleByUrl: deps.findArticleByUrl,
+		formatDocumentTitle: formatViewDocumentTitle,
+		now: deps.now,
+	};
+}
+
 function handleViewLanding(deps: ViewDependencies) {
 	return (req: Request, res: Response) => {
 		const submittedUrl =
@@ -86,8 +103,7 @@ function handleViewLanding(deps: ViewDependencies) {
 	};
 }
 
-function handleViewArticle(deps: ViewDependencies) {
-	const reader = initArticleReader(deps);
+function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof initArticleReader>) {
 	return async (
 		req: Request<Record<string, string>>,
 		res: Response,
@@ -187,8 +203,7 @@ function handleViewArticle(deps: ViewDependencies) {
 	};
 }
 
-function handleViewSummary(deps: ViewDependencies) {
-	const reader = initArticleReader(deps);
+function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof initArticleReader>) {
 	return async (req: Request, res: Response): Promise<void> => {
 		const validation = deps.validateSaveableUrl(req.query.url);
 		if (validation.status === "ERROR") {
@@ -202,18 +217,18 @@ function handleViewSummary(deps: ViewDependencies) {
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
 		});
-		sendComponent(req, res, component);
+		sendComponent(req, res, CacheableComponent(component, req));
 	};
 }
 
-function handleViewReader(deps: ViewDependencies) {
-	const reader = initArticleReader(deps);
+function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof initArticleReader>) {
 	return async (req: Request, res: Response): Promise<void> => {
 		const validation = deps.validateSaveableUrl(req.query.url);
 		if (validation.status === "ERROR") {
 			res.status(400).type("html").send("");
 			return;
 		}
+		/* c8 ignore next -- V8 block coverage phantom: async continuation after if/return creates zero-count sub-range (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 		const articleUrl = validation.url;
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleReaderPoll({
@@ -222,17 +237,18 @@ function handleViewReader(deps: ViewDependencies) {
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 		});
-		sendComponent(req, res, component);
+		sendComponent(req, res, CacheableComponent(component, req));
 	};
 }
 
 export function initViewRoutes(deps: ViewDependencies): Router {
 	const router = express.Router();
+	const reader = initArticleReader(buildArticleReaderDeps(deps));
 
 	router.get("/", handleViewLanding(deps));
-	router.get("/summary", handleViewSummary(deps));
-	router.get("/reader", handleViewReader(deps));
-	router.get<string, Record<string, string>>("/*", handleViewArticle(deps));
+	router.get("/summary", handleViewSummary(deps, reader));
+	router.get("/reader", handleViewReader(deps, reader));
+	router.get<string, Record<string, string>>("/*", handleViewArticle(deps, reader));
 
 	return router;
 }

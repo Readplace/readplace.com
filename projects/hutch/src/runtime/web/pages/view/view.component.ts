@@ -26,6 +26,16 @@ const DEFAULT_OG_IMAGE = `${STATIC_BASE_URL}/og-image-1200x630.png`;
 const DEFAULT_TWITTER_IMAGE = `${STATIC_BASE_URL}/twitter-card-1200x600.png`;
 const DEFAULT_OG_ALT = "Readplace — A read-it-later app";
 
+/**
+ * Both the initial SSR <title> and the OOB <title> swap emitted by view
+ * polls have to use the same format — otherwise the browser tab flickers
+ * between formats every time the title settles after a crawl completes.
+ * Exported so the view route can hand it to initArticleReader.
+ */
+export function formatViewDocumentTitle(articleTitle: string): string {
+	return `${articleTitle} | Reader View`;
+}
+
 const VIEW_TEMPLATE = readFileSync(
 	join(__dirname, "view.template.html"),
 	"utf-8",
@@ -106,7 +116,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 
 	return {
 		seo: {
-			title: `${input.metadata.title} | Reader View`,
+			title: formatViewDocumentTitle(input.metadata.title),
 			description,
 			canonicalUrl: `/view/${encodeURIComponent(input.articleUrl)}`,
 			ogType: "article",
