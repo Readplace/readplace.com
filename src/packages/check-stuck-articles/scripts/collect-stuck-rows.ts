@@ -29,7 +29,7 @@ const StuckArticleRow = z.object({
 	summaryFailureReason: dynamoField(z.string()),
 	crawlFailureReason: dynamoField(z.string()),
 	contentFetchedAt: dynamoField(z.string()),
-	firstSeenAt: dynamoField(z.string()),
+	savedAt: dynamoField(z.string()),
 	summary: dynamoField(z.string()),
 });
 
@@ -86,10 +86,10 @@ export const SUMMARY_MIN_AGE_MS = 20 * 60_000; /* 1, 2 */
  *   1. `contentFetchedAt < :axisMinAge` — covers a previously-crawled row that
  *      was recrawled; if the recrawl is in flight, the existing
  *      `contentFetchedAt` is still the old value and counts as old enough.
- *   2. `attribute_not_exists(contentFetchedAt) AND firstSeenAt < :axisMinAge`
+ *   2. `attribute_not_exists(contentFetchedAt) AND savedAt < :axisMinAge`
  *      — first-time pending row that has never crawled successfully.
- *   3. `attribute_not_exists(contentFetchedAt) AND attribute_not_exists(firstSeenAt)`
- *      — pre-firstSeenAt rows (no timestamps at all). Without this disjunct
+ *   3. `attribute_not_exists(contentFetchedAt) AND attribute_not_exists(savedAt)`
+ *      — pre-savedAt rows (no timestamps at all). Without this disjunct
  *      they would be silently filtered out by the age gate, and a legacy row
  *      stuck pending forever would never surface.
  *
@@ -103,8 +103,8 @@ export function buildScanInput(now: Date) {
 	const summaryMinAge = new Date(now.getTime() - SUMMARY_MIN_AGE_MS).toISOString();
 	const ageGate = (axisMinAgeKey: string) =>
 		`(contentFetchedAt < ${axisMinAgeKey}` +
-		` OR (attribute_not_exists(contentFetchedAt) AND firstSeenAt < ${axisMinAgeKey})` +
-		` OR (attribute_not_exists(contentFetchedAt) AND attribute_not_exists(firstSeenAt)))`;
+		` OR (attribute_not_exists(contentFetchedAt) AND savedAt < ${axisMinAgeKey})` +
+		` OR (attribute_not_exists(contentFetchedAt) AND attribute_not_exists(savedAt)))`;
 	return {
 		// The third disjunct catches the `summaryStatus="ready" AND
 		// attribute_not_exists(summary)` inconsistency the 2026-05-10
@@ -123,7 +123,7 @@ export function buildScanInput(now: Date) {
 			"OR (attribute_not_exists(summaryStatus) AND attribute_not_exists(crawlStatus) AND attribute_not_exists(summary)) " +
 			"OR (summaryStatus = :ready AND attribute_not_exists(summary))",
 		ProjectionExpression:
-			"originalUrl, #u, summaryStatus, crawlStatus, summaryFailureReason, crawlFailureReason, contentFetchedAt, firstSeenAt, summary",
+			"originalUrl, #u, summaryStatus, crawlStatus, summaryFailureReason, crawlFailureReason, contentFetchedAt, savedAt, summary",
 		ExpressionAttributeNames: { "#u": "url" },
 		ExpressionAttributeValues: {
 			":pending": "pending",

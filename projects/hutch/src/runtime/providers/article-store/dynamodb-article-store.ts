@@ -146,7 +146,7 @@ export function initDynamoDbArticleStore(deps: {
 					wordCount: params.metadata.wordCount,
 					imageUrl: params.metadata.imageUrl,
 					estimatedReadTime: params.estimatedReadTime,
-					firstSeenAt: new Date().toISOString(), // anchors the stuck-articles canary's min-age filter
+					savedAt: params.savedAt.toISOString(),
 				},
 				ConditionExpression: "attribute_not_exists(#url)",
 				ExpressionAttributeNames: { "#url": "url" },
@@ -163,6 +163,7 @@ export function initDynamoDbArticleStore(deps: {
 				url: params.url,
 				metadata: params.metadata,
 				estimatedReadTime: params.estimatedReadTime,
+				savedAt: now,
 			}),
 			userArticles.update({
 				Key: { userId: params.userId, url: articleResourceUniqueId.value },

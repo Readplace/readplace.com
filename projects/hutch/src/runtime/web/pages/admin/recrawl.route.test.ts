@@ -179,6 +179,7 @@ describe("Admin recrawl routes", () => {
 				url: ARTICLE_URL,
 				metadata: { title: "T", siteName: "example.com", excerpt: "", wordCount: 0 },
 				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
 			});
 			await harness.articleStore.setContentSourceTier({ url: ARTICLE_URL, tier: "tier-0" });
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
@@ -201,6 +202,7 @@ describe("Admin recrawl routes", () => {
 				url: ARTICLE_URL,
 				metadata: { title: "T", siteName: "example.com", excerpt: "", wordCount: 0 },
 				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
 			});
 			await harness.articleStore.setContentSourceTier({ url: ARTICLE_URL, tier: "tier-1" });
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
@@ -222,6 +224,7 @@ describe("Admin recrawl routes", () => {
 				url: ARTICLE_URL,
 				metadata: { title: "T", siteName: "example.com", excerpt: "", wordCount: 0 },
 				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
 			});
 			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
@@ -247,6 +250,7 @@ describe("Admin recrawl routes", () => {
 					wordCount: 10,
 				},
 				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
 			});
 			// Previous crawl left the row in a terminal `ready` state. Admin
 			// recrawl must flip it back to `pending` via forceMarkCrawlPending.
@@ -282,6 +286,7 @@ describe("Admin recrawl routes", () => {
 					wordCount: 10,
 				},
 				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
 			});
 			// Summary was generated on a prior crawl. Without the force-pending
 			// path, the save-link summarizer's cache short-circuits on `ready`
@@ -339,6 +344,7 @@ describe("Admin recrawl routes", () => {
 					wordCount: 0,
 				},
 				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
 			});
 			await harness.articleCrawl.markCrawlPending({ url: ARTICLE_URL });
 			const agent = await loginAs(harness.app, ADMIN_EMAIL, ADMIN_PASSWORD);
@@ -366,6 +372,7 @@ describe("Admin recrawl routes", () => {
 					wordCount: 0,
 				},
 				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
 			});
 			await harness.articleCrawl.markCrawlPending({ url: ARTICLE_URL });
 			const agent = await loginAs(harness.app, ADMIN_EMAIL, ADMIN_PASSWORD);
@@ -392,6 +399,7 @@ describe("Admin recrawl routes", () => {
 					wordCount: 0,
 				},
 				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
 			});
 			await harness.articleCrawl.markCrawlPending({ url: ARTICLE_URL });
 

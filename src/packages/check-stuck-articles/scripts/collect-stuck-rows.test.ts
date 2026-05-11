@@ -56,19 +56,19 @@ describe("buildScanInput", () => {
 		);
 	});
 
-	it("age-gates the crawl-pending disjunct with contentFetchedAt OR firstSeenAt OR neither-present", () => {
+	it("age-gates the crawl-pending disjunct with contentFetchedAt OR savedAt OR neither-present", () => {
 		const input = buildScanInput(NOW);
 		assert.match(
 			input.FilterExpression,
-			/crawlStatus = :pending AND \(contentFetchedAt < :crawlMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND firstSeenAt < :crawlMinAge\) OR \(attribute_not_exists\(contentFetchedAt\) AND attribute_not_exists\(firstSeenAt\)\)\)/,
+			/crawlStatus = :pending AND \(contentFetchedAt < :crawlMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND savedAt < :crawlMinAge\) OR \(attribute_not_exists\(contentFetchedAt\) AND attribute_not_exists\(savedAt\)\)\)/,
 		);
 	});
 
-	it("age-gates the summary-pending disjunct with contentFetchedAt OR firstSeenAt OR neither-present", () => {
+	it("age-gates the summary-pending disjunct with contentFetchedAt OR savedAt OR neither-present", () => {
 		const input = buildScanInput(NOW);
 		assert.match(
 			input.FilterExpression,
-			/summaryStatus = :pending AND \(contentFetchedAt < :summaryMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND firstSeenAt < :summaryMinAge\) OR \(attribute_not_exists\(contentFetchedAt\) AND attribute_not_exists\(firstSeenAt\)\)\)/,
+			/summaryStatus = :pending AND \(contentFetchedAt < :summaryMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND savedAt < :summaryMinAge\) OR \(attribute_not_exists\(contentFetchedAt\) AND attribute_not_exists\(savedAt\)\)\)/,
 		);
 	});
 
@@ -102,11 +102,11 @@ describe("buildScanInput", () => {
 		);
 	});
 
-	it("projects firstSeenAt so the canary can diagnose age-gate decisions in stderr", () => {
+	it("projects savedAt so the canary can diagnose age-gate decisions in stderr", () => {
 		const input = buildScanInput(NOW);
 		assert.ok(
-			input.ProjectionExpression.includes("firstSeenAt"),
-			"firstSeenAt must be projected — without it the canary cannot tell why a row crossed the gate",
+			input.ProjectionExpression.includes("savedAt"),
+			"savedAt must be projected — without it the canary cannot tell why a row crossed the gate",
 		);
 	});
 
@@ -153,7 +153,7 @@ describe("collectStuckRows", () => {
 			"summaryFailureReason",
 			"crawlFailureReason",
 			"contentFetchedAt",
-			"firstSeenAt",
+			"savedAt",
 			"summary",
 		]) {
 			assert.ok(projection.includes(attr), `ProjectionExpression must include ${attr}`);
@@ -171,7 +171,7 @@ describe("collectStuckRows", () => {
 					url: "example.test/article",
 					originalUrl: "https://example.test/article",
 					crawlStatus: "pending",
-					firstSeenAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
+					savedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
 				},
 			],
 			Count: 1,
@@ -267,7 +267,7 @@ describe("collectStuckRows", () => {
 							url: "page1.test/a",
 							originalUrl: "https://page1.test/a",
 							crawlStatus: "pending",
-							firstSeenAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
+							savedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
 						},
 					],
 					Count: 1,
@@ -280,7 +280,7 @@ describe("collectStuckRows", () => {
 						url: "page2.test/b",
 						originalUrl: "https://page2.test/b",
 						summaryStatus: "pending",
-						firstSeenAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
+						savedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
 					},
 				],
 				Count: 1,
