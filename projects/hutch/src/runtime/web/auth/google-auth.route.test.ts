@@ -170,6 +170,7 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 				shared: {
+					validateSaveableUrl: fixture.shared.validateSaveableUrl,
 					appOrigin: fixture.shared.appOrigin,
 					staticBaseUrl: fixture.shared.staticBaseUrl,
 					httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,

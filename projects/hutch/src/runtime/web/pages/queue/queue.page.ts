@@ -8,7 +8,8 @@ import {
 import type { ErrorRequestHandler, Request, Response, Router } from "express";
 import express from "express";
 import type { LogParseError } from "@packages/hutch-infra-components";
-import { SaveArticleInputSchema, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage, validateSaveableUrl } from "@packages/domain/article";
+import type { ValidateSaveableUrl } from "@packages/domain/article";
+import { SaveArticleInputSchema, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
 import {
 	IMPORT_SKIPPED_COOKIE_NAME,
 	decodeImportSkippedCookie,
@@ -96,6 +97,7 @@ function markExtensionSavedArticle(res: Response): void {
 }
 
 interface QueueDependencies {
+	validateSaveableUrl: ValidateSaveableUrl;
 	findArticlesByUser: FindArticlesByUser;
 	findArticleById: FindArticleById;
 	saveArticle: SaveArticle;
@@ -227,7 +229,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
-		const validation = validateSaveableUrl(submittedUrl);
+		const validation = deps.validateSaveableUrl(submittedUrl);
 		const prefersRepresentation = req.get("Prefer") === "return=representation";
 
 		if (validation.status === "ERROR") {
@@ -336,7 +338,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				);
 				const urlOnly = rawHtmlTooBig ? SaveArticleInputSchema.safeParse(req.body) : undefined;
 				const urlOnlyValidation = urlOnly?.success
-					? validateSaveableUrl(urlOnly.data.url)
+					? deps.validateSaveableUrl(urlOnly.data.url)
 					: undefined;
 				if (urlOnlyValidation?.status === "SUCCESS") {
 					const rawHtml: unknown = req.body?.rawHtml;
@@ -358,7 +360,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				return;
 			}
 
-			const urlValidation = validateSaveableUrl(parsed.data.url);
+			const urlValidation = deps.validateSaveableUrl(parsed.data.url);
 			if (urlValidation.status === "ERROR") {
 				res.status(422).type(SIREN_MEDIA_TYPE).json(
 					sirenError({ code: "invalid-save-html", message: urlValidation.error.message }),
@@ -391,7 +393,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
-		const validation = validateSaveableUrl(submittedUrl);
+		const validation = deps.validateSaveableUrl(submittedUrl);
 
 		if (validation.status === "ERROR") {
 			const urlState = parseQueueUrl({});

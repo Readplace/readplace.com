@@ -144,6 +144,7 @@ describe("POST /queue/save-html", () => {
 			},
 			freshness: { refreshArticleIfStale: async () => { throw new Error("boom"); } },
 			shared: {
+				validateSaveableUrl: fixture.shared.validateSaveableUrl,
 				appOrigin: fixture.shared.appOrigin,
 				staticBaseUrl: fixture.shared.staticBaseUrl,
 				httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,
@@ -240,6 +241,7 @@ describe("POST /queue/save-html", () => {
 		const testApp = createTestApp({
 			...fixture,
 			shared: {
+				validateSaveableUrl: fixture.shared.validateSaveableUrl,
 				appOrigin: fixture.shared.appOrigin,
 				staticBaseUrl: fixture.shared.staticBaseUrl,
 				httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,

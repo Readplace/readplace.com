@@ -11,7 +11,7 @@ import {
 	MAX_IMPORT_FILE_BYTES,
 } from "@packages/domain/import-session";
 import type { ImportSessionStore } from "@packages/domain/import-session";
-import { validateSaveableUrl, type SaveableUrl, type SaveableUrlErrorCode } from "@packages/domain/article";
+import type { ValidateSaveableUrl, SaveableUrl, SaveableUrlErrorCode } from "@packages/domain/article";
 import { renderPage } from "../../render-page";
 import { sendComponent } from "../../send-component";
 import { saveArticleFromUrl, type SaveArticleFromUrlDependencies } from "../../shared/save-article/save-article-from-url";
@@ -26,6 +26,7 @@ import { initMultipartUpload } from "./multipart-upload";
 import { parseImportPage } from "./import.url";
 
 interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
+	validateSaveableUrl: ValidateSaveableUrl;
 	importSessionStore: ImportSessionStore;
 	logError: (message: string, error?: Error) => void;
 }
@@ -176,7 +177,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		const saveable: SaveableUrl[] = [];
 		const skipped: Array<{ url: string; code: SaveableUrlErrorCode }> = [];
 		for (const url of selected) {
-			const validation = validateSaveableUrl(url);
+			const validation = deps.validateSaveableUrl(url);
 			if (validation.status === "SUCCESS") {
 				saveable.push(validation.url);
 			} else {

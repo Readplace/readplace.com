@@ -1,7 +1,7 @@
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
-import type { ArticleMetadata, Minutes } from "@packages/domain/article";
+import type { ArticleMetadata, Minutes, ValidateSaveableUrl } from "@packages/domain/article";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { BotDefenseEvent } from "./providers/auth/bot-defense.types";
 import type { ExchangeGoogleCode } from "./providers/google-auth/google-token.types";
@@ -215,6 +215,7 @@ export interface AdminBundle {
 }
 
 export interface SharedBundle {
+	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
 	staticBaseUrl: string;
 	httpErrorMessageMapping: HttpErrorMessageMapping;

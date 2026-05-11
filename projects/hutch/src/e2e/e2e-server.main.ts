@@ -2,6 +2,7 @@ import assert from 'node:assert'
 import express from 'express'
 import { z } from 'zod'
 import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
+import { validateSaveableUrl, type ValidateSaveableUrl } from '@packages/domain/article'
 import { createTestApp } from '../runtime/test-app'
 import {
   createDefaultTestAppFixture,
@@ -33,6 +34,22 @@ const logError = (message: string, error?: Error) => console.error(JSON.stringif
 const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, defaultHeaders: { ...DEFAULT_CRAWL_HEADERS } })
 const crawlArticle = initCrawlArticle({ crawlFetch, logError })
 const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, sitePreParsers: [theInformationPreParser], logError })
+
+/** E2E tests use localhost URLs because the test server IS localhost.
+ * Skip private-network rejection so test articles can be saved and viewed. */
+const E2eSaveableUrlBrand = z.string().brand<"SaveableUrl">()
+const e2eValidateSaveableUrl: ValidateSaveableUrl = (value) => {
+  const result = validateSaveableUrl(value)
+  if (result.status === "SUCCESS") return result
+  if (result.error.code !== "private_network") return result
+  const trimmed = typeof value === "string" ? value.trim() : ""
+  try {
+    const parsed = new URL(trimmed)
+    return { status: "SUCCESS", url: E2eSaveableUrlBrand.parse(parsed.toString()) }
+  } catch {
+    return result
+  }
+}
 
 const fixture = createDefaultTestAppFixture(origin)
 // E2E exercises the HTMX polling UI end-to-end, so opt the summary fake into
@@ -87,6 +104,7 @@ const { app: hutchApp, auth, email } = createTestApp({
   freshness: { refreshArticleIfStale },
   summary,
   shared: {
+    validateSaveableUrl: e2eValidateSaveableUrl,
     appOrigin: fixture.shared.appOrigin,
     staticBaseUrl: fixture.shared.staticBaseUrl,
     httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,

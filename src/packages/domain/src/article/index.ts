@@ -36,6 +36,7 @@ export {
 	type SaveableUrlError,
 	type SaveableUrlErrorCode,
 	type SaveableUrlResult,
+	type ValidateSaveableUrl,
 } from "./saveable-url";
 export { calculateReadTime } from "./estimated-read-time";
 export {

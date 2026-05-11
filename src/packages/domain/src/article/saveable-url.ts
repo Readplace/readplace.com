@@ -16,6 +16,8 @@ export type SaveableUrlResult =
 	| { readonly status: "SUCCESS"; readonly url: SaveableUrl }
 	| { readonly status: "ERROR"; readonly error: SaveableUrlError };
 
+export type ValidateSaveableUrl = (value: unknown) => SaveableUrlResult;
+
 const SaveableUrlBrand = z.string().brand<"SaveableUrl">();
 export type SaveableUrl = z.infer<typeof SaveableUrlBrand>;
 

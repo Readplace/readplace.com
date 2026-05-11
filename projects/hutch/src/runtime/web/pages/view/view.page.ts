@@ -5,7 +5,8 @@ import type {
 	ArticleMetadata,
 	Minutes,
 } from "@packages/domain/article";
-import { calculateReadTime, validateSaveableUrl } from "@packages/domain/article";
+import type { ValidateSaveableUrl } from "@packages/domain/article";
+import { calculateReadTime } from "@packages/domain/article";
 import type {
 	FindArticleByUrl,
 	SaveArticleGlobally,
@@ -38,6 +39,7 @@ import { ViewLandingPage } from "./view-landing.component";
 import { ViewPage, type ViewAction } from "./view.component";
 
 interface ViewDependencies {
+	validateSaveableUrl: ValidateSaveableUrl;
 	findArticleByUrl: FindArticleByUrl;
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
@@ -67,19 +69,21 @@ function pollUrlBuilderFor(articleUrl: string): PollUrlBuilder {
 	};
 }
 
-function handleViewLanding(req: Request, res: Response) {
-	const submittedUrl =
-		typeof req.query.url === "string" ? req.query.url : undefined;
-	if (submittedUrl === undefined) {
-		sendComponent(req, res, renderPage(req, ViewLandingPage()));
-		return;
-	}
-	const validation = validateSaveableUrl(submittedUrl);
-	if (validation.status === "ERROR") {
-		renderError(req, res);
-		return;
-	}
-	res.redirect(302, `/view/${encodeURIComponent(validation.url)}`);
+function handleViewLanding(deps: ViewDependencies) {
+	return (req: Request, res: Response) => {
+		const submittedUrl =
+			typeof req.query.url === "string" ? req.query.url : undefined;
+		if (submittedUrl === undefined) {
+			sendComponent(req, res, renderPage(req, ViewLandingPage()));
+			return;
+		}
+		const validation = deps.validateSaveableUrl(submittedUrl);
+		if (validation.status === "ERROR") {
+			renderError(req, res);
+			return;
+		}
+		res.redirect(302, `/view/${encodeURIComponent(validation.url)}`);
+	};
 }
 
 function handleViewArticle(deps: ViewDependencies) {
@@ -93,7 +97,7 @@ function handleViewArticle(deps: ViewDependencies) {
 		// /view/https%3A%2F%2Fexample.com arrives here as /view/https://example.com.
 		// Restore the scheme's second slash if any proxy collapsed it (https:/ → https://).
 		const normalizedUrl = rawPath.replace(/^(https?):\/(?!\/)/i, "$1://");
-		const validation = validateSaveableUrl(normalizedUrl);
+		const validation = deps.validateSaveableUrl(normalizedUrl);
 		if (validation.status === "ERROR") {
 			renderError(req, res);
 			return;
@@ -186,7 +190,7 @@ function handleViewArticle(deps: ViewDependencies) {
 function handleViewSummary(deps: ViewDependencies) {
 	const reader = initArticleReader(deps);
 	return async (req: Request, res: Response): Promise<void> => {
-		const validation = validateSaveableUrl(req.query.url);
+		const validation = deps.validateSaveableUrl(req.query.url);
 		if (validation.status === "ERROR") {
 			res.status(400).type("html").send("");
 			return;
@@ -205,7 +209,7 @@ function handleViewSummary(deps: ViewDependencies) {
 function handleViewReader(deps: ViewDependencies) {
 	const reader = initArticleReader(deps);
 	return async (req: Request, res: Response): Promise<void> => {
-		const validation = validateSaveableUrl(req.query.url);
+		const validation = deps.validateSaveableUrl(req.query.url);
 		if (validation.status === "ERROR") {
 			res.status(400).type("html").send("");
 			return;
@@ -225,7 +229,7 @@ function handleViewReader(deps: ViewDependencies) {
 export function initViewRoutes(deps: ViewDependencies): Router {
 	const router = express.Router();
 
-	router.get("/", handleViewLanding);
+	router.get("/", handleViewLanding(deps));
 	router.get("/summary", handleViewSummary(deps));
 	router.get("/reader", handleViewReader(deps));
 	router.get<string, Record<string, string>>("/*", handleViewArticle(deps));
