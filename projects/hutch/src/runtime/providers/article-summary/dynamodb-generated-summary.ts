@@ -121,7 +121,7 @@ export function initDynamoDbGeneratedSummary(deps: {
 		await table.update({
 			Key: { url: articleResourceUniqueId.value },
 			UpdateExpression:
-				"SET summaryStatus = :pending REMOVE summaryFailureReason, summarySkippedReason",
+				"SET summaryStatus = :pending REMOVE summary, summaryExcerpt, summaryInputTokens, summaryOutputTokens, summaryStage, summaryFailureReason, summarySkippedReason",
 			ExpressionAttributeValues: {
 				":pending": "pending",
 			},
