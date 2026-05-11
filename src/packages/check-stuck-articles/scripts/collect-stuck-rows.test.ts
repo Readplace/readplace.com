@@ -56,53 +56,35 @@ describe("buildScanInput", () => {
 		);
 	});
 
-	it("age-gates the crawl-pending disjunct with contentFetchedAt OR savedAt OR neither-present", () => {
+	it("age-gates the crawl-pending disjunct with contentFetchedAt OR savedAt", () => {
 		const input = buildScanInput(NOW);
 		assert.match(
 			input.FilterExpression,
-			/crawlStatus = :pending AND \(contentFetchedAt < :crawlMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND savedAt < :crawlMinAge\) OR \(attribute_not_exists\(contentFetchedAt\) AND attribute_not_exists\(savedAt\)\)\)/,
+			/crawlStatus = :pending AND \(contentFetchedAt < :crawlMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND savedAt < :crawlMinAge\)\)/,
 		);
 	});
 
-	it("age-gates the summary-pending disjunct with contentFetchedAt OR savedAt OR neither-present", () => {
+	it("age-gates the summary-pending disjunct with contentFetchedAt OR savedAt", () => {
 		const input = buildScanInput(NOW);
 		assert.match(
 			input.FilterExpression,
-			/summaryStatus = :pending AND \(contentFetchedAt < :summaryMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND savedAt < :summaryMinAge\) OR \(attribute_not_exists\(contentFetchedAt\) AND attribute_not_exists\(savedAt\)\)\)/,
+			/summaryStatus = :pending AND \(contentFetchedAt < :summaryMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND savedAt < :summaryMinAge\)\)/,
 		);
 	});
 
-	it("does NOT age-gate the legacy-stub disjunct (legacy stubs are stuck forever regardless of age)", () => {
+	it("only emits the two pending disjuncts — no legacy-stub or writer-contract clauses", () => {
 		const input = buildScanInput(NOW);
-		assert.match(
-			input.FilterExpression,
-			/OR \(attribute_not_exists\(summaryStatus\) AND attribute_not_exists\(crawlStatus\) AND attribute_not_exists\(summary\)\)/,
-		);
-		const legacyClause =
-			"(attribute_not_exists(summaryStatus) AND attribute_not_exists(crawlStatus) AND attribute_not_exists(summary))";
-		const idx = input.FilterExpression.indexOf(legacyClause);
-		const after = input.FilterExpression.slice(idx + legacyClause.length);
 		assert.ok(
-			!after.startsWith(" AND "),
-			"legacy-stub disjunct must not be followed by an age conjunction",
-		);
-	});
-
-	it("does NOT age-gate the summary-ready-without-text writer-contract violation (never a timing artefact)", () => {
-		const input = buildScanInput(NOW);
-		assert.match(
-			input.FilterExpression,
-			/OR \(summaryStatus = :ready AND attribute_not_exists\(summary\)\)/,
+			!input.FilterExpression.includes("attribute_not_exists(summaryStatus)"),
+			"legacy-stub disjunct must not appear in the simplified filter",
 		);
 		assert.ok(
-			!input.FilterExpression.includes(
-				"summaryStatus = :ready AND attribute_not_exists(summary) AND",
-			),
-			"summary-ready-without-text disjunct must not carry an age conjunction",
+			!input.FilterExpression.includes(":ready"),
+			"writer-contract (summaryStatus = ready AND missing summary) disjunct must not appear",
 		);
 	});
 
-	it("projects savedAt so the canary can diagnose age-gate decisions in stderr", () => {
+	it("projects savedAt so the canary can diagnose age-gate decisions", () => {
 		const input = buildScanInput(NOW);
 		assert.ok(
 			input.ProjectionExpression.includes("savedAt"),
@@ -137,7 +119,7 @@ describe("collectStuckRows", () => {
 		);
 	});
 
-	it("projects the attributes classifyRow and checkTerminalState consume", async () => {
+	it("projects only the attributes the simplified pending check consumes", async () => {
 		const { client, calls } = createFakeClient(() => ({ Items: [], Count: 0 }));
 		await collectStuckRows({
 			client,
@@ -150,27 +132,34 @@ describe("collectStuckRows", () => {
 			"originalUrl",
 			"summaryStatus",
 			"crawlStatus",
-			"summaryFailureReason",
-			"crawlFailureReason",
 			"contentFetchedAt",
 			"savedAt",
-			"summary",
 		]) {
 			assert.ok(projection.includes(attr), `ProjectionExpression must include ${attr}`);
 		}
+		for (const attr of ["summaryFailureReason", "crawlFailureReason"]) {
+			assert.ok(
+				!projection.includes(attr),
+				`ProjectionExpression must NOT include legacy attribute ${attr}`,
+			);
+		}
+		// `summary` (text) is a separate attribute from `summaryStatus`; match with a regex anchor.
+		assert.ok(
+			!/(^|[ ,])summary($|[ ,])/.test(projection),
+			"ProjectionExpression must NOT include the legacy attribute 'summary'",
+		);
 		assert.equal(calls[0]?.input.ExpressionAttributeNames?.["#u"], "url");
 		assert.match(projection, /#u/);
 	});
 
-	it("returns a stuck row for a crawl-pending row that DDB surfaced (server-side age gate has already let it through)", async () => {
-		// DDB's FilterExpression applies the age gate server-side, so we only
-		// need to simulate a row that has already crossed it.
+	it("returns a stuck row for a crawl-pending row that DDB surfaced", async () => {
 		const { client } = createFakeClient(() => ({
 			Items: [
 				{
 					url: "example.test/article",
 					originalUrl: "https://example.test/article",
 					crawlStatus: "pending",
+					summaryStatus: "pending",
 					savedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
 				},
 			],
@@ -184,18 +173,15 @@ describe("collectStuckRows", () => {
 		});
 		assert.equal(stuck.length, 1);
 		assert.equal(stuck[0]?.originalUrl, "https://example.test/article");
-		assert.deepEqual(stuck[0]?.reasons, ["crawl-pending"]);
+		assert.deepEqual(stuck[0]?.reasons, ["summary-pending", "crawl-pending"]);
 		assert.equal(
 			stuck[0]?.recrawlUrl,
 			`${ORIGIN}/admin/recrawl/${encodeURIComponent("https://example.test/article")}`,
 		);
-		assert.match(
-			stuck[0]?.terminalCheckMessage ?? "",
-			/crawlStatus is 'pending'/,
-		);
+		assert.match(stuck[0]?.terminalCheckMessage ?? "", /crawlStatus is 'pending'/);
 	});
 
-	it("skips terminal rows (DDB may surface them via the writer-contract disjunct)", async () => {
+	it("skips terminal rows (DDB may still surface them when paginating)", async () => {
 		const { client } = createFakeClient(() => ({
 			Items: [
 				{
@@ -203,46 +189,7 @@ describe("collectStuckRows", () => {
 					originalUrl: "https://example.test/done",
 					summaryStatus: "ready",
 					crawlStatus: "ready",
-					summary: "the summary",
-				},
-			],
-			Count: 1,
-		}));
-		const stuck = await collectStuckRows({
-			client,
-			tableName: TABLE,
-			origin: ORIGIN,
-			now: () => NOW,
-		});
-		assert.deepEqual(stuck, []);
-	});
-
-	it("drops a row whose originalUrl matches an operator-driven exclude pattern", async () => {
-		const { client } = createFakeClient(() => ({
-			Items: [
-				{
-					url: "readplace.com/some-page",
-					originalUrl: "https://readplace.com/some-page",
-					crawlStatus: "pending",
-				},
-			],
-			Count: 1,
-		}));
-		const stuck = await collectStuckRows({
-			client,
-			tableName: TABLE,
-			origin: ORIGIN,
-			now: () => NOW,
-		});
-		assert.deepEqual(stuck, []);
-	});
-
-	it("drops a row missing originalUrl (cannot build a recrawl URL without it)", async () => {
-		const { client } = createFakeClient(() => ({
-			Items: [
-				{
-					url: "example.test/no-original",
-					crawlStatus: "pending",
+					savedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
 				},
 			],
 			Count: 1,
@@ -296,27 +243,5 @@ describe("collectStuckRows", () => {
 		assert.equal(calls[0]?.input.ExclusiveStartKey, undefined);
 		assert.deepEqual(calls[1]?.input.ExclusiveStartKey, { url: "page1.test/a" });
 		assert.equal(stuck.length, 2);
-	});
-
-	it("surfaces the summary-ready-without-text writer-contract violation", async () => {
-		const { client } = createFakeClient(() => ({
-			Items: [
-				{
-					url: "example.test/missing-summary",
-					originalUrl: "https://example.test/missing-summary",
-					summaryStatus: "ready",
-					crawlStatus: "ready",
-				},
-			],
-			Count: 1,
-		}));
-		const stuck = await collectStuckRows({
-			client,
-			tableName: TABLE,
-			origin: ORIGIN,
-			now: () => NOW,
-		});
-		assert.equal(stuck.length, 1);
-		assert.deepEqual(stuck[0]?.reasons, ["summary-ready-without-text"]);
 	});
 });

@@ -5,82 +5,63 @@ import { classifyRow } from "./classify-row";
 describe("classifyRow", () => {
 	describe("summaryStatus", () => {
 		it("returns summary-pending for pending", () => {
-			const reasons = classifyRow({ summaryStatus: "pending", crawlStatus: "ready", summary: undefined });
+			const reasons = classifyRow({ summaryStatus: "pending", crawlStatus: "ready" });
 			assert.deepStrictEqual(reasons, ["summary-pending"]);
 		});
 
 		it("returns no reason for failed (terminal — operator owns recovery via /admin/recrawl, DLQ alarm is the signal)", () => {
-			const reasons = classifyRow({ summaryStatus: "failed", crawlStatus: "ready", summary: undefined });
+			const reasons = classifyRow({ summaryStatus: "failed", crawlStatus: "ready" });
 			assert.deepStrictEqual(reasons, []);
 		});
 
-		it("returns no reason for ready when summary text is present", () => {
-			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "ready", summary: "the summary" });
+		it("returns no reason for ready", () => {
+			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "ready" });
 			assert.deepStrictEqual(reasons, []);
-		});
-
-		it("returns summary-ready-without-text when status=ready but the text is missing", () => {
-			// Why this matters: this is the smoking-gun state the
-			// fagnerbrack.com/why-developers-become-frustrated-… row was left
-			// in after the 2026-05-10 freshness refresh — summaryStatus="ready"
-			// but `summary` removed by the UpdateExpression. The original
-			// FilterExpression only matched (pending|failed) statuses and
-			// "all-fields-absent" legacy stubs, so the canary missed this
-			// entire class of stuck row. The reason name is in the report
-			// body the @claude tracking issue prints, so it is also the
-			// single string operators search for when triaging this regression.
-			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "ready", summary: undefined });
-			assert.deepStrictEqual(reasons, ["summary-ready-without-text"]);
 		});
 
 		it("returns no reason for skipped", () => {
-			const reasons = classifyRow({ summaryStatus: "skipped", crawlStatus: "ready", summary: undefined });
+			const reasons = classifyRow({ summaryStatus: "skipped", crawlStatus: "ready" });
 			assert.deepStrictEqual(reasons, []);
 		});
 	});
 
 	describe("crawlStatus", () => {
 		it("returns crawl-pending for pending", () => {
-			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "pending", summary: "the summary" });
+			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "pending" });
 			assert.deepStrictEqual(reasons, ["crawl-pending"]);
 		});
 
 		it("returns no reason for failed (terminal — DLQ → email is the redrive signal)", () => {
-			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "failed", summary: "the summary" });
+			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "failed" });
 			assert.deepStrictEqual(reasons, []);
 		});
 
 		it("returns no reason for unsupported (terminal — non-html origin, no recovery to drive)", () => {
-			const reasons = classifyRow({ summaryStatus: "skipped", crawlStatus: "unsupported", summary: undefined });
+			const reasons = classifyRow({ summaryStatus: "skipped", crawlStatus: "unsupported" });
 			assert.deepStrictEqual(reasons, []);
 		});
 
 		it("returns no reason for ready", () => {
-			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "ready", summary: "the summary" });
+			const reasons = classifyRow({ summaryStatus: "ready", crawlStatus: "ready" });
 			assert.deepStrictEqual(reasons, []);
 		});
 	});
 
 	describe("combined statuses", () => {
 		it("returns both reasons when summary and crawl are pending", () => {
-			const reasons = classifyRow({ summaryStatus: "pending", crawlStatus: "pending", summary: undefined });
+			const reasons = classifyRow({ summaryStatus: "pending", crawlStatus: "pending" });
 			assert.deepStrictEqual(reasons, ["summary-pending", "crawl-pending"]);
 		});
 
 		it("returns no reasons when summary and crawl are both terminal failures", () => {
-			const reasons = classifyRow({ summaryStatus: "failed", crawlStatus: "failed", summary: undefined });
+			const reasons = classifyRow({ summaryStatus: "failed", crawlStatus: "failed" });
 			assert.deepStrictEqual(reasons, []);
 		});
 	});
 
-	describe("legacy stub", () => {
-		it("returns legacy-stub when all fields are undefined", () => {
-			const reasons = classifyRow({ summaryStatus: undefined, crawlStatus: undefined, summary: undefined });
-			assert.deepStrictEqual(reasons, ["legacy-stub"]);
-		});
-
-		it("returns no reason when summary exists but statuses are undefined", () => {
-			const reasons = classifyRow({ summaryStatus: undefined, crawlStatus: undefined, summary: "some text" });
+	describe("undefined statuses", () => {
+		it("returns no reasons when both statuses are undefined (canary only flags pending — terminal absence is not stuck)", () => {
+			const reasons = classifyRow({ summaryStatus: undefined, crawlStatus: undefined });
 			assert.deepStrictEqual(reasons, []);
 		});
 	});
