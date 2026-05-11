@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { Article } from "./article.types";
 import type { DispatchEffect } from "./effect-dispatcher.types";
 import type { Effect } from "./effects.types";
-import type { ArticleStore } from "./storage.types";
+import type { AggregateField, ArticleStore, SaveArticle } from "./storage.types";
 import {
 	initTransitionAndPersist,
 	type Transition,
@@ -24,20 +24,27 @@ function seededArticle(url: string): Article {
 	};
 }
 
+interface SavedCall {
+	article: Article;
+	transitionName: string;
+	writes: readonly AggregateField[];
+}
+
 function createFakeStore(initial: readonly Article[]): {
 	store: ArticleStore;
-	saved: Article[];
+	saved: SavedCall[];
 } {
 	const rows = new Map<string, Article>();
 	for (const a of initial) rows.set(a.url, a);
-	const saved: Article[] = [];
+	const saved: SavedCall[] = [];
 
+	const save: SaveArticle = async ({ article, transitionName, writes }) => {
+		saved.push({ article, transitionName, writes });
+		rows.set(article.url, article);
+	};
 	const store: ArticleStore = {
 		load: async (url) => rows.get(url),
-		save: async (article) => {
-			saved.push(article);
-			rows.set(article.url, article);
-		},
+		save,
 	};
 
 	return { store, saved };
@@ -50,30 +57,38 @@ describe("initTransitionAndPersist", () => {
 		const order: string[] = [];
 		const seed = seededArticle(URL);
 
+		const save: SaveArticle = async ({ article }) => {
+			order.push(`save:${article.summary.kind}`);
+		};
 		const store: ArticleStore = {
 			load: async (url) => {
 				order.push(`load:${url}`);
 				return seed;
 			},
-			save: async (article) => {
-				order.push(`save:${article.summary.kind}`);
-			},
+			save,
 		};
 		const dispatchEffect: DispatchEffect = async (effect) => {
 			order.push(`dispatch:${effect.kind}`);
 		};
 
-		const transition: Transition<undefined> = (article) => ({
-			article: { ...article, summary: { kind: "pending" } },
-			effects: [{ kind: "generate-summary", url: article.url }],
-		});
+		function exampleTransition(article: Article): {
+			article: Article;
+			effects: readonly Effect[];
+			writes: readonly AggregateField[];
+		} {
+			return {
+				article: { ...article, summary: { kind: "pending" } },
+				effects: [{ kind: "generate-summary", url: article.url }],
+				writes: ["summary"],
+			};
+		}
 
 		const { transitionAndPersist } = initTransitionAndPersist({
 			store,
 			dispatchEffect,
 		});
 
-		await transitionAndPersist(transition, { url: URL, input: undefined });
+		await transitionAndPersist(exampleTransition, { url: URL, input: undefined });
 
 		assert.deepEqual(order, [
 			`load:${URL}`,
@@ -82,12 +97,60 @@ describe("initTransitionAndPersist", () => {
 		]);
 	});
 
+	it("threads the transition function's name through to store.save so the canary can attribute stuck rows", async () => {
+		const { store, saved } = createFakeStore([seededArticle(URL)]);
+		const dispatchEffect: DispatchEffect = async () => {};
+		function exampleTransition(article: Article): {
+			article: Article;
+			effects: readonly Effect[];
+			writes: readonly AggregateField[];
+		} {
+			return { article, effects: [], writes: ["summary"] };
+		}
+
+		const { transitionAndPersist } = initTransitionAndPersist({
+			store,
+			dispatchEffect,
+		});
+
+		await transitionAndPersist(exampleTransition, { url: URL, input: undefined });
+
+		assert.equal(saved.length, 1);
+		assert.equal(saved[0]?.transitionName, "exampleTransition");
+	});
+
+	it("threads the transition's writes scope through to store.save so the storage adapter can omit untouched axes", async () => {
+		const { store, saved } = createFakeStore([seededArticle(URL)]);
+		const dispatchEffect: DispatchEffect = async () => {};
+		function exampleTransition(article: Article): {
+			article: Article;
+			effects: readonly Effect[];
+			writes: readonly AggregateField[];
+		} {
+			return {
+				article: { ...article, crawl: { kind: "failed", reason: "x" } },
+				effects: [],
+				writes: ["crawl", "summary"],
+			};
+		}
+
+		const { transitionAndPersist } = initTransitionAndPersist({
+			store,
+			dispatchEffect,
+		});
+
+		await transitionAndPersist(exampleTransition, { url: URL, input: undefined });
+
+		assert.deepEqual([...(saved[0]?.writes ?? [])], ["crawl", "summary"]);
+	});
+
 	it("throws when the aggregate is missing so SQS retries the whole transition", async () => {
+		const save: SaveArticle = async () => {
+			throw new Error("save must not be called when load returns undefined");
+		};
 		const store: ArticleStore = {
 			load: async () => undefined,
-			save: async () => {
-				throw new Error("save must not be called when load returns undefined");
-			},
+			save,
 		};
 		const dispatchEffect: DispatchEffect = async () => {
 			throw new Error("dispatch must not be called when load returns undefined");
@@ -95,6 +158,7 @@ describe("initTransitionAndPersist", () => {
 		const transition: Transition<undefined> = (article) => ({
 			article,
 			effects: [],
+			writes: [],
 		});
 
 		const { transitionAndPersist } = initTransitionAndPersist({
@@ -111,11 +175,12 @@ describe("initTransitionAndPersist", () => {
 
 	it("does not dispatch when save throws (handler's catch path drives SQS retry)", async () => {
 		const seed = seededArticle(URL);
+		const save: SaveArticle = async () => {
+			throw new Error("ddb throttled");
+		};
 		const store: ArticleStore = {
 			load: async () => seed,
-			save: async () => {
-				throw new Error("ddb throttled");
-			},
+			save,
 		};
 		const dispatched: Effect[] = [];
 		const dispatchEffect: DispatchEffect = async (effect) => {
@@ -124,6 +189,7 @@ describe("initTransitionAndPersist", () => {
 		const transition: Transition<undefined> = (article) => ({
 			article,
 			effects: [{ kind: "generate-summary", url: article.url }],
+			writes: ["summary"],
 		});
 
 		const { transitionAndPersist } = initTransitionAndPersist({
@@ -146,6 +212,7 @@ describe("initTransitionAndPersist", () => {
 		const transition: Transition<undefined> = (article) => ({
 			article,
 			effects: [{ kind: "generate-summary", url: article.url }],
+			writes: ["summary"],
 		});
 
 		const { transitionAndPersist } = initTransitionAndPersist({
@@ -173,6 +240,7 @@ describe("initTransitionAndPersist", () => {
 		const transition: Transition<undefined> = (article) => ({
 			article: { ...article, summary: { kind: "pending" } },
 			effects: [{ kind: "generate-summary", url: article.url }],
+			writes: ["summary"],
 		});
 
 		const { transitionAndPersist } = initTransitionAndPersist({
@@ -186,13 +254,13 @@ describe("initTransitionAndPersist", () => {
 		);
 
 		assert.equal(saved.length, 1, "first call persisted the transition");
-		assert.equal(saved[0]?.summary.kind, "pending");
+		assert.equal(saved[0]?.article.summary.kind, "pending");
 		assert.deepEqual(dispatched, [], "first call did not dispatch");
 
 		await transitionAndPersist(transition, { url: URL, input: undefined });
 
 		assert.equal(saved.length, 2, "second call re-saved idempotently");
-		assert.equal(saved[1]?.summary.kind, "pending");
+		assert.equal(saved[1]?.article.summary.kind, "pending");
 		assert.deepEqual(dispatched, [{ kind: "generate-summary", url: URL }]);
 	});
 
@@ -206,8 +274,9 @@ describe("initTransitionAndPersist", () => {
 			article,
 			effects: [
 				{ kind: "generate-summary", url: article.url },
-				{ kind: "generate-summary", url: `${article.url}#second` },
+				{ kind: "publish-recrawl-completed", url: article.url },
 			],
+			writes: [],
 		});
 
 		const { transitionAndPersist } = initTransitionAndPersist({
@@ -219,7 +288,7 @@ describe("initTransitionAndPersist", () => {
 
 		assert.deepEqual(dispatched, [
 			{ kind: "generate-summary", url: URL },
-			{ kind: "generate-summary", url: `${URL}#second` },
+			{ kind: "publish-recrawl-completed", url: URL },
 		]);
 	});
 
@@ -232,6 +301,7 @@ describe("initTransitionAndPersist", () => {
 				metadata: { ...article.metadata, title: input.newTitle },
 			},
 			effects: [],
+			writes: ["metadata"],
 		});
 
 		const { transitionAndPersist } = initTransitionAndPersist({
@@ -245,6 +315,6 @@ describe("initTransitionAndPersist", () => {
 		});
 
 		assert.equal(saved.length, 1);
-		assert.equal(saved[0]?.metadata.title, "Updated");
+		assert.equal(saved[0]?.article.metadata.title, "Updated");
 	});
 });

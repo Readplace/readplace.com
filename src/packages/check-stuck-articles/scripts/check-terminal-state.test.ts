@@ -7,6 +7,7 @@ describe("checkTerminalState", () => {
 		const result = checkTerminalState({
 			summaryStatus: "ready",
 			crawlStatus: "ready",
+			aggregateTransitionName: undefined,
 		});
 		assert.deepStrictEqual(result, { terminal: true });
 	});
@@ -15,6 +16,7 @@ describe("checkTerminalState", () => {
 		const result = checkTerminalState({
 			summaryStatus: "skipped",
 			crawlStatus: "ready",
+			aggregateTransitionName: undefined,
 		});
 		assert.deepStrictEqual(result, { terminal: true });
 	});
@@ -23,6 +25,7 @@ describe("checkTerminalState", () => {
 		const result = checkTerminalState({
 			summaryStatus: "pending",
 			crawlStatus: "ready",
+			aggregateTransitionName: undefined,
 		});
 		assert.deepStrictEqual(result, {
 			terminal: false,
@@ -34,6 +37,7 @@ describe("checkTerminalState", () => {
 		const result = checkTerminalState({
 			summaryStatus: "pending",
 			crawlStatus: "pending",
+			aggregateTransitionName: undefined,
 		});
 		assert.equal(result.terminal, false);
 		assert.equal(
@@ -46,12 +50,14 @@ describe("checkTerminalState", () => {
 		const failedCrawl = checkTerminalState({
 			summaryStatus: "ready",
 			crawlStatus: "failed",
+			aggregateTransitionName: undefined,
 		});
 		assert.deepStrictEqual(failedCrawl, { terminal: true });
 
 		const unsupportedCrawl = checkTerminalState({
 			summaryStatus: "skipped",
 			crawlStatus: "unsupported",
+			aggregateTransitionName: undefined,
 		});
 		assert.deepStrictEqual(unsupportedCrawl, { terminal: true });
 	});
@@ -60,7 +66,21 @@ describe("checkTerminalState", () => {
 		const result = checkTerminalState({
 			summaryStatus: undefined,
 			crawlStatus: undefined,
+			aggregateTransitionName: undefined,
 		});
 		assert.deepStrictEqual(result, { terminal: true });
+	});
+
+	it("surfaces the -after-aggregate-migration message for a stuck row produced by a Phase 2 transition (falsifiable measurement)", () => {
+		const result = checkTerminalState({
+			summaryStatus: "ready",
+			crawlStatus: "pending",
+			aggregateTransitionName: "recrawlTieKeptCanonical",
+		});
+		assert.equal(result.terminal, false);
+		assert.match(
+			result.terminal === false ? result.message : "",
+			/Phase 2 aggregate transition/,
+		);
 	});
 });

@@ -101,6 +101,19 @@ describe("refreshContent", () => {
 		]);
 	});
 
+	it("declares writes for metadata, freshness, and summary so crawl-state is not clobbered by a concurrent inline writer", () => {
+		const before = buildArticle();
+
+		const { writes } = refreshContent(before, {
+			metadata: before.metadata,
+			freshness: before.freshness,
+			estimatedReadTime: before.estimatedReadTime,
+		});
+
+		assert.deepEqual([...writes].sort(), ["freshness", "metadata", "summary"]);
+		assert.ok(!writes.includes("crawl"), "refresh must not declare crawl writes");
+	});
+
 	it("does not mutate the input article (pure function)", () => {
 		const before = buildArticle();
 		const beforeSnapshot = JSON.parse(JSON.stringify(before));

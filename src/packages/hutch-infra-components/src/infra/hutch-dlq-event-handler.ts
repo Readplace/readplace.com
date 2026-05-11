@@ -2,18 +2,27 @@ import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import type { HutchEventBus } from "./event-bus";
 import { HutchDynamoDBAccess } from "./hutch-dynamodb-access";
-import { HutchLambda } from "./hutch-lambda";
+import { HutchLambda, type LambdaPolicy } from "./hutch-lambda";
 import type { HutchSQS } from "./hutch-sqs";
 
 /**
  * Attaches a Lambda to the DLQ of an existing `HutchSQS` so dead-lettered
  * messages drive a state transition on the articles table and publish a
  * domain failure event. Most configuration is fixed (256MB memory, 30s
- * timeout, dynamodb:UpdateItem only, DYNAMODB_ARTICLES_TABLE +
- * EVENT_BUS_NAME env vars, entry point derived from the component name);
- * `batchSize` is required so every callsite makes the choice explicit. The
- * mapping always wires ReportBatchItemFailures so a future `batchSize > 1`
- * does not silently drop sibling records on a partial failure.
+ * timeout, DYNAMODB_ARTICLES_TABLE + EVENT_BUS_NAME env vars, entry point
+ * derived from the component name); `batchSize` is required so every
+ * callsite makes the choice explicit. The mapping always wires
+ * ReportBatchItemFailures so a future `batchSize > 1` does not silently
+ * drop sibling records on a partial failure.
+ *
+ * `additionalDynamoActions`, `additionalEnvironment`, and `additionalPolicies`
+ * are escape hatches for callers whose transition needs richer access than
+ * the default "UpdateItem only, no extra env". Phase 2 of the aggregate
+ * migration uses them to add `dynamodb:GetItem` (the aggregate's
+ * `store.load` reads before it writes) and to pass `GENERATE_SUMMARY_QUEUE_URL`
+ * even though the migrated DLQ transition never dispatches a summary command —
+ * the aggregate effect dispatcher is wired uniformly so a future transition
+ * change at the same callsite cannot regress without re-wiring infra.
  */
 export class HutchDLQEventHandler extends pulumi.ComponentResource {
 	constructor(
@@ -25,6 +34,9 @@ export class HutchDLQEventHandler extends pulumi.ComponentResource {
 			eventBus: HutchEventBus;
 			/** Valid range: 1–10 (AWS SQS EventSourceMapping limit for standard queues). */
 			batchSize: number;
+			additionalDynamoActions?: readonly string[];
+			additionalEnvironment?: Record<string, pulumi.Input<string>>;
+			additionalPolicies?: readonly LambdaPolicy[];
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -32,7 +44,7 @@ export class HutchDLQEventHandler extends pulumi.ComponentResource {
 
 		const dynamodb = new HutchDynamoDBAccess(`${name}-dynamodb`, {
 			tables: [{ arn: args.tableArn, includeIndexes: false }],
-			actions: ["dynamodb:UpdateItem"],
+			actions: ["dynamodb:UpdateItem", ...(args.additionalDynamoActions ?? [])],
 		});
 
 		const lambda = new HutchLambda(name, {
@@ -44,8 +56,9 @@ export class HutchDLQEventHandler extends pulumi.ComponentResource {
 			environment: {
 				DYNAMODB_ARTICLES_TABLE: args.tableName,
 				EVENT_BUS_NAME: args.eventBus.eventBusName,
+				...args.additionalEnvironment,
 			},
-			policies: [...dynamodb.policies],
+			policies: [...dynamodb.policies, ...(args.additionalPolicies ?? [])],
 		}, { parent: this });
 
 		args.eventBus.grantPublish(lambda);

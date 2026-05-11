@@ -1,7 +1,11 @@
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import { GenerateSummaryCommand } from "@packages/hutch-infra-components";
-import { initSqsCommandDispatcher } from "@packages/hutch-infra-components/runtime";
+import {
+	EventBridgeClient,
+	initEventBridgePublisher,
+	initSqsCommandDispatcher,
+} from "@packages/hutch-infra-components/runtime";
 import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbArticleStore } from "../article-aggregate/dynamodb-article-store";
@@ -10,6 +14,7 @@ import { requireEnv } from "../require-env";
 import { initRefreshArticleContentHandler } from "../save-link/refresh-article-content-handler";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
+const eventBusName = requireEnv("EVENT_BUS_NAME");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
 
 const client = createDynamoDocumentClient();
@@ -26,8 +31,14 @@ const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
 	command: GenerateSummaryCommand,
 });
 
+const { publishEvent } = initEventBridgePublisher({
+	client: new EventBridgeClient({}),
+	eventBusName,
+});
+
 const { dispatchEffect } = initLambdaEffectDispatcher({
 	dispatchGenerateSummary,
+	publishEvent,
 });
 
 const { transitionAndPersist } = initTransitionAndPersist({

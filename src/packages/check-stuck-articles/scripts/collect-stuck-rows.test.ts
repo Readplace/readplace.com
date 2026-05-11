@@ -134,6 +134,7 @@ describe("collectStuckRows", () => {
 			"crawlStatus",
 			"contentFetchedAt",
 			"savedAt",
+			"aggregateTransitionName",
 		]) {
 			assert.ok(projection.includes(attr), `ProjectionExpression must include ${attr}`);
 		}
@@ -243,5 +244,30 @@ describe("collectStuckRows", () => {
 		assert.equal(calls[0]?.input.ExclusiveStartKey, undefined);
 		assert.deepEqual(calls[1]?.input.ExclusiveStartKey, { url: "page1.test/a" });
 		assert.equal(stuck.length, 2);
+	});
+
+	it("buckets stuck rows produced by Phase 2 migrated transitions under the -after-aggregate-migration variant (falsifiable measurement)", async () => {
+		const { client } = createFakeClient(() => ({
+			Items: [
+				{
+					url: "example.test/migrated-but-stuck",
+					originalUrl: "https://example.test/migrated-but-stuck",
+					crawlStatus: "pending",
+					savedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
+					aggregateTransitionName: "recrawlTieKeptCanonical",
+				},
+			],
+			Count: 1,
+		}));
+		const stuck = await collectStuckRows({
+			client,
+			tableName: TABLE,
+			origin: ORIGIN,
+			now: () => NOW,
+		});
+		assert.equal(stuck.length, 1);
+		assert.deepEqual(stuck[0]?.reasons, [
+			"crawl-pending-after-aggregate-migration",
+		]);
 	});
 });

@@ -1,4 +1,8 @@
-import type { Article, Effect } from "@packages/domain/article-aggregate";
+import type {
+	Article,
+	ArticleStore,
+	Effect,
+} from "@packages/domain/article-aggregate";
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import { noopLogger } from "@packages/hutch-logger";
 import {
@@ -153,11 +157,11 @@ describe("initRefreshArticleContentHandler (aggregate-driven)", () => {
 		const articleStore = initInMemoryArticleStore();
 		articleStore.seed(seededArticle(URL));
 
-		const wrappedStore = {
+		const wrappedStore: ArticleStore = {
 			load: articleStore.load,
-			save: async (article: Article) => {
-				order.push(`save:${article.summary.kind}`);
-				await articleStore.save(article);
+			save: async (params) => {
+				order.push(`save:${params.article.summary.kind}`);
+				await articleStore.save(params);
 			},
 		};
 		const { dispatchEffect: realDispatch } = initInMemoryEffectDispatcher();

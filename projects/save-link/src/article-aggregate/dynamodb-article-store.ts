@@ -4,6 +4,7 @@ import {
 	SummaryStatusSchema,
 } from "@packages/article-state-types";
 import type {
+	AggregateField,
 	Article,
 	ArticleStore,
 	CrawlState,
@@ -26,6 +27,12 @@ import { ArticleResourceUniqueId } from "../save-link/article-resource-unique-id
  * Fields outside this schema (routeId, originalUrl, content, contentSourceTier)
  * are owned by separate writers and are *not* touched by the aggregate save —
  * the UpdateExpression below only writes the attributes the aggregate models.
+ *
+ * `aggregateTransitionName` is the Phase 2 canary tag: the name of the
+ * transition function that last wrote this row through the aggregate. The
+ * check-stuck-articles scan reads it to bucket stuck rows by migrated vs.
+ * legacy writer; if a row produced by a migrated transition still shows up
+ * stuck a week later, the aggregate hypothesis is wrong and Phase 3+ stops.
  */
 const ArticleAggregateRow = z.object({
 	title: dynamoField(z.string()),
@@ -47,6 +54,7 @@ const ArticleAggregateRow = z.object({
 	summaryOutputTokens: dynamoField(z.number()),
 	summaryFailureReason: dynamoField(z.string()),
 	summarySkippedReason: dynamoField(z.string()),
+	aggregateTransitionName: dynamoField(z.string()),
 });
 
 type RowShape = z.infer<typeof ArticleAggregateRow>;
@@ -122,51 +130,50 @@ function rowToArticle(url: string, row: RowShape): Article {
 	};
 }
 
-/**
- * Build the UpdateExpression that writes the aggregate fields refresh-content
- * mutates today. Only metadata, freshness, estimatedReadTime, and summary are
- * touched — crawl state is loaded into the aggregate for completeness but not
- * written back here, so a concurrent crawl-state writer cannot be clobbered
- * by an aggregate save in Phase 1.
- *
- * Summary fields are written based on the discriminant: a `pending` summary
- * REMOVEs every summary-detail attribute (mirroring the inline UpdateExpression
- * the aggregate replaces) so a row never sits in the inconsistent
- * (status=ready, summary text missing) state that left rows stuck on the
- * forever-polling "Generating summary…" panel.
- */
-function buildSaveCommand(article: Article): {
-	UpdateExpression: string;
-	ExpressionAttributeValues: Record<string, unknown>;
-} {
-	const sets: string[] = [
+function appendMetadataClauses(
+	article: Article,
+	sets: string[],
+	values: Record<string, unknown>,
+): void {
+	sets.push(
 		"title = :title",
 		"siteName = :siteName",
 		"excerpt = :excerpt",
 		"wordCount = :wordCount",
 		"estimatedReadTime = :ert",
+		"imageUrl = :img",
+	);
+	values[":title"] = article.metadata.title;
+	values[":siteName"] = article.metadata.siteName;
+	values[":excerpt"] = article.metadata.excerpt;
+	values[":wordCount"] = article.metadata.wordCount;
+	values[":ert"] = article.estimatedReadTime;
+	values[":img"] = article.metadata.imageUrl ?? null;
+}
+
+function appendFreshnessClauses(
+	article: Article,
+	sets: string[],
+	values: Record<string, unknown>,
+): void {
+	sets.push(
 		"contentFetchedAt = :cfa",
 		"etag = :etag",
 		"lastModified = :lm",
-		"imageUrl = :img",
-	];
+	);
+	values[":cfa"] = article.freshness.contentFetchedAt;
+	values[":etag"] = article.freshness.etag ?? null;
+	values[":lm"] = article.freshness.lastModified ?? null;
+}
 
-	const values: Record<string, unknown> = {
-		":title": article.metadata.title,
-		":siteName": article.metadata.siteName,
-		":excerpt": article.metadata.excerpt,
-		":wordCount": article.metadata.wordCount,
-		":ert": article.estimatedReadTime,
-		":cfa": article.freshness.contentFetchedAt,
-		":etag": article.freshness.etag ?? null,
-		":lm": article.freshness.lastModified ?? null,
-		":img": article.metadata.imageUrl ?? null,
-	};
-
-	const removes: string[] = [];
-
+function appendSummaryClauses(
+	article: Article,
+	sets: string[],
+	removes: string[],
+	values: Record<string, unknown>,
+): void {
+	sets.push("summaryStatus = :summaryStatus");
 	if (article.summary.kind === "pending") {
-		sets.push("summaryStatus = :summaryStatus");
 		values[":summaryStatus"] = "pending";
 		removes.push(
 			"summary",
@@ -177,34 +184,107 @@ function buildSaveCommand(article: Article): {
 			"summaryFailureReason",
 			"summarySkippedReason",
 		);
-	} else if (article.summary.kind === "ready") {
-		sets.push("summaryStatus = :summaryStatus");
-		sets.push("summary = :summary");
+		return;
+	}
+	if (article.summary.kind === "ready") {
+		sets.push(
+			"summary = :summary",
+			"summaryExcerpt = :summaryExcerpt",
+			"summaryInputTokens = :summaryInputTokens",
+			"summaryOutputTokens = :summaryOutputTokens",
+		);
 		values[":summaryStatus"] = "ready";
 		values[":summary"] = article.summary.summary;
-		sets.push("summaryExcerpt = :summaryExcerpt");
 		values[":summaryExcerpt"] = article.summary.excerpt ?? null;
-		sets.push("summaryInputTokens = :summaryInputTokens");
 		values[":summaryInputTokens"] = article.summary.inputTokens ?? null;
-		sets.push("summaryOutputTokens = :summaryOutputTokens");
 		values[":summaryOutputTokens"] = article.summary.outputTokens ?? null;
 		removes.push("summaryFailureReason", "summarySkippedReason");
-	} else if (article.summary.kind === "failed") {
-		sets.push("summaryStatus = :summaryStatus");
+		return;
+	}
+	if (article.summary.kind === "failed") {
 		sets.push("summaryFailureReason = :summaryFailureReason");
 		values[":summaryStatus"] = "failed";
 		values[":summaryFailureReason"] = article.summary.reason;
 		removes.push("summarySkippedReason");
+		return;
+	}
+	values[":summaryStatus"] = "skipped";
+	if (article.summary.reason) {
+		sets.push("summarySkippedReason = :summarySkippedReason");
+		values[":summarySkippedReason"] = article.summary.reason;
 	} else {
-		sets.push("summaryStatus = :summaryStatus");
-		values[":summaryStatus"] = "skipped";
-		if (article.summary.reason) {
-			sets.push("summarySkippedReason = :summarySkippedReason");
-			values[":summarySkippedReason"] = article.summary.reason;
-		} else {
-			removes.push("summarySkippedReason");
-		}
-		removes.push("summaryFailureReason");
+		removes.push("summarySkippedReason");
+	}
+	removes.push("summaryFailureReason");
+}
+
+function appendCrawlClauses(
+	article: Article,
+	sets: string[],
+	removes: string[],
+	values: Record<string, unknown>,
+): void {
+	sets.push("crawlStatus = :crawlStatus");
+	if (article.crawl.kind === "failed") {
+		sets.push("crawlFailureReason = :crawlFailureReason");
+		values[":crawlStatus"] = "failed";
+		values[":crawlFailureReason"] = article.crawl.reason;
+		removes.push("crawlUnsupportedReason");
+		return;
+	}
+	if (article.crawl.kind === "unsupported") {
+		sets.push("crawlUnsupportedReason = :crawlUnsupportedReason");
+		values[":crawlStatus"] = "unsupported";
+		values[":crawlUnsupportedReason"] = article.crawl.reason;
+		removes.push("crawlFailureReason");
+		return;
+	}
+	if (article.crawl.kind === "ready") {
+		values[":crawlStatus"] = "ready";
+		removes.push("crawlFailureReason", "crawlUnsupportedReason", "crawlFailedAt");
+		return;
+	}
+	values[":crawlStatus"] = "pending";
+	removes.push("crawlFailureReason", "crawlUnsupportedReason");
+}
+
+/**
+ * Build the UpdateExpression scoped to the aggregate fields this transition
+ * actually mutated. The `writes` set is the transition's promise to the
+ * storage adapter: any field not in `writes` is left untouched on the row,
+ * so a concurrent inline writer on a different axis is never clobbered by
+ * an aggregate save it didn't intend to.
+ *
+ * `aggregateTransitionName` is written on every save regardless of `writes`
+ * — it is the canary tag, not a domain field, and a non-Phase-2 transition
+ * (refreshContent) writing `"refreshContent"` is correct.
+ */
+function buildSaveCommand(params: {
+	article: Article;
+	transitionName: string;
+	writes: readonly AggregateField[];
+}): {
+	UpdateExpression: string;
+	ExpressionAttributeValues: Record<string, unknown>;
+} {
+	const sets: string[] = ["aggregateTransitionName = :atn"];
+	const removes: string[] = [];
+	const values: Record<string, unknown> = {
+		":atn": params.transitionName,
+	};
+
+	const writesSet = new Set<AggregateField>(params.writes);
+	if (writesSet.has("metadata")) {
+		appendMetadataClauses(params.article, sets, values);
+	}
+	if (writesSet.has("freshness")) {
+		appendFreshnessClauses(params.article, sets, values);
+	}
+	if (writesSet.has("summary")) {
+		appendSummaryClauses(params.article, sets, removes, values);
+	}
+	if (writesSet.has("crawl")) {
+		appendCrawlClauses(params.article, sets, removes, values);
 	}
 
 	const setClause = `SET ${sets.join(", ")}`;
@@ -234,10 +314,13 @@ export function initDynamoDbArticleStore(deps: {
 			if (!row) return undefined;
 			return rowToArticle(url, row);
 		},
-		save: async (article) => {
+		save: async ({ article, transitionName, writes }) => {
 			const articleResourceUniqueId = ArticleResourceUniqueId.parse(article.url);
-			const { UpdateExpression, ExpressionAttributeValues } =
-				buildSaveCommand(article);
+			const { UpdateExpression, ExpressionAttributeValues } = buildSaveCommand({
+				article,
+				transitionName,
+				writes,
+			});
 			await table.update({
 				Key: { url: articleResourceUniqueId.value },
 				UpdateExpression,

@@ -34,7 +34,11 @@ describe("initInMemoryArticleStore", () => {
 			summary: "x",
 		});
 
-		await store.save(article);
+		await store.save({
+			article,
+			transitionName: "exampleTransition",
+			writes: ["metadata", "freshness", "summary"],
+		});
 		const loaded = await store.load("https://example.com/article");
 
 		assert.deepEqual(loaded, article);
@@ -54,7 +58,11 @@ describe("initInMemoryArticleStore", () => {
 		const store = initInMemoryArticleStore();
 		const article = buildArticle("https://example.com/article");
 
-		await store.save(article);
+		await store.save({
+			article,
+			transitionName: "exampleTransition",
+			writes: ["metadata"],
+		});
 		const loaded = await store.load(
 			"https://example.com/article?utm_source=newsletter",
 		);
@@ -65,12 +73,34 @@ describe("initInMemoryArticleStore", () => {
 
 	it("overwrites the previously saved aggregate on a second save (last-writer-wins)", async () => {
 		const store = initInMemoryArticleStore();
-		await store.save(buildArticle("https://example.com/a", { kind: "ready", summary: "old" }));
+		await store.save({
+			article: buildArticle("https://example.com/a", { kind: "ready", summary: "old" }),
+			transitionName: "first",
+			writes: ["summary"],
+		});
 
-		await store.save(buildArticle("https://example.com/a", { kind: "pending" }));
+		await store.save({
+			article: buildArticle("https://example.com/a", { kind: "pending" }),
+			transitionName: "second",
+			writes: ["summary"],
+		});
 		const loaded = await store.load("https://example.com/a");
 
 		assert(loaded, "loaded should not be undefined after save");
 		assert.deepEqual(loaded.summary, { kind: "pending" });
+	});
+
+	it("records each save's transitionName and writes scope so tests can assert what the orchestrator threaded through", async () => {
+		const store = initInMemoryArticleStore();
+
+		await store.save({
+			article: buildArticle("https://example.com/a"),
+			transitionName: "markCrawlExhausted",
+			writes: ["crawl", "summary"],
+		});
+
+		assert.equal(store.savedCalls.length, 1);
+		assert.equal(store.savedCalls[0]?.transitionName, "markCrawlExhausted");
+		assert.deepEqual([...(store.savedCalls[0]?.writes ?? [])], ["crawl", "summary"]);
 	});
 });

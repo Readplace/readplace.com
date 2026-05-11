@@ -4,6 +4,7 @@ import type {
 	ArticleMetadata,
 } from "../article.types";
 import type { Effect } from "../effects.types";
+import type { AggregateField } from "../storage.types";
 
 export interface RefreshContentInput {
 	metadata: ArticleMetadata;
@@ -22,11 +23,19 @@ export interface RefreshContentInput {
  * 2026-05-10 (REMOVE summary attributes but no GenerateSummaryCommand
  * dispatched, leaving the row stuck on "Generating summary…") fails at
  * compile/unit time rather than as a stuck production row.
+ *
+ * `writes` deliberately excludes "crawl" — a concurrent inline crawl writer
+ * must not be clobbered by the refresh aggregate save when the crawl is still
+ * in flight.
  */
 export function refreshContent(
 	article: Article,
 	input: RefreshContentInput,
-): { article: Article; effects: readonly Effect[] } {
+): {
+	article: Article;
+	effects: readonly Effect[];
+	writes: readonly AggregateField[];
+} {
 	const next: Article = {
 		...article,
 		metadata: input.metadata,
@@ -37,5 +46,6 @@ export function refreshContent(
 	const effects: readonly Effect[] = [
 		{ kind: "generate-summary", url: article.url },
 	];
-	return { article: next, effects };
+	const writes: readonly AggregateField[] = ["metadata", "freshness", "summary"];
+	return { article: next, effects, writes };
 }

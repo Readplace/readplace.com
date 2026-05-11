@@ -2,12 +2,16 @@ import assert from "node:assert";
 import type { Article } from "./article.types";
 import type { DispatchEffect } from "./effect-dispatcher.types";
 import type { Effect } from "./effects.types";
-import type { ArticleStore } from "./storage.types";
+import type { AggregateField, ArticleStore } from "./storage.types";
 
 export type Transition<TInput> = (
 	article: Article,
 	input: TInput,
-) => { article: Article; effects: readonly Effect[] };
+) => {
+	article: Article;
+	effects: readonly Effect[];
+	writes: readonly AggregateField[];
+};
 
 export type TransitionAndPersist = <TInput>(
 	transition: Transition<TInput>,
@@ -24,6 +28,11 @@ export type TransitionAndPersist = <TInput>(
  * re-runs the (idempotent) transition, re-saves identical state, and re-
  * dispatches. The summary worker short-circuits on cached `ready` rows so a
  * duplicate `generate-summary` is harmless.
+ *
+ * The transition's runtime `name` (via Function.name) is threaded through to
+ * `store.save` so the storage adapter can tag the row with the most recent
+ * aggregate writer. The Phase 2 canary uses that tag to bucket stuck rows
+ * by migrated vs. legacy writer.
  */
 export function initTransitionAndPersist(deps: {
 	store: ArticleStore;
@@ -37,8 +46,12 @@ export function initTransitionAndPersist(deps: {
 	) => {
 		const existing = await store.load(params.url);
 		assert(existing, `Article aggregate not found for url: ${params.url}`);
-		const { article, effects } = transition(existing, params.input);
-		await store.save(article);
+		const { article, effects, writes } = transition(existing, params.input);
+		await store.save({
+			article,
+			transitionName: transition.name,
+			writes,
+		});
 		for (const effect of effects) {
 			await dispatchEffect(effect);
 		}
