@@ -19,7 +19,6 @@ export {
 	type ProgressTick,
 } from "./progress-mapping";
 export {
-	isSaveableUrl,
 	SaveArticleInputSchema,
 	MAX_RAW_HTML_BYTES,
 	MAX_RAW_HTML_REQUEST_BYTES,
@@ -28,6 +27,17 @@ export {
 	MinutesSchema,
 	ArticleStatusSchema,
 } from "./article.schema";
+export {
+	SaveableUrlSchema,
+	validateSaveableUrl,
+	saveableUrlCodeFromIssues,
+	saveableUrlErrorMessage,
+	type SaveableUrl,
+	type SaveableUrlError,
+	type SaveableUrlErrorCode,
+	type SaveableUrlResult,
+	type ValidateSaveableUrl,
+} from "./saveable-url";
 export { calculateReadTime } from "./estimated-read-time";
 export {
 	ReaderArticleHashId,

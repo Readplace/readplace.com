@@ -17,6 +17,9 @@ interface QueueDisplayModel {
 	pluralSuffix: string;
 	saveError?: string;
 	importFlash?: string;
+	hasImportSkipped: boolean;
+	importSkippedEntries: ReadonlyArray<{ url: string; reasonLabel: string }>;
+	importSkippedAndMore?: number;
 	isEmpty: boolean;
 	hasArticles: boolean;
 	onboardingHtml: string;
@@ -65,6 +68,9 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		pluralSuffix: vm.total !== 1 ? "s" : "",
 		saveError: vm.saveError,
 		importFlash: vm.importFlash,
+		hasImportSkipped: Boolean(vm.importSkipped && vm.importSkipped.entries.length > 0),
+		importSkippedEntries: vm.importSkipped?.entries ?? [],
+		importSkippedAndMore: vm.importSkipped?.andMore,
 		isEmpty: vm.isEmpty,
 		hasArticles: !vm.isEmpty,
 		onboardingHtml,

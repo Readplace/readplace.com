@@ -57,6 +57,7 @@ import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pen
 import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-pending-signup";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initLogParseError, type ParseErrorEvent } from "@packages/hutch-infra-components";
+import { validateSaveableUrl } from "@packages/domain/article";
 import { createApp } from "./server";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import { httpErrorMessageMapping } from "./web/pages/queue/queue.error";
@@ -348,6 +349,7 @@ export function createHutchApp(deps?: {
 	});
 
 	const app = createApp({
+		validateSaveableUrl,
 		appOrigin,
 		staticBaseUrl,
 		...auth,

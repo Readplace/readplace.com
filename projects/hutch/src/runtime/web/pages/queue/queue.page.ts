@@ -8,7 +8,13 @@ import {
 import type { ErrorRequestHandler, Request, Response, Router } from "express";
 import express from "express";
 import type { LogParseError } from "@packages/hutch-infra-components";
-import { SaveArticleInputSchema, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, isSaveableUrl } from "@packages/domain/article";
+import type { ValidateSaveableUrl } from "@packages/domain/article";
+import { SaveArticleInputSchema, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
+import {
+	IMPORT_SKIPPED_COOKIE_NAME,
+	decodeImportSkippedCookie,
+} from "../import/import-skipped-cookie";
+import type { ImportSkippedViewModel } from "./queue.viewmodel";
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
 import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 import type {
@@ -35,7 +41,7 @@ import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.
 import type { PublishLinkSaved } from "@packages/test-fixtures/providers/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/test-fixtures/providers/events";
 import type { PutPendingHtml } from "@packages/test-fixtures/providers/pending-html";
-import { saveArticleFromUrl } from "../../shared/save-article/save-article-from-url";
+import { saveArticleFromUrl, saveUnsaveableUrlStub } from "../../shared/save-article/save-article-from-url";
 import { renderPage } from "../../render-page";
 import { sendComponent } from "../../send-component";
 import { wantsSiren } from "../../content-negotiation";
@@ -62,6 +68,25 @@ import {
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
 
+function readImportSkippedFlash(
+	req: Request,
+	res: Response,
+): ImportSkippedViewModel | undefined {
+	const raw = req.cookies?.[IMPORT_SKIPPED_COOKIE_NAME];
+	const decoded = decodeImportSkippedCookie(raw);
+	if (!decoded || decoded.entries.length === 0) return undefined;
+	/** Cookie is read-once: clear it so a refresh of /queue doesn't keep
+	 * surfacing the "couldn't import" banner. */
+	res.clearCookie(IMPORT_SKIPPED_COOKIE_NAME, { path: "/queue" });
+	return {
+		entries: decoded.entries.map((e) => ({
+			url: e.url,
+			reasonLabel: saveableUrlErrorMessage(e.code),
+		})),
+		andMore: decoded.andMore,
+	};
+}
+
 function markExtensionSavedArticle(res: Response): void {
 	res.cookie(SAVE_COOKIE_NAME, SAVE_COOKIE_VALUE, {
 		path: "/",
@@ -72,6 +97,7 @@ function markExtensionSavedArticle(res: Response): void {
 }
 
 interface QueueDependencies {
+	validateSaveableUrl: ValidateSaveableUrl;
 	findArticlesByUser: FindArticlesByUser;
 	findArticleById: FindArticleById;
 	saveArticle: SaveArticle;
@@ -161,6 +187,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			: (await deps.findArticlesByUser({ userId, status: "unread", page: 1, pageSize: 1 })).total;
 		const saveError = deps.httpErrorMessageMapping(req.query);
 		const importFlash = importFlashMapping(req.query);
+		const importSkipped = readImportSkippedFlash(req, res);
 		const [summaryByUrl, crawlByUrl] = await Promise.all([
 			loadSummaries(deps.findGeneratedSummary, result.articles),
 			loadCrawls(deps.findArticleCrawlStatus, result.articles),
@@ -169,6 +196,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			unreadCount,
 			saveError,
 			importFlash,
+			importSkipped,
 			summaryByUrl,
 			crawlByUrl,
 		});
@@ -200,36 +228,48 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
-		const parsed = SaveArticleInputSchema.safeParse(req.body);
-
-		if (!parsed.success) {
-			res.status(422).type(SIREN_MEDIA_TYPE).json(
-				sirenError({ code: "invalid-url", message: "Please enter a valid URL" }),
-			);
-			return;
-		}
-
+		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
+		const validation = deps.validateSaveableUrl(submittedUrl);
 		const prefersRepresentation = req.get("Prefer") === "return=representation";
-		if (prefersRepresentation && !isSaveableUrl(parsed.data.url)) {
-			/** Non-saveable scheme (chrome://, about:, file:, ...). The crawler can't
-			 * reach these, so a save would only persist a broken stub. Hand the
-			 * client the current collection and let it drop the user back into the
-			 * list view silently. Gated on Prefer: return=representation so old
-			 * extensions (which can't interpret a collection on POST) keep the
-			 * pre-existing stub-save behaviour and don't lock up on 422. */
-			const collection = await deps.findArticlesByUser({ userId });
-			res.status(422).type(SIREN_MEDIA_TYPE).json(
-				toArticleCollectionEntity(collection, {
-					page: collection.page,
-					pageSize: collection.pageSize,
-				}),
-			);
-			return;
+
+		if (validation.status === "ERROR") {
+			if (validation.error.code === "malformed_url") {
+				res.status(422).type(SIREN_MEDIA_TYPE).json(
+					sirenError({ code: "invalid-url", message: validation.error.message }),
+				);
+				return;
+			}
+			if (prefersRepresentation) {
+				/** Scheme/host that the crawler can't reach (chrome://, file:,
+				 * localhost, *.home.arpa, ...). Return the current collection so
+				 * the extension can drop the user back into the list view, and
+				 * surface a `warning` property carrying the failure code + a
+				 * human-readable message that the client can render as a warning
+				 * banner alongside the list. */
+				const collection = await deps.findArticlesByUser({ userId });
+				res.status(422).type(SIREN_MEDIA_TYPE).json(
+					toArticleCollectionEntity(
+						collection,
+						{ page: collection.page, pageSize: collection.pageSize },
+						{ warning: { code: validation.error.code, message: validation.error.message } },
+					),
+				);
+				return;
+			}
+			/** Legacy extension without Prefer header — fall through to the
+			 * pre-validator stub-save behaviour for backwards compatibility. */
 		}
 
 		try {
-			const freshness = await deps.refreshArticleIfStale({ url: parsed.data.url });
-			const result = await saveArticleFromUrl(deps, { userId, url: parsed.data.url, freshness });
+			if (validation.status === "SUCCESS") {
+				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
+				const result = await saveArticleFromUrl(deps, { userId, url: validation.url, freshness });
+				markExtensionSavedArticle(res);
+				res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
+				return;
+			}
+			const freshness = await deps.refreshArticleIfStale({ url: submittedUrl });
+			const result = await saveUnsaveableUrlStub(deps, { userId, url: submittedUrl, freshness });
 			markExtensionSavedArticle(res);
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
@@ -297,16 +337,19 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					(i) => i.code === "too_big" && i.path[i.path.length - 1] === RAW_HTML_FIELD,
 				);
 				const urlOnly = rawHtmlTooBig ? SaveArticleInputSchema.safeParse(req.body) : undefined;
-				if (urlOnly?.success) {
+				const urlOnlyValidation = urlOnly?.success
+					? deps.validateSaveableUrl(urlOnly.data.url)
+					: undefined;
+				if (urlOnlyValidation?.status === "SUCCESS") {
 					const rawHtml: unknown = req.body?.rawHtml;
 					const sizeBytes = typeof rawHtml === "string" ? rawHtml.length : 0;
 					/* logError (not warn) on purpose: feeds the alarm so oversize Tier-0
 					 * captures stay visible — they're the signal for raising MAX_RAW_HTML_BYTES. */
 					deps.logError(
-						`[SaveHtmlOversize] falling back to URL-only url=${urlOnly.data.url} userId=${userId} sizeBytes=${sizeBytes}`,
+						`[SaveHtmlOversize] falling back to URL-only url=${urlOnlyValidation.url} userId=${userId} sizeBytes=${sizeBytes}`,
 					);
-					const freshness = await deps.refreshArticleIfStale({ url: urlOnly.data.url });
-					const result = await saveArticleFromUrl(deps, { userId, url: urlOnly.data.url, freshness });
+					const freshness = await deps.refreshArticleIfStale({ url: urlOnlyValidation.url });
+					const result = await saveArticleFromUrl(deps, { userId, url: urlOnlyValidation.url, freshness });
 					markExtensionSavedArticle(res);
 					res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 					return;
@@ -317,16 +360,25 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				return;
 			}
 
-			const freshness = await deps.refreshArticleIfStale({ url: parsed.data.url });
+			const urlValidation = deps.validateSaveableUrl(parsed.data.url);
+			if (urlValidation.status === "ERROR") {
+				res.status(422).type(SIREN_MEDIA_TYPE).json(
+					sirenError({ code: "invalid-save-html", message: urlValidation.error.message }),
+				);
+				return;
+			}
+			const articleUrl = urlValidation.url;
 
-			await deps.putPendingHtml({ url: parsed.data.url, html: parsed.data.rawHtml });
+			const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
+
+			await deps.putPendingHtml({ url: articleUrl, html: parsed.data.rawHtml });
 			await deps.publishSaveLinkRawHtmlCommand({
-				url: parsed.data.url,
+				url: articleUrl,
 				userId,
 				title: parsed.data.title,
 			});
 
-			const result = await saveArticleFromUrl(deps, { userId, url: parsed.data.url, freshness });
+			const result = await saveArticleFromUrl(deps, { userId, url: articleUrl, freshness });
 			markExtensionSavedArticle(res);
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
@@ -340,9 +392,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	router.post("/save", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
-		const parsedBody = SaveArticleInputSchema.safeParse(req.body);
+		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
+		const validation = deps.validateSaveableUrl(submittedUrl);
 
-		if (!parsedBody.success) {
+		if (validation.status === "ERROR") {
 			const urlState = parseQueueUrl({});
 			const result = await deps.findArticlesByUser({ userId });
 			const unreadCount = (await deps.findArticlesByUser({ userId, status: "unread", page: 1, pageSize: 1 })).total;
@@ -351,7 +404,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				loadCrawls(deps.findArticleCrawlStatus, result.articles),
 			]);
 			const vm = toQueueViewModel(result, urlState, {
-				saveError: "Please enter a valid URL",
+				saveError: validation.error.message,
 				unreadCount,
 				summaryByUrl,
 				crawlByUrl,
@@ -361,8 +414,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 
 		try {
-			const freshness = await deps.refreshArticleIfStale({ url: parsedBody.data.url });
-			await saveArticleFromUrl(deps, { userId, url: parsedBody.data.url, freshness });
+			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
+			await saveArticleFromUrl(deps, { userId, url: validation.url, freshness });
 			res.redirect(303, "/queue#latest-saved");
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);

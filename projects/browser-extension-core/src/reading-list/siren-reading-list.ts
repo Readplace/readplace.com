@@ -10,6 +10,7 @@ import type {
 	GetAllItems,
 	RemoveUrl,
 	SaveUrl,
+	SaveWarning,
 } from "./reading-list.types";
 
 const SIREN_MEDIA_TYPE = "application/vnd.siren+json";
@@ -22,9 +23,14 @@ function assert(value: unknown, message: string): asserts value {
 
 /** Thrown when the server rejects a save by returning the current collection
  * (e.g. for non-saveable URL schemes). Carries the items so the caller can
- * drop the user back into the list view without a re-fetch. */
+ * drop the user back into the list view without a re-fetch. The optional
+ * `warning` mirrors `properties.warning` on the Siren collection so the popup
+ * can surface a human-readable reason next to the list. */
 class NotSaveableError extends Error {
-	constructor(public readonly items: ReadingListItem[]) {
+	constructor(
+		public readonly items: ReadingListItem[],
+		public readonly warning?: SaveWarning,
+	) {
 		super("URL not saveable");
 	}
 }
@@ -69,6 +75,11 @@ const SirenErrorSchema = z.object({
 type SirenAction = z.infer<typeof SirenActionSchema>;
 type SirenSubEntity = z.infer<typeof SirenSubEntitySchema>;
 
+const SirenWarningSchema = z.object({
+	code: z.string(),
+	message: z.string(),
+});
+
 const SirenCollectionResponseSchema = z.object({
 	class: z.array(z.string()).optional(),
 	properties: z.record(z.string(), z.unknown()).optional(),
@@ -76,6 +87,15 @@ const SirenCollectionResponseSchema = z.object({
 	links: z.array(SirenLinkSchema).optional(),
 	actions: z.array(SirenActionSchema).optional(),
 });
+
+function extractCollectionWarning(
+	body: SirenCollectionResponse,
+): SaveWarning | undefined {
+	const warning = body.properties?.warning;
+	if (warning === undefined) return undefined;
+	const parsed = SirenWarningSchema.safeParse(warning);
+	return parsed.success ? parsed.data : undefined;
+}
 
 type SirenCollectionResponse = z.infer<typeof SirenCollectionResponseSchema>;
 
@@ -111,7 +131,7 @@ export type ArticleItem = ReadingListItem & {
 };
 
 function findLinkHref(entity: SirenSubEntity, rel: string): string | undefined {
-	return entity.links?.find((link) => link.rel.includes(rel))?.href;
+	return entity.links?.find((link) => link.rel.includes(rel))?.href; /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range inside ?.find()?. chained optionals (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 }
 
 function toReadingListItem(
@@ -154,12 +174,15 @@ export function initSaveArticleUnderstanding(): Map<string, ActionHandler> {
 			if (!response.ok) {
 				/** Server may reject a save by returning the current collection
 				 * (e.g. non-saveable URL scheme). Surface those items via
-				 * NotSaveableError so saveUrl can drop the user back into the list. */
+				 * NotSaveableError so saveUrl can drop the user back into the list,
+				 * plus the optional `properties.warning` so the popup can render
+				 * a banner explaining why nothing was saved. */
 				const body = await response.json().catch(() => null);
 				const collection = SirenCollectionResponseSchema.safeParse(body);
 				if (collection.success && collection.data.class?.includes("collection")) {
 					throw new NotSaveableError(
 						context.parseCollection(collection.data).items,
+						extractCollectionWarning(collection.data),
 					);
 				}
 				throw new Error(`Save failed: ${response.status}`);
@@ -510,7 +533,13 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 			return { ok: true, item };
 		} catch (err) {
 			if (err instanceof NotSaveableError) {
-				return { ok: false, reason: "not-saveable", items: err.items };
+				const failure: { ok: false; reason: "not-saveable"; items: ReadingListItem[]; warning?: SaveWarning } = {
+					ok: false,
+					reason: "not-saveable",
+					items: err.items,
+				};
+				if (err.warning) failure.warning = err.warning;
+				return failure;
 			}
 			throw err;
 		}

@@ -9,6 +9,7 @@
   --popup-surface: #F4F5F8;
   --popup-placeholder: #8C919D;
   --popup-error: #C45C5C;
+  --popup-warning: #C8923C;
   --popup-link-hover: #996D1F;
   --popup-delete: #5B5B66;
   --popup-delete-hover-bg: #FFE4E4;
@@ -38,6 +39,7 @@
     --popup-surface: #1E2A3A;
     --popup-placeholder: #556070;
     --popup-error: #E87070;
+    --popup-warning: #D4A04A;
     --popup-link-hover: #D4A04A;
     --popup-delete: #6A7080;
     --popup-delete-hover-bg: #3D1F1F;
@@ -577,6 +579,15 @@ body {
   text-align: center;
   padding: 32px 16px;
   font-size: 13px;
+}
+
+.list-view__warning {
+  margin: 8px 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+  border-left: 3px solid var(--popup-warning, var(--popup-error));
+  background: color-mix(in srgb, var(--popup-warning, var(--popup-error)) 12%, transparent);
+  color: var(--popup-text);
 }
 
 .login__error {

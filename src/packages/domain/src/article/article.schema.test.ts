@@ -3,7 +3,6 @@ import {
 	SaveHtmlInputSchema,
 	ArticleStatusSchema,
 	MinutesSchema,
-	isSaveableUrl,
 } from "./article.schema";
 
 describe("SaveArticleInputSchema", () => {
@@ -23,24 +22,6 @@ describe("SaveArticleInputSchema", () => {
 		const result = SaveArticleInputSchema.safeParse({ url: "not-a-url" });
 
 		expect(result.success).toBe(false);
-	});
-});
-
-describe("isSaveableUrl", () => {
-	it("returns true for http URLs", () => {
-		expect(isSaveableUrl("http://example.com")).toBe(true);
-	});
-
-	it("returns true for https URLs", () => {
-		expect(isSaveableUrl("https://example.com")).toBe(true);
-	});
-
-	it("returns false for file:// URLs", () => {
-		expect(isSaveableUrl("file:///tmp/x.html")).toBe(false);
-	});
-
-	it("returns false for chrome:// URLs", () => {
-		expect(isSaveableUrl("chrome://settings")).toBe(false);
 	});
 });
 

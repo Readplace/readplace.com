@@ -10,6 +10,20 @@
       </form>
       {{#if saveError}}<p class="queue__save-error" data-test-save-error>{{saveError}}</p>{{/if}}
       {{#if importFlash}}<p class="queue__import-flash" data-test-import-flash>{{importFlash}}</p>{{/if}}
+      {{#if hasImportSkipped}}
+      <div class="queue__import-skipped" data-test-import-skipped role="status">
+        <p class="queue__import-skipped-title">Couldn't import these links:</p>
+        <ul class="queue__import-skipped-list">
+          {{#each importSkippedEntries}}
+          <li class="queue__import-skipped-row" data-test-import-skipped-row>
+            <span class="queue__import-skipped-reason" data-test-import-skipped-reason>{{reasonLabel}}</span>
+            <span class="queue__import-skipped-url" data-test-import-skipped-url>{{url}}</span>
+          </li>
+          {{/each}}
+        </ul>
+        {{#if importSkippedAndMore}}<p class="queue__import-skipped-more" data-test-import-skipped-more>And {{importSkippedAndMore}} more.</p>{{/if}}
+      </div>
+      {{/if}}
       <nav class="queue__filters" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-filters>
         <a class="{{filterUnreadClass}}" href="{{filterUnreadUrl}}" data-test-filter="unread">{{filterUnreadLabel}}</a>
         <a class="{{filterReadClass}}" href="{{filterReadUrl}}" data-test-filter="read">Done</a>

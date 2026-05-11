@@ -1763,6 +1763,71 @@ describe("initSirenReadingList", () => {
 			expect(items[0].url).toBe("https://example.com/existing");
 		});
 
+		it("propagates the server warning from properties.warning to the caller", async () => {
+			const collectionBody = JSON.stringify({
+				class: ["collection", "articles"],
+				properties: {
+					warning: {
+						code: "unsupported_scheme",
+						message: "Only http and https URLs can be saved",
+					},
+				},
+				entities: [],
+				links: [{ rel: ["self"], href: "/queue" }],
+				actions: COLLECTION_ACTIONS,
+			});
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+					"POST http://localhost:3000/queue": {
+						status: 422,
+						body: collectionBody,
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			const result = await list.saveUrl({
+				url: "chrome://newtab/",
+				title: "New Tab",
+			});
+			assert.equal(result.ok, false);
+			const warning = (
+				result as Extract<typeof result, { reason: "not-saveable" }>
+			).warning;
+			expect(warning).toEqual({
+				code: "unsupported_scheme",
+				message: "Only http and https URLs can be saved",
+			});
+		});
+
+		it("omits the warning when the collection body has no warning property", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+					"POST http://localhost:3000/queue": {
+						status: 422,
+						body: collectionResponse(),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			const result = await list.saveUrl({
+				url: "chrome://newtab/",
+				title: "New Tab",
+			});
+			assert.equal(result.ok, false);
+			const warning = (
+				result as Extract<typeof result, { reason: "not-saveable" }>
+			).warning;
+			expect(warning).toBeUndefined();
+		});
+
 		it("should throw when collection fetch fails during action discovery", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({

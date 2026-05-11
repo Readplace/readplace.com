@@ -94,6 +94,58 @@ describe("Queue routes", () => {
 			expect(doc.querySelector("[data-test-save-error]")?.textContent).toBe("Please enter a valid URL");
 		});
 
+		it("rejects a chrome:// URL with an unsupported-scheme message and never saves", async () => {
+			const { app, auth, articleStore } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(app, auth);
+
+			const response = await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: "chrome://extensions/" });
+
+			expect(response.status).toBe(422);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-save-error]")?.textContent).toMatch(/http/);
+
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert.ok(userId);
+			const stored = await articleStore.findArticlesByUser({ userId });
+			expect(stored.articles).toHaveLength(0);
+		});
+
+		it("rejects a localhost URL with a private-network message and never saves", async () => {
+			const { app, auth, articleStore } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(app, auth);
+
+			const response = await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: "http://localhost:3000/queue" });
+
+			expect(response.status).toBe(422);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-save-error]")?.textContent).toMatch(/[Pp]rivate-network/);
+
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert.ok(userId);
+			const stored = await articleStore.findArticlesByUser({ userId });
+			expect(stored.articles).toHaveLength(0);
+		});
+
+		it("rejects a .home.arpa URL with a private-network message", async () => {
+			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(app, auth);
+
+			const response = await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: "http://router.home.arpa/" });
+
+			expect(response.status).toBe(422);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-save-error]")?.textContent).toMatch(/[Pp]rivate-network/);
+		});
+
 		it("should redirect with error code when save throws", async () => {
 			const { app, auth } = createTestApp({
 				...createDefaultTestAppFixture(TEST_APP_ORIGIN),

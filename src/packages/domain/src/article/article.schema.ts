@@ -1,15 +1,6 @@
 import { z } from "zod";
 import type { Minutes } from "./article.types";
 
-/** Schemes the crawler can fetch. Other schemes (chrome://, about:, file://, ...)
- * fail at fetch time, so the save endpoint short-circuits them upstream.
- * Caller must have validated `url` is parseable via SaveArticleInputSchema first. */
-const SAVEABLE_URL_SCHEMES: readonly string[] = ["http:", "https:"];
-
-export function isSaveableUrl(url: string): boolean {
-	return SAVEABLE_URL_SCHEMES.includes(new URL(url).protocol);
-}
-
 export const SaveArticleInputSchema = z.object({
 	url: z.url({ message: "Please enter a valid URL" }),
 });

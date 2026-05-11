@@ -3,10 +3,20 @@ import type {
 	ReadingListItemId,
 } from "../domain/reading-list-item.types";
 
+export interface SaveWarning {
+	readonly code: string;
+	readonly message: string;
+}
+
 export type SaveUrlResult =
 	| { ok: true; item: ReadingListItem }
 	| { ok: false; reason: "already-saved" }
-	| { ok: false; reason: "not-saveable"; items: ReadingListItem[] };
+	| {
+			ok: false;
+			reason: "not-saveable";
+			items: ReadingListItem[];
+			warning?: SaveWarning;
+	  };
 
 export type RemoveUrlResult =
 	| { ok: true; items: ReadingListItem[] }

@@ -18,5 +18,12 @@ export const importFlashMapping: ImportFlashMapping = (query) => {
 	const imported = Number.parseInt(importedRaw, 10);
 	const total = Number.parseInt(totalRaw, 10);
 	if (!Number.isFinite(imported) || !Number.isFinite(total)) return undefined;
-	return `Imported ${imported} of ${total} link${total === 1 ? "" : "s"}.`;
+	const skippedRaw = query.import_skipped;
+	const skipped =
+		typeof skippedRaw === "string" ? Number.parseInt(skippedRaw, 10) : 0;
+	const base = `Imported ${imported} of ${total} link${total === 1 ? "" : "s"}.`;
+	if (Number.isFinite(skipped) && skipped > 0) {
+		return `${base} Skipped ${skipped} link${skipped === 1 ? "" : "s"} that couldn't be imported.`;
+	}
+	return base;
 };

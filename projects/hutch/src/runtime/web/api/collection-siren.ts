@@ -14,6 +14,11 @@ interface CollectionQueryParams {
 	url?: string;
 }
 
+export interface CollectionWarning {
+	readonly code: string;
+	readonly message: string;
+}
+
 function buildQueryString(params: CollectionQueryParams): string {
 	const search = new URLSearchParams();
 	if (params.status) search.set("status", params.status);
@@ -28,6 +33,7 @@ function buildQueryString(params: CollectionQueryParams): string {
 export function toArticleCollectionEntity(
 	result: FindArticlesResult,
 	queryParams: CollectionQueryParams,
+	options?: { warning?: CollectionWarning },
 ): SirenEntity {
 	const { articles, total, page, pageSize } = result;
 	const totalPages = Math.ceil(total / pageSize);
@@ -51,13 +57,12 @@ export function toArticleCollectionEntity(
 		});
 	}
 
+	const properties: Record<string, unknown> = { total, page, pageSize };
+	if (options?.warning) properties.warning = options.warning;
+
 	return {
 		class: ["collection", "articles"],
-		properties: {
-			total,
-			page,
-			pageSize,
-		},
+		properties,
 		entities: articles.map(toArticleSubEntity),
 		links,
 		actions: [

@@ -1351,6 +1351,38 @@ describe("View routes", () => {
 			expect(meta?.getAttribute("content")).toBe("5;url=/");
 		});
 
+		it("renders the save-error page when GET /view/<chrome://...> and never saves an anonymous stub", async () => {
+			const { app, articleStore } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(app).get(
+				`/view/${encodeURIComponent("chrome://extensions/")}`,
+			);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const meta = doc.querySelector('meta[http-equiv="refresh"]');
+			expect(meta?.getAttribute("content")).toBe("5;url=/");
+
+			const stored = await articleStore.findArticleByUrl("chrome://extensions/");
+			expect(stored).toBeFalsy();
+		});
+
+		it("renders the save-error page when GET /view/<localhost> and never saves an anonymous stub", async () => {
+			const { app, articleStore } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(app).get(
+				`/view/${encodeURIComponent("http://localhost:3000/queue")}`,
+			);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const meta = doc.querySelector('meta[http-equiv="refresh"]');
+			expect(meta?.getAttribute("content")).toBe("5;url=/");
+
+			const stored = await articleStore.findArticleByUrl("http://localhost:3000/queue");
+			expect(stored).toBeFalsy();
+		});
+
 		it("renders the reader-failed slot with the Save action when the async crawl fails on a cache miss", async () => {
 			const parseArticle: ParseArticle = async () => ({
 				ok: false,

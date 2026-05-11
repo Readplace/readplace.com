@@ -8,6 +8,7 @@ export type {
 } from "./domain/reading-list-item.types";
 export type {
 	SaveUrlResult,
+	SaveWarning,
 	RemoveUrlResult,
 } from "./reading-list/reading-list.types";
 export type {

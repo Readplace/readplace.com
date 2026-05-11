@@ -1,4 +1,4 @@
-import { ReaderArticleHashIdSchema } from "@packages/domain/article";
+import { ReaderArticleHashIdSchema, SaveableUrlSchema } from "@packages/domain/article";
 import { MinutesSchema } from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
@@ -9,12 +9,13 @@ import {
 
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const articleId = ReaderArticleHashIdSchema.parse("0123456789abcdef0123456789abcdef");
+const exampleUrl = SaveableUrlSchema.parse("https://example.com/post");
 
 function makeSaved(overrides: Partial<SavedArticle> = {}): SavedArticle {
 	return {
 		id: articleId,
 		userId,
-		url: "https://example.com/post",
+		url: exampleUrl,
 		metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
 		estimatedReadTime: MinutesSchema.parse(0),
 		status: "unread",
@@ -73,7 +74,7 @@ describe("saveArticleFromUrl", () => {
 
 		await saveArticleFromUrl(tracker.deps, {
 			userId,
-			url: "https://example.com/post",
+			url: exampleUrl,
 			freshness: { action: "new" },
 		});
 
@@ -91,7 +92,7 @@ describe("saveArticleFromUrl", () => {
 
 		await saveArticleFromUrl(tracker.deps, {
 			userId,
-			url: "https://example.com/post",
+			url: exampleUrl,
 			freshness: { action: "reprime" },
 		});
 
@@ -104,7 +105,7 @@ describe("saveArticleFromUrl", () => {
 
 		await saveArticleFromUrl(tracker.deps, {
 			userId,
-			url: "https://example.com/post",
+			url: exampleUrl,
 			freshness: {
 				action: "refreshed",
 				article: {
@@ -130,7 +131,7 @@ describe("saveArticleFromUrl", () => {
 
 		await saveArticleFromUrl(tracker.deps, {
 			userId,
-			url: "https://example.com/post",
+			url: exampleUrl,
 			freshness: {
 				action: "refreshed",
 				article: {
@@ -155,7 +156,7 @@ describe("saveArticleFromUrl", () => {
 
 		await saveArticleFromUrl(tracker.deps, {
 			userId,
-			url: "https://example.com/post",
+			url: exampleUrl,
 			freshness: { action: "skip" },
 		});
 
@@ -169,7 +170,7 @@ describe("saveArticleFromUrl", () => {
 
 		const result = await saveArticleFromUrl(tracker.deps, {
 			userId,
-			url: "https://example.com/post",
+			url: exampleUrl,
 			freshness: { action: "new" },
 		});
 

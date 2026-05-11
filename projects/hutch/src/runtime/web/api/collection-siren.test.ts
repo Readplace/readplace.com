@@ -225,4 +225,39 @@ describe("toArticleCollectionEntity", () => {
 		]);
 	});
 
+	it("attaches a warning to properties when one is provided", () => {
+		const result: FindArticlesResult = {
+			articles: [],
+			total: 0,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(
+			result,
+			{},
+			{ warning: { code: "unsupported_scheme", message: "Only http and https URLs can be saved" } },
+		);
+
+		expect(entity.properties).toMatchObject({
+			warning: {
+				code: "unsupported_scheme",
+				message: "Only http and https URLs can be saved",
+			},
+		});
+	});
+
+	it("omits warning from properties when no option is provided", () => {
+		const result: FindArticlesResult = {
+			articles: [],
+			total: 0,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, {});
+
+		expect(entity.properties).not.toHaveProperty("warning");
+	});
+
 });

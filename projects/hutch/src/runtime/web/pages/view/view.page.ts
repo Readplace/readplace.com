@@ -1,11 +1,11 @@
 import assert from "node:assert";
 import type { Request, Response, Router } from "express";
 import express from "express";
-import { z } from "zod";
 import type {
 	ArticleMetadata,
 	Minutes,
 } from "@packages/domain/article";
+import type { ValidateSaveableUrl } from "@packages/domain/article";
 import { calculateReadTime } from "@packages/domain/article";
 import type {
 	FindArticleByUrl,
@@ -38,9 +38,8 @@ import { SaveErrorPage } from "../save/save-error.component";
 import { ViewLandingPage } from "./view-landing.component";
 import { ViewPage, type ViewAction } from "./view.component";
 
-const ViewUrlSchema = z.url();
-
 interface ViewDependencies {
+	validateSaveableUrl: ValidateSaveableUrl;
 	findArticleByUrl: FindArticleByUrl;
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
@@ -70,19 +69,21 @@ function pollUrlBuilderFor(articleUrl: string): PollUrlBuilder {
 	};
 }
 
-function handleViewLanding(req: Request, res: Response) {
-	const submittedUrl =
-		typeof req.query.url === "string" ? req.query.url : undefined;
-	if (submittedUrl === undefined) {
-		sendComponent(req, res, renderPage(req, ViewLandingPage()));
-		return;
-	}
-	const parsed = ViewUrlSchema.safeParse(submittedUrl);
-	if (!parsed.success) {
-		renderError(req, res);
-		return;
-	}
-	res.redirect(302, `/view/${encodeURIComponent(parsed.data)}`);
+function handleViewLanding(deps: ViewDependencies) {
+	return (req: Request, res: Response) => {
+		const submittedUrl =
+			typeof req.query.url === "string" ? req.query.url : undefined;
+		if (submittedUrl === undefined) {
+			sendComponent(req, res, renderPage(req, ViewLandingPage()));
+			return;
+		}
+		const validation = deps.validateSaveableUrl(submittedUrl);
+		if (validation.status === "ERROR") {
+			renderError(req, res);
+			return;
+		}
+		res.redirect(302, `/view/${encodeURIComponent(validation.url)}`);
+	};
 }
 
 function handleViewArticle(deps: ViewDependencies) {
@@ -96,12 +97,12 @@ function handleViewArticle(deps: ViewDependencies) {
 		// /view/https%3A%2F%2Fexample.com arrives here as /view/https://example.com.
 		// Restore the scheme's second slash if any proxy collapsed it (https:/ → https://).
 		const normalizedUrl = rawPath.replace(/^(https?):\/(?!\/)/i, "$1://");
-		const parsedUrl = ViewUrlSchema.safeParse(normalizedUrl);
-		if (!parsedUrl.success) {
+		const validation = deps.validateSaveableUrl(normalizedUrl);
+		if (validation.status === "ERROR") {
 			renderError(req, res);
 			return;
 		}
-		const articleUrl = parsedUrl.data;
+		const articleUrl = validation.url;
 
 		// Freshness/conditional-GET is delegated to the stale-check Lambda so
 		// /view never blocks on a remote crawl (Medium-hosted articles can take
@@ -189,12 +190,12 @@ function handleViewArticle(deps: ViewDependencies) {
 function handleViewSummary(deps: ViewDependencies) {
 	const reader = initArticleReader(deps);
 	return async (req: Request, res: Response): Promise<void> => {
-		const parsed = ViewUrlSchema.safeParse(req.query.url);
-		if (!parsed.success) {
+		const validation = deps.validateSaveableUrl(req.query.url);
+		if (validation.status === "ERROR") {
 			res.status(400).type("html").send("");
 			return;
 		}
-		const articleUrl = parsed.data;
+		const articleUrl = validation.url;
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
@@ -208,12 +209,12 @@ function handleViewSummary(deps: ViewDependencies) {
 function handleViewReader(deps: ViewDependencies) {
 	const reader = initArticleReader(deps);
 	return async (req: Request, res: Response): Promise<void> => {
-		const parsed = ViewUrlSchema.safeParse(req.query.url);
-		if (!parsed.success) {
+		const validation = deps.validateSaveableUrl(req.query.url);
+		if (validation.status === "ERROR") {
 			res.status(400).type("html").send("");
 			return;
 		}
-		const articleUrl = parsed.data;
+		const articleUrl = validation.url;
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleReaderPoll({
 			articleUrl,
@@ -228,7 +229,7 @@ function handleViewReader(deps: ViewDependencies) {
 export function initViewRoutes(deps: ViewDependencies): Router {
 	const router = express.Router();
 
-	router.get("/", handleViewLanding);
+	router.get("/", handleViewLanding(deps));
 	router.get("/summary", handleViewSummary(deps));
 	router.get("/reader", handleViewReader(deps));
 	router.get<string, Record<string, string>>("/*", handleViewArticle(deps));

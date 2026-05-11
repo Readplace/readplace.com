@@ -2,7 +2,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { noopLogger } from "@packages/hutch-logger";
-import { calculateReadTime } from "@packages/domain/article";
+import { calculateReadTime, validateSaveableUrl } from "@packages/domain/article";
 import type { BotDefenseEvent } from "./providers/auth/bot-defense.types";
 import type { ParseArticle } from "./providers/article-parser/article-parser.types";
 import { initReadabilityParser } from "./providers/article-parser/readability-parser";
@@ -297,6 +297,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			importSessionStore: initInMemoryImportSession({ now: () => new Date() }),
 		},
 		shared: {
+			validateSaveableUrl,
 			appOrigin,
 			staticBaseUrl: "https://static.test",
 			httpErrorMessageMapping,

@@ -44,6 +44,11 @@ export interface QueueArticleViewModel {
 	cardPollUrl?: string;
 }
 
+export interface ImportSkippedViewModel {
+	readonly entries: ReadonlyArray<{ readonly url: string; readonly reasonLabel: string }>;
+	readonly andMore: number;
+}
+
 export interface QueueViewModel {
 	articles: QueueArticleViewModel[];
 	filters: QueueUrlState;
@@ -62,6 +67,7 @@ export interface QueueViewModel {
 	};
 	saveError?: string;
 	importFlash?: string;
+	importSkipped?: ImportSkippedViewModel;
 }
 
 /**
@@ -171,6 +177,7 @@ export function toQueueViewModel(
 		now?: Date;
 		saveError?: string;
 		importFlash?: string;
+		importSkipped?: ImportSkippedViewModel;
 		unreadCount?: number;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
@@ -217,5 +224,6 @@ export function toQueueViewModel(
 		},
 		saveError: options?.saveError,
 		importFlash: options?.importFlash,
+		importSkipped: options?.importSkipped,
 	};
 }

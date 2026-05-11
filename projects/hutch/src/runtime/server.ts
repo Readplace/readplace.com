@@ -80,6 +80,7 @@ import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { initSaveRoutes } from "./web/pages/save/save.page";
+import type { ValidateSaveableUrl } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
 import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
 import { initEmbedRoutes } from "./web/pages/embed/embed.page";
@@ -105,6 +106,7 @@ import "./web/session.types";
 export const PORT = requireEnv("PORT", { defaultValue: "3000" });
 
 interface AppDependencies {
+	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
 	staticBaseUrl: string;
 	createUser: CreateUser;
@@ -449,6 +451,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 
 	const queueRouter = initQueueRoutes({
+		validateSaveableUrl: deps.validateSaveableUrl,
 		findArticlesByUser: deps.findArticlesByUser,
 		findArticleById: deps.findArticleById,
 		saveArticle: deps.saveArticle,
@@ -472,6 +475,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use("/queue", extensionCors, dualAuthMiddleware, queueRouter);
 
 	const importRouter = initImportSessionRoutes({
+		validateSaveableUrl: deps.validateSaveableUrl,
 		importSessionStore: deps.importSessionStore,
 		saveArticle: deps.saveArticle,
 		updateArticleStatus: deps.updateArticleStatus,
@@ -488,6 +492,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use("/save", saveRouter);
 
 	const viewRouter = initViewRoutes({
+		validateSaveableUrl: deps.validateSaveableUrl,
 		findArticleByUrl: deps.findArticleByUrl,
 		readArticleContent: deps.readArticleContent,
 		findGeneratedSummary: deps.findGeneratedSummary,

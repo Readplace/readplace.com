@@ -17,6 +17,7 @@ import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pen
 import { createOAuthModel, initInMemoryOAuthModel } from "@packages/test-fixtures/providers/oauth";
 import { createValidateAccessToken } from "@packages/test-fixtures/providers/oauth";
 import { initInMemoryImportSession } from "@packages/test-fixtures/providers/import-session";
+import { validateSaveableUrl } from "@packages/domain/article";
 import { createApp } from "../../server";
 import { httpErrorMessageMapping } from "../pages/queue/queue.error";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
@@ -57,6 +58,7 @@ describe("Email verification", () => {
 			});
 
 			const app = createApp({
+				validateSaveableUrl,
 				adminEmails: [],
 				recrawlServiceToken: "test-service-token-abcdefghij",
 				appOrigin: "http://localhost:3000",

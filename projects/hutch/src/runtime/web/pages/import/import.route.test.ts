@@ -21,6 +21,12 @@ function summaryText(doc: Document): string {
 	return doc.querySelector("[data-test-import-summary]")?.textContent?.replace(/\s+/g, " ").trim() ?? "";
 }
 
+function findCookie(headers: { [key: string]: string | string[] | undefined }, prefix: string): string | undefined {
+	const raw = headers["set-cookie"];
+	const cookies = Array.isArray(raw) ? raw : raw ? [raw] : [];
+	return cookies.find((c) => c.startsWith(prefix));
+}
+
 function multipartBody(filename: string, content: Buffer): { body: Buffer; contentType: string } {
 	const boundary = "----TestBoundary123456";
 	const head = Buffer.from(
@@ -507,7 +513,7 @@ describe("Import routes", () => {
 			const commit = await agent.post(`${sessionPath}/commit`);
 
 			expect(commit.status).toBe(303);
-			expect(commit.headers.location).toBe("/queue?import_imported=2&import_total=3");
+			expect(commit.headers.location).toBe("/queue?import_imported=2&import_total=3&import_skipped=0");
 
 			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
 			assert(userId, "user must exist");
@@ -538,6 +544,83 @@ describe("Import routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/import?feature=import&error_code=import_session_not_found");
+		});
+
+		it("skips non-saveable URLs, imports the rest, and reports skipped count in the redirect", async () => {
+			const { app, auth, articleStore } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(app, auth);
+			const file = Buffer.from(
+				"https://example.com/a http://localhost:3000/queue http://router.home.arpa/ https://example.com/b",
+			);
+			const { body, contentType } = multipartBody("urls.txt", file);
+			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const sessionPath = create.headers.location;
+
+			const commit = await agent.post(`${sessionPath}/commit`);
+
+			expect(commit.status).toBe(303);
+			expect(commit.headers.location).toBe(
+				"/queue?import_imported=2&import_total=4&import_skipped=2",
+			);
+			const skippedCookie = findCookie(commit.headers, "import_skipped=");
+			assert(skippedCookie, "import_skipped cookie must be set when skips exist");
+
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId);
+			const stored = await articleStore.findArticlesByUser({ userId });
+			const urls = stored.articles.map((a) => a.url).sort();
+			expect(urls).toEqual(["https://example.com/a", "https://example.com/b"]);
+		});
+
+		it("does not set the import_skipped cookie when every URL is saveable", async () => {
+			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(app, auth);
+			const file = Buffer.from("https://example.com/a https://example.com/b");
+			const { body, contentType } = multipartBody("urls.txt", file);
+			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const sessionPath = create.headers.location;
+
+			const commit = await agent.post(`${sessionPath}/commit`);
+
+			expect(commit.status).toBe(303);
+			expect(commit.headers.location).toBe(
+				"/queue?import_imported=2&import_total=2&import_skipped=0",
+			);
+			const skippedCookie = findCookie(commit.headers, "import_skipped=");
+			expect(skippedCookie).toBeUndefined();
+		});
+
+		it("renders the skipped URLs on /queue after commit and clears the cookie on first view", async () => {
+			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(app, auth);
+			const file = Buffer.from(
+				"https://example.com/a http://localhost/secret http://router.home.arpa/",
+			);
+			const { body, contentType } = multipartBody("urls.txt", file);
+			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const sessionPath = create.headers.location;
+
+			await agent.post(`${sessionPath}/commit`);
+
+			const queueResponse = await agent.get(
+				"/queue?import_imported=1&import_total=3&import_skipped=2",
+			);
+			const doc = new JSDOM(queueResponse.text).window.document;
+			const skipped = doc.querySelectorAll("[data-test-import-skipped-row]");
+			expect(skipped.length).toBe(2);
+			const urls = Array.from(skipped).map(
+				(row) => row.querySelector("[data-test-import-skipped-url]")?.textContent,
+			);
+			expect(urls).toContain("http://localhost/secret");
+			expect(urls).toContain("http://router.home.arpa/");
+
+			const clearCookie = findCookie(queueResponse.headers, "import_skipped=");
+			assert(clearCookie, "queue must clear the import_skipped cookie");
+			expect(clearCookie).toMatch(/Expires=Thu, 01 Jan 1970/);
+
+			const again = await agent.get("/queue");
+			const docAgain = new JSDOM(again.text).window.document;
+			expect(docAgain.querySelectorAll("[data-test-import-skipped-row]").length).toBe(0);
 		});
 	});
 });

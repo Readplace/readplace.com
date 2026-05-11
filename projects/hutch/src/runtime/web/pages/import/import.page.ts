@@ -11,9 +11,14 @@ import {
 	MAX_IMPORT_FILE_BYTES,
 } from "@packages/domain/import-session";
 import type { ImportSessionStore } from "@packages/domain/import-session";
+import type { ValidateSaveableUrl, SaveableUrl, SaveableUrlErrorCode } from "@packages/domain/article";
 import { renderPage } from "../../render-page";
 import { sendComponent } from "../../send-component";
 import { saveArticleFromUrl, type SaveArticleFromUrlDependencies } from "../../shared/save-article/save-article-from-url";
+import {
+	IMPORT_SKIPPED_COOKIE_NAME,
+	encodeImportSkippedCookie,
+} from "./import-skipped-cookie";
 import { ImportPage, ImportUploadPage } from "./import.component";
 import { importErrorMessageMapping } from "./import.error";
 import { toImportUploadViewModel, toImportViewModel } from "./import.viewmodel";
@@ -21,6 +26,7 @@ import { initMultipartUpload } from "./multipart-upload";
 import { parseImportPage } from "./import.url";
 
 interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
+	validateSaveableUrl: ValidateSaveableUrl;
 	importSessionStore: ImportSessionStore;
 	logError: (message: string, error?: Error) => void;
 }
@@ -168,9 +174,19 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		assert(allUrls, "session row was found but URL chunks missing");
 
 		const selected = allUrls.filter((_url, i) => !session.deselected.has(i));
+		const saveable: SaveableUrl[] = [];
+		const skipped: Array<{ url: string; code: SaveableUrlErrorCode }> = [];
+		for (const url of selected) {
+			const validation = deps.validateSaveableUrl(url);
+			if (validation.status === "SUCCESS") {
+				saveable.push(validation.url);
+			} else {
+				skipped.push({ url, code: validation.error.code });
+			}
+		}
 
-		for (let i = 0; i < selected.length; i += IMPORT_COMMIT_CONCURRENCY) {
-			const batch = selected.slice(i, i + IMPORT_COMMIT_CONCURRENCY);
+		for (let i = 0; i < saveable.length; i += IMPORT_COMMIT_CONCURRENCY) {
+			const batch = saveable.slice(i, i + IMPORT_COMMIT_CONCURRENCY);
 			await Promise.all(
 				batch.map((url) =>
 					deps
@@ -188,9 +204,22 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 
 		await deps.importSessionStore.deleteImportSession({ id: parsedId.data, userId });
 
+		if (skipped.length > 0) {
+			/** Cookie carries the skipped URL list so the queue page can render
+			 * a "couldn't import these N links" banner. Cleared on the next
+			 * queue render. Capped at MAX_COOKIE_ITEMS to stay under the 4 KiB
+			 * cookie limit on large skip volumes. */
+			res.cookie(IMPORT_SKIPPED_COOKIE_NAME, encodeImportSkippedCookie(skipped), {
+				path: "/queue",
+				maxAge: 5 * 60 * 1000,
+				sameSite: "lax",
+				httpOnly: true,
+			});
+		}
+
 		res.redirect(
 			303,
-			`/queue?import_imported=${selected.length}&import_total=${session.totalUrls}`,
+			`/queue?import_imported=${saveable.length}&import_total=${session.totalUrls}&import_skipped=${skipped.length}`,
 		);
 	});
 

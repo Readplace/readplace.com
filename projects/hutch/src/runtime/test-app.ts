@@ -86,6 +86,7 @@ import type { OAuthModel } from "@packages/test-fixtures/providers/oauth";
 import type { ValidateAccessToken } from "./web/dual-auth.middleware";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import { createApp } from "./server";
+import type { ValidateSaveableUrl } from "@packages/domain/article";
 import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
 
 export interface AuthBundle {
@@ -210,6 +211,7 @@ export interface AdminBundle {
 }
 
 export interface SharedBundle {
+	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
 	staticBaseUrl: string;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
@@ -268,6 +270,7 @@ function flattenFixtureToAppDependencies(
 	fixture: TestAppFixture,
 ): Parameters<typeof createApp>[0] {
 	return {
+		validateSaveableUrl: fixture.shared.validateSaveableUrl,
 		appOrigin: fixture.shared.appOrigin,
 		staticBaseUrl: fixture.shared.staticBaseUrl,
 		baseUrl: fixture.shared.appOrigin,

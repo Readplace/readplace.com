@@ -252,8 +252,21 @@ async function loadAllItems() {
 	renderLinks(filterItems());
 }
 
+function setListWarning(message: string | null): void {
+	const warningEl = document.getElementById("list-warning");
+	if (!warningEl) return;
+	if (message) {
+		warningEl.textContent = message;
+		warningEl.hidden = false;
+	} else {
+		warningEl.textContent = "";
+		warningEl.hidden = true;
+	}
+}
+
 async function showListView() {
 	showView("list-view");
+	setListWarning(null);
 	await loadAllItems();
 }
 
@@ -321,6 +334,7 @@ async function saveAndShowList() {
 	if (saveResult.ok && !saveResult.value.ok && saveResult.value.reason === "not-saveable") {
 		allItems = saveResult.value.items;
 		showView("list-view");
+		setListWarning(saveResult.value.warning?.message ?? null);
 		renderLinks(filterItems());
 	}
 }

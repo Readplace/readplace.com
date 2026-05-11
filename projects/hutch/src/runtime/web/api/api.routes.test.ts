@@ -263,6 +263,46 @@ describe("POST /queue (Siren save article)", () => {
 		expect(response.body.entities[0].properties.url).toBe(
 			"https://example.com/already-saved",
 		);
+		expect(response.body.properties.warning).toEqual({
+			code: "unsupported_scheme",
+			message: expect.stringMatching(/http/),
+		});
+	});
+
+	it("returns the article collection with a private_network warning when the host is local", async () => {
+		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.app)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.set("Content-Type", "application/json")
+			.set("Prefer", "return=representation")
+			.send({ url: "http://localhost:3000/queue" });
+
+		expect(response.status).toBe(422);
+		expect(response.body.class).toEqual(["collection", "articles"]);
+		expect(response.body.properties.warning).toEqual({
+			code: "private_network",
+			message: expect.stringMatching(/[Pp]rivate-network/),
+		});
+	});
+
+	it("returns the article collection with a private_network warning for a .home.arpa host", async () => {
+		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.app)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.set("Content-Type", "application/json")
+			.set("Prefer", "return=representation")
+			.send({ url: "http://router.home.arpa/" });
+
+		expect(response.status).toBe(422);
+		expect(response.body.properties.warning.code).toBe("private_network");
 	});
 
 	it("preserves the legacy stub-save behaviour for a non-saveable scheme without Prefer", async () => {
