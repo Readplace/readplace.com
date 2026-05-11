@@ -26,10 +26,22 @@ import { initDynamoDbPasswordReset } from "./providers/password-reset/dynamodb-p
 import { initDynamoDbGeneratedSummary } from "./providers/article-summary/dynamodb-generated-summary";
 import { initDynamoDbArticleCrawl } from "./providers/article-crawl/dynamodb-article-crawl";
 import { initInMemoryArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
+import { createFakeSummaryProvider } from "@packages/test-fixtures";
+import {
+	initBridgeArticleStore,
+	initInMemoryEffectDispatcher,
+} from "@packages/test-fixtures/providers/article-aggregate";
 import { S3Client } from "@aws-sdk/client-s3";
 import { initS3ReadContent } from "./providers/article-store/s3-read-content";
 import { initReadArticleContent } from "@packages/test-fixtures/providers/article-store";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
+import { EventBridgeClient, initEventBridgePublisher, initSqsCommandDispatcher } from "@packages/hutch-infra-components/runtime";
+import { GenerateSummaryCommand } from "@packages/hutch-infra-components";
+import {
+	initDynamoDbArticleStore as initDynamoDbAggregateStore,
+	initLambdaEffectDispatcher,
+} from "@packages/article-aggregate-store";
+import { initTransitionAndPersist } from "@packages/domain/article";
+import { SQSClient } from "@aws-sdk/client-sqs";
 import { initEventBridgeLinkSaved } from "./providers/events/eventbridge-link-saved";
 import { initEventBridgeRecrawlLinkInitiated } from "./providers/events/eventbridge-recrawl-link-initiated";
 import { initEventBridgeSaveAnonymousLink } from "./providers/events/eventbridge-save-anonymous-link";
@@ -127,6 +139,26 @@ function initProviders() {
 		const { publishUpdateFetchTimestamp } = initEventBridgeUpdateFetchTimestamp({ publishEvent });
 		const { publishExportUserDataCommand } = initEventBridgeExportUserDataCommand({ publishEvent });
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
+		const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+		const aggregateLogger = HutchLogger.from(consoleLogger);
+		const aggregateStore = initDynamoDbAggregateStore({
+			client,
+			tableName: articlesTable,
+			logger: aggregateLogger,
+		});
+		const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
+			sqsClient: new SQSClient({}),
+			queueUrl: generateSummaryQueueUrl,
+			command: GenerateSummaryCommand,
+		});
+		const aggregateDispatcher = initLambdaEffectDispatcher({
+			publishEvent,
+			dispatchGenerateSummary,
+		});
+		const transitionAndPersist = initTransitionAndPersist({
+			store: aggregateStore,
+			dispatcher: aggregateDispatcher,
+		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale({
 			findArticleFreshness: articleStore.findArticleFreshness,
 			findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
@@ -188,6 +220,7 @@ function initProviders() {
 			findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
 			markCrawlPending: crawlStore.markCrawlPending,
 			forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
+			transitionAndPersist,
 			refreshArticleIfStale,
 		};
 	}
@@ -216,6 +249,7 @@ function initProviders() {
 		}
 		: undefined;
 	const crawlStore = initInMemoryArticleCrawl();
+	const devSummary = createFakeSummaryProvider();
 	const { publishLinkSaved: logOnlyPublishLinkSaved } = initInMemoryLinkSaved({ logger: consoleLogger });
 	const publishLinkSaved: typeof logOnlyPublishLinkSaved = async (params) => {
 		await logOnlyPublishLinkSaved(params);
@@ -282,9 +316,29 @@ function initProviders() {
 	const { publishSaveLinkRawHtmlCommand } = initInMemorySaveLinkRawHtmlCommand({ logger: consoleLogger });
 	const { publishExportUserDataCommand } = initInMemoryExportUserDataCommand({ logger: consoleLogger });
 	const { putPendingHtml } = initInMemoryPendingHtml();
-	const stubFindGeneratedSummary = async (_url: string) => undefined;
-	const stubMarkSummaryPending = async (_params: { url: string }) => {};
-	const stubForceMarkSummaryPending = async (_params: { url: string }) => {};
+	const devAggregateStore = initBridgeArticleStore({
+		readers: {
+			findArticleByUrl: articleStore.findArticleByUrl,
+			findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
+			findGeneratedSummary: devSummary.findGeneratedSummary,
+		},
+		writers: {
+			forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
+			markCrawlReady: crawlStore.markCrawlReady,
+			markCrawlFailed: crawlStore.markCrawlFailed,
+			markCrawlUnsupported: crawlStore.markCrawlUnsupported,
+			forceMarkSummaryPending: devSummary.forceMarkSummaryPending,
+			markSummaryReady: devSummary.markSummaryReady,
+			markSummaryFailed: devSummary.markSummaryFailed,
+			markSummarySkipped: devSummary.markSummarySkipped,
+			writeMetadata: articleStore.writeMetadata,
+		},
+	});
+	const devEffectDispatcher = initInMemoryEffectDispatcher();
+	const devTransitionAndPersist = initTransitionAndPersist({
+		store: devAggregateStore,
+		dispatcher: devEffectDispatcher.dispatch,
+	});
 	const { refreshArticleIfStale } = initRefreshArticleIfStale({
 		findArticleFreshness: articleStore.findArticleFreshness,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
@@ -325,12 +379,13 @@ function initProviders() {
 		publishUpdateFetchTimestamp,
 		publishExportUserDataCommand,
 		putPendingHtml,
-		findGeneratedSummary: stubFindGeneratedSummary,
-		markSummaryPending: stubMarkSummaryPending,
-		forceMarkSummaryPending: stubForceMarkSummaryPending,
+		findGeneratedSummary: devSummary.findGeneratedSummary,
+		markSummaryPending: devSummary.markSummaryPending,
+		forceMarkSummaryPending: devSummary.forceMarkSummaryPending,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
 		markCrawlPending: crawlStore.markCrawlPending,
 		forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
+		transitionAndPersist: devTransitionAndPersist,
 		refreshArticleIfStale,
 	};
 }

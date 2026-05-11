@@ -82,7 +82,10 @@ import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { initSaveRoutes } from "./web/pages/save/save.page";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
-import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
+import {
+	initAdminRecrawlRoutes,
+	type TransitionAndPersist,
+} from "./web/pages/admin/recrawl.page";
 import { initEmbedRoutes } from "./web/pages/embed/embed.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initBlogRoutes } from "./web/pages/blog";
@@ -158,6 +161,7 @@ interface AppDependencies {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
+	transitionAndPersist: TransitionAndPersist;
 	refreshArticleIfStale: RefreshArticleIfStale;
 	adminEmails: readonly string[];
 	recrawlServiceToken: string;
@@ -524,11 +528,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		readArticleContent: deps.readArticleContent,
 		findGeneratedSummary: deps.findGeneratedSummary,
 		markSummaryPending: deps.markSummaryPending,
-		forceMarkSummaryPending: deps.forceMarkSummaryPending,
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
 		markCrawlPending: deps.markCrawlPending,
-		forceMarkCrawlPending: deps.forceMarkCrawlPending,
-		publishRecrawlLinkInitiated: deps.publishRecrawlLinkInitiated,
+		transitionAndPersist: deps.transitionAndPersist,
 		findUserByEmail: deps.findUserByEmail,
 		adminEmails: deps.adminEmails,
 		serviceToken: deps.recrawlServiceToken,

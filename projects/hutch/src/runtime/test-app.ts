@@ -58,6 +58,12 @@ import type {
 	ArticleMetadata,
 	Minutes,
 } from "@packages/domain/article";
+import { initTransitionAndPersist } from "@packages/domain/article";
+import {
+	initBridgeArticleStore,
+	type BridgeWriters,
+} from "@packages/test-fixtures/providers/article-aggregate";
+import type { TransitionAndPersist } from "./web/pages/admin/recrawl.page";
 import type {
 	DeleteArticle,
 	FindArticleById,
@@ -276,10 +282,70 @@ export interface TestAppResult {
 	botDefense: BotDefenseBundle;
 }
 
+function buildTestEffectDispatcher(fixture: TestAppFixture) {
+	// Route effects to the legacy event-publishing fixtures so existing
+	// route tests (e.g. recrawl.route.test) can keep asserting on their
+	// custom publishRecrawlLinkInitiated recorder without knowing about
+	// the aggregate. Production wires `initLambdaEffectDispatcher` against
+	// the real EventBridge publisher; the test dispatcher mirrors the
+	// same Effect → wire-format mapping, just against in-memory fixtures.
+	return async (
+		effects: readonly import("@packages/domain/article").Effect[],
+	): Promise<void> => {
+		for (const effect of effects) {
+			if (effect.kind === "PublishRecrawlLinkInitiatedEvent") {
+				await fixture.events.publishRecrawlLinkInitiated({ url: effect.url });
+			}
+			// DispatchGenerateSummaryCommand: tests covering the
+			// refresh-article-content path use the save-link in-memory
+			// orchestrator directly; the hutch test app doesn't currently
+			// dispatch this from any route. If a future route does, wire it
+			// here against the test-fixtures' generate-summary publisher.
+		}
+	};
+}
+
+function buildTransitionAndPersist(fixture: TestAppFixture): TransitionAndPersist {
+	// SummaryBundle's public contract is the three methods every reader needs;
+	// the bridge ALSO needs ready/failed/skipped writers when a transition
+	// produces those summary states. The default fake summary provider has
+	// them all — surface them via runtime lookup so inline fixtures that
+	// don't trigger aggregate writes (e.g. view.route.test) don't need to
+	// declare the extra fields. The bridge asserts if a transition demands
+	// a writer that wasn't supplied.
+	const extWriters = fixture.summary as SummaryBundle &
+		Pick<BridgeWriters, "markSummaryReady" | "markSummaryFailed" | "markSummarySkipped">;
+	const writers: BridgeWriters = {
+		forceMarkCrawlPending: fixture.articleCrawl.forceMarkCrawlPending,
+		markCrawlReady: fixture.articleCrawl.markCrawlReady,
+		markCrawlFailed: fixture.articleCrawl.markCrawlFailed,
+		markCrawlUnsupported: fixture.articleCrawl.markCrawlUnsupported,
+		forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
+		writeMetadata: fixture.articleStore.writeMetadata,
+	};
+	if (extWriters.markSummaryReady) writers.markSummaryReady = extWriters.markSummaryReady;
+	if (extWriters.markSummaryFailed) writers.markSummaryFailed = extWriters.markSummaryFailed;
+	if (extWriters.markSummarySkipped) writers.markSummarySkipped = extWriters.markSummarySkipped;
+
+	const bridge = initBridgeArticleStore({
+		readers: {
+			findArticleByUrl: fixture.articleStore.findArticleByUrl,
+			findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
+			findGeneratedSummary: fixture.summary.findGeneratedSummary,
+		},
+		writers,
+	});
+	return initTransitionAndPersist({
+		store: bridge,
+		dispatcher: buildTestEffectDispatcher(fixture),
+	});
+}
+
 function flattenFixtureToAppDependencies(
 	fixture: TestAppFixture,
 ): Parameters<typeof createApp>[0] {
 	return {
+		transitionAndPersist: buildTransitionAndPersist(fixture),
 		validateSaveableUrl: fixture.shared.validateSaveableUrl,
 		appOrigin: fixture.shared.appOrigin,
 		staticBaseUrl: fixture.shared.staticBaseUrl,

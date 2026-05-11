@@ -2,19 +2,17 @@ import assert from "node:assert";
 import type { NextFunction, Request, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
+import { requestRecrawl, type initTransitionAndPersist } from "@packages/domain/article";
 import type {
 	FindArticleCrawlStatus,
-	ForceMarkCrawlPending,
 	MarkCrawlPending,
 } from "@packages/test-fixtures/providers/article-crawl";
 import type { FindArticleByUrl } from "@packages/test-fixtures/providers/article-store";
 import type { ReadArticleContent } from "@packages/test-fixtures/providers/article-store";
 import type {
 	FindGeneratedSummary,
-	ForceMarkSummaryPending,
 	MarkSummaryPending,
 } from "@packages/test-fixtures/providers/article-summary";
-import type { PublishRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
 import type { FindUserByEmail } from "@packages/test-fixtures/providers/auth";
 import { renderPage } from "../../render-page";
 import { extensionInstallUrlIfMissing } from "../../onboarding/extension-install";
@@ -27,16 +25,16 @@ import { initRequireAdmin } from "./require-admin.middleware";
 
 const RecrawlUrlSchema = z.url();
 
+export type TransitionAndPersist = ReturnType<typeof initTransitionAndPersist>;
+
 export interface AdminRecrawlDependencies {
 	findArticleByUrl: FindArticleByUrl;
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
-	forceMarkSummaryPending: ForceMarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
-	forceMarkCrawlPending: ForceMarkCrawlPending;
-	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
+	transitionAndPersist: TransitionAndPersist;
 	findUserByEmail: FindUserByEmail;
 	adminEmails: readonly string[];
 	serviceToken: string;
@@ -108,14 +106,16 @@ function handleRecrawlArticle(
 			return;
 		}
 
-		// Always recrawl. No cache, no TTL. Force both crawl and summary state
-		// back to pending (even if currently `ready`) so the reader slot shows
-		// the "recrawl in progress" skeleton AND the summary worker regenerates
-		// the AI excerpt instead of short-circuiting on its cached "ready" row,
-		// then publish the command.
-		await deps.forceMarkCrawlPending({ url: articleUrl });
-		await deps.forceMarkSummaryPending({ url: articleUrl });
-		await deps.publishRecrawlLinkInitiated({ url: articleUrl });
+		// Always recrawl. No cache, no TTL. The `requestRecrawl` transition
+		// resets BOTH substates to pending atomically and produces the
+		// RecrawlLinkInitiated event in one orchestration: handler success
+		// implies the row is pending AND the worker has been notified, with
+		// no intermediate state visible to a concurrent reader.
+		await deps.transitionAndPersist({
+			url: articleUrl,
+			transition: requestRecrawl,
+			params: undefined,
+		});
 
 		const state = await reader.resolveReaderState({
 			article: {

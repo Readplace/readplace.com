@@ -90,6 +90,9 @@ describe("Email verification", () => {
 				findArticleCrawlStatus: async () => undefined,
 				markCrawlPending: async () => {},
 				forceMarkCrawlPending: async () => {},
+				transitionAndPersist: async () => {
+					throw new Error("aggregate not used in this test");
+				},
 				refreshArticleIfStale: async () => ({ action: "new" as const }),
 				publishUpdateFetchTimestamp: async () => {},
 				putPendingHtml: async () => {},

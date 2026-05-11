@@ -90,6 +90,8 @@ export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): 
 	markSummaryPending: MarkSummaryPending;
 	forceMarkSummaryPending: ForceMarkSummaryPending;
 	markSummaryReady: (params: { url: string; summary: string; excerpt: string }) => void;
+	markSummaryFailed: (params: { url: string; reason: string }) => Promise<void>;
+	markSummarySkipped: (params: { url: string; reason?: string }) => Promise<void>;
 } {
 	// Test-only fake for the Deepseek-backed summary generation. Local E2E
 	// doesn't call a real LLM, so we simulate the pending → ready transition
@@ -127,7 +129,17 @@ export function createFakeSummaryProvider(opts?: { readyAfterReads?: number }): 
 		state.set(id, { status: "ready", summary, excerpt });
 		reads.set(id, 0);
 	};
-	return { findGeneratedSummary, markSummaryPending, forceMarkSummaryPending, markSummaryReady };
+	const markSummaryFailed = async ({ url, reason }: { url: string; reason: string }) => {
+		const id = ArticleResourceUniqueId.parse(url).value;
+		state.set(id, { status: "failed", reason });
+		reads.set(id, 0);
+	};
+	const markSummarySkipped = async ({ url, reason }: { url: string; reason?: string }) => {
+		const id = ArticleResourceUniqueId.parse(url).value;
+		state.set(id, reason ? { status: "skipped", reason } : { status: "skipped" });
+		reads.set(id, 0);
+	};
+	return { findGeneratedSummary, markSummaryPending, forceMarkSummaryPending, markSummaryReady, markSummaryFailed, markSummarySkipped };
 }
 
 export function createFakeApplyParseResult(deps: {
