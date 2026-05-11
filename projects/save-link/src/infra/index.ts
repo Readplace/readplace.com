@@ -676,7 +676,7 @@ const refreshArticleContentQueue = new HutchSQS("refresh-article-content", {
 
 const refreshArticleContentDynamodb = new HutchDynamoDBAccess("refresh-article-content-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
-	actions: ["dynamodb:UpdateItem"],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
 const refreshArticleContentLambda = new HutchLambda("refresh-article-content", {
@@ -687,6 +687,7 @@ const refreshArticleContentLambda = new HutchLambda("refresh-article-content", {
 	timeout: 30,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 	},
 	policies: [
@@ -694,6 +695,8 @@ const refreshArticleContentLambda = new HutchLambda("refresh-article-content", {
 		...generateSummaryQueue.policies.map((p) => ({ ...p, name: `refresh-${p.name}` })),
 	],
 });
+
+eventBus.grantPublish(refreshArticleContentLambda);
 
 const refreshArticleContentWithSQS = new HutchSQSBackedLambda("refresh-article-content", {
 	lambda: refreshArticleContentLambda,
