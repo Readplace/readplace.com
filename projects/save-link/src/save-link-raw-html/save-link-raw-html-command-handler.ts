@@ -2,6 +2,10 @@ import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "a
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import {
+	markCrawlFailed,
+	type TransitionAndPersist,
+} from "@packages/domain/article-aggregate";
+import {
 	SaveLinkRawHtmlCommand,
 	TierContentExtractedEvent,
 	type LogCrawlOutcome,
@@ -14,7 +18,6 @@ import type { ProcessContent } from "../save-link/save-link-work";
 import { estimatedReadTimeFromWordCount } from "../save-link/estimated-read-time";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { ReadPendingHtml } from "./read-pending-html";
-import type { MarkCrawlFailed } from "../crawl-article-state/article-crawl.types";
 import type { PutTierSource } from "../select-content/put-tier-source";
 
 const TIER = "tier-0";
@@ -27,7 +30,7 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 	processContent: ProcessContent;
 	putTierSource: PutTierSource;
 	publishEvent: PublishEvent;
-	markCrawlFailed: MarkCrawlFailed;
+	transitionAndPersist: TransitionAndPersist;
 	logger: HutchLogger;
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
@@ -40,7 +43,7 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 		processContent,
 		putTierSource,
 		publishEvent,
-		markCrawlFailed,
+		transitionAndPersist,
 		logger,
 		logParseError,
 		logCrawlOutcome,
@@ -75,7 +78,10 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 					 * state. Re-throw preserves the SQS retry + DLQ observability path —
 					 * the surrounding try/catch routes the throw to batchItemFailures so
 					 * sibling records still settle under any future batchSize > 1. */
-					await markCrawlFailed({ url: detail.url, reason: parseResult.reason });
+					await transitionAndPersist(markCrawlFailed, {
+						url: detail.url,
+						input: { reason: parseResult.reason },
+					});
 					throw new Error(`save-link-raw-html parse failed for ${detail.url}: ${parseResult.reason}`);
 				}
 

@@ -1,9 +1,21 @@
 import { S3Client } from "@aws-sdk/client-s3";
+import { SQSClient } from "@aws-sdk/client-sqs";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initCrawlArticle, initCrawlFetch, DEFAULT_CRAWL_HEADERS } from "@packages/crawl-article";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
+import {
+	EventBridgeClient,
+	initEventBridgePublisher,
+	initSqsCommandDispatcher,
+} from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { initLogParseError, type ParseErrorEvent, initLogCrawlOutcome, type CrawlOutcomeEvent } from "@packages/hutch-infra-components";
+import {
+	GenerateSummaryCommand,
+	initLogParseError,
+	type ParseErrorEvent,
+	initLogCrawlOutcome,
+	type CrawlOutcomeEvent,
+} from "@packages/hutch-infra-components";
+import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import { requireEnv } from "../require-env";
@@ -14,20 +26,23 @@ import { initDownloadMedia } from "../save-link/download-media";
 import { initProcessContentWithLocalMedia } from "../save-link/process-content-with-local-media";
 import { initReadPendingHtml } from "../save-link-raw-html/read-pending-html";
 import { initSaveLinkRawHtmlCommandHandler } from "../save-link-raw-html/save-link-raw-html-command-handler";
-import { initDynamoDbArticleCrawl } from "../crawl-article-state/dynamodb-article-crawl";
 import { initCheckTier0SourceExistsS3 } from "../crawl-article-state/check-tier-0-source-exists-s3";
 import { initReadArticleCrawlStateDynamoDb } from "../crawl-article-state/read-article-crawl-state-dynamodb";
 import { initReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { initPutTierSource } from "../select-content/put-tier-source";
+import { initDynamoDbArticleStore } from "../article-aggregate/dynamodb-article-store";
+import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-dispatcher";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
 const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
+const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
 
 const logError = (message: string, error?: Error) => consoleLogger.error(message, { error });
 const s3Client = new S3Client({});
+const sqsClient = new SQSClient({});
 const dynamoClient = createDynamoDocumentClient();
 const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, defaultHeaders: { ...DEFAULT_CRAWL_HEADERS } });
 const crawlArticle = initCrawlArticle({ crawlFetch, logError });
@@ -67,15 +82,30 @@ const { putTierSource } = initPutTierSource({
 	bucketName: contentBucketName,
 });
 
-const { markCrawlFailed } = initDynamoDbArticleCrawl({
-	client: dynamoClient,
-	tableName: articlesTable,
-	now: () => new Date(),
-});
-
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
 	eventBusName,
+});
+
+const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
+	sqsClient,
+	queueUrl: generateSummaryQueueUrl,
+	command: GenerateSummaryCommand,
+});
+
+const { store } = initDynamoDbArticleStore({
+	client: dynamoClient,
+	tableName: articlesTable,
+});
+
+const { dispatchEffect } = initLambdaEffectDispatcher({
+	dispatchGenerateSummary,
+	publishEvent,
+});
+
+const { transitionAndPersist } = initTransitionAndPersist({
+	store,
+	dispatchEffect,
 });
 
 const { logParseError } = initLogParseError({
@@ -111,7 +141,7 @@ export const handler = initSaveLinkRawHtmlCommandHandler({
 	processContent,
 	putTierSource,
 	publishEvent,
-	markCrawlFailed,
+	transitionAndPersist,
 	logger: consoleLogger,
 	logParseError,
 	logCrawlOutcome,

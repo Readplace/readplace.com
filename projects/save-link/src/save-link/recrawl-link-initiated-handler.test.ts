@@ -2,6 +2,7 @@ import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import { noopLogger } from "@packages/hutch-logger";
 import type { CrawlArticle } from "@packages/crawl-article";
+import { markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import { initRecrawlLinkInitiatedHandler } from "./recrawl-link-initiated-handler";
 import { initProcessContentWithLocalMedia } from "./process-content-with-local-media";
 import type { ParseHtml } from "../article-parser/article-parser.types";
@@ -78,10 +79,8 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		putTierSource: jest.fn().mockResolvedValue(undefined),
 		putImageObject: jest.fn().mockResolvedValue(undefined),
 		updateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
-		markCrawlFailed: jest.fn().mockResolvedValue(undefined),
-		markCrawlUnsupported: jest.fn().mockResolvedValue(undefined),
+		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
-		markSummarySkipped: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		downloadMedia: noopDownloadMedia,
 		processContent,
@@ -129,9 +128,8 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
-	it("flips a non-html origin (e.g. PDF) directly to crawlStatus='unsupported' + summaryStatus='skipped', does NOT throw, and does NOT emit RecrawlContentExtracted", async () => {
-		const markCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
-		const markSummarySkipped = jest.fn().mockResolvedValue(undefined);
+	it("flips a non-html origin (e.g. PDF) atomically to crawlStatus='unsupported' + summaryStatus='skipped' via one markCrawlUnsupported transition, does NOT throw, and does NOT emit RecrawlContentExtracted", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const unsupportedCrawl: CrawlArticle = async () => ({
 			status: "unsupported",
@@ -140,8 +138,7 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 
 		const handler = createHandler({
 			crawlArticle: unsupportedCrawl,
-			markCrawlUnsupported,
-			markSummarySkipped,
+			transitionAndPersist,
 			publishEvent,
 		});
 
@@ -152,13 +149,10 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [] });
-		expect(markCrawlUnsupported).toHaveBeenCalledWith({
+		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlUnsupported, {
 			url: "https://example.com/doc.pdf",
-			reason: "non-html content type: application/pdf",
-		});
-		expect(markSummarySkipped).toHaveBeenCalledWith({
-			url: "https://example.com/doc.pdf",
-			reason: "crawl-unsupported",
+			input: { reason: "non-html content type: application/pdf" },
 		});
 		expect(publishEvent).not.toHaveBeenCalled();
 	});

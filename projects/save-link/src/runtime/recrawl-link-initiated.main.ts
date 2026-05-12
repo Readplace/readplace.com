@@ -1,8 +1,20 @@
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { S3Client } from "@aws-sdk/client-s3";
+import { SQSClient } from "@aws-sdk/client-sqs";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
-import { initLogParseError, type ParseErrorEvent, initLogCrawlOutcome, type CrawlOutcomeEvent } from "@packages/hutch-infra-components";
+import {
+	EventBridgeClient,
+	initEventBridgePublisher,
+	initSqsCommandDispatcher,
+} from "@packages/hutch-infra-components/runtime";
+import {
+	GenerateSummaryCommand,
+	initLogParseError,
+	type ParseErrorEvent,
+	initLogCrawlOutcome,
+	type CrawlOutcomeEvent,
+} from "@packages/hutch-infra-components";
+import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import { requireEnv } from "../require-env";
 import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
 import { initReadabilityParser } from "../article-parser/readability-parser";
@@ -19,15 +31,18 @@ import { initDownloadMedia } from "../save-link/download-media";
 import { initRecrawlLinkInitiatedHandler } from "../save-link/recrawl-link-initiated-handler";
 import { initProcessContentWithLocalMedia } from "../save-link/process-content-with-local-media";
 import { initPutTierSource } from "../select-content/put-tier-source";
-import { initDynamoDbGeneratedSummary } from "../generate-summary/dynamodb-generated-summary";
+import { initDynamoDbArticleStore } from "../article-aggregate/dynamodb-article-store";
+import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-dispatcher";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
+const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
 
 const client = createDynamoDocumentClient();
 const s3Client = new S3Client({});
+const sqsClient = new SQSClient({});
 const logError = (message: string, error?: Error) => consoleLogger.error(message, { error });
 
 const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, defaultHeaders: { ...DEFAULT_CRAWL_HEADERS } });
@@ -54,15 +69,10 @@ const { updateFetchTimestamp } = initUpdateFetchTimestamp({
 	tableName: articlesTable,
 });
 
-const { markCrawlFailed, markCrawlUnsupported, markCrawlStage } = initDynamoDbArticleCrawl({
+const { markCrawlStage } = initDynamoDbArticleCrawl({
 	client,
 	tableName: articlesTable,
 	now: () => new Date(),
-});
-
-const { markSummarySkipped } = initDynamoDbGeneratedSummary({
-	client,
-	tableName: articlesTable,
 });
 
 const downloadMedia = initDownloadMedia({
@@ -75,6 +85,27 @@ const downloadMedia = initDownloadMedia({
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
 	eventBusName,
+});
+
+const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
+	sqsClient,
+	queueUrl: generateSummaryQueueUrl,
+	command: GenerateSummaryCommand,
+});
+
+const { store } = initDynamoDbArticleStore({
+	client,
+	tableName: articlesTable,
+});
+
+const { dispatchEffect } = initLambdaEffectDispatcher({
+	dispatchGenerateSummary,
+	publishEvent,
+});
+
+const { transitionAndPersist } = initTransitionAndPersist({
+	store,
+	dispatchEffect,
 });
 
 const processContent = initProcessContentWithLocalMedia({
@@ -116,10 +147,8 @@ export const handler = initRecrawlLinkInitiatedHandler({
 	putTierSource,
 	putImageObject,
 	updateFetchTimestamp,
-	markCrawlFailed,
-	markCrawlUnsupported,
+	transitionAndPersist,
 	markCrawlStage,
-	markSummarySkipped,
 	publishEvent,
 	downloadMedia,
 	processContent,

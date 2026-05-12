@@ -1,6 +1,7 @@
 import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import { noopLogger } from "@packages/hutch-logger";
+import { markCrawlFailed } from "@packages/domain/article-aggregate";
 import { initSaveLinkRawHtmlCommandHandler } from "./save-link-raw-html-command-handler";
 import { initProcessContentWithLocalMedia } from "../save-link/process-content-with-local-media";
 import type { ParseHtml } from "../article-parser/article-parser.types";
@@ -76,7 +77,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		processContent,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
-		markCrawlFailed: jest.fn().mockResolvedValue(undefined),
+		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		logger: noopLogger,
 		logParseError: jest.fn(),
 		logCrawlOutcome: jest.fn(),
@@ -137,9 +138,9 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		expect(calls).toEqual(["putTierSource", "publishEvent"]);
 	});
 
-	it("marks crawl 'failed' inline on terminal parse errors and reports the record as a batch failure so SQS redelivers it", async () => {
+	it("routes terminal parse errors through markCrawlFailed via transitionAndPersist and reports the record as a batch failure so SQS redelivers it", async () => {
 		const failedParse: ParseHtml = () => ({ ok: false, reason: "Readability returned null" });
-		const markCrawlFailed = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const error = jest.fn();
@@ -147,7 +148,7 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 
 		const { handler } = createHandler({
 			parseHtml: failedParse,
-			markCrawlFailed,
+			transitionAndPersist,
 			putTierSource,
 			publishEvent,
 			logger,
@@ -160,9 +161,9 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		expect(markCrawlFailed).toHaveBeenCalledWith({
+		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
 			url: "https://example.com/bad",
-			reason: "Readability returned null",
+			input: { reason: "Readability returned null" },
 		});
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
