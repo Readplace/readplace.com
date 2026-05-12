@@ -23,8 +23,8 @@ export function initLinkSavedHandler(deps: {
 				const content = await findArticleContent(detail.url);
 				if (!content) {
 					/* Canonical S3 object written by promoteTierToCanonical may not be
-					 * readable yet. Throw so SQS retries through maxReceiveCount before
-					 * the DLQ row-mutator flips summaryStatus to "failed". */
+					 * readable yet (S3 eventual consistency). Throw so SQS retries
+					 * through maxReceiveCount; on exhaustion the DLQ alarm fires. */
 					throw new Error(`canonical content not yet readable for url=${detail.url}`);
 				}
 
