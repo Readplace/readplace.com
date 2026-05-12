@@ -267,7 +267,7 @@ describe("initGenerateSummaryHandler", () => {
 		);
 	});
 
-	it("leaves the row pending and does not dispatch when the summariser returns no-text-block", async () => {
+	it("reports no-text-block as a batch failure so SQS retries", async () => {
 		const summarizeArticle: SummarizeArticle = async () => ({
 			kind: "no-text-block",
 		});
@@ -285,12 +285,15 @@ describe("initGenerateSummaryHandler", () => {
 			logger: noopLogger,
 		});
 
-		await handler(
+		const result = await handler(
 			createSqsEvent({ url: "https://example.com/no-block" }),
 			stubContext,
 			() => {},
 		);
 
+		expect(result).toEqual({
+			batchItemFailures: [{ itemIdentifier: "msg-1" }],
+		});
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 	});
 

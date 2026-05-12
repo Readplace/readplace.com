@@ -94,11 +94,10 @@ export function initGenerateSummaryHandler(
 				}
 
 				/* no-text-block: the AI returned but the response had no parseable
-				 * text. Leave the row pending so SQS redelivery re-runs; eventual
-				 * DLQ exhaustion flips it via markSummaryExhausted. */
-				logger.info("[GenerateSummary] no text block; leaving pending for retry", {
-					url: command.url,
-				});
+				 * text. Throw so the catch block adds the record to
+				 * batchItemFailures — SQS redelivery re-runs; eventual DLQ
+				 * exhaustion flips it via markSummaryExhausted. */
+				throw new Error(`[GenerateSummary] no text block for ${command.url}`);
 			} catch (error) {
 				logger.error("[GenerateSummary] record failed", {
 					messageId: record.messageId,
