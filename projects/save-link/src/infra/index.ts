@@ -390,6 +390,11 @@ new HutchDLQEventHandler("select-most-complete-content-dlq", {
 	tableName: articlesTableName,
 	eventBus,
 	batchSize: 1,
+	additionalDynamoActions: ["dynamodb:GetItem"],
+	additionalEnvironment: {
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "select-most-complete-content-dlq"),
 });
 
 // --- GenerateSummary handler ---
@@ -436,6 +441,11 @@ new HutchDLQEventHandler("generate-summary-dlq", {
 	tableName: articlesTableName,
 	eventBus,
 	batchSize: 1,
+	additionalDynamoActions: ["dynamodb:GetItem"],
+	additionalEnvironment: {
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "generate-summary-dlq"),
 });
 
 // --- LinkSaved handler ---
@@ -609,6 +619,11 @@ new HutchDLQEventHandler("recrawl-content-extracted-dlq", {
 	tableName: articlesTableName,
 	eventBus,
 	batchSize: 1,
+	additionalDynamoActions: ["dynamodb:GetItem"],
+	additionalEnvironment: {
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "recrawl-content-extracted-dlq"),
 });
 
 // --- SummaryGenerated handler ---

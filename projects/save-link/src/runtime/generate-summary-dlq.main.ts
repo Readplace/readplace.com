@@ -1,18 +1,34 @@
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { SQSClient } from "@aws-sdk/client-sqs";
+import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
+import { GenerateSummaryCommand } from "@packages/hutch-infra-components";
+import {
+	EventBridgeClient,
+	initEventBridgePublisher,
+	initSqsCommandDispatcher,
+} from "@packages/hutch-infra-components/runtime";
 import { consoleLogger } from "@packages/hutch-logger";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
-import { requireEnv } from "../require-env";
-import { initDynamoDbGeneratedSummary } from "../generate-summary/dynamodb-generated-summary";
+import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { initDynamoDbArticleStore } from "../article-aggregate/dynamodb-article-store";
+import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-dispatcher";
 import { initGenerateSummaryDlqHandler } from "../generate-summary/generate-summary-dlq-handler";
+import { requireEnv } from "../require-env";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
+const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
 
 const dynamoClient = createDynamoDocumentClient();
+const sqsClient = new SQSClient({});
 
-const summaryStore = initDynamoDbGeneratedSummary({
+const { store } = initDynamoDbArticleStore({
 	client: dynamoClient,
 	tableName: articlesTable,
+});
+
+const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
+	sqsClient,
+	queueUrl: generateSummaryQueueUrl,
+	command: GenerateSummaryCommand,
 });
 
 const { publishEvent } = initEventBridgePublisher({
@@ -20,8 +36,17 @@ const { publishEvent } = initEventBridgePublisher({
 	eventBusName,
 });
 
-export const handler = initGenerateSummaryDlqHandler({
-	markSummaryFailed: summaryStore.markSummaryFailed,
+const { dispatchEffect } = initLambdaEffectDispatcher({
+	dispatchGenerateSummary,
 	publishEvent,
+});
+
+const { transitionAndPersist } = initTransitionAndPersist({
+	store,
+	dispatchEffect,
+});
+
+export const handler = initGenerateSummaryDlqHandler({
+	transitionAndPersist,
 	logger: consoleLogger,
 });
