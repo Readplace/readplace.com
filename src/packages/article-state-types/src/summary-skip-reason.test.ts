@@ -1,7 +1,7 @@
 import { SummarySkipReasonSchema } from "./summary-skip-reason";
 
 describe("SummarySkipReasonSchema", () => {
-	it.each(["content-too-short", "ai-unavailable", "crawl-unsupported"])("accepts %s", (value) => {
+	it.each(["content-too-short", "ai-unavailable", "ai-no-text-block", "crawl-unsupported"])("accepts %s", (value) => {
 		expect(SummarySkipReasonSchema.parse(value)).toBe(value);
 	});
 

@@ -7,6 +7,8 @@ const SUMMARY_SKIP_MESSAGES: Record<SummarySkipReason, string> = {
 	"content-too-short": "This article is too short to summarise.",
 	"ai-unavailable":
 		"Our summariser couldn't produce a useful summary for this article.",
+	"ai-no-text-block":
+		"Our summariser couldn't produce a useful summary for this article.",
 	"crawl-unsupported":
 		"This isn't a webpage we can save, so there's nothing to summarise.",
 };

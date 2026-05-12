@@ -299,17 +299,18 @@ describe("initLinkSummariser", () => {
 		});
 	});
 
-	it("should return null when response has no text block", async () => {
+	it("should mark the row skipped with reason ai-no-text-block when the response has no text block", async () => {
 		const createMessage: CreateAiMessage = async () => ({
 			content: [{ type: "tool_use" }],
 			usage: { input_tokens: 50, output_tokens: 10 },
 		});
+		const markSummarySkipped = jest.fn().mockResolvedValue(undefined);
 
 		const { summarizeArticle } = initLinkSummariser({
 			createMessage,
 			findGeneratedSummary: noCache,
 			saveGeneratedSummary: noopSave,
-			markSummarySkipped: noopMarkSkipped,
+			markSummarySkipped,
 			markSummaryStage: noopMarkStage,
 			logger: noopLogger,
 			cleanContent: identity,
@@ -322,6 +323,10 @@ describe("initLinkSummariser", () => {
 		});
 
 		expect(result).toBeNull();
+		expect(markSummarySkipped).toHaveBeenCalledWith({
+			url: "https://example.com/no-text-block",
+			reason: "ai-no-text-block",
+		});
 	});
 
 	it("should mark the row skipped with reason ai-unavailable when AI returns 'Summary not available.'", async () => {

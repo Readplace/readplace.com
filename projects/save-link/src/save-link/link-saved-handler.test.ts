@@ -58,7 +58,7 @@ describe("initLinkSavedHandler", () => {
 		expect(dispatchGenerateSummary).toHaveBeenCalledWith({ url: "https://example.com/article" });
 	});
 
-	it("skips summary dispatch when article has no content", async () => {
+	it("reports batchItemFailures when canonical content is not yet readable so SQS redelivers through maxReceiveCount", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
 		const findArticleContent: FindArticleContent = async () => undefined;
 
@@ -68,9 +68,14 @@ describe("initLinkSavedHandler", () => {
 			logger: noopLogger,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/no-content", userId: "user-1" }), stubContext, () => {});
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/no-content", userId: "user-1" }),
+			stubContext,
+			() => {},
+		);
 
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 
 	it("reports the record as a batch failure on invalid event detail (Zod failure)", async () => {

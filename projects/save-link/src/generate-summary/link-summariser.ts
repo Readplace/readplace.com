@@ -104,6 +104,7 @@ export function initLinkSummariser(deps: {
 		);
 		if (!textBlock || textBlock.type !== "text" || !textBlock.text) {
 			deps.logger.info("[summarize] no text block in response", { url: params.url });
+			await deps.markSummarySkipped({ url: params.url, reason: "ai-no-text-block" });
 			return null;
 		}
 
