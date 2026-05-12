@@ -1,17 +1,24 @@
 import assert from "node:assert/strict";
 import type { Article } from "../article.types";
-import { recrawlPromoteTier } from "./recrawl-promote-tier";
+import {
+	recrawlPromoteTier,
+	type RecrawlPromoteTierInput,
+} from "./recrawl-promote-tier";
 
 function buildArticle(overrides: Partial<Article> = {}): Article {
 	return {
 		url: "https://example.com/article",
 		metadata: {
-			title: "Title",
-			siteName: "Example",
-			excerpt: "Excerpt",
+			title: "Old title",
+			siteName: "Old site",
+			excerpt: "Old excerpt",
 			wordCount: 100,
 		},
-		freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
+		freshness: {
+			etag: '"old-etag"',
+			lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
+			contentFetchedAt: "2026-01-01T00:00:00.000Z",
+		},
 		estimatedReadTime: 1,
 		crawl: { kind: "pending" },
 		summary: { kind: "ready", summary: "old" },
@@ -19,17 +26,96 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 	};
 }
 
+function buildInput(overrides: Partial<RecrawlPromoteTierInput> = {}): RecrawlPromoteTierInput {
+	return {
+		winnerTier: "tier-1",
+		metadata: {
+			title: "New title",
+			siteName: "New site",
+			excerpt: "New excerpt",
+			wordCount: 250,
+			imageUrl: "https://example.com/image.jpg",
+		},
+		estimatedReadTime: 3,
+		contentFetchedAt: "2026-05-10T12:00:00.000Z",
+		...overrides,
+	};
+}
+
 describe("recrawlPromoteTier", () => {
 	it("flips crawl from pending to ready after a tier promotion", () => {
-		const { article } = recrawlPromoteTier(buildArticle(), undefined);
+		const { article } = recrawlPromoteTier(buildArticle(), buildInput());
 
 		assert.deepEqual(article.crawl, { kind: "ready" });
+	});
+
+	it("writes the incoming metadata onto the article (refreshing title/excerpt/wordCount/imageUrl on every recrawl)", () => {
+		const { article } = recrawlPromoteTier(
+			buildArticle(),
+			buildInput({
+				metadata: {
+					title: "Refreshed title",
+					siteName: "Refreshed site",
+					excerpt: "Refreshed excerpt",
+					wordCount: 999,
+					imageUrl: "https://example.com/refreshed.jpg",
+				},
+			}),
+		);
+
+		assert.equal(article.metadata.title, "Refreshed title");
+		assert.equal(article.metadata.siteName, "Refreshed site");
+		assert.equal(article.metadata.excerpt, "Refreshed excerpt");
+		assert.equal(article.metadata.wordCount, 999);
+		assert.equal(article.metadata.imageUrl, "https://example.com/refreshed.jpg");
+	});
+
+	it("writes the incoming contentFetchedAt onto article.freshness, preserving other freshness fields (etag/lastModified)", () => {
+		const before = buildArticle({
+			freshness: {
+				etag: '"kept-etag"',
+				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+			},
+		});
+
+		const { article } = recrawlPromoteTier(
+			before,
+			buildInput({ contentFetchedAt: "2026-05-10T12:00:00.000Z" }),
+		);
+
+		assert.equal(article.freshness.contentFetchedAt, "2026-05-10T12:00:00.000Z");
+		assert.equal(article.freshness.etag, '"kept-etag"');
+		assert.equal(article.freshness.lastModified, "Thu, 01 Jan 2026 00:00:00 GMT");
+	});
+
+	it("overwrites estimatedReadTime with the supplied value", () => {
+		const { article } = recrawlPromoteTier(
+			buildArticle(),
+			buildInput({ estimatedReadTime: 7 }),
+		);
+
+		assert.equal(article.estimatedReadTime, 7);
+	});
+
+	it("resets summary to pending so the regenerate fires against the new canonical body", () => {
+		const before = buildArticle({
+			summary: {
+				kind: "ready",
+				summary: "stale summary",
+				excerpt: "stale excerpt",
+			},
+		});
+
+		const { article } = recrawlPromoteTier(before, buildInput());
+
+		assert.deepEqual(article.summary, { kind: "pending" });
 	});
 
 	it("emits generate-summary and publish-recrawl-completed effects in that order", () => {
 		const { effects } = recrawlPromoteTier(
 			buildArticle({ url: "https://example.com/post" }),
-			undefined,
+			buildInput(),
 		);
 
 		assert.deepEqual(effects, [
@@ -38,17 +124,22 @@ describe("recrawlPromoteTier", () => {
 		]);
 	});
 
-	it("declares writes for crawl only (the canonical metadata + S3 copy are owned by promoteTierToCanonical outside the aggregate)", () => {
-		const { writes } = recrawlPromoteTier(buildArticle(), undefined);
+	it("declares writes for metadata, freshness, crawl, summary so the aggregate save scopes to the four axes the transition mutated", () => {
+		const { writes } = recrawlPromoteTier(buildArticle(), buildInput());
 
-		assert.deepEqual([...writes], ["crawl"]);
+		assert.deepEqual([...writes].sort(), [
+			"crawl",
+			"freshness",
+			"metadata",
+			"summary",
+		]);
 	});
 
 	it("does not mutate the input article (pure function)", () => {
 		const before = buildArticle();
 		const snapshot = JSON.parse(JSON.stringify(before));
 
-		recrawlPromoteTier(before, undefined);
+		recrawlPromoteTier(before, buildInput());
 
 		assert.deepEqual(before, snapshot);
 	});

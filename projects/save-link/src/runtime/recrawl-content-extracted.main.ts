@@ -15,7 +15,7 @@ import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-d
 import { requireEnv } from "../require-env";
 import { initFindContentSourceTier } from "../select-content/find-content-source-tier";
 import { initListAvailableTierSources } from "../select-content/list-available-tier-sources";
-import { initPromoteTierToCanonical } from "../select-content/promote-tier-to-canonical";
+import { initWriteCanonicalContent } from "../select-content/promote-tier-to-canonical";
 import { initReadTierSource } from "../select-content/read-tier-source";
 import { initRecrawlContentExtractedHandler } from "../select-content/recrawl-content-extracted-handler";
 import { initSelectMostCompleteContent } from "../select-content/select-content";
@@ -50,12 +50,11 @@ const { selectMostCompleteContent } = initSelectMostCompleteContent({
 	logger: consoleLogger,
 });
 
-const { promoteTierToCanonical } = initPromoteTierToCanonical({
+const { writeCanonicalContent } = initWriteCanonicalContent({
 	dynamoClient,
 	s3Client,
 	tableName: articlesTable,
 	bucketName: contentBucketName,
-	now: () => new Date(),
 });
 
 const { findContentSourceTier } = initFindContentSourceTier({
@@ -92,9 +91,10 @@ const { transitionAndPersist } = initTransitionAndPersist({
 export const handler = initRecrawlContentExtractedHandler({
 	listAvailableTierSources,
 	selectMostCompleteContent,
-	promoteTierToCanonical,
+	writeCanonicalContent,
 	findContentSourceTier,
 	transitionAndPersist,
 	imagesCdnBaseUrl,
+	now: () => new Date(),
 	logger: consoleLogger,
 });

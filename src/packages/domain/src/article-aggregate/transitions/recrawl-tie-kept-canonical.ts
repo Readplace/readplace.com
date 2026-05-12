@@ -2,8 +2,10 @@ import type { Article } from "../article.types";
 import type { Effect } from "../effects.types";
 import type { AggregateField } from "../storage.types";
 
-/* forceMarkCrawlPending unconditionally sets "pending" — without this
- * transition the row stays pending forever with canonical content on disk. */
+/* Tie kept canonical: the selector returned a tie and a canonical already
+ * exists on disk. No tier flip, no metadata refresh, no summary reset — but
+ * crawl still flips to ready and generate-summary still fires (the summariser
+ * short-circuits on cache hit) so the row exits pending. */
 export function recrawlTieKeptCanonical(
 	article: Article,
 	_input: undefined,

@@ -1,14 +1,23 @@
 import { S3Client } from "@aws-sdk/client-s3";
+import { SQSClient } from "@aws-sdk/client-sqs";
 import OpenAI from "openai";
+import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
+import { GenerateSummaryCommand } from "@packages/hutch-infra-components";
+import {
+	EventBridgeClient,
+	initEventBridgePublisher,
+	initSqsCommandDispatcher,
+} from "@packages/hutch-infra-components/runtime";
+import { initDynamoDbArticleStore } from "../article-aggregate/dynamodb-article-store";
+import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-dispatcher";
 import { requireEnv } from "../require-env";
 import { initReadTierSource } from "../select-content/read-tier-source";
 import { initListAvailableTierSources } from "../select-content/list-available-tier-sources";
 import { initSelectMostCompleteContent } from "../select-content/select-content";
 import { SELECT_CONTENT_TIMEOUTS } from "../select-content/timeouts";
-import { initPromoteTierToCanonical } from "../select-content/promote-tier-to-canonical";
+import { initWriteCanonicalContent } from "../select-content/promote-tier-to-canonical";
 import { initFindContentSourceTier } from "../select-content/find-content-source-tier";
 import { initSelectMostCompleteContentHandler } from "../select-content/select-most-complete-content-handler";
 
@@ -16,9 +25,11 @@ const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
+const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
+const sqsClient = new SQSClient({});
 const deepseekClient = new OpenAI({
 	apiKey: deepseekApiKey,
 	baseURL: "https://api.deepseek.com",
@@ -38,12 +49,11 @@ const { selectMostCompleteContent } = initSelectMostCompleteContent({
 	logger: consoleLogger,
 });
 
-const { promoteTierToCanonical } = initPromoteTierToCanonical({
+const { writeCanonicalContent } = initWriteCanonicalContent({
 	dynamoClient,
 	s3Client,
 	tableName: articlesTable,
 	bucketName: contentBucketName,
-	now: () => new Date(),
 });
 
 const { findContentSourceTier } = initFindContentSourceTier({
@@ -51,16 +61,39 @@ const { findContentSourceTier } = initFindContentSourceTier({
 	tableName: articlesTable,
 });
 
+const { store } = initDynamoDbArticleStore({
+	client: dynamoClient,
+	tableName: articlesTable,
+});
+
+const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
+	sqsClient,
+	queueUrl: generateSummaryQueueUrl,
+	command: GenerateSummaryCommand,
+});
+
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
 	eventBusName,
 });
 
+const { dispatchEffect } = initLambdaEffectDispatcher({
+	dispatchGenerateSummary,
+	publishEvent,
+});
+
+const { transitionAndPersist } = initTransitionAndPersist({
+	store,
+	dispatchEffect,
+});
+
 export const handler = initSelectMostCompleteContentHandler({
 	listAvailableTierSources,
 	selectMostCompleteContent,
-	promoteTierToCanonical,
+	writeCanonicalContent,
 	findContentSourceTier,
+	transitionAndPersist,
 	publishEvent,
+	now: () => new Date(),
 	logger: consoleLogger,
 });
