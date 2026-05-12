@@ -246,6 +246,32 @@ describe("collectStuckRows", () => {
 		assert.equal(stuck.length, 2);
 	});
 
+	it("falls back to url when originalUrl is missing (legacy rows)", async () => {
+		const { client } = createFakeClient(() => ({
+			Items: [
+				{
+					url: "example.test/legacy",
+					crawlStatus: "pending",
+					summaryStatus: "pending",
+					savedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
+				},
+			],
+			Count: 1,
+		}));
+		const stuck = await collectStuckRows({
+			client,
+			tableName: TABLE,
+			origin: ORIGIN,
+			now: () => NOW,
+		});
+		assert.equal(stuck.length, 1);
+		assert.equal(stuck[0]?.originalUrl, "example.test/legacy");
+		assert.equal(
+			stuck[0]?.recrawlUrl,
+			`${ORIGIN}/admin/recrawl/${encodeURIComponent("example.test/legacy")}`,
+		);
+	});
+
 	it("buckets stuck rows produced by Phase 2 migrated transitions under the -after-aggregate-migration variant (falsifiable measurement)", async () => {
 		const { client } = createFakeClient(() => ({
 			Items: [

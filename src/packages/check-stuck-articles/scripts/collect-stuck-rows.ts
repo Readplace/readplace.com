@@ -20,7 +20,7 @@ import { type StuckReason, classifyRow } from "./classify-row";
 /* `dynamoField` normalises DDB's `null` for absent attributes to `undefined`. */
 const StuckArticleRow = z.object({
 	url: z.string(),
-	originalUrl: z.string(),
+	originalUrl: dynamoField(z.string()),
 	summaryStatus: dynamoField(SummaryStatusSchema),
 	crawlStatus: dynamoField(CrawlStatusSchema),
 	contentFetchedAt: dynamoField(z.string()),
@@ -122,11 +122,12 @@ export async function collectStuckRows(deps: {
 			const verdict = checkTerminalState(row);
 			if (verdict.terminal) continue;
 			const reasons = classifyRow(row);
+			const effectiveUrl = row.originalUrl ?? row.url;
 			stuck.push({
-				originalUrl: row.originalUrl,
+				originalUrl: effectiveUrl,
 				reasons,
 				contentFetchedAt: row.contentFetchedAt,
-				recrawlUrl: `${deps.origin}/admin/recrawl/${encodeURIComponent(row.originalUrl)}`,
+				recrawlUrl: `${deps.origin}/admin/recrawl/${encodeURIComponent(effectiveUrl)}`,
 				terminalCheckMessage: verdict.message,
 			});
 		}
