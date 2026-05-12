@@ -1,13 +1,17 @@
 import assert from "node:assert";
-import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import type {
+	Handler,
+	SQSBatchItemFailure,
+	SQSBatchResponse,
+	SQSEvent,
+} from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { DispatchCommand, PublishEvent } from "@packages/hutch-infra-components/runtime";
 import {
-	type GenerateSummaryCommand,
-	RecrawlContentExtractedEvent,
-	RecrawlCompletedEvent,
-} from "@packages/hutch-infra-components";
-import type { MarkCrawlReady } from "../crawl-article-state/article-crawl.types";
+	type TransitionAndPersist,
+	recrawlPromoteTier,
+	recrawlTieKeptCanonical,
+} from "@packages/domain/article-aggregate";
+import { RecrawlContentExtractedEvent } from "@packages/hutch-infra-components";
 import type { ListAvailableTierSources } from "./list-available-tier-sources";
 import type { SelectMostCompleteContent } from "./select-content";
 import type { PromoteTierToCanonical } from "./promote-tier-to-canonical";
@@ -19,9 +23,7 @@ export function initRecrawlContentExtractedHandler(deps: {
 	selectMostCompleteContent: SelectMostCompleteContent;
 	promoteTierToCanonical: PromoteTierToCanonical;
 	findContentSourceTier: FindContentSourceTier;
-	markCrawlReady: MarkCrawlReady;
-	dispatchGenerateSummary: DispatchCommand<typeof GenerateSummaryCommand>;
-	publishEvent: PublishEvent;
+	transitionAndPersist: TransitionAndPersist;
 	imagesCdnBaseUrl: string;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
@@ -30,9 +32,7 @@ export function initRecrawlContentExtractedHandler(deps: {
 		selectMostCompleteContent,
 		promoteTierToCanonical,
 		findContentSourceTier,
-		markCrawlReady,
-		dispatchGenerateSummary,
-		publishEvent,
+		transitionAndPersist,
 		imagesCdnBaseUrl,
 		logger,
 	} = deps;
@@ -97,9 +97,6 @@ export function initRecrawlContentExtractedHandler(deps: {
 							winnerTier = cdnTie.tier;
 							reason = cdnTie.reason;
 						} else if (existingTier) {
-							/* Recrawl tie + canonical already set: keep canonical
-							 * exactly as-is; the operator still gets a fresh summary
-							 * via the unconditional dispatchGenerateSummary below. */
 							winnerTier = undefined;
 							reason = decision.reason;
 						} else {
@@ -137,30 +134,21 @@ export function initRecrawlContentExtractedHandler(deps: {
 						tier: winnerTier,
 						reason,
 					});
+
+					await transitionAndPersist(recrawlPromoteTier, {
+						url: detail.url,
+						input: { winnerTier },
+					});
 				} else {
-					// Tie + canonical preserved: promoteTierToCanonical (the only writer
-					// of crawlStatus="ready") was skipped, so we must flip the row back
-					// out of the "pending" state that admin/recrawl's
-					// forceMarkCrawlPending unconditionally wrote — otherwise readers
-					// (and the Tier 1+ canary) poll a forever-"pending" row that never
-					// resolves, since the canonical content is already on disk.
-					await markCrawlReady({ url: detail.url });
+					await transitionAndPersist(recrawlTieKeptCanonical, {
+						url: detail.url,
+						input: undefined,
+					});
 					logger.info("[RecrawlContentExtracted] tie kept canonical unchanged", {
 						url: detail.url,
 						reason,
 					});
 				}
-
-				/* Always dispatch — the user-save chain gates this on canonical
-				 * change to dedup re-saves; recrawl explicitly opts out so the
-				 * operator gets a fresh AI excerpt every time. */
-				await dispatchGenerateSummary({ url: detail.url });
-
-				await publishEvent({
-					source: RecrawlCompletedEvent.source,
-					detailType: RecrawlCompletedEvent.detailType,
-					detail: JSON.stringify({ url: detail.url }),
-				});
 			} catch (error) {
 				logger.error("[RecrawlContentExtracted] record failed", {
 					messageId: record.messageId,

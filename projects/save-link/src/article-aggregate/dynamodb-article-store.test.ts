@@ -1,4 +1,4 @@
-import type { Article } from "@packages/domain/article-aggregate";
+import type { AggregateField, Article } from "@packages/domain/article-aggregate";
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbArticleStore } from "./dynamodb-article-store";
 
@@ -14,6 +14,11 @@ function createFakeClient(
 
 const TABLE = "test-articles";
 const URL = "https://example.com/article";
+const REFRESH_WRITES: readonly AggregateField[] = [
+	"metadata",
+	"freshness",
+	"summary",
+];
 
 function buildArticle(overrides: Partial<Article> = {}): Article {
 	return {
@@ -230,7 +235,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 		});
 	});
 
-	describe("save (refresh-content shape)", () => {
+	describe("save (refresh-content shape: writes metadata, freshness, summary)", () => {
 		it("issues an UpdateItem that writes metadata, freshness, estimatedReadTime, and resets summary to pending", async () => {
 			let received: unknown;
 			const client = createFakeClient((input) => {
@@ -242,7 +247,11 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				tableName: TABLE,
 			});
 
-			await store.save(buildArticle());
+			await store.save({
+				article: buildArticle(),
+				transitionName: "refreshContent",
+				writes: REFRESH_WRITES,
+			});
 
 			const command = received as {
 				input: {
@@ -279,7 +288,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			);
 		});
 
-		it("never touches crawl attributes so a concurrent crawl writer is not clobbered (Phase 1)", async () => {
+		it("never touches crawl attributes when the transition does not declare a crawl write", async () => {
 			let received: unknown;
 			const client = createFakeClient((input) => {
 				received = input;
@@ -290,7 +299,11 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				tableName: TABLE,
 			});
 
-			await store.save(buildArticle({ crawl: { kind: "failed", reason: "x" } }));
+			await store.save({
+				article: buildArticle({ crawl: { kind: "failed", reason: "x" } }),
+				transitionName: "refreshContent",
+				writes: REFRESH_WRITES,
+			});
 
 			const command = received as {
 				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
@@ -313,8 +326,8 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				tableName: TABLE,
 			});
 
-			await store.save(
-				buildArticle({
+			await store.save({
+				article: buildArticle({
 					summary: {
 						kind: "ready",
 						summary: "abc",
@@ -323,7 +336,9 @@ describe("initDynamoDbArticleStore (unit)", () => {
 						outputTokens: 50,
 					},
 				}),
-			);
+				transitionName: "refreshContent",
+				writes: REFRESH_WRITES,
+			});
 
 			const command = received as {
 				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
@@ -364,9 +379,11 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				tableName: TABLE,
 			});
 
-			await store.save(
-				buildArticle({ summary: { kind: "ready", summary: "abc" } }),
-			);
+			await store.save({
+				article: buildArticle({ summary: { kind: "ready", summary: "abc" } }),
+				transitionName: "refreshContent",
+				writes: REFRESH_WRITES,
+			});
 
 			const command = received as {
 				input: { ExpressionAttributeValues?: Record<string, unknown> };
@@ -391,9 +408,13 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				tableName: TABLE,
 			});
 
-			await store.save(
-				buildArticle({ summary: { kind: "failed", reason: "rate limited" } }),
-			);
+			await store.save({
+				article: buildArticle({
+					summary: { kind: "failed", reason: "rate limited" },
+				}),
+				transitionName: "refreshContent",
+				writes: REFRESH_WRITES,
+			});
 
 			const command = received as {
 				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
@@ -423,11 +444,13 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				tableName: TABLE,
 			});
 
-			await store.save(
-				buildArticle({
+			await store.save({
+				article: buildArticle({
 					summary: { kind: "skipped", reason: "content-too-short" },
 				}),
-			);
+				transitionName: "refreshContent",
+				writes: REFRESH_WRITES,
+			});
 
 			const command = received as {
 				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
@@ -457,7 +480,11 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				tableName: TABLE,
 			});
 
-			await store.save(buildArticle({ summary: { kind: "skipped" } }));
+			await store.save({
+				article: buildArticle({ summary: { kind: "skipped" } }),
+				transitionName: "refreshContent",
+				writes: REFRESH_WRITES,
+			});
 
 			const command = received as {
 				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
@@ -481,8 +508,8 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				tableName: TABLE,
 			});
 
-			await store.save(
-				buildArticle({
+			await store.save({
+				article: buildArticle({
 					freshness: { contentFetchedAt: "2026-05-10T12:00:00.000Z" },
 					metadata: {
 						title: "x",
@@ -491,7 +518,9 @@ describe("initDynamoDbArticleStore (unit)", () => {
 						wordCount: 1,
 					},
 				}),
-			);
+				transitionName: "refreshContent",
+				writes: REFRESH_WRITES,
+			});
 
 			const command = received as {
 				input: { ExpressionAttributeValues?: Record<string, unknown> };
@@ -499,6 +528,274 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(command.input.ExpressionAttributeValues?.[":etag"]).toBeNull();
 			expect(command.input.ExpressionAttributeValues?.[":lm"]).toBeNull();
 			expect(command.input.ExpressionAttributeValues?.[":img"]).toBeNull();
+		});
+	});
+
+	describe("save (canary marker)", () => {
+		it("always writes aggregateTransitionName so the check-stuck-articles scan can attribute the row", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle(),
+				transitionName: "markCrawlExhausted",
+				writes: ["crawl", "summary"],
+			});
+
+			const command = received as {
+				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.UpdateExpression).toContain(
+				"aggregateTransitionName = :atn",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":atn"]).toBe(
+				"markCrawlExhausted",
+			);
+		});
+	});
+
+	describe("save (markCrawlExhausted shape: writes crawl, summary)", () => {
+		it("writes crawlStatus=failed with the supplied reason and clears crawlUnsupportedReason", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({
+					crawl: { kind: "failed", reason: "exceeded SQS maxReceiveCount" },
+					summary: { kind: "failed", reason: "crawl failed" },
+				}),
+				transitionName: "markCrawlExhausted",
+				writes: ["crawl", "summary"],
+			});
+
+			const command = received as {
+				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.UpdateExpression).toContain(
+				"crawlStatus = :crawlStatus",
+			);
+			expect(command.input.UpdateExpression).toContain(
+				"crawlFailureReason = :crawlFailureReason",
+			);
+			expect(command.input.UpdateExpression).toContain(
+				"REMOVE",
+			);
+			expect(command.input.UpdateExpression).toContain("crawlUnsupportedReason");
+			expect(command.input.ExpressionAttributeValues?.[":crawlStatus"]).toBe(
+				"failed",
+			);
+			expect(
+				command.input.ExpressionAttributeValues?.[":crawlFailureReason"],
+			).toBe("exceeded SQS maxReceiveCount");
+		});
+
+		it("writes summaryStatus=failed with 'crawl failed' reason when both axes mark failed together", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({
+					crawl: { kind: "failed", reason: "x" },
+					summary: { kind: "failed", reason: "crawl failed" },
+				}),
+				transitionName: "markCrawlExhausted",
+				writes: ["crawl", "summary"],
+			});
+
+			const command = received as {
+				input: { ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.ExpressionAttributeValues?.[":summaryStatus"]).toBe(
+				"failed",
+			);
+			expect(
+				command.input.ExpressionAttributeValues?.[":summaryFailureReason"],
+			).toBe("crawl failed");
+		});
+
+		it("does not touch metadata or freshness attributes when the transition only writes crawl + summary", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({
+					crawl: { kind: "failed", reason: "x" },
+					summary: { kind: "failed", reason: "crawl failed" },
+				}),
+				transitionName: "markCrawlExhausted",
+				writes: ["crawl", "summary"],
+			});
+
+			const command = received as {
+				input: { UpdateExpression?: string };
+			};
+			expect(command.input.UpdateExpression).not.toContain("title = :title");
+			expect(command.input.UpdateExpression).not.toContain(
+				"contentFetchedAt = :cfa",
+			);
+			expect(command.input.UpdateExpression).not.toContain("etag = :etag");
+			expect(command.input.UpdateExpression).not.toContain("imageUrl = :img");
+		});
+	});
+
+	describe("save (other crawl states, writes crawl)", () => {
+		it("writes crawlStatus=unsupported with the supplied reason and clears crawlFailureReason", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({
+					crawl: {
+						kind: "unsupported",
+						reason: "non-html content type: application/pdf",
+					},
+				}),
+				transitionName: "markCrawlUnsupportedFromAggregate",
+				writes: ["crawl"],
+			});
+
+			const command = received as {
+				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.UpdateExpression).toContain(
+				"crawlUnsupportedReason = :crawlUnsupportedReason",
+			);
+			expect(command.input.UpdateExpression).toContain(
+				"crawlFailureReason",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":crawlStatus"]).toBe(
+				"unsupported",
+			);
+			expect(
+				command.input.ExpressionAttributeValues?.[":crawlUnsupportedReason"],
+			).toBe("non-html content type: application/pdf");
+		});
+
+		it("writes crawlStatus=pending and removes both failure / unsupported reasons (a future re-prime transition's shape)", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({ crawl: { kind: "pending" } }),
+				transitionName: "rePrimeCrawl",
+				writes: ["crawl"],
+			});
+
+			const command = received as {
+				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.UpdateExpression).toContain(
+				"crawlStatus = :crawlStatus",
+			);
+			expect(command.input.UpdateExpression).toContain("crawlFailureReason");
+			expect(command.input.UpdateExpression).toContain("crawlUnsupportedReason");
+			expect(command.input.ExpressionAttributeValues?.[":crawlStatus"]).toBe(
+				"pending",
+			);
+		});
+	});
+
+	describe("save (recrawl-tie-kept-canonical shape: writes crawl only)", () => {
+		it("writes crawlStatus=ready and REMOVEs lingering failure / failedAt attributes", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({ crawl: { kind: "ready" } }),
+				transitionName: "recrawlTieKeptCanonical",
+				writes: ["crawl"],
+			});
+
+			const command = received as {
+				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.UpdateExpression).toContain(
+				"crawlStatus = :crawlStatus",
+			);
+			expect(command.input.UpdateExpression).toContain("crawlFailureReason");
+			expect(command.input.UpdateExpression).toContain("crawlUnsupportedReason");
+			expect(command.input.UpdateExpression).toContain("crawlFailedAt");
+			expect(command.input.ExpressionAttributeValues?.[":crawlStatus"]).toBe(
+				"ready",
+			);
+		});
+
+		it("does not touch summary when only crawl is in writes (preserves a freshly-generated summary on recrawl)", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({
+					crawl: { kind: "ready" },
+					summary: { kind: "ready", summary: "kept" },
+				}),
+				transitionName: "recrawlTieKeptCanonical",
+				writes: ["crawl"],
+			});
+
+			const command = received as {
+				input: { UpdateExpression?: string };
+			};
+			expect(command.input.UpdateExpression).not.toContain(
+				"summaryStatus = :summaryStatus",
+			);
+			expect(command.input.UpdateExpression).not.toContain("summary = :summary");
 		});
 	});
 });

@@ -1,4 +1,8 @@
 import { noopLogger } from "@packages/hutch-logger";
+import {
+	recrawlPromoteTier,
+	recrawlTieKeptCanonical,
+} from "@packages/domain/article-aggregate";
 import { initRecrawlContentExtractedHandler } from "./recrawl-content-extracted-handler";
 import type { ListAvailableTierSources } from "./list-available-tier-sources";
 import type { SelectMostCompleteContent } from "./select-content";
@@ -71,9 +75,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		selectMostCompleteContent: jest.fn<ReturnType<SelectMostCompleteContent>, Parameters<SelectMostCompleteContent>>().mockResolvedValue({ winner: "tie", reason: "" }),
 		promoteTierToCanonical: jest.fn<ReturnType<PromoteTierToCanonical>, Parameters<PromoteTierToCanonical>>().mockResolvedValue(undefined),
 		findContentSourceTier: jest.fn<ReturnType<FindContentSourceTier>, Parameters<FindContentSourceTier>>().mockResolvedValue(undefined),
-		markCrawlReady: jest.fn().mockResolvedValue(undefined),
-		dispatchGenerateSummary: jest.fn().mockResolvedValue(undefined),
-		publishEvent: jest.fn().mockResolvedValue(undefined),
+		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		imagesCdnBaseUrl: "https://cdn.example.cloudfront.net",
 		logger: noopLogger,
 		...overrides,
@@ -95,21 +97,18 @@ describe("initRecrawlContentExtractedHandler", () => {
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(deps.promoteTierToCanonical).not.toHaveBeenCalled();
-		expect(deps.dispatchGenerateSummary).not.toHaveBeenCalled();
-		expect(deps.publishEvent).not.toHaveBeenCalled();
+		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
 	});
 
-	it("with one tier source, promotes it and dispatches GenerateSummaryCommand", async () => {
+	it("with one tier source, promotes it and dispatches the recrawlPromoteTier aggregate transition (GenerateSummary + RecrawlCompleted effects)", async () => {
 		const tier1 = tierSource("tier-1");
 		const promoteTierToCanonical = jest.fn().mockResolvedValue(undefined);
-		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 
 		const { handler } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
 			promoteTierToCanonical,
-			dispatchGenerateSummary,
-			publishEvent,
+			transitionAndPersist,
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
@@ -119,38 +118,33 @@ describe("initRecrawlContentExtractedHandler", () => {
 			tier: "tier-1",
 			metadata: tier1.metadata,
 		});
-		expect(dispatchGenerateSummary).toHaveBeenCalledWith({ url: "https://example.com/a" });
-		expect(publishEvent).toHaveBeenCalledWith(
-			expect.objectContaining({ detailType: "RecrawlCompleted" }),
-		);
+		expect(transitionAndPersist).toHaveBeenCalledWith(recrawlPromoteTier, {
+			url: "https://example.com/a",
+			input: { winnerTier: "tier-1" },
+		});
 	});
 
-	it("on a tie with an existing canonical, keeps canonical unchanged, flips crawlStatus back to 'ready' (the canary unsticks here), and still dispatches GenerateSummaryCommand", async () => {
+	it("on a tie with an existing canonical, skips promotion and dispatches the recrawlTieKeptCanonical aggregate transition (one save flips crawl=ready AND emits the same effects)", async () => {
 		const tier0 = tierSource("tier-0");
 		const tier1 = tierSource("tier-1");
 		const promoteTierToCanonical = jest.fn().mockResolvedValue(undefined);
-		const markCrawlReady = jest.fn().mockResolvedValue(undefined);
-		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 
 		const { handler } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
 			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "equally complete" }),
 			findContentSourceTier: jest.fn().mockResolvedValue("tier-1"),
 			promoteTierToCanonical,
-			markCrawlReady,
-			dispatchGenerateSummary,
-			publishEvent,
+			transitionAndPersist,
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
 
 		expect(promoteTierToCanonical).not.toHaveBeenCalled();
-		expect(markCrawlReady).toHaveBeenCalledWith({ url: "https://example.com/a" });
-		expect(dispatchGenerateSummary).toHaveBeenCalledWith({ url: "https://example.com/a" });
-		expect(publishEvent).toHaveBeenCalledWith(
-			expect.objectContaining({ detailType: "RecrawlCompleted" }),
-		);
+		expect(transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, {
+			url: "https://example.com/a",
+			input: undefined,
+		});
 	});
 
 	it("on a tie, breaks in favour of the candidate with more CDN-host URLs even when canonical exists", async () => {
@@ -182,18 +176,18 @@ describe("initRecrawlContentExtractedHandler", () => {
 		});
 	});
 
-	it("on a tie with no canonical (recovering a stuck row), defaults to tier-1 and promotes so summary generation can find content", async () => {
+	it("on a tie with no canonical (recovering a stuck row), defaults to tier-1 and dispatches recrawlPromoteTier so summary generation can find content", async () => {
 		const tier0 = tierSource("tier-0");
 		const tier1 = tierSource("tier-1");
 		const promoteTierToCanonical = jest.fn().mockResolvedValue(undefined);
-		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 
 		const { handler } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
 			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "identical content" }),
 			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
 			promoteTierToCanonical,
-			dispatchGenerateSummary,
+			transitionAndPersist,
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
@@ -203,7 +197,10 @@ describe("initRecrawlContentExtractedHandler", () => {
 			tier: "tier-1",
 			metadata: tier1.metadata,
 		});
-		expect(dispatchGenerateSummary).toHaveBeenCalledWith({ url: "https://example.com/a" });
+		expect(transitionAndPersist).toHaveBeenCalledWith(recrawlPromoteTier, {
+			url: "https://example.com/a",
+			input: { winnerTier: "tier-1" },
+		});
 	});
 
 	it("tie with no canonical and only tier-0 sources available falls back to tier-0", async () => {
@@ -225,17 +222,17 @@ describe("initRecrawlContentExtractedHandler", () => {
 		);
 	});
 
-	it("with multiple sources and a definite winner, promotes the winner and dispatches summary", async () => {
+	it("with multiple sources and a definite winner, promotes the winner and dispatches recrawlPromoteTier", async () => {
 		const tier0 = tierSource("tier-0");
 		const tier1 = tierSource("tier-1");
 		const promoteTierToCanonical = jest.fn().mockResolvedValue(undefined);
-		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 
 		const { handler } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
 			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tier-1", reason: "more complete" }),
 			promoteTierToCanonical,
-			dispatchGenerateSummary,
+			transitionAndPersist,
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
@@ -245,6 +242,9 @@ describe("initRecrawlContentExtractedHandler", () => {
 			tier: "tier-1",
 			metadata: tier1.metadata,
 		});
-		expect(dispatchGenerateSummary).toHaveBeenCalledWith({ url: "https://example.com/a" });
+		expect(transitionAndPersist).toHaveBeenCalledWith(recrawlPromoteTier, {
+			url: "https://example.com/a",
+			input: { winnerTier: "tier-1" },
+		});
 	});
 });

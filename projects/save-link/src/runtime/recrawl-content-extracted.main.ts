@@ -1,19 +1,25 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import OpenAI from "openai";
+import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
+import { GenerateSummaryCommand } from "@packages/hutch-infra-components";
+import {
+	EventBridgeClient,
+	initEventBridgePublisher,
+	initSqsCommandDispatcher,
+} from "@packages/hutch-infra-components/runtime";
 import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { EventBridgeClient, initEventBridgePublisher, initSqsCommandDispatcher } from "@packages/hutch-infra-components/runtime";
-import { GenerateSummaryCommand } from "@packages/hutch-infra-components";
+import OpenAI from "openai";
+import { initDynamoDbArticleStore } from "../article-aggregate/dynamodb-article-store";
+import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-dispatcher";
 import { requireEnv } from "../require-env";
-import { initReadTierSource } from "../select-content/read-tier-source";
+import { initFindContentSourceTier } from "../select-content/find-content-source-tier";
 import { initListAvailableTierSources } from "../select-content/list-available-tier-sources";
+import { initPromoteTierToCanonical } from "../select-content/promote-tier-to-canonical";
+import { initReadTierSource } from "../select-content/read-tier-source";
+import { initRecrawlContentExtractedHandler } from "../select-content/recrawl-content-extracted-handler";
 import { initSelectMostCompleteContent } from "../select-content/select-content";
 import { SELECT_CONTENT_TIMEOUTS } from "../select-content/timeouts";
-import { initPromoteTierToCanonical } from "../select-content/promote-tier-to-canonical";
-import { initFindContentSourceTier } from "../select-content/find-content-source-tier";
-import { initDynamoDbArticleCrawl } from "../crawl-article-state/dynamodb-article-crawl";
-import { initRecrawlContentExtractedHandler } from "../select-content/recrawl-content-extracted-handler";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
@@ -57,10 +63,9 @@ const { findContentSourceTier } = initFindContentSourceTier({
 	tableName: articlesTable,
 });
 
-const { markCrawlReady } = initDynamoDbArticleCrawl({
+const { store } = initDynamoDbArticleStore({
 	client: dynamoClient,
 	tableName: articlesTable,
-	now: () => new Date(),
 });
 
 const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
@@ -74,14 +79,22 @@ const { publishEvent } = initEventBridgePublisher({
 	eventBusName,
 });
 
+const { dispatchEffect } = initLambdaEffectDispatcher({
+	dispatchGenerateSummary,
+	publishEvent,
+});
+
+const { transitionAndPersist } = initTransitionAndPersist({
+	store,
+	dispatchEffect,
+});
+
 export const handler = initRecrawlContentExtractedHandler({
 	listAvailableTierSources,
 	selectMostCompleteContent,
 	promoteTierToCanonical,
 	findContentSourceTier,
-	markCrawlReady,
-	dispatchGenerateSummary,
-	publishEvent,
+	transitionAndPersist,
 	imagesCdnBaseUrl,
 	logger: consoleLogger,
 });

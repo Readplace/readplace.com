@@ -2,12 +2,16 @@ import assert from "node:assert";
 import type { Article } from "./article.types";
 import type { DispatchEffect } from "./effect-dispatcher.types";
 import type { Effect } from "./effects.types";
-import type { ArticleStore } from "./storage.types";
+import type { AggregateField, ArticleStore } from "./storage.types";
 
 export type Transition<TInput> = (
 	article: Article,
 	input: TInput,
-) => { article: Article; effects: readonly Effect[] };
+) => {
+	article: Article;
+	effects: readonly Effect[];
+	writes: readonly AggregateField[];
+};
 
 export type TransitionAndPersist = <TInput>(
 	transition: Transition<TInput>,
@@ -37,8 +41,12 @@ export function initTransitionAndPersist(deps: {
 	) => {
 		const existing = await store.load(params.url);
 		assert(existing, `Article aggregate not found for url: ${params.url}`);
-		const { article, effects } = transition(existing, params.input);
-		await store.save(article);
+		const { article, effects, writes } = transition(existing, params.input);
+		await store.save({
+			article,
+			transitionName: transition.name,
+			writes,
+		});
 		for (const effect of effects) {
 			await dispatchEffect(effect);
 		}

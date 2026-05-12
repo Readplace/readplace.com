@@ -1,5 +1,15 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import type { Article, ArticleStore } from "@packages/domain/article-aggregate";
+import type {
+	AggregateField,
+	Article,
+	ArticleStore,
+} from "@packages/domain/article-aggregate";
+
+interface SavedCall {
+	article: Article;
+	transitionName: string;
+	writes: readonly AggregateField[];
+}
 
 /**
  * In-memory ArticleStore for tests. Stores aggregates keyed on the normalized
@@ -9,8 +19,10 @@ import type { Article, ArticleStore } from "@packages/domain/article-aggregate";
  */
 export function initInMemoryArticleStore(): ArticleStore & {
 	seed: (article: Article) => void;
+	savedCalls: readonly SavedCall[];
 } {
 	const rows = new Map<string, Article>();
+	const savedCalls: SavedCall[] = [];
 
 	function key(url: string): string {
 		return ArticleResourceUniqueId.parse(url).value;
@@ -22,7 +34,8 @@ export function initInMemoryArticleStore(): ArticleStore & {
 			if (!stored) return undefined;
 			return { ...stored, url };
 		},
-		save: async (article) => {
+		save: async ({ article, transitionName, writes }) => {
+			savedCalls.push({ article, transitionName, writes });
 			rows.set(key(article.url), article);
 		},
 	};
@@ -32,5 +45,6 @@ export function initInMemoryArticleStore(): ArticleStore & {
 		seed: (article) => {
 			rows.set(key(article.url), article);
 		},
+		savedCalls,
 	};
 }

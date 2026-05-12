@@ -1,5 +1,8 @@
 import type { Article } from "./article.types";
 
+/* Scopes the aggregate save so concurrent inline writers on untouched axes are not clobbered. */
+export type AggregateField = "metadata" | "freshness" | "summary" | "crawl";
+
 /**
  * Storage adapter contract for the Article aggregate.
  *
@@ -10,7 +13,11 @@ import type { Article } from "./article.types";
  * we defer that until a measured conflict rate justifies the complexity.
  */
 export type LoadArticle = (url: string) => Promise<Article | undefined>;
-export type SaveArticle = (article: Article) => Promise<void>;
+export type SaveArticle = (params: {
+	article: Article;
+	transitionName: string;
+	writes: readonly AggregateField[];
+}) => Promise<void>;
 
 export interface ArticleStore {
 	load: LoadArticle;

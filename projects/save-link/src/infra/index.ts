@@ -160,15 +160,20 @@ const saveLinkCommandLambdaWithSQS = new HutchSQSBackedLambda("save-link-command
 eventBus.subscribe(SaveLinkCommand, saveLinkCommandLambdaWithSQS);
 
 // --- SaveLinkCommand DLQ consumer ---
-// Flips crawlStatus to "failed" and publishes CrawlArticleFailedEvent when a
-// SaveLinkCommand message exhausts maxReceiveCount. The HutchSQSBackedLambda
-// above already wires the DLQ-arrival CloudWatch alarm + admin email.
 new HutchDLQEventHandler("save-link-dlq", {
 	sourceQueue: saveLinkCommandQueue,
 	tableArn: articlesTableArn,
 	tableName: articlesTableName,
 	eventBus,
 	batchSize: 1,
+	additionalDynamoActions: ["dynamodb:GetItem"],
+	additionalEnvironment: {
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	additionalPolicies: generateSummaryQueue.policies.map((p) => ({
+		...p,
+		name: `save-link-dlq-${p.name}`,
+	})),
 });
 
 // --- SaveLinkRawHtmlCommand handler ---
@@ -214,16 +219,20 @@ const saveLinkRawHtmlCommandLambdaWithSQS = new HutchSQSBackedLambda("save-link-
 eventBus.subscribe(SaveLinkRawHtmlCommand, saveLinkRawHtmlCommandLambdaWithSQS);
 
 // --- SaveLinkRawHtmlCommand DLQ consumer ---
-// Mirrors save-link-dlq: flips crawlStatus to "failed" and publishes
-// CrawlArticleFailedEvent when a SaveLinkRawHtmlCommand message exhausts
-// maxReceiveCount. The HutchSQSBackedLambda above already wires the
-// DLQ-arrival CloudWatch alarm + admin email.
 new HutchDLQEventHandler("save-link-raw-html-dlq", {
 	sourceQueue: saveLinkRawHtmlCommandQueue,
 	tableArn: articlesTableArn,
 	tableName: articlesTableName,
 	eventBus,
 	batchSize: 1,
+	additionalDynamoActions: ["dynamodb:GetItem"],
+	additionalEnvironment: {
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	additionalPolicies: generateSummaryQueue.policies.map((p) => ({
+		...p,
+		name: `save-link-raw-html-dlq-${p.name}`,
+	})),
 });
 
 // --- SaveAnonymousLinkCommand handler ---
@@ -271,6 +280,14 @@ new HutchDLQEventHandler("save-anonymous-link-dlq", {
 	tableName: articlesTableName,
 	eventBus,
 	batchSize: 1,
+	additionalDynamoActions: ["dynamodb:GetItem"],
+	additionalEnvironment: {
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	additionalPolicies: generateSummaryQueue.policies.map((p) => ({
+		...p,
+		name: `save-anonymous-link-dlq-${p.name}`,
+	})),
 });
 
 // --- StaleCheckRequested handler ---
@@ -534,6 +551,14 @@ new HutchDLQEventHandler("recrawl-link-initiated-dlq", {
 	tableName: articlesTableName,
 	eventBus,
 	batchSize: 1,
+	additionalDynamoActions: ["dynamodb:GetItem"],
+	additionalEnvironment: {
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	additionalPolicies: generateSummaryQueue.policies.map((p) => ({
+		...p,
+		name: `recrawl-link-initiated-dlq-${p.name}`,
+	})),
 });
 
 // --- RecrawlContentExtracted handler ---
@@ -637,7 +662,7 @@ const refreshArticleContentQueue = new HutchSQS("refresh-article-content", {
 
 const refreshArticleContentDynamodb = new HutchDynamoDBAccess("refresh-article-content-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
-	actions: ["dynamodb:UpdateItem"],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
 const refreshArticleContentLambda = new HutchLambda("refresh-article-content", {
@@ -648,6 +673,7 @@ const refreshArticleContentLambda = new HutchLambda("refresh-article-content", {
 	timeout: 30,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 	},
 	policies: [
@@ -655,6 +681,8 @@ const refreshArticleContentLambda = new HutchLambda("refresh-article-content", {
 		...generateSummaryQueue.policies.map((p) => ({ ...p, name: `refresh-${p.name}` })),
 	],
 });
+
+eventBus.grantPublish(refreshArticleContentLambda);
 
 const refreshArticleContentWithSQS = new HutchSQSBackedLambda("refresh-article-content", {
 	lambda: refreshArticleContentLambda,

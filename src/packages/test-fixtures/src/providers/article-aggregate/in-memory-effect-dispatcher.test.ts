@@ -19,4 +19,37 @@ describe("initInMemoryEffectDispatcher", () => {
 			{ kind: "generate-summary", url: "https://example.com/b" },
 		]);
 	});
+
+	it("records the publish-crawl-article-failed payload (Phase 2 cross-axis writer migration)", async () => {
+		const { dispatchEffect, dispatched } = initInMemoryEffectDispatcher();
+
+		await dispatchEffect({
+			kind: "publish-crawl-article-failed",
+			url: "https://example.com/a",
+			reason: "exceeded SQS maxReceiveCount",
+			receiveCount: 4,
+		});
+
+		assert.deepEqual(dispatched, [
+			{
+				kind: "publish-crawl-article-failed",
+				url: "https://example.com/a",
+				reason: "exceeded SQS maxReceiveCount",
+				receiveCount: 4,
+			},
+		]);
+	});
+
+	it("records the publish-recrawl-completed payload (Phase 2 cross-axis writer migration)", async () => {
+		const { dispatchEffect, dispatched } = initInMemoryEffectDispatcher();
+
+		await dispatchEffect({
+			kind: "publish-recrawl-completed",
+			url: "https://example.com/a",
+		});
+
+		assert.deepEqual(dispatched, [
+			{ kind: "publish-recrawl-completed", url: "https://example.com/a" },
+		]);
+	});
 });

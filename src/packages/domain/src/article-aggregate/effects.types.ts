@@ -6,4 +6,12 @@
  * orchestrator fires effects only after the store accepts the new aggregate,
  * so a handler can't return success without persisting AND dispatching.
  */
-export type Effect = { kind: "generate-summary"; url: string };
+export type Effect =
+	| { kind: "generate-summary"; url: string }
+	| {
+			kind: "publish-crawl-article-failed";
+			url: string;
+			reason: string;
+			receiveCount: number;
+	  }
+	| { kind: "publish-recrawl-completed"; url: string };

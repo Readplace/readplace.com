@@ -1,17 +1,16 @@
-import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import type {
+	Handler,
+	SQSBatchItemFailure,
+	SQSBatchResponse,
+	SQSEvent,
+} from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import {
-	CrawlArticleFailedEvent,
-	SaveAnonymousLinkCommand,
-} from "@packages/hutch-infra-components";
-import type { MarkCrawlFailed } from "./article-crawl.types";
-import type { MarkSummaryFailed } from "../generate-summary/article-summary.types";
+import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
+import { markCrawlExhausted } from "@packages/domain/article-aggregate";
+import { SaveAnonymousLinkCommand } from "@packages/hutch-infra-components";
 
 interface SaveAnonymousLinkDlqHandlerDeps {
-	markCrawlFailed: MarkCrawlFailed;
-	markSummaryFailed: MarkSummaryFailed;
-	publishEvent: PublishEvent;
+	transitionAndPersist: TransitionAndPersist;
 	logger: HutchLogger;
 }
 
@@ -19,7 +18,7 @@ interface SaveAnonymousLinkDlqHandlerDeps {
 export function initSaveAnonymousLinkDlqHandler(
 	deps: SaveAnonymousLinkDlqHandlerDeps,
 ): Handler<SQSEvent, SQSBatchResponse> {
-	const { markCrawlFailed, markSummaryFailed, publishEvent, logger } = deps;
+	const { transitionAndPersist, logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -31,18 +30,14 @@ export function initSaveAnonymousLinkDlqHandler(
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 				const reason = "exceeded SQS maxReceiveCount";
 
-				logger.info("[SaveAnonymousLinkDlq] marking crawl failed", {
+				logger.info("[SaveAnonymousLinkDlq] marking crawl exhausted", {
 					url: command.url,
 					receiveCount,
 				});
 
-				await markCrawlFailed({ url: command.url, reason });
-				await markSummaryFailed({ url: command.url, reason: "crawl failed" });
-
-				await publishEvent({
-					source: CrawlArticleFailedEvent.source,
-					detailType: CrawlArticleFailedEvent.detailType,
-					detail: JSON.stringify({ url: command.url, reason, receiveCount }),
+				await transitionAndPersist(markCrawlExhausted, {
+					url: command.url,
+					input: { reason, receiveCount },
 				});
 			} catch (error) {
 				logger.error("[SaveAnonymousLinkDlq] record failed", {

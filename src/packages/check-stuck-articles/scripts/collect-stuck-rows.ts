@@ -25,6 +25,7 @@ const StuckArticleRow = z.object({
 	crawlStatus: dynamoField(CrawlStatusSchema),
 	contentFetchedAt: dynamoField(z.string()),
 	savedAt: z.string(),
+	aggregateTransitionName: dynamoField(z.string()),
 });
 
 export interface StuckRow {
@@ -82,7 +83,7 @@ export function buildScanInput(now: Date) {
 			`(summaryStatus = :pending AND ${ageGate(":summaryMinAge")}) ` +
 			`OR (crawlStatus = :pending AND ${ageGate(":crawlMinAge")})`,
 		ProjectionExpression:
-			"originalUrl, #u, summaryStatus, crawlStatus, contentFetchedAt, savedAt",
+			"originalUrl, #u, summaryStatus, crawlStatus, contentFetchedAt, savedAt, aggregateTransitionName",
 		ExpressionAttributeNames: { "#u": "url" },
 		ExpressionAttributeValues: {
 			":pending": "pending",
