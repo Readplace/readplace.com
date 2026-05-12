@@ -23,9 +23,11 @@ export function initAnonymousLinkSavedHandler(deps: {
 				logger.info("[AnonymousLinkSaved] processing", { url: detail.url });
 
 				const content = await findArticleContent(detail.url);
+				/* Canonical S3 object written upstream may not be readable yet (S3
+				 * eventual consistency). Throw so SQS retries through
+				 * maxReceiveCount; on exhaustion the DLQ alarm fires. */
 				if (!content) {
-					logger.info("[AnonymousLinkSaved] no content available, skipping summary", { url: detail.url });
-					continue;
+					throw new Error(`canonical content not yet readable for url=${detail.url}`);
 				}
 
 				await dispatchGenerateSummary({ url: detail.url });
