@@ -150,12 +150,14 @@ const saveLinkCommandLambda = new HutchLambda("save-link-command", {
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 	},
 	policies: [
 		...saveLinkCommandDynamodb.policies,
 		// readTierSnapshot HEAD-checks tier-0 source when logging the crawl outcome.
 		...contentBucket.readPolicies("save-link-command-content-read"),
 		...contentBucket.writePolicies("save-link-command-s3"),
+		...renamePolicies(generateSummaryQueue.policies, "save-link-command"),
 	],
 });
 
@@ -203,6 +205,7 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda("save-link-raw-html-command
 		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 	},
 	policies: [
 		...saveLinkRawHtmlCommandDynamodb.policies,
@@ -212,6 +215,7 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda("save-link-raw-html-command
 		// readTierSnapshot HEAD-checks tier-0 source when logging the crawl outcome.
 		...contentBucket.readPolicies("save-link-raw-html-command-content-read"),
 		...contentBucket.writePolicies("save-link-raw-html-command-s3"),
+		...renamePolicies(generateSummaryQueue.policies, "save-link-raw-html-command"),
 	],
 });
 
@@ -258,12 +262,14 @@ const saveAnonymousLinkCommandLambda = new HutchLambda("save-anonymous-link-comm
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 	},
 	policies: [
 		...saveAnonymousLinkCommandDynamodb.policies,
 		// readTierSnapshot HEAD-checks tier-0 source when logging the crawl outcome.
 		...contentBucket.readPolicies("save-anonymous-link-command-content-read"),
 		...contentBucket.writePolicies("save-anonymous-link-command-s3"),
+		...renamePolicies(generateSummaryQueue.policies, "save-anonymous-link-command"),
 	],
 });
 
@@ -526,12 +532,14 @@ const recrawlLinkInitiatedLambda = new HutchLambda("recrawl-link-initiated", {
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 	},
 	policies: [
 		...recrawlLinkInitiatedDynamodb.policies,
 		// readTierSnapshot HEAD-checks tier-0 source when logging the crawl outcome.
 		...contentBucket.readPolicies("recrawl-link-initiated-content-read"),
 		...contentBucket.writePolicies("recrawl-link-initiated-s3"),
+		...renamePolicies(generateSummaryQueue.policies, "recrawl-link-initiated"),
 	],
 });
 
