@@ -422,7 +422,7 @@ const generateSummaryLambda = new HutchLambda("generate-summary", {
 	},
 	policies: [
 		...generateSummaryDynamodb.policies,
-		...generateSummaryQueue.policies,
+		...renamePolicies(generateSummaryQueue.policies, "generate-summary"),
 		...contentBucket.readPolicies("generate-summary-s3"),
 	],
 });
