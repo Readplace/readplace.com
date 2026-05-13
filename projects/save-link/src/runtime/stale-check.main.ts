@@ -1,19 +1,11 @@
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { initDynamoDbArticleStore } from "@packages/article-store";
 import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
-import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import {
-	GenerateSummaryCommand,
 	RefreshArticleContentCommand,
 	SaveAnonymousLinkCommand,
-	SubmitLinkCommand,
 	UpdateFetchTimestampCommand,
 } from "@packages/hutch-infra-components";
-import {
-	EventBridgeClient,
-	initEventBridgePublisher,
-	initSqsCommandDispatcher,
-} from "@packages/hutch-infra-components/runtime";
+import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
@@ -22,13 +14,14 @@ import type {
 	PublishSaveAnonymousLink,
 	PublishUpdateFetchTimestamp,
 } from "@packages/test-fixtures/providers/events";
-import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-dispatcher";
 import { initReadabilityParser } from "../article-parser/readability-parser";
 import { theInformationPreParser } from "../article-parser/the-information-pre-parser";
 import { initFindArticleCrawlStatus } from "../crawl-article-state/find-article-crawl-status";
 import { initFindArticleFreshness } from "../crawl-article-state/find-article-freshness";
 import { requireEnv } from "../require-env";
 import { initStaleCheckHandler } from "../save-link/stale-check-handler";
+import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
+import { initEventsDepBundle } from "./dep-bundles/events";
 
 // 24h: mirrors hutch app.ts's staleTtlMs. Reads of an article older than this
 // trigger a conditional GET against the source (304 → noop, 200 → re-extract).
@@ -41,6 +34,7 @@ const submitLinkQueueUrl = requireEnv("SUBMIT_LINK_QUEUE_URL");
 
 const client = createDynamoDocumentClient();
 const sqsClient = new SQSClient({});
+const eventBridgeClient = new EventBridgeClient({});
 const logError = (message: string, error?: Error) =>
 	consoleLogger.error(message, { error });
 
@@ -53,13 +47,11 @@ const { parseHtml } = initReadabilityParser({
 	logError,
 });
 
-const { publishEvent } = initEventBridgePublisher({
-	client: new EventBridgeClient({}),
-	eventBusName,
-});
+const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl, submitLinkQueueUrl });
+const articleAggregate = initArticleAggregateDepBundle({ dynamoClient: client, articlesTable, events });
 
 const publishRefreshArticleContent: PublishRefreshArticleContent = async (params) => {
-	await publishEvent({
+	await events.publishEvent({
 		source: RefreshArticleContentCommand.source,
 		detailType: RefreshArticleContentCommand.detailType,
 		detail: JSON.stringify({
@@ -75,7 +67,7 @@ const publishRefreshArticleContent: PublishRefreshArticleContent = async (params
 };
 
 const publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp = async (params) => {
-	await publishEvent({
+	await events.publishEvent({
 		source: UpdateFetchTimestampCommand.source,
 		detailType: UpdateFetchTimestampCommand.detailType,
 		detail: JSON.stringify({
@@ -86,7 +78,7 @@ const publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp = async (params) 
 };
 
 const publishSaveAnonymousLink: PublishSaveAnonymousLink = async (params) => {
-	await publishEvent({
+	await events.publishEvent({
 		source: SaveAnonymousLinkCommand.source,
 		detailType: SaveAnonymousLinkCommand.detailType,
 		detail: JSON.stringify({ url: params.url }),
@@ -114,36 +106,11 @@ const { refreshArticleIfStale } = initRefreshArticleIfStale({
 	staleTtlMs: STALE_TTL_MS,
 });
 
-const { store } = initDynamoDbArticleStore({ client, tableName: articlesTable });
-
-const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
-	sqsClient,
-	queueUrl: generateSummaryQueueUrl,
-	command: GenerateSummaryCommand,
-});
-
-const { dispatch: dispatchSubmitLink } = initSqsCommandDispatcher({
-	sqsClient,
-	queueUrl: submitLinkQueueUrl,
-	command: SubmitLinkCommand,
-});
-
-const { dispatchEffect } = initLambdaEffectDispatcher({
-	dispatchGenerateSummary,
-	dispatchSubmitLink,
-	publishEvent,
-});
-
-const { transitionAndPersist } = initTransitionAndPersist({
-	store,
-	dispatchEffect,
-});
-
 export const handler = initStaleCheckHandler({
 	refreshArticleIfStale,
 	publishSaveAnonymousLink,
-	loadArticle: store.load,
-	transitionAndPersist,
+	loadArticle: articleAggregate.store.load,
+	transitionAndPersist: articleAggregate.transitionAndPersist,
 	now: () => new Date(),
 	logger: consoleLogger,
 });

@@ -1,24 +1,14 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import OpenAI from "openai";
-import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
+import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { GenerateSummaryCommand, SubmitLinkCommand } from "@packages/hutch-infra-components";
-import {
-	EventBridgeClient,
-	initEventBridgePublisher,
-	initSqsCommandDispatcher,
-} from "@packages/hutch-infra-components/runtime";
-import { initDynamoDbArticleStore } from "@packages/article-store";
-import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-dispatcher";
+import OpenAI from "openai";
 import { requireEnv } from "../require-env";
-import { initReadTierSource } from "../select-content/read-tier-source";
-import { initListAvailableTierSources } from "../select-content/list-available-tier-sources";
-import { initSelectMostCompleteContent } from "../select-content/select-content";
 import { SELECT_CONTENT_TIMEOUTS } from "../select-content/timeouts";
-import { initWriteCanonicalContent } from "../select-content/promote-tier-to-canonical";
-import { initFindContentSourceTier } from "../select-content/find-content-source-tier";
+import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
+import { initEventsDepBundle } from "./dep-bundles/events";
+import { initSelectContentDepBundle } from "./dep-bundles/select-content";
 import { initSelectMostCompleteContentHandler } from "../select-content/select-most-complete-content-handler";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
@@ -31,77 +21,28 @@ const submitLinkQueueUrl = requireEnv("SUBMIT_LINK_QUEUE_URL");
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
 const sqsClient = new SQSClient({});
+const eventBridgeClient = new EventBridgeClient({});
 const deepseekClient = new OpenAI({
 	apiKey: deepseekApiKey,
 	baseURL: "https://api.deepseek.com",
 	timeout: SELECT_CONTENT_TIMEOUTS.deepseekMs,
 });
 
-const { readTierSource } = initReadTierSource({
-	client: s3Client,
-	bucketName: contentBucketName,
-	logger: consoleLogger,
-});
-
-const { listAvailableTierSources } = initListAvailableTierSources({ readTierSource });
-
-const { selectMostCompleteContent } = initSelectMostCompleteContent({
+const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl, submitLinkQueueUrl });
+const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });
+const selectContent = initSelectContentDepBundle({
+	s3Client,
+	dynamoClient,
+	contentBucketName,
+	articlesTable,
 	createChatCompletion: (params) => deepseekClient.chat.completions.create(params),
 	logger: consoleLogger,
 });
 
-const { writeCanonicalContent } = initWriteCanonicalContent({
-	dynamoClient,
-	s3Client,
-	tableName: articlesTable,
-	bucketName: contentBucketName,
-});
-
-const { findContentSourceTier } = initFindContentSourceTier({
-	dynamoClient,
-	tableName: articlesTable,
-});
-
-const { store } = initDynamoDbArticleStore({
-	client: dynamoClient,
-	tableName: articlesTable,
-});
-
-const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
-	sqsClient,
-	queueUrl: generateSummaryQueueUrl,
-	command: GenerateSummaryCommand,
-});
-
-const { dispatch: dispatchSubmitLink } = initSqsCommandDispatcher({
-	sqsClient,
-	queueUrl: submitLinkQueueUrl,
-	command: SubmitLinkCommand,
-});
-
-const { publishEvent } = initEventBridgePublisher({
-	client: new EventBridgeClient({}),
-	eventBusName,
-});
-
-const { dispatchEffect } = initLambdaEffectDispatcher({
-	dispatchGenerateSummary,
-	dispatchSubmitLink,
-	publishEvent,
-});
-
-const { transitionAndPersist } = initTransitionAndPersist({
-	store,
-	dispatchEffect,
-});
-
 export const handler = initSelectMostCompleteContentHandler({
-	listAvailableTierSources,
-	selectMostCompleteContent,
-	writeCanonicalContent,
-	findContentSourceTier,
-	transitionAndPersist,
-	publishEvent,
+	...selectContent,
+	...events,
+	...articleAggregate,
 	now: () => new Date(),
 	logger: consoleLogger,
 });

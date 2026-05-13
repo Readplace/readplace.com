@@ -50,6 +50,8 @@ export function submitLink(
 		return { article: next, effects, writes };
 	}
 
+	// Same result as the terminal catch-all below — kept explicit so the three
+	// semantic branches (first save, in-flight, terminal) are visible.
 	if (article.crawl.kind === "pending") {
 		return { article, effects, writes: [] };
 	}
