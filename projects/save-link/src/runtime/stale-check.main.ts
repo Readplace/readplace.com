@@ -6,6 +6,7 @@ import {
 	GenerateSummaryCommand,
 	RefreshArticleContentCommand,
 	SaveAnonymousLinkCommand,
+	SubmitLinkCommand,
 	UpdateFetchTimestampCommand,
 } from "@packages/hutch-infra-components";
 import {
@@ -36,6 +37,7 @@ const STALE_TTL_MS = 86_400_000;
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const submitLinkQueueUrl = requireEnv("SUBMIT_LINK_QUEUE_URL");
 
 const client = createDynamoDocumentClient();
 const sqsClient = new SQSClient({});
@@ -120,8 +122,15 @@ const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
 	command: GenerateSummaryCommand,
 });
 
+const { dispatch: dispatchSubmitLink } = initSqsCommandDispatcher({
+	sqsClient,
+	queueUrl: submitLinkQueueUrl,
+	command: SubmitLinkCommand,
+});
+
 const { dispatchEffect } = initLambdaEffectDispatcher({
 	dispatchGenerateSummary,
+	dispatchSubmitLink,
 	publishEvent,
 });
 

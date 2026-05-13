@@ -16,6 +16,7 @@ const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const submitLinkQueueUrl = requireEnv("SUBMIT_LINK_QUEUE_URL");
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
@@ -27,7 +28,7 @@ const deepseekClient = new OpenAI({
 	timeout: SELECT_CONTENT_TIMEOUTS.deepseekMs,
 });
 
-const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
+const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl, submitLinkQueueUrl });
 const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });
 const selectContent = initSelectContentDepBundle({
 	s3Client,

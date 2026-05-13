@@ -1,6 +1,6 @@
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
-import { GenerateSummaryCommand } from "@packages/hutch-infra-components";
+import { GenerateSummaryCommand, SubmitLinkCommand } from "@packages/hutch-infra-components";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
@@ -16,6 +16,7 @@ import { initSelectMostCompleteContentDlqHandler } from "../select-content/selec
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const submitLinkQueueUrl = requireEnv("SUBMIT_LINK_QUEUE_URL");
 
 const dynamoClient = createDynamoDocumentClient();
 const sqsClient = new SQSClient({});
@@ -31,6 +32,12 @@ const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
 	command: GenerateSummaryCommand,
 });
 
+const { dispatch: dispatchSubmitLink } = initSqsCommandDispatcher({
+	sqsClient,
+	queueUrl: submitLinkQueueUrl,
+	command: SubmitLinkCommand,
+});
+
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
 	eventBusName,
@@ -38,6 +45,7 @@ const { publishEvent } = initEventBridgePublisher({
 
 const { dispatchEffect } = initLambdaEffectDispatcher({
 	dispatchGenerateSummary,
+	dispatchSubmitLink,
 	publishEvent,
 });
 

@@ -64,7 +64,17 @@ export {
 	type RecrawlPromoteTierInput,
 } from "./transitions/recrawl-promote-tier";
 export {
+	submitLink,
+	type SubmitLinkInput,
+} from "./transitions/submit-link";
+export {
+	requestRecrawl,
+	type RequestRecrawlInput,
+} from "./transitions/request-recrawl";
+export {
 	initTransitionAndPersist,
 	type Transition,
 	type TransitionAndPersist,
+	type UpsertAndPersist,
+	type UpsertTransition,
 } from "./transition-and-persist";

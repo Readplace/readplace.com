@@ -4,7 +4,7 @@ import OpenAI from "openai";
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { GenerateSummaryCommand } from "@packages/hutch-infra-components";
+import { GenerateSummaryCommand, SubmitLinkCommand } from "@packages/hutch-infra-components";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
@@ -26,6 +26,7 @@ const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const submitLinkQueueUrl = requireEnv("SUBMIT_LINK_QUEUE_URL");
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
@@ -72,6 +73,12 @@ const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
 	command: GenerateSummaryCommand,
 });
 
+const { dispatch: dispatchSubmitLink } = initSqsCommandDispatcher({
+	sqsClient,
+	queueUrl: submitLinkQueueUrl,
+	command: SubmitLinkCommand,
+});
+
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
 	eventBusName,
@@ -79,6 +86,7 @@ const { publishEvent } = initEventBridgePublisher({
 
 const { dispatchEffect } = initLambdaEffectDispatcher({
 	dispatchGenerateSummary,
+	dispatchSubmitLink,
 	publishEvent,
 });
 

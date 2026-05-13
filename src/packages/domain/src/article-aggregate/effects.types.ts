@@ -10,6 +10,12 @@ export type Effect =
 	| { kind: "generate-summary"; url: string }
 	| { kind: "dispatch-generate-summary-retry"; url: string; attempt: number }
 	| {
+			kind: "dispatch-submit-link";
+			url: string;
+			userId?: string;
+			rawHtml?: string;
+	  }
+	| {
 			kind: "publish-crawl-article-failed";
 			url: string;
 			reason: string;

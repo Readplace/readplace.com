@@ -1,7 +1,7 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
-import { GenerateSummaryCommand } from "@packages/hutch-infra-components";
+import { GenerateSummaryCommand, SubmitLinkCommand } from "@packages/hutch-infra-components";
 import {
 	EventBridgeClient,
 	initEventBridgePublisher,
@@ -26,6 +26,7 @@ const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const submitLinkQueueUrl = requireEnv("SUBMIT_LINK_QUEUE_URL");
 
 const dynamoClient = createDynamoDocumentClient();
 const s3Client = new S3Client({});
@@ -73,6 +74,12 @@ const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
 	command: GenerateSummaryCommand,
 });
 
+const { dispatch: dispatchSubmitLink } = initSqsCommandDispatcher({
+	sqsClient,
+	queueUrl: submitLinkQueueUrl,
+	command: SubmitLinkCommand,
+});
+
 const { publishEvent } = initEventBridgePublisher({
 	client: new EventBridgeClient({}),
 	eventBusName,
@@ -80,6 +87,7 @@ const { publishEvent } = initEventBridgePublisher({
 
 const { dispatchEffect } = initLambdaEffectDispatcher({
 	dispatchGenerateSummary,
+	dispatchSubmitLink,
 	publishEvent,
 });
 
