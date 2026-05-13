@@ -367,11 +367,13 @@ const selectMostCompleteContentLambda = new HutchLambda("select-most-complete-co
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		DEEPSEEK_API_KEY: deepseekApiKey,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 	},
 	policies: [
 		...selectMostCompleteContentDynamodb.policies,
 		...contentBucket.readPolicies("select-most-complete-content-content-read"),
 		...contentBucket.writePolicies("select-most-complete-content-content-write"),
+		...renamePolicies(generateSummaryQueue.policies, "select-most-complete-content"),
 	],
 });
 

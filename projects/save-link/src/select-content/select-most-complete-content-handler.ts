@@ -3,14 +3,16 @@ import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "a
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import {
+	type TransitionAndPersist,
+	promoteTier,
+} from "@packages/domain/article-aggregate";
+import {
 	TierContentExtractedEvent,
-	LinkSavedEvent,
-	AnonymousLinkSavedEvent,
 	CrawlArticleCompletedEvent,
 } from "@packages/hutch-infra-components";
 import type { ListAvailableTierSources } from "./list-available-tier-sources";
 import type { SelectMostCompleteContent } from "./select-content";
-import type { PromoteTierToCanonical } from "./promote-tier-to-canonical";
+import type { WriteCanonicalContent } from "./promote-tier-to-canonical";
 import type { FindContentSourceTier } from "./find-content-source-tier";
 import type { TierSource } from "./tier-source.types";
 
@@ -18,17 +20,21 @@ import type { TierSource } from "./tier-source.types";
 export function initSelectMostCompleteContentHandler(deps: {
 	listAvailableTierSources: ListAvailableTierSources;
 	selectMostCompleteContent: SelectMostCompleteContent;
-	promoteTierToCanonical: PromoteTierToCanonical;
+	writeCanonicalContent: WriteCanonicalContent;
 	findContentSourceTier: FindContentSourceTier;
+	transitionAndPersist: TransitionAndPersist;
 	publishEvent: PublishEvent;
+	now: () => Date;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		listAvailableTierSources,
 		selectMostCompleteContent,
-		promoteTierToCanonical,
+		writeCanonicalContent,
 		findContentSourceTier,
+		transitionAndPersist,
 		publishEvent,
+		now,
 		logger,
 	} = deps;
 
@@ -86,7 +92,9 @@ export function initSelectMostCompleteContentHandler(deps: {
 							/* Recrawl tie: a canonical already exists. Promoting the
 							 * same content again would be a no-op write but a real
 							 * summary regeneration — wasted Deepseek tokens. Emit
-							 * CrawlArticleCompleted to settle the pipeline and skip. */
+							 * CrawlArticleCompleted directly to settle the pipeline
+							 * and skip; no aggregate transition because crawl/summary
+							 * state is unchanged. */
 							await publishEvent({
 								source: CrawlArticleCompletedEvent.source,
 								detailType: CrawlArticleCompletedEvent.detailType,
@@ -99,7 +107,7 @@ export function initSelectMostCompleteContentHandler(deps: {
 						 * one is a deterministic tiebreaker rather than a quality
 						 * call. Prefer tier-1 (Readability-parsed) when present,
 						 * else tier-0 (raw HTML). Without this default the row
-						 * sits at crawlStatus=pending forever — promoteTierToCanonical
+						 * sits at crawlStatus=pending forever — promoteTier
 						 * is the only writer of crawlStatus="ready". */
 						const fallback =
 							sources.find((source) => source.tier === "tier-1") ??
@@ -124,44 +132,26 @@ export function initSelectMostCompleteContentHandler(deps: {
 				const currentTier = await findContentSourceTier(detail.url);
 				const canonicalChanged = currentTier !== winnerTier;
 
-				await promoteTierToCanonical({
+				await writeCanonicalContent({ url: detail.url, tier: winnerTier });
+
+				await transitionAndPersist(promoteTier, {
 					url: detail.url,
-					tier: winnerTier,
-					metadata: winnerSource.metadata,
+					input: {
+						tier: winnerTier,
+						metadata: winnerSource.metadata,
+						estimatedReadTime: winnerSource.metadata.estimatedReadTime,
+						contentFetchedAt: now().toISOString(),
+						canonicalChanged,
+						userId: detail.userId,
+					},
 				});
 
-				await publishEvent({
-					source: CrawlArticleCompletedEvent.source,
-					detailType: CrawlArticleCompletedEvent.detailType,
-					detail: JSON.stringify({ url: detail.url }),
-				});
-
-				if (canonicalChanged) {
-					if (detail.userId) {
-						await publishEvent({
-							source: LinkSavedEvent.source,
-							detailType: LinkSavedEvent.detailType,
-							detail: JSON.stringify({ url: detail.url, userId: detail.userId }),
-						});
-					} else {
-						await publishEvent({
-							source: AnonymousLinkSavedEvent.source,
-							detailType: AnonymousLinkSavedEvent.detailType,
-							detail: JSON.stringify({ url: detail.url }),
-						});
-					}
-					logger.info("[SelectContent] promoted tier to canonical", {
-						url: detail.url,
-						tier: winnerTier,
-						reason,
-					});
-				} else {
-					logger.info("[SelectContent] re-selected same tier; canonical unchanged", {
-						url: detail.url,
-						tier: winnerTier,
-						reason,
-					});
-				}
+				logger.info(
+					canonicalChanged
+						? "[SelectContent] promoted tier to canonical"
+						: "[SelectContent] re-selected same tier; canonical unchanged",
+					{ url: detail.url, tier: winnerTier, reason },
+				);
 			} catch (error) {
 				logger.error("[SelectContent] record failed", {
 					messageId: record.messageId,

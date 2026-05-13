@@ -14,26 +14,28 @@ import {
 import { RecrawlContentExtractedEvent } from "@packages/hutch-infra-components";
 import type { ListAvailableTierSources } from "./list-available-tier-sources";
 import type { SelectMostCompleteContent } from "./select-content";
-import type { PromoteTierToCanonical } from "./promote-tier-to-canonical";
+import type { WriteCanonicalContent } from "./promote-tier-to-canonical";
 import type { FindContentSourceTier } from "./find-content-source-tier";
 import type { TierSource } from "./tier-source.types";
 
 export function initRecrawlContentExtractedHandler(deps: {
 	listAvailableTierSources: ListAvailableTierSources;
 	selectMostCompleteContent: SelectMostCompleteContent;
-	promoteTierToCanonical: PromoteTierToCanonical;
+	writeCanonicalContent: WriteCanonicalContent;
 	findContentSourceTier: FindContentSourceTier;
 	transitionAndPersist: TransitionAndPersist;
 	imagesCdnBaseUrl: string;
+	now: () => Date;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		listAvailableTierSources,
 		selectMostCompleteContent,
-		promoteTierToCanonical,
+		writeCanonicalContent,
 		findContentSourceTier,
 		transitionAndPersist,
 		imagesCdnBaseUrl,
+		now,
 		logger,
 	} = deps;
 	const cdnHost = new URL(imagesCdnBaseUrl).host;
@@ -123,21 +125,22 @@ export function initRecrawlContentExtractedHandler(deps: {
 					const winnerSource = sources.find((source) => source.tier === winnerTier);
 					assert(winnerSource, `winner tier ${winnerTier} missing from candidate set`);
 
-					await promoteTierToCanonical({
+					await writeCanonicalContent({ url: detail.url, tier: winnerTier });
+
+					await transitionAndPersist(recrawlPromoteTier, {
 						url: detail.url,
-						tier: winnerTier,
-						metadata: winnerSource.metadata,
+						input: {
+							winnerTier,
+							metadata: winnerSource.metadata,
+							estimatedReadTime: winnerSource.metadata.estimatedReadTime,
+							contentFetchedAt: now().toISOString(),
+						},
 					});
 
 					logger.info("[RecrawlContentExtracted] promoted tier to canonical", {
 						url: detail.url,
 						tier: winnerTier,
 						reason,
-					});
-
-					await transitionAndPersist(recrawlPromoteTier, {
-						url: detail.url,
-						input: undefined,
 					});
 				} else {
 					await transitionAndPersist(recrawlTieKeptCanonical, {

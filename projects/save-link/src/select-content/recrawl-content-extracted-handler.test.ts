@@ -2,11 +2,12 @@ import { noopLogger } from "@packages/hutch-logger";
 import {
 	recrawlPromoteTier,
 	recrawlTieKeptCanonical,
+	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
 import { initRecrawlContentExtractedHandler } from "./recrawl-content-extracted-handler";
 import type { ListAvailableTierSources } from "./list-available-tier-sources";
 import type { SelectMostCompleteContent } from "./select-content";
-import type { PromoteTierToCanonical } from "./promote-tier-to-canonical";
+import type { WriteCanonicalContent } from "./promote-tier-to-canonical";
 import type { FindContentSourceTier } from "./find-content-source-tier";
 import type { TierSource, TierSourceMetadata } from "./tier-source.types";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
@@ -32,6 +33,8 @@ const stubContext: Context = {
 	fail: () => {},
 	succeed: () => {},
 };
+
+const FIXED_NOW = new Date("2026-05-12T10:00:00.000Z");
 
 const stubMetadata = (overrides: Partial<TierSourceMetadata> = {}): TierSourceMetadata => ({
 	title: "Title",
@@ -70,13 +73,15 @@ function createSqsEvent(detail: { url: string }): SQSEvent {
 type HandlerDeps = Parameters<typeof initRecrawlContentExtractedHandler>[0];
 
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
+	const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
 	const deps: HandlerDeps = {
 		listAvailableTierSources: jest.fn<ReturnType<ListAvailableTierSources>, Parameters<ListAvailableTierSources>>().mockResolvedValue([]),
 		selectMostCompleteContent: jest.fn<ReturnType<SelectMostCompleteContent>, Parameters<SelectMostCompleteContent>>().mockResolvedValue({ winner: "tie", reason: "" }),
-		promoteTierToCanonical: jest.fn<ReturnType<PromoteTierToCanonical>, Parameters<PromoteTierToCanonical>>().mockResolvedValue(undefined),
+		writeCanonicalContent: jest.fn<ReturnType<WriteCanonicalContent>, Parameters<WriteCanonicalContent>>().mockResolvedValue(undefined),
 		findContentSourceTier: jest.fn<ReturnType<FindContentSourceTier>, Parameters<FindContentSourceTier>>().mockResolvedValue(undefined),
-		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
+		transitionAndPersist,
 		imagesCdnBaseUrl: "https://cdn.example.cloudfront.net",
+		now: () => FIXED_NOW,
 		logger: noopLogger,
 		...overrides,
 	};
@@ -96,51 +101,118 @@ describe("initRecrawlContentExtractedHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		expect(deps.promoteTierToCanonical).not.toHaveBeenCalled();
+		expect(deps.writeCanonicalContent).not.toHaveBeenCalled();
 		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
 	});
 
-	it("with one tier source, promotes it and dispatches the recrawlPromoteTier aggregate transition (GenerateSummary + RecrawlCompleted effects)", async () => {
-		const tier1 = tierSource("tier-1");
-		const promoteTierToCanonical = jest.fn().mockResolvedValue(undefined);
-		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+	it("with one tier source, writes canonical content and dispatches the recrawlPromoteTier aggregate transition with the refreshed metadata + freshness payload", async () => {
+		const tier1 = tierSource("tier-1", {
+			metadata: stubMetadata({
+				title: "Refreshed",
+				excerpt: "Refreshed excerpt",
+				wordCount: 500,
+				estimatedReadTime: 4,
+				imageUrl: "https://cdn.example/img.png",
+			}),
+		});
+		const writeCanonicalContent = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
 
 		const { handler } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
-			promoteTierToCanonical,
+			writeCanonicalContent,
 			transitionAndPersist,
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
 
-		expect(promoteTierToCanonical).toHaveBeenCalledWith({
+		expect(writeCanonicalContent).toHaveBeenCalledWith({
 			url: "https://example.com/a",
 			tier: "tier-1",
-			metadata: tier1.metadata,
 		});
 		expect(transitionAndPersist).toHaveBeenCalledWith(recrawlPromoteTier, {
 			url: "https://example.com/a",
-			input: undefined,
+			input: {
+				winnerTier: "tier-1",
+				metadata: tier1.metadata,
+				estimatedReadTime: tier1.metadata.estimatedReadTime,
+				contentFetchedAt: FIXED_NOW.toISOString(),
+			},
 		});
 	});
 
-	it("on a tie with an existing canonical, skips promotion and dispatches the recrawlTieKeptCanonical aggregate transition (one save flips crawl=ready AND emits the same effects)", async () => {
+	it("refreshes user-facing metadata (title/excerpt/wordCount/imageUrl) into the aggregate input on a recrawl — bug-fix coverage for the previously-frozen card", async () => {
+		const tier1 = tierSource("tier-1", {
+			metadata: stubMetadata({
+				title: "Brand-new upstream title",
+				excerpt: "Brand-new excerpt",
+				wordCount: 1234,
+				imageUrl: "https://cdn.example/new-image.png",
+			}),
+		});
+		const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
+			transitionAndPersist,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+
+		expect(transitionAndPersist).toHaveBeenCalledWith(
+			recrawlPromoteTier,
+			expect.objectContaining({
+				url: "https://example.com/a",
+				input: expect.objectContaining({
+					metadata: expect.objectContaining({
+						title: "Brand-new upstream title",
+						excerpt: "Brand-new excerpt",
+						wordCount: 1234,
+						imageUrl: "https://cdn.example/new-image.png",
+					}),
+				}),
+			}),
+		);
+	});
+
+	it("calls writeCanonicalContent BEFORE the aggregate transition so canonical S3 content exists by the time crawlStatus flips to ready", async () => {
+		const tier1 = tierSource("tier-1");
+		const callOrder: string[] = [];
+		const writeCanonicalContent = jest.fn(async () => {
+			callOrder.push("writeCanonicalContent");
+		});
+		const transitionAndPersist: TransitionAndPersist = jest.fn(async () => {
+			callOrder.push("transitionAndPersist");
+		});
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
+			writeCanonicalContent,
+			transitionAndPersist,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+
+		expect(callOrder).toEqual(["writeCanonicalContent", "transitionAndPersist"]);
+	});
+
+	it("on a tie with an existing canonical, skips canonical write and dispatches the recrawlTieKeptCanonical aggregate transition (crawl flips to ready, summariser short-circuits on cache hit)", async () => {
 		const tier0 = tierSource("tier-0");
 		const tier1 = tierSource("tier-1");
-		const promoteTierToCanonical = jest.fn().mockResolvedValue(undefined);
-		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const writeCanonicalContent = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
 
 		const { handler } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
 			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "equally complete" }),
 			findContentSourceTier: jest.fn().mockResolvedValue("tier-1"),
-			promoteTierToCanonical,
+			writeCanonicalContent,
 			transitionAndPersist,
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
 
-		expect(promoteTierToCanonical).not.toHaveBeenCalled();
+		expect(writeCanonicalContent).not.toHaveBeenCalled();
 		expect(transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, {
 			url: "https://example.com/a",
 			input: undefined,
@@ -155,96 +227,104 @@ describe("initRecrawlContentExtractedHandler", () => {
 		const tier1 = tierSource("tier-1", {
 			html: '<p>same body</p><img src="https://cdn.example.cloudfront.net/a.png"><img src="https://cdn.example.cloudfront.net/b.png">',
 		});
-		const promoteTierToCanonical = jest.fn().mockResolvedValue(undefined);
+		const writeCanonicalContent = jest.fn().mockResolvedValue(undefined);
 		const findContentSourceTier = jest.fn().mockResolvedValue("tier-0");
 
 		const { handler } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
 			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "only image URLs differ" }),
 			findContentSourceTier,
-			promoteTierToCanonical,
+			writeCanonicalContent,
 			imagesCdnBaseUrl: "https://cdn.example.cloudfront.net",
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
 
 		expect(findContentSourceTier).not.toHaveBeenCalled();
-		expect(promoteTierToCanonical).toHaveBeenCalledWith({
+		expect(writeCanonicalContent).toHaveBeenCalledWith({
 			url: "https://example.com/a",
 			tier: "tier-1",
-			metadata: tier1.metadata,
 		});
 	});
 
 	it("on a tie with no canonical (recovering a stuck row), defaults to tier-1 and dispatches recrawlPromoteTier so summary generation can find content", async () => {
 		const tier0 = tierSource("tier-0");
 		const tier1 = tierSource("tier-1");
-		const promoteTierToCanonical = jest.fn().mockResolvedValue(undefined);
-		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const writeCanonicalContent = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
 
 		const { handler } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
 			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "identical content" }),
 			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
-			promoteTierToCanonical,
+			writeCanonicalContent,
 			transitionAndPersist,
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
 
-		expect(promoteTierToCanonical).toHaveBeenCalledWith({
+		expect(writeCanonicalContent).toHaveBeenCalledWith({
 			url: "https://example.com/a",
 			tier: "tier-1",
-			metadata: tier1.metadata,
 		});
 		expect(transitionAndPersist).toHaveBeenCalledWith(recrawlPromoteTier, {
 			url: "https://example.com/a",
-			input: undefined,
+			input: {
+				winnerTier: "tier-1",
+				metadata: tier1.metadata,
+				estimatedReadTime: tier1.metadata.estimatedReadTime,
+				contentFetchedAt: FIXED_NOW.toISOString(),
+			},
 		});
 	});
 
 	it("tie with no canonical and only tier-0 sources available falls back to tier-0", async () => {
 		const tier0 = tierSource("tier-0");
 		const tier0Alt = tierSource("tier-0", { metadata: stubMetadata({ title: "Alt" }) });
-		const promoteTierToCanonical = jest.fn().mockResolvedValue(undefined);
+		const writeCanonicalContent = jest.fn().mockResolvedValue(undefined);
 
 		const { handler } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier0Alt]),
 			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "tied tier-0 candidates" }),
 			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
-			promoteTierToCanonical,
+			writeCanonicalContent,
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
 
-		expect(promoteTierToCanonical).toHaveBeenCalledWith(
-			expect.objectContaining({ url: "https://example.com/a", tier: "tier-0" }),
-		);
+		expect(writeCanonicalContent).toHaveBeenCalledWith({
+			url: "https://example.com/a",
+			tier: "tier-0",
+		});
 	});
 
-	it("with multiple sources and a definite winner, promotes the winner and dispatches recrawlPromoteTier", async () => {
+	it("with multiple sources and a definite winner, writes canonical and dispatches recrawlPromoteTier", async () => {
 		const tier0 = tierSource("tier-0");
 		const tier1 = tierSource("tier-1");
-		const promoteTierToCanonical = jest.fn().mockResolvedValue(undefined);
-		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+		const writeCanonicalContent = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
 
 		const { handler } = createHandler({
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
 			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tier-1", reason: "more complete" }),
-			promoteTierToCanonical,
+			writeCanonicalContent,
 			transitionAndPersist,
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
 
-		expect(promoteTierToCanonical).toHaveBeenCalledWith({
+		expect(writeCanonicalContent).toHaveBeenCalledWith({
 			url: "https://example.com/a",
 			tier: "tier-1",
-			metadata: tier1.metadata,
 		});
 		expect(transitionAndPersist).toHaveBeenCalledWith(recrawlPromoteTier, {
 			url: "https://example.com/a",
-			input: undefined,
+			input: {
+				winnerTier: "tier-1",
+				metadata: tier1.metadata,
+				estimatedReadTime: tier1.metadata.estimatedReadTime,
+				contentFetchedAt: FIXED_NOW.toISOString(),
+			},
 		});
 	});
 });

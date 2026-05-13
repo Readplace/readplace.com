@@ -46,7 +46,10 @@ export {
 	type PromoteTierInput,
 } from "./transitions/promote-tier";
 export { recrawlTieKeptCanonical } from "./transitions/recrawl-tie-kept-canonical";
-export { recrawlPromoteTier } from "./transitions/recrawl-promote-tier";
+export {
+	recrawlPromoteTier,
+	type RecrawlPromoteTierInput,
+} from "./transitions/recrawl-promote-tier";
 export {
 	initTransitionAndPersist,
 	type Transition,
