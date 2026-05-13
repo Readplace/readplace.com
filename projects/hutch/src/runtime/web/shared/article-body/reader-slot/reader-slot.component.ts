@@ -11,31 +11,45 @@ export interface ReaderSlotInput {
 	extensionInstallUrl?: string;
 }
 
+/**
+ * Exhaustively dispatches over crawl.status. Adding a new CrawlStatus value
+ * (or a new variant of ArticleCrawl) becomes a compile break here — the
+ * switch covers every variant explicitly and TypeScript's exhaustiveness
+ * check via the discriminated union prevents a forgotten case from compiling.
+ *
+ * The legacy `crawl === undefined` shape comes from
+ * dynamodb-article-crawl.ts:rowToArticleCrawl: rows that pre-date the
+ * state machines have no `crawlStatus` attribute. We render content if
+ * present, otherwise treat it as pending.
+ */
 export function renderReaderSlot(input: ReaderSlotInput): string {
-	// Valid terminal states first. `unsupported` (PDF, image, archive, …) and
-	// `failed` (everything else) share the same template with a one-line copy
-	// variant — neither emits an htmx polling stub.
-	if (input.crawl?.status === "failed" || input.crawl?.status === "unsupported") {
-		return renderReaderFailed({
-			url: input.url,
-			variant: input.crawl.status,
-			extensionInstallUrl: input.extensionInstallUrl,
-		});
+	if (input.crawl === undefined) {
+		return input.content
+			? renderReaderReady({ content: input.content })
+			: renderReaderPending({ pollUrl: input.readerPollUrl });
 	}
-	// `crawl === undefined` is the legacy-row contract from
-	// dynamodb-article-crawl.ts:rowToArticleCrawl: rows that pre-date the
-	// state machines have no `crawlStatus` attribute, and the storage layer
-	// pushes the decision to this dispatcher — render content if it's there,
-	// otherwise the catch-all below treats it as pending.
-	if (input.content && (input.crawl?.status === "ready" || input.crawl === undefined)) {
-		return renderReaderReady({ content: input.content });
+
+	switch (input.crawl.status) {
+		case "ready":
+			/* Worker-bug catch-all: a ready row with no content is a writer
+			 * inconsistency picked up by stuck-articles-canary; render pending
+			 * so the slot retries instead of erroring. */
+			return input.content
+				? renderReaderReady({ content: input.content })
+				: renderReaderPending({ pollUrl: input.readerPollUrl });
+		case "pending":
+			return renderReaderPending({ pollUrl: input.readerPollUrl });
+		case "failed":
+			return renderReaderFailed({
+				url: input.url,
+				variant: "failed",
+				extensionInstallUrl: input.extensionInstallUrl,
+			});
+		case "unsupported":
+			return renderReaderFailed({
+				url: input.url,
+				variant: "unsupported",
+				extensionInstallUrl: input.extensionInstallUrl,
+			});
 	}
-	// Catch-all: render pending with a poll URL. Covers the normal in-flight
-	// case (`crawl.status === "pending"`), the read-after-write race
-	// (`crawl === undefined && !content`), and the inconsistent state where
-	// the worker marked crawl ready but no content is readable. If no system
-	// flips the underlying status, the slot stays "pending" forever — picked
-	// up by .github/workflows/stuck-articles-canary.yml whenever the DB row
-	// is `crawlStatus="pending"` or carries no state at all (legacy stub).
-	return renderReaderPending({ pollUrl: input.readerPollUrl });
 }

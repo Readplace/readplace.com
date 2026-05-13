@@ -126,4 +126,23 @@ describe("renderReaderSlot", () => {
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("pending");
 	});
+
+	it("dispatches every CrawlStatus variant — adding a new variant must break this test (and the renderer's exhaustive switch)", () => {
+		const variants: Array<{
+			input: Parameters<typeof renderReaderSlot>[0];
+			expected: string;
+		}> = [
+			{ input: { crawl: { status: "ready" }, content: "<p>x</p>", url: URL }, expected: "ready" },
+			{ input: { crawl: { status: "pending" }, url: URL }, expected: "pending" },
+			{ input: { crawl: { status: "failed", reason: "x" }, url: URL }, expected: "failed" },
+			{ input: { crawl: { status: "unsupported", reason: "x" }, url: URL }, expected: "unsupported" },
+		];
+
+		for (const { input, expected } of variants) {
+			const doc = parse(renderReaderSlot(input));
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, `slot must render for status=${expected}`);
+			expect(slot.getAttribute("data-reader-status")).toBe(expected);
+		}
+	});
 });
