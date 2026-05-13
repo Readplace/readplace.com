@@ -18,6 +18,7 @@ const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const submitLinkQueueUrl = requireEnv("SUBMIT_LINK_QUEUE_URL");
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
@@ -29,7 +30,7 @@ const observability = initObservabilityDepBundle({ logger: consoleLogger, source
 const parser = initParserDepBundle({ logError: observability.logError });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logger: consoleLogger, imagesCdnBaseUrl });
-const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
+const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl, submitLinkQueueUrl });
 const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });
 const articleCrawl = initArticleCrawlDepBundle({ dynamoClient, articlesTable });
 

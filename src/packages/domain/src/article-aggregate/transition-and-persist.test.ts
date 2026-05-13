@@ -6,6 +6,7 @@ import type { AggregateField, ArticleStore, SaveArticle } from "./storage.types"
 import {
 	initTransitionAndPersist,
 	type Transition,
+	type UpsertTransition,
 } from "./transition-and-persist";
 
 function seededArticle(url: string): Article {
@@ -320,5 +321,135 @@ describe("initTransitionAndPersist", () => {
 
 		assert.equal(saved.length, 1);
 		assert.equal(saved[0]?.article.metadata.title, "Updated");
+	});
+
+	it("skips store.save when the transition returns an empty writes array (idempotent no-op on row, effects still dispatched)", async () => {
+		const { store, saved } = createFakeStore([seededArticle(URL)]);
+		const dispatched: Effect[] = [];
+		const dispatchEffect: DispatchEffect = async (effect) => {
+			dispatched.push(effect);
+		};
+		const transition: Transition<undefined> = (article) => ({
+			article,
+			effects: [{ kind: "generate-summary", url: article.url }],
+			writes: [],
+		});
+
+		const { transitionAndPersist } = initTransitionAndPersist({
+			store,
+			dispatchEffect,
+		});
+
+		await transitionAndPersist(transition, { url: URL, input: undefined });
+
+		assert.deepEqual(saved, []);
+		assert.deepEqual(dispatched, [{ kind: "generate-summary", url: URL }]);
+	});
+});
+
+describe("upsertAndPersist", () => {
+	const URL = "https://example.com/article";
+
+	it("synthesises a row when load returns undefined (first-save upsert)", async () => {
+		const { store, saved } = createFakeStore([]);
+		const dispatched: Effect[] = [];
+		const dispatchEffect: DispatchEffect = async (effect) => {
+			dispatched.push(effect);
+		};
+
+		const stubArticle: Article = {
+			url: URL,
+			metadata: { title: "Synth", siteName: "example.com", excerpt: "", wordCount: 0 },
+			freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
+			estimatedReadTime: 1,
+			crawl: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
+			summary: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
+			summaryAutoHeal: { attempts: 0 },
+		};
+
+		function upsertTransition(article: Article | undefined): {
+			article: Article;
+			effects: readonly Effect[];
+			writes: readonly AggregateField[];
+		} {
+			return {
+				article: article ?? stubArticle,
+				effects: [{ kind: "generate-summary", url: URL }],
+				writes: article ? [] : ["metadata", "freshness", "crawl", "summary"],
+			};
+		}
+
+		const { upsertAndPersist } = initTransitionAndPersist({
+			store,
+			dispatchEffect,
+		});
+
+		await upsertAndPersist(upsertTransition, { url: URL, input: undefined });
+
+		assert.equal(saved.length, 1);
+		assert.equal(saved[0]?.article, stubArticle);
+		assert.deepEqual(dispatched, [{ kind: "generate-summary", url: URL }]);
+	});
+
+	it("passes the existing article when load returns a row (re-save path)", async () => {
+		const seed = seededArticle(URL);
+		const { store, saved } = createFakeStore([seed]);
+		const dispatchEffect: DispatchEffect = async () => {};
+		const seen: Array<Article | undefined> = [];
+
+		const upsertTransition: UpsertTransition<undefined> = (article) => {
+			seen.push(article);
+			return {
+				article: article ?? seed,
+				effects: [],
+				writes: [],
+			};
+		};
+
+		const { upsertAndPersist } = initTransitionAndPersist({
+			store,
+			dispatchEffect,
+		});
+
+		await upsertAndPersist(upsertTransition, { url: URL, input: undefined });
+
+		assert.equal(seen.length, 1);
+		assert.equal(seen[0], seed);
+		assert.deepEqual(saved, []); /* writes empty → save skipped */
+	});
+
+	it("threads the upsert transition's name through to store.save", async () => {
+		const { store, saved } = createFakeStore([]);
+		const dispatchEffect: DispatchEffect = async () => {};
+		const stubArticle: Article = {
+			url: URL,
+			metadata: { title: "X", siteName: "x", excerpt: "", wordCount: 0 },
+			freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
+			estimatedReadTime: 1,
+			crawl: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
+			summary: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
+			summaryAutoHeal: { attempts: 0 },
+		};
+		function namedUpsertTransition(): {
+			article: Article;
+			effects: readonly Effect[];
+			writes: readonly AggregateField[];
+		} {
+			return {
+				article: stubArticle,
+				effects: [],
+				writes: ["metadata"],
+			};
+		}
+
+		const { upsertAndPersist } = initTransitionAndPersist({
+			store,
+			dispatchEffect,
+		});
+
+		await upsertAndPersist(namedUpsertTransition, { url: URL, input: undefined });
+
+		assert.equal(saved.length, 1);
+		assert.equal(saved[0]?.transitionName, "namedUpsertTransition");
 	});
 });
