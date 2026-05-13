@@ -8,20 +8,16 @@ import type { ArticleCrawl } from "../article-crawl/article-crawl.types";
  */
 type TerminalAction = "refresh-eligible" | "skip";
 
+const TERMINAL_ACTIONS = {
+	ready: "refresh-eligible",
+	pending: "refresh-eligible",
+	failed: "skip",
+	unsupported: "skip",
+} satisfies Record<ArticleCrawl["status"], TerminalAction>;
+
 export function decideTerminalAction(
 	crawl: ArticleCrawl | undefined,
 ): TerminalAction {
-	/** Legacy row with no crawl status — the TTL gate decides (no
-	 * contentFetchedAt means "treat as new"; refresh-eligible drops it back
-	 * onto the caller's existing branches). */
 	if (!crawl) return "refresh-eligible";
-
-	switch (crawl.status) {
-		case "ready":
-		case "pending":
-			return "refresh-eligible";
-		case "failed":
-		case "unsupported":
-			return "skip";
-	}
+	return TERMINAL_ACTIONS[crawl.status];
 }
