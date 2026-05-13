@@ -1,4 +1,4 @@
-import type { SavedArticle } from "@packages/domain/article";
+import type { SavedArticle, SaveableUrlErrorCode } from "@packages/domain/article";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
 import { pickExcerpt } from "../../../providers/article-summary/article-summary.helpers";
 import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
@@ -66,6 +66,7 @@ export interface QueueViewModel {
 		next?: string;
 	};
 	saveError?: string;
+	saveErrorCode?: SaveableUrlErrorCode;
 	importFlash?: string;
 	importSkipped?: ImportSkippedViewModel;
 }
@@ -176,6 +177,7 @@ export function toQueueViewModel(
 	options?: {
 		now?: Date;
 		saveError?: string;
+		saveErrorCode?: SaveableUrlErrorCode;
 		importFlash?: string;
 		importSkipped?: ImportSkippedViewModel;
 		unreadCount?: number;
@@ -223,6 +225,7 @@ export function toQueueViewModel(
 					: undefined,
 		},
 		saveError: options?.saveError,
+		saveErrorCode: options?.saveErrorCode,
 		importFlash: options?.importFlash,
 		importSkipped: options?.importSkipped,
 	};

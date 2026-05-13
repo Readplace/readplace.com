@@ -408,6 +408,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			]);
 			const vm = toQueueViewModel(result, urlState, {
 				saveError: validation.error.message,
+				saveErrorCode: validation.error.code,
 				unreadCount,
 				summaryByUrl,
 				crawlByUrl,
