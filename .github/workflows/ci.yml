@@ -68,6 +68,23 @@ jobs:
       ff-affected: ${{ steps.detect.outputs.ff-affected }}
       chrome-affected: ${{ steps.detect.outputs.chrome-affected }}
     steps:
+      # check-infra runs `pulumi preview` against each project's Pulumi program,
+      # which evaluates top-level `requireEnv` calls (e.g. DEEPSEEK_API_KEY,
+      # GOOGLE_LOGIN_CLIENT_ID). Without secrets exported as env vars the program
+      # crashes before the resource graph is built and drift detection silently
+      # reports "No drift" — matches the secret-export step in
+      # project-deployment.yaml.
+      - name: Export all repository and environment secrets as env vars
+        env:
+          SECRETS_JSON: ${{ toJson(secrets) }}
+        run: |
+          DELIM="EOF_$(openssl rand -hex 16)"
+          printf '%s' "$SECRETS_JSON" | jq -r --arg d "$DELIM" '
+            to_entries[]
+            | select(.key != "github_token")
+            | "\(.key)<<\($d)\n\(.value)\n\($d)"
+          ' >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v6
         with:
           # Full history needed for nx affected to compare commits
@@ -113,13 +130,20 @@ jobs:
             pnpm nx run-many --target=compile --projects="$UNCHECKED_CSV" 2>&1 || true
           fi
 
-          # Run check-infra for each unchecked project, detect drift from pulumi output
+          # Run check-infra for each unchecked project, detect drift from pulumi output.
+          # A non-zero exit from `nx run check-infra` means the Pulumi program crashed
+          # before the resource graph was built (e.g. missing env var), so drift is
+          # unknown — force a redeploy rather than silently reporting "no drift".
           DRIFTED='[]'
           for project in $(echo "$UNCHECKED" | jq -r '.[]'); do
             echo "::group::check-infra $project"
-            INFRA_OUTPUT=$(pnpm nx run "$project:check-infra" 2>&1) || true
+            INFRA_OUTPUT=$(pnpm nx run "$project:check-infra" 2>&1)
+            INFRA_EXIT=$?
             echo "$INFRA_OUTPUT"
-            if echo "$INFRA_OUTPUT" | grep -qE 'to (update|create|delete|replace)'; then
+            if [ $INFRA_EXIT -ne 0 ]; then
+              echo "::error::check-infra crashed for $project (exit $INFRA_EXIT) — drift unknown, forcing redeploy"
+              DRIFTED=$(echo "$DRIFTED" | jq --arg p "$project" '. + [$p]')
+            elif echo "$INFRA_OUTPUT" | grep -qE 'to (update|create|delete|replace)'; then
               echo "Drift detected in: $project"
               DRIFTED=$(echo "$DRIFTED" | jq --arg p "$project" '. + [$p]')
             else
