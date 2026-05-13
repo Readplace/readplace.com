@@ -1,4 +1,5 @@
 name: platform
+description: Shared platform infrastructure (EventBridge bus)
 runtime:
   name: nodejs
   options:

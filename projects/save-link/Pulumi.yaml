@@ -1,4 +1,5 @@
 name: save-link
+description: Event handlers for link saving and summary generation
 runtime:
   name: nodejs
   options:

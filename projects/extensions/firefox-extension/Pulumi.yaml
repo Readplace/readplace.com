@@ -1,4 +1,5 @@
 name: firefox-extension
+description: Public S3 bucket hosting signed Firefox extension XPI
 runtime:
   name: nodejs
   options:
