@@ -77,7 +77,7 @@ describe("initTransitionAndPersist", () => {
 			writes: readonly AggregateField[];
 		} {
 			return {
-				article: { ...article, summary: { kind: "pending" } },
+				article: { ...article, summary: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" } },
 				effects: [{ kind: "generate-summary", url: article.url }],
 				writes: ["summary"],
 			};
@@ -238,7 +238,7 @@ describe("initTransitionAndPersist", () => {
 		};
 
 		const transition: Transition<undefined> = (article) => ({
-			article: { ...article, summary: { kind: "pending" } },
+			article: { ...article, summary: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" } },
 			effects: [{ kind: "generate-summary", url: article.url }],
 			writes: ["summary"],
 		});

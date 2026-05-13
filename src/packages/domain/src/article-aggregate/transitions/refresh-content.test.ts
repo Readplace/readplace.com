@@ -27,6 +27,8 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 	};
 }
 
+const NOW = "2026-05-13T12:00:00.000Z";
+
 describe("refreshContent", () => {
 	it("overwrites metadata, freshness, and estimated read time with the fetched values", () => {
 		const before = buildArticle();
@@ -45,6 +47,7 @@ describe("refreshContent", () => {
 				contentFetchedAt: "2026-05-10T12:00:00.000Z",
 			},
 			estimatedReadTime: 2,
+			now: NOW,
 		});
 
 		assert.equal(article.metadata.title, "New title");
@@ -70,9 +73,26 @@ describe("refreshContent", () => {
 			metadata: before.metadata,
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
+			now: NOW,
 		});
 
-		assert.deepEqual(article.summary, { kind: "pending" });
+		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
+	});
+
+	it("stamps pendingSince with the provided now so the canary can age-gate the row", () => {
+		const before = buildArticle();
+
+		const { article } = refreshContent(before, {
+			metadata: before.metadata,
+			freshness: before.freshness,
+			estimatedReadTime: before.estimatedReadTime,
+			now: NOW,
+		});
+
+		assert.equal(
+			article.summary.kind === "pending" ? article.summary.pendingSince : "",
+			NOW,
+		);
 	});
 
 	it("preserves crawl state so a successful refresh does not regress the crawl row", () => {
@@ -82,6 +102,7 @@ describe("refreshContent", () => {
 			metadata: before.metadata,
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
+			now: NOW,
 		});
 
 		assert.deepEqual(article.crawl, { kind: "ready" });
@@ -94,6 +115,7 @@ describe("refreshContent", () => {
 			metadata: before.metadata,
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
+			now: NOW,
 		});
 
 		assert.deepEqual(effects, [
@@ -108,6 +130,7 @@ describe("refreshContent", () => {
 			metadata: before.metadata,
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
+			now: NOW,
 		});
 
 		assert.deepEqual([...writes].sort(), ["freshness", "metadata", "summary"]);
@@ -130,6 +153,7 @@ describe("refreshContent", () => {
 				contentFetchedAt: "2026-05-10T12:00:00.000Z",
 			},
 			estimatedReadTime: 3,
+			now: NOW,
 		});
 
 		assert.deepEqual(before, beforeSnapshot);

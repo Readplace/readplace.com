@@ -111,6 +111,7 @@ describe("initRefreshArticleContentHandler (aggregate-driven)", () => {
 
 		const handler = initRefreshArticleContentHandler({
 			transitionAndPersist,
+			now: () => new Date("2026-05-13T12:00:00.000Z"),
 			logger: noopLogger,
 		});
 
@@ -140,7 +141,10 @@ describe("initRefreshArticleContentHandler (aggregate-driven)", () => {
 		expect(updated?.freshness.etag).toBe('"new-etag"');
 		expect(updated?.freshness.contentFetchedAt).toBe("2026-05-10T12:00:00.000Z");
 		expect(updated?.estimatedReadTime).toBe(2);
-		expect(updated?.summary).toEqual({ kind: "pending" });
+		expect(updated?.summary).toEqual({
+			kind: "pending",
+			pendingSince: "2026-05-13T12:00:00.000Z",
+		});
 		expect(dispatched).toEqual<Effect[]>([
 			{ kind: "generate-summary", url: URL },
 		]);
@@ -176,6 +180,7 @@ describe("initRefreshArticleContentHandler (aggregate-driven)", () => {
 
 		const handler = initRefreshArticleContentHandler({
 			transitionAndPersist,
+			now: () => new Date("2026-05-13T12:00:00.000Z"),
 			logger: noopLogger,
 		});
 
@@ -203,6 +208,7 @@ describe("initRefreshArticleContentHandler (aggregate-driven)", () => {
 
 		const handler = initRefreshArticleContentHandler({
 			transitionAndPersist,
+			now: () => new Date("2026-05-13T12:00:00.000Z"),
 			logger: noopLogger,
 		});
 
@@ -249,6 +255,7 @@ describe("initRefreshArticleContentHandler (aggregate-driven)", () => {
 
 		const handler = initRefreshArticleContentHandler({
 			transitionAndPersist,
+			now: () => new Date("2026-05-13T12:00:00.000Z"),
 			logger: noopLogger,
 		});
 
@@ -280,6 +287,7 @@ describe("initRefreshArticleContentHandler (aggregate-driven)", () => {
 
 		const handler = initRefreshArticleContentHandler({
 			transitionAndPersist,
+			now: () => new Date("2026-05-13T12:00:00.000Z"),
 			logger: noopLogger,
 		});
 

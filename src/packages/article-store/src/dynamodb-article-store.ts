@@ -41,7 +41,9 @@ const ArticleAggregateRow = z.object({
 	crawlStatus: dynamoField(CrawlStatusSchema),
 	crawlFailureReason: dynamoField(z.string()),
 	crawlUnsupportedReason: dynamoField(z.string()),
+	crawlPendingSince: dynamoField(z.string()),
 	summaryStatus: dynamoField(SummaryStatusSchema),
+	summaryPendingSince: dynamoField(z.string()),
 	summary: dynamoField(z.string()),
 	summaryExcerpt: dynamoField(z.string()),
 	summaryInputTokens: dynamoField(z.number()),
@@ -54,6 +56,14 @@ const ArticleAggregateRow = z.object({
 type RowShape = z.infer<typeof ArticleAggregateRow>;
 
 const AGGREGATE_FIELDS = ArticleAggregateRow.keyof().options;
+
+/**
+ * 1. Legacy rows saved before `pendingSince` existed default to epoch 0 so the
+ *    canary's age-gate immediately surfaces them once they cross MIN_AGE_MS.
+ *    Fallback is dropped after a follow-up canary scan reports zero legacy
+ *    rows still in flight.
+ */
+const LEGACY_PENDING_SINCE = new Date(0).toISOString();
 
 function rowToCrawlState(row: RowShape): CrawlState {
 	if (row.crawlStatus === "failed") {
@@ -71,7 +81,10 @@ function rowToCrawlState(row: RowShape): CrawlState {
 		return { kind: "unsupported", reason: row.crawlUnsupportedReason };
 	}
 	if (row.crawlStatus === "ready") return { kind: "ready" };
-	return { kind: "pending" };
+	return {
+		kind: "pending",
+		pendingSince: row.crawlPendingSince ?? LEGACY_PENDING_SINCE /* 1 */,
+	};
 }
 
 function rowToSummaryState(row: RowShape): SummaryState {
@@ -100,7 +113,10 @@ function rowToSummaryState(row: RowShape): SummaryState {
 			? { kind: "skipped", reason: row.summarySkippedReason }
 			: { kind: "skipped" };
 	}
-	return { kind: "pending" };
+	return {
+		kind: "pending",
+		pendingSince: row.summaryPendingSince ?? LEGACY_PENDING_SINCE /* 1 */,
+	};
 }
 
 function rowToArticle(url: string, row: RowShape): Article {
@@ -168,7 +184,9 @@ function appendSummaryClauses(
 ): void {
 	sets.push("summaryStatus = :summaryStatus");
 	if (article.summary.kind === "pending") {
+		sets.push("summaryPendingSince = :summaryPendingSince");
 		values[":summaryStatus"] = "pending";
+		values[":summaryPendingSince"] = article.summary.pendingSince;
 		removes.push(
 			"summary",
 			"summaryExcerpt",
@@ -192,14 +210,14 @@ function appendSummaryClauses(
 		values[":summaryExcerpt"] = article.summary.excerpt ?? null;
 		values[":summaryInputTokens"] = article.summary.inputTokens ?? null;
 		values[":summaryOutputTokens"] = article.summary.outputTokens ?? null;
-		removes.push("summaryFailureReason", "summarySkippedReason");
+		removes.push("summaryFailureReason", "summarySkippedReason", "summaryPendingSince");
 		return;
 	}
 	if (article.summary.kind === "failed") {
 		sets.push("summaryFailureReason = :summaryFailureReason");
 		values[":summaryStatus"] = "failed";
 		values[":summaryFailureReason"] = article.summary.reason;
-		removes.push("summarySkippedReason");
+		removes.push("summarySkippedReason", "summaryPendingSince");
 		return;
 	}
 	values[":summaryStatus"] = "skipped";
@@ -209,7 +227,7 @@ function appendSummaryClauses(
 	} else {
 		removes.push("summarySkippedReason");
 	}
-	removes.push("summaryFailureReason");
+	removes.push("summaryFailureReason", "summaryPendingSince");
 }
 
 function appendCrawlClauses(
@@ -223,22 +241,29 @@ function appendCrawlClauses(
 		sets.push("crawlFailureReason = :crawlFailureReason");
 		values[":crawlStatus"] = "failed";
 		values[":crawlFailureReason"] = article.crawl.reason;
-		removes.push("crawlUnsupportedReason");
+		removes.push("crawlUnsupportedReason", "crawlPendingSince");
 		return;
 	}
 	if (article.crawl.kind === "unsupported") {
 		sets.push("crawlUnsupportedReason = :crawlUnsupportedReason");
 		values[":crawlStatus"] = "unsupported";
 		values[":crawlUnsupportedReason"] = article.crawl.reason;
-		removes.push("crawlFailureReason");
+		removes.push("crawlFailureReason", "crawlPendingSince");
 		return;
 	}
 	if (article.crawl.kind === "ready") {
 		values[":crawlStatus"] = "ready";
-		removes.push("crawlFailureReason", "crawlUnsupportedReason", "crawlFailedAt");
+		removes.push(
+			"crawlFailureReason",
+			"crawlUnsupportedReason",
+			"crawlFailedAt",
+			"crawlPendingSince",
+		);
 		return;
 	}
+	sets.push("crawlPendingSince = :crawlPendingSince");
 	values[":crawlStatus"] = "pending";
+	values[":crawlPendingSince"] = article.crawl.pendingSince;
 	removes.push("crawlFailureReason", "crawlUnsupportedReason");
 }
 

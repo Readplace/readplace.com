@@ -10,13 +10,13 @@ export interface ArticleFreshness {
 }
 
 export type CrawlState =
-	| { kind: "pending"; stage?: CrawlStage }
+	| { kind: "pending"; pendingSince: string; stage?: CrawlStage }
 	| { kind: "ready" }
 	| { kind: "failed"; reason: string }
 	| { kind: "unsupported"; reason: string };
 
 export type SummaryState =
-	| { kind: "pending"; stage?: SummaryStage }
+	| { kind: "pending"; pendingSince: string; stage?: SummaryStage }
 	| {
 			kind: "ready";
 			summary: string;

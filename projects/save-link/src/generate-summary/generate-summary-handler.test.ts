@@ -54,7 +54,7 @@ function pendingArticle(url: string): Article {
 		freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
 		estimatedReadTime: 1,
 		crawl: { kind: "ready" },
-		summary: { kind: "pending" },
+		summary: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
 	};
 }
 

@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import type { Article } from "../article.types";
 import { promoteTier } from "./promote-tier";
 
+const FIXED_PENDING = "2026-01-01T00:00:00.000Z";
+const NOW = "2026-05-13T12:00:00.000Z";
+
 function buildArticle(overrides: Partial<Article> = {}): Article {
 	return {
 		url: "https://example.com/article",
@@ -16,8 +19,8 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 			contentFetchedAt: "2026-01-01T00:00:00.000Z",
 		},
 		estimatedReadTime: 1,
-		crawl: { kind: "pending" },
-		summary: { kind: "pending" },
+		crawl: { kind: "pending", pendingSince: FIXED_PENDING },
+		summary: { kind: "pending", pendingSince: FIXED_PENDING },
 		...overrides,
 	};
 }
@@ -35,6 +38,7 @@ describe("promoteTier", () => {
 			},
 			estimatedReadTime: 2,
 			contentFetchedAt: "2026-05-10T12:00:00.000Z",
+			now: NOW,
 			canonicalChanged: true,
 		});
 
@@ -57,6 +61,7 @@ describe("promoteTier", () => {
 			metadata: before.metadata,
 			estimatedReadTime: 2,
 			contentFetchedAt: "2026-05-10T12:00:00.000Z",
+			now: NOW,
 			canonicalChanged: true,
 		});
 
@@ -71,6 +76,7 @@ describe("promoteTier", () => {
 			metadata: buildArticle().metadata,
 			estimatedReadTime: 7,
 			contentFetchedAt: "2026-05-10T12:00:00.000Z",
+			now: NOW,
 			canonicalChanged: true,
 		});
 
@@ -83,6 +89,7 @@ describe("promoteTier", () => {
 			metadata: buildArticle().metadata,
 			estimatedReadTime: 1,
 			contentFetchedAt: "2026-05-10T12:00:00.000Z",
+			now: NOW,
 			canonicalChanged: true,
 		});
 
@@ -103,10 +110,27 @@ describe("promoteTier", () => {
 			metadata: before.metadata,
 			estimatedReadTime: 1,
 			contentFetchedAt: "2026-05-10T12:00:00.000Z",
+			now: NOW,
 			canonicalChanged: true,
 		});
 
-		assert.deepEqual(article.summary, { kind: "pending" });
+		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
+	});
+
+	it("stamps pendingSince with the provided now so the canary can age-gate the summary axis", () => {
+		const { article } = promoteTier(buildArticle(), {
+			tier: "tier-0",
+			metadata: buildArticle().metadata,
+			estimatedReadTime: 1,
+			contentFetchedAt: "2026-05-10T12:00:00.000Z",
+			now: NOW,
+			canonicalChanged: true,
+		});
+
+		assert.equal(
+			article.summary.kind === "pending" ? article.summary.pendingSince : "",
+			NOW,
+		);
 	});
 
 	it("emits generate-summary and publish-crawl-article-completed in that order, plus publish-link-saved when canonicalChanged + userId is supplied", () => {
@@ -117,6 +141,7 @@ describe("promoteTier", () => {
 				metadata: buildArticle().metadata,
 				estimatedReadTime: 1,
 				contentFetchedAt: "2026-05-10T12:00:00.000Z",
+				now: NOW,
 				canonicalChanged: true,
 				userId: "user-123",
 			},
@@ -144,6 +169,7 @@ describe("promoteTier", () => {
 				metadata: buildArticle().metadata,
 				estimatedReadTime: 1,
 				contentFetchedAt: "2026-05-10T12:00:00.000Z",
+				now: NOW,
 				canonicalChanged: true,
 			},
 		);
@@ -169,6 +195,7 @@ describe("promoteTier", () => {
 				metadata: buildArticle().metadata,
 				estimatedReadTime: 1,
 				contentFetchedAt: "2026-05-10T12:00:00.000Z",
+				now: NOW,
 				canonicalChanged: false,
 				userId: "user-123",
 			},
@@ -189,6 +216,7 @@ describe("promoteTier", () => {
 			metadata: buildArticle().metadata,
 			estimatedReadTime: 1,
 			contentFetchedAt: "2026-05-10T12:00:00.000Z",
+			now: NOW,
 			canonicalChanged: true,
 		});
 
@@ -214,6 +242,7 @@ describe("promoteTier", () => {
 			},
 			estimatedReadTime: 3,
 			contentFetchedAt: "2026-05-10T12:00:00.000Z",
+			now: NOW,
 			canonicalChanged: true,
 		});
 

@@ -7,6 +7,7 @@ export interface RecrawlPromoteTierInput {
 	metadata: ArticleMetadata;
 	estimatedReadTime: number;
 	contentFetchedAt: string;
+	now: string;
 }
 
 export function recrawlPromoteTier(
@@ -26,7 +27,7 @@ export function recrawlPromoteTier(
 		},
 		estimatedReadTime: input.estimatedReadTime,
 		crawl: { kind: "ready" },
-		summary: { kind: "pending" },
+		summary: { kind: "pending", pendingSince: input.now },
 	};
 	const effects: readonly Effect[] = [
 		{ kind: "generate-summary", url: article.url },

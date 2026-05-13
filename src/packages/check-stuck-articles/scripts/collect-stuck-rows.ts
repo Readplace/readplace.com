@@ -24,6 +24,8 @@ const StuckArticleRow = z.object({
 	summaryStatus: dynamoField(SummaryStatusSchema),
 	crawlStatus: dynamoField(CrawlStatusSchema),
 	contentFetchedAt: dynamoField(z.string()),
+	crawlPendingSince: dynamoField(z.string()),
+	summaryPendingSince: dynamoField(z.string()),
 	savedAt: z.string(),
 	aggregateTransitionName: dynamoField(z.string()),
 });
@@ -65,25 +67,33 @@ export const CRAWL_MIN_AGE_MS = 20 * 60_000; /* 1 */
 export const SUMMARY_MIN_AGE_MS = 20 * 60_000; /* 1 */
 
 /**
- * Age-gate disjunction per axis:
- *   1. `contentFetchedAt < :axisMinAge` — covers a previously-crawled row that
- *      was recrawled; if the recrawl is in flight, the existing
- *      `contentFetchedAt` is still the old value and counts as old enough.
- *   2. `attribute_not_exists(contentFetchedAt) AND savedAt < :axisMinAge`
- *      — first-time pending row that has never crawled successfully.
+ * Per-axis age-gate disjuncts:
+ *
+ *   1. `<axis>PendingSince < :axisMinAge` — written by every transition
+ *      that produces a pending state. Captures the moment the worker took
+ *      ownership of the row, so the age compare is independent of unrelated
+ *      writes (refresh updating contentFetchedAt while a summary regen is in
+ *      flight, for example).
+ *   2. Legacy disjunct on contentFetchedAt/savedAt — covers rows saved
+ *      before pendingSince existed. Dropped once the canary scan reports
+ *      zero rows hitting this branch.
  */
 export function buildScanInput(now: Date) {
 	const crawlMinAge = new Date(now.getTime() - CRAWL_MIN_AGE_MS).toISOString();
 	const summaryMinAge = new Date(now.getTime() - SUMMARY_MIN_AGE_MS).toISOString();
-	const ageGate = (axisMinAgeKey: string) =>
+	const legacyAgeGate = (axisMinAgeKey: string) =>
+		`(attribute_not_exists(crawlPendingSince) AND attribute_not_exists(summaryPendingSince) AND ` +
 		`(contentFetchedAt < ${axisMinAgeKey}` +
-		` OR (attribute_not_exists(contentFetchedAt) AND savedAt < ${axisMinAgeKey}))`;
+		` OR (attribute_not_exists(contentFetchedAt) AND savedAt < ${axisMinAgeKey})))`;
 	return {
 		FilterExpression:
-			`(summaryStatus = :pending AND ${ageGate(":summaryMinAge")}) ` +
-			`OR (crawlStatus = :pending AND ${ageGate(":crawlMinAge")})`,
+			`(summaryStatus = :pending AND ` +
+			`(summaryPendingSince < :summaryMinAge OR ${legacyAgeGate(":summaryMinAge")})) ` +
+			`OR (crawlStatus = :pending AND ` +
+			`(crawlPendingSince < :crawlMinAge OR ${legacyAgeGate(":crawlMinAge")}))`,
 		ProjectionExpression:
-			"originalUrl, #u, summaryStatus, crawlStatus, contentFetchedAt, savedAt, aggregateTransitionName",
+			"originalUrl, #u, summaryStatus, crawlStatus, contentFetchedAt, " +
+			"crawlPendingSince, summaryPendingSince, savedAt, aggregateTransitionName",
 		ExpressionAttributeNames: { "#u": "url" },
 		ExpressionAttributeValues: {
 			":pending": "pending",

@@ -14,6 +14,7 @@ function createFakeClient(
 
 const TABLE = "test-articles";
 const URL = "https://example.com/article";
+const PENDING_SINCE = "2026-05-10T12:00:00.000Z";
 const REFRESH_WRITES: readonly AggregateField[] = [
 	"metadata",
 	"freshness",
@@ -37,7 +38,7 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 		},
 		estimatedReadTime: 2,
 		crawl: { kind: "ready" },
-		summary: { kind: "pending" },
+		summary: { kind: "pending", pendingSince: PENDING_SINCE },
 		...overrides,
 	};
 }
@@ -174,8 +175,8 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 				freshness: { contentFetchedAt: "" },
 				estimatedReadTime: 0,
-				crawl: { kind: "pending" },
-				summary: { kind: "pending" },
+				crawl: { kind: "pending", pendingSince: "1970-01-01T00:00:00.000Z" },
+				summary: { kind: "pending", pendingSince: "1970-01-01T00:00:00.000Z" },
 			});
 		});
 
@@ -233,6 +234,50 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(command.input.Key).toEqual({ url: "example.com/article" });
 			expect(article?.url).toBe("https://example.com/article?utm_source=x");
 		});
+
+		it("hydrates pendingSince on the summary axis when the row carries the column", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					summaryStatus: "pending",
+					summaryPendingSince: "2026-05-10T12:00:00.000Z",
+					contentFetchedAt: "2026-05-10T12:00:00.000Z",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article?.summary).toEqual({
+				kind: "pending",
+				pendingSince: "2026-05-10T12:00:00.000Z",
+			});
+		});
+
+		it("hydrates pendingSince on the crawl axis when the row carries the column", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					crawlStatus: "pending",
+					crawlPendingSince: "2026-05-10T12:00:00.000Z",
+					summaryStatus: "pending",
+					summaryPendingSince: "2026-05-10T12:00:00.000Z",
+					contentFetchedAt: "2026-05-10T12:00:00.000Z",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article?.crawl).toEqual({
+				kind: "pending",
+				pendingSince: "2026-05-10T12:00:00.000Z",
+			});
+		});
 	});
 
 	describe("save (refresh-content shape: writes metadata, freshness, summary)", () => {
@@ -286,6 +331,111 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(command.input.ExpressionAttributeValues?.[":summaryStatus"]).toBe(
 				"pending",
 			);
+		});
+
+		it("stamps summaryPendingSince when the summary axis is pending", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({
+					summary: { kind: "pending", pendingSince: PENDING_SINCE },
+				}),
+				transitionName: "refreshContent",
+				writes: REFRESH_WRITES,
+			});
+
+			const command = received as {
+				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.UpdateExpression).toContain(
+				"summaryPendingSince = :summaryPendingSince",
+			);
+			expect(
+				command.input.ExpressionAttributeValues?.[":summaryPendingSince"],
+			).toBe(PENDING_SINCE);
+		});
+
+		it("removes summaryPendingSince when the summary axis transitions to ready", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({ summary: { kind: "ready", summary: "abc" } }),
+				transitionName: "markSummaryReady",
+				writes: ["summary"],
+			});
+
+			const command = received as { input: { UpdateExpression?: string } };
+			expect(command.input.UpdateExpression).toContain(
+				"summaryPendingSince",
+			);
+			expect(command.input.UpdateExpression).toMatch(/REMOVE.*summaryPendingSince/);
+		});
+
+		it("stamps crawlPendingSince when the crawl axis is pending", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({
+					crawl: { kind: "pending", pendingSince: PENDING_SINCE },
+				}),
+				transitionName: "rePrimeCrawl",
+				writes: ["crawl"],
+			});
+
+			const command = received as {
+				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.UpdateExpression).toContain(
+				"crawlPendingSince = :crawlPendingSince",
+			);
+			expect(
+				command.input.ExpressionAttributeValues?.[":crawlPendingSince"],
+			).toBe(PENDING_SINCE);
+		});
+
+		it("removes crawlPendingSince when the crawl axis transitions to ready", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({ crawl: { kind: "ready" } }),
+				transitionName: "recrawlTieKeptCanonical",
+				writes: ["crawl"],
+			});
+
+			const command = received as { input: { UpdateExpression?: string } };
+			expect(command.input.UpdateExpression).toMatch(/REMOVE.*crawlPendingSince/);
 		});
 
 		it("never touches crawl attributes when the transition does not declare a crawl write", async () => {
@@ -718,7 +868,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			});
 
 			await store.save({
-				article: buildArticle({ crawl: { kind: "pending" } }),
+				article: buildArticle({ crawl: { kind: "pending", pendingSince: PENDING_SINCE } }),
 				transitionName: "rePrimeCrawl",
 				writes: ["crawl"],
 			});

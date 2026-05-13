@@ -9,9 +9,10 @@ import { RefreshArticleContentCommand } from "./index";
 
 export function initRefreshArticleContentHandler(deps: {
 	transitionAndPersist: TransitionAndPersist;
+	now: () => Date;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	const { transitionAndPersist, logger } = deps;
+	const { transitionAndPersist, now, logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -31,6 +32,7 @@ export function initRefreshArticleContentHandler(deps: {
 						contentFetchedAt: detail.contentFetchedAt,
 					},
 					estimatedReadTime: detail.estimatedReadTime,
+					now: now().toISOString(),
 				};
 
 				/**

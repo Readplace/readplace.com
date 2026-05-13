@@ -7,6 +7,7 @@ export interface PromoteTierInput {
 	metadata: ArticleMetadata;
 	estimatedReadTime: number;
 	contentFetchedAt: string;
+	now: string;
 	/** True when the canonical tier flipped this run; gates the publish-link-saved / publish-anonymous-link-saved effect so a re-pick of the same tier does not re-fire user-facing notifications. */
 	canonicalChanged: boolean;
 	/** Authenticated save: emits publish-link-saved. Absent: emits publish-anonymous-link-saved. */
@@ -30,7 +31,7 @@ export function promoteTier(
 		freshness: { ...article.freshness, contentFetchedAt: input.contentFetchedAt },
 		estimatedReadTime: input.estimatedReadTime,
 		crawl: { kind: "ready" },
-		summary: { kind: "pending" },
+		summary: { kind: "pending", pendingSince: input.now },
 	};
 	const effects: Effect[] = [
 		{ kind: "generate-summary", url: article.url },

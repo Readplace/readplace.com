@@ -137,6 +137,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 				metadata: tier1.metadata,
 				estimatedReadTime: tier1.metadata.estimatedReadTime,
 				contentFetchedAt: FIXED_NOW.toISOString(),
+				now: FIXED_NOW.toISOString(),
 			},
 		});
 	});
@@ -274,6 +275,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 				metadata: tier1.metadata,
 				estimatedReadTime: tier1.metadata.estimatedReadTime,
 				contentFetchedAt: FIXED_NOW.toISOString(),
+				now: FIXED_NOW.toISOString(),
 			},
 		});
 	});
@@ -324,6 +326,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 				metadata: tier1.metadata,
 				estimatedReadTime: tier1.metadata.estimatedReadTime,
 				contentFetchedAt: FIXED_NOW.toISOString(),
+				now: FIXED_NOW.toISOString(),
 			},
 		});
 	});

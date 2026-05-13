@@ -48,5 +48,6 @@ const { transitionAndPersist } = initTransitionAndPersist({
 
 export const handler = initRefreshArticleContentHandler({
 	transitionAndPersist,
+	now: () => new Date(),
 	logger: consoleLogger,
 });
