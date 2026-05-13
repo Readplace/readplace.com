@@ -1,15 +1,15 @@
 import type { S3Client } from "@aws-sdk/client-s3";
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
-import { initS3PutImageObject, type PutImageObject } from "../../save-link/s3-put-image-object";
-import { initPutTierSource, type PutTierSource } from "../../select-content/put-tier-source";
-import { initCheckTier0SourceExistsS3 } from "../../crawl-article-state/check-tier-0-source-exists-s3";
-import { initReadArticleCrawlStateDynamoDb } from "../../crawl-article-state/read-article-crawl-state-dynamodb";
+import { initS3PutImageObject, type PutImageObject } from "../providers/article-store/s3-put-image-object";
+import { initPutTierSource, type PutTierSource } from "../providers/article-store/put-tier-source";
+import { initCheckTier0SourceExistsS3 } from "../providers/article-store/check-tier-0-source-exists-s3";
+import { initReadArticleCrawlStateDynamoDb } from "../providers/article-store/read-article-crawl-state-dynamodb";
 import {
 	initReadTierSnapshot,
 	type ReadTierSnapshot,
 	type CheckTier0SourceExists,
 	type ReadArticleCrawlState,
-} from "../../crawl-article-state/read-tier-snapshot";
+} from "../domain/crawl-article-state/read-tier-snapshot";
 
 export type ArticleStoreDepBundle = {
 	putTierSource: PutTierSource;

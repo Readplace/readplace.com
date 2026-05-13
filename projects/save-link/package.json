@@ -6,21 +6,21 @@
   "private": true,
   "exports": {
     "./save-link": {
-      "types": "./dist/save-link/index.d.ts",
-      "default": "./dist/save-link/index.js"
+      "types": "./dist/runtime/domain/save-link/index.d.ts",
+      "default": "./dist/runtime/domain/save-link/index.js"
     },
     "./generate-summary": {
-      "types": "./dist/generate-summary/index.d.ts",
-      "default": "./dist/generate-summary/index.js"
+      "types": "./dist/runtime/domain/generate-summary/index.d.ts",
+      "default": "./dist/runtime/domain/generate-summary/index.js"
     }
   },
   "typesVersions": {
     "*": {
       "save-link": [
-        "./dist/save-link/index.d.ts"
+        "./dist/runtime/domain/save-link/index.d.ts"
       ],
       "generate-summary": [
-        "./dist/generate-summary/index.d.ts"
+        "./dist/runtime/domain/generate-summary/index.d.ts"
       ]
     }
   },

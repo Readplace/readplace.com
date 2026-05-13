@@ -4,7 +4,7 @@ import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "../require-env";
-import { initSaveLinkCommandHandler } from "../save-link/save-link-command-handler";
+import { initSaveLinkCommandHandler } from "./domain/save-link/save-link-command-handler";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
 import { initArticleStoreDepBundle } from "./dep-bundles/article-store";

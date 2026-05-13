@@ -6,7 +6,7 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import { requireEnv } from "../../require-env";
+import { requireEnv } from "../../domain/require-env";
 
 const BackfillRow = z.object({
 	email: z.string(),

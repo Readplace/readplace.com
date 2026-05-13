@@ -2,7 +2,7 @@
 import assert from "node:assert";
 import type { Express } from "express";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import type { Logger } from "./logger";
+import type { Logger } from "./domain/logger";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
@@ -65,7 +65,7 @@ import {
 	PROD_FOUNDING_MEMBER_LIMIT,
 	initFoundingAllocation,
 } from "./web/shared/founding-progress/founding-allocation";
-import { getEnv, requireEnv } from "./require-env";
+import { getEnv, requireEnv } from "./domain/require-env";
 
 function initProviders() {
 	const persistence = requireEnv<"prod" | "development">("PERSISTENCE");

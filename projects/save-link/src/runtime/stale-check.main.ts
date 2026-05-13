@@ -21,13 +21,13 @@ import type {
 	PublishSaveAnonymousLink,
 	PublishUpdateFetchTimestamp,
 } from "@packages/test-fixtures/providers/events";
-import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-dispatcher";
-import { initReadabilityParser } from "../article-parser/readability-parser";
-import { theInformationPreParser } from "../article-parser/the-information-pre-parser";
-import { initFindArticleCrawlStatus } from "../crawl-article-state/find-article-crawl-status";
-import { initFindArticleFreshness } from "../crawl-article-state/find-article-freshness";
+import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
+import { initReadabilityParser } from "./domain/article-parser/readability-parser";
+import { theInformationPreParser } from "./domain/article-parser/the-information-pre-parser";
+import { initFindArticleCrawlStatus } from "./providers/article-crawl/find-article-crawl-status";
+import { initFindArticleFreshness } from "./providers/article-crawl/find-article-freshness";
 import { requireEnv } from "../require-env";
-import { initStaleCheckHandler } from "../save-link/stale-check-handler";
+import { initStaleCheckHandler } from "./domain/save-link/stale-check-handler";
 
 // 24h: mirrors hutch app.ts's staleTtlMs. Reads of an article older than this
 // trigger a conditional GET against the source (304 → noop, 200 → re-extract).

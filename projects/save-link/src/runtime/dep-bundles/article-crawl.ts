@@ -2,9 +2,9 @@ import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import {
 	initDynamoDbMarkCrawlStage,
 	type MarkCrawlStage,
-} from "../../crawl-article-state/mark-crawl-stage";
-import { initUpdateFetchTimestamp } from "../../save-link/update-fetch-timestamp";
-import type { UpdateFetchTimestamp } from "../../save-link/update-fetch-timestamp-handler";
+} from "../providers/article-crawl/mark-crawl-stage";
+import { initUpdateFetchTimestamp } from "../providers/article-crawl/update-fetch-timestamp";
+import type { UpdateFetchTimestamp } from "../domain/save-link/update-fetch-timestamp-handler";
 
 export type ArticleCrawlDepBundle = {
 	markCrawlStage: MarkCrawlStage;

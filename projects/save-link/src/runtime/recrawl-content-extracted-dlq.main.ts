@@ -9,9 +9,9 @@ import {
 import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbArticleStore } from "@packages/article-store";
-import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-dispatcher";
+import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
 import { requireEnv } from "../require-env";
-import { initRecrawlContentExtractedDlqHandler } from "../select-content/recrawl-content-extracted-dlq-handler";
+import { initRecrawlContentExtractedDlqHandler } from "./domain/select-content/recrawl-content-extracted-dlq-handler";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const eventBusName = requireEnv("EVENT_BUS_NAME");

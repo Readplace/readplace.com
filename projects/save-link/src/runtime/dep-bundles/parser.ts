@@ -1,8 +1,8 @@
 import { initCrawlArticle, initCrawlFetch, DEFAULT_CRAWL_HEADERS } from "@packages/crawl-article";
 import type { CrawlArticle, CrawlFetch } from "@packages/crawl-article";
-import { initReadabilityParser } from "../../article-parser/readability-parser";
-import { theInformationPreParser } from "../../article-parser/the-information-pre-parser";
-import type { ParseHtml } from "../../article-parser/article-parser.types";
+import { initReadabilityParser } from "../domain/article-parser/readability-parser";
+import { theInformationPreParser } from "../domain/article-parser/the-information-pre-parser";
+import type { ParseHtml } from "../domain/article-parser/article-parser.types";
 import type { LogError } from "./observability";
 
 export type ParserDepBundle = {

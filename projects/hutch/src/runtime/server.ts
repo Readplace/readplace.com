@@ -101,7 +101,7 @@ import { TermsPage } from "./web/pages/terms";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { InstallPage, fetchFirefoxDownloadUrl, fetchChromeDownloadUrl } from "./web/pages/install";
 import { NotFoundPage } from "./web/pages/not-found";
-import { requireEnv, getEnv } from "./require-env";
+import { requireEnv, getEnv } from "./domain/require-env";
 import "./web/session.types";
 
 export const PORT = requireEnv("PORT", { defaultValue: "3000" });

@@ -6,7 +6,7 @@ import {
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
 import { initDynamoDbArticleStore } from "@packages/article-store";
-import { initLambdaEffectDispatcher } from "../../article-aggregate/lambda-effect-dispatcher";
+import { initLambdaEffectDispatcher } from "../domain/article-aggregate/lambda-effect-dispatcher";
 import type { EventsDepBundle } from "./events";
 
 export type ArticleAggregateDepBundle = {

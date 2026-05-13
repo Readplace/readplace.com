@@ -9,8 +9,8 @@ import {
 import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbArticleStore } from "@packages/article-store";
-import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-dispatcher";
-import { initSaveAnonymousLinkDlqHandler } from "../crawl-article-state/save-anonymous-link-dlq-handler";
+import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
+import { initSaveAnonymousLinkDlqHandler } from "./domain/crawl-article-state/save-anonymous-link-dlq-handler";
 import { requireEnv } from "../require-env";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");

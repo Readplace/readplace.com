@@ -4,7 +4,7 @@ import type { PageBody } from "../page-body.types";
 import { render } from "../render";
 import { renderFoundingProgress } from "../shared/founding-progress/founding-progress.component";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../providers/stripe-checkout/stripe-trial-config";
+import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
 import { AUTH_STYLES } from "./auth.styles";
 
 const LOGIN_TEMPLATE = readFileSync(join(__dirname, "login.template.html"), "utf-8");

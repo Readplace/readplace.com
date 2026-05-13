@@ -13,7 +13,7 @@ import {
   createFakeSummaryProvider,
   initReadabilityParser,
 } from '@packages/test-fixtures'
-import { requireEnv } from '../runtime/require-env'
+import { requireEnv } from '../runtime/domain/require-env'
 import { initRefreshArticleIfStale } from '@packages/test-fixtures/providers/article-freshness'
 import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch } from '@packages/crawl-article'
 import { theInformationPreParser } from '@packages/test-fixtures/providers/article-parser'

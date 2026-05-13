@@ -10,7 +10,7 @@ import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-art
 import { initResendEmail } from "./providers/email/resend-email";
 import { initS3UserDataExport } from "./providers/user-data-export/s3-user-data-export";
 import { initExportUserDataHandler } from "./export-user-data/export-user-data-handler";
-import { requireEnv } from "./require-env";
+import { requireEnv } from "./domain/require-env";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");

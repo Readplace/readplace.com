@@ -10,7 +10,7 @@ import { DomainRegistration } from "./domain-registration";
 import { DomainRedirect } from "./domain-redirect";
 import { HutchStorage } from "./hutch-storage";
 import { HutchStaticAssets } from "./hutch-static-assets";
-import { requireEnv } from "../runtime/require-env";
+import { requireEnv } from "../runtime/domain/require-env";
 
 const config = new pulumi.Config();
 const stage = config.require("stage");

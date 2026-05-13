@@ -21,7 +21,7 @@ import { MarkdownPage } from "./markdown-page";
 import { buildMarkdownFrontmatter } from "./markdown-frontmatter";
 import type { PageBody, SeoMetadata } from "./page-body.types";
 import { render } from "./render";
-import { getEnv, requireEnv } from "../require-env";
+import { getEnv, requireEnv } from "../domain/require-env";
 
 const HEADER_TEMPLATE = readFileSync(join(__dirname, "header.template.html"), "utf-8");
 const FOOTER_TEMPLATE = readFileSync(join(__dirname, "footer.template.html"), "utf-8");

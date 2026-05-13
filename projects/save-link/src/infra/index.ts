@@ -27,8 +27,8 @@ import {
 	RefreshContentExtractedEvent,
 } from "@packages/hutch-infra-components";
 import { requireEnv } from "../require-env";
-import { GENERATE_SUMMARY_TIMEOUTS } from "../generate-summary/timeouts";
-import { SELECT_CONTENT_TIMEOUTS } from "../select-content/timeouts";
+import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
+import { SELECT_CONTENT_TIMEOUTS } from "../runtime/domain/select-content/timeouts";
 
 /* Pulumi requires unique resource names per stack. Two Lambdas that attach
  * the same shared queue's send-policy would collide on the policy's name,

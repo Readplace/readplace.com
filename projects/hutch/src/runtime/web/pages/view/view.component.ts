@@ -7,7 +7,7 @@ import type {
 import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
-import { requireEnv } from "../../../require-env";
+import { requireEnv } from "../../../domain/require-env";
 import type { PageBody } from "../../page-body.types";
 import { render } from "../../render";
 import { renderArticleBody } from "../../shared/article-body/article-body.component";

@@ -11,15 +11,15 @@ import {
 	initSqsCommandDispatcher,
 } from "@packages/hutch-infra-components/runtime";
 import { initDynamoDbArticleStore } from "@packages/article-store";
-import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-dispatcher";
+import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
 import { requireEnv } from "../require-env";
-import { initReadTierSource } from "../select-content/read-tier-source";
-import { initListAvailableTierSources } from "../select-content/list-available-tier-sources";
-import { initSelectMostCompleteContent } from "../select-content/select-content";
-import { SELECT_CONTENT_TIMEOUTS } from "../select-content/timeouts";
-import { initWriteCanonicalContent } from "../select-content/promote-tier-to-canonical";
-import { initFindContentSourceTier } from "../select-content/find-content-source-tier";
-import { initSelectMostCompleteContentHandler } from "../select-content/select-most-complete-content-handler";
+import { initReadTierSource } from "./providers/article-store/read-tier-source";
+import { initListAvailableTierSources } from "./domain/select-content/list-available-tier-sources";
+import { initSelectMostCompleteContent } from "./domain/select-content/select-content";
+import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
+import { initWriteCanonicalContent } from "./providers/article-store/promote-tier-to-canonical";
+import { initFindContentSourceTier } from "./providers/article-store/find-content-source-tier";
+import { initSelectMostCompleteContentHandler } from "./domain/select-content/select-most-complete-content-handler";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");

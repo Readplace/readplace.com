@@ -4,24 +4,24 @@ import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import {
 	initReadTierSource,
 	type ReadTierSource,
-} from "../../select-content/read-tier-source";
+} from "../providers/article-store/read-tier-source";
 import {
 	initListAvailableTierSources,
 	type ListAvailableTierSources,
-} from "../../select-content/list-available-tier-sources";
+} from "../domain/select-content/list-available-tier-sources";
 import {
 	initSelectMostCompleteContent,
 	type CreateSelectorChatCompletion,
 	type SelectMostCompleteContent,
-} from "../../select-content/select-content";
+} from "../domain/select-content/select-content";
 import {
 	initWriteCanonicalContent,
 	type WriteCanonicalContent,
-} from "../../select-content/promote-tier-to-canonical";
+} from "../providers/article-store/promote-tier-to-canonical";
 import {
 	initFindContentSourceTier,
 	type FindContentSourceTier,
-} from "../../select-content/find-content-source-tier";
+} from "../providers/article-store/find-content-source-tier";
 
 export type SelectContentDepBundle = {
 	readTierSource: ReadTierSource;

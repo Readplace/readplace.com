@@ -7,8 +7,8 @@ import {
 } from "@packages/hutch-infra-components";
 import { initSqsCommandDispatcher } from "@packages/hutch-infra-components/runtime";
 import { requireEnv } from "../require-env";
-import { initFindArticleContent } from "../save-link/find-article-content";
-import { initLinkSavedHandler } from "../save-link/link-saved-handler";
+import { initFindArticleContent } from "./providers/article-store/find-article-content";
+import { initLinkSavedHandler } from "./domain/save-link/link-saved-handler";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");

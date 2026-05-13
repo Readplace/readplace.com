@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { requireEnv } from "../../../require-env";
+import { requireEnv } from "../../../domain/require-env";
 import { render } from "../../render";
 import { COPY_ICON_SVG } from "./copy-icon";
 import { SHARE_ICON_SVG } from "./share-icon";
