@@ -21,6 +21,7 @@ function seededArticle(url: string): Article {
 		estimatedReadTime: 1,
 		crawl: { kind: "ready" },
 		summary: { kind: "ready", summary: "Old" },
+		summaryAutoHeal: { attempts: 0 },
 	};
 }
 

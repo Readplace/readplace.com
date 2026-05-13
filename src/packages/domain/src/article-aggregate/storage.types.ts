@@ -1,7 +1,12 @@
 import type { Article } from "./article.types";
 
 /* Scopes the aggregate save so concurrent inline writers on untouched axes are not clobbered. */
-export type AggregateField = "metadata" | "freshness" | "summary" | "crawl";
+export type AggregateField =
+	| "metadata"
+	| "freshness"
+	| "summary"
+	| "crawl"
+	| "summaryAutoHeal";
 
 /**
  * Storage adapter contract for the Article aggregate.

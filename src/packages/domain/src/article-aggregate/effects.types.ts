@@ -8,6 +8,7 @@
  */
 export type Effect =
 	| { kind: "generate-summary"; url: string }
+	| { kind: "dispatch-generate-summary-retry"; url: string; attempt: number }
 	| {
 			kind: "publish-crawl-article-failed";
 			url: string;

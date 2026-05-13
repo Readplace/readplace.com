@@ -23,6 +23,7 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 			summary: "Old summary",
 			excerpt: "Old summary excerpt",
 		},
+		summaryAutoHeal: { attempts: 0 },
 		...overrides,
 	};
 }

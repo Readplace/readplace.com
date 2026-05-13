@@ -25,6 +25,7 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 		estimatedReadTime: 1,
 		crawl: { kind: "pending", pendingSince: FIXED_PENDING },
 		summary: { kind: "ready", summary: "old" },
+		summaryAutoHeal: { attempts: 0 },
 		...overrides,
 	};
 }

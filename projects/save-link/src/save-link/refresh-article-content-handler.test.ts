@@ -87,6 +87,7 @@ function seededArticle(url: string): Article {
 			summary: "stale summary",
 			excerpt: "stale summary excerpt",
 		},
+		summaryAutoHeal: { attempts: 0 },
 	};
 }
 

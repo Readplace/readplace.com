@@ -27,6 +27,11 @@ export type SummaryState =
 	| { kind: "failed"; reason: string }
 	| { kind: "skipped"; reason?: string };
 
+export interface SummaryAutoHealState {
+	attempts: number;
+	lastAttemptAt?: string;
+}
+
 /**
  * The Article aggregate. One typed row, one save, one dispatch per transition.
  *
@@ -42,4 +47,5 @@ export interface Article {
 	estimatedReadTime: number;
 	crawl: CrawlState;
 	summary: SummaryState;
+	summaryAutoHeal: SummaryAutoHealState;
 }

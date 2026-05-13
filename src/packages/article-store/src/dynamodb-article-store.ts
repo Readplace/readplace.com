@@ -50,6 +50,8 @@ const ArticleAggregateRow = z.object({
 	summaryOutputTokens: dynamoField(z.number()),
 	summaryFailureReason: dynamoField(z.string()),
 	summarySkippedReason: dynamoField(z.string()),
+	summaryAutoHealAttempts: dynamoField(z.number()),
+	summaryAutoHealLastAttemptAt: dynamoField(z.string()),
 	aggregateTransitionName: dynamoField(z.string()),
 });
 
@@ -120,6 +122,12 @@ function rowToSummaryState(row: RowShape): SummaryState {
 }
 
 function rowToArticle(url: string, row: RowShape): Article {
+	const summaryAutoHeal: Article["summaryAutoHeal"] = {
+		attempts: row.summaryAutoHealAttempts ?? 0,
+	};
+	if (row.summaryAutoHealLastAttemptAt !== undefined) {
+		summaryAutoHeal.lastAttemptAt = row.summaryAutoHealLastAttemptAt;
+	}
 	return {
 		url,
 		metadata: {
@@ -137,6 +145,7 @@ function rowToArticle(url: string, row: RowShape): Article {
 		estimatedReadTime: row.estimatedReadTime ?? 0,
 		crawl: rowToCrawlState(row),
 		summary: rowToSummaryState(row),
+		summaryAutoHeal,
 	};
 }
 
@@ -267,6 +276,23 @@ function appendCrawlClauses(
 	removes.push("crawlFailureReason", "crawlUnsupportedReason");
 }
 
+function appendSummaryAutoHealClauses(
+	article: Article,
+	sets: string[],
+	removes: string[],
+	values: Record<string, unknown>,
+): void {
+	sets.push("summaryAutoHealAttempts = :summaryAutoHealAttempts");
+	values[":summaryAutoHealAttempts"] = article.summaryAutoHeal.attempts;
+	if (article.summaryAutoHeal.lastAttemptAt !== undefined) {
+		sets.push("summaryAutoHealLastAttemptAt = :summaryAutoHealLastAttemptAt");
+		values[":summaryAutoHealLastAttemptAt"] =
+			article.summaryAutoHeal.lastAttemptAt;
+	} else {
+		removes.push("summaryAutoHealLastAttemptAt");
+	}
+}
+
 function buildSaveCommand(params: {
 	article: Article;
 	transitionName: string;
@@ -295,6 +321,9 @@ function buildSaveCommand(params: {
 	}
 	if (writesSet.has("crawl")) {
 		appendCrawlClauses(params.article, sets, removes, values);
+	}
+	if (writesSet.has("summaryAutoHeal")) {
+		appendSummaryAutoHealClauses(params.article, sets, removes, values);
 	}
 
 	const setClause = `SET ${sets.join(", ")}`;

@@ -39,6 +39,7 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 		estimatedReadTime: 2,
 		crawl: { kind: "ready" },
 		summary: { kind: "pending", pendingSince: PENDING_SINCE },
+		summaryAutoHeal: { attempts: 0 },
 		...overrides,
 	};
 }
@@ -107,6 +108,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 					inputTokens: 1234,
 					outputTokens: 567,
 				},
+				summaryAutoHeal: { attempts: 0 },
 			});
 		});
 
@@ -177,6 +179,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				estimatedReadTime: 0,
 				crawl: { kind: "pending", pendingSince: "1970-01-01T00:00:00.000Z" },
 				summary: { kind: "pending", pendingSince: "1970-01-01T00:00:00.000Z" },
+				summaryAutoHeal: { attempts: 0 },
 			});
 		});
 
@@ -254,6 +257,44 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				kind: "pending",
 				pendingSince: "2026-05-10T12:00:00.000Z",
 			});
+		});
+
+		it("hydrates summaryAutoHeal from the persisted attempts + lastAttemptAt attributes", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					crawlStatus: "ready",
+					summaryStatus: "failed",
+					summaryFailureReason: "rate limited",
+					summaryAutoHealAttempts: 2,
+					summaryAutoHealLastAttemptAt: "2026-05-10T12:00:00.000Z",
+					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article?.summaryAutoHeal).toEqual({
+				attempts: 2,
+				lastAttemptAt: "2026-05-10T12:00:00.000Z",
+			});
+		});
+
+		it("defaults summaryAutoHeal.attempts to 0 when the row carries no autoHeal attributes (legacy rows)", async () => {
+			const client = createFakeClient(() => ({
+				Item: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article?.summaryAutoHeal).toEqual({ attempts: 0 });
 		});
 
 		it("hydrates pendingSince on the crawl axis when the row carries the column", async () => {
@@ -946,6 +987,82 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				"summaryStatus = :summaryStatus",
 			);
 			expect(command.input.UpdateExpression).not.toContain("summary = :summary");
+		});
+	});
+
+	describe("save (incrementSummaryAutoHealAttempt shape: writes summary + summaryAutoHeal)", () => {
+		it("writes summaryAutoHealAttempts and summaryAutoHealLastAttemptAt with the new counter", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({
+					summary: { kind: "pending", pendingSince: PENDING_SINCE },
+					summaryAutoHeal: { attempts: 2, lastAttemptAt: PENDING_SINCE },
+				}),
+				transitionName: "incrementSummaryAutoHealAttempt",
+				writes: ["summary", "summaryAutoHeal"],
+			});
+
+			const command = received as {
+				input: {
+					UpdateExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.UpdateExpression).toContain(
+				"summaryAutoHealAttempts = :summaryAutoHealAttempts",
+			);
+			expect(command.input.UpdateExpression).toContain(
+				"summaryAutoHealLastAttemptAt = :summaryAutoHealLastAttemptAt",
+			);
+			expect(
+				command.input.ExpressionAttributeValues?.[":summaryAutoHealAttempts"],
+			).toBe(2);
+			expect(
+				command.input.ExpressionAttributeValues?.[":summaryAutoHealLastAttemptAt"],
+			).toBe(PENDING_SINCE);
+		});
+
+		it("removes summaryAutoHealLastAttemptAt when the article carries no lastAttemptAt (reset on markSummaryReady)", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({
+					summary: { kind: "ready", summary: "abc" },
+					summaryAutoHeal: { attempts: 0 },
+				}),
+				transitionName: "markSummaryReady",
+				writes: ["summary", "summaryAutoHeal"],
+			});
+
+			const command = received as {
+				input: {
+					UpdateExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.UpdateExpression).toMatch(
+				/REMOVE.*summaryAutoHealLastAttemptAt/,
+			);
+			expect(
+				command.input.ExpressionAttributeValues?.[":summaryAutoHealAttempts"],
+			).toBe(0);
 		});
 	});
 });

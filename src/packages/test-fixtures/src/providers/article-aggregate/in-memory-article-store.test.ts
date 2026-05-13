@@ -15,6 +15,7 @@ function buildArticle(url: string, summary: Article["summary"] = { kind: "pendin
 		estimatedReadTime: 1,
 		crawl: { kind: "ready" },
 		summary,
+		summaryAutoHeal: { attempts: 0 },
 	};
 }
 
