@@ -2,7 +2,6 @@
       {{{onboardingHtml}}}
       <div class="queue__header">
         <h1 class="queue__title">My Queue</h1>
-        <span class="queue__count" data-test-article-count>{{total}} article{{pluralSuffix}}</span>
       </div>
       <form class="queue__save-form" method="POST" action="/queue/save" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:#latest-saved:top" hx-disabled-elt=".queue__save-btn" data-test-form="save-article"{{#if saveUrl}} data-auto-submit{{/if}}>
         <input class="queue__save-input" type="url" name="url" placeholder="Paste a URL to save an article…" required value="{{saveUrl}}">

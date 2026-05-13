@@ -13,8 +13,6 @@ import { tabQuery } from "./queue.tabs";
 const QUEUE_TEMPLATE = readFileSync(join(__dirname, "queue.template.html"), "utf-8");
 
 interface QueueDisplayModel {
-	total: number;
-	pluralSuffix: string;
 	saveError?: string;
 	saveErrorCode?: string;
 	importFlash?: string;
@@ -65,8 +63,6 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		});
 
 	return {
-		total: vm.total,
-		pluralSuffix: vm.total !== 1 ? "s" : "",
 		saveError: vm.saveError,
 		saveErrorCode: vm.saveErrorCode,
 		importFlash: vm.importFlash,

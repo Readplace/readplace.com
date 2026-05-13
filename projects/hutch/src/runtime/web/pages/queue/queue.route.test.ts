@@ -50,15 +50,6 @@ describe("Queue routes", () => {
 			expect(doc.querySelector('[data-test-form="save-article"]')?.getAttribute("action")).toBe("/queue/save");
 		});
 
-		it("should show article count", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
-
-			const response = await agent.get("/queue");
-
-			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-article-count]")?.textContent).toContain("0");
-		});
 	});
 
 	describe("POST /queue/save", () => {

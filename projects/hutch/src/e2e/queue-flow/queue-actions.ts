@@ -259,11 +259,7 @@ export function createQueueActions(
         return saveForm.isVisible().catch(() => false)
       },
       execute: async (page) => {
-        const countLocator = page.locator('[data-test-article-count]')
-        await expect(countLocator).toBeVisible()
-        const totalBeforeText = await countLocator.textContent()
-        assert.ok(totalBeforeText, 'article count element should have text content')
-        const totalBefore = parseInt(totalBeforeText, 10)
+        const cardsBefore = await page.locator('.queue-article').count()
 
         // Re-save an already-saved URL so refreshArticleIfStale takes the
         // handleFullFetch branch and publishes publishRefreshArticleContent.
@@ -275,11 +271,8 @@ export function createQueueActions(
           page.locator('[data-test-form="save-article"] button[type="submit"]'),
         )
 
-        await expect(countLocator).toBeVisible()
-        const totalAfterText = await countLocator.textContent()
-        assert.ok(totalAfterText, 'article count element should have text content')
-        const totalAfter = parseInt(totalAfterText, 10)
-        assert.equal(totalAfter, totalBefore, 'Re-saving an existing URL must not duplicate the article')
+        const cardsAfter = await page.locator('.queue-article').count()
+        assert.equal(cardsAfter, cardsBefore, 'Re-saving an existing URL must not duplicate the article')
 
         progress.refreshedExistingArticle = true
       },
@@ -294,18 +287,11 @@ export function createQueueActions(
       },
       execute: async (page) => {
         const targetCount = TEST_URLS.length
-        const countLocator = page.locator('[data-test-article-count]')
-        await expect(countLocator).toBeVisible()
-        let totalText = await countLocator.textContent()
-        assert.ok(totalText, 'article count element should have text content')
-        let total = parseInt(totalText, 10)
+        let cards = await page.locator('.queue-article').count()
 
-        while (total > targetCount) {
+        while (cards > targetCount) {
           await clickAndWaitForPageReload(page, page.locator('[data-test-action="delete"]').first())
-          await expect(countLocator).toBeVisible()
-          totalText = await countLocator.textContent()
-          assert.ok(totalText, 'article count element should have text content')
-          total = parseInt(totalText, 10)
+          cards = await page.locator('.queue-article').count()
         }
 
         progress.paginationArticlesDeleted = true
