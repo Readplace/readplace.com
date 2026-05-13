@@ -416,9 +416,11 @@ const generateSummaryLambda = new HutchLambda("generate-summary", {
 		DEEPSEEK_API_KEY: deepseekApiKey,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		CONTENT_BUCKET_NAME: contentBucketName,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 	},
 	policies: [
 		...generateSummaryDynamodb.policies,
+		...generateSummaryQueue.policies,
 		...contentBucket.readPolicies("generate-summary-s3"),
 	],
 });

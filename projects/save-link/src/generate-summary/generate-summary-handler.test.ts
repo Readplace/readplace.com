@@ -1,9 +1,13 @@
+import {
+	type Article,
+	markSummaryReady,
+	markSummarySkipped,
+} from "@packages/domain/article-aggregate";
 import { noopLogger } from "@packages/hutch-logger";
+import type { Context, SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { initGenerateSummaryHandler } from "./generate-summary-handler";
-import type { SummarizeArticle } from "./article-summary.types";
+import type { SummarizeArticle } from "./link-summariser";
 import type { FindArticleContent } from "../save-link/find-article-content";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -43,62 +47,182 @@ function createSqsEvent(detail: { url: string }): SQSEvent {
 	};
 }
 
+function pendingArticle(url: string): Article {
+	return {
+		url,
+		metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
+		freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
+		estimatedReadTime: 1,
+		crawl: { kind: "ready" },
+		summary: { kind: "pending" },
+	};
+}
+
+type HandlerDeps = Parameters<typeof initGenerateSummaryHandler>[0];
+
+function createHandler(overrides: Partial<HandlerDeps> = {}) {
+	const deps: HandlerDeps = {
+		summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>(),
+		findArticleContent: jest.fn<ReturnType<FindArticleContent>, Parameters<FindArticleContent>>().mockResolvedValue({ content: "<p>content</p>" }),
+		loadArticle: jest.fn().mockResolvedValue(pendingArticle("https://example.com/x")),
+		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
+		logger: noopLogger,
+		...overrides,
+	};
+	return { handler: initGenerateSummaryHandler(deps), deps };
+}
+
 describe("initGenerateSummaryHandler", () => {
-	it("should summarize article and publish GlobalSummaryGenerated event", async () => {
-		const summarizeArticle: SummarizeArticle = async () => ({
-			summary: "A summary.",
-			excerpt: "A blurb.",
-			inputTokens: 100,
-			outputTokens: 20,
-		});
-		const findArticleContent: FindArticleContent = async () => ({ content: "<p>Article content</p>" });
-		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
-
-		const handler = initGenerateSummaryHandler({
-			summarizeArticle,
-			findArticleContent,
-			publishEvent,
-			logger: noopLogger,
-		});
-
-		await handler(createSqsEvent({ url: "https://example.com/article" }), stubContext, () => {});
-
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "GlobalSummaryGenerated",
-			detail: JSON.stringify({
-				url: "https://example.com/article",
+	it("fires markSummaryReady with summary/excerpt/inputTokens/outputTokens on the happy path", async () => {
+		const URL = "https://example.com/article";
+		const { handler, deps } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({
+				kind: "ready",
+				summary: "A summary.",
+				excerpt: "A blurb.",
 				inputTokens: 100,
-				outputTokens: 20,
+				outputTokens: 50,
 			}),
+			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+		});
+
+		const result = await handler(createSqsEvent({ url: URL }), stubContext, () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummaryReady, {
+			url: URL,
+			input: {
+				summary: "A summary.",
+				excerpt: "A blurb.",
+				inputTokens: 100,
+				outputTokens: 50,
+			},
 		});
 	});
 
-	it("reports the record as a batch failure when article content not found (SQS will retry, DLQ consumer handles terminal failure)", async () => {
-		const summarizeArticle: SummarizeArticle = async () => null;
-		const findArticleContent: FindArticleContent = async () => undefined;
-		const publishEvent: PublishEvent = jest.fn();
-		const error = jest.fn();
-		const logger = { ...noopLogger, error };
-
-		const handler = initGenerateSummaryHandler({
-			summarizeArticle,
-			findArticleContent,
-			publishEvent,
-			logger,
+	it("short-circuits without calling the summariser when the cached row is summary=ready", async () => {
+		const URL = "https://example.com/cached-ready";
+		const cached: Article = {
+			...pendingArticle(URL),
+			summary: { kind: "ready", summary: "cached", excerpt: "cached blurb" },
+		};
+		const { handler, deps } = createHandler({
+			loadArticle: jest.fn().mockResolvedValue(cached),
 		});
 
-		const result = await handler(
-			createSqsEvent({ url: "https://example.com/missing" }),
-			stubContext,
-			() => {},
-		);
+		const result = await handler(createSqsEvent({ url: URL }), stubContext, () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(deps.summarizeArticle).not.toHaveBeenCalled();
+		expect(deps.findArticleContent).not.toHaveBeenCalled();
+		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
+	});
+
+	it("short-circuits without calling the summariser when the cached row is summary=skipped", async () => {
+		const URL = "https://example.com/cached-skipped";
+		const cached: Article = {
+			...pendingArticle(URL),
+			summary: { kind: "skipped", reason: "content-too-short" },
+		};
+		const { handler, deps } = createHandler({
+			loadArticle: jest.fn().mockResolvedValue(cached),
+		});
+
+		await handler(createSqsEvent({ url: URL }), stubContext, () => {});
+
+		expect(deps.summarizeArticle).not.toHaveBeenCalled();
+		expect(deps.findArticleContent).not.toHaveBeenCalled();
+		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
+	});
+
+	it("does not short-circuit when the cached row is summary=failed (redrive scenario)", async () => {
+		const URL = "https://example.com/cached-failed";
+		const cached: Article = {
+			...pendingArticle(URL),
+			summary: { kind: "failed", reason: "timeout" },
+		};
+		const { handler, deps } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({
+				kind: "ready",
+				summary: "Recovered.",
+				excerpt: "Recovered blurb.",
+				inputTokens: 100,
+				outputTokens: 50,
+			}),
+			loadArticle: jest.fn().mockResolvedValue(cached),
+		});
+
+		await handler(createSqsEvent({ url: URL }), stubContext, () => {});
+
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummaryReady, expect.objectContaining({ url: URL }));
+	});
+
+	it("fires markSummarySkipped with reason='content-too-short' when the summariser skips", async () => {
+		const URL = "https://example.com/short";
+		const { handler, deps } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({
+				kind: "skipped",
+				reason: "content-too-short",
+			}),
+			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+		});
+
+		const result = await handler(createSqsEvent({ url: URL }), stubContext, () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
+			url: URL,
+			input: { reason: "content-too-short" },
+		});
+	});
+
+	it("fires markSummarySkipped with reason='ai-unavailable' when the summariser reports AI unavailable", async () => {
+		const URL = "https://example.com/unavailable";
+		const { handler, deps } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({
+				kind: "skipped",
+				reason: "ai-unavailable",
+			}),
+			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+		});
+
+		await handler(createSqsEvent({ url: URL }), stubContext, () => {});
+
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
+			url: URL,
+			input: { reason: "ai-unavailable" },
+		});
+	});
+
+	it("reports batchItemFailures when the summariser returns no-text-block so SQS redelivers and eventually DLQs", async () => {
+		const URL = "https://example.com/no-text-block";
+		const { handler, deps } = createHandler({
+			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({ kind: "no-text-block" }),
+			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+		});
+
+		const result = await handler(createSqsEvent({ url: URL }), stubContext, () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		expect(publishEvent).not.toHaveBeenCalled();
-		// Confirms the assert(article) propagated to the per-record catch.
+		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
+	});
+
+	it("reports batchItemFailures when article content is not found (assert in handler)", async () => {
+		const URL = "https://example.com/missing";
+		const error = jest.fn();
+		const { handler, deps } = createHandler({
+			findArticleContent: jest.fn<ReturnType<FindArticleContent>, Parameters<FindArticleContent>>().mockResolvedValue(undefined),
+			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
+			logger: { ...noopLogger, error },
+		});
+
+		const result = await handler(createSqsEvent({ url: URL }), stubContext, () => {});
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deps.summarizeArticle).not.toHaveBeenCalled();
+		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
 		expect(error).toHaveBeenCalledWith(
-			"[GenerateGlobalSummary] record failed",
+			"[GenerateSummary] record failed",
 			expect.objectContaining({
 				messageId: "msg-1",
 				error: expect.objectContaining({
@@ -108,34 +232,8 @@ describe("initGenerateSummaryHandler", () => {
 		);
 	});
 
-	it("should skip publishing when summarization returns null (cache hit or skipped)", async () => {
-		const summarizeArticle: SummarizeArticle = async () => null;
-		const findArticleContent: FindArticleContent = async () => ({ content: "<p>Content</p>" });
-		const publishEvent: PublishEvent = jest.fn();
-
-		const handler = initGenerateSummaryHandler({
-			summarizeArticle,
-			findArticleContent,
-			publishEvent,
-			logger: noopLogger,
-		});
-
-		await handler(createSqsEvent({ url: "https://example.com/cached" }), stubContext, () => {});
-
-		expect(publishEvent).not.toHaveBeenCalled();
-	});
-
-	it("reports the record as a batch failure on invalid command schema (Zod failure)", async () => {
-		const summarizeArticle: SummarizeArticle = async () => null;
-		const findArticleContent: FindArticleContent = async () => ({ content: "content" });
-		const publishEvent: PublishEvent = jest.fn();
-
-		const handler = initGenerateSummaryHandler({
-			summarizeArticle,
-			findArticleContent,
-			publishEvent,
-			logger: noopLogger,
-		});
+	it("reports batchItemFailures on invalid command schema (Zod failure)", async () => {
+		const { handler, deps } = createHandler();
 
 		const invalidEvent: SQSEvent = {
 			Records: [{
@@ -152,6 +250,8 @@ describe("initGenerateSummaryHandler", () => {
 		};
 
 		const result = await handler(invalidEvent, stubContext, () => {});
+
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
 	});
 });

@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { CreateAiMessage, DocumentBlock } from "./article-summary.types";
+import type { CreateAiMessage, DocumentBlock } from "./create-ai-message.types";
 
 type ChatCompletionResponse = {
 	choices: Array<{ message?: { content?: string | null } }>;

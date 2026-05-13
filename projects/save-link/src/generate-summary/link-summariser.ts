@@ -1,15 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
+import type { SummarySkipReason } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type {
-	CreateAiMessage,
-	FindGeneratedSummary,
-	MarkSummarySkipped,
-	MarkSummaryStage,
-	SaveGeneratedSummary,
-	SummarizeArticle,
-} from "./article-summary.types";
+import type { CreateAiMessage } from "./create-ai-message.types";
+import type { MarkSummaryStage } from "./article-summary.types";
 import { MAX_EXCERPT_LENGTH, MAX_SUMMARY_LENGTH } from "./max-summary-length";
 
 const SUMMARIZE_PROMPT = readFileSync(
@@ -24,6 +19,22 @@ const SummaryPayload = z.object({
 	excerpt: z.string(),
 });
 
+export type SummarizeResult =
+	| {
+			kind: "ready";
+			summary: string;
+			excerpt: string;
+			inputTokens: number;
+			outputTokens: number;
+	  }
+	| { kind: "skipped"; reason: SummarySkipReason }
+	| { kind: "no-text-block" };
+
+export type SummarizeArticle = (params: {
+	url: string;
+	textContent: string;
+}) => Promise<SummarizeResult>;
+
 // Safety net: if DeepSeek overshoots MAX_EXCERPT_LENGTH despite the prompt
 // instruction, clip on a word boundary so we never persist a row that violates
 // the contract downstream consumers rely on.
@@ -37,9 +48,6 @@ function clipExcerpt(text: string): string {
 
 export function initLinkSummariser(deps: {
 	createMessage: CreateAiMessage;
-	findGeneratedSummary: FindGeneratedSummary;
-	saveGeneratedSummary: SaveGeneratedSummary;
-	markSummarySkipped: MarkSummarySkipped;
 	markSummaryStage: MarkSummaryStage;
 	logger: HutchLogger;
 	cleanContent: (html: string) => string;
@@ -47,20 +55,13 @@ export function initLinkSummariser(deps: {
 }): { summarizeArticle: SummarizeArticle } {
 	const summarizeArticle: SummarizeArticle = async (params) => {
 		await deps.markSummaryStage({ url: params.url, stage: "summary-started" });
-		const cached = await deps.findGeneratedSummary(params.url);
-		// "failed" is retryable on redrive; "ready" and "skipped" are terminal — short-circuit those.
-		if (cached?.status === "ready" || cached?.status === "skipped") {
-			deps.logger.info("[summarize] cache hit", { url: params.url, status: cached.status });
-			return null;
-		}
 
 		const cleanedContent = deps.cleanContent(params.textContent);
 		const visibleLength = cleanedContent.replace(/\s/g, "").length;
 
 		if (deps.isTooShortToSummarize(cleanedContent)) {
 			deps.logger.info("[summarize] content too short, skipping", { url: params.url, visibleLength });
-			await deps.markSummarySkipped({ url: params.url, reason: "content-too-short" });
-			return null;
+			return { kind: "skipped", reason: "content-too-short" };
 		}
 
 		await deps.markSummaryStage({ url: params.url, stage: "summary-generating" });
@@ -104,26 +105,19 @@ export function initLinkSummariser(deps: {
 		);
 		if (!textBlock || textBlock.type !== "text" || !textBlock.text) {
 			deps.logger.info("[summarize] no text block in response", { url: params.url });
-			return null;
+			return { kind: "no-text-block" };
 		}
 
 		const parsed = SummaryPayload.parse(JSON.parse(textBlock.text));
 		const summary = parsed.summary.trim();
 		if (summary === "Summary not available.") {
 			deps.logger.info("[summarize] AI returned unavailable", { url: params.url });
-			await deps.markSummarySkipped({ url: params.url, reason: "ai-unavailable" });
-			return null;
+			return { kind: "skipped", reason: "ai-unavailable" };
 		}
 		const excerpt = clipExcerpt(parsed.excerpt.trim());
 
-		await deps.saveGeneratedSummary({
-			url: params.url,
-			summary,
-			excerpt,
-			inputTokens: response.usage.input_tokens,
-			outputTokens: response.usage.output_tokens,
-		});
 		return {
+			kind: "ready",
 			summary,
 			excerpt,
 			inputTokens: response.usage.input_tokens,

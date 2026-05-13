@@ -21,7 +21,12 @@ export function initLinkSavedHandler(deps: {
 				const detail = LinkSavedEvent.detailSchema.parse(envelope.detail);
 
 				const content = await findArticleContent(detail.url);
-				if (!content) continue;
+				/* Canonical S3 object written upstream may not be readable yet (S3
+				 * eventual consistency). Throw so SQS retries through
+				 * maxReceiveCount; on exhaustion the DLQ alarm fires. */
+				if (!content) {
+					throw new Error(`canonical content not yet readable for url=${detail.url}`);
+				}
 
 				await dispatchGenerateSummary({ url: detail.url });
 
