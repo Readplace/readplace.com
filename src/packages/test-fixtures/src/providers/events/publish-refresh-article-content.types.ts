@@ -1,5 +1,6 @@
 export type PublishRefreshArticleContent = (params: {
 	url: string;
+	html: string;
 	metadata: {
 		title: string;
 		siteName: string;

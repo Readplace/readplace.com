@@ -24,6 +24,7 @@ import {
 	TierContentExtractedEvent,
 	RecrawlLinkInitiatedEvent,
 	RecrawlContentExtractedEvent,
+	RefreshContentExtractedEvent,
 } from "@packages/hutch-infra-components";
 import { requireEnv } from "../require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../generate-summary/timeouts";
@@ -309,7 +310,7 @@ new HutchDLQEventHandler("save-anonymous-link-dlq", {
 
 const staleCheckRequestedDynamodb = new HutchDynamoDBAccess("stale-check-requested-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
-	actions: ["dynamodb:GetItem"],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
 const staleCheckRequestedLambda = new HutchLambda("stale-check-requested", {
@@ -321,9 +322,11 @@ const staleCheckRequestedLambda = new HutchLambda("stale-check-requested", {
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 	},
 	policies: [
 		...staleCheckRequestedDynamodb.policies,
+		...renamePolicies(generateSummaryQueue.policies, "stale-check-requested"),
 	],
 });
 
@@ -681,14 +684,12 @@ const summaryGenerationFailedLambdaWithSQS = new HutchSQSBackedLambda("summary-g
 eventBus.subscribe(SummaryGenerationFailedEvent, summaryGenerationFailedLambdaWithSQS);
 
 // --- RefreshArticleContent handler ---
+// Writes the freshly-fetched HTML as a tier-1 source and publishes
+// RefreshContentExtractedEvent; the selector + transition step lives in the
+// refresh-content-extracted handler below (same shape as the recrawl path).
 
 const refreshArticleContentQueue = new HutchSQS("refresh-article-content", {
 	visibilityTimeoutSeconds: 60,
-});
-
-const refreshArticleContentDynamodb = new HutchDynamoDBAccess("refresh-article-content-dynamodb", {
-	tables: [{ arn: articlesTableArn, includeIndexes: false }],
-	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
 const refreshArticleContentLambda = new HutchLambda("refresh-article-content", {
@@ -698,13 +699,11 @@ const refreshArticleContentLambda = new HutchLambda("refresh-article-content", {
 	memorySize: 256,
 	timeout: 30,
 	environment: {
-		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
-		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		CONTENT_BUCKET_NAME: contentBucketName,
 	},
 	policies: [
-		...refreshArticleContentDynamodb.policies,
-		...renamePolicies(generateSummaryQueue.policies, "refresh"),
+		...contentBucket.writePolicies("refresh-article-content-content-write"),
 	],
 });
 
@@ -718,6 +717,49 @@ const refreshArticleContentWithSQS = new HutchSQSBackedLambda("refresh-article-c
 });
 
 eventBus.subscribe(RefreshArticleContentCommand, refreshArticleContentWithSQS);
+
+// --- RefreshContentExtracted handler ---
+
+const refreshContentExtractedQueue = new HutchSQS("refresh-content-extracted", {
+	visibilityTimeoutSeconds: SELECT_CONTENT_TIMEOUTS.sqsVisibilitySeconds,
+});
+
+const refreshContentExtractedDynamodb = new HutchDynamoDBAccess("refresh-content-extracted-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+});
+
+const refreshContentExtractedLambda = new HutchLambda("refresh-content-extracted", {
+	entryPoint: "./src/runtime/refresh-content-extracted.main.ts",
+	outputDir: ".lib/refresh-content-extracted",
+	assetDir: "./src",
+	memorySize: 256,
+	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		DEEPSEEK_API_KEY: deepseekApiKey,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	policies: [
+		...refreshContentExtractedDynamodb.policies,
+		...contentBucket.readPolicies("refresh-content-extracted-content-read"),
+		...contentBucket.writePolicies("refresh-content-extracted-content-write"),
+		...renamePolicies(generateSummaryQueue.policies, "refresh-content-extracted"),
+	],
+});
+
+eventBus.grantPublish(refreshContentExtractedLambda);
+
+const refreshContentExtractedLambdaWithSQS = new HutchSQSBackedLambda("refresh-content-extracted", {
+	lambda: refreshContentExtractedLambda,
+	queue: refreshContentExtractedQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(RefreshContentExtractedEvent, refreshContentExtractedLambdaWithSQS);
 
 // --- UpdateFetchTimestamp handler ---
 

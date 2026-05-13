@@ -1,17 +1,28 @@
-import type {
-	RefreshContentInput,
-	TransitionAndPersist,
-} from "@packages/domain/article-aggregate";
-import { refreshContent } from "@packages/domain/article-aggregate";
 import type { HutchLogger } from "@packages/hutch-logger";
+import { RefreshContentExtractedEvent } from "@packages/hutch-infra-components";
+import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
+import type { PutTierSource } from "../select-content/put-tier-source";
 import { RefreshArticleContentCommand } from "./index";
 
+/**
+ * Refresh now goes through the same shape as the initial save → recrawl:
+ *
+ *   1. Write the freshly-fetched HTML as a tier-1 source.
+ *   2. Publish RefreshContentExtractedEvent.
+ *   3. refresh-content-extracted-handler runs the selector over all
+ *      available tier sources (tier-0 from the extension if present, plus
+ *      the just-written tier-1), picks the winner, and calls refreshContent.
+ *
+ * The selector step lets the row keep a tier-0 win instead of silently
+ * flipping to tier-1 just because refresh always fetches server-side.
+ */
 export function initRefreshArticleContentHandler(deps: {
-	transitionAndPersist: TransitionAndPersist;
+	putTierSource: PutTierSource;
+	publishEvent: PublishEvent;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
-	const { transitionAndPersist, logger } = deps;
+	const { putTierSource, publishEvent, logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -23,37 +34,34 @@ export function initRefreshArticleContentHandler(deps: {
 
 				logger.info("[RefreshArticleContent] processing", { url: detail.url });
 
-				const input: RefreshContentInput = {
-					metadata: detail.metadata,
-					freshness: {
+				await putTierSource({
+					url: detail.url,
+					tier: "tier-1",
+					html: detail.html,
+					metadata: {
+						title: detail.metadata.title,
+						siteName: detail.metadata.siteName,
+						excerpt: detail.metadata.excerpt,
+						wordCount: detail.metadata.wordCount,
+						imageUrl: detail.metadata.imageUrl,
+						estimatedReadTime: detail.estimatedReadTime,
+					},
+				});
+
+				await publishEvent({
+					source: RefreshContentExtractedEvent.source,
+					detailType: RefreshContentExtractedEvent.detailType,
+					detail: JSON.stringify({
+						url: detail.url,
 						etag: detail.etag,
 						lastModified: detail.lastModified,
 						contentFetchedAt: detail.contentFetchedAt,
-					},
-					estimatedReadTime: detail.estimatedReadTime,
-				};
-
-				/**
-				 * 1. transitionAndPersist enforces save → dispatch order: the row
-				 *    flips to summaryStatus=pending in DDB before the
-				 *    GenerateSummaryCommand fires. The summary worker
-				 *    short-circuits on cached `ready` rows, so dispatching first
-				 *    would let a fast worker read the stale cache and skip the
-				 *    regen — exactly the race the previous handler guarded
-				 *    against by ordering refresh → dispatch in the handler body.
-				 *
-				 * 2. The aggregate's refreshContent transition pairs the
-				 *    summary-state reset with the generate-summary effect, so a
-				 *    future writer can't drop the regen command — that omission
-				 *    fails the transition's unit test rather than producing the
-				 *    forever-pending row from 2026-05-10.
-				 */
-				await transitionAndPersist(refreshContent, {
-					url: detail.url,
-					input,
+					}),
 				});
 
-				logger.info("[RefreshArticleContent] completed", { url: detail.url });
+				logger.info("[RefreshArticleContent] tier-1 source written + event published", {
+					url: detail.url,
+				});
 			} catch (error) {
 				logger.error("[RefreshArticleContent] record failed", {
 					messageId: record.messageId,

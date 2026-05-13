@@ -10,6 +10,7 @@ export interface RefreshContentInput {
 	metadata: ArticleMetadata;
 	freshness: ArticleFreshness;
 	estimatedReadTime: number;
+	now: string;
 }
 
 /* `writes` excludes "crawl" — a concurrent inline crawl writer must not be
@@ -27,7 +28,7 @@ export function refreshContent(
 		metadata: input.metadata,
 		freshness: input.freshness,
 		estimatedReadTime: input.estimatedReadTime,
-		summary: { kind: "pending" },
+		summary: { kind: "pending", pendingSince: input.now },
 	};
 	const effects: readonly Effect[] = [
 		{ kind: "generate-summary", url: article.url },

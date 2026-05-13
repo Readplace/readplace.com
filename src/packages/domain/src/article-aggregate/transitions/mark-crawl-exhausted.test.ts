@@ -13,48 +13,49 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 		},
 		freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
 		estimatedReadTime: 1,
-		crawl: { kind: "pending" },
-		summary: { kind: "pending" },
+		crawl: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
+		summary: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
+		summaryAutoHeal: { attempts: 0 },
 		...overrides,
 	};
 }
 
 describe("markCrawlExhausted", () => {
-	it("flips crawl to failed with the supplied reason", () => {
+	it("flips crawl to failed with the supplied tagged-union reason", () => {
 		const { article } = markCrawlExhausted(buildArticle(), {
-			reason: "exceeded SQS maxReceiveCount",
+			reason: { kind: "exhausted-retries", receiveCount: 4 },
 			receiveCount: 4,
 		});
 
 		assert.deepEqual(article.crawl, {
 			kind: "failed",
-			reason: "exceeded SQS maxReceiveCount",
+			reason: { kind: "exhausted-retries", receiveCount: 4 },
 		});
 	});
 
-	it("flips summary to failed with a 'crawl failed' reason (the cross-axis pairing the four DLQ handlers used to inline)", () => {
+	it("flips summary to failed with kind=crawl-failed (the cross-axis pairing the four DLQ handlers used to inline)", () => {
 		const { article } = markCrawlExhausted(buildArticle(), {
-			reason: "exceeded SQS maxReceiveCount",
+			reason: { kind: "exhausted-retries", receiveCount: 4 },
 			receiveCount: 4,
 		});
 
 		assert.deepEqual(article.summary, {
 			kind: "failed",
-			reason: "crawl failed",
+			reason: { kind: "crawl-failed" },
 		});
 	});
 
-	it("emits a publish-crawl-article-failed effect carrying the url, reason, and receiveCount", () => {
+	it("emits a publish-crawl-article-failed effect carrying the url, a stringified reason, and receiveCount", () => {
 		const { effects } = markCrawlExhausted(
 			buildArticle({ url: "https://example.com/post" }),
-			{ reason: "exceeded SQS maxReceiveCount", receiveCount: 7 },
+			{ reason: { kind: "exhausted-retries", receiveCount: 7 }, receiveCount: 7 },
 		);
 
 		assert.deepEqual(effects, [
 			{
 				kind: "publish-crawl-article-failed",
 				url: "https://example.com/post",
-				reason: "exceeded SQS maxReceiveCount",
+				reason: "exhausted-retries (receiveCount=7)",
 				receiveCount: 7,
 			},
 		]);
@@ -62,7 +63,7 @@ describe("markCrawlExhausted", () => {
 
 	it("declares writes for crawl and summary so the aggregate save scopes to the two axes the transition mutated", () => {
 		const { writes } = markCrawlExhausted(buildArticle(), {
-			reason: "x",
+			reason: { kind: "exhausted-retries", receiveCount: 1 },
 			receiveCount: 1,
 		});
 
@@ -85,7 +86,7 @@ describe("markCrawlExhausted", () => {
 		});
 
 		const { article } = markCrawlExhausted(before, {
-			reason: "x",
+			reason: { kind: "exhausted-retries", receiveCount: 1 },
 			receiveCount: 1,
 		});
 
@@ -98,9 +99,57 @@ describe("markCrawlExhausted", () => {
 		const before = buildArticle();
 		const snapshot = JSON.parse(JSON.stringify(before));
 
-		markCrawlExhausted(before, { reason: "x", receiveCount: 1 });
+		markCrawlExhausted(before, {
+			reason: { kind: "exhausted-retries", receiveCount: 1 },
+			receiveCount: 1,
+		});
 
 		assert.deepEqual(before, snapshot);
+	});
+
+	it("stringifies parse-error reasons for the publish-crawl-article-failed effect", () => {
+		const { effects } = markCrawlExhausted(buildArticle(), {
+			reason: { kind: "parse-error", detail: "missing <article>" },
+			receiveCount: 1,
+		});
+
+		const failed = effects[0];
+		assert.ok(failed && failed.kind === "publish-crawl-article-failed");
+		assert.equal(failed.reason, "parse-error: missing <article>");
+	});
+
+	it("stringifies fetch-failed reasons with and without httpStatus", () => {
+		const { effects: withStatus } = markCrawlExhausted(buildArticle(), {
+			reason: { kind: "fetch-failed", httpStatus: 503 },
+			receiveCount: 1,
+		});
+		const withStatusEffect = withStatus[0];
+		assert.ok(
+			withStatusEffect &&
+				withStatusEffect.kind === "publish-crawl-article-failed",
+		);
+		assert.equal(withStatusEffect.reason, "fetch-failed: HTTP 503");
+
+		const { effects: withoutStatus } = markCrawlExhausted(buildArticle(), {
+			reason: { kind: "fetch-failed" },
+			receiveCount: 1,
+		});
+		const withoutStatusEffect = withoutStatus[0];
+		assert.ok(
+			withoutStatusEffect &&
+				withoutStatusEffect.kind === "publish-crawl-article-failed",
+		);
+		assert.equal(withoutStatusEffect.reason, "fetch-failed");
+	});
+
+	it("stringifies blocked reasons with cause", () => {
+		const { effects } = markCrawlExhausted(buildArticle(), {
+			reason: { kind: "blocked", cause: "cloudflare" },
+			receiveCount: 1,
+		});
+		const failed = effects[0];
+		assert.ok(failed && failed.kind === "publish-crawl-article-failed");
+		assert.equal(failed.reason, "blocked: cloudflare");
 	});
 
 	it("exposes its function name so transitionAndPersist can tag the row for the Phase 2 canary measurement", () => {

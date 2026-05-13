@@ -10,7 +10,7 @@ import {
 import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import OpenAI from "openai";
-import { initDynamoDbArticleStore } from "../article-aggregate/dynamodb-article-store";
+import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-dispatcher";
 import { initCreateDeepseekMessage } from "../generate-summary/create-deepseek-message";
 import { initDynamoDbMarkSummaryStage } from "../generate-summary/mark-summary-stage";

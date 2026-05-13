@@ -41,6 +41,7 @@
     "@mozilla/readability": "0.6.0",
     "@packages/article-resource-unique-id": "workspace:*",
     "@packages/article-state-types": "workspace:*",
+    "@packages/article-store": "workspace:*",
     "@packages/crawl-article": "workspace:*",
     "@packages/domain": "workspace:*",
     "@packages/hutch-infra-components": "workspace:*",

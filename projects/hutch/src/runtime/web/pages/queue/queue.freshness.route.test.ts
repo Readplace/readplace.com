@@ -88,6 +88,7 @@ describe("Queue freshness integration", () => {
 		expect(refreshPublished).toHaveLength(1);
 		expect(refreshPublished[0]).toEqual({
 			url: "https://example.com/article",
+			html: expect.any(String),
 			metadata: expect.objectContaining({
 				title: "Updated Article",
 				siteName: "example.com",

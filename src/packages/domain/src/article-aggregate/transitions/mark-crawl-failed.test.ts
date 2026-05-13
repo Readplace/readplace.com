@@ -13,8 +13,9 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 		},
 		freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
 		estimatedReadTime: 1,
-		crawl: { kind: "pending" },
-		summary: { kind: "pending" },
+		crawl: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
+		summary: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
+		summaryAutoHeal: { attempts: 0 },
 		...overrides,
 	};
 }
@@ -22,18 +23,18 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 describe("markCrawlFailed", () => {
 	it("flips crawl to failed with the supplied reason", () => {
 		const { article } = markCrawlFailed(buildArticle(), {
-			reason: "fetch returned 500",
+			reason: { kind: "fetch-failed", httpStatus: 500 },
 		});
 
 		assert.deepEqual(article.crawl, {
 			kind: "failed",
-			reason: "fetch returned 500",
+			reason: { kind: "fetch-failed", httpStatus: 500 },
 		});
 	});
 
 	it("emits no effects (terminal status write only)", () => {
 		const { effects } = markCrawlFailed(buildArticle(), {
-			reason: "fetch returned 500",
+			reason: { kind: "fetch-failed", httpStatus: 500 },
 		});
 
 		assert.deepEqual(effects, []);
@@ -41,7 +42,7 @@ describe("markCrawlFailed", () => {
 
 	it("declares writes for crawl only so a concurrent inline summary writer is not clobbered", () => {
 		const { writes } = markCrawlFailed(buildArticle(), {
-			reason: "fetch returned 500",
+			reason: { kind: "fetch-failed", httpStatus: 500 },
 		});
 
 		assert.deepEqual([...writes].sort(), ["crawl"]);
@@ -56,7 +57,7 @@ describe("markCrawlFailed", () => {
 			},
 		});
 
-		const { article } = markCrawlFailed(before, { reason: "fetch returned 500" });
+		const { article } = markCrawlFailed(before, { reason: { kind: "fetch-failed", httpStatus: 500 } });
 
 		assert.deepEqual(article.summary, {
 			kind: "ready",
@@ -80,7 +81,7 @@ describe("markCrawlFailed", () => {
 			estimatedReadTime: 3,
 		});
 
-		const { article } = markCrawlFailed(before, { reason: "fetch returned 500" });
+		const { article } = markCrawlFailed(before, { reason: { kind: "fetch-failed", httpStatus: 500 } });
 
 		assert.equal(article.metadata.title, "kept title");
 		assert.equal(article.freshness.etag, '"kept-etag"');
@@ -91,7 +92,7 @@ describe("markCrawlFailed", () => {
 		const before = buildArticle();
 		const snapshot = JSON.parse(JSON.stringify(before));
 
-		markCrawlFailed(before, { reason: "fetch returned 500" });
+		markCrawlFailed(before, { reason: { kind: "fetch-failed", httpStatus: 500 } });
 
 		assert.deepEqual(before, snapshot);
 	});

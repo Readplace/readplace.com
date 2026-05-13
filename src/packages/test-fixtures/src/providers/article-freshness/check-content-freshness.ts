@@ -79,6 +79,7 @@ export function initRefreshArticleIfStale(deps: {
 
 		await deps.publishRefreshArticleContent({
 			url,
+			html: result.html,
 			metadata: {
 				title: parsed.article.title,
 				siteName: parsed.article.siteName,

@@ -1,0 +1,9 @@
+{
+  "name": "@packages/article-store",
+  "targets": {
+    "check": {
+      "command": "pnpm lint",
+      "options": { "cwd": "{projectRoot}" }
+    }
+  }
+}

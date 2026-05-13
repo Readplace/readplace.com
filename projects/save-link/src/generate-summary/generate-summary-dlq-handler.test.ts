@@ -63,7 +63,7 @@ describe("initGenerateSummaryDlqHandler", () => {
 		expect(transitionAndPersist).toHaveBeenCalledWith(markSummaryExhausted, {
 			url: "https://example.com/failed",
 			input: {
-				reason: "exceeded SQS maxReceiveCount",
+				reason: { kind: "exhausted-retries", receiveCount: 4 },
 				receiveCount: 4,
 			},
 		});

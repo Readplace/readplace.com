@@ -1,3 +1,8 @@
+import type {
+	CrawlFailureReason,
+	CrawlUnsupportedReason,
+	SummaryFailureReason,
+} from "@packages/article-state-types";
 import type { ArticleMetadata } from "../article/article.types";
 import type { CrawlStage, SummaryStage } from "../article/progress-mapping";
 
@@ -10,13 +15,13 @@ export interface ArticleFreshness {
 }
 
 export type CrawlState =
-	| { kind: "pending"; stage?: CrawlStage }
+	| { kind: "pending"; pendingSince: string; stage?: CrawlStage }
 	| { kind: "ready" }
-	| { kind: "failed"; reason: string }
-	| { kind: "unsupported"; reason: string };
+	| { kind: "failed"; reason: CrawlFailureReason }
+	| { kind: "unsupported"; reason: CrawlUnsupportedReason };
 
 export type SummaryState =
-	| { kind: "pending"; stage?: SummaryStage }
+	| { kind: "pending"; pendingSince: string; stage?: SummaryStage }
 	| {
 			kind: "ready";
 			summary: string;
@@ -24,8 +29,13 @@ export type SummaryState =
 			inputTokens?: number;
 			outputTokens?: number;
 	  }
-	| { kind: "failed"; reason: string }
+	| { kind: "failed"; reason: SummaryFailureReason }
 	| { kind: "skipped"; reason?: string };
+
+export interface SummaryAutoHealState {
+	attempts: number;
+	lastAttemptAt?: string;
+}
 
 /**
  * The Article aggregate. One typed row, one save, one dispatch per transition.
@@ -42,4 +52,5 @@ export interface Article {
 	estimatedReadTime: number;
 	crawl: CrawlState;
 	summary: SummaryState;
+	summaryAutoHeal: SummaryAutoHealState;
 }

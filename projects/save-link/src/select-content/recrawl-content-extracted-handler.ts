@@ -134,6 +134,7 @@ export function initRecrawlContentExtractedHandler(deps: {
 							metadata: winnerSource.metadata,
 							estimatedReadTime: winnerSource.metadata.estimatedReadTime,
 							contentFetchedAt: now().toISOString(),
+							now: now().toISOString(),
 						},
 					});
 

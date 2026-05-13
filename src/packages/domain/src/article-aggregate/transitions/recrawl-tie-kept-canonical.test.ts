@@ -13,8 +13,9 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 		},
 		freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
 		estimatedReadTime: 1,
-		crawl: { kind: "pending" },
+		crawl: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
 		summary: { kind: "ready", summary: "old" },
+		summaryAutoHeal: { attempts: 0 },
 		...overrides,
 	};
 }

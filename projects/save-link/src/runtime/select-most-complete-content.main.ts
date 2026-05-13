@@ -10,7 +10,7 @@ import {
 	initEventBridgePublisher,
 	initSqsCommandDispatcher,
 } from "@packages/hutch-infra-components/runtime";
-import { initDynamoDbArticleStore } from "../article-aggregate/dynamodb-article-store";
+import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-dispatcher";
 import { requireEnv } from "../require-env";
 import { initReadTierSource } from "../select-content/read-tier-source";

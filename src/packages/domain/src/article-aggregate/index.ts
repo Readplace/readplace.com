@@ -3,8 +3,17 @@ export type {
 	ArticleFreshness,
 	ArticleMetadata,
 	CrawlState,
+	SummaryAutoHealState,
 	SummaryState,
 } from "./article.types";
+export {
+	SUMMARY_AUTO_HEAL_MAX_ATTEMPTS,
+	SUMMARY_AUTO_HEAL_TTL_MS,
+} from "./auto-heal-constants";
+export {
+	decideSummaryAutoHeal,
+	type SummaryAutoHealDecision,
+} from "./decide-summary-auto-heal";
 export type { Effect } from "./effects.types";
 export type {
 	AggregateField,
@@ -41,6 +50,10 @@ export {
 	markSummaryExhausted,
 	type MarkSummaryExhaustedInput,
 } from "./transitions/mark-summary-exhausted";
+export {
+	incrementSummaryAutoHealAttempt,
+	type IncrementSummaryAutoHealAttemptInput,
+} from "./transitions/increment-summary-auto-heal-attempt";
 export {
 	promoteTier,
 	type PromoteTierInput,

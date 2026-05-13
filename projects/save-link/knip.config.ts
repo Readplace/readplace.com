@@ -18,6 +18,7 @@ export default {
 		"@packages/hutch-storage-client",
 		"@packages/article-resource-unique-id",
 		"@packages/article-state-types",
+		"@packages/article-store",
 		"@packages/crawl-article",
 		"@packages/domain",
 		"@packages/test-fixtures",

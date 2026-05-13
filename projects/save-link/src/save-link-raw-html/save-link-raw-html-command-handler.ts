@@ -80,7 +80,9 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 					 * sibling records still settle under any future batchSize > 1. */
 					await transitionAndPersist(markCrawlFailed, {
 						url: detail.url,
-						input: { reason: parseResult.reason },
+						input: {
+							reason: { kind: "parse-error", detail: parseResult.reason },
+						},
 					});
 					throw new Error(`save-link-raw-html parse failed for ${detail.url}: ${parseResult.reason}`);
 				}

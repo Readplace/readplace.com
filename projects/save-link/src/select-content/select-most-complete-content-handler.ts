@@ -141,6 +141,7 @@ export function initSelectMostCompleteContentHandler(deps: {
 						metadata: winnerSource.metadata,
 						estimatedReadTime: winnerSource.metadata.estimatedReadTime,
 						contentFetchedAt: now().toISOString(),
+						now: now().toISOString(),
 						canonicalChanged,
 						userId: detail.userId,
 					},

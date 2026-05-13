@@ -5,6 +5,9 @@ import {
 	type RecrawlPromoteTierInput,
 } from "./recrawl-promote-tier";
 
+const FIXED_PENDING = "2026-01-01T00:00:00.000Z";
+const NOW = "2026-05-13T12:00:00.000Z";
+
 function buildArticle(overrides: Partial<Article> = {}): Article {
 	return {
 		url: "https://example.com/article",
@@ -20,8 +23,9 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 			contentFetchedAt: "2026-01-01T00:00:00.000Z",
 		},
 		estimatedReadTime: 1,
-		crawl: { kind: "pending" },
+		crawl: { kind: "pending", pendingSince: FIXED_PENDING },
 		summary: { kind: "ready", summary: "old" },
+		summaryAutoHeal: { attempts: 0 },
 		...overrides,
 	};
 }
@@ -38,6 +42,7 @@ function buildInput(overrides: Partial<RecrawlPromoteTierInput> = {}): RecrawlPr
 		},
 		estimatedReadTime: 3,
 		contentFetchedAt: "2026-05-10T12:00:00.000Z",
+		now: NOW,
 		...overrides,
 	};
 }
@@ -109,7 +114,16 @@ describe("recrawlPromoteTier", () => {
 
 		const { article } = recrawlPromoteTier(before, buildInput());
 
-		assert.deepEqual(article.summary, { kind: "pending" });
+		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
+	});
+
+	it("stamps pendingSince with the provided now so the canary can age-gate the summary axis", () => {
+		const { article } = recrawlPromoteTier(buildArticle(), buildInput());
+
+		assert.equal(
+			article.summary.kind === "pending" ? article.summary.pendingSince : "",
+			NOW,
+		);
 	});
 
 	it("emits generate-summary and publish-recrawl-completed effects in that order", () => {

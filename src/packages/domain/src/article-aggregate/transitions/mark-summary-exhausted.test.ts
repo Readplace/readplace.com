@@ -14,35 +14,36 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 		freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
 		estimatedReadTime: 1,
 		crawl: { kind: "ready" },
-		summary: { kind: "pending" },
+		summary: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
+		summaryAutoHeal: { attempts: 0 },
 		...overrides,
 	};
 }
 
 describe("markSummaryExhausted", () => {
-	it("flips summary to failed with the supplied reason", () => {
+	it("flips summary to failed with the supplied tagged-union reason", () => {
 		const { article } = markSummaryExhausted(buildArticle(), {
-			reason: "exceeded SQS maxReceiveCount",
+			reason: { kind: "exhausted-retries", receiveCount: 4 },
 			receiveCount: 4,
 		});
 
 		assert.deepEqual(article.summary, {
 			kind: "failed",
-			reason: "exceeded SQS maxReceiveCount",
+			reason: { kind: "exhausted-retries", receiveCount: 4 },
 		});
 	});
 
-	it("emits a publish-summary-generation-failed effect carrying the url, reason, and receiveCount", () => {
+	it("emits a publish-summary-generation-failed effect carrying the url, a stringified reason, and receiveCount", () => {
 		const { effects } = markSummaryExhausted(
 			buildArticle({ url: "https://example.com/post" }),
-			{ reason: "exceeded SQS maxReceiveCount", receiveCount: 7 },
+			{ reason: { kind: "exhausted-retries", receiveCount: 7 }, receiveCount: 7 },
 		);
 
 		assert.deepEqual(effects, [
 			{
 				kind: "publish-summary-generation-failed",
 				url: "https://example.com/post",
-				reason: "exceeded SQS maxReceiveCount",
+				reason: "exhausted-retries (receiveCount=7)",
 				receiveCount: 7,
 			},
 		]);
@@ -50,18 +51,18 @@ describe("markSummaryExhausted", () => {
 
 	it("declares writes for summary only so a concurrent inline crawl writer is not clobbered", () => {
 		const { writes } = markSummaryExhausted(buildArticle(), {
-			reason: "x",
+			reason: { kind: "exhausted-retries", receiveCount: 1 },
 			receiveCount: 1,
 		});
 
 		assert.deepEqual([...writes].sort(), ["summary"]);
 	});
 
-	it("preserves crawl so a concurrent inline writer's values are not clobbered on save (this transition is the summary-only DLQ path, unlike markCrawlExhausted which is cross-axis)", () => {
+	it("preserves crawl so a concurrent inline writer's values are not clobbered on save", () => {
 		const before = buildArticle({ crawl: { kind: "ready" } });
 
 		const { article } = markSummaryExhausted(before, {
-			reason: "x",
+			reason: { kind: "exhausted-retries", receiveCount: 1 },
 			receiveCount: 1,
 		});
 
@@ -84,7 +85,7 @@ describe("markSummaryExhausted", () => {
 		});
 
 		const { article } = markSummaryExhausted(before, {
-			reason: "x",
+			reason: { kind: "exhausted-retries", receiveCount: 1 },
 			receiveCount: 1,
 		});
 
@@ -97,9 +98,42 @@ describe("markSummaryExhausted", () => {
 		const before = buildArticle();
 		const snapshot = JSON.parse(JSON.stringify(before));
 
-		markSummaryExhausted(before, { reason: "x", receiveCount: 1 });
+		markSummaryExhausted(before, {
+			reason: { kind: "exhausted-retries", receiveCount: 1 },
+			receiveCount: 1,
+		});
 
 		assert.deepEqual(before, snapshot);
+	});
+
+	it("stringifies crawl-failed reason without payload", () => {
+		const { effects } = markSummaryExhausted(buildArticle(), {
+			reason: { kind: "crawl-failed" },
+			receiveCount: 1,
+		});
+		const failed = effects[0];
+		assert.ok(failed && failed.kind === "publish-summary-generation-failed");
+		assert.equal(failed.reason, "crawl-failed");
+	});
+
+	it("stringifies model-overload reason without payload", () => {
+		const { effects } = markSummaryExhausted(buildArticle(), {
+			reason: { kind: "model-overload" },
+			receiveCount: 1,
+		});
+		const failed = effects[0];
+		assert.ok(failed && failed.kind === "publish-summary-generation-failed");
+		assert.equal(failed.reason, "model-overload");
+	});
+
+	it("stringifies content-too-large reason with token count", () => {
+		const { effects } = markSummaryExhausted(buildArticle(), {
+			reason: { kind: "content-too-large", tokens: 70_000 },
+			receiveCount: 1,
+		});
+		const failed = effects[0];
+		assert.ok(failed && failed.kind === "publish-summary-generation-failed");
+		assert.equal(failed.reason, "content-too-large (70000 tokens)");
 	});
 
 	it("exposes its function name so transitionAndPersist can tag the row for the Phase 2 canary measurement", () => {

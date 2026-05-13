@@ -186,6 +186,21 @@ export type RecrawlContentExtractedDetail = z.infer<
 	typeof RecrawlContentExtractedEvent.detailSchema
 >;
 
+export const RefreshContentExtractedEvent = defineEvent({
+	name: "refresh-content-extracted",
+	source: "hutch.save-link",
+	detailType: "RefreshContentExtracted",
+	detailSchema: z.object({
+		url: z.string(),
+		etag: z.string().optional(),
+		lastModified: z.string().optional(),
+		contentFetchedAt: z.string(),
+	}),
+});
+export type RefreshContentExtractedDetail = z.infer<
+	typeof RefreshContentExtractedEvent.detailSchema
+>;
+
 export const RecrawlCompletedEvent = defineEvent({
 	name: "recrawl-completed",
 	source: "hutch.save-link",
@@ -211,6 +226,7 @@ export const RefreshArticleContentCommand = defineEvent({
 	detailType: "RefreshArticleContentCommand",
 	detailSchema: z.object({
 		url: z.string(),
+		html: z.string(),
 		metadata: z.object({
 			title: z.string(),
 			siteName: z.string(),

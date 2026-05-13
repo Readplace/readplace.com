@@ -152,7 +152,7 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlUnsupported, {
 			url: "https://example.com/doc.pdf",
-			input: { reason: "non-html content type: application/pdf" },
+			input: { reason: { kind: "non-html-content", contentType: "non-html content type: application/pdf" } },
 		});
 		expect(publishEvent).not.toHaveBeenCalled();
 	});

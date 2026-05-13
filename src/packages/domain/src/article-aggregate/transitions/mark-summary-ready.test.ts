@@ -14,7 +14,8 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 		freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
 		estimatedReadTime: 1,
 		crawl: { kind: "ready" },
-		summary: { kind: "pending" },
+		summary: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
+		summaryAutoHeal: { attempts: 0 },
 		...overrides,
 	};
 }
@@ -56,7 +57,7 @@ describe("markSummaryReady", () => {
 		]);
 	});
 
-	it("declares writes for summary only so a concurrent inline crawl writer is not clobbered", () => {
+	it("declares writes for summary + summaryAutoHeal so a concurrent inline crawl writer is not clobbered", () => {
 		const { writes } = markSummaryReady(buildArticle(), {
 			summary: "summary",
 			excerpt: "excerpt",
@@ -64,7 +65,25 @@ describe("markSummaryReady", () => {
 			outputTokens: 1,
 		});
 
-		assert.deepEqual([...writes].sort(), ["summary"]);
+		assert.deepEqual([...writes].sort(), ["summary", "summaryAutoHeal"]);
+	});
+
+	it("resets summaryAutoHeal so a future failure has the full retry budget", () => {
+		const before = buildArticle({
+			summaryAutoHeal: {
+				attempts: 2,
+				lastAttemptAt: "2026-05-10T12:00:00.000Z",
+			},
+		});
+
+		const { article } = markSummaryReady(before, {
+			summary: "summary",
+			excerpt: "excerpt",
+			inputTokens: 1,
+			outputTokens: 1,
+		});
+
+		assert.deepEqual(article.summaryAutoHeal, { attempts: 0 });
 	});
 
 	it("preserves crawl so a concurrent inline writer's values are not clobbered on save", () => {

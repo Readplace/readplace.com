@@ -21,6 +21,7 @@ function seededArticle(url: string): Article {
 		estimatedReadTime: 1,
 		crawl: { kind: "ready" },
 		summary: { kind: "ready", summary: "Old" },
+		summaryAutoHeal: { attempts: 0 },
 	};
 }
 
@@ -77,7 +78,7 @@ describe("initTransitionAndPersist", () => {
 			writes: readonly AggregateField[];
 		} {
 			return {
-				article: { ...article, summary: { kind: "pending" } },
+				article: { ...article, summary: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" } },
 				effects: [{ kind: "generate-summary", url: article.url }],
 				writes: ["summary"],
 			};
@@ -128,7 +129,10 @@ describe("initTransitionAndPersist", () => {
 			writes: readonly AggregateField[];
 		} {
 			return {
-				article: { ...article, crawl: { kind: "failed", reason: "x" } },
+				article: {
+					...article,
+					crawl: { kind: "failed", reason: { kind: "fetch-failed" } },
+				},
 				effects: [],
 				writes: ["crawl", "summary"],
 			};
@@ -238,7 +242,7 @@ describe("initTransitionAndPersist", () => {
 		};
 
 		const transition: Transition<undefined> = (article) => ({
-			article: { ...article, summary: { kind: "pending" } },
+			article: { ...article, summary: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" } },
 			effects: [{ kind: "generate-summary", url: article.url }],
 			writes: ["summary"],
 		});

@@ -1,15 +1,6 @@
-import type {
-	Article,
-	ArticleStore,
-	Effect,
-} from "@packages/domain/article-aggregate";
-import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import { noopLogger } from "@packages/hutch-logger";
-import {
-	initInMemoryArticleStore,
-	initInMemoryEffectDispatcher,
-} from "@packages/test-fixtures/providers/article-aggregate";
 import type { Context, SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import type { PutTierSource } from "../select-content/put-tier-source";
 import { initRefreshArticleContentHandler } from "./refresh-article-content-handler";
 
 const stubAttributes: SQSRecordAttributes = {
@@ -36,6 +27,7 @@ const stubContext: Context = {
 
 interface RefreshDetail {
 	url: string;
+	html: string;
 	metadata: {
 		title: string;
 		siteName: string;
@@ -67,142 +59,101 @@ function createSqsEvent(detail: RefreshDetail): SQSEvent {
 	};
 }
 
-function seededArticle(url: string): Article {
-	return {
-		url,
-		metadata: {
-			title: "Old title",
-			siteName: "Example",
-			excerpt: "Old excerpt",
-			wordCount: 100,
-		},
-		freshness: {
-			etag: '"old-etag"',
-			contentFetchedAt: "2026-01-01T00:00:00.000Z",
-		},
-		estimatedReadTime: 1,
-		crawl: { kind: "ready" },
-		summary: {
-			kind: "ready",
-			summary: "stale summary",
-			excerpt: "stale summary excerpt",
-		},
-	};
-}
+const URL = "https://example.com/article";
+const HTML = "<html><body><h1>Refreshed</h1></body></html>";
+const DETAIL: RefreshDetail = {
+	url: URL,
+	html: HTML,
+	metadata: {
+		title: "New title",
+		siteName: "Example",
+		excerpt: "New excerpt",
+		wordCount: 250,
+	},
+	estimatedReadTime: 2,
+	etag: '"new-etag"',
+	lastModified: "Sun, 10 May 2026 12:00:00 GMT",
+	contentFetchedAt: "2026-05-10T12:00:00.000Z",
+};
 
-describe("initRefreshArticleContentHandler (aggregate-driven)", () => {
-	it("flips summary back to pending and dispatches generate-summary in that order", async () => {
-		// Why this matters: the previous (pre-aggregate) handler used a single
-		// inline UpdateExpression to clear summary text + reset summaryStatus,
-		// then issued GenerateSummaryCommand. A change to one limb without the
-		// other left rows stuck on "Generating summary…" — the
-		// fagnerbrack.com/why-developers-become-frustrated-… regression on
-		// 2026-05-10. The aggregate folds both into a single transition: if a
-		// future writer drops the dispatch, this test (and the transition's own
-		// test) fails before the change reaches production.
-		const URL = "https://example.com/article";
-		const articleStore = initInMemoryArticleStore();
-		articleStore.seed(seededArticle(URL));
-		const { dispatchEffect, dispatched } = initInMemoryEffectDispatcher();
-		const { transitionAndPersist } = initTransitionAndPersist({
-			store: articleStore,
-			dispatchEffect,
-		});
+describe("initRefreshArticleContentHandler (tier-write + publish)", () => {
+	it("writes the refreshed HTML as a tier-1 source so the selector can compare it against an existing tier-0", async () => {
+		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initRefreshArticleContentHandler({
-			transitionAndPersist,
+			putTierSource,
+			publishEvent,
 			logger: noopLogger,
 		});
 
-		const result = await handler(
-			createSqsEvent({
-				url: URL,
-				metadata: {
-					title: "New title",
-					siteName: "Example",
-					excerpt: "New excerpt",
-					wordCount: 250,
-				},
+		await handler(createSqsEvent(DETAIL), stubContext, () => {});
+
+		expect(putTierSource).toHaveBeenCalledWith({
+			url: URL,
+			tier: "tier-1",
+			html: HTML,
+			metadata: expect.objectContaining({
+				title: "New title",
+				siteName: "Example",
+				excerpt: "New excerpt",
+				wordCount: 250,
 				estimatedReadTime: 2,
-				etag: '"new-etag"',
-				lastModified: "Sun, 10 May 2026 12:00:00 GMT",
-				contentFetchedAt: "2026-05-10T12:00:00.000Z",
 			}),
-			stubContext,
-			() => {},
-		);
-
-		expect(result).toEqual({ batchItemFailures: [] });
-
-		const updated = await articleStore.load(URL);
-		expect(updated?.metadata.title).toBe("New title");
-		expect(updated?.metadata.wordCount).toBe(250);
-		expect(updated?.freshness.etag).toBe('"new-etag"');
-		expect(updated?.freshness.contentFetchedAt).toBe("2026-05-10T12:00:00.000Z");
-		expect(updated?.estimatedReadTime).toBe(2);
-		expect(updated?.summary).toEqual({ kind: "pending" });
-		expect(dispatched).toEqual<Effect[]>([
-			{ kind: "generate-summary", url: URL },
-		]);
+		});
 	});
 
-	it("dispatches AFTER the store records summary=pending so the worker never reads a status=ready cache hit", async () => {
-		// Why this matters: summarizeArticle short-circuits when the cached
-		// summaryStatus is "ready" (link-summariser.ts:52). If the dispatcher
-		// fired before the row's summaryStatus flipped to pending, a fast worker
-		// could read the stale "ready" cache and return before regenerating.
-		// The orchestrator save→dispatch order locks this in by construction.
-		const URL = "https://example.com/article";
-		const order: string[] = [];
-		const articleStore = initInMemoryArticleStore();
-		articleStore.seed(seededArticle(URL));
-
-		const wrappedStore: ArticleStore = {
-			load: articleStore.load,
-			save: async (params) => {
-				order.push(`save:${params.article.summary.kind}`);
-				await articleStore.save(params);
-			},
-		};
-		const { dispatchEffect: realDispatch } = initInMemoryEffectDispatcher();
-		const dispatchEffect = async (effect: Effect) => {
-			order.push(`dispatch:${effect.kind}`);
-			await realDispatch(effect);
-		};
-		const { transitionAndPersist } = initTransitionAndPersist({
-			store: wrappedStore,
-			dispatchEffect,
-		});
+	it("publishes RefreshContentExtractedEvent carrying url + freshness so the downstream selector handler can persist", async () => {
+		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initRefreshArticleContentHandler({
-			transitionAndPersist,
+			putTierSource,
+			publishEvent,
 			logger: noopLogger,
 		});
 
-		await handler(
-			createSqsEvent({
-				url: URL,
-				metadata: { title: "x", siteName: "x", excerpt: "x", wordCount: 1 },
-				estimatedReadTime: 1,
-				contentFetchedAt: "2026-05-10T12:00:00.000Z",
-			}),
-			stubContext,
-			() => {},
-		);
+		await handler(createSqsEvent(DETAIL), stubContext, () => {});
 
-		expect(order).toEqual(["save:pending", "dispatch:generate-summary"]);
+		expect(publishEvent).toHaveBeenCalledTimes(1);
+		const call = publishEvent.mock.calls[0][0];
+		expect(call.source).toBe("hutch.save-link");
+		expect(call.detailType).toBe("RefreshContentExtracted");
+		expect(JSON.parse(call.detail)).toEqual({
+			url: URL,
+			etag: '"new-etag"',
+			lastModified: "Sun, 10 May 2026 12:00:00 GMT",
+			contentFetchedAt: "2026-05-10T12:00:00.000Z",
+		});
 	});
 
-	it("reports the record as a batch failure on invalid event detail (Zod failure) without touching the store", async () => {
-		const articleStore = initInMemoryArticleStore();
-		const { dispatchEffect, dispatched } = initInMemoryEffectDispatcher();
-		const { transitionAndPersist } = initTransitionAndPersist({
-			store: articleStore,
-			dispatchEffect,
+	it("writes the tier source BEFORE publishing the event so a fast downstream handler doesn't race a missing tier-1 read", async () => {
+		const order: string[] = [];
+		const putTierSource: PutTierSource = jest.fn().mockImplementation(async () => {
+			order.push("putTierSource");
+		});
+		const publishEvent = jest.fn().mockImplementation(async () => {
+			order.push("publishEvent");
 		});
 
 		const handler = initRefreshArticleContentHandler({
-			transitionAndPersist,
+			putTierSource,
+			publishEvent,
+			logger: noopLogger,
+		});
+
+		await handler(createSqsEvent(DETAIL), stubContext, () => {});
+
+		expect(order).toEqual(["putTierSource", "publishEvent"]);
+	});
+
+	it("reports the record as a batch failure on invalid event detail (zod failure) without touching tier source or event bus", async () => {
+		const putTierSource: PutTierSource = jest.fn();
+		const publishEvent = jest.fn();
+
+		const handler = initRefreshArticleContentHandler({
+			putTierSource,
+			publishEvent,
 			logger: noopLogger,
 		});
 
@@ -225,76 +176,25 @@ describe("initRefreshArticleContentHandler (aggregate-driven)", () => {
 		const result = await handler(invalidEvent, stubContext, () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		expect(dispatched).toEqual([]);
+		expect(putTierSource).not.toHaveBeenCalled();
+		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
-	it("does not dispatch when the store throws on save", async () => {
-		// Why this matters: dispatching a regen command for a row whose new
-		// state never persisted would summarise stale content; SQS retry must
-		// replay the whole transition once the store is healthy again.
-		const URL = "https://example.com/article";
-		const articleStore = initInMemoryArticleStore();
-		articleStore.seed(seededArticle(URL));
-		const failingStore = {
-			load: articleStore.load,
-			save: async () => {
-				throw new Error("ddb throttled");
-			},
-		};
-		const { dispatchEffect, dispatched } = initInMemoryEffectDispatcher();
-		const { transitionAndPersist } = initTransitionAndPersist({
-			store: failingStore,
-			dispatchEffect,
-		});
+	it("does not publish when putTierSource throws so the downstream handler doesn't run with no tier-1 to read", async () => {
+		const putTierSource: PutTierSource = jest
+			.fn()
+			.mockRejectedValue(new Error("s3 throttled"));
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initRefreshArticleContentHandler({
-			transitionAndPersist,
+			putTierSource,
+			publishEvent,
 			logger: noopLogger,
 		});
 
-		const result = await handler(
-			createSqsEvent({
-				url: URL,
-				metadata: { title: "x", siteName: "x", excerpt: "x", wordCount: 1 },
-				estimatedReadTime: 1,
-				contentFetchedAt: "2026-05-10T12:00:00.000Z",
-			}),
-			stubContext,
-			() => {},
-		);
+		const result = await handler(createSqsEvent(DETAIL), stubContext, () => {});
 
+		expect(publishEvent).not.toHaveBeenCalled();
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		expect(dispatched).toEqual([]);
-	});
-
-	it("reports the record as a batch failure when no aggregate exists for the URL (assertion in orchestrator)", async () => {
-		// The aggregate orchestrator asserts the row exists before transitioning;
-		// a missing row is a programmer/data error and SQS retry will eventually
-		// surface as a DLQ alarm rather than silently upsert an inconsistent row.
-		const articleStore = initInMemoryArticleStore();
-		const { dispatchEffect, dispatched } = initInMemoryEffectDispatcher();
-		const { transitionAndPersist } = initTransitionAndPersist({
-			store: articleStore,
-			dispatchEffect,
-		});
-
-		const handler = initRefreshArticleContentHandler({
-			transitionAndPersist,
-			logger: noopLogger,
-		});
-
-		const result = await handler(
-			createSqsEvent({
-				url: "https://example.com/never-saved",
-				metadata: { title: "x", siteName: "x", excerpt: "x", wordCount: 1 },
-				estimatedReadTime: 1,
-				contentFetchedAt: "2026-05-10T12:00:00.000Z",
-			}),
-			stubContext,
-			() => {},
-		);
-
-		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		expect(dispatched).toEqual([]);
 	});
 });

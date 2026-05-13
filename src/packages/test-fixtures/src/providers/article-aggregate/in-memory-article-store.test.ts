@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { Article } from "@packages/domain/article-aggregate";
 import { initInMemoryArticleStore } from "./in-memory-article-store";
 
-function buildArticle(url: string, summary: Article["summary"] = { kind: "pending" }): Article {
+function buildArticle(url: string, summary: Article["summary"] = { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" }): Article {
 	return {
 		url,
 		metadata: {
@@ -15,6 +15,7 @@ function buildArticle(url: string, summary: Article["summary"] = { kind: "pendin
 		estimatedReadTime: 1,
 		crawl: { kind: "ready" },
 		summary,
+		summaryAutoHeal: { attempts: 0 },
 	};
 }
 
@@ -80,14 +81,14 @@ describe("initInMemoryArticleStore", () => {
 		});
 
 		await store.save({
-			article: buildArticle("https://example.com/a", { kind: "pending" }),
+			article: buildArticle("https://example.com/a", { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" }),
 			transitionName: "second",
 			writes: ["summary"],
 		});
 		const loaded = await store.load("https://example.com/a");
 
 		assert(loaded, "loaded should not be undefined after save");
-		assert.deepEqual(loaded.summary, { kind: "pending" });
+		assert.deepEqual(loaded.summary, { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" });
 	});
 
 	it("records each save's transitionName and writes scope so tests can assert what the orchestrator threaded through", async () => {

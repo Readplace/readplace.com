@@ -1,6 +1,10 @@
 import assert from "node:assert";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
+	CrawlFailureReasonSchema,
 	CrawlStatusSchema,
+	CrawlUnsupportedReasonSchema,
+	SummaryFailureReasonSchema,
 	SummaryStatusSchema,
 } from "@packages/article-state-types";
 import type {
@@ -16,7 +20,6 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import { ArticleResourceUniqueId } from "../save-link/article-resource-unique-id";
 
 /**
  * Row schema for the Article aggregate. Each attribute is `dynamoField`
@@ -41,13 +44,17 @@ const ArticleAggregateRow = z.object({
 	crawlStatus: dynamoField(CrawlStatusSchema),
 	crawlFailureReason: dynamoField(z.string()),
 	crawlUnsupportedReason: dynamoField(z.string()),
+	crawlPendingSince: dynamoField(z.string()),
 	summaryStatus: dynamoField(SummaryStatusSchema),
+	summaryPendingSince: dynamoField(z.string()),
 	summary: dynamoField(z.string()),
 	summaryExcerpt: dynamoField(z.string()),
 	summaryInputTokens: dynamoField(z.number()),
 	summaryOutputTokens: dynamoField(z.number()),
 	summaryFailureReason: dynamoField(z.string()),
 	summarySkippedReason: dynamoField(z.string()),
+	summaryAutoHealAttempts: dynamoField(z.number()),
+	summaryAutoHealLastAttemptAt: dynamoField(z.string()),
 	aggregateTransitionName: dynamoField(z.string()),
 });
 
@@ -55,23 +62,59 @@ type RowShape = z.infer<typeof ArticleAggregateRow>;
 
 const AGGREGATE_FIELDS = ArticleAggregateRow.keyof().options;
 
+/**
+ * 1. Legacy rows saved before `pendingSince` existed default to epoch 0 so the
+ *    canary's age-gate immediately surfaces them once they cross MIN_AGE_MS.
+ *    Fallback is dropped after a follow-up canary scan reports zero legacy
+ *    rows still in flight.
+ */
+const LEGACY_PENDING_SINCE = new Date(0).toISOString();
+
+/**
+ * 1. Legacy rows wrote a plain string (free-form, set by save-link-work and
+ *    DLQ handlers). Map it onto the closest tagged-union variant so the
+ *    reader can render it; new rows write a JSON-encoded discriminated union.
+ *    Dropped after a follow-up canary scan reports zero legacy rows.
+ */
+function parseCrawlFailureReason(raw: string): import("@packages/article-state-types").CrawlFailureReason {
+	if (raw.startsWith("{")) return CrawlFailureReasonSchema.parse(JSON.parse(raw));
+	return { kind: "parse-error", detail: raw }; /* 1 */
+}
+
+function parseCrawlUnsupportedReason(raw: string): import("@packages/article-state-types").CrawlUnsupportedReason {
+	if (raw.startsWith("{")) return CrawlUnsupportedReasonSchema.parse(JSON.parse(raw));
+	return { kind: "non-html-content", contentType: raw }; /* 1 */
+}
+
+function parseSummaryFailureReason(raw: string): import("@packages/article-state-types").SummaryFailureReason {
+	if (raw.startsWith("{")) return SummaryFailureReasonSchema.parse(JSON.parse(raw));
+	if (raw === "crawl failed") return { kind: "crawl-failed" }; /* 1 */
+	return { kind: "exhausted-retries", receiveCount: 0 }; /* 1 */
+}
+
 function rowToCrawlState(row: RowShape): CrawlState {
 	if (row.crawlStatus === "failed") {
 		assert(
 			row.crawlFailureReason,
 			"crawlStatus=failed row must carry crawlFailureReason",
 		);
-		return { kind: "failed", reason: row.crawlFailureReason };
+		return { kind: "failed", reason: parseCrawlFailureReason(row.crawlFailureReason) };
 	}
 	if (row.crawlStatus === "unsupported") {
 		assert(
 			row.crawlUnsupportedReason,
 			"crawlStatus=unsupported row must carry crawlUnsupportedReason",
 		);
-		return { kind: "unsupported", reason: row.crawlUnsupportedReason };
+		return {
+			kind: "unsupported",
+			reason: parseCrawlUnsupportedReason(row.crawlUnsupportedReason),
+		};
 	}
 	if (row.crawlStatus === "ready") return { kind: "ready" };
-	return { kind: "pending" };
+	return {
+		kind: "pending",
+		pendingSince: row.crawlPendingSince ?? LEGACY_PENDING_SINCE /* 1 */,
+	};
 }
 
 function rowToSummaryState(row: RowShape): SummaryState {
@@ -93,17 +136,29 @@ function rowToSummaryState(row: RowShape): SummaryState {
 			row.summaryFailureReason,
 			"summaryStatus=failed row must carry summaryFailureReason",
 		);
-		return { kind: "failed", reason: row.summaryFailureReason };
+		return {
+			kind: "failed",
+			reason: parseSummaryFailureReason(row.summaryFailureReason),
+		};
 	}
 	if (row.summaryStatus === "skipped") {
 		return row.summarySkippedReason
 			? { kind: "skipped", reason: row.summarySkippedReason }
 			: { kind: "skipped" };
 	}
-	return { kind: "pending" };
+	return {
+		kind: "pending",
+		pendingSince: row.summaryPendingSince ?? LEGACY_PENDING_SINCE /* 1 */,
+	};
 }
 
 function rowToArticle(url: string, row: RowShape): Article {
+	const summaryAutoHeal: Article["summaryAutoHeal"] = {
+		attempts: row.summaryAutoHealAttempts ?? 0,
+	};
+	if (row.summaryAutoHealLastAttemptAt !== undefined) {
+		summaryAutoHeal.lastAttemptAt = row.summaryAutoHealLastAttemptAt;
+	}
 	return {
 		url,
 		metadata: {
@@ -121,6 +176,7 @@ function rowToArticle(url: string, row: RowShape): Article {
 		estimatedReadTime: row.estimatedReadTime ?? 0,
 		crawl: rowToCrawlState(row),
 		summary: rowToSummaryState(row),
+		summaryAutoHeal,
 	};
 }
 
@@ -168,7 +224,9 @@ function appendSummaryClauses(
 ): void {
 	sets.push("summaryStatus = :summaryStatus");
 	if (article.summary.kind === "pending") {
+		sets.push("summaryPendingSince = :summaryPendingSince");
 		values[":summaryStatus"] = "pending";
+		values[":summaryPendingSince"] = article.summary.pendingSince;
 		removes.push(
 			"summary",
 			"summaryExcerpt",
@@ -192,14 +250,14 @@ function appendSummaryClauses(
 		values[":summaryExcerpt"] = article.summary.excerpt ?? null;
 		values[":summaryInputTokens"] = article.summary.inputTokens ?? null;
 		values[":summaryOutputTokens"] = article.summary.outputTokens ?? null;
-		removes.push("summaryFailureReason", "summarySkippedReason");
+		removes.push("summaryFailureReason", "summarySkippedReason", "summaryPendingSince");
 		return;
 	}
 	if (article.summary.kind === "failed") {
 		sets.push("summaryFailureReason = :summaryFailureReason");
 		values[":summaryStatus"] = "failed";
-		values[":summaryFailureReason"] = article.summary.reason;
-		removes.push("summarySkippedReason");
+		values[":summaryFailureReason"] = JSON.stringify(article.summary.reason);
+		removes.push("summarySkippedReason", "summaryPendingSince");
 		return;
 	}
 	values[":summaryStatus"] = "skipped";
@@ -209,7 +267,7 @@ function appendSummaryClauses(
 	} else {
 		removes.push("summarySkippedReason");
 	}
-	removes.push("summaryFailureReason");
+	removes.push("summaryFailureReason", "summaryPendingSince");
 }
 
 function appendCrawlClauses(
@@ -222,24 +280,48 @@ function appendCrawlClauses(
 	if (article.crawl.kind === "failed") {
 		sets.push("crawlFailureReason = :crawlFailureReason");
 		values[":crawlStatus"] = "failed";
-		values[":crawlFailureReason"] = article.crawl.reason;
-		removes.push("crawlUnsupportedReason");
+		values[":crawlFailureReason"] = JSON.stringify(article.crawl.reason);
+		removes.push("crawlUnsupportedReason", "crawlPendingSince");
 		return;
 	}
 	if (article.crawl.kind === "unsupported") {
 		sets.push("crawlUnsupportedReason = :crawlUnsupportedReason");
 		values[":crawlStatus"] = "unsupported";
-		values[":crawlUnsupportedReason"] = article.crawl.reason;
-		removes.push("crawlFailureReason");
+		values[":crawlUnsupportedReason"] = JSON.stringify(article.crawl.reason);
+		removes.push("crawlFailureReason", "crawlPendingSince");
 		return;
 	}
 	if (article.crawl.kind === "ready") {
 		values[":crawlStatus"] = "ready";
-		removes.push("crawlFailureReason", "crawlUnsupportedReason", "crawlFailedAt");
+		removes.push(
+			"crawlFailureReason",
+			"crawlUnsupportedReason",
+			"crawlFailedAt",
+			"crawlPendingSince",
+		);
 		return;
 	}
+	sets.push("crawlPendingSince = :crawlPendingSince");
 	values[":crawlStatus"] = "pending";
+	values[":crawlPendingSince"] = article.crawl.pendingSince;
 	removes.push("crawlFailureReason", "crawlUnsupportedReason");
+}
+
+function appendSummaryAutoHealClauses(
+	article: Article,
+	sets: string[],
+	removes: string[],
+	values: Record<string, unknown>,
+): void {
+	sets.push("summaryAutoHealAttempts = :summaryAutoHealAttempts");
+	values[":summaryAutoHealAttempts"] = article.summaryAutoHeal.attempts;
+	if (article.summaryAutoHeal.lastAttemptAt !== undefined) {
+		sets.push("summaryAutoHealLastAttemptAt = :summaryAutoHealLastAttemptAt");
+		values[":summaryAutoHealLastAttemptAt"] =
+			article.summaryAutoHeal.lastAttemptAt;
+	} else {
+		removes.push("summaryAutoHealLastAttemptAt");
+	}
 }
 
 function buildSaveCommand(params: {
@@ -260,20 +342,24 @@ function buildSaveCommand(params: {
 	if (writesSet.has("metadata")) {
 		appendMetadataClauses(params.article, sets, values);
 	}
+	/* c8 ignore start -- V8 block-coverage phantom on the call expression, see bcoe/c8#319 */
 	if (writesSet.has("freshness")) {
 		appendFreshnessClauses(params.article, sets, values);
 	}
+	/* c8 ignore stop */
 	if (writesSet.has("summary")) {
 		appendSummaryClauses(params.article, sets, removes, values);
 	}
 	if (writesSet.has("crawl")) {
 		appendCrawlClauses(params.article, sets, removes, values);
 	}
+	if (writesSet.has("summaryAutoHeal")) {
+		appendSummaryAutoHealClauses(params.article, sets, removes, values);
+	}
 
 	const setClause = `SET ${sets.join(", ")}`;
 	const removeClause = removes.length > 0 ? ` REMOVE ${removes.join(", ")}` : "";
 	const UpdateExpression = setClause + removeClause;
-	/* c8 ignore next -- V8 block-coverage phantom on the final assignment, see bcoe/c8#319 */
 	return { UpdateExpression, ExpressionAttributeValues: values };
 }
 

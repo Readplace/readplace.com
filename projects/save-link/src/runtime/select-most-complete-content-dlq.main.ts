@@ -8,7 +8,7 @@ import {
 } from "@packages/hutch-infra-components/runtime";
 import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { initDynamoDbArticleStore } from "../article-aggregate/dynamodb-article-store";
+import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-dispatcher";
 import { requireEnv } from "../require-env";
 import { initSelectMostCompleteContentDlqHandler } from "../select-content/select-most-complete-content-dlq-handler";

@@ -56,19 +56,23 @@ describe("buildScanInput", () => {
 		);
 	});
 
-	it("age-gates the crawl-pending disjunct with contentFetchedAt OR savedAt", () => {
+	it("age-gates the crawl-pending disjunct on crawlPendingSince with a legacy contentFetchedAt/savedAt fallback", () => {
 		const input = buildScanInput(NOW);
 		assert.match(
 			input.FilterExpression,
-			/crawlStatus = :pending AND \(contentFetchedAt < :crawlMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND savedAt < :crawlMinAge\)\)/,
+			/crawlStatus = :pending AND \(crawlPendingSince < :crawlMinAge OR/,
+		);
+		assert.match(
+			input.FilterExpression,
+			/attribute_not_exists\(crawlPendingSince\) AND attribute_not_exists\(summaryPendingSince\)/,
 		);
 	});
 
-	it("age-gates the summary-pending disjunct with contentFetchedAt OR savedAt", () => {
+	it("age-gates the summary-pending disjunct on summaryPendingSince with a legacy contentFetchedAt/savedAt fallback", () => {
 		const input = buildScanInput(NOW);
 		assert.match(
 			input.FilterExpression,
-			/summaryStatus = :pending AND \(contentFetchedAt < :summaryMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND savedAt < :summaryMinAge\)\)/,
+			/summaryStatus = :pending AND \(summaryPendingSince < :summaryMinAge OR/,
 		);
 	});
 
@@ -84,11 +88,19 @@ describe("buildScanInput", () => {
 		);
 	});
 
-	it("projects savedAt so the canary can diagnose age-gate decisions", () => {
+	it("projects crawlPendingSince and summaryPendingSince so the canary can diagnose age-gate decisions", () => {
 		const input = buildScanInput(NOW);
 		assert.ok(
+			input.ProjectionExpression.includes("crawlPendingSince"),
+			"crawlPendingSince must be projected",
+		);
+		assert.ok(
+			input.ProjectionExpression.includes("summaryPendingSince"),
+			"summaryPendingSince must be projected",
+		);
+		assert.ok(
 			input.ProjectionExpression.includes("savedAt"),
-			"savedAt must be projected — without it the canary cannot tell why a row crossed the gate",
+			"savedAt remains projected for the legacy fallback diagnostics",
 		);
 	});
 
@@ -133,6 +145,8 @@ describe("collectStuckRows", () => {
 			"summaryStatus",
 			"crawlStatus",
 			"contentFetchedAt",
+			"crawlPendingSince",
+			"summaryPendingSince",
 			"savedAt",
 			"aggregateTransitionName",
 		]) {
@@ -153,7 +167,7 @@ describe("collectStuckRows", () => {
 		assert.match(projection, /#u/);
 	});
 
-	it("returns a stuck row for a crawl-pending row that DDB surfaced", async () => {
+	it("returns a stuck row for a crawl-pending row that DDB surfaced (with crawlPendingSince older than the gate)", async () => {
 		const { client } = createFakeClient(() => ({
 			Items: [
 				{
@@ -161,6 +175,8 @@ describe("collectStuckRows", () => {
 					originalUrl: "https://example.test/article",
 					crawlStatus: "pending",
 					summaryStatus: "pending",
+					crawlPendingSince: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
+					summaryPendingSince: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
 					savedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
 				},
 			],

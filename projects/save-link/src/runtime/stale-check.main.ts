@@ -1,27 +1,33 @@
-import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { consoleLogger } from "@packages/hutch-logger";
+import { SQSClient } from "@aws-sdk/client-sqs";
+import { initDynamoDbArticleStore } from "@packages/article-store";
+import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
+import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import {
-	EventBridgeClient,
-	initEventBridgePublisher,
-} from "@packages/hutch-infra-components/runtime";
-import {
+	GenerateSummaryCommand,
 	RefreshArticleContentCommand,
 	SaveAnonymousLinkCommand,
 	UpdateFetchTimestampCommand,
 } from "@packages/hutch-infra-components";
-import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
+import {
+	EventBridgeClient,
+	initEventBridgePublisher,
+	initSqsCommandDispatcher,
+} from "@packages/hutch-infra-components/runtime";
+import { consoleLogger } from "@packages/hutch-logger";
+import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
-import { initReadabilityParser } from "../article-parser/readability-parser";
-import { theInformationPreParser } from "../article-parser/the-information-pre-parser";
 import type {
 	PublishRefreshArticleContent,
 	PublishSaveAnonymousLink,
 	PublishUpdateFetchTimestamp,
 } from "@packages/test-fixtures/providers/events";
+import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-dispatcher";
+import { initReadabilityParser } from "../article-parser/readability-parser";
+import { theInformationPreParser } from "../article-parser/the-information-pre-parser";
+import { initFindArticleCrawlStatus } from "../crawl-article-state/find-article-crawl-status";
+import { initFindArticleFreshness } from "../crawl-article-state/find-article-freshness";
 import { requireEnv } from "../require-env";
 import { initStaleCheckHandler } from "../save-link/stale-check-handler";
-import { initFindArticleFreshness } from "../crawl-article-state/find-article-freshness";
-import { initFindArticleCrawlStatus } from "../crawl-article-state/find-article-crawl-status";
 
 // 24h: mirrors hutch app.ts's staleTtlMs. Reads of an article older than this
 // trigger a conditional GET against the source (304 → noop, 200 → re-extract).
@@ -29,8 +35,10 @@ const STALE_TTL_MS = 86_400_000;
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
+const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
 
 const client = createDynamoDocumentClient();
+const sqsClient = new SQSClient({});
 const logError = (message: string, error?: Error) =>
 	consoleLogger.error(message, { error });
 
@@ -54,6 +62,7 @@ const publishRefreshArticleContent: PublishRefreshArticleContent = async (params
 		detailType: RefreshArticleContentCommand.detailType,
 		detail: JSON.stringify({
 			url: params.url,
+			html: params.html,
 			metadata: params.metadata,
 			estimatedReadTime: params.estimatedReadTime,
 			etag: params.etag,
@@ -103,8 +112,29 @@ const { refreshArticleIfStale } = initRefreshArticleIfStale({
 	staleTtlMs: STALE_TTL_MS,
 });
 
+const { store } = initDynamoDbArticleStore({ client, tableName: articlesTable });
+
+const { dispatch: dispatchGenerateSummary } = initSqsCommandDispatcher({
+	sqsClient,
+	queueUrl: generateSummaryQueueUrl,
+	command: GenerateSummaryCommand,
+});
+
+const { dispatchEffect } = initLambdaEffectDispatcher({
+	dispatchGenerateSummary,
+	publishEvent,
+});
+
+const { transitionAndPersist } = initTransitionAndPersist({
+	store,
+	dispatchEffect,
+});
+
 export const handler = initStaleCheckHandler({
 	refreshArticleIfStale,
 	publishSaveAnonymousLink,
+	loadArticle: store.load,
+	transitionAndPersist,
+	now: () => new Date(),
 	logger: consoleLogger,
 });

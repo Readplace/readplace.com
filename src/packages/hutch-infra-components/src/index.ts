@@ -25,6 +25,8 @@ export {
 	type RecrawlLinkInitiatedDetail,
 	RecrawlContentExtractedEvent,
 	type RecrawlContentExtractedDetail,
+	RefreshContentExtractedEvent,
+	type RefreshContentExtractedDetail,
 	RecrawlCompletedEvent,
 	type RecrawlCompletedDetail,
 	GenerateSummaryCommand,

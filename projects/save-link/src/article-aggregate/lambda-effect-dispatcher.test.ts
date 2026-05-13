@@ -23,6 +23,28 @@ describe("initLambdaEffectDispatcher", () => {
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
+	it("forwards a dispatch-generate-summary-retry effect to dispatchGenerateSummary so the auto-heal re-prime fires", async () => {
+		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const { dispatchEffect } = initLambdaEffectDispatcher({
+			dispatchGenerateSummary,
+			publishEvent,
+		});
+
+		await dispatchEffect({
+			kind: "dispatch-generate-summary-retry",
+			url: "https://example.com/article",
+			attempt: 2,
+		});
+
+		expect(dispatchGenerateSummary).toHaveBeenCalledTimes(1);
+		expect(dispatchGenerateSummary).toHaveBeenCalledWith({
+			url: "https://example.com/article",
+		});
+		expect(publishEvent).not.toHaveBeenCalled();
+	});
+
 	it("publishes a CrawlArticleFailedEvent for a publish-crawl-article-failed effect, carrying url/reason/receiveCount in detail", async () => {
 		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);

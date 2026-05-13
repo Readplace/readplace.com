@@ -9,7 +9,8 @@ export interface MarkSummaryReadyInput {
 	outputTokens: number;
 }
 
-/* `writes` scoped to summary only so a concurrent inline crawl writer is not clobbered. */
+/* `writes` covers summary + summaryAutoHeal so a successful regen resets the
+ * auto-heal counter — a future failure starts with the full retry budget. */
 export function markSummaryReady(
 	article: Article,
 	input: MarkSummaryReadyInput,
@@ -25,6 +26,7 @@ export function markSummaryReady(
 			summary: input.summary,
 			excerpt: input.excerpt,
 		},
+		summaryAutoHeal: { attempts: 0 },
 	};
 	const effects: readonly Effect[] = [
 		{
@@ -34,6 +36,6 @@ export function markSummaryReady(
 			outputTokens: input.outputTokens,
 		},
 	];
-	const writes: readonly AggregateField[] = ["summary"];
+	const writes: readonly AggregateField[] = ["summary", "summaryAutoHeal"];
 	return { article: next, effects, writes };
 }
