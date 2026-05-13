@@ -277,10 +277,10 @@ const sydneyToMelbourneParams = { ... };
 
 For files that wrap a single AWS SDK call (DynamoDB `update`, S3 `get`, EventBridge `publish`):
 
-- Use the `Partial<DynamoDBDocumentClient>` fake-client pattern. Capture the command in a closure and assert on `UpdateExpression`, `ConditionExpression`, and `ExpressionAttributeValues` shape with `toContain` (not `toBe`) so minor formatting changes don't break the test. See `projects/save-link/src/crawl-article-state/dynamodb-article-crawl.test.ts` and `projects/save-link/src/generate-summary/dynamodb-generated-summary.test.ts` for the pattern.
-- Reach 100% coverage with the fake client. Do NOT add a `.integration.ts` to plug coverage gaps — extract the mapping/parsing logic into a dedicated helper and unit-test the helper directly (see `projects/save-link/src/save-link/parse-s3-uri.ts`).
-- When the wrapper is truly trivial (3–5 lines, no branching), mark it `/* c8 ignore start -- thin AWS SDK wrapper, tested via production canaries */` and rely on the production canaries (`article-pipeline-health`, `check-stuck-articles`) for end-to-end verification.
-- Reserve `.integration.ts` files for cross-service flows that benefit from real-AWS sanity checking. Mark their phase `e2e: true` in `run-tests.config.js` so they don't gate CI on AWS credentials being present (see `projects/save-link/run-tests.config.js`).
+- Use the `Partial<DynamoDBDocumentClient>` fake-client pattern. Capture the command in a closure and assert on `UpdateExpression`, `ConditionExpression`, and `ExpressionAttributeValues` shape with `toContain` (not `toBe`) so minor formatting changes don't break the test. To find current examples, grep for `Partial<DynamoDBDocumentClient>` in `*.test.ts`.
+- Reach 100% coverage with the fake client. Do NOT add a `.integration.ts` to plug coverage gaps — extract the mapping/parsing logic into a dedicated helper and unit-test the helper directly.
+- When the wrapper is truly trivial (3–5 lines, no branching), mark it `/* c8 ignore start -- thin AWS SDK wrapper, tested via production canaries */` and rely on production canaries for end-to-end verification. To find current canaries, look for `.canary.ts` or `health-*` scripts in each project.
+- Reserve `.integration.ts` files for cross-service flows that benefit from real-AWS sanity checking. Mark their phase `e2e: true` in the project's `run-tests.config.js` so they don't gate CI on AWS credentials being present.
 
 ## Code Coverage
 
