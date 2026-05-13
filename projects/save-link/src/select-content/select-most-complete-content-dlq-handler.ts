@@ -1,17 +1,13 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import {
-	CrawlArticleFailedEvent,
-	TierContentExtractedEvent,
-} from "@packages/hutch-infra-components";
-import type { MarkCrawlFailed } from "../crawl-article-state/article-crawl.types";
-import type { MarkSummaryFailed } from "../generate-summary/article-summary.types";
+	markCrawlExhausted,
+	type TransitionAndPersist,
+} from "@packages/domain/article-aggregate";
+import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
 
 interface SelectMostCompleteContentDlqHandlerDeps {
-	markCrawlFailed: MarkCrawlFailed;
-	markSummaryFailed: MarkSummaryFailed;
-	publishEvent: PublishEvent;
+	transitionAndPersist: TransitionAndPersist;
 	logger: HutchLogger;
 }
 
@@ -19,7 +15,7 @@ interface SelectMostCompleteContentDlqHandlerDeps {
 export function initSelectMostCompleteContentDlqHandler(
 	deps: SelectMostCompleteContentDlqHandlerDeps,
 ): Handler<SQSEvent, SQSBatchResponse> {
-	const { markCrawlFailed, markSummaryFailed, publishEvent, logger } = deps;
+	const { transitionAndPersist, logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -31,19 +27,15 @@ export function initSelectMostCompleteContentDlqHandler(
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
 				const reason = "exceeded SQS maxReceiveCount";
 
-				logger.info("[SelectMostCompleteContentDlq] marking crawl failed", {
+				logger.info("[SelectMostCompleteContentDlq] marking crawl exhausted", {
 					url: detail.url,
 					tier: detail.tier,
 					receiveCount,
 				});
 
-				await markCrawlFailed({ url: detail.url, reason });
-				await markSummaryFailed({ url: detail.url, reason: "crawl failed" });
-
-				await publishEvent({
-					source: CrawlArticleFailedEvent.source,
-					detailType: CrawlArticleFailedEvent.detailType,
-					detail: JSON.stringify({ url: detail.url, reason, receiveCount }),
+				await transitionAndPersist(markCrawlExhausted, {
+					url: detail.url,
+					input: { reason, receiveCount },
 				});
 			} catch (error) {
 				logger.error("[SelectMostCompleteContentDlq] record failed", {

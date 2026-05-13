@@ -1,8 +1,10 @@
 import { noopLogger } from "@packages/hutch-logger";
+import {
+	markSummaryExhausted,
+	type TransitionAndPersist,
+} from "@packages/domain/article-aggregate";
 import { initGenerateSummaryDlqHandler } from "./generate-summary-dlq-handler";
-import type { MarkSummaryFailed } from "./article-summary.types";
-import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
+import type { SQSEvent, SQSRecord, SQSRecordAttributes, Context } from "aws-lambda";
 
 function attributes(receiveCount: number): SQSRecordAttributes {
 	return {
@@ -28,77 +30,118 @@ const stubContext: Context = {
 	succeed: () => {},
 };
 
-function createSqsEvent(detail: { url: string }, receiveCount = 3): SQSEvent {
+function createRecord(detail: unknown, receiveCount: number, messageId = "msg-1"): SQSRecord {
 	return {
-		Records: [{
-			messageId: "msg-1",
-			receiptHandle: "receipt-1",
-			body: JSON.stringify({ detail }),
-			attributes: attributes(receiveCount),
-			messageAttributes: {},
-			md5OfBody: "",
-			eventSource: "aws:sqs",
-			eventSourceARN: "arn:aws:sqs:ap-southeast-2:123456789:GenerateGlobalSummary-dlq",
-			awsRegion: "ap-southeast-2",
-		}],
+		messageId,
+		receiptHandle: `receipt-${messageId}`,
+		body: JSON.stringify({ detail }),
+		attributes: attributes(receiveCount),
+		messageAttributes: {},
+		md5OfBody: "",
+		eventSource: "aws:sqs",
+		eventSourceARN: "arn:aws:sqs:ap-southeast-2:123456789:GenerateGlobalSummary-dlq",
+		awsRegion: "ap-southeast-2",
 	};
 }
 
+function createSqsEvent(detail: { url: string }, receiveCount = 3): SQSEvent {
+	return { Records: [createRecord(detail, receiveCount)] };
+}
+
 describe("initGenerateSummaryDlqHandler", () => {
-	it("marks the summary as failed and publishes SummaryGenerationFailed when a message lands in DLQ", async () => {
-		const markSummaryFailed: MarkSummaryFailed = jest.fn().mockResolvedValue(undefined);
-		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
+	it("dispatches markSummaryExhausted with the URL, reason, and receiveCount from the DLQ record", async () => {
+		const transitionAndPersist = jest.fn().mockResolvedValue(undefined) as unknown as TransitionAndPersist;
 
 		const handler = initGenerateSummaryDlqHandler({
-			markSummaryFailed,
-			publishEvent,
+			transitionAndPersist,
 			logger: noopLogger,
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/failed" }, 4), stubContext, () => {});
 
-		expect(markSummaryFailed).toHaveBeenCalledWith({
+		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
+		expect(transitionAndPersist).toHaveBeenCalledWith(markSummaryExhausted, {
 			url: "https://example.com/failed",
-			reason: "exceeded SQS maxReceiveCount",
-		});
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "SummaryGenerationFailed",
-			detail: JSON.stringify({
-				url: "https://example.com/failed",
+			input: {
 				reason: "exceeded SQS maxReceiveCount",
 				receiveCount: 4,
-			}),
+			},
 		});
 	});
 
-	it("reports the record as a batch failure on invalid command envelope (Zod failure)", async () => {
-		const markSummaryFailed: MarkSummaryFailed = jest.fn();
-		const publishEvent: PublishEvent = jest.fn();
+	it("returns an empty batchItemFailures when there are no records", async () => {
+		const transitionAndPersist = jest.fn() as unknown as TransitionAndPersist;
 
 		const handler = initGenerateSummaryDlqHandler({
-			markSummaryFailed,
-			publishEvent,
+			transitionAndPersist,
 			logger: noopLogger,
 		});
 
-		const invalidEvent: SQSEvent = {
-			Records: [{
-				messageId: "msg-1",
-				receiptHandle: "receipt-1",
-				body: JSON.stringify({ detail: { invalid: true } }),
-				attributes: attributes(3),
-				messageAttributes: {},
-				md5OfBody: "",
-				eventSource: "aws:sqs",
-				eventSourceARN: "arn:aws:sqs:ap-southeast-2:123456789:GenerateGlobalSummary-dlq",
-				awsRegion: "ap-southeast-2",
-			}],
-		};
+		const result = await handler({ Records: [] }, stubContext, () => {});
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(transitionAndPersist).not.toHaveBeenCalled();
+	});
+
+	it("reports the record as a batch failure on invalid command envelope (Zod failure)", async () => {
+		const transitionAndPersist = jest.fn() as unknown as TransitionAndPersist;
+
+		const handler = initGenerateSummaryDlqHandler({
+			transitionAndPersist,
+			logger: noopLogger,
+		});
+
+		const invalidEvent: SQSEvent = { Records: [createRecord({ invalid: true }, 3)] };
 
 		const result = await handler(invalidEvent, stubContext, () => {});
+
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		expect(markSummaryFailed).not.toHaveBeenCalled();
-		expect(publishEvent).not.toHaveBeenCalled();
+		expect(transitionAndPersist).not.toHaveBeenCalled();
+	});
+
+	it("reports the record as a batch failure when the transition throws (SQS redelivers; canary catches the stuck row)", async () => {
+		const transitionAndPersist = jest
+			.fn()
+			.mockRejectedValue(new Error("ddb throttled")) as unknown as TransitionAndPersist;
+
+		const handler = initGenerateSummaryDlqHandler({
+			transitionAndPersist,
+			logger: noopLogger,
+		});
+
+		const result = await handler(
+			createSqsEvent({ url: "https://example.com/failed" }, 4),
+			stubContext,
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+	});
+
+	it("isolates per-record failures: only the failing record ends up in batchItemFailures", async () => {
+		const transitionAndPersist = jest
+			.fn()
+			.mockImplementation(async (_transition: unknown, params: { url: string }) => {
+				if (params.url === "https://example.com/explode") {
+					throw new Error("downstream blew up");
+				}
+			}) as unknown as TransitionAndPersist;
+
+		const handler = initGenerateSummaryDlqHandler({
+			transitionAndPersist,
+			logger: noopLogger,
+		});
+
+		const event: SQSEvent = {
+			Records: [
+				createRecord({ url: "https://example.com/ok" }, 4, "msg-ok"),
+				createRecord({ url: "https://example.com/explode" }, 4, "msg-bad"),
+			],
+		};
+
+		const result = await handler(event, stubContext, () => {});
+
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-bad" }] });
+		expect(transitionAndPersist).toHaveBeenCalledTimes(2);
 	});
 });
