@@ -1,0 +1,221 @@
+import type { NextFunction, Request, Response } from "express";
+import {
+	CLICK_COOKIE_NAME,
+	type ClickAttribution,
+	createClickAttributionMiddleware,
+	readClickAttribution,
+} from "./click-attribution.middleware";
+
+interface MockReqOverrides {
+	method?: string;
+	path?: string;
+	hostname?: string;
+	query?: Record<string, unknown>;
+	headers?: Record<string, string | undefined>;
+	cookies?: Record<string, string>;
+}
+
+function createReq(overrides: MockReqOverrides = {}): Request {
+	const headers: Record<string, string | undefined> = { ...overrides.headers };
+	const base = {
+		method: overrides.method ?? "GET",
+		path: overrides.path ?? "/",
+		hostname: overrides.hostname ?? "readplace.com",
+		query: overrides.query ?? {},
+		headers,
+		cookies: overrides.cookies ?? {},
+		get(name: string): string | undefined {
+			return headers[name.toLowerCase()];
+		},
+	};
+	return base as unknown as Request;
+}
+
+interface CapturedCookie {
+	name: string;
+	value: string;
+	options: Record<string, unknown>;
+}
+
+function createRes(): { res: Response; cookies: CapturedCookie[] } {
+	const cookies: CapturedCookie[] = [];
+	const res = {
+		cookie(name: string, value: string, options: Record<string, unknown>) {
+			cookies.push({ name, value, options });
+			return res;
+		},
+	} as unknown as Response;
+	return { res, cookies };
+}
+
+function runMiddleware(req: Request): { cookies: CapturedCookie[]; nextCalled: boolean } {
+	const { res, cookies } = createRes();
+	const middleware = createClickAttributionMiddleware({
+		now: () => new Date("2026-05-13T10:00:00.000Z"),
+	});
+	let nextCalled = false;
+	const next: NextFunction = () => {
+		nextCalled = true;
+	};
+	middleware(req, res, next);
+	return { cookies, nextCalled };
+}
+
+function parseCookieValue(value: string): ClickAttribution {
+	return JSON.parse(value) as ClickAttribution;
+}
+
+describe("createClickAttributionMiddleware", () => {
+	it("captures utm params and writes the click cookie on first hit", () => {
+		const req = createReq({
+			path: "/blog/launch",
+			query: { utm_source: "twitter", utm_medium: "social", utm_campaign: "spring" },
+		});
+		const { cookies, nextCalled } = runMiddleware(req);
+
+		expect(nextCalled).toBe(true);
+		expect(cookies).toHaveLength(1);
+		const [cookie] = cookies;
+		expect(cookie.name).toBe(CLICK_COOKIE_NAME);
+		expect(cookie.options).toMatchObject({
+			httpOnly: true,
+			sameSite: "lax",
+			path: "/",
+			maxAge: 30 * 24 * 60 * 60 * 1000,
+		});
+		expect(parseCookieValue(cookie.value)).toEqual({
+			utm_source: "twitter",
+			utm_medium: "social",
+			utm_campaign: "spring",
+			first_seen_at: "2026-05-13T10:00:00.000Z",
+			landing_path: "/blog/launch",
+		});
+	});
+
+	it("captures referrer host when present and external", () => {
+		const req = createReq({
+			path: "/",
+			headers: { referer: "https://news.ycombinator.com/item?id=1" },
+		});
+		const { cookies } = runMiddleware(req);
+
+		expect(cookies).toHaveLength(1);
+		expect(parseCookieValue(cookies[0].value)).toMatchObject({
+			referrer_host: "news.ycombinator.com",
+			landing_path: "/",
+		});
+	});
+
+	it("drops self-referrers (internal navigation) so capture only fires on cross-site clicks", () => {
+		const req = createReq({
+			hostname: "readplace.com",
+			headers: { referer: "https://readplace.com/blog/something" },
+		});
+		const { cookies } = runMiddleware(req);
+
+		expect(cookies).toEqual([]);
+	});
+
+	it("drops unparseable referer headers and does not write a cookie when no other attribution is present", () => {
+		const req = createReq({ headers: { referer: "not a url" } });
+		const { cookies } = runMiddleware(req);
+
+		expect(cookies).toEqual([]);
+	});
+
+	it("does not write a cookie when no utm or referrer attribution is present", () => {
+		const req = createReq({ path: "/queue" });
+		const { cookies, nextCalled } = runMiddleware(req);
+
+		expect(cookies).toEqual([]);
+		expect(nextCalled).toBe(true);
+	});
+
+	it("skips non-GET requests so form posts can never reset the first-touch cookie", () => {
+		const req = createReq({
+			method: "POST",
+			query: { utm_source: "twitter" },
+		});
+		const { cookies } = runMiddleware(req);
+
+		expect(cookies).toEqual([]);
+	});
+
+	it("preserves the existing cookie when a valid attribution is already set (first-touch wins)", () => {
+		const existing: ClickAttribution = {
+			utm_source: "hn",
+			first_seen_at: "2026-05-01T00:00:00.000Z",
+			landing_path: "/",
+		};
+		const req = createReq({
+			query: { utm_source: "twitter" },
+			cookies: { [CLICK_COOKIE_NAME]: JSON.stringify(existing) },
+		});
+		const { cookies } = runMiddleware(req);
+
+		expect(cookies).toEqual([]);
+	});
+
+	it("re-writes the cookie when an existing cookie is malformed JSON so a corrupted value never blocks future attribution", () => {
+		const req = createReq({
+			query: { utm_source: "twitter" },
+			cookies: { [CLICK_COOKIE_NAME]: "not-json-{{{" },
+		});
+		const { cookies } = runMiddleware(req);
+
+		expect(cookies).toHaveLength(1);
+		expect(parseCookieValue(cookies[0].value)).toMatchObject({ utm_source: "twitter" });
+	});
+
+	it("re-writes the cookie when an existing cookie fails schema validation", () => {
+		const req = createReq({
+			query: { utm_source: "twitter" },
+			cookies: { [CLICK_COOKIE_NAME]: JSON.stringify({ first_seen_at: 12345 }) },
+		});
+		const { cookies } = runMiddleware(req);
+
+		expect(cookies).toHaveLength(1);
+	});
+
+	it("drops empty-string UTM params (utm_source=\"\" is not meaningful) and does not capture them as keys", () => {
+		const req = createReq({ query: { utm_source: "", utm_medium: "email" } });
+		const { cookies } = runMiddleware(req);
+
+		expect(cookies).toHaveLength(1);
+		const value = parseCookieValue(cookies[0].value);
+		expect(value).toMatchObject({ utm_medium: "email" });
+		expect(JSON.stringify(value)).not.toContain("utm_source");
+	});
+});
+
+describe("readClickAttribution", () => {
+	function reqWithCookie(value: unknown): Request {
+		return createReq({
+			cookies:
+				typeof value === "string"
+					? { [CLICK_COOKIE_NAME]: value }
+					: { [CLICK_COOKIE_NAME]: JSON.stringify(value) },
+		});
+	}
+
+	it("returns undefined when no cookie is set", () => {
+		expect(readClickAttribution(createReq())).toBeUndefined();
+	});
+
+	it("returns the parsed attribution when the cookie is valid", () => {
+		const attribution: ClickAttribution = {
+			utm_source: "twitter",
+			first_seen_at: "2026-05-01T00:00:00.000Z",
+			landing_path: "/",
+		};
+		expect(readClickAttribution(reqWithCookie(attribution))).toEqual(attribution);
+	});
+
+	it("returns undefined when the cookie value is not parseable JSON", () => {
+		expect(readClickAttribution(reqWithCookie("not-json-{{{"))).toBeUndefined();
+	});
+
+	it("returns undefined when the cookie value fails schema validation", () => {
+		expect(readClickAttribution(reqWithCookie({ first_seen_at: 12345 }))).toBeUndefined();
+	});
+});

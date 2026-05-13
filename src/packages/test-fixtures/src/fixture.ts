@@ -4,6 +4,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { noopLogger } from "@packages/hutch-logger";
 import { calculateReadTime, validateSaveableUrl } from "@packages/domain/article";
 import type { BotDefenseEvent } from "./providers/auth/bot-defense.types";
+import type { ConversionEvent } from "./providers/auth/conversion.types";
 import type { ParseArticle } from "./providers/article-parser/article-parser.types";
 import { initReadabilityParser } from "./providers/article-parser/readability-parser";
 import { initInMemoryArticleCrawl } from "./providers/article-crawl/in-memory-article-crawl";
@@ -240,6 +241,15 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		debug: capture,
 	};
 
+	const conversionEvents: ConversionEvent[] = [];
+	const captureConversion = (data: ConversionEvent) => { conversionEvents.push(data); };
+	const conversionLogger: HutchLogger.Typed<ConversionEvent> = {
+		info: captureConversion,
+		error: captureConversion,
+		warn: captureConversion,
+		debug: captureConversion,
+	};
+
 	return {
 		auth: { ...auth, hashPassword: fastHashPassword },
 		articleStore: {
@@ -311,6 +321,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		stripe,
 		pendingSignup,
 		botDefense: { logger: botDefenseLogger, events: botDefenseEvents },
+		conversions: { logger: conversionLogger, events: conversionEvents },
 		/** Small enough that founding-allocation seed loops finish in
 		 * milliseconds while still leaving room for "one above the limit" tests
 		 * to seed N+1 distinct emails. Production injects 50 via app.ts. */

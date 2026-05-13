@@ -40,6 +40,9 @@ import { flattenZodErrors } from "./flatten-zod-errors";
 import { initFetchUserCount } from "./fetch-user-count";
 import { initSendWelcomeEmail } from "./send-welcome-email";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
+import { readClickAttribution } from "../click-attribution.middleware";
+import type { ConversionEvent } from "../../conversions";
+import { emitUserCreated } from "../../conversions";
 
 const TokenQuerySchema = z.object({ token: z.string().optional() }).passthrough();
 const CheckoutSuccessQuerySchema = z.object({ session_id: z.string().min(1) }).passthrough();
@@ -76,6 +79,7 @@ interface AuthDependencies {
 	logError: (message: string, error?: Error) => void;
 	now: () => Date;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
+	conversionLogger: HutchLogger.Typed<ConversionEvent>;
 	foundingAllocation: FoundingAllocation;
 }
 
@@ -329,6 +333,16 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
 			res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
 			sendVerificationEmail(created.userId, email);
+			emitUserCreated(
+				{ logger: deps.conversionLogger, now: deps.now },
+				{
+					userId: created.userId,
+					email,
+					method: "email",
+					tier: "free",
+					attribution: readClickAttribution(req),
+				},
+			);
 			res.redirect(303, parseReturnUrl({ return: returnUrl }));
 			return;
 		}
@@ -413,6 +427,17 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
 			res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
 			sendVerificationEmail(created.userId, pending.email);
+			emitUserCreated(
+				{ logger: deps.conversionLogger, now: deps.now },
+				{
+					userId: created.userId,
+					email: pending.email,
+					method: "email",
+					tier: "paid",
+					stripeCheckoutSessionId: checkoutSessionId,
+					attribution: readClickAttribution(req),
+				},
+			);
 			res.redirect(303, returnPath);
 			return;
 		}
@@ -439,6 +464,17 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 		res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
 		sendWelcomeEmail(pending.email);
+		emitUserCreated(
+			{ logger: deps.conversionLogger, now: deps.now },
+			{
+				userId: created.userId,
+				email: pending.email,
+				method: "google",
+				tier: "paid",
+				stripeCheckoutSessionId: checkoutSessionId,
+				attribution: readClickAttribution(req),
+			},
+		);
 		res.redirect(303, returnPath);
 	});
 

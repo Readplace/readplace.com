@@ -4,6 +4,7 @@ import type { CrawlArticle } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
+import type { ConversionEvent } from "./conversions";
 import type { ParseArticle } from "@packages/test-fixtures/providers/article-parser";
 import type { PublishLinkSaved } from "@packages/test-fixtures/providers/events";
 import type { PublishRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
@@ -235,6 +236,11 @@ export interface BotDefenseBundle {
 	events: BotDefenseEvent[];
 }
 
+export interface ConversionsBundle {
+	logger: HutchLogger.Typed<ConversionEvent>;
+	events: ConversionEvent[];
+}
+
 /** Carries the founding-member cap as a plain number. The runtime predicate is
  * constructed via `initFoundingAllocation` inside `flattenFixtureToAppDependencies`
  * so the test-fixtures package can keep the same shape without importing from
@@ -263,6 +269,7 @@ export interface TestAppFixture {
 	stripe: StripeCheckoutBundle;
 	pendingSignup: PendingSignupBundle;
 	botDefense: BotDefenseBundle;
+	conversions: ConversionsBundle;
 	foundingAllocation: FoundingAllocationBundle;
 }
 
@@ -279,6 +286,7 @@ export interface TestAppResult {
 	stripe: StripeCheckoutBundle;
 	pendingSignup: PendingSignupBundle;
 	botDefense: BotDefenseBundle;
+	conversions: ConversionsBundle;
 }
 
 function flattenFixtureToAppDependencies(
@@ -348,6 +356,7 @@ function flattenFixtureToAppDependencies(
 		storePendingSignup: fixture.pendingSignup.storePendingSignup,
 		consumePendingSignup: fixture.pendingSignup.consumePendingSignup,
 		botDefenseLogger: fixture.botDefense.logger,
+		conversionLogger: fixture.conversions.logger,
 		foundingAllocation: initFoundingAllocation({
 			foundingMemberLimit: fixture.foundingAllocation.foundingMemberLimit,
 		}),
@@ -369,6 +378,7 @@ export function createTestApp(fixture: TestAppFixture): TestAppResult {
 		stripe: fixture.stripe,
 		pendingSignup: fixture.pendingSignup,
 		botDefense: fixture.botDefense,
+		conversions: fixture.conversions,
 	};
 }
 

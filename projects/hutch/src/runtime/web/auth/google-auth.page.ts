@@ -3,6 +3,7 @@ import type { Request, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
+import type { HutchLogger } from "@packages/hutch-logger";
 import type {
 	CountUsers,
 	CreateGoogleUser,
@@ -22,6 +23,9 @@ import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS } from "./session-cookie";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
+import { readClickAttribution } from "../click-attribution.middleware";
+import type { ConversionEvent } from "../../conversions";
+import { emitUserCreated } from "../../conversions";
 
 const CallbackQuerySchema = z.object({
 	code: z.string().min(1),
@@ -53,6 +57,8 @@ interface GoogleAuthDependencies {
 	storePendingSignup: StorePendingSignup;
 	sendEmail: SendEmail;
 	logError: (message: string, error?: Error) => void;
+	now: () => Date;
+	conversionLogger: HutchLogger.Typed<ConversionEvent>;
 	foundingAllocation: FoundingAllocation;
 }
 
@@ -198,6 +204,16 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 			res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
 			sendWelcomeEmail(tokenResult.email);
+			emitUserCreated(
+				{ logger: deps.conversionLogger, now: deps.now },
+				{
+					userId: created.userId,
+					email: tokenResult.email,
+					method: "google",
+					tier: "free",
+					attribution: readClickAttribution(req),
+				},
+			);
 			res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 			return;
 		}

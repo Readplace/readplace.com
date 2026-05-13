@@ -4,6 +4,7 @@ import type { LogParseError } from "@packages/hutch-infra-components";
 import type { ArticleMetadata, Minutes, ValidateSaveableUrl } from "@packages/domain/article";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { BotDefenseEvent } from "./providers/auth/bot-defense.types";
+import type { ConversionEvent } from "./providers/auth/conversion.types";
 import type { ExchangeGoogleCode } from "./providers/google-auth/google-token.types";
 import type { ParseArticle } from "./providers/article-parser/article-parser.types";
 import type {
@@ -236,6 +237,11 @@ export interface BotDefenseBundle {
 	events: BotDefenseEvent[];
 }
 
+export interface ConversionsBundle {
+	logger: HutchLogger.Typed<ConversionEvent>;
+	events: ConversionEvent[];
+}
+
 /** Holds the founding-member cap as a plain number. The hutch composition
  * root builds the runtime predicate from this so this package stays free of
  * cross-project imports — same reason `httpErrorMessageMapping` is duplicated
@@ -264,5 +270,6 @@ export interface TestAppFixture {
 	stripe: StripeCheckoutBundle;
 	pendingSignup: PendingSignupBundle;
 	botDefense: BotDefenseBundle;
+	conversions: ConversionsBundle;
 	foundingAllocation: FoundingAllocationBundle;
 }
