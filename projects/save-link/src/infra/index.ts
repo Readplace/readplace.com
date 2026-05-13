@@ -310,7 +310,7 @@ new HutchDLQEventHandler("save-anonymous-link-dlq", {
 
 const staleCheckRequestedDynamodb = new HutchDynamoDBAccess("stale-check-requested-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
-	actions: ["dynamodb:GetItem"],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
 const staleCheckRequestedLambda = new HutchLambda("stale-check-requested", {
@@ -322,9 +322,11 @@ const staleCheckRequestedLambda = new HutchLambda("stale-check-requested", {
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 	},
 	policies: [
 		...staleCheckRequestedDynamodb.policies,
+		...renamePolicies(generateSummaryQueue.policies, "stale-check-requested"),
 	],
 });
 
