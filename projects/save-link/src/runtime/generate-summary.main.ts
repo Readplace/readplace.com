@@ -13,7 +13,7 @@ import OpenAI from "openai";
 import { initDynamoDbArticleStore } from "../article-aggregate/dynamodb-article-store";
 import { initLambdaEffectDispatcher } from "../article-aggregate/lambda-effect-dispatcher";
 import { initCreateDeepseekMessage } from "../generate-summary/create-deepseek-message";
-import { initDynamoDbGeneratedSummary } from "../generate-summary/dynamodb-generated-summary";
+import { initDynamoDbMarkSummaryStage } from "../generate-summary/mark-summary-stage";
 import { initGenerateSummaryHandler } from "../generate-summary/generate-summary-handler";
 import { initLinkSummariser } from "../generate-summary/link-summariser";
 import { MAX_SUMMARY_LENGTH } from "../generate-summary/max-summary-length";
@@ -46,7 +46,7 @@ const { findArticleContent } = initFindArticleContent({
 	tableName: articlesTable,
 });
 
-const summaryStore = initDynamoDbGeneratedSummary({
+const { markSummaryStage } = initDynamoDbMarkSummaryStage({
 	client: dynamoClient,
 	tableName: articlesTable,
 });
@@ -59,7 +59,7 @@ const { summarizeArticle } = initLinkSummariser({
 		const visibleLength = cleanedText.replace(/\s/g, "").length;
 		return visibleLength <= MAX_SUMMARY_LENGTH * 3;
 	},
-	markSummaryStage: summaryStore.markSummaryStage,
+	markSummaryStage,
 });
 
 const { store } = initDynamoDbArticleStore({

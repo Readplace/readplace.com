@@ -7,7 +7,7 @@ import {
 	SaveAnonymousLinkCommand,
 	TierContentExtractedEvent,
 } from "@packages/hutch-infra-components";
-import type { MarkCrawlStage } from "../crawl-article-state/article-crawl.types";
+import type { MarkCrawlStage } from "../crawl-article-state/mark-crawl-stage";
 import type { ParseHtml } from "../article-parser/article-parser.types";
 import type { DownloadMedia } from "./download-media";
 import type { PutImageObject } from "./s3-put-image-object";

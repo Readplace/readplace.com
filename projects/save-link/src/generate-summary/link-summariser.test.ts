@@ -1,7 +1,7 @@
 import { noopLogger } from "@packages/hutch-logger";
 import { initLinkSummariser } from "./link-summariser";
 import type { CreateAiMessage } from "./create-ai-message.types";
-import type { MarkSummaryStage } from "./article-summary.types";
+import type { MarkSummaryStage } from "./mark-summary-stage";
 
 function createStubCreateMessage(payload: { summary: string; excerpt: string }): CreateAiMessage {
 	return async () => ({
