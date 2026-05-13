@@ -6,7 +6,7 @@ import {
 	markCrawlUnsupported,
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
-import type { MarkCrawlStage } from "../crawl-article-state/article-crawl.types";
+import type { MarkCrawlStage } from "../crawl-article-state/mark-crawl-stage";
 import { ArticleResourceUniqueId } from "./article-resource-unique-id";
 import type { ParseHtml } from "../article-parser/article-parser.types";
 import type { DownloadMedia, DownloadedMedia } from "./download-media";

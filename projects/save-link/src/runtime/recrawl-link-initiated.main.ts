@@ -23,7 +23,7 @@ import { initS3PutImageObject } from "../save-link/s3-put-image-object";
 import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import { initUpdateFetchTimestamp } from "../save-link/update-fetch-timestamp";
-import { initDynamoDbArticleCrawl } from "../crawl-article-state/dynamodb-article-crawl";
+import { initDynamoDbMarkCrawlStage } from "../crawl-article-state/mark-crawl-stage";
 import { initCheckTier0SourceExistsS3 } from "../crawl-article-state/check-tier-0-source-exists-s3";
 import { initReadArticleCrawlStateDynamoDb } from "../crawl-article-state/read-article-crawl-state-dynamodb";
 import { initReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
@@ -69,10 +69,9 @@ const { updateFetchTimestamp } = initUpdateFetchTimestamp({
 	tableName: articlesTable,
 });
 
-const { markCrawlStage } = initDynamoDbArticleCrawl({
+const { markCrawlStage } = initDynamoDbMarkCrawlStage({
 	client,
 	tableName: articlesTable,
-	now: () => new Date(),
 });
 
 const downloadMedia = initDownloadMedia({
