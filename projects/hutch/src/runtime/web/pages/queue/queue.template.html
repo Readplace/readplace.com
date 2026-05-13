@@ -8,7 +8,7 @@
         <input class="queue__save-input" type="url" name="url" placeholder="Paste a URL to save an article…" required value="{{saveUrl}}">
         <button class="queue__save-btn" type="submit"><span class="queue__save-btn-label">Save</span><span class="queue__save-btn-saving">Saving…</span></button>
       </form>
-      {{#if saveError}}<p class="queue__save-error" data-test-save-error>{{saveError}}</p>{{/if}}
+      {{#if saveError}}<p class="queue__save-error" data-test-save-error{{#if saveErrorCode}} data-test-saveable-url-code="{{saveErrorCode}}"{{/if}}>{{saveError}}</p>{{/if}}
       {{#if importFlash}}<p class="queue__import-flash" data-test-import-flash>{{importFlash}}</p>{{/if}}
       {{#if hasImportSkipped}}
       <div class="queue__import-skipped" data-test-import-skipped role="status">

@@ -5,7 +5,6 @@ export default {
 		"scripts/check-stuck-articles.ts",
 		"scripts/classify-row.ts",
 		"scripts/collect-stuck-rows.ts",
-		"scripts/exclude-patterns.ts",
 	],
 	ignoreDependencies: [
 		// knip doesn't resolve workspace subpath for @packages/* imports

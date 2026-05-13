@@ -146,6 +146,42 @@ describe("Queue routes", () => {
 			expect(doc.querySelector("[data-test-save-error]")?.textContent).toMatch(/[Pp]rivate-network/);
 		});
 
+		describe("form-level URL-validation regression (canary-historical inputs)", () => {
+			const cases: Array<{ url: string; code: "unsupported_scheme" | "private_network" | "malformed_url" }> = [
+				{ url: "chrome://extensions/",       code: "unsupported_scheme" },
+				{ url: "about:blank",                code: "unsupported_scheme" },
+				{ url: "https://cd.home.arpa/x",     code: "private_network" },
+				{ url: "http://localhost:3000/x",    code: "private_network" },
+				{ url: "https://192.168.1.1/x",      code: "private_network" },
+				{ url: "www.theinformation....",     code: "malformed_url" },
+				{ url: "https://server",             code: "malformed_url" },
+				{ url: "",                           code: "malformed_url" },
+			];
+
+			for (const { url, code } of cases) {
+				it(`rejects ${JSON.stringify(url)} with ${code} and never saves`, async () => {
+					const { app, auth, articleStore } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+					const agent = await loginAgent(app, auth);
+
+					const response = await agent
+						.post("/queue/save")
+						.type("form")
+						.send({ url });
+
+					expect(response.status).toBe(422);
+					const doc = new JSDOM(response.text).window.document;
+					const pill = doc.querySelector("[data-test-save-error]");
+					assert.ok(pill, "error pill should render");
+					expect(pill.getAttribute("data-test-saveable-url-code")).toBe(code);
+
+					const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+					assert.ok(userId);
+					const stored = await articleStore.findArticlesByUser({ userId });
+					expect(stored.articles).toHaveLength(0);
+				});
+			}
+		});
+
 		it("should redirect with error code when save throws", async () => {
 			const { app, auth } = createTestApp({
 				...createDefaultTestAppFixture(TEST_APP_ORIGIN),
