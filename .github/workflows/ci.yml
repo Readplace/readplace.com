@@ -137,8 +137,12 @@ jobs:
           DRIFTED='[]'
           for project in $(echo "$UNCHECKED" | jq -r '.[]'); do
             echo "::group::check-infra $project"
-            INFRA_OUTPUT=$(pnpm nx run "$project:check-infra" 2>&1)
-            INFRA_EXIT=$?
+            # GH Actions runs steps with `bash -e`. A bare `var=$(failing_cmd)`
+            # triggers errexit and exits the script before $? can be captured,
+            # so use `|| INFRA_EXIT=$?` to put the assignment in errexit's
+            # exception list while preserving the inner command's exit code.
+            INFRA_EXIT=0
+            INFRA_OUTPUT=$(pnpm nx run "$project:check-infra" 2>&1) || INFRA_EXIT=$?
             echo "$INFRA_OUTPUT"
             if [ $INFRA_EXIT -ne 0 ]; then
               echo "::error::check-infra crashed for $project (exit $INFRA_EXIT) — drift unknown, forcing redeploy"
