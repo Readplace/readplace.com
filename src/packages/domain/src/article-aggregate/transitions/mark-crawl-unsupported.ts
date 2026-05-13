@@ -1,9 +1,10 @@
+import type { CrawlUnsupportedReason } from "@packages/article-state-types";
 import type { Article } from "../article.types";
 import type { Effect } from "../effects.types";
 import type { AggregateField } from "../storage.types";
 
 export interface MarkCrawlUnsupportedInput {
-	reason: string;
+	reason: CrawlUnsupportedReason;
 }
 
 /* Cross-axis: pairs the unsupported crawl with summary=skipped so the summary

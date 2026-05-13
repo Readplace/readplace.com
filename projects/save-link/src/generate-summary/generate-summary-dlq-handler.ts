@@ -23,7 +23,6 @@ export function initGenerateSummaryDlqHandler(deps: GenerateSummaryDlqHandlerDep
 				const envelope = JSON.parse(record.body);
 				const command = GenerateSummaryCommand.detailSchema.parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
-				const reason = "exceeded SQS maxReceiveCount";
 
 				logger.info("[GenerateSummaryDlq] marking summary exhausted", {
 					url: command.url,
@@ -32,7 +31,10 @@ export function initGenerateSummaryDlqHandler(deps: GenerateSummaryDlqHandlerDep
 
 				await transitionAndPersist(markSummaryExhausted, {
 					url: command.url,
-					input: { reason, receiveCount },
+					input: {
+						reason: { kind: "exhausted-retries", receiveCount },
+						receiveCount,
+					},
 				});
 			} catch (error) {
 				logger.error("[GenerateSummaryDlq] record failed", {

@@ -23,18 +23,18 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 describe("markCrawlUnsupported", () => {
 	it("flips crawl to unsupported with the supplied reason", () => {
 		const { article } = markCrawlUnsupported(buildArticle(), {
-			reason: "edge-sniffer blocked: Cloudflare TLS fingerprint",
+			reason: { kind: "non-html-content", contentType: "application/pdf" },
 		});
 
 		assert.deepEqual(article.crawl, {
 			kind: "unsupported",
-			reason: "edge-sniffer blocked: Cloudflare TLS fingerprint",
+			reason: { kind: "non-html-content", contentType: "application/pdf" },
 		});
 	});
 
 	it("flips summary to skipped with reason 'crawl-unsupported' so the summary canary doesn't keep flagging the row", () => {
 		const { article } = markCrawlUnsupported(buildArticle(), {
-			reason: "edge-sniffer blocked",
+			reason: { kind: "non-html-content", contentType: "application/pdf" },
 		});
 
 		assert.deepEqual(article.summary, {
@@ -45,7 +45,7 @@ describe("markCrawlUnsupported", () => {
 
 	it("emits no effects (terminal status write only)", () => {
 		const { effects } = markCrawlUnsupported(buildArticle(), {
-			reason: "edge-sniffer blocked",
+			reason: { kind: "non-html-content", contentType: "application/pdf" },
 		});
 
 		assert.deepEqual(effects, []);
@@ -53,7 +53,7 @@ describe("markCrawlUnsupported", () => {
 
 	it("declares writes for crawl and summary so the aggregate save scopes to the two axes the transition mutated", () => {
 		const { writes } = markCrawlUnsupported(buildArticle(), {
-			reason: "edge-sniffer blocked",
+			reason: { kind: "non-html-content", contentType: "application/pdf" },
 		});
 
 		assert.deepEqual([...writes].sort(), ["crawl", "summary"]);
@@ -75,7 +75,7 @@ describe("markCrawlUnsupported", () => {
 		});
 
 		const { article } = markCrawlUnsupported(before, {
-			reason: "edge-sniffer blocked",
+			reason: { kind: "non-html-content", contentType: "application/pdf" },
 		});
 
 		assert.equal(article.metadata.title, "kept title");
@@ -87,7 +87,7 @@ describe("markCrawlUnsupported", () => {
 		const before = buildArticle();
 		const snapshot = JSON.parse(JSON.stringify(before));
 
-		markCrawlUnsupported(before, { reason: "edge-sniffer blocked" });
+		markCrawlUnsupported(before, { reason: { kind: "non-html-content", contentType: "application/pdf" } });
 
 		assert.deepEqual(before, snapshot);
 	});

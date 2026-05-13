@@ -16,7 +16,7 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 		freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
 		estimatedReadTime: 1,
 		crawl: { kind: "ready" },
-		summary: { kind: "failed", reason: "deepseek 503" },
+		summary: { kind: "failed", reason: { kind: "model-overload" } },
 		summaryAutoHeal: { attempts: 0 },
 		...overrides,
 	};
@@ -24,7 +24,7 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 
 describe("incrementSummaryAutoHealAttempt", () => {
 	it("flips summary from failed back to pending so the worker re-runs the regen", () => {
-		const before = buildArticle({ summary: { kind: "failed", reason: "deepseek 503" } });
+		const before = buildArticle({ summary: { kind: "failed", reason: { kind: "model-overload" } } });
 
 		const { article } = incrementSummaryAutoHealAttempt(before, { now: NOW });
 

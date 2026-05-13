@@ -15,7 +15,7 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 		freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
 		estimatedReadTime: 1,
 		crawl: { kind: "ready" },
-		summary: { kind: "failed", reason: "deepseek 503" },
+		summary: { kind: "failed", reason: { kind: "model-overload" } },
 		summaryAutoHeal: { attempts: 0 },
 		...overrides,
 	};
@@ -48,7 +48,7 @@ describe("decideSummaryAutoHeal", () => {
 
 	it("reprimes a failed summary on the first attempt", () => {
 		const article = buildArticle({
-			summary: { kind: "failed", reason: "deepseek 503" },
+			summary: { kind: "failed", reason: { kind: "model-overload" } },
 			summaryAutoHeal: { attempts: 0 },
 		});
 

@@ -129,7 +129,10 @@ describe("initTransitionAndPersist", () => {
 			writes: readonly AggregateField[];
 		} {
 			return {
-				article: { ...article, crawl: { kind: "failed", reason: "x" } },
+				article: {
+					...article,
+					crawl: { kind: "failed", reason: { kind: "fetch-failed" } },
+				},
 				effects: [],
 				writes: ["crawl", "summary"],
 			};

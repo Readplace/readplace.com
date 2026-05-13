@@ -1,9 +1,10 @@
+import type { CrawlFailureReason } from "@packages/article-state-types";
 import type { Article } from "../article.types";
 import type { Effect } from "../effects.types";
 import type { AggregateField } from "../storage.types";
 
 export interface MarkCrawlFailedInput {
-	reason: string;
+	reason: CrawlFailureReason;
 }
 
 /* `writes` scoped to crawl only so a concurrent inline summary writer is not clobbered. */

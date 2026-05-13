@@ -68,7 +68,7 @@ describe("initSaveAnonymousLinkDlqHandler", () => {
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, {
 			url: "https://example.com/failed",
 			input: {
-				reason: "exceeded SQS maxReceiveCount",
+				reason: { kind: "exhausted-retries", receiveCount: 2 },
 				receiveCount: 2,
 			},
 		});

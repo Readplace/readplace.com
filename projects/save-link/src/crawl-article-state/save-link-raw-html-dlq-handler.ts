@@ -28,7 +28,6 @@ export function initSaveLinkRawHtmlDlqHandler(
 				const envelope = JSON.parse(record.body);
 				const command = SaveLinkRawHtmlCommand.detailSchema.parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
-				const reason = "exceeded SQS maxReceiveCount";
 
 				logger.info("[SaveLinkRawHtmlDlq] marking crawl exhausted", {
 					url: command.url,
@@ -37,7 +36,10 @@ export function initSaveLinkRawHtmlDlqHandler(
 
 				await transitionAndPersist(markCrawlExhausted, {
 					url: command.url,
-					input: { reason, receiveCount },
+					input: {
+						reason: { kind: "exhausted-retries", receiveCount } as const,
+						receiveCount,
+					},
 				});
 			} catch (error) {
 				logger.error("[SaveLinkRawHtmlDlq] record failed", {

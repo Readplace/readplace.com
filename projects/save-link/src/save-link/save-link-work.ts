@@ -91,7 +91,12 @@ export function initSaveLinkWork(deps: {
 			logParseError({ url, reason: `crawl-unsupported: ${crawlResult.reason}` });
 			await transitionAndPersist(markCrawlUnsupported, {
 				url,
-				input: { reason: crawlResult.reason },
+				input: {
+					reason: {
+						kind: "non-html-content",
+						contentType: crawlResult.reason,
+					},
+				},
 			});
 			await emitTier1Failure(url);
 			return "unsupported";
@@ -114,7 +119,9 @@ export function initSaveLinkWork(deps: {
 			// retries → DLQ (~90s+) before the DLQ handler updates it.
 			await transitionAndPersist(markCrawlFailed, {
 				url,
-				input: { reason: parseResult.reason },
+				input: {
+					reason: { kind: "parse-error", detail: parseResult.reason },
+				},
 			});
 			await emitTier1Failure(url);
 			throw new Error(`crawl failed for ${url}: ${parseResult.reason}`);

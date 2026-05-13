@@ -68,7 +68,7 @@ describe("initSaveLinkRawHtmlDlqHandler", () => {
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlExhausted, {
 			url: "https://example.com/failed",
 			input: {
-				reason: "exceeded SQS maxReceiveCount",
+				reason: { kind: "exhausted-retries", receiveCount: 4 },
 				receiveCount: 4,
 			},
 		});

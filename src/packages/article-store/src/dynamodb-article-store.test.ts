@@ -112,7 +112,32 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			});
 		});
 
-		it("maps a crawl-failed row into a failed crawl state with the persisted reason", async () => {
+		it("maps a crawl-failed row with JSON-encoded tagged-union reason", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					crawlStatus: "failed",
+					crawlFailureReason: JSON.stringify({
+						kind: "fetch-failed",
+						httpStatus: 503,
+					}),
+					summaryStatus: "pending",
+					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article?.crawl).toEqual({
+				kind: "failed",
+				reason: { kind: "fetch-failed", httpStatus: 503 },
+			});
+		});
+
+		it("maps a legacy crawl-failed row with a plain-string reason into a parse-error variant", async () => {
 			const client = createFakeClient(() => ({
 				Item: {
 					crawlStatus: "failed",
@@ -128,10 +153,43 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			const article = await store.load(URL);
 
-			expect(article?.crawl).toEqual({ kind: "failed", reason: "fetch timeout" });
+			expect(article?.crawl).toEqual({
+				kind: "failed",
+				reason: { kind: "parse-error", detail: "fetch timeout" },
+			});
 		});
 
-		it("maps a crawl-unsupported row into an unsupported crawl state", async () => {
+		it("maps a crawl-unsupported row into an unsupported crawl state with a JSON-encoded reason", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					crawlStatus: "unsupported",
+					crawlUnsupportedReason: JSON.stringify({
+						kind: "non-html-content",
+						contentType: "application/pdf",
+					}),
+					summaryStatus: "skipped",
+					summarySkippedReason: "crawl-unsupported",
+					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article?.crawl).toEqual({
+				kind: "unsupported",
+				reason: { kind: "non-html-content", contentType: "application/pdf" },
+			});
+			expect(article?.summary).toEqual({
+				kind: "skipped",
+				reason: "crawl-unsupported",
+			});
+		});
+
+		it("maps a legacy crawl-unsupported row with a plain-string reason into a non-html-content variant", async () => {
 			const client = createFakeClient(() => ({
 				Item: {
 					crawlStatus: "unsupported",
@@ -150,11 +208,10 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			expect(article?.crawl).toEqual({
 				kind: "unsupported",
-				reason: "non-html content type: application/pdf",
-			});
-			expect(article?.summary).toEqual({
-				kind: "skipped",
-				reason: "crawl-unsupported",
+				reason: {
+					kind: "non-html-content",
+					contentType: "non-html content type: application/pdf",
+				},
 			});
 		});
 
@@ -183,7 +240,53 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			});
 		});
 
-		it("maps a summary-failed row into a failed summary state with the persisted reason", async () => {
+		it("maps a summary-failed row with JSON-encoded tagged-union reason", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					crawlStatus: "ready",
+					summaryStatus: "failed",
+					summaryFailureReason: JSON.stringify({
+						kind: "model-overload",
+					}),
+					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article?.summary).toEqual({
+				kind: "failed",
+				reason: { kind: "model-overload" },
+			});
+		});
+
+		it("maps a legacy summary-failed row with 'crawl failed' string into a crawl-failed variant", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					crawlStatus: "ready",
+					summaryStatus: "failed",
+					summaryFailureReason: "crawl failed",
+					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article?.summary).toEqual({
+				kind: "failed",
+				reason: { kind: "crawl-failed" },
+			});
+		});
+
+		it("maps a legacy summary-failed row with a free-form string into an exhausted-retries variant with receiveCount=0", async () => {
 			const client = createFakeClient(() => ({
 				Item: {
 					crawlStatus: "ready",
@@ -199,7 +302,10 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			const article = await store.load(URL);
 
-			expect(article?.summary).toEqual({ kind: "failed", reason: "rate limited" });
+			expect(article?.summary).toEqual({
+				kind: "failed",
+				reason: { kind: "exhausted-retries", receiveCount: 0 },
+			});
 		});
 
 		it("maps a summary-skipped row without a reason to a skipped state with no reason", async () => {
@@ -491,7 +597,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			});
 
 			await store.save({
-				article: buildArticle({ crawl: { kind: "failed", reason: "x" } }),
+				article: buildArticle({ crawl: { kind: "failed", reason: { kind: "exhausted-retries", receiveCount: 4 } as const } }),
 				transitionName: "refreshContent",
 				writes: REFRESH_WRITES,
 			});
@@ -601,7 +707,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			await store.save({
 				article: buildArticle({
-					summary: { kind: "failed", reason: "rate limited" },
+					summary: { kind: "failed", reason: { kind: "model-overload" } as const },
 				}),
 				transitionName: "refreshContent",
 				writes: REFRESH_WRITES,
@@ -620,8 +726,12 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				"failed",
 			);
 			expect(
-				command.input.ExpressionAttributeValues?.[":summaryFailureReason"],
-			).toBe("rate limited");
+				JSON.parse(
+					command.input.ExpressionAttributeValues?.[
+						":summaryFailureReason"
+					] as string,
+				),
+			).toEqual({ kind: "model-overload" });
 		});
 
 		it("writes a skipped summary with reason and clears any prior failure marker", async () => {
@@ -766,8 +876,8 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			await store.save({
 				article: buildArticle({
-					crawl: { kind: "failed", reason: "exceeded SQS maxReceiveCount" },
-					summary: { kind: "failed", reason: "crawl failed" },
+					crawl: { kind: "failed", reason: { kind: "exhausted-retries", receiveCount: 4 } as const },
+					summary: { kind: "failed", reason: { kind: "crawl-failed" } as const },
 				}),
 				transitionName: "markCrawlExhausted",
 				writes: ["crawl", "summary"],
@@ -790,11 +900,15 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				"failed",
 			);
 			expect(
-				command.input.ExpressionAttributeValues?.[":crawlFailureReason"],
-			).toBe("exceeded SQS maxReceiveCount");
+				JSON.parse(
+					command.input.ExpressionAttributeValues?.[
+						":crawlFailureReason"
+					] as string,
+				),
+			).toEqual({ kind: "exhausted-retries", receiveCount: 4 });
 		});
 
-		it("writes summaryStatus=failed with 'crawl failed' reason when both axes mark failed together", async () => {
+		it("writes summaryStatus=failed with kind=crawl-failed when both axes mark failed together", async () => {
 			let received: unknown;
 			const client = createFakeClient((input) => {
 				received = input;
@@ -807,8 +921,8 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			await store.save({
 				article: buildArticle({
-					crawl: { kind: "failed", reason: "x" },
-					summary: { kind: "failed", reason: "crawl failed" },
+					crawl: { kind: "failed", reason: { kind: "exhausted-retries", receiveCount: 4 } as const },
+					summary: { kind: "failed", reason: { kind: "crawl-failed" } as const },
 				}),
 				transitionName: "markCrawlExhausted",
 				writes: ["crawl", "summary"],
@@ -821,8 +935,12 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				"failed",
 			);
 			expect(
-				command.input.ExpressionAttributeValues?.[":summaryFailureReason"],
-			).toBe("crawl failed");
+				JSON.parse(
+					command.input.ExpressionAttributeValues?.[
+						":summaryFailureReason"
+					] as string,
+				),
+			).toEqual({ kind: "crawl-failed" });
 		});
 
 		it("does not touch metadata or freshness attributes when the transition only writes crawl + summary", async () => {
@@ -838,8 +956,8 @@ describe("initDynamoDbArticleStore (unit)", () => {
 
 			await store.save({
 				article: buildArticle({
-					crawl: { kind: "failed", reason: "x" },
-					summary: { kind: "failed", reason: "crawl failed" },
+					crawl: { kind: "failed", reason: { kind: "exhausted-retries", receiveCount: 4 } as const },
+					summary: { kind: "failed", reason: { kind: "crawl-failed" } as const },
 				}),
 				transitionName: "markCrawlExhausted",
 				writes: ["crawl", "summary"],
@@ -873,7 +991,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				article: buildArticle({
 					crawl: {
 						kind: "unsupported",
-						reason: "non-html content type: application/pdf",
+						reason: { kind: "non-html-content", contentType: "application/pdf" } as const,
 					},
 				}),
 				transitionName: "markCrawlUnsupportedFromAggregate",
@@ -893,8 +1011,12 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				"unsupported",
 			);
 			expect(
-				command.input.ExpressionAttributeValues?.[":crawlUnsupportedReason"],
-			).toBe("non-html content type: application/pdf");
+				JSON.parse(
+					command.input.ExpressionAttributeValues?.[
+						":crawlUnsupportedReason"
+					] as string,
+				),
+			).toEqual({ kind: "non-html-content", contentType: "application/pdf" });
 		});
 
 		it("writes crawlStatus=pending and removes both failure / unsupported reasons (a future re-prime transition's shape)", async () => {

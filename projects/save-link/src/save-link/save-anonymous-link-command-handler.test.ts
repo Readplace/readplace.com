@@ -185,7 +185,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
 			url: "https://example.com/bad",
-			input: { reason: "Readability crashed on this DOM" },
+			input: { reason: { kind: "parse-error", detail: "Readability crashed on this DOM" } },
 		});
 	});
 
@@ -215,7 +215,7 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlUnsupported, {
 			url: "https://example.com/doc.pdf",
-			input: { reason: "non-html content type: application/pdf" },
+			input: { reason: { kind: "non-html-content", contentType: "non-html content type: application/pdf" } },
 		});
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();

@@ -282,7 +282,7 @@ describe("initStaleCheckHandler", () => {
 			freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
 			estimatedReadTime: 1,
 			crawl: { kind: "ready" },
-			summary: { kind: "failed", reason: "deepseek 503" },
+			summary: { kind: "failed", reason: { kind: "model-overload" } },
 			summaryAutoHeal: { attempts: 0 },
 		});
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);

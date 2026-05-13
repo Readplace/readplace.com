@@ -140,7 +140,7 @@ describe("initGenerateSummaryHandler", () => {
 		const URL = "https://example.com/cached-failed";
 		const cached: Article = {
 			...pendingArticle(URL),
-			summary: { kind: "failed", reason: "timeout" },
+			summary: { kind: "failed", reason: { kind: "exhausted-retries", receiveCount: 4 } },
 		};
 		const { handler, deps } = createHandler({
 			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({

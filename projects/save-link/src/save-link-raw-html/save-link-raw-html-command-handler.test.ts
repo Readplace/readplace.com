@@ -163,7 +163,9 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
 			url: "https://example.com/bad",
-			input: { reason: "Readability returned null" },
+			input: {
+				reason: { kind: "parse-error", detail: "Readability returned null" },
+			},
 		});
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();

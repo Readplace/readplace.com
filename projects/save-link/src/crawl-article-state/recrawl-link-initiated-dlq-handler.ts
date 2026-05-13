@@ -28,7 +28,6 @@ export function initRecrawlLinkInitiatedDlqHandler(
 				const envelope = JSON.parse(record.body);
 				const detail = RecrawlLinkInitiatedEvent.detailSchema.parse(envelope.detail);
 				const receiveCount = Number(record.attributes.ApproximateReceiveCount);
-				const reason = "exceeded SQS maxReceiveCount";
 
 				logger.info("[RecrawlLinkInitiatedDlq] marking crawl exhausted", {
 					url: detail.url,
@@ -37,7 +36,10 @@ export function initRecrawlLinkInitiatedDlqHandler(
 
 				await transitionAndPersist(markCrawlExhausted, {
 					url: detail.url,
-					input: { reason, receiveCount },
+					input: {
+						reason: { kind: "exhausted-retries", receiveCount } as const,
+						receiveCount,
+					},
 				});
 			} catch (error) {
 				logger.error("[RecrawlLinkInitiatedDlq] record failed", {

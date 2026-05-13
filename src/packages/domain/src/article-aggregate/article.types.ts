@@ -1,3 +1,8 @@
+import type {
+	CrawlFailureReason,
+	CrawlUnsupportedReason,
+	SummaryFailureReason,
+} from "@packages/article-state-types";
 import type { ArticleMetadata } from "../article/article.types";
 import type { CrawlStage, SummaryStage } from "../article/progress-mapping";
 
@@ -12,8 +17,8 @@ export interface ArticleFreshness {
 export type CrawlState =
 	| { kind: "pending"; pendingSince: string; stage?: CrawlStage }
 	| { kind: "ready" }
-	| { kind: "failed"; reason: string }
-	| { kind: "unsupported"; reason: string };
+	| { kind: "failed"; reason: CrawlFailureReason }
+	| { kind: "unsupported"; reason: CrawlUnsupportedReason };
 
 export type SummaryState =
 	| { kind: "pending"; pendingSince: string; stage?: SummaryStage }
@@ -24,7 +29,7 @@ export type SummaryState =
 			inputTokens?: number;
 			outputTokens?: number;
 	  }
-	| { kind: "failed"; reason: string }
+	| { kind: "failed"; reason: SummaryFailureReason }
 	| { kind: "skipped"; reason?: string };
 
 export interface SummaryAutoHealState {

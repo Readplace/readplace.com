@@ -1,7 +1,10 @@
 import assert from "node:assert";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import {
+	CrawlFailureReasonSchema,
 	CrawlStatusSchema,
+	CrawlUnsupportedReasonSchema,
+	SummaryFailureReasonSchema,
 	SummaryStatusSchema,
 } from "@packages/article-state-types";
 import type {
@@ -67,20 +70,45 @@ const AGGREGATE_FIELDS = ArticleAggregateRow.keyof().options;
  */
 const LEGACY_PENDING_SINCE = new Date(0).toISOString();
 
+/**
+ * 1. Legacy rows wrote a plain string (free-form, set by save-link-work and
+ *    DLQ handlers). Map it onto the closest tagged-union variant so the
+ *    reader can render it; new rows write a JSON-encoded discriminated union.
+ *    Dropped after a follow-up canary scan reports zero legacy rows.
+ */
+function parseCrawlFailureReason(raw: string): import("@packages/article-state-types").CrawlFailureReason {
+	if (raw.startsWith("{")) return CrawlFailureReasonSchema.parse(JSON.parse(raw));
+	return { kind: "parse-error", detail: raw }; /* 1 */
+}
+
+function parseCrawlUnsupportedReason(raw: string): import("@packages/article-state-types").CrawlUnsupportedReason {
+	if (raw.startsWith("{")) return CrawlUnsupportedReasonSchema.parse(JSON.parse(raw));
+	return { kind: "non-html-content", contentType: raw }; /* 1 */
+}
+
+function parseSummaryFailureReason(raw: string): import("@packages/article-state-types").SummaryFailureReason {
+	if (raw.startsWith("{")) return SummaryFailureReasonSchema.parse(JSON.parse(raw));
+	if (raw === "crawl failed") return { kind: "crawl-failed" }; /* 1 */
+	return { kind: "exhausted-retries", receiveCount: 0 }; /* 1 */
+}
+
 function rowToCrawlState(row: RowShape): CrawlState {
 	if (row.crawlStatus === "failed") {
 		assert(
 			row.crawlFailureReason,
 			"crawlStatus=failed row must carry crawlFailureReason",
 		);
-		return { kind: "failed", reason: row.crawlFailureReason };
+		return { kind: "failed", reason: parseCrawlFailureReason(row.crawlFailureReason) };
 	}
 	if (row.crawlStatus === "unsupported") {
 		assert(
 			row.crawlUnsupportedReason,
 			"crawlStatus=unsupported row must carry crawlUnsupportedReason",
 		);
-		return { kind: "unsupported", reason: row.crawlUnsupportedReason };
+		return {
+			kind: "unsupported",
+			reason: parseCrawlUnsupportedReason(row.crawlUnsupportedReason),
+		};
 	}
 	if (row.crawlStatus === "ready") return { kind: "ready" };
 	return {
@@ -108,7 +136,10 @@ function rowToSummaryState(row: RowShape): SummaryState {
 			row.summaryFailureReason,
 			"summaryStatus=failed row must carry summaryFailureReason",
 		);
-		return { kind: "failed", reason: row.summaryFailureReason };
+		return {
+			kind: "failed",
+			reason: parseSummaryFailureReason(row.summaryFailureReason),
+		};
 	}
 	if (row.summaryStatus === "skipped") {
 		return row.summarySkippedReason
@@ -225,7 +256,7 @@ function appendSummaryClauses(
 	if (article.summary.kind === "failed") {
 		sets.push("summaryFailureReason = :summaryFailureReason");
 		values[":summaryStatus"] = "failed";
-		values[":summaryFailureReason"] = article.summary.reason;
+		values[":summaryFailureReason"] = JSON.stringify(article.summary.reason);
 		removes.push("summarySkippedReason", "summaryPendingSince");
 		return;
 	}
@@ -249,14 +280,14 @@ function appendCrawlClauses(
 	if (article.crawl.kind === "failed") {
 		sets.push("crawlFailureReason = :crawlFailureReason");
 		values[":crawlStatus"] = "failed";
-		values[":crawlFailureReason"] = article.crawl.reason;
+		values[":crawlFailureReason"] = JSON.stringify(article.crawl.reason);
 		removes.push("crawlUnsupportedReason", "crawlPendingSince");
 		return;
 	}
 	if (article.crawl.kind === "unsupported") {
 		sets.push("crawlUnsupportedReason = :crawlUnsupportedReason");
 		values[":crawlStatus"] = "unsupported";
-		values[":crawlUnsupportedReason"] = article.crawl.reason;
+		values[":crawlUnsupportedReason"] = JSON.stringify(article.crawl.reason);
 		removes.push("crawlFailureReason", "crawlPendingSince");
 		return;
 	}
