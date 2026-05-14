@@ -70,6 +70,23 @@ import {
 	isExtensionInstalled,
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
+import { collectUtmParams } from "../../shared/utm";
+
+/** UTM params on the /view redirect let analytics distinguish shared
+ * /read clicks from organic /view traffic. Preserve any incoming UTM
+ * (e.g. a campaign-tagged share URL) over the defaults so external
+ * attribution survives the redirect. */
+function buildShareRedirectUrl(articleUrl: string, query: Request["query"]): string {
+	const incomingUtm = collectUtmParams(query);
+	const utmParams: [string, string][] = incomingUtm.length > 0
+		? incomingUtm
+		: [
+			["utm_source", "read"],
+			["utm_medium", "share"],
+			["utm_campaign", "read-permalink"],
+		];
+	return `/view/${encodeURIComponent(articleUrl)}?${new URLSearchParams(utmParams).toString()}`;
+}
 
 function readImportSkippedFlash(
 	req: Request,
@@ -201,7 +218,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			/** 302 (not 301) because the redirect is conditional on
 			 * auth/ownership — the same URL renders differently for the
 			 * owner, so caches must not pin a single response. */
-			res.redirect(302, `/view/${encodeURIComponent(articleUrl)}`);
+			res.redirect(302, buildShareRedirectUrl(articleUrl, req.query));
 			return;
 		}
 
