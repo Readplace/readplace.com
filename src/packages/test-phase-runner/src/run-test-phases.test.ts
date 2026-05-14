@@ -66,7 +66,7 @@ describe("jest phase resolution", () => {
 		expect(plan.phases[0]).toEqual({
 			type: "jest",
 			name: "unit tests",
-			command: 'node_modules/.bin/jest --testMatch="**/dist/**/*.test.js" --testTimeout=10000 --maxWorkers=4',
+			command: 'node_modules/.bin/jest --testMatch="**/dist/**/*.test.js" --testTimeout=10000',
 			skip: false,
 			e2e: false,
 		});

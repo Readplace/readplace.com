@@ -111,12 +111,6 @@ function resolveJestPhase(phase: JestPhase): ResolvedJestPhase {
 		"node_modules/.bin/jest",
 		`--testMatch="${phase.testMatch}"`,
 		`--testTimeout=${phase.timeout}`,
-		// Jest defaults to `cpu_count - 1` workers. On GH Actions
-		// ubuntu-latest (4 cores) that leaves one core idle. Pin to 4 — on
-		// CI it uses all cores, locally it caps below the 7 workers an
-		// 8-core dev box would otherwise spawn (which trips a c8 coverage
-		// flush race on shutdown).
-		"--maxWorkers=4",
 	];
 	if (phase.testPathIgnorePatterns) {
 		parts.push(`--testPathIgnorePatterns="${phase.testPathIgnorePatterns}"`);
