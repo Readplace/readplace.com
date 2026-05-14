@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { createHash, randomBytes } from "node:crypto";
 import request from "supertest";
 import type { Token } from "@node-oauth/oauth2-server";
-import { createTestApp } from "../../test-app";
+import { useTestServer } from "../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -20,12 +20,14 @@ const TEST_USER_ID = "test-user-123" as UserId;
 const TEST_CLIENT_ID = "hutch-firefox-extension";
 const TEST_REDIRECT_URI = "http://127.0.0.1:3000/oauth/callback";
 
+const useApp = useTestServer();
+
 describe("OAuth routes", () => {
 	describe("GET /oauth/authorize", () => {
 		it("redirects to login if not authenticated", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(testApp.app).get("/oauth/authorize").query({
+			const response = await request(harness.server).get("/oauth/authorize").query({
 				client_id: TEST_CLIENT_ID,
 				redirect_uri: TEST_REDIRECT_URI,
 				response_type: "code",
@@ -38,13 +40,13 @@ describe("OAuth routes", () => {
 		});
 
 		it("shows authorization form when authenticated", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			await testApp.auth.createUser({
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({
 				email: "test@example.com",
 				password: "password123",
 			});
 
-			const agent = request.agent(testApp.app);
+			const agent = request.agent(harness.server);
 			await agent.post("/login").type("form").send({
 				email: "test@example.com",
 				password: "password123",
@@ -64,9 +66,9 @@ describe("OAuth routes", () => {
 		});
 
 		it("returns 400 for unknown client", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(testApp.app).get("/oauth/authorize").query({
+			const response = await request(harness.server).get("/oauth/authorize").query({
 				client_id: "unknown-client",
 				redirect_uri: TEST_REDIRECT_URI,
 				response_type: "code",
@@ -79,9 +81,9 @@ describe("OAuth routes", () => {
 		});
 
 		it("returns 400 for invalid redirect_uri", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(testApp.app).get("/oauth/authorize").query({
+			const response = await request(harness.server).get("/oauth/authorize").query({
 				client_id: TEST_CLIENT_ID,
 				redirect_uri: "https://evil.com/callback",
 				response_type: "code",
@@ -94,9 +96,9 @@ describe("OAuth routes", () => {
 		});
 
 		it("returns 400 for missing parameters", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(testApp.app).get("/oauth/authorize").query({
+			const response = await request(harness.server).get("/oauth/authorize").query({
 				client_id: TEST_CLIENT_ID,
 			});
 
@@ -107,9 +109,9 @@ describe("OAuth routes", () => {
 
 	describe("POST /oauth/authorize", () => {
 		it("returns 401 if not authenticated", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(testApp.app)
+			const response = await request(harness.server)
 				.post("/oauth/authorize")
 				.type("form")
 				.send({
@@ -125,13 +127,13 @@ describe("OAuth routes", () => {
 		});
 
 		it("redirects with error when denied", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			await testApp.auth.createUser({
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({
 				email: "test@example.com",
 				password: "password123",
 			});
 
-			const agent = request.agent(testApp.app);
+			const agent = request.agent(harness.server);
 			await agent.post("/login").type("form").send({
 				email: "test@example.com",
 				password: "password123",
@@ -154,13 +156,13 @@ describe("OAuth routes", () => {
 		});
 
 		it("includes state in deny redirect when provided", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			await testApp.auth.createUser({
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({
 				email: "test@example.com",
 				password: "password123",
 			});
 
-			const agent = request.agent(testApp.app);
+			const agent = request.agent(harness.server);
 			await agent.post("/login").type("form").send({
 				email: "test@example.com",
 				password: "password123",
@@ -184,14 +186,14 @@ describe("OAuth routes", () => {
 		});
 
 		it("approves authorization and redirects with code", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const pkce = generatePKCE();
-			await testApp.auth.createUser({
+			await harness.auth.createUser({
 				email: "test@example.com",
 				password: "password123",
 			});
 
-			const agent = request.agent(testApp.app);
+			const agent = request.agent(harness.server);
 			await agent.post("/login").type("form").send({
 				email: "test@example.com",
 				password: "password123",
@@ -215,13 +217,13 @@ describe("OAuth routes", () => {
 		});
 
 		it("returns 400 for deny with missing required fields", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			await testApp.auth.createUser({
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({
 				email: "test@example.com",
 				password: "password123",
 			});
 
-			const agent = request.agent(testApp.app);
+			const agent = request.agent(harness.server);
 			await agent.post("/login").type("form").send({
 				email: "test@example.com",
 				password: "password123",
@@ -239,13 +241,13 @@ describe("OAuth routes", () => {
 		});
 
 		it("returns 400 for deny with invalid redirect_uri (prevents open redirect)", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			await testApp.auth.createUser({
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({
 				email: "test@example.com",
 				password: "password123",
 			});
 
-			const agent = request.agent(testApp.app);
+			const agent = request.agent(harness.server);
 			await agent.post("/login").type("form").send({
 				email: "test@example.com",
 				password: "password123",
@@ -267,14 +269,14 @@ describe("OAuth routes", () => {
 
 	describe("POST /oauth/token", () => {
 		it("exchanges authorization code for access token", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const pkce = generatePKCE();
-			await testApp.auth.createUser({
+			await harness.auth.createUser({
 				email: "test@example.com",
 				password: "password123",
 			});
 
-			const agent = request.agent(testApp.app);
+			const agent = request.agent(harness.server);
 			await agent.post("/login").type("form").send({
 				email: "test@example.com",
 				password: "password123",
@@ -297,7 +299,7 @@ describe("OAuth routes", () => {
 			const code = redirectUrl.searchParams.get("code");
 			assert(code, "Authorization code must be present in redirect");
 
-			const tokenResponse = await request(testApp.app)
+			const tokenResponse = await request(harness.server)
 				.post("/oauth/token")
 				.type("form")
 				.send({
@@ -317,11 +319,11 @@ describe("OAuth routes", () => {
 
 	describe("POST /oauth/revoke", () => {
 		it("revokes refresh token and returns 200", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const client = await testApp.oauthModel.getClient(TEST_CLIENT_ID, "");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const client = await harness.oauthModel.getClient(TEST_CLIENT_ID, "");
 			assert(client, "Test client must exist");
 
-			await testApp.oauthModel.saveToken(
+			await harness.oauthModel.saveToken(
 				{
 					accessToken: "revoke-access",
 					accessTokenExpiresAt: new Date(Date.now() + 3600000),
@@ -332,22 +334,22 @@ describe("OAuth routes", () => {
 				{ id: TEST_USER_ID },
 			);
 
-			const response = await request(testApp.app)
+			const response = await request(harness.server)
 				.post("/oauth/revoke")
 				.send({ token: "revoke-refresh" });
 
 			expect(response.status).toBe(200);
 
-			const revokedToken = await testApp.oauthModel.getRefreshToken(
+			const revokedToken = await harness.oauthModel.getRefreshToken(
 				"revoke-refresh",
 			);
 			expect(revokedToken).toBeNull();
 		});
 
 		it("returns 400 without token parameter", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(testApp.app)
+			const response = await request(harness.server)
 				.post("/oauth/revoke")
 				.send({});
 
@@ -356,11 +358,11 @@ describe("OAuth routes", () => {
 		});
 
 		it("revokes via access token and removes associated refresh token", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const client = await testApp.oauthModel.getClient(TEST_CLIENT_ID, "");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const client = await harness.oauthModel.getClient(TEST_CLIENT_ID, "");
 			assert(client, "Test client must exist");
 
-			await testApp.oauthModel.saveToken(
+			await harness.oauthModel.saveToken(
 				{
 					accessToken: "access-for-revoke",
 					accessTokenExpiresAt: new Date(Date.now() + 3600000),
@@ -371,22 +373,22 @@ describe("OAuth routes", () => {
 				{ id: TEST_USER_ID },
 			);
 
-			const response = await request(testApp.app)
+			const response = await request(harness.server)
 				.post("/oauth/revoke")
 				.send({ token: "access-for-revoke" });
 
 			expect(response.status).toBe(200);
 
-			const revokedRefresh = await testApp.oauthModel.getRefreshToken(
+			const revokedRefresh = await harness.oauthModel.getRefreshToken(
 				"refresh-for-revoke",
 			);
 			expect(revokedRefresh).toBeNull();
 		});
 
 		it("returns 200 for non-existent token (RFC compliance)", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(testApp.app)
+			const response = await request(harness.server)
 				.post("/oauth/revoke")
 				.send({ token: "non-existent-token" });
 
@@ -396,9 +398,9 @@ describe("OAuth routes", () => {
 
 	describe("GET /oauth/callback", () => {
 		it("returns authorization complete page", async () => {
-			const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(testApp.app).get("/oauth/callback");
+			const response = await request(harness.server).get("/oauth/callback");
 
 			expect(response.status).toBe(200);
 			expect(response.text).toContain("Authorization Complete");

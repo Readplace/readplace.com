@@ -1,7 +1,7 @@
 import { firefoxS3Config } from "browser-extension-core/s3-config";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { createTestApp } from "../../../test-app";
+import { useTestServer } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -27,24 +27,27 @@ afterEach(() => {
 	jest.restoreAllMocks();
 });
 
-describe("GET /install", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+const useApp = useTestServer();
 
+describe("GET /install", () => {
 	it("should return 200 and HTML content", async () => {
-		const response = await request(app).get("/install");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install");
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
 	});
 
 	it("should have page-install body class", async () => {
-		const response = await request(app).get("/install");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install");
 		const doc = new JSDOM(response.text).window.document;
 
 		expect(doc.body.classList.contains("page-install")).toBe(true);
 	});
 
 	it("should default to Chrome tab when no browser param is provided", async () => {
-		const response = await request(app).get("/install");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install");
 		const doc = new JSDOM(response.text).window.document;
 
 		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
@@ -56,7 +59,8 @@ describe("GET /install", () => {
 	});
 
 	it("should select Firefox tab when browser=firefox", async () => {
-		const response = await request(app).get("/install?browser=firefox");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?browser=firefox");
 		const doc = new JSDOM(response.text).window.document;
 
 		const firefoxTab = doc.querySelector('[data-test-tab="firefox"]');
@@ -68,7 +72,8 @@ describe("GET /install", () => {
 	});
 
 	it("should select Chrome tab when browser=chrome", async () => {
-		const response = await request(app).get("/install?browser=chrome");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?browser=chrome");
 		const doc = new JSDOM(response.text).window.document;
 
 		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
@@ -79,7 +84,8 @@ describe("GET /install", () => {
 	});
 
 	it("should render Firefox panel content when browser=firefox", async () => {
-		const response = await request(app).get("/install?browser=firefox");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?browser=firefox");
 		const doc = new JSDOM(response.text).window.document;
 
 		const firefoxPanel = doc.querySelector('[data-test-section="firefox"]');
@@ -88,7 +94,8 @@ describe("GET /install", () => {
 	});
 
 	it("should render Chrome panel content when browser=chrome", async () => {
-		const response = await request(app).get("/install?browser=chrome");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?browser=chrome");
 		const doc = new JSDOM(response.text).window.document;
 
 		const chromePanel = doc.querySelector('[data-test-section="chrome"]');
@@ -97,7 +104,8 @@ describe("GET /install", () => {
 	});
 
 	it("should render the Firefox download button linking to the S3 XPI", async () => {
-		const response = await request(app).get("/install?browser=firefox");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?browser=firefox");
 		const doc = new JSDOM(response.text).window.document;
 
 		const cta = doc.querySelector(
@@ -107,7 +115,8 @@ describe("GET /install", () => {
 	});
 
 	it("should render the Chrome download button linking to the Chrome Web Store", async () => {
-		const response = await request(app).get("/install?browser=chrome");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?browser=chrome");
 		const doc = new JSDOM(response.text).window.document;
 
 		const cta = doc.querySelector(
@@ -118,7 +127,8 @@ describe("GET /install", () => {
 	});
 
 	it("should set appropriate SEO metadata", async () => {
-		const response = await request(app).get("/install");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install");
 		const doc = new JSDOM(response.text).window.document;
 
 		expect(doc.title).toContain("Install");
@@ -127,7 +137,8 @@ describe("GET /install", () => {
 	});
 
 	it("should have SoftwareApplication and BreadcrumbList structured data", async () => {
-		const response = await request(app).get("/install");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install");
 		const doc = new JSDOM(response.text).window.document;
 
 		const scripts = doc.querySelectorAll(
@@ -169,7 +180,8 @@ describe("GET /install", () => {
 			return new Response("Not Found", { status: 404 });
 		});
 
-		const response = await request(app).get("/install?browser=firefox");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?browser=firefox");
 		const doc = new JSDOM(response.text).window.document;
 
 		expect(doc.querySelector('[data-test-cta="download-firefox"]')).toBeNull();
@@ -185,7 +197,8 @@ describe("GET /install", () => {
 			return new Response("", { status: 200 });
 		});
 
-		const response = await request(app).get("/install?browser=firefox");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?browser=firefox");
 		const doc = new JSDOM(response.text).window.document;
 
 		expect(doc.querySelector('[data-test-cta="download-firefox"]')).toBeNull();
@@ -196,7 +209,8 @@ describe("GET /install", () => {
 	});
 
 	it("should link tabs to the correct URLs", async () => {
-		const response = await request(app).get("/install?browser=firefox");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?browser=firefox");
 		const doc = new JSDOM(response.text).window.document;
 
 		const firefoxTab = doc.querySelector('[data-test-tab="firefox"]');
@@ -207,7 +221,8 @@ describe("GET /install", () => {
 	});
 
 	it("returns markdown when Accept: text/markdown is sent", async () => {
-		const response = await request(app)
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server)
 			.get("/install")
 			.set("Accept", "text/markdown");
 

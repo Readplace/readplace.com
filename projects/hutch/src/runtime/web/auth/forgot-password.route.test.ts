@@ -1,18 +1,20 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { createTestApp } from "../../test-app";
+import { useTestServer } from "../../test-app";
 
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 
+const useApp = useTestServer();
+
 describe("Forgot password", () => {
 	describe("GET /forgot-password", () => {
 		it("should render the forgot password form", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/forgot-password");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/forgot-password");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -23,10 +25,11 @@ describe("Forgot password", () => {
 
 	describe("POST /forgot-password", () => {
 		it("should show confirmation page for existing user", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
 			await auth.createUser({ email: "user@example.com", password: "password123" });
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post("/forgot-password")
 				.type("form")
 				.send({ email: "user@example.com" });
@@ -37,9 +40,9 @@ describe("Forgot password", () => {
 		});
 
 		it("should show same confirmation page for non-existing user", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post("/forgot-password")
 				.type("form")
 				.send({ email: "nobody@example.com" });
@@ -50,10 +53,11 @@ describe("Forgot password", () => {
 		});
 
 		it("should send a password reset email for existing user", async () => {
-			const { app, auth, email } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, email } = harness;
 			await auth.createUser({ email: "user@example.com", password: "password123" });
 
-			await request(app)
+			await request(harness.server)
 				.post("/forgot-password")
 				.type("form")
 				.send({ email: "user@example.com" });
@@ -67,9 +71,10 @@ describe("Forgot password", () => {
 		});
 
 		it("should not send email for non-existing user", async () => {
-			const { app, email } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { email } = harness;
 
-			await request(app)
+			await request(harness.server)
 				.post("/forgot-password")
 				.type("form")
 				.send({ email: "nobody@example.com" });
@@ -78,9 +83,9 @@ describe("Forgot password", () => {
 		});
 
 		it("should show validation error for invalid email", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post("/forgot-password")
 				.type("form")
 				.send({ email: "" });
@@ -93,9 +98,9 @@ describe("Forgot password", () => {
 
 	describe("GET /reset-password", () => {
 		it("should render the reset password form with a valid token", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app).get("/reset-password?token=sometoken");
+			const response = await request(harness.server).get("/reset-password?token=sometoken");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -103,9 +108,9 @@ describe("Forgot password", () => {
 		});
 
 		it("should show error when no token is provided", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app).get("/reset-password");
+			const response = await request(harness.server).get("/reset-password");
 
 			expect(response.status).toBe(400);
 			const doc = new JSDOM(response.text).window.document;
@@ -115,10 +120,11 @@ describe("Forgot password", () => {
 
 	describe("POST /reset-password", () => {
 		it("should reset password with a valid token", async () => {
-			const { app, auth, email } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, email } = harness;
 			await auth.createUser({ email: "user@example.com", password: "oldpassword1" });
 
-			await request(app)
+			await request(harness.server)
 				.post("/forgot-password")
 				.type("form")
 				.send({ email: "user@example.com" });
@@ -128,7 +134,7 @@ describe("Forgot password", () => {
 			assert(tokenMatch, "Expected token in password reset email");
 			const token = tokenMatch[1];
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post(`/reset-password?token=${token}`)
 				.type("form")
 				.send({ password: "newpassword1", confirmPassword: "newpassword1" });
@@ -137,7 +143,7 @@ describe("Forgot password", () => {
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector("h1")?.textContent).toBe("Password reset");
 
-			const loginResponse = await request(app)
+			const loginResponse = await request(harness.server)
 				.post("/login")
 				.type("form")
 				.send({ email: "user@example.com", password: "newpassword1" });
@@ -145,9 +151,9 @@ describe("Forgot password", () => {
 		});
 
 		it("should reject an invalid token", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post("/reset-password?token=invalidtoken")
 				.type("form")
 				.send({ password: "newpassword1", confirmPassword: "newpassword1" });
@@ -158,10 +164,11 @@ describe("Forgot password", () => {
 		});
 
 		it("should reject a token that has already been used", async () => {
-			const { app, auth, email } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, email } = harness;
 			await auth.createUser({ email: "user@example.com", password: "oldpassword1" });
 
-			await request(app)
+			await request(harness.server)
 				.post("/forgot-password")
 				.type("form")
 				.send({ email: "user@example.com" });
@@ -171,12 +178,12 @@ describe("Forgot password", () => {
 			assert(tokenMatch, "Expected token in password reset email");
 			const token = tokenMatch[1];
 
-			await request(app)
+			await request(harness.server)
 				.post(`/reset-password?token=${token}`)
 				.type("form")
 				.send({ password: "newpassword1", confirmPassword: "newpassword1" });
 
-			const secondResponse = await request(app)
+			const secondResponse = await request(harness.server)
 				.post(`/reset-password?token=${token}`)
 				.type("form")
 				.send({ password: "anotherpass1", confirmPassword: "anotherpass1" });
@@ -187,9 +194,9 @@ describe("Forgot password", () => {
 		});
 
 		it("should show error when no token is provided", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post("/reset-password")
 				.type("form")
 				.send({ password: "newpassword1", confirmPassword: "newpassword1" });
@@ -200,9 +207,9 @@ describe("Forgot password", () => {
 		});
 
 		it("should show validation error for mismatched passwords", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post("/reset-password?token=sometoken")
 				.type("form")
 				.send({ password: "newpassword1", confirmPassword: "differentpass" });
@@ -213,9 +220,9 @@ describe("Forgot password", () => {
 		});
 
 		it("should show validation error for short password", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post("/reset-password?token=sometoken")
 				.type("form")
 				.send({ password: "short", confirmPassword: "short" });
@@ -226,10 +233,11 @@ describe("Forgot password", () => {
 		});
 
 		it("should not allow login with old password after reset", async () => {
-			const { app, auth, email } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, email } = harness;
 			await auth.createUser({ email: "user@example.com", password: "oldpassword1" });
 
-			await request(app)
+			await request(harness.server)
 				.post("/forgot-password")
 				.type("form")
 				.send({ email: "user@example.com" });
@@ -239,12 +247,12 @@ describe("Forgot password", () => {
 			assert(tokenMatch, "Expected token in password reset email");
 			const token = tokenMatch[1];
 
-			await request(app)
+			await request(harness.server)
 				.post(`/reset-password?token=${token}`)
 				.type("form")
 				.send({ password: "newpassword1", confirmPassword: "newpassword1" });
 
-			const loginResponse = await request(app)
+			const loginResponse = await request(harness.server)
 				.post("/login")
 				.type("form")
 				.send({ email: "user@example.com", password: "oldpassword1" });
@@ -254,8 +262,8 @@ describe("Forgot password", () => {
 
 	describe("Login page", () => {
 		it("should have a forgot password link", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/login");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;

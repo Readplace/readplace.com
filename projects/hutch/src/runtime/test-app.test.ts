@@ -1,16 +1,18 @@
 import request from "supertest";
 import { GoogleIdSchema } from "@packages/test-fixtures/providers/google-auth";
-import { createTestApp } from "./test-app";
+import { createTestApp, useTestServer } from "./test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 
+const useApp = useTestServer();
+
 describe("createTestApp + createDefaultTestAppFixture", () => {
 	it("produces a working app with default in-memory dependencies", async () => {
-		const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		const response = await request(app).get("/");
+		const response = await request(server).get("/");
 
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/text\/html/);

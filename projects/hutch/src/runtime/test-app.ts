@@ -1,3 +1,4 @@
+import type { Server } from "node:http";
 import type { Express } from "express";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
@@ -85,6 +86,7 @@ import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/googl
 import type { OAuthModel } from "@packages/test-fixtures/providers/oauth";
 import type { ValidateAccessToken } from "./web/dual-auth.middleware";
 import type { ImportSessionStore } from "@packages/domain/import-session";
+import request from "supertest";
 import { createApp } from "./server";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
@@ -363,4 +365,54 @@ export function createTestApp(fixture: TestAppFixture): TestAppResult {
 		pendingSignup: fixture.pendingSignup,
 		botDefense: fixture.botDefense,
 	};
+}
+
+export interface TestAppHarness extends TestAppResult {
+	server: Server;
+	close: () => Promise<void>;
+}
+
+/** server.close only invokes the callback with an error when the socket was
+ * never bound — which can't happen below because we always reach here after
+ * listen(0). Treat the callback as completion regardless of the err arg so
+ * coverage doesn't carry a phantom reject branch. */
+function buildHarness(fixture: TestAppFixture): TestAppHarness {
+	const result = createTestApp(fixture);
+	const server = result.app.listen(0);
+	return {
+		...result,
+		server,
+		close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+	};
+}
+
+/** Per-suite factory that registers an `afterEach` to close every harness it
+ * creates. Call once at module scope (or describe scope) and use the returned
+ * function inside `it()` to build a fresh test server — the cleanup is
+ * transparent so tests don't have to thread `close()` through finally blocks
+ * or hoist fixture creation into `beforeEach` just for lifecycle reasons. */
+export function useTestServer(): (fixture: TestAppFixture) => TestAppHarness {
+	const harnesses: TestAppHarness[] = [];
+	afterEach(async () => {
+		const toClose = harnesses.splice(0);
+		await Promise.all(toClose.map((h) => h.close()));
+	});
+	return (fixture) => {
+		const harness = buildHarness(fixture);
+		harnesses.push(harness);
+		return harness;
+	};
+}
+
+export async function loginAgent(
+	server: Server,
+	auth: TestAppHarness["auth"],
+) {
+	await auth.createUser({ email: "test@example.com", password: "password123" });
+	const agent = request.agent(server);
+	await agent
+		.post("/login")
+		.type("form")
+		.send({ email: "test@example.com", password: "password123" });
+	return agent;
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
+import type { Server } from "node:http";
 import type { SuperTest, Test } from "supertest";
 import request from "supertest";
-import type { Express } from "express";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
 import type { CheckoutSessionId } from "@packages/test-fixtures/providers/stripe-checkout";
 import type { AuthBundle } from "../../../test-app";
@@ -21,7 +21,7 @@ interface StripeBundle {
  * subsequent signup onto the paid path. Tests with custom limits pass
  * `foundingMemberLimit` explicitly. */
 export async function completeStripeSignup(params: {
-	app: Express;
+	server: Server;
 	auth: AuthBundle;
 	stripe: StripeBundle;
 	email: string;
@@ -43,7 +43,7 @@ export async function completeStripeSignup(params: {
 		}
 	}
 
-	const agent = params.agent ?? request.agent(params.app);
+	const agent = params.agent ?? request.agent(params.server);
 	const signupPath = params.returnUrl
 		? `/signup?return=${encodeURIComponent(params.returnUrl)}`
 		: "/signup";

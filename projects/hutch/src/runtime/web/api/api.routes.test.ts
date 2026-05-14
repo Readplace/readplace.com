@@ -1,7 +1,8 @@
 import assert from "node:assert";
 import request from "supertest";
 import type { Token, Client } from "@node-oauth/oauth2-server";
-import { createTestApp, type TestAppResult } from "../../test-app";
+import { useTestServer } from "../../test-app";
+import type { TestAppHarness } from "../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -34,22 +35,24 @@ function createTestToken(): Token {
 }
 
 async function createAccessToken(
-	testApp: TestAppResult,
+	harness: TestAppHarness,
 ): Promise<string> {
-	const client = await testApp.oauthModel.getClient("hutch-firefox-extension", "");
+	const client = await harness.oauthModel.getClient("hutch-firefox-extension", "");
 	assert(client, "Test client must exist");
 
 	const testToken = createTestToken();
-	const token = await testApp.oauthModel.saveToken(testToken, client, { id: TEST_USER_ID });
+	const token = await harness.oauthModel.saveToken(testToken, client, { id: TEST_USER_ID });
 	assert(token, "Token should be saved");
 	return token.accessToken;
 }
 
+const useApp = useTestServer();
+
 describe("GET /queue (Siren content negotiation)", () => {
 	it("returns 401 without token when requesting Siren", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE);
 
@@ -59,10 +62,10 @@ describe("GET /queue (Siren content negotiation)", () => {
 	});
 
 	it("returns empty collection for new user", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`);
@@ -76,10 +79,10 @@ describe("GET /queue (Siren content negotiation)", () => {
 	});
 
 	it("returns articles after saving via HTML form", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		await testApp.auth.createUser({ email: "test@example.com", password: "password123" });
-		const agent = request.agent(testApp.app);
+		await harness.auth.createUser({ email: "test@example.com", password: "password123" });
+		const agent = request.agent(harness.server);
 		await agent
 			.post("/login")
 			.type("form")
@@ -89,18 +92,18 @@ describe("GET /queue (Siren content negotiation)", () => {
 			.type("form")
 			.send({ url: "https://example.com/article" });
 
-		const loginResult = await testApp.auth.verifyCredentials({ email: "test@example.com", password: "password123" });
+		const loginResult = await harness.auth.verifyCredentials({ email: "test@example.com", password: "password123" });
 		assert(loginResult.ok);
 		const userId = loginResult.userId;
 
-		const client = await testApp.oauthModel.getClient("hutch-firefox-extension", "");
+		const client = await harness.oauthModel.getClient("hutch-firefox-extension", "");
 		assert(client);
 		const userToken = createTestToken();
 		userToken.user = { id: userId };
-		const token = await testApp.oauthModel.saveToken(userToken, client, { id: userId });
+		const token = await harness.oauthModel.saveToken(userToken, client, { id: userId });
 		assert(token);
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${token.accessToken}`);
@@ -113,9 +116,9 @@ describe("GET /queue (Siren content negotiation)", () => {
 	});
 
 	it("returns 401 with invalid token", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", "Bearer invalid-token");
@@ -125,10 +128,10 @@ describe("GET /queue (Siren content negotiation)", () => {
 	});
 
 	it("supports status filter parameter", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/queue?status=unread")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`);
@@ -138,10 +141,10 @@ describe("GET /queue (Siren content negotiation)", () => {
 	});
 
 	it("supports order parameter", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/queue?order=asc")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`);
@@ -151,10 +154,10 @@ describe("GET /queue (Siren content negotiation)", () => {
 	});
 
 	it("supports page parameter", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/queue?page=2")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`);
@@ -164,10 +167,10 @@ describe("GET /queue (Siren content negotiation)", () => {
 	});
 
 	it("includes search action", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`);
@@ -187,10 +190,10 @@ describe("GET /queue (Siren content negotiation)", () => {
 	});
 
 	it("includes save-article action", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`);
@@ -205,10 +208,10 @@ describe("GET /queue (Siren content negotiation)", () => {
 
 describe("POST /queue (Siren save article)", () => {
 	it("saves an article and returns Siren entity", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -224,10 +227,10 @@ describe("POST /queue (Siren save article)", () => {
 	});
 
 	it("returns 422 for invalid URL", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -239,17 +242,17 @@ describe("POST /queue (Siren save article)", () => {
 	});
 
 	it("returns the article collection for a non-saveable scheme when client opts in via Prefer", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		await request(testApp.app)
+		await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
 			.set("Content-Type", "application/json")
 			.send({ url: "https://example.com/already-saved" });
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -270,10 +273,10 @@ describe("POST /queue (Siren save article)", () => {
 	});
 
 	it("returns the article collection with a private_network warning when the host is local", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -290,10 +293,10 @@ describe("POST /queue (Siren save article)", () => {
 	});
 
 	it("returns the article collection with a private_network warning for a .home.arpa host", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -306,10 +309,10 @@ describe("POST /queue (Siren save article)", () => {
 	});
 
 	it("preserves the legacy stub-save behaviour for a non-saveable scheme without Prefer", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -322,9 +325,9 @@ describe("POST /queue (Siren save article)", () => {
 	});
 
 	it("returns 401 without token", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Content-Type", "application/json")
@@ -334,9 +337,9 @@ describe("POST /queue (Siren save article)", () => {
 	});
 
 	it("returns 406 when session-authenticated user POSTs without Siren Accept", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		await testApp.auth.createUser({ email: "test@example.com", password: "password123" });
-		const agent = request.agent(testApp.app);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		await harness.auth.createUser({ email: "test@example.com", password: "password123" });
+		const agent = request.agent(harness.server);
 		await agent
 			.post("/login")
 			.type("form")
@@ -359,7 +362,7 @@ describe("POST /queue (Siren save article)", () => {
 			articleCrawl: fixture.articleCrawl,
 			parseArticle,
 		});
-		const testApp = createTestApp({
+		const harness = useApp({
 			...fixture,
 			parser: { parseArticle, crawlArticle },
 			events: {
@@ -372,13 +375,13 @@ describe("POST /queue (Siren save article)", () => {
 				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 			},
 		});
-		const client = await testApp.oauthModel.getClient("hutch-firefox-extension", "");
+		const client = await harness.oauthModel.getClient("hutch-firefox-extension", "");
 		assert(client);
 		const testToken = createTestToken();
-		const token = await testApp.oauthModel.saveToken(testToken, client, { id: TEST_USER_ID });
+		const token = await harness.oauthModel.saveToken(testToken, client, { id: TEST_USER_ID });
 		assert(token);
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${token.accessToken}`)
@@ -390,10 +393,10 @@ describe("POST /queue (Siren save article)", () => {
 	});
 
 	it("includes delete action on saved article", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -411,10 +414,10 @@ describe("POST /queue (Siren save article)", () => {
 
 describe("POST /queue (Siren re-save read article)", () => {
 	it("marks a read article as unread when saved again", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const saveResponse = await request(testApp.app)
+		const saveResponse = await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -423,14 +426,14 @@ describe("POST /queue (Siren re-save read article)", () => {
 
 		const articleId = saveResponse.body.properties.id;
 
-		await request(testApp.app)
+		await request(harness.server)
 			.post(`/queue/${articleId}/status`)
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
 			.set("Content-Type", "application/json")
 			.send({ status: "read" });
 
-		const resaveResponse = await request(testApp.app)
+		const resaveResponse = await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -440,7 +443,7 @@ describe("POST /queue (Siren re-save read article)", () => {
 		expect(resaveResponse.status).toBe(201);
 		expect(resaveResponse.body.properties.status).toBe("unread");
 
-		const listResponse = await request(testApp.app)
+		const listResponse = await request(harness.server)
 			.get("/queue?status=unread")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`);
@@ -451,10 +454,10 @@ describe("POST /queue (Siren re-save read article)", () => {
 
 describe("POST /queue/:id/delete (Siren)", () => {
 	it("redirects to collection via 303 after deleting when client opts in via Prefer header", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const saveResponse = await request(testApp.app)
+		const saveResponse = await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -463,7 +466,7 @@ describe("POST /queue/:id/delete (Siren)", () => {
 
 		const articleId = saveResponse.body.properties.id;
 
-		const deleteResponse = await request(testApp.app)
+		const deleteResponse = await request(harness.server)
 			.post(`/queue/${articleId}/delete`)
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Prefer", "return=representation")
@@ -475,10 +478,10 @@ describe("POST /queue/:id/delete (Siren)", () => {
 	});
 
 	it("returns empty collection after following the redirect", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const saveResponse = await request(testApp.app)
+		const saveResponse = await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -487,7 +490,7 @@ describe("POST /queue/:id/delete (Siren)", () => {
 
 		const articleId = saveResponse.body.properties.id;
 
-		const deleteResponse = await request(testApp.app)
+		const deleteResponse = await request(harness.server)
 			.post(`/queue/${articleId}/delete`)
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Prefer", "return=representation")
@@ -495,7 +498,7 @@ describe("POST /queue/:id/delete (Siren)", () => {
 			.redirects(0);
 
 		assert(deleteResponse.headers.location, "expected Location header");
-		const collectionResponse = await request(testApp.app)
+		const collectionResponse = await request(harness.server)
 			.get(deleteResponse.headers.location)
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`);
@@ -507,10 +510,10 @@ describe("POST /queue/:id/delete (Siren)", () => {
 
 	/** Chrome extension v1.0.66 (still in the web store) sets `redirect: "manual"` on its delete fetch and only treats `status === 204` as success — a 303 surfaces to JS as an opaqueredirect with status 0, leaving the deleted row visible in the popup until reopened. The server keeps returning 204 for Siren clients that don't opt into the new representation flow until v1.0.66 ages out of the wild. */
 	it("returns 204 No Content for legacy Siren clients without Prefer header (chrome-extension v1.0.66 backwards compat)", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const saveResponse = await request(testApp.app)
+		const saveResponse = await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -519,7 +522,7 @@ describe("POST /queue/:id/delete (Siren)", () => {
 
 		const articleId = saveResponse.body.properties.id;
 
-		const deleteResponse = await request(testApp.app)
+		const deleteResponse = await request(harness.server)
 			.post(`/queue/${articleId}/delete`)
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -532,9 +535,9 @@ describe("POST /queue/:id/delete (Siren)", () => {
 
 describe("extension-alive cookie middleware", () => {
 	it("sets the alive cookie as httpOnly on the Siren entry point before login", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.redirects(0);
@@ -554,9 +557,9 @@ describe("extension-alive cookie middleware", () => {
 	});
 
 	it("does not set the alive cookie on browser session requests", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		await testApp.auth.createUser({ email: "test@example.com", password: "password123" });
-		const agent = request.agent(testApp.app);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		await harness.auth.createUser({ email: "test@example.com", password: "password123" });
+		const agent = request.agent(harness.server);
 		await agent
 			.post("/login")
 			.type("form")
@@ -574,9 +577,9 @@ describe("extension-alive cookie middleware", () => {
 	});
 
 	it("renews the hutch_ext_saved cookie on a Siren request when it is already present", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Cookie", "hutch_ext_saved=1")
@@ -593,9 +596,9 @@ describe("extension-alive cookie middleware", () => {
 	});
 
 	it("does not set hutch_ext_saved on a Siren request when the cookie is absent", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.redirects(0);
@@ -610,9 +613,9 @@ describe("extension-alive cookie middleware", () => {
 
 describe("GET / (Siren entry point)", () => {
 	it("redirects Siren clients to /queue", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.redirects(0);
@@ -622,9 +625,9 @@ describe("GET / (Siren entry point)", () => {
 	});
 
 	it("returns home page HTML when Accept is not Siren", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/")
 			.set("Accept", "text/html");
 
@@ -634,9 +637,9 @@ describe("GET / (Siren entry point)", () => {
 
 	/** Firefox extensions send a CORS preflight for fetches with non-simple headers (Accept: application/vnd.siren+json, Authorization). Without an OPTIONS handler here the preflight 404s and firefox aborts the fetch with NetworkError. */
 	it("handles CORS preflight from extension origin", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.options("/")
 			.set("Origin", "moz-extension://d3b07384-d113-4ec6-a7b8-5f7e3b4c9a12")
 			.set("Access-Control-Request-Method", "GET")
@@ -653,24 +656,24 @@ describe("GET / (Siren entry point)", () => {
 
 describe("GET /queue?url= (Siren URL filter)", () => {
 	it("returns matching article when URL filter matches", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		await request(testApp.app)
+		await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
 			.set("Content-Type", "application/json")
 			.send({ url: "https://example.com/article-1" });
 
-		await request(testApp.app)
+		await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
 			.set("Content-Type", "application/json")
 			.send({ url: "https://example.com/article-2" });
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/queue?url=https://example.com/article-1")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`);
@@ -681,17 +684,17 @@ describe("GET /queue?url= (Siren URL filter)", () => {
 	});
 
 	it("returns empty collection when URL filter has no match", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		await request(testApp.app)
+		await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
 			.set("Content-Type", "application/json")
 			.send({ url: "https://example.com/article" });
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/queue?url=https://example.com/nonexistent")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`);
@@ -703,17 +706,17 @@ describe("GET /queue?url= (Siren URL filter)", () => {
 
 describe("Article sub-entity actions", () => {
 	it("includes delete action on article sub-entities in collection", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		await request(testApp.app)
+		await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
 			.set("Content-Type", "application/json")
 			.send({ url: "https://example.com/article" });
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`);
@@ -730,9 +733,9 @@ describe("Article sub-entity actions", () => {
 
 describe("Content negotiation", () => {
 	it("returns HTML when Accept header is text/html", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		await testApp.auth.createUser({ email: "test@example.com", password: "password123" });
-		const agent = request.agent(testApp.app);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		await harness.auth.createUser({ email: "test@example.com", password: "password123" });
+		const agent = request.agent(harness.server);
 		await agent
 			.post("/login")
 			.type("form")
@@ -747,9 +750,9 @@ describe("Content negotiation", () => {
 	});
 
 	it("returns HTML when Accept header is */*", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		await testApp.auth.createUser({ email: "test@example.com", password: "password123" });
-		const agent = request.agent(testApp.app);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		await harness.auth.createUser({ email: "test@example.com", password: "password123" });
+		const agent = request.agent(harness.server);
 		await agent
 			.post("/login")
 			.type("form")
@@ -764,10 +767,10 @@ describe("Content negotiation", () => {
 	});
 
 	it("returns Siren when Accept header is application/vnd.siren+json", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`);

@@ -5,7 +5,8 @@ import {
 	SAVE_COOKIE_NAME,
 	SAVE_COOKIE_VALUE,
 } from "@packages/onboarding-extension-signal";
-import { createTestApp } from "../../test-app";
+import { useTestServer } from "../../test-app";
+import type { TestAppHarness } from "../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -23,9 +24,9 @@ function generatePkce() {
 	return { codeVerifier, codeChallenge };
 }
 
-async function obtainAccessToken(testApp: ReturnType<typeof createTestApp>): Promise<string> {
-	await testApp.auth.createUser({ email: "test@example.com", password: "password123" });
-	const agent = request.agent(testApp.app);
+async function obtainAccessToken(harness: TestAppHarness): Promise<string> {
+	await harness.auth.createUser({ email: "test@example.com", password: "password123" });
+	const agent = request.agent(harness.server);
 	await agent
 		.post("/login")
 		.type("form")
@@ -51,7 +52,7 @@ async function obtainAccessToken(testApp: ReturnType<typeof createTestApp>): Pro
 	const authorizationCode = redirectUrl.searchParams.get("code");
 	assert(authorizationCode, "authorize endpoint must redirect with a code");
 
-	const tokenResponse = await request(testApp.app)
+	const tokenResponse = await request(harness.server)
 		.post("/oauth/token")
 		.type("form")
 		.send({
@@ -68,12 +69,14 @@ async function obtainAccessToken(testApp: ReturnType<typeof createTestApp>): Pro
 	return accessToken;
 }
 
+const useApp = useTestServer();
+
 describe("Save article via OAuth flow", () => {
 	it("sets the extension-save cookie on a successful POST /queue", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await obtainAccessToken(testApp);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await obtainAccessToken(harness);
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)

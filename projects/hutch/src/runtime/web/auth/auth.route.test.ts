@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { createTestApp } from "../../test-app";
+import { useTestServer } from "../../test-app";
 
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
 import {
@@ -22,11 +22,13 @@ function freshLoadedAt(): string {
 	return String(Date.now() - 5000);
 }
 
+const useApp = useTestServer();
+
 describe("Auth routes", () => {
 	describe("GET /login", () => {
 		it("should render the login form", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/login");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -36,10 +38,11 @@ describe("Auth routes", () => {
 		});
 
 		it("should redirect authenticated user to /queue", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
 			await auth.createUser({ email: "test@example.com", password: "password123" });
 
-			const agent = request.agent(app);
+			const agent = request.agent(harness.server);
 			await agent.post("/login").type("form").send({ email: "test@example.com", password: "password123" });
 
 			const response = await agent.get("/login");
@@ -49,8 +52,8 @@ describe("Auth routes", () => {
 		});
 
 		it("should include return URL in form action when provided", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/login?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -60,8 +63,8 @@ describe("Auth routes", () => {
 		});
 
 		it("should pass return URL to signup link", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/login?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -73,10 +76,11 @@ describe("Auth routes", () => {
 
 	describe("POST /login", () => {
 		it("should redirect to /queue on valid credentials", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
 			await auth.createUser({ email: "test@example.com", password: "password123" });
 
-			const agent = request.agent(app);
+			const agent = request.agent(harness.server);
 			const response = await agent
 				.post("/login")
 				.type("form")
@@ -88,9 +92,9 @@ describe("Auth routes", () => {
 		});
 
 		it("should show error on invalid credentials", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post("/login")
 				.type("form")
 				.send({ email: "test@example.com", password: "wrongpassword" });
@@ -103,10 +107,11 @@ describe("Auth routes", () => {
 		});
 
 		it("should redirect to return URL after successful login", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
 			await auth.createUser({ email: "test@example.com", password: "password123" });
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post("/login?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest")
 				.type("form")
 				.send({ email: "test@example.com", password: "password123" });
@@ -116,10 +121,11 @@ describe("Auth routes", () => {
 		});
 
 		it("should ignore protocol-relative return URLs", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
 			await auth.createUser({ email: "test@example.com", password: "password123" });
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post("/login?return=%2F%2Fevil.com")
 				.type("form")
 				.send({ email: "test@example.com", password: "password123" });
@@ -129,10 +135,11 @@ describe("Auth routes", () => {
 		});
 
 		it("should ignore non-relative return URLs", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
 			await auth.createUser({ email: "test@example.com", password: "password123" });
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post("/login?return=https%3A%2F%2Fevil.com")
 				.type("form")
 				.send({ email: "test@example.com", password: "password123" });
@@ -142,9 +149,9 @@ describe("Auth routes", () => {
 		});
 
 		it("should show validation error for empty email", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post("/login")
 				.type("form")
 				.send({ email: "", password: "password123" });
@@ -155,9 +162,9 @@ describe("Auth routes", () => {
 		});
 
 		it("should preserve return URL in form action after invalid credentials", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post("/login?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest")
 				.type("form")
 				.send({ email: "test@example.com", password: "wrongpassword" });
@@ -170,9 +177,9 @@ describe("Auth routes", () => {
 		});
 
 		it("should preserve return URL in form action after validation error", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post("/login?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest")
 				.type("form")
 				.send({ email: "", password: "password123" });
@@ -187,8 +194,8 @@ describe("Auth routes", () => {
 
 	describe("GET /signup", () => {
 		it("should render the signup form", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/signup");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -197,8 +204,8 @@ describe("Auth routes", () => {
 		});
 
 		it("should render a visually-hidden honeypot input named 'website' inside the signup form", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/signup");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup");
 
 			const doc = new JSDOM(response.text).window.document;
 			const form = doc.querySelector('[data-test-form="signup"]');
@@ -214,9 +221,9 @@ describe("Auth routes", () => {
 		});
 
 		it("should render a hidden loadedAt input with the current server-side ms timestamp", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const before = Date.now();
-			const response = await request(app).get("/signup");
+			const response = await request(harness.server).get("/signup");
 			const after = Date.now();
 
 			const doc = new JSDOM(response.text).window.document;
@@ -229,10 +236,11 @@ describe("Auth routes", () => {
 		});
 
 		it("should redirect authenticated user to /queue", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
 			await auth.createUser({ email: "test@example.com", password: "password123" });
 
-			const agent = request.agent(app);
+			const agent = request.agent(harness.server);
 			await agent.post("/login").type("form").send({ email: "test@example.com", password: "password123" });
 
 			const response = await agent.get("/signup");
@@ -242,8 +250,8 @@ describe("Auth routes", () => {
 		});
 
 		it("should include return URL in form action when provided", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/signup?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -253,8 +261,8 @@ describe("Auth routes", () => {
 		});
 
 		it("should pass return URL to login link", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/signup?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -264,8 +272,8 @@ describe("Auth routes", () => {
 		});
 
 		it("should pre-fill the email field when a valid email is provided in the query string", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get(
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get(
 				"/signup?email=jane%40example.com&utm_source=recovery",
 			);
 
@@ -277,8 +285,8 @@ describe("Auth routes", () => {
 		});
 
 		it("should leave the email field empty when the query email is invalid", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/signup?email=not-an-email");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup?email=not-an-email");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -290,11 +298,12 @@ describe("Auth routes", () => {
 
 	describe("POST /signup", () => {
 		it("should create the account directly and redirect to /queue when below the founding limit", async () => {
-			const { app, auth, pendingSignup } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, pendingSignup } = harness;
 			// One founding member
 			await auth.createUser({ email: `seed1@test.com`, password: "password123" });
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "free@example.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -316,12 +325,13 @@ describe("Auth routes", () => {
 		}, 30000);
 
 		it("should redirect to Stripe checkout when at the founding limit", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "paid@example.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -333,14 +343,15 @@ describe("Auth routes", () => {
 		}, 30000);
 
 		it("should fall back to free signup after a manual deletion drops the count below the limit", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT + 1; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 			await auth.deleteUser("seed0@test.com");
 			await auth.deleteUser("seed1@test.com");
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "after-delete@example.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -352,9 +363,10 @@ describe("Auth routes", () => {
 		}, 30000);
 
 		it("should send the email verification email on free signup", async () => {
-			const { app, email } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { email } = harness;
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "verify-free@example.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -371,7 +383,7 @@ describe("Auth routes", () => {
 		it("should show duplicate-email error when a race condition causes createUserWithPasswordHash to fail during free signup", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			let raceFindCount = 0;
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				auth: {
 					...fixture.auth,
@@ -386,7 +398,7 @@ describe("Auth routes", () => {
 			});
 			await fixture.auth.createUser({ email: "race@example.com", password: "existing" });
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "race@example.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -399,12 +411,13 @@ describe("Auth routes", () => {
 		});
 
 		it("should redirect new visitors to a Stripe checkout URL when at the founding limit", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "new@example.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -416,10 +429,11 @@ describe("Auth routes", () => {
 		}, 30000);
 
 		it("should create the account on successful Stripe checkout and redirect to /queue", async () => {
-			const { app, auth, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, stripe } = harness;
 
 			const { successResponse } = await completeStripeSignup({
-				app,
+				server: harness.server,
 				auth,
 				stripe,
 				email: "new@example.com",
@@ -432,10 +446,11 @@ describe("Auth routes", () => {
 		}, 30000);
 
 		it("should redirect to return URL after successful Stripe checkout", async () => {
-			const { app, auth, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, stripe } = harness;
 
 			const { successResponse } = await completeStripeSignup({
-				app,
+				server: harness.server,
 				auth,
 				stripe,
 				email: "new@example.com",
@@ -448,10 +463,11 @@ describe("Auth routes", () => {
 		}, 30000);
 
 		it("should ignore protocol-relative return URLs on signup", async () => {
-			const { app, auth, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, stripe } = harness;
 
 			const { successResponse } = await completeStripeSignup({
-				app,
+				server: harness.server,
 				auth,
 				stripe,
 				email: "new@example.com",
@@ -464,10 +480,11 @@ describe("Auth routes", () => {
 		}, 30000);
 
 		it("should ignore non-relative return URLs on signup", async () => {
-			const { app, auth, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, stripe } = harness;
 
 			const { successResponse } = await completeStripeSignup({
-				app,
+				server: harness.server,
 				auth,
 				stripe,
 				email: "new@example.com",
@@ -480,10 +497,11 @@ describe("Auth routes", () => {
 		}, 30000);
 
 		it("should show error for duplicate email", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
 			await auth.createUser({ email: "existing@example.com", password: "password123" });
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "existing@example.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -498,9 +516,9 @@ describe("Auth routes", () => {
 		});
 
 		it("should show error for mismatched passwords", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "new@example.com",
 				password: "password123",
 				confirmPassword: "differentpassword",
@@ -515,9 +533,9 @@ describe("Auth routes", () => {
 		});
 
 		it("should preserve return URL in form action after mismatched passwords", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post("/signup?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest")
 				.type("form")
 				.send({
@@ -535,10 +553,11 @@ describe("Auth routes", () => {
 		});
 
 		it("should preserve return URL in form action after duplicate email", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
 			await auth.createUser({ email: "existing@example.com", password: "password123" });
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.post("/signup?return=%2Foauth%2Fauthorize%3Fclient_id%3Dtest")
 				.type("form")
 				.send({
@@ -556,9 +575,9 @@ describe("Auth routes", () => {
 		});
 
 		it("should show error for short password", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "new@example.com",
 				password: "short",
 				confirmPassword: "short",
@@ -573,9 +592,10 @@ describe("Auth routes", () => {
 
 	describe("POST /signup — bot defense", () => {
 		it("returns a fake-success 303 to /?signup=pending and logs a 'honeypot' rejection when the hidden website field is filled", async () => {
-			const { app, botDefense } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { botDefense } = harness;
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "bot@example.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -595,9 +615,10 @@ describe("Auth routes", () => {
 		});
 
 		it("logs 'missing_timestamp' and fakes success when loadedAt is absent from the form payload", async () => {
-			const { app, botDefense } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { botDefense } = harness;
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "bot@example.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -610,9 +631,10 @@ describe("Auth routes", () => {
 		});
 
 		it("logs 'missing_timestamp' when loadedAt is an empty string", async () => {
-			const { app, botDefense } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { botDefense } = harness;
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "bot@example.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -626,9 +648,10 @@ describe("Auth routes", () => {
 		});
 
 		it("omits email_domain from the event when the honeypot payload has no email", async () => {
-			const { app, botDefense } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { botDefense } = harness;
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				password: "password123",
 				confirmPassword: "password123",
 				loadedAt: freshLoadedAt(),
@@ -641,9 +664,10 @@ describe("Auth routes", () => {
 		});
 
 		it("omits email_domain when email has no @ sign", async () => {
-			const { app, botDefense } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { botDefense } = harness;
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "no-at-sign",
 				password: "password123",
 				confirmPassword: "password123",
@@ -657,9 +681,10 @@ describe("Auth routes", () => {
 		});
 
 		it("logs 'invalid_timestamp' and fakes success when loadedAt is not a parseable integer", async () => {
-			const { app, botDefense } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { botDefense } = harness;
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "bot@example.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -673,9 +698,10 @@ describe("Auth routes", () => {
 		});
 
 		it("logs 'invalid_timestamp' when loadedAt is a float string", async () => {
-			const { app, botDefense } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { botDefense } = harness;
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "bot@example.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -689,9 +715,10 @@ describe("Auth routes", () => {
 		});
 
 		it("logs 'submit_too_fast' with the elapsed time when the form is submitted within the 2.5s window", async () => {
-			const { app, botDefense } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { botDefense } = harness;
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "bot@example.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -709,9 +736,10 @@ describe("Auth routes", () => {
 		});
 
 		it("does not create a Stripe checkout session or store a pending signup when the honeypot is tripped", async () => {
-			const { app, pendingSignup, botDefense } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { pendingSignup, botDefense } = harness;
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "bot@example.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -732,12 +760,13 @@ describe("Auth routes", () => {
 		});
 
 		it("falls through to the existing happy path (303 to Stripe) when the honeypot is empty, loadedAt is older than 2.5s, and the founding allocation is exhausted", async () => {
-			const { app, auth, botDefense } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, botDefense } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 
-			const response = await request(app).post("/signup").type("form").send({
+			const response = await request(harness.server).post("/signup").type("form").send({
 				email: "real@example.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -753,8 +782,8 @@ describe("Auth routes", () => {
 
 	describe("GET /verify-email", () => {
 		it("should show error when no token is provided", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/verify-email");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/verify-email");
 
 			expect(response.status).toBe(400);
 			const doc = new JSDOM(response.text).window.document;
@@ -764,8 +793,8 @@ describe("Auth routes", () => {
 		});
 
 		it("should show error for invalid token", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/verify-email?token=invalid-token");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/verify-email?token=invalid-token");
 
 			expect(response.status).toBe(400);
 			const doc = new JSDOM(response.text).window.document;
@@ -775,7 +804,8 @@ describe("Auth routes", () => {
 		});
 
 		it("should verify email with valid token", async () => {
-			const { app, auth, emailVerification } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, emailVerification } = harness;
 			const createResult = await auth.createUser({ email: "verify@example.com", password: "password123" });
 			expect(createResult.ok).toBe(true);
 			if (!createResult.ok) return;
@@ -785,13 +815,14 @@ describe("Auth routes", () => {
 				email: "verify@example.com",
 			});
 
-			const response = await request(app).get(`/verify-email?token=${token}`);
+			const response = await request(harness.server).get(`/verify-email?token=${token}`);
 
 			expect(response.status).toBe(200);
 		});
 
 		it("should mark session email verified when user is logged in during verification", async () => {
-			const { app, auth, emailVerification } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, emailVerification } = harness;
 			const createResult = await auth.createUser({ email: "session@example.com", password: "password123" });
 			expect(createResult.ok).toBe(true);
 			if (!createResult.ok) return;
@@ -801,7 +832,7 @@ describe("Auth routes", () => {
 				email: "session@example.com",
 			});
 
-			const agent = request.agent(app);
+			const agent = request.agent(harness.server);
 			await agent.post("/login").type("form").send({ email: "session@example.com", password: "password123" });
 
 			const response = await agent.get(`/verify-email?token=${token}`);
@@ -812,10 +843,11 @@ describe("Auth routes", () => {
 
 	describe("POST /logout", () => {
 		it("should clear session and redirect to /", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
 			await auth.createUser({ email: "test@example.com", password: "password123" });
 
-			const agent = request.agent(app);
+			const agent = request.agent(harness.server);
 			await agent
 				.post("/login")
 				.type("form")
@@ -828,9 +860,9 @@ describe("Auth routes", () => {
 		});
 
 		it("should handle logout when no session cookie exists", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app).post("/logout");
+			const response = await request(harness.server).post("/logout");
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/");
@@ -848,8 +880,8 @@ describe("Auth routes", () => {
 		}
 
 		it("should render Sign in with Google on /login with the Google logo", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/login");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login");
 
 			const link = getGoogleButton(response.text);
 			expect(link.getAttribute("href")).toBe("/auth/google");
@@ -865,16 +897,16 @@ describe("Auth routes", () => {
 		});
 
 		it("should pass return URL through to the Google sign-in link on /login", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/login?return=%2Fsave%3Furl%3Dhttps%253A%252F%252Fexample.com");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/login?return=%2Fsave%3Furl%3Dhttps%253A%252F%252Fexample.com");
 
 			const link = getGoogleButton(response.text);
 			expect(link.getAttribute("href")).toContain("/auth/google?return=");
 		});
 
 		it("should render Sign up with Google on /signup with the Google logo", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/signup");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup");
 
 			const link = getGoogleButton(response.text);
 			expect(link.getAttribute("href")).toBe("/auth/google");
@@ -883,10 +915,9 @@ describe("Auth routes", () => {
 	});
 
 	describe("Founding members progress", () => {
-		const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
 		it("should render the progress bar on GET /signup with zero users", async () => {
-			const response = await request(app).get("/signup");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup");
 			const doc = new JSDOM(response.text).window.document;
 
 			const label = doc.querySelector("[data-test-founding-progress] .founding-progress__label");
@@ -894,7 +925,8 @@ describe("Auth routes", () => {
 		});
 
 		it("should keep the progress bar on POST /signup 422 responses", async () => {
-			const response = await request(app)
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server)
 				.post("/signup")
 				.type("form")
 				.send({ email: "", password: "short", confirmPassword: "short", loadedAt: freshLoadedAt() });
@@ -906,7 +938,8 @@ describe("Auth routes", () => {
 		});
 
 		it("should render the founding blurb on GET /signup when allocation is available", async () => {
-			const response = await request(app).get("/signup");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup");
 			const doc = new JSDOM(response.text).window.document;
 
 			const blurb = doc.querySelector("[data-test-founding-blurb]");
@@ -916,12 +949,13 @@ describe("Auth routes", () => {
 
 	describe("Founding members progress — exhausted allocation", () => {
 		it("should hide the founding progress and blurb on /signup when at the limit", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `user${i}@test.com`, password: "password123" });
 			}
 
-			const signupDoc = new JSDOM((await request(app).get("/signup")).text).window.document;
+			const signupDoc = new JSDOM((await request(harness.server).get("/signup")).text).window.document;
 			expect(signupDoc.querySelector("[data-test-founding-progress]")).toBeNull();
 			expect(signupDoc.querySelector("[data-test-founding-blurb]")).toBeNull();
 		}, 30000);

@@ -1,24 +1,35 @@
 import assert from "node:assert/strict";
+import type { Server } from "node:http";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import express from "express";
 import { initEmbedRoutes } from "./embed.page";
 
-function makeApp(overrides?: { appOrigin?: string }) {
+const servers: Server[] = [];
+afterEach(async () => {
+	/** server.close only errors when the socket was never bound, which can't
+	 * happen here because makeServer always returns from listen(0). Ignore the
+	 * err arg so coverage doesn't carry a phantom reject branch. */
+	await Promise.all(servers.splice(0).map((s) => new Promise<void>((resolve) => s.close(() => resolve()))));
+});
+
+function makeServer(overrides?: { appOrigin?: string }): Server {
 	const app = express();
 	app.use("/embed", initEmbedRoutes({ appOrigin: overrides?.appOrigin ?? "https://readplace.com" }));
-	return app;
+	const server = app.listen(0);
+	servers.push(server);
+	return server;
 }
 
 describe("GET /embed", () => {
 	it("should return 200 and HTML content", async () => {
-		const response = await request(makeApp()).get("/embed");
+		const response = await request(makeServer()).get("/embed");
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
 	});
 
 	it("should render the hero title inside the embed page container", async () => {
-		const response = await request(makeApp()).get("/embed");
+		const response = await request(makeServer()).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
 		const page = doc.querySelector('[data-test-page="embed"]');
 		assert(page, "embed page container must be rendered");
@@ -28,7 +39,7 @@ describe("GET /embed", () => {
 	});
 
 	it("should render all three variants with numeric byte counts", async () => {
-		const response = await request(makeApp()).get("/embed");
+		const response = await request(makeServer()).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
 
 		expect(doc.querySelectorAll("[data-test-variant]")).toHaveLength(3);
@@ -41,7 +52,7 @@ describe("GET /embed", () => {
 	});
 
 	it("should render a URL input field inside the variants section so publishers can customise the snippets", async () => {
-		const response = await request(makeApp()).get("/embed");
+		const response = await request(makeServer()).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
 		const variants = doc.querySelector("#variants");
 		assert(variants, "variants section must be rendered");
@@ -52,7 +63,7 @@ describe("GET /embed", () => {
 	});
 
 	it("should render every variant preview as a live anchor that passes the page URL via the save endpoint", async () => {
-		const response = await request(makeApp()).get("/embed");
+		const response = await request(makeServer()).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
 
 		for (const id of ["preview-a", "preview-b", "preview-c"] as const) {
@@ -65,7 +76,7 @@ describe("GET /embed", () => {
 	});
 
 	it("should render every snippet source with the canonical save URL and PAGE_URL placeholder", async () => {
-		const response = await request(makeApp()).get("/embed");
+		const response = await request(makeServer()).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
 
 		for (const id of ["source-a", "source-b", "source-c"] as const) {
@@ -77,7 +88,7 @@ describe("GET /embed", () => {
 	});
 
 	it("should render the hero demo as snippet B pointing at the embed page itself", async () => {
-		const response = await request(makeApp()).get("/embed");
+		const response = await request(makeServer()).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
 		const demo = doc.querySelector('[data-test="hero-demo"]');
 		assert(demo, "hero demo container must be rendered");
@@ -87,7 +98,7 @@ describe("GET /embed", () => {
 	});
 
 	it("should render the quotable privacy statement", async () => {
-		const response = await request(makeApp()).get("/embed");
+		const response = await request(makeServer()).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
 		const privacy = doc.querySelector('[data-test="privacy-text"]');
 		assert(privacy, "privacy statement must be rendered");
@@ -96,18 +107,18 @@ describe("GET /embed", () => {
 	});
 
 	it("should expose a copy button for every snippet and the privacy paragraph", async () => {
-		const response = await request(makeApp()).get("/embed");
+		const response = await request(makeServer()).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelectorAll("button[data-copy]")).toHaveLength(4);
 	});
 
 	it("should include the copy-to-clipboard inline script", async () => {
-		const response = await request(makeApp()).get("/embed");
+		const response = await request(makeServer()).get("/embed");
 		expect(response.text).toContain("navigator.clipboard");
 	});
 
 	it("should register / with the default indexable robots directive", async () => {
-		const response = await request(makeApp()).get("/embed");
+		const response = await request(makeServer()).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
 		const robots = doc.querySelector('meta[name="robots"]');
 		assert(robots, "robots meta must be rendered");
@@ -115,7 +126,7 @@ describe("GET /embed", () => {
 	});
 
 	it("should substitute the Readplace app origin in live preview save links when appOrigin differs from the canonical value", async () => {
-		const response = await request(makeApp({ appOrigin: "http://127.0.0.1:9999" })).get("/embed");
+		const response = await request(makeServer({ appOrigin: "http://127.0.0.1:9999" })).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
 		const previewAnchor = doc.querySelector('[data-test="preview-b"] a');
 		assert(previewAnchor, "preview-b anchor must be rendered");
@@ -123,7 +134,7 @@ describe("GET /embed", () => {
 	});
 
 	it("should substitute the embed origin in live preview icon URLs so the dev server can serve them", async () => {
-		const response = await request(makeApp({ appOrigin: "http://localhost:3700" })).get("/embed");
+		const response = await request(makeServer({ appOrigin: "http://localhost:3700" })).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
 		const previewImg = doc.querySelector('[data-test="preview-a"] img');
 		assert(previewImg, "preview-a img must be rendered");
@@ -131,7 +142,7 @@ describe("GET /embed", () => {
 	});
 
 	it("should keep the canonical readplace.com URLs and PAGE_URL placeholder inside the copy-paste source blocks regardless of config", async () => {
-		const response = await request(makeApp({ appOrigin: "http://127.0.0.1:9999" })).get("/embed");
+		const response = await request(makeServer({ appOrigin: "http://127.0.0.1:9999" })).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
 		const source = doc.querySelector('[data-test="source-b"]');
 		assert(source, "source-b must be rendered");
@@ -141,7 +152,7 @@ describe("GET /embed", () => {
 	});
 
 	it("should link the footer back to the Readplace app origin", async () => {
-		const response = await request(makeApp()).get("/embed");
+		const response = await request(makeServer()).get("/embed");
 		const doc = new JSDOM(response.text).window.document;
 		const link = doc.querySelector('[data-test="link-app"]');
 		assert(link, "app link must be rendered");
@@ -151,13 +162,13 @@ describe("GET /embed", () => {
 
 describe("GET /embed/preview", () => {
 	it("should return 200 and HTML content", async () => {
-		const response = await request(makeApp()).get("/embed/preview");
+		const response = await request(makeServer()).get("/embed/preview");
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
 	});
 
 	it("should be marked noindex so search engines skip the developer preview", async () => {
-		const response = await request(makeApp()).get("/embed/preview");
+		const response = await request(makeServer()).get("/embed/preview");
 		const doc = new JSDOM(response.text).window.document;
 		const robots = doc.querySelector('meta[name="robots"]');
 		assert(robots, "robots meta must be rendered");
@@ -165,7 +176,7 @@ describe("GET /embed/preview", () => {
 	});
 
 	it("should render one stage per background", async () => {
-		const response = await request(makeApp()).get("/embed/preview");
+		const response = await request(makeServer()).get("/embed/preview");
 		const doc = new JSDOM(response.text).window.document;
 		for (const bg of ["white", "surface", "dark"] as const) {
 			const stage = doc.querySelector(`[data-test-bg="${bg}"]`);
@@ -174,7 +185,7 @@ describe("GET /embed/preview", () => {
 	});
 
 	it("should render each variant once inside every background stage", async () => {
-		const response = await request(makeApp()).get("/embed/preview");
+		const response = await request(makeServer()).get("/embed/preview");
 		const doc = new JSDOM(response.text).window.document;
 		const stages = doc.querySelectorAll(".embed-preview__stage");
 		expect(stages).toHaveLength(3);
@@ -186,7 +197,7 @@ describe("GET /embed/preview", () => {
 
 describe("GET /embed/icon.svg", () => {
 	it("should return the embed icon SVG with the correct content type and immutable cache header", async () => {
-		const response = await request(makeApp())
+		const response = await request(makeServer())
 			.get("/embed/icon.svg")
 			.buffer(true)
 			.parse((res, cb) => {

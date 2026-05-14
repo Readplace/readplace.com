@@ -9,7 +9,7 @@ import type {
 } from "@packages/test-fixtures/providers/article-parser";
 import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/article-crawl";
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
-import { createTestApp } from "../../../test-app";
+import { useTestServer } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -48,6 +48,8 @@ function ctaAction(doc: Document): Element {
 	return link;
 }
 
+const useApp = useTestServer();
+
 describe("View routes", () => {
 	describe("GET /view/<encoded-url>", () => {
 		it("renders the article body for an anonymous visitor (200)", async () => {
@@ -58,7 +60,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -75,7 +77,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -95,7 +97,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -112,7 +114,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ARTICLE_URL}`);
+			const response = await request(harness.server).get(`/view/${ARTICLE_URL}`);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -129,7 +131,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -146,7 +148,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(
+			const response = await request(harness.server).get(
 				`/view/${ARTICLE_URL.replace("://", ":/")}`,
 			);
 
@@ -165,7 +167,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -182,7 +184,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
@@ -202,7 +204,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -219,7 +221,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(
+			const response = await request(harness.server).get(
 				`/view/${ENCODED}?utm_source=medium&utm_campaign=x&foo=bar`,
 			);
 
@@ -241,7 +243,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -257,11 +259,12 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
+			const { auth } = harness;
 			await auth.createUser({
 				email: "reader@example.com",
 				password: "password123",
 			});
-			const agent = request.agent(app);
+			const agent = request.agent(harness.server);
 			await agent
 				.post("/login")
 				.type("form")
@@ -283,7 +286,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -299,11 +302,12 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
+			const { auth } = harness;
 			await auth.createUser({
 				email: "reader@example.com",
 				password: "password123",
 			});
-			const agent = request.agent(app);
+			const agent = request.agent(harness.server);
 			await agent
 				.post("/login")
 				.type("form")
@@ -326,7 +330,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -342,11 +346,12 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
+			const { auth } = harness;
 			await auth.createUser({
 				email: "owner@example.com",
 				password: "password123",
 			});
-			const ownerAgent = request.agent(app);
+			const ownerAgent = request.agent(harness.server);
 			await ownerAgent
 				.post("/login")
 				.type("form")
@@ -356,7 +361,7 @@ describe("View routes", () => {
 				.type("form")
 				.send({ url: ARTICLE_URL });
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
@@ -372,7 +377,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -389,7 +394,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const actions = doc.querySelectorAll("[data-test-view-cta-action]");
@@ -416,7 +421,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -433,7 +438,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const wrap = doc.querySelector("[data-test-share-balloon-wrap]");
@@ -470,7 +475,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -487,7 +492,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const closeBtn = doc.querySelector("[data-test-share-balloon-close]");
@@ -503,7 +508,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -520,7 +525,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const script = doc.querySelector(
@@ -538,7 +543,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -555,7 +560,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const status = doc.querySelector("[data-share-balloon-status]");
@@ -572,7 +577,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -589,7 +594,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const label = doc.querySelector("[data-test-share-balloon-copied]");
@@ -606,7 +611,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -623,7 +628,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const btn = doc.querySelector("[data-test-share-balloon]");
@@ -632,9 +637,9 @@ describe("View routes", () => {
 		});
 
 		it("is not rendered on the /view landing page", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app).get("/view");
+			const response = await request(harness.server).get("/view");
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector("[data-test-share-balloon]")).toBeNull();
@@ -648,7 +653,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -665,7 +670,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const avatar = doc.querySelector("[data-test-share-balloon-avatar]");
@@ -681,7 +686,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -698,7 +703,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(
@@ -726,7 +731,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -748,7 +753,7 @@ describe("View routes", () => {
  },
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-summary]");
@@ -772,7 +777,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -794,7 +799,7 @@ describe("View routes", () => {
  },
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-summary]");
@@ -818,7 +823,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -840,7 +845,7 @@ describe("View routes", () => {
  },
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-summary]");
@@ -868,7 +873,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -890,7 +895,7 @@ describe("View routes", () => {
  },
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-summary]");
@@ -918,7 +923,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -940,7 +945,7 @@ describe("View routes", () => {
  },
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-summary]");
@@ -960,7 +965,7 @@ describe("View routes", () => {
 				summary: "Fragment summary.",
 			});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
@@ -969,7 +974,7 @@ describe("View routes", () => {
  },
 			});
 
-			const response = await request(app).get(
+			const response = await request(harness.server).get(
 				`/view/summary?url=${encodeURIComponent(ARTICLE_URL)}`,
 			);
 
@@ -984,7 +989,7 @@ describe("View routes", () => {
 		it("increments the poll counter when status=pending under the cap", async () => {
 			const findGeneratedSummary: FindGeneratedSummary = async () => ({ status: "pending" });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
@@ -993,7 +998,7 @@ describe("View routes", () => {
  },
 			});
 
-			const response = await request(app).get(
+			const response = await request(harness.server).get(
 				`/view/summary?url=${encodeURIComponent(ARTICLE_URL)}&poll=5`,
 			);
 
@@ -1007,7 +1012,7 @@ describe("View routes", () => {
 		it("stops polling at the cap and renders a terminal message", async () => {
 			const findGeneratedSummary: FindGeneratedSummary = async () => ({ status: "pending" });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
@@ -1016,7 +1021,7 @@ describe("View routes", () => {
  },
 			});
 
-			const response = await request(app).get(
+			const response = await request(harness.server).get(
 				`/view/summary?url=${encodeURIComponent(ARTICLE_URL)}&poll=40`,
 			);
 
@@ -1031,9 +1036,9 @@ describe("View routes", () => {
 		});
 
 		it("returns 400 for an invalid url", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app).get("/view/summary?url=not-a-url");
+			const response = await request(harness.server).get("/view/summary?url=not-a-url");
 
 			expect(response.status).toBe(400);
 		});
@@ -1045,7 +1050,7 @@ describe("View routes", () => {
 			});
 			const findGeneratedSummary: FindGeneratedSummary = async () => ({ status: "pending" });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				articleCrawl:{
  	findArticleCrawlStatus: findArticleCrawlStatus,
@@ -1063,7 +1068,7 @@ describe("View routes", () => {
  },
 			});
 
-			const response = await request(app).get(
+			const response = await request(harness.server).get(
 				`/view/summary?url=${encodeURIComponent(ARTICLE_URL)}&poll=5`,
 			);
 
@@ -1096,7 +1101,7 @@ describe("View routes", () => {
 				parseArticle,
 			});
 			const fixedNow = new Date("2026-04-25T12:00:00.000Z");
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
 				events: {
@@ -1117,9 +1122,9 @@ describe("View routes", () => {
 
 			// Land on /view first so the row exists; then the reader poll has
 			// something to read back.
-			await request(app).get(`/view/${ENCODED}`);
+			await request(harness.server).get(`/view/${ENCODED}`);
 
-			const first = await request(app).get(
+			const first = await request(harness.server).get(
 				`/view/reader?url=${encodeURIComponent(ARTICLE_URL)}&poll=1`,
 			);
 			expect(first.status).toBe(200);
@@ -1137,7 +1142,7 @@ describe("View routes", () => {
 			// Format owned by view.component.ts — keep in sync if you change it there.
 			expect(titleEl.textContent).toMatch(/\| Reader View$/);
 
-			const second = await request(app)
+			const second = await request(harness.server)
 				.get(`/view/reader?url=${encodeURIComponent(ARTICLE_URL)}&poll=1`)
 				.set("If-None-Match", etag);
 			expect(second.status).toBe(304);
@@ -1154,7 +1159,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -1171,7 +1176,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(
@@ -1218,7 +1223,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -1235,7 +1240,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(
@@ -1256,7 +1261,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -1273,7 +1278,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const script = doc.querySelector('script[type="application/ld+json"]');
@@ -1291,7 +1296,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -1308,7 +1313,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(
@@ -1319,9 +1324,9 @@ describe("View routes", () => {
 
 	describe("Error paths", () => {
 		it("renders the error page for an invalid URL path param (unauthenticated)", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app).get(
+			const response = await request(harness.server).get(
 				`/view/${encodeURIComponent("not-a-url")}`,
 			);
 
@@ -1333,12 +1338,13 @@ describe("View routes", () => {
 		});
 
 		it("renders the error page redirecting to /queue when authenticated", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
 			await auth.createUser({
 				email: "test@example.com",
 				password: "password123",
 			});
-			const agent = request.agent(app);
+			const agent = request.agent(harness.server);
 			await agent
 				.post("/login")
 				.type("form")
@@ -1358,9 +1364,9 @@ describe("View routes", () => {
 		});
 
 		it("renders the landing form for GET /view without a path param", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app).get("/view");
+			const response = await request(harness.server).get("/view");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -1377,9 +1383,9 @@ describe("View routes", () => {
 		});
 
 		it("renders the landing form with UTM hidden inputs identifying the 'Open in reader view' click", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app).get("/view");
+			const response = await request(harness.server).get("/view");
 
 			const doc = new JSDOM(response.text).window.document;
 			const form = doc.querySelector("[data-test-view-landing-form]");
@@ -1399,9 +1405,9 @@ describe("View routes", () => {
 		});
 
 		it("redirects GET /view?url=<valid> to /view/<encoded-url>", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app).get(
+			const response = await request(harness.server).get(
 				`/view?url=${encodeURIComponent(ARTICLE_URL)}`,
 			);
 
@@ -1410,9 +1416,9 @@ describe("View routes", () => {
 		});
 
 		it("renders the save-error page when GET /view?url=<invalid>", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app).get("/view?url=not-a-url");
+			const response = await request(harness.server).get("/view?url=not-a-url");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -1421,9 +1427,10 @@ describe("View routes", () => {
 		});
 
 		it("renders the save-error page when GET /view/<chrome://...> and never saves an anonymous stub", async () => {
-			const { app, articleStore } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { articleStore } = harness;
 
-			const response = await request(app).get(
+			const response = await request(harness.server).get(
 				`/view/${encodeURIComponent("chrome://extensions/")}`,
 			);
 
@@ -1437,9 +1444,10 @@ describe("View routes", () => {
 		});
 
 		it("renders the save-error page when GET /view/<localhost> and never saves an anonymous stub", async () => {
-			const { app, articleStore } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { articleStore } = harness;
 
-			const response = await request(app).get(
+			const response = await request(harness.server).get(
 				`/view/${encodeURIComponent("http://localhost:3000/queue")}`,
 			);
 
@@ -1463,7 +1471,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -1480,7 +1488,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -1505,7 +1513,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, articleStore, articleCrawl } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -1521,6 +1529,7 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
+			const { articleStore, articleCrawl } = harness;
 			await articleStore.saveArticle({
 				userId: UserIdSchema.parse("seed-user"),
 				url: ARTICLE_URL,
@@ -1539,7 +1548,7 @@ describe("View routes", () => {
 			});
 			await articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			expect(response.status).toBe(200);
 			expect(parseSpy).not.toHaveBeenCalled();
@@ -1570,7 +1579,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, articleStore, articleCrawl } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -1586,6 +1595,7 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
+			const { articleStore, articleCrawl } = harness;
 			await articleStore.saveArticle({
 				userId: UserIdSchema.parse("seed-user"),
 				url: ARTICLE_URL,
@@ -1599,7 +1609,7 @@ describe("View routes", () => {
 			});
 			await articleCrawl.markCrawlFailed({ url: ARTICLE_URL, reason: "blocked" });
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			expect(response.status).toBe(200);
 			// /view never re-parses inline; recovery happens in the stale-check Lambda.
@@ -1625,7 +1635,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, articleStore } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -1641,8 +1651,9 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
+			const { articleStore } = harness;
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			expect(response.status).toBe(200);
 			expect(publishSaveAnonymousLink).toHaveBeenCalledTimes(1);
@@ -1664,7 +1675,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -1680,8 +1691,9 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
+			const { auth } = harness;
 			await auth.createUser({ email: "test@example.com", password: "password123" });
-			const agent = request.agent(app);
+			const agent = request.agent(harness.server);
 			await agent
 				.post("/login")
 				.type("form")
@@ -1708,7 +1720,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, articleStore, articleCrawl } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -1729,6 +1741,7 @@ describe("View routes", () => {
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
 			});
+			const { articleStore, articleCrawl } = harness;
 			await articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
 				metadata: {
@@ -1743,7 +1756,7 @@ describe("View routes", () => {
 			});
 			await articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
-			await request(app).get(`/view/${ENCODED}`);
+			await request(harness.server).get(`/view/${ENCODED}`);
 
 			expect(publishSaveAnonymousLink).not.toHaveBeenCalled();
 			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: ARTICLE_URL });
@@ -1763,7 +1776,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, articleStore } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -1779,6 +1792,7 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
+			const { articleStore } = harness;
 			await articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
 				metadata: {
@@ -1791,7 +1805,7 @@ describe("View routes", () => {
 				savedAt: new Date(),
 			});
 
-			await request(app).get(`/view/${ENCODED}`);
+			await request(harness.server).get(`/view/${ENCODED}`);
 
 			expect(publishSaveAnonymousLink).not.toHaveBeenCalled();
 			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: ARTICLE_URL });
@@ -1807,7 +1821,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, articleStore, articleCrawl } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -1823,6 +1837,7 @@ describe("View routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
+			const { articleStore, articleCrawl } = harness;
 			await articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
 				metadata: {
@@ -1840,8 +1855,8 @@ describe("View routes", () => {
 			// visit would have re-published SaveAnonymousLinkCommand. Now it must
 			// stay quiet for both — the stale-check Lambda observes a failed row
 			// and short-circuits to action=skip.
-			await request(app).get(`/view/${ENCODED}`);
-			await request(app).get(`/view/${ENCODED}`);
+			await request(harness.server).get(`/view/${ENCODED}`);
+			await request(harness.server).get(`/view/${ENCODED}`);
 
 			expect(publishSaveAnonymousLink).not.toHaveBeenCalled();
 			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: ARTICLE_URL });
@@ -1849,13 +1864,14 @@ describe("View routes", () => {
 
 		it("renders the unsupported reader slot for a cached article whose crawl was marked unsupported, with no polling stub", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app, articleStore, articleCrawl } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				events: {
 					...fixture.events,
 					publishSaveAnonymousLink: async () => {},
 				},
 			});
+			const { articleStore, articleCrawl } = harness;
 			await articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
 				metadata: {
@@ -1872,7 +1888,7 @@ describe("View routes", () => {
 				reason: "non-html content type: application/pdf",
 			});
 
-			const response = await request(app).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -1891,7 +1907,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -1908,7 +1924,7 @@ describe("View routes", () => {
 				},
 			});
 
-			await request(app).get(`/view/${ENCODED}`);
+			await request(harness.server).get(`/view/${ENCODED}`);
 
 			expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: ARTICLE_URL });
 		});
@@ -1928,7 +1944,7 @@ describe("View routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: {
 					parseArticle,
@@ -1945,7 +1961,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.get(`/view/${ENCODED}`)
 				.set("Accept", "text/markdown");
 
@@ -1962,7 +1978,7 @@ describe("View routes", () => {
 
 		it("returns markdown with empty body when article content is not yet available", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				events: {
 					...fixture.events,
@@ -1970,7 +1986,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.get(`/view/${ENCODED}`)
 				.set("Accept", "text/markdown");
 
@@ -1981,9 +1997,9 @@ describe("View routes", () => {
 		});
 
 		it("renders the landing page as markdown when /view is requested without a URL", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.get("/view")
 				.set("Accept", "text/markdown");
 

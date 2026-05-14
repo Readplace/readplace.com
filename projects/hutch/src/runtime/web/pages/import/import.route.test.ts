@@ -1,21 +1,11 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { createTestApp, type TestAppResult } from "../../../test-app";
+import { useTestServer, loginAgent } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
-
-async function loginAgent(app: TestAppResult["app"], auth: TestAppResult["auth"]) {
-	await auth.createUser({ email: "test@example.com", password: "password123" });
-	const agent = request.agent(app);
-	await agent
-		.post("/login")
-		.type("form")
-		.send({ email: "test@example.com", password: "password123" });
-	return agent;
-}
 
 function summaryText(doc: Document): string {
 	return doc.querySelector("[data-test-import-summary]")?.textContent?.replace(/\s+/g, " ").trim() ?? "";
@@ -39,11 +29,13 @@ function multipartBody(filename: string, content: Buffer): { body: Buffer; conte
 	};
 }
 
+const useApp = useTestServer();
+
 describe("Import routes", () => {
 	describe("GET /import (unauthenticated)", () => {
 		it("redirects to /login", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/import?feature=import");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/import?feature=import");
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/login");
 		});
@@ -51,8 +43,8 @@ describe("Import routes", () => {
 
 	describe("GET /import (authenticated)", () => {
 		it("renders the upload form when the feature flag is on", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/import?feature=import");
 
@@ -67,8 +59,8 @@ describe("Import routes", () => {
 		});
 
 		it("redirects to /queue when the feature flag is missing", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/import");
 
@@ -77,8 +69,8 @@ describe("Import routes", () => {
 		});
 
 		it("renders the import_no_urls message when error_code=import_no_urls", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/import?feature=import&error_code=import_no_urls");
 
@@ -90,8 +82,8 @@ describe("Import routes", () => {
 		});
 
 		it("renders the import_too_large message when error_code=import_too_large", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/import?feature=import&error_code=import_too_large");
 
@@ -102,8 +94,8 @@ describe("Import routes", () => {
 		});
 
 		it("renders the import_session_not_found message when error_code=import_session_not_found", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/import?feature=import&error_code=import_session_not_found");
 
@@ -114,8 +106,8 @@ describe("Import routes", () => {
 		});
 
 		it("does not render the error banner when no error_code is present", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/import?feature=import");
 
@@ -126,8 +118,8 @@ describe("Import routes", () => {
 
 	describe("POST /import (unauthenticated)", () => {
 		it("redirects to /login", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).post("/import");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).post("/import");
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/login");
 		});
@@ -135,8 +127,8 @@ describe("Import routes", () => {
 
 	describe("POST /import", () => {
 		it("creates a session and redirects to the review page when URLs are found", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from(
 				"<a href=\"https://example.com/post-1\">x</a> https://example.com/post-2",
 			);
@@ -152,8 +144,8 @@ describe("Import routes", () => {
 		});
 
 		it("redirects with import_no_urls when no URLs are found", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			const { body, contentType } = multipartBody("empty.txt", Buffer.from("just some prose"));
 
 			const response = await agent
@@ -166,8 +158,8 @@ describe("Import routes", () => {
 		});
 
 		it("redirects with import_too_large when the upload exceeds the size cap", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			// 6 MiB body — overshoots the 5 MiB cap so express.raw aborts with
 			// `entity.too.large`, which the size-limit error handler maps to the
 			// import_too_large flash.
@@ -184,8 +176,8 @@ describe("Import routes", () => {
 		});
 
 		it("redirects with import_no_urls for non-multipart bodies", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
 				.post("/import")
@@ -199,8 +191,8 @@ describe("Import routes", () => {
 
 	describe("GET /import/:id", () => {
 		it("renders the review screen with all URLs checked by default", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from(
 				"https://example.com/post-1 https://example.com/post-2 https://example.com/post-3",
 			);
@@ -224,8 +216,8 @@ describe("Import routes", () => {
 		});
 
 		it("redirects to /queue for an invalid session id", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/import/not-a-session-id");
 
@@ -235,16 +227,17 @@ describe("Import routes", () => {
 
 		it("redirects with import_session_not_found when the session is owned by another user", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app, auth } = createTestApp(fixture);
+			const harness = useApp(fixture);
+			const { auth } = harness;
 			await auth.createUser({ email: "owner@example.com", password: "password123" });
-			const owner = request.agent(app);
+			const owner = request.agent(harness.server);
 			await owner.post("/login").type("form").send({ email: "owner@example.com", password: "password123" });
 			const { body, contentType } = multipartBody("urls.txt", Buffer.from("https://example.com/owned"));
 			const create = await owner.post("/import").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 
 			await auth.createUser({ email: "intruder@example.com", password: "password123" });
-			const intruder = request.agent(app);
+			const intruder = request.agent(harness.server);
 			await intruder.post("/login").type("form").send({ email: "intruder@example.com", password: "password123" });
 
 			const response = await intruder.get(sessionPath);
@@ -254,8 +247,8 @@ describe("Import routes", () => {
 		});
 
 		it("paginates results across pages", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			const urls = Array.from({ length: 60 }, (_v, i) => `https://example.com/post-${i}`);
 			const { body, contentType } = multipartBody("many.txt", Buffer.from(urls.join("\n")));
 			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
@@ -272,8 +265,8 @@ describe("Import routes", () => {
 
 	describe("POST /import/:id/toggle", () => {
 		it("deselects a row and updates the selection summary", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from("https://example.com/a https://example.com/b");
 			const { body, contentType } = multipartBody("urls.txt", file);
 			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
@@ -297,8 +290,8 @@ describe("Import routes", () => {
 		});
 
 		it("returns 422 for malformed body", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			const { body, contentType } = multipartBody("urls.txt", Buffer.from("https://example.com/a"));
 			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
 
@@ -311,8 +304,8 @@ describe("Import routes", () => {
 		});
 
 		it("returns 422 for an invalid session id format", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
 				.post("/import/not-an-id/toggle")
@@ -325,8 +318,8 @@ describe("Import routes", () => {
 
 	describe("GET /import/:id master checkbox", () => {
 		it("renders the master checkbox checked when every row is selected", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from("https://example.com/a https://example.com/b");
 			const { body, contentType } = multipartBody("urls.txt", file);
 			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
@@ -341,8 +334,8 @@ describe("Import routes", () => {
 		});
 
 		it("renders the master checkbox unchecked-with-indeterminate when partially selected", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from("https://example.com/a https://example.com/b");
 			const { body, contentType } = multipartBody("urls.txt", file);
 			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
@@ -362,8 +355,8 @@ describe("Import routes", () => {
 		});
 
 		it("renders the master checkbox unchecked with no indeterminate marker when all are deselected", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from("https://example.com/a https://example.com/b");
 			const { body, contentType } = multipartBody("urls.txt", file);
 			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
@@ -382,8 +375,8 @@ describe("Import routes", () => {
 
 	describe("POST /import/:id/toggle-all", () => {
 		it("deselects every row and updates the summary to 0 of N", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from("https://example.com/a https://example.com/b https://example.com/c");
 			const { body, contentType } = multipartBody("urls.txt", file);
 			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
@@ -406,8 +399,8 @@ describe("Import routes", () => {
 		});
 
 		it("re-selects every row from a partially-deselected state", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from("https://example.com/a https://example.com/b");
 			const { body, contentType } = multipartBody("urls.txt", file);
 			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
@@ -433,8 +426,8 @@ describe("Import routes", () => {
 		});
 
 		it("deselects rows on pages the user is not currently viewing", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			const urls = Array.from({ length: 60 }, (_v, i) => `https://example.com/post-${i}`);
 			const { body, contentType } = multipartBody("many.txt", Buffer.from(urls.join("\n")));
 			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
@@ -452,8 +445,8 @@ describe("Import routes", () => {
 		});
 
 		it("preserves the current page in the redirect", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			const urls = Array.from({ length: 60 }, (_v, i) => `https://example.com/post-${i}`);
 			const { body, contentType } = multipartBody("many.txt", Buffer.from(urls.join("\n")));
 			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
@@ -469,8 +462,8 @@ describe("Import routes", () => {
 		});
 
 		it("returns 422 for malformed body", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			const { body, contentType } = multipartBody("urls.txt", Buffer.from("https://example.com/a"));
 			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
 
@@ -483,8 +476,8 @@ describe("Import routes", () => {
 		});
 
 		it("returns 422 for an invalid session id format", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent
 				.post("/import/not-an-id/toggle-all")
@@ -497,8 +490,9 @@ describe("Import routes", () => {
 
 	describe("POST /import/:id/commit", () => {
 		it("imports selected URLs into the user's queue and deletes the session", async () => {
-			const { app, auth, articleStore } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, articleStore } = harness;
+			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from(
 				"https://example.com/a https://example.com/b https://example.com/c",
 			);
@@ -527,8 +521,8 @@ describe("Import routes", () => {
 		});
 
 		it("redirects when the session id is malformed", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.post("/import/not-an-id/commit");
 
@@ -537,8 +531,8 @@ describe("Import routes", () => {
 		});
 
 		it("redirects when the session no longer exists", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.post("/import/00000000000000000000000000000000/commit");
 
@@ -547,8 +541,9 @@ describe("Import routes", () => {
 		});
 
 		it("skips non-saveable URLs, imports the rest, and reports skipped count in the redirect", async () => {
-			const { app, auth, articleStore } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, articleStore } = harness;
+			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from(
 				"https://example.com/a http://localhost:3000/queue http://router.home.arpa/ https://example.com/b",
 			);
@@ -573,8 +568,8 @@ describe("Import routes", () => {
 		});
 
 		it("does not set the import_skipped cookie when every URL is saveable", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from("https://example.com/a https://example.com/b");
 			const { body, contentType } = multipartBody("urls.txt", file);
 			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
@@ -591,8 +586,8 @@ describe("Import routes", () => {
 		});
 
 		it("renders the skipped URLs on /queue after commit and clears the cookie on first view", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
 			const file = Buffer.from(
 				"https://example.com/a http://localhost/secret http://router.home.arpa/",
 			);

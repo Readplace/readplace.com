@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { createTestApp } from "../../test-app";
+import { useTestServer } from "../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
@@ -17,10 +17,12 @@ async function seedAboveFoundingLimit(auth: { createUser: (params: { email: stri
 	}
 }
 
+const useApp = useTestServer();
+
 describe("GET /auth/checkout/success", () => {
 	it("renders an error and 400 when the session_id query param is missing", async () => {
-		const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(app).get("/auth/checkout/success");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/auth/checkout/success");
 
 		expect(response.status).toBe(400);
 		const doc = new JSDOM(response.text).window.document;
@@ -30,8 +32,8 @@ describe("GET /auth/checkout/success", () => {
 	});
 
 	it("renders 404 when Stripe says the session does not exist", async () => {
-		const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(app).get("/auth/checkout/success?session_id=cs_test_unknown");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/auth/checkout/success?session_id=cs_test_unknown");
 
 		expect(response.status).toBe(404);
 		const doc = new JSDOM(response.text).window.document;
@@ -39,10 +41,11 @@ describe("GET /auth/checkout/success", () => {
 	});
 
 	it("renders 402 when the checkout has not been paid yet", async () => {
-		const { app, auth, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, stripe } = harness;
 		await seedAboveFoundingLimit(auth);
 
-		const signup = await request(app).post("/signup").type("form").send({
+		const signup = await request(harness.server).post("/signup").type("form").send({
 			email: "unpaid@example.com",
 			password: "password123",
 			confirmPassword: "password123",
@@ -52,7 +55,7 @@ describe("GET /auth/checkout/success", () => {
 			new URL(signup.headers.location).pathname.replace(/^\//, ""),
 		);
 
-		const response = await request(app).get(
+		const response = await request(harness.server).get(
 			`/auth/checkout/success?session_id=${encodeURIComponent(checkoutSessionId)}`,
 		);
 
@@ -64,17 +67,18 @@ describe("GET /auth/checkout/success", () => {
 	});
 
 	it("renders 409 when the checkout has been paid but the pending signup was already consumed", async () => {
-		const { app, auth, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, stripe } = harness;
 
 		const { checkoutSessionId } = await completeStripeSignup({
-			app,
+			server: harness.server,
 			auth,
 			stripe,
 			email: "double@example.com",
 			password: "password123",
 		});
 
-		const replay = await request(app).get(
+		const replay = await request(harness.server).get(
 			`/auth/checkout/success?session_id=${encodeURIComponent(checkoutSessionId)}`,
 		);
 
@@ -84,10 +88,11 @@ describe("GET /auth/checkout/success", () => {
 	});
 
 	it("creates the user, sets a session cookie, and redirects to /queue on first paid visit", async () => {
-		const { app, auth, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, stripe } = harness;
 
 		const { successResponse } = await completeStripeSignup({
-			app,
+			server: harness.server,
 			auth,
 			stripe,
 			email: "buyer@example.com",
@@ -110,10 +115,11 @@ describe("GET /auth/checkout/success", () => {
 	});
 
 	it("renders 409 when the email has been claimed since the Stripe redirect started", async () => {
-		const { app, auth, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, stripe } = harness;
 		await seedAboveFoundingLimit(auth);
 
-		const signup = await request(app).post("/signup").type("form").send({
+		const signup = await request(harness.server).post("/signup").type("form").send({
 			email: "race@example.com",
 			password: "password123",
 			confirmPassword: "password123",
@@ -126,7 +132,7 @@ describe("GET /auth/checkout/success", () => {
 
 		await auth.createUser({ email: "race@example.com", password: "different-password" });
 
-		const response = await request(app).get(
+		const response = await request(harness.server).get(
 			`/auth/checkout/success?session_id=${encodeURIComponent(checkoutSessionId)}`,
 		);
 
@@ -137,7 +143,8 @@ describe("GET /auth/checkout/success", () => {
 
 	it("creates a Google user with a verified email after Stripe success", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const { app, auth, stripe, pendingSignup } = createTestApp(fixture);
+		const harness = useApp(fixture);
+		const { auth, stripe, pendingSignup } = harness;
 		const { UserIdSchema } = await import("@packages/domain/user");
 
 		const checkout = await stripe.createCheckoutSession({
@@ -155,7 +162,7 @@ describe("GET /auth/checkout/success", () => {
 		});
 		stripe.markPaid(checkout.id);
 
-		const response = await request(app).get(
+		const response = await request(harness.server).get(
 			`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
 		);
 
@@ -169,7 +176,8 @@ describe("GET /auth/checkout/success", () => {
 
 	it("sends a welcome email after a new Google user completes Stripe checkout", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const { app, email, stripe, pendingSignup } = createTestApp(fixture);
+		const harness = useApp(fixture);
+		const { email, stripe, pendingSignup } = harness;
 		const { UserIdSchema } = await import("@packages/domain/user");
 
 		const checkout = await stripe.createCheckoutSession({
@@ -187,7 +195,7 @@ describe("GET /auth/checkout/success", () => {
 		});
 		stripe.markPaid(checkout.id);
 
-		await request(app).get(
+		await request(harness.server).get(
 			`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
 		);
 
@@ -202,7 +210,8 @@ describe("GET /auth/checkout/success", () => {
 
 	it("logs the existing user in when a Google sign-up arrives for an email that already exists", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const { app, auth, stripe, pendingSignup } = createTestApp(fixture);
+		const harness = useApp(fixture);
+		const { auth, stripe, pendingSignup } = harness;
 		const { UserIdSchema } = await import("@packages/domain/user");
 
 		const existing = await auth.createUser({
@@ -226,7 +235,7 @@ describe("GET /auth/checkout/success", () => {
 		});
 		stripe.markPaid(checkout.id);
 
-		const response = await request(app).get(
+		const response = await request(harness.server).get(
 			`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
 		);
 
@@ -240,7 +249,8 @@ describe("GET /auth/checkout/success", () => {
 
 	it("does not send a welcome email when a Google sign-up falls back to an existing email/password account", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const { app, auth, email, stripe, pendingSignup } = createTestApp(fixture);
+		const harness = useApp(fixture);
+		const { auth, email, stripe, pendingSignup } = harness;
 		const { UserIdSchema } = await import("@packages/domain/user");
 
 		const existing = await auth.createUser({
@@ -264,7 +274,7 @@ describe("GET /auth/checkout/success", () => {
 		});
 		stripe.markPaid(checkout.id);
 
-		await request(app).get(
+		await request(harness.server).get(
 			`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
 		);
 

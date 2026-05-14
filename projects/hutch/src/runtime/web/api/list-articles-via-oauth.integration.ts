@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import request from "supertest";
-import { createTestApp } from "../../test-app";
+import { useTestServer } from "../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -18,12 +18,14 @@ function generatePkce() {
 	return { codeVerifier, codeChallenge };
 }
 
+const useApp = useTestServer();
+
 describe("List articles via OAuth flow", () => {
 	it("returns empty collection after logging in via OAuth", async () => {
-		const testApp = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-		await testApp.auth.createUser({ email: "test@example.com", password: "password123" });
-		const agent = request.agent(testApp.app);
+		await harness.auth.createUser({ email: "test@example.com", password: "password123" });
+		const agent = request.agent(harness.server);
 		await agent
 			.post("/login")
 			.type("form")
@@ -49,7 +51,7 @@ describe("List articles via OAuth flow", () => {
 		const authorizationCode = redirectUrl.searchParams.get("code");
 		expect(authorizationCode).toBeTruthy();
 
-		const tokenResponse = await request(testApp.app)
+		const tokenResponse = await request(harness.server)
 			.post("/oauth/token")
 			.type("form")
 			.send({
@@ -64,7 +66,7 @@ describe("List articles via OAuth flow", () => {
 		const accessToken = tokenResponse.body.access_token;
 		expect(accessToken).toBeTruthy();
 
-		const response = await request(testApp.app)
+		const response = await request(harness.server)
 			.get("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`);

@@ -3,7 +3,7 @@ import request from "supertest";
 import type { Token, Client } from "@node-oauth/oauth2-server";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/test-fixtures/providers/events";
 import type { UserId } from "@packages/domain/user";
-import { createTestApp, type TestAppResult } from "../../../test-app";
+import { useTestServer, type TestAppHarness, type TestAppResult } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -37,8 +37,15 @@ async function createAccessToken(testApp: TestAppResult): Promise<string> {
 	return token.accessToken;
 }
 
+const useApp = useTestServer();
+
 describe("POST /queue/save-html", () => {
-	function setup() {
+	function setup(): {
+		testApp: TestAppHarness;
+		pendingHtml: TestAppHarness["pendingHtml"];
+		publishedSaveHtml: Parameters<PublishSaveLinkRawHtmlCommand>[0][];
+		publishedLinkSaved: { url: string; userId: string }[];
+	} {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const publishedSaveHtml: Parameters<PublishSaveLinkRawHtmlCommand>[0][] = [];
 		const publishedLinkSaved: { url: string; userId: string }[] = [];
@@ -47,7 +54,7 @@ describe("POST /queue/save-html", () => {
 			publishedSaveHtml.push(params);
 		};
 
-		const testApp = createTestApp({
+		const testApp = useApp({
 			...fixture,
 			events: {
 				publishLinkSaved: async (params) => {
@@ -69,7 +76,7 @@ describe("POST /queue/save-html", () => {
 		const { testApp } = setup();
 		const accessToken = await createAccessToken(testApp);
 
-		const response = await request(testApp.app)
+		const response = await request(testApp.server)
 			.post("/queue/save-html")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -90,7 +97,7 @@ describe("POST /queue/save-html", () => {
 		const { testApp, publishedSaveHtml, publishedLinkSaved } = setup();
 		const accessToken = await createAccessToken(testApp);
 
-		await request(testApp.app)
+		await request(testApp.server)
 			.post("/queue/save-html")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -115,7 +122,7 @@ describe("POST /queue/save-html", () => {
 		const { testApp, pendingHtml } = setup();
 		const accessToken = await createAccessToken(testApp);
 
-		await request(testApp.app)
+		await request(testApp.server)
 			.post("/queue/save-html")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -131,7 +138,7 @@ describe("POST /queue/save-html", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const errors: Error[] = [];
 
-		const testApp = createTestApp({
+		const testApp = useApp({
 			...fixture,
 			events: {
 				publishLinkSaved: fixture.events.publishLinkSaved,
@@ -155,7 +162,7 @@ describe("POST /queue/save-html", () => {
 		});
 		const accessToken = await createAccessToken(testApp);
 
-		const response = await request(testApp.app)
+		const response = await request(testApp.server)
 			.post("/queue/save-html")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -174,7 +181,7 @@ describe("POST /queue/save-html", () => {
 		const accessToken = await createAccessToken(testApp);
 
 		const oversized = "x".repeat(MAX_RAW_HTML_BYTES + 1024);
-		const response = await request(testApp.app)
+		const response = await request(testApp.server)
 			.post("/queue/save-html")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -195,7 +202,7 @@ describe("POST /queue/save-html", () => {
 		const accessToken = await createAccessToken(testApp);
 
 		const oversized = "x".repeat(MAX_RAW_HTML_BYTES + 1024);
-		const response = await request(testApp.app)
+		const response = await request(testApp.server)
 			.post("/queue/save-html")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -213,7 +220,7 @@ describe("POST /queue/save-html", () => {
 		const accessToken = await createAccessToken(testApp);
 
 		const oversized = "x".repeat(MAX_RAW_HTML_REQUEST_BYTES + 1024);
-		const response = await request(testApp.app)
+		const response = await request(testApp.server)
 			.post("/queue/save-html")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -238,7 +245,7 @@ describe("POST /queue/save-html", () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const parseErrorCalls: { url: string | null; reason: string }[] = [];
 
-		const testApp = createTestApp({
+		const testApp = useApp({
 			...fixture,
 			shared: {
 				validateSaveableUrl: fixture.shared.validateSaveableUrl,
@@ -253,7 +260,7 @@ describe("POST /queue/save-html", () => {
 		const accessToken = await createAccessToken(testApp);
 
 		const oversized = "x".repeat(MAX_RAW_HTML_REQUEST_BYTES + 1);
-		await request(testApp.app)
+		await request(testApp.server)
 			.post("/queue/save-html")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -268,7 +275,7 @@ describe("POST /queue/save-html", () => {
 		const { testApp } = setup();
 		const accessToken = await createAccessToken(testApp);
 
-		const response = await request(testApp.app)
+		const response = await request(testApp.server)
 			.post("/queue/save-html")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -281,7 +288,7 @@ describe("POST /queue/save-html", () => {
 	it("returns 406 when an authenticated cookie session requests text/html on a Siren-only route", async () => {
 		const { testApp } = setup();
 		await testApp.auth.createUser({ email: "test@example.com", password: "password123" });
-		const agent = request.agent(testApp.app);
+		const agent = request.agent(testApp.server);
 		await agent
 			.post("/login")
 			.type("form")
@@ -302,7 +309,7 @@ describe("POST /queue/save-html", () => {
 		const { testApp, publishedSaveHtml, publishedLinkSaved } = setup();
 		const accessToken = await createAccessToken(testApp);
 
-		const response = await request(testApp.app)
+		const response = await request(testApp.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
@@ -317,7 +324,7 @@ describe("POST /queue/save-html", () => {
 describe("Collection-Siren advertises both save actions", () => {
 	it("includes both save-article and save-html actions on the queue collection", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const testApp = createTestApp({
+		const testApp = useApp({
 			...fixture,
 			events: {
 				publishLinkSaved: fixture.events.publishLinkSaved,
@@ -331,7 +338,7 @@ describe("Collection-Siren advertises both save actions", () => {
 		});
 		const accessToken = await createAccessToken(testApp);
 
-		const response = await request(testApp.app)
+		const response = await request(testApp.server)
 			.get("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`);

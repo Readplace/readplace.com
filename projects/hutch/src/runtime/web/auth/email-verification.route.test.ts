@@ -1,35 +1,24 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { createTestApp } from "../../test-app";
+import { useTestServer } from "../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 
-import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
-import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
-import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { initInMemoryEmailVerification } from "@packages/test-fixtures/providers/email-verification";
-import { initInMemoryPasswordReset } from "@packages/test-fixtures/providers/password-reset";
-import { initInMemoryStripeCheckout } from "@packages/test-fixtures/providers/stripe-checkout";
-import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pending-signup";
-import { createOAuthModel, initInMemoryOAuthModel } from "@packages/test-fixtures/providers/oauth";
-import { createValidateAccessToken } from "@packages/test-fixtures/providers/oauth";
-import { initInMemoryImportSession } from "@packages/test-fixtures/providers/import-session";
-import { validateSaveableUrl } from "@packages/domain/article";
-import { createApp } from "../../server";
-import { httpErrorMessageMapping } from "../pages/queue/queue.error";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
-import { initFoundingAllocation } from "../shared/founding-progress/founding-allocation";
+
+const useApp = useTestServer();
 
 describe("Email verification", () => {
 	describe("POST /signup → Stripe → success", () => {
 		it("should send a verification email after successful Stripe checkout", async () => {
-			const { app, auth, email, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, email, stripe } = harness;
 
 			await completeStripeSignup({
-				app,
+				server: harness.server,
 				auth,
 				stripe,
 				email: "new@example.com",
@@ -45,64 +34,26 @@ describe("Email verification", () => {
 		});
 
 		it("should complete signup even when email sending fails", async () => {
-			const auth = initInMemoryAuth();
-			const articleStore = initInMemoryArticleStore();
-			const oauthModel = createOAuthModel(initInMemoryOAuthModel());
-			const emailVerification = initInMemoryEmailVerification();
-			const passwordReset = initInMemoryPasswordReset();
-			const stripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
-			const pendingSignup = initInMemoryPendingSignup();
-
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			let resolveErrorLogged: () => void;
 			const errorLogged = new Promise<void>((resolve) => {
 				resolveErrorLogged = resolve;
 			});
-
-			const app = createApp({
-				validateSaveableUrl,
-				adminEmails: [],
-				recrawlServiceToken: "test-service-token-abcdefghij",
-				appOrigin: "http://localhost:3000",
-				staticBaseUrl: "",
-				...auth,
-				...articleStore,
-				readArticleContent: (url: string) => articleStore.readContent(ArticleResourceUniqueId.parse(url)),
-				...emailVerification,
-				...passwordReset,
-				createCheckoutSession: stripe.createCheckoutSession,
-				retrieveCheckoutSession: stripe.retrieveCheckoutSession,
-				storePendingSignup: pendingSignup.storePendingSignup,
-				consumePendingSignup: pendingSignup.consumePendingSignup,
-				sendEmail: async () => { throw new Error("Email service down"); },
-				baseUrl: "http://localhost:3000",
-				logError: () => { resolveErrorLogged(); },
-				oauthModel,
-				validateAccessToken: createValidateAccessToken(oauthModel),
-				publishLinkSaved: async () => {},
-				publishRecrawlLinkInitiated: async () => {},
-				publishSaveAnonymousLink: async () => {},
-				publishSaveLinkRawHtmlCommand: async () => {},
-				publishStaleCheckRequested: async () => {},
-				publishExportUserDataCommand: async () => {},
-				findGeneratedSummary: async () => undefined,
-				markSummaryPending: async () => {},
-				forceMarkSummaryPending: async () => {},
-				findArticleCrawlStatus: async () => undefined,
-				markCrawlPending: async () => {},
-				forceMarkCrawlPending: async () => {},
-				refreshArticleIfStale: async () => ({ action: "new" as const }),
-				publishUpdateFetchTimestamp: async () => {},
-				putPendingHtml: async () => {},
-				httpErrorMessageMapping,
-				logParseError: () => {},
-				importSessionStore: initInMemoryImportSession({ now: () => new Date() }),
-				now: () => new Date(),
-				botDefenseLogger: { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} },
-				foundingAllocation: initFoundingAllocation({ foundingMemberLimit: 3 }),
+			const harness = useApp({
+				...fixture,
+				email: {
+					...fixture.email,
+					sendEmail: async () => { throw new Error("Email service down"); },
+				},
+				shared: {
+					...fixture.shared,
+					logError: () => { resolveErrorLogged(); },
+				},
 			});
+			const { auth, stripe } = harness;
 
 			const { successResponse } = await completeStripeSignup({
-				app,
+				server: harness.server,
 				auth,
 				stripe,
 				email: "fail-email@example.com",
@@ -114,10 +65,11 @@ describe("Email verification", () => {
 		});
 
 		it("should not send a verification email when signup fails (duplicate email)", async () => {
-			const { app, auth, email } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, email } = harness;
 			await auth.createUser({ email: "existing@example.com", password: "password123" });
 
-			await request(app).post("/signup").type("form").send({
+			await request(harness.server).post("/signup").type("form").send({
 				email: "existing@example.com",
 				password: "password123",
 				confirmPassword: "password123",
@@ -130,10 +82,11 @@ describe("Email verification", () => {
 
 	describe("GET /verify-email", () => {
 		it("should verify email with a valid token", async () => {
-			const { app, auth, email, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, email, stripe } = harness;
 
 			await completeStripeSignup({
-				app,
+				server: harness.server,
 				auth,
 				stripe,
 				email: "verify@example.com",
@@ -145,7 +98,7 @@ describe("Email verification", () => {
 			assert(tokenMatch, "Expected token in verification email");
 			const token = tokenMatch[1];
 
-			const verifyResponse = await request(app).get(`/verify-email?token=${token}`);
+			const verifyResponse = await request(harness.server).get(`/verify-email?token=${token}`);
 
 			expect(verifyResponse.status).toBe(200);
 			const doc = new JSDOM(verifyResponse.text).window.document;
@@ -153,9 +106,9 @@ describe("Email verification", () => {
 		});
 
 		it("should reject an invalid token", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app).get("/verify-email?token=invalidtoken");
+			const response = await request(harness.server).get("/verify-email?token=invalidtoken");
 
 			expect(response.status).toBe(400);
 			const doc = new JSDOM(response.text).window.document;
@@ -163,9 +116,9 @@ describe("Email verification", () => {
 		});
 
 		it("should reject when no token is provided", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app).get("/verify-email");
+			const response = await request(harness.server).get("/verify-email");
 
 			expect(response.status).toBe(400);
 			const doc = new JSDOM(response.text).window.document;
@@ -173,10 +126,11 @@ describe("Email verification", () => {
 		});
 
 		it("should reject a token that has already been used", async () => {
-			const { app, auth, email, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, email, stripe } = harness;
 
 			await completeStripeSignup({
-				app,
+				server: harness.server,
 				auth,
 				stripe,
 				email: "once@example.com",
@@ -188,8 +142,8 @@ describe("Email verification", () => {
 			assert(tokenMatch, "Expected token in verification email");
 			const token = tokenMatch[1];
 
-			await request(app).get(`/verify-email?token=${token}`);
-			const secondResponse = await request(app).get(`/verify-email?token=${token}`);
+			await request(harness.server).get(`/verify-email?token=${token}`);
+			const secondResponse = await request(harness.server).get(`/verify-email?token=${token}`);
 
 			expect(secondResponse.status).toBe(400);
 			const doc = new JSDOM(secondResponse.text).window.document;
@@ -197,10 +151,11 @@ describe("Email verification", () => {
 		});
 
 		it("should mark email as verified after successful verification", async () => {
-			const { app, auth, email, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, email, stripe } = harness;
 
 			const { successResponse } = await completeStripeSignup({
-				app,
+				server: harness.server,
 				auth,
 				stripe,
 				email: "flag@example.com",
@@ -222,7 +177,7 @@ describe("Email verification", () => {
 			assert(tokenMatch, "Expected token in verification email");
 			const token = tokenMatch[1];
 
-			await request(app).get(`/verify-email?token=${token}`).set("Cookie", `hutch_sid=${sessionId}`);
+			await request(harness.server).get(`/verify-email?token=${token}`).set("Cookie", `hutch_sid=${sessionId}`);
 
 			const updatedSession = await auth.getSessionUserId(sessionId);
 			assert(updatedSession, "Expected session to exist after verification");
@@ -230,10 +185,11 @@ describe("Email verification", () => {
 		});
 
 		it("should not mark email as verified when token is invalid", async () => {
-			const { app, auth, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, stripe } = harness;
 
 			const { successResponse } = await completeStripeSignup({
-				app,
+				server: harness.server,
 				auth,
 				stripe,
 				email: "noverify@example.com",
@@ -246,7 +202,7 @@ describe("Email verification", () => {
 			assert(sessionMatch, "Expected session cookie");
 			const sessionId = sessionMatch[1];
 
-			await request(app).get("/verify-email?token=invalidtoken").set("Cookie", `hutch_sid=${sessionId}`);
+			await request(harness.server).get("/verify-email?token=invalidtoken").set("Cookie", `hutch_sid=${sessionId}`);
 
 			const session = await auth.getSessionUserId(sessionId);
 			assert(session, "Expected session to exist");
@@ -254,10 +210,11 @@ describe("Email verification", () => {
 		});
 
 		it("should send a welcome email after successful verification", async () => {
-			const { app, auth, email, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, email, stripe } = harness;
 
 			await completeStripeSignup({
-				app,
+				server: harness.server,
 				auth,
 				stripe,
 				email: "welcome@example.com",
@@ -270,7 +227,7 @@ describe("Email verification", () => {
 			assert(tokenMatch, "Expected token in verification email");
 			const token = tokenMatch[1];
 
-			await request(app).get(`/verify-email?token=${token}`);
+			await request(harness.server).get(`/verify-email?token=${token}`);
 
 			const sent = email.getSentEmails();
 			expect(sent).toHaveLength(2);
@@ -283,17 +240,18 @@ describe("Email verification", () => {
 		});
 
 		it("should not send a welcome email when the verification token is invalid", async () => {
-			const { app, auth, email, stripe } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, email, stripe } = harness;
 
 			await completeStripeSignup({
-				app,
+				server: harness.server,
 				auth,
 				stripe,
 				email: "nowelcome@example.com",
 				password: "password123",
 			});
 
-			await request(app).get("/verify-email?token=invalidtoken");
+			await request(harness.server).get("/verify-email?token=invalidtoken");
 
 			const sent = email.getSentEmails();
 			expect(sent).toHaveLength(1);

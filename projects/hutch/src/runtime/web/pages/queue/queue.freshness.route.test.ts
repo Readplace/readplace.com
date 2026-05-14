@@ -1,22 +1,13 @@
-import request from "supertest";
 import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 import type { PublishRefreshArticleContent } from "@packages/test-fixtures/providers/events";
 import type { PublishUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
-import { createTestApp, type TestAppResult } from "../../../test-app";
+import { useTestServer, loginAgent } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 
-async function loginAgent(app: TestAppResult["app"], auth: TestAppResult["auth"]) {
-	await auth.createUser({ email: "test@example.com", password: "password123" });
-	const agent = request.agent(app);
-	await agent
-		.post("/login")
-		.type("form")
-		.send({ email: "test@example.com", password: "password123" });
-	return agent;
-}
+const useApp = useTestServer();
 
 describe("Queue freshness integration", () => {
 	it("publishes UpdateFetchTimestampCommand on first save, then RefreshArticleContentCommand on re-save", async () => {
@@ -53,7 +44,7 @@ describe("Queue freshness integration", () => {
 			staleTtlMs: 0,
 		});
 
-		const { app, auth } = createTestApp({
+		const harness = useApp({
 			...fixture,
 			events: {
 				publishLinkSaved: fixture.events.publishLinkSaved,
@@ -66,7 +57,8 @@ describe("Queue freshness integration", () => {
 			},
 			freshness: { refreshArticleIfStale },
 		});
-		const agent = await loginAgent(app, auth);
+		const { auth } = harness;
+		const agent = await loginAgent(harness.server, auth);
 
 		await agent
 			.post("/queue/save")

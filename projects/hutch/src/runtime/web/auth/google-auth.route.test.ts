@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { createTestApp } from "../../test-app";
+import { useTestServer } from "../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -45,11 +45,13 @@ function freshState(overrides?: { returnUrl?: string }) {
 	return { nonce: "test-nonce", returnUrl: overrides?.returnUrl, createdAt: Date.now() };
 }
 
+const useApp = useTestServer();
+
 describe("Google auth routes", () => {
 	describe("GET /auth/google", () => {
 		it("should redirect to Google with correct params and set state cookie", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				google: {
 					exchangeGoogleCode: stubExchange(),
@@ -57,7 +59,7 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
-			const response = await request(app).get("/auth/google");
+			const response = await request(harness.server).get("/auth/google");
 
 			expect(response.status).toBe(303);
 			const location = new URL(response.headers.location);
@@ -75,7 +77,7 @@ describe("Google auth routes", () => {
 	describe("GET /auth/google/callback", () => {
 		it("should 400 when required params are missing", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				google: {
 					exchangeGoogleCode: stubExchange(),
@@ -83,7 +85,7 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
-			const response = await request(app).get("/auth/google/callback");
+			const response = await request(harness.server).get("/auth/google/callback");
 
 			expect(response.status).toBe(400);
 			const doc = new JSDOM(response.text).window.document;
@@ -92,7 +94,7 @@ describe("Google auth routes", () => {
 
 		it("should 400 when state cookie is missing", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				google: {
 					exchangeGoogleCode: stubExchange(),
@@ -100,7 +102,7 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
-			const response = await request(app)
+			const response = await request(harness.server)
 				.get("/auth/google/callback?code=test-code&state=something");
 
 			expect(response.status).toBe(400);
@@ -108,7 +110,7 @@ describe("Google auth routes", () => {
 
 		it("should 400 when state cookie does not match state param", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				google: {
 					exchangeGoogleCode: stubExchange(),
@@ -117,7 +119,7 @@ describe("Google auth routes", () => {
 				},
 			});
 			const state = signState(freshState());
-			const response = await request(app)
+			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
 				.set("Cookie", "hutch_gstate=different-value");
 
@@ -126,7 +128,7 @@ describe("Google auth routes", () => {
 
 		it("should 400 when state signature is tampered", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				google: {
 					exchangeGoogleCode: stubExchange(),
@@ -136,7 +138,7 @@ describe("Google auth routes", () => {
 			});
 			const valid = signState(freshState());
 			const tampered = `${valid.slice(0, -4)}XXXX`;
-			const response = await request(app)
+			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(tampered)}`)
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(tampered)}`);
 
@@ -145,7 +147,7 @@ describe("Google auth routes", () => {
 
 		it("should 400 when state is expired", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				google: {
 					exchangeGoogleCode: stubExchange(),
@@ -154,7 +156,7 @@ describe("Google auth routes", () => {
 				},
 			});
 			const expiredState = signState({ nonce: "n", createdAt: Date.now() - 10 * 60 * 1000 });
-			const response = await request(app)
+			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(expiredState)}`)
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(expiredState)}`);
 
@@ -166,7 +168,7 @@ describe("Google auth routes", () => {
 		it("should 400 when token exchange throws", async () => {
 			const errors: string[] = [];
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				google: {
 					exchangeGoogleCode: async () => { throw new Error("network down"); },
@@ -184,7 +186,7 @@ describe("Google auth routes", () => {
 				},
 			});
 			const state = signState(freshState());
-			const response = await request(app)
+			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
 
@@ -194,7 +196,7 @@ describe("Google auth routes", () => {
 
 		it("should 400 when Google email is not verified", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				google: {
 					exchangeGoogleCode: stubExchange({ emailVerified: false }),
@@ -203,7 +205,7 @@ describe("Google auth routes", () => {
 				},
 			});
 			const state = signState(freshState());
-			const response = await request(app)
+			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
 
@@ -214,7 +216,7 @@ describe("Google auth routes", () => {
 
 		it("creates the user directly and skips Stripe when below the founding limit", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app, auth, pendingSignup } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				google: {
 					exchangeGoogleCode: stubExchange({ email: "free-google@example.com" }),
@@ -222,11 +224,12 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
+			const { auth, pendingSignup } = harness;
 			// Only one founding member
 			await auth.createUser({ email: `seed1@test.com`, password: "password123" });
 			const state = signState(freshState());
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
 
@@ -246,7 +249,7 @@ describe("Google auth routes", () => {
 		it("logs in the existing user when a race condition causes createGoogleUser to fail during free signup", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			let raceFindCount = 0;
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				auth: {
 					...fixture.auth,
@@ -267,7 +270,7 @@ describe("Google auth routes", () => {
 			await fixture.auth.createUser({ email: "race-google@example.com", password: "existing" });
 			const state = signState(freshState());
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
 
@@ -282,7 +285,7 @@ describe("Google auth routes", () => {
 		it("marks email verified during race condition when existing user is unverified", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			let raceFindCount = 0;
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				auth: {
 					...fixture.auth,
@@ -305,7 +308,7 @@ describe("Google auth routes", () => {
 			expect(beforeLookup?.emailVerified).toBe(false);
 			const state = signState(freshState());
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
 
@@ -316,7 +319,7 @@ describe("Google auth routes", () => {
 
 		it("renders error when race condition causes createGoogleUser to fail and user cannot be found", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				auth: {
 					...fixture.auth,
@@ -334,7 +337,7 @@ describe("Google auth routes", () => {
 			});
 			const state = signState(freshState());
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
 
@@ -345,7 +348,7 @@ describe("Google auth routes", () => {
 
 		it("redirects a brand-new user through Stripe when at the founding limit", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				google: {
 					exchangeGoogleCode: stubExchange({ email: "brand-new@example.com" }),
@@ -353,12 +356,13 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
+			const { auth } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 			const state = signState(freshState());
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
 
@@ -371,7 +375,7 @@ describe("Google auth routes", () => {
 
 		it("should create the Google user only after successful Stripe checkout when at the founding limit", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app, auth, stripe } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				google: {
 					exchangeGoogleCode: stubExchange({ email: "brand-new@example.com" }),
@@ -379,11 +383,12 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
+			const { auth, stripe } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 			const state = signState(freshState());
-			const agent = request.agent(app);
+			const agent = request.agent(harness.server);
 			const callbackResponse = await agent
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
@@ -407,7 +412,7 @@ describe("Google auth routes", () => {
 
 		it("should preserve the return URL through the Stripe checkout boundary when at the founding limit", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app, auth, stripe } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				google: {
 					exchangeGoogleCode: stubExchange({ email: "return@example.com" }),
@@ -415,11 +420,12 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
+			const { auth, stripe } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 			const state = signState(freshState({ returnUrl: "/save?url=https%3A%2F%2Fexample.com" }));
-			const agent = request.agent(app);
+			const agent = request.agent(harness.server);
 			const callbackResponse = await agent
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
@@ -438,7 +444,7 @@ describe("Google auth routes", () => {
 
 		it("should reuse an existing verified email/password account and keep the password working", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				google: {
 					exchangeGoogleCode: stubExchange({ email: "existing@example.com" }),
@@ -446,13 +452,14 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
+			const { auth } = harness;
 			const createResult = await auth.createUser({ email: "existing@example.com", password: "password123" });
 			assert(createResult.ok, "setup failed");
 			await auth.markEmailVerified("existing@example.com");
 			const existingUserId = createResult.userId;
 			const state = signState(freshState());
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
 
@@ -469,7 +476,7 @@ describe("Google auth routes", () => {
 
 		it("should upgrade an unverified email/password account to verified", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				google: {
 					exchangeGoogleCode: stubExchange({ email: "unverified@example.com" }),
@@ -477,12 +484,13 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
+			const { auth } = harness;
 			await auth.createUser({ email: "unverified@example.com", password: "password123" });
 			const beforeLookup = await auth.findUserByEmail("unverified@example.com");
 			expect(beforeLookup?.emailVerified).toBe(false);
 			const state = signState(freshState());
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
 

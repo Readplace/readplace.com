@@ -1,6 +1,6 @@
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { createTestApp } from "../../../test-app";
+import { useTestServer } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -13,17 +13,19 @@ import { initBlogPosts } from "./blog.posts";
 const blogPosts = initBlogPosts({ foundingMemberLimit: 3 });
 const firstPost = blogPosts.getAllPosts()[0];
 
-describe("GET /blog", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+const useApp = useTestServer();
 
+describe("GET /blog", () => {
 	it("should return 200 and HTML content", async () => {
-		const response = await request(app).get("/blog");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/blog");
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
 	});
 
 	it("should render blog page title", async () => {
-		const response = await request(app).get("/blog");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 
 		const title = doc.querySelector(".blog__title");
@@ -31,7 +33,8 @@ describe("GET /blog", () => {
 	});
 
 	it("should render links to blog posts", async () => {
-		const response = await request(app).get("/blog");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 
 		const link = doc.querySelector(
@@ -41,7 +44,8 @@ describe("GET /blog", () => {
 	});
 
 	it("should render post titles in the listing", async () => {
-		const response = await request(app).get("/blog");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 
 		const cardTitles = doc.querySelectorAll(".blog-card__title");
@@ -50,14 +54,16 @@ describe("GET /blog", () => {
 	});
 
 	it("should have correct SEO title", async () => {
-		const response = await request(app).get("/blog");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 
 		expect(doc.title).toBe("Blog — Readplace");
 	});
 
 	it("should have canonical URL", async () => {
-		const response = await request(app).get("/blog");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 
 		const canonical = doc.querySelector('link[rel="canonical"]');
@@ -67,14 +73,16 @@ describe("GET /blog", () => {
 	});
 
 	it("should have the page-blog body class", async () => {
-		const response = await request(app).get("/blog");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 
 		expect(doc.body.classList.contains("page-blog")).toBe(true);
 	});
 
 	it("should have Blog and BreadcrumbList structured data", async () => {
-		const response = await request(app).get("/blog");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 
 		const scripts = doc.querySelectorAll(
@@ -113,10 +121,9 @@ describe("GET /blog", () => {
 });
 
 describe("GET /blog/:slug", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
 	it("should return 200 for a valid post slug", async () => {
-		const response = await request(app).get(
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get(
 			`/blog/${firstPost.slug}`,
 		);
 		expect(response.status).toBe(200);
@@ -124,7 +131,8 @@ describe("GET /blog/:slug", () => {
 	});
 
 	it("should render the post title as h1", async () => {
-		const response = await request(app).get(
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get(
 			`/blog/${firstPost.slug}`,
 		);
 		const doc = new JSDOM(response.text).window.document;
@@ -134,7 +142,8 @@ describe("GET /blog/:slug", () => {
 	});
 
 	it("should render the post content as HTML", async () => {
-		const response = await request(app).get(
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get(
 			`/blog/${firstPost.slug}`,
 		);
 		const doc = new JSDOM(response.text).window.document;
@@ -144,7 +153,8 @@ describe("GET /blog/:slug", () => {
 	});
 
 	it("should render post metadata", async () => {
-		const response = await request(app).get(
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get(
 			`/blog/${firstPost.slug}`,
 		);
 		const doc = new JSDOM(response.text).window.document;
@@ -157,7 +167,8 @@ describe("GET /blog/:slug", () => {
 	});
 
 	it("should have og:type set to article", async () => {
-		const response = await request(app).get(
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get(
 			`/blog/${firstPost.slug}`,
 		);
 		const doc = new JSDOM(response.text).window.document;
@@ -167,7 +178,8 @@ describe("GET /blog/:slug", () => {
 	});
 
 	it("should have BlogPosting structured data", async () => {
-		const response = await request(app).get(
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get(
 			`/blog/${firstPost.slug}`,
 		);
 		const doc = new JSDOM(response.text).window.document;
@@ -182,7 +194,8 @@ describe("GET /blog/:slug", () => {
 	});
 
 	it("should have BreadcrumbList structured data", async () => {
-		const response = await request(app).get(
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get(
 			`/blog/${firstPost.slug}`,
 		);
 		const doc = new JSDOM(response.text).window.document;
@@ -220,7 +233,8 @@ describe("GET /blog/:slug", () => {
 	});
 
 	it("should have correct canonical URL", async () => {
-		const response = await request(app).get(
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get(
 			`/blog/${firstPost.slug}`,
 		);
 		const doc = new JSDOM(response.text).window.document;
@@ -232,7 +246,8 @@ describe("GET /blog/:slug", () => {
 	});
 
 	it("should have the page-blog-post body class", async () => {
-		const response = await request(app).get(
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get(
 			`/blog/${firstPost.slug}`,
 		);
 		const doc = new JSDOM(response.text).window.document;
@@ -241,28 +256,30 @@ describe("GET /blog/:slug", () => {
 	});
 
 	it("should return 404 for an unknown slug", async () => {
-		const response = await request(app).get("/blog/nonexistent-post");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/blog/nonexistent-post");
 		expect(response.status).toBe(404);
 	});
 });
 
 describe("old hutch-vs-* slug redirects", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
 	it("should 301 redirect hutch-vs-readwise-reader to readplace-vs-readwise-reader", async () => {
-		const response = await request(app).get("/blog/hutch-vs-readwise-reader");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/blog/hutch-vs-readwise-reader");
 		expect(response.status).toBe(301);
 		expect(response.headers.location).toBe("/blog/readplace-vs-readwise-reader");
 	});
 
 	it("should 301 redirect hutch-vs-instapaper to readplace-vs-instapaper", async () => {
-		const response = await request(app).get("/blog/hutch-vs-instapaper");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/blog/hutch-vs-instapaper");
 		expect(response.status).toBe(301);
 		expect(response.headers.location).toBe("/blog/readplace-vs-instapaper");
 	});
 
 	it("should 301 redirect hutch-vs-karakeep to readplace-vs-karakeep", async () => {
-		const response = await request(app).get("/blog/hutch-vs-karakeep-hosted-vs-self-hosted-read-it-later");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/blog/hutch-vs-karakeep-hosted-vs-self-hosted-read-it-later");
 		expect(response.status).toBe(301);
 		expect(response.headers.location).toBe("/blog/readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later");
 	});
@@ -270,10 +287,10 @@ describe("old hutch-vs-* slug redirects", () => {
 
 describe("hutch-app.com blog redirect", () => {
 	it("should 301 redirect /blog to readplace.com", async () => {
-		const { app } = createTestApp(
+		const harness = useApp(
 			createDefaultTestAppFixture("https://readplace.com"),
 		);
-		const response = await request(app)
+		const response = await request(harness.server)
 			.get("/blog")
 			.set("Host", "hutch-app.com");
 		expect(response.status).toBe(301);
@@ -281,10 +298,10 @@ describe("hutch-app.com blog redirect", () => {
 	});
 
 	it("should 301 redirect /blog/:slug to readplace.com", async () => {
-		const { app } = createTestApp(
+		const harness = useApp(
 			createDefaultTestAppFixture("https://readplace.com"),
 		);
-		const response = await request(app)
+		const response = await request(harness.server)
 			.get(`/blog/${firstPost.slug}`)
 			.set("Host", "hutch-app.com");
 		expect(response.status).toBe(301);
@@ -295,15 +312,15 @@ describe("hutch-app.com blog redirect", () => {
 });
 
 describe("GET /sitemap.xml", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
 	it("should include /blog in the sitemap", async () => {
-		const response = await request(app).get("/sitemap.xml");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/sitemap.xml");
 		expect(response.text).toContain("<loc>http://localhost:3000/blog</loc>");
 	});
 
 	it("should include blog post URLs in the sitemap", async () => {
-		const response = await request(app).get("/sitemap.xml");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/sitemap.xml");
 		expect(response.text).toContain(
 			`<loc>http://localhost:3000/blog/${firstPost.slug}</loc>`,
 		);
@@ -311,10 +328,9 @@ describe("GET /sitemap.xml", () => {
 });
 
 describe("GET /blog with Accept: text/markdown", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
 	it("returns 200 with text/markdown content-type and an x-markdown-tokens header", async () => {
-		const response = await request(app).get("/blog").set("Accept", "text/markdown");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/blog").set("Accept", "text/markdown");
 
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
@@ -322,7 +338,8 @@ describe("GET /blog with Accept: text/markdown", () => {
 	});
 
 	it("emits the site-wide Content-Signal policy and Vary: Accept", async () => {
-		const response = await request(app).get("/blog").set("Accept", "text/markdown");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/blog").set("Accept", "text/markdown");
 
 		expect(response.headers["content-signal"]).toBe(
 			"search=yes, ai-input=yes, ai-train=no",
@@ -331,14 +348,16 @@ describe("GET /blog with Accept: text/markdown", () => {
 	});
 
 	it("renders the page heading as the markdown h1 and lists the first post title", async () => {
-		const response = await request(app).get("/blog").set("Accept", "text/markdown");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/blog").set("Accept", "text/markdown");
 
 		expect(response.text.startsWith("# Blog")).toBe(true);
 		expect(response.text).toContain(firstPost.title);
 	});
 
 	it("does not include the rendered HTML chrome (no <script>, no htmx, no data-test-*)", async () => {
-		const response = await request(app).get("/blog").set("Accept", "text/markdown");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/blog").set("Accept", "text/markdown");
 
 		expect(response.text).not.toContain("<script");
 		expect(response.text).not.toContain("hx-boost");
@@ -347,10 +366,9 @@ describe("GET /blog with Accept: text/markdown", () => {
 });
 
 describe("GET /blog/:slug with Accept: text/markdown", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
 	it("returns 200 with text/markdown content-type and the canonical URL header in frontmatter", async () => {
-		const response = await request(app)
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server)
 			.get(`/blog/${firstPost.slug}`)
 			.set("Accept", "text/markdown");
 
@@ -362,7 +380,8 @@ describe("GET /blog/:slug with Accept: text/markdown", () => {
 	});
 
 	it("serves the raw markdown source verbatim, without going through HTML conversion", async () => {
-		const response = await request(app)
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server)
 			.get(`/blog/${firstPost.slug}`)
 			.set("Accept", "text/markdown");
 
@@ -371,10 +390,9 @@ describe("GET /blog/:slug with Accept: text/markdown", () => {
 });
 
 describe("HTML responses now carry the Content-Signal header", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
 	it("sets Content-Signal: search=yes, ai-input=yes, ai-train=no on a plain HTML GET", async () => {
-		const response = await request(app).get(`/blog/${firstPost.slug}`);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get(`/blog/${firstPost.slug}`);
 
 		expect(response.headers["content-signal"]).toBe(
 			"search=yes, ai-input=yes, ai-train=no",

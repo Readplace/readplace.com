@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { MinutesSchema } from "@packages/domain/article";
-import { createTestApp, type TestAppResult } from "../../../test-app";
+import { useTestServer, loginAgent } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -16,21 +16,13 @@ import {
 
 import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 
-async function loginAgent(app: TestAppResult['app'], auth: TestAppResult['auth']) {
-	await auth.createUser({ email: "test@example.com", password: "password123" });
-	const agent = request.agent(app);
-	await agent
-		.post("/login")
-		.type("form")
-		.send({ email: "test@example.com", password: "password123" });
-	return agent;
-}
+const useApp = useTestServer();
 
 describe("Queue routes", () => {
 	describe("GET /queue (unauthenticated)", () => {
 		it("should redirect to /login", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(app).get("/queue");
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/queue");
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/login");
@@ -39,8 +31,9 @@ describe("Queue routes", () => {
 
 	describe("GET /queue (authenticated)", () => {
 		it("should render the empty queue", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue");
 
@@ -49,13 +42,13 @@ describe("Queue routes", () => {
 			expect(doc.querySelector("[data-test-empty-queue]")?.textContent).toContain("empty");
 			expect(doc.querySelector('[data-test-form="save-article"]')?.getAttribute("action")).toBe("/queue/save");
 		});
-
 	});
 
 	describe("POST /queue/save", () => {
 		it("should save an article and redirect", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const saveResponse = await agent
 				.post("/queue/save")
@@ -72,8 +65,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should show error for invalid URL", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent
 				.post("/queue/save")
@@ -86,8 +80,9 @@ describe("Queue routes", () => {
 		});
 
 		it("rejects a chrome:// URL with an unsupported-scheme message and never saves", async () => {
-			const { app, auth, articleStore } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, articleStore } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent
 				.post("/queue/save")
@@ -105,8 +100,9 @@ describe("Queue routes", () => {
 		});
 
 		it("rejects a localhost URL with a private-network message and never saves", async () => {
-			const { app, auth, articleStore } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, articleStore } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent
 				.post("/queue/save")
@@ -124,8 +120,9 @@ describe("Queue routes", () => {
 		});
 
 		it("rejects a .home.arpa URL with a private-network message", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent
 				.post("/queue/save")
@@ -151,8 +148,9 @@ describe("Queue routes", () => {
 
 			for (const { url, code } of cases) {
 				it(`rejects ${JSON.stringify(url)} with ${code} and never saves`, async () => {
-					const { app, auth, articleStore } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-					const agent = await loginAgent(app, auth);
+					const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+					const { auth, articleStore } = harness;
+					const agent = await loginAgent(harness.server, auth);
 
 					const response = await agent
 						.post("/queue/save")
@@ -174,11 +172,12 @@ describe("Queue routes", () => {
 		});
 
 		it("should redirect with error code when save throws", async () => {
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...createDefaultTestAppFixture(TEST_APP_ORIGIN),
 				freshness: { refreshArticleIfStale: async () => { throw new Error("boom"); } },
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent
 				.post("/queue/save")
@@ -190,8 +189,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should render error banner when queue is loaded with error_code=save_failed", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue?error_code=save_failed");
 
@@ -203,7 +203,7 @@ describe("Queue routes", () => {
 		it("does NOT re-prime via /queue/save when refreshArticleIfStale returns 'skip' for a previously-failed crawl (auto-heal removed; operator owns recovery)", async () => {
 			const publishedLinkSaved: { url: string; userId: string }[] = [];
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app, auth, articleStore, articleCrawl } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				events: {
 					publishLinkSaved: async (params) => { publishedLinkSaved.push(params); },
@@ -216,7 +216,8 @@ describe("Queue routes", () => {
 				},
 				freshness: { refreshArticleIfStale: async () => ({ action: "skip" }) },
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth, articleStore, articleCrawl } = harness;
+			const agent = await loginAgent(harness.server, auth);
 			await articleStore.saveArticleGlobally({
 				url: "https://example.com/article",
 				metadata: { title: "Failed", siteName: "example.com", excerpt: "", wordCount: 0 },
@@ -235,8 +236,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should bump a re-saved article to the top so #latest-saved points to it", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -272,8 +274,9 @@ describe("Queue routes", () => {
 
 	describe("POST /queue/:id/status", () => {
 		it("should mark article as read", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -298,8 +301,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should redirect preserving queue view state from query params", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -319,8 +323,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should redirect to queue when status value is invalid", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -341,8 +346,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should redirect without error for malformed article id", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const statusResponse = await agent
 				.post("/queue/not-a-valid-hash/status")
@@ -356,8 +362,9 @@ describe("Queue routes", () => {
 
 	describe("POST /queue/:id/delete", () => {
 		it("should delete article", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -379,8 +386,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should redirect preserving queue view state from query params", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -397,8 +405,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should redirect without error for malformed article id", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const deleteResponse = await agent.post("/queue/not-a-valid-hash/delete");
 
@@ -409,8 +418,9 @@ describe("Queue routes", () => {
 
 	describe("Read status indicators", () => {
 		it("should show unread indicator on newly saved articles", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -425,8 +435,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should remove unread indicator after marking as read", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -450,8 +461,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should restore unread indicator when marking back as unread", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -480,8 +492,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should not include htmx attributes on article title links", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -511,7 +524,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -524,7 +537,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -541,11 +555,12 @@ describe("Queue routes", () => {
 
 		it("should not render URL link when siteName is empty", async () => {
 			const skipFreshness: RefreshArticleIfStale = async () => ({ action: "skip" });
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...createDefaultTestAppFixture(TEST_APP_ORIGIN),
 				freshness: { refreshArticleIfStale: skipFreshness },
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -560,8 +575,9 @@ describe("Queue routes", () => {
 
 	describe("Action forms", () => {
 		it("should render action forms from view model for each article", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -578,8 +594,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should enable htmx boost on the mark-read action form", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -612,7 +629,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -625,7 +642,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -657,7 +675,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -670,7 +688,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -685,8 +704,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should not render thumbnail when page has no images", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -712,7 +732,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -725,7 +745,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -754,7 +775,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -767,7 +788,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -799,7 +821,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -812,7 +834,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -848,7 +871,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -861,7 +884,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -902,7 +926,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -915,7 +939,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -938,8 +963,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should redirect to queue for non-existent article", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue/nonexistent/read");
 
@@ -948,9 +974,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should redirect unauthenticated users to login", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app).get("/queue/someid/read");
+			const response = await request(harness.server).get("/queue/someid/read");
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/login");
@@ -973,7 +999,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -986,7 +1012,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1019,7 +1046,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -1037,7 +1064,8 @@ describe("Queue routes", () => {
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1079,7 +1107,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -1092,7 +1120,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1136,7 +1165,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -1154,7 +1183,8 @@ describe("Queue routes", () => {
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1202,7 +1232,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -1220,7 +1250,8 @@ describe("Queue routes", () => {
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1266,7 +1297,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -1279,7 +1310,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1313,7 +1345,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -1326,7 +1358,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1368,7 +1401,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -1386,7 +1419,8 @@ describe("Queue routes", () => {
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1421,7 +1455,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -1434,7 +1468,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1464,7 +1499,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -1477,7 +1512,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1501,8 +1537,9 @@ describe("Queue routes", () => {
 		});
 
 		it("GET /queue/:id/summary returns 404 for a missing article", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue/00000000000000000000000000000000/summary");
 			expect(response.status).toBe(404);
@@ -1517,7 +1554,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -1530,7 +1567,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1571,7 +1609,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -1584,7 +1622,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1625,7 +1664,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -1638,7 +1677,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1674,7 +1714,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -1692,7 +1732,8 @@ describe("Queue routes", () => {
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1726,7 +1767,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -1744,7 +1785,8 @@ describe("Queue routes", () => {
  	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1775,7 +1817,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -1797,7 +1839,8 @@ describe("Queue routes", () => {
  	markCrawlUnsupported: fixture.articleCrawl.markCrawlUnsupported,
  },
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1830,7 +1873,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -1852,7 +1895,8 @@ describe("Queue routes", () => {
  	markCrawlUnsupported: fixture.articleCrawl.markCrawlUnsupported,
  },
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1875,8 +1919,9 @@ describe("Queue routes", () => {
 		});
 
 		it("GET /queue/:id/reader returns 404 for a missing article", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue/not-a-valid-hash/reader");
 			expect(response.status).toBe(404);
@@ -1896,7 +1941,7 @@ describe("Queue routes", () => {
 			const findArticleCrawlStatus = async () => ({ status: "pending" as const });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const fixedNow = new Date("2026-04-25T12:00:00.000Z");
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				articleCrawl: {
 					...fixture.articleCrawl,
@@ -1904,7 +1949,8 @@ describe("Queue routes", () => {
 				},
 				shared: { ...fixture.shared, now: () => fixedNow },
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -1944,7 +1990,7 @@ describe("Queue routes", () => {
 			// looks like a legacy stub to the reader core.
 			let markCrawlPendingCalls = 0;
 			let markSummaryPendingCalls = 0;
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				articleCrawl: {
 					findArticleCrawlStatus: async () => undefined,
@@ -1966,7 +2012,8 @@ describe("Queue routes", () => {
 					forceMarkSummaryPending: async (_params) => {},
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -2010,7 +2057,7 @@ describe("Queue routes", () => {
 					articleCrawl: fixture.articleCrawl,
 					parseArticle,
 				});
-				const { app, auth } = createTestApp({
+				const harness = useApp({
 					...fixture,
 					parser: { parseArticle, crawlArticle },
 					events: {
@@ -2023,7 +2070,8 @@ describe("Queue routes", () => {
 						publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					},
 				});
-				const agent = await loginAgent(app, auth);
+				const { auth } = harness;
+				const agent = await loginAgent(harness.server, auth);
 
 				await agent.post("/queue/save").type("form").send({ url: articleUrl });
 				const queueDoc = new JSDOM((await agent.get("/queue")).text).window.document;
@@ -2078,7 +2126,7 @@ describe("Queue routes", () => {
 					articleCrawl: fixture.articleCrawl,
 					parseArticle,
 				});
-				const { app, auth } = createTestApp({
+				const harness = useApp({
 					...fixture,
 					parser: { parseArticle, crawlArticle },
 					events: {
@@ -2091,7 +2139,8 @@ describe("Queue routes", () => {
 						publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					},
 				});
-				const agent = await loginAgent(app, auth);
+				const { auth } = harness;
+				const agent = await loginAgent(harness.server, auth);
 
 				await agent.post("/queue/save").type("form").send({ url: "https://example.com/hint-copy" });
 				const queueDoc = new JSDOM((await agent.get("/queue")).text).window.document;
@@ -2126,7 +2175,7 @@ describe("Queue routes", () => {
 					articleCrawl: fixture.articleCrawl,
 					parseArticle,
 				});
-				const { app, auth } = createTestApp({
+				const harness = useApp({
 					...fixture,
 					parser: { parseArticle, crawlArticle },
 					events: {
@@ -2139,7 +2188,8 @@ describe("Queue routes", () => {
 						publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					},
 				});
-				const agent = await loginAgent(app, auth);
+				const { auth } = harness;
+				const agent = await loginAgent(harness.server, auth);
 
 				await agent.post("/queue/save").type("form").send({ url: "https://example.com/bundle-boot" });
 				const queueDoc = new JSDOM((await agent.get("/queue")).text).window.document;
@@ -2169,7 +2219,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -2182,7 +2232,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent
 				.post("/queue/save")
@@ -2202,7 +2253,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -2215,7 +2266,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -2236,7 +2288,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -2249,7 +2301,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -2278,7 +2331,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -2291,7 +2344,8 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				},
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -2308,8 +2362,9 @@ describe("Queue routes", () => {
 
 	describe("Pagination", () => {
 		it("should render pagination links when articles span multiple pages", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			for (let i = 0; i < 21; i++) {
 				await agent
@@ -2325,8 +2380,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should render previous link on page 2", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			for (let i = 0; i < 21; i++) {
 				await agent
@@ -2344,8 +2400,9 @@ describe("Queue routes", () => {
 
 	describe("Filter and sort", () => {
 		it("should filter by status", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -2366,8 +2423,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should render sort toggle", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
@@ -2375,8 +2433,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should include tab in sort toggle URL when on done tab", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue?tab=done");
 			const doc = new JSDOM(response.text).window.document;
@@ -2385,8 +2444,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should toggle sort order from desc to asc", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
@@ -2396,8 +2456,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should toggle sort order from asc to desc", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue?order=asc");
 			const doc = new JSDOM(response.text).window.document;
@@ -2407,8 +2468,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should order Done tab by readAt descending (most recently read first)", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent.post("/queue/save").type("form").send({ url: "https://example.com/a" });
 			await agent.post("/queue/save").type("form").send({ url: "https://example.com/b" });
@@ -2446,8 +2508,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should order Done tab by readAt ascending when order=asc", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent.post("/queue/save").type("form").send({ url: "https://example.com/a" });
 			await agent.post("/queue/save").type("form").send({ url: "https://example.com/b" });
@@ -2485,8 +2548,9 @@ describe("Queue routes", () => {
 
 	describe("Re-saving a read article marks it unread", () => {
 		it("should mark a read article as unread when saved again via form", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -2525,11 +2589,12 @@ describe("Queue routes", () => {
 	describe("POST /queue/save with existing article (skip freshness)", () => {
 		it("should save user-article relationship without re-fetching", async () => {
 			const skipFreshness: RefreshArticleIfStale = async () => ({ action: "skip" });
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...createDefaultTestAppFixture(TEST_APP_ORIGIN),
 				freshness: { refreshArticleIfStale: skipFreshness },
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent
 				.post("/queue/save")
@@ -2542,11 +2607,12 @@ describe("Queue routes", () => {
 
 		it("should save for unchanged content (304)", async () => {
 			const unchangedFreshness: RefreshArticleIfStale = async () => ({ action: "unchanged" });
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...createDefaultTestAppFixture(TEST_APP_ORIGIN),
 				freshness: { refreshArticleIfStale: unchangedFreshness },
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent
 				.post("/queue/save")
@@ -2572,7 +2638,7 @@ describe("Queue routes", () => {
 				},
 			});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const { app, auth } = createTestApp({
+			const harness = useApp({
 				...fixture,
 				events: {
 					publishLinkSaved: async () => { linkSavedPublished = true; },
@@ -2585,7 +2651,8 @@ describe("Queue routes", () => {
 				},
 				freshness: { refreshArticleIfStale: refreshedFreshness },
 			});
-			const agent = await loginAgent(app, auth);
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent
 				.post("/queue/save")
@@ -2599,8 +2666,9 @@ describe("Queue routes", () => {
 
 	describe("Unread tab count", () => {
 		it("should show unread count on the Unread tab", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent.post("/queue/save").type("form").send({ url: "https://example.com/1" });
 			await agent.post("/queue/save").type("form").send({ url: "https://example.com/2" });
@@ -2612,8 +2680,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should show unread count when viewing read tab", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent.post("/queue/save").type("form").send({ url: "https://example.com/1" });
 			await agent.post("/queue/save").type("form").send({ url: "https://example.com/2" });
@@ -2631,8 +2700,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should not show count on the Read tab", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
@@ -2641,8 +2711,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should show zero unread count on empty queue", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
@@ -2653,8 +2724,9 @@ describe("Queue routes", () => {
 
 	describe("CORS for browser extensions", () => {
 		it("should allow requests from browser extensions", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent
 				.get("/queue")
@@ -2665,8 +2737,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should allow requests from the legacy hutch-app.com origin", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent
 				.get("/queue")
@@ -2677,9 +2750,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should reject requests from non-extension origins", async () => {
-			const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(app)
+			const response = await request(harness.server)
 				.options("/queue")
 				.set("Origin", "https://evil.com")
 				.set("Access-Control-Request-Method", "GET");
@@ -2690,8 +2763,9 @@ describe("Queue routes", () => {
 
 	describe("GET /queue?url=", () => {
 		it("should pre-fill save input and add auto-submit attribute", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue?url=https%3A%2F%2Fexample.com%2Farticle");
 
@@ -2704,8 +2778,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should include auto-submit script", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue?url=https%3A%2F%2Fexample.com%2Farticle");
 
@@ -2714,8 +2789,9 @@ describe("Queue routes", () => {
 		});
 
 		it("should not add auto-submit when url is absent", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue");
 
@@ -2730,8 +2806,9 @@ describe("Queue routes", () => {
 
 	describe("GET /queue?feature=import", () => {
 		it("surfaces the Import Links nav item but no longer renders the upload form on /queue", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue?feature=import");
 
@@ -2745,8 +2822,9 @@ describe("Queue routes", () => {
 		});
 
 		it("does not surface the Import Links nav item when the feature flag is missing", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue");
 
@@ -2781,7 +2859,7 @@ describe("Queue routes", () => {
 				articleCrawl: fixture.articleCrawl,
 				parseArticle,
 			});
-			return createTestApp({
+			return useApp({
 				...fixture,
 				parser: { parseArticle, crawlArticle },
 				events: {
@@ -2803,8 +2881,9 @@ describe("Queue routes", () => {
 
 		it("renders hx-get polling on the queue list card while crawl is pending", async () => {
 			// Default fixture leaves crawl in pending state — no fake publish wiring.
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -2823,8 +2902,9 @@ describe("Queue routes", () => {
 		});
 
 		it("does not render hx-get on the queue list card once both pipelines terminate", async () => {
-			const { app, auth } = createTerminalPipelineFixture();
-			const agent = await loginAgent(app, auth);
+			const harness = createTerminalPipelineFixture();
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -2841,8 +2921,9 @@ describe("Queue routes", () => {
 		});
 
 		it("GET /queue/:id/card returns a single card fragment with the next-poll URL when pending", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -2862,8 +2943,9 @@ describe("Queue routes", () => {
 		});
 
 		it("GET /queue/:id/card stops polling once both pipelines terminate", async () => {
-			const { app, auth } = createTerminalPipelineFixture();
-			const agent = await loginAgent(app, auth);
+			const harness = createTerminalPipelineFixture();
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -2882,8 +2964,9 @@ describe("Queue routes", () => {
 		});
 
 		it("GET /queue/:id/card stops polling at MAX_CARD_POLLS even while still pending", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -2901,16 +2984,18 @@ describe("Queue routes", () => {
 		});
 
 		it("GET /queue/:id/card returns 404 for an unknown article", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			const response = await agent.get("/queue/00000000000000000000000000000000/card");
 			expect(response.status).toBe(404);
 		});
 
 		it("GET /queue/:id/card sets ETag and revalidation cache directives", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -2928,8 +3013,9 @@ describe("Queue routes", () => {
 		});
 
 		it("GET /queue/:id/card returns 304 when If-None-Match matches the current ETag", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -2950,8 +3036,9 @@ describe("Queue routes", () => {
 		});
 
 		it("GET /queue/:id/card returns 200 with a new ETag when If-None-Match does not match", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")
@@ -2969,8 +3056,9 @@ describe("Queue routes", () => {
 		});
 
 		it("GET /queue/:id/card preserves filter context (tab/order/page) on the next-poll URL", async () => {
-			const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(app, auth);
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
 
 			await agent
 				.post("/queue/save")

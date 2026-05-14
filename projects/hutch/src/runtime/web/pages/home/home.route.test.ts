@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { createTestApp } from "../../../test-app";
+import { useTestServer } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -18,17 +18,19 @@ const TEST_FOUNDING_MEMBER_LIMIT = 3;
  * test can enumerate blog slugs without reaching into the app's internals. */
 const blogPosts = initBlogPosts({ foundingMemberLimit: TEST_FOUNDING_MEMBER_LIMIT });
 
-describe("GET /", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+const useApp = useTestServer();
 
+describe("GET /", () => {
 	it("should return 200 and HTML content", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
 	});
 
 	it("should render the hero headline with the full word list for screen readers", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const srOnly = doc.querySelector(".home-hero__title .sr-only");
@@ -36,7 +38,8 @@ describe("GET /", () => {
 	});
 
 	it("should render the visible headline portion aria-hidden with the initial rotator word", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const visible = doc.querySelector(".home-hero__title .hero-headline__visible");
@@ -48,14 +51,16 @@ describe("GET /", () => {
 	});
 
 	it("should include the headline word-swap client script", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		expect(response.text).toContain("hero-headline__rotator");
 		expect(response.text).toContain("newsletters");
 		expect(response.text).toContain("longreads");
 	});
 
 	it("should render a generic install CTA when browser is unrecognized", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const cta = doc.querySelector('[data-test-cta="install-extension"]');
@@ -64,7 +69,8 @@ describe("GET /", () => {
 	});
 
 	it("should render Firefox install CTA when User-Agent is Firefox", async () => {
-		const response = await request(app)
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server)
 			.get("/")
 			.set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0");
 		const doc = new JSDOM(response.text).window.document;
@@ -78,7 +84,8 @@ describe("GET /", () => {
 	});
 
 	it("should render Chrome install CTA when User-Agent is Chrome", async () => {
-		const response = await request(app)
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server)
 			.get("/")
 			.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36");
 		const doc = new JSDOM(response.text).window.document;
@@ -92,7 +99,8 @@ describe("GET /", () => {
 	});
 
 	it("should render Chrome install CTA when User-Agent is Edge", async () => {
-		const response = await request(app)
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server)
 			.get("/")
 			.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0");
 		const doc = new JSDOM(response.text).window.document;
@@ -102,7 +110,8 @@ describe("GET /", () => {
 	});
 
 	it("should render generic trust line when browser is unrecognized", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const trust = doc.querySelector(".home-hero__trust");
@@ -110,7 +119,8 @@ describe("GET /", () => {
 	});
 
 	it("should render browser-specific bottom install CTA for Firefox", async () => {
-		const response = await request(app)
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server)
 			.get("/")
 			.set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0");
 		const doc = new JSDOM(response.text).window.document;
@@ -121,7 +131,8 @@ describe("GET /", () => {
 	});
 
 	it("should render the public reader-view paste-link form with UTM hidden inputs", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const form = doc.querySelector("[data-test-home-try-form]");
@@ -146,7 +157,8 @@ describe("GET /", () => {
 	});
 
 	it("should redirect homepage paste-link submissions to /view/<encoded-url> preserving UTM on the logged pageview", async () => {
-		const response = await request(app).get(
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get(
 			"/view?url=https%3A%2F%2Fexample.com%2Farticle&utm_source=homepage&utm_medium=internal&utm_content=homepage-link-input",
 		);
 		expect(response.status).toBe(302);
@@ -156,7 +168,8 @@ describe("GET /", () => {
 	});
 
 	it("should render the secondary CTA linking to GitHub", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const cta = doc.querySelector('[data-test-cta="view-github"]');
@@ -165,7 +178,8 @@ describe("GET /", () => {
 	});
 
 	it("should render the core features section with shipped features only", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const coreSection = doc.querySelector('[data-test-section="core-features"]');
@@ -174,7 +188,8 @@ describe("GET /", () => {
 	});
 
 	it("should render three demo videos: Desktop, Firefox Extension, and Chrome Extension", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const demoSection = doc.querySelector('[data-test-section="demo"]');
@@ -184,7 +199,8 @@ describe("GET /", () => {
 	});
 
 	it("should render the backstory section", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const backstory = doc.querySelector('[data-test-section="backstory"]');
@@ -192,7 +208,8 @@ describe("GET /", () => {
 	});
 
 	it("should render the founding pricing card and hide the fallback CTA when under the limit", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const founding = doc.querySelector('[data-test-plan="founding"]');
@@ -210,7 +227,8 @@ describe("GET /", () => {
 	});
 
 	it("should render the founding members progress bar with zero users", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const progress = doc.querySelector("[data-test-founding-progress]");
@@ -223,7 +241,8 @@ describe("GET /", () => {
 
 
 	it("should render the comparison table", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const table = doc.querySelector("[data-test-comparison-table]");
@@ -232,7 +251,8 @@ describe("GET /", () => {
 	});
 
 	it("should render the trust section with two trust items", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const trustSection = doc.querySelector('[data-test-section="trust"]');
@@ -242,14 +262,16 @@ describe("GET /", () => {
 
 
 	it("should have page-home body class", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		expect(doc.body.classList.contains("page-home")).toBe(true);
 	});
 
 	it("should set appropriate SEO metadata", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		expect(doc.title).toContain("Readplace");
@@ -259,7 +281,8 @@ describe("GET /", () => {
 	});
 
 	it("should include author and keywords meta tags", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const author = doc.querySelector('meta[name="author"]');
@@ -270,7 +293,8 @@ describe("GET /", () => {
 	});
 
 	it("should include Open Graph image alt text", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const ogImageAlt = doc.querySelector('meta[property="og:image:alt"]');
@@ -278,7 +302,8 @@ describe("GET /", () => {
 	});
 
 	it("should not include twitter:site when no handle is configured", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const twitterSite = doc.querySelector('meta[name="twitter:site"]');
@@ -286,7 +311,8 @@ describe("GET /", () => {
 	});
 
 	it("should include multiple structured data schemas", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
@@ -297,7 +323,8 @@ describe("GET /", () => {
 	});
 
 	it("should include FAQ structured data with questions and answers", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
@@ -309,7 +336,8 @@ describe("GET /", () => {
 	});
 
 	it("should render section landmarks with aria-labels", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const hero = doc.querySelector('[data-test-section="hero"]');
@@ -320,7 +348,8 @@ describe("GET /", () => {
 	});
 
 	it("should use scope attributes on comparison table headers", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const colHeaders = doc.querySelectorAll('[data-test-comparison-table] thead th[scope="col"]');
@@ -333,26 +362,28 @@ describe("GET /", () => {
 
 describe("GET / with exhausted founding allocation", () => {
 	it("should hide the founding progress when users exceed the limit", async () => {
-		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth } = harness;
 
 		for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 			await auth.createUser({ email: `user${i}@test.com`, password: "password123" });
 		}
 
-		const response = await request(app).get("/");
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		expect(doc.querySelector("[data-test-founding-progress]")).toBeNull();
 	}, 30000);
 
 	it("should hide the founding pricing card and show the fallback CTA when over the limit", async () => {
-		const { app, auth } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth } = harness;
 
 		for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 			await auth.createUser({ email: `over${i}@test.com`, password: "password123" });
 		}
 
-		const response = await request(app).get("/");
+		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const founding = doc.querySelector('[data-test-plan="founding"]');
@@ -368,40 +399,38 @@ describe("GET / with exhausted founding allocation", () => {
 });
 
 describe("GET /favicon.ico", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
 	it("should 301 redirect to the static CDN's favicon.ico", async () => {
-		const response = await request(app).get("/favicon.ico");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/favicon.ico");
 		expect(response.status).toBe(301);
 		expect(response.headers.location).toBe("https://static.test/favicon.ico");
 	});
 });
 
 describe("GET /apple-touch-icon*.png", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
 	it.each([
 		"/apple-touch-icon.png",
 		"/apple-touch-icon-precomposed.png",
 		"/apple-touch-icon-57x57.png",
 		"/apple-touch-icon-180x180.png",
 	])("should 301 redirect %s to the static CDN", async (path) => {
-		const response = await request(app).get(path);
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get(path);
 		expect(response.status).toBe(301);
 		expect(response.headers.location).toBe(`https://static.test${path}`);
 	});
 
 	it("should fall through to 404 for paths that don't match the apple-touch-icon shape", async () => {
-		const response = await request(app).get("/apple-touch-icon-invalid.png");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/apple-touch-icon-invalid.png");
 		expect(response.status).toBe(404);
 	});
 });
 
 describe("GET /robots.txt", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
 	it("should return a text response with crawl directives", async () => {
-		const response = await request(app).get("/robots.txt");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/robots.txt");
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/text\/plain/);
 		expect(response.text).toContain("User-agent: *");
@@ -412,10 +441,9 @@ describe("GET /robots.txt", () => {
 });
 
 describe("GET /llms.txt", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
 	it("should return a text response with the product overview", async () => {
-		const response = await request(app).get("/llms.txt");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/llms.txt");
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/text\/plain/);
 		expect(response.text).toContain("# Readplace");
@@ -424,16 +452,16 @@ describe("GET /llms.txt", () => {
 	});
 
 	it("advertises the markdown content-negotiation capability", async () => {
-		const response = await request(app).get("/llms.txt");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/llms.txt");
 		expect(response.text).toContain("Accept: text/markdown");
 	});
 });
 
 describe("GET / with Accept: text/markdown", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
 	it("returns 200 with text/markdown content-type instead of redirecting to /queue", async () => {
-		const response = await request(app).get("/").set("Accept", "text/markdown");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/").set("Accept", "text/markdown");
 
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
@@ -441,13 +469,15 @@ describe("GET / with Accept: text/markdown", () => {
 	});
 
 	it("converts the comparison table into markdown table syntax", async () => {
-		const response = await request(app).get("/").set("Accept", "text/markdown");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/").set("Accept", "text/markdown");
 
 		expect(response.text).toMatch(/\|\s+-+\s+\|/);
 	});
 
 	it("emits the Content-Signal policy and Vary: Accept", async () => {
-		const response = await request(app).get("/").set("Accept", "text/markdown");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/").set("Accept", "text/markdown");
 
 		expect(response.headers["content-signal"]).toBe(
 			"search=yes, ai-input=yes, ai-train=no",
@@ -457,10 +487,9 @@ describe("GET / with Accept: text/markdown", () => {
 });
 
 describe("GET / HTML response gains the Content-Signal header", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
 	it("sets the site-wide Content-Signal policy on plain HTML GETs", async () => {
-		const response = await request(app).get("/");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
 
 		expect(response.headers["content-signal"]).toBe(
 			"search=yes, ai-input=yes, ai-train=no",
@@ -470,10 +499,9 @@ describe("GET / HTML response gains the Content-Signal header", () => {
 });
 
 describe("GET /llms-full.txt", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
 	it("should return a text response with the full product details", async () => {
-		const response = await request(app).get("/llms-full.txt");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/llms-full.txt");
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/text\/plain/);
 		expect(response.text).toContain("# Readplace");
@@ -484,10 +512,9 @@ describe("GET /llms-full.txt", () => {
 });
 
 describe("GET /sitemap.xml", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
 	it("should return an XML sitemap with exactly the public pages", async () => {
-		const response = await request(app).get("/sitemap.xml");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/sitemap.xml");
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/application\/xml/);
 
@@ -509,10 +536,9 @@ describe("GET /sitemap.xml", () => {
 });
 
 describe("GET /nonexistent", () => {
-	const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-
 	it("should return 404", async () => {
-		const response = await request(app).get("/nonexistent");
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/nonexistent");
 		expect(response.status).toBe(404);
 	});
 });
