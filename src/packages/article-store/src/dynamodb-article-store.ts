@@ -250,14 +250,19 @@ function appendSummaryClauses(
 		values[":summaryExcerpt"] = article.summary.excerpt ?? null;
 		values[":summaryInputTokens"] = article.summary.inputTokens ?? null;
 		values[":summaryOutputTokens"] = article.summary.outputTokens ?? null;
-		removes.push("summaryFailureReason", "summarySkippedReason", "summaryPendingSince");
+		removes.push(
+			"summaryFailureReason",
+			"summarySkippedReason",
+			"summaryPendingSince",
+			"summaryStage",
+		);
 		return;
 	}
 	if (article.summary.kind === "failed") {
 		sets.push("summaryFailureReason = :summaryFailureReason");
 		values[":summaryStatus"] = "failed";
 		values[":summaryFailureReason"] = JSON.stringify(article.summary.reason);
-		removes.push("summarySkippedReason", "summaryPendingSince");
+		removes.push("summarySkippedReason", "summaryPendingSince", "summaryStage");
 		return;
 	}
 	values[":summaryStatus"] = "skipped";
@@ -267,7 +272,7 @@ function appendSummaryClauses(
 	} else {
 		removes.push("summarySkippedReason");
 	}
-	removes.push("summaryFailureReason", "summaryPendingSince");
+	removes.push("summaryFailureReason", "summaryPendingSince", "summaryStage");
 }
 
 function appendCrawlClauses(

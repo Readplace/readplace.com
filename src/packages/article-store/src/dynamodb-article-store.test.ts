@@ -653,6 +653,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(command.input.UpdateExpression).toContain(
 				"REMOVE summaryFailureReason, summarySkippedReason",
 			);
+			expect(command.input.UpdateExpression).toContain("summaryStage");
 			expect(command.input.ExpressionAttributeValues?.[":summary"]).toBe("abc");
 			expect(command.input.ExpressionAttributeValues?.[":summaryStatus"]).toBe(
 				"ready",
@@ -722,6 +723,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(command.input.UpdateExpression).toContain(
 				"REMOVE summarySkippedReason",
 			);
+			expect(command.input.UpdateExpression).toContain("summaryStage");
 			expect(command.input.ExpressionAttributeValues?.[":summaryStatus"]).toBe(
 				"failed",
 			);
@@ -762,6 +764,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(command.input.UpdateExpression).toContain(
 				"REMOVE summaryFailureReason",
 			);
+			expect(command.input.UpdateExpression).toContain("summaryStage");
 			expect(command.input.ExpressionAttributeValues?.[":summaryStatus"]).toBe(
 				"skipped",
 			);
@@ -793,6 +796,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(command.input.UpdateExpression).toContain(
 				"REMOVE summarySkippedReason, summaryFailureReason",
 			);
+			expect(command.input.UpdateExpression).toContain("summaryStage");
 			expect(
 				command.input.ExpressionAttributeValues?.[":summarySkippedReason"],
 			).toBeUndefined();
