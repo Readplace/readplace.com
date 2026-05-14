@@ -3,6 +3,7 @@ import { z } from "zod";
 
 export const CLICK_COOKIE_NAME = "hutch_click";
 const CLICK_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_UTM_VALUE_LENGTH = 256;
 
 const ClickAttributionSchema = z.object({
 	utm_source: z.string().optional(),
@@ -25,7 +26,8 @@ const COOKIE_OPTIONS = {
 
 function extractQueryString(req: Request, name: string): string | undefined {
 	const value = req.query[name];
-	return typeof value === "string" && value !== "" ? value : undefined;
+	if (typeof value !== "string" || value === "") return undefined;
+	return value.length > MAX_UTM_VALUE_LENGTH ? value.slice(0, MAX_UTM_VALUE_LENGTH) : value;
 }
 
 function extractReferrerHost(req: Request): string | undefined {

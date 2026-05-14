@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response } from "express";
+import type { CookieOptions, NextFunction, Request, Response } from "express";
 import {
 	CLICK_COOKIE_NAME,
 	type ClickAttribution,
@@ -15,9 +15,9 @@ interface MockReqOverrides {
 	cookies?: Record<string, string>;
 }
 
-function createReq(overrides: MockReqOverrides = {}): Request {
+function createReq(overrides: MockReqOverrides = {}): Partial<Request> {
 	const headers: Record<string, string | undefined> = { ...overrides.headers };
-	const base = {
+	return {
 		method: overrides.method ?? "GET",
 		path: overrides.path ?? "/",
 		hostname: overrides.hostname ?? "readplace.com",
@@ -27,28 +27,27 @@ function createReq(overrides: MockReqOverrides = {}): Request {
 		get(name: string): string | undefined {
 			return headers[name.toLowerCase()];
 		},
-	};
-	return base as unknown as Request;
+	} as Partial<Request>;
 }
 
 interface CapturedCookie {
 	name: string;
 	value: string;
-	options: Record<string, unknown>;
+	options: CookieOptions;
 }
 
-function createRes(): { res: Response; cookies: CapturedCookie[] } {
+function createRes(): { res: Partial<Response>; cookies: CapturedCookie[] } {
 	const cookies: CapturedCookie[] = [];
-	const res = {
-		cookie(name: string, value: string, options: Record<string, unknown>) {
-			cookies.push({ name, value, options });
-			return res;
+	const res: Partial<Response> = {
+		cookie(name: string, value: string, options?: CookieOptions) {
+			cookies.push({ name, value, options: options ?? {} });
+			return res as Response;
 		},
-	} as unknown as Response;
+	};
 	return { res, cookies };
 }
 
-function runMiddleware(req: Request): { cookies: CapturedCookie[]; nextCalled: boolean } {
+function runMiddleware(req: Partial<Request>): { cookies: CapturedCookie[]; nextCalled: boolean } {
 	const { res, cookies } = createRes();
 	const middleware = createClickAttributionMiddleware({
 		now: () => new Date("2026-05-13T10:00:00.000Z"),
@@ -57,7 +56,7 @@ function runMiddleware(req: Request): { cookies: CapturedCookie[]; nextCalled: b
 	const next: NextFunction = () => {
 		nextCalled = true;
 	};
-	middleware(req, res, next);
+	middleware(req as Request, res as Response, next);
 	return { cookies, nextCalled };
 }
 
@@ -177,6 +176,16 @@ describe("createClickAttributionMiddleware", () => {
 		expect(cookies).toHaveLength(1);
 	});
 
+	it("truncates UTM values longer than 256 characters so adversarial params cannot exceed browser cookie limits", () => {
+		const longValue = "x".repeat(300);
+		const req = createReq({ query: { utm_source: longValue } });
+		const { cookies } = runMiddleware(req);
+
+		expect(cookies).toHaveLength(1);
+		const value = parseCookieValue(cookies[0].value);
+		expect(value.utm_source).toBe("x".repeat(256));
+	});
+
 	it("drops empty-string UTM params (utm_source=\"\" is not meaningful) and does not capture them as keys", () => {
 		const req = createReq({ query: { utm_source: "", utm_medium: "email" } });
 		const { cookies } = runMiddleware(req);
@@ -189,7 +198,7 @@ describe("createClickAttributionMiddleware", () => {
 });
 
 describe("readClickAttribution", () => {
-	function reqWithCookie(value: unknown): Request {
+	function reqWithCookie(value: unknown): Partial<Request> {
 		return createReq({
 			cookies:
 				typeof value === "string"
@@ -199,7 +208,7 @@ describe("readClickAttribution", () => {
 	}
 
 	it("returns undefined when no cookie is set", () => {
-		expect(readClickAttribution(createReq())).toBeUndefined();
+		expect(readClickAttribution(createReq() as Request)).toBeUndefined();
 	});
 
 	it("returns the parsed attribution when the cookie is valid", () => {
@@ -208,14 +217,14 @@ describe("readClickAttribution", () => {
 			first_seen_at: "2026-05-01T00:00:00.000Z",
 			landing_path: "/",
 		};
-		expect(readClickAttribution(reqWithCookie(attribution))).toEqual(attribution);
+		expect(readClickAttribution(reqWithCookie(attribution) as Request)).toEqual(attribution);
 	});
 
 	it("returns undefined when the cookie value is not parseable JSON", () => {
-		expect(readClickAttribution(reqWithCookie("not-json-{{{"))).toBeUndefined();
+		expect(readClickAttribution(reqWithCookie("not-json-{{{") as Request)).toBeUndefined();
 	});
 
 	it("returns undefined when the cookie value fails schema validation", () => {
-		expect(readClickAttribution(reqWithCookie({ first_seen_at: 12345 }))).toBeUndefined();
+		expect(readClickAttribution(reqWithCookie({ first_seen_at: 12345 }) as Request)).toBeUndefined();
 	});
 });
