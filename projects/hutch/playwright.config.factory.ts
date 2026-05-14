@@ -25,11 +25,6 @@ export const createPlaywrightConfig = (options: PlaywrightConfigOptions) => {
     testMatch: options.testMatch,
     outputDir: options.outputDir,
     fullyParallel: true,
-    // Playwright defaults to 1 worker on CI. The hutch e2e suite has 4 tests
-    // (1 stateful queue-flow + 3 read-only embed-visual screenshots) and the
-    // e2e-server tolerates concurrent reads, so 4 workers parallelises the
-    // suite to ~max-single-test instead of sum-of-all.
-    workers: 4,
     forbidOnly: true,
     reporter: 'html',
     retries: options.retries,
