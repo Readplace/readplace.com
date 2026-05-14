@@ -96,6 +96,7 @@ import { renderPage } from "./web/render-page";
 import { sendComponent } from "./web/send-component";
 import { wantsMarkdown, wantsSiren } from "./web/content-negotiation";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
+import { QuerystringFeatureToggle } from "./web/feature-toggle";
 import { HomePage } from "./web/pages/home";
 import { PrivacyPage } from "./web/pages/privacy";
 import { TermsPage } from "./web/pages/terms";
@@ -464,6 +465,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		validateAccessToken: deps.validateAccessToken,
 	});
 
+	const featureToggle = new QuerystringFeatureToggle();
+
 	const queueRouter = initQueueRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,
 		findArticlesByUser: deps.findArticlesByUser,
@@ -488,6 +491,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		logError: deps.logError,
 		logParseError: deps.logParseError,
 		now: deps.now,
+		featureToggle,
 	});
 	/** `dualAuthMiddleware` is applied INSIDE the queue router rather than at this
 	 * mount so that `GET /queue/:id/read` can stay publicly reachable. Shared
@@ -507,6 +511,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishLinkSaved: deps.publishLinkSaved,
 		refreshArticleIfStale: deps.refreshArticleIfStale,
 		logError: deps.logError,
+		featureToggle,
 	});
 	app.use("/import", requireAuth, importRouter);
 

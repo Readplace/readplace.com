@@ -14,6 +14,7 @@ import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { ValidateSaveableUrl, SaveableUrl, SaveableUrlErrorCode } from "@packages/domain/article";
 import { renderPage } from "../../render-page";
 import { sendComponent } from "../../send-component";
+import type { QuerystringFeatureToggle } from "../../feature-toggle";
 import { saveArticleFromUrl, type SaveArticleFromUrlDependencies } from "../../shared/save-article/save-article-from-url";
 import {
 	IMPORT_SKIPPED_COOKIE_NAME,
@@ -29,6 +30,7 @@ interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
 	importSessionStore: ImportSessionStore;
 	logError: (message: string, error?: Error) => void;
+	featureToggle: QuerystringFeatureToggle;
 }
 
 const UPLOAD_ERROR_REDIRECT = {
@@ -51,7 +53,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 
 	router.get("/", (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
-		if (req.query.feature !== "import") {
+		if (!deps.featureToggle.isEnabled(req, "import")) {
 			res.redirect(303, "/queue");
 			return;
 		}
