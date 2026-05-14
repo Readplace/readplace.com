@@ -205,9 +205,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			return;
 		}
 
-		if (ownedArticle.status === "unread") {
-			await deps.updateArticleStatus(ownedArticle.id, ownedArticle.userId, "read");
-		}
+		await deps.updateArticleStatus(ownedArticle.id, ownedArticle.userId, "read");
 
 		const audioEnabled = req.query.feature === "audio";
 		const state = await reader.resolveReaderState({
