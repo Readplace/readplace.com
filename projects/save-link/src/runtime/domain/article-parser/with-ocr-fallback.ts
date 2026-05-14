@@ -1,13 +1,5 @@
 import type { ExtractPdf } from "@packages/crawl-article";
-
-/**
- * Compose the text-layer extractor with an OCR extractor: try the cheap,
- * fast text-layer path first, fall back to OCR only when the text layer is
- * empty (the scanned-PDF signal). Other failures from `extractText` are
- * surfaced as-is — they indicate a corrupt or oversized PDF that OCR would
- * also fail on.
- */
-const SCANNED_PDF_REASON = "PDF has no extractable text layer";
+import { SCANNED_PDF_REASON } from "@packages/crawl-article";
 
 export function initWithOcrFallback(deps: {
 	extractText: ExtractPdf;

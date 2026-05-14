@@ -1,5 +1,6 @@
 import { initPdfExtract } from "./pdf-extract";
 import type { PdfDocument, PdfjsLib, PdfPage } from "./pdf-extract.types";
+import { SCANNED_PDF_REASON } from "./pdf-html-helpers";
 
 function stubDocument(params: {
 	pages: ReadonlyArray<ReadonlyArray<string>>;
@@ -154,7 +155,7 @@ describe("initPdfExtract — text-layer extraction", () => {
 
 		const result = await extract({ buffer: Buffer.from("%PDF-1.4"), url: "https://example.com/scan.pdf" });
 
-		expect(result).toEqual({ kind: "failed", reason: "PDF has no extractable text layer" });
+		expect(result).toEqual({ kind: "failed", reason: SCANNED_PDF_REASON });
 	});
 
 	it("skips pages with empty text but succeeds when at least one page has content", async () => {

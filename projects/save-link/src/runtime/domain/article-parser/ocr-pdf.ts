@@ -1,4 +1,5 @@
 import type { ExtractPdf, PdfjsLibBase } from "@packages/crawl-article";
+import { readMetaTitle, deriveTitleFromUrl, escapeHtmlText } from "@packages/crawl-article";
 import type { CreateVisionMessage } from "./create-deepinfra-vision-message";
 import type { RenderablePdfPage, RenderPdfPage } from "./render-pdf-page";
 
@@ -77,6 +78,7 @@ export function initOcrPdf(deps: {
 			}
 
 			const meta = await pdf.getMetadata();
+			/* c8 ignore next -- V8 block coverage phantom on typeof guard; see bcoe/c8#319 */
 			const metaTitle = readMetaTitle(meta?.info);
 			const title = metaTitle ?? deriveTitleFromUrl(url);
 			return { kind: "fetched", html: buildSyntheticHtml({ title, body: combined }), title };
@@ -95,27 +97,6 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
 	return result;
 }
 
-function readMetaTitle(info: Record<string, unknown> | undefined): string | undefined {
-	if (!info) return undefined;
-	const title = info.Title;
-	/* c8 ignore next -- V8 block coverage phantom on typeof guard; see bcoe/c8#319 */
-	if (typeof title !== "string") return undefined;
-	const trimmed = title.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function deriveTitleFromUrl(url: string): string {
-	try {
-		const { pathname } = new URL(url);
-		const lastSegment = pathname.split("/").filter(Boolean).pop() ?? "";
-		const withoutExt = lastSegment.replace(/\.pdf$/i, "");
-		const slugged = withoutExt.replace(/[_-]+/g, " ").trim();
-		return slugged.length > 0 ? slugged : "Untitled PDF";
-	} catch {
-		return "Untitled PDF";
-	}
-}
-
 function buildSyntheticHtml(params: { title: string; body: string }): string {
 	const escapedTitle = escapeHtmlText(params.title);
 	const paragraphs = params.body
@@ -125,12 +106,4 @@ function buildSyntheticHtml(params: { title: string; body: string }): string {
 		.map((p) => `<p>${escapeHtmlText(p)}</p>`)
 		.join("");
 	return `<!DOCTYPE html><html><head><title>${escapedTitle}</title></head><body><article><h1>${escapedTitle}</h1>${paragraphs}</article></body></html>`;
-}
-
-function escapeHtmlText(text: string): string {
-	return text
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;");
 }

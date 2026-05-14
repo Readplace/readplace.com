@@ -1,17 +1,6 @@
 import type { ExtractPdf, PdfjsLib } from "./pdf-extract.types";
+import { SCANNED_PDF_REASON, readMetaTitle, deriveTitleFromUrl, escapeHtmlText } from "./pdf-html-helpers";
 
-/**
- * Text-layer extractor: open the PDF, pull `getTextContent()` for every page,
- * join the items, and wrap the result in a minimal HTML document that the
- * existing Readability pipeline already knows how to score. Title comes from
- * the PDF metadata's `/Title` entry; if absent we derive a slug from the URL
- * filename so the saved card still has a non-empty title.
- *
- * Returns `kind: "failed"` for PDFs whose text layer is empty across every
- * page (scanned/photographed documents). The composition root may wrap this
- * extractor in an OCR fallback; the wrapper is responsible for turning that
- * specific failure into a successful OCR call.
- */
 export function initPdfExtract(deps: { pdfjsLib: PdfjsLib }): ExtractPdf {
 	return async ({ buffer, url }) => {
 		try {
@@ -25,7 +14,7 @@ export function initPdfExtract(deps: { pdfjsLib: PdfjsLib }): ExtractPdf {
 				if (text) pageTexts.push(text);
 			}
 			if (pageTexts.length === 0) {
-				return { kind: "failed", reason: "PDF has no extractable text layer" };
+				return { kind: "failed", reason: SCANNED_PDF_REASON };
 			}
 			const meta = await pdf.getMetadata();
 			const metaTitle = readMetaTitle(meta?.info);
@@ -36,26 +25,6 @@ export function initPdfExtract(deps: { pdfjsLib: PdfjsLib }): ExtractPdf {
 			return { kind: "failed", reason: `PDF parse failed: ${message}` };
 		}
 	};
-}
-
-function readMetaTitle(info: Record<string, unknown> | undefined): string | undefined {
-	if (!info) return undefined;
-	const title = info.Title;
-	if (typeof title !== "string") return undefined;
-	const trimmed = title.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function deriveTitleFromUrl(url: string): string {
-	try {
-		const { pathname } = new URL(url);
-		const lastSegment = pathname.split("/").filter(Boolean).pop() ?? "";
-		const withoutExt = lastSegment.replace(/\.pdf$/i, "");
-		const slugged = withoutExt.replace(/[_-]+/g, " ").trim();
-		return slugged.length > 0 ? slugged : "Untitled PDF";
-	} catch {
-		return "Untitled PDF";
-	}
 }
 
 function buildSyntheticHtml(params: { title: string; pageTexts: readonly string[] }): string {
@@ -74,12 +43,3 @@ function buildSyntheticHtml(params: { title: string; pageTexts: readonly string[
 function splitParagraphs(pageText: string): string[] {
 	return pageText.split(/\s{2,}/).map((s) => s.trim()).filter((s) => s.length > 0);
 }
-
-function escapeHtmlText(text: string): string {
-	return text
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;");
-}
-

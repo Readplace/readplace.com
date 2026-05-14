@@ -4,6 +4,7 @@ import type { CrawlArticleResult } from "./crawl-article.types";
 import { initCrawlFetch } from "./crawl-fetch";
 import type { fetchCurl } from "./curl-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
+import { SCANNED_PDF_REASON } from "./pdf-html-helpers";
 
 const noopLogError = () => {};
 
@@ -808,7 +809,7 @@ describe("initCrawlArticle — PDF branch", () => {
 	});
 
 	it("returns status 'unsupported' with the extractor reason when extractPdf reports failure", async () => {
-		const extractPdf: ExtractPdf = async () => ({ kind: "failed", reason: "PDF has no extractable text layer" });
+		const extractPdf: ExtractPdf = async () => ({ kind: "failed", reason: SCANNED_PDF_REASON });
 		const fakeFetch: typeof fetch = async () => pdfResponse(pdfMagicBuffer);
 		const logError = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf, logError });
@@ -817,10 +818,10 @@ describe("initCrawlArticle — PDF branch", () => {
 
 		expect(result).toEqual({
 			status: "unsupported",
-			reason: "pdf extraction failed: PDF has no extractable text layer",
+			reason: `pdf extraction failed: ${SCANNED_PDF_REASON}`,
 		});
 		expect(logError).toHaveBeenCalledWith(
-			"[CrawlArticle] PDF extraction failed for https://example.com/scan.pdf: PDF has no extractable text layer",
+			`[CrawlArticle] PDF extraction failed for https://example.com/scan.pdf: ${SCANNED_PDF_REASON}`,
 		);
 	});
 

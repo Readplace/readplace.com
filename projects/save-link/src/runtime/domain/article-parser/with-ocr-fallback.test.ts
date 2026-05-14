@@ -1,4 +1,5 @@
 import type { ExtractPdf } from "@packages/crawl-article";
+import { SCANNED_PDF_REASON } from "@packages/crawl-article";
 import { initWithOcrFallback } from "./with-ocr-fallback";
 
 describe("initWithOcrFallback", () => {
@@ -14,7 +15,7 @@ describe("initWithOcrFallback", () => {
 	});
 
 	it("falls back to OCR when text-layer extraction reports the scanned-PDF reason", async () => {
-		const extractText: ExtractPdf = async () => ({ kind: "failed", reason: "PDF has no extractable text layer" });
+		const extractText: ExtractPdf = async () => ({ kind: "failed", reason: SCANNED_PDF_REASON });
 		const ocrPdf: ExtractPdf = async () => ({ kind: "fetched", html: "<p>ocr</p>", title: "Scanned" });
 		const compose = initWithOcrFallback({ extractText, ocrPdf });
 
@@ -35,7 +36,7 @@ describe("initWithOcrFallback", () => {
 	});
 
 	it("returns the OCR failure when the scanned fallback also fails", async () => {
-		const extractText: ExtractPdf = async () => ({ kind: "failed", reason: "PDF has no extractable text layer" });
+		const extractText: ExtractPdf = async () => ({ kind: "failed", reason: SCANNED_PDF_REASON });
 		const ocrPdf: ExtractPdf = async () => ({ kind: "failed", reason: "OCR returned no text across all batches" });
 		const compose = initWithOcrFallback({ extractText, ocrPdf });
 
@@ -45,7 +46,7 @@ describe("initWithOcrFallback", () => {
 	});
 
 	it("passes the original params through to OCR", async () => {
-		const extractText: ExtractPdf = async () => ({ kind: "failed", reason: "PDF has no extractable text layer" });
+		const extractText: ExtractPdf = async () => ({ kind: "failed", reason: SCANNED_PDF_REASON });
 		let capturedParams: { buffer: Buffer; url: string } | undefined;
 		const ocrPdf: ExtractPdf = async (params) => {
 			capturedParams = params;
