@@ -7,6 +7,7 @@ import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "../require-env";
 import { initSaveLinkCommandHandler } from "./domain/save-link/save-link-command-handler";
+import { loadPdfjsLib, loadPdfjsLibAs } from "@packages/crawl-article";
 import { initSaveLinkPdfExtract } from "./domain/article-parser/init-save-link-pdf-extract";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
@@ -41,6 +42,8 @@ const deepInfraClient = new OpenAI({
 const extractPdf = initSaveLinkPdfExtract({
 	createCanvas,
 	createChatCompletion: (params) => deepInfraClient.chat.completions.create(params),
+	loadPdfjsLib,
+	loadPdfjsLibForRender: loadPdfjsLibAs,
 });
 
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });
