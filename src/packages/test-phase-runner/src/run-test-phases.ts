@@ -114,8 +114,9 @@ function resolveJestPhase(phase: JestPhase): ResolvedJestPhase {
 		// --maxWorkers cap: integration tests hold open handles that cause jest
 		// worker force-exits above ~6 workers (Node 22, c8 10.x), truncating
 		// V8 coverage shards below the 99% statement threshold.
-		// Verified safe at 6 workers on 8-core Mac and 4-vCPU CI.
-		"--maxWorkers=6",
+		// CI uses 8 workers on the 8-vCPU runner to maximise parallelism.
+		// Local uses 2 workers to prevent force-exit coverage loss on dev machines.
+		`--maxWorkers=${process.env.CI === "true" ? 8 : 2}`,
 	];
 	if (phase.testPathIgnorePatterns) {
 		parts.push(`--testPathIgnorePatterns="${phase.testPathIgnorePatterns}"`);
