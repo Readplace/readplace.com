@@ -48,6 +48,7 @@ import { renderPage } from "../../render-page";
 import { sendComponent } from "../../send-component";
 import { CacheableComponent } from "../../conditional-get";
 import { wantsSiren } from "../../content-negotiation";
+import type { QuerystringFeatureToggle } from "../../feature-toggle";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { toArticleEntity } from "../../api/article-siren";
@@ -126,6 +127,7 @@ interface QueueDependencies {
 	logError: (message: string, error?: Error) => void;
 	logParseError: LogParseError;
 	now: () => Date;
+	featureToggle: QuerystringFeatureToggle;
 }
 
 import type { SavedArticle } from "@packages/domain/article";
@@ -209,7 +211,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			await deps.updateArticleStatus(ownedArticle.id, ownedArticle.userId, "read");
 		}
 
-		const audioEnabled = req.query.feature === "audio";
+		const audioEnabled = deps.featureToggle.isEnabled(req, "audio");
 		const state = await reader.resolveReaderState({
 			article: {
 				url: ownedArticle.url,
