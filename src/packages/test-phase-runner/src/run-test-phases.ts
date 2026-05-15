@@ -106,7 +106,7 @@ export interface TestPhaseRunnerDeps {
 	shouldSkipE2E: ShouldSkipE2EFn;
 }
 
-export const MAX_WORKERS = process.env.CI === "true" ? 5 : 1;
+export const MAX_WORKERS = process.env.CI === "true" ? 6 : 1;
 
 function resolveJestPhase(phase: JestPhase): ResolvedJestPhase {
 	const parts = [
