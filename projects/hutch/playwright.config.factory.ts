@@ -58,6 +58,6 @@ export const createPlaywrightConfig = (options: PlaywrightConfigOptions) => {
     webServer: options.webServer
       ? { ...options.webServer, reuseExistingServer: false }
       : undefined,
-    workers: process.env.CI === 'true' ? 6 : 2,
+    // workers: process.env.CI === 'true' ? 6 : 2,
   })
 }
