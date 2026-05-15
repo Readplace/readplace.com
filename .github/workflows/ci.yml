@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   all-tests:
-    runs-on: ubuntu-22.04-8core
+    runs-on: ubuntu-latest-8-cores
     environment: staging
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
