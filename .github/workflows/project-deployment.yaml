@@ -9,7 +9,7 @@ on:
 
 jobs:
   deploy-staging:
-    runs-on: ubuntu-latest
+    runs-on: rp-ubuntu-latest-8-cores
     environment: staging
     env:
       AWS_REGION: ap-southeast-2
@@ -57,7 +57,7 @@ jobs:
 
   deploy-prod:
     needs: [deploy-staging]
-    runs-on: ubuntu-latest
+    runs-on: rp-ubuntu-latest-8-cores
     environment: prod
     env:
       AWS_REGION: ap-southeast-2
