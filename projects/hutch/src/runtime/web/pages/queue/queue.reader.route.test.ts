@@ -172,7 +172,11 @@ describe("Queue routes", () => {
 			const response = await request(harness.server).get(`/queue/${articleId}/read`);
 
 			expect(response.status).toBe(302);
-			expect(response.headers.location).toBe(`/view/${encodeURIComponent(articleUrl)}`);
+			const location = new URL(response.headers.location, TEST_APP_ORIGIN);
+			expect(location.pathname).toBe(`/view/${encodeURIComponent(articleUrl)}`);
+			expect(location.searchParams.get("utm_source")).toBe("read");
+			expect(location.searchParams.get("utm_medium")).toBe("share");
+			expect(location.searchParams.get("utm_campaign")).toBe("read-permalink");
 		});
 
 		it("should redirect logged-in non-owners to the public /view permalink", async () => {
@@ -199,7 +203,37 @@ describe("Queue routes", () => {
 			const response = await guestAgent.get(`/queue/${articleId}/read`);
 
 			expect(response.status).toBe(302);
-			expect(response.headers.location).toBe(`/view/${encodeURIComponent(articleUrl)}`);
+			const location = new URL(response.headers.location, TEST_APP_ORIGIN);
+			expect(location.pathname).toBe(`/view/${encodeURIComponent(articleUrl)}`);
+			expect(location.searchParams.get("utm_source")).toBe("read");
+			expect(location.searchParams.get("utm_medium")).toBe("share");
+			expect(location.searchParams.get("utm_campaign")).toBe("read-permalink");
+		});
+
+		it("should preserve incoming UTM params on the redirect so external campaign attribution survives", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const ownerAgent = await loginAgent(harness.server, auth);
+
+			const articleUrl = "https://example.com/utm-passthrough";
+			await ownerAgent.post("/queue/save").type("form").send({ url: articleUrl });
+
+			const queueResponse = await ownerAgent.get("/queue");
+			const articleId = new JSDOM(queueResponse.text).window.document
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert.ok(articleId, "owner must see the saved article in their queue");
+
+			const response = await request(harness.server)
+				.get(`/queue/${articleId}/read`)
+				.query({ utm_source: "twitter", utm_medium: "social" });
+
+			expect(response.status).toBe(302);
+			const location = new URL(response.headers.location, TEST_APP_ORIGIN);
+			expect(location.pathname).toBe(`/view/${encodeURIComponent(articleUrl)}`);
+			expect(location.searchParams.get("utm_source")).toBe("twitter");
+			expect(location.searchParams.get("utm_medium")).toBe("social");
+			expect(location.searchParams.get("utm_campaign")).toBeNull();
 		});
 
 		it("should link article title to reader view in queue when content exists", async () => {
