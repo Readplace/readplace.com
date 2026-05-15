@@ -46,7 +46,9 @@ import type { PutPendingHtml } from "@packages/test-fixtures/providers/pending-h
 import { saveArticleFromUrl, saveUnsaveableUrlStub } from "../../shared/save-article/save-article-from-url";
 import { renderPage } from "../../render-page";
 import { sendComponent } from "../../send-component";
+import { RedirectComponent } from "../../redirect.component";
 import { CacheableComponent } from "../../conditional-get";
+import { initReaderPermalink } from "./reader-permalink";
 import { wantsSiren } from "../../content-negotiation";
 import type { QuerystringFeatureToggle } from "../../feature-toggle";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
@@ -71,24 +73,6 @@ import {
 	isExtensionInstalled,
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
-import { collectUtmParams } from "../../shared/utm";
-
-/** UTM params on the /view redirect let analytics distinguish shared
- * /read clicks from organic /view traffic. Preserve any incoming UTM
- * (e.g. a campaign-tagged share URL) over the defaults so external
- * attribution survives the redirect. */
-function buildShareRedirectUrl(articleUrl: string, query: Request["query"]): string {
-	const incomingUtm = collectUtmParams(query);
-	const utmParams: [string, string][] = incomingUtm.length > 0
-		? incomingUtm
-		: [
-			["utm_source", "read"],
-			["utm_medium", "share"],
-			["utm_campaign", "read-permalink"],
-		];
-	return `/view/${encodeURIComponent(articleUrl)}?${new URLSearchParams(utmParams).toString()}`;
-}
-
 function readImportSkippedFlash(
 	req: Request,
 	res: Response,
@@ -182,6 +166,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		backLink: { href: "/queue", label: "← Back to queue" },
 		now: deps.now,
 	});
+	const resolveReaderPermalink = initReaderPermalink({
+		findArticleById: deps.findArticleById,
+		findArticleUrlById: deps.findArticleUrlById,
+	});
 
 	function pollUrlBuilderForId(articleId: string): PollUrlBuilder {
 		return {
@@ -200,29 +188,18 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * auth middleware doesn't pre-empt anonymous traffic with a /login
 	 * redirect. */
 	router.get("/:id/read", async (req: Request, res: Response) => {
-		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
-		if (!parsedId.success) {
-			res.redirect(303, "/queue");
+		const result = await resolveReaderPermalink({
+			rawId: req.params.id,
+			requesterId: req.userId,
+			query: req.query,
+		});
+
+		if (result.kind === "redirect") {
+			sendComponent(req, res, RedirectComponent(result.redirect));
 			return;
 		}
 
-		const requesterId = req.userId;
-		const ownedArticle = requesterId
-			? await deps.findArticleById(parsedId.data, requesterId)
-			: null;
-
-		if (!ownedArticle) {
-			const articleUrl = await deps.findArticleUrlById(parsedId.data);
-			if (!articleUrl) {
-				res.redirect(303, "/queue");
-				return;
-			}
-			/** 302 (not 301) because the redirect is conditional on
-			 * auth/ownership — the same URL renders differently for the
-			 * owner, so caches must not pin a single response. */
-			res.redirect(302, buildShareRedirectUrl(articleUrl, req.query));
-			return;
-		}
+		const ownedArticle = result.article;
 
 		await deps.updateArticleStatus(ownedArticle.id, ownedArticle.userId, "read");
 
