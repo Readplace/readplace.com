@@ -2,6 +2,7 @@ import assert from "node:assert";
 import { execSync as defaultExecSync } from "node:child_process";
 import type { ExecSyncOptions } from "node:child_process";
 import { globSync as defaultGlobSync } from "node:fs";
+import os from "node:os"
 
 interface JestPhase {
 	type: "jest";
@@ -106,7 +107,7 @@ export interface TestPhaseRunnerDeps {
 	shouldSkipE2E: ShouldSkipE2EFn;
 }
 
-export const MAX_WORKERS = process.env.CI === "true" ? require('node:os').availableParallelism() - 1 /* buffer to avoid CPU exhaustion */ : 1;
+export const MAX_WORKERS = process.env.CI === "true" ? os.availableParallelism() - 1 /* buffer to avoid CPU exhaustion */ : 1;
 
 function resolveJestPhase(phase: JestPhase): ResolvedJestPhase {
 	const parts = [
