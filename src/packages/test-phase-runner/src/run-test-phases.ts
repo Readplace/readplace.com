@@ -106,12 +106,14 @@ export interface TestPhaseRunnerDeps {
 	shouldSkipE2E: ShouldSkipE2EFn;
 }
 
+export const MAX_WORKERS = process.env.CI === "true" ? 4 : 1;
+
 function resolveJestPhase(phase: JestPhase): ResolvedJestPhase {
 	const parts = [
 		"node_modules/.bin/jest",
 		`--testMatch="${phase.testMatch}"`,
 		`--testTimeout=${phase.timeout}`,
-		`--maxWorkers=${process.env.CI === "true" ? 4 : 1}`,
+		`--maxWorkers=${MAX_WORKERS}`,
 	];
 	if (phase.testPathIgnorePatterns) {
 		parts.push(`--testPathIgnorePatterns="${phase.testPathIgnorePatterns}"`);

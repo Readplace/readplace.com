@@ -1,6 +1,6 @@
 import type { ExecSyncOptions } from "node:child_process";
 import { defaultDeps, initTestPhaseRunner } from "./run-test-phases";
-import type { ResolvedPhase, TestPhaseRunnerDeps } from "./run-test-phases";
+import { type ResolvedPhase, type TestPhaseRunnerDeps, MAX_WORKERS } from "./run-test-phases";
 
 function createInMemoryDeps(overrides: Partial<TestPhaseRunnerDeps> = {}) {
 	const executedCommands: Array<{ command: string; cwd?: string | URL; env?: NodeJS.ProcessEnv }> = [];
@@ -66,7 +66,7 @@ describe("jest phase resolution", () => {
 		expect(plan.phases[0]).toEqual({
 			type: "jest",
 			name: "unit tests",
-			command: 'node_modules/.bin/jest --testMatch="**/dist/**/*.test.js" --testTimeout=10000 --maxWorkers=1',
+			command: `node_modules/.bin/jest --testMatch="**/dist/**/*.test.js" --testTimeout=10000 --maxWorkers=${MAX_WORKERS}`,
 			skip: false,
 			e2e: false,
 		});
