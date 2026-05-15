@@ -106,6 +106,7 @@ export interface TestPhaseRunnerDeps {
 	shouldSkipE2E: ShouldSkipE2EFn;
 }
 
+export const MAX_WORKERS = process.env.CI === "true" ? 4 : 2
 function resolveJestPhase(phase: JestPhase): ResolvedJestPhase {
 	const parts = [
 		"node_modules/.bin/jest",
@@ -116,7 +117,7 @@ function resolveJestPhase(phase: JestPhase): ResolvedJestPhase {
 		// V8 coverage shards below the 99% statement threshold.
 		// CI uses 8 workers on the 8-vCPU runner to maximise parallelism.
 		// Local uses 2 workers to prevent force-exit coverage loss on dev machines.
-		`--maxWorkers=${process.env.CI === "true" ? 8 : 2}`,
+		`--maxWorkers=${MAX_WORKERS}`,
 	];
 	if (phase.testPathIgnorePatterns) {
 		parts.push(`--testPathIgnorePatterns="${phase.testPathIgnorePatterns}"`);

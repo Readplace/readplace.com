@@ -1,6 +1,6 @@
 import type { ExecSyncOptions } from "node:child_process";
 import { defaultDeps, initTestPhaseRunner } from "./run-test-phases";
-import type { ResolvedPhase, TestPhaseRunnerDeps } from "./run-test-phases";
+import { type ResolvedPhase, type TestPhaseRunnerDeps, MAX_WORKERS } from "./run-test-phases";
 
 function createInMemoryDeps(overrides: Partial<TestPhaseRunnerDeps> = {}) {
 	const executedCommands: Array<{ command: string; cwd?: string | URL; env?: NodeJS.ProcessEnv }> = [];
@@ -53,49 +53,23 @@ describe("createTestPlan", () => {
 describe("jest phase resolution", () => {
 	const projectRoot = "/projects/test-project";
 
-	it("resolves jest command with testMatch and timeout (local: 2 workers)", () => {
-		const prev = process.env.CI;
-		delete process.env.CI;
-		try {
-			const runner = createRunner();
-			const plan = runner.createTestPlan({
-				config: {
-					projectName: "My Project",
-					phases: [{ type: "jest", name: "unit tests", testMatch: "**/dist/**/*.test.js", timeout: 10000 }],
-				},
-				projectRoot,
-			});
+	it("resolves jest command with testMatch and timeout", () => {
+		const runner = createRunner();
+		const plan = runner.createTestPlan({
+			config: {
+				projectName: "My Project",
+				phases: [{ type: "jest", name: "unit tests", testMatch: "**/dist/**/*.test.js", timeout: 10000 }],
+			},
+			projectRoot,
+		});
 
-			expect(plan.phases[0]).toEqual({
-				type: "jest",
-				name: "unit tests",
-				command: 'node_modules/.bin/jest --testMatch="**/dist/**/*.test.js" --testTimeout=10000 --maxWorkers=2',
-				skip: false,
-				e2e: false,
-			});
-		} finally {
-			if (prev !== undefined) process.env.CI = prev;
-		}
-	});
-
-	it("uses 8 workers when CI=true", () => {
-		const prev = process.env.CI;
-		process.env.CI = "true";
-		try {
-			const runner = createRunner();
-			const plan = runner.createTestPlan({
-				config: {
-					projectName: "My Project",
-					phases: [{ type: "jest", name: "unit tests", testMatch: "**/dist/**/*.test.js", timeout: 10000 }],
-				},
-				projectRoot,
-			});
-			const phase = plan.phases[0] as Extract<ResolvedPhase, { type: "jest" }>;
-			expect(phase.command).toContain("--maxWorkers=8");
-		} finally {
-			if (prev === undefined) delete process.env.CI;
-			else process.env.CI = prev;
-		}
+		expect(plan.phases[0]).toEqual({
+			type: "jest",
+			name: "unit tests",
+			command: `node_modules/.bin/jest --testMatch="**/dist/**/*.test.js" --testTimeout=10000 --maxWorkers=${MAX_WORKERS}`,
+			skip: false,
+			e2e: false,
+		});
 	});
 
 	it("includes testPathIgnorePatterns when specified", () => {
