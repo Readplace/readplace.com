@@ -46,7 +46,7 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: playwright-${{ runner.os }}-
 
-      - run: . ./.envrc && pnpm nx run-many --target=check --all --parallel=3
+      - run: . ./.envrc && pnpm nx run-many --target=check --all --parallel=7
 
   # Only detect and deploy on pushes to main (not on PRs)
   detect-projects:
