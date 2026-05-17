@@ -32,7 +32,8 @@ import type {
 import { Base } from "../base.component";
 import { bannerStateFromRequest } from "../banner-state";
 import { sendComponent } from "../send-component";
-import { LoginSchema, SignupSchema } from "./auth.schema";
+import type { ComponentError } from "../shared/component-error.types";
+import { LoginSchema } from "./auth.schema";
 import { LoginPage, SignupPage, VerifyEmailPage } from "./auth.component";
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS } from "./session-cookie";
@@ -41,6 +42,7 @@ import { flattenZodErrors } from "./flatten-zod-errors";
 import { initFetchUserCount } from "./fetch-user-count";
 import { initSendWelcomeEmail } from "./send-welcome-email";
 import { createBotDefenseEvent } from "./bot-defense-event";
+import { initValidateSignup } from "./validate-signup";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { readClickAttribution } from "../click-attribution.middleware";
 import type { ConversionEvent } from "../../conversions";
@@ -52,10 +54,8 @@ const SignupQuerySchema = z.object({ email: z.string().email() }).passthrough();
 
 const EMAIL_FROM = "Fayner Brack <readplace@readplace.com>";
 
-const SIGNUP_MIN_SUBMIT_MS = 2500;
-
-import type { BotDefenseEvent, BotDefenseRejectReason } from "@packages/test-fixtures/providers/auth";
-export type { BotDefenseEvent, BotDefenseRejectReason };
+import type { BotDefenseEvent } from "@packages/test-fixtures/providers/auth";
+export type { BotDefenseEvent };
 
 interface AuthDependencies {
 	hashPassword: (password: string) => Promise<string>;
@@ -85,37 +85,6 @@ interface AuthDependencies {
 	foundingAllocation: FoundingAllocation;
 }
 
-type BotDefenseResult =
-	| { trip: false }
-	| { trip: true; reason: BotDefenseRejectReason; timeToSubmitMs?: number };
-
-function checkSignupBotDefense(
-	body: Record<string, unknown>,
-	nowMs: number,
-): BotDefenseResult {
-	const website = body.website;
-	if (typeof website === "string" && website.length > 0) {
-		return { trip: true, reason: "honeypot" };
-	}
-
-	const rawLoadedAt = body.loadedAt;
-	if (typeof rawLoadedAt !== "string" || rawLoadedAt.length === 0) {
-		return { trip: true, reason: "missing_timestamp" };
-	}
-
-	const loadedAt = Number.parseInt(rawLoadedAt, 10);
-	if (!Number.isFinite(loadedAt) || String(loadedAt) !== rawLoadedAt) {
-		return { trip: true, reason: "invalid_timestamp" };
-	}
-
-	const elapsed = nowMs - loadedAt;
-	if (elapsed < SIGNUP_MIN_SUBMIT_MS) {
-		return { trip: true, reason: "submit_too_fast", timeToSubmitMs: elapsed };
-	}
-
-	return { trip: false };
-}
-
 export function initAuthRoutes(deps: AuthDependencies): Router {
 	const router = express.Router();
 
@@ -124,6 +93,8 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		logError: deps.logError,
 		logPrefix: "[Auth]",
 	});
+
+	const validateSignup = initValidateSignup({ findUserByEmail: deps.findUserByEmail });
 
 	const buildSuccessUrl = (returnUrl: string | undefined): string => {
 		/** Stripe substitutes {CHECKOUT_SESSION_ID} server-side, so the URL must
@@ -236,43 +207,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const returnUrl = extractReturnUrl(req.query);
 		const body = (req.body ?? {}) as Record<string, unknown>;
 
-		const botCheck = checkSignupBotDefense(body, deps.now().getTime());
-		if (botCheck.trip) {
-			deps.botDefenseLogger.info(createBotDefenseEvent({
-				trip: botCheck,
-				ip: req.ip,
-				body,
-				now: deps.now(),
-			}));
-			res.redirect(303, "/?signup=pending");
-			return;
-		}
-
-		const parsed = SignupSchema.safeParse(req.body);
-
-		if (!parsed.success) {
-			const userCount = await fetchUserCount();
-			sendComponent(
-				req, res,
-				Base(SignupPage(
-					{
-						returnUrl,
-						userCount,
-						foundingAllocation: deps.foundingAllocation,
-						loadedAt: deps.now().getTime(),
-						email: req.body?.email,
-						errors: flattenZodErrors(parsed.error.issues),
-					},
-					{ statusCode: 422 },
-				), bannerStateFromRequest(req)),
-			);
-			return;
-		}
-
-		const { email, password } = parsed.data;
-
-		const existing = await deps.findUserByEmail(email);
-		if (existing) {
+		const renderFailure = async (email: string | undefined, errors: ComponentError[]) => {
 			const userCount = await fetchUserCount();
 			sendComponent(
 				req, res,
@@ -283,36 +218,44 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						foundingAllocation: deps.foundingAllocation,
 						loadedAt: deps.now().getTime(),
 						email,
-						errors: [{ message: "An account with this email already exists" }],
+						errors,
 					},
 					{ statusCode: 422 },
 				), bannerStateFromRequest(req)),
 			);
+		};
+
+		const result = await validateSignup({ body, nowMs: deps.now().getTime() });
+
+		if (!result.ok) {
+			switch (result.kind) {
+				case "bot-rejected":
+					deps.botDefenseLogger.info(createBotDefenseEvent({
+						trip: { reason: result.reason, timeToSubmitMs: result.timeToSubmitMs },
+						ip: req.ip,
+						body,
+						now: deps.now(),
+					}));
+					res.redirect(303, "/?signup=pending");
+					break;
+				case "field-errors":
+					await renderFailure(result.email, result.errors);
+					break;
+				case "duplicate-email":
+					await renderFailure(result.email, [{ message: "An account with this email already exists" }]);
+					break;
+			}
 			return;
 		}
 
+		const { email, password } = result;
 		const passwordHash = await deps.hashPassword(password);
-
 		const userCount = await fetchUserCount();
+
 		if (!deps.foundingAllocation.isFoundingAllocationExhausted(userCount)) {
 			const created = await deps.createUserWithPasswordHash({ email, passwordHash });
 			if (!created.ok) {
-				const refreshedCount = await fetchUserCount();
-				sendComponent(
-					req,
-					res,
-					Base(SignupPage(
-						{
-							returnUrl,
-							userCount: refreshedCount,
-							foundingAllocation: deps.foundingAllocation,
-							loadedAt: deps.now().getTime(),
-							email,
-							errors: [{ message: "An account with this email already exists" }],
-						},
-						{ statusCode: 422 },
-					), bannerStateFromRequest(req)),
-				);
+				await renderFailure(email, [{ message: "An account with this email already exists" }]);
 				return;
 			}
 
