@@ -13,7 +13,6 @@ export type {
 	ComprehensiveCrawl,
 	ThumbnailImage,
 } from "./crawl-article.types";
-export { PDF_DETECTED_REASON } from "./crawl-article.types";
 export { initCrawlFetch } from "./crawl-fetch";
 export type { CrawlFetch, CrawlFetchInit } from "./crawl-fetch";
 export type { ExtractPdf, PdfDocument, PdfExtractProgress, PdfExtractResult, PdfPage, PdfRasterizer } from "./pdf-extract.types";

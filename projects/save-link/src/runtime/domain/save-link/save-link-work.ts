@@ -6,7 +6,6 @@ import type {
 	SimpleCrawl,
 	ThumbnailImage,
 } from "@packages/crawl-article";
-import { PDF_DETECTED_REASON } from "@packages/crawl-article";
 import {
 	markCrawlFailed,
 	markCrawlUnsupported,
@@ -116,7 +115,7 @@ export function initSaveLinkWork(deps: {
 		await markCrawlStage({ url, stage: "crawl-fetching" });
 		const simpleResult = await simpleCrawl({ url, fetchThumbnail: true });
 
-		if (simpleResult.status === "unsupported" && simpleResult.reason === PDF_DETECTED_REASON) {
+		if (simpleResult.status === "unsupported") {
 			await markCrawlStage({ url, stage: "comprehensive-fetching" });
 			return comprehensiveCrawl({
 				url,

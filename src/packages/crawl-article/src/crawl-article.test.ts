@@ -6,7 +6,6 @@ import {
 	DEFAULT_CRAWL_HEADERS,
 } from "./crawl-article";
 import type { CrawlArticleResult } from "./crawl-article.types";
-import { PDF_DETECTED_REASON } from "./crawl-article.types";
 import { initCrawlFetch } from "./crawl-fetch";
 import type { fetchCurl } from "./curl-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
@@ -372,7 +371,7 @@ describe("initSimpleCrawl — failure modes", () => {
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] HTTP 403 for https://example.com");
 	});
 
-	it("returns status 'unsupported' with the content-type reason when the origin serves a non-html non-pdf body", async () => {
+	it("returns status 'unsupported' with the content-type reason when the origin serves a non-html body", async () => {
 		const fakeFetch: typeof fetch = async () =>
 			new Response("{}", {
 				status: 200,
@@ -390,8 +389,7 @@ describe("initSimpleCrawl — failure modes", () => {
 		expect(logError).toHaveBeenCalledWith('[CrawlArticle] Unexpected Content-Type "application/json" for https://example.com');
 	});
 
-	it("returns status 'unsupported' with an empty content-type reason when the header is missing and body is not pdf", async () => {
-		// Buffer body bypasses Response's auto-assigned text/plain Content-Type, so headers.get returns null
+	it("returns status 'unsupported' with an empty content-type reason when the header is missing", async () => {
 		const fakeFetch: typeof fetch = async () =>
 			new Response(Buffer.from("<html>Content</html>"), { status: 200, headers: {} });
 		const logError = jest.fn();
@@ -780,46 +778,35 @@ describe("initSimpleCrawl — thumbnailUrl extraction (tested through simpleCraw
 	}
 });
 
-describe("initSimpleCrawl — PDF detection (returns unsupported with PDF_DETECTED_REASON)", () => {
-	const pdfMagicBuffer = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(64, 0x20)]);
-
-	it("returns unsupported/pdf-detected when Content-Type is application/pdf — never invokes the extractor", async () => {
+describe("initSimpleCrawl — non-HTML content bail (no content-type-specific knowledge)", () => {
+	it("returns unsupported with the content-type when Content-Type is application/pdf", async () => {
 		const fakeFetch: typeof fetch = async () =>
-			new Response(pdfMagicBuffer, { status: 200, headers: { "content-type": "application/pdf" } });
+			new Response(Buffer.from("%PDF-1.4\n"), { status: 200, headers: { "content-type": "application/pdf" } });
 		const simpleCrawl = initSimple({ fetch: fakeFetch });
 
 		const result = await simpleCrawl({ url: "https://example.com/doc.pdf" });
 
-		expect(result).toEqual({ status: "unsupported", reason: PDF_DETECTED_REASON });
+		expect(result).toEqual({ status: "unsupported", reason: "non-html content type: application/pdf" });
 	});
 
-	it("returns unsupported/pdf-detected for the application/x-pdf alias", async () => {
-		const fakeFetch: typeof fetch = async () =>
-			new Response(pdfMagicBuffer, { status: 200, headers: { "content-type": "application/x-pdf" } });
-		const simpleCrawl = initSimple({ fetch: fakeFetch });
-
-		const result = await simpleCrawl({ url: "https://example.com/legacy.pdf" });
-
-		expect(result).toEqual({ status: "unsupported", reason: PDF_DETECTED_REASON });
-	});
-
-	it("falls back to magic-byte sniffing and returns unsupported/pdf-detected when Content-Type is octet-stream but body starts with %PDF-", async () => {
+	it("returns unsupported with the content-type for application/octet-stream without sniffing the body", async () => {
+		const pdfMagicBuffer = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(64, 0x20)]);
 		const fakeFetch: typeof fetch = async () =>
 			new Response(pdfMagicBuffer, { status: 200, headers: { "content-type": "application/octet-stream" } });
 		const simpleCrawl = initSimple({ fetch: fakeFetch });
 
 		const result = await simpleCrawl({ url: "https://example.com/noheader" });
 
-		expect(result).toEqual({ status: "unsupported", reason: PDF_DETECTED_REASON });
+		expect(result).toEqual({ status: "unsupported", reason: "non-html content type: application/octet-stream" });
 	});
 
-	it("falls back to magic-byte sniffing when Content-Type header is missing", async () => {
-		const fakeFetch: typeof fetch = async () => new Response(pdfMagicBuffer, { status: 200, headers: {} });
+	it("returns unsupported with empty content-type when the header is missing", async () => {
+		const fakeFetch: typeof fetch = async () => new Response(Buffer.from("%PDF-1.4\n"), { status: 200, headers: {} });
 		const simpleCrawl = initSimple({ fetch: fakeFetch });
 
 		const result = await simpleCrawl({ url: "https://example.com/silent" });
 
-		expect(result).toEqual({ status: "unsupported", reason: PDF_DETECTED_REASON });
+		expect(result).toEqual({ status: "unsupported", reason: "non-html content type: " });
 	});
 });
 
@@ -983,7 +970,7 @@ describe("initCrawlArticle — composed (simple ▸ comprehensive)", () => {
 		expect(extractPdf).not.toHaveBeenCalled();
 	});
 
-	it("falls through to comprehensive when simple returns unsupported/pdf-detected and surfaces the extracted html", async () => {
+	it("falls through to comprehensive when simple returns unsupported and surfaces the extracted html on success", async () => {
 		const extractPdf: ExtractPdf = async () => ({
 			kind: "fetched",
 			html: "<html><body><p>PDF body</p></body></html>",
@@ -1003,15 +990,16 @@ describe("initCrawlArticle — composed (simple ▸ comprehensive)", () => {
 		});
 	});
 
-	it("does NOT fall through when simple returns unsupported with a non-pdf reason (extractor stays untouched)", async () => {
+	it("falls through to comprehensive for any unsupported content type — comprehensive decides whether it can handle it", async () => {
 		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>();
 		const fakeFetch: typeof fetch = async () =>
 			new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
-		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf });
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf, logError });
 
 		const result = await crawlArticle({ url: "https://example.com/api" });
 
-		expect(result).toEqual({ status: "unsupported", reason: "non-html content type: application/json" });
+		expect(result).toEqual({ status: "unsupported", reason: "non-pdf content type: application/json" });
 		expect(extractPdf).not.toHaveBeenCalled();
 	});
 });

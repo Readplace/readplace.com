@@ -2,7 +2,6 @@ import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import { noopLogger } from "@packages/hutch-logger";
 import type { ComprehensiveCrawl, SimpleCrawl } from "@packages/crawl-article";
-import { PDF_DETECTED_REASON } from "@packages/crawl-article";
 import { markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import { initSaveLinkCommandHandler } from "./save-link-command-handler";
 import { initProcessContentWithLocalMedia } from "./process-content-with-local-media";
@@ -360,11 +359,12 @@ describe("initSaveLinkCommandHandler", () => {
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 	});
 
-	it("flips a non-html origin to crawlStatus='unsupported' + summaryStatus='skipped' atomically when the simple crawl reports a non-pdf unsupported (no comprehensive fall-through)", async () => {
+	it("flips a non-html origin to terminal unsupported when both simple AND comprehensive return unsupported (comprehensive always gets a chance)", async () => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const comprehensiveCrawl = jest.fn<ReturnType<ComprehensiveCrawl>, Parameters<ComprehensiveCrawl>>();
+		const comprehensiveCrawl = jest.fn<ReturnType<ComprehensiveCrawl>, Parameters<ComprehensiveCrawl>>()
+			.mockResolvedValue({ status: "unsupported", reason: "non-pdf content type: application/octet-stream" });
 		const unsupportedSimpleCrawl: SimpleCrawl = async () => ({
 			status: "unsupported",
 			reason: "non-html content type: application/octet-stream",
@@ -384,22 +384,21 @@ describe("initSaveLinkCommandHandler", () => {
 			() => {},
 		);
 
-		// Successful terminal outcome — no batch failure, no SQS retry.
 		expect(result).toEqual({ batchItemFailures: [] });
+		expect(comprehensiveCrawl).toHaveBeenCalledTimes(1);
 		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlUnsupported, {
 			url: "https://example.com/blob",
-			input: { reason: { kind: "non-html-content", contentType: "non-html content type: application/octet-stream" } },
+			input: { reason: { kind: "non-html-content", contentType: "non-pdf content type: application/octet-stream" } },
 		});
-		expect(comprehensiveCrawl).not.toHaveBeenCalled();
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
-	it("falls through to comprehensiveCrawl when simpleCrawl returns unsupported/pdf-detected and writes a tier-1 source on successful PDF extraction", async () => {
+	it("falls through to comprehensiveCrawl when simpleCrawl returns unsupported and writes a tier-1 source on successful extraction", async () => {
 		const pdfDetectedSimpleCrawl: SimpleCrawl = async () => ({
 			status: "unsupported",
-			reason: PDF_DETECTED_REASON,
+			reason: "non-html content type: application/pdf",
 		});
 		const comprehensiveCrawl = jest.fn<ReturnType<ComprehensiveCrawl>, Parameters<ComprehensiveCrawl>>().mockResolvedValue({
 			status: "fetched",
@@ -434,10 +433,10 @@ describe("initSaveLinkCommandHandler", () => {
 		expect(publishEvent).toHaveBeenCalledTimes(1);
 	});
 
-	it("marks the comprehensive-fetching stage between simple and comprehensive crawls so the reader's progress bar advances during the PDF download window", async () => {
+	it("marks the comprehensive-fetching stage between simple and comprehensive crawls so the reader's progress bar advances during the comprehensive download window", async () => {
 		const pdfDetectedSimpleCrawl: SimpleCrawl = async () => ({
 			status: "unsupported",
-			reason: PDF_DETECTED_REASON,
+			reason: "non-html content type: application/pdf",
 		});
 		const comprehensiveCrawl: ComprehensiveCrawl = async () => ({
 			status: "fetched",
@@ -462,7 +461,7 @@ describe("initSaveLinkCommandHandler", () => {
 	it("flips the row to terminal unsupported when comprehensiveCrawl also reports unsupported (e.g. scanned PDF after OCR fallback failed)", async () => {
 		const pdfDetectedSimpleCrawl: SimpleCrawl = async () => ({
 			status: "unsupported",
-			reason: PDF_DETECTED_REASON,
+			reason: "non-html content type: application/pdf",
 		});
 		const unsupportedComprehensiveCrawl: ComprehensiveCrawl = async () => ({
 			status: "unsupported",
@@ -495,7 +494,7 @@ describe("initSaveLinkCommandHandler", () => {
 	it("throws (record routed to batchItemFailures) when comprehensiveCrawl returns 'failed' so SQS retries", async () => {
 		const pdfDetectedSimpleCrawl: SimpleCrawl = async () => ({
 			status: "unsupported",
-			reason: PDF_DETECTED_REASON,
+			reason: "non-html content type: application/pdf",
 		});
 		const failingComprehensiveCrawl: ComprehensiveCrawl = async () => ({ status: "failed" });
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
@@ -519,7 +518,7 @@ describe("initSaveLinkCommandHandler", () => {
 	it("latches comprehensive-extracting on the first onPdfPage callback so the bar advances inside the extractor but later pages do not re-write the stage", async () => {
 		const pdfDetectedSimpleCrawl: SimpleCrawl = async () => ({
 			status: "unsupported",
-			reason: PDF_DETECTED_REASON,
+			reason: "non-html content type: application/pdf",
 		});
 		const comprehensiveCrawl: ComprehensiveCrawl = async ({ onPdfPage }) => {
 			if (onPdfPage) {
@@ -551,7 +550,7 @@ describe("initSaveLinkCommandHandler", () => {
 	it("logs a warning and continues when the comprehensive-extracting stage write fails (best-effort beacon)", async () => {
 		const pdfDetectedSimpleCrawl: SimpleCrawl = async () => ({
 			status: "unsupported",
-			reason: PDF_DETECTED_REASON,
+			reason: "non-html content type: application/pdf",
 		});
 		// A short timer holds the run open past the callback so the catch
 		// handler's microtask drains before we assert on the warning.

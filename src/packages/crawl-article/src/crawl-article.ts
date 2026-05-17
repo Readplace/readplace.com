@@ -6,7 +6,6 @@ import type {
 	SimpleCrawl,
 	ThumbnailImage,
 } from "./crawl-article.types";
-import { PDF_DETECTED_REASON } from "./crawl-article.types";
 import type { CrawlFetch } from "./crawl-fetch";
 import { extensionFromContentType } from "./extension-from-content-type";
 import { headerOrUndefined } from "./header-utils";
@@ -33,11 +32,9 @@ const X_TWITTER_PATTERN = /^https?:\/\/(x\.com|twitter\.com)\//;
 
 /**
  * Simple-path crawler: HTML body + oembed for X/Twitter, plus thumbnail
- * extraction. When the origin serves a PDF (either via Content-Type or magic
- * bytes), this factory returns `{ status: "unsupported", reason:
- * PDF_DETECTED_REASON, ... }` instead of running the PDF extractor — the
- * orchestrator is responsible for deciding whether to invoke
- * `initComprehensiveCrawl` to materialise the document.
+ * extraction. Bails early with `{ status: "unsupported" }` on any content type
+ * it doesn't handle — the orchestrator decides whether to pass the URL to
+ * `initComprehensiveCrawl` for further extraction.
  */
 export function initSimpleCrawl(deps: {
 	crawlFetch: CrawlFetch;
@@ -66,19 +63,7 @@ export function initSimpleCrawl(deps: {
 				return { status: "failed" };
 			}
 			const contentType = response.headers.get("content-type") ?? "";
-			if (isPdfContentType(contentType)) {
-				return { status: "unsupported", reason: PDF_DETECTED_REASON };
-			}
 			if (!isHtmlContentType(contentType)) {
-				// Content-Type lied or is missing — fall back to a magic-byte sniff
-				// for PDFs. Many static origins serve PDFs as octet-stream or no
-				// header at all; sniffing the first 5 bytes matches what browsers
-				// and file(1) do.
-				const arrayBuffer = await response.arrayBuffer();
-				const buffer = Buffer.from(arrayBuffer);
-				if (isPdfMagicBytes(buffer)) {
-					return { status: "unsupported", reason: PDF_DETECTED_REASON };
-				}
 				logError(`[CrawlArticle] Unexpected Content-Type "${contentType}" for ${params.url}`);
 				return { status: "unsupported", reason: `non-html content type: ${contentType}` };
 			}
@@ -162,8 +147,8 @@ export function initComprehensiveCrawl(deps: {
 /**
  * Backwards-compatible composed crawler: runs the simple factory first and
  * falls through to the comprehensive factory when the simple factory reports
- * `PDF_DETECTED_REASON`. Callers that need to observe the boundary between the
- * two halves (e.g. the save-link orchestrator marking a stage) should instead
+ * `unsupported`. Callers that need to observe the boundary between the two
+ * halves (e.g. the save-link orchestrator marking a stage) should instead
  * construct `initSimpleCrawl` and `initComprehensiveCrawl` directly and run
  * the same compose themselves.
  */
@@ -180,7 +165,7 @@ export function initCrawlArticle(deps: {
 	});
 	return async (params) => {
 		const simpleResult = await simpleCrawl(params);
-		if (simpleResult.status === "unsupported" && simpleResult.reason === PDF_DETECTED_REASON) {
+		if (simpleResult.status === "unsupported") {
 			return comprehensiveCrawl(params);
 		}
 		return simpleResult;

@@ -194,11 +194,12 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		});
 	});
 
-	it("flips a non-html origin atomically to crawlStatus='unsupported' when simpleCrawl reports non-pdf unsupported (no comprehensive fall-through)", async () => {
+	it("flips a non-html origin to terminal unsupported when both simple AND comprehensive return unsupported", async () => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const comprehensiveCrawl = jest.fn<ReturnType<ComprehensiveCrawl>, Parameters<ComprehensiveCrawl>>();
+		const comprehensiveCrawl = jest.fn<ReturnType<ComprehensiveCrawl>, Parameters<ComprehensiveCrawl>>()
+			.mockResolvedValue({ status: "unsupported", reason: "non-pdf content type: application/octet-stream" });
 		const unsupportedSimpleCrawl: SimpleCrawl = async () => ({
 			status: "unsupported",
 			reason: "non-html content type: application/octet-stream",
@@ -219,12 +220,12 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [] });
+		expect(comprehensiveCrawl).toHaveBeenCalledTimes(1);
 		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlUnsupported, {
 			url: "https://example.com/blob",
-			input: { reason: { kind: "non-html-content", contentType: "non-html content type: application/octet-stream" } },
+			input: { reason: { kind: "non-html-content", contentType: "non-pdf content type: application/octet-stream" } },
 		});
-		expect(comprehensiveCrawl).not.toHaveBeenCalled();
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
 	});

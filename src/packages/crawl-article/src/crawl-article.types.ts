@@ -28,9 +28,9 @@ export type CrawlArticle = (params: {
 /**
  * Same signature as `CrawlArticle`. The alias exists so call sites that need to
  * distinguish the two halves of the split can name the parameter — the simple
- * factory handles HTML + oembed, and surfaces an `unsupported` result with a
- * `PDF_DETECTED_REASON` reason when it sniffs PDF magic bytes so the caller can
- * decide whether to fall through to the comprehensive factory.
+ * factory handles HTML + oembed, and bails with `unsupported` for any content
+ * type it doesn't handle so the caller can decide whether to fall through to
+ * the comprehensive factory.
  */
 export type SimpleCrawl = CrawlArticle;
 
@@ -50,9 +50,3 @@ export type ComprehensiveCrawl = (params: {
 	onPdfPage?: (params: { pageIndex: number; pageCount: number }) => void;
 }) => Promise<CrawlArticleResult>;
 
-/**
- * Sentinel reason the simple factory returns when its magic-byte sniff or
- * Content-Type check identifies a PDF. The save-link orchestrator pattern-matches
- * this exact prefix to decide whether to invoke the comprehensive factory.
- */
-export const PDF_DETECTED_REASON = "pdf-detected" as const;
