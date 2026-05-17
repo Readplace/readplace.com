@@ -101,36 +101,34 @@ export function initSaveLinkWork(deps: {
 		await emitTier1Failure(url);
 	};
 
-	const saveLinkWork = async (url: string): Promise<SaveLinkWorkResult> => {
+	/**
+	 * Compose the simple → comprehensive fall-through inline so we can
+	 * interleave stage markers between the two crawl phases. The composed
+	 * `initCrawlArticle` cannot do this because the stage write must land
+	 * in DynamoDB between the simple result and the comprehensive fetch.
+	 *
+	 * Each path writes its own stages: simple writes `crawl-fetched` when
+	 * the fetch succeeds; comprehensive writes `comprehensive-fetching` and
+	 * `comprehensive-extracting`. The caller receives a `CrawlArticleResult`
+	 * and never needs to know which path produced it.
+	 */
+	const resolveCrawl = async (url: string): Promise<CrawlArticleResult> => {
 		await markCrawlStage({ url, stage: "crawl-fetching" });
 		const simpleResult = await simpleCrawl({ url, fetchThumbnail: true });
 
-		/**
-		 * Compose the simple → comprehensive fall-through inline so we can
-		 * interleave the `comprehensive-fetching` stage marker. The composed
-		 * `initCrawlArticle` cannot do this because the stage write must
-		 * land in DynamoDB between the simple result and the comprehensive
-		 * fetch, not after.
-		 */
-		let crawlResult: CrawlArticleResult;
-		let usedComprehensivePath = false;
 		if (simpleResult.status === "unsupported" && simpleResult.reason === PDF_DETECTED_REASON) {
-			usedComprehensivePath = true;
 			await markCrawlStage({ url, stage: "comprehensive-fetching" });
-			/**
-			 * Server only commits two coarse stages — `comprehensive-fetching` and
-			 * `comprehensive-extracting` — and the client smoother interpolates the
-			 * percentage between them. Writing for every page on a 50-page PDF
-			 * would be 50 DynamoDB UpdateItems per article; latched on the first
-			 * page only, it is exactly one.
-			 */
-			let extractingMarked = false;
-			crawlResult = await comprehensiveCrawl({
+			return comprehensiveCrawl({
 				url,
 				fetchThumbnail: true,
+				/**
+				 * Server only commits two coarse stages — `comprehensive-fetching`
+				 * and `comprehensive-extracting` — and the client smoother
+				 * interpolates the percentage between them. Only the first page
+				 * fires: the extractor emits each pageIndex exactly once.
+				 */
 				onPdfPage: ({ pageIndex }) => {
-					if (extractingMarked || pageIndex !== 1) return;
-					extractingMarked = true;
+					if (pageIndex !== 1) return;
 					markCrawlStage({ url, stage: "comprehensive-extracting" }).catch((error: unknown) => {
 						logger.warn(`${logPrefix} comprehensive-extracting stage write failed`, {
 							url,
@@ -139,9 +137,16 @@ export function initSaveLinkWork(deps: {
 					});
 				},
 			});
-		} else {
-			crawlResult = simpleResult;
 		}
+
+		if (simpleResult.status === "fetched") {
+			await markCrawlStage({ url, stage: "crawl-fetched" });
+		}
+		return simpleResult;
+	};
+
+	const saveLinkWork = async (url: string): Promise<SaveLinkWorkResult> => {
+		const crawlResult = await resolveCrawl(url);
 
 		if (crawlResult.status === "unsupported") {
 			// Permanently non-html origin (PDF that failed extraction, image, archive,
@@ -158,9 +163,6 @@ export function initSaveLinkWork(deps: {
 			logParseError({ url, reason });
 			await emitTier1Failure(url);
 			throw new Error(`crawl failed for ${url}: ${reason}`);
-		}
-		if (!usedComprehensivePath) {
-			await markCrawlStage({ url, stage: "crawl-fetched" });
 		}
 
 		const parseResult = parseHtml({ url, html: crawlResult.html });
