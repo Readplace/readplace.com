@@ -24,6 +24,7 @@ import type {
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
 import { initReadabilityParser } from "./domain/article-parser/readability-parser";
 import { theInformationPreParser } from "./domain/article-parser/the-information-pre-parser";
+import { mediumPreParser } from "./domain/article-parser/medium-pre-parser";
 import { initLazyPdfExtractTextOnly } from "@packages/crawl-article";
 import { initFindArticleCrawlStatus } from "./providers/article-crawl/find-article-crawl-status";
 import { initFindArticleFreshness } from "./providers/article-crawl/find-article-freshness";
@@ -52,7 +53,7 @@ const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
 
 const { parseHtml } = initReadabilityParser({
 	crawlArticle,
-	sitePreParsers: [theInformationPreParser],
+	sitePreParsers: [theInformationPreParser, mediumPreParser],
 	logError,
 });
 

@@ -123,6 +123,12 @@ describe("Tier 1+ crawl pipeline health (via readplace.com/admin/recrawl)", () =
 					html.includes(source.expectedContent),
 					`expected content "${source.expectedContent}" not found in parsed output for ${source.url}`,
 				);
+				for (const forbidden of source.forbiddenContent ?? []) {
+					assert(
+						!html.includes(forbidden),
+						`forbidden chrome "${forbidden}" found in parsed output for ${source.url} — site pre-parser regression`,
+					);
+				}
 			});
 		});
 	}

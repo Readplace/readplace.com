@@ -18,6 +18,8 @@ export interface HealthSource {
 	label: string;
 	url: string;
 	expectedContent: string;
+	/** Substrings that MUST NOT appear in the parsed HTML — surfaces parser regressions where site chrome leaks into the article body (e.g. Medium byline, read-time, publish-date, "Press enter…" tooltip). */
+	forbiddenContent?: readonly string[];
 	expectsThumbnail: boolean;
 }
 
@@ -26,6 +28,13 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		label: "Medium (custom domain)",
 		url: "https://fagnerbrack.com/the-problem-you-solve-is-more-important-than-the-code-you-write-d0e5493132c6",
 		expectedContent: "seem to have forgotten the real purpose of software",
+		forbiddenContent: [
+			"5 min read",
+			"Jun 21, 2018",
+			"Press enter or click to view image in full size",
+			'data-testid="authorPhoto"',
+			"stories in your inbox",
+		],
 		expectsThumbnail: true,
 	},
 	{
@@ -42,6 +51,13 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		label: "Medium (friends link)",
 		url: "https://fagnerbrack.com/the-problem-you-solve-is-more-important-than-the-code-you-write-d0e5493132c6?source=friends_link&sk=af337097bd3ecac5750a7fb1dcd0b91d",
 		expectedContent: "seem to have forgotten the real purpose of software",
+		forbiddenContent: [
+			"5 min read",
+			"Jun 21, 2018",
+			"Press enter or click to view image in full size",
+			'data-testid="authorPhoto"',
+			"stories in your inbox",
+		],
 		expectsThumbnail: true,
 	},
 	{

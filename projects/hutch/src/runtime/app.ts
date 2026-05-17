@@ -9,7 +9,7 @@ import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/arti
 import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
 import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch, initLazyPdfExtractTextOnly } from "@packages/crawl-article";
 import { initReadabilityParser } from "@packages/test-fixtures/providers/article-parser";
-import { theInformationPreParser } from "@packages/test-fixtures/providers/article-parser";
+import { mediumPreParser, theInformationPreParser } from "@packages/test-fixtures/providers/article-parser";
 import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 import {
 	createOAuthModel,
@@ -81,7 +81,7 @@ function initProviders() {
 	const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
-		sitePreParsers: [theInformationPreParser],
+		sitePreParsers: [theInformationPreParser, mediumPreParser],
 		logError,
 	});
 	const staleTtlMs = 86400000;
