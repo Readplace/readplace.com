@@ -389,6 +389,19 @@ const PUBLIC_VIEW_ENTRY_POINTS = [
 
 const entryPointFilter = `| filter utm_content in [${PUBLIC_VIEW_ENTRY_POINTS.map((e) => `"${e.id}"`).join(", ")}]`;
 
+new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
+	name: "imports-completed",
+	logGroupName: logGroup.name,
+	pattern: '{ $.stream = "analytics" && $.event = "import_committed" }',
+	metricTransformation: {
+		name: "ImportsCompleted",
+		namespace: "Readplace/Imports",
+		value: "1",
+		defaultValue: "0",
+		unit: "Count",
+	},
+});
+
 new aws.cloudwatch.Dashboard("readplace-analytics", {
 	dashboardName: "readplace-analytics",
 	dashboardBody: pulumi.output(logGroup.name).apply((hutchLogGroupName) =>
@@ -424,6 +437,20 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 					x: 12, y: 0, width: 12, height: 8,
 					view: "pie",
 				}),
+				{
+					type: "metric",
+					x: 0, y: 8, width: 6, height: 4,
+					properties: {
+						region,
+						title: "Imports completed (lifetime)",
+						metrics: [["Readplace/Imports", "ImportsCompleted", { stat: "Sum" }]],
+						period: 86400,
+						stat: "Sum",
+						view: "singleValue",
+						sparkline: true,
+						setPeriodToTimeRange: true,
+					},
+				},
 				logWidget({
 					title: "Recent Analytics Events",
 					logGroupNames: [hutchLogGroupName],
@@ -434,7 +461,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 						"| sort @timestamp desc",
 						"| limit 50",
 					].join(" "),
-					x: 0, y: 8, width: 24, height: 8,
+					x: 0, y: 12, width: 24, height: 8,
 					view: "table",
 				}),
 				logWidget({
@@ -449,7 +476,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 						"| sort visits desc",
 						"| limit 10",
 					].join(" "),
-					x: 0, y: 16, width: 12, height: 8,
+					x: 0, y: 20, width: 12, height: 8,
 					view: "pie",
 				}),
 				logWidget({
@@ -462,7 +489,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 						...excludeVisitorHashesClause(),
 						"| stats count_distinct(visitor_hash) as visitors by bin(1d)",
 					].join(" "),
-					x: 12, y: 16, width: 12, height: 8,
+					x: 12, y: 20, width: 12, height: 8,
 					view: "timeSeries",
 				}),
 				logWidget({
@@ -477,7 +504,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 						"| filter path like /^\\/[^\\/]+\\/read$/",
 						"| stats count_distinct(visitor_hash) as authenticated_unique_readers by bin(1d)",
 					].join(" "),
-					x: 0, y: 24, width: 12, height: 8,
+					x: 0, y: 28, width: 12, height: 8,
 					view: "timeSeries",
 				}),
 				logWidget({
@@ -491,7 +518,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 						entryPointFilter,
 						"| stats count(*) as clicks by bin(1d), utm_content",
 					].join(" "),
-					x: 0, y: 32, width: 24, height: 8,
+					x: 0, y: 36, width: 24, height: 8,
 					view: "timeSeries",
 				}),
 				logWidget({
@@ -506,7 +533,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 						"| stats count(*) as clicks by utm_path",
 						"| sort clicks desc",
 					].join(" "),
-					x: 0, y: 40, width: 12, height: 8,
+					x: 0, y: 44, width: 12, height: 8,
 					view: "pie",
 				}),
 				logWidget({
@@ -521,7 +548,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 						entryPointFilter,
 						"| stats count_distinct(visitor_hash) as unique_visitors by bin(1d), utm_content",
 					].join(" "),
-					x: 12, y: 40, width: 12, height: 8,
+					x: 12, y: 44, width: 12, height: 8,
 					view: "timeSeries",
 				}),
 				...PUBLIC_VIEW_ENTRY_POINTS.map((entry, i) =>
@@ -537,7 +564,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 							"| sort @timestamp desc",
 							"| limit 50",
 						].join(" "),
-						x: 0, y: 48 + i * 8, width: 24, height: 8,
+						x: 0, y: 52 + i * 8, width: 24, height: 8,
 						view: "table",
 					}),
 				),
@@ -561,7 +588,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 						"| sort clicks desc",
 						"| limit 10",
 					].join(" "),
-					x: 0, y: 72, width: 12, height: 8,
+					x: 0, y: 76, width: 12, height: 8,
 					view: "pie",
 				}),
 			],

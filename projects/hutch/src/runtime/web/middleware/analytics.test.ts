@@ -1,14 +1,14 @@
 import { EventEmitter } from "node:events";
 import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { type AnalyticsPageview, createAnalyticsMiddleware, hashIp } from "./analytics";
+import { type AnalyticsEvent, type AnalyticsPageview, createAnalyticsMiddleware, hashIp } from "./analytics";
 
 function createCapturingLogger(): {
-	logger: HutchLogger.Typed<AnalyticsPageview>;
-	captured: AnalyticsPageview[];
+	logger: HutchLogger.Typed<AnalyticsEvent>;
+	captured: AnalyticsEvent[];
 } {
-	const captured: AnalyticsPageview[] = [];
-	const logger: HutchLogger.Typed<AnalyticsPageview> = {
+	const captured: AnalyticsEvent[] = [];
+	const logger: HutchLogger.Typed<AnalyticsEvent> = {
 		info: (data) => { captured.push(data); },
 		error: () => {},
 		warn: () => {},
@@ -57,7 +57,7 @@ function runMiddleware(req: Request, res: Response & EventEmitter): AnalyticsPag
 	const next: NextFunction = () => {};
 	middleware(req, res, next);
 	res.emit("finish");
-	return captured;
+	return captured.filter((e): e is AnalyticsPageview => e.event === "pageview");
 }
 
 describe("createAnalyticsMiddleware", () => {

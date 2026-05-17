@@ -18,6 +18,37 @@ export interface AnalyticsPageview {
 	is_authenticated: 0 | 1;
 }
 
+export interface ImportUploadedEvent {
+	stream: "analytics";
+	event: "import_uploaded";
+	timestamp: string;
+	path: "/import";
+	utm_source: "import-feature";
+	utm_medium: "form";
+	utm_campaign: "file-upload";
+	url_count: number;
+	truncated: 0 | 1;
+	visitor_hash: string | null;
+	is_authenticated: 1;
+}
+
+export interface ImportCommittedEvent {
+	stream: "analytics";
+	event: "import_committed";
+	timestamp: string;
+	path: "/import/commit";
+	utm_source: "import-feature";
+	utm_medium: "form";
+	utm_campaign: "submit";
+	imported_count: number;
+	skipped_count: number;
+	total_in_session: number;
+	visitor_hash: string | null;
+	is_authenticated: 1;
+}
+
+export type AnalyticsEvent = AnalyticsPageview | ImportUploadedEvent | ImportCommittedEvent;
+
 const SKIP_PATHS = new Set([
 	"/robots.txt",
 	"/sitemap.xml",
@@ -77,7 +108,7 @@ export function hashIp(deps: { ip: string | undefined; salt: string }): string |
 }
 
 export function createAnalyticsMiddleware(deps: {
-	logger: HutchLogger.Typed<AnalyticsPageview>;
+	logger: HutchLogger.Typed<AnalyticsEvent>;
 	salt: string;
 	now: () => Date;
 }): RequestHandler {
