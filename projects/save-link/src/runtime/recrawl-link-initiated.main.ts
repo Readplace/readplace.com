@@ -36,8 +36,9 @@ const deepInfraClient = new OpenAI({
 });
 
 const extractPdf = initSaveLinkPdfExtract({
-	rasterizer: initMupdfRasterizer(),
+	rasterizer: initMupdfRasterizer({ logger: consoleLogger }),
 	createChatCompletion: (params) => deepInfraClient.chat.completions.create(params),
+	logger: consoleLogger,
 });
 
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });

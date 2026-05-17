@@ -54,8 +54,9 @@ const deepInfraClient = new OpenAI({
 
 const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, defaultHeaders: { ...DEFAULT_CRAWL_HEADERS } });
 const extractPdf = initSaveLinkPdfExtract({
-	rasterizer: initMupdfRasterizer(),
+	rasterizer: initMupdfRasterizer({ logger: consoleLogger }),
 	createChatCompletion: (params) => deepInfraClient.chat.completions.create(params),
+	logger: consoleLogger,
 });
 const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
 

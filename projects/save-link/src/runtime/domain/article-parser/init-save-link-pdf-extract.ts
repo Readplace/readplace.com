@@ -1,4 +1,5 @@
 import type { ExtractPdf, PdfRasterizer } from "@packages/crawl-article";
+import type { HutchLogger } from "@packages/hutch-logger";
 import { initCreateDeepInfraVisionMessage, type VisionChatCompletion } from "./create-deepinfra-vision-message";
 import { initOcrPdf } from "./ocr-pdf";
 
@@ -13,9 +14,10 @@ import { initOcrPdf } from "./ocr-pdf";
 export function initSaveLinkPdfExtract(deps: {
 	rasterizer: PdfRasterizer;
 	createChatCompletion: VisionChatCompletion;
+	logger: HutchLogger;
 }): ExtractPdf {
 	const createVisionMessage = initCreateDeepInfraVisionMessage({
 		createChatCompletion: deps.createChatCompletion,
 	});
-	return initOcrPdf({ rasterizer: deps.rasterizer, createVisionMessage });
+	return initOcrPdf({ rasterizer: deps.rasterizer, createVisionMessage, logger: deps.logger });
 }

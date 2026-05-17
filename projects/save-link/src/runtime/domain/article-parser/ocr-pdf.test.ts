@@ -1,4 +1,5 @@
 import type { PdfDocument, PdfRasterizer } from "@packages/crawl-article";
+import { noopLogger } from "@packages/hutch-logger";
 import { initOcrPdf } from "./ocr-pdf";
 
 function stubRasterizer(params: {
@@ -38,6 +39,7 @@ function rejectingRasterizer(reason: unknown): PdfRasterizer {
 describe("initOcrPdf — parallel batched OCR", () => {
 	it("returns synthetic HTML stitched from vision fragments across all batches", async () => {
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: stubRasterizer({ numPages: 7, title: "Scanned Document" }),
 			createVisionMessage: async ({ images }) => `<p>text-for-${images.length}-pages</p>`,
 			pagesPerBatch: 3,
@@ -56,6 +58,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("preserves structured HTML (headings, lists, tables) from the vision model verbatim", async () => {
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: stubRasterizer({ numPages: 1, title: "Structured" }),
 			createVisionMessage: async () => "<h2>Section</h2><ul><li>one</li></ul><table><tr><td>cell</td></tr></table>",
 		});
@@ -71,6 +74,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("strips <script> and other dangerous elements from the vision response", async () => {
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: stubRasterizer({ numPages: 1, title: "Risky" }),
 			createVisionMessage: async () => "<p>safe</p><script>alert(1)</script><iframe src=\"x\"></iframe>",
 		});
@@ -86,6 +90,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("strips disallowed attributes (style, class, id, on*) while keeping href/src/alt/colspan/rowspan", async () => {
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: stubRasterizer({ numPages: 1, title: "Attrs" }),
 			createVisionMessage: async () =>
 				"<a href=\"https://example.com\" class=\"x\" onclick=\"x()\">link</a>" +
@@ -109,6 +114,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("strips <svg> and <math> elements from the vision response", async () => {
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: stubRasterizer({ numPages: 1, title: "SVG" }),
 			createVisionMessage: async () =>
 				"<p>safe</p><svg><foreignObject><div>xss</div></foreignObject></svg><math><mi>x</mi></math>",
@@ -125,6 +131,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("drops href and src values starting with data:", async () => {
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: stubRasterizer({ numPages: 1, title: "Data" }),
 			createVisionMessage: async () =>
 				'<a href="data:text/html,<script>alert(1)</script>">click</a>' +
@@ -141,6 +148,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("drops href values starting with javascript:", async () => {
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: stubRasterizer({ numPages: 1, title: "JS" }),
 			createVisionMessage: async () => "<a href=\"javascript:alert(1)\">click</a>",
 		});
@@ -155,6 +163,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 	it("splits pages into batches of the configured size and issues parallel vision calls", async () => {
 		const captured: number[][] = [];
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: stubRasterizer({ numPages: 13 }),
 			createVisionMessage: async ({ images }) => {
 				// Last byte of the PNG buffer carries the page number — see stubRasterizer.
@@ -178,6 +187,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("derives a title from the URL filename when the PDF has no Title metadata", async () => {
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: stubRasterizer({ numPages: 1 }),
 			createVisionMessage: async () => "body text",
 		});
@@ -191,6 +201,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("falls back to 'Untitled PDF' when neither metadata nor URL yields a slug", async () => {
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: stubRasterizer({ numPages: 1 }),
 			createVisionMessage: async () => "body text",
 		});
@@ -204,6 +215,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("falls back to 'Untitled PDF' when the URL cannot be parsed", async () => {
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: stubRasterizer({ numPages: 1 }),
 			createVisionMessage: async () => "body text",
 		});
@@ -217,6 +229,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("returns kind 'failed' when the PDF exceeds the configured page cap", async () => {
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: stubRasterizer({ numPages: 11 }),
 			createVisionMessage: async () => "ignored",
 			maxPages: 10,
@@ -232,6 +245,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("returns kind 'failed' when every batch returns empty text", async () => {
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: stubRasterizer({ numPages: 5 }),
 			createVisionMessage: async () => "   \n  ",
 			pagesPerBatch: 5,
@@ -247,6 +261,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("returns kind 'failed' wrapping the underlying error when the rasterizer throws", async () => {
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: rejectingRasterizer(new Error("invalid pdf")),
 			createVisionMessage: async () => "ignored",
 		});
@@ -258,6 +273,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("returns kind 'failed' wrapping the stringified value when the rasterizer throws a non-Error", async () => {
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: rejectingRasterizer("opaque thrown"),
 			createVisionMessage: async () => "ignored",
 		});
@@ -269,6 +285,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("escapes HTML-significant characters in the title", async () => {
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: stubRasterizer({ numPages: 1, title: '"Risky" & <Funky>' }),
 			createVisionMessage: async () => "<p>safe body</p>",
 		});
@@ -283,6 +300,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 	it("concatenates batch fragments in order (page-1 batch precedes page-2 batch in the output)", async () => {
 		let invocation = 0;
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer: stubRasterizer({ numPages: 6 }),
 			createVisionMessage: async () => {
 				invocation += 1;
@@ -323,6 +341,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 		};
 
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer,
 			createVisionMessage: async () => "body",
 		});
@@ -350,6 +369,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 		};
 
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer,
 			createVisionMessage: async () => "ignored",
 		});
@@ -377,6 +397,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 		};
 
 		const ocr = initOcrPdf({
+			logger: noopLogger,
 			rasterizer,
 			createVisionMessage: async () => "ignored",
 		});

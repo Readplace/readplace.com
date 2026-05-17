@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@packages/article-state-types": "workspace:*",
+    "@packages/hutch-logger": "workspace:*",
     "escape-html": "1.0.3",
     "linkedom": "0.18.12",
     "mupdf": "1.27.0"

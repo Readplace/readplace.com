@@ -1,4 +1,5 @@
 /* c8 ignore start -- thin mupdf-wasm boundary wrapper, exercised in production at Lambda cold start and in CI via the PDF health canary (scripts/health-sources.ts → arXiv Transformer paper). The dynamic `import()` resolves to mupdf's ESM build at runtime; Jest's CJS transformer cannot load that, so all tests stub PdfRasterizer at the OCR consumer (see ocr-pdf.test.ts). */
+import type { HutchLogger } from "@packages/hutch-logger";
 import { cachedImport } from "./cached-import";
 import type { PdfDocument, PdfPage, PdfRasterizer } from "./pdf-extract.types";
 
@@ -26,16 +27,19 @@ type MupdfModule = typeof import("mupdf");
 
 const dynamicImport = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<unknown>;
 
-const loadMupdfModule = cachedImport<MupdfModule>(async () => {
-	const t0 = Date.now();
-	console.info("[init-mupdf] loading mupdf wasm");
-	const mod = await dynamicImport("mupdf");
-	console.info(`[init-mupdf] loaded mupdf wasm dt=${Date.now() - t0}ms`);
-	return mod as MupdfModule;
-});
+function buildLoadMupdf(logger: HutchLogger): () => Promise<MupdfModule> {
+	return cachedImport<MupdfModule>(async () => {
+		const t0 = Date.now();
+		logger.info("[init-mupdf] loading mupdf wasm");
+		const mod = await dynamicImport("mupdf");
+		logger.info(`[init-mupdf] loaded mupdf wasm dt=${Date.now() - t0}ms`);
+		return mod as MupdfModule;
+	});
+}
 
-export function initMupdfRasterizer(opts?: { scale?: number }): PdfRasterizer {
-	const scale = opts?.scale ?? DEFAULT_RENDER_SCALE;
+export function initMupdfRasterizer(deps: { logger: HutchLogger; scale?: number }): PdfRasterizer {
+	const scale = deps.scale ?? DEFAULT_RENDER_SCALE;
+	const loadMupdfModule = buildLoadMupdf(deps.logger);
 	return {
 		async open(buffer: Buffer): Promise<PdfDocument> {
 			const mupdf = await loadMupdfModule();

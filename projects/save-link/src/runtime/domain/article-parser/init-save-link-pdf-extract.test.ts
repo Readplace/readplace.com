@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import type { PdfDocument, PdfRasterizer } from "@packages/crawl-article";
+import { noopLogger } from "@packages/hutch-logger";
 import { initSaveLinkPdfExtract } from "./init-save-link-pdf-extract";
 
 function stubRasterizer(params: { numPages: number; title?: string }): PdfRasterizer {
@@ -25,6 +26,7 @@ describe("initSaveLinkPdfExtract", () => {
 		const extractPdf = initSaveLinkPdfExtract({
 			rasterizer: stubRasterizer({ numPages: 1, title: "Scanned Doc" }),
 			createChatCompletion: async () => ({ choices: [{ message: { content: "<h2>Heading</h2><p>body</p>" } }] }),
+			logger: noopLogger,
 		});
 
 		const result = await extractPdf({ buffer: Buffer.from("%PDF-"), url: "https://example.com/scan.pdf" });

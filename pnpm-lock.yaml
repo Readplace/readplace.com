@@ -557,6 +557,9 @@ importers:
       '@packages/article-state-types':
         specifier: workspace:*
         version: link:../article-state-types
+      '@packages/hutch-logger':
+        specifier: workspace:*
+        version: link:../hutch-logger
       escape-html:
         specifier: 1.0.3
         version: 1.0.3
