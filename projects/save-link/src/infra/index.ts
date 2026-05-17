@@ -155,11 +155,11 @@ const saveLinkCommandLambda = new HutchLambda("save-link-command", {
 	// 360s is ~2× that for safety. Paired with 720s SQS visibility (≥2× Lambda
 	// timeout per AWS guidance).
 	timeout: 360,
-	// @napi-rs/canvas's .node binary and pdfjs-dist's pdf.worker.mjs sidecar
-	// are unbundleable; ship them in node_modules so pdfjs's runtime
-	// `await import("./pdf.worker.mjs")` resolves against the real on-disk
-	// pdfjs-dist instead of /var/task/. AL2023 loads canvas-linux-x64-gnu.
-	external: ["@napi-rs/canvas", "@napi-rs/canvas-linux-x64-gnu", "pdfjs-dist"],
+	// @napi-rs/canvas's .node binary is unbundleable; ship it in node_modules.
+	// AL2023 (Node 22 Lambda) loads the linux-x64-gnu sub-package.
+	// pdfjs-dist stays bundled — its worker is preloaded into globalThis by
+	// `init-pdfjs-lazy.ts`, so the runtime sidecar import is never triggered.
+	external: ["@napi-rs/canvas", "@napi-rs/canvas-linux-x64-gnu"],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -277,11 +277,11 @@ const saveAnonymousLinkCommandLambda = new HutchLambda("save-anonymous-link-comm
 	// path, same headroom requirements.
 	memorySize: 2048,
 	timeout: 360,
-	// @napi-rs/canvas's .node binary and pdfjs-dist's pdf.worker.mjs sidecar
-	// are unbundleable; ship them in node_modules so pdfjs's runtime
-	// `await import("./pdf.worker.mjs")` resolves against the real on-disk
-	// pdfjs-dist instead of /var/task/. AL2023 loads canvas-linux-x64-gnu.
-	external: ["@napi-rs/canvas", "@napi-rs/canvas-linux-x64-gnu", "pdfjs-dist"],
+	// @napi-rs/canvas's .node binary is unbundleable; ship it in node_modules.
+	// AL2023 (Node 22 Lambda) loads the linux-x64-gnu sub-package.
+	// pdfjs-dist stays bundled — its worker is preloaded into globalThis by
+	// `init-pdfjs-lazy.ts`, so the runtime sidecar import is never triggered.
+	external: ["@napi-rs/canvas", "@napi-rs/canvas-linux-x64-gnu"],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -571,11 +571,11 @@ const recrawlLinkInitiatedLambda = new HutchLambda("recrawl-link-initiated", {
 	// PDF OCR path on a recrawl.
 	memorySize: 2048,
 	timeout: 360,
-	// @napi-rs/canvas's .node binary and pdfjs-dist's pdf.worker.mjs sidecar
-	// are unbundleable; ship them in node_modules so pdfjs's runtime
-	// `await import("./pdf.worker.mjs")` resolves against the real on-disk
-	// pdfjs-dist instead of /var/task/. AL2023 loads canvas-linux-x64-gnu.
-	external: ["@napi-rs/canvas", "@napi-rs/canvas-linux-x64-gnu", "pdfjs-dist"],
+	// @napi-rs/canvas's .node binary is unbundleable; ship it in node_modules.
+	// AL2023 (Node 22 Lambda) loads the linux-x64-gnu sub-package.
+	// pdfjs-dist stays bundled — its worker is preloaded into globalThis by
+	// `init-pdfjs-lazy.ts`, so the runtime sidecar import is never triggered.
+	external: ["@napi-rs/canvas", "@napi-rs/canvas-linux-x64-gnu"],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,

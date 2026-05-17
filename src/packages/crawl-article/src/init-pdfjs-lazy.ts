@@ -19,7 +19,25 @@ import type { ExtractPdf, PdfjsLib, PdfjsLibBase } from "./pdf-extract.types";
  * don't include. The runtime surface each consumer actually uses is fully
  * described by the duck-typed `PdfjsLibBase` interface family.
  */
-const loadCached = cachedImport(() => import("pdfjs-dist/legacy/build/pdf.mjs"));
+/**
+ * pdfjs's PDFWorker checks `globalThis.pdfjsWorker?.WorkerMessageHandler`
+ * before falling back to `await import("./pdf.worker.mjs")` for its
+ * fake-worker setup. In a bundled Lambda the relative dynamic import
+ * resolves against /var/task/index.js (no sidecar there) and the parse
+ * fails. Pre-loading pdf.worker.mjs and assigning it to globalThis makes
+ * pdfjs hit the in-memory path and skip the sidecar lookup entirely.
+ */
+const loadCached = cachedImport(async () => {
+	const [pdfjsLib, pdfjsWorker] = await Promise.all([
+		import("pdfjs-dist/legacy/build/pdf.mjs"),
+		// pdfjs-dist doesn't ship types for the worker entry; the module value
+		// is opaque — we only assign it to globalThis for pdfjs to read.
+		// @ts-expect-error: no declaration file for pdf.worker.mjs
+		import("pdfjs-dist/legacy/build/pdf.worker.mjs"),
+	]);
+	(globalThis as { pdfjsWorker?: unknown }).pdfjsWorker = pdfjsWorker;
+	return pdfjsLib;
+});
 
 export function loadPdfjsLib(): Promise<PdfjsLib> {
 	return loadCached().then((mod) => mod as unknown as PdfjsLib);
