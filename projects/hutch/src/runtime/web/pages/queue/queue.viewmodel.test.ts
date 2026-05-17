@@ -223,13 +223,13 @@ describe("toQueueViewModel", () => {
 		expect(vm.paginationUrls.next).toBeUndefined();
 	});
 
-	it("should pass saveError through to view model", () => {
+	it("should pass errors through to view model", () => {
 		const vm = toQueueViewModel(makeResult([]), DEFAULT_FILTERS, {
 			now: NOW,
-			saveError: "Could not parse article: Invalid URL",
+			errors: [{ message: "Could not parse article: Invalid URL" }],
 		});
 
-		expect(vm.saveError).toBe("Could not parse article: Invalid URL");
+		expect(vm.errors?.[0]?.message).toBe("Could not parse article: Invalid URL");
 	});
 
 	it("should set hasContent to true when article has content", () => {

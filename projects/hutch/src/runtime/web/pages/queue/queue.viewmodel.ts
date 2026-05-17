@@ -3,6 +3,7 @@ import type { FindArticlesResult } from "@packages/test-fixtures/providers/artic
 import { pickExcerpt } from "../../../providers/article-summary/article-summary.helpers";
 import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
+import type { ComponentError } from "../../shared/component-error.types";
 import { buildCardPollUrl } from "./queue-card/queue-card-poll-url";
 import { isCardTerminal } from "./queue-card/is-card-terminal";
 import type { QueueUrlState } from "./queue.url";
@@ -65,7 +66,7 @@ export interface QueueViewModel {
 		prev?: string;
 		next?: string;
 	};
-	saveError?: string;
+	errors?: ComponentError[];
 	saveErrorCode?: SaveableUrlErrorCode;
 	importFlash?: string;
 	importSkipped?: ImportSkippedViewModel;
@@ -176,7 +177,7 @@ export function toQueueViewModel(
 	filters: QueueUrlState,
 	options?: {
 		now?: Date;
-		saveError?: string;
+		errors?: ComponentError[];
 		saveErrorCode?: SaveableUrlErrorCode;
 		importFlash?: string;
 		importSkipped?: ImportSkippedViewModel;
@@ -224,7 +225,7 @@ export function toQueueViewModel(
 					? buildQueueUrl({ ...filters, page: result.page + 1 })
 					: undefined,
 		},
-		saveError: options?.saveError,
+		errors: options?.errors,
 		saveErrorCode: options?.saveErrorCode,
 		importFlash: options?.importFlash,
 		importSkipped: options?.importSkipped,

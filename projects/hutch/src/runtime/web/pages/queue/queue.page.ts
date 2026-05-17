@@ -278,7 +278,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		]);
 		const vm = toQueueViewModel(result, urlState, {
 			unreadCount,
-			saveError,
+			errors: saveError ? [{ message: saveError }] : undefined,
 			importFlash,
 			importSkipped,
 			summaryByUrl,
@@ -488,7 +488,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				loadCrawls(deps.findArticleCrawlStatus, result.articles),
 			]);
 			const vm = toQueueViewModel(result, urlState, {
-				saveError: validation.error.message,
+				errors: [{ message: validation.error.message }],
 				saveErrorCode: validation.error.code,
 				unreadCount,
 				summaryByUrl,

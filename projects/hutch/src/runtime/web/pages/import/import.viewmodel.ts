@@ -1,14 +1,15 @@
 import type { ImportSessionPage } from "@packages/domain/import-session";
+import type { ComponentError } from "../../shared/component-error.types";
 import { buildImportUrl } from "./import.url";
 
 export interface ImportUploadViewModel {
-	readonly errorMessage?: string;
+	readonly errors?: readonly ComponentError[];
 	readonly uploadAction: string;
 }
 
-export function toImportUploadViewModel(input: { errorMessage?: string }): ImportUploadViewModel {
+export function toImportUploadViewModel(input: { errors?: readonly ComponentError[] }): ImportUploadViewModel {
 	return {
-		errorMessage: input.errorMessage,
+		errors: input.errors,
 		uploadAction: "/import?feature=import",
 	};
 }

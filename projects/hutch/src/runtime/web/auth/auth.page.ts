@@ -207,7 +207,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						userCount,
 						foundingAllocation: deps.foundingAllocation,
 						email,
-						globalError: "Invalid email or password",
+						errors: [{ message: "Invalid email or password" }],
 					},
 					{ statusCode: 422 },
 				), bannerStateFromRequest(req)),
@@ -283,7 +283,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						foundingAllocation: deps.foundingAllocation,
 						loadedAt: deps.now().getTime(),
 						email,
-						globalError: "An account with this email already exists",
+						errors: [{ message: "An account with this email already exists" }],
 					},
 					{ statusCode: 422 },
 				), bannerStateFromRequest(req)),
@@ -308,7 +308,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 							foundingAllocation: deps.foundingAllocation,
 							loadedAt: deps.now().getTime(),
 							email,
-							globalError: "An account with this email already exists",
+							errors: [{ message: "An account with this email already exists" }],
 						},
 						{ statusCode: 422 },
 					), bannerStateFromRequest(req)),
@@ -363,7 +363,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						userCount,
 						foundingAllocation: deps.foundingAllocation,
 						loadedAt: deps.now().getTime(),
-						globalError: "Missing checkout session — please start again.",
+						errors: [{ message: "Missing checkout session — please start again." }],
 					},
 					{ statusCode: 400 },
 				), bannerStateFromRequest(req)),
@@ -374,11 +374,11 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const checkoutSessionId = CheckoutSessionIdSchema.parse(parsedQuery.data.session_id);
 		const session = await deps.retrieveCheckoutSession(checkoutSessionId);
 
-		const renderFailure = async (statusCode: number, globalError: string) => {
+		const renderFailure = async (statusCode: number, message: string) => {
 			const userCount = await fetchUserCount();
 			sendComponent(
 				req, res,
-				Base(SignupPage({ userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), globalError }, { statusCode }), bannerStateFromRequest(req)),
+				Base(SignupPage({ userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), errors: [{ message }] }, { statusCode }), bannerStateFromRequest(req)),
 			);
 		};
 

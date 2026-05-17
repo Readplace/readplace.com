@@ -4,6 +4,7 @@ import type { PageBody } from "../page-body.types";
 import { render } from "../render";
 import { renderFoundingProgress } from "../shared/founding-progress/founding-progress.component";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
+import type { ComponentError } from "../shared/component-error.types";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
 import { AUTH_STYLES } from "./auth.styles";
 
@@ -13,15 +14,9 @@ const VERIFY_EMAIL_TEMPLATE = readFileSync(join(__dirname, "verify-email.templat
 const FORGOT_PASSWORD_TEMPLATE = readFileSync(join(__dirname, "forgot-password.template.html"), "utf-8");
 const RESET_PASSWORD_TEMPLATE = readFileSync(join(__dirname, "reset-password.template.html"), "utf-8");
 
-interface FieldError {
-	field: string;
-	message: string;
-}
-
 interface AuthFormData {
 	email?: string;
-	errors?: FieldError[];
-	globalError?: string;
+	errors?: ComponentError[];
 	returnUrl?: string;
 	userCount: number;
 	foundingAllocation: FoundingAllocation;
@@ -37,10 +32,10 @@ interface FieldViewModel {
 }
 
 function toFieldViewModel(
-	errors: FieldError[] | undefined,
+	errors: ComponentError[] | undefined,
 	field: string,
 ): FieldViewModel {
-	const error = errors?.find((e) => e.field === field);
+	const error = errors?.find((e) => e.fieldName === field);
 	return {
 		errorClass: error ? " auth-form__input--error" : "",
 		error: error?.message,
@@ -53,7 +48,7 @@ export function LoginPage(data: AuthFormData, options?: { statusCode?: number })
 
 	const content = render(LOGIN_TEMPLATE, {
 		email,
-		globalError: data.globalError,
+		globalError: errors?.find((e) => !e.fieldName)?.message,
 		returnUrl: data.returnUrl ? encodeURIComponent(data.returnUrl) : undefined,
 		emailField: toFieldViewModel(errors, "email"),
 		passwordField: toFieldViewModel(errors, "password")
@@ -98,7 +93,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 
 	const content = render(SIGNUP_TEMPLATE, {
 		email,
-		globalError: data.globalError,
+		globalError: errors?.find((e) => !e.fieldName)?.message,
 		returnUrl: data.returnUrl ? encodeURIComponent(data.returnUrl) : undefined,
 		loadedAt: data.loadedAt,
 		emailField: toFieldViewModel(errors, "email"),
@@ -129,7 +124,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 }
 
 export function ForgotPasswordPage(
-	data?: { email?: string; errors?: FieldError[]; globalError?: string; sent?: boolean },
+	data?: { email?: string; errors?: ComponentError[]; sent?: boolean },
 	options?: { statusCode?: number },
 ): PageBody {
 	const email = data?.email ?? "";
@@ -137,7 +132,7 @@ export function ForgotPasswordPage(
 
 	const content = render(FORGOT_PASSWORD_TEMPLATE, {
 		email,
-		globalError: data?.globalError,
+		globalError: errors?.find((e) => !e.fieldName)?.message,
 		sent: data?.sent,
 		emailField: toFieldViewModel(errors, "email"),
 	});
@@ -157,14 +152,14 @@ export function ForgotPasswordPage(
 }
 
 export function ResetPasswordPage(
-	data: { token?: string; errors?: FieldError[]; globalError?: string; success?: boolean; error?: string },
+	data: { token?: string; errors?: ComponentError[]; success?: boolean; error?: string },
 	options?: { statusCode?: number },
 ): PageBody {
 	const errors = data.errors;
 
 	const content = render(RESET_PASSWORD_TEMPLATE, {
 		token: data.token,
-		globalError: data.globalError,
+		globalError: errors?.find((e) => !e.fieldName)?.message,
 		success: data.success,
 		error: data.error,
 		passwordField: toFieldViewModel(errors, "password"),

@@ -83,7 +83,10 @@ export function ImportPage(vm: ImportViewModel): PageBody {
 }
 
 export function ImportUploadPage(vm: ImportUploadViewModel): PageBody {
-	const content = render(IMPORT_UPLOAD_TEMPLATE, vm);
+	const content = render(IMPORT_UPLOAD_TEMPLATE, {
+		...vm,
+		errorMessage: vm.errors?.[0]?.message,
+	});
 
 	return {
 		seo: {

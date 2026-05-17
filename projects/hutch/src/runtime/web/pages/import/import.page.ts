@@ -59,7 +59,9 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			return;
 		}
 		const errorMessage = importErrorMessageMapping(req.query);
-		const vm = toImportUploadViewModel({ errorMessage });
+		const vm = toImportUploadViewModel({
+			errors: errorMessage ? [{ message: errorMessage }] : undefined,
+		});
 		sendComponent(req, res, Base(ImportUploadPage(vm), bannerStateFromRequest(req)));
 	});
 

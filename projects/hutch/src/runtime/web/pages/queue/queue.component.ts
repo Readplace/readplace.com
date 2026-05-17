@@ -63,7 +63,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		});
 
 	return {
-		saveError: vm.saveError,
+		saveError: vm.errors?.[0]?.message,
 		saveErrorCode: vm.saveErrorCode,
 		importFlash: vm.importFlash,
 		hasImportSkipped: Boolean(vm.importSkipped && vm.importSkipped.entries.length > 0),

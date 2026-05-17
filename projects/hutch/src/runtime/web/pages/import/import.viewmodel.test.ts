@@ -144,12 +144,12 @@ describe("toImportUploadViewModel", () => {
 	});
 
 	it("passes through an error message when provided", () => {
-		const vm = toImportUploadViewModel({ errorMessage: "We couldn't find any links in that file." });
-		expect(vm.errorMessage).toBe("We couldn't find any links in that file.");
+		const vm = toImportUploadViewModel({ errors: [{ message: "We couldn't find any links in that file." }] });
+		expect(vm.errors?.[0]?.message).toBe("We couldn't find any links in that file.");
 	});
 
-	it("leaves errorMessage undefined when no message is provided", () => {
+	it("leaves errors undefined when no message is provided", () => {
 		const vm = toImportUploadViewModel({});
-		expect(vm.errorMessage).toBeUndefined();
+		expect(vm.errors).toBeUndefined();
 	});
 });

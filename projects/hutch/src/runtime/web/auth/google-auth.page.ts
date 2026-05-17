@@ -123,13 +123,13 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 
 		res.clearCookie(STATE_COOKIE, { path: "/" });
 
-		const renderError = async (globalError: string) => {
+		const renderError = async (message: string) => {
 			const userCount = await fetchUserCount();
 			sendComponent(
 				req,
 				res,
 				Base(LoginPage(
-					{ userCount, foundingAllocation: deps.foundingAllocation, globalError },
+					{ userCount, foundingAllocation: deps.foundingAllocation, errors: [{ message }] },
 					{ statusCode: 400 },
 				), bannerStateFromRequest(req)),
 			);

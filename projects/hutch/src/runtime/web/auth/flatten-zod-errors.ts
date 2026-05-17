@@ -1,8 +1,10 @@
+import type { ComponentError } from "../shared/component-error.types";
+
 export function flattenZodErrors(
 	issues: { path: PropertyKey[]; message: string }[],
-): { field: string; message: string }[] {
+): ComponentError[] {
 	return issues.map((issue) => ({
-		field: String(issue.path[issue.path.length - 1]),
+		fieldName: String(issue.path[issue.path.length - 1]),
 		message: issue.message,
 	}));
 }
