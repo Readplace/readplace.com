@@ -3,6 +3,7 @@ import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "a
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import {
+	type LoadArticle,
 	type TransitionAndPersist,
 	promoteTier,
 } from "@packages/domain/article-aggregate";
@@ -22,6 +23,7 @@ export function initSelectMostCompleteContentHandler(deps: {
 	selectMostCompleteContent: SelectMostCompleteContent;
 	writeCanonicalContent: WriteCanonicalContent;
 	findContentSourceTier: FindContentSourceTier;
+	loadArticle: LoadArticle;
 	transitionAndPersist: TransitionAndPersist;
 	publishEvent: PublishEvent;
 	now: () => Date;
@@ -32,6 +34,7 @@ export function initSelectMostCompleteContentHandler(deps: {
 		selectMostCompleteContent,
 		writeCanonicalContent,
 		findContentSourceTier,
+		loadArticle,
 		transitionAndPersist,
 		publishEvent,
 		now,
@@ -88,7 +91,13 @@ export function initSelectMostCompleteContentHandler(deps: {
 					});
 					if (decision.winner === "tie") {
 						const existingTier = await findContentSourceTier(detail.url);
-						if (existingTier) {
+						const existingArticle = existingTier
+							? await loadArticle(detail.url)
+							: undefined;
+						const summaryStuckOnTooShort =
+							existingArticle?.summary.kind === "skipped" &&
+							existingArticle.summary.reason === "content-too-short";
+						if (existingTier && !summaryStuckOnTooShort) {
 							/* Recrawl tie: a canonical already exists. Promoting the
 							 * same content again would be a no-op write but a real
 							 * summary regeneration — wasted Deepseek tokens. Emit
@@ -102,19 +111,21 @@ export function initSelectMostCompleteContentHandler(deps: {
 							});
 							continue;
 						}
-						/* First save: tie with no canonical yet. By definition of
-						 * "tie" both tiers carry equivalent content, so picking
-						 * one is a deterministic tiebreaker rather than a quality
-						 * call. Prefer tier-1 (Readability-parsed) when present,
-						 * else tier-0 (raw HTML). Without this default the row
-						 * sits at crawlStatus=pending forever — promoteTier
-						 * is the only writer of crawlStatus="ready". */
+						/* Either first save (no canonical yet) OR canonical exists
+						 * but its summary is skipped("content-too-short") — i.e.
+						 * the previous canonical's content was inadequate. In both
+						 * cases, by definition of "tie" both tiers carry equivalent
+						 * content; prefer tier-1 (Readability-parsed) when present,
+						 * else tier-0. promoteTier resets summary to pending and
+						 * re-fires generate-summary against the new canonical. */
 						const fallback =
 							sources.find((source) => source.tier === "tier-1") ??
 							sources.find((source) => source.tier === "tier-0");
 						assert(fallback, "tie with no candidate tiers should be unreachable");
 						winnerTier = fallback.tier;
-						reason = `tie on first save; defaulted to ${fallback.tier}`;
+						reason = summaryStuckOnTooShort
+							? `tie + canonical summary skipped on too-short content; promoted ${fallback.tier} to retry`
+							: `tie on first save; defaulted to ${fallback.tier}`;
 					} else {
 						winnerTier = decision.winner;
 						reason = decision.reason;

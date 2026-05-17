@@ -1,5 +1,6 @@
 import { noopLogger } from "@packages/hutch-logger";
 import {
+	type Article,
 	recrawlPromoteTier,
 	recrawlTieKeptCanonical,
 	type TransitionAndPersist,
@@ -72,6 +73,18 @@ function createSqsEvent(detail: { url: string }): SQSEvent {
 
 type HandlerDeps = Parameters<typeof initRecrawlContentExtractedHandler>[0];
 
+function articleWithSummary(url: string, summary: Article["summary"]): Article {
+	return {
+		url,
+		metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
+		freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
+		estimatedReadTime: 1,
+		crawl: { kind: "ready" },
+		summary,
+		summaryAutoHeal: { attempts: 0 },
+	};
+}
+
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
 	const deps: HandlerDeps = {
@@ -79,6 +92,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		selectMostCompleteContent: jest.fn<ReturnType<SelectMostCompleteContent>, Parameters<SelectMostCompleteContent>>().mockResolvedValue({ winner: "tie", reason: "" }),
 		writeCanonicalContent: jest.fn<ReturnType<WriteCanonicalContent>, Parameters<WriteCanonicalContent>>().mockResolvedValue(undefined),
 		findContentSourceTier: jest.fn<ReturnType<FindContentSourceTier>, Parameters<FindContentSourceTier>>().mockResolvedValue(undefined),
+		loadArticle: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist,
 		imagesCdnBaseUrl: "https://cdn.example.cloudfront.net",
 		now: () => FIXED_NOW,
@@ -207,6 +221,79 @@ describe("initRecrawlContentExtractedHandler", () => {
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
 			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "equally complete" }),
 			findContentSourceTier: jest.fn().mockResolvedValue("tier-1"),
+			loadArticle: jest.fn().mockResolvedValue(
+				articleWithSummary("https://example.com/a", {
+					kind: "ready",
+					summary: "ok",
+				}),
+			),
+			writeCanonicalContent,
+			transitionAndPersist,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+
+		expect(writeCanonicalContent).not.toHaveBeenCalled();
+		expect(transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, {
+			url: "https://example.com/a",
+			input: undefined,
+		});
+	});
+
+	it("on a tie with an existing canonical whose summary is skipped(content-too-short), falls through to the deterministic tiebreaker and dispatches recrawlPromoteTier so the stuck row regenerates against the new canonical", async () => {
+		const tier0 = tierSource("tier-0");
+		const tier1 = tierSource("tier-1");
+		const writeCanonicalContent = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
+			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "equally complete" }),
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-0"),
+			loadArticle: jest.fn().mockResolvedValue(
+				articleWithSummary("https://example.com/a", {
+					kind: "skipped",
+					reason: "content-too-short",
+				}),
+			),
+			writeCanonicalContent,
+			transitionAndPersist,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+
+		expect(writeCanonicalContent).toHaveBeenCalledWith({
+			url: "https://example.com/a",
+			tier: "tier-1",
+		});
+		expect(transitionAndPersist).toHaveBeenCalledWith(recrawlPromoteTier, {
+			url: "https://example.com/a",
+			input: {
+				winnerTier: "tier-1",
+				metadata: tier1.metadata,
+				estimatedReadTime: tier1.metadata.estimatedReadTime,
+				contentFetchedAt: FIXED_NOW.toISOString(),
+				now: FIXED_NOW.toISOString(),
+			},
+		});
+	});
+
+	it("on a tie with an existing canonical whose summary is skipped for a non-too-short reason (e.g. ai-unavailable), keeps the existing canonical and dispatches recrawlTieKeptCanonical", async () => {
+		const tier0 = tierSource("tier-0");
+		const tier1 = tierSource("tier-1");
+		const writeCanonicalContent = jest.fn().mockResolvedValue(undefined);
+		const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
+			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "equally complete" }),
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-1"),
+			loadArticle: jest.fn().mockResolvedValue(
+				articleWithSummary("https://example.com/a", {
+					kind: "skipped",
+					reason: "ai-unavailable",
+				}),
+			),
 			writeCanonicalContent,
 			transitionAndPersist,
 		});

@@ -1,5 +1,6 @@
 import { noopLogger } from "@packages/hutch-logger";
 import {
+	type Article,
 	promoteTier,
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
@@ -71,6 +72,18 @@ function createSqsEvent(detail: { url: string; tier: "tier-0" | "tier-1"; userId
 
 type HandlerDeps = Parameters<typeof initSelectMostCompleteContentHandler>[0];
 
+function articleWithSummary(url: string, summary: Article["summary"]): Article {
+	return {
+		url,
+		metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
+		freshness: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
+		estimatedReadTime: 1,
+		crawl: { kind: "ready" },
+		summary,
+		summaryAutoHeal: { attempts: 0 },
+	};
+}
+
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
 	const deps: HandlerDeps = {
@@ -78,6 +91,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		selectMostCompleteContent: jest.fn<ReturnType<SelectMostCompleteContent>, Parameters<SelectMostCompleteContent>>().mockResolvedValue({ winner: "tie", reason: "" }),
 		writeCanonicalContent: jest.fn<ReturnType<WriteCanonicalContent>, Parameters<WriteCanonicalContent>>().mockResolvedValue(undefined),
 		findContentSourceTier: jest.fn<ReturnType<FindContentSourceTier>, Parameters<FindContentSourceTier>>().mockResolvedValue(undefined),
+		loadArticle: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist,
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		now: () => FIXED_NOW,
@@ -227,6 +241,77 @@ describe("initSelectMostCompleteContentHandler", () => {
 			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
 			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "equally complete" }),
 			findContentSourceTier: jest.fn().mockResolvedValue("tier-1"),
+			loadArticle: jest.fn().mockResolvedValue(
+				articleWithSummary("https://example.com/a", {
+					kind: "ready",
+					summary: "ok",
+				}),
+			),
+			publishEvent,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-0", userId: "user-1" }), stubContext, () => {});
+
+		expect(deps.writeCanonicalContent).not.toHaveBeenCalled();
+		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
+		const events = publishEvent.mock.calls.map((call: [{ detailType: string }]) => call[0].detailType);
+		expect(events).toEqual(["CrawlArticleCompleted"]);
+	});
+
+	it("tie with an existing canonical whose summary is skipped(content-too-short) falls through to the deterministic tiebreaker and promotes so the row exits the stuck skipped state", async () => {
+		const tier0 = tierSource("tier-0");
+		const tier1 = tierSource("tier-1");
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const { handler, deps } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
+			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "equally complete" }),
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-0"),
+			loadArticle: jest.fn().mockResolvedValue(
+				articleWithSummary("https://example.com/a", {
+					kind: "skipped",
+					reason: "content-too-short",
+				}),
+			),
+			publishEvent,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), stubContext, () => {});
+
+		expect(publishEvent).not.toHaveBeenCalled();
+		expect(deps.writeCanonicalContent).toHaveBeenCalledWith({
+			url: "https://example.com/a",
+			tier: "tier-1",
+		});
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(promoteTier, {
+			url: "https://example.com/a",
+			input: {
+				tier: "tier-1",
+				metadata: tier1.metadata,
+				estimatedReadTime: tier1.metadata.estimatedReadTime,
+				contentFetchedAt: FIXED_NOW.toISOString(),
+				now: FIXED_NOW.toISOString(),
+				canonicalChanged: true,
+				userId: "user-1",
+			},
+		});
+	});
+
+	it("tie with an existing canonical whose summary is skipped for a non-too-short reason (e.g. ai-unavailable) keeps the existing skip — does not promote", async () => {
+		const tier0 = tierSource("tier-0");
+		const tier1 = tierSource("tier-1");
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const { handler, deps } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
+			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "equally complete" }),
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-1"),
+			loadArticle: jest.fn().mockResolvedValue(
+				articleWithSummary("https://example.com/a", {
+					kind: "skipped",
+					reason: "ai-unavailable",
+				}),
+			),
 			publishEvent,
 		});
 
