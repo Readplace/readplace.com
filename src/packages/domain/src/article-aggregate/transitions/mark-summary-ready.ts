@@ -27,6 +27,8 @@ export function markSummaryReady(
 		kind: "ready",
 		summary: input.summary,
 		excerpt: input.excerpt,
+		inputTokens: input.inputTokens,
+		outputTokens: input.outputTokens,
 	};
 	if (input.sourceContentHash !== undefined) {
 		summary.sourceContentHash = input.sourceContentHash;

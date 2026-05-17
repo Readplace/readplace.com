@@ -546,7 +546,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		findArticleByUrl: deps.findArticleByUrl,
 		readArticleContent: deps.readArticleContent,
 		findGeneratedSummary: deps.findGeneratedSummary,
-		markSummaryPending: deps.markSummaryPending,
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
 		markCrawlPending: deps.markCrawlPending,
 		forceMarkCrawlPending: deps.forceMarkCrawlPending,

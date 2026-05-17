@@ -33,6 +33,8 @@ describe("markSummaryReady", () => {
 			kind: "ready",
 			summary: "AI-generated summary",
 			excerpt: "AI-generated excerpt",
+			inputTokens: 1234,
+			outputTokens: 567,
 		});
 	});
 
@@ -51,6 +53,8 @@ describe("markSummaryReady", () => {
 			kind: "ready",
 			summary: "AI-generated summary",
 			excerpt: "AI-generated excerpt",
+			inputTokens: 1,
+			outputTokens: 1,
 			sourceContentHash: hash,
 		});
 	});

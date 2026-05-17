@@ -11,7 +11,6 @@ import type { FindArticleByUrl } from "@packages/test-fixtures/providers/article
 import type { ReadArticleContent } from "@packages/test-fixtures/providers/article-store";
 import type {
 	FindGeneratedSummary,
-	MarkSummaryPending,
 } from "@packages/test-fixtures/providers/article-summary";
 import type { PublishRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
 import type { FindUserByEmail } from "@packages/test-fixtures/providers/auth";
@@ -31,7 +30,6 @@ export interface AdminRecrawlDependencies {
 	findArticleByUrl: FindArticleByUrl;
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
-	markSummaryPending: MarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
