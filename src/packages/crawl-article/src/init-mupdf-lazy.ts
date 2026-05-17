@@ -3,17 +3,18 @@ import { cachedImport } from "./cached-import";
 import type { PdfDocument, PdfPage, PdfRasterizer } from "./pdf-extract.types";
 
 /**
- * mupdf v1.x is ESM-only; this package and every callsite (Lambda runtime
- * entry points, hutch SSR) compile to CommonJS. The only way to consume it
- * is a dynamic `import()`, which esbuild bundles inline alongside the rest
- * of the handler at build time.
+ * mupdf v1.x is ESM-only AND has a top-level `await` to instantiate its
+ * WASM module. esbuild cannot bundle a top-level-await module into a CJS
+ * output, and TypeScript's CJS transpiler rewrites `await import("mupdf")`
+ * into `require("mupdf")` — which Node 22's require(esm) refuses for the
+ * same top-level-await reason (ERR_REQUIRE_ASYNC_MODULE).
  *
- * mupdf ships a sidecar `mupdf-wasm.wasm` that its loader locates via
- * `new URL("mupdf-wasm.wasm", import.meta.url)`. esbuild rewrites
- * `import.meta.url` to the bundle's file URL when emitting CJS for Node, so
- * the sidecar must be copied next to the handler's `index.js` at deploy time
- * — see HutchLambda's `wasmFiles` option in
- * `src/packages/hutch-infra-components/src/infra/hutch-lambda.ts`.
+ * The workaround is to hide the dynamic import from both TS and esbuild
+ * by constructing it via `new Function`. At runtime this is a real
+ * `import()` against the ESM specifier, which Node loads correctly from
+ * the Lambda zip's `node_modules/mupdf/` (shipped via HutchLambda's
+ * `external` option). The cached promise ensures the WASM module loads
+ * once per Lambda container.
  *
  * Render scale 2 yields ~150 DPI on a 72-DPI source PDF, which gives the
  * DeepInfra vision model enough resolution to read small caption text
@@ -23,9 +24,10 @@ const DEFAULT_RENDER_SCALE = 2;
 
 type MupdfModule = typeof import("mupdf");
 
+const dynamicImport = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<unknown>;
+
 const loadMupdfModule = cachedImport<MupdfModule>(async () => {
-	const mod = await import("mupdf");
-	return mod;
+	return (await dynamicImport("mupdf")) as MupdfModule;
 });
 
 export function initMupdfRasterizer(opts?: { scale?: number }): PdfRasterizer {

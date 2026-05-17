@@ -154,11 +154,12 @@ const saveLinkCommandLambda = new HutchLambda("save-link-command", {
 	// 360s is ~2× that for safety. Paired with 720s SQS visibility (≥2× Lambda
 	// timeout per AWS guidance).
 	timeout: 360,
-	// mupdf is bundled inline, but its WASM sidecar (`mupdf-wasm.wasm`) is a
-	// runtime file the bundled JS locates via `new URL(..., import.meta.url)`.
-	// esbuild rewrites that URL to the handler bundle's file URL, so the
-	// `.wasm` must sit next to `index.js` in the zip.
-	wasmFiles: [{ package: "mupdf", path: "dist/mupdf-wasm.wasm" }],
+	// mupdf is ESM-only and uses top-level `await` to instantiate WASM —
+	// esbuild can't inline it into the CJS handler, and Node 22's
+	// `require(esm)` rejects it with ERR_REQUIRE_ASYNC_MODULE. Ship it in
+	// node_modules so the runtime `import()` in `init-mupdf-lazy.ts`
+	// resolves to mupdf's own ESM build (and its sibling `mupdf-wasm.wasm`).
+	external: ["mupdf"],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -276,8 +277,8 @@ const saveAnonymousLinkCommandLambda = new HutchLambda("save-anonymous-link-comm
 	// path, same headroom requirements.
 	memorySize: 2048,
 	timeout: 360,
-	// See save-link-command for the rationale on shipping mupdf's WASM sidecar.
-	wasmFiles: [{ package: "mupdf", path: "dist/mupdf-wasm.wasm" }],
+	// See save-link-command for the rationale on shipping mupdf via node_modules.
+	external: ["mupdf"],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -343,7 +344,7 @@ const staleCheckRequestedLambda = new HutchLambda("stale-check-requested", {
 	// headroom for re-extraction.
 	memorySize: 2048,
 	timeout: 360,
-	wasmFiles: [{ package: "mupdf", path: "dist/mupdf-wasm.wasm" }],
+	external: ["mupdf"],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -572,8 +573,8 @@ const recrawlLinkInitiatedLambda = new HutchLambda("recrawl-link-initiated", {
 	// PDF OCR path on a recrawl.
 	memorySize: 2048,
 	timeout: 360,
-	// See save-link-command for the rationale on shipping mupdf's WASM sidecar.
-	wasmFiles: [{ package: "mupdf", path: "dist/mupdf-wasm.wasm" }],
+	// See save-link-command for the rationale on shipping mupdf via node_modules.
+	external: ["mupdf"],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
