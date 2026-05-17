@@ -90,6 +90,8 @@ declare namespace browser {
 			updateInfo: { focused?: boolean },
 		): Promise<{ id?: number }>;
 
+		function remove(windowId: number): Promise<void>;
+
 		const onRemoved: {
 			addListener(callback: (windowId: number) => void): void;
 		};

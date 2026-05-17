@@ -39,7 +39,7 @@ const tokenStorage: TokenStorage = {
 	},
 };
 
-let loginWindow: { id: number; tabId: number; tabUrl: string } | null = null;
+let popupWindow: { id: number } | null = null;
 
 const shell: BrowserShell = {
 	onShortcutPressed(handler) {
@@ -51,33 +51,26 @@ const shell: BrowserShell = {
 		});
 	},
 
-	openLoginScreen({ url, title }) {
+	openPopup({ url, title }) {
 		const params = `?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`;
-		browser.tabs
-			.query({ active: true, currentWindow: true })
-			.then(async (tabs) => {
-				const tab = tabs[0];
-				const win = await browser.windows.create({
-					url: browser.runtime.getURL(
-						`popup/popup.template.html${params}`,
-					),
-					type: "popup",
-					width: 380,
-					height: 520,
-				});
-				if (win.id != null && tab?.id != null) {
-					loginWindow = { id: win.id, tabId: tab.id, tabUrl: url };
+		const closeExisting = popupWindow
+			? browser.windows.remove(popupWindow.id).catch(() => {})
+			: Promise.resolve();
+		closeExisting
+			.then(() => browser.windows.create({
+				url: browser.runtime.getURL(
+					`popup/popup.template.html${params}`,
+				),
+				type: "popup",
+				width: 380,
+				height: 520,
+			}))
+			.then((win) => {
+				if (win.id != null) {
+					popupWindow = { id: win.id };
 				}
 			})
 			.catch((err) => logger.error(err));
-	},
-
-	focusLoginWindow() {
-		if (loginWindow) {
-			browser.windows
-				.update(loginWindow.id, { focused: true })
-				.catch((err) => logger.error(err));
-		}
 	},
 
 	getActiveTab: async () => {
@@ -135,10 +128,10 @@ const shell: BrowserShell = {
 		});
 	},
 
-	onLoginWindowClosed(handler) {
+	onPopupClosed(handler) {
 		browser.windows.onRemoved.addListener((windowId) => {
-			if (loginWindow && windowId === loginWindow.id) {
-				loginWindow = null;
+			if (popupWindow && windowId === popupWindow.id) {
+				popupWindow = null;
 				handler();
 			}
 		});
