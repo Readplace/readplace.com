@@ -27,7 +27,11 @@ type MupdfModule = typeof import("mupdf");
 const dynamicImport = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<unknown>;
 
 const loadMupdfModule = cachedImport<MupdfModule>(async () => {
-	return (await dynamicImport("mupdf")) as MupdfModule;
+	const t0 = Date.now();
+	console.info("[init-mupdf] loading mupdf wasm");
+	const mod = await dynamicImport("mupdf");
+	console.info(`[init-mupdf] loaded mupdf wasm dt=${Date.now() - t0}ms`);
+	return mod as MupdfModule;
 });
 
 export function initMupdfRasterizer(opts?: { scale?: number }): PdfRasterizer {

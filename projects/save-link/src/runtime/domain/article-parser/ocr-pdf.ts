@@ -31,15 +31,20 @@ export function initOcrPdf(deps: {
 	const maxPages = deps.maxPages ?? MAX_PAGES;
 
 	return async ({ buffer, url }) => {
+		const t0 = Date.now();
+		console.info(`[ocr-pdf] start url=${url} bytes=${buffer.length}`);
 		let doc: PdfDocument;
 		try {
 			doc = await deps.rasterizer.open(buffer);
+			console.info(`[ocr-pdf] mupdf-open done t=${Date.now() - t0}ms pages=${doc.numPages}`);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
+			console.error(`[ocr-pdf] mupdf-open failed t=${Date.now() - t0}ms reason=${message}`);
 			return { kind: "failed", reason: `OCR pipeline failed: ${message}` };
 		}
-		const result = await extractWithDoc({ doc, url, pagesPerBatch, maxPages, createVisionMessage: deps.createVisionMessage });
+		const result = await extractWithDoc({ doc, url, pagesPerBatch, maxPages, createVisionMessage: deps.createVisionMessage, t0 });
 		doc.destroy();
+		console.info(`[ocr-pdf] done t=${Date.now() - t0}ms kind=${result.kind}`);
 		return result;
 	};
 }
@@ -50,8 +55,9 @@ async function extractWithDoc(deps: {
 	pagesPerBatch: number;
 	maxPages: number;
 	createVisionMessage: CreateVisionMessage;
+	t0: number;
 }): Promise<PdfExtractResult> {
-	const { doc, url, pagesPerBatch, maxPages, createVisionMessage } = deps;
+	const { doc, url, pagesPerBatch, maxPages, createVisionMessage, t0 } = deps;
 	try {
 		if (doc.numPages > maxPages) {
 			return {
@@ -62,17 +68,26 @@ async function extractWithDoc(deps: {
 
 		const pageImages: Buffer[] = [];
 		for (let pageNum = 0; pageNum < doc.numPages; pageNum++) {
+			const pageStart = Date.now();
 			const page: PdfPage = doc.loadPage(pageNum);
-			pageImages.push(page.renderToPng());
+			const png = page.renderToPng();
 			page.destroy();
+			pageImages.push(png);
+			console.info(`[ocr-pdf] rasterised page=${pageNum + 1}/${doc.numPages} bytes=${png.length} dt=${Date.now() - pageStart}ms total=${Date.now() - t0}ms`);
 		}
 
 		const batches: Buffer[][] = [];
 		for (let i = 0; i < pageImages.length; i += pagesPerBatch) {
 			batches.push(pageImages.slice(i, i + pagesPerBatch));
 		}
+		console.info(`[ocr-pdf] dispatching ${batches.length} OCR batches (pagesPerBatch=${pagesPerBatch}) total=${Date.now() - t0}ms`);
 		const batchFragments = await Promise.all(
-			batches.map((batch) => createVisionMessage({ images: batch.map((pngBuffer) => ({ pngBuffer })) })),
+			batches.map(async (batch, idx) => {
+				const batchStart = Date.now();
+				const fragment = await createVisionMessage({ images: batch.map((pngBuffer) => ({ pngBuffer })) });
+				console.info(`[ocr-pdf] batch ${idx + 1}/${batches.length} done dt=${Date.now() - batchStart}ms chars=${fragment.length} total=${Date.now() - t0}ms`);
+				return fragment;
+			}),
 		);
 		const combined = batchFragments.map((t) => t.trim()).filter((t) => t.length > 0).join("\n");
 		if (combined.length === 0) {
