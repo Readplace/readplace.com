@@ -1,3 +1,5 @@
+import assert from "node:assert";
+import { parseHTML } from "linkedom";
 import type { ExtractPdf, PdfjsLibBase } from "@packages/crawl-article";
 import { readMetaTitle, deriveTitleFromUrl, escapeHtmlText } from "@packages/crawl-article";
 import type { CreateVisionMessage } from "./create-deepinfra-vision-message";
@@ -67,12 +69,12 @@ export function initOcrPdf(deps: {
 			}
 
 			const batches = chunk(pageImages, pagesPerBatch);
-			const batchTexts = await Promise.all(
+			const batchFragments = await Promise.all(
 				batches.map((batch) =>
 					deps.createVisionMessage({ images: batch.map((pngBuffer) => ({ pngBuffer })) }),
 				),
 			);
-			const combined = batchTexts.map((t) => t.trim()).filter((t) => t.length > 0).join("\n\n");
+			const combined = batchFragments.map((t) => t.trim()).filter((t) => t.length > 0).join("\n");
 			if (combined.length === 0) {
 				return { kind: "failed", reason: "OCR returned no text across all batches" };
 			}
@@ -99,11 +101,41 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
 
 function buildSyntheticHtml(params: { title: string; body: string }): string {
 	const escapedTitle = escapeHtmlText(params.title);
-	const paragraphs = params.body
-		.split(/\n{2,}/)
-		.map((p) => p.trim())
-		.filter((p) => p.length > 0)
-		.map((p) => `<p>${escapeHtmlText(p)}</p>`)
-		.join("");
-	return `<!DOCTYPE html><html><head><title>${escapedTitle}</title></head><body><article><h1>${escapedTitle}</h1>${paragraphs}</article></body></html>`;
+	const sanitized = sanitizeFragment(params.body);
+	return `<!DOCTYPE html><html><head><title>${escapedTitle}</title></head><body><article><h1>${escapedTitle}</h1>${sanitized}</article></body></html>`;
+}
+
+const BLOCKED_ELEMENT_TAGS = new Set([
+	"script", "style", "iframe", "object", "embed", "form",
+	"input", "button", "link", "meta", "svg", "math",
+]);
+
+const ALLOWED_ATTRIBUTES_BY_TAG: Record<string, ReadonlySet<string>> = {
+	a: new Set(["href"]),
+	img: new Set(["src", "alt"]),
+	td: new Set(["colspan", "rowspan"]),
+	th: new Set(["colspan", "rowspan"]),
+};
+
+const EMPTY_ATTR_SET: ReadonlySet<string> = new Set();
+
+function sanitizeFragment(fragmentHtml: string): string {
+	const { document } = parseHTML(`<!DOCTYPE html><html><body><div id="ocr-root">${fragmentHtml}</div></body></html>`);
+	const wrapper = document.querySelector("div#ocr-root");
+	assert(wrapper, "parseHTML must produce the wrapper div");
+	for (const element of Array.from(wrapper.querySelectorAll("*"))) {
+		const tagName = element.tagName.toLowerCase();
+		if (BLOCKED_ELEMENT_TAGS.has(tagName)) {
+			element.remove();
+			continue;
+		}
+		const allowed = ALLOWED_ATTRIBUTES_BY_TAG[tagName] ?? EMPTY_ATTR_SET;
+		for (const attr of Array.from(element.attributes)) {
+			const name = attr.name.toLowerCase();
+			if (!allowed.has(name) || ((name === "href" || name === "src") && /^\s*(javascript|data):/i.test(attr.value))) {
+				element.removeAttribute(attr.name);
+			}
+		}
+	}
+	return wrapper.innerHTML;
 }

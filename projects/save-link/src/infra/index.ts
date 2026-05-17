@@ -126,7 +126,7 @@ const recrawlLinkInitiatedQueue = new HutchSQS("recrawl-link-initiated", {
 });
 
 const staleCheckRequestedQueue = new HutchSQS("stale-check-requested", {
-	visibilityTimeoutSeconds: 60,
+	visibilityTimeoutSeconds: 720,
 });
 
 const recrawlContentExtractedQueue = new HutchSQS("recrawl-content-extracted", {
@@ -213,7 +213,7 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda("save-link-raw-html-command
 	entryPoint: "./src/runtime/save-link-raw-html-command.main.ts",
 	outputDir: ".lib/save-link-raw-html-command",
 	assetDir: "./src",
-	// Text-only path (readability/linkedom on large XHTML + pdfjs text-layer).
+	// Text-only path (readability/linkedom on large XHTML).
 	// No canvas rendering or OCR, so less headroom than the OCR-capable Lambdas.
 	memorySize: 512,
 	timeout: 240,
@@ -342,12 +342,17 @@ const staleCheckRequestedLambda = new HutchLambda("stale-check-requested", {
 	entryPoint: "./src/runtime/stale-check.main.ts",
 	outputDir: ".lib/stale-check-requested",
 	assetDir: "./src",
-	memorySize: 256,
-	timeout: 30,
+	// Mirrors save-link-command: stale PDFs go through the same vision-OCR path
+	// (pdfjs rasterisation + napi-rs/canvas + DeepInfra). 2048 MB / 360s gives
+	// the same headroom for re-extraction.
+	memorySize: 2048,
+	timeout: 360,
+	external: ["@napi-rs/canvas", "@napi-rs/canvas-linux-x64-gnu"],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		DEEPINFRA_API_KEY: deepInfraApiKey,
 	},
 	policies: [
 		...staleCheckRequestedDynamodb.policies,

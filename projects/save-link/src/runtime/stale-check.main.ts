@@ -1,6 +1,8 @@
 import { SQSClient } from "@aws-sdk/client-sqs";
+import { createCanvas } from "@napi-rs/canvas";
+import OpenAI from "openai";
 import { initDynamoDbArticleStore } from "@packages/article-store";
-import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
+import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch, loadPdfjsLibAs } from "@packages/crawl-article";
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import {
 	GenerateSummaryCommand,
@@ -25,7 +27,7 @@ import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-ef
 import { initReadabilityParser } from "./domain/article-parser/readability-parser";
 import { theInformationPreParser } from "./domain/article-parser/the-information-pre-parser";
 import { mediumPreParser } from "./domain/article-parser/medium-pre-parser";
-import { initLazyPdfExtractTextOnly } from "@packages/crawl-article";
+import { initSaveLinkPdfExtract } from "./domain/article-parser/init-save-link-pdf-extract";
 import { initFindArticleCrawlStatus } from "./providers/article-crawl/find-article-crawl-status";
 import { initFindArticleFreshness } from "./providers/article-crawl/find-article-freshness";
 import { requireEnv } from "../require-env";
@@ -38,17 +40,25 @@ const STALE_TTL_MS = 86_400_000;
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const deepInfraApiKey = requireEnv("DEEPINFRA_API_KEY");
 
 const client = createDynamoDocumentClient();
 const sqsClient = new SQSClient({});
 const logError = (message: string, error?: Error) =>
 	consoleLogger.error(message, { error });
 
+const deepInfraClient = new OpenAI({
+	apiKey: deepInfraApiKey,
+	baseURL: "https://api.deepinfra.com/v1/openai",
+	timeout: 300_000,
+});
+
 const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, defaultHeaders: { ...DEFAULT_CRAWL_HEADERS } });
-// stale-check only issues conditional GETs; it never re-extracts a fetched
-// PDF body, so the text-only extractor satisfies the dep without dragging in
-// the napi-rs/canvas + DeepInfra dependency tree.
-const extractPdf = initLazyPdfExtractTextOnly();
+const extractPdf = initSaveLinkPdfExtract({
+	createCanvas,
+	createChatCompletion: (params) => deepInfraClient.chat.completions.create(params),
+	loadPdfjsLibForRender: loadPdfjsLibAs,
+});
 const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
 
 const { parseHtml } = initReadabilityParser({
