@@ -61,6 +61,7 @@ import { validateSaveableUrl } from "@packages/domain/article";
 import { createApp } from "./server";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
+import type { AnalyticsEvent } from "./web/middleware/analytics";
 import { httpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import {
 	PROD_FOUNDING_MEMBER_LIMIT,
@@ -357,6 +358,8 @@ export function createHutchApp(deps?: {
 	const staticBaseUrl = requireEnv("STATIC_BASE_URL");
 	const adminEmails = parseAdminEmails(requireEnv("ADMIN_EMAILS"));
 	const recrawlServiceToken = requireEnv("RECRAWL_SERVICE_TOKEN");
+	const salt = requireEnv("ANALYTICS_SALT");
+	const analyticsLogger = HutchLogger.fromJSON<AnalyticsEvent>();
 
 	const { logParseError } = initLogParseError({
 		logger: HutchLogger.fromJSON<ParseErrorEvent>(),
@@ -384,12 +387,14 @@ export function createHutchApp(deps?: {
 		now: () => new Date(),
 		botDefenseLogger: HutchLogger.fromJSON<BotDefenseEvent>(),
 		conversionLogger: HutchLogger.fromJSON<ConversionEvent>(),
+		analytics: analyticsLogger,
+		salt,
 		foundingAllocation: initFoundingAllocation({
 			foundingMemberLimit: PROD_FOUNDING_MEMBER_LIMIT,
 		}),
 	});
 
-	return { app, auth, articleStore, oauthModel };
+	return { app, auth, articleStore, oauthModel, analyticsLogger };
 }
 
 export const localServer = (expressApp: Express, logger: Logger): void => {

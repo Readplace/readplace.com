@@ -93,6 +93,7 @@ import { createApp } from "./server";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
+import type { AnalyticsEvent } from "./web/middleware/analytics";
 
 export interface AuthBundle {
 	hashPassword: (password: string) => Promise<string>;
@@ -273,6 +274,11 @@ export interface TestAppFixture {
 	foundingAllocation: FoundingAllocationBundle;
 }
 
+export interface AnalyticsBundle {
+	logger: HutchLogger.Typed<AnalyticsEvent>;
+	events: AnalyticsEvent[];
+}
+
 export interface TestAppResult {
 	app: Express;
 	auth: AuthBundle;
@@ -287,10 +293,12 @@ export interface TestAppResult {
 	pendingSignup: PendingSignupBundle;
 	botDefense: BotDefenseBundle;
 	conversions: ConversionsBundle;
+	analytics: AnalyticsBundle;
 }
 
 function flattenFixtureToAppDependencies(
 	fixture: TestAppFixture,
+	analyticsBundle: AnalyticsBundle,
 ): Parameters<typeof createApp>[0] {
 	return {
 		validateSaveableUrl: fixture.shared.validateSaveableUrl,
@@ -357,6 +365,8 @@ function flattenFixtureToAppDependencies(
 		consumePendingSignup: fixture.pendingSignup.consumePendingSignup,
 		botDefenseLogger: fixture.botDefense.logger,
 		conversionLogger: fixture.conversions.logger,
+		analytics: analyticsBundle.logger,
+		salt: "test-analytics-salt",
 		foundingAllocation: initFoundingAllocation({
 			foundingMemberLimit: fixture.foundingAllocation.foundingMemberLimit,
 		}),
@@ -364,7 +374,13 @@ function flattenFixtureToAppDependencies(
 }
 
 export function createTestApp(fixture: TestAppFixture): TestAppResult {
-	const app = createApp(flattenFixtureToAppDependencies(fixture));
+	const analyticsEvents: AnalyticsEvent[] = [];
+	const captureAnalytics = (data: AnalyticsEvent) => { analyticsEvents.push(data); };
+	const analyticsBundle: AnalyticsBundle = {
+		logger: { info: captureAnalytics, error: captureAnalytics, warn: captureAnalytics, debug: captureAnalytics },
+		events: analyticsEvents,
+	};
+	const app = createApp(flattenFixtureToAppDependencies(fixture, analyticsBundle));
 	return {
 		app,
 		auth: fixture.auth,
@@ -379,6 +395,7 @@ export function createTestApp(fixture: TestAppFixture): TestAppResult {
 		pendingSignup: fixture.pendingSignup,
 		botDefense: fixture.botDefense,
 		conversions: fixture.conversions,
+		analytics: analyticsBundle,
 	};
 }
 

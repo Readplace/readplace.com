@@ -71,6 +71,7 @@ import type {
 } from "@packages/test-fixtures/providers/password-reset";
 import type { OAuthModel } from "@packages/test-fixtures/providers/oauth";
 import type { HutchLogger } from "@packages/hutch-logger";
+import type { AnalyticsEvent } from "./web/middleware/analytics";
 import { initAuthRoutes } from "./web/auth/auth.page";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
@@ -180,6 +181,8 @@ interface AppDependencies {
 	consumePendingSignup: ConsumePendingSignup;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
+	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	salt: string;
 	foundingAllocation: FoundingAllocation;
 }
 
@@ -521,6 +524,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishLinkSaved: deps.publishLinkSaved,
 		refreshArticleIfStale: deps.refreshArticleIfStale,
 		logError: deps.logError,
+		analytics: deps.analytics,
+		salt: deps.salt,
+		now: deps.now,
 	});
 	app.use("/import", requireAuth, importRouter);
 

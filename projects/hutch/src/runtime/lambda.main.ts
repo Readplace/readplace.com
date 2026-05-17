@@ -6,7 +6,7 @@ import compression from "compression";
 import serverless from "serverless-http";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { logger as requestLogger } from "./domain/logger";
-import { type AnalyticsPageview, createAnalyticsMiddleware, hashIp } from "./web/middleware/analytics";
+import { createAnalyticsMiddleware, hashIp } from "./web/middleware/analytics";
 import { createBanMiddleware } from "./web/middleware/ban";
 import { logAndRespondOnError } from "./web/middleware/error-handler";
 import { createHutchApp, localServer } from "./app";
@@ -15,14 +15,14 @@ import { getEnv, requireEnv } from "./domain/require-env";
 // present in Lambda runtime, absent locally — https://docs.aws.amazon.com/lambda/latest/dg/configuration-envvars.html#configuration-envvars-runtime
 const lambda = !!getEnv("AWS_LAMBDA_FUNCTION_NAME");
 
-const { app } = createHutchApp();
+const { app, analyticsLogger } = createHutchApp();
 
 const log = requestLogger();
 const logger = HutchLogger.from(consoleLogger);
 const salt = requireEnv("ANALYTICS_SALT");
 const ban = createBanMiddleware({ salt, hashIp });
 const analytics = createAnalyticsMiddleware({
-	logger: HutchLogger.fromJSON<AnalyticsPageview>(),
+	logger: analyticsLogger,
 	salt,
 	now: () => new Date(),
 });

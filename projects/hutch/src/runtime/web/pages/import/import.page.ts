@@ -12,10 +12,13 @@ import {
 } from "@packages/domain/import-session";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { ValidateSaveableUrl, SaveableUrl, SaveableUrlErrorCode } from "@packages/domain/article";
+import type { HutchLogger } from "@packages/hutch-logger";
 import { Base } from "../../base.component";
 import { bannerStateFromRequest } from "../../banner-state";
 import { sendComponent } from "../../send-component";
 import { saveArticleFromUrl, type SaveArticleFromUrlDependencies } from "../../shared/save-article/save-article-from-url";
+import type { AnalyticsEvent } from "../../middleware/analytics";
+import { hashIp } from "../../middleware/analytics";
 import {
 	IMPORT_SKIPPED_COOKIE_NAME,
 	encodeImportSkippedCookie,
@@ -30,6 +33,9 @@ interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
 	importSessionStore: ImportSessionStore;
 	logError: (message: string, error?: Error) => void;
+	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	salt: string;
+	now: () => Date;
 }
 
 const UPLOAD_ERROR_REDIRECT = {
@@ -78,6 +84,19 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			urls,
 			truncated,
 			totalFoundInFile,
+		});
+		deps.analytics.info({
+			stream: "analytics",
+			event: "import_uploaded",
+			timestamp: deps.now().toISOString(),
+			path: "/import",
+			utm_source: "import-feature",
+			utm_medium: "form",
+			utm_campaign: "file-upload",
+			url_count: urls.length,
+			truncated: truncated ? 1 : 0,
+			visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+			is_authenticated: 1,
 		});
 		res.redirect(303, `/import/${session.id}`);
 	});
@@ -216,6 +235,20 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			});
 		}
 
+		deps.analytics.info({
+			stream: "analytics",
+			event: "import_committed",
+			timestamp: deps.now().toISOString(),
+			path: "/import/commit",
+			utm_source: "import-feature",
+			utm_medium: "form",
+			utm_campaign: "submit",
+			imported_count: saveable.length,
+			skipped_count: skipped.length,
+			total_in_session: session.totalUrls,
+			visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+			is_authenticated: 1,
+		});
 		res.redirect(
 			303,
 			`/queue?import_imported=${saveable.length}&import_total=${session.totalUrls}&import_skipped=${skipped.length}`,

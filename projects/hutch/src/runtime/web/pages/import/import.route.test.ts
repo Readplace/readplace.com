@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer, loginAgent } from "../../../test-app";
+import type { ImportUploadedEvent, ImportCommittedEvent } from "../../middleware/analytics";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -606,6 +607,72 @@ describe("Import routes", () => {
 			const again = await agent.get("/queue");
 			const docAgain = new JSDOM(again.text).window.document;
 			expect(docAgain.querySelectorAll("[data-test-import-skipped-row]").length).toBe(0);
+		});
+	});
+
+	describe("Analytics events", () => {
+		it("emits import_uploaded event with url_count after a successful upload", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const file = Buffer.from("https://example.com/post-1 https://example.com/post-2");
+			const { body, contentType } = multipartBody("urls.txt", file);
+
+			await agent.post("/import").set("Content-Type", contentType).send(body);
+
+			const uploaded = harness.analytics.events.filter(
+				(e): e is ImportUploadedEvent => e.event === "import_uploaded",
+			);
+			assert.equal(uploaded.length, 1, "exactly one import_uploaded event");
+			assert.equal(uploaded[0].url_count, 2);
+			assert.equal(uploaded[0].utm_source, "import-feature");
+			assert.equal(uploaded[0].utm_medium, "form");
+			assert.equal(uploaded[0].utm_campaign, "file-upload");
+			assert.equal(uploaded[0].is_authenticated, 1);
+		});
+
+		it("emits import_committed event with correct counts after a successful commit", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const file = Buffer.from(
+				"https://example.com/a https://example.com/b http://localhost/invalid",
+			);
+			const { body, contentType } = multipartBody("urls.txt", file);
+			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const sessionPath = create.headers.location;
+
+			await agent.post(`${sessionPath}/commit`);
+
+			const committed = harness.analytics.events.filter(
+				(e): e is ImportCommittedEvent => e.event === "import_committed",
+			);
+			assert.equal(committed.length, 1, "exactly one import_committed event");
+			assert.equal(committed[0].imported_count, 2);
+			assert.equal(committed[0].skipped_count, 1);
+			assert.equal(committed[0].total_in_session, 3);
+			assert.equal(committed[0].utm_source, "import-feature");
+			assert.equal(committed[0].utm_medium, "form");
+			assert.equal(committed[0].utm_campaign, "submit");
+			assert.equal(committed[0].is_authenticated, 1);
+		});
+
+		it("does not emit analytics events on error paths (tooLarge, noUrls, sessionNotFound)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const oversize = Buffer.alloc(6 * 1024 * 1024, 0x41);
+			const { body: largeBody, contentType: largeType } = multipartBody("big.bin", oversize);
+			await agent.post("/import").set("Content-Type", largeType).send(largeBody);
+
+			const { body: emptyBody, contentType: emptyType } = multipartBody("empty.txt", Buffer.from("just prose"));
+			await agent.post("/import").set("Content-Type", emptyType).send(emptyBody);
+
+			await agent.post("/import/00000000000000000000000000000000/commit");
+
+			assert.equal(
+				harness.analytics.events.filter((e) => e.event === "import_uploaded" || e.event === "import_committed").length,
+				0,
+				"no import analytics events on error paths",
+			);
 		});
 	});
 });
