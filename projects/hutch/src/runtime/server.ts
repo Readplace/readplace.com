@@ -73,6 +73,8 @@ import type { OAuthModel } from "@packages/test-fixtures/providers/oauth";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { initAuthRoutes } from "./web/auth/auth.page";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
+import type { ConversionEvent } from "./conversions";
+import { createClickAttributionMiddleware } from "./web/click-attribution.middleware";
 import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { SESSION_COOKIE_NAME } from "./web/auth/session-cookie";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
@@ -177,6 +179,7 @@ interface AppDependencies {
 	storePendingSignup: StorePendingSignup;
 	consumePendingSignup: ConsumePendingSignup;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
+	conversionLogger: HutchLogger.Typed<ConversionEvent>;
 	foundingAllocation: FoundingAllocation;
 }
 
@@ -202,6 +205,7 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());
+	app.use(createClickAttributionMiddleware({ now: dependencies.now }));
 
 	// Same-origin client bundles — the Lambda packaging step copies
 	// src/runtime/web/client-dist/ into the bundle, so `__dirname/web/client-dist`
@@ -427,6 +431,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		logError: deps.logError,
 		now: deps.now,
 		botDefenseLogger: deps.botDefenseLogger,
+		conversionLogger: deps.conversionLogger,
 		foundingAllocation,
 	});
 	app.use(authRouter);
@@ -448,6 +453,8 @@ export function createApp(dependencies: AppDependencies): Express {
 			storePendingSignup: deps.storePendingSignup,
 			sendEmail: deps.sendEmail,
 			logError: deps.logError,
+			now: deps.now,
+			conversionLogger: deps.conversionLogger,
 			foundingAllocation,
 		});
 		app.use(googleAuthRouter);

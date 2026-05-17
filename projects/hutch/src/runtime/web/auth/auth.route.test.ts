@@ -380,6 +380,29 @@ describe("Auth routes", () => {
 			expect(verification.subject).toBe("Verify your email — Readplace");
 		});
 
+		it("should emit a user_created conversion event on free email signup", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { conversions } = harness;
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "convert-free@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			expect(conversions.events).toHaveLength(1);
+			expect(conversions.events[0]).toMatchObject({
+				stream: "conversions",
+				event: "user_created",
+				method: "email",
+				tier: "free",
+			});
+			expect(conversions.events[0].email_hash).toBeDefined();
+			expect(conversions.events[0].user_id).toBeDefined();
+		});
+
 		it("should show duplicate-email error when a race condition causes createUserWithPasswordHash to fail during free signup", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			let raceFindCount = 0;

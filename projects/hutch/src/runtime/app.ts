@@ -60,6 +60,7 @@ import { initLogParseError, type ParseErrorEvent } from "@packages/hutch-infra-c
 import { validateSaveableUrl } from "@packages/domain/article";
 import { createApp } from "./server";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
+import type { ConversionEvent } from "./conversions";
 import { httpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import {
 	PROD_FOUNDING_MEMBER_LIMIT,
@@ -382,6 +383,7 @@ export function createHutchApp(deps?: {
 		importSessionStore,
 		now: () => new Date(),
 		botDefenseLogger: HutchLogger.fromJSON<BotDefenseEvent>(),
+		conversionLogger: HutchLogger.fromJSON<ConversionEvent>(),
 		foundingAllocation: initFoundingAllocation({
 			foundingMemberLimit: PROD_FOUNDING_MEMBER_LIMIT,
 		}),

@@ -66,6 +66,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 			stripe: fixture.stripe,
 			pendingSignup: fixture.pendingSignup,
 			botDefense: fixture.botDefense,
+			conversions: fixture.conversions,
 			foundingAllocation: fixture.foundingAllocation,
 		});
 
