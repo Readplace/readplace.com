@@ -70,12 +70,14 @@ describe("initDynamoDbArticleStore (unit)", () => {
 					etag: '"old-etag"',
 					lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
 					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+					canonicalContentHash: "a".repeat(64),
 					crawlStatus: "ready",
 					summaryStatus: "ready",
 					summary: "Old summary",
 					summaryExcerpt: "Old summary excerpt",
 					summaryInputTokens: 1234,
 					summaryOutputTokens: 567,
+					summarySourceContentHash: "a".repeat(64),
 				},
 			}));
 			const { store } = initDynamoDbArticleStore({
@@ -98,6 +100,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 					etag: '"old-etag"',
 					lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
 					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+					canonicalContentHash: "a".repeat(64),
 				},
 				estimatedReadTime: 1,
 				crawl: { kind: "ready" },
@@ -107,9 +110,29 @@ describe("initDynamoDbArticleStore (unit)", () => {
 					excerpt: "Old summary excerpt",
 					inputTokens: 1234,
 					outputTokens: 567,
+					sourceContentHash: "a".repeat(64),
 				},
 				summaryAutoHeal: { attempts: 0 },
 			});
+		});
+
+		it("leaves canonicalContentHash undefined for legacy rows that pre-date the hash column", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+					crawlStatus: "ready",
+					summaryStatus: "ready",
+					summary: "Old summary",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article?.freshness.canonicalContentHash).toBeUndefined();
 		});
 
 		it("maps a crawl-failed row with JSON-encoded tagged-union reason", async () => {
@@ -800,6 +823,131 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(
 				command.input.ExpressionAttributeValues?.[":summarySkippedReason"],
 			).toBeUndefined();
+		});
+
+		it("writes the canonicalContentHash on freshness when present so subsequent runs can compare hashes", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({
+					freshness: {
+						etag: '"e"',
+						lastModified: "lm",
+						contentFetchedAt: "2026-05-10T12:00:00.000Z",
+						canonicalContentHash: "a".repeat(64),
+					},
+				}),
+				transitionName: "refreshContent",
+				writes: REFRESH_WRITES,
+			});
+
+			const command = received as {
+				input: {
+					UpdateExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.UpdateExpression).toContain(
+				"canonicalContentHash = :cch",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":cch"]).toBe(
+				"a".repeat(64),
+			);
+		});
+
+		it("writes canonicalContentHash as null when omitted (legacy rows + first write after deploy)", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({
+					freshness: { contentFetchedAt: "2026-05-10T12:00:00.000Z" },
+				}),
+				transitionName: "refreshContent",
+				writes: REFRESH_WRITES,
+			});
+
+			const command = received as {
+				input: { ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.ExpressionAttributeValues?.[":cch"]).toBeNull();
+		});
+
+		it("writes summarySourceContentHash on a ready summary so the summariser can short-circuit on hash equality", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({
+					summary: {
+						kind: "ready",
+						summary: "abc",
+						sourceContentHash: "a".repeat(64),
+					},
+				}),
+				transitionName: "markSummaryReady",
+				writes: ["summary"],
+			});
+
+			const command = received as {
+				input: {
+					UpdateExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.UpdateExpression).toContain(
+				"summarySourceContentHash = :summarySourceContentHash",
+			);
+			expect(
+				command.input.ExpressionAttributeValues?.[":summarySourceContentHash"],
+			).toBe("a".repeat(64));
+		});
+
+		it("removes summarySourceContentHash when summary transitions to pending so a stale hash does not leak into a freshly-pending row", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({
+					summary: { kind: "pending", pendingSince: PENDING_SINCE },
+				}),
+				transitionName: "promoteTier",
+				writes: ["summary"],
+			});
+
+			const command = received as { input: { UpdateExpression?: string } };
+			expect(command.input.UpdateExpression).toMatch(
+				/REMOVE.*summarySourceContentHash/,
+			);
 		});
 
 		it("encodes missing freshness fields as nulls so DynamoDB stores them as null (not the prior value)", async () => {

@@ -8,6 +8,7 @@ import type { Context, SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { initGenerateSummaryHandler } from "./generate-summary-handler";
 import type { SummarizeArticle } from "./link-summariser";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
+import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -74,8 +75,9 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 }
 
 describe("initGenerateSummaryHandler", () => {
-	it("fires markSummaryReady with summary/excerpt/inputTokens/outputTokens on the happy path", async () => {
+	it("fires markSummaryReady with summary/excerpt/inputTokens/outputTokens + sourceContentHash on the happy path", async () => {
 		const URL = "https://example.com/article";
+		const html = "<p>article content</p>";
 		const { handler, deps } = createHandler({
 			summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>().mockResolvedValue({
 				kind: "ready",
@@ -84,6 +86,7 @@ describe("initGenerateSummaryHandler", () => {
 				inputTokens: 100,
 				outputTokens: 50,
 			}),
+			findArticleContent: jest.fn<ReturnType<FindArticleContent>, Parameters<FindArticleContent>>().mockResolvedValue({ content: html }),
 			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
 		});
 
@@ -97,6 +100,7 @@ describe("initGenerateSummaryHandler", () => {
 				excerpt: "A blurb.",
 				inputTokens: 100,
 				outputTokens: 50,
+				sourceContentHash: computeCanonicalContentHash(html),
 			},
 		});
 	});

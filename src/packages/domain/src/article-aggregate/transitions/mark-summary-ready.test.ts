@@ -36,6 +36,39 @@ describe("markSummaryReady", () => {
 		});
 	});
 
+	it("records the supplied sourceContentHash on the ready summary so subsequent runs can compare against the canonical hash and skip regeneration", () => {
+		const hash = "a".repeat(64);
+
+		const { article } = markSummaryReady(buildArticle(), {
+			summary: "AI-generated summary",
+			excerpt: "AI-generated excerpt",
+			inputTokens: 1,
+			outputTokens: 1,
+			sourceContentHash: hash,
+		});
+
+		assert.deepEqual(article.summary, {
+			kind: "ready",
+			summary: "AI-generated summary",
+			excerpt: "AI-generated excerpt",
+			sourceContentHash: hash,
+		});
+	});
+
+	it("omits sourceContentHash from the ready summary when none was supplied (legacy fallback for callers that have not threaded the hash)", () => {
+		const { article } = markSummaryReady(buildArticle(), {
+			summary: "AI-generated summary",
+			excerpt: "AI-generated excerpt",
+			inputTokens: 1,
+			outputTokens: 1,
+		});
+
+		assert.equal(
+			article.summary.kind === "ready" ? article.summary.sourceContentHash : "present",
+			undefined,
+		);
+	});
+
 	it("emits a publish-summary-generated effect carrying url and token counts", () => {
 		const { effects } = markSummaryReady(
 			buildArticle({ url: "https://example.com/post" }),

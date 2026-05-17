@@ -7,6 +7,10 @@ export interface MarkSummaryReadyInput {
 	excerpt: string;
 	inputTokens: number;
 	outputTokens: number;
+	/** Optional: hash of the canonical readable text the summary was generated
+	 * against. Recorded on the ready summary so a future caller can detect
+	 * "content unchanged since last summary" and skip regeneration. */
+	sourceContentHash?: string;
 }
 
 /* `writes` covers summary + summaryAutoHeal so a successful regen resets the
@@ -19,13 +23,17 @@ export function markSummaryReady(
 	effects: readonly Effect[];
 	writes: readonly AggregateField[];
 } {
+	const summary: Extract<Article["summary"], { kind: "ready" }> = {
+		kind: "ready",
+		summary: input.summary,
+		excerpt: input.excerpt,
+	};
+	if (input.sourceContentHash !== undefined) {
+		summary.sourceContentHash = input.sourceContentHash;
+	}
 	const next: Article = {
 		...article,
-		summary: {
-			kind: "ready",
-			summary: input.summary,
-			excerpt: input.excerpt,
-		},
+		summary,
 		summaryAutoHeal: { attempts: 0 },
 	};
 	const effects: readonly Effect[] = [

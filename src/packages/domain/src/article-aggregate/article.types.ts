@@ -12,6 +12,10 @@ export interface ArticleFreshness {
 	etag?: string;
 	lastModified?: string;
 	contentFetchedAt: string;
+	/* Optional for lazy backfill: legacy rows have no hash; first canonical write after
+	 * deploy populates it. Once present, hash equality drives summary regeneration —
+	 * same readable text → no regen, even across re-crawls or refreshes. */
+	canonicalContentHash?: string;
 }
 
 export type CrawlState =
@@ -28,6 +32,10 @@ export type SummaryState =
 			excerpt?: string;
 			inputTokens?: number;
 			outputTokens?: number;
+			/* Records the canonicalContentHash the summary was generated against, so
+			 * a later caller (admin recrawl, refresh) can compare to the current
+			 * canonical hash and detect "content is unchanged — keep this summary". */
+			sourceContentHash?: string;
 	  }
 	| { kind: "failed"; reason: SummaryFailureReason }
 	| { kind: "skipped"; reason?: string };

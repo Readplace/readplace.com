@@ -8,6 +8,7 @@ import type { ListAvailableTierSources } from "./list-available-tier-sources";
 import type { SelectMostCompleteContent } from "./select-content";
 import type { WriteCanonicalContent } from "../../providers/article-store/promote-tier-to-canonical";
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
+import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import type { TierSource, TierSourceMetadata } from "./tier-source.types";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
 
@@ -135,6 +136,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 				contentFetchedAt: FIXED_NOW.toISOString(),
 				now: FIXED_NOW.toISOString(),
 				canonicalChanged: true,
+				canonicalContentHash: computeCanonicalContentHash(tier1.html),
 				userId: "user-1",
 			},
 		});
@@ -187,6 +189,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 				contentFetchedAt: FIXED_NOW.toISOString(),
 				now: FIXED_NOW.toISOString(),
 				canonicalChanged: true,
+				canonicalContentHash: computeCanonicalContentHash(tier0.html),
 				userId: "user-1",
 			},
 		});
@@ -213,9 +216,30 @@ describe("initSelectMostCompleteContentHandler", () => {
 				contentFetchedAt: FIXED_NOW.toISOString(),
 				now: FIXED_NOW.toISOString(),
 				canonicalChanged: true,
+				canonicalContentHash: computeCanonicalContentHash(tier1.html),
 				userId: undefined,
 			},
 		});
+	});
+
+	it("computes and passes a canonical content hash derived from the winning source HTML so the aggregate's hash gate can detect content equality", async () => {
+		const tier1 = tierSource("tier-1", { html: "<article><p>Distinctive winner body.</p></article>" });
+
+		const { handler, deps } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
+			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), stubContext, () => {});
+
+		const expectedHash = computeCanonicalContentHash(tier1.html);
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(
+			promoteTier,
+			expect.objectContaining({
+				input: expect.objectContaining({ canonicalContentHash: expectedHash }),
+			}),
+		);
+		expect(expectedHash.length).toBe(64);
 	});
 
 	it("tie with an existing canonical keeps it unchanged — emits CrawlArticleCompleted directly and skips the aggregate transition entirely", async () => {
@@ -263,6 +287,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 				contentFetchedAt: FIXED_NOW.toISOString(),
 				now: FIXED_NOW.toISOString(),
 				canonicalChanged: true,
+				canonicalContentHash: computeCanonicalContentHash(tier1.html),
 				userId: "user-1",
 			},
 		});
@@ -318,6 +343,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 				contentFetchedAt: FIXED_NOW.toISOString(),
 				now: FIXED_NOW.toISOString(),
 				canonicalChanged: false,
+				canonicalContentHash: computeCanonicalContentHash(tier0.html),
 				userId: "user-1",
 			},
 		});

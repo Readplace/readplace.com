@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import type { Article } from "../article.types";
 import { refreshContent } from "./refresh-content";
 
+const NOW = "2026-05-13T12:00:00.000Z";
+const HASH_A = "a".repeat(64);
+const HASH_B = "b".repeat(64);
+
 function buildArticle(overrides: Partial<Article> = {}): Article {
 	return {
 		url: "https://example.com/article",
@@ -28,8 +32,6 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 	};
 }
 
-const NOW = "2026-05-13T12:00:00.000Z";
-
 describe("refreshContent", () => {
 	it("overwrites metadata, freshness, and estimated read time with the fetched values", () => {
 		const before = buildArticle();
@@ -49,6 +51,7 @@ describe("refreshContent", () => {
 			},
 			estimatedReadTime: 2,
 			now: NOW,
+			canonicalContentHash: HASH_A,
 		});
 
 		assert.equal(article.metadata.title, "New title");
@@ -59,8 +62,28 @@ describe("refreshContent", () => {
 		assert.equal(article.estimatedReadTime, 2);
 	});
 
-	it("resets summary to pending so the worker regenerates the cached text", () => {
+	it("writes the new canonicalContentHash onto freshness so subsequent runs can compare against it", () => {
+		const before = buildArticle();
+
+		const { article } = refreshContent(before, {
+			metadata: before.metadata,
+			freshness: before.freshness,
+			estimatedReadTime: before.estimatedReadTime,
+			now: NOW,
+			canonicalContentHash: HASH_A,
+		});
+
+		assert.equal(article.freshness.canonicalContentHash, HASH_A);
+	});
+
+	it("resets summary to pending when the canonical hash changed so the worker regenerates the cached text", () => {
 		const before = buildArticle({
+			freshness: {
+				etag: '"old-etag"',
+				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				canonicalContentHash: HASH_A,
+			},
 			summary: {
 				kind: "ready",
 				summary: "stale summary",
@@ -75,19 +98,72 @@ describe("refreshContent", () => {
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
 			now: NOW,
+			canonicalContentHash: HASH_B,
 		});
 
 		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
 	});
 
-	it("stamps pendingSince with the provided now so the canary can age-gate the row", () => {
-		const before = buildArticle();
+	it("preserves the cached ready summary when the canonical hash is unchanged (cacheability gate prevents wasted regeneration)", () => {
+		const existingSummary = {
+			kind: "ready" as const,
+			summary: "kept summary",
+			excerpt: "kept excerpt",
+		};
+		const before = buildArticle({
+			freshness: {
+				etag: '"old-etag"',
+				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				canonicalContentHash: HASH_A,
+			},
+			summary: existingSummary,
+		});
 
 		const { article } = refreshContent(before, {
 			metadata: before.metadata,
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
 			now: NOW,
+			canonicalContentHash: HASH_A,
+		});
+
+		assert.deepEqual(article.summary, existingSummary);
+	});
+
+	it("treats a missing previous canonicalContentHash as content-changed (lazy backfill on first run after deploy)", () => {
+		const before = buildArticle({
+			summary: { kind: "ready", summary: "stale" },
+		});
+
+		const { article, writes } = refreshContent(before, {
+			metadata: before.metadata,
+			freshness: before.freshness,
+			estimatedReadTime: before.estimatedReadTime,
+			now: NOW,
+			canonicalContentHash: HASH_A,
+		});
+
+		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
+		assert.ok(writes.includes("summary"));
+	});
+
+	it("stamps pendingSince with the provided now so the canary can age-gate the row", () => {
+		const before = buildArticle({
+			freshness: {
+				etag: '"old-etag"',
+				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				canonicalContentHash: HASH_A,
+			},
+		});
+
+		const { article } = refreshContent(before, {
+			metadata: before.metadata,
+			freshness: before.freshness,
+			estimatedReadTime: before.estimatedReadTime,
+			now: NOW,
+			canonicalContentHash: HASH_B,
 		});
 
 		assert.equal(
@@ -104,19 +180,29 @@ describe("refreshContent", () => {
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
 			now: NOW,
+			canonicalContentHash: HASH_A,
 		});
 
 		assert.deepEqual(article.crawl, { kind: "ready" });
 	});
 
-	it("emits a generate-summary effect so the worker is invoked after persistence", () => {
-		const before = buildArticle({ url: "https://example.com/post" });
+	it("emits a generate-summary effect when canonical hash changed", () => {
+		const before = buildArticle({
+			url: "https://example.com/post",
+			freshness: {
+				etag: '"old-etag"',
+				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				canonicalContentHash: HASH_A,
+			},
+		});
 
 		const { effects } = refreshContent(before, {
 			metadata: before.metadata,
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
 			now: NOW,
+			canonicalContentHash: HASH_B,
 		});
 
 		assert.deepEqual(effects, [
@@ -124,18 +210,73 @@ describe("refreshContent", () => {
 		]);
 	});
 
-	it("declares writes for metadata, freshness, and summary so crawl-state is not clobbered by a concurrent inline writer", () => {
-		const before = buildArticle();
+	it("emits no effects when canonical hash is unchanged (refresh that produced identical content must not regenerate)", () => {
+		const before = buildArticle({
+			url: "https://example.com/post",
+			freshness: {
+				etag: '"old-etag"',
+				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				canonicalContentHash: HASH_A,
+			},
+			summary: { kind: "ready", summary: "kept" },
+		});
+
+		const { effects } = refreshContent(before, {
+			metadata: before.metadata,
+			freshness: before.freshness,
+			estimatedReadTime: before.estimatedReadTime,
+			now: NOW,
+			canonicalContentHash: HASH_A,
+		});
+
+		assert.deepEqual(effects, []);
+	});
+
+	it("declares writes for metadata, freshness, and summary when hash changed so crawl is not clobbered by a concurrent inline writer", () => {
+		const before = buildArticle({
+			freshness: {
+				etag: '"old-etag"',
+				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				canonicalContentHash: HASH_A,
+			},
+		});
 
 		const { writes } = refreshContent(before, {
 			metadata: before.metadata,
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
 			now: NOW,
+			canonicalContentHash: HASH_B,
 		});
 
 		assert.deepEqual([...writes].sort(), ["freshness", "metadata", "summary"]);
 		assert.ok(!writes.includes("crawl"), "refresh must not declare crawl writes");
+	});
+
+	it("declares writes for metadata and freshness only (no summary) when canonical hash is unchanged", () => {
+		const before = buildArticle({
+			freshness: {
+				etag: '"old-etag"',
+				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				canonicalContentHash: HASH_A,
+			},
+			summary: { kind: "ready", summary: "kept" },
+		});
+
+		const { writes } = refreshContent(before, {
+			metadata: before.metadata,
+			freshness: before.freshness,
+			estimatedReadTime: before.estimatedReadTime,
+			now: NOW,
+			canonicalContentHash: HASH_A,
+		});
+
+		assert.deepEqual([...writes].sort(), ["freshness", "metadata"]);
+		assert.ok(!writes.includes("summary"));
+		assert.ok(!writes.includes("crawl"));
 	});
 
 	it("does not mutate the input article (pure function)", () => {
@@ -155,6 +296,7 @@ describe("refreshContent", () => {
 			},
 			estimatedReadTime: 3,
 			now: NOW,
+			canonicalContentHash: HASH_A,
 		});
 
 		assert.deepEqual(before, beforeSnapshot);
