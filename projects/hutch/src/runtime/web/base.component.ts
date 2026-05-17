@@ -21,6 +21,11 @@ import { MarkdownPage } from "./markdown-page";
 import { buildMarkdownFrontmatter } from "./markdown-frontmatter";
 import type { PageBody, SeoMetadata } from "./page-body.types";
 import { render } from "./render";
+import {
+	EXTENSION_SUGGESTION_BANNER_SCRIPT,
+	renderExtensionSuggestionBanner,
+} from "./shared/extension-suggestion-banner/extension-suggestion-banner.component";
+import { EXTENSION_SUGGESTION_BANNER_STYLES } from "./shared/extension-suggestion-banner/extension-suggestion-banner.styles";
 import { getEnv, requireEnv } from "../domain/require-env";
 
 const HEADER_TEMPLATE = readFileSync(join(__dirname, "header.template.html"), "utf-8");
@@ -195,14 +200,22 @@ function renderBaseTemplate(body: PageBody, state: BannerState): string {
 		footerStyles: FOOTER_STYLES,
 		offlineBannerStyles: OFFLINE_BANNER_STYLES,
 		verifyBannerStyles: VERIFY_BANNER_STYLES,
+		extensionSuggestionBannerStyles: EXTENSION_SUGGESTION_BANNER_STYLES,
 		showVerificationBanner: state.isAuthenticated && state.emailVerified === false,
+		extensionSuggestionBanner: renderExtensionSuggestionBanner({
+			show: state.showExtensionSuggestionBanner ?? false,
+		}),
 		bodyClass: body.bodyClass,
 		header: renderHeader(headerVariant, { isAuthenticated: state.isAuthenticated }),
 		content: injectPageStylesIntoMain(body.content.html, body.styles),
 		footer: renderFooter(),
 		navScript: NAV_SCRIPT,
 		offlineScript: OFFLINE_INDICATOR_SCRIPT,
-		scripts: HTMX_SCRIPTS + (body.scripts ?? "") + LIVERELOAD_SCRIPT,
+		scripts:
+			HTMX_SCRIPTS +
+			EXTENSION_SUGGESTION_BANNER_SCRIPT +
+			(body.scripts ?? "") +
+			LIVERELOAD_SCRIPT,
 	});
 }
 

@@ -38,6 +38,7 @@ import type {
 	ArticleReaderDeps,
 	PollUrlBuilder,
 } from "../../shared/article-reader/article-reader.types";
+import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
 import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { ViewLandingPage } from "./view-landing.component";
@@ -184,21 +185,29 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			},
 		];
 
+		const showExtensionSuggestionBanner = !isFullyParsed({
+			crawlStatus: state.crawl?.status,
+			summaryStatus: state.summary?.status,
+		});
+
 		sendComponent(
 			req, res,
-			Base(ViewPage({
-				articleUrl,
-				metadata,
-				estimatedReadTime,
-				content: state.content,
-				crawl: state.crawl,
-				readerPollUrl: state.readerPollUrl,
-				summary: state.summary,
-				summaryPollUrl: state.summaryPollUrl,
-				progress: state.progress,
-				actions,
-				extensionInstallUrl: extensionInstallUrlIfMissing(req),
-			}), bannerStateFromRequest(req)),
+			Base(
+				ViewPage({
+					articleUrl,
+					metadata,
+					estimatedReadTime,
+					content: state.content,
+					crawl: state.crawl,
+					readerPollUrl: state.readerPollUrl,
+					summary: state.summary,
+					summaryPollUrl: state.summaryPollUrl,
+					progress: state.progress,
+					actions,
+					extensionInstallUrl: extensionInstallUrlIfMissing(req),
+				}),
+				{ ...bannerStateFromRequest(req), showExtensionSuggestionBanner },
+			),
 		);
 	};
 }

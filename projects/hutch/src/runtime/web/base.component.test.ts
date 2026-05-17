@@ -122,6 +122,42 @@ describe("Base component", () => {
 		expect(banner?.getAttribute("aria-hidden")).toBe("true");
 	});
 
+	it("renders the extension suggestion banner element with data-show='false' by default", () => {
+		const page = createTestPageBody();
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const banner = doc.querySelector("[data-test-extension-suggestion-banner]");
+		assert(banner, "extension suggestion banner must always be in the DOM");
+		expect(banner.getAttribute("data-show-extension-suggestion")).toBe("false");
+	});
+
+	it("sets data-show='true' on the extension suggestion banner when state asks for it", () => {
+		const page = createTestPageBody();
+		const result = Base(page, {
+			isAuthenticated: true,
+			emailVerified: true,
+			showExtensionSuggestionBanner: true,
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const banner = doc.querySelector("[data-test-extension-suggestion-banner]");
+		assert(banner, "extension suggestion banner must always be in the DOM");
+		expect(banner.getAttribute("data-show-extension-suggestion")).toBe("true");
+	});
+
+	it("loads the extension suggestion banner client bundle", () => {
+		const page = createTestPageBody();
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const script = doc.querySelector(
+			'script[src$="/client-dist/extension-suggestion-banner.client.js"]',
+		);
+		assert(script, "extension suggestion banner client script must be rendered");
+		expect(script.hasAttribute("defer")).toBe(true);
+	});
+
 	it("should set meta description from seo", () => {
 		const page = createTestPageBody({ seo: { title: "T", description: "My desc", canonicalUrl: "https://readplace.com" } });
 		const result = Base(page, GUEST_STATE).to("text/html");

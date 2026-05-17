@@ -49,6 +49,7 @@ import { bannerStateFromRequest } from "../../banner-state";
 import { sendComponent } from "../../send-component";
 import { RedirectComponent } from "../../redirect.component";
 import { CacheableComponent } from "../../conditional-get";
+import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
 import { initReaderPermalink } from "./reader-permalink";
 import { wantsSiren } from "../../content-negotiation";
 import type { QuerystringFeatureToggle } from "../../feature-toggle";
@@ -293,9 +294,22 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		 * again so they can install the extension here. */
 		const onboardingDismissed = extensionInstalled && req.cookies?.[DISMISS_COOKIE_NAME] === ONBOARDING_VERSION;
 		const browser = detectBrowser(req);
+		/** Most recent save in the listing is at index 0 (queue defaults to
+		 * sort=savedAt order=desc). Re-use the already-loaded crawl/summary
+		 * snapshots — no extra DynamoDB roundtrip. Empty queue → no banner. */
+		const mostRecent = result.articles[0];
+		const showExtensionSuggestionBanner = mostRecent
+			? !isFullyParsed({
+					crawlStatus: crawlByUrl.get(mostRecent.url)?.status,
+					summaryStatus: summaryByUrl.get(mostRecent.url)?.status,
+				})
+			: false;
 		sendComponent(
 			req, res,
-			Base(QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, extensionSavedArticle, browser, onboardingDismissed }), bannerStateFromRequest(req)),
+			Base(
+				QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, extensionSavedArticle, browser, onboardingDismissed }),
+				{ ...bannerStateFromRequest(req), showExtensionSuggestionBanner },
+			),
 		);
 	});
 

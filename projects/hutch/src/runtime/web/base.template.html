@@ -78,6 +78,7 @@
     {{{footerStyles}}}
     {{{offlineBannerStyles}}}
     {{{verifyBannerStyles}}}
+    {{{extensionSuggestionBannerStyles}}}
   </style>
 </head>
 <body{{#if bodyClass}} class="{{bodyClass}}"{{/if}}>
@@ -88,6 +89,7 @@
     <div class="verify-banner {{#if showVerificationBanner}}verify-banner--visible{{else}}verify-banner--hidden{{/if}}" role="alert" data-test-verify-banner>
       Please verify your email. Check your inbox or spam folder.
     </div>
+    {{{extensionSuggestionBanner}}}
   </div>
   <script>
     (function() {

@@ -84,6 +84,22 @@ const BUNDLES = [
 			"});",
 		].join("\n"),
 	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
+			"src/runtime/web/shared/extension-suggestion-banner/extension-suggestion-banner.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "extension-suggestion-banner.client.js"),
+		globalName: "ExtensionSuggestionBanner",
+		footer: [
+			"document.addEventListener('DOMContentLoaded', function () {",
+			"  ExtensionSuggestionBanner.initExtensionSuggestionBanner({",
+			"    document: window.document,",
+			"    storage: window.localStorage",
+			"  }).attach();",
+			"});",
+		].join("\n"),
+	},
 ];
 
 function buildOptions(bundle) {
