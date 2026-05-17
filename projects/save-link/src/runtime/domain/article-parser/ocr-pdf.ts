@@ -1,9 +1,8 @@
 import assert from "node:assert";
 import { parseHTML } from "linkedom";
-import type { ExtractPdf, PdfjsLibBase } from "@packages/crawl-article";
-import { readMetaTitle, deriveTitleFromUrl, escapeHtmlText } from "@packages/crawl-article";
+import type { ExtractPdf, PdfDocument, PdfExtractResult, PdfPage, PdfRasterizer } from "@packages/crawl-article";
+import { deriveTitleFromUrl, escapeHtmlText } from "@packages/crawl-article";
 import type { CreateVisionMessage } from "./create-deepinfra-vision-message";
-import type { RenderablePdfPage, RenderPdfPage } from "./render-pdf-page";
 
 /**
  * Pages per OCR request. Wall-time scales with (pages per request) × ~30s of
@@ -15,88 +14,78 @@ import type { RenderablePdfPage, RenderPdfPage } from "./render-pdf-page";
 const PAGES_PER_BATCH = 5;
 
 /**
- * Render at 150 DPI equivalent (scale ≈ 2 for a 72-DPI source PDF). High
- * enough that gemma-4-31B-it reads small caption text reliably; low enough
- * that page images stay around 300-500 KB after JPEG → PNG conversion.
- * 150 DPI achieves >97% character recall on gemma-4-31B-it.
- */
-const RENDER_SCALE = 2;
-
-/**
  * Page-image cap. Defends the OCR pipeline against PDFs with 1000+ pages
- * where rendering would exhaust Lambda memory long before the model timed
+ * where rasterisation would exhaust Lambda memory long before the model timed
  * out. 200 pages × ~300 KB PNG = ~60 MB on disk during a worst-case run,
- * which fits comfortably in the bumped 2048 MB Lambda memory budget.
+ * which fits comfortably in the 2048 MB Lambda memory budget.
  */
 const MAX_PAGES = 200;
 
-/**
- * Specialization of the package's `PdfjsLibBase<TPage>` for the OCR pipeline,
- * which needs pages with rendering capability (`getViewport`, `render`) rather
- * than `getTextContent`. The real pdfjs `PDFPageProxy` has both, so a single
- * loaded library satisfies both specializations at runtime without a cast.
- */
-export type OcrPdfjsLib = PdfjsLibBase<RenderablePdfPage>;
-
 export function initOcrPdf(deps: {
-	pdfjsLib: OcrPdfjsLib;
-	renderPage: RenderPdfPage;
+	rasterizer: PdfRasterizer;
 	createVisionMessage: CreateVisionMessage;
 	pagesPerBatch?: number;
-	renderScale?: number;
 	maxPages?: number;
 }): ExtractPdf {
 	const pagesPerBatch = deps.pagesPerBatch ?? PAGES_PER_BATCH;
-	const scale = deps.renderScale ?? RENDER_SCALE;
 	const maxPages = deps.maxPages ?? MAX_PAGES;
 
 	return async ({ buffer, url }) => {
+		let doc: PdfDocument;
 		try {
-			const data = new Uint8Array(buffer);
-			const pdf = await deps.pdfjsLib.getDocument({ data, useSystemFonts: true }).promise;
-			if (pdf.numPages > maxPages) {
-				return {
-					kind: "failed",
-					reason: `PDF too large for OCR fallback: ${pdf.numPages} pages exceeds cap of ${maxPages}`,
-				};
-			}
-
-			const pageImages: Buffer[] = [];
-			for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-				const page = await pdf.getPage(pageNum);
-				const pngBuffer = await deps.renderPage({ page, scale });
-				pageImages.push(pngBuffer);
-			}
-
-			const batches = chunk(pageImages, pagesPerBatch);
-			const batchFragments = await Promise.all(
-				batches.map((batch) =>
-					deps.createVisionMessage({ images: batch.map((pngBuffer) => ({ pngBuffer })) }),
-				),
-			);
-			const combined = batchFragments.map((t) => t.trim()).filter((t) => t.length > 0).join("\n");
-			if (combined.length === 0) {
-				return { kind: "failed", reason: "OCR returned no text across all batches" };
-			}
-
-			const meta = await pdf.getMetadata();
-			/* c8 ignore next -- V8 block coverage phantom on typeof guard; see bcoe/c8#319 */
-			const metaTitle = readMetaTitle(meta?.info);
-			const title = metaTitle ?? deriveTitleFromUrl(url);
-			return { kind: "fetched", html: buildSyntheticHtml({ title, body: combined }), title };
+			doc = await deps.rasterizer.open(buffer);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			return { kind: "failed", reason: `OCR pipeline failed: ${message}` };
 		}
+		const result = await extractWithDoc({ doc, url, pagesPerBatch, maxPages, createVisionMessage: deps.createVisionMessage });
+		doc.destroy();
+		return result;
 	};
 }
 
-function chunk<T>(items: readonly T[], size: number): T[][] {
-	const result: T[][] = [];
-	for (let i = 0; i < items.length; i += size) {
-		result.push(items.slice(i, i + size));
+async function extractWithDoc(deps: {
+	doc: PdfDocument;
+	url: string;
+	pagesPerBatch: number;
+	maxPages: number;
+	createVisionMessage: CreateVisionMessage;
+}): Promise<PdfExtractResult> {
+	const { doc, url, pagesPerBatch, maxPages, createVisionMessage } = deps;
+	try {
+		if (doc.numPages > maxPages) {
+			return {
+				kind: "failed",
+				reason: `PDF too large for OCR fallback: ${doc.numPages} pages exceeds cap of ${maxPages}`,
+			};
+		}
+
+		const pageImages: Buffer[] = [];
+		for (let pageNum = 0; pageNum < doc.numPages; pageNum++) {
+			const page: PdfPage = doc.loadPage(pageNum);
+			pageImages.push(page.renderToPng());
+			page.destroy();
+		}
+
+		const batches: Buffer[][] = [];
+		for (let i = 0; i < pageImages.length; i += pagesPerBatch) {
+			batches.push(pageImages.slice(i, i + pagesPerBatch));
+		}
+		const batchFragments = await Promise.all(
+			batches.map((batch) => createVisionMessage({ images: batch.map((pngBuffer) => ({ pngBuffer })) })),
+		);
+		const combined = batchFragments.map((t) => t.trim()).filter((t) => t.length > 0).join("\n");
+		if (combined.length === 0) {
+			return { kind: "failed", reason: "OCR returned no text across all batches" };
+		}
+
+		const metaTitle = doc.getTitle();
+		const title = metaTitle ?? deriveTitleFromUrl(url);
+		return { kind: "fetched", html: buildSyntheticHtml({ title, body: combined }), title };
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		return { kind: "failed", reason: `OCR pipeline failed: ${message}` };
 	}
-	return result;
 }
 
 function buildSyntheticHtml(params: { title: string; body: string }): string {

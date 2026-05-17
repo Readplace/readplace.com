@@ -152,7 +152,7 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: true,
 	},
 	{
-		// Exercises the PDF path end-to-end: detection + pdfjs rasterisation +
+		// Exercises the PDF path end-to-end: detection + mupdf rasterisation +
 		// DeepInfra vision OCR + sanitizer + Readability over the synthetic
 		// HTML. fai.org serves the file with Content-Type `application/pdf`.
 		//

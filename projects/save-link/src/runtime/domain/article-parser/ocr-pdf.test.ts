@@ -1,46 +1,44 @@
-import { initOcrPdf, type OcrPdfjsLib } from "./ocr-pdf";
-import type { RenderablePdfPage, RenderPdfPage } from "./render-pdf-page";
+import type { PdfDocument, PdfRasterizer } from "@packages/crawl-article";
+import { initOcrPdf } from "./ocr-pdf";
 
-function stubPage(): RenderablePdfPage {
-	return {
-		getViewport: ({ scale }) => ({ width: 100 * scale, height: 200 * scale }),
-		render: () => ({ promise: Promise.resolve() }),
-	};
-}
-
-function stubPdfjsLib(params: {
+function stubRasterizer(params: {
 	numPages: number;
-	metadata?: Record<string, unknown>;
-}): OcrPdfjsLib {
+	title?: string;
+}): PdfRasterizer {
+	let invocation = 0;
 	return {
-		getDocument: () => ({
-			promise: Promise.resolve({
+		async open(): Promise<PdfDocument> {
+			return {
 				numPages: params.numPages,
-				async getMetadata() {
-					return { info: params.metadata ?? {} };
+				loadPage() {
+					invocation += 1;
+					const pageNumber = invocation;
+					return {
+						// Embed call-order index as the PNG payload's last byte so
+						// downstream batching assertions can recover page ordering.
+						renderToPng: () => Buffer.from([0x89, 0x50, 0x4e, 0x47, pageNumber]),
+						destroy: () => {},
+					};
 				},
-				async getPage() {
-					return stubPage();
-				},
-			}),
-		}),
+				getTitle: () => params.title,
+				destroy: () => {},
+			};
+		},
 	};
 }
 
-// Embeds call-order index as PNG payload byte to avoid tagging the page object
-function stubRenderPage(): RenderPdfPage {
-	let invocation = 0;
-	return async () => {
-		invocation += 1;
-		return Buffer.from([0x89, 0x50, 0x4e, 0x47, invocation]);
+function rejectingRasterizer(reason: unknown): PdfRasterizer {
+	return {
+		async open(): Promise<PdfDocument> {
+			throw reason;
+		},
 	};
 }
 
 describe("initOcrPdf — parallel batched OCR", () => {
 	it("returns synthetic HTML stitched from vision fragments across all batches", async () => {
 		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 7, metadata: { Title: "Scanned Document" } }),
-			renderPage: stubRenderPage(),
+			rasterizer: stubRasterizer({ numPages: 7, title: "Scanned Document" }),
 			createVisionMessage: async ({ images }) => `<p>text-for-${images.length}-pages</p>`,
 			pagesPerBatch: 3,
 		});
@@ -58,8 +56,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("preserves structured HTML (headings, lists, tables) from the vision model verbatim", async () => {
 		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 1, metadata: { Title: "Structured" } }),
-			renderPage: stubRenderPage(),
+			rasterizer: stubRasterizer({ numPages: 1, title: "Structured" }),
 			createVisionMessage: async () => "<h2>Section</h2><ul><li>one</li></ul><table><tr><td>cell</td></tr></table>",
 		});
 
@@ -74,8 +71,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("strips <script> and other dangerous elements from the vision response", async () => {
 		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 1, metadata: { Title: "Risky" } }),
-			renderPage: stubRenderPage(),
+			rasterizer: stubRasterizer({ numPages: 1, title: "Risky" }),
 			createVisionMessage: async () => "<p>safe</p><script>alert(1)</script><iframe src=\"x\"></iframe>",
 		});
 
@@ -90,8 +86,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("strips disallowed attributes (style, class, id, on*) while keeping href/src/alt/colspan/rowspan", async () => {
 		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 1, metadata: { Title: "Attrs" } }),
-			renderPage: stubRenderPage(),
+			rasterizer: stubRasterizer({ numPages: 1, title: "Attrs" }),
 			createVisionMessage: async () =>
 				"<a href=\"https://example.com\" class=\"x\" onclick=\"x()\">link</a>" +
 				"<img src=\"https://example.com/a.png\" alt=\"a\" style=\"x\">" +
@@ -114,8 +109,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("strips <svg> and <math> elements from the vision response", async () => {
 		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 1, metadata: { Title: "SVG" } }),
-			renderPage: stubRenderPage(),
+			rasterizer: stubRasterizer({ numPages: 1, title: "SVG" }),
 			createVisionMessage: async () =>
 				"<p>safe</p><svg><foreignObject><div>xss</div></foreignObject></svg><math><mi>x</mi></math>",
 		});
@@ -131,8 +125,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("drops href and src values starting with data:", async () => {
 		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 1, metadata: { Title: "Data" } }),
-			renderPage: stubRenderPage(),
+			rasterizer: stubRasterizer({ numPages: 1, title: "Data" }),
 			createVisionMessage: async () =>
 				'<a href="data:text/html,<script>alert(1)</script>">click</a>' +
 				'<img src="data:image/png;base64,abc" alt="img">',
@@ -148,8 +141,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("drops href values starting with javascript:", async () => {
 		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 1, metadata: { Title: "JS" } }),
-			renderPage: stubRenderPage(),
+			rasterizer: stubRasterizer({ numPages: 1, title: "JS" }),
 			createVisionMessage: async () => "<a href=\"javascript:alert(1)\">click</a>",
 		});
 
@@ -163,11 +155,12 @@ describe("initOcrPdf — parallel batched OCR", () => {
 	it("splits pages into batches of the configured size and issues parallel vision calls", async () => {
 		const captured: number[][] = [];
 		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 13 }),
-			renderPage: stubRenderPage(),
+			rasterizer: stubRasterizer({ numPages: 13 }),
 			createVisionMessage: async ({ images }) => {
-				// Last byte of the PNG buffer carries the page number — see stubRenderPage.
-				const pageNums = images.map((img) => img.pngBuffer[img.pngBuffer.length - 1]).filter((n): n is number => typeof n === "number");
+				// Last byte of the PNG buffer carries the page number — see stubRasterizer.
+				const pageNums = images
+					.map((img) => img.pngBuffer[img.pngBuffer.length - 1])
+					.filter((n): n is number => typeof n === "number");
 				captured.push(pageNums);
 				return `batch-${pageNums.join("-")}`;
 			},
@@ -185,8 +178,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("derives a title from the URL filename when the PDF has no Title metadata", async () => {
 		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 1, metadata: {} }),
-			renderPage: stubRenderPage(),
+			rasterizer: stubRasterizer({ numPages: 1 }),
 			createVisionMessage: async () => "body text",
 		});
 
@@ -197,38 +189,9 @@ describe("initOcrPdf — parallel batched OCR", () => {
 		expect(result.title).toBe("sample doc");
 	});
 
-	it("derives a title from the URL filename when metadata Title is non-string", async () => {
-		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 1, metadata: { Title: 42 } }),
-			renderPage: stubRenderPage(),
-			createVisionMessage: async () => "body text",
-		});
-
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
-
-		expect(result.kind).toBe("fetched");
-		if (result.kind !== "fetched") return;
-		expect(result.title).toBe("x");
-	});
-
-	it("derives a title from the URL filename when metadata Title is whitespace only", async () => {
-		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 1, metadata: { Title: "   " } }),
-			renderPage: stubRenderPage(),
-			createVisionMessage: async () => "body text",
-		});
-
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
-
-		expect(result.kind).toBe("fetched");
-		if (result.kind !== "fetched") return;
-		expect(result.title).toBe("x");
-	});
-
 	it("falls back to 'Untitled PDF' when neither metadata nor URL yields a slug", async () => {
 		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 1 }),
-			renderPage: stubRenderPage(),
+			rasterizer: stubRasterizer({ numPages: 1 }),
 			createVisionMessage: async () => "body text",
 		});
 
@@ -241,8 +204,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("falls back to 'Untitled PDF' when the URL cannot be parsed", async () => {
 		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 1 }),
-			renderPage: stubRenderPage(),
+			rasterizer: stubRasterizer({ numPages: 1 }),
 			createVisionMessage: async () => "body text",
 		});
 
@@ -255,8 +217,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("returns kind 'failed' when the PDF exceeds the configured page cap", async () => {
 		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 11 }),
-			renderPage: stubRenderPage(),
+			rasterizer: stubRasterizer({ numPages: 11 }),
 			createVisionMessage: async () => "ignored",
 			maxPages: 10,
 		});
@@ -271,8 +232,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("returns kind 'failed' when every batch returns empty text", async () => {
 		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 5 }),
-			renderPage: stubRenderPage(),
+			rasterizer: stubRasterizer({ numPages: 5 }),
 			createVisionMessage: async () => "   \n  ",
 			pagesPerBatch: 5,
 		});
@@ -285,12 +245,9 @@ describe("initOcrPdf — parallel batched OCR", () => {
 		});
 	});
 
-	it("returns kind 'failed' wrapping the underlying error when pdfjs throws", async () => {
+	it("returns kind 'failed' wrapping the underlying error when the rasterizer throws", async () => {
 		const ocr = initOcrPdf({
-			pdfjsLib: {
-				getDocument: () => ({ promise: Promise.reject(new Error("invalid pdf")) }),
-			},
-			renderPage: stubRenderPage(),
+			rasterizer: rejectingRasterizer(new Error("invalid pdf")),
 			createVisionMessage: async () => "ignored",
 		});
 
@@ -299,12 +256,9 @@ describe("initOcrPdf — parallel batched OCR", () => {
 		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: invalid pdf" });
 	});
 
-	it("returns kind 'failed' wrapping the stringified value when pdfjs throws a non-Error", async () => {
+	it("returns kind 'failed' wrapping the stringified value when the rasterizer throws a non-Error", async () => {
 		const ocr = initOcrPdf({
-			pdfjsLib: {
-				getDocument: () => ({ promise: Promise.reject("opaque thrown") }),
-			},
-			renderPage: stubRenderPage(),
+			rasterizer: rejectingRasterizer("opaque thrown"),
 			createVisionMessage: async () => "ignored",
 		});
 
@@ -315,8 +269,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 	it("escapes HTML-significant characters in the title", async () => {
 		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 1, metadata: { Title: '"Risky" & <Funky>' } }),
-			renderPage: stubRenderPage(),
+			rasterizer: stubRasterizer({ numPages: 1, title: '"Risky" & <Funky>' }),
 			createVisionMessage: async () => "<p>safe body</p>",
 		});
 
@@ -330,8 +283,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 	it("concatenates batch fragments in order (page-1 batch precedes page-2 batch in the output)", async () => {
 		let invocation = 0;
 		const ocr = initOcrPdf({
-			pdfjsLib: stubPdfjsLib({ numPages: 6 }),
-			renderPage: stubRenderPage(),
+			rasterizer: stubRasterizer({ numPages: 6 }),
 			createVisionMessage: async () => {
 				invocation += 1;
 				return `<p>batch-${invocation}</p>`;
@@ -347,5 +299,89 @@ describe("initOcrPdf — parallel batched OCR", () => {
 		const secondIdx = result.html.indexOf("batch-2");
 		expect(firstIdx).toBeGreaterThan(-1);
 		expect(secondIdx).toBeGreaterThan(firstIdx);
+	});
+
+	it("destroys each PdfPage handle after rasterising it", async () => {
+		const destroyed: number[] = [];
+		let invocation = 0;
+		const rasterizer: PdfRasterizer = {
+			async open(): Promise<PdfDocument> {
+				return {
+					numPages: 3,
+					loadPage() {
+						invocation += 1;
+						const pageId = invocation;
+						return {
+							renderToPng: () => Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+							destroy: () => { destroyed.push(pageId); },
+						};
+					},
+					getTitle: () => "T",
+					destroy: () => {},
+				};
+			},
+		};
+
+		const ocr = initOcrPdf({
+			rasterizer,
+			createVisionMessage: async () => "body",
+		});
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(destroyed).toEqual([1, 2, 3]);
+	});
+
+	it("destroys the PdfDocument handle even when the OCR pipeline throws after open", async () => {
+		let docDestroyed = false;
+		const rasterizer: PdfRasterizer = {
+			async open(): Promise<PdfDocument> {
+				return {
+					numPages: 1,
+					loadPage() {
+						return {
+							renderToPng: () => { throw new Error("render failure"); },
+							destroy: () => {},
+						};
+					},
+					getTitle: () => undefined,
+					destroy: () => { docDestroyed = true; },
+				};
+			},
+		};
+
+		const ocr = initOcrPdf({
+			rasterizer,
+			createVisionMessage: async () => "ignored",
+		});
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: render failure" });
+		expect(docDestroyed).toBe(true);
+	});
+
+	it("stringifies non-Error throws from the OCR pipeline after open", async () => {
+		const rasterizer: PdfRasterizer = {
+			async open(): Promise<PdfDocument> {
+				return {
+					numPages: 1,
+					loadPage() {
+						return {
+							renderToPng: () => { throw "opaque render failure"; },
+							destroy: () => {},
+						};
+					},
+					getTitle: () => undefined,
+					destroy: () => {},
+				};
+			},
+		};
+
+		const ocr = initOcrPdf({
+			rasterizer,
+			createVisionMessage: async () => "ignored",
+		});
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: opaque render failure" });
 	});
 });

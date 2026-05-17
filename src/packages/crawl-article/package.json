@@ -17,7 +17,7 @@
     "@packages/article-state-types": "workspace:*",
     "escape-html": "1.0.3",
     "linkedom": "0.18.12",
-    "pdfjs-dist": "4.10.38"
+    "mupdf": "1.27.0"
   },
   "devDependencies": {
     "@types/escape-html": "1.0.4",

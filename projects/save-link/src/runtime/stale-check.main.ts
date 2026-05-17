@@ -1,8 +1,7 @@
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { createCanvas } from "@napi-rs/canvas";
 import OpenAI from "openai";
 import { initDynamoDbArticleStore } from "@packages/article-store";
-import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch, loadPdfjsLibAs } from "@packages/crawl-article";
+import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch, initMupdfRasterizer } from "@packages/crawl-article";
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import {
 	GenerateSummaryCommand,
@@ -55,9 +54,8 @@ const deepInfraClient = new OpenAI({
 
 const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, defaultHeaders: { ...DEFAULT_CRAWL_HEADERS } });
 const extractPdf = initSaveLinkPdfExtract({
-	createCanvas,
+	rasterizer: initMupdfRasterizer(),
 	createChatCompletion: (params) => deepInfraClient.chat.completions.create(params),
-	loadPdfjsLibForRender: loadPdfjsLibAs,
 });
 const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
 

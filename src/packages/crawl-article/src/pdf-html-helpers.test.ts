@@ -1,27 +1,5 @@
 import assert from "node:assert/strict";
-import { readMetaTitle, deriveTitleFromUrl, escapeHtmlText } from "./pdf-html-helpers";
-
-describe("readMetaTitle", () => {
-	it("returns the trimmed Title when present and non-empty", () => {
-		assert.equal(readMetaTitle({ Title: "  Some Doc  " }), "Some Doc");
-	});
-
-	it("returns undefined when info is undefined", () => {
-		assert.equal(readMetaTitle(undefined), undefined);
-	});
-
-	it("returns undefined when Title is missing", () => {
-		assert.equal(readMetaTitle({}), undefined);
-	});
-
-	it("returns undefined when Title is not a string", () => {
-		assert.equal(readMetaTitle({ Title: 42 }), undefined);
-	});
-
-	it("returns undefined when Title is whitespace only", () => {
-		assert.equal(readMetaTitle({ Title: "   " }), undefined);
-	});
-});
+import { deriveTitleFromUrl, escapeHtmlText } from "./pdf-html-helpers";
 
 describe("deriveTitleFromUrl", () => {
 	it("returns the slugged last path segment with .pdf extension stripped", () => {

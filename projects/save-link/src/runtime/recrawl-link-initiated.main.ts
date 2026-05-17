@@ -1,13 +1,12 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { createCanvas } from "@napi-rs/canvas";
 import OpenAI from "openai";
 import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "../require-env";
 import { initRecrawlLinkInitiatedHandler } from "./domain/save-link/recrawl-link-initiated-handler";
-import { loadPdfjsLibAs } from "@packages/crawl-article";
+import { initMupdfRasterizer } from "@packages/crawl-article";
 import { initSaveLinkPdfExtract } from "./domain/article-parser/init-save-link-pdf-extract";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
@@ -37,9 +36,8 @@ const deepInfraClient = new OpenAI({
 });
 
 const extractPdf = initSaveLinkPdfExtract({
-	createCanvas,
+	rasterizer: initMupdfRasterizer(),
 	createChatCompletion: (params) => deepInfraClient.chat.completions.create(params),
-	loadPdfjsLibForRender: loadPdfjsLibAs,
 });
 
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });

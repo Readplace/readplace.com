@@ -145,21 +145,20 @@ const saveLinkCommandLambda = new HutchLambda("save-link-command", {
 	outputDir: ".lib/save-link-command",
 	assetDir: "./src",
 	// 2048 MB gives ~1.16 vCPU and ample headroom for the scanned-PDF OCR path:
-	// pdfjs holds the 25 MiB PDF buffer + per-page decoded structures, and
-	// napi-rs/canvas materializes one ~9 MB RGBA bitmap per page being
-	// rendered. Five pages in flight per batch × three concurrent batches stays
-	// well under the cap.
+	// mupdf holds the 25 MiB PDF buffer + per-page decoded WASM structures and
+	// produces one ~9 MB RGBA pixmap per page being rendered. Five pages in
+	// flight per batch × three concurrent batches stays well under the cap.
 	memorySize: 2048,
 	// 360s covers the worst-case scanned-PDF flow: a 13-page PDF with 3-way
 	// parallel batching against gemma-4-31B-it on DeepInfra completes in ~157s;
 	// 360s is ~2× that for safety. Paired with 720s SQS visibility (≥2× Lambda
 	// timeout per AWS guidance).
 	timeout: 360,
-	// @napi-rs/canvas's .node binary is unbundleable; ship it in node_modules.
-	// AL2023 (Node 22 Lambda) loads the linux-x64-gnu sub-package.
-	// pdfjs-dist stays bundled — its worker is preloaded into globalThis by
-	// `init-pdfjs-lazy.ts`, so the runtime sidecar import is never triggered.
-	external: ["@napi-rs/canvas", "@napi-rs/canvas-linux-x64-gnu"],
+	// mupdf is bundled inline, but its WASM sidecar (`mupdf-wasm.wasm`) is a
+	// runtime file the bundled JS locates via `new URL(..., import.meta.url)`.
+	// esbuild rewrites that URL to the handler bundle's file URL, so the
+	// `.wasm` must sit next to `index.js` in the zip.
+	wasmFiles: [{ package: "mupdf", path: "dist/mupdf-wasm.wasm" }],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -277,11 +276,8 @@ const saveAnonymousLinkCommandLambda = new HutchLambda("save-anonymous-link-comm
 	// path, same headroom requirements.
 	memorySize: 2048,
 	timeout: 360,
-	// @napi-rs/canvas's .node binary is unbundleable; ship it in node_modules.
-	// AL2023 (Node 22 Lambda) loads the linux-x64-gnu sub-package.
-	// pdfjs-dist stays bundled — its worker is preloaded into globalThis by
-	// `init-pdfjs-lazy.ts`, so the runtime sidecar import is never triggered.
-	external: ["@napi-rs/canvas", "@napi-rs/canvas-linux-x64-gnu"],
+	// See save-link-command for the rationale on shipping mupdf's WASM sidecar.
+	wasmFiles: [{ package: "mupdf", path: "dist/mupdf-wasm.wasm" }],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -343,11 +339,11 @@ const staleCheckRequestedLambda = new HutchLambda("stale-check-requested", {
 	outputDir: ".lib/stale-check-requested",
 	assetDir: "./src",
 	// Mirrors save-link-command: stale PDFs go through the same vision-OCR path
-	// (pdfjs rasterisation + napi-rs/canvas + DeepInfra). 2048 MB / 360s gives
-	// the same headroom for re-extraction.
+	// (mupdf rasterisation + DeepInfra). 2048 MB / 360s gives the same
+	// headroom for re-extraction.
 	memorySize: 2048,
 	timeout: 360,
-	external: ["@napi-rs/canvas", "@napi-rs/canvas-linux-x64-gnu"],
+	wasmFiles: [{ package: "mupdf", path: "dist/mupdf-wasm.wasm" }],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -576,11 +572,8 @@ const recrawlLinkInitiatedLambda = new HutchLambda("recrawl-link-initiated", {
 	// PDF OCR path on a recrawl.
 	memorySize: 2048,
 	timeout: 360,
-	// @napi-rs/canvas's .node binary is unbundleable; ship it in node_modules.
-	// AL2023 (Node 22 Lambda) loads the linux-x64-gnu sub-package.
-	// pdfjs-dist stays bundled — its worker is preloaded into globalThis by
-	// `init-pdfjs-lazy.ts`, so the runtime sidecar import is never triggered.
-	external: ["@napi-rs/canvas", "@napi-rs/canvas-linux-x64-gnu"],
+	// See save-link-command for the rationale on shipping mupdf's WASM sidecar.
+	wasmFiles: [{ package: "mupdf", path: "dist/mupdf-wasm.wasm" }],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,

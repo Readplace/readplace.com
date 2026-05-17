@@ -1,11 +1,3 @@
-export function readMetaTitle(info: Record<string, unknown> | undefined): string | undefined {
-	if (!info) return undefined;
-	const title = info.Title;
-	if (typeof title !== "string") return undefined;
-	const trimmed = title.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
-}
-
 export function deriveTitleFromUrl(url: string): string {
 	try {
 		const { pathname } = new URL(url);

@@ -12,22 +12,33 @@ export type PdfExtractResult =
 export type ExtractPdf = (params: { buffer: Buffer; url: string }) => Promise<PdfExtractResult>;
 
 /**
- * Minimal duck-typed interface for the subset of `pdfjs-dist` callers use.
- * Pinning the interface here lets tests inject a stub without loading the
- * real (ESM-only, ~3MB) pdfjs bundle, and keeps the crawl-article package
- * free of any DOM-lib dependency that pdfjs's published types would otherwise
- * pull in.
- *
- * Generic on the page type so OCR (in save-link) can specialize without
- * redeclaring the document/library surface — the real pdfjs `PDFPageProxy`
- * satisfies any page interface the caller cares to define structurally.
+ * Per-page handle: knows how to rasterise itself to a PNG buffer at the
+ * configured scale, and to release any native memory the engine holds for it.
+ * Page indices are 0-based; lifetime is bounded by the enclosing `PdfDocument`.
  */
-export interface PdfjsLibBase<TPage> {
-	getDocument(params: { data: Uint8Array; useSystemFonts?: boolean }): { promise: Promise<PdfDocumentBase<TPage>> };
+export interface PdfPage {
+	renderToPng(): Buffer;
+	destroy(): void;
 }
 
-export interface PdfDocumentBase<TPage> {
+/**
+ * Document handle that owns the engine's per-document state. Callers must
+ * `destroy()` it when finished or the WASM-side allocation leaks for the
+ * lifetime of the Lambda container.
+ */
+export interface PdfDocument {
 	readonly numPages: number;
-	getMetadata(): Promise<{ info?: Record<string, unknown> }>;
-	getPage(pageNum: number): Promise<TPage>;
+	loadPage(index: number): PdfPage;
+	getTitle(): string | undefined;
+	destroy(): void;
+}
+
+/**
+ * Engine-agnostic rasterizer the OCR pipeline consumes. The concrete
+ * implementation lives in `init-mupdf-lazy.ts`; tests stub this interface
+ * directly so they never load the real WASM. `open` is async because the
+ * WASM module loads lazily on first call and the loading is cached.
+ */
+export interface PdfRasterizer {
+	open(buffer: Buffer): Promise<PdfDocument>;
 }
