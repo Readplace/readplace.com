@@ -40,11 +40,14 @@ const MODEL_ID = "google/gemma-4-31B-it";
 /**
  * Per-batch output budget. Structured HTML output is verbose vs plain text
  * (tags + entities multiply tokens, especially for table-heavy pages where
- * row/cell markup compounds). 20,000 tokens gives ~4,000 per page in a
- * 5-page batch — enough headroom for dense academic prose with bibliography,
- * code blocks, and multi-column tables without truncation.
+ * row/cell markup compounds). 12,000 tokens gives ~4,000 per page in a
+ * 3-page batch — enough headroom for dense academic prose with bibliography,
+ * code blocks, and multi-column tables without truncation. The previous
+ * 20,000-token cap let the dense-math middle pages of arXiv's Attention Is
+ * All You Need consume the full budget at ~50 tok/s, running each batch
+ * past 6 minutes and blowing the Lambda's 600s timeout.
  */
-const MAX_BATCH_OUTPUT_TOKENS = 20000;
+const MAX_BATCH_OUTPUT_TOKENS = 12000;
 
 const OCR_INSTRUCTION = [
 	"You are converting PDF pages into a semantically valid HTML5 fragment that represents the article as it would appear on a clean reader webpage.",

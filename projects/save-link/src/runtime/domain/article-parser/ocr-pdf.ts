@@ -6,13 +6,16 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { CreateVisionMessage } from "./create-deepinfra-vision-message";
 
 /**
- * Pages per OCR request. Wall-time scales with (pages per request) × ~30s of
- * generation. With 5 pages per batch, a 5/5/3 split of a 13-page PDF
- * completes in ~157s wall time when dispatched in parallel — well inside the
- * 360s Lambda timeout. Bigger batches risk exceeding the timeout; smaller
- * batches multiply request overhead.
+ * Pages per OCR request. Wall-time per batch is dominated by gemma-4-31B-it's
+ * token-generation rate (~50 tok/s). At 5 pages/batch the dense-math middle
+ * pages of arXiv's Attention Is All You Need consistently pushed past the
+ * 20k MAX_BATCH_OUTPUT_TOKENS ceiling and ran for 6+ min, blowing the 600s
+ * Lambda timeout on Promise.all. 3 pages/batch caps a worst-case batch at
+ * ~12k tokens ≈ 4 min, leaving headroom for cold-start mupdf WASM load and
+ * for the final fragment assembly. Smaller batches multiply request
+ * overhead but parallel dispatch absorbs that.
  */
-const PAGES_PER_BATCH = 5;
+const PAGES_PER_BATCH = 3;
 
 /**
  * Page-image cap. Defends the OCR pipeline against PDFs with 1000+ pages
