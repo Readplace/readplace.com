@@ -38,15 +38,37 @@ type VisionChatCompletion = (params: {
 const MODEL_ID = "google/gemma-4-31B-it";
 
 /**
- * Per-batch output budget. A 13-page PDF returns ~6,914 completion tokens for
- * the entire document. Capping each batch at 8,000 gives ~1,600 tokens of
- * headroom per page in a 5-page batch — enough for dense academic prose with
- * bibliography while keeping the request bounded.
+ * Per-batch output budget. Structured HTML output is verbose vs plain text
+ * (tags + entities multiply tokens, especially for table-heavy pages where
+ * row/cell markup compounds). 20,000 tokens gives ~4,000 per page in a
+ * 5-page batch — enough headroom for dense academic prose with bibliography,
+ * code blocks, and multi-column tables without truncation.
  */
-const MAX_BATCH_OUTPUT_TOKENS = 8000;
+const MAX_BATCH_OUTPUT_TOKENS = 20000;
 
-const OCR_INSTRUCTION =
-	"Extract all text from the following PDF page image(s) verbatim, in order. Preserve paragraph breaks. Output only the extracted text — no commentary, no summarization, no markdown formatting.";
+const OCR_INSTRUCTION = [
+	"You are converting PDF pages into a semantically valid HTML5 fragment that represents the article as it would appear on a clean reader webpage.",
+	"",
+	"For each page image, infer document structure from visual cues:",
+	"- Larger / bolder font runs at the top of a section -> <h1>, <h2>, <h3> (pick the level from relative size, not absolute size).",
+	"- Body prose -> <p>. Merge soft line breaks inside a paragraph.",
+	"- Bulleted or numbered items -> <ul>/<ol> with <li> children.",
+	"- Monospace runs or visibly indented code -> <pre><code>...</code></pre>.",
+	"- Quoted blocks (indented + smaller, or italicized) -> <blockquote>.",
+	"- Tabular grids -> <table><thead><tr><th>...</th></tr></thead><tbody><tr><td>...</td></tr></tbody></table>.",
+	"- Figures -> <figure><figcaption>{caption text}</figcaption></figure> (omit the <img> — we do not have figure assets).",
+	"- Bold/italic inline runs -> <strong>/<em>.",
+	"- Links visible in the PDF -> <a href=\"{url}\">{text}</a>.",
+	"- Drop running headers, footers, and page numbers.",
+	"- Drop watermarks, decorative ornaments, and standalone images that have no caption.",
+	"",
+	"Output rules:",
+	"- Output ONLY the HTML5 fragment. No <html>, <head>, <body>, <article>, <!DOCTYPE>, no Markdown, no commentary.",
+	"- Do not wrap the whole output in a single container — the caller will stitch fragments from multiple page batches together.",
+	"- Preserve text verbatim. Do not summarize, translate, or paraphrase.",
+	"- If a paragraph or list spans into the next page image, finish the element at the end of this batch rather than leaving an open tag.",
+	"- Escape \"<\", \">\", \"&\", and quotes correctly inside text content.",
+].join("\n");
 
 export type CreateVisionMessage = (params: {
 	images: ReadonlyArray<{ pngBuffer: Buffer }>;

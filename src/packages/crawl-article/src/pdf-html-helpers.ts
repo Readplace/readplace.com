@@ -1,5 +1,3 @@
-export const SCANNED_PDF_REASON = "PDF has no extractable text layer";
-
 export function readMetaTitle(info: Record<string, unknown> | undefined): string | undefined {
 	if (!info) return undefined;
 	const title = info.Title;

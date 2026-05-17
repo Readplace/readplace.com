@@ -28,7 +28,10 @@ describe("initCreateDeepInfraVisionMessage", () => {
 		expect(message.role).toBe("user");
 		expect(message.content).toHaveLength(3);
 		expect(message.content[0]?.type).toBe("text");
-		expect(message.content[0]?.text).toContain("Extract all text");
+		expect(message.content[0]?.text).toContain("semantically valid HTML5 fragment");
+		expect(message.content[0]?.text).toContain("<h1>, <h2>, <h3>");
+		expect(message.content[0]?.text).toContain("<table>");
+		expect(message.content[0]?.text).toContain("Output ONLY the HTML5 fragment");
 		expect(message.content[1]?.type).toBe("image_url");
 		expect(message.content[1]?.image_url?.url).toBe(`data:image/png;base64,${Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString("base64")}`);
 		expect(message.content[2]?.type).toBe("image_url");

@@ -1,6 +1,6 @@
+/* c8 ignore start -- thin pdfjs-dist boundary wrapper, tested via integration. The dynamic `import()` resolves to pdfjs-dist's ESM build at runtime, which Jest's CJS transformer cannot load (the dynamic import is rewritten to require() under tsc's CJS output, then fails with ERR_REQUIRE_ESM). Stubbing pdfjs at the OCR consumer (see ocr-pdf.test.ts) is how all other tests cover the surrounding pipeline. Exercised in production at Lambda cold start and in CI via the PDF health canary (scripts/health-sources.ts → arXiv Transformer paper). */
 import { cachedImport } from "./cached-import";
-import { initPdfExtract } from "./pdf-extract";
-import type { ExtractPdf, PdfjsLib, PdfjsLibBase } from "./pdf-extract.types";
+import type { PdfjsLibBase } from "./pdf-extract.types";
 
 /**
  * pdfjs-dist v4 is ESM-only; this package and every callsite (Lambda runtime
@@ -8,18 +8,16 @@ import type { ExtractPdf, PdfjsLib, PdfjsLibBase } from "./pdf-extract.types";
  * legacy build is a dynamic `import()`, which TypeScript leaves intact across
  * the commonjs target.
  *
- * `loadPdfjsLib` returns the text-extraction shape because that's the only
- * surface this package itself uses. Consumers that need additional surfaces
- * (e.g. OCR rendering in save-link) use `loadPdfjsLibAs<TPage>` to specialize
- * the page type while sharing the same cached promise — the real pdfjs
- * `PDFPageProxy` satisfies any page interface the caller cares to declare.
+ * The OCR pipeline in save-link specializes the page type via
+ * `loadPdfjsLibAs<TPage>` so the same cached pdfjs promise serves the page
+ * surface each consumer cares about — the real pdfjs `PDFPageProxy` satisfies
+ * any page interface declared structurally.
  *
  * The unknown-cast is bounded to this single boundary: pdfjs's published
  * types reference DOM globals (HTMLCanvasElement) that our commonjs tsconfigs
  * don't include. The runtime surface each consumer actually uses is fully
  * described by the duck-typed `PdfjsLibBase` interface family.
- */
-/**
+ *
  * pdfjs's PDFWorker checks `globalThis.pdfjsWorker?.WorkerMessageHandler`
  * before falling back to `await import("./pdf.worker.mjs")` for its
  * fake-worker setup. In a bundled Lambda the relative dynamic import
@@ -39,27 +37,8 @@ const loadCached = cachedImport(async () => {
 	return pdfjsLib;
 });
 
-export function loadPdfjsLib(): Promise<PdfjsLib> {
-	return loadCached().then((mod) => mod as unknown as PdfjsLib);
+export async function loadPdfjsLibAs<TPage>(): Promise<PdfjsLibBase<TPage>> {
+	const mod = await loadCached();
+	return mod as unknown as PdfjsLibBase<TPage>;
 }
-
-export function loadPdfjsLibAs<TPage>(): Promise<PdfjsLibBase<TPage>> {
-	return loadCached().then((mod) => mod as unknown as PdfjsLibBase<TPage>);
-}
-
-/**
- * Lazily-loaded text-layer extractor: callers that don't need OCR can wire
- * this directly into `initCrawlArticle`. The pdfjs module loads on first use
- * (cached after that) so consumers don't pay the ESM-import cost at module
- * load time.
- */
-export function initLazyPdfExtractTextOnly(): ExtractPdf {
-	let cached: ExtractPdf | undefined;
-	return async (params) => {
-		if (!cached) {
-			const pdfjsLib = await loadPdfjsLib();
-			cached = initPdfExtract({ pdfjsLib });
-		}
-		return cached(params);
-	};
-}
+/* c8 ignore stop */

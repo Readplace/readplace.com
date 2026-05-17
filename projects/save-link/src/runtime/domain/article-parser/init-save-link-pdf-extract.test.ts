@@ -1,35 +1,22 @@
 import assert from "node:assert/strict";
-import type { PdfjsLib, PdfjsLibBase, PdfDocument, PdfPage } from "@packages/crawl-article";
+import type { PdfjsLibBase } from "@packages/crawl-article";
 import { initSaveLinkPdfExtract } from "./init-save-link-pdf-extract";
 import type { RenderablePdfPage } from "./render-pdf-page";
 
-function stubPdfjsLib(pageText: string): PdfjsLib {
-	return {
-		getDocument() {
-			const page: PdfPage = {
-				getTextContent: async () => ({ items: [{ str: pageText }] }),
-			};
-			const doc: PdfDocument = {
-				numPages: 1,
-				getMetadata: async () => ({ info: { Title: "Stub Title" } }),
-				getPage: async () => page,
-			};
-			return { promise: Promise.resolve(doc) };
-		},
-	};
-}
-
-function stubRenderablePage(): RenderablePdfPage {
-	return {
-		getViewport: () => ({ width: 0, height: 0 }),
+function stubPdfjsLibForRender(params: { numPages: number; title?: string }): PdfjsLibBase<RenderablePdfPage> {
+	const page: RenderablePdfPage = {
+		getViewport: ({ scale }) => ({ width: 100 * scale, height: 200 * scale }),
 		render: () => ({ promise: Promise.resolve() }),
 	};
-}
-
-function stubPdfjsLibForRender(): PdfjsLibBase<RenderablePdfPage> {
 	return {
 		getDocument() {
-			return { promise: Promise.resolve({ numPages: 0, getMetadata: async () => ({}), getPage: async () => stubRenderablePage() }) };
+			return {
+				promise: Promise.resolve({
+					numPages: params.numPages,
+					getMetadata: async () => ({ info: { Title: params.title ?? "" } }),
+					getPage: async () => page,
+				}),
+			};
 		},
 	};
 }
@@ -37,8 +24,11 @@ function stubPdfjsLibForRender(): PdfjsLibBase<RenderablePdfPage> {
 const stubCanvas = () => ({
 	width: 0,
 	height: 0,
-	getContext: () => ({}),
-	toBuffer: () => Buffer.alloc(0),
+	getContext: () => ({
+		drawImage: () => {},
+		fillRect: () => {},
+	}),
+	toBuffer: () => Buffer.from([0x89, 0x50, 0x4e, 0x47]),
 });
 
 describe("initSaveLinkPdfExtract", () => {
@@ -46,60 +36,29 @@ describe("initSaveLinkPdfExtract", () => {
 		let loadCount = 0;
 		const extractPdf = initSaveLinkPdfExtract({
 			createCanvas: stubCanvas,
-			createChatCompletion: async () => ({ choices: [{ message: { content: "" } }] }),
-			loadPdfjsLib: async () => { loadCount++; return stubPdfjsLib("hello world"); },
-			loadPdfjsLibForRender: async () => { loadCount++; return stubPdfjsLibForRender(); },
+			createChatCompletion: async () => ({ choices: [{ message: { content: "<p>ocr result</p>" } }] }),
+			loadPdfjsLibForRender: async () => { loadCount++; return stubPdfjsLibForRender({ numPages: 1, title: "T" }); },
 		});
 
 		await extractPdf({ buffer: Buffer.from("%PDF-"), url: "https://example.com/test.pdf" });
-		assert.equal(loadCount, 2);
+		assert.equal(loadCount, 1);
 
 		await extractPdf({ buffer: Buffer.from("%PDF-"), url: "https://example.com/test.pdf" });
-		assert.equal(loadCount, 2, "loaders should not be called again on second invocation");
+		assert.equal(loadCount, 1, "loader should not be called again on second invocation");
 	});
 
-	it("extracts text from a PDF with a text layer", async () => {
+	it("runs the vision OCR pipeline end-to-end and returns the rendered HTML", async () => {
 		const extractPdf = initSaveLinkPdfExtract({
 			createCanvas: stubCanvas,
-			createChatCompletion: async () => ({ choices: [{ message: { content: "" } }] }),
-			loadPdfjsLib: async () => stubPdfjsLib("Some PDF content"),
-			loadPdfjsLibForRender: async () => stubPdfjsLibForRender(),
-		});
-
-		const result = await extractPdf({ buffer: Buffer.from("%PDF-"), url: "https://example.com/doc.pdf" });
-		assert.equal(result.kind, "fetched");
-		assert(result.kind === "fetched");
-		assert.equal(result.title, "Stub Title");
-		assert(result.html.includes("Some PDF content"));
-	});
-
-	it("falls back to OCR when text layer is empty", async () => {
-		const extractPdf = initSaveLinkPdfExtract({
-			createCanvas: stubCanvas,
-			createChatCompletion: async () => ({ choices: [{ message: { content: "OCR extracted text" } }] }),
-			loadPdfjsLib: async () => stubPdfjsLib(""),
-			loadPdfjsLibForRender: async () => {
-				const renderablePage: RenderablePdfPage = {
-					getViewport: () => ({ width: 100, height: 100 }),
-					render: () => ({ promise: Promise.resolve() }),
-				};
-				return {
-					getDocument() {
-						return {
-							promise: Promise.resolve({
-								numPages: 1,
-								getMetadata: async () => ({ info: { Title: "Scanned Doc" } }),
-								getPage: async () => renderablePage,
-							}),
-						};
-					},
-				};
-			},
+			createChatCompletion: async () => ({ choices: [{ message: { content: "<h2>Heading</h2><p>body</p>" } }] }),
+			loadPdfjsLibForRender: async () => stubPdfjsLibForRender({ numPages: 1, title: "Scanned Doc" }),
 		});
 
 		const result = await extractPdf({ buffer: Buffer.from("%PDF-"), url: "https://example.com/scan.pdf" });
 		assert.equal(result.kind, "fetched");
 		assert(result.kind === "fetched");
-		assert(result.html.includes("OCR extracted text"));
+		assert.equal(result.title, "Scanned Doc");
+		assert(result.html.includes("<h2>Heading</h2>"));
+		assert(result.html.includes("<p>body</p>"));
 	});
 });

@@ -7,7 +7,9 @@ import { initInMemoryAuth, hashPassword, verifyPassword } from "@packages/test-f
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
-import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch, initLazyPdfExtractTextOnly } from "@packages/crawl-article";
+import type { ExtractPdf } from "@packages/crawl-article";
+import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
+import type { PublishStaleCheckRequested } from "@packages/test-fixtures/providers/events";
 import { initReadabilityParser } from "@packages/test-fixtures/providers/article-parser";
 import { mediumPreParser, theInformationPreParser } from "@packages/test-fixtures/providers/article-parser";
 import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
@@ -68,22 +70,25 @@ import {
 } from "./web/shared/founding-progress/founding-allocation";
 import { getEnv, requireEnv } from "./domain/require-env";
 
+/**
+ * Hutch SSR does not run PDF extraction in-process — vision OCR lives in the
+ * save-link/stale-check Lambdas (canvas + DeepInfra deps). When crawlArticle
+ * hits a PDF response during a freshness check, this stub fires a
+ * StaleCheckRequested event so the stale-check Lambda re-extracts it via OCR
+ * async, then returns `failed` so refreshArticleIfStale skips inline.
+ */
+function createPdfDeferralStub(publishStaleCheckRequested: PublishStaleCheckRequested): ExtractPdf {
+	return async ({ url }) => {
+		await publishStaleCheckRequested({ url });
+		return { kind: "failed", reason: "PDF extraction deferred to stale-check Lambda for vision OCR" };
+	};
+}
+
 function initProviders() {
 	const persistence = requireEnv<"prod" | "development">("PERSISTENCE");
 	const logError = (message: string, error?: Error) => console.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
 
 	const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, defaultHeaders: { ...DEFAULT_CRAWL_HEADERS } });
-	// SSR's /save flow publishes SaveLinkCommand and lets the save-link Lambda
-	// (which has full OCR support) do the heavy lifting. Text-only here keeps
-	// the hutch bundle free of the canvas + DeepInfra deps that only the
-	// background worker actually needs.
-	const extractPdf = initLazyPdfExtractTextOnly();
-	const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
-	const { parseHtml } = initReadabilityParser({
-		crawlArticle,
-		sitePreParsers: [theInformationPreParser, mediumPreParser],
-		logError,
-	});
 	const staleTtlMs = 86400000;
 
 	if (persistence === "prod") {
@@ -133,6 +138,13 @@ function initProviders() {
 		const { publishUpdateFetchTimestamp } = initEventBridgeUpdateFetchTimestamp({ publishEvent });
 		const { publishExportUserDataCommand } = initEventBridgeExportUserDataCommand({ publishEvent });
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
+		const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
+		const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
+		const { parseHtml } = initReadabilityParser({
+			crawlArticle,
+			sitePreParsers: [theInformationPreParser, mediumPreParser],
+			logError,
+		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale({
 			findArticleFreshness: articleStore.findArticleFreshness,
 			findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
@@ -222,6 +234,14 @@ function initProviders() {
 		}
 		: undefined;
 	const crawlStore = initInMemoryArticleCrawl();
+	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
+	const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
+	const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
+	const { parseHtml } = initReadabilityParser({
+		crawlArticle,
+		sitePreParsers: [theInformationPreParser, mediumPreParser],
+		logError,
+	});
 	const { publishLinkSaved: logOnlyPublishLinkSaved } = initInMemoryLinkSaved({ logger: consoleLogger });
 	const publishLinkSaved: typeof logOnlyPublishLinkSaved = async (params) => {
 		await logOnlyPublishLinkSaved(params);
@@ -284,7 +304,6 @@ function initProviders() {
 	};
 	const { publishRefreshArticleContent } = initInMemoryRefreshArticleContent({ logger: consoleLogger });
 	const { publishUpdateFetchTimestamp } = initInMemoryUpdateFetchTimestamp({ logger: consoleLogger });
-	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
 	const { publishSaveLinkRawHtmlCommand } = initInMemorySaveLinkRawHtmlCommand({ logger: consoleLogger });
 	const { publishExportUserDataCommand } = initInMemoryExportUserDataCommand({ logger: consoleLogger });
 	const { putPendingHtml } = initInMemoryPendingHtml();

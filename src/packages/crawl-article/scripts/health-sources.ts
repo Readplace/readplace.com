@@ -152,10 +152,9 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: true,
 	},
 	{
-		// First entry to exercise the PDF path. fai.org serves the file with
-		// Content-Type `application/pdf` and a clean text layer, so this canary
-		// exercises detection + pdfjs text extraction + Readability over the
-		// synthetic HTML.
+		// Exercises the PDF path end-to-end: detection + pdfjs rasterisation +
+		// DeepInfra vision OCR + sanitizer + Readability over the synthetic
+		// HTML. fai.org serves the file with Content-Type `application/pdf`.
 		//
 		// PDFs do not expose og:image/twitter:image metadata, so the thumbnail
 		// path is intentionally skipped — same precedent as the X/Twitter
@@ -163,6 +162,17 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		label: "PDF (FAI airmanship)",
 		url: "https://www.fai.org/sites/default/files/documents/airmanship_good.pdf",
 		expectedContent: "considerable confusion as to what airmanship actually comprises",
+		expectsThumbnail: false,
+	},
+	{
+		// Second PDF entry — a technical paper with equations, multi-column
+		// layout, tables, and figure captions. Exercises the vision model's
+		// structural inference on dense academic typography (Attention Is All
+		// You Need by Vaswani et al., 2017). Catches regressions where the
+		// vision pipeline degrades on structured content.
+		label: "PDF (arXiv Transformer paper)",
+		url: "https://arxiv.org/pdf/1706.03762v7",
+		expectedContent: "Attention Is All You Need",
 		expectsThumbnail: false,
 	},
 ];

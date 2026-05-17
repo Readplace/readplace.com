@@ -4,7 +4,7 @@ import type { CrawlArticleResult } from "./crawl-article.types";
 import { initCrawlFetch } from "./crawl-fetch";
 import type { fetchCurl } from "./curl-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
-import { SCANNED_PDF_REASON } from "./pdf-html-helpers";
+const PDF_EXTRACT_FAILURE_REASON = "synthetic extractor failure";
 
 const noopLogError = () => {};
 
@@ -809,7 +809,7 @@ describe("initCrawlArticle — PDF branch", () => {
 	});
 
 	it("returns status 'unsupported' with the extractor reason when extractPdf reports failure", async () => {
-		const extractPdf: ExtractPdf = async () => ({ kind: "failed", reason: SCANNED_PDF_REASON });
+		const extractPdf: ExtractPdf = async () => ({ kind: "failed", reason: PDF_EXTRACT_FAILURE_REASON });
 		const fakeFetch: typeof fetch = async () => pdfResponse(pdfMagicBuffer);
 		const logError = jest.fn();
 		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf, logError });
@@ -818,10 +818,10 @@ describe("initCrawlArticle — PDF branch", () => {
 
 		expect(result).toEqual({
 			status: "unsupported",
-			reason: `pdf extraction failed: ${SCANNED_PDF_REASON}`,
+			reason: `pdf extraction failed: ${PDF_EXTRACT_FAILURE_REASON}`,
 		});
 		expect(logError).toHaveBeenCalledWith(
-			`[CrawlArticle] PDF extraction failed for https://example.com/scan.pdf: ${SCANNED_PDF_REASON}`,
+			`[CrawlArticle] PDF extraction failed for https://example.com/scan.pdf: ${PDF_EXTRACT_FAILURE_REASON}`,
 		);
 	});
 
