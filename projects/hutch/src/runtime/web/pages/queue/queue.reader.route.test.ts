@@ -233,7 +233,7 @@ describe("Queue routes", () => {
 			expect(location.pathname).toBe(`/view/${encodeURIComponent(articleUrl)}`);
 			expect(location.searchParams.get("utm_source")).toBe("twitter");
 			expect(location.searchParams.get("utm_medium")).toBe("social");
-			expect(location.searchParams.get("utm_campaign")).toBeNull();
+			expect([...location.searchParams.keys()].filter((k) => k.startsWith("utm_"))).toHaveLength(2);
 		});
 
 		it("should link article title to reader view in queue when content exists", async () => {
