@@ -8,7 +8,9 @@ type ArticleStateFields = {
 	summarySkippedReason: string | undefined;
 };
 
-type TerminalCheckResult = { terminal: true } | { terminal: false; message: string };
+type TerminalCheckResult =
+	| { terminal: true }
+	| { terminal: false; message: string; reasons: StuckReason[] };
 
 const REASON_MESSAGES: Record<StuckReason, string> = {
 	"summary-pending": "summaryStatus is 'pending' — summary worker never produced a terminal outcome",
@@ -25,5 +27,5 @@ export function checkTerminalState(fields: ArticleStateFields): TerminalCheckRes
 	const reasons = classifyRow(fields);
 	if (reasons.length === 0) return { terminal: true };
 	const message = reasons.map((reason) => REASON_MESSAGES[reason]).join("; ");
-	return { terminal: false, message };
+	return { terminal: false, message, reasons };
 }

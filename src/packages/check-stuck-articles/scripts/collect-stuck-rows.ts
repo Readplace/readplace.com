@@ -15,7 +15,7 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { checkTerminalState } from "./check-terminal-state";
-import { type StuckReason, classifyRow } from "./classify-row";
+import type { StuckReason } from "./classify-row";
 
 /* `dynamoField` normalises DDB's `null` for absent attributes to `undefined`. */
 const StuckArticleRow = z.object({
@@ -144,11 +144,10 @@ export async function collectStuckRows(deps: {
 		for (const row of page.items) {
 			const verdict = checkTerminalState(row);
 			if (verdict.terminal) continue;
-			const reasons = classifyRow(row);
 			const effectiveUrl = row.originalUrl ?? row.url;
 			stuck.push({
 				originalUrl: effectiveUrl,
-				reasons,
+				reasons: verdict.reasons,
 				contentFetchedAt: row.contentFetchedAt,
 				recrawlUrl: `${deps.origin}/admin/recrawl/${encodeURIComponent(effectiveUrl)}`,
 				terminalCheckMessage: verdict.message,

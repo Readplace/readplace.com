@@ -47,6 +47,7 @@ describe("checkTerminalState", () => {
 		assert.deepStrictEqual(result, {
 			terminal: false,
 			message: "summaryStatus is 'pending' — summary worker never produced a terminal outcome",
+			reasons: ["summary-pending"],
 		});
 	});
 
