@@ -97,7 +97,8 @@ export function initSelectMostCompleteContentHandler(deps: {
 						const summaryStuckOnTooShort =
 							existingArticle?.summary.kind === "skipped" &&
 							existingArticle.summary.reason === "content-too-short";
-						if (existingTier && !summaryStuckOnTooShort) {
+						const canonicalIsHealthy = existingTier && !summaryStuckOnTooShort;
+						if (canonicalIsHealthy) {
 							/* Recrawl tie: a canonical already exists. Promoting the
 							 * same content again would be a no-op write but a real
 							 * summary regeneration — wasted Deepseek tokens. Emit

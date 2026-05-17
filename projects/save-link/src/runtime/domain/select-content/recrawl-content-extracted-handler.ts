@@ -104,10 +104,11 @@ export function initRecrawlContentExtractedHandler(deps: {
 						const summaryStuckOnTooShort =
 							existingArticle?.summary.kind === "skipped" &&
 							existingArticle.summary.reason === "content-too-short";
+						const canonicalIsHealthy = existingTier && !summaryStuckOnTooShort;
 						if (cdnTie) {
 							winnerTier = cdnTie.tier;
 							reason = cdnTie.reason;
-						} else if (existingTier && !summaryStuckOnTooShort) {
+						} else if (canonicalIsHealthy) {
 							winnerTier = undefined;
 							reason = decision.reason;
 						} else {
