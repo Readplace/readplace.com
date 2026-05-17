@@ -337,7 +337,6 @@ function flattenFixtureToAppDependencies(
 		putPendingHtml: fixture.pendingHtml.putPendingHtml,
 		findGeneratedSummary: fixture.summary.findGeneratedSummary,
 		markSummaryPending: fixture.summary.markSummaryPending,
-		forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
 		refreshArticleIfStale: fixture.freshness.refreshArticleIfStale,
 		oauthModel: fixture.oauth.oauthModel,
 		validateAccessToken: fixture.oauth.validateAccessToken,

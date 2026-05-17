@@ -50,7 +50,6 @@ import type {
 } from "@packages/test-fixtures/providers/article-crawl";
 import type {
 	FindGeneratedSummary,
-	ForceMarkSummaryPending,
 	MarkSummaryPending,
 } from "@packages/test-fixtures/providers/article-summary";
 import type { PublishLinkSaved } from "@packages/test-fixtures/providers/events";
@@ -161,7 +160,6 @@ interface AppDependencies {
 	putPendingHtml: PutPendingHtml;
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
-	forceMarkSummaryPending: ForceMarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
