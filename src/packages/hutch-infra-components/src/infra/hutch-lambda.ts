@@ -1,7 +1,8 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import { build, type Loader, type Plugin } from "esbuild";
-import { copyFileSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
+import { copyFileSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 
 const esbuildLoaders: Record<string, Loader> = { ".ts": "ts" };
@@ -18,6 +19,61 @@ function copyAssetFiles(dirs: { src: string; dest: string }) {
 			copyFileSync(srcPath, join(dirs.dest, entry.name));
 		}
 	}
+}
+
+/**
+ * pnpm uses symlinks in node_modules; Lambda zips dereference them but the
+ * contents inside a symlinked package directory (which itself may contain
+ * further symlinks to the .pnpm store) must be materialized as real files.
+ */
+function copyDirDereferenced(src: string, dest: string) {
+	mkdirSync(dest, { recursive: true });
+	for (const entry of readdirSync(src, { withFileTypes: true })) {
+		const srcPath = join(src, entry.name);
+		const destPath = join(dest, entry.name);
+		const stat = lstatSync(srcPath);
+		if (stat.isSymbolicLink()) {
+			const realSrc = realpathSync(srcPath);
+			if (lstatSync(realSrc).isDirectory()) {
+				copyDirDereferenced(realSrc, destPath);
+			} else {
+				copyFileSync(realSrc, destPath);
+			}
+		} else if (entry.isDirectory()) {
+			copyDirDereferenced(srcPath, destPath);
+		} else if (entry.isFile()) {
+			copyFileSync(srcPath, destPath);
+		}
+	}
+}
+
+/**
+ * Copies an external runtime dependency into the Lambda zip's node_modules/
+ * so the bundled handler's `require("<name>")` resolves at runtime. Native
+ * packages (e.g. @napi-rs/canvas) cannot be esbuild-bundled — their .node
+ * binaries have no loader — so they must ship alongside the bundle.
+ *
+ * Resolution walks each provided context in order (entry-point first, then
+ * each already-copied package), so a binary sub-package like
+ * @napi-rs/canvas-linux-x64-gnu — which isn't a direct dependency of the
+ * Lambda's project — can still be located via its parent's require context.
+ * Returns the resolved package.json path so the caller can chain it as the
+ * next resolution context. A package missing from every context throws.
+ */
+function copyExternalPackage(packageName: string, contexts: NodeJS.Require[], outputDir: string): string {
+	for (const ctx of contexts) {
+		try {
+			const pkgJsonPath = ctx.resolve(`${packageName}/package.json`);
+			copyDirDereferenced(dirname(pkgJsonPath), join(outputDir, "node_modules", packageName));
+			return pkgJsonPath;
+		} catch (e) {
+			if ((e as NodeJS.ErrnoException).code !== "MODULE_NOT_FOUND") throw e;
+		}
+	}
+	throw new Error(
+		`HutchLambda external '${packageName}' not resolvable from the entry point or any previously-listed external. ` +
+			`Check that it is installed (pnpm.supportedArchitectures may need to include its platform).`,
+	);
 }
 
 /**
@@ -70,6 +126,16 @@ export class HutchLambda extends pulumi.ComponentResource {
 			timeout: number;
 			environment: Record<string, pulumi.Input<string>>;
 			policies: LambdaPolicy[];
+			/**
+			 * Packages to leave un-bundled and ship in the Lambda zip's
+			 * node_modules/ instead. Required for native modules with .node
+			 * binaries (e.g. @napi-rs/canvas) that esbuild cannot bundle.
+			 * List each package to ship explicitly, including any
+			 * platform-specific binary sub-packages the Lambda runtime
+			 * resolves at first require (e.g. @napi-rs/canvas-linux-x64-gnu).
+			 * A missing package fails the build loudly.
+			 */
+			external?: string[];
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -93,8 +159,16 @@ export class HutchLambda extends pulumi.ComponentResource {
 			target: ["node22"],
 			loader: esbuildLoaders,
 			plugins: [createDirnamePlugin(args.assetDir)],
+			external: args.external,
 		}).then(() => {
 			copyAssetFiles({ src: args.assetDir, dest: args.outputDir });
+			if (args.external?.length) {
+				const contexts: NodeJS.Require[] = [createRequire(resolve(args.entryPoint))];
+				for (const pkgName of args.external) {
+					const pkgJsonPath = copyExternalPackage(pkgName, contexts, args.outputDir);
+					contexts.push(createRequire(pkgJsonPath));
+				}
+			}
 			return new pulumi.asset.AssetArchive({
 				".": new pulumi.asset.FileArchive(args.outputDir),
 			});
