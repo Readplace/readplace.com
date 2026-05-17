@@ -284,7 +284,7 @@ describe("Admin recrawl routes", () => {
 			);
 		});
 
-		it("force-flips a previously ready summary back to pending so the worker regenerates the AI excerpt", async () => {
+		it("preserves the existing ready summary on the admin recrawl trigger — summary regeneration is decided downstream by the canonicalContentHash gate, not by wiping state up front", async () => {
 			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
 			await harness.articleStore.saveArticleGlobally({
@@ -298,13 +298,14 @@ describe("Admin recrawl routes", () => {
 				estimatedReadTime: MinutesSchema.parse(1),
 				savedAt: new Date(),
 			});
-			// Summary was generated on a prior crawl. Without the force-pending
-			// path, the save-link summarizer's cache short-circuits on `ready`
-			// and the AI excerpt is never regenerated.
+			// Summary was generated on a prior crawl. Wiping it here would mean
+			// a guaranteed DeepSeek call on every admin recrawl regardless of
+			// whether the readable content actually changed. The hash gate in
+			// recrawlPromoteTier / recrawlTieKeptCanonical now owns that decision.
 			harness.summary.markSummaryReady({
 				url: ARTICLE_URL,
-				summary: "Stale summary",
-				excerpt: "Stale excerpt blurb",
+				summary: "Existing summary",
+				excerpt: "Existing summary blurb",
 			});
 
 			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
@@ -313,7 +314,11 @@ describe("Admin recrawl routes", () => {
 
 			expect(response.status).toBe(200);
 			const summaryAfter = await harness.summary.findGeneratedSummary(ARTICLE_URL);
-			expect(summaryAfter).toEqual({ status: "pending" });
+			expect(summaryAfter).toEqual({
+				status: "ready",
+				summary: "Existing summary",
+				excerpt: "Existing summary blurb",
+			});
 		});
 	});
 

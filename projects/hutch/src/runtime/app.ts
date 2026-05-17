@@ -202,7 +202,6 @@ function initProviders() {
 			putPendingHtml,
 			findGeneratedSummary: summaryStore.findGeneratedSummary,
 			markSummaryPending: summaryStore.markSummaryPending,
-			forceMarkSummaryPending: summaryStore.forceMarkSummaryPending,
 			findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
 			markCrawlPending: crawlStore.markCrawlPending,
 			forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
@@ -309,7 +308,6 @@ function initProviders() {
 	const { putPendingHtml } = initInMemoryPendingHtml();
 	const stubFindGeneratedSummary = async (_url: string) => undefined;
 	const stubMarkSummaryPending = async (_params: { url: string }) => {};
-	const stubForceMarkSummaryPending = async (_params: { url: string }) => {};
 	const { refreshArticleIfStale } = initRefreshArticleIfStale({
 		findArticleFreshness: articleStore.findArticleFreshness,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
@@ -352,7 +350,6 @@ function initProviders() {
 		putPendingHtml,
 		findGeneratedSummary: stubFindGeneratedSummary,
 		markSummaryPending: stubMarkSummaryPending,
-		forceMarkSummaryPending: stubForceMarkSummaryPending,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
 		markCrawlPending: crawlStore.markCrawlPending,
 		forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,

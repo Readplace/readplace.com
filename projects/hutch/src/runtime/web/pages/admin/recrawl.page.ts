@@ -11,8 +11,6 @@ import type { FindArticleByUrl } from "@packages/test-fixtures/providers/article
 import type { ReadArticleContent } from "@packages/test-fixtures/providers/article-store";
 import type {
 	FindGeneratedSummary,
-	ForceMarkSummaryPending,
-	MarkSummaryPending,
 } from "@packages/test-fixtures/providers/article-summary";
 import type { PublishRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
 import type { FindUserByEmail } from "@packages/test-fixtures/providers/auth";
@@ -32,8 +30,6 @@ export interface AdminRecrawlDependencies {
 	findArticleByUrl: FindArticleByUrl;
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
-	markSummaryPending: MarkSummaryPending;
-	forceMarkSummaryPending: ForceMarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
@@ -109,13 +105,14 @@ function handleRecrawlArticle(
 			return;
 		}
 
-		// Always recrawl. No cache, no TTL. Force both crawl and summary state
-		// back to pending (even if currently `ready`) so the reader slot shows
-		// the "recrawl in progress" skeleton AND the summary worker regenerates
-		// the AI excerpt instead of short-circuiting on its cached "ready" row,
-		// then publish the command.
+		// Always recrawl. No cache, no TTL. Force crawl back to pending (even if
+		// currently `ready`) so the reader slot shows the "recrawl in progress"
+		// skeleton. Summary state is owned by the recrawl pipeline — the
+		// canonicalContentHash gate inside recrawlPromoteTier /
+		// recrawlTieKeptCanonical decides whether to regenerate the AI excerpt,
+		// so wiping summary here would mean a guaranteed regen even when the
+		// canonical readable content has not actually changed.
 		await deps.forceMarkCrawlPending({ url: articleUrl });
-		await deps.forceMarkSummaryPending({ url: articleUrl });
 		await deps.publishRecrawlLinkInitiated({ url: articleUrl });
 
 		const state = await reader.resolveReaderState({

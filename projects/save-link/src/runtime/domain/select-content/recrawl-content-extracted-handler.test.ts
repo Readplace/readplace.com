@@ -10,6 +10,7 @@ import type { ListAvailableTierSources } from "./list-available-tier-sources";
 import type { SelectMostCompleteContent } from "./select-content";
 import type { WriteCanonicalContent } from "../../providers/article-store/promote-tier-to-canonical";
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
+import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import type { TierSource, TierSourceMetadata } from "./tier-source.types";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
 
@@ -152,8 +153,30 @@ describe("initRecrawlContentExtractedHandler", () => {
 				estimatedReadTime: tier1.metadata.estimatedReadTime,
 				contentFetchedAt: FIXED_NOW.toISOString(),
 				now: FIXED_NOW.toISOString(),
+				canonicalContentHash: computeCanonicalContentHash(tier1.html),
 			},
 		});
+	});
+
+	it("computes a canonical content hash from the winner HTML and threads it through so the aggregate's hash gate can suppress redundant summary regeneration", async () => {
+		const tier1 = tierSource("tier-1", { html: "<article><p>Distinctive recrawl body.</p></article>" });
+		const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
+			transitionAndPersist,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+
+		const expectedHash = computeCanonicalContentHash(tier1.html);
+		expect(transitionAndPersist).toHaveBeenCalledWith(
+			recrawlPromoteTier,
+			expect.objectContaining({
+				input: expect.objectContaining({ canonicalContentHash: expectedHash }),
+			}),
+		);
+		expect(expectedHash.length).toBe(64);
 	});
 
 	it("refreshes user-facing metadata (title/excerpt/wordCount/imageUrl) into the aggregate input on a recrawl — bug-fix coverage for the previously-frozen card", async () => {
@@ -363,6 +386,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 				estimatedReadTime: tier1.metadata.estimatedReadTime,
 				contentFetchedAt: FIXED_NOW.toISOString(),
 				now: FIXED_NOW.toISOString(),
+				canonicalContentHash: computeCanonicalContentHash(tier1.html),
 			},
 		});
 	});
@@ -414,6 +438,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 				estimatedReadTime: tier1.metadata.estimatedReadTime,
 				contentFetchedAt: FIXED_NOW.toISOString(),
 				now: FIXED_NOW.toISOString(),
+				canonicalContentHash: computeCanonicalContentHash(tier1.html),
 			},
 		});
 	});

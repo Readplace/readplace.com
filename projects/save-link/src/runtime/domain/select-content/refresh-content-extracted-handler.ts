@@ -9,6 +9,7 @@ import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "a
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
 import type { ListAvailableTierSources } from "./list-available-tier-sources";
 import type { WriteCanonicalContent } from "../../providers/article-store/promote-tier-to-canonical";
+import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import type { SelectMostCompleteContent } from "./select-content";
 
 /**
@@ -93,6 +94,7 @@ export function initRefreshContentExtractedHandler(deps: {
 
 				const winnerSource = sources.find((source) => source.tier === winnerTier);
 				assert(winnerSource, `winner tier ${winnerTier} missing from candidate set`);
+				const canonicalContentHash = computeCanonicalContentHash(winnerSource.html);
 
 				const existingTier = await findContentSourceTier(detail.url);
 				if (existingTier !== winnerTier) {
@@ -116,6 +118,7 @@ export function initRefreshContentExtractedHandler(deps: {
 						},
 						estimatedReadTime: winnerSource.metadata.estimatedReadTime,
 						now: now().toISOString(),
+						canonicalContentHash,
 					},
 				});
 

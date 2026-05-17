@@ -27,7 +27,7 @@ describe("recrawlTieKeptCanonical", () => {
 		assert.deepEqual(article.crawl, { kind: "ready" });
 	});
 
-	it("preserves summary so a freshly-generated AI excerpt is not invalidated by the recrawl no-op", () => {
+	it("preserves the existing summary by not transitioning summary state at all", () => {
 		const before = buildArticle({
 			summary: { kind: "ready", summary: "kept", excerpt: "kept excerpt" },
 		});
@@ -41,29 +41,25 @@ describe("recrawlTieKeptCanonical", () => {
 		});
 	});
 
-	it("emits a generate-summary effect so the operator always sees a freshly-regenerated excerpt", () => {
+	it("does not emit generate-summary so identical canonical content does not burn DeepSeek tokens on re-summarise", () => {
 		const { effects } = recrawlTieKeptCanonical(
 			buildArticle({ url: "https://example.com/post" }),
 			undefined,
 		);
 
 		assert.ok(
-			effects.some(
-				(e) =>
-					e.kind === "generate-summary" && e.url === "https://example.com/post",
-			),
-			"generate-summary effect must be emitted on every recrawl",
+			!effects.some((e) => e.kind === "generate-summary"),
+			"generate-summary effect must not be emitted when canonical is unchanged",
 		);
 	});
 
-	it("emits a publish-recrawl-completed effect after the generate-summary effect", () => {
+	it("emits only publish-recrawl-completed to settle the recrawl pipeline", () => {
 		const { effects } = recrawlTieKeptCanonical(
 			buildArticle({ url: "https://example.com/post" }),
 			undefined,
 		);
 
 		assert.deepEqual(effects, [
-			{ kind: "generate-summary", url: "https://example.com/post" },
 			{ kind: "publish-recrawl-completed", url: "https://example.com/post" },
 		]);
 	});

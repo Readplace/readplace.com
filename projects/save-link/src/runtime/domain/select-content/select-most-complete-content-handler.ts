@@ -15,6 +15,7 @@ import type { ListAvailableTierSources } from "./list-available-tier-sources";
 import type { SelectMostCompleteContent } from "./select-content";
 import type { WriteCanonicalContent } from "../../providers/article-store/promote-tier-to-canonical";
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
+import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import type { TierSource } from "./tier-source.types";
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
@@ -143,6 +144,7 @@ export function initSelectMostCompleteContentHandler(deps: {
 
 				const currentTier = await findContentSourceTier(detail.url);
 				const canonicalChanged = currentTier !== winnerTier;
+				const canonicalContentHash = computeCanonicalContentHash(winnerSource.html);
 
 				await writeCanonicalContent({ url: detail.url, tier: winnerTier });
 
@@ -155,6 +157,7 @@ export function initSelectMostCompleteContentHandler(deps: {
 						contentFetchedAt: now().toISOString(),
 						now: now().toISOString(),
 						canonicalChanged,
+						canonicalContentHash,
 						userId: detail.userId,
 					},
 				});

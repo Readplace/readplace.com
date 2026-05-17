@@ -41,6 +41,7 @@ const ArticleAggregateRow = z.object({
 	etag: dynamoField(z.string()),
 	lastModified: dynamoField(z.string()),
 	contentFetchedAt: dynamoField(z.string()),
+	canonicalContentHash: dynamoField(z.string()),
 	crawlStatus: dynamoField(CrawlStatusSchema),
 	crawlFailureReason: dynamoField(z.string()),
 	crawlUnsupportedReason: dynamoField(z.string()),
@@ -51,6 +52,7 @@ const ArticleAggregateRow = z.object({
 	summaryExcerpt: dynamoField(z.string()),
 	summaryInputTokens: dynamoField(z.number()),
 	summaryOutputTokens: dynamoField(z.number()),
+	summarySourceContentHash: dynamoField(z.string()),
 	summaryFailureReason: dynamoField(z.string()),
 	summarySkippedReason: dynamoField(z.string()),
 	summaryAutoHealAttempts: dynamoField(z.number()),
@@ -129,6 +131,8 @@ function rowToSummaryState(row: RowShape): SummaryState {
 			ready.inputTokens = row.summaryInputTokens;
 		if (row.summaryOutputTokens !== undefined)
 			ready.outputTokens = row.summaryOutputTokens;
+		if (row.summarySourceContentHash !== undefined)
+			ready.sourceContentHash = row.summarySourceContentHash;
 		return ready;
 	}
 	if (row.summaryStatus === "failed") {
@@ -172,6 +176,7 @@ function rowToArticle(url: string, row: RowShape): Article {
 			contentFetchedAt: row.contentFetchedAt ?? "",
 			etag: row.etag,
 			lastModified: row.lastModified,
+			canonicalContentHash: row.canonicalContentHash,
 		},
 		estimatedReadTime: row.estimatedReadTime ?? 0,
 		crawl: rowToCrawlState(row),
@@ -210,10 +215,12 @@ function appendFreshnessClauses(
 		"contentFetchedAt = :cfa",
 		"etag = :etag",
 		"lastModified = :lm",
+		"canonicalContentHash = :cch",
 	);
 	values[":cfa"] = article.freshness.contentFetchedAt;
 	values[":etag"] = article.freshness.etag ?? null;
 	values[":lm"] = article.freshness.lastModified ?? null;
+	values[":cch"] = article.freshness.canonicalContentHash ?? null;
 }
 
 function appendSummaryClauses(
@@ -232,6 +239,7 @@ function appendSummaryClauses(
 			"summaryExcerpt",
 			"summaryInputTokens",
 			"summaryOutputTokens",
+			"summarySourceContentHash",
 			"summaryStage",
 			"summaryFailureReason",
 			"summarySkippedReason",
@@ -244,12 +252,14 @@ function appendSummaryClauses(
 			"summaryExcerpt = :summaryExcerpt",
 			"summaryInputTokens = :summaryInputTokens",
 			"summaryOutputTokens = :summaryOutputTokens",
+			"summarySourceContentHash = :summarySourceContentHash",
 		);
 		values[":summaryStatus"] = "ready";
 		values[":summary"] = article.summary.summary;
 		values[":summaryExcerpt"] = article.summary.excerpt ?? null;
 		values[":summaryInputTokens"] = article.summary.inputTokens ?? null;
 		values[":summaryOutputTokens"] = article.summary.outputTokens ?? null;
+		values[":summarySourceContentHash"] = article.summary.sourceContentHash ?? null;
 		removes.push(
 			"summaryFailureReason",
 			"summarySkippedReason",

@@ -17,6 +17,7 @@ import type { ListAvailableTierSources } from "./list-available-tier-sources";
 import type { SelectMostCompleteContent } from "./select-content";
 import type { WriteCanonicalContent } from "../../providers/article-store/promote-tier-to-canonical";
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
+import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import type { TierSource } from "./tier-source.types";
 
 export function initRecrawlContentExtractedHandler(deps: {
@@ -136,6 +137,7 @@ export function initRecrawlContentExtractedHandler(deps: {
 				if (winnerTier !== undefined) {
 					const winnerSource = sources.find((source) => source.tier === winnerTier);
 					assert(winnerSource, `winner tier ${winnerTier} missing from candidate set`);
+					const canonicalContentHash = computeCanonicalContentHash(winnerSource.html);
 
 					await writeCanonicalContent({ url: detail.url, tier: winnerTier });
 
@@ -147,6 +149,7 @@ export function initRecrawlContentExtractedHandler(deps: {
 							estimatedReadTime: winnerSource.metadata.estimatedReadTime,
 							contentFetchedAt: now().toISOString(),
 							now: now().toISOString(),
+							canonicalContentHash,
 						},
 					});
 

@@ -10,6 +10,7 @@ import {
 import { GenerateSummaryCommand } from "./index";
 import type { SummarizeArticle } from "./link-summariser";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
+import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 
 interface GenerateSummaryHandlerDeps {
 	summarizeArticle: SummarizeArticle;
@@ -56,6 +57,10 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 				});
 
 				if (result.kind === "ready") {
+					/* Tag the persisted ready summary with the hash of the canonical
+					 * content it was generated against so a future caller can compare
+					 * hashes and short-circuit on cacheability. */
+					const sourceContentHash = computeCanonicalContentHash(article.content);
 					await transitionAndPersist(markSummaryReady, {
 						url: command.url,
 						input: {
@@ -63,6 +68,7 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 							excerpt: result.excerpt,
 							inputTokens: result.inputTokens,
 							outputTokens: result.outputTokens,
+							sourceContentHash,
 						},
 					});
 					logger.info("[GenerateSummary] completed", {

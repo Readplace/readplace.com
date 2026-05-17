@@ -6,6 +6,7 @@ import {
 import type { Context, SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import { initRefreshContentExtractedHandler } from "./refresh-content-extracted-handler";
 import type { TierSource, TierSourceMetadata } from "./tier-source.types";
+import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
@@ -124,9 +125,31 @@ describe("initRefreshContentExtractedHandler", () => {
 					metadata: expect.objectContaining({ title: "Title" }),
 					freshness: FRESHNESS,
 					now: FIXED_NOW.toISOString(),
+					canonicalContentHash: computeCanonicalContentHash(tier1.html),
 				}),
 			}),
 		);
+	});
+
+	it("computes a canonical content hash from the winner HTML and threads it through the refresh transition input", async () => {
+		const tier1 = tierSource("tier-1", { html: "<article><p>Refresh body.</p></article>" });
+		const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
+			transitionAndPersist,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+
+		const expectedHash = computeCanonicalContentHash(tier1.html);
+		expect(transitionAndPersist).toHaveBeenCalledWith(
+			refreshContent,
+			expect.objectContaining({
+				input: expect.objectContaining({ canonicalContentHash: expectedHash }),
+			}),
+		);
+		expect(expectedHash.length).toBe(64);
 	});
 
 	it("preserves the existing canonical tier when the selector calls a tie and the row already has a canonical (key invariant: refresh must not silently flip to tier-1)", async () => {
