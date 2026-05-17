@@ -92,6 +92,7 @@ export const handler = initSelectMostCompleteContentHandler({
 	selectMostCompleteContent,
 	writeCanonicalContent,
 	findContentSourceTier,
+	loadArticle: store.load,
 	transitionAndPersist,
 	publishEvent,
 	now: () => new Date(),

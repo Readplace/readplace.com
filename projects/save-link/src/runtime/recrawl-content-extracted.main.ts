@@ -42,6 +42,7 @@ const selectContent = initSelectContentDepBundle({
 export const handler = initRecrawlContentExtractedHandler({
 	...selectContent,
 	...articleAggregate,
+	loadArticle: articleAggregate.store.load,
 	imagesCdnBaseUrl,
 	now: () => new Date(),
 	logger: consoleLogger,

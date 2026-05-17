@@ -7,6 +7,7 @@ import type {
 } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
+	type LoadArticle,
 	type TransitionAndPersist,
 	recrawlPromoteTier,
 	recrawlTieKeptCanonical,
@@ -23,6 +24,7 @@ export function initRecrawlContentExtractedHandler(deps: {
 	selectMostCompleteContent: SelectMostCompleteContent;
 	writeCanonicalContent: WriteCanonicalContent;
 	findContentSourceTier: FindContentSourceTier;
+	loadArticle: LoadArticle;
 	transitionAndPersist: TransitionAndPersist;
 	imagesCdnBaseUrl: string;
 	now: () => Date;
@@ -33,6 +35,7 @@ export function initRecrawlContentExtractedHandler(deps: {
 		selectMostCompleteContent,
 		writeCanonicalContent,
 		findContentSourceTier,
+		loadArticle,
 		transitionAndPersist,
 		imagesCdnBaseUrl,
 		now,
@@ -95,25 +98,34 @@ export function initRecrawlContentExtractedHandler(deps: {
 						 * of the CDN host than the others. */
 						const cdnTie = breakTieByCdnRewriteCount(sources, cdnHost);
 						const existingTier = cdnTie ? undefined : await findContentSourceTier(detail.url);
+						const existingArticle = existingTier
+							? await loadArticle(detail.url)
+							: undefined;
+						const summaryStuckOnTooShort =
+							existingArticle?.summary.kind === "skipped" &&
+							existingArticle.summary.reason === "content-too-short";
+						const canonicalIsHealthy = existingTier && !summaryStuckOnTooShort;
 						if (cdnTie) {
 							winnerTier = cdnTie.tier;
 							reason = cdnTie.reason;
-						} else if (existingTier) {
+						} else if (canonicalIsHealthy) {
 							winnerTier = undefined;
 							reason = decision.reason;
 						} else {
-							/* Tie with no canonical yet — i.e. recovering a row that
-							 * the user-save flow left stuck because of the same tie
-							 * pathology. Default to tier-1 (Readability) when present,
-							 * else tier-0; both candidates carry identical content by
-							 * definition of "tie", so this is a deterministic
-							 * tiebreaker rather than a quality call. */
+							/* Either tie with no canonical yet (recovering a stuck
+							 * row), OR canonical exists but its summary is
+							 * skipped("content-too-short") — the previous canonical's
+							 * content was inadequate. By definition of "tie" both
+							 * tiers carry equivalent content; prefer tier-1
+							 * (Readability) when present, else tier-0. */
 							const fallback =
 								sources.find((source) => source.tier === "tier-1") ??
 								sources.find((source) => source.tier === "tier-0");
 							assert(fallback, "tie with no candidate tiers should be unreachable");
 							winnerTier = fallback.tier;
-							reason = `tie on recrawl recovery; defaulted to ${fallback.tier}`;
+							reason = summaryStuckOnTooShort
+								? `tie + canonical summary skipped on too-short content; promoted ${fallback.tier} to retry`
+								: `tie on recrawl recovery; defaulted to ${fallback.tier}`;
 						}
 					} else {
 						winnerTier = decision.winner;
