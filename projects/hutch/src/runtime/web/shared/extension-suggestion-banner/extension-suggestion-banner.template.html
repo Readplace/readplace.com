@@ -1,0 +1,21 @@
+<div
+  class="extension-suggestion-banner"
+  role="status"
+  aria-live="polite"
+  data-show-extension-suggestion="{{show}}"
+  data-test-extension-suggestion-banner
+>
+  <span class="extension-suggestion-banner__message">
+    Tip: install the Readplace browser extension to save articles with their full content. Some sites block our server-side fetch with paywalls, login walls, or anti-bot defences — when that happens we can only save the link itself.
+  </span>
+  <a class="extension-suggestion-banner__cta" href="/install" data-test-extension-suggestion-cta>Get the extension</a>
+  <button
+    type="button"
+    class="extension-suggestion-banner__close"
+    data-extension-suggestion-close
+    data-test-extension-suggestion-close
+    aria-label="Dismiss extension suggestion"
+  >
+    <span aria-hidden="true">&times;</span>
+  </button>
+</div>
