@@ -1,5 +1,6 @@
 interface ShareBalloonWindow {
 	readonly scrollY: number;
+	readonly innerHeight: number;
 	addEventListener(
 		type: "scroll",
 		listener: () => void,
@@ -38,7 +39,6 @@ export function initShareBalloon(
 	deps: ShareBalloonDeps,
 ): ShareBalloonController {
 	const STORAGE_KEY = "readplace.share-dismissed";
-	const SCROLL_THRESHOLD_PX = 100;
 	const OPEN_DELAY_MS = 1000;
 	const COPIED_FADE_MS = 3000;
 	const OPEN_CLASS = "share-balloon__wrap--open";
@@ -81,6 +81,7 @@ export function initShareBalloon(
 	const closeBtn = pickElement(wrap, "[data-share-balloon-close]");
 	const copiedLabel = pickElement(wrap, "[data-share-balloon-copied]");
 	const status = pickElement(deps.document, "[data-share-balloon-status]");
+	const articleEl = pickElement(deps.document, "[data-article-body]");
 
 	const shareUrl = pickAttribute(btn, "data-share-url");
 	const copyUrl = pickAttribute(copyBtn, "data-share-url");
@@ -117,7 +118,10 @@ export function initShareBalloon(
 	}
 
 	function onScroll() {
-		if (deps.window.scrollY < SCROLL_THRESHOLD_PX) return;
+		const articleHeight = articleEl.offsetHeight;
+		const viewportHeight = deps.window.innerHeight;
+		const threshold = articleHeight <= viewportHeight ? 0 : articleHeight * 0.5;
+		if (deps.window.scrollY < threshold) return;
 		if (scrollListener !== null) {
 			deps.window.removeEventListener("scroll", scrollListener);
 			scrollListener = null;
