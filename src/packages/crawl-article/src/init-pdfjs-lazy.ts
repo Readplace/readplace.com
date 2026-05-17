@@ -1,3 +1,4 @@
+import { cachedImport } from "./cached-import";
 import { initPdfExtract } from "./pdf-extract";
 import type { ExtractPdf, PdfjsLib, PdfjsLibBase } from "./pdf-extract.types";
 
@@ -5,8 +6,7 @@ import type { ExtractPdf, PdfjsLib, PdfjsLibBase } from "./pdf-extract.types";
  * pdfjs-dist v4 is ESM-only; this package and every callsite (Lambda runtime
  * entry points, hutch SSR) compile to CommonJS. The only way to consume the
  * legacy build is a dynamic `import()`, which TypeScript leaves intact across
- * the commonjs target. Cache the resolved module so each Lambda container
- * pays the load cost once and warm invocations skip it.
+ * the commonjs target.
  *
  * `loadPdfjsLib` returns the text-extraction shape because that's the only
  * surface this package itself uses. Consumers that need additional surfaces
@@ -19,14 +19,7 @@ import type { ExtractPdf, PdfjsLib, PdfjsLibBase } from "./pdf-extract.types";
  * don't include. The runtime surface each consumer actually uses is fully
  * described by the duck-typed `PdfjsLibBase` interface family.
  */
-let cachedImport: Promise<unknown> | undefined;
-
-function loadCached(): Promise<unknown> {
-	if (!cachedImport) {
-		cachedImport = import("pdfjs-dist/legacy/build/pdf.mjs");
-	}
-	return cachedImport;
-}
+const loadCached = cachedImport(() => import("pdfjs-dist/legacy/build/pdf.mjs"));
 
 export function loadPdfjsLib(): Promise<PdfjsLib> {
 	return loadCached().then((mod) => mod as unknown as PdfjsLib);

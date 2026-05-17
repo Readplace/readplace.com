@@ -1,3 +1,4 @@
+export { cachedImport } from "./cached-import";
 export { initCrawlArticle, DEFAULT_CRAWL_HEADERS } from "./crawl-article";
 export { extensionFromContentType } from "./extension-from-content-type";
 export type { CrawlArticle, CrawlArticleResult, ThumbnailImage } from "./crawl-article.types";
