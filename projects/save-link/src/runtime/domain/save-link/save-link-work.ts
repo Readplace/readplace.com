@@ -113,7 +113,9 @@ export function initSaveLinkWork(deps: {
 		 * fetch, not after.
 		 */
 		let crawlResult: CrawlArticleResult;
+		let usedComprehensivePath = false;
 		if (simpleResult.status === "unsupported" && simpleResult.reason === PDF_DETECTED_REASON) {
+			usedComprehensivePath = true;
 			await markCrawlStage({ url, stage: "comprehensive-fetching" });
 			/**
 			 * Server only commits two coarse stages — `comprehensive-fetching` and
@@ -157,7 +159,9 @@ export function initSaveLinkWork(deps: {
 			await emitTier1Failure(url);
 			throw new Error(`crawl failed for ${url}: ${reason}`);
 		}
-		await markCrawlStage({ url, stage: "crawl-fetched" });
+		if (!usedComprehensivePath) {
+			await markCrawlStage({ url, stage: "crawl-fetched" });
+		}
 
 		const parseResult = parseHtml({ url, html: crawlResult.html });
 		if (!parseResult.ok) {

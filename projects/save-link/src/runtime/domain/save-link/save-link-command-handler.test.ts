@@ -456,7 +456,7 @@ describe("initSaveLinkCommandHandler", () => {
 		const stages = markCrawlStage.mock.calls.map((call) => call[0].stage);
 		expect(stages).toContain("comprehensive-fetching");
 		expect(stages.indexOf("comprehensive-fetching")).toBeGreaterThan(stages.indexOf("crawl-fetching"));
-		expect(stages.indexOf("comprehensive-fetching")).toBeLessThan(stages.indexOf("crawl-fetched"));
+		expect(stages).not.toContain("crawl-fetched");
 	});
 
 	it("flips the row to terminal unsupported when comprehensiveCrawl also reports unsupported (e.g. scanned PDF after OCR fallback failed)", async () => {
