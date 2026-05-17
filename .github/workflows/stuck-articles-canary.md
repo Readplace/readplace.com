@@ -1,10 +1,13 @@
 # Stuck Articles Canary Failure Investigation
 
-You have been triggered because the `Stuck articles canary` workflow failed on its scheduled run. One or more articles in the production DynamoDB articles table are stuck in a non-terminal state — `summaryStatus`/`crawlStatus` is `pending` or `failed`, or both are absent on a non-legacy row.
+You have been triggered because the `Stuck articles canary` workflow failed on its scheduled run. One or more articles in the production DynamoDB articles table are owed a manual retry — `summaryStatus`/`crawlStatus` is `pending` (worker never produced a terminal outcome), or `summaryStatus = "skipped"` with reason `ai-unavailable` (AI was down and no auto-heal fires for `skipped`).
 
 ## Your Task
 
-1. **Read the issue body and any follow-up comments.** Each stuck row is listed as `[<reasons>] <url> — fetched: <ts>; failure: <reason>; recrawl: <admin-url>`. The reasons (`summary-pending`, `summary-failed`, `crawl-pending`, `crawl-failed`, `legacy-stub`) tell you which state machine got stuck.
+1. **Read the issue body and any follow-up comments.** Each stuck row is listed as `[<reasons>] <url> — fetched: <ts>; failure: <reason>; recrawl: <admin-url>`. The reasons map to:
+   - `summary-pending` / `crawl-pending` — the worker never produced a terminal outcome on that axis.
+   - `summary-pending-after-aggregate-migration` / `crawl-pending-after-aggregate-migration` — same as above but the latest writer was a Phase 2 cross-axis transition that was supposed to flip both axes to terminal.
+   - `summary-skipped-ai-unavailable` — the summariser recorded the AI as down at the time the summary ran. The handler treats `skipped` as terminal and never re-runs, and the auto-heal only fires for `failed` rows — so the only recovery is a manual recrawl via the `/admin/recrawl/<url>` link in the row.
 2. **Find the change that introduced the state.** Run `git log --since='14 days ago' --format='%h %s'` and inspect commits touching:
    - `projects/save-link/src/generate-summary/**` (summary state machine)
    - `projects/save-link/src/article-crawl/**` and `projects/hutch/src/runtime/providers/article-crawl/**` (crawl state machine)
