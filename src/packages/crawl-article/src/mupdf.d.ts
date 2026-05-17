@@ -37,8 +37,15 @@ declare module "mupdf" {
 		scale(sx: number, sy: number): Matrix;
 	};
 
-	export class ColorSpace {
-		static readonly DeviceRGB: ColorSpace;
-		static readonly DeviceGray: ColorSpace;
+	// ColorSpace is modelled as an opaque interface + matching const namespace
+	// so biome's `noStaticOnlyClass` rule stays satisfied. The real mupdf
+	// runtime value is a class with instance methods we don't use, plus the
+	// two static device-colourspace handles that the rasterizer consumes.
+	export interface ColorSpace {
+		readonly _tag: "ColorSpace";
 	}
+	export const ColorSpace: {
+		readonly DeviceRGB: ColorSpace;
+		readonly DeviceGray: ColorSpace;
+	};
 }
