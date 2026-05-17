@@ -267,15 +267,15 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			return;
 		}
 
-		const unreadCount = urlState.tab === "queue"
-			? result.total
-			: (await deps.findArticlesByUser({ userId, status: "unread", page: 1, pageSize: 1 })).total;
 		const saveError = deps.httpErrorMessageMapping(req.query);
 		const importFlash = importFlashMapping(req.query);
 		const importSkipped = readImportSkippedFlash(req, res);
-		const [summaryByUrl, crawlByUrl] = await Promise.all([
+		const [summaryByUrl, crawlByUrl, unreadCount] = await Promise.all([
 			loadSummaries(deps.findGeneratedSummary, result.articles),
 			loadCrawls(deps.findArticleCrawlStatus, result.articles),
+			urlState.tab === "queue"
+				? Promise.resolve(result.total)
+				: deps.findArticlesByUser({ userId, status: "unread", page: 1, pageSize: 1 }).then(r => r.total),
 		]);
 		const vm = toQueueViewModel(result, urlState, {
 			unreadCount,
