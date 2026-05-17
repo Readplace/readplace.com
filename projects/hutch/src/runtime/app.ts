@@ -8,7 +8,7 @@ import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
 import type { ExtractPdf } from "@packages/crawl-article";
-import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch } from "@packages/crawl-article";
+import { DEFAULT_CRAWL_HEADERS, initComprehensiveCrawl, initCrawlArticle, initCrawlFetch, initSimpleCrawl } from "@packages/crawl-article";
 import type { PublishStaleCheckRequested } from "@packages/test-fixtures/providers/events";
 import { initReadabilityParser } from "@packages/test-fixtures/providers/article-parser";
 import { mediumPreParser, theInformationPreParser } from "@packages/test-fixtures/providers/article-parser";
@@ -140,7 +140,9 @@ function initProviders() {
 		const { publishExportUserDataCommand } = initEventBridgeExportUserDataCommand({ publishEvent });
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
 		const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
-		const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
+		const simpleCrawl = initSimpleCrawl({ crawlFetch, logError });
+		const comprehensiveCrawl = initComprehensiveCrawl({ crawlFetch, extractPdf, logError });
+		const crawlArticle = initCrawlArticle({ simpleCrawl, comprehensiveCrawl });
 		const { parseHtml } = initReadabilityParser({
 			crawlArticle,
 			sitePreParsers: [theInformationPreParser, mediumPreParser],
@@ -236,7 +238,9 @@ function initProviders() {
 	const crawlStore = initInMemoryArticleCrawl();
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
 	const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
-	const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
+	const simpleCrawl = initSimpleCrawl({ crawlFetch, logError });
+	const comprehensiveCrawl = initComprehensiveCrawl({ crawlFetch, extractPdf, logError });
+	const crawlArticle = initCrawlArticle({ simpleCrawl, comprehensiveCrawl });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
 		sitePreParsers: [theInformationPreParser, mediumPreParser],

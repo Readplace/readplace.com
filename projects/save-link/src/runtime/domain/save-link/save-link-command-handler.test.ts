@@ -424,7 +424,6 @@ describe("initSaveLinkCommandHandler", () => {
 		expect(comprehensiveCrawl).toHaveBeenCalledTimes(1);
 		expect(comprehensiveCrawl).toHaveBeenCalledWith(expect.objectContaining({
 			url: "https://example.com/doc.pdf",
-			fetchThumbnail: true,
 		}));
 		expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
 			url: "https://example.com/doc.pdf",

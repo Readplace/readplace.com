@@ -1,7 +1,7 @@
 import { SQSClient } from "@aws-sdk/client-sqs";
 import OpenAI from "openai";
 import { initDynamoDbArticleStore } from "@packages/article-store";
-import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch, initMupdfRasterizer } from "@packages/crawl-article";
+import { DEFAULT_CRAWL_HEADERS, initComprehensiveCrawl, initCrawlArticle, initCrawlFetch, initMupdfRasterizer, initSimpleCrawl } from "@packages/crawl-article";
 import { initTransitionAndPersist } from "@packages/domain/article-aggregate";
 import {
 	GenerateSummaryCommand,
@@ -58,7 +58,9 @@ const extractPdf = initSaveLinkPdfExtract({
 	createChatCompletion: (params) => deepInfraClient.chat.completions.create(params),
 	logger: consoleLogger,
 });
-const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
+const simpleCrawl = initSimpleCrawl({ crawlFetch, logError });
+const comprehensiveCrawl = initComprehensiveCrawl({ crawlFetch, extractPdf, logError });
+const crawlArticle = initCrawlArticle({ simpleCrawl, comprehensiveCrawl });
 
 const { parseHtml } = initReadabilityParser({
 	crawlArticle,

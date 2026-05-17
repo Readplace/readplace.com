@@ -154,28 +154,20 @@ export function initComprehensiveCrawl(deps: {
 }
 
 /**
- * Backwards-compatible composed crawler: runs the simple factory first and
- * falls through to the comprehensive factory when the simple factory reports
- * `unsupported`. Callers that need to observe the boundary between the two
- * halves (e.g. the save-link orchestrator marking a stage) should instead
- * construct `initSimpleCrawl` and `initComprehensiveCrawl` directly and run
- * the same compose themselves.
+ * Composed crawler: runs the simple factory first and falls through to the
+ * comprehensive factory when the simple factory reports `unsupported`. Callers
+ * that need to observe the boundary between the two halves (e.g. the save-link
+ * orchestrator marking a stage) should construct `initSimpleCrawl` and
+ * `initComprehensiveCrawl` directly and compose the fall-through themselves.
  */
 export function initCrawlArticle(deps: {
-	crawlFetch: CrawlFetch;
-	extractPdf: ExtractPdf;
-	logError: (message: string, error?: Error) => void;
+	simpleCrawl: SimpleCrawl;
+	comprehensiveCrawl: ComprehensiveCrawl;
 }): CrawlArticle {
-	const simpleCrawl = initSimpleCrawl({ crawlFetch: deps.crawlFetch, logError: deps.logError });
-	const comprehensiveCrawl = initComprehensiveCrawl({
-		crawlFetch: deps.crawlFetch,
-		extractPdf: deps.extractPdf,
-		logError: deps.logError,
-	});
 	return async (params) => {
-		const simpleResult = await simpleCrawl(params);
+		const simpleResult = await deps.simpleCrawl(params);
 		if (simpleResult.status === "unsupported") {
-			return comprehensiveCrawl(params);
+			return deps.comprehensiveCrawl(params);
 		}
 		return simpleResult;
 	};

@@ -41,11 +41,14 @@ function initCrawl(overrides?: {
 		defaultHeaders: { ...DEFAULT_CRAWL_HEADERS },
 		fetchCurl: overrides?.fetchCurl ?? stubFetchCurl,
 	});
-	return initCrawlArticle({
+	const logError = overrides?.logError ?? noopLogError;
+	const simpleCrawl = initSimpleCrawl({ crawlFetch, logError });
+	const comprehensiveCrawl = initComprehensiveCrawl({
 		crawlFetch,
 		extractPdf: overrides?.extractPdf ?? stubExtractPdf,
-		logError: overrides?.logError ?? noopLogError,
+		logError,
 	});
+	return initCrawlArticle({ simpleCrawl, comprehensiveCrawl });
 }
 
 function initSimple(overrides?: {

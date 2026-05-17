@@ -46,7 +46,6 @@ export type ComprehensiveCrawl = (params: {
 	url: string;
 	etag?: string;
 	lastModified?: string;
-	fetchThumbnail?: boolean;
 	onPdfPage?: (params: { pageIndex: number; pageCount: number }) => void;
 }) => Promise<CrawlArticleResult>;
 

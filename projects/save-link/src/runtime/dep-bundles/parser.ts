@@ -1,6 +1,5 @@
 import type {
 	ComprehensiveCrawl,
-	CrawlArticle,
 	CrawlFetch,
 	ExtractPdf,
 	SimpleCrawl,
@@ -20,7 +19,6 @@ import type { LogError } from "./observability";
 
 export type ParserDepBundle = {
 	crawlFetch: CrawlFetch;
-	crawlArticle: CrawlArticle;
 	simpleCrawl: SimpleCrawl;
 	comprehensiveCrawl: ComprehensiveCrawl;
 	parseHtml: ParseHtml;
@@ -40,15 +38,11 @@ export function initParserDepBundle(deps: {
 		extractPdf: deps.extractPdf,
 		logError: deps.logError,
 	});
-	const crawlArticle = initCrawlArticle({
-		crawlFetch,
-		extractPdf: deps.extractPdf,
-		logError: deps.logError,
-	});
+	const crawlArticle = initCrawlArticle({ simpleCrawl, comprehensiveCrawl });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
 		sitePreParsers: [theInformationPreParser, mediumPreParser],
 		logError: deps.logError,
 	});
-	return { crawlFetch, crawlArticle, simpleCrawl, comprehensiveCrawl, parseHtml };
+	return { crawlFetch, simpleCrawl, comprehensiveCrawl, parseHtml };
 }

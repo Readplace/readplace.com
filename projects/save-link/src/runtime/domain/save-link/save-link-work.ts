@@ -119,7 +119,6 @@ export function initSaveLinkWork(deps: {
 			await markCrawlStage({ url, stage: "comprehensive-fetching" });
 			return comprehensiveCrawl({
 				url,
-				fetchThumbnail: true,
 				/**
 				 * Server only commits two coarse stages — `comprehensive-fetching`
 				 * and `comprehensive-extracting` — and the client smoother

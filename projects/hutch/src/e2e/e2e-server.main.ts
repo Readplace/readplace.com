@@ -16,7 +16,7 @@ import {
 import { requireEnv } from '../runtime/domain/require-env'
 import { initRefreshArticleIfStale } from '@packages/test-fixtures/providers/article-freshness'
 import type { ExtractPdf } from '@packages/crawl-article'
-import { DEFAULT_CRAWL_HEADERS, initCrawlArticle, initCrawlFetch } from '@packages/crawl-article'
+import { DEFAULT_CRAWL_HEADERS, initComprehensiveCrawl, initCrawlArticle, initCrawlFetch, initSimpleCrawl } from '@packages/crawl-article'
 import { mediumPreParser, theInformationPreParser } from '@packages/test-fixtures/providers/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
 import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/providers/events'
@@ -38,7 +38,9 @@ const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, defaultHeaders: { .
 // stub returns failed so crawlArticle reports "unsupported" if a PDF ever
 // reaches this path.
 const extractPdf: ExtractPdf = async () => ({ kind: "failed", reason: "PDF extraction not supported in e2e server" })
-const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError })
+const simpleCrawl = initSimpleCrawl({ crawlFetch, logError })
+const comprehensiveCrawl = initComprehensiveCrawl({ crawlFetch, extractPdf, logError })
+const crawlArticle = initCrawlArticle({ simpleCrawl, comprehensiveCrawl })
 const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, sitePreParsers: [theInformationPreParser, mediumPreParser], logError })
 
 /** E2E tests use localhost URLs because the test server IS localhost.
