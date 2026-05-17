@@ -1,6 +1,6 @@
 import type { ImportSessionPage } from "@packages/domain/import-session";
 import type { ComponentError } from "../../shared/component-error.types";
-import { buildImportUrl } from "./import.url";
+import { buildImportToggleAllUrl, buildImportToggleUrl, buildImportUrl } from "./import.url";
 
 export interface ImportUploadViewModel {
 	readonly errors?: readonly ComponentError[];
@@ -68,8 +68,8 @@ export function toImportViewModel(
 		prevUrl: page > 1 ? buildImportUrl(sessionId, page - 1) : undefined,
 		nextUrl: page < totalPages ? buildImportUrl(sessionId, page + 1) : undefined,
 		commitUrl: `/import/${sessionId}/commit`,
-		toggleUrl: `/import/${sessionId}/toggle`,
-		toggleAllUrl: `/import/${sessionId}/toggle-all`,
+		toggleUrl: buildImportToggleUrl(sessionId, page),
+		toggleAllUrl: buildImportToggleAllUrl(sessionId, page),
 		allSelected,
 		noneSelected,
 		someSelected: !allSelected && !noneSelected,
