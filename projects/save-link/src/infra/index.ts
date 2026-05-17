@@ -90,7 +90,7 @@ const linkSavedQueue = new HutchSQS("link-saved", {
 // 3-way parallel batching against gemma-4-31B-it completes in ~157s wall
 // time, so 360s is ~2× the worst observed.
 const saveLinkCommandQueue = new HutchSQS("save-link-command", {
-	visibilityTimeoutSeconds: 720,
+	visibilityTimeoutSeconds: 1200,
 });
 
 // maxReceiveCount=1: SQS retries are removed for the anonymous save path.
@@ -101,7 +101,7 @@ const saveLinkCommandQueue = new HutchSQS("save-link-command", {
 // generate-summary) keep the default maxReceiveCount=3 so transient
 // Deepseek/DDB blips still self-heal at the SQS layer.
 const saveAnonymousLinkCommandQueue = new HutchSQS("save-anonymous-link-command", {
-	visibilityTimeoutSeconds: 720,
+	visibilityTimeoutSeconds: 1200,
 	dlqMaxReceiveCount: 1,
 });
 
@@ -122,11 +122,11 @@ const summaryGenerationFailedQueue = new HutchSQS("summary-generation-failed", {
 });
 
 const recrawlLinkInitiatedQueue = new HutchSQS("recrawl-link-initiated", {
-	visibilityTimeoutSeconds: 720,
+	visibilityTimeoutSeconds: 1200,
 });
 
 const staleCheckRequestedQueue = new HutchSQS("stale-check-requested", {
-	visibilityTimeoutSeconds: 720,
+	visibilityTimeoutSeconds: 1200,
 });
 
 const recrawlContentExtractedQueue = new HutchSQS("recrawl-content-extracted", {
@@ -149,11 +149,12 @@ const saveLinkCommandLambda = new HutchLambda("save-link-command", {
 	// produces one ~9 MB RGBA pixmap per page being rendered. Five pages in
 	// flight per batch × three concurrent batches stays well under the cap.
 	memorySize: 2048,
-	// 360s covers the worst-case scanned-PDF flow: a 13-page PDF with 3-way
-	// parallel batching against gemma-4-31B-it on DeepInfra completes in ~157s;
-	// 360s is ~2× that for safety. Paired with 720s SQS visibility (≥2× Lambda
-	// timeout per AWS guidance).
-	timeout: 360,
+	// 600s covers the worst-case scanned-PDF flow: the cold-start mupdf WASM
+	// load + per-page rasterisation on a dense 15-page arXiv paper plus 3-way
+	// parallel batching against gemma-4-31B-it can take ~6 min when DeepInfra
+	// queues; the previous 360s hit Lambda timeout on the arXiv canary.
+	// Paired with 1200s SQS visibility (≥2× Lambda timeout per AWS guidance).
+	timeout: 600,
 	// mupdf is ESM-only and uses top-level `await` to instantiate WASM —
 	// esbuild can't inline it into the CJS handler, and Node 22's
 	// `require(esm)` rejects it with ERR_REQUIRE_ASYNC_MODULE. Ship it in
