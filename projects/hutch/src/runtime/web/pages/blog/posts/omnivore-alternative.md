@@ -103,7 +103,7 @@ Readplace is free for the first {{foundingMemberLimit}} founding members. Full a
 
 **Can I import my Omnivore data into Readplace?**
 
-You can send Omnivore data file to hutch+migrate@readplace.com and I'll do it for you. If you exported your data before the shutdown, keep that file. You can start fresh right now with the [browser extension](https://readplace.com/install). Save any article with one click.
+You can send Omnivore data file to readplace+migrate@readplace.com and I'll do it for you. If you exported your data before the shutdown, keep that file. You can start fresh right now with the [browser extension](https://readplace.com/install). Save any article with one click.
 
 ## Your reading list should not have an expiry date
 

@@ -54,7 +54,7 @@ export { initReadabilityParser };
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
 	save_failed: "Could not save article. Please try again.",
 	import_too_large:
-		"That file is too large. The limit is 5 MiB — please email it to hutch+migrate@readplace.com instead.",
+		"That file is too large. The limit is 5 MiB — please email it to readplace+migrate@readplace.com instead.",
 	import_no_urls: "We couldn't find any links in that file.",
 	import_session_not_found:
 		"That import session has expired. Please upload the file again.",

@@ -28,7 +28,7 @@ config:
   hutch:contentBucketName: hutch-article-content-prod
   hutch:pendingHtmlBucketName: hutch-pending-html-prod
   hutch:userExportBucketName: hutch-user-exports-prod
-  hutch:alertEmail: hutch+devops@readplace.com
+  hutch:alertEmail: readplace+devops@readplace.com
   hutch:excludedVisitorHashes: [
     b4248a499303636a,
     cae1bf1ec4181321

@@ -10,7 +10,7 @@
 
 ### Imports are self-serve from /queue, with email as fallback
 
-The CTA lives next to the save bar on `/queue` only — do **not** restore the removed "Import Your Data" landing-page card. Flow: the user uploads any file (≤ 5 MiB), the server best-effort-decodes it as text and extracts `http(s)://…` URLs, the user reviews a paginated list with every link checked by default, then clicks "Import N selected". Selected URLs are stub-saved synchronously (hostname-only metadata at t=0) and the existing `SaveLinkCommand` pipeline fills in title/excerpt/content asynchronously, so cards appear immediately and progressively populate. Files larger than 5 MiB or imports above the 2,000-URL cap fall back to the concierge email path (`hutch+migrate@readplace.com`); keep that documented in [pocket-migration.md](./projects/hutch/src/runtime/web/pages/blog/posts/pocket-migration.md).
+The CTA lives next to the save bar on `/queue` only — do **not** restore the removed "Import Your Data" landing-page card. Flow: the user uploads any file (≤ 5 MiB), the server best-effort-decodes it as text and extracts `http(s)://…` URLs, the user reviews a paginated list with every link checked by default, then clicks "Import N selected". Selected URLs are stub-saved synchronously (hostname-only metadata at t=0) and the existing `SaveLinkCommand` pipeline fills in title/excerpt/content asynchronously, so cards appear immediately and progressively populate. Files larger than 5 MiB or imports above the 2,000-URL cap fall back to the concierge email path (`readplace+migrate@readplace.com`); keep that documented in [pocket-migration.md](./projects/hutch/src/runtime/web/pages/blog/posts/pocket-migration.md).
 
 ### Crawler Health Canary Is Load-Bearing
 

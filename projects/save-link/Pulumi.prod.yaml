@@ -3,7 +3,7 @@ config:
   aws:allowedAccountIds:
     - '278728209435'
   save-link:platformStack: organization/platform/prod
-  save-link:alertEmail: hutch+devops@readplace.com
+  save-link:alertEmail: readplace+devops@readplace.com
   save-link:articlesTableName: hutch-articles-cda0a08
   save-link:articlesTableArn: arn:aws:dynamodb:ap-southeast-2:278728209435:table/hutch-articles-cda0a08
   save-link:contentBucketName: hutch-article-content-prod

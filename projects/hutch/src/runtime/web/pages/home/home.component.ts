@@ -180,7 +180,7 @@ export function HomePage(params: {
 						"One-click article saving via browser extension for Firefox and Chrome",
 						"Distraction-free reader view powered by Readability.js",
 						"AI-generated TL;DR summaries for every saved article",
-						"Concierge import service — email your Pocket, Instapaper, or Omnivore export file to hutch+migrate@readplace.com and Fayner imports it by hand within 24–48 hours",
+						"Concierge import service — email your Pocket, Instapaper, or Omnivore export file to readplace+migrate@readplace.com and Fayner imports it by hand within 24–48 hours",
 						"Auto dark mode following system preference",
 						"OAuth 2.0 with PKCE authentication",
 						"Data hosted in Sydney, Australia under Australian Privacy Act",
