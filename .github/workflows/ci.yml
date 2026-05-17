@@ -25,7 +25,7 @@ jobs:
       PULUMI_STACK: staging
       PULUMI_CONFIG_PASSPHRASE: ''
       PERSISTENCE: development
-      STATIC_BASE_URL: 'https://d2uoxssv1ey7em.cloudfront.net'
+      STATIC_BASE_URL: 'https://static-staging.readplace.com'
     steps:
       - uses: actions/checkout@v6
 
