@@ -1,7 +1,7 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import { build, type Loader, type Plugin } from "esbuild";
-import { copyFileSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 
@@ -63,18 +63,65 @@ function copyDirDereferenced(src: string, dest: string) {
  */
 function copyExternalPackage(packageName: string, contexts: NodeJS.Require[], outputDir: string): string {
 	for (const ctx of contexts) {
-		try {
-			const pkgJsonPath = ctx.resolve(`${packageName}/package.json`);
+		const pkgJsonPath = resolvePackageJsonPath(ctx, packageName);
+		if (pkgJsonPath) {
 			copyDirDereferenced(dirname(pkgJsonPath), join(outputDir, "node_modules", packageName));
 			return pkgJsonPath;
-		} catch (e) {
-			if ((e as NodeJS.ErrnoException).code !== "MODULE_NOT_FOUND") throw e;
 		}
 	}
 	throw new Error(
 		`HutchLambda external '${packageName}' not resolvable from the entry point or any previously-listed external. ` +
 			`Check that it is installed (pnpm.supportedArchitectures may need to include its platform).`,
 	);
+}
+
+/**
+ * Locates a package's on-disk `package.json` from a given require context.
+ *
+ * Standard `ctx.resolve(`${pkg}/package.json`)` works for packages that don't
+ * restrict the subpath via `exports`. Two pnpm-specific quirks force fallbacks:
+ *
+ * 1. Packages with strict `exports` (e.g. `mupdf` only exports `"."`) throw
+ *    `ERR_PACKAGE_PATH_NOT_EXPORTED` for the deep `/package.json` request —
+ *    fall back to resolving the main entry and walking up to `package.json`.
+ *
+ * 2. Transitive deps that aren't installed in the consumer's `node_modules`
+ *    only live in `<workspaceRoot>/node_modules/.pnpm/node_modules/<pkg>/`,
+ *    which Node's default resolution won't walk into — fall back to scanning
+ *    that directory up from the entry point.
+ *
+ * Returns undefined when the package isn't installed in any of the searched
+ * locations; other errors propagate.
+ */
+function resolvePackageJsonPath(ctx: NodeJS.Require, packageName: string): string | undefined {
+	try {
+		return ctx.resolve(`${packageName}/package.json`);
+	} catch (e) {
+		const code = (e as NodeJS.ErrnoException).code;
+		if (code !== "MODULE_NOT_FOUND" && code !== "ERR_PACKAGE_PATH_NOT_EXPORTED") throw e;
+	}
+	try {
+		const mainPath = ctx.resolve(packageName);
+		let dir = dirname(mainPath);
+		while (dir !== dirname(dir)) {
+			const candidate = join(dir, "package.json");
+			if (existsSync(candidate)) return candidate;
+			dir = dirname(dir);
+		}
+	} catch (e) {
+		if ((e as NodeJS.ErrnoException).code !== "MODULE_NOT_FOUND") throw e;
+	}
+	// pnpm hoists every installed package to `<root>/node_modules/.pnpm/node_modules/<pkg>/`.
+	// Walk up from the require context's referrer looking for that store dir.
+	const referrerPath = (ctx as unknown as { path?: string }).path;
+	const startDir = typeof referrerPath === "string" ? referrerPath : process.cwd();
+	let dir = startDir;
+	while (dir !== dirname(dir)) {
+		const candidate = join(dir, "node_modules", ".pnpm", "node_modules", packageName, "package.json");
+		if (existsSync(candidate)) return candidate;
+		dir = dirname(dir);
+	}
+	return undefined;
 }
 
 /**
