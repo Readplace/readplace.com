@@ -109,6 +109,9 @@ jobs:
         with:
           name: failed-articles-report
           path: .failed-articles-report.json
+          # The report path starts with a dot; upload-artifact@v4 treats
+          # dotfiles as hidden and skips them unless explicitly included.
+          include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 30
 
