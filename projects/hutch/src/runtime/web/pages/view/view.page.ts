@@ -225,6 +225,7 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			articleUrl,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
+			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	};

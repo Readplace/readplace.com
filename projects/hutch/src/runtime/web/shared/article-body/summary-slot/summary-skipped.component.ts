@@ -10,11 +10,13 @@ const TEMPLATE = readFileSync(
 
 export interface SummarySkippedInput {
 	reason: string | undefined;
+	oob?: boolean;
 }
 
 export function renderSummarySkipped(input: SummarySkippedInput): string {
 	return render(TEMPLATE, {
 		message: messageForSkip(input.reason),
 		reasonCode: input.reason ?? "",
+		oob: input.oob === true,
 	});
 }

@@ -10,8 +10,9 @@ const TEMPLATE = readFileSync(
 export interface SummaryReadyInput {
 	summary: string;
 	open: boolean;
+	oob?: boolean;
 }
 
 export function renderSummaryReady(input: SummaryReadyInput): string {
-	return render(TEMPLATE, input);
+	return render(TEMPLATE, { ...input, oob: input.oob === true });
 }

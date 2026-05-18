@@ -9,11 +9,12 @@ const TEMPLATE = readFileSync(
 
 export interface ReaderPendingInput {
 	pollUrl?: string;
+	oob?: boolean;
 }
 
 export function renderReaderPending(input: ReaderPendingInput): string {
 	const message = input.pollUrl
 		? "Fetching article"
 		: "Still fetching — refresh to check again.";
-	return render(TEMPLATE, { pollUrl: input.pollUrl, message });
+	return render(TEMPLATE, { pollUrl: input.pollUrl, message, oob: input.oob === true });
 }

@@ -9,6 +9,11 @@ export interface ReaderSlotInput {
 	url: string;
 	readerPollUrl?: string;
 	extensionInstallUrl?: string;
+	/* When true, the rendered slot carries `hx-swap-oob="outerHTML"` so HTMX
+	 * splices it into a sibling poll response and replaces the live slot. The
+	 * stable `id="article-body-reader-slot"` on every variant gives HTMX a
+	 * target across crawl state transitions. */
+	oob?: boolean;
 }
 
 /**
@@ -23,10 +28,11 @@ export interface ReaderSlotInput {
  * present, otherwise treat it as pending.
  */
 export function renderReaderSlot(input: ReaderSlotInput): string {
+	const oob = input.oob === true;
 	if (input.crawl === undefined) {
 		return input.content
-			? renderReaderReady({ content: input.content })
-			: renderReaderPending({ pollUrl: input.readerPollUrl });
+			? renderReaderReady({ content: input.content, oob })
+			: renderReaderPending({ pollUrl: input.readerPollUrl, oob });
 	}
 
 	switch (input.crawl.status) {
@@ -35,21 +41,23 @@ export function renderReaderSlot(input: ReaderSlotInput): string {
 			 * inconsistency picked up by stuck-articles-canary; render pending
 			 * so the slot retries instead of erroring. */
 			return input.content
-				? renderReaderReady({ content: input.content })
-				: renderReaderPending({ pollUrl: input.readerPollUrl });
+				? renderReaderReady({ content: input.content, oob })
+				: renderReaderPending({ pollUrl: input.readerPollUrl, oob });
 		case "pending":
-			return renderReaderPending({ pollUrl: input.readerPollUrl });
+			return renderReaderPending({ pollUrl: input.readerPollUrl, oob });
 		case "failed":
 			return renderReaderFailed({
 				url: input.url,
 				variant: "failed",
 				extensionInstallUrl: input.extensionInstallUrl,
+				oob,
 			});
 		case "unsupported":
 			return renderReaderFailed({
 				url: input.url,
 				variant: "unsupported",
 				extensionInstallUrl: input.extensionInstallUrl,
+				oob,
 			});
 	}
 }

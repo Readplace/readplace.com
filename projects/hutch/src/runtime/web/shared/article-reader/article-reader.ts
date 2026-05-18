@@ -22,11 +22,92 @@ import { renderSummarySlot } from "../article-body/summary-slot/summary-slot.com
 import type {
 	ArticleReaderDeps,
 	HandlePollParams,
+	PollUrlBuilder,
 	ReaderState,
 	ResolveReaderStateParams,
 } from "./article-reader.types";
 
 const MAX_POLLS = 40;
+
+/**
+ * Required input for every poll response. Holds the *full* world state — both
+ * crawl and summary axes, both poll URLs — alongside a discriminator naming
+ * the axis whose slot is the primary swap target. By construction every
+ * caller of `renderPollResponseBody` provides both axes, which means a poll
+ * response can never silently drop one slot: the sibling is always emitted as
+ * an `hx-swap-oob` swap so its HTMX polling chain re-arms if that axis just
+ * flipped to pending while the primary axis was settling.
+ *
+ * This makes the cross-axis handoff a compile-time invariant rather than a
+ * thing the two handlers have to remember.
+ */
+interface PollResponseBodyInput {
+	primary: "reader" | "summary";
+	url: string;
+	crawl: ArticleCrawl | undefined;
+	summary: GeneratedSummary | undefined;
+	content: string | undefined;
+	readerPollUrl: string | undefined;
+	summaryPollUrl: string | undefined;
+	summaryOpen: boolean;
+	extensionInstallUrl: string | undefined;
+	progress: ProgressTick | undefined;
+	metadataOob: string;
+}
+
+function renderPollResponseBody(input: PollResponseBodyInput): string {
+	const readerSlot = renderReaderSlot({
+		crawl: input.crawl,
+		content: input.content,
+		url: input.url,
+		readerPollUrl: input.readerPollUrl,
+		extensionInstallUrl: input.extensionInstallUrl,
+		oob: input.primary !== "reader",
+	});
+	const summarySlot = renderSummarySlot({
+		crawl: input.crawl,
+		summary: input.summary,
+		summaryPollUrl: input.summaryPollUrl,
+		summaryOpen: input.summaryOpen,
+		oob: input.primary !== "summary",
+	});
+	const progressBarOob = renderProgressBarOob({ progress: input.progress });
+	if (input.primary === "reader") {
+		return readerSlot + summarySlot + progressBarOob + input.metadataOob;
+	}
+	return summarySlot + readerSlot + progressBarOob + input.metadataOob;
+}
+
+/**
+ * Single source of truth for "is this axis still in flight?" Computing both
+ * URLs from the same state shape means a reader poll and a summary poll see
+ * the same "should sibling be polling" decision, so the OOB sibling slot
+ * always carries the same poll URL the sibling's own primary path would.
+ */
+function computePollUrls(args: {
+	crawl: ArticleCrawl | undefined;
+	summary: GeneratedSummary | undefined;
+	content: string | undefined;
+	pollCount: number;
+	pollUrlBuilder: PollUrlBuilder;
+}): { readerPollUrl: string | undefined; summaryPollUrl: string | undefined } {
+	const readerStillRunning =
+		shouldKeepPollingReader(args.crawl, args.content) && args.pollCount < MAX_POLLS;
+	const crawlTerminalFailure =
+		args.crawl?.status === "failed" || args.crawl?.status === "unsupported";
+	const summaryStillRunning =
+		!crawlTerminalFailure &&
+		(args.summary?.status ?? "pending") === "pending" &&
+		args.pollCount < MAX_POLLS;
+	return {
+		readerPollUrl: readerStillRunning
+			? args.pollUrlBuilder.reader(args.pollCount + 1)
+			: undefined,
+		summaryPollUrl: summaryStillRunning
+			? args.pollUrlBuilder.summary(args.pollCount + 1)
+			: undefined,
+	};
+}
 
 /**
  * 1. Pending: the normal in-flight case.
@@ -143,29 +224,29 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 	}
 
 	async function handleSummaryPoll(params: HandlePollParams): Promise<Component> {
-		const { articleUrl, pollCount, pollUrlBuilder } = params;
-		const [crawl, summary, article] = await Promise.all([
+		const { articleUrl, pollCount, pollUrlBuilder, extensionInstallUrl } = params;
+		const [crawl, summary, content, article] = await Promise.all([
 			deps.findArticleCrawlStatus(articleUrl),
 			deps.findGeneratedSummary(articleUrl),
+			deps.readArticleContent(articleUrl),
 			deps.findArticleByUrl(articleUrl),
 		]);
-		const crawlTerminalFailure =
-			crawl?.status === "failed" || crawl?.status === "unsupported";
-		const status = summary?.status ?? "pending";
-		const summaryPollUrl = !crawlTerminalFailure && status === "pending" && pollCount < MAX_POLLS
-			? pollUrlBuilder.summary(pollCount + 1)
-			: undefined;
-		const slot = renderSummarySlot({
+		const { readerPollUrl, summaryPollUrl } = computePollUrls({
+			crawl, summary, content, pollCount, pollUrlBuilder,
+		});
+		return HtmlPage(renderPollResponseBody({
+			primary: "summary",
+			url: articleUrl,
 			crawl,
 			summary,
+			content,
+			readerPollUrl,
 			summaryPollUrl,
 			summaryOpen: true,
-		});
-		const oobBar = renderProgressBarOob({
+			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-		});
-		const oobMetadata = buildMetadataOob(article, articleUrl);
-		return HtmlPage(slot + oobBar + oobMetadata);
+			metadataOob: buildMetadataOob(article, articleUrl),
+		}));
 	}
 
 	async function handleReaderPoll(params: HandlePollParams): Promise<Component> {
@@ -176,21 +257,22 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			deps.readArticleContent(articleUrl),
 			deps.findArticleByUrl(articleUrl),
 		]);
-		const readerPollUrl = shouldKeepPollingReader(crawl, content) && pollCount < MAX_POLLS
-			? pollUrlBuilder.reader(pollCount + 1)
-			: undefined;
-		const slot = renderReaderSlot({
-			crawl,
-			content,
+		const { readerPollUrl, summaryPollUrl } = computePollUrls({
+			crawl, summary, content, pollCount, pollUrlBuilder,
+		});
+		return HtmlPage(renderPollResponseBody({
+			primary: "reader",
 			url: articleUrl,
+			crawl,
+			summary,
+			content,
 			readerPollUrl,
+			summaryPollUrl,
+			summaryOpen: true,
 			extensionInstallUrl,
-		});
-		const oobBar = renderProgressBarOob({
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
-		});
-		const oobMetadata = buildMetadataOob(article, articleUrl);
-		return HtmlPage(slot + oobBar + oobMetadata);
+			metadataOob: buildMetadataOob(article, articleUrl),
+		}));
 	}
 
 	return { resolveReaderState, handleSummaryPoll, handleReaderPoll };

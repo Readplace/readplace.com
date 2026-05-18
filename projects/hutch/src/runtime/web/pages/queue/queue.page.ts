@@ -539,6 +539,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			articleUrl: article.url,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderForId(article.id.value),
+			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	});
