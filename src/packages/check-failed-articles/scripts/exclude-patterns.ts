@@ -51,6 +51,16 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// `....` (display truncation that leaked into the saved URL).
 	/^https:\/\/www\.theinformation\.{0,4}$/i,
 	/^https:\/\/web\.eecs\.umich\.edu\/~weimerw\/2018-481\/readings\/mythical-man-month\.pdf$/i,
+	// Paywalled: WSJ rejects the crawler past the article-card metadata.
+	/^https:\/\/www\.wsj\.com\/world\/china\/tightly-choreographed-visit-masks-big-differences-between-u-s-and-china-afa01180\?mod=hp_lead_pos1$/i,
+	// Paywalled: NYT shows a registration wall.
+	/^https:\/\/www\.nytimes\.com\/2026\/05\/06\/business\/media\/bbc-guy-goma-interview\.html$/i,
+	// Substack `legacy-no-content` rows — content was never persisted under
+	// these exact tracking-suffixed URLs and the originals are gated behind
+	// a paid newsletter.
+	/^https:\/\/cutlefish\.substack\.com\/p\/tbm-1352-asking-better-questions\?utm_source=substack&utm_medium=email$/i,
+	/^https:\/\/cutlefish\.substack\.com\/p\/tbm-410-dancing-with-problems\?utm_source=post-email-title&publication_id=24711&post_id=190590408&utm_campaign=email-post-title&isFreemail=true&r=5ik6xc&triedRedirect=true&utm_medium=email$/i,
+	/^https:\/\/psychologywod\.com\/2013\/08\/18\/blocked-practice-vs-random-practice-shake-things-up-in-your-training-and-in-your-life\/$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

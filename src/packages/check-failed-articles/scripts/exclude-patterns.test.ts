@@ -128,6 +128,56 @@ describe("EXCLUDE_PATTERNS — operator-curated exact-URL entries", () => {
 			excluded: false,
 			label: "same directory different file",
 		},
+		{
+			url: "https://www.wsj.com/world/china/tightly-choreographed-visit-masks-big-differences-between-u-s-and-china-afa01180?mod=hp_lead_pos1",
+			excluded: true,
+			label: "wsj china piece exact",
+		},
+		{
+			url: "https://www.wsj.com/world/china/tightly-choreographed-visit-masks-big-differences-between-u-s-and-china-afa01180",
+			excluded: false,
+			label: "wsj china piece without the mod query param",
+		},
+		{
+			url: "https://www.nytimes.com/2026/05/06/business/media/bbc-guy-goma-interview.html",
+			excluded: true,
+			label: "nyt bbc-guy-goma article exact",
+		},
+		{
+			url: "https://www.nytimes.com/2026/05/06/business/media/bbc-guy-goma-interview",
+			excluded: false,
+			label: "nyt bbc-guy-goma article missing .html",
+		},
+		{
+			url: "https://cutlefish.substack.com/p/tbm-1352-asking-better-questions?utm_source=substack&utm_medium=email",
+			excluded: true,
+			label: "cutlefish tbm-1352 exact with utm suffix",
+		},
+		{
+			url: "https://cutlefish.substack.com/p/tbm-1352-asking-better-questions",
+			excluded: false,
+			label: "cutlefish tbm-1352 without utm suffix — different stored value",
+		},
+		{
+			url: "https://cutlefish.substack.com/p/tbm-410-dancing-with-problems?utm_source=post-email-title&publication_id=24711&post_id=190590408&utm_campaign=email-post-title&isFreemail=true&r=5ik6xc&triedRedirect=true&utm_medium=email",
+			excluded: true,
+			label: "cutlefish tbm-410 exact with full tracking-suffix",
+		},
+		{
+			url: "https://cutlefish.substack.com/p/tbm-410-dancing-with-problems",
+			excluded: false,
+			label: "cutlefish tbm-410 base path without tracking suffix",
+		},
+		{
+			url: "https://psychologywod.com/2013/08/18/blocked-practice-vs-random-practice-shake-things-up-in-your-training-and-in-your-life/",
+			excluded: true,
+			label: "psychologywod blocked-practice article exact",
+		},
+		{
+			url: "https://psychologywod.com/2013/08/18/blocked-practice-vs-random-practice-shake-things-up-in-your-training-and-in-your-life",
+			excluded: false,
+			label: "psychologywod blocked-practice article missing trailing slash",
+		},
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
