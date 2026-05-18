@@ -133,7 +133,11 @@ test.describe('Queue management flow (staging)', () => {
           savePermalinkProgress,
         ),
         bannerOnReader: createBannerOnReaderActions(
-          { baseUrl: baseURL, testUrl: fixtureUrl('banner-on-reader') },
+          {
+            baseUrl: baseURL,
+            publicViewTestUrl: fixtureUrl('banner-on-public-view'),
+            privateReaderTestUrl: fixtureUrl('banner-on-private-reader'),
+          },
           cleanupProgress,
           bannerOnReaderProgress,
         ),

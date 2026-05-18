@@ -82,7 +82,11 @@ test.describe('Queue management flow (local)', () => {
           savePermalinkProgress,
         ),
         bannerOnReader: createBannerOnReaderActions(
-          { baseUrl: BASE_URL, testUrl: `${BASE_URL}/privacy?banner-on-reader=1` },
+          {
+            baseUrl: BASE_URL,
+            publicViewTestUrl: `${BASE_URL}/privacy?banner-on-public-view=${Date.now()}`,
+            privateReaderTestUrl: `${BASE_URL}/privacy?banner-on-private-reader=${Date.now()}`,
+          },
           cleanupProgress,
           bannerOnReaderProgress,
         ),

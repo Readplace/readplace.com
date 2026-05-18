@@ -25,7 +25,7 @@ export type BannerOnReaderProgress = {
  * the client wiring, and the close-button affordance all line up. Route
  * tests cover the SSR side; this file covers the rendered state. */
 export function createBannerOnReaderActions(
-	config: { baseUrl: string; testUrl: string },
+	config: { baseUrl: string; publicViewTestUrl: string; privateReaderTestUrl: string },
 	cleanupProgress: CleanupProgress,
 	progress: BannerOnReaderProgress,
 ): (authProgress: AuthProgress) => Record<BannerOnReaderActionKey, PageAction> {
@@ -47,21 +47,25 @@ export function createBannerOnReaderActions(
 				}
 			},
 			execute: async (page) => {
-				// Unique URL so the first visit hits the not-fully-parsed path
-				// (summary still pending → banner data-show='true').
-				const target = `${config.baseUrl}/privacy?banner-on-public-view=${Date.now()}`
+				// Use the per-run unique URL the callsite supplies. API Gateway on
+				// staging strips arbitrary query strings, so a `?ts=${Date.now()}`
+				// trick collapses every run back to the same path and the cached
+				// row pins `summaryStatus='ready'` → banner never shows. The /e2e
+				// fixture URL pattern (used in run.e2e-staging.ts) avoids this by
+				// embedding the runId in the path itself.
 				await page.goto(
-					`${config.baseUrl}/view/${encodeURIComponent(target)}`,
+					`${config.baseUrl}/view/${encodeURIComponent(config.publicViewTestUrl)}`,
 					{ waitUntil: 'domcontentloaded' },
 				)
 				const onPublicView = await isOnPage(page, 'page-view')
 				assert.ok(onPublicView, '/view/<url> must render the public reader page')
 
-				// Scoped to .banner-area because saved Readplace-hosted pages (e.g.
-				// /privacy) keep the chrome banner in their stored HTML, so /view's
-				// reader slot can render a second banner inside <article> with the
-				// same data-test attribute. Strict-mode locator must match one element.
-				const banner = page.locator('.banner-area [data-test-extension-suggestion-banner]')
+				// Anchored to a body-direct child because saved Readplace-hosted
+				// HTML keeps the entire `<div class="banner-area"><banner></div>`
+				// chrome wrapper inside the article reader slot; a descendant
+				// selector would still match both copies. The outer banner-area
+				// is body's first DOM child per base.template.html.
+				const banner = page.locator('body > .banner-area [data-test-extension-suggestion-banner]')
 				await expect(banner).toHaveAttribute('data-show-extension-suggestion', 'true')
 				await expect(banner).toHaveClass(/extension-suggestion-banner--visible/)
 
@@ -94,7 +98,7 @@ export function createBannerOnReaderActions(
 			},
 			execute: async (page) => {
 				const input = page.locator('[data-test-form="save-article"] input[name="url"]')
-				await input.fill(config.testUrl)
+				await input.fill(config.privateReaderTestUrl)
 				await clickAndWaitForPageReload(
 					page,
 					page.locator('[data-test-form="save-article"] button[type="submit"]'),
@@ -111,9 +115,9 @@ export function createBannerOnReaderActions(
 				const onReader = await isOnPage(page, 'page-reader')
 				assert.ok(onReader, 'clicking the saved article must navigate to the owner reader')
 
-				// See verify-banner-on-public-view for why the locator is scoped to
-				// .banner-area: the saved Readplace HTML duplicates the banner inside <article>.
-				const banner = page.locator('.banner-area [data-test-extension-suggestion-banner]')
+				// Same body-direct-child anchor as verify-banner-on-public-view —
+				// the saved article's reader slot replays the chrome wrapper too.
+				const banner = page.locator('body > .banner-area [data-test-extension-suggestion-banner]')
 				await expect(banner).toHaveAttribute('data-show-extension-suggestion', 'true')
 				await expect(banner).toHaveClass(/extension-suggestion-banner--visible/)
 
