@@ -8,6 +8,7 @@ import {
 import type { CrawlArticleResult } from "./crawl-article.types";
 import { initCrawlFetch } from "./crawl-fetch";
 import type { fetchCurl } from "./curl-fetch";
+import type { fetchH2 } from "./h2-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
 const PDF_EXTRACT_FAILURE_REASON = "synthetic extractor failure";
 
@@ -17,6 +18,10 @@ const noopLogError = () => {};
 // verify fallback behaviour pass a curl impl explicitly via overrides.fetchCurl.
 const stubFetchCurl: typeof fetchCurl = async () => {
 	throw new Error("stub fetchCurl: not invoked");
+};
+
+const stubFetchH2: typeof fetchH2 = async () => {
+	throw new Error("stub fetchH2: not invoked");
 };
 
 // Default stub: PDF extraction is exercised by its own tests via `initCrawl`
@@ -29,6 +34,7 @@ function initCrawl(overrides?: {
 	fetch?: typeof fetch;
 	logError?: (message: string, error?: Error) => void;
 	fetchCurl?: typeof fetchCurl;
+	fetchH2?: typeof fetchH2;
 	extractPdf?: ExtractPdf;
 }) {
 	const defaultFetch: typeof fetch = async () =>
@@ -40,6 +46,7 @@ function initCrawl(overrides?: {
 		fetch: overrides?.fetch ?? defaultFetch,
 		personas: [{ name: "test-default", headers: { ...DEFAULT_CRAWL_HEADERS } }],
 		fetchCurl: overrides?.fetchCurl ?? stubFetchCurl,
+		fetchH2: overrides?.fetchH2 ?? stubFetchH2,
 	});
 	const logError = overrides?.logError ?? noopLogError;
 	const simpleCrawl = initSimpleCrawl({ crawlFetch, logError });
@@ -55,6 +62,7 @@ function initSimple(overrides?: {
 	fetch?: typeof fetch;
 	logError?: (message: string, error?: Error) => void;
 	fetchCurl?: typeof fetchCurl;
+	fetchH2?: typeof fetchH2;
 }) {
 	const defaultFetch: typeof fetch = async () =>
 		new Response("<html></html>", {
@@ -65,6 +73,7 @@ function initSimple(overrides?: {
 		fetch: overrides?.fetch ?? defaultFetch,
 		personas: [{ name: "test-default", headers: { ...DEFAULT_CRAWL_HEADERS } }],
 		fetchCurl: overrides?.fetchCurl ?? stubFetchCurl,
+		fetchH2: overrides?.fetchH2 ?? stubFetchH2,
 	});
 	return initSimpleCrawl({
 		crawlFetch,
@@ -76,6 +85,7 @@ function initComprehensive(overrides?: {
 	fetch?: typeof fetch;
 	logError?: (message: string, error?: Error) => void;
 	fetchCurl?: typeof fetchCurl;
+	fetchH2?: typeof fetchH2;
 	extractPdf?: ExtractPdf;
 }) {
 	const defaultFetch: typeof fetch = async () =>
@@ -87,6 +97,7 @@ function initComprehensive(overrides?: {
 		fetch: overrides?.fetch ?? defaultFetch,
 		personas: [{ name: "test-default", headers: { ...DEFAULT_CRAWL_HEADERS } }],
 		fetchCurl: overrides?.fetchCurl ?? stubFetchCurl,
+		fetchH2: overrides?.fetchH2 ?? stubFetchH2,
 	});
 	return initComprehensiveCrawl({
 		crawlFetch,

@@ -482,32 +482,42 @@ describe("withH2Fallback", () => {
 		},
 	);
 
-	it("falls back to curl on a connection-mid-request error (e.g. socket hangup) even with no signal", async () => {
+	it("tries h2 then falls back to curl on a connection-mid-request error (e.g. socket hangup) even with no signal", async () => {
 		const socketError = new Error("socket hang up");
 		const baseFetch: typeof fetch = async () => {
 			throw socketError;
 		};
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () => {
+			throw new Error("h2 also failed");
+		});
 		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>(async () =>
 			new Response("<html>curl recovered</html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
-		const wrapped = withH2Fallback(baseFetch, jest.fn(), curlImpl);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
 
 		const response = await wrapped("https://example.com");
 
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe("<html>curl recovered</html>");
-		expect(curlImpl).toHaveBeenCalledWith("https://example.com", { headers: undefined });
+		expect(h2Impl).toHaveBeenCalledTimes(1);
+		expect(curlImpl).toHaveBeenCalledWith("https://example.com", {
+			headers: undefined,
+			signal: undefined,
+		});
 	});
 
-	it("falls back to curl when the primary fetch throws a generic 'fetch failed' (origin closed the connection mid-request)", async () => {
+	it("tries h2 then falls back to curl when the primary fetch throws a generic 'fetch failed'", async () => {
 		const fetchFailed = new TypeError("fetch failed");
 		const baseFetch: typeof fetch = async () => {
 			throw fetchFailed;
 		};
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () => {
+			throw new Error("h2 also failed");
+		});
 		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>(async () =>
 			new Response("ok", { status: 200, headers: { "content-type": "text/html" } }),
 		);
-		const wrapped = withH2Fallback(baseFetch, jest.fn(), curlImpl);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
 
 		const response = await wrapped("https://hex.ooo/library/last_question.html", {
 			signal: AbortSignal.timeout(5000),
@@ -515,8 +525,31 @@ describe("withH2Fallback", () => {
 		});
 
 		expect(response.status).toBe(200);
+		expect(h2Impl).toHaveBeenCalledTimes(1);
 		expect(curlImpl).toHaveBeenCalledWith("https://hex.ooo/library/last_question.html", {
 			headers: { "user-agent": "Test/1.0" },
+			signal: expect.any(AbortSignal),
 		});
+	});
+
+	it("succeeds via h2 when baseFetch throws (e.g. Akamai RST_STREAM) and h2 bypasses the block", async () => {
+		const rstError = new Error("INTERNAL_ERROR: HTTP/2 stream closed");
+		const baseFetch: typeof fetch = async () => {
+			throw rstError;
+		};
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+			new Response("<html>h2 bypassed akamai</html>", { status: 200, headers: { "content-type": "text/html" } }),
+		);
+		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>();
+		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
+
+		const response = await wrapped("https://example.gov/file.pdf", {
+			headers: { "user-agent": "Test/1.0" },
+		});
+
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("<html>h2 bypassed akamai</html>");
+		expect(h2Impl).toHaveBeenCalledTimes(1);
+		expect(curlImpl).not.toHaveBeenCalled();
 	});
 });
