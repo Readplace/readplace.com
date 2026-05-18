@@ -57,7 +57,11 @@ export function createBannerOnReaderActions(
 				const onPublicView = await isOnPage(page, 'page-view')
 				assert.ok(onPublicView, '/view/<url> must render the public reader page')
 
-				const banner = page.locator('[data-test-extension-suggestion-banner]')
+				// Scoped to .banner-area because saved Readplace-hosted pages (e.g.
+				// /privacy) keep the chrome banner in their stored HTML, so /view's
+				// reader slot can render a second banner inside <article> with the
+				// same data-test attribute. Strict-mode locator must match one element.
+				const banner = page.locator('.banner-area [data-test-extension-suggestion-banner]')
 				await expect(banner).toHaveAttribute('data-show-extension-suggestion', 'true')
 				await expect(banner).toHaveClass(/extension-suggestion-banner--visible/)
 
@@ -107,14 +111,16 @@ export function createBannerOnReaderActions(
 				const onReader = await isOnPage(page, 'page-reader')
 				assert.ok(onReader, 'clicking the saved article must navigate to the owner reader')
 
-				const banner = page.locator('[data-test-extension-suggestion-banner]')
+				// See verify-banner-on-public-view for why the locator is scoped to
+				// .banner-area: the saved Readplace HTML duplicates the banner inside <article>.
+				const banner = page.locator('.banner-area [data-test-extension-suggestion-banner]')
 				await expect(banner).toHaveAttribute('data-show-extension-suggestion', 'true')
 				await expect(banner).toHaveClass(/extension-suggestion-banner--visible/)
 
 				// Verify the banner stays put until the user dismisses it, then
 				// confirm the close button removes it and persists the dismiss
 				// flag so it doesn't re-appear on subsequent visits.
-				await page.locator('[data-extension-suggestion-close]').click()
+				await banner.locator('[data-extension-suggestion-close]').click()
 				await expect(banner).not.toHaveClass(/extension-suggestion-banner--visible/)
 				const dismissed = await page.evaluate(() =>
 					window.localStorage.getItem('readplace.extension-suggestion-dismissed'),
