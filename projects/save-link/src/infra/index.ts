@@ -318,9 +318,7 @@ new HutchDLQEventHandler("save-anonymous-link-dlq", {
 // for normal saves, RecrawlContentExtractedEvent when the recrawl flag is
 // set on the command).
 //
-// 720s visibility = 1.2× the 600s Lambda timeout (≥1.0× per AWS guidance);
-// matched-2× would require a 1200s visibility and longer than-needed
-// stranding on a failed message.
+// 1200s visibility = 2× the 600s Lambda timeout per AWS guidance.
 const comprehensiveCrawlCommandQueue = new HutchSQS("comprehensive-crawl-command", {
 	visibilityTimeoutSeconds: 1200,
 });
