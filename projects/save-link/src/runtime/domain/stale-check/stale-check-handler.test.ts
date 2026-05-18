@@ -124,13 +124,13 @@ describe("initStaleCheckHandler", () => {
 			status: "failed",
 			reason: "parse-error",
 		});
-		const simpleCrawl = jest.fn();
+		const simpleCrawl = jest.fn(noopSimpleCrawl);
 		const publishSaveAnonymousLink: PublishSaveAnonymousLink = jest.fn().mockResolvedValue(undefined);
 
 		const handler = createHandler({
 			findArticleFreshness,
 			findArticleCrawlStatus,
-			simpleCrawl: simpleCrawl as unknown as SimpleCrawl,
+			simpleCrawl,
 			publishSaveAnonymousLink,
 		});
 
@@ -146,11 +146,11 @@ describe("initStaleCheckHandler", () => {
 			lastModified: undefined,
 			contentFetchedAt: "2026-05-18T11:30:00.000Z",
 		});
-		const simpleCrawl = jest.fn();
+		const simpleCrawl = jest.fn(noopSimpleCrawl);
 
 		const handler = createHandler({
 			findArticleFreshness,
-			simpleCrawl: simpleCrawl as unknown as SimpleCrawl,
+			simpleCrawl,
 		});
 
 		await handler(createSqsEvent({ url: URL_UNDER_TEST }), stubContext, () => {});
