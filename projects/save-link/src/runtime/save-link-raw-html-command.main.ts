@@ -6,7 +6,6 @@ import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { requireEnv } from "../require-env";
 import { initReadPendingHtml } from "./providers/article-store/read-pending-html";
 import { initSaveLinkRawHtmlCommandHandler } from "./domain/save-link-raw-html/save-link-raw-html-command-handler";
-import type { ExtractPdf } from "@packages/crawl-article";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
 import { initArticleStoreDepBundle } from "./dep-bundles/article-store";
@@ -29,13 +28,10 @@ const now = () => new Date();
 
 // This Lambda consumes already-fetched HTML from S3 (pendingHtml bucket) and
 // never re-crawls a URL through crawlArticle — the handler uses parseHtml on
-// the raw body directly. extractPdf is wired only to satisfy the
-// initParserDepBundle signature; a failed stub is sufficient since the PDF
-// code path is never exercised here.
-const extractPdf: ExtractPdf = async () => ({ kind: "failed", reason: "PDF extraction not supported in save-link-raw-html-command" });
-
+// the raw body directly. The simple-only parser bundle suffices; no PDF path
+// is exercised here.
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link-raw-html", now });
-const parser = initParserDepBundle({ logError: observability.logError, extractPdf });
+const parser = initParserDepBundle({ logError: observability.logError });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logger: consoleLogger, imagesCdnBaseUrl });
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });

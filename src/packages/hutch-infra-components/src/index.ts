@@ -5,6 +5,8 @@ export {
 	type SaveLinkRawHtmlDetail,
 	SaveAnonymousLinkCommand,
 	type SaveAnonymousLinkDetail,
+	ComprehensiveCrawlCommand,
+	type ComprehensiveCrawlDetail,
 	SubmitLinkCommand,
 	type SubmitLinkDetail,
 	StaleCheckRequestedEvent,

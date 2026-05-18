@@ -82,6 +82,33 @@ export const SubmitLinkCommand = defineEvent({
 });
 export type SubmitLinkDetail = z.infer<typeof SubmitLinkCommand.detailSchema>;
 
+/** Async dispatch of the comprehensive crawl (PDF extraction) path. Issued
+ * by `save-link-work` when the simple crawl reports `unsupported` so the
+ * save-link Lambda's concurrency slot is released immediately instead of
+ * waiting on mupdf + DeepInfra. The dedicated comprehensive-crawl-command
+ * Lambda subscribes to this command, runs the comprehensive crawl, processes
+ * the result through the same tier-1 happy path, and emits the appropriate
+ * downstream event itself (TierContentExtractedEvent for saves,
+ * RecrawlContentExtractedEvent for recrawls).
+ *
+ * `userId` is threaded so the downstream selector can emit `LinkSavedEvent`
+ * with the original saver. `recrawl=true` tells the handler to emit
+ * `RecrawlContentExtractedEvent` instead of `TierContentExtractedEvent`,
+ * preserving the recrawl Lambda chain's always-regenerate-summary semantics. */
+export const ComprehensiveCrawlCommand = defineEvent({
+	name: "comprehensive-crawl-command",
+	source: "hutch.save-link",
+	detailType: "ComprehensiveCrawlCommand",
+	detailSchema: z.object({
+		url: z.string(),
+		userId: z.string().optional(),
+		recrawl: z.boolean().optional(),
+	}),
+});
+export type ComprehensiveCrawlDetail = z.infer<
+	typeof ComprehensiveCrawlCommand.detailSchema
+>;
+
 export const StaleCheckRequestedEvent = defineEvent({
 	name: "stale-check-requested",
 	source: "hutch.api",
