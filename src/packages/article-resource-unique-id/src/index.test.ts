@@ -65,8 +65,9 @@ describe("ArticleResourceUniqueId.toS3ContentKey", () => {
 	});
 
 	it("encodes unicode characters in path", () => {
+		/** The URL parser pre-encodes `é` to `%C3%A9` in pathname, so `encodeURIComponent` re-escapes `%` to `%25`. */
 		expect(ArticleResourceUniqueId.parse("https://example.com/café").toS3ContentKey())
-			.toBe("content/example.com%2Fcaf%C3%A9/content.html");
+			.toBe("content/example.com%2Fcaf%25C3%25A9/content.html");
 	});
 
 	it("matches between save (write) and read sides for the same URL", () => {
