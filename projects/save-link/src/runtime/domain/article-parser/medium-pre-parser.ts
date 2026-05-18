@@ -58,11 +58,14 @@ export const mediumPreParser: SitePreParser = {
 		const container = findArticleContainer(document);
 		if (!container) return undefined;
 
-		const authorPhoto = container.querySelector('[data-testid="authorPhoto"]');
+		const authorPhotos = container.querySelectorAll('[data-testid="authorPhoto"]');
+		const firstAuthorPhoto: DomElement | null = authorPhotos[0] ?? null;
 
-		stripClapsSeparators({ container, anchorElement: authorPhoto });
-		authorPhoto?.closest("a")?.remove();
-		authorPhoto?.remove();
+		stripClapsSeparators({ container, anchorElement: firstAuthorPhoto });
+		for (const photo of authorPhotos) {
+			photo.closest("a")?.remove();
+			photo.remove();
+		} /* c8 ignore next -- V8 block coverage phantom on for...of iterator close, see bcoe/c8#319 */
 
 		stripWithEnclosingParagraph({
 			container,

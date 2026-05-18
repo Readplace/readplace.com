@@ -231,6 +231,20 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 		expect(result?.bodyHtml).not.toContain("authorPhoto");
 		expect(result?.bodyHtml).not.toContain("avatar.jpg");
 	});
+
+	it("strips ALL authorPhoto elements when multiple exist (friends-link duplicate)", () => {
+		const html = buildHtml({
+			ogSiteName: "Medium",
+			articleInner:
+				'<div><a href="/author"><img data-testid="authorPhoto" alt="Author"></a></div><p>Body.</p><div data-testid="authorPhoto"><a href="/follow"><img src="avatar2.jpg"></a></div>',
+		});
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).not.toContain("authorPhoto");
+		expect(result?.bodyHtml).not.toContain("avatar2.jpg");
+		expect(result?.bodyHtml).toContain("Body.");
+	});
 });
 
 describe("mediumPreParser.extract — picture tooltip", () => {
