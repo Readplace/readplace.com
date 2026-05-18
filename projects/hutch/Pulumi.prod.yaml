@@ -31,6 +31,7 @@ config:
   hutch:alertEmail: readplace+devops@readplace.com
   hutch:excludedVisitorHashes: [
     b4248a499303636a,
-    cae1bf1ec4181321
+    cae1bf1ec4181321,
+    41174e927f157da7
   ]
 encryptionsalt: v1:l9Qbc2Rjk0w=:v1:atrW398hQVu5eMhu:NQ2XG9vAOXAa+XxkU2+ksKYFAJJLTA==
