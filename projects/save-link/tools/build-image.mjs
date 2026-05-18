@@ -34,7 +34,13 @@ const HANDLER = {
 };
 
 function run(command, args, options = {}) {
-	const result = spawnSync(command, args, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf-8", ...options });
+	const merged = { stdio: ["ignore", "pipe", "pipe"], encoding: "utf-8", ...options };
+	// Node spawnSync silently drops `input` unless stdio[0] is "pipe" — fix that here
+	// so callers can pass `{ input }` without also having to remember the stdio dance.
+	if (merged.input != null && merged.stdio[0] !== "pipe") {
+		merged.stdio = ["pipe", ...merged.stdio.slice(1)];
+	}
+	const result = spawnSync(command, args, merged);
 	if (result.status !== 0) {
 		const stderr = result.stderr?.trim() ?? "";
 		const stdout = result.stdout?.trim() ?? "";
