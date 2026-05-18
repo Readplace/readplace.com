@@ -22,7 +22,7 @@ function stubRasterizer(params: {
 					};
 				},
 				getTitle: () => params.title,
-				destroy: () => {},
+				destroy: async () => {},
 			};
 		},
 	};
@@ -356,7 +356,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 						};
 					},
 					getTitle: () => "T",
-					destroy: () => {},
+					destroy: async () => {},
 				};
 			},
 		};
@@ -384,7 +384,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 						};
 					},
 					getTitle: () => undefined,
-					destroy: () => { docDestroyed = true; },
+					destroy: async () => { docDestroyed = true; },
 				};
 			},
 		};
@@ -412,7 +412,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 						};
 					},
 					getTitle: () => undefined,
-					destroy: () => {},
+					destroy: async () => {},
 				};
 			},
 		};

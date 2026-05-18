@@ -69,7 +69,7 @@ export function initMupdfRasterizer(deps: { logger: HutchLogger; scale?: number 
 					const trimmed = raw.trim();
 					return trimmed.length > 0 ? trimmed : undefined;
 				},
-				destroy(): void {
+				async destroy(): Promise<void> {
 					doc.destroy();
 				},
 			};

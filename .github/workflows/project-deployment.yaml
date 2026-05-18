@@ -41,6 +41,14 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Docker Buildx + AWS CLI are pre-installed on ubuntu-latest, but buildx
+      # requires explicit setup for the multi-platform builder. save-link's
+      # deploy-infra script runs build-image.mjs before pulumi up; that
+      # script does its own `aws ecr get-login-password | docker login`.
+      - name: Configure Docker Buildx for OCR image build
+        if: inputs.project == 'save-link'
+        uses: docker/setup-buildx-action@v3
+
       - name: Deploy ${{ inputs.project }} to staging
         run: pnpm nx run ${{ inputs.project }}:deploy-infra
 
@@ -88,6 +96,10 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Configure Docker Buildx for OCR image build
+        if: inputs.project == 'save-link'
+        uses: docker/setup-buildx-action@v3
 
       - name: Deploy ${{ inputs.project }} to prod
         run: pnpm nx run ${{ inputs.project }}:deploy-infra

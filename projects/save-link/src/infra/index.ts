@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import * as pulumi from "@pulumi/pulumi";
+import { z } from "zod";
 import {
 	HutchEventBus,
 	HutchLambda,
@@ -48,6 +50,16 @@ const articlesTableName = config.require("articlesTableName");
 const articlesTableArn = config.require("articlesTableArn");
 const contentBucketName = config.require("contentBucketName");
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
+
+/**
+ * Image URI for the comprehensive-crawl-command container Lambda, written by
+ * `tools/build-image.mjs` before `pulumi up` runs. The file is in .gitignore
+ * (`.lib/`) and recreated on every deploy. If it's missing, the build step
+ * was skipped — re-run `pnpm build-image` (or check CI ordering).
+ */
+const ocrImageTags = z.record(z.string(), z.string()).parse(
+	JSON.parse(readFileSync(".lib/ocr-image-tags.json", "utf-8")),
+);
 
 // --- Content S3 Bucket ---
 
@@ -365,7 +377,7 @@ new HutchDLQEventHandler("simple-crawl-unsupported-policy-dlq", {
 // HTML-only save-link workers. The `simple-crawl-unsupported-policy` Lambda
 // dispatches `ComprehensiveCrawlCommand` in reaction to
 // `SimpleCrawlUnsupportedEvent`; this Lambda re-fetches the URL, runs the
-// mupdf + DeepInfra OCR pipeline, parses the resulting HTML, writes the
+// pdftoppm + DeepInfra OCR pipeline, parses the resulting HTML, writes the
 // tier-1 source, and emits the appropriate downstream event itself
 // (TierContentExtractedEvent for normal saves,
 // RecrawlContentExtractedEvent when the recrawl flag is set on the command).
@@ -381,25 +393,16 @@ const comprehensiveCrawlCommandDynamodb = new HutchDynamoDBAccess("comprehensive
 });
 
 const comprehensiveCrawlCommandLambda = new HutchLambda("comprehensive-crawl-command", {
-	entryPoint: "./src/runtime/comprehensive-crawl-command.main.ts",
-	outputDir: ".lib/comprehensive-crawl-command",
-	assetDir: "./src",
 	// 2048 MB gives ~1.16 vCPU and ample headroom for the scanned-PDF OCR path:
-	// mupdf holds the 25 MiB PDF buffer + per-page decoded WASM structures and
-	// produces one ~9 MB RGBA pixmap per page being rendered. Five pages in
-	// flight per batch × three concurrent batches stays well under the cap.
+	// pdftoppm rasterises every page upfront into a per-invocation temp dir
+	// (~300 KB PNG per page at 150 DPI) and the OCR pipeline holds three
+	// 3-page batches in flight. 2048 MB stays well under the cap.
 	memorySize: 2048,
-	// 600s covers the worst-case scanned-PDF flow: cold-start mupdf WASM load
-	// + per-page rasterisation on a dense 15-page arXiv paper plus 3-way
-	// parallel batching against gemma-4-31B-it can take ~6 min when DeepInfra
-	// queues.
+	// 600s covers the worst-case scanned-PDF flow: pdftoppm rasterisation on
+	// a dense 15-page arXiv paper plus 3-way parallel batching against
+	// gemma-4-31B-it can take ~6 min when DeepInfra queues.
 	timeout: 600,
-	// mupdf is ESM-only and uses top-level `await` to instantiate WASM —
-	// esbuild can't inline it into the CJS handler, and Node 22's
-	// `require(esm)` rejects it with ERR_REQUIRE_ASYNC_MODULE. Ship it in
-	// node_modules so the runtime `import()` in `init-mupdf-lazy.ts`
-	// resolves to mupdf's own ESM build (and its sibling `mupdf-wasm.wasm`).
-	external: ["mupdf"],
+	containerImage: { imageUri: ocrImageTags["comprehensive-crawl-command"] },
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,

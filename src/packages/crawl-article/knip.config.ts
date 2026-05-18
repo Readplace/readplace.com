@@ -17,9 +17,6 @@ export default {
 		// knip doesn't resolve workspace subpath for @packages/* imports
 		// (consistent with the same workaround in projects/hutch and projects/save-link)
 		"@packages/article-state-types",
-		// HutchLogger is consumed only as a TypeScript type by init-mupdf-lazy.ts.
-		// The import is erased at compile time, so knip's runtime-dependency
-		// scan flags it as unused — but the type would dangle without it.
 		"@packages/hutch-logger",
 	],
 	ignoreBinaries: [

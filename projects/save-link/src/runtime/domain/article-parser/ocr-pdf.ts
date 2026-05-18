@@ -40,14 +40,14 @@ export function initOcrPdf(deps: {
 		let doc: PdfDocument;
 		try {
 			doc = await deps.rasterizer.open(buffer);
-			logger.info(`[ocr-pdf] mupdf-open done t=${Date.now() - t0}ms pages=${doc.numPages}`);
+			logger.info(`[ocr-pdf] rasterizer-open done t=${Date.now() - t0}ms pages=${doc.numPages}`);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			logger.error(`[ocr-pdf] mupdf-open failed t=${Date.now() - t0}ms reason=${message}`);
+			logger.error(`[ocr-pdf] rasterizer-open failed t=${Date.now() - t0}ms reason=${message}`);
 			return { kind: "failed", reason: `OCR pipeline failed: ${message}` };
 		}
 		const result = await extractWithDoc({ doc, url, pagesPerBatch, maxPages, createVisionMessage: deps.createVisionMessage, logger, t0, onProgress });
-		doc.destroy();
+		await doc.destroy();
 		logger.info(`[ocr-pdf] done t=${Date.now() - t0}ms kind=${result.kind}`);
 		return result;
 	};

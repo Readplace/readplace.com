@@ -4,6 +4,12 @@
     "check": {
       "command": "pnpm lint && pnpm test-with-coverage",
       "options": { "cwd": "{projectRoot}" }
+    },
+    "build-image": {
+      "command": "pnpm build-image",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["compile"],
+      "cache": false
     }
   }
 }

@@ -13,6 +13,10 @@
       "types": "./dist/infra/index.d.ts",
       "default": "./dist/infra/index.js"
     },
+    "./infra/copy-asset-files": {
+      "types": "./dist/infra/copy-asset-files.d.ts",
+      "default": "./dist/infra/copy-asset-files.js"
+    },
     "./runtime": {
       "types": "./dist/runtime/index.d.ts",
       "default": "./dist/runtime/index.js"
@@ -21,6 +25,7 @@
   "typesVersions": {
     "*": {
       "infra": ["./dist/infra/index.d.ts"],
+      "infra/copy-asset-files": ["./dist/infra/copy-asset-files.d.ts"],
       "runtime": ["./dist/runtime/index.d.ts"]
     }
   },
