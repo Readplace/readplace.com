@@ -10,32 +10,27 @@ import * as pulumi from "@pulumi/pulumi";
  * be rolled back; older tags expire automatically rather than accumulating
  * unbounded storage cost.
  */
-export class HutchEcrRepository extends pulumi.ComponentResource {
+export class HutchEcrRepository {
 	public readonly repositoryUrl: pulumi.Output<string>;
 	public readonly repositoryArn: pulumi.Output<string>;
 
 	private constructor(
-		name: string,
 		repositoryUrl: pulumi.Output<string>,
 		repositoryArn: pulumi.Output<string>,
-		opts?: pulumi.ComponentResourceOptions,
 	) {
-		super("hutch:infra:HutchEcrRepository", name, {}, opts);
 		this.repositoryUrl = repositoryUrl;
 		this.repositoryArn = repositoryArn;
-		this.registerOutputs({ repositoryUrl, repositoryArn });
 	}
 
 	static create(
 		name: string,
 		args: { repositoryName: string; keepLastNImages?: number },
-		opts?: pulumi.ComponentResourceOptions,
 	): HutchEcrRepository {
 		const keep = args.keepLastNImages ?? 20;
 		const repository = new aws.ecr.Repository(`${name}-ecr-repo`, {
 			name: args.repositoryName,
 			imageTagMutability: "MUTABLE",
-		}, opts);
+		});
 
 		new aws.ecr.LifecyclePolicy(`${name}-ecr-lifecycle`, {
 			repository: repository.name,
@@ -51,9 +46,9 @@ export class HutchEcrRepository extends pulumi.ComponentResource {
 					action: { type: "expire" },
 				}],
 			}),
-		}, opts);
+		});
 
-		return new HutchEcrRepository(name, repository.repositoryUrl, repository.arn, opts);
+		return new HutchEcrRepository(repository.repositoryUrl, repository.arn);
 	}
 
 	static fromExisting(args: {
@@ -61,7 +56,6 @@ export class HutchEcrRepository extends pulumi.ComponentResource {
 		repositoryArn: pulumi.Input<string>;
 	}): HutchEcrRepository {
 		return new HutchEcrRepository(
-			"existing",
 			pulumi.output(args.repositoryUrl),
 			pulumi.output(args.repositoryArn),
 		);
