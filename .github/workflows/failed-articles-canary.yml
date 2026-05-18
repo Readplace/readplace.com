@@ -100,12 +100,16 @@ jobs:
       # The artifact holds the full row list (the issue body is capped at
       # GitHub's 65 KiB limit; production backlogs of thousands of rows
       # would otherwise be truncated invisibly). Issue body links to it.
+      # Relative path (not the absolute env path) because upload-artifact@v4
+      # treats `path:` as a glob anchored at $GITHUB_WORKSPACE — an absolute
+      # path passes type-checking but matches nothing.
       - name: Upload full report as workflow artifact
-        if: steps.existing-issue.outputs.skip != 'true' && success() && hashFiles(env.FAILED_ARTICLES_REPORT_PATH) != ''
+        if: steps.existing-issue.outputs.skip != 'true' && success()
         uses: actions/upload-artifact@v4
         with:
           name: failed-articles-report
-          path: ${{ env.FAILED_ARTICLES_REPORT_PATH }}
+          path: .failed-articles-report.json
+          if-no-files-found: ignore
           retention-days: 30
 
       # ┌──────────────────────────────────────────────────────────────────┐
