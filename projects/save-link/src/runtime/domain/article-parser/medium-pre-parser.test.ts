@@ -101,14 +101,18 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 		expect(result?.bodyHtml).toContain("This is filler body content");
 	});
 
-	it("returns undefined when fingerprint present but no article container", () => {
+	it("falls back to document body when no semantic container exists and still strips chrome", () => {
 		const html = buildHtml({
 			ogSiteName: "Medium",
-			articleInner: "<p>Loose body</p>",
+			articleInner:
+				'<div><a href="/author"><img data-testid="authorPhoto" alt="Author"></a></div><p>Loose body</p>',
 			includeContainer: false,
 		});
 
-		expect(mediumPreParser.extract({ html })).toBeUndefined();
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).toContain("Loose body");
+		expect(result?.bodyHtml).not.toContain("authorPhoto");
 	});
 
 	it("returns undefined when stripping reduces the body below MIN_BODY_CHARS so default Readability handles it", () => {
@@ -230,6 +234,19 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 
 		expect(result?.bodyHtml).not.toContain("authorPhoto");
 		expect(result?.bodyHtml).not.toContain("avatar.jpg");
+	});
+
+	it("strips all authorPhoto elements when multiple are present", () => {
+		const html = buildHtml({
+			ogSiteName: "Medium",
+			articleInner:
+				'<div><a href="/author"><img data-testid="authorPhoto" alt="A"></a></div><p>Body.</p><div><img data-testid="authorPhoto" alt="B"></div>',
+		});
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).not.toContain("authorPhoto");
+		expect(result?.bodyHtml).toContain("Body.");
 	});
 });
 

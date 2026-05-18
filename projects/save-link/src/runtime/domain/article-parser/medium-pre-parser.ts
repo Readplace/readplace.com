@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { parseHTML } from "linkedom";
 import type { SiteArticleContent, SitePreParser } from "./article-parser.types";
 
@@ -55,14 +56,18 @@ export const mediumPreParser: SitePreParser = {
 
 		if (!isMediumPage(document)) return undefined;
 
-		const container = findArticleContainer(document);
-		if (!container) return undefined;
+		let container = findArticleContainer(document);
+		if (!container) container = document.querySelector("body");
+		assert(container, "parseHTML always produces a <body> element");
 
-		const authorPhoto = container.querySelector('[data-testid="authorPhoto"]');
+		let authorPhoto = container.querySelector('[data-testid="authorPhoto"]');
 
 		stripClapsSeparators({ container, anchorElement: authorPhoto });
-		authorPhoto?.closest("a")?.remove();
-		authorPhoto?.remove();
+		while (authorPhoto) {
+			authorPhoto.closest("a")?.remove();
+			authorPhoto.remove();
+			authorPhoto = container.querySelector('[data-testid="authorPhoto"]');
+		}
 
 		stripWithEnclosingParagraph({
 			container,
