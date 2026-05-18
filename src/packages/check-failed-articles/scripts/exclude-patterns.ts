@@ -34,6 +34,11 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// fails on it; there's nothing to crawl. The whole URL is unusable, not
 	// just unreachable, so an operator re-save is the only resolution.
 	/^nhttps:\/\//i,
+	// Browser-internal schemes (`chrome://`, `about:`, etc.) — legacy rows
+	// saved before `validateSaveableUrl` added the `unsupported_scheme`
+	// rejection. The crawler can never fetch these; intake now blocks them.
+	/^chrome:\/\//i,
+	/^about:/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

@@ -63,6 +63,25 @@ describe("EXCLUDE_PATTERNS — internal-network hostnames", () => {
 	}
 });
 
+describe("EXCLUDE_PATTERNS — browser-internal schemes", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "chrome://extensions/", excluded: true, label: "chrome:// with path" },
+		{ url: "chrome://newtab", excluded: true, label: "chrome:// newtab" },
+		{ url: "CHROME://SETTINGS", excluded: true, label: "chrome:// uppercase" },
+		{ url: "about:home", excluded: true, label: "about:home" },
+		{ url: "about:newtab", excluded: true, label: "about:newtab" },
+		{ url: "about:blank", excluded: true, label: "about:blank" },
+		{ url: "ABOUT:HOME", excluded: true, label: "about: uppercase" },
+		{ url: "https://example.org/about:home", excluded: false, label: "about: inside a path — should NOT match" },
+		{ url: "https://chrome.google.com/webstore", excluded: false, label: "chrome in hostname — should NOT match" },
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
+
 describe("EXCLUDE_PATTERNS — nhttps typo'd-scheme entry", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
 		{ url: "nhttps://example.org/foo", excluded: true, label: "nhttps scheme on a normal host" },
