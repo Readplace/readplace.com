@@ -29,11 +29,14 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)+(?:local|lan|internal|home\.arpa)(?:[/:?#]|$)/i,
 	// Singleton local hostnames, same rationale as the suffix entry above.
 	/(?:^|\/\/)(?:localhost|ip6-localhost|ip6-loopback)(?:[/:?#]|$)/i,
-	// `nhttps://…` — a real but typo'd scheme that appears in legacy rows
-	// (someone fat-fingered the address bar / clipboard). The fetcher always
-	// fails on it; there's nothing to crawl. The whole URL is unusable, not
-	// just unreachable, so an operator re-save is the only resolution.
-	/^nhttps:\/\//i,
+	// `nhttps:/…` or `nhttps://…` — a real but typo'd scheme that appears
+	// in legacy rows (someone fat-fingered the address bar / clipboard).
+	// Storage holds both one- and two-slash variants because URL
+	// normalization upstream sometimes collapses `//` to `/`. The fetcher
+	// always fails either way; there's nothing to crawl. The whole URL is
+	// unusable, not just unreachable, so an operator re-save is the only
+	// resolution.
+	/^nhttps:\/{1,2}/i,
 	// Browser-internal schemes (`chrome://`, `about:`, etc.) — legacy rows
 	// saved before `validateSaveableUrl` added the `unsupported_scheme`
 	// rejection. The crawler can never fetch these; intake now blocks them.
@@ -44,7 +47,9 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// is anchored with `^…$` so it matches only the exact stored URL, not a
 	// whole host or path prefix.
 	/^fabiensanglard\.net\/quake$/i,
-	/^https:\/\/www\.theinformation$/i,
+	// Tolerates up to four trailing `.` — the stored row literally ends in
+	// `....` (display truncation that leaked into the saved URL).
+	/^https:\/\/www\.theinformation\.{0,4}$/i,
 	/^https:\/\/web\.eecs\.umich\.edu\/~weimerw\/2018-481\/readings\/mythical-man-month\.pdf$/i,
 ];
 

@@ -85,10 +85,13 @@ describe("EXCLUDE_PATTERNS — browser-internal schemes", () => {
 describe("EXCLUDE_PATTERNS — nhttps typo'd-scheme entry", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
 		{ url: "nhttps://example.org/foo", excluded: true, label: "nhttps scheme on a normal host" },
+		{ url: "nhttps:/github.com/id-Software/Quake/blob/master/WinQuake/nonintel.c", excluded: true, label: "nhttps with single slash (normalization-collapsed shape)" },
+		{ url: "nhttps:/", excluded: true, label: "nhttps with single slash, no host" },
 		{ url: "nhttps://", excluded: true, label: "nhttps with no host" },
 		{ url: "NHTTPS://CASE.test/foo", excluded: true, label: "uppercase scheme" },
 		{ url: "https://example.org/foo", excluded: false, label: "valid https — should NOT match" },
 		{ url: "http://example.org/foo?next=nhttps://other", excluded: false, label: "nhttps appearing only inside a query" },
+		{ url: "nhttps:foo", excluded: false, label: "nhttps without any slash — not a URL-shaped typo" },
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
@@ -104,7 +107,10 @@ describe("EXCLUDE_PATTERNS — operator-curated exact-URL entries", () => {
 		{ url: "fabiensanglard.net/quake/", excluded: false, label: "fabiensanglard quake with trailing slash" },
 		{ url: "fabiensanglard.net/quake2", excluded: false, label: "fabiensanglard quake with extra path char" },
 		{ url: "fabiensanglard.net/other", excluded: false, label: "same host different path" },
-		{ url: "https://www.theinformation", excluded: true, label: "theinformation truncated exact" },
+		{ url: "https://www.theinformation", excluded: true, label: "theinformation truncated exact (no trailing dots)" },
+		{ url: "https://www.theinformation....", excluded: true, label: "theinformation truncated with four trailing dots (actual storage shape)" },
+		{ url: "https://www.theinformation.", excluded: true, label: "theinformation truncated with one trailing dot" },
+		{ url: "https://www.theinformation.....", excluded: false, label: "theinformation with five trailing dots — beyond the bounded run" },
 		{ url: "https://www.theinformation.com", excluded: false, label: "theinformation full host — should NOT match the truncated entry" },
 		{ url: "https://www.theinformation/foo", excluded: false, label: "theinformation truncated with path" },
 		{
