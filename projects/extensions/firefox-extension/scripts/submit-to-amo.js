@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// Wraps `pnpm sign` (web-ext sign → AMO) for the firefox-extension
+// publish workflow. Idempotent: when AMO reports the version already
+// exists, exits 0 so re-runs of the CI job don't fail on a no-op.
 
 const { execSync } = require("node:child_process");
 

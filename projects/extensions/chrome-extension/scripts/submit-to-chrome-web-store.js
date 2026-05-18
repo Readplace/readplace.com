@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// Uploads the chrome-extension package to the Chrome Web Store via the
+// CWS Publish API. Auth is a refresh-token-based OAuth flow keyed by
+// GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN secrets.
 
 const assert = require("node:assert");
 const fs = require("node:fs");
