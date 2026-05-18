@@ -1,14 +1,12 @@
 import { createHash } from "node:crypto";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type {
-	ComprehensiveCrawl,
 	CrawlArticleResult,
 	SimpleCrawl,
 	ThumbnailImage,
 } from "@packages/crawl-article";
 import {
 	markCrawlFailed,
-	markCrawlUnsupported,
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
@@ -21,6 +19,7 @@ import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-compo
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { estimatedReadTimeFromWordCount } from "./estimated-read-time";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 
 export type ProcessContent = (params: { html: string; media: DownloadedMedia[] }) => Promise<string>;
 
@@ -28,17 +27,32 @@ export type ProcessContent = (params: { html: string; media: DownloadedMedia[] }
  * `"tier-1-written"` — the worker fetched, parsed, and wrote a tier-1 source.
  * The caller should publish TierContentExtractedEvent so the selector runs.
  *
- * `"unsupported"` — the origin returned a non-html content type (PDF, image,
- * archive, …). The row is now in the terminal `crawlStatus="unsupported"`
- * state. No tier-1 source was written; the caller must NOT publish
- * TierContentExtractedEvent or the selector will trip on a missing source.
+ * `"tier-1-deferred"` — the simple crawl reported `unsupported` so the worker
+ * emitted `SimpleCrawlUnsupportedEvent`. The policy Lambda subscribes and
+ * dispatches `ComprehensiveCrawlCommand` to the dedicated PDF-handling
+ * Lambda. The row stays in its current non-terminal state (the comprehensive
+ * Lambda owns the next status transition + any downstream event). The caller
+ * must NOT publish a follow-up event itself; the comprehensive Lambda emits
+ * the appropriate event after it finishes (TierContentExtractedEvent or
+ * RecrawlContentExtractedEvent).
+ *
+ * Note: terminal `"unsupported"` is owned by the comprehensive-crawl Lambda's
+ * own handler — save-link-work never decides "permanently unsupported"
+ * directly anymore, since the simple crawl cannot distinguish a PDF (which
+ * the comprehensive Lambda extracts) from a video/archive (which it does
+ * not). All unsupported simple results flow through the event.
  */
-export type SaveLinkWorkResult = "tier-1-written" | "unsupported";
+export type SaveLinkWorkResult = "tier-1-written" | "tier-1-deferred";
+
+export type SaveLinkWorkOptions = {
+	userId?: string;
+	recrawl?: boolean;
+};
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initSaveLinkWork(deps: {
 	simpleCrawl: SimpleCrawl;
-	comprehensiveCrawl: ComprehensiveCrawl;
+	emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported;
 	parseHtml: ParseHtml;
 	putTierSource: PutTierSource;
 	putImageObject: PutImageObject;
@@ -54,10 +68,10 @@ export function initSaveLinkWork(deps: {
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;
 	logPrefix: string;
-}): { saveLinkWork: (url: string) => Promise<SaveLinkWorkResult> } {
+}): { saveLinkWork: (url: string, options?: SaveLinkWorkOptions) => Promise<SaveLinkWorkResult> } {
 	const {
 		simpleCrawl,
-		comprehensiveCrawl,
+		emitSimpleCrawlUnsupported,
 		parseHtml,
 		putTierSource,
 		putImageObject,
@@ -86,82 +100,41 @@ export function initSaveLinkWork(deps: {
 		});
 	};
 
-	const recordTerminalUnsupported = async (
-		url: string,
-		reason: string,
-	): Promise<void> => {
-		logParseError({ url, reason: `crawl-unsupported: ${reason}` });
-		await transitionAndPersist(markCrawlUnsupported, {
-			url,
-			input: {
-				reason: { kind: "non-html-content", contentType: reason },
-			},
-		});
-		await emitTier1Failure(url);
-	};
-
-	/**
-	 * Compose the simple → comprehensive fall-through inline so we can
-	 * interleave stage markers between the two crawl phases. The composed
-	 * `initCrawlArticle` cannot do this because the stage write must land
-	 * in DynamoDB between the simple result and the comprehensive fetch.
-	 *
-	 * Each path writes its own stages: simple writes `crawl-fetched` when
-	 * the fetch succeeds; comprehensive writes `comprehensive-fetching` and
-	 * `comprehensive-extracting`. The caller receives a `CrawlArticleResult`
-	 * and never needs to know which path produced it.
-	 */
-	const resolveCrawl = async (url: string): Promise<CrawlArticleResult> => {
+	const saveLinkWork = async (url: string, options?: SaveLinkWorkOptions): Promise<SaveLinkWorkResult> => {
 		await markCrawlStage({ url, stage: "crawl-fetching" });
-		const simpleResult = await simpleCrawl({ url, fetchThumbnail: true });
-
-		if (simpleResult.status === "unsupported") {
-			await markCrawlStage({ url, stage: "comprehensive-fetching" });
-			return comprehensiveCrawl({
-				url,
-				/**
-				 * Server only commits two coarse stages — `comprehensive-fetching`
-				 * and `comprehensive-extracting` — and the client smoother
-				 * interpolates the percentage between them. Only the first page
-				 * fires: the extractor emits each pageIndex exactly once.
-				 */
-				onPdfPage: ({ pageIndex }) => {
-					if (pageIndex !== 1) return;
-					markCrawlStage({ url, stage: "comprehensive-extracting" }).catch((error: unknown) => {
-						logger.warn(`${logPrefix} comprehensive-extracting stage write failed`, {
-							url,
-							error: String(error),
-						});
-					});
-				},
-			});
-		}
-
-		if (simpleResult.status === "fetched") {
-			await markCrawlStage({ url, stage: "crawl-fetched" });
-		}
-		return simpleResult;
-	};
-
-	const saveLinkWork = async (url: string): Promise<SaveLinkWorkResult> => {
-		const crawlResult = await resolveCrawl(url);
+		const crawlResult: CrawlArticleResult = await simpleCrawl({ url, fetchThumbnail: true });
 
 		if (crawlResult.status === "unsupported") {
-			// Permanently non-html origin (PDF that failed extraction, image, archive,
-			// …). The aggregate transition flips both axes atomically —
-			// crawl=unsupported AND summary=skipped("crawl-unsupported") — so the
-			// summary canary cannot see a half-written row pending forever between
-			// two updates. No throw: this is a successful terminal outcome, not work
-			// to retry.
-			await recordTerminalUnsupported(url, crawlResult.reason);
-			return "unsupported";
+			/*
+			 * The simple crawl bailed because the origin returned a non-html body.
+			 * We do not know yet whether it is a PDF (the comprehensive Lambda
+			 * extracts and decides) or something the comprehensive path cannot
+			 * handle either (image, archive, …). Emit unconditionally and
+			 * let the policy → comprehensive Lambda chain's own `unsupported`
+			 * branch flip the row terminal — that keeps the "two Lambdas can
+			 * each return unsupported" matrix from being duplicated here.
+			 *
+			 * `comprehensive-fetching` is written before the emit so the
+			 * reader's progress bar moves forward immediately; the comprehensive
+			 * Lambda writes `comprehensive-extracting` once it starts pdfjs.
+			 */
+			await markCrawlStage({ url, stage: "comprehensive-fetching" });
+			await emitSimpleCrawlUnsupported({ url, userId: options?.userId, recrawl: options?.recrawl });
+			logger.info(`${logPrefix} tier-1 deferred to comprehensive crawl`, {
+				url,
+				reason: crawlResult.reason,
+			});
+			return "tier-1-deferred";
 		}
+
 		if (crawlResult.status !== "fetched") {
 			const reason = `crawl-${crawlResult.status}`;
 			logParseError({ url, reason });
 			await emitTier1Failure(url);
 			throw new Error(`crawl failed for ${url}: ${reason}`);
 		}
+
+		await markCrawlStage({ url, stage: "crawl-fetched" });
 
 		const parseResult = parseHtml({ url, html: crawlResult.html });
 		if (!parseResult.ok) {
@@ -248,7 +221,11 @@ export function initSaveLinkWork(deps: {
 	return { saveLinkWork };
 }
 
-async function uploadThumbnail(args: {
+/** Shared with `comprehensive-crawl-handler` so both code paths upload
+ * thumbnails to the same key shape. Keeping it here avoids a circular
+ * import — the comprehensive handler depends on this module, not the other
+ * way around. */
+export async function uploadThumbnail(args: {
 	thumbnailImage: ThumbnailImage;
 	articleResourceUniqueId: ArticleResourceUniqueId;
 	putImageObject: PutImageObject;

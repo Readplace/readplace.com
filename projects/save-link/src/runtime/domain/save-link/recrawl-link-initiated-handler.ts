@@ -1,6 +1,6 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { ComprehensiveCrawl, SimpleCrawl } from "@packages/crawl-article";
+import type { SimpleCrawl } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import {
@@ -16,10 +16,11 @@ import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-compo
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { initSaveLinkWork, type ProcessContent } from "./save-link-work";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 
 export function initRecrawlLinkInitiatedHandler(deps: {
 	simpleCrawl: SimpleCrawl;
-	comprehensiveCrawl: ComprehensiveCrawl;
+	emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported;
 	parseHtml: ParseHtml;
 	putTierSource: PutTierSource;
 	putImageObject: PutImageObject;
@@ -40,7 +41,7 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 
 	const { saveLinkWork } = initSaveLinkWork({
 		simpleCrawl: deps.simpleCrawl,
-		comprehensiveCrawl: deps.comprehensiveCrawl,
+		emitSimpleCrawlUnsupported: deps.emitSimpleCrawlUnsupported,
 		parseHtml: deps.parseHtml,
 		putTierSource: deps.putTierSource,
 		putImageObject: deps.putImageObject,
@@ -68,9 +69,9 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 
 				logger.info("[RecrawlLinkInitiated] processing", { url: detail.url });
 
-				const result = await saveLinkWork(detail.url);
-				if (result === "unsupported") {
-					logger.info("[RecrawlLinkInitiated] crawl unsupported — terminal", {
+				const result = await saveLinkWork(detail.url, { recrawl: true });
+				if (result === "tier-1-deferred") {
+					logger.info("[RecrawlLinkInitiated] tier-1 deferred to comprehensive Lambda", {
 						url: detail.url,
 					});
 					continue;

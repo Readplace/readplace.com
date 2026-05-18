@@ -1,13 +1,14 @@
 import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import { noopLogger } from "@packages/hutch-logger";
-import type { ComprehensiveCrawl, SimpleCrawl } from "@packages/crawl-article";
-import { markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import type { SimpleCrawl } from "@packages/crawl-article";
+import { markCrawlFailed } from "@packages/domain/article-aggregate";
 import { initSaveAnonymousLinkCommandHandler } from "./save-anonymous-link-command-handler";
 import { initProcessContentWithLocalMedia } from "./process-content-with-local-media";
 import type { ParseHtml } from "../article-parser/article-parser.types";
 import type { DownloadMedia } from "./download-media";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
 
 const stubAttributes: SQSRecordAttributes = {
@@ -62,8 +63,8 @@ const successfulSimpleCrawl: SimpleCrawl = async () => ({
 	html: "<html><body><p>Article content</p></body></html>",
 });
 
-const rejectingComprehensiveCrawl: ComprehensiveCrawl = async () => {
-	throw new Error("comprehensiveCrawl invoked unexpectedly");
+const rejectingEmitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = async () => {
+	throw new Error("emitSimpleCrawlUnsupported invoked unexpectedly");
 };
 
 const successfulParse: ParseHtml = () => ({
@@ -80,7 +81,7 @@ const fixedNow = () => new Date("2026-04-18T12:00:00.000Z");
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	return initSaveAnonymousLinkCommandHandler({
 		simpleCrawl: successfulSimpleCrawl,
-		comprehensiveCrawl: rejectingComprehensiveCrawl,
+		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
 		parseHtml: successfulParse,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
 		putImageObject: jest.fn().mockResolvedValue(undefined),
@@ -194,20 +195,22 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		});
 	});
 
-	it("flips a non-html origin to terminal unsupported when both simple AND comprehensive return unsupported", async () => {
+	it("emits SimpleCrawlUnsupportedEvent without userId when simpleCrawl returns unsupported (anonymous path)", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn<
+			ReturnType<EmitSimpleCrawlUnsupported>,
+			Parameters<EmitSimpleCrawlUnsupported>
+		>().mockResolvedValue(undefined);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const comprehensiveCrawl = jest.fn<ReturnType<ComprehensiveCrawl>, Parameters<ComprehensiveCrawl>>()
-			.mockResolvedValue({ status: "unsupported", reason: "non-pdf content type: application/octet-stream" });
 		const unsupportedSimpleCrawl: SimpleCrawl = async () => ({
 			status: "unsupported",
-			reason: "non-html content type: application/octet-stream",
+			reason: "non-html content type: application/pdf",
 		});
 
 		const handler = createHandler({
 			simpleCrawl: unsupportedSimpleCrawl,
-			comprehensiveCrawl,
+			emitSimpleCrawlUnsupported,
 			transitionAndPersist,
 			publishEvent,
 			putTierSource,
@@ -220,12 +223,13 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [] });
-		expect(comprehensiveCrawl).toHaveBeenCalledTimes(1);
-		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
-		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlUnsupported, {
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledTimes(1);
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
 			url: "https://example.com/blob",
-			input: { reason: { kind: "non-html-content", contentType: "non-pdf content type: application/octet-stream" } },
+			userId: undefined,
+			recrawl: undefined,
 		});
+		expect(transitionAndPersist).not.toHaveBeenCalled();
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
 	});

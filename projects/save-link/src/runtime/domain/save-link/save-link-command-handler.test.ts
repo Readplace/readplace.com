@@ -1,14 +1,15 @@
 import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import { noopLogger } from "@packages/hutch-logger";
-import type { ComprehensiveCrawl, SimpleCrawl } from "@packages/crawl-article";
-import { markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import type { SimpleCrawl } from "@packages/crawl-article";
+import { markCrawlFailed } from "@packages/domain/article-aggregate";
 import { initSaveLinkCommandHandler } from "./save-link-command-handler";
 import { initProcessContentWithLocalMedia } from "./process-content-with-local-media";
 import type { ParseHtml } from "../article-parser/article-parser.types";
 import type { DownloadMedia } from "./download-media";
 import type { PutImageObject } from "../../providers/article-store/s3-put-image-object";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
+import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
 
 const stubAttributes: SQSRecordAttributes = {
@@ -63,8 +64,8 @@ const successfulSimpleCrawl: SimpleCrawl = async () => ({
 	html: "<html><body><p>Article content</p></body></html>",
 });
 
-const rejectingComprehensiveCrawl: ComprehensiveCrawl = async () => {
-	throw new Error("comprehensiveCrawl invoked unexpectedly");
+const rejectingEmitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = async () => {
+	throw new Error("emitSimpleCrawlUnsupported invoked unexpectedly");
 };
 
 const successfulParse: ParseHtml = () => ({
@@ -81,7 +82,7 @@ const fixedNow = () => new Date("2026-04-18T12:00:00.000Z");
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	return initSaveLinkCommandHandler({
 		simpleCrawl: successfulSimpleCrawl,
-		comprehensiveCrawl: rejectingComprehensiveCrawl,
+		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
 		parseHtml: successfulParse,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
 		putImageObject: jest.fn().mockResolvedValue(undefined),
@@ -359,59 +360,25 @@ describe("initSaveLinkCommandHandler", () => {
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 	});
 
-	it("flips a non-html origin to terminal unsupported when both simple AND comprehensive return unsupported (comprehensive always gets a chance)", async () => {
+	it("emits SimpleCrawlUnsupportedEvent carrying the userId when simpleCrawl reports unsupported (the policy Lambda dispatches ComprehensiveCrawlCommand)", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn<
+			ReturnType<EmitSimpleCrawlUnsupported>,
+			Parameters<EmitSimpleCrawlUnsupported>
+		>().mockResolvedValue(undefined);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const comprehensiveCrawl = jest.fn<ReturnType<ComprehensiveCrawl>, Parameters<ComprehensiveCrawl>>()
-			.mockResolvedValue({ status: "unsupported", reason: "non-pdf content type: application/octet-stream" });
 		const unsupportedSimpleCrawl: SimpleCrawl = async () => ({
 			status: "unsupported",
-			reason: "non-html content type: application/octet-stream",
+			reason: "non-html content type: application/pdf",
 		});
 
 		const handler = createHandler({
 			simpleCrawl: unsupportedSimpleCrawl,
-			comprehensiveCrawl,
+			emitSimpleCrawlUnsupported,
 			transitionAndPersist,
 			publishEvent,
 			putTierSource,
-		});
-
-		const result = await handler(
-			createSqsEvent({ url: "https://example.com/blob", userId: "user-1" }),
-			stubContext,
-			() => {},
-		);
-
-		expect(result).toEqual({ batchItemFailures: [] });
-		expect(comprehensiveCrawl).toHaveBeenCalledTimes(1);
-		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
-		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlUnsupported, {
-			url: "https://example.com/blob",
-			input: { reason: { kind: "non-html-content", contentType: "non-pdf content type: application/octet-stream" } },
-		});
-		expect(putTierSource).not.toHaveBeenCalled();
-		expect(publishEvent).not.toHaveBeenCalled();
-	});
-
-	it("falls through to comprehensiveCrawl when simpleCrawl returns unsupported and writes a tier-1 source on successful extraction", async () => {
-		const pdfDetectedSimpleCrawl: SimpleCrawl = async () => ({
-			status: "unsupported",
-			reason: "non-html content type: application/pdf",
-		});
-		const comprehensiveCrawl = jest.fn<ReturnType<ComprehensiveCrawl>, Parameters<ComprehensiveCrawl>>().mockResolvedValue({
-			status: "fetched",
-			html: "<html><body><p>Extracted PDF content</p></body></html>",
-		});
-		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
-
-		const handler = createHandler({
-			simpleCrawl: pdfDetectedSimpleCrawl,
-			comprehensiveCrawl,
-			putTierSource,
-			publishEvent,
 		});
 
 		const result = await handler(
@@ -421,87 +388,54 @@ describe("initSaveLinkCommandHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [] });
-		expect(comprehensiveCrawl).toHaveBeenCalledTimes(1);
-		expect(comprehensiveCrawl).toHaveBeenCalledWith(expect.objectContaining({
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledTimes(1);
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
 			url: "https://example.com/doc.pdf",
-		}));
-		expect(putTierSource).toHaveBeenCalledWith(expect.objectContaining({
-			url: "https://example.com/doc.pdf",
-			tier: "tier-1",
-		}));
-		expect(publishEvent).toHaveBeenCalledTimes(1);
+			userId: "user-1",
+			recrawl: undefined,
+		});
+		// The save-link Lambda emits an event, not a command: no sync tier-1
+		// write, no terminal transition (the comprehensive Lambda owns those),
+		// and no TierContentExtractedEvent — the comprehensive Lambda emits
+		// that itself after the policy dispatches the command.
+		expect(transitionAndPersist).not.toHaveBeenCalled();
+		expect(putTierSource).not.toHaveBeenCalled();
+		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
-	it("marks the comprehensive-fetching stage between simple and comprehensive crawls so the reader's progress bar advances during the comprehensive download window", async () => {
-		const pdfDetectedSimpleCrawl: SimpleCrawl = async () => ({
+	it("marks comprehensive-fetching between the simple bail-out and the event emission so the reader's progress bar advances during the policy + comprehensive Lambda's cold-start", async () => {
+		const unsupportedSimpleCrawl: SimpleCrawl = async () => ({
 			status: "unsupported",
 			reason: "non-html content type: application/pdf",
 		});
-		const comprehensiveCrawl: ComprehensiveCrawl = async () => ({
-			status: "fetched",
-			html: "<html><body><p>x</p></body></html>",
-		});
 		const markCrawlStage = jest.fn().mockResolvedValue(undefined);
+		const emitSimpleCrawlUnsupported = jest.fn().mockResolvedValue(undefined);
 
 		const handler = createHandler({
-			simpleCrawl: pdfDetectedSimpleCrawl,
-			comprehensiveCrawl,
+			simpleCrawl: unsupportedSimpleCrawl,
 			markCrawlStage,
+			emitSimpleCrawlUnsupported,
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/doc.pdf", userId: "user-1" }), stubContext, () => {});
 
 		const stages = markCrawlStage.mock.calls.map((call) => call[0].stage);
+		expect(stages).toContain("crawl-fetching");
 		expect(stages).toContain("comprehensive-fetching");
 		expect(stages.indexOf("comprehensive-fetching")).toBeGreaterThan(stages.indexOf("crawl-fetching"));
 		expect(stages).not.toContain("crawl-fetched");
 	});
 
-	it("flips the row to terminal unsupported when comprehensiveCrawl also reports unsupported (e.g. scanned PDF after OCR fallback failed)", async () => {
-		const pdfDetectedSimpleCrawl: SimpleCrawl = async () => ({
+	it("reports the record as a batch failure when the event emission fails so SQS retries (the simple crawl is idempotent)", async () => {
+		const unsupportedSimpleCrawl: SimpleCrawl = async () => ({
 			status: "unsupported",
 			reason: "non-html content type: application/pdf",
 		});
-		const unsupportedComprehensiveCrawl: ComprehensiveCrawl = async () => ({
-			status: "unsupported",
-			reason: "pdf extraction failed: text-layer empty and OCR returned no text",
-		});
-		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const emitSimpleCrawlUnsupported = jest.fn().mockRejectedValue(new Error("EventBridge throttled"));
 
 		const handler = createHandler({
-			simpleCrawl: pdfDetectedSimpleCrawl,
-			comprehensiveCrawl: unsupportedComprehensiveCrawl,
-			transitionAndPersist,
-			publishEvent,
-		});
-
-		const result = await handler(
-			createSqsEvent({ url: "https://example.com/scan.pdf", userId: "user-1" }),
-			stubContext,
-			() => {},
-		);
-
-		expect(result).toEqual({ batchItemFailures: [] });
-		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlUnsupported, {
-			url: "https://example.com/scan.pdf",
-			input: { reason: { kind: "non-html-content", contentType: "pdf extraction failed: text-layer empty and OCR returned no text" } },
-		});
-		expect(publishEvent).not.toHaveBeenCalled();
-	});
-
-	it("throws (record routed to batchItemFailures) when comprehensiveCrawl returns 'failed' so SQS retries", async () => {
-		const pdfDetectedSimpleCrawl: SimpleCrawl = async () => ({
-			status: "unsupported",
-			reason: "non-html content type: application/pdf",
-		});
-		const failingComprehensiveCrawl: ComprehensiveCrawl = async () => ({ status: "failed" });
-		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-
-		const handler = createHandler({
-			simpleCrawl: pdfDetectedSimpleCrawl,
-			comprehensiveCrawl: failingComprehensiveCrawl,
-			transitionAndPersist,
+			simpleCrawl: unsupportedSimpleCrawl,
+			emitSimpleCrawlUnsupported,
 		});
 
 		const result = await handler(
@@ -511,75 +445,6 @@ describe("initSaveLinkCommandHandler", () => {
 		);
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		expect(transitionAndPersist).not.toHaveBeenCalled();
-	});
-
-	it("latches comprehensive-extracting on the first onPdfPage callback so the bar advances inside the extractor but later pages do not re-write the stage", async () => {
-		const pdfDetectedSimpleCrawl: SimpleCrawl = async () => ({
-			status: "unsupported",
-			reason: "non-html content type: application/pdf",
-		});
-		const comprehensiveCrawl: ComprehensiveCrawl = async ({ onPdfPage }) => {
-			if (onPdfPage) {
-				onPdfPage({ pageIndex: 1, pageCount: 3 });
-				onPdfPage({ pageIndex: 2, pageCount: 3 });
-				onPdfPage({ pageIndex: 3, pageCount: 3 });
-			}
-			return { status: "fetched", html: "<html><body><p>x</p></body></html>" };
-		};
-		const markCrawlStage = jest.fn().mockResolvedValue(undefined);
-
-		const handler = createHandler({
-			simpleCrawl: pdfDetectedSimpleCrawl,
-			comprehensiveCrawl,
-			markCrawlStage,
-		});
-
-		await handler(createSqsEvent({ url: "https://example.com/doc.pdf", userId: "user-1" }), stubContext, () => {});
-		// Fire-and-forget catch handler queues a microtask. Drain it before
-		// counting stage writes so the assertion sees the stable state.
-		await new Promise((resolve) => setImmediate(resolve));
-
-		const extractingWrites = markCrawlStage.mock.calls.filter(
-			(call) => call[0].stage === "comprehensive-extracting",
-		);
-		expect(extractingWrites).toHaveLength(1);
-	});
-
-	it("logs a warning and continues when the comprehensive-extracting stage write fails (best-effort beacon)", async () => {
-		const pdfDetectedSimpleCrawl: SimpleCrawl = async () => ({
-			status: "unsupported",
-			reason: "non-html content type: application/pdf",
-		});
-		// A short timer holds the run open past the callback so the catch
-		// handler's microtask drains before we assert on the warning.
-		const comprehensiveCrawl: ComprehensiveCrawl = async ({ onPdfPage }) => {
-			if (onPdfPage) onPdfPage({ pageIndex: 1, pageCount: 1 });
-			await new Promise((resolve) => setImmediate(resolve));
-			return { status: "fetched", html: "<html><body><p>x</p></body></html>" };
-		};
-		const markCrawlStage = jest.fn(async ({ stage }: { stage: string }) => {
-			if (stage === "comprehensive-extracting") throw new Error("DynamoDB throttled");
-		});
-		const warn = jest.fn();
-		const logger = { ...noopLogger, warn };
-
-		const handler = createHandler({
-			simpleCrawl: pdfDetectedSimpleCrawl,
-			comprehensiveCrawl,
-			markCrawlStage,
-			logger,
-		});
-
-		await handler(createSqsEvent({ url: "https://example.com/doc.pdf", userId: "user-1" }), stubContext, () => {});
-
-		expect(warn).toHaveBeenCalledWith(
-			"[SaveLinkCommand] comprehensive-extracting stage write failed",
-			expect.objectContaining({
-				url: "https://example.com/doc.pdf",
-				error: "Error: DynamoDB throttled",
-			}),
-		);
 	});
 
 	it("uploads the crawled thumbnail to S3 and threads the resolved CDN URL into the tier-source metadata", async () => {

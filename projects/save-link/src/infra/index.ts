@@ -14,6 +14,8 @@ import {
 	SaveLinkCommand,
 	SaveAnonymousLinkCommand,
 	SaveLinkRawHtmlCommand,
+	SimpleCrawlUnsupportedEvent,
+	ComprehensiveCrawlCommand,
 	LinkSavedEvent,
 	AnonymousLinkSavedEvent,
 	StaleCheckRequestedEvent,
@@ -83,14 +85,12 @@ const linkSavedQueue = new HutchSQS("link-saved", {
 	visibilityTimeoutSeconds: 60,
 });
 
-// saveLinkWork-bearing queues use 720s visibility = 2× the 360s Lambda
-// timeout (AWS guidance) so a long-running invocation never has the message
-// re-delivered to a second worker before the first finishes. The 360s
-// Lambda timeout is sized for the scanned-PDF OCR path: a 13-page PDF with
-// 3-way parallel batching against gemma-4-31B-it completes in ~157s wall
-// time, so 360s is ~2× the worst observed.
+// Simple-only crawl Lambda: HTML + oembed only, PDFs dispatched to the
+// dedicated comprehensive-crawl-command Lambda. 240s timeout covers the
+// worst HTML fetch + readability parse; 480s SQS visibility = 2× the
+// Lambda timeout per AWS guidance.
 const saveLinkCommandQueue = new HutchSQS("save-link-command", {
-	visibilityTimeoutSeconds: 1200,
+	visibilityTimeoutSeconds: 480,
 });
 
 // maxReceiveCount=1: SQS retries are removed for the anonymous save path.
@@ -100,8 +100,11 @@ const saveLinkCommandQueue = new HutchSQS("save-link-command", {
 // Other queues that aren't user-retriable (select-most-complete-content,
 // generate-summary) keep the default maxReceiveCount=3 so transient
 // Deepseek/DDB blips still self-heal at the SQS layer.
+//
+// Now simple-only — PDFs go through the comprehensive Lambda — so the
+// timeout/visibility shrink to match save-link-command above.
 const saveAnonymousLinkCommandQueue = new HutchSQS("save-anonymous-link-command", {
-	visibilityTimeoutSeconds: 1200,
+	visibilityTimeoutSeconds: 480,
 	dlqMaxReceiveCount: 1,
 });
 
@@ -121,8 +124,9 @@ const summaryGenerationFailedQueue = new HutchSQS("summary-generation-failed", {
 	visibilityTimeoutSeconds: 60,
 });
 
+// Simple-only — PDF recrawls dispatch to the comprehensive Lambda.
 const recrawlLinkInitiatedQueue = new HutchSQS("recrawl-link-initiated", {
-	visibilityTimeoutSeconds: 1200,
+	visibilityTimeoutSeconds: 480,
 });
 
 const staleCheckRequestedQueue = new HutchSQS("stale-check-requested", {
@@ -144,30 +148,17 @@ const saveLinkCommandLambda = new HutchLambda("save-link-command", {
 	entryPoint: "./src/runtime/save-link-command.main.ts",
 	outputDir: ".lib/save-link-command",
 	assetDir: "./src",
-	// 2048 MB gives ~1.16 vCPU and ample headroom for the scanned-PDF OCR path:
-	// mupdf holds the 25 MiB PDF buffer + per-page decoded WASM structures and
-	// produces one ~9 MB RGBA pixmap per page being rendered. Five pages in
-	// flight per batch × three concurrent batches stays well under the cap.
-	memorySize: 2048,
-	// 600s covers the worst-case scanned-PDF flow: the cold-start mupdf WASM
-	// load + per-page rasterisation on a dense 15-page arXiv paper plus 3-way
-	// parallel batching against gemma-4-31B-it can take ~6 min when DeepInfra
-	// queues; the previous 360s hit Lambda timeout on the arXiv canary.
-	// Paired with 1200s SQS visibility (≥2× Lambda timeout per AWS guidance).
-	timeout: 600,
-	// mupdf is ESM-only and uses top-level `await` to instantiate WASM —
-	// esbuild can't inline it into the CJS handler, and Node 22's
-	// `require(esm)` rejects it with ERR_REQUIRE_ASYNC_MODULE. Ship it in
-	// node_modules so the runtime `import()` in `init-mupdf-lazy.ts`
-	// resolves to mupdf's own ESM build (and its sibling `mupdf-wasm.wasm`).
-	external: ["mupdf"],
+	// Simple-only crawl: HTML/oembed text fetch + readability parse + media
+	// download. PDFs are dispatched to the comprehensive-crawl-command Lambda
+	// so this Lambda no longer needs the mupdf / OCR headroom.
+	memorySize: 512,
+	timeout: 240,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-		DEEPINFRA_API_KEY: deepInfraApiKey,
 	},
 	policies: [
 		...saveLinkCommandDynamodb.policies,
@@ -274,19 +265,15 @@ const saveAnonymousLinkCommandLambda = new HutchLambda("save-anonymous-link-comm
 	entryPoint: "./src/runtime/save-anonymous-link-command.main.ts",
 	outputDir: ".lib/save-anonymous-link-command",
 	assetDir: "./src",
-	// Mirrors save-link-command: same crawl pipeline, same scanned-PDF OCR
-	// path, same headroom requirements.
-	memorySize: 2048,
-	timeout: 600,
-	// See save-link-command for the rationale on shipping mupdf via node_modules.
-	external: ["mupdf"],
+	// Mirrors save-link-command (simple-only) — PDFs dispatched out.
+	memorySize: 512,
+	timeout: 240,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-		DEEPINFRA_API_KEY: deepInfraApiKey,
 	},
 	policies: [
 		...saveAnonymousLinkCommandDynamodb.policies,
@@ -320,6 +307,143 @@ new HutchDLQEventHandler("save-anonymous-link-dlq", {
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 	},
 	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "save-anonymous-link-dlq"),
+});
+
+// --- SimpleCrawlUnsupported policy ---
+// Event-to-command reactor: subscribes to `SimpleCrawlUnsupportedEvent`
+// (emitted by the save-link Lambdas when the simple crawl bails on non-HTML)
+// and dispatches `ComprehensiveCrawlCommand` to the dedicated PDF-handling
+// Lambda. This intermediate event decouples the Command → Command dispatch
+// that would otherwise violate the Command → System → Event(s) pattern.
+// 60s visibility = 2× the 30s Lambda timeout.
+const simpleCrawlUnsupportedPolicyQueue = new HutchSQS("simple-crawl-unsupported-policy", {
+	visibilityTimeoutSeconds: 60,
+});
+
+const simpleCrawlUnsupportedPolicyLambda = new HutchLambda("simple-crawl-unsupported-policy", {
+	entryPoint: "./src/runtime/simple-crawl-unsupported-policy.main.ts",
+	outputDir: ".lib/simple-crawl-unsupported-policy",
+	assetDir: "./src",
+	memorySize: 128,
+	timeout: 30,
+	environment: {
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [],
+});
+
+eventBus.grantPublish(simpleCrawlUnsupportedPolicyLambda);
+
+const simpleCrawlUnsupportedPolicyLambdaWithSQS = new HutchSQSBackedLambda("simple-crawl-unsupported-policy", {
+	lambda: simpleCrawlUnsupportedPolicyLambda,
+	queue: simpleCrawlUnsupportedPolicyQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(SimpleCrawlUnsupportedEvent, simpleCrawlUnsupportedPolicyLambdaWithSQS);
+
+// --- SimpleCrawlUnsupported policy DLQ consumer ---
+// Flips crawlStatus to "exhausted" when the policy Lambda exhausts its
+// maxReceiveCount. The article is stuck at `comprehensive-fetching` because
+// the policy never managed to dispatch ComprehensiveCrawlCommand.
+new HutchDLQEventHandler("simple-crawl-unsupported-policy-dlq", {
+	sourceQueue: simpleCrawlUnsupportedPolicyQueue,
+	tableArn: articlesTableArn,
+	tableName: articlesTableName,
+	eventBus,
+	batchSize: 1,
+	additionalDynamoActions: ["dynamodb:GetItem"],
+	additionalEnvironment: {
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "simple-crawl-unsupported-policy-dlq"),
+});
+
+// --- ComprehensiveCrawlCommand handler ---
+// PDF / heavy crawl path runs in its own Lambda so it cannot starve the
+// HTML-only save-link workers. The `simple-crawl-unsupported-policy` Lambda
+// dispatches `ComprehensiveCrawlCommand` in reaction to
+// `SimpleCrawlUnsupportedEvent`; this Lambda re-fetches the URL, runs the
+// mupdf + DeepInfra OCR pipeline, parses the resulting HTML, writes the
+// tier-1 source, and emits the appropriate downstream event itself
+// (TierContentExtractedEvent for normal saves,
+// RecrawlContentExtractedEvent when the recrawl flag is set on the command).
+//
+// 1200s visibility = 2× the 600s Lambda timeout per AWS guidance.
+const comprehensiveCrawlCommandQueue = new HutchSQS("comprehensive-crawl-command", {
+	visibilityTimeoutSeconds: 1200,
+});
+
+const comprehensiveCrawlCommandDynamodb = new HutchDynamoDBAccess("comprehensive-crawl-command-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+});
+
+const comprehensiveCrawlCommandLambda = new HutchLambda("comprehensive-crawl-command", {
+	entryPoint: "./src/runtime/comprehensive-crawl-command.main.ts",
+	outputDir: ".lib/comprehensive-crawl-command",
+	assetDir: "./src",
+	// 2048 MB gives ~1.16 vCPU and ample headroom for the scanned-PDF OCR path:
+	// mupdf holds the 25 MiB PDF buffer + per-page decoded WASM structures and
+	// produces one ~9 MB RGBA pixmap per page being rendered. Five pages in
+	// flight per batch × three concurrent batches stays well under the cap.
+	memorySize: 2048,
+	// 600s covers the worst-case scanned-PDF flow: cold-start mupdf WASM load
+	// + per-page rasterisation on a dense 15-page arXiv paper plus 3-way
+	// parallel batching against gemma-4-31B-it can take ~6 min when DeepInfra
+	// queues.
+	timeout: 600,
+	// mupdf is ESM-only and uses top-level `await` to instantiate WASM —
+	// esbuild can't inline it into the CJS handler, and Node 22's
+	// `require(esm)` rejects it with ERR_REQUIRE_ASYNC_MODULE. Ship it in
+	// node_modules so the runtime `import()` in `init-mupdf-lazy.ts`
+	// resolves to mupdf's own ESM build (and its sibling `mupdf-wasm.wasm`).
+	external: ["mupdf"],
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		DEEPINFRA_API_KEY: deepInfraApiKey,
+	},
+	policies: [
+		...comprehensiveCrawlCommandDynamodb.policies,
+		// readTierSnapshot HEAD-checks tier-0 source when logging the crawl outcome.
+		...contentBucket.readPolicies("comprehensive-crawl-command-content-read"),
+		...contentBucket.writePolicies("comprehensive-crawl-command-s3"),
+		...renamePolicies(generateSummaryQueue.policies, "comprehensive-crawl-command"),
+	],
+});
+
+eventBus.grantPublish(comprehensiveCrawlCommandLambda);
+
+const comprehensiveCrawlCommandLambdaWithSQS = new HutchSQSBackedLambda("comprehensive-crawl-command", {
+	lambda: comprehensiveCrawlCommandLambda,
+	queue: comprehensiveCrawlCommandQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(ComprehensiveCrawlCommand, comprehensiveCrawlCommandLambdaWithSQS);
+
+// --- ComprehensiveCrawlCommand DLQ consumer ---
+// Mirrors save-link-dlq: flips crawlStatus to "exhausted" and publishes
+// CrawlArticleFailedEvent when a comprehensive-crawl-command message exhausts
+// maxReceiveCount on its queue. The entry point is derived from the component
+// name, i.e. ./src/runtime/comprehensive-crawl-dlq.main.ts.
+new HutchDLQEventHandler("comprehensive-crawl-dlq", {
+	sourceQueue: comprehensiveCrawlCommandQueue,
+	tableArn: articlesTableArn,
+	tableName: articlesTableName,
+	eventBus,
+	batchSize: 1,
+	additionalDynamoActions: ["dynamodb:GetItem"],
+	additionalEnvironment: {
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "comprehensive-crawl-dlq"),
 });
 
 // --- StaleCheckRequested handler ---
@@ -570,19 +694,17 @@ const recrawlLinkInitiatedLambda = new HutchLambda("recrawl-link-initiated", {
 	entryPoint: "./src/runtime/recrawl-link-initiated.main.ts",
 	outputDir: ".lib/recrawl-link-initiated",
 	assetDir: "./src",
-	// Mirrors save-link-command: re-fetches articles and may hit the scanned
-	// PDF OCR path on a recrawl.
-	memorySize: 2048,
-	timeout: 600,
-	// See save-link-command for the rationale on shipping mupdf via node_modules.
-	external: ["mupdf"],
+	// Mirrors save-link-command (simple-only) — PDF recrawls dispatch the
+	// comprehensive-crawl-command with recrawl=true so the comprehensive
+	// Lambda emits RecrawlContentExtractedEvent instead of TierContentExtracted.
+	memorySize: 512,
+	timeout: 240,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-		DEEPINFRA_API_KEY: deepInfraApiKey,
 	},
 	policies: [
 		...recrawlLinkInitiatedDynamodb.policies,
@@ -836,6 +958,10 @@ export const saveAnonymousLinkCommandQueueUrl = saveAnonymousLinkCommandQueue.qu
 export const saveAnonymousLinkCommandDlqUrl = saveAnonymousLinkCommandQueue.dlqUrl;
 export const saveLinkRawHtmlCommandQueueUrl = saveLinkRawHtmlCommandQueue.queueUrl;
 export const saveLinkRawHtmlCommandDlqUrl = saveLinkRawHtmlCommandQueue.dlqUrl;
+export const simpleCrawlUnsupportedPolicyQueueUrl = simpleCrawlUnsupportedPolicyQueue.queueUrl;
+export const simpleCrawlUnsupportedPolicyDlqUrl = simpleCrawlUnsupportedPolicyQueue.dlqUrl;
+export const comprehensiveCrawlCommandQueueUrl = comprehensiveCrawlCommandQueue.queueUrl;
+export const comprehensiveCrawlCommandDlqUrl = comprehensiveCrawlCommandQueue.dlqUrl;
 export const linkSavedQueueUrl = linkSavedQueue.queueUrl;
 export const linkSavedDlqUrl = linkSavedQueue.dlqUrl;
 export const anonymousLinkSavedQueueUrl = anonymousLinkSavedQueue.queueUrl;

@@ -82,6 +82,57 @@ export const SubmitLinkCommand = defineEvent({
 });
 export type SubmitLinkDetail = z.infer<typeof SubmitLinkCommand.detailSchema>;
 
+/** Irreversible fact: the simple crawl reported `unsupported` for a URL.
+ * Published by `save-link-work` so the save-link Lambda's concurrency slot
+ * is released immediately. The `simple-crawl-unsupported-policy` Lambda
+ * subscribes to this event and dispatches `ComprehensiveCrawlCommand` so
+ * the dedicated PDF-handling Lambda picks up the URL.
+ *
+ * `userId` is threaded so the downstream selector can emit `LinkSavedEvent`
+ * with the original saver. `recrawl=true` tells the comprehensive handler
+ * to emit `RecrawlContentExtractedEvent` instead of
+ * `TierContentExtractedEvent`, preserving the recrawl chain's
+ * always-regenerate-summary semantics. */
+export const SimpleCrawlUnsupportedEvent = defineEvent({
+	name: "simple-crawl-unsupported",
+	source: "hutch.save-link",
+	detailType: "SimpleCrawlUnsupported",
+	detailSchema: z.object({
+		url: z.string(),
+		userId: z.string().optional(),
+		recrawl: z.boolean().optional(),
+	}),
+});
+export type SimpleCrawlUnsupportedDetail = z.infer<
+	typeof SimpleCrawlUnsupportedEvent.detailSchema
+>;
+
+/** Async dispatch of the comprehensive crawl (PDF extraction) path.
+ * Dispatched by the `simple-crawl-unsupported-policy` Lambda in reaction
+ * to `SimpleCrawlUnsupportedEvent`. The dedicated comprehensive-crawl-command
+ * Lambda subscribes to this command, runs the comprehensive crawl, processes
+ * the result through the same tier-1 happy path, and emits the appropriate
+ * downstream event itself (TierContentExtractedEvent for saves,
+ * RecrawlContentExtractedEvent for recrawls).
+ *
+ * `userId` is threaded so the downstream selector can emit `LinkSavedEvent`
+ * with the original saver. `recrawl=true` tells the handler to emit
+ * `RecrawlContentExtractedEvent` instead of `TierContentExtractedEvent`,
+ * preserving the recrawl Lambda chain's always-regenerate-summary semantics. */
+export const ComprehensiveCrawlCommand = defineEvent({
+	name: "comprehensive-crawl-command",
+	source: "hutch.save-link",
+	detailType: "ComprehensiveCrawlCommand",
+	detailSchema: z.object({
+		url: z.string(),
+		userId: z.string().optional(),
+		recrawl: z.boolean().optional(),
+	}),
+});
+export type ComprehensiveCrawlDetail = z.infer<
+	typeof ComprehensiveCrawlCommand.detailSchema
+>;
+
 export const StaleCheckRequestedEvent = defineEvent({
 	name: "stale-check-requested",
 	source: "hutch.api",

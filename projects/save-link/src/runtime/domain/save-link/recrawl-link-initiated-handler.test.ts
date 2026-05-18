@@ -1,12 +1,12 @@
 import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import { noopLogger } from "@packages/hutch-logger";
-import type { ComprehensiveCrawl, SimpleCrawl } from "@packages/crawl-article";
-import { markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import type { SimpleCrawl } from "@packages/crawl-article";
 import { initRecrawlLinkInitiatedHandler } from "./recrawl-link-initiated-handler";
 import { initProcessContentWithLocalMedia } from "./process-content-with-local-media";
 import type { ParseHtml } from "../article-parser/article-parser.types";
 import type { DownloadMedia } from "./download-media";
+import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
 
 const stubAttributes: SQSRecordAttributes = {
@@ -61,8 +61,8 @@ const successfulSimpleCrawl: SimpleCrawl = async () => ({
 	html: "<html><body><p>Article content</p></body></html>",
 });
 
-const rejectingComprehensiveCrawl: ComprehensiveCrawl = async () => {
-	throw new Error("comprehensiveCrawl invoked unexpectedly");
+const rejectingEmitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = async () => {
+	throw new Error("emitSimpleCrawlUnsupported invoked unexpectedly");
 };
 
 const successfulParse: ParseHtml = () => ({
@@ -79,7 +79,7 @@ const fixedNow = () => new Date("2026-04-30T12:00:00.000Z");
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	return initRecrawlLinkInitiatedHandler({
 		simpleCrawl: successfulSimpleCrawl,
-		comprehensiveCrawl: rejectingComprehensiveCrawl,
+		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
 		parseHtml: successfulParse,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
 		putImageObject: jest.fn().mockResolvedValue(undefined),
@@ -133,36 +133,39 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
-	it("flips a non-html origin to terminal unsupported when both simple AND comprehensive return unsupported", async () => {
+	it("emits SimpleCrawlUnsupportedEvent with recrawl=true when simpleCrawl returns unsupported and does NOT publish RecrawlContentExtractedEvent itself (the policy → comprehensive chain will)", async () => {
+		const emitSimpleCrawlUnsupported = jest.fn<
+			ReturnType<EmitSimpleCrawlUnsupported>,
+			Parameters<EmitSimpleCrawlUnsupported>
+		>().mockResolvedValue(undefined);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
-		const comprehensiveCrawl = jest.fn<ReturnType<ComprehensiveCrawl>, Parameters<ComprehensiveCrawl>>()
-			.mockResolvedValue({ status: "unsupported", reason: "non-pdf content type: application/octet-stream" });
 		const unsupportedSimpleCrawl: SimpleCrawl = async () => ({
 			status: "unsupported",
-			reason: "non-html content type: application/octet-stream",
+			reason: "non-html content type: application/pdf",
 		});
 
 		const handler = createHandler({
 			simpleCrawl: unsupportedSimpleCrawl,
-			comprehensiveCrawl,
+			emitSimpleCrawlUnsupported,
 			transitionAndPersist,
 			publishEvent,
 		});
 
 		const result = await handler(
-			createSqsEvent({ url: "https://example.com/blob" }),
+			createSqsEvent({ url: "https://example.com/doc.pdf" }),
 			stubContext,
 			() => {},
 		);
 
 		expect(result).toEqual({ batchItemFailures: [] });
-		expect(comprehensiveCrawl).toHaveBeenCalledTimes(1);
-		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
-		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlUnsupported, {
-			url: "https://example.com/blob",
-			input: { reason: { kind: "non-html-content", contentType: "non-pdf content type: application/octet-stream" } },
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledTimes(1);
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
+			url: "https://example.com/doc.pdf",
+			userId: undefined,
+			recrawl: true,
 		});
+		expect(transitionAndPersist).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 

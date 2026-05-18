@@ -9,7 +9,6 @@ describe("initMediaDepBundle", () => {
 	it("returns a bundle with downloadMedia and processContent fields", () => {
 		const parser = initParserDepBundle({
 			logError: () => {},
-			extractPdf: async () => ({ kind: "failed", reason: "stub" }),
 		});
 		const articleStore = initArticleStoreDepBundle({
 			s3Client: new S3Client({ region: "us-east-1" }),
