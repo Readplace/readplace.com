@@ -13,7 +13,13 @@
  * Adding a real, fixable failure URL here silently hides the regression — be
  * intentional, and prefer fixing the underlying crawler/summary path first.
  */
-export const EXCLUDE_PATTERNS: readonly RegExp[] = [];
+export const EXCLUDE_PATTERNS: readonly RegExp[] = [
+	// example.com — any subdomain, any path, with or without scheme. Used as
+	// fixture data by save-link E2E suites and Pulumi smoke tests, so it
+	// produces a large recurring backlog of crawl-failed rows that the
+	// operator never actually needs to re-save.
+	/(?:^|\/\/)(?:[a-z0-9-]+\.)*example\.com(?:[/:?#]|$)/i,
+];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {
 	for (const pattern of patterns) {

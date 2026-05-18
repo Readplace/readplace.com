@@ -4,10 +4,15 @@
  * the top-level `test()` block (which requires AWS env vars at import).
  *
  * A row is "failed" when both state-machine axes have reached a terminal
- * value (non-`pending`) AND at least one axis terminated in a state that is
- * not `ready`:
+ * value (non-`pending`) AND at least one axis terminated in a state that
+ * represents an actual failure:
  *   - `crawlStatus` ∈ {failed, unsupported}
- *   - `summaryStatus` ∈ {failed, skipped}
+ *   - `summaryStatus` = failed
+ *
+ * `summaryStatus = skipped` is NOT a failure — the summary worker
+ * deliberately decided not to produce a summary (content too short, crawl
+ * failed first, etc.). A row whose only "non-ready" axis is summary-skipped
+ * is a successful outcome and is not surfaced.
  *
  * The scan also accepts an optional lookback (in days) that gates rows on
  * `savedAt` — a value of `0` disables the gate and surfaces every historical
@@ -36,7 +41,6 @@ const FailedArticleRow = z.object({
 	crawlUnsupportedReason: dynamoField(z.string()),
 	summaryStatus: dynamoField(SummaryStatusSchema),
 	summaryFailureReason: dynamoField(z.string()),
-	summarySkippedReason: dynamoField(z.string()),
 	contentFetchedAt: dynamoField(z.string()),
 	savedAt: z.string(),
 });
@@ -44,8 +48,7 @@ const FailedArticleRow = z.object({
 export type FailedAxis =
 	| "crawl-failed"
 	| "crawl-unsupported"
-	| "summary-failed"
-	| "summary-skipped";
+	| "summary-failed";
 
 export interface FailedRow {
 	originalUrl: string;
@@ -80,13 +83,11 @@ export function buildScanInput(now: Date, lookbackDays: number) {
 		":crawlFailed": "failed",
 		":crawlUnsupported": "unsupported",
 		":summaryFailed": "failed",
-		":summarySkipped": "skipped",
 	};
 	const terminalUnsuccessful =
 		"(crawlStatus = :crawlFailed " +
 		"OR crawlStatus = :crawlUnsupported " +
-		"OR summaryStatus = :summaryFailed " +
-		"OR summaryStatus = :summarySkipped)";
+		"OR summaryStatus = :summaryFailed)";
 	const bothAxesTerminal =
 		"attribute_exists(crawlStatus) AND attribute_exists(summaryStatus) " +
 		"AND crawlStatus <> :pending AND summaryStatus <> :pending";
@@ -101,8 +102,7 @@ export function buildScanInput(now: Date, lookbackDays: number) {
 		FilterExpression: filterExpression,
 		ProjectionExpression:
 			"originalUrl, #u, crawlStatus, crawlFailureReason, crawlUnsupportedReason, " +
-			"summaryStatus, summaryFailureReason, summarySkippedReason, " +
-			"contentFetchedAt, savedAt",
+			"summaryStatus, summaryFailureReason, contentFetchedAt, savedAt",
 		ExpressionAttributeNames: { "#u": "url" },
 		ExpressionAttributeValues: expressionAttributeValues,
 	} as const;
@@ -127,11 +127,6 @@ function classifyAxes(row: z.infer<typeof FailedArticleRow>): {
 		axes.push("summary-failed");
 		if (row.summaryFailureReason !== undefined)
 			reasons["summary-failed"] = row.summaryFailureReason;
-	}
-	if (row.summaryStatus === "skipped") {
-		axes.push("summary-skipped");
-		if (row.summarySkippedReason !== undefined)
-			reasons["summary-skipped"] = row.summarySkippedReason;
 	}
 	return { axes, reasons };
 }

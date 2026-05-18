@@ -5,7 +5,8 @@ You have been triggered because the `Failed articles canary` workflow surfaced o
 - `crawlStatus = failed` — crawl exhausted its retry chain and the DLQ handler flipped the row.
 - `crawlStatus = unsupported` — crawler refused the URL (e.g., non-HTML content type, blocked by a content gate).
 - `summaryStatus = failed` — summary generation exhausted its retries (likely DeepSeek or an upstream LLM error).
-- `summaryStatus = skipped` — summary was intentionally not produced (e.g., content too short, crawl failed first).
+
+`summaryStatus = skipped` is NOT a failure — the summary worker intentionally decided not to produce a summary (content too short, crawl failed first, etc.). The canary treats it as a successful terminal outcome and does not surface rows whose only non-ready axis is summary-skipped.
 
 This canary is a **debug worklist**, not a pass/fail health check. The script always exits 0; a non-empty report means real customer URLs were dropped and the operator wants to investigate each one.
 
@@ -33,7 +34,7 @@ This canary is a **debug worklist**, not a pass/fail health check. The script al
 ## Important Guidelines
 
 - Follow ALL CLAUDE.md guidelines.
-- **The `failed` and `unsupported`/`skipped` reason strings stored on each row are the most direct signal of root cause.** Read them before reaching for logs. The schemas live in `src/packages/article-state-types/` (`CrawlFailureReasonSchema`, `CrawlUnsupportedReasonSchema`, `SummaryFailureReasonSchema`, `SummarySkipReasonSchema`).
+- **The stored `failed` / `unsupported` reason strings on each row are the most direct signal of root cause.** Read them before reaching for logs. The schemas live in `src/packages/article-state-types/` (`CrawlFailureReasonSchema`, `CrawlUnsupportedReasonSchema`, `SummaryFailureReasonSchema`).
 - **Never edit `src/packages/check-failed-articles/scripts/exclude-patterns.ts` to make the canary quiet.** Each entry must represent a class of URL that is genuinely unsupported by product policy. Adding a fixable failure URL silently hides the regression and tomorrow's cron emits a shorter (misleading) list.
 - **Never raise `FAILED_ARTICLES_LOOKBACK_DAYS` to hide a backlog.** That env var is for the operator to narrow the worklist once the historical tail is processed, not a way to make the next scan smaller without doing the work.
 - **Never lower `MAX_PAGES` in `collect-failed-rows.ts`.** The cap exists to fail loud on a runaway scan.

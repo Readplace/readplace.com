@@ -3,7 +3,9 @@ name: Failed articles canary
 # Read-only DDB scan against the prod articles table that surfaces articles
 # whose state machines reached a terminal but unsuccessful outcome:
 #   - crawlStatus = failed | unsupported
-#   - summaryStatus = failed | skipped
+#   - summaryStatus = failed
+# (summaryStatus = skipped is a successful outcome — content too short, crawl
+# failed first, etc. — and is intentionally NOT surfaced.)
 #
 # This canary is a debug worklist, not a pass/fail health check. The script
 # always exits 0 even when failed rows are present — the workflow opens an

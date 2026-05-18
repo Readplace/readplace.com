@@ -55,16 +55,19 @@ describe("buildScanInput", () => {
 		);
 	});
 
-	it("matches the four unsuccessful terminal values across both axes", () => {
+	it("matches the three real-failure terminal values; summary-skipped is intentionally NOT a failure", () => {
 		const input = buildScanInput(NOW, 0);
 		assert.match(input.FilterExpression, /crawlStatus = :crawlFailed/);
 		assert.match(input.FilterExpression, /crawlStatus = :crawlUnsupported/);
 		assert.match(input.FilterExpression, /summaryStatus = :summaryFailed/);
-		assert.match(input.FilterExpression, /summaryStatus = :summarySkipped/);
 		assert.equal(input.ExpressionAttributeValues[":crawlFailed"], "failed");
 		assert.equal(input.ExpressionAttributeValues[":crawlUnsupported"], "unsupported");
 		assert.equal(input.ExpressionAttributeValues[":summaryFailed"], "failed");
-		assert.equal(input.ExpressionAttributeValues[":summarySkipped"], "skipped");
+		assert.ok(
+			!("summarySkipped" in input.ExpressionAttributeValues) &&
+				!input.FilterExpression.includes("summarySkipped"),
+			"summary-skipped must not appear in the filter — it is a successful terminal outcome",
+		);
 	});
 
 	it("omits the savedAt time gate when lookbackDays = 0 (operator wants full history)", () => {
@@ -88,7 +91,7 @@ describe("buildScanInput", () => {
 		assert.throws(() => buildScanInput(NOW, 1.5), /non-negative integer/);
 	});
 
-	it("projects the failure-reason attributes so the issue body can show why each row failed", () => {
+	it("projects the failure-reason attributes the canary actually reports on", () => {
 		const input = buildScanInput(NOW, 0);
 		for (const attr of [
 			"originalUrl",
@@ -97,7 +100,6 @@ describe("buildScanInput", () => {
 			"crawlUnsupportedReason",
 			"summaryStatus",
 			"summaryFailureReason",
-			"summarySkippedReason",
 			"contentFetchedAt",
 			"savedAt",
 		]) {
@@ -106,6 +108,10 @@ describe("buildScanInput", () => {
 				`ProjectionExpression must include ${attr}`,
 			);
 		}
+		assert.ok(
+			!input.ProjectionExpression.includes("summarySkippedReason"),
+			"summarySkippedReason is not surfaced — summary-skipped is a successful outcome",
+		);
 	});
 
 	it("aliases the reserved 'url' keyword via #u to keep ProjectionExpression valid", () => {
@@ -137,16 +143,15 @@ describe("collectFailedRows", () => {
 		);
 	});
 
-	it("classifies a crawl-failed row and surfaces its failure reason", async () => {
+	it("classifies a crawl-failed row and surfaces its failure reason; summary-skipped is silently dropped", async () => {
 		const { client } = createFakeClient(() => ({
 			Items: [
 				{
-					url: "example.test/broken",
-					originalUrl: "https://example.test/broken",
+					url: "site.test/broken",
+					originalUrl: "https://site.test/broken",
 					crawlStatus: "failed",
 					crawlFailureReason: '{"kind":"http-error","status":403}',
 					summaryStatus: "skipped",
-					summarySkippedReason: "crawl-failed",
 					savedAt: "2026-05-10T00:00:00.000Z",
 				},
 			],
@@ -161,13 +166,12 @@ describe("collectFailedRows", () => {
 			excludePatterns: NO_EXCLUDES,
 		});
 		assert.equal(failed.length, 1);
-		assert.equal(failed[0]?.originalUrl, "https://example.test/broken");
-		assert.deepEqual(failed[0]?.axes, ["crawl-failed", "summary-skipped"]);
+		assert.equal(failed[0]?.originalUrl, "https://site.test/broken");
+		assert.deepEqual(failed[0]?.axes, ["crawl-failed"]);
 		assert.equal(failed[0]?.reasons["crawl-failed"], '{"kind":"http-error","status":403}');
-		assert.equal(failed[0]?.reasons["summary-skipped"], "crawl-failed");
 		assert.equal(
 			failed[0]?.recrawlUrl,
-			`${ORIGIN}/admin/recrawl/${encodeURIComponent("https://example.test/broken")}`,
+			`${ORIGIN}/admin/recrawl/${encodeURIComponent("https://site.test/broken")}`,
 		);
 	});
 
@@ -175,8 +179,8 @@ describe("collectFailedRows", () => {
 		const { client } = createFakeClient(() => ({
 			Items: [
 				{
-					url: "example.test/pdf",
-					originalUrl: "https://example.test/paper.pdf",
+					url: "site.test/pdf",
+					originalUrl: "https://site.test/paper.pdf",
 					crawlStatus: "unsupported",
 					crawlUnsupportedReason: '{"kind":"non-html-content","contentType":"application/pdf"}',
 					summaryStatus: "skipped",
@@ -194,7 +198,7 @@ describe("collectFailedRows", () => {
 			excludePatterns: NO_EXCLUDES,
 		});
 		assert.equal(failed.length, 1);
-		assert.deepEqual(failed[0]?.axes, ["crawl-unsupported", "summary-skipped"]);
+		assert.deepEqual(failed[0]?.axes, ["crawl-unsupported"]);
 		assert.equal(
 			failed[0]?.reasons["crawl-unsupported"],
 			'{"kind":"non-html-content","contentType":"application/pdf"}',
@@ -205,8 +209,8 @@ describe("collectFailedRows", () => {
 		const { client } = createFakeClient(() => ({
 			Items: [
 				{
-					url: "example.test/long",
-					originalUrl: "https://example.test/long",
+					url: "site.test/long",
+					originalUrl: "https://site.test/long",
 					crawlStatus: "ready",
 					summaryStatus: "failed",
 					summaryFailureReason: '{"kind":"exhausted-retries","receiveCount":3}',
@@ -227,12 +231,36 @@ describe("collectFailedRows", () => {
 		assert.deepEqual(failed[0]?.axes, ["summary-failed"]);
 	});
 
+	it("skips a row whose only non-ready axis is summary-skipped (now a success outcome)", async () => {
+		const { client } = createFakeClient(() => ({
+			Items: [
+				{
+					url: "site.test/short",
+					originalUrl: "https://site.test/short",
+					crawlStatus: "ready",
+					summaryStatus: "skipped",
+					savedAt: "2026-05-10T00:00:00.000Z",
+				},
+			],
+			Count: 1,
+		}));
+		const failed = await collectFailedRows({
+			client,
+			tableName: TABLE,
+			origin: ORIGIN,
+			now: () => NOW,
+			lookbackDays: 0,
+			excludePatterns: NO_EXCLUDES,
+		});
+		assert.deepEqual(failed, []);
+	});
+
 	it("skips fully ready rows (DDB may still surface them when paginating)", async () => {
 		const { client } = createFakeClient(() => ({
 			Items: [
 				{
-					url: "example.test/ok",
-					originalUrl: "https://example.test/ok",
+					url: "site.test/ok",
+					originalUrl: "https://site.test/ok",
 					crawlStatus: "ready",
 					summaryStatus: "ready",
 					savedAt: "2026-05-10T00:00:00.000Z",
