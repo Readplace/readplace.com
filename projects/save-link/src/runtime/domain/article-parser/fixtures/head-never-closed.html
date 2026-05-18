@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="/favicon.png">
+<title>
+Prolog Basics Explained with Pokémon
+</title>
+<link rel="stylesheet" href="/common.css">
+<meta property="og:site_name" content="Unplanned Obsolescence">
+<meta name="description" content="Demonstrating the basics of logic programming with data from the Pokémon games.">
+
+<header>
+  <h1><a class=title href="/">Unplanned Obsolescence</a></h1>
+  <nav>
+  <ul>
+    <li><a href=/>Home</a>
+    <li><a href=/blog>Blog</a>
+  </ul>
+  </nav>
+</header>
+
+<hr>
+
+<h1>Prolog Basics Explained with Pokémon</h1>
+<p>
+Prolog is a logic programming language. Rather than telling the computer how
+to compute an answer step-by-step, you describe the world in terms of facts
+and rules, and the computer figures out which facts are consistent with the
+question you asked.
+</p>
+<p>
+The classic introduction uses family relationships — parent of, sibling of —
+which is fine but a little dry. Let us instead describe the world of Pokémon
+to a Prolog interpreter and watch it answer questions about type matchups,
+evolution chains, and which moves a creature can learn.
+</p>
+<h2>Facts</h2>
+<p>
+A fact in Prolog is a statement asserted to be true. We can begin by telling
+Prolog about a handful of Pokémon and their primary types. The syntax is
+straightforward — a predicate name, followed by parenthesised arguments,
+terminated by a period.
+</p>
+<pre>type(bulbasaur, grass).
+type(charmander, fire).
+type(squirtle, water).</pre>
+<p>
+With those three facts loaded, the interpreter knows of three creatures and
+their elemental affinities. Querying the database is then a matter of asking
+a question with one or more variables — Prolog will attempt to bind those
+variables to values that make the query consistent with the facts.
+</p>
+</html>

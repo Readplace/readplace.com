@@ -134,15 +134,18 @@ function buildSyntheticHtml(extracted: SiteArticleContent): string {
 	return `<!DOCTYPE html><html><head>${titleTag}</head><body><article>${h1}${extracted.bodyHtml}</article></body></html>`;
 }
 
-/* Move direct children of <html> into <head> or <body> so the DOM matches
- * what a spec-compliant HTML5 parser would produce. linkedom doesn't
- * implement the HTML5 tree construction algorithm: when the source omits
- * <head>/<body> (as hex.ooo does), linkedom leaves metadata and flow
- * content as siblings of the synthetic empty <body>. Readability's
- * _grabArticle then walks parent chains expecting to reach <body> and
- * crashes with "Cannot read properties of null (reading 'tagName')" when
- * the walk overshoots into the document node. See mozilla/readability
- * #435 and #757 — the upstream fix (null-guard the while loop) has not
+/* Re-home misplaced elements so the DOM matches what a spec-compliant
+ * HTML5 parser would produce. linkedom doesn't implement the HTML5 tree
+ * construction algorithm, so when the source HTML omits structural tags
+ * it parks content in the wrong subtree:
+ *   1. No <body> at all (hex.ooo shape) — flow content lands as a
+ *      sibling of the synthetic empty <body>, under <html>.
+ *   2. <head> opened but never closed (unplannedobsolescence.com shape)
+ *      — flow content gets stuck inside <head>, with <body> empty.
+ * Either way, Readability's _grabArticle walks parent chains expecting
+ * to reach <body>, overshoots into the document node, and crashes with
+ * "Cannot read properties of null (reading 'tagName')". See
+ * mozilla/readability #435 and #757 — the upstream null-guard has not
  * shipped as of @mozilla/readability@0.6.0. */
 function normalizeImplicitBody(document: Document): void {
 	const head = document.head;
@@ -155,6 +158,9 @@ function normalizeImplicitBody(document: Document): void {
 		"SCRIPT",
 		"BASE",
 	]);
+	for (const child of Array.from(head.children)) {
+		if (!METADATA_TAGS.has(child.tagName)) body.appendChild(child);
+	}
 	for (const child of Array.from(document.documentElement.children)) {
 		if (child === head || child === body) continue;
 		if (METADATA_TAGS.has(child.tagName)) head.appendChild(child);

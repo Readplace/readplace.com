@@ -492,6 +492,32 @@ describe("initReadabilityParser", () => {
 			}
 		});
 
+		/* unplannedobsolescence.com ships its blog posts with <head> opened
+		 * but never closed and no <body> tag at all. linkedom parks every
+		 * subsequent element (header, h1, paragraphs, pre, ...) inside
+		 * <head> and synthesizes an empty <body>, which trips the same
+		 * _grabArticle null-parent crash as the hex.ooo shape. */
+		it("parses documents whose <head> is opened but never closed, stranding flow content inside <head> (unplannedobsolescence.com shape)", () => {
+			const html = readFileSync(
+				join(__dirname, "fixtures", "head-never-closed.html"),
+				"utf-8",
+			);
+			const { parseHtml } = initParser();
+
+			const result = parseHtml({
+				url: "https://unplannedobsolescence.com/blog/prolog-basics-pokemon/",
+				html,
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.article.title).toBe(
+					"Prolog Basics Explained with Pokémon",
+				);
+				expect(result.article.content).toContain("type(bulbasaur, grass)");
+			}
+		});
+
 		it("escapes HTML-significant characters in the extracted title", () => {
 			const preParser: SitePreParser = {
 				matches: () => true,
