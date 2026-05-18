@@ -63,6 +63,31 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 		expect(result?.bodyHtml).toContain("This is filler body content");
 	});
 
+	it("activates when og:site_name is missing but data-testid='authorPhoto' is present", () => {
+		const html = buildHtml({
+			articleInner:
+				'<h1>Headline</h1><div><img data-testid="authorPhoto" alt="Author"></div>',
+		});
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).not.toContain("authorPhoto");
+		expect(result?.bodyHtml).toContain("This is filler body content");
+	});
+
+	it("activates when og:site_name is not 'Medium' but data-testid='storyReadTime' is present", () => {
+		const html = buildHtml({
+			ogSiteName: "Fagner Brack",
+			articleInner:
+				'<h1>Headline</h1><span data-testid="storyReadTime">5 min read</span>',
+		});
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).not.toContain("5 min read");
+		expect(result?.bodyHtml).toContain("This is filler body content");
+	});
+
 	it("returns undefined when fingerprint present but no article container", () => {
 		const html = buildHtml({
 			ogSiteName: "Medium",

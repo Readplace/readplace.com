@@ -36,9 +36,13 @@ const TITLE_SUFFIX_REGEX = /\s+[|\-–—]\s+.+$/;
  * `matches` is intentionally permissive (returns true for every hostname)
  * because Medium hosts thousands of custom domains in addition to
  * medium.com and *.medium.com; authoritative detection happens in
- * `extract` via an HTML fingerprint (`<meta property="og:site_name"
- * content="Medium">` or `<meta name="application-name" content="Medium">`).
- * `extract` returns `undefined` when the fingerprint is missing, the
+ * `extract` via HTML fingerprints: `<meta property="og:site_name"
+ * content="Medium">`, `<meta name="application-name" content="Medium">`,
+ * or the presence of Medium-specific `data-testid` attributes
+ * (`authorPhoto`, `storyReadTime`, `storyPublishDate`) — the last set
+ * covers custom-domain pages served via friends-link redirects where
+ * Medium omits the og:site_name meta tag.
+ * `extract` returns `undefined` when no fingerprint matches, the
  * article container can't be located, or stripping reduced the body
  * below `MIN_BODY_CHARS` — in any of those cases the default Readability
  * extraction handles the page so we never emit an empty article. */
@@ -85,6 +89,12 @@ export const mediumPreParser: SitePreParser = {
 	},
 };
 
+/* Medium-specific data-testid attributes used as secondary fingerprints
+ * when the og:site_name / application-name meta tags are absent (e.g.
+ * custom-domain pages served via friends-link redirects). */
+const MEDIUM_DATA_TESTID_SELECTOR =
+	'[data-testid="authorPhoto"], [data-testid="storyReadTime"], [data-testid="storyPublishDate"]';
+
 function isMediumPage(document: DomDocument): boolean {
 	const ogSiteName = document
 		.querySelector('meta[property="og:site_name"]')
@@ -93,7 +103,8 @@ function isMediumPage(document: DomDocument): boolean {
 	const appName = document
 		.querySelector('meta[name="application-name"]')
 		?.getAttribute("content");
-	return appName === "Medium";
+	if (appName === "Medium") return true;
+	return document.querySelector(MEDIUM_DATA_TESTID_SELECTOR) !== null;
 }
 
 function findArticleContainer(document: DomDocument): DomElement | null {
