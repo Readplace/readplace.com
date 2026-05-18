@@ -1,5 +1,6 @@
 import assert from 'node:assert'
 import { test } from '@playwright/test'
+import { createBannerOnReaderActions, type BannerOnReaderProgress } from './banner-on-reader-actions'
 import { createCleanupActions, type CleanupProgress } from './cleanup-actions'
 import { createOnboardingActions, type OnboardingProgress } from './onboarding-actions'
 import { createPasswordResetActions, type PasswordResetProgress } from './password-reset-actions'
@@ -46,6 +47,12 @@ test.describe('Queue management flow (local)', () => {
       deletedPermalinkArticle: false,
     }
 
+    const bannerOnReaderProgress: BannerOnReaderProgress = {
+      bannerVerifiedOnPublicView: false,
+      bannerVerifiedOnPrivateReader: false,
+      bannerTestArticleDeleted: false,
+    }
+
     const viewPageProgress: ViewPageProgress = {
       visitedAnonymously: false,
       visitedCrawlFailure: false,
@@ -74,9 +81,14 @@ test.describe('Queue management flow (local)', () => {
           cleanupProgress,
           savePermalinkProgress,
         ),
+        bannerOnReader: createBannerOnReaderActions(
+          { baseUrl: BASE_URL, testUrl: `${BASE_URL}/privacy?banner-on-reader=1` },
+          cleanupProgress,
+          bannerOnReaderProgress,
+        ),
       },
-      preQueueProgressObjects: [viewPageProgress, seedProgress, cleanupProgress, passwordResetProgress, onboardingProgress, savePermalinkProgress],
-      maxNavigations: 92,
+      preQueueProgressObjects: [viewPageProgress, seedProgress, cleanupProgress, passwordResetProgress, onboardingProgress, savePermalinkProgress, bannerOnReaderProgress],
+      maxNavigations: 100,
     })
   })
 })

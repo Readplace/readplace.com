@@ -8,6 +8,7 @@ import {
   PASSWORD_RESET_ACTION_KEYS,
   SEED_ACTION_KEYS,
 } from './action-catalog'
+import { createBannerOnReaderActions, type BannerOnReaderProgress } from './banner-on-reader-actions'
 import { createCleanupActions, type CleanupProgress } from './cleanup-actions'
 import { createSavePermalinkActions, type SavePermalinkProgress } from './save-permalink-actions'
 import { createAnonymousViewPageActions, type ViewPageProgress } from './view-page-actions'
@@ -61,6 +62,12 @@ test.describe('Queue management flow (staging)', () => {
     const savePermalinkProgress: SavePermalinkProgress = {
       savedViaPermalink: false,
       deletedPermalinkArticle: false,
+    }
+
+    const bannerOnReaderProgress: BannerOnReaderProgress = {
+      bannerVerifiedOnPublicView: false,
+      bannerVerifiedOnPrivateReader: false,
+      bannerTestArticleDeleted: false,
     }
 
     const viewPageProgress: ViewPageProgress = {
@@ -125,16 +132,22 @@ test.describe('Queue management flow (staging)', () => {
           cleanupProgress,
           savePermalinkProgress,
         ),
+        bannerOnReader: createBannerOnReaderActions(
+          { baseUrl: baseURL, testUrl: fixtureUrl('banner-on-reader') },
+          cleanupProgress,
+          bannerOnReaderProgress,
+        ),
       },
       preQueueProgressObjects: [
         viewPageProgress,
         cleanupProgress,
         savePermalinkProgress,
+        bannerOnReaderProgress,
         onboardingProgress,
         seedProgress,
         passwordResetProgress,
       ],
-      maxNavigations: 92,
+      maxNavigations: 100,
     })
   })
 })

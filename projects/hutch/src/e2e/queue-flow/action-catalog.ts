@@ -26,6 +26,11 @@ export type SavePermalinkActionKey =
 	| 'save-via-permalink'
 	| 'delete-permalink-article'
 
+export type BannerOnReaderActionKey =
+	| 'verify-banner-on-public-view'
+	| 'save-and-verify-banner-on-private-reader'
+	| 'cleanup-banner-test-article'
+
 export const TEST_ARTICLE_COUNT = 4
 export const PAGINATION_ARTICLE_COUNT = 17
 export const SEED_ARTICLE_COUNT = 2
@@ -68,6 +73,7 @@ export type QueueFlowActionKey =
 	| CleanupActionKey
 	| PasswordResetActionKey
 	| SavePermalinkActionKey
+	| BannerOnReaderActionKey
 	| SeedActionKey
 	| QueueActionKey
 
@@ -89,6 +95,16 @@ export const PASSWORD_RESET_ACTION_KEYS = [
 	'submit-reset-password-form',
 	'login-with-new-password',
 ] as const satisfies AssertExhaustive<PasswordResetActionKey, readonly PasswordResetActionKey[]>
+
+/** Not exported — staging runs these actions for real (no skipFactory), so
+ * the tuple's only job is the compile-time exhaustiveness check on
+ * BannerOnReaderActionKey. */
+const _BANNER_ON_READER_ACTION_KEYS = [
+	'verify-banner-on-public-view',
+	'save-and-verify-banner-on-private-reader',
+	'cleanup-banner-test-article',
+] as const satisfies AssertExhaustive<BannerOnReaderActionKey, readonly BannerOnReaderActionKey[]>
+void _BANNER_ON_READER_ACTION_KEYS;
 
 export const SEED_ACTION_KEYS = [
 	'seed-article-1',

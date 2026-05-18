@@ -7,6 +7,7 @@ import type {
   CleanupActionKey,
   PasswordResetActionKey,
   SavePermalinkActionKey,
+  BannerOnReaderActionKey,
   QueueFlowActionKey,
 } from './action-catalog'
 import { createAuthActions, type AuthData, type AuthProgress } from './auth-actions'
@@ -21,6 +22,7 @@ export type PreQueueActionFactories = {
   cleanup: (authProgress: AuthProgress) => Record<CleanupActionKey, PageAction>
   passwordReset: (authProgress: AuthProgress) => Record<PasswordResetActionKey, PageAction>
   savePermalink: (authProgress: AuthProgress) => Record<SavePermalinkActionKey, PageAction>
+  bannerOnReader: (authProgress: AuthProgress) => Record<BannerOnReaderActionKey, PageAction>
 }
 
 export interface QueueFlowConfig {
@@ -62,7 +64,7 @@ export async function runQueueFlow(page: Page, config: QueueFlowConfig): Promise
     cleanupDeleted: false,
   }
 
-  const { anonymousView, onboarding, seed, cleanup, passwordReset, savePermalink } = config.preQueueActionFactories
+  const { anonymousView, onboarding, seed, cleanup, passwordReset, savePermalink, bannerOnReader } = config.preQueueActionFactories
 
   const allActions: Record<QueueFlowActionKey, PageAction> = {
     ...anonymousView(authProgress),
@@ -71,6 +73,7 @@ export async function runQueueFlow(page: Page, config: QueueFlowConfig): Promise
     ...cleanup(authProgress),
     ...passwordReset(authProgress),
     ...savePermalink(authProgress),
+    ...bannerOnReader(authProgress),
     ...createAuthActions(config.authData, authProgress, config.passwordResetProgress),
     ...createQueueActions(authProgress, queueProgress, config.testArticles),
   }
