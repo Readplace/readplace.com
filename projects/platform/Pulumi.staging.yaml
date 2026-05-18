@@ -3,4 +3,5 @@ config:
   aws:allowedAccountIds:
     - '572337278115'
   platform:eventBusName: hutch-event-bus-d187ebf
+  platform:ocrLambdaRepositoryName: hutch-ocr-lambda
 encryptionsalt: v1:3mv+Fh6U5xU=:v1:31a/qUTye7EJHFxA:EkWZyyGcQyoEJnO4wpd3Fdjus5CDSQ==

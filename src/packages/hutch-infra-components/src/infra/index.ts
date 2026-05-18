@@ -1,3 +1,4 @@
+export { HutchEcrRepository } from "./hutch-ecr-repository";
 export { HutchEventBus } from "./event-bus";
 export { HutchLambda } from "./hutch-lambda";
 export type { LambdaPolicy } from "./hutch-lambda";
