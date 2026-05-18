@@ -75,6 +75,19 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 		expect(result?.bodyHtml).toContain("This is filler body content");
 	});
 
+	it("activates and strips authorPhoto when data-testid is on a wrapper div (friends-link variant)", () => {
+		const html = buildHtml({
+			articleInner:
+				'<h1>Headline</h1><div data-testid="authorPhoto"><a href="/author"><img src="avatar.jpg"></a></div>',
+		});
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).not.toContain("authorPhoto");
+		expect(result?.bodyHtml).not.toContain("avatar.jpg");
+		expect(result?.bodyHtml).toContain("This is filler body content");
+	});
+
 	it("activates when og:site_name is not 'Medium' but data-testid='storyReadTime' is present", () => {
 		const html = buildHtml({
 			ogSiteName: "Fagner Brack",
@@ -204,6 +217,19 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 		const result = mediumPreParser.extract({ html });
 
 		expect(result?.bodyHtml).not.toContain("authorPhoto");
+	});
+
+	it("strips authorPhoto when data-testid is on a wrapper div instead of the img", () => {
+		const html = buildHtml({
+			ogSiteName: "Medium",
+			articleInner:
+				'<div data-testid="authorPhoto"><a href="/author"><img src="avatar.jpg" alt="Author"></a></div>',
+		});
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).not.toContain("authorPhoto");
+		expect(result?.bodyHtml).not.toContain("avatar.jpg");
 	});
 });
 

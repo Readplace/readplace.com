@@ -58,11 +58,11 @@ export const mediumPreParser: SitePreParser = {
 		const container = findArticleContainer(document);
 		if (!container) return undefined;
 
-		const authorImg = container.querySelector('img[data-testid="authorPhoto"]');
+		const authorPhoto = container.querySelector('[data-testid="authorPhoto"]');
 
-		stripClapsSeparators({ container, anchorElement: authorImg });
-		authorImg?.closest("a")?.remove();
-		authorImg?.remove();
+		stripClapsSeparators({ container, anchorElement: authorPhoto });
+		authorPhoto?.closest("a")?.remove();
+		authorPhoto?.remove();
 
 		stripWithEnclosingParagraph({
 			container,
