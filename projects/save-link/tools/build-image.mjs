@@ -94,6 +94,9 @@ function buildAndPushImage(repositoryUrl, tag) {
 	run("docker", [
 		"buildx", "build",
 		"--platform", "linux/amd64",
+		// Lambda rejects the SLSA provenance attestation manifest buildx adds by default
+		// with InvalidParameterValueException ("image manifest ... not supported").
+		"--provenance=false",
 		"--build-arg", `HANDLER_DIR=${handlerDirRelative}`,
 		"--tag", imageUri,
 		"--file", "Dockerfile",
