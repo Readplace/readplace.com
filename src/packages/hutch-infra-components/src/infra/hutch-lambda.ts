@@ -1,6 +1,7 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import { build, type Loader, type Plugin } from "esbuild";
+import assert from "node:assert";
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
@@ -167,9 +168,9 @@ export class HutchLambda extends pulumi.ComponentResource {
 	constructor(
 		name: string,
 		args: {
-			entryPoint: string;
-			outputDir: string;
-			assetDir: string;
+			entryPoint?: string;
+			outputDir?: string;
+			assetDir?: string;
 			memorySize: number;
 			timeout: number;
 			environment: Record<string, pulumi.Input<string>>;
@@ -187,6 +188,13 @@ export class HutchLambda extends pulumi.ComponentResource {
 			 * package fails the build loudly.
 			 */
 			external?: string[];
+			/**
+			 * When set, the Lambda is provisioned as a container image instead of
+			 * a zip. The image must already be pushed to ECR — typically by a
+			 * `build-image` step that runs before `pulumi up`. `entryPoint`,
+			 * `outputDir`, and `assetDir` are ignored when this is set.
+			 */
+			containerImage?: { imageUri: pulumi.Input<string> };
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -196,34 +204,6 @@ export class HutchLambda extends pulumi.ComponentResource {
 		const lambdaName = `${name}-handler`;
 		const roleName = `${lambdaName}-role`;
 		const basicExecutionName = `${name}-basic-execution`;
-
-		mkdirSync(args.outputDir, { recursive: true });
-
-		const lambdaCode = build({
-			entryPoints: [args.entryPoint],
-			bundle: true,
-			sourcemap: true,
-			platform: "node",
-			format: "cjs",
-			minify: true,
-			outfile: `${args.outputDir}/index.js`,
-			target: ["node22"],
-			loader: esbuildLoaders,
-			plugins: [createDirnamePlugin(args.assetDir)],
-			external: args.external,
-		}).then(() => {
-			copyAssetFiles({ src: args.assetDir, dest: args.outputDir });
-			if (args.external?.length) {
-				const contexts: NodeJS.Require[] = [createRequire(resolve(args.entryPoint))];
-				for (const pkgName of args.external) {
-					const pkgJsonPath = copyExternalPackage(pkgName, contexts, args.outputDir);
-					contexts.push(createRequire(pkgJsonPath));
-				}
-			}
-			return new pulumi.asset.AssetArchive({
-				".": new pulumi.asset.FileArchive(args.outputDir),
-			});
-		});
 
 		this.role = new aws.iam.Role(roleName, {
 			name: roleName,
@@ -251,18 +231,64 @@ export class HutchLambda extends pulumi.ComponentResource {
 		}
 
 		const hasEnvironment = Object.keys(args.environment).length > 0;
-		const lambdaFunction = new aws.lambda.Function(lambdaName, {
-			name: lambdaName,
-			runtime: aws.lambda.Runtime.NodeJS22dX,
-			handler: "index.handler",
-			role: this.role.arn,
-			code: lambdaCode,
-			memorySize: args.memorySize,
-			timeout: args.timeout,
-			...(hasEnvironment ? {
-				environment: { variables: args.environment },
-			} : {}),
-		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+		const environmentArg = hasEnvironment ? { environment: { variables: args.environment } } : {};
+
+		let lambdaFunction: aws.lambda.Function;
+		if (args.containerImage) {
+			lambdaFunction = new aws.lambda.Function(lambdaName, {
+				name: lambdaName,
+				packageType: "Image",
+				imageUri: args.containerImage.imageUri,
+				role: this.role.arn,
+				memorySize: args.memorySize,
+				timeout: args.timeout,
+				...environmentArg,
+			}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+		} else {
+			assert(args.entryPoint, "HutchLambda zip packaging requires 'entryPoint'");
+			assert(args.outputDir, "HutchLambda zip packaging requires 'outputDir'");
+			assert(args.assetDir, "HutchLambda zip packaging requires 'assetDir'");
+			const { entryPoint, outputDir, assetDir } = args;
+
+			mkdirSync(outputDir, { recursive: true });
+
+			const lambdaCode = build({
+				entryPoints: [entryPoint],
+				bundle: true,
+				sourcemap: true,
+				platform: "node",
+				format: "cjs",
+				minify: true,
+				outfile: `${outputDir}/index.js`,
+				target: ["node22"],
+				loader: esbuildLoaders,
+				plugins: [createDirnamePlugin(assetDir)],
+				external: args.external,
+			}).then(() => {
+				copyAssetFiles({ src: assetDir, dest: outputDir });
+				if (args.external?.length) {
+					const contexts: NodeJS.Require[] = [createRequire(resolve(entryPoint))];
+					for (const pkgName of args.external) {
+						const pkgJsonPath = copyExternalPackage(pkgName, contexts, outputDir);
+						contexts.push(createRequire(pkgJsonPath));
+					}
+				}
+				return new pulumi.asset.AssetArchive({
+					".": new pulumi.asset.FileArchive(outputDir),
+				});
+			});
+
+			lambdaFunction = new aws.lambda.Function(lambdaName, {
+				name: lambdaName,
+				runtime: aws.lambda.Runtime.NodeJS22dX,
+				handler: "index.handler",
+				role: this.role.arn,
+				code: lambdaCode,
+				memorySize: args.memorySize,
+				timeout: args.timeout,
+				...environmentArg,
+			}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+		}
 
 		this.functionName = lambdaFunction.name;
 		this.arn = lambdaFunction.arn;

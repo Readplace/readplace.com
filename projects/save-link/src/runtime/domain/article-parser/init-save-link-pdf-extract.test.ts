@@ -15,7 +15,7 @@ function stubRasterizer(params: { numPages: number; title?: string }): PdfRaster
 					};
 				},
 				getTitle: () => params.title,
-				destroy: () => {},
+				destroy: async () => {},
 			};
 		},
 	};

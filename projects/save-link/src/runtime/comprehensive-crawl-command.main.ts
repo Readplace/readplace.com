@@ -4,7 +4,7 @@ import OpenAI from "openai";
 import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { initMupdfRasterizer } from "@packages/crawl-article";
+import { initPdftoppmRasterizer } from "@packages/crawl-article";
 import { requireEnv } from "../require-env";
 import { initComprehensiveCrawlHandler } from "./domain/comprehensive-crawl/comprehensive-crawl-handler";
 import { initSaveLinkPdfExtract } from "./domain/article-parser/init-save-link-pdf-extract";
@@ -38,7 +38,7 @@ const deepInfraClient = new OpenAI({
 });
 
 const extractPdf = initSaveLinkPdfExtract({
-	rasterizer: initMupdfRasterizer({ logger: consoleLogger }),
+	rasterizer: initPdftoppmRasterizer({ logger: consoleLogger }),
 	createChatCompletion: (params) => deepInfraClient.chat.completions.create(params),
 	logger: consoleLogger,
 });
