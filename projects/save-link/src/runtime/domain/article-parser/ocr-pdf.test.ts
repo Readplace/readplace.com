@@ -319,6 +319,26 @@ describe("initOcrPdf — parallel batched OCR", () => {
 		expect(secondIdx).toBeGreaterThan(firstIdx);
 	});
 
+	it("fires onProgress once per page with 1-based pageIndex and total pageCount", async () => {
+		const progress: { pageIndex: number; pageCount: number }[] = [];
+		const ocr = initOcrPdf({
+			rasterizer: stubRasterizer({ numPages: 3 }),
+			createVisionMessage: async () => "<p>text</p>",
+		});
+
+		await ocr({
+			buffer: Buffer.from("%PDF"),
+			url: "https://example.com/x.pdf",
+			onProgress: (params) => { progress.push(params); },
+		});
+
+		expect(progress).toEqual([
+			{ pageIndex: 1, pageCount: 3 },
+			{ pageIndex: 2, pageCount: 3 },
+			{ pageIndex: 3, pageCount: 3 },
+		]);
+	});
+
 	it("destroys each PdfPage handle after rasterising it", async () => {
 		const destroyed: number[] = [];
 		let invocation = 0;

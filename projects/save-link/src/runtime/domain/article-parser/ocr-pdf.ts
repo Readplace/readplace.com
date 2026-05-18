@@ -36,7 +36,7 @@ export function initOcrPdf(deps: {
 	const maxPages = deps.maxPages ?? MAX_PAGES;
 	const { logger } = deps;
 
-	return async ({ buffer, url }) => {
+	return async ({ buffer, url, onProgress }) => {
 		const t0 = Date.now();
 		logger.info(`[ocr-pdf] start url=${url} bytes=${buffer.length}`);
 		let doc: PdfDocument;
@@ -48,7 +48,7 @@ export function initOcrPdf(deps: {
 			logger.error(`[ocr-pdf] mupdf-open failed t=${Date.now() - t0}ms reason=${message}`);
 			return { kind: "failed", reason: `OCR pipeline failed: ${message}` };
 		}
-		const result = await extractWithDoc({ doc, url, pagesPerBatch, maxPages, createVisionMessage: deps.createVisionMessage, logger, t0 });
+		const result = await extractWithDoc({ doc, url, pagesPerBatch, maxPages, createVisionMessage: deps.createVisionMessage, logger, t0, onProgress });
 		doc.destroy();
 		logger.info(`[ocr-pdf] done t=${Date.now() - t0}ms kind=${result.kind}`);
 		return result;
@@ -63,8 +63,9 @@ async function extractWithDoc(deps: {
 	createVisionMessage: CreateVisionMessage;
 	logger: HutchLogger;
 	t0: number;
+	onProgress?: (params: { pageIndex: number; pageCount: number }) => void;
 }): Promise<PdfExtractResult> {
-	const { doc, url, pagesPerBatch, maxPages, createVisionMessage, logger, t0 } = deps;
+	const { doc, url, pagesPerBatch, maxPages, createVisionMessage, logger, t0, onProgress } = deps;
 	try {
 		if (doc.numPages > maxPages) {
 			return {
@@ -81,6 +82,7 @@ async function extractWithDoc(deps: {
 			page.destroy();
 			pageImages.push(png);
 			logger.info(`[ocr-pdf] rasterised page=${pageNum + 1}/${doc.numPages} bytes=${png.length} dt=${Date.now() - pageStart}ms total=${Date.now() - t0}ms`);
+			onProgress?.({ pageIndex: pageNum + 1, pageCount: doc.numPages });
 		}
 
 		const batches: Buffer[][] = [];
