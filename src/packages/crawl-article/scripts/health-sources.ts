@@ -175,19 +175,14 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectedContent: "Attention Is All You Need",
 		expectsThumbnail: false,
 	},
-	{
-		// Akamai-fronted PDF. The origin's HTTP/2 BotManager RSTs streams
-		// whose request fingerprint isn't internally coherent (Chrome UA
-		// without Sec-Fetch-*/sec-ch-ua-* trips it). Validates that the
-		// `default-browser` persona's full Chrome fingerprint passes Akamai's
-		// JA3+header heuristic. If the canary fails here after a persona-set
-		// change, the new shape is partial impersonation — fix the persona,
-		// don't remove the entry.
-		label: "PDF (USDA via Akamai)",
-		url: "https://www.rd.usda.gov/sites/default/files/pdf-sample_0.pdf",
-		expectedContent: "Dummy PDF",
-		expectsThumbnail: false,
-	},
+	// USDA (https://www.rd.usda.gov/sites/default/files/pdf-sample_0.pdf) is
+	// fronted by Akamai BotManager, which RSTs HTTP/2 streams from AWS-range
+	// IPs regardless of HTTP-header persona (confirmed via prod Lambda logs
+	// after CRAWL_PERSONAS landed: both `default-browser` and `honest-bot`
+	// produced curl exit 92 INTERNAL_ERROR). The same default-browser persona
+	// returns 200 from a residential IP. Re-adding this entry requires a
+	// non-AWS egress path (residential proxy as a third persona, or
+	// equivalent) — not a new HTTP-header variation.
 	{
 		// Adobe-class fingerprint-strict origin. Sent today's partial Chrome
 		// headers and Adobe's edge RSTs the h2 stream (curl exit 92,

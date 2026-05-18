@@ -30,11 +30,13 @@ jobs:
     environment: prod
     # Each PDF source runs the full vision-OCR pipeline against a 13-page
     # arXiv paper / multi-page FAI manual, which takes ~3 min per PDF
-    # against the cold-start mupdf WASM load. Two PDFs plus the ~3 min of
-    # tier-1 HTML sources puts the run around 10 min — give 30 min so a
-    # warm-pool miss or DeepInfra slowdown doesn't masquerade as a real
-    # canary failure.
-    timeout-minutes: 30
+    # against the cold-start mupdf WASM load. Three PDFs (FAI, arXiv,
+    # Adobe) plus the ~3 min of tier-1 HTML sources puts the run around
+    # 12-15 min. Cap at 60 min so a single source hitting DLQ exhaustion
+    # (3 retries × 480s visibility ≈ 24 min) doesn't cancel the rest of
+    # the suite — the canary surfaces the failure as red but the
+    # remaining URLs still validate the pipeline.
+    timeout-minutes: 60
     env:
       READPLACE_ORIGIN: https://readplace.com
       RECRAWL_SERVICE_TOKEN: ${{ secrets.RECRAWL_SERVICE_TOKEN }}
