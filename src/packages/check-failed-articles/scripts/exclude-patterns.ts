@@ -39,6 +39,13 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// rejection. The crawler can never fetch these; intake now blocks them.
 	/^chrome:\/\//i,
 	/^about:/i,
+	// Operator-curated exact-URL excludes — individual rows the operator has
+	// decided are "known broken / not worth investigating again". Each entry
+	// is anchored with `^…$` so it matches only the exact stored URL, not a
+	// whole host or path prefix.
+	/^fabiensanglard\.net\/quake$/i,
+	/^https:\/\/www\.theinformation$/i,
+	/^https:\/\/web\.eecs\.umich\.edu\/~weimerw\/2018-481\/readings\/mythical-man-month\.pdf$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

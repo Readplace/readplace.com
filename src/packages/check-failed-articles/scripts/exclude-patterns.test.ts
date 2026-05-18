@@ -96,3 +96,36 @@ describe("EXCLUDE_PATTERNS — nhttps typo'd-scheme entry", () => {
 		});
 	}
 });
+
+describe("EXCLUDE_PATTERNS — operator-curated exact-URL entries", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "fabiensanglard.net/quake", excluded: true, label: "fabiensanglard quake exact" },
+		{ url: "https://fabiensanglard.net/quake", excluded: false, label: "fabiensanglard quake with scheme — different stored value" },
+		{ url: "fabiensanglard.net/quake/", excluded: false, label: "fabiensanglard quake with trailing slash" },
+		{ url: "fabiensanglard.net/quake2", excluded: false, label: "fabiensanglard quake with extra path char" },
+		{ url: "fabiensanglard.net/other", excluded: false, label: "same host different path" },
+		{ url: "https://www.theinformation", excluded: true, label: "theinformation truncated exact" },
+		{ url: "https://www.theinformation.com", excluded: false, label: "theinformation full host — should NOT match the truncated entry" },
+		{ url: "https://www.theinformation/foo", excluded: false, label: "theinformation truncated with path" },
+		{
+			url: "https://web.eecs.umich.edu/~weimerw/2018-481/readings/mythical-man-month.pdf",
+			excluded: true,
+			label: "mythical-man-month exact",
+		},
+		{
+			url: "https://web.eecs.umich.edu/~weimerw/2018-481/readings/mythical-man-month.pdf?x=1",
+			excluded: false,
+			label: "mythical-man-month with query suffix",
+		},
+		{
+			url: "https://web.eecs.umich.edu/~weimerw/2018-481/readings/other.pdf",
+			excluded: false,
+			label: "same directory different file",
+		},
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
