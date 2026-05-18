@@ -13,15 +13,21 @@ import {
 
 export type DispatchGenerateSummary = DispatchCommand<typeof GenerateSummaryCommand>;
 
-/** Bridges `save-link-work`'s "simple unsupported, defer the comprehensive
- * crawl" branch to EventBridge by emitting `SimpleCrawlUnsupportedEvent`.
- * The policy Lambda subscribes to the event and dispatches
- * `ComprehensiveCrawlCommand` so `save-link-work` itself does not need to
- * know which downstream command the policy issues. */
+/** Bridges the simple-only Lambdas' "simple unsupported, defer the
+ * comprehensive crawl" branch to EventBridge by emitting
+ * `SimpleCrawlUnsupportedEvent`. The policy Lambda subscribes to the event
+ * and dispatches `ComprehensiveCrawlCommand` so the publisher Lambda itself
+ * does not need to know which downstream command the policy issues.
+ *
+ * `recrawl=true` and `refresh=true` are mutually exclusive: `recrawl` is the
+ * admin-recrawl chain (RecrawlContentExtractedEvent downstream), `refresh`
+ * is the stale-check chain (RefreshContentExtractedEvent downstream). The
+ * default (neither set) is the save chain (TierContentExtractedEvent). */
 export type EmitSimpleCrawlUnsupported = (params: {
 	url: string;
 	userId?: string;
 	recrawl?: boolean;
+	refresh?: boolean;
 }) => Promise<void>;
 
 export type EventsDepBundle = {
@@ -53,11 +59,11 @@ export function initEventsDepBundle(deps: {
 export function initEmitSimpleCrawlUnsupported(deps: {
 	publishEvent: PublishEvent;
 }): EmitSimpleCrawlUnsupported {
-	return async ({ url, userId, recrawl }) => {
+	return async ({ url, userId, recrawl, refresh }) => {
 		await deps.publishEvent({
 			source: SimpleCrawlUnsupportedEvent.source,
 			detailType: SimpleCrawlUnsupportedEvent.detailType,
-			detail: JSON.stringify({ url, userId, recrawl }),
+			detail: JSON.stringify({ url, userId, recrawl, refresh }),
 		});
 	};
 }

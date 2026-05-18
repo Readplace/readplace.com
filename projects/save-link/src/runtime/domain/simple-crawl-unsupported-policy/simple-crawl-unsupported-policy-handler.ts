@@ -34,12 +34,14 @@ export function initSimpleCrawlUnsupportedPolicyHandler(deps: {
 						url: detail.url,
 						userId: detail.userId,
 						recrawl: detail.recrawl,
+						refresh: detail.refresh,
 					}),
 				});
 
 				logger.info(`${logPrefix} dispatched ComprehensiveCrawlCommand`, {
 					url: detail.url,
 					recrawl: detail.recrawl ? 1 : 0,
+					refresh: detail.refresh ? 1 : 0,
 				});
 			} catch (error) {
 				logger.error(`${logPrefix} record failed`, {

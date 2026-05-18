@@ -17,6 +17,5 @@ export { initCrawlFetch } from "./crawl-fetch";
 export type { CrawlFetch, CrawlFetchInit } from "./crawl-fetch";
 export type { ExtractPdf, PdfDocument, PdfExtractProgress, PdfExtractResult, PdfPage, PdfRasterizer } from "./pdf-extract.types";
 export { isPdfContentType, isPdfMagicBytes } from "./pdf-detect";
-export { initMupdfRasterizer } from "./init-mupdf-lazy";
 export { initPdftoppmRasterizer } from "./init-pdftoppm-rasterizer";
 export { deriveTitleFromUrl, escapeHtmlText } from "./pdf-html-helpers";

@@ -33,7 +33,12 @@ const stubContext: Context = {
 	succeed: () => {},
 };
 
-function createSqsEvent(detail: { url: string; userId?: string; recrawl?: boolean }): SQSEvent {
+function createSqsEvent(detail: {
+	url: string;
+	userId?: string;
+	recrawl?: boolean;
+	refresh?: boolean;
+}): SQSEvent {
 	return {
 		Records: [{
 			messageId: "msg-1",
@@ -150,6 +155,34 @@ describe("initComprehensiveCrawlHandler", () => {
 			source: "hutch.save-link",
 			detailType: "RecrawlContentExtracted",
 			detail: JSON.stringify({ url: "https://example.com/doc.pdf" }),
+		});
+	});
+
+	it("emits RefreshContentExtractedEvent (with re-fetch freshness) and skips updateFetchTimestamp when refresh=true", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
+		const comprehensiveCrawl = jest.fn().mockResolvedValue({
+			status: "fetched",
+			html: "<html><body><p>Refreshed PDF content</p></body></html>",
+			etag: '"refreshed-pdf"',
+			lastModified: "Sat, 17 May 2026 00:00:00 GMT",
+		});
+
+		const handler = createHandler({ publishEvent, updateFetchTimestamp, comprehensiveCrawl });
+
+		await handler(createSqsEvent({ url: "https://example.com/doc.pdf", refresh: true }), stubContext, () => {});
+
+		expect(updateFetchTimestamp).not.toHaveBeenCalled();
+		expect(publishEvent).toHaveBeenCalledTimes(1);
+		expect(publishEvent).toHaveBeenCalledWith({
+			source: "hutch.save-link",
+			detailType: "RefreshContentExtracted",
+			detail: JSON.stringify({
+				url: "https://example.com/doc.pdf",
+				etag: '"refreshed-pdf"',
+				lastModified: "Sat, 17 May 2026 00:00:00 GMT",
+				contentFetchedAt: "2026-04-18T12:00:00.000Z",
+			}),
 		});
 	});
 
