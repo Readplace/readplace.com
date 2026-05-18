@@ -72,12 +72,14 @@ import {
 import { getEnv, requireEnv } from "./domain/require-env";
 
 /**
- * Hutch SSR does not run PDF extraction in-process — vision OCR lives in the
- * comprehensive-crawl-command and stale-check Lambdas (mupdf + DeepInfra
- * deps). When crawlArticle hits a PDF response during a freshness check,
- * this stub fires a StaleCheckRequested event so the stale-check Lambda
- * re-extracts it via OCR async, then returns `failed` so
- * refreshArticleIfStale skips inline.
+ * Hutch SSR does not run PDF extraction in-process — the
+ * `comprehensive-crawl-command` Lambda owns OCR. When crawlArticle hits a PDF
+ * response during a freshness check, this stub fires a StaleCheckRequested
+ * event and returns `failed` so refreshArticleIfStale skips inline; the
+ * stale-check chain then routes the URL through `SimpleCrawlUnsupportedEvent`
+ * → policy → `ComprehensiveCrawlCommand` (refresh=true), letting the
+ * comprehensive Lambda re-fetch + OCR and emit `RefreshContentExtractedEvent`
+ * without ever pulling mupdf into the hutch or stale-check process.
  */
 function createPdfDeferralStub(publishStaleCheckRequested: PublishStaleCheckRequested): ExtractPdf {
 	return async ({ url }) => {

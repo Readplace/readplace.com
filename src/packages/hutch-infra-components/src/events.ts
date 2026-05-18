@@ -83,16 +83,21 @@ export const SubmitLinkCommand = defineEvent({
 export type SubmitLinkDetail = z.infer<typeof SubmitLinkCommand.detailSchema>;
 
 /** Irreversible fact: the simple crawl reported `unsupported` for a URL.
- * Published by `save-link-work` so the save-link Lambda's concurrency slot
- * is released immediately. The `simple-crawl-unsupported-policy` Lambda
- * subscribes to this event and dispatches `ComprehensiveCrawlCommand` so
- * the dedicated PDF-handling Lambda picks up the URL.
+ * Published by `save-link-work` (initial save / recrawl) and by the
+ * `stale-check` Lambda (freshness refresh), so the publishing Lambda's
+ * concurrency slot is released immediately. The
+ * `simple-crawl-unsupported-policy` Lambda subscribes to this event and
+ * dispatches `ComprehensiveCrawlCommand` so the dedicated PDF-handling
+ * Lambda picks up the URL.
  *
  * `userId` is threaded so the downstream selector can emit `LinkSavedEvent`
  * with the original saver. `recrawl=true` tells the comprehensive handler
  * to emit `RecrawlContentExtractedEvent` instead of
  * `TierContentExtractedEvent`, preserving the recrawl chain's
- * always-regenerate-summary semantics. */
+ * always-regenerate-summary semantics. `refresh=true` tells the comprehensive
+ * handler to emit `RefreshContentExtractedEvent` so the stale-check chain's
+ * tier-selection + canonical write still runs. `recrawl` and `refresh` are
+ * mutually exclusive — each carries different downstream semantics. */
 export const SimpleCrawlUnsupportedEvent = defineEvent({
 	name: "simple-crawl-unsupported",
 	source: "hutch.save-link",
@@ -101,7 +106,11 @@ export const SimpleCrawlUnsupportedEvent = defineEvent({
 		url: z.string(),
 		userId: z.string().optional(),
 		recrawl: z.boolean().optional(),
-	}),
+		refresh: z.boolean().optional(),
+	}).refine(
+		(d) => !(d.recrawl && d.refresh),
+		{ message: "recrawl and refresh are mutually exclusive" },
+	),
 });
 export type SimpleCrawlUnsupportedDetail = z.infer<
 	typeof SimpleCrawlUnsupportedEvent.detailSchema
@@ -113,12 +122,16 @@ export type SimpleCrawlUnsupportedDetail = z.infer<
  * Lambda subscribes to this command, runs the comprehensive crawl, processes
  * the result through the same tier-1 happy path, and emits the appropriate
  * downstream event itself (TierContentExtractedEvent for saves,
- * RecrawlContentExtractedEvent for recrawls).
+ * RecrawlContentExtractedEvent for recrawls, RefreshContentExtractedEvent
+ * for stale-check refreshes).
  *
  * `userId` is threaded so the downstream selector can emit `LinkSavedEvent`
  * with the original saver. `recrawl=true` tells the handler to emit
  * `RecrawlContentExtractedEvent` instead of `TierContentExtractedEvent`,
- * preserving the recrawl Lambda chain's always-regenerate-summary semantics. */
+ * preserving the recrawl Lambda chain's always-regenerate-summary semantics.
+ * `refresh=true` tells the handler to emit `RefreshContentExtractedEvent`,
+ * keeping the stale-check tier-selection + canonical write flow intact.
+ * `recrawl` and `refresh` are mutually exclusive. */
 export const ComprehensiveCrawlCommand = defineEvent({
 	name: "comprehensive-crawl-command",
 	source: "hutch.save-link",
@@ -127,7 +140,11 @@ export const ComprehensiveCrawlCommand = defineEvent({
 		url: z.string(),
 		userId: z.string().optional(),
 		recrawl: z.boolean().optional(),
-	}),
+		refresh: z.boolean().optional(),
+	}).refine(
+		(d) => !(d.recrawl && d.refresh),
+		{ message: "recrawl and refresh are mutually exclusive" },
+	),
 });
 export type ComprehensiveCrawlDetail = z.infer<
 	typeof ComprehensiveCrawlCommand.detailSchema

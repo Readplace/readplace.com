@@ -48,4 +48,17 @@ describe("initEmitSimpleCrawlUnsupported", () => {
 			detail: JSON.stringify({ url: "https://example.com/doc.pdf", recrawl: true }),
 		});
 	});
+
+	it("threads refresh=true through the event so the policy → comprehensive chain emits RefreshContentExtractedEvent", async () => {
+		const publishEvent: PublishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
+		await emit({ url: "https://example.com/doc.pdf", refresh: true });
+
+		expect(publishEvent).toHaveBeenCalledWith({
+			source: "hutch.save-link",
+			detailType: "SimpleCrawlUnsupported",
+			detail: JSON.stringify({ url: "https://example.com/doc.pdf", refresh: true }),
+		});
+	});
 });

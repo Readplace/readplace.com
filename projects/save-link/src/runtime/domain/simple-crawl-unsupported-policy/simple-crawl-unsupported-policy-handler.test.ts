@@ -24,7 +24,12 @@ const stubContext: Context = {
 	succeed: () => {},
 };
 
-function createSqsEvent(detail: { url: string; userId?: string; recrawl?: boolean }): SQSEvent {
+function createSqsEvent(detail: {
+	url: string;
+	userId?: string;
+	recrawl?: boolean;
+	refresh?: boolean;
+}): SQSEvent {
 	return {
 		Records: [{
 			messageId: "msg-1",
@@ -63,6 +68,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 				url: "https://example.com/doc.pdf",
 				userId: "user-1",
 				recrawl: undefined,
+				refresh: undefined,
 			}),
 		});
 	});
@@ -88,6 +94,33 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 				url: "https://example.com/doc.pdf",
 				userId: undefined,
 				recrawl: true,
+				refresh: undefined,
+			}),
+		});
+	});
+
+	it("dispatches ComprehensiveCrawlCommand with refresh=true when the event carries the refresh flag (stale-check chain)", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const handler = initSimpleCrawlUnsupportedPolicyHandler({
+			publishEvent,
+			logger: noopLogger,
+		});
+
+		await handler(
+			createSqsEvent({ url: "https://example.com/doc.pdf", refresh: true }),
+			stubContext,
+			() => {},
+		);
+
+		expect(publishEvent).toHaveBeenCalledWith({
+			source: "hutch.save-link",
+			detailType: "ComprehensiveCrawlCommand",
+			detail: JSON.stringify({
+				url: "https://example.com/doc.pdf",
+				userId: undefined,
+				recrawl: undefined,
+				refresh: true,
 			}),
 		});
 	});
@@ -113,6 +146,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 				url: "https://example.com/blob",
 				userId: undefined,
 				recrawl: undefined,
+				refresh: undefined,
 			}),
 		});
 	});

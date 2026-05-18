@@ -141,8 +141,10 @@ const recrawlLinkInitiatedQueue = new HutchSQS("recrawl-link-initiated", {
 	visibilityTimeoutSeconds: 480,
 });
 
+// Simple-only — PDF refreshes dispatch the comprehensive-crawl-command with
+// refresh=true so the comprehensive Lambda emits RefreshContentExtractedEvent.
 const staleCheckRequestedQueue = new HutchSQS("stale-check-requested", {
-	visibilityTimeoutSeconds: 1200,
+	visibilityTimeoutSeconds: 480,
 });
 
 const recrawlContentExtractedQueue = new HutchSQS("recrawl-content-extracted", {
@@ -454,9 +456,12 @@ new HutchDLQEventHandler("comprehensive-crawl-dlq", {
 // happen inline on /view. Reads freshness + crawl status from DDB; on a stale
 // row publishes RefreshArticleContent (200) or UpdateFetchTimestamp (304); on
 // a failed/missing crawl status republishes SaveAnonymousLinkCommand to redrive
-// the crawl pipeline. No DLQ row-mutator is wired: a stale-check failure must
-// not flip the article to crawlStatus='failed' — the row already has whatever
-// state the upstream pipeline produced, and the user can still read it.
+// the crawl pipeline. PDFs (or any non-HTML body) emit SimpleCrawlUnsupportedEvent
+// with `refresh=true` so the policy → comprehensive-crawl-command chain runs the
+// OCR + tier-1 write off this Lambda's concurrency budget. No DLQ row-mutator
+// is wired: a stale-check failure must not flip the article to crawlStatus='failed' —
+// the row already has whatever state the upstream pipeline produced, and the
+// user can still read it.
 
 const staleCheckRequestedDynamodb = new HutchDynamoDBAccess("stale-check-requested-dynamodb", {
 	tables: [{ arn: articlesTableArn, includeIndexes: false }],
@@ -467,17 +472,16 @@ const staleCheckRequestedLambda = new HutchLambda("stale-check-requested", {
 	entryPoint: "./src/runtime/stale-check.main.ts",
 	outputDir: ".lib/stale-check-requested",
 	assetDir: "./src",
-	// Mirrors save-link-command: stale PDFs go through the same vision-OCR path
-	// (mupdf rasterisation + DeepInfra). 2048 MB / 600s gives the same
-	// headroom for re-extraction.
-	memorySize: 2048,
-	timeout: 600,
-	external: ["mupdf"],
+	// Simple-only crawl: HTML/oembed text fetch + readability parse. PDFs are
+	// deferred through SimpleCrawlUnsupportedEvent → policy →
+	// ComprehensiveCrawlCommand (refresh=true) so this Lambda no longer needs
+	// the mupdf / OCR headroom.
+	memorySize: 512,
+	timeout: 240,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-		DEEPINFRA_API_KEY: deepInfraApiKey,
 	},
 	policies: [
 		...staleCheckRequestedDynamodb.policies,

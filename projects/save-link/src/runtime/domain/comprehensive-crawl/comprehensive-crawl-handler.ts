@@ -7,6 +7,7 @@ import { markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-
 import {
 	ComprehensiveCrawlCommand,
 	RecrawlContentExtractedEvent,
+	RefreshContentExtractedEvent,
 	TierContentExtractedEvent,
 } from "@packages/hutch-infra-components";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
@@ -79,9 +80,13 @@ export function initComprehensiveCrawlHandler(deps: {
 			try {
 				const envelope = JSON.parse(record.body);
 				const detail = ComprehensiveCrawlCommand.detailSchema.parse(envelope.detail);
-				const { url, userId, recrawl } = detail;
+				const { url, userId, recrawl, refresh } = detail;
 
-				logger.info(`${logPrefix} processing`, { url, recrawl: recrawl ? 1 : 0 });
+				logger.info(`${logPrefix} processing`, {
+					url,
+					recrawl: recrawl ? 1 : 0,
+					refresh: refresh ? 1 : 0,
+				});
 
 				/*
 				 * Server only commits two coarse stages for the comprehensive path —
@@ -180,12 +185,23 @@ export function initComprehensiveCrawlHandler(deps: {
 				});
 				await markCrawlStage({ url, stage: "crawl-content-uploaded" });
 
-				await updateFetchTimestamp({
-					url,
-					contentFetchedAt: now().toISOString(),
-					etag: crawlResult.etag,
-					lastModified: crawlResult.lastModified,
-				});
+				const contentFetchedAt = now().toISOString();
+
+				/* Refresh chain carries freshness directly on the
+				 * RefreshContentExtractedEvent and the downstream
+				 * refresh-content-extracted handler sets it via the refreshContent
+				 * aggregate transition, mirroring the existing in-place refresh
+				 * Lambda. Save / recrawl chains have no aggregate write that
+				 * persists etag/lastModified, so they still go through the
+				 * UpdateFetchTimestampCommand → update-fetch-timestamp Lambda. */
+				if (!refresh) {
+					await updateFetchTimestamp({
+						url,
+						contentFetchedAt,
+						etag: crawlResult.etag,
+						lastModified: crawlResult.lastModified,
+					});
+				}
 
 				const successSnapshot = await readTierSnapshot({ url });
 				logCrawlOutcome({
@@ -196,7 +212,23 @@ export function initComprehensiveCrawlHandler(deps: {
 					pickedTier: successSnapshot.pickedTier,
 				});
 
-				if (recrawl) {
+				if (refresh) {
+					// Stale-check refresh chain: the refresh-content-extracted Lambda
+					// runs the selector across all tier sources, picks a winner, and
+					// drives the refreshContent transition (which sets freshness +
+					// canonical) — mirrors the in-place refresh flow shape.
+					await publishEvent({
+						source: RefreshContentExtractedEvent.source,
+						detailType: RefreshContentExtractedEvent.detailType,
+						detail: JSON.stringify({
+							url,
+							etag: crawlResult.etag,
+							lastModified: crawlResult.lastModified,
+							contentFetchedAt,
+						}),
+					});
+					logger.info(`${logPrefix} emitted RefreshContentExtractedEvent`, { url });
+				} else if (recrawl) {
 					// Recrawl chain runs a clone of the selector that ALWAYS dispatches
 					// generate-summary regardless of canonical change. Emit the recrawl-
 					// specific event so admin recrawls of PDFs preserve that semantics.
