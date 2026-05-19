@@ -33,11 +33,27 @@ const logger = HutchLogger.from(consoleLogger)
 
 const logError = (message: string, error?: Error) => console.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }))
 const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS })
-// E2E exercises HTML pages only — PDFs are not part of the e2e flow today,
-// and OCR (canvas + DeepInfra) is deliberately out of scope for tests. The
-// stub returns failed so crawlArticle reports "unsupported" if a PDF ever
-// reaches this path.
-const extractPdf: ExtractPdf = async () => ({ kind: "failed", reason: "PDF extraction not supported in e2e server" })
+/** Deterministic PDF extractor for the e2e harness: emits the same synthetic
+ * HTML the prod vision pipeline would produce for the bundled /e2e/fixtures/sample.pdf
+ * fixture, so the pdf-save-flow e2e test can pin the extension's Siren contract
+ * for "save a URL that returns application/pdf" without depending on DeepInfra
+ * or the pdftoppm rasterizer. The marker title is what the test polls for to
+ * detect that ComprehensiveCrawl ran the PDF branch and the selector promoted
+ * the article from `unsupported` (SimpleCrawl) to `ready`.
+ *
+ * The body needs to be long enough that Mozilla Readability classifies it as a
+ * real article (the parser falls back to title = "Article from <hostname>" if
+ * Readability returns null, which would leave the marker out of the title and
+ * the e2e poll would never converge). Repeating the body paragraph clears the
+ * character-threshold heuristic without making the synthetic HTML noisy. */
+const E2E_PDF_TITLE = "READPLACE_E2E_PDF_FIXTURE"
+const E2E_PDF_BODY = "Readplace e2e pdf fixture body — this string is asserted on by the pdf-save-flow scenario."
+const E2E_PDF_BODY_PARAGRAPHS = Array.from({ length: 12 }, () => `<p>${E2E_PDF_BODY}</p>`).join("")
+const extractPdf: ExtractPdf = async () => ({
+  kind: "fetched",
+  title: E2E_PDF_TITLE,
+  html: `<!DOCTYPE html><html><head><title>${E2E_PDF_TITLE}</title></head><body><article><h1>${E2E_PDF_TITLE}</h1>${E2E_PDF_BODY_PARAGRAPHS}</article></body></html>`,
+})
 const simpleCrawl = initSimpleCrawl({ crawlFetch, logError })
 const comprehensiveCrawl = initComprehensiveCrawl({ crawlFetch, extractPdf, logError })
 const crawlArticle = initCrawlArticle({ simpleCrawl, comprehensiveCrawl })
@@ -167,6 +183,19 @@ server.get('/e2e/stripe-checkout/:id', (req, res) => {
 // fail regardless of network conditions.
 server.get('/e2e/unfetchable', (_req, res) => {
   res.status(500).type('text/plain').send('e2e: intentional crawl failure')
+})
+
+/** Minimal valid PDF (single empty page, ~300 bytes). The extractor stub above
+ * never parses these bytes — it short-circuits to deterministic HTML. The
+ * fixture's only job is to make the upstream HTTP response Content-Type and
+ * magic bytes match `application/pdf` so SimpleCrawl reports `unsupported` and
+ * ComprehensiveCrawl takes the PDF branch (crawl-article.ts:190). */
+const E2E_SAMPLE_PDF = Buffer.from(
+  '%PDF-1.1\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000052 00000 n \n0000000099 00000 n \ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n149\n%%EOF\n',
+  'utf-8',
+)
+server.get('/e2e/fixtures/sample.pdf', (_req, res) => {
+  res.type('application/pdf').send(E2E_SAMPLE_PDF)
 })
 
 server.use(hutchApp)
