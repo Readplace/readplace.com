@@ -126,12 +126,32 @@ export function createQueueActions(
       return saveForm.isVisible().catch(() => false)
     },
     execute: async (page) => {
-      const input = page.locator('[data-test-form="save-article"] input[name="url"]')
-      await input.fill(testData.paginationUrls[i])
-      await clickAndWaitForPageReload(
-        page,
-        page.locator('[data-test-form="save-article"] button[type="submit"]'),
+      const url = testData.paginationUrls[i]
+      const slug = url.split('/').pop()
+      assert.ok(slug, `pagination URL must have a trailing path segment: ${url}`)
+      const submitAndVerify = retriable(
+        async (p: Page): Promise<boolean> => {
+          const input = p.locator('[data-test-form="save-article"] input[name="url"]')
+          await input.fill(url)
+          await clickAndWaitForPageReload(
+            p,
+            p.locator('[data-test-form="save-article"] button[type="submit"]'),
+          )
+          const latestHref = await p
+            .locator('#latest-saved .queue-article__url')
+            .first()
+            .getAttribute('href')
+            .catch(/* c8 ignore next */ () => null)
+          return latestHref?.includes(slug) === true
+        },
+        {
+          maxAttempts: 3,
+          retryDelayMs: 2000,
+          shouldRetry: (saved: boolean) => !saved,
+        },
       )
+      const saved = await submitAndVerify(page)
+      assert.ok(saved, `pagination save did not land for ${url} after 3 attempts`)
       paginationArticlesAdded = i + 1
       if (paginationArticlesAdded === testData.paginationUrls.length) {
         progress.paginationArticlesAdded = true
