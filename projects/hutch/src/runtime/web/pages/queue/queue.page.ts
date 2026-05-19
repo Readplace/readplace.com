@@ -68,7 +68,7 @@ import {
 	toQueueCardDisplayModel,
 } from "./queue-card/queue-card.component";
 import { computeQueueCardEtag, etagMatches } from "./queue-card/queue-card.etag";
-import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.component";
+import { ReaderPage, formatReaderDocumentTitle, markReadPostUrl } from "../reader/reader.component";
 import { ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import {
 	detectBrowser,
@@ -167,6 +167,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		findArticleByUrl: deps.findArticleByUrl,
 		formatDocumentTitle: formatReaderDocumentTitle,
 		backLink: { href: "/queue", label: "← Back to queue" },
+		markReadAction: (articleId) => ({
+			postUrl: markReadPostUrl(articleId, "top"),
+			label: "Mark as read",
+			fields: [{ name: "status", value: "read" }],
+		}),
 		now: deps.now,
 	});
 	const resolveReaderPermalink = initReaderPermalink({

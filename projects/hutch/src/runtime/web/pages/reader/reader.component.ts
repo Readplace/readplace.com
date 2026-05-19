@@ -29,7 +29,7 @@ export function formatReaderDocumentTitle(articleTitle: string): string {
 	return `${articleTitle} — Readplace Reader`;
 }
 
-function markReadPostUrl(articleId: string, slot: "top" | "bottom"): string {
+export function markReadPostUrl(articleId: string, slot: "top" | "bottom"): string {
 	const params = new URLSearchParams([
 		["utm_source", "reader"],
 		["utm_medium", "internal"],

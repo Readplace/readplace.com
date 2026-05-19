@@ -37,6 +37,16 @@ export interface ArticleReaderDeps {
 	 * time, not per-poll, because it never changes during a reader session.
 	 */
 	backLink?: { href: string; label: string };
+	/**
+	 * Builds the top-slot mark-read action for the OOB header swap. The
+	 * postUrl includes the article ID, so the caller provides a factory
+	 * rather than a static value. Queue passes it; view/admin omit it.
+	 */
+	markReadAction?: (articleId: string) => {
+		postUrl: string;
+		label: string;
+		fields: ReadonlyArray<{ name: string; value: string }>;
+	};
 	now: () => Date;
 }
 

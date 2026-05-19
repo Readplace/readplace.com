@@ -730,6 +730,36 @@ describe("initArticleReader", () => {
 			expect(link.getAttribute("href")).toBe("/queue");
 		});
 
+		it("renders header with the mark-read slot when initArticleReader was given a markReadAction — proving deps.markReadAction is wired into the OOB header", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "pending" },
+				content: undefined,
+			});
+			const reader = initArticleReader({
+				...deps,
+				markReadAction: (articleId) => ({
+					postUrl: `/queue/${articleId}/status?utm_content=mark-read-top`,
+					label: "Mark as read",
+					fields: [{ name: "status", value: "read" }],
+				}),
+			});
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			const doc = parse(toHtml(component));
+			const slot = doc.querySelector("#article-header [data-test-mark-read-slot]");
+			assert(slot, "mark-read slot must be rendered inside the OOB header");
+			expect(slot.classList.contains("article-body__mark-read-slot--visible")).toBe(true);
+			const form = slot.querySelector("[data-test-mark-read-form]");
+			assert(form, "mark-read form must be present");
+			const expectedId = ReaderArticleHashId.from(ARTICLE_URL).value;
+			expect(form.getAttribute("action")).toBe(`/queue/${expectedId}/status?utm_content=mark-read-top`);
+		});
+
 		it("omits the header + <title> OOB fragments when the row has gone missing — falling back to swapping only the slot so the existing header text stays put", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending" },
@@ -753,6 +783,32 @@ describe("initArticleReader", () => {
 	});
 
 	describe("handleSummaryPoll header + title OOB", () => {
+		it("renders the mark-read slot in the OOB header via the summary-poll path when deps.markReadAction is provided", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "pending", stage: "summary-generating" },
+			});
+			const reader = initArticleReader({
+				...deps,
+				markReadAction: (articleId) => ({
+					postUrl: `/queue/${articleId}/status?utm_content=mark-read-top`,
+					label: "Mark as read",
+					fields: [{ name: "status", value: "read" }],
+				}),
+			});
+
+			const component = await reader.handleSummaryPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			const doc = parse(toHtml(component));
+			const slot = doc.querySelector("#article-header [data-test-mark-read-slot]");
+			assert(slot, "mark-read slot must be rendered inside the OOB header");
+			expect(slot.classList.contains("article-body__mark-read-slot--visible")).toBe(true);
+		});
+
 		it("emits the header and <title> OOB fragments alongside the summary-slot so a settled title can land via the summary-poll path too (whichever poll fires first wins)", async () => {
 			const { state, deps } = initFakeDeps({
 				crawl: { status: "ready" },
