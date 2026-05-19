@@ -1,49 +1,57 @@
 import assert from "node:assert";
 import { parseHTML } from "linkedom";
-import type { ExtractPdf, PdfDocument, PdfExtractResult, PdfPage, PdfRasterizer } from "@packages/crawl-article";
+import type { ExtractPdf, ExtractPdfMetadata, PdfExtractResult } from "@packages/crawl-article";
 import { deriveTitleFromUrl, escapeHtmlText } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { CreateVisionMessage } from "./create-deepinfra-vision-message";
+import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 
 /**
- * Pages per OCR request. With Promise.all dispatch, wall-time is the slowest
- * single batch — so 1 page/batch collapses wall-time to the slowest single
- * page rather than the slowest 3-page group. Worst-case dense-math slides
- * run ~22 s/page, well under the 900 s Lambda budget. The per-call fixed
- * overhead (system-prompt re-send, TTFT) multiplies by page count but is
- * absorbed by parallel dispatch; the token cost is negligible (~$0.0003/PDF).
+ * Default bounded concurrency for per-page Lambda fan-out. Caps the
+ * orchestrator's in-flight `lambda:InvokeFunction` calls to protect both
+ * DeepInfra rate limits and the AWS account Lambda concurrency quota. 32
+ * matches today's effective ceiling — Promise.all over `createVisionMessage`
+ * inside the old single-Lambda design tipped over around the same point
+ * because of DeepInfra TTFB stalls.
  */
-const PAGES_PER_BATCH = 1;
+const DEFAULT_CONCURRENCY = 32;
 
 /**
- * Page-image cap. Defends the OCR pipeline against PDFs with 1000+ pages
- * where rasterisation would exhaust Lambda /tmp ephemeral storage long
- * before the model timed out. 200 pages × ~300 KB PNG = ~60 MB during a
- * worst-case run, well within the default 512 MB /tmp allocation.
+ * Page-image render DPI. Matches the resolution baked into the rasterizer's
+ * own default (DPIs higher than 150 blow up token cost without improving
+ * dense-text legibility).
+ */
+const DEFAULT_DPI = 150;
+
+/**
+ * Page cap. Defends the OCR pipeline against PDFs with 1000+ pages where
+ * fan-out would hit either the page Lambda's S3 GET throttling or the OCR
+ * cost ceiling.
  */
 export const MAX_PAGES = 200;
 
 /**
- * Byte-size cap. PDFs larger than this are rejected before any rasterisation
- * to avoid wasting compute on files that are unlikely to process within the
- * Lambda time/memory budget.
+ * Byte-size cap. PDFs larger than this are rejected before the orchestrator
+ * stages them to S3, matching today's behaviour.
  */
 const MAX_PDF_BYTES = 50 * 1024 * 1024;
 
 export function initOcrPdf(deps: {
-	rasterizer: PdfRasterizer;
-	createVisionMessage: CreateVisionMessage;
+	extractPdfMetadata: ExtractPdfMetadata;
+	stagePdf: StagePdfToS3;
+	invokePageOcr: InvokePdfPageOcr;
 	logger: HutchLogger;
-	pagesPerBatch?: number;
+	concurrency?: number;
+	dpi?: number;
 	maxPages?: number;
 	maxPdfBytes?: number;
 }): ExtractPdf {
-	const pagesPerBatch = deps.pagesPerBatch ?? PAGES_PER_BATCH;
+	const concurrency = deps.concurrency ?? DEFAULT_CONCURRENCY;
+	const dpi = deps.dpi ?? DEFAULT_DPI;
 	const maxPages = deps.maxPages ?? MAX_PAGES;
 	const maxPdfBytes = deps.maxPdfBytes ?? MAX_PDF_BYTES;
-	const { logger } = deps;
+	const { logger, extractPdfMetadata, stagePdf, invokePageOcr } = deps;
 
-	return async ({ buffer, url, onProgress }) => {
+	return async ({ buffer, url, onProgress }): Promise<PdfExtractResult> => {
 		const t0 = Date.now();
 		logger.info(`[ocr-pdf] start url=${url} bytes=${buffer.length}`);
 
@@ -52,77 +60,84 @@ export function initOcrPdf(deps: {
 			logger.error(`[ocr-pdf] PDF is ${mb} MB, exceeds ${maxPdfBytes / (1024 * 1024)} MB cap — skipping`);
 			return { kind: "failed", reason: "unsupported-large-file" };
 		}
-		let doc: PdfDocument;
+
+		let metadata: Awaited<ReturnType<ExtractPdfMetadata>>;
 		try {
-			doc = await deps.rasterizer.open(buffer);
-			logger.info(`[ocr-pdf] rasterizer-open done t=${Date.now() - t0}ms pages=${doc.numPages}`);
+			metadata = await extractPdfMetadata(buffer);
+			logger.info(`[ocr-pdf] pdfinfo done t=${Date.now() - t0}ms pages=${metadata.numPages}`);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			logger.error(`[ocr-pdf] rasterizer-open failed t=${Date.now() - t0}ms reason=${message}`);
+			logger.error(`[ocr-pdf] pdfinfo failed t=${Date.now() - t0}ms reason=${message}`);
 			return { kind: "failed", reason: `OCR pipeline failed: ${message}` };
 		}
-		const result = await extractWithDoc({ doc, url, pagesPerBatch, maxPages, createVisionMessage: deps.createVisionMessage, logger, t0, onProgress });
-		await doc.destroy();
-		logger.info(`[ocr-pdf] done t=${Date.now() - t0}ms kind=${result.kind}`);
-		return result;
+
+		if (metadata.numPages > maxPages) {
+			logger.error(`[ocr-pdf] pages=${metadata.numPages} exceeds maxPages=${maxPages} — skipping`);
+			return { kind: "failed", reason: "unsupported-large-file" };
+		}
+
+		try {
+			const staged = await stagePdf(buffer);
+			try {
+				const fragments = await mapWithConcurrency(
+					Array.from({ length: metadata.numPages }, (_v, i) => i),
+					concurrency,
+					async (pageIndex) => {
+						const pageStart = Date.now();
+						const { html } = await invokePageOcr({ pdfS3Key: staged.key, pageIndex, dpi });
+						logger.info(`[ocr-pdf] page ${pageIndex + 1}/${metadata.numPages} done dt=${Date.now() - pageStart}ms chars=${html.length} total=${Date.now() - t0}ms`);
+						onProgress?.({ pageIndex: pageIndex + 1, pageCount: metadata.numPages });
+						return html;
+					},
+				);
+
+				const combined = fragments.map((t) => t.trim()).filter((t) => t.length > 0).join("\n");
+				if (combined.length === 0) {
+					return { kind: "failed", reason: "OCR returned no text across all batches" };
+				}
+
+				const title = metadata.title ?? deriveTitleFromUrl(url);
+				logger.info(`[ocr-pdf] done t=${Date.now() - t0}ms pages=${metadata.numPages} chars=${combined.length}`);
+				return { kind: "fetched", html: buildSyntheticHtml({ title, body: combined }), title };
+			} finally {
+				await staged.cleanup();
+			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			logger.error(`[ocr-pdf] fan-out failed t=${Date.now() - t0}ms reason=${message}`);
+			return { kind: "failed", reason: `OCR pipeline failed: ${message}` };
+		}
 	};
 }
 
-async function extractWithDoc(deps: {
-	doc: PdfDocument;
-	url: string;
-	pagesPerBatch: number;
-	maxPages: number;
-	createVisionMessage: CreateVisionMessage;
-	logger: HutchLogger;
-	t0: number;
-	onProgress?: (params: { pageIndex: number; pageCount: number }) => void;
-}): Promise<PdfExtractResult> {
-	const { doc, url, pagesPerBatch, maxPages, createVisionMessage, logger, t0, onProgress } = deps;
-	try {
-		if (doc.numPages > maxPages) {
-			return {
-				kind: "failed",
-				reason: "unsupported-large-file",
-			};
+/**
+ * Bounded-concurrency map: runs `mapper` over `items` with at most
+ * `concurrency` in-flight at a time and preserves index order in the result.
+ * Stops dispatching new work as soon as any mapper rejects so the orchestrator
+ * does not spend on doomed pages once one has failed.
+ */
+async function mapWithConcurrency<T, R>(
+	items: readonly T[],
+	concurrency: number,
+	mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+	const results: R[] = new Array(items.length);
+	let cursor = 0;
+	let failed = false;
+	const worker = async (): Promise<void> => {
+		while (!failed && cursor < items.length) {
+			const i = cursor++;
+			try {
+				results[i] = await mapper(items[i], i);
+			} catch (error) {
+				failed = true;
+				throw error;
+			}
 		}
-
-		const pageImages: Buffer[] = [];
-		for (let pageNum = 0; pageNum < doc.numPages; pageNum++) {
-			const pageStart = Date.now();
-			const page: PdfPage = doc.loadPage(pageNum);
-			const png = page.renderToPng();
-			page.destroy();
-			pageImages.push(png);
-			logger.info(`[ocr-pdf] rasterised page=${pageNum + 1}/${doc.numPages} bytes=${png.length} dt=${Date.now() - pageStart}ms total=${Date.now() - t0}ms`);
-			onProgress?.({ pageIndex: pageNum + 1, pageCount: doc.numPages });
-		}
-
-		const batches: Buffer[][] = [];
-		for (let i = 0; i < pageImages.length; i += pagesPerBatch) {
-			batches.push(pageImages.slice(i, i + pagesPerBatch));
-		}
-		logger.info(`[ocr-pdf] dispatching ${batches.length} OCR batches (pagesPerBatch=${pagesPerBatch}) total=${Date.now() - t0}ms`);
-		const batchFragments = await Promise.all(
-			batches.map(async (batch, idx) => {
-				const batchStart = Date.now();
-				const fragment = await createVisionMessage({ images: batch.map((pngBuffer) => ({ pngBuffer })) });
-				logger.info(`[ocr-pdf] batch ${idx + 1}/${batches.length} done dt=${Date.now() - batchStart}ms chars=${fragment.length} total=${Date.now() - t0}ms`);
-				return fragment;
-			}),
-		);
-		const combined = batchFragments.map((t) => t.trim()).filter((t) => t.length > 0).join("\n");
-		if (combined.length === 0) {
-			return { kind: "failed", reason: "OCR returned no text across all batches" };
-		}
-
-		const metaTitle = doc.getTitle();
-		const title = metaTitle ?? deriveTitleFromUrl(url);
-		return { kind: "fetched", html: buildSyntheticHtml({ title, body: combined }), title };
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		return { kind: "failed", reason: `OCR pipeline failed: ${message}` };
-	}
+	};
+	const workerCount = Math.min(concurrency, items.length);
+	await Promise.all(Array.from({ length: workerCount }, worker));
+	return results;
 }
 
 function buildSyntheticHtml(params: { title: string; body: string }): string {

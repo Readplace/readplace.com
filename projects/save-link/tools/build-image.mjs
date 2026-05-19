@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 /**
- * Build script for the comprehensive-crawl-command Lambda container image.
- * Runs before `pulumi up` (either in CI or via `pnpm deploy-infra` locally)
- * so Pulumi can read the image URI from `.lib/ocr-image-tags.json`.
+ * Build script for the OCR container Lambdas. Runs before `pulumi up` (either
+ * in CI or via `pnpm deploy-infra` locally) so Pulumi can read the per-handler
+ * image URIs from `.lib/ocr-image-tags.json`.
  *
- *   1. esbuild bundles src/runtime/comprehensive-crawl-command.main.ts
- *      → .lib/comprehensive-crawl-command/index.js
- *   2. copyAssetFiles copies non-TS assets from src/ → .lib/comprehensive-crawl-command/
- *   3. docker buildx build with HANDLER_DIR=.lib/comprehensive-crawl-command
- *      + push to ECR
+ * Each entry produces:
+ *   1. esbuild bundles src/runtime/<entryPoint> → .lib/<name>/index.js
+ *   2. copyAssetFiles copies non-TS assets from src/ → .lib/<name>/
+ *   3. docker buildx build with HANDLER_DIR=.lib/<name> + push to ECR
  *
- * Image tag: <gitSha>-comprehensive-crawl-command. ECR repo URL is resolved
- * from the platform stack via `aws ecr describe-repositories` — the platform
- * stack (PR #336) must already be deployed before this runs.
+ * All handlers share the same base image (poppler-utils for pdftoppm + pdfinfo).
+ * Image tag: <gitSha>-<name>. ECR repo URL is resolved from the platform stack
+ * via `aws ecr describe-repositories` — the platform stack must already be
+ * deployed before this runs.
  */
 import assert from "node:assert";
 import { spawnSync } from "node:child_process";
@@ -28,10 +28,16 @@ const REPO_NAME = "hutch-ocr-lambda";
 const AWS_REGION = process.env.AWS_REGION;
 assert(AWS_REGION, "AWS_REGION environment variable is required");
 
-const HANDLER = {
-	name: "comprehensive-crawl-command",
-	entryPoint: "src/runtime/comprehensive-crawl-command.main.ts",
-};
+const HANDLERS = [
+	{
+		name: "comprehensive-crawl-command",
+		entryPoint: "src/runtime/comprehensive-crawl-command.main.ts",
+	},
+	{
+		name: "pdf-page-ocr",
+		entryPoint: "src/runtime/pdf-page-ocr.main.ts",
+	},
+];
 
 function run(command, args, options = {}) {
 	const merged = { stdio: ["ignore", "pipe", "pipe"], encoding: "utf-8", ...options };
@@ -69,11 +75,11 @@ function loginToEcr(repositoryUrl) {
 	run("docker", ["login", "--username", "AWS", "--password-stdin", registry], { input: password });
 }
 
-async function bundleHandler() {
-	const outputDir = resolve(PROJECT_ROOT, ".lib", HANDLER.name);
+async function bundleHandler(handler) {
+	const outputDir = resolve(PROJECT_ROOT, ".lib", handler.name);
 	mkdirSync(outputDir, { recursive: true });
 	await build({
-		entryPoints: [resolve(PROJECT_ROOT, HANDLER.entryPoint)],
+		entryPoints: [resolve(PROJECT_ROOT, handler.entryPoint)],
 		bundle: true,
 		sourcemap: true,
 		platform: "node",
@@ -87,9 +93,9 @@ async function bundleHandler() {
 	return outputDir;
 }
 
-function buildAndPushImage(repositoryUrl, tag) {
+function buildAndPushImage(handler, repositoryUrl, tag) {
 	const imageUri = `${repositoryUrl}:${tag}`;
-	const handlerDirRelative = `.lib/${HANDLER.name}`;
+	const handlerDirRelative = `.lib/${handler.name}`;
 	console.log(`[build-image] building ${imageUri}`);
 	run("docker", [
 		"buildx", "build",
@@ -113,12 +119,14 @@ async function main() {
 
 	loginToEcr(repositoryUrl);
 
-	console.log(`[build-image] bundling ${HANDLER.name}`);
-	await bundleHandler();
-	const tag = `${gitSha}-${HANDLER.name}`;
-	const imageUri = buildAndPushImage(repositoryUrl, tag);
+	const tags = {};
+	for (const handler of HANDLERS) {
+		console.log(`[build-image] bundling ${handler.name}`);
+		await bundleHandler(handler);
+		const tag = `${gitSha}-${handler.name}`;
+		tags[handler.name] = buildAndPushImage(handler, repositoryUrl, tag);
+	}
 
-	const tags = { [HANDLER.name]: imageUri };
 	const tagsFile = resolve(PROJECT_ROOT, ".lib", "ocr-image-tags.json");
 	mkdirSync(dirname(tagsFile), { recursive: true });
 	writeFileSync(tagsFile, `${JSON.stringify(tags, null, 2)}\n`);

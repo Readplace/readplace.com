@@ -1,14 +1,15 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import OpenAI from "openai";
+import { LambdaClient } from "@aws-sdk/client-lambda";
 import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { initPdftoppmRasterizer } from "@packages/crawl-article";
+import { extractPdfMetadata } from "@packages/crawl-article";
 import { requireEnv } from "../require-env";
 import { initComprehensiveCrawlHandler } from "./domain/comprehensive-crawl/comprehensive-crawl-handler";
 import { initSaveLinkPdfExtract } from "./domain/article-parser/init-save-link-pdf-extract";
-import { MAX_PAGES } from "./domain/article-parser/ocr-pdf";
+import { initStagePdfToS3 } from "./domain/article-parser/init-stage-pdf-to-s3";
+import { initInvokePdfPageOcr } from "./domain/article-parser/init-invoke-pdf-page-ocr";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initComprehensiveParserDepBundle } from "./dep-bundles/parser";
 import { initArticleStoreDepBundle } from "./dep-bundles/article-store";
@@ -22,25 +23,22 @@ const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
-const deepInfraApiKey = requireEnv("DEEPINFRA_API_KEY");
+const pdfPageOcrFunctionName = requireEnv("PDF_PAGE_OCR_FUNCTION_NAME");
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
+const lambdaClient = new LambdaClient({});
 const dynamoClient = createDynamoDocumentClient();
 const eventBridgeClient = new EventBridgeClient({});
 const now = () => new Date();
 
-const deepInfraClient = new OpenAI({
-	apiKey: deepInfraApiKey,
-	baseURL: "https://api.deepinfra.com/v1/openai",
-	// 300s is gemma-4-31B-it's observed per-batch ceiling; the 900s Lambda
-	// timeout covers this with headroom for rendering + transport overhead.
-	timeout: 300_000,
-});
+const { stagePdf } = initStagePdfToS3({ client: s3Client, bucketName: contentBucketName, logger: consoleLogger });
+const { invokePageOcr } = initInvokePdfPageOcr({ client: lambdaClient, functionName: pdfPageOcrFunctionName, logger: consoleLogger });
 
 const extractPdf = initSaveLinkPdfExtract({
-	rasterizer: initPdftoppmRasterizer({ logger: consoleLogger, maxPages: MAX_PAGES }),
-	createChatCompletion: (params) => deepInfraClient.chat.completions.create(params),
+	extractPdfMetadata,
+	stagePdf,
+	invokePageOcr,
 	logger: consoleLogger,
 });
 

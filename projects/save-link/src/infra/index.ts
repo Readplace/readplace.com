@@ -55,19 +55,39 @@ const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
 const contentMediaCdnDomain = config.get("contentMediaCdnDomain");
 
 /**
- * Image URI for the comprehensive-crawl-command container Lambda, written by
- * `tools/build-image.mjs` before `pulumi up` runs. The file is in .gitignore
- * (`.lib/`) and recreated on every deploy. If it's missing, the build step
- * was skipped — re-run `pnpm build-image` (or check CI ordering).
+ * Image URIs for the OCR container Lambdas, written by `tools/build-image.mjs`
+ * before `pulumi up` runs. The file is in .gitignore (`.lib/`) and recreated
+ * on every deploy. If it's missing, the build step was skipped — re-run
+ * `pnpm build-image` (or check CI ordering).
  */
 const ocrImageTags = z
-	.object({ "comprehensive-crawl-command": z.string() })
+	.object({
+		"comprehensive-crawl-command": z.string(),
+		"pdf-page-ocr": z.string(),
+	})
 	.parse(JSON.parse(readFileSync(".lib/ocr-image-tags.json", "utf-8")));
 
 // --- Content S3 Bucket ---
 
 const contentBucket = new HutchS3ReadWrite("content-bucket", {
 	bucketName: contentBucketName,
+});
+
+// Staging prefix the orchestrator writes the source PDF to before fanning out
+// per-page Lambda invocations. Best-effort cleanup runs after fan-out; the
+// 1-day lifecycle expiration is the backstop if cleanup itself fails or the
+// orchestrator crashes mid-job. Scoped to a prefix so it cannot affect other
+// content-bucket keys.
+const PDF_STAGING_PREFIX = "pdf-rasterise-staging/";
+new aws.s3.BucketLifecycleConfigurationV2("content-bucket-pdf-staging-lifecycle", {
+	bucket: contentBucket.bucket,
+	rules: [{
+		id: "expire-pdf-staging",
+		status: "Enabled",
+		filter: { prefix: PDF_STAGING_PREFIX },
+		expiration: { days: 1 },
+		abortIncompleteMultipartUpload: { daysAfterInitiation: 1 },
+	}],
 });
 
 // --- Pending-HTML S3 Bucket ---
@@ -388,14 +408,58 @@ new HutchDLQEventHandler("simple-crawl-unsupported-policy-dlq", {
 	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "simple-crawl-unsupported-policy-dlq"),
 });
 
+// --- PDF page OCR Lambda (sync-invoked) ---
+// Per-page OCR worker fanned out from comprehensive-crawl-command. The
+// orchestrator stages the source PDF to S3, then sync-invokes this Lambda
+// for each page; each invocation downloads the staged PDF, rasterises its
+// assigned page via pdftoppm `-f N -l N`, sends the PNG to DeepInfra vision,
+// and returns the HTML fragment. Wall-time collapses to ~max(per_page) +
+// dispatch overhead instead of summing the sequential rasterisation cost.
+//
+// No HutchSQSBackedLambda wrapper / no DLQ on this Lambda: it is a
+// synchronous request/response Lambda (the documented exception in
+// .claude/skills/infrastructure-design/SKILL.md). The orchestrator is the
+// queue analogue — per-page failures propagate to the orchestrator's catch,
+// which fails the SQS record so comprehensive-crawl-command-dlq captures the
+// whole-job failure with the existing alarm + DLQ row-mutator semantics.
+const pdfPageOcrStagingRead: LambdaPolicy = {
+	name: "pdf-page-ocr-staging-read",
+	policy: contentBucket.arn.apply((arn) => JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [{
+			Effect: "Allow",
+			Action: ["s3:GetObject"],
+			Resource: `${arn}/${PDF_STAGING_PREFIX}*`,
+		}],
+	})),
+};
+
+const pdfPageOcrLambda = new HutchLambda("pdf-page-ocr", {
+	// 1769 MB lands one vCPU per Lambda for CPU-bound pdftoppm (~400 ms/page)
+	// without overpaying on per-invocation memory. 300 s timeout matches
+	// gemma-4-31B-it's observed per-page ceiling and the shared OpenAI
+	// client's `timeout: 300_000`.
+	memorySize: 1769,
+	timeout: 300,
+	containerImage: { imageUri: ocrImageTags["pdf-page-ocr"] },
+	environment: {
+		CONTENT_BUCKET_NAME: contentBucketName,
+		DEEPINFRA_API_KEY: deepInfraApiKey,
+	},
+	// Narrowly-scoped S3 read so the page Lambda can only fetch from the
+	// staging prefix — never tier sources, snapshots, or images.
+	policies: [pdfPageOcrStagingRead],
+});
+
 // --- ComprehensiveCrawlCommand handler ---
 // PDF / heavy crawl path runs in its own Lambda so it cannot starve the
 // HTML-only save-link workers. The `simple-crawl-unsupported-policy` Lambda
 // dispatches `ComprehensiveCrawlCommand` in reaction to
 // `SimpleCrawlUnsupportedEvent`; this Lambda re-fetches the URL, runs the
-// pdftoppm + DeepInfra OCR pipeline, parses the resulting HTML, writes the
-// tier-1 source, and emits the appropriate downstream event itself
-// (TierContentExtractedEvent for normal saves,
+// pdfinfo metadata extraction, stages the PDF to S3, fans out per-page OCR
+// invocations against `pdf-page-ocr`, joins the resulting HTML, parses it,
+// writes the tier-1 source, and emits the appropriate downstream event
+// itself (TierContentExtractedEvent for normal saves,
 // RecrawlContentExtractedEvent when the recrawl flag is set on the command).
 //
 // 1800s visibility = 2× the 900s Lambda timeout per AWS guidance.
@@ -408,13 +472,32 @@ const comprehensiveCrawlCommandDynamodb = new HutchDynamoDBAccess("comprehensive
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
+const comprehensiveCrawlCommandInvokePageOcr: LambdaPolicy = {
+	name: "comprehensive-crawl-command-invoke-page-ocr",
+	policy: pdfPageOcrLambda.arn.apply((arn) => JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [{ Effect: "Allow", Action: ["lambda:InvokeFunction"], Resource: arn }],
+	})),
+};
+
+const comprehensiveCrawlCommandStagingDelete: LambdaPolicy = {
+	name: "comprehensive-crawl-command-staging-delete",
+	policy: contentBucket.arn.apply((arn) => JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [{
+			Effect: "Allow",
+			Action: ["s3:DeleteObject"],
+			Resource: `${arn}/${PDF_STAGING_PREFIX}*`,
+		}],
+	})),
+};
+
 const comprehensiveCrawlCommandLambda = new HutchLambda("comprehensive-crawl-command", {
 	// 3008 MB is the account's Lambda cap (~1.7 vCPU) and 900 s is the Lambda
-	// maximum. Together they cover worst-case 200-page scanned-PDF
-	// rasterisation via pdftoppm at 150 DPI (~1.3–2.7 s/page → 260–540 s)
-	// plus parallel OCR dispatch against gemma-4-31B-it when DeepInfra
-	// queues. PNGs land in /tmp ephemeral storage, so per-page disk size is
-	// not bounded by memorySize.
+	// maximum. With per-page rasterisation moved to pdf-page-ocr Lambdas, the
+	// orchestrator's CPU/memory floor is set by JSON parsing fan-out responses
+	// and joining HTML; today's ceiling is preserved as headroom for the
+	// transitional period while the fan-out path proves out in production.
 	memorySize: 3008,
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["comprehensive-crawl-command"] },
@@ -424,13 +507,15 @@ const comprehensiveCrawlCommandLambda = new HutchLambda("comprehensive-crawl-com
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
-		DEEPINFRA_API_KEY: deepInfraApiKey,
+		PDF_PAGE_OCR_FUNCTION_NAME: pdfPageOcrLambda.functionName,
 	},
 	policies: [
 		...comprehensiveCrawlCommandDynamodb.policies,
 		// readTierSnapshot HEAD-checks tier-0 source when logging the crawl outcome.
 		...contentBucket.readPolicies("comprehensive-crawl-command-content-read"),
 		...contentBucket.writePolicies("comprehensive-crawl-command-s3"),
+		comprehensiveCrawlCommandStagingDelete,
+		comprehensiveCrawlCommandInvokePageOcr,
 		...renamePolicies(generateSummaryQueue.policies, "comprehensive-crawl-command"),
 	],
 });

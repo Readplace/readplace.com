@@ -1,48 +1,30 @@
-import type { PdfDocument, PdfRasterizer } from "@packages/crawl-article";
 import { noopLogger } from "@packages/hutch-logger";
+import type { ExtractPdfMetadata } from "@packages/crawl-article";
+import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 import { initOcrPdf } from "./ocr-pdf";
 
-function stubRasterizer(params: {
-	numPages: number;
-	title?: string;
-}): PdfRasterizer {
-	let invocation = 0;
-	return {
-		async open(): Promise<PdfDocument> {
-			return {
-				numPages: params.numPages,
-				loadPage() {
-					invocation += 1;
-					const pageNumber = invocation;
-					return {
-						// Embed call-order index as the PNG payload's last byte so
-						// downstream batching assertions can recover page ordering.
-						renderToPng: () => Buffer.from([0x89, 0x50, 0x4e, 0x47, pageNumber]),
-						destroy: () => {},
-					};
-				},
-				getTitle: () => params.title,
-				destroy: async () => {},
-			};
-		},
-	};
+function stubMetadata(meta: { numPages: number; title?: string }): ExtractPdfMetadata {
+	return async () => ({ numPages: meta.numPages, title: meta.title });
 }
 
-function rejectingRasterizer(reason: unknown): PdfRasterizer {
-	return {
-		async open(): Promise<PdfDocument> {
-			throw reason;
-		},
-	};
+function stubStagePdf(opts: { key?: string; onCleanup?: () => void } = {}): StagePdfToS3 {
+	return async () => ({
+		key: opts.key ?? "pdf-rasterise-staging/test-uuid/source.pdf",
+		cleanup: async () => { opts.onCleanup?.(); },
+	});
 }
 
-describe("initOcrPdf — parallel batched OCR", () => {
-	it("returns synthetic HTML stitched from vision fragments across all batches", async () => {
+function stubInvokePageOcr(html: (pageIndex: number) => string): InvokePdfPageOcr {
+	return async ({ pageIndex }) => ({ html: html(pageIndex) });
+}
+
+describe("initOcrPdf — fan-out per page Lambda", () => {
+	it("returns synthetic HTML stitched from per-page invocation fragments", async () => {
 		const ocr = initOcrPdf({
 			logger: noopLogger,
-			rasterizer: stubRasterizer({ numPages: 7, title: "Scanned Document" }),
-			createVisionMessage: async ({ images }) => `<p>text-for-${images.length}-pages</p>`,
-			pagesPerBatch: 3,
+			extractPdfMetadata: stubMetadata({ numPages: 3, title: "Scanned Document" }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: stubInvokePageOcr((i) => `<p>page-${i + 1}</p>`),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF-1.4"), url: "https://example.com/scan.pdf" });
@@ -52,15 +34,17 @@ describe("initOcrPdf — parallel batched OCR", () => {
 		expect(result.title).toBe("Scanned Document");
 		expect(result.html).toContain("<title>Scanned Document</title>");
 		expect(result.html).toContain("<h1>Scanned Document</h1>");
-		expect(result.html).toContain("<p>text-for-3-pages</p>");
-		expect(result.html).toContain("<p>text-for-1-pages</p>");
+		expect(result.html).toContain("<p>page-1</p>");
+		expect(result.html).toContain("<p>page-2</p>");
+		expect(result.html).toContain("<p>page-3</p>");
 	});
 
-	it("preserves structured HTML (headings, lists, tables) from the vision model verbatim", async () => {
+	it("preserves structured HTML returned by the page Lambda verbatim", async () => {
 		const ocr = initOcrPdf({
 			logger: noopLogger,
-			rasterizer: stubRasterizer({ numPages: 1, title: "Structured" }),
-			createVisionMessage: async () => "<h2>Section</h2><ul><li>one</li></ul><table><tr><td>cell</td></tr></table>",
+			extractPdfMetadata: stubMetadata({ numPages: 1, title: "Structured" }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: stubInvokePageOcr(() => "<h2>Section</h2><ul><li>one</li></ul><table><tr><td>cell</td></tr></table>"),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
@@ -72,11 +56,12 @@ describe("initOcrPdf — parallel batched OCR", () => {
 		expect(result.html).toContain("<td>cell</td>");
 	});
 
-	it("strips <script> and other dangerous elements from the vision response", async () => {
+	it("strips <script>, <iframe>, and other dangerous elements", async () => {
 		const ocr = initOcrPdf({
 			logger: noopLogger,
-			rasterizer: stubRasterizer({ numPages: 1, title: "Risky" }),
-			createVisionMessage: async () => "<p>safe</p><script>alert(1)</script><iframe src=\"x\"></iframe>",
+			extractPdfMetadata: stubMetadata({ numPages: 1, title: "Risky" }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: stubInvokePageOcr(() => "<p>safe</p><script>alert(1)</script><iframe src=\"x\"></iframe>"),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
@@ -88,14 +73,16 @@ describe("initOcrPdf — parallel batched OCR", () => {
 		expect(result.html).not.toContain("<iframe");
 	});
 
-	it("strips disallowed attributes (style, class, id, on*) while keeping href/src/alt/colspan/rowspan", async () => {
+	it("strips disallowed attributes while keeping href/src/alt/colspan/rowspan", async () => {
 		const ocr = initOcrPdf({
 			logger: noopLogger,
-			rasterizer: stubRasterizer({ numPages: 1, title: "Attrs" }),
-			createVisionMessage: async () =>
+			extractPdfMetadata: stubMetadata({ numPages: 1, title: "Attrs" }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: stubInvokePageOcr(() =>
 				"<a href=\"https://example.com\" class=\"x\" onclick=\"x()\">link</a>" +
 				"<img src=\"https://example.com/a.png\" alt=\"a\" style=\"x\">" +
 				"<table><tr><td colspan=\"2\" id=\"y\">cell</td></tr></table>",
+			),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
@@ -112,12 +99,14 @@ describe("initOcrPdf — parallel batched OCR", () => {
 		expect(result.html).not.toContain('id="y"');
 	});
 
-	it("strips <svg> and <math> elements from the vision response", async () => {
+	it("strips <svg> and <math> from the page response", async () => {
 		const ocr = initOcrPdf({
 			logger: noopLogger,
-			rasterizer: stubRasterizer({ numPages: 1, title: "SVG" }),
-			createVisionMessage: async () =>
+			extractPdfMetadata: stubMetadata({ numPages: 1, title: "SVG" }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: stubInvokePageOcr(() =>
 				"<p>safe</p><svg><foreignObject><div>xss</div></foreignObject></svg><math><mi>x</mi></math>",
+			),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
@@ -132,10 +121,12 @@ describe("initOcrPdf — parallel batched OCR", () => {
 	it("drops href and src values starting with data:", async () => {
 		const ocr = initOcrPdf({
 			logger: noopLogger,
-			rasterizer: stubRasterizer({ numPages: 1, title: "Data" }),
-			createVisionMessage: async () =>
+			extractPdfMetadata: stubMetadata({ numPages: 1, title: "Data" }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: stubInvokePageOcr(() =>
 				'<a href="data:text/html,<script>alert(1)</script>">click</a>' +
 				'<img src="data:image/png;base64,abc" alt="img">',
+			),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
@@ -149,8 +140,9 @@ describe("initOcrPdf — parallel batched OCR", () => {
 	it("drops href values starting with javascript:", async () => {
 		const ocr = initOcrPdf({
 			logger: noopLogger,
-			rasterizer: stubRasterizer({ numPages: 1, title: "JS" }),
-			createVisionMessage: async () => "<a href=\"javascript:alert(1)\">click</a>",
+			extractPdfMetadata: stubMetadata({ numPages: 1, title: "JS" }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: stubInvokePageOcr(() => "<a href=\"javascript:alert(1)\">click</a>"),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
@@ -160,36 +152,100 @@ describe("initOcrPdf — parallel batched OCR", () => {
 		expect(result.html).not.toContain("javascript:");
 	});
 
-	it("splits pages into batches of the configured size and issues parallel vision calls", async () => {
-		const captured: number[][] = [];
+	it("fans out one invocation per page with the staged key, page index, and DPI", async () => {
+		const captured: Array<{ pdfS3Key: string; pageIndex: number; dpi: number }> = [];
 		const ocr = initOcrPdf({
 			logger: noopLogger,
-			rasterizer: stubRasterizer({ numPages: 13 }),
-			createVisionMessage: async ({ images }) => {
-				// Last byte of the PNG buffer carries the page number — see stubRasterizer.
-				const pageNums = images
-					.map((img) => img.pngBuffer[img.pngBuffer.length - 1])
-					.filter((n): n is number => typeof n === "number");
-				captured.push(pageNums);
-				return `batch-${pageNums.join("-")}`;
+			extractPdfMetadata: stubMetadata({ numPages: 5 }),
+			stagePdf: stubStagePdf({ key: "pdf-rasterise-staging/abc/source.pdf" }),
+			invokePageOcr: async (input) => {
+				captured.push({ ...input });
+				return { html: `<p>p${input.pageIndex}</p>` };
 			},
-			pagesPerBatch: 5,
 		});
 
 		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
 		expect(captured).toEqual([
-			[1, 2, 3, 4, 5],
-			[6, 7, 8, 9, 10],
-			[11, 12, 13],
+			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndex: 0, dpi: 150 },
+			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndex: 1, dpi: 150 },
+			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndex: 2, dpi: 150 },
+			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndex: 3, dpi: 150 },
+			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndex: 4, dpi: 150 },
 		]);
+	});
+
+	it("honours an overridden DPI in the invocation payload", async () => {
+		const captured: number[] = [];
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 1 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: async ({ dpi }) => {
+				captured.push(dpi);
+				return { html: "<p>x</p>" };
+			},
+			dpi: 200,
+		});
+
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(captured).toEqual([200]);
+	});
+
+	it("concatenates page fragments in page-index order even when invocations complete out of order", async () => {
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 3 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: async ({ pageIndex }) => {
+				// Earlier pages resolve later — verifies index-ordered result join.
+				await new Promise((resolve) => setTimeout(resolve, (3 - pageIndex) * 5));
+				return { html: `<p>page-${pageIndex}</p>` };
+			},
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		const p0 = result.html.indexOf("page-0");
+		const p1 = result.html.indexOf("page-1");
+		const p2 = result.html.indexOf("page-2");
+		expect(p0).toBeGreaterThan(-1);
+		expect(p1).toBeGreaterThan(p0);
+		expect(p2).toBeGreaterThan(p1);
+	});
+
+	it("caps in-flight invocations to the configured concurrency", async () => {
+		let inFlight = 0;
+		let observedPeak = 0;
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 10 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: async ({ pageIndex }) => {
+				inFlight += 1;
+				observedPeak = Math.max(observedPeak, inFlight);
+				await new Promise((resolve) => setTimeout(resolve, 5));
+				inFlight -= 1;
+				return { html: `<p>${pageIndex}</p>` };
+			},
+			concurrency: 3,
+		});
+
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(observedPeak).toBeLessThanOrEqual(3);
+		expect(observedPeak).toBeGreaterThan(0);
 	});
 
 	it("derives a title from the URL filename when the PDF has no Title metadata", async () => {
 		const ocr = initOcrPdf({
 			logger: noopLogger,
-			rasterizer: stubRasterizer({ numPages: 1 }),
-			createVisionMessage: async () => "body text",
+			extractPdfMetadata: stubMetadata({ numPages: 1 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: stubInvokePageOcr(() => "body text"),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/files/sample_doc.pdf" });
@@ -199,111 +255,12 @@ describe("initOcrPdf — parallel batched OCR", () => {
 		expect(result.title).toBe("sample doc");
 	});
 
-	it("falls back to 'Untitled PDF' when neither metadata nor URL yields a slug", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			rasterizer: stubRasterizer({ numPages: 1 }),
-			createVisionMessage: async () => "body text",
-		});
-
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/" });
-
-		expect(result.kind).toBe("fetched");
-		if (result.kind !== "fetched") return;
-		expect(result.title).toBe("Untitled PDF");
-	});
-
-	it("falls back to 'Untitled PDF' when the URL cannot be parsed", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			rasterizer: stubRasterizer({ numPages: 1 }),
-			createVisionMessage: async () => "body text",
-		});
-
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "::not a url::" });
-
-		expect(result.kind).toBe("fetched");
-		if (result.kind !== "fetched") return;
-		expect(result.title).toBe("Untitled PDF");
-	});
-
-	it("returns kind 'failed' when the PDF exceeds the configured page cap", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			rasterizer: stubRasterizer({ numPages: 11 }),
-			createVisionMessage: async () => "ignored",
-			maxPages: 10,
-		});
-
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/huge.pdf" });
-
-		expect(result).toEqual({
-			kind: "failed",
-			reason: "unsupported-large-file",
-		});
-	});
-
-	it("returns kind 'failed' when the PDF buffer exceeds the configured byte cap", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			rasterizer: stubRasterizer({ numPages: 1 }),
-			createVisionMessage: async () => "ignored",
-			maxPdfBytes: 10,
-		});
-
-		const result = await ocr({ buffer: Buffer.alloc(11), url: "https://example.com/huge.pdf" });
-
-		expect(result).toEqual({
-			kind: "failed",
-			reason: "unsupported-large-file",
-		});
-	});
-
-	it("returns kind 'failed' when every batch returns empty text", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			rasterizer: stubRasterizer({ numPages: 5 }),
-			createVisionMessage: async () => "   \n  ",
-			pagesPerBatch: 5,
-		});
-
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/blank.pdf" });
-
-		expect(result).toEqual({
-			kind: "failed",
-			reason: "OCR returned no text across all batches",
-		});
-	});
-
-	it("returns kind 'failed' wrapping the underlying error when the rasterizer throws", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			rasterizer: rejectingRasterizer(new Error("invalid pdf")),
-			createVisionMessage: async () => "ignored",
-		});
-
-		const result = await ocr({ buffer: Buffer.from("not a pdf"), url: "https://example.com/x.pdf" });
-
-		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: invalid pdf" });
-	});
-
-	it("returns kind 'failed' wrapping the stringified value when the rasterizer throws a non-Error", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			rasterizer: rejectingRasterizer("opaque thrown"),
-			createVisionMessage: async () => "ignored",
-		});
-
-		const result = await ocr({ buffer: Buffer.from("nope"), url: "https://example.com/x.pdf" });
-
-		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: opaque thrown" });
-	});
-
 	it("escapes HTML-significant characters in the title", async () => {
 		const ocr = initOcrPdf({
 			logger: noopLogger,
-			rasterizer: stubRasterizer({ numPages: 1, title: '"Risky" & <Funky>' }),
-			createVisionMessage: async () => "<p>safe body</p>",
+			extractPdfMetadata: stubMetadata({ numPages: 1, title: '"Risky" & <Funky>' }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: stubInvokePageOcr(() => "<p>safe body</p>"),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
@@ -313,34 +270,171 @@ describe("initOcrPdf — parallel batched OCR", () => {
 		expect(result.html).toContain("&quot;Risky&quot; &amp; &lt;Funky&gt;");
 	});
 
-	it("concatenates batch fragments in order (page-1 batch precedes page-2 batch in the output)", async () => {
-		let invocation = 0;
+	it("returns 'unsupported-large-file' when the PDF exceeds maxPages", async () => {
 		const ocr = initOcrPdf({
 			logger: noopLogger,
-			rasterizer: stubRasterizer({ numPages: 6 }),
-			createVisionMessage: async () => {
-				invocation += 1;
-				return `<p>batch-${invocation}</p>`;
-			},
-			pagesPerBatch: 3,
+			extractPdfMetadata: stubMetadata({ numPages: 11 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: stubInvokePageOcr(() => "ignored"),
+			maxPages: 10,
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/huge.pdf" });
+
+		expect(result).toEqual({ kind: "failed", reason: "unsupported-large-file" });
+	});
+
+	it("returns 'unsupported-large-file' when the PDF buffer exceeds maxPdfBytes", async () => {
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 1 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: stubInvokePageOcr(() => "ignored"),
+			maxPdfBytes: 10,
+		});
+
+		const result = await ocr({ buffer: Buffer.alloc(11), url: "https://example.com/huge.pdf" });
+
+		expect(result).toEqual({ kind: "failed", reason: "unsupported-large-file" });
+	});
+
+	it("returns kind 'failed' when every page returns empty text", async () => {
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 3 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: stubInvokePageOcr(() => "   \n  "),
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/blank.pdf" });
+
+		expect(result).toEqual({ kind: "failed", reason: "OCR returned no text across all batches" });
+	});
+
+	it("returns kind 'failed' wrapping the underlying error when pdfinfo throws", async () => {
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: async () => { throw new Error("invalid pdf"); },
+			stagePdf: stubStagePdf(),
+			invokePageOcr: stubInvokePageOcr(() => "ignored"),
+		});
+
+		const result = await ocr({ buffer: Buffer.from("not a pdf"), url: "https://example.com/x.pdf" });
+
+		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: invalid pdf" });
+	});
+
+	it("returns kind 'failed' stringifying a non-Error throw from pdfinfo", async () => {
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: async () => { throw "opaque thrown"; },
+			stagePdf: stubStagePdf(),
+			invokePageOcr: stubInvokePageOcr(() => "ignored"),
+		});
+
+		const result = await ocr({ buffer: Buffer.from("nope"), url: "https://example.com/x.pdf" });
+
+		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: opaque thrown" });
+	});
+
+	it("returns kind 'failed' wrapping the underlying error when stagePdf throws", async () => {
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 1 }),
+			stagePdf: async () => { throw new Error("S3 PutObject denied"); },
+			invokePageOcr: stubInvokePageOcr(() => "ignored"),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
-		expect(result.kind).toBe("fetched");
-		if (result.kind !== "fetched") return;
-		const firstIdx = result.html.indexOf("batch-1");
-		const secondIdx = result.html.indexOf("batch-2");
-		expect(firstIdx).toBeGreaterThan(-1);
-		expect(secondIdx).toBeGreaterThan(firstIdx);
+		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: S3 PutObject denied" });
+	});
+
+	it("returns kind 'failed' stringifying a non-Error throw from the fan-out", async () => {
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 1 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: async () => { throw "opaque invoke failure"; },
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: opaque invoke failure" });
+	});
+
+	it("returns kind 'failed' when any page Lambda invocation throws", async () => {
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 3 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: async ({ pageIndex }) => {
+				if (pageIndex === 1) throw new Error("Lambda timed out");
+				return { html: `<p>${pageIndex}</p>` };
+			},
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: Lambda timed out" });
+	});
+
+	it("stops dispatching new work once a sibling invocation has failed", async () => {
+		const seen: number[] = [];
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 5 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: async ({ pageIndex }) => {
+				seen.push(pageIndex);
+				if (pageIndex === 1) throw new Error("page 2 failed");
+				return { html: `<p>${pageIndex}</p>` };
+			},
+			concurrency: 1,
+		});
+
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		// With concurrency=1 the worker processes pages serially. After page 1
+		// throws, the failed flag halts the loop, so pages 2/3/4 are not invoked.
+		expect(seen).toEqual([0, 1]);
+	});
+
+	it("calls staged.cleanup() after a successful fan-out", async () => {
+		let cleanupCalls = 0;
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 1 }),
+			stagePdf: stubStagePdf({ onCleanup: () => { cleanupCalls += 1; } }),
+			invokePageOcr: stubInvokePageOcr(() => "<p>x</p>"),
+		});
+
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(cleanupCalls).toBe(1);
+	});
+
+	it("calls staged.cleanup() even when a page invocation throws", async () => {
+		let cleanupCalls = 0;
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 2 }),
+			stagePdf: stubStagePdf({ onCleanup: () => { cleanupCalls += 1; } }),
+			invokePageOcr: async () => { throw new Error("invoke failure"); },
+		});
+
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(cleanupCalls).toBe(1);
 	});
 
 	it("fires onProgress once per page with 1-based pageIndex and total pageCount", async () => {
 		const progress: { pageIndex: number; pageCount: number }[] = [];
 		const ocr = initOcrPdf({
-			rasterizer: stubRasterizer({ numPages: 3 }),
-			createVisionMessage: async () => "<p>text</p>",
 			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 3 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: stubInvokePageOcr(() => "<p>x</p>"),
 		});
 
 		await ocr({
@@ -356,90 +450,16 @@ describe("initOcrPdf — parallel batched OCR", () => {
 		]);
 	});
 
-	it("destroys each PdfPage handle after rasterising it", async () => {
-		const destroyed: number[] = [];
-		let invocation = 0;
-		const rasterizer: PdfRasterizer = {
-			async open(): Promise<PdfDocument> {
-				return {
-					numPages: 3,
-					loadPage() {
-						invocation += 1;
-						const pageId = invocation;
-						return {
-							renderToPng: () => Buffer.from([0x89, 0x50, 0x4e, 0x47]),
-							destroy: () => { destroyed.push(pageId); },
-						};
-					},
-					getTitle: () => "T",
-					destroy: async () => {},
-				};
-			},
-		};
-
+	it("treats a zero-page PDF as failed (no fragments to join)", async () => {
 		const ocr = initOcrPdf({
 			logger: noopLogger,
-			rasterizer,
-			createVisionMessage: async () => "body",
+			extractPdfMetadata: stubMetadata({ numPages: 0 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: stubInvokePageOcr(() => "ignored"),
 		});
-		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
-		expect(destroyed).toEqual([1, 2, 3]);
-	});
-
-	it("destroys the PdfDocument handle even when the OCR pipeline throws after open", async () => {
-		let docDestroyed = false;
-		const rasterizer: PdfRasterizer = {
-			async open(): Promise<PdfDocument> {
-				return {
-					numPages: 1,
-					loadPage() {
-						return {
-							renderToPng: () => { throw new Error("render failure"); },
-							destroy: () => {},
-						};
-					},
-					getTitle: () => undefined,
-					destroy: async () => { docDestroyed = true; },
-				};
-			},
-		};
-
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			rasterizer,
-			createVisionMessage: async () => "ignored",
-		});
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
-		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: render failure" });
-		expect(docDestroyed).toBe(true);
-	});
-
-	it("stringifies non-Error throws from the OCR pipeline after open", async () => {
-		const rasterizer: PdfRasterizer = {
-			async open(): Promise<PdfDocument> {
-				return {
-					numPages: 1,
-					loadPage() {
-						return {
-							renderToPng: () => { throw "opaque render failure"; },
-							destroy: () => {},
-						};
-					},
-					getTitle: () => undefined,
-					destroy: async () => {},
-				};
-			},
-		};
-
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			rasterizer,
-			createVisionMessage: async () => "ignored",
-		});
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
-
-		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: opaque render failure" });
+		expect(result).toEqual({ kind: "failed", reason: "OCR returned no text across all batches" });
 	});
 });
