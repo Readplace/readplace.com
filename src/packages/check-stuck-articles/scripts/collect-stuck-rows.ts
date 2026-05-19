@@ -15,7 +15,7 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { checkTerminalState } from "./check-terminal-state";
-import { type StuckReason, classifyRow } from "./classify-row";
+import type { StuckReason } from "./classify-row";
 
 /* `dynamoField` normalises DDB's `null` for absent attributes to `undefined`. */
 const StuckArticleRow = z.object({
@@ -28,6 +28,7 @@ const StuckArticleRow = z.object({
 	summaryPendingSince: dynamoField(z.string()),
 	savedAt: z.string(),
 	aggregateTransitionName: dynamoField(z.string()),
+	summarySkippedReason: dynamoField(z.string()),
 });
 
 export interface StuckRow {
@@ -77,6 +78,13 @@ export const SUMMARY_MIN_AGE_MS = 20 * 60_000; /* 1 */
  *   2. Legacy disjunct on contentFetchedAt/savedAt — covers rows saved
  *      before pendingSince existed. Dropped once the canary scan reports
  *      zero rows hitting this branch.
+ *   3. `summaryStatus = "skipped" AND summarySkippedReason = "ai-unavailable"`
+ *      — `summaryPendingSince` is removed when the summary transitions to
+ *      skipped (see `dynamodb-article-store.ts` REMOVE clause), so the
+ *      pending-age gates above can never match this state. Anchor the gate
+ *      to `contentFetchedAt` (set by the freshness writer immediately
+ *      before the summariser ran, so it bounds when the skip happened),
+ *      falling back to `savedAt` for legacy rows missing contentFetchedAt.
  */
 export function buildScanInput(now: Date) {
 	const crawlMinAge = new Date(now.getTime() - CRAWL_MIN_AGE_MS).toISOString();
@@ -90,13 +98,18 @@ export function buildScanInput(now: Date) {
 			`(summaryStatus = :pending AND ` +
 			`(summaryPendingSince < :summaryMinAge OR ${legacyAgeGate(":summaryMinAge")})) ` +
 			`OR (crawlStatus = :pending AND ` +
-			`(crawlPendingSince < :crawlMinAge OR ${legacyAgeGate(":crawlMinAge")}))`,
+			`(crawlPendingSince < :crawlMinAge OR ${legacyAgeGate(":crawlMinAge")})) ` +
+			`OR (summaryStatus = :skipped AND summarySkippedReason = :aiUnavailable AND ` +
+			`(contentFetchedAt < :summaryMinAge OR (attribute_not_exists(contentFetchedAt) AND savedAt < :summaryMinAge)))`,
 		ProjectionExpression:
 			"originalUrl, #u, summaryStatus, crawlStatus, contentFetchedAt, " +
-			"crawlPendingSince, summaryPendingSince, savedAt, aggregateTransitionName",
+			"crawlPendingSince, summaryPendingSince, savedAt, aggregateTransitionName, " +
+			"summarySkippedReason",
 		ExpressionAttributeNames: { "#u": "url" },
 		ExpressionAttributeValues: {
 			":pending": "pending",
+			":skipped": "skipped",
+			":aiUnavailable": "ai-unavailable",
 			":crawlMinAge": crawlMinAge,
 			":summaryMinAge": summaryMinAge,
 		},
@@ -131,11 +144,10 @@ export async function collectStuckRows(deps: {
 		for (const row of page.items) {
 			const verdict = checkTerminalState(row);
 			if (verdict.terminal) continue;
-			const reasons = classifyRow(row);
 			const effectiveUrl = row.originalUrl ?? row.url;
 			stuck.push({
 				originalUrl: effectiveUrl,
-				reasons,
+				reasons: verdict.reasons,
 				contentFetchedAt: row.contentFetchedAt,
 				recrawlUrl: `${deps.origin}/admin/recrawl/${encodeURIComponent(effectiveUrl)}`,
 				terminalCheckMessage: verdict.message,

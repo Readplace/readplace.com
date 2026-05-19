@@ -9,6 +9,7 @@ describe("classifyRow", () => {
 				summaryStatus: "pending",
 				crawlStatus: "ready",
 				aggregateTransitionName: undefined,
+				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, ["summary-pending"]);
 		});
@@ -18,6 +19,7 @@ describe("classifyRow", () => {
 				summaryStatus: "failed",
 				crawlStatus: "ready",
 				aggregateTransitionName: undefined,
+				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
 		});
@@ -27,15 +29,37 @@ describe("classifyRow", () => {
 				summaryStatus: "ready",
 				crawlStatus: "ready",
 				aggregateTransitionName: undefined,
+				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
 		});
 
-		it("returns no reason for skipped", () => {
+		it("returns no reason for skipped with content-too-short (PR #320 tie path is the recovery; pure retry no-ops)", () => {
 			const reasons = classifyRow({
 				summaryStatus: "skipped",
 				crawlStatus: "ready",
 				aggregateTransitionName: undefined,
+				summarySkippedReason: "content-too-short",
+			});
+			assert.deepStrictEqual(reasons, []);
+		});
+
+		it("returns no reason for skipped with crawl-unsupported (URL type unsupported, retry never helps)", () => {
+			const reasons = classifyRow({
+				summaryStatus: "skipped",
+				crawlStatus: "unsupported",
+				aggregateTransitionName: undefined,
+				summarySkippedReason: "crawl-unsupported",
+			});
+			assert.deepStrictEqual(reasons, []);
+		});
+
+		it("returns no reason for skipped with no recorded reason (legacy row, defaults to no retry-owed signal)", () => {
+			const reasons = classifyRow({
+				summaryStatus: "skipped",
+				crawlStatus: "ready",
+				aggregateTransitionName: undefined,
+				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
 		});
@@ -47,6 +71,7 @@ describe("classifyRow", () => {
 				summaryStatus: "ready",
 				crawlStatus: "pending",
 				aggregateTransitionName: undefined,
+				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, ["crawl-pending"]);
 		});
@@ -56,6 +81,7 @@ describe("classifyRow", () => {
 				summaryStatus: "ready",
 				crawlStatus: "failed",
 				aggregateTransitionName: undefined,
+				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
 		});
@@ -65,6 +91,7 @@ describe("classifyRow", () => {
 				summaryStatus: "skipped",
 				crawlStatus: "unsupported",
 				aggregateTransitionName: undefined,
+				summarySkippedReason: "crawl-unsupported",
 			});
 			assert.deepStrictEqual(reasons, []);
 		});
@@ -74,6 +101,29 @@ describe("classifyRow", () => {
 				summaryStatus: "ready",
 				crawlStatus: "ready",
 				aggregateTransitionName: undefined,
+				summarySkippedReason: undefined,
+			});
+			assert.deepStrictEqual(reasons, []);
+		});
+	});
+
+	describe("summary skipped ai-unavailable", () => {
+		it("returns summary-skipped-ai-unavailable when the summariser recorded the AI as down (no auto-heal fires for skipped, manual recrawl is the only recovery)", () => {
+			const reasons = classifyRow({
+				summaryStatus: "skipped",
+				crawlStatus: "ready",
+				aggregateTransitionName: undefined,
+				summarySkippedReason: "ai-unavailable",
+			});
+			assert.deepStrictEqual(reasons, ["summary-skipped-ai-unavailable"]);
+		});
+
+		it("does NOT emit ai-unavailable when summaryStatus is ready (defensive — reason attribute should be cleared on transition out of skipped)", () => {
+			const reasons = classifyRow({
+				summaryStatus: "ready",
+				crawlStatus: "ready",
+				aggregateTransitionName: undefined,
+				summarySkippedReason: "ai-unavailable",
 			});
 			assert.deepStrictEqual(reasons, []);
 		});
@@ -85,6 +135,7 @@ describe("classifyRow", () => {
 				summaryStatus: "pending",
 				crawlStatus: "pending",
 				aggregateTransitionName: undefined,
+				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, ["summary-pending", "crawl-pending"]);
 		});
@@ -94,17 +145,32 @@ describe("classifyRow", () => {
 				summaryStatus: "failed",
 				crawlStatus: "failed",
 				aggregateTransitionName: undefined,
+				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
+		});
+
+		it("returns crawl-pending and summary-skipped-ai-unavailable when crawl is in flight while a prior summary attempt was skipped on AI down", () => {
+			const reasons = classifyRow({
+				summaryStatus: "skipped",
+				crawlStatus: "pending",
+				aggregateTransitionName: undefined,
+				summarySkippedReason: "ai-unavailable",
+			});
+			assert.deepStrictEqual(reasons, [
+				"crawl-pending",
+				"summary-skipped-ai-unavailable",
+			]);
 		});
 	});
 
 	describe("undefined statuses", () => {
-		it("returns no reasons when both statuses are undefined (canary only flags pending — terminal absence is not stuck)", () => {
+		it("returns no reasons when both statuses are undefined (canary only flags pending and skipped-ai-unavailable — terminal absence is not stuck)", () => {
 			const reasons = classifyRow({
 				summaryStatus: undefined,
 				crawlStatus: undefined,
 				aggregateTransitionName: undefined,
+				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
 		});
@@ -116,6 +182,7 @@ describe("classifyRow", () => {
 				summaryStatus: "pending",
 				crawlStatus: "ready",
 				aggregateTransitionName: "markCrawlExhausted",
+				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, [
 				"summary-pending-after-aggregate-migration",
@@ -127,6 +194,7 @@ describe("classifyRow", () => {
 				summaryStatus: "ready",
 				crawlStatus: "pending",
 				aggregateTransitionName: "recrawlTieKeptCanonical",
+				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, [
 				"crawl-pending-after-aggregate-migration",
@@ -138,6 +206,7 @@ describe("classifyRow", () => {
 				summaryStatus: "ready",
 				crawlStatus: "pending",
 				aggregateTransitionName: "recrawlPromoteTier",
+				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, [
 				"crawl-pending-after-aggregate-migration",
@@ -149,6 +218,7 @@ describe("classifyRow", () => {
 				summaryStatus: "pending",
 				crawlStatus: "ready",
 				aggregateTransitionName: "refreshContent",
+				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, ["summary-pending"]);
 		});
@@ -158,6 +228,7 @@ describe("classifyRow", () => {
 				summaryStatus: "failed",
 				crawlStatus: "failed",
 				aggregateTransitionName: "markCrawlExhausted",
+				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, []);
 		});
@@ -167,6 +238,7 @@ describe("classifyRow", () => {
 				summaryStatus: "pending",
 				crawlStatus: "pending",
 				aggregateTransitionName: "markCrawlExhausted",
+				summarySkippedReason: undefined,
 			});
 			assert.deepStrictEqual(reasons, [
 				"summary-pending-after-aggregate-migration",

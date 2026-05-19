@@ -76,7 +76,17 @@ describe("buildScanInput", () => {
 		);
 	});
 
-	it("only emits the two pending disjuncts — no legacy-stub or writer-contract clauses", () => {
+	it("emits a skipped-ai-unavailable disjunct gated on contentFetchedAt (summary axis has no pendingSince once skipped)", () => {
+		const input = buildScanInput(NOW);
+		assert.match(
+			input.FilterExpression,
+			/summaryStatus = :skipped AND summarySkippedReason = :aiUnavailable AND \(contentFetchedAt < :summaryMinAge OR \(attribute_not_exists\(contentFetchedAt\) AND savedAt < :summaryMinAge\)\)/,
+		);
+		assert.equal(input.ExpressionAttributeValues[":skipped"], "skipped");
+		assert.equal(input.ExpressionAttributeValues[":aiUnavailable"], "ai-unavailable");
+	});
+
+	it("only emits the pending and ai-unavailable disjuncts — no legacy-stub or writer-contract clauses", () => {
 		const input = buildScanInput(NOW);
 		assert.ok(
 			!input.FilterExpression.includes("attribute_not_exists(summaryStatus)"),
@@ -101,6 +111,10 @@ describe("buildScanInput", () => {
 		assert.ok(
 			input.ProjectionExpression.includes("savedAt"),
 			"savedAt remains projected for the legacy fallback diagnostics",
+		);
+		assert.ok(
+			input.ProjectionExpression.includes("summarySkippedReason"),
+			"summarySkippedReason must be projected so the classifier can distinguish ai-unavailable from other skip reasons",
 		);
 	});
 
@@ -149,6 +163,7 @@ describe("collectStuckRows", () => {
 			"summaryPendingSince",
 			"savedAt",
 			"aggregateTransitionName",
+			"summarySkippedReason",
 		]) {
 			assert.ok(projection.includes(attr), `ProjectionExpression must include ${attr}`);
 		}
@@ -311,5 +326,55 @@ describe("collectStuckRows", () => {
 		assert.deepEqual(stuck[0]?.reasons, [
 			"crawl-pending-after-aggregate-migration",
 		]);
+	});
+
+	it("surfaces a summary.skipped('ai-unavailable') row as summary-skipped-ai-unavailable (the AI was down, manual recrawl needed)", async () => {
+		const { client } = createFakeClient(() => ({
+			Items: [
+				{
+					url: "example.test/ai-was-down",
+					originalUrl: "https://example.test/ai-was-down",
+					summaryStatus: "skipped",
+					summarySkippedReason: "ai-unavailable",
+					crawlStatus: "ready",
+					contentFetchedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
+					savedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
+				},
+			],
+			Count: 1,
+		}));
+		const stuck = await collectStuckRows({
+			client,
+			tableName: TABLE,
+			origin: ORIGIN,
+			now: () => NOW,
+		});
+		assert.equal(stuck.length, 1);
+		assert.deepEqual(stuck[0]?.reasons, ["summary-skipped-ai-unavailable"]);
+		assert.match(stuck[0]?.terminalCheckMessage ?? "", /ai-unavailable/);
+	});
+
+	it("does NOT surface a summary.skipped('content-too-short') row (PR #320 tie path is the recovery; pure retry no-ops)", async () => {
+		const { client } = createFakeClient(() => ({
+			Items: [
+				{
+					url: "example.test/stub-content",
+					originalUrl: "https://example.test/stub-content",
+					summaryStatus: "skipped",
+					summarySkippedReason: "content-too-short",
+					crawlStatus: "ready",
+					contentFetchedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
+					savedAt: new Date(NOW.getTime() - 30 * 60_000).toISOString(),
+				},
+			],
+			Count: 1,
+		}));
+		const stuck = await collectStuckRows({
+			client,
+			tableName: TABLE,
+			origin: ORIGIN,
+			now: () => NOW,
+		});
+		assert.deepEqual(stuck, []);
 	});
 });
