@@ -748,6 +748,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -801,6 +802,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
