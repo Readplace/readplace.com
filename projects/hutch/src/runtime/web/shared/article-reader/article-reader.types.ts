@@ -72,9 +72,19 @@ export interface ResolveReaderStateParams {
 	pollUrlBuilder: PollUrlBuilder;
 }
 
+/**
+ * Common poll handler input shared by `handleReaderPoll` and
+ * `handleSummaryPoll`. Every field is required — including
+ * `extensionInstallUrl` as `string | undefined` (not optional). The intent
+ * is to force each reader page (admin recrawl, public /view, private
+ * /queue/:id/read) to make an explicit decision about whether the OOB
+ * sibling slot — which may render the reader-failed install CTA — should
+ * include an install URL on this particular poll path. Defaulting silently
+ * here is what got us the stuck-progress-bar bug in the first place.
+ */
 export interface HandlePollParams {
 	articleUrl: string;
 	pollCount: number;
 	pollUrlBuilder: PollUrlBuilder;
-	extensionInstallUrl?: string;
+	extensionInstallUrl: string | undefined;
 }

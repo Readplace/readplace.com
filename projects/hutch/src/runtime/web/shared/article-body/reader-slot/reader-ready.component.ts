@@ -9,8 +9,9 @@ const TEMPLATE = readFileSync(
 
 export interface ReaderReadyInput {
 	content: string;
+	oob?: boolean;
 }
 
 export function renderReaderReady(input: ReaderReadyInput): string {
-	return render(TEMPLATE, { content: input.content });
+	return render(TEMPLATE, { content: input.content, oob: input.oob === true });
 }

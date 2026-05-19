@@ -158,6 +158,7 @@ function handleSummaryPoll(reader: ReturnType<typeof initArticleReader>) {
 			articleUrl,
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
+			extensionInstallUrl: extensionInstallUrlIfMissing(req),
 		});
 		const html = component.to("text/html");
 		res.status(html.statusCode).type("html").send(html.body);

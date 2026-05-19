@@ -9,11 +9,12 @@ const TEMPLATE = readFileSync(
 
 export interface SummaryPendingInput {
 	pollUrl?: string;
+	oob?: boolean;
 }
 
 export function renderSummaryPending(input: SummaryPendingInput): string {
 	const message = input.pollUrl
 		? "Generating summary"
 		: "Still generating — refresh to check again.";
-	return render(TEMPLATE, { pollUrl: input.pollUrl, message });
+	return render(TEMPLATE, { pollUrl: input.pollUrl, message, oob: input.oob === true });
 }

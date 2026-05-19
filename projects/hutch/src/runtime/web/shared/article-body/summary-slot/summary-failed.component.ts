@@ -9,8 +9,9 @@ const TEMPLATE = readFileSync(
 
 export interface SummaryFailedInput {
 	reason: string;
+	oob?: boolean;
 }
 
 export function renderSummaryFailed(input: SummaryFailedInput): string {
-	return render(TEMPLATE, { reason: input.reason });
+	return render(TEMPLATE, { reason: input.reason, oob: input.oob === true });
 }

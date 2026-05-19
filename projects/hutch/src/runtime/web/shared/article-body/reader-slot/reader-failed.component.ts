@@ -17,6 +17,7 @@ export interface ReaderFailedInput {
 	variant: "failed" | "unsupported";
 	/** Install URL for the browser extension; omit when the user already has it installed. */
 	extensionInstallUrl?: string;
+	oob?: boolean;
 }
 
 export function renderReaderFailed(input: ReaderFailedInput): string {
@@ -25,5 +26,6 @@ export function renderReaderFailed(input: ReaderFailedInput): string {
 		variant: input.variant,
 		isUnsupported: input.variant === "unsupported",
 		extensionInstallUrl: input.extensionInstallUrl,
+		oob: input.oob === true,
 	});
 }

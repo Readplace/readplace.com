@@ -404,6 +404,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 3,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -423,6 +424,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 40,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -442,6 +444,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -463,6 +466,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -485,6 +489,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-summary]");
@@ -506,6 +511,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 2,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -524,6 +530,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 40,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -543,6 +550,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -564,6 +572,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -583,6 +592,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 5,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -602,6 +612,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 5,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -621,6 +632,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 40,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -638,6 +650,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
@@ -665,6 +678,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -696,6 +710,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -719,6 +734,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -742,6 +758,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -773,6 +790,7 @@ describe("initArticleReader", () => {
 				articleUrl: ARTICLE_URL,
 				pollCount: 1,
 				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
 			});
 
 			const doc = parse(toHtml(component));
@@ -785,6 +803,140 @@ describe("initArticleReader", () => {
 			const titleEl = doc.querySelector("title#document-title");
 			assert(titleEl, "<title> OOB fragment must accompany the summary-slot");
 			expect(titleEl.textContent).toBe("Why Rust beats Go — TestReader");
+		});
+	});
+
+	/* The progress bar tracks BOTH crawl and summary, but each slot has its
+	 * own self-driven poll. If the page loads while one axis is terminal and
+	 * later the recrawl pipeline flips that axis back to pending (e.g. admin
+	 * recrawl reseeds summary when canonicalContentHash differs), the original
+	 * page never armed a poll on that axis. The sibling poll has to hand the
+	 * chain off, otherwise the bar stays visible forever with no live poll. */
+	describe("cross-axis poll handoff", () => {
+		it("handleReaderPoll emits an OOB summary slot with hx-get when summary has gone pending while reader is settling", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "pending", stage: "summary-started" },
+				content: "<p>body</p>",
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 0,
+				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
+			});
+
+			const doc = parse(toHtml(component));
+			const summarySlot = doc.querySelector("[data-test-reader-summary]");
+			assert(summarySlot, "OOB summary slot must accompany the reader-poll response");
+			expect(summarySlot.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			expect(summarySlot.getAttribute("data-summary-status")).toBe("pending");
+			expect(summarySlot.getAttribute("hx-get")).toBe("/test/summary?poll=1");
+		});
+
+		it("handleSummaryPoll emits an OOB reader slot with hx-get when crawl has gone pending while summary is settling", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "pending", stage: "crawl-fetching" },
+				summary: { status: "ready", summary: "TL;DR" },
+				content: undefined,
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleSummaryPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 0,
+				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
+			});
+
+			const doc = parse(toHtml(component));
+			const readerSlot = doc.querySelector("[data-test-reader-slot]");
+			assert(readerSlot, "OOB reader slot must accompany the summary-poll response");
+			expect(readerSlot.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			expect(readerSlot.getAttribute("data-reader-status")).toBe("pending");
+			expect(readerSlot.getAttribute("hx-get")).toBe("/test/reader?poll=1");
+		});
+
+		it("handleReaderPoll emits a terminal OOB summary slot (no hx-get) when summary is already ready — keeps the chain idempotent", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "ready", summary: "TL;DR" },
+				content: "<p>body</p>",
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
+			});
+
+			const doc = parse(toHtml(component));
+			const summarySlot = doc.querySelector("[data-test-reader-summary]");
+			assert(summarySlot, "OOB summary slot must accompany the reader-poll response");
+			expect(summarySlot.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			expect(summarySlot.getAttribute("data-summary-status")).toBe("ready");
+			expect(summarySlot.hasAttribute("hx-get")).toBe(false);
+		});
+
+		it("handleSummaryPoll emits a terminal OOB reader slot (no hx-get) when crawl is ready and content is present", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "ready", summary: "TL;DR" },
+				content: "<p>body</p>",
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleSummaryPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 1,
+				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
+			});
+
+			const doc = parse(toHtml(component));
+			const readerSlot = doc.querySelector("[data-test-reader-slot]");
+			assert(readerSlot, "OOB reader slot must accompany the summary-poll response");
+			expect(readerSlot.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			expect(readerSlot.getAttribute("data-reader-status")).toBe("ready");
+			expect(readerSlot.hasAttribute("hx-get")).toBe(false);
+		});
+
+		/* Original stuck-progress-bar reproduction. The /admin/recrawl page
+		 * force-marks crawl pending while summary is still ready, then the
+		 * recrawl pipeline asynchronously resets summary to pending once the
+		 * new canonical hash differs. The reader poll observes crawl=ready +
+		 * summary=pending and is about to stop polling itself — it MUST hand
+		 * the chain to summary polling or the bar is stranded visible. */
+		it("admin-recrawl scenario: reader poll about to settle while summary just flipped to pending hands off polling so the bar can eventually hide", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "ready" },
+				summary: { status: "pending" },
+				content: "<p>body</p>",
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 0,
+				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
+			});
+
+			const doc = parse(toHtml(component));
+			const readerSlot = doc.querySelector("[data-test-reader-slot]");
+			assert(readerSlot, "reader slot present");
+			expect(readerSlot.hasAttribute("hx-get")).toBe(false);
+			const summarySlot = doc.querySelector("[data-test-reader-summary]");
+			assert(summarySlot, "summary slot must be present as an OOB swap to keep the chain alive");
+			expect(summarySlot.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			expect(summarySlot.getAttribute("hx-get")).toBe("/test/summary?poll=1");
+			const bar = doc.querySelector("#article-body-progress");
+			assert(bar, "progress bar still present");
+			expect(bar.getAttribute("hx-swap-oob")).toBe("outerHTML");
 		});
 	});
 });
