@@ -138,6 +138,104 @@ describe("recrawlPromoteTier", () => {
 		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
 	});
 
+	it("resets summary to pending when the canonical hash is unchanged but summary is failed(crawl-failed) — the cross-axis pairing from markCrawlExhausted is stale", () => {
+		const before = buildArticle({
+			freshness: {
+				etag: '"old-etag"',
+				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				canonicalContentHash: HASH_A,
+			},
+			summary: {
+				kind: "failed",
+				reason: { kind: "crawl-failed" },
+			},
+		});
+
+		const { article } = recrawlPromoteTier(
+			before,
+			buildInput({ canonicalContentHash: HASH_A }),
+		);
+
+		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
+	});
+
+	it("emits generate-summary when canonical hash is unchanged but summary is failed(crawl-failed)", () => {
+		const before = buildArticle({
+			url: "https://example.com/post",
+			freshness: {
+				etag: '"old-etag"',
+				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				canonicalContentHash: HASH_A,
+			},
+			summary: {
+				kind: "failed",
+				reason: { kind: "crawl-failed" },
+			},
+		});
+
+		const { effects } = recrawlPromoteTier(
+			before,
+			buildInput({ canonicalContentHash: HASH_A }),
+		);
+
+		assert.deepEqual(effects, [
+			{ kind: "generate-summary", url: "https://example.com/post" },
+			{ kind: "publish-recrawl-completed", url: "https://example.com/post" },
+		]);
+	});
+
+	it("includes summary in writes when canonical hash is unchanged but summary is failed(crawl-failed)", () => {
+		const before = buildArticle({
+			freshness: {
+				etag: '"old-etag"',
+				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				canonicalContentHash: HASH_A,
+			},
+			summary: {
+				kind: "failed",
+				reason: { kind: "crawl-failed" },
+			},
+		});
+
+		const { writes } = recrawlPromoteTier(
+			before,
+			buildInput({ canonicalContentHash: HASH_A }),
+		);
+
+		assert.deepEqual([...writes].sort(), [
+			"crawl",
+			"freshness",
+			"metadata",
+			"summary",
+		]);
+	});
+
+	it("preserves failed(exhausted-retries) summary when canonical hash is unchanged — only crawl-failed is stale", () => {
+		const existingSummary = {
+			kind: "failed" as const,
+			reason: { kind: "exhausted-retries" as const, receiveCount: 4 },
+		};
+		const before = buildArticle({
+			freshness: {
+				etag: '"old-etag"',
+				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				canonicalContentHash: HASH_A,
+			},
+			summary: existingSummary,
+		});
+
+		const { article } = recrawlPromoteTier(
+			before,
+			buildInput({ canonicalContentHash: HASH_A }),
+		);
+
+		assert.deepEqual(article.summary, existingSummary);
+	});
+
 	it("preserves the cached ready summary when the canonical hash is unchanged (cacheability gate)", () => {
 		const existingSummary = {
 			kind: "ready" as const,

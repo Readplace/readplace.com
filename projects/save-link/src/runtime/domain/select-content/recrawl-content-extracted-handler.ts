@@ -161,7 +161,7 @@ export function initRecrawlContentExtractedHandler(deps: {
 				} else {
 					await transitionAndPersist(recrawlTieKeptCanonical, {
 						url: detail.url,
-						input: undefined,
+						input: { now: now().toISOString() },
 					});
 					logger.info("[RecrawlContentExtracted] tie kept canonical unchanged", {
 						url: detail.url,

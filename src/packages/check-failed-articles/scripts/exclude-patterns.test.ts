@@ -178,6 +178,16 @@ describe("EXCLUDE_PATTERNS — operator-curated exact-URL entries", () => {
 			excluded: false,
 			label: "psychologywod blocked-practice article missing trailing slash",
 		},
+		{
+			url: "https://www.rd.usda.gov/sites/default/files/pdf-sample_0.pdf",
+			excluded: true,
+			label: "USDA PDF exact (Akamai BotManager IP block)",
+		},
+		{
+			url: "https://www.rd.usda.gov/sites/default/files/other.pdf",
+			excluded: false,
+			label: "USDA different PDF path — should NOT match",
+		},
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {

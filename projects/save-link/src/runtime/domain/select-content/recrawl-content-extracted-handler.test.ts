@@ -259,7 +259,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 		expect(writeCanonicalContent).not.toHaveBeenCalled();
 		expect(transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, {
 			url: "https://example.com/a",
-			input: undefined,
+			input: { now: FIXED_NOW.toISOString() },
 		});
 	});
 
@@ -327,7 +327,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 		expect(writeCanonicalContent).not.toHaveBeenCalled();
 		expect(transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, {
 			url: "https://example.com/a",
-			input: undefined,
+			input: { now: FIXED_NOW.toISOString() },
 		});
 	});
 

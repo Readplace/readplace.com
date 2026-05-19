@@ -16,8 +16,10 @@ export interface RecrawlPromoteTierInput {
 }
 
 /* Recrawl promotion: writes metadata + freshness + crawl=ready. The summary
- * axis is only regenerated when the canonical content hash actually changed
- * (lazy backfill: a row without a prior hash is treated as changed). */
+ * axis is regenerated when the canonical content hash changed (lazy backfill:
+ * a row without a prior hash is treated as changed), OR when the existing
+ * summary is failed(crawl-failed) — that cross-axis pairing from
+ * markCrawlExhausted is stale now that the crawl succeeded. */
 export function recrawlPromoteTier(
 	article: Article,
 	input: RecrawlPromoteTierInput,
@@ -30,9 +32,16 @@ export function recrawlPromoteTier(
 	const contentChanged =
 		previousHash === undefined || previousHash !== input.canonicalContentHash;
 
+	const staleCrawlFailedSummary =
+		!contentChanged &&
+		article.summary.kind === "failed" &&
+		article.summary.reason.kind === "crawl-failed";
+
+	const needsSummaryReset = contentChanged || staleCrawlFailedSummary;
+
 	const writes: AggregateField[] = ["metadata", "freshness", "crawl"];
 	const effects: Effect[] = [];
-	if (contentChanged) {
+	if (needsSummaryReset) {
 		effects.push({ kind: "generate-summary", url: article.url });
 	}
 	effects.push({ kind: "publish-recrawl-completed", url: article.url });
@@ -44,7 +53,7 @@ export function recrawlPromoteTier(
 	};
 
 	let nextSummary: Article["summary"];
-	if (contentChanged) {
+	if (needsSummaryReset) {
 		nextSummary = { kind: "pending", pendingSince: input.now };
 		writes.push("summary");
 	} else {
