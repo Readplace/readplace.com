@@ -40,6 +40,7 @@ const tokenStorage: TokenStorage = {
 };
 
 let popupWindow: { id: number } | null = null;
+let openingPopup: Promise<void> = Promise.resolve();
 
 const shell: BrowserShell = {
 	onShortcutPressed(handler) {
@@ -53,24 +54,26 @@ const shell: BrowserShell = {
 
 	openPopup({ url, title }) {
 		const params = `?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`;
-		const closeExisting = popupWindow
-			? browser.windows.remove(popupWindow.id).catch(() => {})
-			: Promise.resolve();
-		closeExisting
-			.then(() => browser.windows.create({
-				url: browser.runtime.getURL(
-					`popup/popup.template.html${params}`,
-				),
-				type: "popup",
-				width: 380,
-				height: 520,
-			}))
-			.then((win) => {
-				if (win.id != null) {
-					popupWindow = { id: win.id };
-				}
-			})
-			.catch((err) => logger.error(err));
+		openingPopup = openingPopup.then(() => {
+			const closeExisting = popupWindow
+				? browser.windows.remove(popupWindow.id).catch(() => {})
+				: Promise.resolve();
+			return closeExisting
+				.then(() => browser.windows.create({
+					url: browser.runtime.getURL(
+						`popup/popup.template.html${params}`,
+					),
+					type: "popup",
+					width: 380,
+					height: 520,
+				}))
+				.then((win) => {
+					if (win.id != null) {
+						popupWindow = { id: win.id };
+					}
+				})
+				.catch((err) => logger.error(err));
+		});
 	},
 
 	getActiveTab: async () => {
