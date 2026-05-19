@@ -35,7 +35,7 @@ describe("GET / with exhausted founding allocation", () => {
 		expect(doc.querySelector("[data-test-founding-progress]")).toBeNull();
 	}, 30000);
 
-	it("should hide the founding pricing card and show the fallback CTA when over the limit", async () => {
+	it("should hide the founding pricing card and show the fallback benefits + CTA when over the limit", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth } = harness;
 
@@ -52,9 +52,29 @@ describe("GET / with exhausted founding allocation", () => {
 		assert(grid, "pricing-grid wrapper must be rendered");
 		expect(grid.classList.contains("pricing-grid--hidden")).toBe(true);
 
-		const fallback = doc.querySelector(".home-pricing__fallback-cta");
-		assert(fallback, "fallback CTA wrapper must be rendered");
-		expect(fallback.classList.contains("home-pricing__fallback-cta--visible")).toBe(true);
+		const fallback = doc.querySelector(".home-pricing__fallback");
+		assert(fallback, "fallback wrapper must be rendered");
+		expect(fallback.classList.contains("home-pricing__fallback--visible")).toBe(true);
+
+		const benefits = fallback.querySelector("[data-test-fallback-benefits]");
+		assert(benefits, "fallback benefits list must be rendered");
+		expect(benefits.querySelectorAll(".pricing-card__feature").length).toBe(5);
+		expect(fallback.querySelector('[data-test-cta="become-member"]')).not.toBeNull();
+	}, 30000);
+
+	it("should hide the founding pricing title when over the limit", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth } = harness;
+
+		for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+			await auth.createUser({ email: `title${i}@test.com`, password: "password123" });
+		}
+
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		expect(doc.querySelector("[data-test-pricing-title]")).toBeNull();
+		expect(response.text).not.toContain(`Free for the first ${TEST_FOUNDING_MEMBER_LIMIT} members.`);
 	}, 30000);
 });
 

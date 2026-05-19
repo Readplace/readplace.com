@@ -228,9 +228,11 @@
 
     <section id="pricing" class="home-pricing" data-test-section="pricing" aria-label="Pricing">
       <div class="home-pricing__container">
-        <div class="section-header">
+        {{#if foundingAllocationAvailable}}
+        <div class="section-header" data-test-pricing-title>
           <h2 class="section-header__title">Free for the first {{foundingMemberLimit}} members.</h2>
         </div>
+        {{/if}}
         {{{foundingProgressHtml}}}
         <div class="pricing-grid {{pricingGridStateClass}}">
           <div class="pricing-card pricing-card--featured" data-test-plan="founding">
@@ -248,7 +250,14 @@
             <a href="/signup?utm_source=homepage&utm_medium=internal&utm_content=founding-card" class="btn btn--brand pricing-card__cta" data-test-cta="founding">Signup</a>
           </div>
         </div>
-        <div class="home-pricing__fallback-cta {{fallbackCtaStateClass}}">
+        <div class="home-pricing__fallback {{fallbackStateClass}}">
+          <ul class="pricing-card__features home-pricing__fallback-features" data-test-fallback-benefits>
+            <li class="pricing-card__feature">Save unlimited articles</li>
+            <li class="pricing-card__feature">Firefox and Chrome extensions</li>
+            <li class="pricing-card__feature">TL;DR summaries included</li>
+            <li class="pricing-card__feature">All features as they ship</li>
+            <li class="pricing-card__feature">Direct access to the developer</li>
+          </ul>
           <a href="/signup?utm_source=homepage&utm_medium=internal&utm_content=signup-body" class="btn btn--brand pricing-card__cta" data-test-cta="become-member">Become a Member</a>
         </div>
       </div>

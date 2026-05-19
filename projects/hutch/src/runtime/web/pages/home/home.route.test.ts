@@ -201,7 +201,7 @@ describe("GET /", () => {
 		expect(backstory).not.toBeNull();
 	});
 
-	it("should render the founding pricing card and hide the fallback CTA when under the limit", async () => {
+	it("should render the founding pricing card and hide the fallback when under the limit", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
@@ -215,9 +215,18 @@ describe("GET /", () => {
 		assert(grid, "pricing-grid wrapper must be rendered");
 		expect(grid.classList.contains("pricing-grid--visible")).toBe(true);
 
-		const fallback = doc.querySelector(".home-pricing__fallback-cta");
-		assert(fallback, "fallback CTA wrapper must be rendered");
-		expect(fallback.classList.contains("home-pricing__fallback-cta--hidden")).toBe(true);
+		const fallback = doc.querySelector(".home-pricing__fallback");
+		assert(fallback, "fallback wrapper must be rendered");
+		expect(fallback.classList.contains("home-pricing__fallback--hidden")).toBe(true);
+	});
+
+	it("should render the founding pricing title when under the limit", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const title = doc.querySelector('[data-test-pricing-title] .section-header__title');
+		expect(title?.textContent).toBe(`Free for the first ${TEST_FOUNDING_MEMBER_LIMIT} members.`);
 	});
 
 	it("should render the founding members progress bar with zero users", async () => {

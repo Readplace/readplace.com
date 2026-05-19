@@ -696,12 +696,24 @@
   display: none;
 }
 
-.home-pricing__fallback-cta--visible {
+.home-pricing__fallback {
+  max-width: 480px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.home-pricing__fallback--visible {
   display: block;
 }
 
-.home-pricing__fallback-cta--hidden {
+.home-pricing__fallback--hidden {
   display: none;
+}
+
+.home-pricing__fallback-features {
+  text-align: left;
+  display: inline-block;
+  margin-bottom: 32px;
 }
 
 .pricing-card {

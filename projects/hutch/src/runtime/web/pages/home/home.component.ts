@@ -113,9 +113,9 @@ export function HomePage(params: {
 	const pricingGridStateClass = foundingAllocationAvailable
 		? "pricing-grid--visible"
 		: "pricing-grid--hidden";
-	const fallbackCtaStateClass = foundingAllocationAvailable
-		? "home-pricing__fallback-cta--hidden"
-		: "home-pricing__fallback-cta--visible";
+	const fallbackStateClass = foundingAllocationAvailable
+		? "home-pricing__fallback--hidden"
+		: "home-pricing__fallback--visible";
 	return {
 		seo: {
 			title: "Readplace — Read-It-Later App | Save Articles, Read Them Later",
@@ -292,8 +292,9 @@ export function HomePage(params: {
 			founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
 			foundingProgressHtml,
 			foundingMemberLimit,
+			foundingAllocationAvailable,
 			pricingGridStateClass,
-			fallbackCtaStateClass,
+			fallbackStateClass,
 			featuredFeatures: [
 				{
 					name: "Reader View",
