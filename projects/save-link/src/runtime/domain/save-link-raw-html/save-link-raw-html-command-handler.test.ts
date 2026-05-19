@@ -4,7 +4,7 @@ import { noopLogger } from "@packages/hutch-logger";
 import { markCrawlFailed } from "@packages/domain/article-aggregate";
 import { initSaveLinkRawHtmlCommandHandler } from "./save-link-raw-html-command-handler";
 import { initProcessContentWithLocalMedia } from "../save-link/process-content-with-local-media";
-import type { ParseHtml } from "../article-parser/article-parser.types";
+import type { ParseHtml } from "@packages/article-parser";
 import type { DownloadMedia } from "../save-link/download-media";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";

@@ -4,7 +4,7 @@ import request from "supertest";
 import type {
 	ParseArticle,
 	ParseArticleResult,
-} from "@packages/test-fixtures/providers/article-parser";
+} from "@packages/article-parser";
 import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/article-crawl";
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { useTestServer } from "../../../test-app";

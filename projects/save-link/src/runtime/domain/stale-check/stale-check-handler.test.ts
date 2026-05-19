@@ -13,7 +13,7 @@ import type {
 	PublishUpdateFetchTimestamp,
 } from "@packages/test-fixtures/providers/events";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
-import type { ParseHtml } from "../article-parser/article-parser.types";
+import type { ParseHtml } from "@packages/article-parser";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import { initStaleCheckHandler } from "./stale-check-handler";

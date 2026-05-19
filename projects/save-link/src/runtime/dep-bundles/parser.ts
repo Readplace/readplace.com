@@ -11,10 +11,12 @@ import {
 	initSimpleCrawl,
 	CRAWL_PERSONAS,
 } from "@packages/crawl-article";
-import { initReadabilityParser } from "../domain/article-parser/readability-parser";
-import { theInformationPreParser } from "../domain/article-parser/the-information-pre-parser";
-import { mediumPreParser } from "../domain/article-parser/medium-pre-parser";
-import type { ParseHtml } from "../domain/article-parser/article-parser.types";
+import {
+	initReadabilityParser,
+	mediumPreParser,
+	theInformationPreParser,
+} from "@packages/article-parser";
+import type { ParseHtml } from "@packages/article-parser";
 import type { LogError } from "./observability";
 
 export type ParserDepBundle = {

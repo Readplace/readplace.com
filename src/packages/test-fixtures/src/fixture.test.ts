@@ -14,7 +14,7 @@ import {
 } from "./fixture";
 import { initInMemoryArticleStore } from "./providers/article-store/in-memory-article-store";
 import { initInMemoryArticleCrawl } from "./providers/article-crawl/in-memory-article-crawl";
-import type { ParseArticle } from "./providers/article-parser/article-parser.types";
+import type { ParseArticle } from "@packages/article-parser";
 
 describe("createFakeSummaryProvider", () => {
 	it("returns the pending state on every read when readyAfterReads is unset (deterministic for unit tests)", async () => {

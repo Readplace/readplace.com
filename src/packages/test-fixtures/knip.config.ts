@@ -10,6 +10,7 @@ export default {
 		"c8",
 		// knip doesn't resolve workspace subpath for @packages/* imports
 		// (consistent with the workaround in @packages/crawl-article)
+		"@packages/article-parser",
 		"@packages/article-resource-unique-id",
 		"@packages/crawl-article",
 		"@packages/domain",

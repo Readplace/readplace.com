@@ -11,7 +11,7 @@ import {
 } from "@packages/domain/article-aggregate";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import { ArticleResourceUniqueId } from "./article-resource-unique-id";
-import type { ParseHtml } from "../article-parser/article-parser.types";
+import type { ParseHtml } from "@packages/article-parser";
 import type { DownloadMedia, DownloadedMedia } from "./download-media";
 import type { PutImageObject } from "../../providers/article-store/s3-put-image-object";
 import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";

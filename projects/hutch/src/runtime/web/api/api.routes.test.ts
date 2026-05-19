@@ -11,8 +11,8 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
-	initReadabilityParser,
 } from "@packages/test-fixtures";
+import { initReadabilityParser } from "@packages/article-parser";
 
 import type { UserId } from "@packages/domain/user";
 import { SIREN_MEDIA_TYPE } from "./siren";

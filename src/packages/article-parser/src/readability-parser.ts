@@ -70,6 +70,7 @@ export function initReadabilityParser(deps: {
 
 		return {
 			ok: true,
+			/* c8 ignore next -- V8 block coverage phantom on object-literal start when followed by cascading `||` fallbacks (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 			article: {
 				title: parsed.title || `Article from ${hostname}`,
 				siteName: parsed.siteName || hostname,
