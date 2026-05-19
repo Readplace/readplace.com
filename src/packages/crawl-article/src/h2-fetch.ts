@@ -133,7 +133,7 @@ export function withH2Fallback(
 		try {
 			response = await baseFetch(input, init);
 		} catch (error) {
-			if (!shouldFallbackToCurl(error, init?.signal ?? undefined)) throw error;
+			if (!shouldTryFallback(error, init?.signal ?? undefined)) throw error;
 			const url = urlFromInput(input);
 			return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);
 		}
@@ -166,7 +166,7 @@ async function h2ThenCurl(
 		try {
 			return await h2FetchImpl(url, fallbackInit);
 		} catch (error) {
-			if (!shouldFallbackToCurl(error, fallbackInit.signal)) throw error;
+			if (!shouldTryFallback(error, fallbackInit.signal)) throw error;
 		}
 	}
 	if (fallbackInit.signal?.aborted) {
@@ -186,7 +186,7 @@ const NETWORK_ERROR_CODES = new Set([
 	"ENETUNREACH",
 ]);
 
-function shouldFallbackToCurl(error: unknown, signal: AbortSignal | undefined): boolean {
+function shouldTryFallback(error: unknown, signal: AbortSignal | undefined): boolean {
 	if (signal?.aborted && !isTimeoutError(signal.reason)) return false;
 	if (!(error instanceof Error)) return true;
 	if ("code" in error && typeof error.code === "string" && NETWORK_ERROR_CODES.has(error.code)) {
