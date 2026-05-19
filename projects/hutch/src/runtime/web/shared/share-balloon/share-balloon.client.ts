@@ -1,6 +1,5 @@
 interface ShareBalloonWindow {
 	readonly scrollY: number;
-	readonly innerHeight: number;
 	addEventListener(
 		type: "scroll",
 		listener: () => void,
@@ -118,9 +117,7 @@ export function initShareBalloon(
 	}
 
 	function onScroll() {
-		const articleHeight = articleEl.offsetHeight;
-		const viewportHeight = deps.window.innerHeight;
-		const threshold = articleHeight <= viewportHeight ? 0 : articleHeight * 0.5;
+		const threshold = articleEl.offsetHeight * 0.5;
 		if (deps.window.scrollY < threshold) return;
 		if (scrollListener !== null) {
 			deps.window.removeEventListener("scroll", scrollListener);

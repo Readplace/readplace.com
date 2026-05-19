@@ -44,14 +44,6 @@ function setScrollY(win: TestWindow, value: number): void {
 	});
 }
 
-function setViewportHeight(win: TestWindow, value: number): void {
-	Object.defineProperty(win, "innerHeight", {
-		value,
-		writable: true,
-		configurable: true,
-	});
-}
-
 function setArticleHeight(doc: Document, value: number): void {
 	const el = element(doc, "[data-article-body]");
 	Object.defineProperty(el, "offsetHeight", {
@@ -71,12 +63,10 @@ function setup(
 		dismissed?: boolean;
 		navigator?: NavigatorStub;
 		articleHeight?: number;
-		viewportHeight?: number;
 	} = {},
 ) {
 	const { window, document } = createDom();
 	setScrollY(window, options.scrollY ?? 0);
-	setViewportHeight(window, options.viewportHeight ?? 800);
 	setArticleHeight(document, options.articleHeight ?? 4000);
 	if (options.dismissed) {
 		window.localStorage.setItem(STORAGE_KEY, "1");
@@ -166,25 +156,21 @@ describe("initShareBalloon — attach/dismiss flow", () => {
 });
 
 describe("initShareBalloon — scroll-to-open", () => {
-	it("opens immediately when the article fits inside the viewport (no scroll required)", () => {
+	it("does not auto-open at attach time when the user has not scrolled", () => {
 		const { document, ctrl } = setup({
 			articleHeight: 600,
-			viewportHeight: 800,
 			scrollY: 0,
 		});
 		const wrap = element(document, "[data-share-balloon-wrap]");
 
 		ctrl.attach();
-		jest.advanceTimersByTime(1000);
+		jest.advanceTimersByTime(5000);
 
-		expect(wrap.classList.contains(OPEN_CLASS)).toBe(true);
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
 	});
 
-	it("does not open while scrollY is below half the article height on a longer article", () => {
-		const { window, document, ctrl } = setup({
-			articleHeight: 2000,
-			viewportHeight: 800,
-		});
+	it("does not open while scrollY is below half the article height", () => {
+		const { window, document, ctrl } = setup({ articleHeight: 2000 });
 		const wrap = element(document, "[data-share-balloon-wrap]");
 		ctrl.attach();
 
@@ -195,11 +181,8 @@ describe("initShareBalloon — scroll-to-open", () => {
 		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
 	});
 
-	it("opens one OPEN_DELAY_MS after scrollY crosses half the article height on a longer article", () => {
-		const { window, document, ctrl } = setup({
-			articleHeight: 2000,
-			viewportHeight: 800,
-		});
+	it("opens one OPEN_DELAY_MS after scrollY crosses half the article height", () => {
+		const { window, document, ctrl } = setup({ articleHeight: 2000 });
 		const wrap = element(document, "[data-share-balloon-wrap]");
 		ctrl.attach();
 
@@ -213,10 +196,7 @@ describe("initShareBalloon — scroll-to-open", () => {
 	});
 
 	it("does not schedule a second open if another scroll fires after the threshold was crossed", () => {
-		const { window, document, ctrl } = setup({
-			articleHeight: 2000,
-			viewportHeight: 800,
-		});
+		const { window, document, ctrl } = setup({ articleHeight: 2000 });
 		const wrap = element(document, "[data-share-balloon-wrap]");
 		ctrl.attach();
 
@@ -234,7 +214,6 @@ describe("initShareBalloon — scroll-to-open", () => {
 	it("honours an already-scrolled page on attach (synchronous open scheduling)", () => {
 		const { document, ctrl } = setup({
 			articleHeight: 2000,
-			viewportHeight: 800,
 			scrollY: 1500,
 		});
 		const wrap = element(document, "[data-share-balloon-wrap]");
@@ -246,10 +225,7 @@ describe("initShareBalloon — scroll-to-open", () => {
 	});
 
 	it("re-reads the article height on each scroll so dynamic-height content recomputes the threshold", () => {
-		const { window, document, ctrl } = setup({
-			articleHeight: 2000,
-			viewportHeight: 800,
-		});
+		const { window, document, ctrl } = setup({ articleHeight: 2000 });
 		const wrap = element(document, "[data-share-balloon-wrap]");
 		ctrl.attach();
 
@@ -262,20 +238,6 @@ describe("initShareBalloon — scroll-to-open", () => {
 		fireScroll(window);
 		jest.advanceTimersByTime(1000);
 		expect(wrap.classList.contains(OPEN_CLASS)).toBe(true);
-	});
-
-	it("does not open even when the article fits the viewport if the dismiss flag is already set", () => {
-		const { document, ctrl } = setup({
-			articleHeight: 600,
-			viewportHeight: 800,
-			dismissed: true,
-		});
-		const wrap = element(document, "[data-share-balloon-wrap]");
-
-		ctrl.attach();
-		jest.advanceTimersByTime(5000);
-
-		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
 	});
 });
 
