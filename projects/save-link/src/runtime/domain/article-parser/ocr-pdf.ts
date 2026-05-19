@@ -9,7 +9,7 @@ import type { CreateVisionMessage } from "./create-deepinfra-vision-message";
  * Pages per OCR request. With Promise.all dispatch, wall-time is the slowest
  * single batch — so 1 page/batch collapses wall-time to the slowest single
  * page rather than the slowest 3-page group. Worst-case dense-math slides
- * run ~22 s/page, well under the 600 s Lambda budget. The per-call fixed
+ * run ~22 s/page, well under the 900 s Lambda budget. The per-call fixed
  * overhead (system-prompt re-send, TTFT) multiplies by page count but is
  * absorbed by parallel dispatch; the token cost is negligible (~$0.0003/PDF).
  */
