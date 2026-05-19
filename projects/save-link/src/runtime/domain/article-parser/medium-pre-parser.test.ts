@@ -8,9 +8,12 @@ const FILLER_PARAGRAPH =
 function buildHtml(params: {
 	ogSiteName?: string;
 	appName?: string;
+	canonicalUrl?: string;
+	androidUrl?: string;
 	articleInner?: string;
 	titleTag?: string;
 	containerTag?: string;
+	containerAttrs?: string;
 	includeContainer?: boolean;
 	includeFiller?: boolean;
 } = {}) {
@@ -20,12 +23,19 @@ function buildHtml(params: {
 	const appMeta = params.appName
 		? `<meta name="application-name" content="${params.appName}">`
 		: "";
+	const canonicalLink = params.canonicalUrl
+		? `<link rel="canonical" href="${params.canonicalUrl}">`
+		: "";
+	const androidMeta = params.androidUrl
+		? `<meta property="al:android:url" content="${params.androidUrl}">`
+		: "";
 	const titleTag = params.titleTag ?? "<title>Page</title>";
 	const tag = params.containerTag ?? "article";
+	const attrs = params.containerAttrs ? ` ${params.containerAttrs}` : "";
 	const filler = params.includeFiller === false ? "" : FILLER_PARAGRAPH;
 	const inner = (params.articleInner ?? "") + filler;
-	const body = params.includeContainer === false ? inner : `<${tag}>${inner}</${tag}>`;
-	return `<html><head>${titleTag}${ogMeta}${appMeta}</head><body>${body}</body></html>`;
+	const body = params.includeContainer === false ? inner : `<${tag}${attrs}>${inner}</${tag}>`;
+	return `<html><head>${titleTag}${ogMeta}${appMeta}${canonicalLink}${androidMeta}</head><body>${body}</body></html>`;
 }
 
 describe("mediumPreParser.matches", () => {
@@ -88,6 +98,42 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 		expect(result?.bodyHtml).toContain("This is filler body content");
 	});
 
+	it("activates when canonical URL contains medium.com", () => {
+		const html = buildHtml({
+			canonicalUrl: "https://medium.com/@user/article-slug-abc123",
+			articleInner: "<h1>Headline</h1>",
+		});
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).toContain("This is filler body content");
+	});
+
+	it("activates when al:android:url starts with medium://", () => {
+		const html = buildHtml({
+			androidUrl: "medium://p/abc123",
+			articleInner: "<h1>Headline</h1>",
+		});
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).toContain("This is filler body content");
+	});
+
+	it("finds the container via [role='article'] when no article/main tag exists", () => {
+		const html = buildHtml({
+			ogSiteName: "Medium",
+			containerTag: "div",
+			containerAttrs: 'role="article"',
+			articleInner: "<h1>Headline</h1><p>Body.</p>",
+		});
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).toContain("Body.");
+		expect(result?.title).toBe("Headline");
+	});
+
 	it("activates when og:site_name is not 'Medium' but data-testid='storyReadTime' is present", () => {
 		const html = buildHtml({
 			ogSiteName: "Fagner Brack",
@@ -101,14 +147,18 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 		expect(result?.bodyHtml).toContain("This is filler body content");
 	});
 
-	it("returns undefined when fingerprint present but no article container", () => {
+	it("falls back to document body when no semantic container exists and still strips chrome", () => {
 		const html = buildHtml({
 			ogSiteName: "Medium",
-			articleInner: "<p>Loose body</p>",
+			articleInner:
+				'<div><a href="/author"><img data-testid="authorPhoto" alt="Author"></a></div><p>Loose body</p>',
 			includeContainer: false,
 		});
 
-		expect(mediumPreParser.extract({ html })).toBeUndefined();
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).toContain("Loose body");
+		expect(result?.bodyHtml).not.toContain("authorPhoto");
 	});
 
 	it("returns undefined when stripping reduces the body below MIN_BODY_CHARS so default Readability handles it", () => {
@@ -230,6 +280,65 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 
 		expect(result?.bodyHtml).not.toContain("authorPhoto");
 		expect(result?.bodyHtml).not.toContain("avatar.jpg");
+	});
+
+	it("strips author photo when data-testid is a suffixed variation like 'authorPhoto-v2'", () => {
+		const html = buildHtml({
+			ogSiteName: "Medium",
+			articleInner:
+				'<div data-testid="authorPhoto-v2"><a href="/author"><img src="avatar.jpg"></a></div>',
+		});
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).not.toContain("authorPhoto");
+		expect(result?.bodyHtml).not.toContain("avatar.jpg");
+	});
+
+	it("strips author photo when data-testid uses kebab-case 'author-photo'", () => {
+		const html = buildHtml({
+			ogSiteName: "Medium",
+			articleInner: '<img data-testid="author-photo" alt="Author">',
+		});
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).not.toContain("author-photo");
+	});
+
+	it("strips read time by text content when data-testid attribute is absent", () => {
+		const html = buildHtml({
+			ogSiteName: "Medium",
+			articleInner: "<p><span>5 min read</span></p>",
+		});
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).not.toContain("5 min read");
+	});
+
+	it("strips publish date by text content when data-testid attribute is absent", () => {
+		const html = buildHtml({
+			ogSiteName: "Medium",
+			articleInner: "<p><span>Jun 21, 2018</span></p>",
+		});
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).not.toContain("Jun 21, 2018");
+	});
+
+	it("strips all authorPhoto elements when multiple are present", () => {
+		const html = buildHtml({
+			ogSiteName: "Medium",
+			articleInner:
+				'<div><a href="/author"><img data-testid="authorPhoto" alt="A"></a></div><p>Body.</p><div><img data-testid="authorPhoto" alt="B"></div>',
+		});
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).not.toContain("authorPhoto");
+		expect(result?.bodyHtml).toContain("Body.");
 	});
 });
 
