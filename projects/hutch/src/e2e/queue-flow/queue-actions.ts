@@ -381,18 +381,15 @@ export function createQueueActions(
         const onReader = await isOnPage(page, 'page-reader')
         expect(onReader).toBe(true)
 
-        progress.openedFirstArticle = true
-      },
-    },
+        // Click Mark-as-read to explicitly mark the article; the form
+        // POSTs status=read and redirects to /queue.
+        await clickAndWaitForPageReload(
+          page,
+          page.locator('[data-test-mark-read-btn]'),
+        )
 
-    'go-back-to-queue': {
-      isAvailable: async (page) => {
-        if (!progress.openedFirstArticle) return false
-        if (progress.backFromReader) return false
-        return isOnPage(page, 'page-reader')
-      },
-      execute: async (page) => {
         await page.goto('/queue?order=asc', { waitUntil: 'domcontentloaded' })
+        progress.openedFirstArticle = true
         progress.backFromReader = true
       },
     },

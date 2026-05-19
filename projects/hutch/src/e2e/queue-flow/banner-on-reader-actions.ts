@@ -154,16 +154,12 @@ export function createBannerOnReaderActions(
 				}
 			},
 			execute: async (page) => {
-				// Visiting the reader marked the article as read, so the delete
-				// button lives in the read tab. Switch there to delete, then
-				// return to the unread tab so subsequent actions see /queue in
-				// its default state.
-				await clickAndWaitForPageReload(page, page.locator('[data-test-filter="read"]'))
+				// The reader no longer auto-marks articles as read, so the
+				// article is still in the default unread tab — delete directly.
 				await clickAndWaitForPageReload(
 					page,
 					page.locator('[data-test-action="delete"]').first(),
 				)
-				await clickAndWaitForPageReload(page, page.locator('[data-test-filter="unread"]'))
 				progress.bannerTestArticleDeleted = true
 			},
 		},
