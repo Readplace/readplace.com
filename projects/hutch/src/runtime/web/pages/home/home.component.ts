@@ -361,6 +361,11 @@ export function HomePage(params: {
 			],
 			plannedFeatures: [
 				{
+					name: "Save from Mobile",
+					description:
+						"An iPhone app that allows you to save a link on the go.",
+				},
+				{
 					name: "Preference Learning",
 					description:
 						"Resurface previously saved articles that match what's interesting to you. You can change your preferences over time.",
