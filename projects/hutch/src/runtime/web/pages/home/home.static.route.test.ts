@@ -58,7 +58,7 @@ describe("GET / with exhausted founding allocation", () => {
 
 		const benefits = fallback.querySelector("[data-test-fallback-benefits]");
 		assert(benefits, "fallback benefits list must be rendered");
-		expect(benefits.querySelectorAll(".pricing-card__feature").length).toBe(5);
+		expect(benefits.querySelectorAll(".pricing-card__feature").length).toBe(6);
 		expect(fallback.querySelector('[data-test-cta="become-member"]')).not.toBeNull();
 	}, 30000);
 
