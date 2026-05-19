@@ -43,10 +43,11 @@ const TITLE_SUFFIX_REGEX = /\s+[|\-–—]\s+.+$/;
  * (`authorPhoto`, `storyReadTime`, `storyPublishDate`) — the last set
  * covers custom-domain pages served via friends-link redirects where
  * Medium omits the og:site_name meta tag.
- * `extract` returns `undefined` when no fingerprint matches, the
- * article container can't be located, or stripping reduced the body
- * below `MIN_BODY_CHARS` — in any of those cases the default Readability
- * extraction handles the page so we never emit an empty article. */
+ * `extract` returns `undefined` when no fingerprint matches or
+ * stripping reduced the body below `MIN_BODY_CHARS` — in either case
+ * the default Readability extraction handles the page so we never emit
+ * an empty article. When no semantic container is found, `extract`
+ * falls back to `document.body` before stripping. */
 const MIN_BODY_CHARS = 200;
 
 export const mediumPreParser: SitePreParser = {
