@@ -31,6 +31,13 @@ export type BannerOnReaderActionKey =
 	| 'save-and-verify-banner-on-private-reader'
 	| 'cleanup-banner-test-article'
 
+export type ImportActionKey =
+	| 'import-all-three-checked'
+	| 'import-middle-unchecked'
+	| 'import-select-all-deselect-some'
+	| 'import-deselect-all-select-some'
+	| 'import-paginated-select-all-spans-pages'
+
 export const TEST_ARTICLE_COUNT = 4
 export const PAGINATION_ARTICLE_COUNT = 17
 export const SEED_ARTICLE_COUNT = 2
@@ -76,6 +83,7 @@ export type QueueFlowActionKey =
 	| BannerOnReaderActionKey
 	| SeedActionKey
 	| QueueActionKey
+	| ImportActionKey
 
 // Fails to compile if the tuple omits any union member — keeps skipFactory
 // callers in run.e2e-staging.ts from silently dropping a key the local test
@@ -110,3 +118,11 @@ export const SEED_ACTION_KEYS = [
 	'seed-article-1',
 	'seed-article-2',
 ] as const satisfies AssertExhaustive<SeedActionKey, readonly SeedActionKey[]>
+
+export const IMPORT_ACTION_KEYS = [
+	'import-all-three-checked',
+	'import-middle-unchecked',
+	'import-select-all-deselect-some',
+	'import-deselect-all-select-some',
+	'import-paginated-select-all-spans-pages',
+] as const satisfies AssertExhaustive<ImportActionKey, readonly ImportActionKey[]>

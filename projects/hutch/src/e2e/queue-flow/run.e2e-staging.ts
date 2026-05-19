@@ -4,18 +4,20 @@ import { randomUUID } from 'node:crypto'
 import { test } from '@playwright/test'
 import type { PageAction } from '../hateoas/navigation-handler.types'
 import {
+  IMPORT_ACTION_KEYS,
   ONBOARDING_ACTION_KEYS,
   PASSWORD_RESET_ACTION_KEYS,
   SEED_ACTION_KEYS,
 } from './action-catalog'
 import { createBannerOnReaderActions, type BannerOnReaderProgress } from './banner-on-reader-actions'
 import { createCleanupActions, type CleanupProgress } from './cleanup-actions'
+import type { ImportProgress } from './import-actions'
 import { createSavePermalinkActions, type SavePermalinkProgress } from './save-permalink-actions'
 import { createAnonymousViewPageActions, type ViewPageProgress } from './view-page-actions'
 import type { OnboardingProgress } from './onboarding-actions'
 import type { PasswordResetProgress } from './password-reset-actions'
 import type { SeedProgress } from './seed-actions'
-import type { TestArticleData } from './queue-actions'
+import type { QueueProgress, TestArticleData } from './queue-actions'
 import { runQueueFlow } from './queue-flow'
 
 // No-op factory for action groups that staging legitimately cannot exercise
@@ -99,6 +101,36 @@ test.describe('Queue management flow (staging)', () => {
       loggedInWithNewPassword: true,
     }
 
+    const importProgress: ImportProgress = {
+      allThreeImported: true,
+      middleUncheckedImported: true,
+      selectAllDeselectSomeImported: true,
+      deselectAllSelectSomeImported: true,
+      paginatedSelectAllSpansPagesImported: true,
+    }
+
+    const queueProgress: QueueProgress = {
+      allArticlesAdded: false,
+      paginationArticlesAdded: false,
+      verifiedPage1HasNext: false,
+      navigatedToPage2: false,
+      verifiedPage2: false,
+      navigatedBackToPage1: false,
+      verifiedBackOnPage1: false,
+      refreshedExistingArticle: false,
+      paginationArticlesDeleted: false,
+      verifiedNewestFirst: false,
+      sortedOldestFirst: false,
+      verifiedOldestFirst: false,
+      openedFirstArticle: false,
+      backFromReader: false,
+      verifiedReadStatus: false,
+      deletedLastArticle: false,
+      checkedReadTab: false,
+      checkedUnreadTab: false,
+      cleanupDeleted: false,
+    }
+
     const stagingArticles: TestArticleData = {
       urls: [
         fixtureUrl('queue-1'),
@@ -118,6 +150,7 @@ test.describe('Queue management flow (staging)', () => {
         password: 'test-password-123',
       },
       passwordResetProgress,
+      queueProgress,
       preQueueActionFactories: {
         anonymousView: createAnonymousViewPageActions(
           { baseUrl: baseURL, testUrl: fixtureUrl('anon-view') },
@@ -141,6 +174,7 @@ test.describe('Queue management flow (staging)', () => {
           cleanupProgress,
           bannerOnReaderProgress,
         ),
+        importActions: skipFactory(IMPORT_ACTION_KEYS),
       },
       preQueueProgressObjects: [
         viewPageProgress,
@@ -150,6 +184,7 @@ test.describe('Queue management flow (staging)', () => {
         onboardingProgress,
         seedProgress,
         passwordResetProgress,
+        importProgress,
       ],
       maxNavigations: 100,
     })

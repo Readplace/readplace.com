@@ -2,12 +2,13 @@ import assert from 'node:assert'
 import { test } from '@playwright/test'
 import { createBannerOnReaderActions, type BannerOnReaderProgress } from './banner-on-reader-actions'
 import { createCleanupActions, type CleanupProgress } from './cleanup-actions'
+import { createImportActions, type ImportProgress } from './import-actions'
 import { createOnboardingActions, type OnboardingProgress } from './onboarding-actions'
 import { createPasswordResetActions, type PasswordResetProgress } from './password-reset-actions'
 import { createSavePermalinkActions, type SavePermalinkProgress } from './save-permalink-actions'
 import { createSeedActions, type SeedProgress } from './seed-actions'
 import { createAnonymousViewPageActions, type ViewPageProgress } from './view-page-actions'
-import { createLocalTestArticles } from './queue-actions'
+import { createLocalTestArticles, type QueueProgress } from './queue-actions'
 import { runQueueFlow } from './queue-flow'
 
 assert(process.env.E2E_PORT, "E2E_PORT is required")
@@ -58,11 +59,42 @@ test.describe('Queue management flow (local)', () => {
       visitedCrawlFailure: false,
     }
 
+    const queueProgress: QueueProgress = {
+      allArticlesAdded: false,
+      paginationArticlesAdded: false,
+      verifiedPage1HasNext: false,
+      navigatedToPage2: false,
+      verifiedPage2: false,
+      navigatedBackToPage1: false,
+      verifiedBackOnPage1: false,
+      refreshedExistingArticle: false,
+      paginationArticlesDeleted: false,
+      verifiedNewestFirst: false,
+      sortedOldestFirst: false,
+      verifiedOldestFirst: false,
+      openedFirstArticle: false,
+      backFromReader: false,
+      verifiedReadStatus: false,
+      deletedLastArticle: false,
+      checkedReadTab: false,
+      checkedUnreadTab: false,
+      cleanupDeleted: false,
+    }
+
+    const importProgress: ImportProgress = {
+      allThreeImported: false,
+      middleUncheckedImported: false,
+      selectAllDeselectSomeImported: false,
+      deselectAllSelectSomeImported: false,
+      paginatedSelectAllSpansPagesImported: false,
+    }
+
     await runQueueFlow(page, {
       baseURL: BASE_URL,
       testArticles: createLocalTestArticles(BASE_URL),
       authData,
       passwordResetProgress,
+      queueProgress,
       preQueueActionFactories: {
         anonymousView: createAnonymousViewPageActions(
           { baseUrl: BASE_URL, testUrl: `${BASE_URL}/privacy?view=1`, unfetchableUrl: `${BASE_URL}/e2e/unfetchable` },
@@ -90,9 +122,10 @@ test.describe('Queue management flow (local)', () => {
           cleanupProgress,
           bannerOnReaderProgress,
         ),
+        importActions: createImportActions({ baseUrl: BASE_URL }, queueProgress, importProgress),
       },
-      preQueueProgressObjects: [viewPageProgress, seedProgress, cleanupProgress, passwordResetProgress, onboardingProgress, savePermalinkProgress, bannerOnReaderProgress],
-      maxNavigations: 100,
+      preQueueProgressObjects: [viewPageProgress, seedProgress, cleanupProgress, passwordResetProgress, onboardingProgress, savePermalinkProgress, bannerOnReaderProgress, importProgress],
+      maxNavigations: 120,
     })
   })
 })
