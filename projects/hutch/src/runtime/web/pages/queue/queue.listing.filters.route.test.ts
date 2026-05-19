@@ -242,7 +242,9 @@ describe("Queue routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const navLink = doc.querySelector('[data-test-nav-item="import"]');
 			assert(navLink, "Import Links nav item must be rendered for authenticated users");
-			expect(navLink.getAttribute("href")).toBe("/import");
+			const navHref = navLink.getAttribute("href");
+			assert(navHref, "Import Links nav item must have an href");
+			expect(new URL(navHref, "https://readplace.com").pathname).toBe("/import");
 			expect(doc.querySelector("form.queue__import-form")).toBeNull();
 			expect(doc.querySelector('[data-test-form="import-file"]')).toBeNull();
 		});
