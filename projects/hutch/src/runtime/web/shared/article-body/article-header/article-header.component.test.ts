@@ -61,6 +61,35 @@ describe("renderArticleHeader (inline)", () => {
 		assert(slot, "back slot must always be present");
 		expect(slot.classList.contains("article-body__back-slot--hidden")).toBe(true);
 	});
+
+	it("renders a mark-read form in the top slot when markReadAction is provided", () => {
+		const doc = parse(renderArticleHeader({
+			...baseInput,
+			markReadAction: {
+				postUrl: "/queue/abc/status?utm_content=mark-read-top",
+				label: "Mark as read",
+				fields: [{ name: "status", value: "read" }],
+			},
+		}));
+
+		const slot = doc.querySelector("[data-test-mark-read-slot]");
+		assert(slot, "top mark-read slot must be rendered");
+		expect(slot.classList.contains("article-body__mark-read-slot--visible")).toBe(true);
+		const form = slot.querySelector("[data-test-mark-read-form]");
+		assert(form, "top mark-read form must be rendered");
+		expect(form.getAttribute("action")).toBe("/queue/abc/status?utm_content=mark-read-top");
+		const hidden = form.querySelector('input[type="hidden"][name="status"]');
+		assert(hidden, "form must carry the status hidden input");
+		expect(hidden.getAttribute("value")).toBe("read");
+	});
+
+	it("renders the mark-read slot hidden when markReadAction is omitted", () => {
+		const doc = parse(renderArticleHeader(baseInput));
+
+		const slot = doc.querySelector("[data-test-mark-read-slot]");
+		assert(slot, "mark-read slot must always be present");
+		expect(slot.classList.contains("article-body__mark-read-slot--hidden")).toBe(true);
+	});
 });
 
 describe("renderArticleHeaderOob", () => {
@@ -73,7 +102,7 @@ describe("renderArticleHeaderOob", () => {
 		expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("Hello World");
 	});
 
-	it("preserves the back-slot visibility class in the OOB form so a poll-driven header swap on /queue/:id/read does not erase the back-link styling", () => {
+	it("preserves the back-slot visibility class in the OOB form so a poll-driven header swap on /queue/:id/view does not erase the back-link styling", () => {
 		const doc = parse(renderArticleHeaderOob({
 			...baseInput,
 			backLink: { href: "/queue", label: "← Back to queue" },

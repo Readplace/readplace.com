@@ -38,7 +38,7 @@ async function saveAndFindId(
 }
 
 describe("GET /queue — extension suggestion banner", () => {
-	/** The banner's trigger is the reader views (public /view and owner /queue/:id/read).
+	/** The banner's trigger is the reader views (public /view and owner /queue/:id/view).
 	 * The queue listing never computes the banner state itself — covered here so a
 	 * future change that re-introduces a /queue trigger surfaces as a failing test
 	 * instead of silently re-coupling the listing to article parse state. */
@@ -78,7 +78,7 @@ describe("GET /queue — extension suggestion banner", () => {
 	});
 });
 
-describe("GET /queue/:id/read — extension suggestion banner", () => {
+describe("GET /queue/:id/view — extension suggestion banner", () => {
 	it("sets data-show='true' when the owned article's crawl is still pending", async () => {
 		const findArticleCrawlStatus: FindArticleCrawlStatus = async () => ({
 			status: "pending",
@@ -95,7 +95,7 @@ describe("GET /queue/:id/read — extension suggestion banner", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndFindId(agent, "https://example.com/pending-read");
 
-		const response = await agent.get(`/queue/${articleId}/read`);
+		const response = await agent.get(`/queue/${articleId}/view`);
 
 		expect(response.status).toBe(200);
 		expect(bannerAttr(response.text)).toBe("true");
@@ -138,7 +138,7 @@ describe("GET /queue/:id/read — extension suggestion banner", () => {
 		const agent = await loginAgent(harness.server, harness.auth);
 		const articleId = await saveAndFindId(agent, "https://example.com/parsed-read");
 
-		const response = await agent.get(`/queue/${articleId}/read`);
+		const response = await agent.get(`/queue/${articleId}/view`);
 
 		expect(bannerAttr(response.text)).toBe("false");
 	});
@@ -183,7 +183,7 @@ describe("GET /queue/:id/read — extension suggestion banner", () => {
 			"https://example.com/summary-failed-read",
 		);
 
-		const response = await agent.get(`/queue/${articleId}/read`);
+		const response = await agent.get(`/queue/${articleId}/view`);
 
 		expect(bannerAttr(response.text)).toBe("true");
 	});

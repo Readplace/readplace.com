@@ -18,6 +18,13 @@ const ARTICLE_BODY_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
+export interface MarkReadAction {
+	topPostUrl: string;
+	bottomPostUrl: string;
+	label: string;
+	fields: ReadonlyArray<{ name: string; value: string }>;
+}
+
 export interface ArticleBodyInput {
 	title: string;
 	siteName: string;
@@ -31,6 +38,7 @@ export interface ArticleBodyInput {
 	summaryOpen?: boolean;
 	audioEnabled?: boolean;
 	backLink?: { topHref: string; bottomHref: string; label: string };
+	markReadAction?: MarkReadAction;
 	extensionInstallUrl?: string;
 	/**
 	 * Single unified progress tick. When omitted (everything terminal, or
@@ -67,6 +75,13 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		backLink: input.backLink
 			? { href: input.backLink.topHref, label: input.backLink.label }
 			: undefined,
+		markReadAction: input.markReadAction
+			? {
+				postUrl: input.markReadAction.topPostUrl,
+				label: input.markReadAction.label,
+				fields: input.markReadAction.fields,
+			}
+			: undefined,
 	});
 
 	return render(ARTICLE_BODY_TEMPLATE, {
@@ -77,5 +92,6 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		audioEnabled: input.audioEnabled,
 		staticBaseUrl: STATIC_BASE_URL,
 		backLink: input.backLink,
+		markReadAction: input.markReadAction,
 	});
 }

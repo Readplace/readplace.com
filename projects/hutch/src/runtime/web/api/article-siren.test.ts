@@ -53,7 +53,7 @@ describe("toArticleSubEntity", () => {
 				readAt: null,
 			},
 			links: [
-				{ rel: ["read"], href: `/queue/${ARTICLE_ID}/read` },
+				{ rel: ["read"], href: `/queue/${ARTICLE_ID}/view` },
 			],
 			actions: [{ name: "delete", href: `/queue/${ARTICLE_ID}/delete`, method: "POST" }],
 		});
@@ -64,7 +64,7 @@ describe("toArticleSubEntity", () => {
 		const subEntity = toArticleSubEntity(article);
 
 		expect(subEntity.links).toEqual([
-			{ rel: ["read"], href: `/queue/${ARTICLE_ID}/read` },
+			{ rel: ["read"], href: `/queue/${ARTICLE_ID}/view` },
 		]);
 	});
 

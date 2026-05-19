@@ -85,7 +85,7 @@ function articleEntity(overrides: {
 			savedAt: overrides.savedAt,
 		},
 		links: overrides.links ?? [
-			{ rel: ["read"], href: `/queue/${overrides.id}/read` },
+			{ rel: ["read"], href: `/queue/${overrides.id}/view` },
 		],
 		actions: overrides.actions ?? [
 			{
@@ -185,7 +185,7 @@ describe("initExtension", () => {
 			expect(result.items[0].title).toBe("A");
 			expect(result.items[0].id).toBe("1");
 			expect(result.items[0].savedAt).toEqual(new Date("2026-01-15T10:00:00.000Z"));
-			expect(result.items[0].readUrl).toBe("http://localhost:3000/queue/1/read");
+			expect(result.items[0].readUrl).toBe("http://localhost:3000/queue/1/view");
 			expect(result.items[0].actions.delete).toBeDefined();
 		});
 
@@ -570,7 +570,7 @@ describe("initExtension", () => {
 								savedAt: "2026-01-15T10:00:00.000Z",
 							},
 							links: [
-								{ rel: ["read"], href: "/queue/article-1/read" },
+								{ rel: ["read"], href: "/queue/article-1/view" },
 							],
 							actions: [
 								{
@@ -589,7 +589,7 @@ describe("initExtension", () => {
 				url: "https://example.com/article",
 			});
 			expect(result.items[0].readUrl).toBe(
-				"http://localhost:3000/queue/article-1/read",
+				"http://localhost:3000/queue/article-1/view",
 			);
 		});
 
@@ -1687,7 +1687,7 @@ describe("initSirenReadingList", () => {
 								savedAt: "2026-01-15T10:00:00.000Z",
 							},
 							links: [
-								{ rel: ["read"], href: "/queue/article-1/read" },
+								{ rel: ["read"], href: "/queue/article-1/view" },
 							],
 							actions: [
 								{
@@ -1707,7 +1707,7 @@ describe("initSirenReadingList", () => {
 			});
 			const item = (result as Extract<typeof result, { ok: true }>).item;
 			expect(item.readUrl).toBe(
-				"http://localhost:3000/queue/article-1/read",
+				"http://localhost:3000/queue/article-1/view",
 			);
 		});
 

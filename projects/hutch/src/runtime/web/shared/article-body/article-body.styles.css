@@ -4,8 +4,16 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+.article-body__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
 .article-body__back-slot--visible {
-  display: block;
+  display: inline-flex;
 }
 
 .article-body__back-slot--hidden {
@@ -14,7 +22,6 @@
 
 .article-body__back {
   display: inline-block;
-  margin-bottom: 1rem;
   font-size: 0.875rem;
   color: var(--color-brand);
   text-decoration: none;
@@ -22,6 +29,35 @@
 
 .article-body__back:hover {
   text-decoration: underline;
+}
+
+.article-body__mark-read-slot--visible {
+  display: inline-flex;
+}
+
+.article-body__mark-read-slot--hidden {
+  display: none;
+}
+
+.article-body__mark-read-form {
+  margin: 0;
+}
+
+.article-body__mark-read {
+  display: inline-block;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+  border: 1px solid var(--color-brand);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.article-body__mark-read:hover {
+  filter: brightness(1.05);
 }
 
 .article-body__title {
@@ -376,11 +412,15 @@
   margin-top: 0.5rem;
 }
 
-.article-body__back-bottom-slot--visible {
-  display: block;
+.article-body__actions--bottom {
   margin-top: 2rem;
+  margin-bottom: 0;
   padding-top: 1.5rem;
   border-top: 1px solid var(--color-border);
+}
+
+.article-body__back-bottom-slot--visible {
+  display: inline-flex;
 }
 
 .article-body__back-bottom-slot--hidden {
@@ -396,4 +436,33 @@
 
 .article-body__back-bottom:hover {
   text-decoration: underline;
+}
+
+.article-body__mark-read-bottom-slot--visible {
+  display: inline-flex;
+}
+
+.article-body__mark-read-bottom-slot--hidden {
+  display: none;
+}
+
+.article-body__mark-read-bottom-form {
+  margin: 0;
+}
+
+.article-body__mark-read-bottom {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+  border: 1px solid var(--color-brand);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.article-body__mark-read-bottom:hover {
+  filter: brightness(1.05);
 }

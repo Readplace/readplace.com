@@ -52,7 +52,7 @@ describe("Queue routes", () => {
 				.querySelector("[data-test-article-list] .queue-article")
 				?.getAttribute("data-test-article");
 
-			const readerResponse = await agent.get(`/queue/${articleId}/read`);
+			const readerResponse = await agent.get(`/queue/${articleId}/view`);
 			const doc = new JSDOM(readerResponse.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, "reader slot must be rendered");
@@ -107,7 +107,7 @@ describe("Queue routes", () => {
 				.querySelector("[data-test-article-list] .queue-article")
 				?.getAttribute("data-test-article");
 
-			const readerResponse = await agent.get(`/queue/${articleId}/read?feature=audio`);
+			const readerResponse = await agent.get(`/queue/${articleId}/view?feature=audio`);
 			const doc = new JSDOM(readerResponse.text).window.document;
 			const audioSlot = doc.querySelector("[data-test-audio-player]");
 			assert(audioSlot, "audio slot must be rendered");
@@ -162,7 +162,7 @@ describe("Queue routes", () => {
 				.querySelector("[data-test-article-list] .queue-article")
 				?.getAttribute("data-test-article");
 
-			const readerResponse = await agent.get(`/queue/${articleId}/read`);
+			const readerResponse = await agent.get(`/queue/${articleId}/view`);
 			const doc = new JSDOM(readerResponse.text).window.document;
 			const audioSlot = doc.querySelector("[data-test-audio-player]");
 			assert(audioSlot, "audio slot must be rendered");
@@ -171,7 +171,7 @@ describe("Queue routes", () => {
 			).toBe(true);
 		});
 
-		it("should render a ready summary expanded on /queue/:id/read (matches /view)", async () => {
+		it("should render a ready summary expanded on /queue/:id/view (matches the public /view)", async () => {
 			const articleHtml = `<html><head><title>Post</title></head><body><article><p>Body.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
 			const findGeneratedSummary = async () => ({
@@ -217,7 +217,7 @@ describe("Queue routes", () => {
 				.querySelector("[data-test-article-list] .queue-article")
 				?.getAttribute("data-test-article");
 
-			const readerResponse = await agent.get(`/queue/${articleId}/read`);
+			const readerResponse = await agent.get(`/queue/${articleId}/view`);
 			const doc = new JSDOM(readerResponse.text).window.document;
 			const details = doc.querySelector(".article-body__summary");
 			assert(details, "summary details element must be rendered");
@@ -455,7 +455,7 @@ describe("Queue routes", () => {
 			expect(second.text).toBe("");
 		});
 
-		it("GET /queue/:id/read does NOT re-prime a legacy row from the reader path (auto-heal removed; recovery is operator-driven via /admin/recrawl)", async () => {
+		it("GET /queue/:id/view does NOT re-prime a legacy row from the reader path (auto-heal removed; recovery is operator-driven via /admin/recrawl)", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			// State-machine providers always report "no state" so the cached row
 			// looks like a legacy stub to the reader core.
@@ -500,9 +500,9 @@ describe("Queue routes", () => {
 			// Baseline after the save: one call each from saveArticleFromUrl.
 			const baseline = { crawl: markCrawlPendingCalls, summary: markSummaryPendingCalls };
 
-			await agent.get(`/queue/${articleId}/read`);
+			await agent.get(`/queue/${articleId}/view`);
 
-			// Auto-heal has been removed: the /read path must not bump either
+			// Auto-heal has been removed: the /view path must not bump either
 			// pending counter past the save-time baseline. Recovery for legacy
 			// stubs now goes through /admin/recrawl + the stale-check Lambda.
 			expect(markCrawlPendingCalls).toBe(baseline.crawl);
@@ -510,7 +510,7 @@ describe("Queue routes", () => {
 		});
 
 		describe("Share balloon", () => {
-			it("renders the share balloon pointing at the public /view URL (not /read)", async () => {
+			it("renders the share balloon pointing at the public /view/<url> (not the owner reader path)", async () => {
 				const articleUrl = "https://example.com/shareable-post";
 				const articleHtml = `
 				<html><head><title>Shareable Post</title></head>
@@ -550,16 +550,16 @@ describe("Queue routes", () => {
 					.querySelector("[data-test-article-list] .queue-article")
 					?.getAttribute("data-test-article");
 
-				const response = await agent.get(`/queue/${articleId}/read`);
+				const response = await agent.get(`/queue/${articleId}/view`);
 
 				expect(response.status).toBe(200);
 				const doc = new JSDOM(response.text).window.document;
 				const wrap = doc.querySelector("[data-test-share-balloon-wrap]");
-				assert(wrap, "share balloon wrapper must be rendered on /read");
+				assert(wrap, "share balloon wrapper must be rendered on /queue/:id/view");
 				expect(wrap.hasAttribute("hidden")).toBe(true);
 
 				const btn = doc.querySelector("[data-test-share-balloon]");
-				assert(btn, "share button must be rendered on /read");
+				assert(btn, "share button must be rendered on /queue/:id/view");
 				const shareUrl = new URL(btn.getAttribute("data-share-url") ?? "");
 				expect(`${shareUrl.origin}${shareUrl.pathname}`).toBe(
 					`https://readplace.com/view/${encodeURIComponent(articleUrl)}`,
@@ -570,7 +570,7 @@ describe("Queue routes", () => {
 				expect(btn.getAttribute("data-share-title")).toBe("Shareable Post");
 
 				const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
-				assert(copyBtn, "copy button must be rendered on /read");
+				assert(copyBtn, "copy button must be rendered on /queue/:id/view");
 				const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
 				expect(`${copyUrl.origin}${copyUrl.pathname}`).toBe(
 					`https://readplace.com/view/${encodeURIComponent(articleUrl)}`,
@@ -619,7 +619,7 @@ describe("Queue routes", () => {
 					.querySelector("[data-test-article-list] .queue-article")
 					?.getAttribute("data-test-article");
 
-				const response = await agent.get(`/queue/${articleId}/read`);
+				const response = await agent.get(`/queue/${articleId}/view`);
 
 				const doc = new JSDOM(response.text).window.document;
 				const hints = Array.from(
@@ -668,13 +668,13 @@ describe("Queue routes", () => {
 					.querySelector("[data-test-article-list] .queue-article")
 					?.getAttribute("data-test-article");
 
-				const response = await agent.get(`/queue/${articleId}/read`);
+				const response = await agent.get(`/queue/${articleId}/view`);
 
 				const doc = new JSDOM(response.text).window.document;
 				const script = doc.querySelector(
 					'script[src$="/client-dist/share-balloon.client.js"]',
 				);
-				assert(script, "share balloon client script must be rendered on /read");
+				assert(script, "share balloon client script must be rendered on /queue/:id/view");
 				expect(script.hasAttribute("defer")).toBe(true);
 			});
 		});
@@ -786,7 +786,7 @@ describe("Queue routes", () => {
 				.querySelector("[data-test-article-list] .queue-article")
 				?.getAttribute("data-test-article");
 
-			const readerResponse = await agent.get(`/queue/${articleId}/read`);
+			const readerResponse = await agent.get(`/queue/${articleId}/view`);
 			const doc = new JSDOM(readerResponse.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, "reader slot must be rendered");
@@ -826,7 +826,7 @@ describe("Queue routes", () => {
 			const queueResponse = await agent.get("/queue");
 			const doc = new JSDOM(queueResponse.text).window.document;
 			const titleLink = doc.querySelector("[data-test-article-title]");
-			expect(titleLink?.getAttribute("href")).toContain("/read");
+			expect(titleLink?.getAttribute("href")).toContain("/view");
 		});
 
 	});

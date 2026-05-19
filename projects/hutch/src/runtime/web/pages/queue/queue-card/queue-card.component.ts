@@ -36,7 +36,7 @@ export function toQueueCardDisplayModel(
 ): QueueCardDisplayModel {
 	return {
 		...article,
-		linkUrl: `/queue/${article.id}/read`,
+		linkUrl: `/queue/${article.id}/view`,
 		unreadClass: article.isUnread ? " queue-article--unread" : "",
 		isFirst: options.isFirst,
 		cardStatus: article.cardPollUrl ? "pending" : "terminal",

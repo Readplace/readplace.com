@@ -18,7 +18,7 @@ export type BannerOnReaderProgress = {
  *   1. Public reader `/view/<url>` — anonymous and authenticated users share
  *      the same route; the existing anonymous flow covers it logged-out, so
  *      this proves the logged-in path also triggers the banner.
- *   2. Owner reader `/queue/:id/read` — the only authenticated-only trigger.
+ *   2. Owner reader `/queue/:id/view` — the only authenticated-only trigger.
  *
  * The banner's visibility class is applied by the client script after
  * DOMContentLoaded, so only a real browser proves the SSR data attribute,

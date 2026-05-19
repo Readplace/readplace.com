@@ -82,13 +82,13 @@ describe("ViewPage", () => {
 		expect(link.textContent).toBe("Save to My Queue");
 	});
 
-	it("renders a 'Read in your queue' action when the model points to /queue/:id/read", () => {
+	it("renders a 'Read in your queue' action when the model points to /queue/:id/view", () => {
 		const doc = render({
 			...baseInput,
 			actions: [
 				{
 					name: "Read in your queue",
-					href: "/queue/abc123/read",
+					href: "/queue/abc123/view",
 					variant: "primary",
 				},
 			],
@@ -96,7 +96,7 @@ describe("ViewPage", () => {
 
 		const link = doc.querySelector("[data-test-view-cta-action]");
 		assert(link, "cta action link must be rendered");
-		expect(link.getAttribute("href")).toBe("/queue/abc123/read");
+		expect(link.getAttribute("href")).toBe("/queue/abc123/view");
 		expect(link.textContent).toBe("Read in your queue");
 	});
 
@@ -106,7 +106,7 @@ describe("ViewPage", () => {
 			actions: [
 				{
 					name: "Read in your queue",
-					href: "/queue/abc/read",
+					href: "/queue/abc/view",
 					variant: "primary",
 				},
 				{
@@ -119,7 +119,7 @@ describe("ViewPage", () => {
 
 		const links = doc.querySelectorAll("[data-test-view-cta-action]");
 		expect(links.length).toBe(2);
-		expect(links[0]?.getAttribute("href")).toBe("/queue/abc/read");
+		expect(links[0]?.getAttribute("href")).toBe("/queue/abc/view");
 		expect(links[1]?.getAttribute("href")).toBe("/save?url=x");
 	});
 

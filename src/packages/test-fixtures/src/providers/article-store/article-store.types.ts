@@ -51,7 +51,7 @@ export type FindArticleById = (
 	userId: UserId,
 ) => Promise<SavedArticle | null>;
 
-/** Resolve the original URL for a shared `/queue/<id>/read` permalink without
+/** Resolve the original URL for a shared `/queue/<id>/view` permalink without
  * requiring the requester to own the article. Used to redirect non-owners
  * (anonymous or different account) to the public `/view/<url>` route. Returns
  * `null` when the hash doesn't match any saved article. */
