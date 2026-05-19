@@ -384,9 +384,9 @@ new HutchDLQEventHandler("simple-crawl-unsupported-policy-dlq", {
 // (TierContentExtractedEvent for normal saves,
 // RecrawlContentExtractedEvent when the recrawl flag is set on the command).
 //
-// 1200s visibility = 2× the 600s Lambda timeout per AWS guidance.
+// 1800s visibility = 2× the 900s Lambda timeout per AWS guidance.
 const comprehensiveCrawlCommandQueue = new HutchSQS("comprehensive-crawl-command", {
-	visibilityTimeoutSeconds: 1200,
+	visibilityTimeoutSeconds: 1800,
 });
 
 const comprehensiveCrawlCommandDynamodb = new HutchDynamoDBAccess("comprehensive-crawl-command-dynamodb", {
@@ -395,15 +395,14 @@ const comprehensiveCrawlCommandDynamodb = new HutchDynamoDBAccess("comprehensive
 });
 
 const comprehensiveCrawlCommandLambda = new HutchLambda("comprehensive-crawl-command", {
-	// 2048 MB gives ~1.16 vCPU and ample headroom for the scanned-PDF OCR path:
-	// pdftoppm rasterises every page upfront into a per-invocation temp dir
-	// (~300 KB PNG per page at 150 DPI) and the OCR pipeline holds three
-	// 3-page batches in flight. 2048 MB stays well under the cap.
-	memorySize: 2048,
-	// 600s covers the worst-case scanned-PDF flow: pdftoppm rasterisation on
-	// a dense 15-page arXiv paper plus 3-way parallel batching against
-	// gemma-4-31B-it can take ~6 min when DeepInfra queues.
-	timeout: 600,
+	// 4096 MB gives ~2.3 vCPU — enough to rasterise a 200-page scanned PDF
+	// via pdftoppm at ~1–2 s/page (150 DPI) plus parallel OCR dispatch.
+	// 200 pages × ~300 KB PNG ≈ 60 MB on disk, well within the memory budget.
+	memorySize: 4096,
+	// 900s (Lambda maximum) covers worst-case 200-page rasterisation
+	// (~200–400 s at 2.3 vCPU) plus parallel OCR batching against
+	// gemma-4-31B-it when DeepInfra queues.
+	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["comprehensive-crawl-command"] },
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,

@@ -9,7 +9,7 @@ import type { CreateVisionMessage } from "./create-deepinfra-vision-message";
  * Pages per OCR request. With Promise.all dispatch, wall-time is the slowest
  * single batch — so 1 page/batch collapses wall-time to the slowest single
  * page rather than the slowest 3-page group. Worst-case dense-math slides
- * run ~22 s/page, well under the 600 s Lambda budget. The per-call fixed
+ * run ~22 s/page, well under the 900 s Lambda budget. The per-call fixed
  * overhead (system-prompt re-send, TTFT) multiplies by page count but is
  * absorbed by parallel dispatch; the token cost is negligible (~$0.0003/PDF).
  */
@@ -19,9 +19,16 @@ const PAGES_PER_BATCH = 1;
  * Page-image cap. Defends the OCR pipeline against PDFs with 1000+ pages
  * where rasterisation would exhaust Lambda memory long before the model timed
  * out. 200 pages × ~300 KB PNG = ~60 MB on disk during a worst-case run,
- * which fits comfortably in the 2048 MB Lambda memory budget.
+ * which fits comfortably in the 4096 MB Lambda memory budget.
  */
-const MAX_PAGES = 200;
+export const MAX_PAGES = 200;
+
+/**
+ * Byte-size cap. PDFs larger than this are rejected before any rasterisation
+ * to avoid wasting compute on files that are unlikely to process within the
+ * Lambda time/memory budget.
+ */
+const MAX_PDF_BYTES = 50 * 1024 * 1024;
 
 export function initOcrPdf(deps: {
 	rasterizer: PdfRasterizer;
@@ -29,14 +36,22 @@ export function initOcrPdf(deps: {
 	logger: HutchLogger;
 	pagesPerBatch?: number;
 	maxPages?: number;
+	maxPdfBytes?: number;
 }): ExtractPdf {
 	const pagesPerBatch = deps.pagesPerBatch ?? PAGES_PER_BATCH;
 	const maxPages = deps.maxPages ?? MAX_PAGES;
+	const maxPdfBytes = deps.maxPdfBytes ?? MAX_PDF_BYTES;
 	const { logger } = deps;
 
 	return async ({ buffer, url, onProgress }) => {
 		const t0 = Date.now();
 		logger.info(`[ocr-pdf] start url=${url} bytes=${buffer.length}`);
+
+		if (buffer.length > maxPdfBytes) {
+			const mb = (buffer.length / (1024 * 1024)).toFixed(1);
+			logger.error(`[ocr-pdf] PDF is ${mb} MB, exceeds ${maxPdfBytes / (1024 * 1024)} MB cap — skipping`);
+			return { kind: "failed", reason: "unsupported-large-file" };
+		}
 		let doc: PdfDocument;
 		try {
 			doc = await deps.rasterizer.open(buffer);
@@ -68,7 +83,7 @@ async function extractWithDoc(deps: {
 		if (doc.numPages > maxPages) {
 			return {
 				kind: "failed",
-				reason: `PDF too large for OCR fallback: ${doc.numPages} pages exceeds cap of ${maxPages}`,
+				reason: "unsupported-large-file",
 			};
 		}
 

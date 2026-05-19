@@ -8,6 +8,7 @@ import { initPdftoppmRasterizer } from "@packages/crawl-article";
 import { requireEnv } from "../require-env";
 import { initComprehensiveCrawlHandler } from "./domain/comprehensive-crawl/comprehensive-crawl-handler";
 import { initSaveLinkPdfExtract } from "./domain/article-parser/init-save-link-pdf-extract";
+import { MAX_PAGES } from "./domain/article-parser/ocr-pdf";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initComprehensiveParserDepBundle } from "./dep-bundles/parser";
 import { initArticleStoreDepBundle } from "./dep-bundles/article-store";
@@ -32,13 +33,13 @@ const now = () => new Date();
 const deepInfraClient = new OpenAI({
 	apiKey: deepInfraApiKey,
 	baseURL: "https://api.deepinfra.com/v1/openai",
-	// 300s is gemma-4-31B-it's observed per-batch ceiling; the 600s Lambda
+	// 300s is gemma-4-31B-it's observed per-batch ceiling; the 900s Lambda
 	// timeout covers this with headroom for rendering + transport overhead.
 	timeout: 300_000,
 });
 
 const extractPdf = initSaveLinkPdfExtract({
-	rasterizer: initPdftoppmRasterizer({ logger: consoleLogger }),
+	rasterizer: initPdftoppmRasterizer({ logger: consoleLogger, maxPages: MAX_PAGES }),
 	createChatCompletion: (params) => deepInfraClient.chat.completions.create(params),
 	logger: consoleLogger,
 });

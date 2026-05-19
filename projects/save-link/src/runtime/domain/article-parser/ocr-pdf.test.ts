@@ -239,7 +239,23 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 		expect(result).toEqual({
 			kind: "failed",
-			reason: "PDF too large for OCR fallback: 11 pages exceeds cap of 10",
+			reason: "unsupported-large-file",
+		});
+	});
+
+	it("returns kind 'failed' when the PDF buffer exceeds the configured byte cap", async () => {
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			rasterizer: stubRasterizer({ numPages: 1 }),
+			createVisionMessage: async () => "ignored",
+			maxPdfBytes: 10,
+		});
+
+		const result = await ocr({ buffer: Buffer.alloc(11), url: "https://example.com/huge.pdf" });
+
+		expect(result).toEqual({
+			kind: "failed",
+			reason: "unsupported-large-file",
 		});
 	});
 
