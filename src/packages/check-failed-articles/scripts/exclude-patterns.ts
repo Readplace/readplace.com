@@ -65,6 +65,9 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// both `default-browser` and `honest-bot` personas fail. Requires a
 	// non-AWS egress path (residential proxy) to resolve.
 	/^https:\/\/www\.rd\.usda\.gov\/sites\/default\/files\/pdf-sample_0\.pdf$/i,
+	// PwC HR system returns HTTP 410 Gone on every attempt — job posting was
+	// delisted at origin, so recrawl can never succeed.
+	/^https:\/\/jobs-au\.pwc\.com\/experiencedhires\/au\/en\/job\/597385WD\/Senior-Manager-Finance-Transformation-Global-Business-Services$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

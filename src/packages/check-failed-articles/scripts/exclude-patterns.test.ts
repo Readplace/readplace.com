@@ -188,6 +188,16 @@ describe("EXCLUDE_PATTERNS — operator-curated exact-URL entries", () => {
 			excluded: false,
 			label: "USDA different PDF path — should NOT match",
 		},
+		{
+			url: "https://jobs-au.pwc.com/experiencedhires/au/en/job/597385WD/Senior-Manager-Finance-Transformation-Global-Business-Services",
+			excluded: true,
+			label: "PwC delisted job posting exact (HTTP 410 Gone)",
+		},
+		{
+			url: "https://jobs-au.pwc.com/experiencedhires/au/en/job/597385WD/Different-Role",
+			excluded: false,
+			label: "PwC same job ID different role slug — should NOT match",
+		},
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
