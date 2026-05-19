@@ -16,12 +16,13 @@ import type { CreateVisionMessage } from "./create-deepinfra-vision-message";
 const PAGES_PER_BATCH = 1;
 
 /**
- * Page-image cap. Defends the OCR pipeline against PDFs with 1000+ pages
- * where rasterisation would exhaust Lambda memory long before the model timed
- * out. 200 pages × ~300 KB PNG = ~60 MB on disk during a worst-case run,
- * which fits comfortably in the 2048 MB Lambda memory budget.
+ * Page-image cap. The comprehensive-crawl Lambda has a 600 s timeout;
+ * pdftoppm rasterisation is sequential (~2–4 s/page at 150 DPI on a
+ * 1.16 vCPU Lambda), so 75 pages ≈ 150–300 s rasterisation plus
+ * parallel OCR headroom fits comfortably. Memory is not the constraint:
+ * 75 pages × ~300 KB PNG ≈ 22 MB, well within the 2048 MB budget.
  */
-const MAX_PAGES = 200;
+export const MAX_PAGES = 75;
 
 export function initOcrPdf(deps: {
 	rasterizer: PdfRasterizer;

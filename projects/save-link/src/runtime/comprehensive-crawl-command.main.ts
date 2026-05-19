@@ -8,6 +8,7 @@ import { initPdftoppmRasterizer } from "@packages/crawl-article";
 import { requireEnv } from "../require-env";
 import { initComprehensiveCrawlHandler } from "./domain/comprehensive-crawl/comprehensive-crawl-handler";
 import { initSaveLinkPdfExtract } from "./domain/article-parser/init-save-link-pdf-extract";
+import { MAX_PAGES } from "./domain/article-parser/ocr-pdf";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initComprehensiveParserDepBundle } from "./dep-bundles/parser";
 import { initArticleStoreDepBundle } from "./dep-bundles/article-store";
@@ -38,7 +39,7 @@ const deepInfraClient = new OpenAI({
 });
 
 const extractPdf = initSaveLinkPdfExtract({
-	rasterizer: initPdftoppmRasterizer({ logger: consoleLogger }),
+	rasterizer: initPdftoppmRasterizer({ logger: consoleLogger, maxPages: MAX_PAGES }),
 	createChatCompletion: (params) => deepInfraClient.chat.completions.create(params),
 	logger: consoleLogger,
 });
