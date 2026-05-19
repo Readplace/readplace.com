@@ -657,12 +657,18 @@ importers:
       '@types/aws-lambda':
         specifier: 8.10.161
         version: 8.10.161
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
       concurrently:
         specifier: 9.2.1
         version: 9.2.1
       esbuild:
         specifier: 0.25.4
         version: 0.25.4
+      jest:
+        specifier: 29.7.0
+        version: 29.7.0(@types/node@22.19.1)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.1)(typescript@5.9.3))
       typescript:
         specifier: 5.9.3
         version: 5.9.3

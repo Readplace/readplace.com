@@ -23,6 +23,9 @@ export class ArticleResourceUniqueId {
 	toS3PendingHtmlKey(): string {
 		return `pending-html/${encodeURIComponent(this.value)}.html`;
 	}
+	toS3RefreshHtmlKey(): string {
+		return `refresh-html/${encodeURIComponent(this.value)}.html`;
+	}
 	toS3SourceKey({ tier }: { tier: string }): string {
 		return `articles/${encodeURIComponent(this.value)}/sources/${tier}.html`;
 	}

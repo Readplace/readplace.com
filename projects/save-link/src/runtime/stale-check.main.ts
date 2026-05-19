@@ -1,14 +1,13 @@
+import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import {
 	SaveAnonymousLinkCommand,
-	RefreshArticleContentCommand,
 	UpdateFetchTimestampCommand,
 } from "@packages/hutch-infra-components";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import type {
-	PublishRefreshArticleContent,
 	PublishSaveAnonymousLink,
 	PublishUpdateFetchTimestamp,
 } from "@packages/test-fixtures/providers/events";
@@ -18,6 +17,8 @@ import { initParserDepBundle } from "./dep-bundles/parser";
 import { initArticleCrawlDepBundle } from "./dep-bundles/article-crawl";
 import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initEmitSimpleCrawlUnsupported, initEventsDepBundle } from "./dep-bundles/events";
+import { initEventBridgeRefreshArticleContent } from "./providers/events/eventbridge-refresh-article-content";
+import { initPutRefreshHtml } from "./providers/refresh-html/put-refresh-html";
 import { initFindArticleCrawlStatus } from "./providers/article-crawl/find-article-crawl-status";
 import { initFindArticleFreshness } from "./providers/article-crawl/find-article-freshness";
 import { requireEnv } from "../require-env";
@@ -29,10 +30,12 @@ const STALE_TTL_MS = 86_400_000;
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
+const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
 
 const dynamoClient = createDynamoDocumentClient();
 const sqsClient = new SQSClient({});
 const eventBridgeClient = new EventBridgeClient({});
+const s3Client = new S3Client({});
 const now = () => new Date();
 
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });
@@ -44,21 +47,11 @@ const emitSimpleCrawlUnsupported = initEmitSimpleCrawlUnsupported({
 	publishEvent: events.publishEvent,
 });
 
-const publishRefreshArticleContent: PublishRefreshArticleContent = async (params) => {
-	await events.publishEvent({
-		source: RefreshArticleContentCommand.source,
-		detailType: RefreshArticleContentCommand.detailType,
-		detail: JSON.stringify({
-			url: params.url,
-			html: params.html,
-			metadata: params.metadata,
-			estimatedReadTime: params.estimatedReadTime,
-			etag: params.etag,
-			lastModified: params.lastModified,
-			contentFetchedAt: params.contentFetchedAt,
-		}),
-	});
-};
+const { putRefreshHtml } = initPutRefreshHtml({ client: s3Client, bucketName: pendingHtmlBucketName });
+const { publishRefreshArticleContent } = initEventBridgeRefreshArticleContent({
+	publishEvent: events.publishEvent,
+	putRefreshHtml,
+});
 
 const publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp = async (params) => {
 	await events.publishEvent({

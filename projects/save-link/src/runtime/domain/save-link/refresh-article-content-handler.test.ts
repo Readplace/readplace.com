@@ -1,4 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
+import type { ReadRefreshHtml } from "@packages/test-fixtures/providers/refresh-html";
 import type { Context, SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import { initRefreshArticleContentHandler } from "./refresh-article-content-handler";
@@ -27,7 +28,6 @@ const stubContext: Context = {
 
 interface RefreshDetail {
 	url: string;
-	html: string;
 	metadata: {
 		title: string;
 		siteName: string;
@@ -63,7 +63,6 @@ const URL = "https://example.com/article";
 const HTML = "<html><body><h1>Refreshed</h1></body></html>";
 const DETAIL: RefreshDetail = {
 	url: URL,
-	html: HTML,
 	metadata: {
 		title: "New title",
 		siteName: "Example",
@@ -76,12 +75,14 @@ const DETAIL: RefreshDetail = {
 	contentFetchedAt: "2026-05-10T12:00:00.000Z",
 };
 
-describe("initRefreshArticleContentHandler (tier-write + publish)", () => {
-	it("writes the refreshed HTML as a tier-1 source so the selector can compare it against an existing tier-0", async () => {
+describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", () => {
+	it("reads the staged HTML from S3 and writes it as a tier-1 source so the selector can compare it against an existing tier-0", async () => {
+		const readRefreshHtml: ReadRefreshHtml = jest.fn().mockResolvedValue(HTML);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initRefreshArticleContentHandler({
+			readRefreshHtml,
 			putTierSource,
 			publishEvent,
 			logger: noopLogger,
@@ -89,6 +90,7 @@ describe("initRefreshArticleContentHandler (tier-write + publish)", () => {
 
 		await handler(createSqsEvent(DETAIL), stubContext, () => {});
 
+		expect(readRefreshHtml).toHaveBeenCalledWith(URL);
 		expect(putTierSource).toHaveBeenCalledWith({
 			url: URL,
 			tier: "tier-1",
@@ -104,10 +106,12 @@ describe("initRefreshArticleContentHandler (tier-write + publish)", () => {
 	});
 
 	it("publishes RefreshContentExtractedEvent carrying url + freshness so the downstream selector handler can persist", async () => {
+		const readRefreshHtml: ReadRefreshHtml = jest.fn().mockResolvedValue(HTML);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initRefreshArticleContentHandler({
+			readRefreshHtml,
 			putTierSource,
 			publishEvent,
 			logger: noopLogger,
@@ -127,8 +131,12 @@ describe("initRefreshArticleContentHandler (tier-write + publish)", () => {
 		});
 	});
 
-	it("writes the tier source BEFORE publishing the event so a fast downstream handler doesn't race a missing tier-1 read", async () => {
+	it("reads S3, writes the tier source, then publishes — in that order, so a fast downstream handler doesn't race a missing tier-1 read", async () => {
 		const order: string[] = [];
+		const readRefreshHtml: ReadRefreshHtml = jest.fn().mockImplementation(async () => {
+			order.push("readRefreshHtml");
+			return HTML;
+		});
 		const putTierSource: PutTierSource = jest.fn().mockImplementation(async () => {
 			order.push("putTierSource");
 		});
@@ -137,6 +145,7 @@ describe("initRefreshArticleContentHandler (tier-write + publish)", () => {
 		});
 
 		const handler = initRefreshArticleContentHandler({
+			readRefreshHtml,
 			putTierSource,
 			publishEvent,
 			logger: noopLogger,
@@ -144,14 +153,16 @@ describe("initRefreshArticleContentHandler (tier-write + publish)", () => {
 
 		await handler(createSqsEvent(DETAIL), stubContext, () => {});
 
-		expect(order).toEqual(["putTierSource", "publishEvent"]);
+		expect(order).toEqual(["readRefreshHtml", "putTierSource", "publishEvent"]);
 	});
 
-	it("reports the record as a batch failure on invalid event detail (zod failure) without touching tier source or event bus", async () => {
+	it("reports the record as a batch failure on invalid event detail (zod failure) without touching S3 or tier source or event bus", async () => {
+		const readRefreshHtml: ReadRefreshHtml = jest.fn();
 		const putTierSource: PutTierSource = jest.fn();
 		const publishEvent = jest.fn();
 
 		const handler = initRefreshArticleContentHandler({
+			readRefreshHtml,
 			putTierSource,
 			publishEvent,
 			logger: noopLogger,
@@ -176,17 +187,41 @@ describe("initRefreshArticleContentHandler (tier-write + publish)", () => {
 		const result = await handler(invalidEvent, stubContext, () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+		expect(readRefreshHtml).not.toHaveBeenCalled();
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
+	it("reports a batch failure and does not publish when readRefreshHtml throws (stale message with no staged S3 object)", async () => {
+		const readRefreshHtml: ReadRefreshHtml = jest
+			.fn()
+			.mockRejectedValue(new Error("S3 NoSuchKey"));
+		const putTierSource: PutTierSource = jest.fn();
+		const publishEvent = jest.fn();
+
+		const handler = initRefreshArticleContentHandler({
+			readRefreshHtml,
+			putTierSource,
+			publishEvent,
+			logger: noopLogger,
+		});
+
+		const result = await handler(createSqsEvent(DETAIL), stubContext, () => {});
+
+		expect(putTierSource).not.toHaveBeenCalled();
+		expect(publishEvent).not.toHaveBeenCalled();
+		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+	});
+
 	it("does not publish when putTierSource throws so the downstream handler doesn't run with no tier-1 to read", async () => {
+		const readRefreshHtml: ReadRefreshHtml = jest.fn().mockResolvedValue(HTML);
 		const putTierSource: PutTierSource = jest
 			.fn()
 			.mockRejectedValue(new Error("s3 throttled"));
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = initRefreshArticleContentHandler({
+			readRefreshHtml,
 			putTierSource,
 			publishEvent,
 			logger: noopLogger,

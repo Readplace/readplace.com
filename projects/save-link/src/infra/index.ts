@@ -72,11 +72,21 @@ const contentBucket = new HutchS3ReadWrite("content-bucket", {
 
 // --- Pending-HTML S3 Bucket ---
 // Holds extension-captured raw HTML between the web Lambda's PutObject and the
-// save-link-raw-html worker's GetObject. Separate from content-bucket so we can
-// add an aggressive lifecycle rule later (pending-html is staging, not canonical).
+// save-link-raw-html worker's GetObject (pending-html/ prefix), plus
+// freshly-fetched HTML staged by stale-check/hutch before publishing
+// RefreshArticleContentCommand (refresh-html/ prefix). Separate from
+// content-bucket so the aggressive 1-day expiration applies only to staging
+// objects, never canonical content.
 
 const pendingHtmlBucket = new HutchS3ReadWrite("pending-html-bucket", {
 	bucketName: pendingHtmlBucketName,
+	expirationRules: [
+		{
+			id: "stage-html-expiry",
+			expirationDays: 1,
+			prefixes: ["pending-html/", "refresh-html/"],
+		},
+	],
 });
 
 // --- Content Images CDN ---
@@ -495,10 +505,14 @@ const staleCheckRequestedLambda = new HutchLambda("stale-check-requested", {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
 	},
 	policies: [
 		...staleCheckRequestedDynamodb.policies,
 		...renamePolicies(generateSummaryQueue.policies, "stale-check-requested"),
+		// Stages the refreshed HTML under refresh-html/ before publishing
+		// RefreshArticleContentCommand; consumer reads from the same bucket.
+		...pendingHtmlBucket.writePolicies("stale-check-requested-refresh-html"),
 	],
 });
 
@@ -871,14 +885,18 @@ const refreshArticleContentLambda = new HutchLambda("refresh-article-content", {
 	entryPoint: "./src/runtime/refresh-article-content.main.ts",
 	outputDir: ".lib/refresh-article-content",
 	assetDir: "./src",
-	memorySize: 256,
+	// Bumped 256→512 MB: handler now holds the S3 GetObject buffer (the refreshed
+	// HTML staged under refresh-html/) plus the same bytes passed to putTierSource.
+	memorySize: 512,
 	timeout: 30,
 	environment: {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		CONTENT_BUCKET_NAME: contentBucketName,
+		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
 	},
 	policies: [
 		...contentBucket.writePolicies("refresh-article-content-content-write"),
+		...pendingHtmlBucket.readPolicies("refresh-article-content-refresh-html"),
 	],
 });
 
