@@ -112,14 +112,16 @@ function toFetchHeaders(incoming: http2.IncomingHttpHeaders): Headers {
  * header), since both are TLS-fingerprint blocks that real browsers bypass
  * via h2. Non-Cloudflare 403s and non-403 responses pass through unchanged.
  *
- * If the primary fetch or the h2 fallback fails with a transient TLS- or
- * connection-level error (timeout, ECONNRESET, "fetch failed", protocol
- * error from h2's ALPN downgrade), a curl subprocess fallback kicks in.
- * curl's OpenSSL-based TLS fingerprint differs from Node.js's and passes
- * Cloudflare's JA3/JA4 heuristics; its fresh TCP connection also bypasses
- * upstream nginx/edge sniffers that drop specific Lambda outbound IPs.
- * Clear network failures (DNS, connection refused) and explicit user-aborts
- * skip curl since they would fail the same way and only add latency.
+ * If the primary fetch fails with a transient TLS- or connection-level error
+ * (timeout, ECONNRESET, "fetch failed", HTTP/2 RST_STREAM from Akamai
+ * BotManager, etc.), the wrapper tries Node's http2 module first, then a
+ * curl subprocess. The http2 module's TLS fingerprint differs from undici's
+ * (different ALPN negotiation path), which bypasses CDN JA3 heuristics that
+ * key on the undici ClientHello. curl's OpenSSL-based fingerprint differs
+ * from both, and its fresh TCP connection also sidesteps upstream nginx/edge
+ * sniffers that drop specific Lambda outbound IPs. Clear network failures
+ * (DNS, connection refused) and explicit user-aborts skip both h2 and curl
+ * since they would fail the same way and only add latency.
  */
 export function withH2Fallback(
 	baseFetch: typeof fetch,
@@ -131,28 +133,46 @@ export function withH2Fallback(
 		try {
 			response = await baseFetch(input, init);
 		} catch (error) {
-			if (!shouldFallbackToCurl(error, init?.signal ?? undefined)) throw error;
+			if (!shouldTryFallback(error, init?.signal ?? undefined)) throw error;
 			const url = urlFromInput(input);
-			return curlFetchImpl(url, { headers: toPlainHeaders(init?.headers) });
+			return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);
 		}
 		if (response.status !== 403) return response;
 		if (response.headers.get("server")?.toLowerCase() !== "cloudflare") return response;
 		await response.text();
 		const url = urlFromInput(input);
-		const fallbackInit = {
-			headers: toPlainHeaders(init?.headers),
-			signal: init?.signal ?? undefined,
-		};
+		return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);
+	};
+}
+
+/**
+ * Try Node's http2 module, then curl subprocess. Shared by the Cloudflare-403
+ * path and the baseFetch-error path — both represent a TLS-fingerprint block
+ * where varying the TLS client is the right remedy.
+ */
+async function h2ThenCurl(
+	url: string,
+	init: FetchInit | undefined,
+	h2FetchImpl: typeof fetchH2,
+	curlFetchImpl: typeof fetchCurl,
+): Promise<Response> {
+	const fallbackInit = {
+		headers: toPlainHeaders(init?.headers),
+		signal: init?.signal ?? undefined,
+	};
+	/* Skip h2 when the caller's signal is already exhausted — http2.connect
+	 * would open a TCP connection only to abort it immediately. */
+	if (!fallbackInit.signal?.aborted) {
 		try {
 			return await h2FetchImpl(url, fallbackInit);
 		} catch (error) {
-			if (!shouldFallbackToCurl(error, fallbackInit.signal)) throw error;
-			if (fallbackInit.signal?.aborted) {
-				return curlFetchImpl(url, { headers: fallbackInit.headers });
-			}
-			return curlFetchImpl(url, fallbackInit);
+			if (!shouldTryFallback(error, fallbackInit.signal)) throw error;
 		}
-	};
+	}
+	if (fallbackInit.signal?.aborted) {
+		return curlFetchImpl(url, { headers: fallbackInit.headers });
+	}
+	return curlFetchImpl(url, fallbackInit);
 }
 
 function isTimeoutError(reason: unknown): boolean {
@@ -166,7 +186,7 @@ const NETWORK_ERROR_CODES = new Set([
 	"ENETUNREACH",
 ]);
 
-function shouldFallbackToCurl(error: unknown, signal: AbortSignal | undefined): boolean {
+function shouldTryFallback(error: unknown, signal: AbortSignal | undefined): boolean {
 	if (signal?.aborted && !isTimeoutError(signal.reason)) return false;
 	if (!(error instanceof Error)) return true;
 	if ("code" in error && typeof error.code === "string" && NETWORK_ERROR_CODES.has(error.code)) {
