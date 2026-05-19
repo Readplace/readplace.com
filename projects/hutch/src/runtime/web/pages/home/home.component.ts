@@ -329,6 +329,16 @@ export function HomePage(params: {
 						"Manage and organise your reading list from any browser.",
 				},
 				{
+					name: "Links Import",
+					description:
+						"Upload bookmarks, notes, newsletters — any text-shaped export — and Readplace pulls every URL out for you to review before saving.",
+				},
+				{
+					name: "PDF Extraction",
+					description:
+						"Save any PDF link. Vision OCR turns it into a clean, readable article with a TL;DR — scanned pages included.",
+				},
+				{
 					name: "Auto Dark Mode",
 					description:
 						"Follows your system preference automatically.",
@@ -351,29 +361,14 @@ export function HomePage(params: {
 			],
 			plannedFeatures: [
 				{
-					name: "Links Import",
-					description:
-						"Upload any text file — notes, an email, a dump of bookmarks — and Readplace pulls every URL out of it and queues them all as unread.",
-				},
-				{
 					name: "Preference Learning",
 					description:
-						"\"More like this\" and \"less like this\" buttons that update a personal preference model, re-ranking your reading list and surfacing articles that match what's interesting to you. You can review your preferences.",
-				},
-				{
-					name: "Personalised Summaries",
-					description:
-						"Summaries tailored to what you prefer to learn.",
-				},
-				{
-					name: "Gmail Integration",
-					description:
-						"Import ALL links from your existing unread newsletters automatically and process them all. No more 19,577 unread emails.",
+						"Resurface previously saved articles that match what's interesting to you. You can change your preferences over time.",
 				},
 				{
 					name: "Highlights & Notes",
 					description:
-						"Highlight passages and add notes as you read.",
+						"Highlight passages and add notes as you read to help learning usingthe science of Blocked Practice.",
 				},
 			],
 			trustItems: [

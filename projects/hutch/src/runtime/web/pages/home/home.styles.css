@@ -710,6 +710,10 @@
   display: none;
 }
 
+.home-pricing__fallback-header {
+  margin-bottom: 24px;
+}
+
 .home-pricing__fallback-features {
   text-align: left;
   display: inline-block;

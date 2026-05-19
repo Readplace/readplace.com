@@ -178,7 +178,7 @@ describe("GET /", () => {
 
 		const coreSection = doc.querySelector('[data-test-section="core-features"]');
 		const features = coreSection?.querySelectorAll("[data-test-feature]");
-		expect(features?.length).toBe(10);
+		expect(features?.length).toBe(12);
 	});
 
 	it("should render three demo videos: Desktop, Firefox Extension, and Chrome Extension", async () => {
