@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
+import { z } from "zod";
 import { initSirenReadingList } from "../reading-list/siren-reading-list";
 
 /**
@@ -121,8 +122,8 @@ export async function obtainAccessToken(params: {
 		200,
 		`POST /oauth/token returned ${tokenResponse.status}`,
 	);
-	const tokenBody = (await tokenResponse.json()) as { access_token?: string };
-	assert(tokenBody.access_token, "token response missing access_token");
+	const TokenResponse = z.object({ access_token: z.string() });
+	const tokenBody = TokenResponse.parse(await tokenResponse.json());
 	return tokenBody.access_token;
 }
 

@@ -175,7 +175,7 @@ describe("obtainAccessToken", () => {
 		);
 		await expect(
 			obtainAccessToken({ serverUrl: SERVER, email: "e", password: "p", fetchFn }),
-		).rejects.toThrow(/token response missing access_token/);
+		).rejects.toThrow(/expected string, received undefined/);
 	});
 });
 
