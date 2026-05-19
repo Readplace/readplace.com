@@ -305,6 +305,34 @@ describe("Import routes", () => {
 
 			expect(response.status).toBe(422);
 		});
+
+		it("preserves the current page in the redirect when posting to the rendered row form action", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const urls = Array.from({ length: 60 }, (_v, i) => `https://example.com/post-${i}`);
+			const { body, contentType } = multipartBody("many.txt", Buffer.from(urls.join("\n")));
+			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
+			const sessionPath = create.headers.location;
+
+			const page2 = await agent.get(`${sessionPath}?page=2`);
+			const doc2 = new JSDOM(page2.text).window.document;
+			const row = doc2.querySelector<HTMLElement>("[data-test-import-row]");
+			assert(row, "at least one row must be rendered on page 2");
+			const form = row.querySelector<HTMLFormElement>("form");
+			assert(form, "row toggle form must be rendered");
+			const action = form.getAttribute("action");
+			assert(action, "row form must have an action attribute");
+			const indexInput = form.querySelector<HTMLInputElement>('input[name="index"]');
+			assert(indexInput, "row form must have an index hidden input");
+
+			const toggleResp = await agent
+				.post(action)
+				.type("form")
+				.send({ index: indexInput.value, checked: "false" });
+
+			expect(toggleResp.status).toBe(303);
+			expect(toggleResp.headers.location).toBe(`${sessionPath}?page=2`);
+		});
 	});
 
 	describe("GET /import/:id master checkbox", () => {
@@ -435,7 +463,7 @@ describe("Import routes", () => {
 			}
 		});
 
-		it("preserves the current page in the redirect", async () => {
+		it("preserves the current page in the redirect when posting to the rendered toolbar form action", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			const urls = Array.from({ length: 60 }, (_v, i) => `https://example.com/post-${i}`);
@@ -443,10 +471,14 @@ describe("Import routes", () => {
 			const create = await agent.post("/import").set("Content-Type", contentType).send(body);
 			const sessionPath = create.headers.location;
 
-			const toggleResp = await agent
-				.post(`${sessionPath}/toggle-all?page=2`)
-				.type("form")
-				.send({ checked: "false" });
+			const page2 = await agent.get(`${sessionPath}?page=2`);
+			const doc2 = new JSDOM(page2.text).window.document;
+			const form = doc2.querySelector<HTMLFormElement>('[data-test-form="import-toggle-all"]');
+			assert(form, "toggle-all form must be rendered on page 2");
+			const action = form.getAttribute("action");
+			assert(action, "toggle-all form must have an action attribute");
+
+			const toggleResp = await agent.post(action).type("form").send({ checked: "false" });
 
 			expect(toggleResp.status).toBe(303);
 			expect(toggleResp.headers.location).toBe(`${sessionPath}?page=2`);

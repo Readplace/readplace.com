@@ -124,6 +124,30 @@ describe("toImportViewModel", () => {
 		expect(vm.someSelected).toBe(true);
 	});
 
+	it("omits the page query string on toggle URLs when viewing the first page", () => {
+		const session = makeSession({ totalUrls: 120 });
+
+		const vm = toImportViewModel(
+			{ session, pageUrls: [], page: 1, pageSize: 50 },
+			120,
+		);
+
+		expect(vm.toggleUrl).toBe(`/import/${session.id}/toggle`);
+		expect(vm.toggleAllUrl).toBe(`/import/${session.id}/toggle-all`);
+	});
+
+	it("carries the current page in toggle URLs when viewing a later page", () => {
+		const session = makeSession({ totalUrls: 200 });
+
+		const vm = toImportViewModel(
+			{ session, pageUrls: [], page: 3, pageSize: 50 },
+			200,
+		);
+
+		expect(vm.toggleUrl).toBe(`/import/${session.id}/toggle?page=3`);
+		expect(vm.toggleAllUrl).toBe(`/import/${session.id}/toggle-all?page=3`);
+	});
+
 	it("propagates the truncated flag and totalFoundInFile from the session header", () => {
 		const session = makeSession({ totalUrls: 2_000, totalFoundInFile: 2_345, truncated: true });
 
