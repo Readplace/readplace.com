@@ -44,6 +44,14 @@ export interface QueueArticleViewModel {
 	 * stops ticking. See isCardTerminal for the rules.
 	 */
 	cardPollUrl?: string;
+	/**
+	 * True when the card stopped polling because the poll cap was reached
+	 * (not because the pipelines hit a terminal state). The card is sitting
+	 * on a hostname stub indefinitely; the user gets an inline hint pointing
+	 * them at the source URL so they're not stuck staring at a half-loaded
+	 * card waiting for something that may never land.
+	 */
+	isStalePending: boolean;
 }
 
 export interface ImportSkippedViewModel {
@@ -144,10 +152,12 @@ export function toQueueArticleViewModel(params: {
 	const pollCount = params.pollCount ?? 1;
 	const readTime = article.estimatedReadTime;
 	const id = article.id.value;
+	const reachedTerminal = isCardTerminal(crawl, summary);
 	const cardPollUrl =
-		isCardTerminal(crawl, summary) || pollCount > maxPolls
+		reachedTerminal || pollCount > maxPolls
 			? undefined
 			: buildCardPollUrl({ articleId: id, pollCount, filters });
+	const isStalePending = !reachedTerminal && pollCount > maxPolls;
 	return {
 		id,
 		title: article.metadata.title,
@@ -162,6 +172,7 @@ export function toQueueArticleViewModel(params: {
 		hasContent: Boolean(article.content),
 		actions: toArticleActions({ id, status: article.status }, returnQuery),
 		cardPollUrl,
+		isStalePending,
 	};
 }
 

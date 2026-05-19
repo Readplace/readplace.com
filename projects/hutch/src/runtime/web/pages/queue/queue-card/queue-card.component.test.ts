@@ -21,6 +21,7 @@ function makeViewModel(
 		savedAgo: "10m ago",
 		hasContent: false,
 		actions: [],
+		isStalePending: false,
 		...overrides,
 	};
 }
@@ -90,5 +91,32 @@ describe("renderQueueCard", () => {
 		const card = parse(html).querySelector(".queue-article");
 		assert(card);
 		expect(card.hasAttribute("id")).toBe(false);
+	});
+
+	it("renders the 'Taking a while — open on source' hint when isStalePending is true", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(makeViewModel({ isStalePending: true }), {
+				isFirst: false,
+			}),
+		);
+		const doc = parse(html);
+		const hint = doc.querySelector("[data-test-stale-pending]");
+		assert(hint, "stale-pending hint must be rendered when isStalePending is true");
+		assert.match(hint.textContent ?? "", /Taking a while/);
+		const link = hint.querySelector("a");
+		assert(link, "hint must contain a link to the source URL");
+		assert.equal(link.getAttribute("href"), "https://example.com/article");
+		assert.equal(link.getAttribute("target"), "_blank");
+		assert.equal(link.getAttribute("rel"), "noopener");
+	});
+
+	it("omits the stale-pending hint when isStalePending is false (normal flow)", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(makeViewModel({ isStalePending: false }), {
+				isFirst: false,
+			}),
+		);
+		const hint = parse(html).querySelector("[data-test-stale-pending]");
+		assert.equal(hint, null);
 	});
 });

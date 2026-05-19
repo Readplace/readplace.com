@@ -277,6 +277,17 @@
   overflow: hidden;
 }
 
+.queue-article__stale-pending {
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  margin-top: 8px;
+}
+
+.queue-article__stale-pending a {
+  color: var(--color-brand);
+  text-decoration: underline;
+}
+
 .queue-article__action-form {
   display: inline;
 }

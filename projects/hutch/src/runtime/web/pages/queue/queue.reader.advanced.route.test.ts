@@ -57,11 +57,16 @@ describe("Queue routes", () => {
 			const doc = new JSDOM(readerResponse.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, "reader slot must be rendered");
-			// crawl=ready + empty content is the worker-bug catch-all: the slot
-			// renders pending so the article never claims a healthy terminal
-			// state in the UI. (DB still says crawlStatus=ready, so the
-			// stuck-articles canary won't flag it — that's a separate gap.)
-			expect(slot.getAttribute("data-reader-status")).toBe("pending");
+			// crawl=ready + empty content is the worker-bug catch-all: with no
+			// pollUrl on the first render (the parser produced an empty body, so
+			// shouldKeepPollingReader returns false) the slot routes to the
+			// "slow" reframe — the user sees the source-link CTA instead of a
+			// dead "Still fetching — refresh to check again." message.
+			expect(slot.getAttribute("data-reader-status")).toBe("slow");
+			expect(slot.hasAttribute("hx-get")).toBe(false);
+			const primary = doc.querySelector("[data-test-reader-failed-primary]");
+			assert(primary, "primary source CTA must be rendered on the slow page");
+			expect(primary.getAttribute("href")).toBe("https://example.com/empty-page");
 		});
 
 		it("should render audio player when feature=audio query param is present", async () => {
@@ -386,8 +391,14 @@ describe("Queue routes", () => {
 			const doc = new JSDOM(pollResponse.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, "reader slot must be rendered");
-			expect(slot.getAttribute("data-reader-status")).toBe("pending");
+			// At the cap, the slot stops polling and swaps to the friendly
+			// "Your link is saved" reframe so the user gets a clear CTA to the
+			// source rather than a dead spinner.
+			expect(slot.getAttribute("data-reader-status")).toBe("slow");
 			expect(slot.hasAttribute("hx-get")).toBe(false);
+			const primary = doc.querySelector("[data-test-reader-failed-primary]");
+			assert(primary, "primary source CTA must be rendered when polling caps out");
+			expect(primary.getAttribute("href")).toBe("https://example.com/poll-cap");
 		});
 
 		it("GET /queue/:id/reader returns 404 for a missing article", async () => {

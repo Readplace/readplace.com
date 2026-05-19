@@ -8,7 +8,7 @@ function parse(html: string) {
 }
 
 describe("renderReaderPending", () => {
-	it("renders polling attributes and the fetching message when pollUrl is provided", () => {
+	it("renders polling attributes and the fetching message", () => {
 		const doc = parse(
 			renderReaderPending({ pollUrl: "/queue/abc/reader?poll=1" }),
 		);
@@ -19,19 +19,8 @@ describe("renderReaderPending", () => {
 		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/reader?poll=1");
 		expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
 		expect(slot.getAttribute("hx-swap")).toBe("outerHTML");
-		expect(doc.querySelector(".article-body__reader-loading")?.textContent).toBe(
-			"Fetching article",
-		);
-	});
-
-	it("renders a terminal slot without polling attributes when pollUrl is omitted", () => {
-		const doc = parse(renderReaderPending({}));
-
-		const slot = doc.querySelector("[data-test-reader-slot]");
-		assert(slot, "reader slot must be rendered");
-		expect(slot.hasAttribute("hx-get")).toBe(false);
 		expect(
 			doc.querySelector(".article-body__reader-loading")?.textContent,
-		).toContain("Still fetching");
+		).toBe("Fetching article");
 	});
 });

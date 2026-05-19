@@ -47,7 +47,7 @@ describe("renderSummarySkipped", () => {
 			"crawl-unsupported",
 		);
 		expect(info.textContent).toBe(
-			"This isn't a webpage we can save, so there's nothing to summarise.",
+			"Summaries aren't generated for PDFs and other non-webpage files.",
 		);
 	});
 
