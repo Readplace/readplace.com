@@ -111,6 +111,9 @@ export const BASE_RESET_STYLES = `
     margin: 0;
     padding: 0;
   }
+  html {
+    scroll-padding-top: calc(var(--banner-area-height, 38px) + var(--header-height, 64px));
+  }
   body {
     font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     line-height: 1.6;

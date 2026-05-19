@@ -98,6 +98,12 @@
     })();
   </script>
   {{{header}}}
+  <script>
+    (function() {
+      var h = document.querySelector('.header');
+      if (h) document.documentElement.style.setProperty('--header-height', h.offsetHeight + 'px');
+    })();
+  </script>
   {{{content}}}
   {{{footer}}}
   {{{navScript}}}
