@@ -522,6 +522,54 @@
   }
 }
 
+/**
+ * Canonical Disambiguation Section
+ *
+ * 1. Same narrow reading column as the features section so the prose sits at
+ *    ~680px and stays readable.
+ * 2. Inline code uses the same neutral chip pattern the rest of the site
+ *    uses inside paragraphs.
+ */
+.home-canonical {
+  padding: 64px 20px;
+}
+
+.home-canonical__container {
+  max-width: var(--reader-max-width); /* 1 */
+  margin: 0 auto;
+}
+
+.home-canonical__heading {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #2B3A55;
+  margin: 0 0 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .home-canonical__heading {
+    color: var(--foreground);
+  }
+}
+
+.home-canonical__body {
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--muted-foreground);
+  margin: 0 0 16px;
+}
+
+.home-canonical__body code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9375em;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  color: var(--foreground); /* 2 */
+}
+
 /* Roadmap Section */
 .home-roadmap {
   padding: 48px 20px 80px;
@@ -670,6 +718,169 @@
 
 .comparison-table__cross {
   color: var(--color-text-muted);
+}
+
+/**
+ * Decline Statements ("What Readplace will not become")
+ *
+ * 1. Bullet list uses a custom marker that visually reads as a strikethrough —
+ *    a small minus sign — so each entry feels like a deliberate refusal, not
+ *    a feature.
+ */
+.home-decline {
+  padding: 64px 20px;
+  background: var(--muted);
+}
+
+.home-decline__container {
+  max-width: var(--reader-max-width);
+  margin: 0 auto;
+}
+
+.home-decline__heading {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #2B3A55;
+  margin: 0 0 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .home-decline__heading {
+    color: var(--foreground);
+  }
+}
+
+.home-decline__lead {
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--foreground);
+  margin: 0 0 12px;
+}
+
+.home-decline__list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px;
+}
+
+.home-decline__item {
+  position: relative;
+  padding: 8px 0 8px 28px;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+}
+
+.home-decline__item:last-child {
+  border-bottom: none;
+}
+
+.home-decline__item::before {
+  content: "\2014"; /* 1 */
+  position: absolute;
+  left: 0;
+  top: 8px;
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
+.home-decline__closing {
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+/**
+ * Cost Transparency Block ("What $3.99 a month pays for")
+ *
+ * 1. Card surface so the section reads as a discrete receipt-style block,
+ *    distinct from the prose decline section above it and the pricing card
+ *    below.
+ */
+.home-cost {
+  padding: 64px 20px;
+}
+
+.home-cost__container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg); /* 1 */
+}
+
+.home-cost__heading {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #2B3A55;
+  margin: 0 0 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .home-cost__heading {
+    color: var(--foreground);
+  }
+}
+
+.home-cost__lead {
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--foreground);
+  margin: 0 0 12px;
+}
+
+.home-cost__list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px;
+}
+
+.home-cost__item {
+  padding: 10px 0;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+}
+
+.home-cost__item:last-child {
+  border-bottom: none;
+}
+
+.home-cost__item strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.home-cost__body {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--muted-foreground);
+  margin: 0 0 12px;
+}
+
+.home-cost__body--muted {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0;
+}
+
+.home-cost__body a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+@media (max-width: 540px) {
+  .home-cost__container {
+    padding: 24px 20px;
+  }
 }
 
 /* Pricing Section */
