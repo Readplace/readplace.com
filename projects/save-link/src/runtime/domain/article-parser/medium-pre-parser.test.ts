@@ -486,6 +486,44 @@ describe("mediumPreParser.extract — footer subscribe CTA", () => {
 	});
 });
 
+describe("mediumPreParser.extract — narrow container body fallback", () => {
+	it("falls back to <body> when <article> contains only chrome and prose is a sibling", () => {
+		const html = `<html><head><meta property="og:site_name" content="Medium"></head><body>
+			<article><a href="/author"><img data-testid="authorPhoto" alt="A"></a><span data-testid="storyReadTime">5 min read</span></article>
+			<div><h1>Headline</h1>${FILLER_PARAGRAPH}</div>
+		</body></html>`;
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).toContain("This is filler body content");
+		expect(result?.bodyHtml).not.toContain("authorPhoto");
+		expect(result?.bodyHtml).not.toContain("5 min read");
+		expect(result?.title).toBe("Headline");
+	});
+
+	it("strips chrome in the sibling prose when body fallback activates", () => {
+		const html = `<html><head><meta property="og:site_name" content="Medium"></head><body>
+			<article><a href="/author"><img data-testid="authorPhoto" alt="A"></a></article>
+			<div><span data-testid="storyPublishDate">Jun 21, 2018</span>${FILLER_PARAGRAPH}</div>
+		</body></html>`;
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).toContain("This is filler body content");
+		expect(result?.bodyHtml).not.toContain("authorPhoto");
+		expect(result?.bodyHtml).not.toContain("Jun 21, 2018");
+	});
+
+	it("returns undefined when even the body fallback is below MIN_BODY_CHARS", () => {
+		const html = `<html><head><meta property="og:site_name" content="Medium"></head><body>
+			<article><a href="/author"><img data-testid="authorPhoto" alt="A"></a></article>
+			<p>Short.</p>
+		</body></html>`;
+
+		expect(mediumPreParser.extract({ html })).toBeUndefined();
+	});
+});
+
 describe("mediumPreParser.extract — title and body preservation", () => {
 	it("extracts the title from the first <h1> inside the container", () => {
 		const html = buildHtml({

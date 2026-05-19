@@ -65,33 +65,23 @@ export const mediumPreParser: SitePreParser = {
 		if (!container) container = document.querySelector("body");
 		assert(container, "parseHTML always produces a <body> element");
 
-		let authorPhoto = container.querySelector(AUTHOR_PHOTO_SELECTOR);
+		stripChrome(container);
 
-		stripClapsSeparators({ container, anchorElement: authorPhoto });
-		while (authorPhoto) {
-			authorPhoto.closest("a")?.remove();
-			authorPhoto.remove();
-			authorPhoto = container.querySelector(AUTHOR_PHOTO_SELECTOR);
+		let bodyHtml = container.innerHTML;
+		if (bodyHtml.length < MIN_BODY_CHARS) {
+			/* The semantic container was too narrow (e.g. Medium wrapped only
+			 * the byline chrome inside <article> and placed the prose in a
+			 * sibling). Retry with <body> — elements already stripped from
+			 * the narrow container are gone from the shared DOM tree, so we
+			 * only need to strip chrome that lived outside it. */
+			const body = document.querySelector("body");
+			assert(body, "parseHTML always produces a <body> element");
+			if (container !== body) {
+				stripChrome(body);
+				container = body;
+				bodyHtml = body.innerHTML;
+			}
 		}
-
-		stripWithEnclosingParagraph({
-			container,
-			testId: "storyReadTime",
-			textRegex: READ_TIME_REGEX,
-		});
-		stripWithEnclosingParagraph({
-			container,
-			testId: "storyPublishDate",
-			textRegex: PUBLISH_DATE_REGEX,
-		});
-		stripPictureTooltip(container);
-		stripFooterSubscribeCta(container);
-
-		const bodyHtml = container.innerHTML;
-		/* Defensive fall-through: if our stripping dropped the body too,
-		 * yield to the default Readability extraction rather than emit an
-		 * empty article. The downstream parser then runs Readability on the
-		 * raw HTML — chrome will leak through, but at least the body exists. */
 		if (bodyHtml.length < MIN_BODY_CHARS) return undefined;
 
 		const title = extractTitle({ container, document });
@@ -131,6 +121,30 @@ function findArticleContainer(document: DomDocument): DomElement | null {
 		if (found) return found;
 	}
 	return null;
+}
+
+function stripChrome(container: DomElement): void {
+	let authorPhoto = container.querySelector(AUTHOR_PHOTO_SELECTOR);
+
+	stripClapsSeparators({ container, anchorElement: authorPhoto });
+	while (authorPhoto) {
+		authorPhoto.closest("a")?.remove();
+		authorPhoto.remove();
+		authorPhoto = container.querySelector(AUTHOR_PHOTO_SELECTOR);
+	}
+
+	stripWithEnclosingParagraph({
+		container,
+		testId: "storyReadTime",
+		textRegex: READ_TIME_REGEX,
+	});
+	stripWithEnclosingParagraph({
+		container,
+		testId: "storyPublishDate",
+		textRegex: PUBLISH_DATE_REGEX,
+	});
+	stripPictureTooltip(container);
+	stripFooterSubscribeCta(container);
 }
 
 
