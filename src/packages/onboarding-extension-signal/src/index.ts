@@ -1,8 +1,3 @@
-/** Legacy cookie written by deployed extension content scripts. The server
- * ignores it for onboarding — see ALIVE_COOKIE_NAME. */
-export const COOKIE_NAME = "hutch_ext_installed";
-export const COOKIE_VALUE = "1";
-
 /** httpOnly cookie set by the server on every Siren request. Only the
  * extension makes Siren requests, so when it's uninstalled the cookie
  * lapses and the onboarding "install" step flips back to incomplete. */
@@ -20,10 +15,3 @@ export const SAVE_COOKIE_NAME = "hutch_ext_saved";
 export const SAVE_COOKIE_VALUE = "1";
 
 export const DISMISS_COOKIE_NAME = "hutch_onboarding_dismissed";
-
-/** Kept for compatibility with deployed extension versions that bundle
- * this function. The cookie it writes is not used for onboarding. */
-export function markExtensionInstalled(): void {
-	// biome-ignore lint/suspicious/noDocumentCookie: Cookie Store API is unavailable in Firefox/Safari content scripts; document.cookie is the cross-browser path
-	document.cookie = `${COOKIE_NAME}=${COOKIE_VALUE}; path=/; max-age=31536000; SameSite=Lax`;
-}

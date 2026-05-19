@@ -161,11 +161,8 @@ export function initSaveArticleUnderstanding(): Map<string, ActionHandler> {
 					method: sirenAction.method,
 					headers: {
 						"Content-Type": sirenAction.type ?? "application/json",
-						/** Opt into the collection-on-rejection flow for non-saveable
-						 * URL schemes (RFC 7240, mirroring the delete route). Without
-						 * this the server falls back to a stub-save for backward
-						 * compatibility with extensions that can't interpret a
-						 * collection body on POST. */
+						/** Signal that the client will process a representation in
+						 * the response (RFC 7240). */
 						Prefer: "return=representation",
 					},
 					body: JSON.stringify({ url: fields.url }),
@@ -267,7 +264,8 @@ export function initDeleteArticleUnderstanding(): Map<string, ActionHandler> {
 	const handlers = new Map<string, ActionHandler>();
 	handlers.set("delete", (sirenAction, context) => {
 		return async () => {
-			/** Opt into the 303-redirect-then-collection flow. Without this the server falls back to a 204 No Content response for backwards compatibility with chrome-extension v1.0.66, whose delete handler can only observe 204s (it sets `redirect: "manual"`, which masks 303 status codes as opaqueredirect/0). */
+			/** Signal that the client will process a representation in the
+			 * response (RFC 7240). */
 			const response = await context.doFetch(
 				`${context.serverUrl}${sirenAction.href}`,
 				{

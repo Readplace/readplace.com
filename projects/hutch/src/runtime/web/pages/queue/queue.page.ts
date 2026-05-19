@@ -43,7 +43,7 @@ import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.
 import type { PublishLinkSaved } from "@packages/test-fixtures/providers/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/test-fixtures/providers/events";
 import type { PutPendingHtml } from "@packages/test-fixtures/providers/pending-html";
-import { saveArticleFromUrl, saveUnsaveableUrlStub } from "../../shared/save-article/save-article-from-url";
+import { saveArticleFromUrl } from "../../shared/save-article/save-article-from-url";
 import { Base } from "../../base.component";
 import { bannerStateFromRequest } from "../../banner-state";
 import { sendComponent } from "../../send-component";
@@ -327,7 +327,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const userId = req.userId;
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
 		const validation = deps.validateSaveableUrl(submittedUrl);
-		const prefersRepresentation = req.get("Prefer") === "return=representation";
 
 		if (validation.status === "ERROR") {
 			if (validation.error.code === "malformed_url") {
@@ -336,37 +335,26 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				);
 				return;
 			}
-			if (prefersRepresentation) {
-				/** Scheme/host that the crawler can't reach (chrome://, file:,
-				 * localhost, *.home.arpa, ...). Return the current collection so
-				 * the extension can drop the user back into the list view, and
-				 * surface a `warning` property carrying the failure code + a
-				 * human-readable message that the client can render as a warning
-				 * banner alongside the list. */
-				const collection = await deps.findArticlesByUser({ userId });
-				res.status(422).type(SIREN_MEDIA_TYPE).json(
-					toArticleCollectionEntity(
-						collection,
-						{ page: collection.page, pageSize: collection.pageSize },
-						{ warning: { code: validation.error.code, message: validation.error.message } },
-					),
-				);
-				return;
-			}
-			/** Legacy extension without Prefer header — fall through to the
-			 * pre-validator stub-save behaviour for backwards compatibility. */
+			/** Scheme/host that the crawler can't reach (chrome://, file:,
+			 * localhost, *.home.arpa, ...). Return the current collection so
+			 * the extension can drop the user back into the list view, and
+			 * surface a `warning` property carrying the failure code + a
+			 * human-readable message that the client can render as a warning
+			 * banner alongside the list. */
+			const collection = await deps.findArticlesByUser({ userId });
+			res.status(422).type(SIREN_MEDIA_TYPE).json(
+				toArticleCollectionEntity(
+					collection,
+					{ page: collection.page, pageSize: collection.pageSize },
+					{ warning: { code: validation.error.code, message: validation.error.message } },
+				),
+			);
+			return;
 		}
 
 		try {
-			if (validation.status === "SUCCESS") {
-				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-				const result = await saveArticleFromUrl(deps, { userId, url: validation.url, freshness });
-				markExtensionSavedArticle(res);
-				res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
-				return;
-			}
-			const freshness = await deps.refreshArticleIfStale({ url: submittedUrl });
-			const result = await saveUnsaveableUrlStub(deps, { userId, url: submittedUrl, freshness });
+			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
+			const result = await saveArticleFromUrl(deps, { userId, url: validation.url, freshness });
 			markExtensionSavedArticle(res);
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
@@ -639,13 +627,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		if (parsedId.success) {
 			await deps.deleteArticle(parsedId.data, userId);
-		}
-
-		/** Chrome extension v1.0.66 (in the web store) sends this request with `redirect: "manual"` and only treats `status === 204` as success — a 303 surfaces to JS as an opaqueredirect with status 0, leaving the deleted row on screen until the popup is reopened. Newer extensions opt into the redirect-and-follow flow with `Prefer: return=representation` (RFC 7240) so they receive the refreshed Siren collection. Drop the 204 branch once v1.0.66 ages out of the wild. */
-		const prefersRepresentation = req.get("Prefer") === "return=representation";
-		if (wantsSiren(req) && !prefersRepresentation) {
-			res.status(204).send();
-			return;
 		}
 
 		res.redirect(303, buildQueueUrl(parseQueueUrl(req.query)));

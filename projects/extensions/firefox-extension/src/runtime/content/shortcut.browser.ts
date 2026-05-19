@@ -1,11 +1,4 @@
 /* c8 ignore start -- content script, runs in browser page context only */
-import { markExtensionInstalled } from "@packages/onboarding-extension-signal";
-
-declare const __APP_DOMAINS__: string[];
-
-if (__APP_DOMAINS__.includes(location.hostname)) {
-	try { markExtensionInstalled(); } catch (_e) { /* cookies may be disabled */ }
-}
 
 // Firefox won't let extensions override Cmd+D via the commands API — it silently
 // refuses to assign shortcuts that conflict with native browser shortcuts.

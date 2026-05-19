@@ -610,7 +610,7 @@ describe("initExtension", () => {
 			).rejects.toThrow("Save failed: 422");
 		});
 
-		it("sends Prefer: return=representation to opt into the collection-on-rejection flow", async () => {
+		it("sends Prefer: return=representation on save (RFC 7240)", async () => {
 			let capturedPrefer: string | null = null;
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({
@@ -801,8 +801,7 @@ describe("initExtension", () => {
 			).rejects.toThrow("Delete failed: 404");
 		});
 
-		/** Without this header the server falls back to a 204 No Content response to keep chrome-extension v1.0.66 (still in the web store) working — that build can only observe 204s because it sets `redirect: "manual"`, which masks 303 status codes as opaqueredirect/0. */
-		it("sends Prefer: return=representation so the server returns the refreshed Siren collection (and not the v1.0.66 backwards-compat 204)", async () => {
+		it("sends Prefer: return=representation on delete (RFC 7240)", async () => {
 			let observedPrefer: string | null = null;
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({

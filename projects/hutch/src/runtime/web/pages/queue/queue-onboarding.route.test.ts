@@ -3,8 +3,6 @@ import { JSDOM } from "jsdom";
 import {
 	ALIVE_COOKIE_NAME,
 	ALIVE_COOKIE_VALUE,
-	COOKIE_NAME,
-	COOKIE_VALUE,
 	DISMISS_COOKIE_NAME,
 	SAVE_COOKIE_NAME,
 	SAVE_COOKIE_VALUE,
@@ -90,25 +88,6 @@ describe("Queue onboarding", () => {
 		const step = doc.querySelector('[data-test-onboarding-step="install-extension"]');
 		assert(step, "install-extension step must be rendered");
 		expect(step.getAttribute("data-test-onboarding-complete")).toBe("true");
-	});
-
-	/** The legacy hutch_ext_installed cookie is writable from the extension's
-	 * content script and persists for a year, so its presence does not prove
-	 * the extension is currently installed. The server must ignore it for
-	 * onboarding purposes — only the httpOnly hutch_ext_alive cookie counts. */
-	it("does not mark install-extension complete when only the legacy hutch_ext_installed cookie is present", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth } = harness;
-		const agent = await loginAgent(harness.server, auth);
-
-		const response = await agent
-			.get("/queue")
-			.set("Cookie", `${COOKIE_NAME}=${COOKIE_VALUE}`);
-
-		const doc = new JSDOM(response.text).window.document;
-		const step = doc.querySelector('[data-test-onboarding-step="install-extension"]');
-		assert(step, "install-extension step must be rendered");
-		expect(step.getAttribute("data-test-onboarding-complete")).toBe("false");
 	});
 
 	it("shows success message when both the alive and extension-save cookies are present", async () => {
@@ -210,12 +189,10 @@ describe("Queue onboarding", () => {
 	 *     stops being renewed and lapses; the dismiss should not silently
 	 *     suppress the prompt to reinstall once that happens.
 	 *
-	 * The three tests below pin all directions of the rule:
+	 * The two tests below pin both directions of the rule:
 	 *   1. Both cookies present → onboarding stays hidden (the happy path).
 	 *   2. Dismiss cookie alone → onboarding re-renders with install-extension
 	 *      marked incomplete, so the user is prompted to install in this browser.
-	 *   3. Dismiss + legacy hutch_ext_installed without alive → onboarding
-	 *      re-renders, proving the legacy cookie does not satisfy dismissal.
 	 */
 	it("does not render onboarding when dismiss cookie matches current version and extension is alive", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -243,29 +220,6 @@ describe("Queue onboarding", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
 		assert(onboarding, "onboarding must re-render so the user can install the extension in this browser");
-		expect(onboarding.classList.contains("onboarding--visible")).toBe(true);
-		const installStep = doc.querySelector('[data-test-onboarding-step="install-extension"]');
-		assert(installStep);
-		expect(installStep.getAttribute("data-test-onboarding-complete")).toBe("false");
-	});
-
-	/** The exact bug this branch fixes: user installs the extension, completes
-	 * onboarding, dismisses it, then uninstalls the extension. The legacy
-	 * hutch_ext_installed cookie persists in the browser jar (1-year TTL,
-	 * written by the content script) but the httpOnly hutch_ext_alive lapses
-	 * once Siren requests stop. Onboarding must come back. */
-	it("re-renders onboarding after uninstall (dismiss + legacy cookie present, alive cookie missing)", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth } = harness;
-		const agent = await loginAgent(harness.server, auth);
-
-		const response = await agent
-			.get("/queue")
-			.set("Cookie", `${DISMISS_COOKIE_NAME}=${ONBOARDING_VERSION}; ${COOKIE_NAME}=${COOKIE_VALUE}`);
-
-		const doc = new JSDOM(response.text).window.document;
-		const onboarding = doc.querySelector("[data-test-onboarding]");
-		assert(onboarding, "onboarding must re-render once the extension stops renewing the alive cookie");
 		expect(onboarding.classList.contains("onboarding--visible")).toBe(true);
 		const installStep = doc.querySelector('[data-test-onboarding-step="install-extension"]');
 		assert(installStep);

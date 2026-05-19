@@ -79,16 +79,3 @@ export function saveArticleFromUrl(
 ): Promise<{ saved: SavedArticle }> {
 	return saveByFreshness(deps, params);
 }
-
-/** Back-compat shim for chrome-extension v1.0.66 (and earlier) which POSTs
- * non-saveable URLs to /queue without the Prefer: return=representation
- * header. The crawler can't fetch the URL, but old extensions expect a 201
- * with an article body — so we save a hostname-only stub via the same code
- * path that runs for valid URLs. Do NOT call this from new entry points;
- * route through validateSaveableUrl + saveArticleFromUrl instead. */
-export function saveUnsaveableUrlStub(
-	deps: SaveArticleFromUrlDependencies,
-	params: { userId: UserId; url: string; freshness: ContentFreshnessResult },
-): Promise<{ saved: SavedArticle }> {
-	return saveByFreshness(deps, params);
-}

@@ -241,7 +241,7 @@ describe("POST /queue (Siren save article)", () => {
 		expect(response.body.properties.code).toBe("invalid-url");
 	});
 
-	it("returns the article collection for a non-saveable scheme when client opts in via Prefer", async () => {
+	it("returns the article collection for a non-saveable scheme", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const accessToken = await createAccessToken(harness);
 
@@ -257,7 +257,6 @@ describe("POST /queue (Siren save article)", () => {
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
 			.set("Content-Type", "application/json")
-			.set("Prefer", "return=representation")
 			.send({ url: "chrome://newtab/" });
 
 		expect(response.status).toBe(422);
@@ -281,7 +280,6 @@ describe("POST /queue (Siren save article)", () => {
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
 			.set("Content-Type", "application/json")
-			.set("Prefer", "return=representation")
 			.send({ url: "http://localhost:3000/queue" });
 
 		expect(response.status).toBe(422);
@@ -301,27 +299,10 @@ describe("POST /queue (Siren save article)", () => {
 			.set("Accept", SIREN_MEDIA_TYPE)
 			.set("Authorization", `Bearer ${accessToken}`)
 			.set("Content-Type", "application/json")
-			.set("Prefer", "return=representation")
 			.send({ url: "http://router.home.arpa/" });
 
 		expect(response.status).toBe(422);
 		expect(response.body.properties.warning.code).toBe("private_network");
-	});
-
-	it("preserves the legacy stub-save behaviour for a non-saveable scheme without Prefer", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(harness);
-
-		const response = await request(harness.server)
-			.post("/queue")
-			.set("Accept", SIREN_MEDIA_TYPE)
-			.set("Authorization", `Bearer ${accessToken}`)
-			.set("Content-Type", "application/json")
-			.send({ url: "chrome://newtab/" });
-
-		expect(response.status).toBe(201);
-		expect(response.body.class).toContain("article");
-		expect(response.body.properties.url).toBe("chrome://newtab/");
 	});
 
 	it("returns 401 without token", async () => {
@@ -453,7 +434,7 @@ describe("POST /queue (Siren re-save read article)", () => {
 });
 
 describe("POST /queue/:id/delete (Siren)", () => {
-	it("redirects to collection via 303 after deleting when client opts in via Prefer header", async () => {
+	it("redirects to collection via 303 after deleting", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const accessToken = await createAccessToken(harness);
 
@@ -506,30 +487,6 @@ describe("POST /queue/:id/delete (Siren)", () => {
 		expect(collectionResponse.status).toBe(200);
 		expect(collectionResponse.body.class).toContain("collection");
 		expect(collectionResponse.body.properties.total).toBe(0);
-	});
-
-	/** Chrome extension v1.0.66 (still in the web store) sets `redirect: "manual"` on its delete fetch and only treats `status === 204` as success — a 303 surfaces to JS as an opaqueredirect with status 0, leaving the deleted row visible in the popup until reopened. The server keeps returning 204 for Siren clients that don't opt into the new representation flow until v1.0.66 ages out of the wild. */
-	it("returns 204 No Content for legacy Siren clients without Prefer header (chrome-extension v1.0.66 backwards compat)", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const accessToken = await createAccessToken(harness);
-
-		const saveResponse = await request(harness.server)
-			.post("/queue")
-			.set("Accept", SIREN_MEDIA_TYPE)
-			.set("Authorization", `Bearer ${accessToken}`)
-			.set("Content-Type", "application/json")
-			.send({ url: "https://example.com/article" });
-
-		const articleId = saveResponse.body.properties.id;
-
-		const deleteResponse = await request(harness.server)
-			.post(`/queue/${articleId}/delete`)
-			.set("Accept", SIREN_MEDIA_TYPE)
-			.set("Authorization", `Bearer ${accessToken}`)
-			.redirects(0);
-
-		expect(deleteResponse.status).toBe(204);
-		expect(deleteResponse.text).toBe("");
 	});
 });
 
