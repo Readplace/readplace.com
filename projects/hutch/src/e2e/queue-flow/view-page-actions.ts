@@ -103,7 +103,11 @@ export function createAnonymousViewPageActions(
 				const shareWrap = page.locator('[data-test-share-balloon-wrap]')
 				await expect(shareWrap).toHaveCount(1)
 				await expect(shareWrap).not.toHaveClass(/share-balloon__wrap--open/)
-				await page.evaluate(() => window.scrollTo(0, 200))
+				await page.evaluate(() => {
+					const article = document.querySelector<HTMLElement>('[data-article-body]')
+					const height = article ? article.offsetHeight : 0
+					window.scrollTo(0, Math.ceil(height * 0.5) + 1)
+				})
 				await expect(shareWrap).toHaveClass(/share-balloon__wrap--open/, { timeout: 3000 })
 				await page.locator('[data-test-share-balloon-close]').click()
 				await expect(shareWrap).not.toHaveClass(/share-balloon__wrap--open/)
@@ -126,7 +130,11 @@ export function createAnonymousViewPageActions(
 				// Share dismiss persists across reload: scrolling past the threshold
 				// again must NOT re-open the balloon. Wait past the 1s OPEN_DELAY_MS
 				// so a would-be setTimeout has had its chance to fire.
-				await page.evaluate(() => window.scrollTo(0, 200))
+				await page.evaluate(() => {
+					const article = document.querySelector<HTMLElement>('[data-article-body]')
+					const height = article ? article.offsetHeight : 0
+					window.scrollTo(0, Math.ceil(height * 0.5) + 1)
+				})
 				await page.waitForTimeout(1500)
 				await expect(shareWrap).not.toHaveClass(/share-balloon__wrap--open/)
 

@@ -12,6 +12,7 @@ const ARTICLE_TITLE = "Hello World";
 
 const FIXTURE = `<!DOCTYPE html><html><body>
 <span data-share-balloon-status></span>
+<div data-article-body></div>
 <div data-share-balloon-wrap hidden>
   <div data-share-balloon-buttons>
     <div data-share-balloon-chat></div>
@@ -43,6 +44,23 @@ function setScrollY(win: TestWindow, value: number): void {
 	});
 }
 
+function setViewportHeight(win: TestWindow, value: number): void {
+	Object.defineProperty(win, "innerHeight", {
+		value,
+		writable: true,
+		configurable: true,
+	});
+}
+
+function setArticleHeight(doc: Document, value: number): void {
+	const el = element(doc, "[data-article-body]");
+	Object.defineProperty(el, "offsetHeight", {
+		value,
+		writable: true,
+		configurable: true,
+	});
+}
+
 function fireScroll(win: TestWindow): void {
 	win.dispatchEvent(new win.Event("scroll"));
 }
@@ -52,10 +70,14 @@ function setup(
 		scrollY?: number;
 		dismissed?: boolean;
 		navigator?: NavigatorStub;
+		articleHeight?: number;
+		viewportHeight?: number;
 	} = {},
 ) {
 	const { window, document } = createDom();
 	setScrollY(window, options.scrollY ?? 0);
+	setViewportHeight(window, options.viewportHeight ?? 800);
+	setArticleHeight(document, options.articleHeight ?? 4000);
 	if (options.dismissed) {
 		window.localStorage.setItem(STORAGE_KEY, "1");
 	}
@@ -99,7 +121,7 @@ describe("initShareBalloon — attach/dismiss flow", () => {
 		const wrap = element(document, "[data-share-balloon-wrap]");
 		ctrl.attach();
 
-		setScrollY(window, 150);
+		setScrollY(window, 2500);
 		fireScroll(window);
 		jest.advanceTimersByTime(5000);
 
@@ -121,7 +143,7 @@ describe("initShareBalloon — attach/dismiss flow", () => {
 		const wrap = element(document, "[data-share-balloon-wrap]");
 
 		ctrl.attach();
-		setScrollY(window, 150);
+		setScrollY(window, 2500);
 		fireScroll(window);
 		jest.advanceTimersByTime(5000);
 
@@ -135,7 +157,7 @@ describe("initShareBalloon — attach/dismiss flow", () => {
 
 		ctrl.attach();
 		ctrl.attach();
-		setScrollY(window, 150);
+		setScrollY(window, 2500);
 		fireScroll(window);
 		jest.advanceTimersByTime(1000);
 
@@ -144,24 +166,44 @@ describe("initShareBalloon — attach/dismiss flow", () => {
 });
 
 describe("initShareBalloon — scroll-to-open", () => {
-	it("does not schedule the open when scrollY is below the threshold", () => {
-		const { window, document, ctrl } = setup();
+	it("opens immediately when the article fits inside the viewport (no scroll required)", () => {
+		const { document, ctrl } = setup({
+			articleHeight: 600,
+			viewportHeight: 800,
+			scrollY: 0,
+		});
+		const wrap = element(document, "[data-share-balloon-wrap]");
+
+		ctrl.attach();
+		jest.advanceTimersByTime(1000);
+
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(true);
+	});
+
+	it("does not open while scrollY is below half the article height on a longer article", () => {
+		const { window, document, ctrl } = setup({
+			articleHeight: 2000,
+			viewportHeight: 800,
+		});
 		const wrap = element(document, "[data-share-balloon-wrap]");
 		ctrl.attach();
 
-		setScrollY(window, 50);
+		setScrollY(window, 999);
 		fireScroll(window);
 		jest.advanceTimersByTime(5000);
 
 		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
 	});
 
-	it("opens the wrap one OPEN_DELAY_MS after scrollY crosses the threshold", () => {
-		const { window, document, ctrl } = setup();
+	it("opens one OPEN_DELAY_MS after scrollY crosses half the article height on a longer article", () => {
+		const { window, document, ctrl } = setup({
+			articleHeight: 2000,
+			viewportHeight: 800,
+		});
 		const wrap = element(document, "[data-share-balloon-wrap]");
 		ctrl.attach();
 
-		setScrollY(window, 150);
+		setScrollY(window, 1000);
 		fireScroll(window);
 		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
 		jest.advanceTimersByTime(999);
@@ -171,11 +213,14 @@ describe("initShareBalloon — scroll-to-open", () => {
 	});
 
 	it("does not schedule a second open if another scroll fires after the threshold was crossed", () => {
-		const { window, document, ctrl } = setup();
+		const { window, document, ctrl } = setup({
+			articleHeight: 2000,
+			viewportHeight: 800,
+		});
 		const wrap = element(document, "[data-share-balloon-wrap]");
 		ctrl.attach();
 
-		setScrollY(window, 150);
+		setScrollY(window, 1000);
 		fireScroll(window);
 		jest.advanceTimersByTime(1000);
 		expect(wrap.classList.contains(OPEN_CLASS)).toBe(true);
@@ -187,7 +232,11 @@ describe("initShareBalloon — scroll-to-open", () => {
 	});
 
 	it("honours an already-scrolled page on attach (synchronous open scheduling)", () => {
-		const { document, ctrl } = setup({ scrollY: 250 });
+		const { document, ctrl } = setup({
+			articleHeight: 2000,
+			viewportHeight: 800,
+			scrollY: 1500,
+		});
 		const wrap = element(document, "[data-share-balloon-wrap]");
 
 		ctrl.attach();
@@ -195,11 +244,44 @@ describe("initShareBalloon — scroll-to-open", () => {
 
 		expect(wrap.classList.contains(OPEN_CLASS)).toBe(true);
 	});
+
+	it("re-reads the article height on each scroll so dynamic-height content recomputes the threshold", () => {
+		const { window, document, ctrl } = setup({
+			articleHeight: 2000,
+			viewportHeight: 800,
+		});
+		const wrap = element(document, "[data-share-balloon-wrap]");
+		ctrl.attach();
+
+		setScrollY(window, 500);
+		fireScroll(window);
+		jest.advanceTimersByTime(5000);
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
+
+		setArticleHeight(document, 200);
+		fireScroll(window);
+		jest.advanceTimersByTime(1000);
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(true);
+	});
+
+	it("does not open even when the article fits the viewport if the dismiss flag is already set", () => {
+		const { document, ctrl } = setup({
+			articleHeight: 600,
+			viewportHeight: 800,
+			dismissed: true,
+		});
+		const wrap = element(document, "[data-share-balloon-wrap]");
+
+		ctrl.attach();
+		jest.advanceTimersByTime(5000);
+
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
+	});
 });
 
 describe("initShareBalloon — close button", () => {
 	it("removes the open class and persists the dismiss flag in storage", () => {
-		const { window, document, ctrl } = setup({ scrollY: 150 });
+		const { window, document, ctrl } = setup({ scrollY: 2500 });
 		const wrap = element(document, "[data-share-balloon-wrap]");
 		ctrl.attach();
 		jest.advanceTimersByTime(1000);
@@ -212,7 +294,7 @@ describe("initShareBalloon — close button", () => {
 	});
 
 	it("cancels a pending open timer when closed before OPEN_DELAY_MS elapses", () => {
-		const { document, ctrl } = setup({ scrollY: 150 });
+		const { document, ctrl } = setup({ scrollY: 2500 });
 		const wrap = element(document, "[data-share-balloon-wrap]");
 		ctrl.attach();
 
@@ -228,7 +310,7 @@ describe("initShareBalloon — close button", () => {
 		ctrl.attach();
 
 		fireEvent.click(element(document, "[data-share-balloon-close]"));
-		setScrollY(window, 150);
+		setScrollY(window, 2500);
 		fireScroll(window);
 		jest.advanceTimersByTime(5000);
 
@@ -388,7 +470,7 @@ describe("initShareBalloon — copy click", () => {
 
 describe("initShareBalloon — storage failures", () => {
 	it("treats a throwing getItem as not dismissed", () => {
-		const { window, document } = setup({ scrollY: 150 });
+		const { window, document } = setup({ scrollY: 2500 });
 		const wrap = element(document, "[data-share-balloon-wrap]");
 		const storage = {
 			getItem: jest.fn((): string | null => {
@@ -437,7 +519,7 @@ describe("initShareBalloon — storage failures", () => {
 
 describe("initShareBalloon — detach()", () => {
 	it("cancels a pending open timer and stops later scrolls from opening", () => {
-		const { window, document, ctrl } = setup({ scrollY: 150 });
+		const { window, document, ctrl } = setup({ scrollY: 2500 });
 		const wrap = element(document, "[data-share-balloon-wrap]");
 		ctrl.attach();
 
@@ -445,7 +527,7 @@ describe("initShareBalloon — detach()", () => {
 		jest.advanceTimersByTime(5000);
 		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
 
-		setScrollY(window, 200);
+		setScrollY(window, 3000);
 		fireScroll(window);
 		jest.advanceTimersByTime(1000);
 		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
