@@ -76,9 +76,16 @@ if (redirectDomains.length > 0) {
 const staticDomainEntries = staticDomains.map((staticDomain) => {
 	const parentIndex = domains.findIndex((d) => staticDomain.endsWith(`.${d}`));
 	const parentRegistration = parentIndex >= 0 ? allDomainRegistrations[parentIndex] : undefined;
-	return parentRegistration?.zoneId
-		? { domain: staticDomain, zoneId: parentRegistration.zoneId }
-		: { domain: staticDomain };
+	if (parentRegistration?.zoneId) {
+		return { domain: staticDomain, zoneId: parentRegistration.zoneId };
+	}
+	const parts = staticDomain.split(".");
+	if (parts.length < 3) {
+		return { domain: staticDomain };
+	}
+	const parent = parts.slice(1).join(".");
+	const zoneId = aws.route53.getZone({ name: parent }).then((z) => z.zoneId);
+	return { domain: staticDomain, zoneId };
 });
 
 const staticAssets = new HutchStaticAssets("hutch-static", {

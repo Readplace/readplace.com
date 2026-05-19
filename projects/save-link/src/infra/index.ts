@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import * as pulumi from "@pulumi/pulumi";
+import * as aws from "@pulumi/aws";
+import assert from "node:assert";
 import { z } from "zod";
 import {
 	HutchEventBus,
@@ -50,6 +52,7 @@ const articlesTableName = config.require("articlesTableName");
 const articlesTableArn = config.require("articlesTableArn");
 const contentBucketName = config.require("contentBucketName");
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
+const contentMediaCdnDomain = config.get("contentMediaCdnDomain");
 
 /**
  * Image URI for the comprehensive-crawl-command container Lambda, written by
@@ -78,8 +81,19 @@ const pendingHtmlBucket = new HutchS3ReadWrite("pending-html-bucket", {
 
 // --- Content Images CDN ---
 
+const contentMediaCustomDomain = contentMediaCdnDomain
+	? (() => {
+		const parts = contentMediaCdnDomain.split(".");
+		assert(parts.length >= 2, `contentMediaCdnDomain ${contentMediaCdnDomain} must have a parent zone`);
+		const parent = parts.slice(1).join(".");
+		const zoneId = aws.route53.getZone({ name: parent }).then((z) => z.zoneId);
+		return { domain: contentMediaCdnDomain, zoneId };
+	})()
+	: undefined;
+
 const contentMediaCdn = new HutchS3ContentMediaCDN("content-media", {
 	contentBucket,
+	customDomain: contentMediaCustomDomain,
 });
 
 const deepseekApiKey = pulumi.secret(requireEnv("DEEPSEEK_API_KEY"));

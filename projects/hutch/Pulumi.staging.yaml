@@ -6,7 +6,7 @@ config:
   hutch:platformStack: organization/platform/staging
   hutch:deletionProtection: false
   hutch:staticDomains:
-    - d2uoxssv1ey7em.cloudfront.net
+    - static-staging.readplace.com
   hutch:staticBucketName: hutch-static-assets-staging
   hutch:dynamodbArticlesTable: hutch-articles-cda0a08
   hutch:dynamodbUserArticlesTable: hutch-user-articles-8226beb

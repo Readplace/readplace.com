@@ -1,6 +1,7 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import type { HutchS3ReadWrite } from "./hutch-s3-read-write";
+import { HutchCertificate } from "./hutch-certificate";
 
 export class HutchS3ContentMediaCDN extends pulumi.ComponentResource {
 	public readonly baseUrl: pulumi.Output<string>;
@@ -9,6 +10,7 @@ export class HutchS3ContentMediaCDN extends pulumi.ComponentResource {
 		name: string,
 		args: {
 			contentBucket: HutchS3ReadWrite;
+			customDomain?: { domain: string; zoneId: pulumi.Input<string> };
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -30,8 +32,40 @@ export class HutchS3ContentMediaCDN extends pulumi.ComponentResource {
 			signingProtocol: "sigv4",
 		}, { parent: this });
 
+		let viewerCertificate: aws.types.input.cloudfront.DistributionViewerCertificate;
+		let aliases: pulumi.Input<string>[] | undefined;
+
+		if (args.customDomain) {
+			const usEast1 = new aws.Provider(
+				`${name}-us-east-1`,
+				{ region: "us-east-1" },
+				{ parent: this },
+			);
+
+			const cert = new HutchCertificate(
+				name,
+				{
+					primaryDomain: args.customDomain.domain,
+					altDomains: [],
+					zoneId: args.customDomain.zoneId,
+					provider: usEast1,
+				},
+				{ parent: this },
+			);
+
+			viewerCertificate = {
+				acmCertificateArn: cert.certificateArn,
+				sslSupportMethod: "sni-only",
+				minimumProtocolVersion: "TLSv1.2_2021",
+			};
+			aliases = [args.customDomain.domain];
+		} else {
+			viewerCertificate = { cloudfrontDefaultCertificate: true };
+		}
+
 		const distribution = new aws.cloudfront.Distribution(`${name}-cdn`, {
 			enabled: true,
+			aliases,
 			origins: [{
 				originId: "content-s3",
 				domainName: args.contentBucket.bucketRegionalDomainName,
@@ -47,9 +81,7 @@ export class HutchS3ContentMediaCDN extends pulumi.ComponentResource {
 			restrictions: {
 				geoRestriction: { restrictionType: "none" },
 			},
-			viewerCertificate: {
-				cloudfrontDefaultCertificate: true,
-			},
+			viewerCertificate,
 			priceClass: "PriceClass_100",
 			loggingConfig: {
 				bucket: logsBucket.bucketDomainName,
@@ -73,7 +105,23 @@ export class HutchS3ContentMediaCDN extends pulumi.ComponentResource {
 			),
 		}, { parent: this });
 
-		this.baseUrl = pulumi.interpolate`https://${distribution.domainName}`;
+		if (args.customDomain) {
+			new aws.route53.Record(`${name}-record`, {
+				zoneId: args.customDomain.zoneId,
+				name: args.customDomain.domain,
+				type: "A",
+				aliases: [
+					{
+						name: distribution.domainName,
+						zoneId: distribution.hostedZoneId,
+						evaluateTargetHealth: false,
+					},
+				],
+			}, { parent: this });
+			this.baseUrl = pulumi.output(`https://${args.customDomain.domain}`);
+		} else {
+			this.baseUrl = pulumi.interpolate`https://${distribution.domainName}`;
+		}
 		this.registerOutputs();
 	}
 }

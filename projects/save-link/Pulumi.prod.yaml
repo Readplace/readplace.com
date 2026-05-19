@@ -8,5 +8,6 @@ config:
   save-link:articlesTableArn: arn:aws:dynamodb:ap-southeast-2:278728209435:table/hutch-articles-cda0a08
   save-link:contentBucketName: hutch-article-content-prod
   save-link:pendingHtmlBucketName: hutch-pending-html-prod
+  save-link:contentMediaCdnDomain: cdn.readplace.com
 
 encryptionsalt: v1:wtDgBy80qGM=:v1:blQ7pAjXgW+f/NKU:eQnkrsxqXh9Nnvo+fQ/ofy4bxQK7/Q==
