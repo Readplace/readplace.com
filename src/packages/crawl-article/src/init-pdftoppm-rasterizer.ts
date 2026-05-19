@@ -90,7 +90,17 @@ export function initPdftoppmRasterizer(deps: { logger: HutchLogger; dpi?: number
 
 			if (maxPages !== undefined && numPages > maxPages) {
 				await rm(tempDir, { recursive: true, force: true });
-				throw new Error(`PDF has ${numPages} pages, exceeds rasterizer cap of ${maxPages}`);
+				logger.info(`[pdftoppm] page cap exceeded pages=${numPages} maxPages=${maxPages}`);
+				return {
+					numPages,
+					loadPage(): PdfPage {
+						throw new Error("pages not rasterised");
+					},
+					getTitle(): string | undefined {
+						return title;
+					},
+					async destroy(): Promise<void> {},
+				};
 			}
 
 			const tRender = Date.now();

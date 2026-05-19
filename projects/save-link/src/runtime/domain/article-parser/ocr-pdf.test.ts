@@ -239,7 +239,7 @@ describe("initOcrPdf — parallel batched OCR", () => {
 
 		expect(result).toEqual({
 			kind: "failed",
-			reason: "PDF too large for OCR fallback: 11 pages exceeds cap of 10",
+			reason: "PDF has 11 pages, exceeds what our systems support.",
 		});
 	});
 

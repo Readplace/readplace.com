@@ -69,7 +69,7 @@ async function extractWithDoc(deps: {
 		if (doc.numPages > maxPages) {
 			return {
 				kind: "failed",
-				reason: `PDF too large for OCR fallback: ${doc.numPages} pages exceeds cap of ${maxPages}`,
+				reason: `PDF has ${doc.numPages} pages, exceeds what our systems support.`,
 			};
 		}
 
