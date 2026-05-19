@@ -128,8 +128,7 @@ function stripChrome(container: DomElement): void {
 
 	stripClapsSeparators({ container, anchorElement: authorPhoto });
 	while (authorPhoto) {
-		authorPhoto.closest("a")?.remove();
-		authorPhoto.remove();
+		removeAuthorPhotoWithLink(authorPhoto);
 		authorPhoto = container.querySelector(AUTHOR_PHOTO_SELECTOR);
 	}
 
@@ -147,6 +146,29 @@ function stripChrome(container: DomElement): void {
 	stripFooterSubscribeCta(container);
 }
 
+
+/* Remove the authorPhoto element and its immediate <a> wrapper (the
+ * byline avatar link). Only removes the <a> when it's the direct parent,
+ * or the grandparent that wraps nothing else — `closest("a")` is
+ * intentionally avoided because it walks the full ancestor chain and can
+ * match a large <a> that wraps the entire article body (observed on
+ * Medium CDN variants where a hero link envelops both the byline and the
+ * prose). Removing that distant <a> destroys the body, drops bodyHtml
+ * below MIN_BODY_CHARS, and the pre-parser returns undefined — letting
+ * Readability process the raw HTML with chrome intact. */
+function removeAuthorPhotoWithLink(authorPhoto: DomElement): void {
+	const parent = authorPhoto.parentElement;
+	if (parent?.tagName === "A") {
+		parent.remove();
+		return;
+	}
+	const grandparent = parent?.parentElement;
+	if (grandparent?.tagName === "A" && grandparent.children.length === 1) {
+		grandparent.remove();
+		return;
+	}
+	authorPhoto.remove();
+}
 
 /* c8 ignore start -- V8 block coverage phantom on typed-parameter destructuring + iterator, see bcoe/c8#319 */
 function stripWithEnclosingParagraph(params: {

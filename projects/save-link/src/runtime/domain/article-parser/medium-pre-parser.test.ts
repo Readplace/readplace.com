@@ -340,6 +340,32 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 		expect(result?.bodyHtml).not.toContain("authorPhoto");
 		expect(result?.bodyHtml).toContain("Body.");
 	});
+
+	it("preserves article body when authorPhoto is inside a large <a> that wraps the entire content", () => {
+		const html = buildHtml({
+			ogSiteName: "Medium",
+			articleInner:
+				'<a href="/article"><div><img data-testid="authorPhoto" alt="A"></div><h1>Headline</h1></a>',
+		});
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).not.toContain("authorPhoto");
+		expect(result?.bodyHtml).toContain("Headline");
+	});
+
+	it("removes grandparent <a> when authorPhoto img is inside a wrapper div inside the link", () => {
+		const html = buildHtml({
+			ogSiteName: "Medium",
+			articleInner:
+				'<a href="/author"><div><img data-testid="authorPhoto" alt="A"></div></a>',
+		});
+
+		const result = mediumPreParser.extract({ html });
+
+		expect(result?.bodyHtml).not.toContain("authorPhoto");
+		expect(result?.bodyHtml).not.toContain('href="/author"');
+	});
 });
 
 describe("mediumPreParser.extract — picture tooltip", () => {
