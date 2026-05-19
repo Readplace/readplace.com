@@ -85,7 +85,7 @@ describe("Base component", () => {
 		expect(nav.getAttribute("data-test-nav-variant")).toBe("authenticated");
 	});
 
-	it("renders the Import Links nav item for an authenticated request", () => {
+	it("renders the Import Links nav item for an authenticated request, tagged for funnel attribution", () => {
 		const page = createTestPageBody();
 		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
@@ -93,7 +93,14 @@ describe("Base component", () => {
 		const link = doc.querySelector('[data-test-nav-item="import"]');
 		assert(link, "Import Links nav item must be rendered for authenticated users");
 		expect(link.textContent).toBe("Import Links");
-		expect(link.getAttribute("href")).toBe("/import");
+
+		const href = link.getAttribute("href");
+		assert(href, "Import Links nav item must have an href");
+		const url = new URL(href, "https://readplace.com");
+		expect(url.pathname).toBe("/import");
+		expect(url.searchParams.get("utm_source")).toBe("header-nav");
+		expect(url.searchParams.get("utm_medium")).toBe("internal");
+		expect(url.searchParams.get("utm_content")).toBe("import-link");
 	});
 
 	it("hides the Import Links nav item for unauthenticated requests", () => {
