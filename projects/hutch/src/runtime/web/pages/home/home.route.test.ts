@@ -285,7 +285,7 @@ describe("GET /", () => {
 		const section = doc.querySelector('[data-test-section="decline"]');
 		assert(section, "decline statements section must be rendered");
 		const items = section.querySelectorAll("[data-test-decline-list] .home-decline__item");
-		expect(items.length).toBe(5);
+		expect(items.length).toBe(4);
 		const itemTexts = Array.from(items).map((el) => el.textContent?.trim());
 		expect(itemTexts).toContain("Nested folder hierarchies");
 		expect(itemTexts).toContain("Recommendation algorithms tuned for engagement");
@@ -316,7 +316,7 @@ describe("GET /", () => {
 		const para = doc.querySelector("[data-test-failure-mode]");
 		assert(para, "failure-mode paragraph must be rendered");
 		const text = para.textContent ?? "";
-		expect(text).toContain("AGPL");
+		expect(text).toContain("GitHub");
 		expect(text).toContain("Sydney");
 		expect(text).toContain("self-host");
 	});

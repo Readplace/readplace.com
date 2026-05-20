@@ -115,7 +115,7 @@
       <div class="home-canonical__container">
         <h2 class="home-canonical__heading">Same article, different URLs.</h2>
         <p class="home-canonical__body">When you save from the browser extension, Readplace captures the rendered page you&rsquo;re looking at. When you paste a link on the homepage, Readplace fetches it server-side. DeepSeek does the canonical disambiguation so both paths converge on the same article &mdash; even when the source URL is wrapped in a tracker (<code>utm_*</code>, <code>gclid</code>), routed through an AMP or mobile mirror, or syndicated across multiple domains.</p>
-        <p class="home-canonical__body">The extension-captured version wins when both exist, because it&rsquo;s the only one guaranteed to have the content you actually read. Most read-later apps overwrite this with whatever the canonical URL returns; Readplace doesn&rsquo;t.</p>
+        <p class="home-canonical__body">The extension-captured version wins when both exist, as long as it&rsquo;s the most complete version of the content. If you saved from the extension while logged in to a site, you captured the full article &mdash; saving again when logged out won&rsquo;t overwrite it with the paywalled version. Most read-later apps replace the captured version with whatever the canonical URL returns; Readplace keeps the most complete one.</p>
       </div>
     </section>
 
@@ -144,7 +144,7 @@
           <p>For the past 10 years, I've maintained a personal reading system &mdash; a pipeline of Gmail filters, DynamoDB tables, and Reddit automations that helped me save, organise, and actually read the articles I cared about. That system generated 300,000+ Reddit karma across technical communities.</p>
           <p>When Pocket was acquired and then abandoned, and Omnivore shut down overnight, I realised the tool I needed didn't exist as a product anyone could use. So I'm turning my personal system into Readplace &mdash; built in Australia, one feature at a time.</p>
           <p>This is a solo project. I'm building it in public, and I'd rather be honest about what works today than promise features that don't exist yet.</p>
-          <p data-test-failure-mode>I am the only person working on Readplace. The code is AGPL on <a href="https://github.com/Readplace/readplace.com">GitHub</a>. The infrastructure is in Sydney under Australian privacy law. If Readplace ever shuts down, your data exports to Markdown and JSON, and the codebase is forkable &mdash; you can self-host the same software the day after. I cannot promise I&rsquo;ll succeed. I can promise that if I don&rsquo;t, you won&rsquo;t lose anything.</p>
+          <p data-test-failure-mode>I am the only person working on Readplace. The code is on <a href="https://github.com/Readplace/readplace.com">GitHub</a>. The infrastructure is in Sydney under Australian privacy law. If Readplace ever shuts down, your data exports to JSON, and the codebase is forkable &mdash; you can self-host the same software the day after. I cannot promise I&rsquo;ll succeed. I can promise that if I don&rsquo;t, you won&rsquo;t lose anything.</p>
         </div>
       </div>
     </section>
@@ -242,7 +242,6 @@
         <ul class="home-decline__list" data-test-decline-list>
           <li class="home-decline__item">Nested folder hierarchies</li>
           <li class="home-decline__item">Social feeds or public collections</li>
-          <li class="home-decline__item">AI auto-tagging at scale</li>
           <li class="home-decline__item">Browsing-history capture</li>
           <li class="home-decline__item">Recommendation algorithms tuned for engagement</li>
         </ul>
@@ -259,7 +258,7 @@
           <li class="home-cost__item"><strong>DeepSeek V3.2</strong> writes the TL;DR and disambiguates the canonical URL when an extension capture and a link submission point at the same article.</li>
           <li class="home-cost__item"><strong>Deep Infra</strong> extracts text from large PDFs with vision OCR.</li>
         </ul>
-        <p class="home-cost__body">At $3.99 a month I&rsquo;m covering the infrastructure cost, the crawler maintenance, and my time. There is no ad path, no data resale, and no VC bridge to &ldquo;figure out monetisation later.&rdquo; This is the whole business.</p>
+        <p class="home-cost__body">At $3.99 a month I&rsquo;m covering the infrastructure cost and the crawler maintenance. There is no ad path, no data resale, and no VC bridge to &ldquo;figure out monetisation later.&rdquo; This is the whole business.</p>
         <p class="home-cost__body home-cost__body--muted">You can price-check the providers yourself: <a href="https://api-docs.deepseek.com/quick_start/pricing" rel="external">DeepSeek pricing</a>, <a href="https://deepinfra.com/pricing" rel="external">Deep Infra pricing</a>.</p>
       </div>
     </section>
