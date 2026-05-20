@@ -21,6 +21,6 @@ describe("renderReaderPending", () => {
 		expect(slot.getAttribute("hx-swap")).toBe("outerHTML");
 		expect(
 			doc.querySelector(".article-body__reader-loading")?.textContent,
-		).toBe("Fetching article");
+		).toBe("Generating clean reader view");
 	});
 });

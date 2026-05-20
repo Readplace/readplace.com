@@ -39,7 +39,7 @@ describe("renderReaderFailed", () => {
 
 	it("uses a different one-line explanation per variant", () => {
 		const explanations: Record<string, RegExp> = {
-			unsupported: /PDFs and other non-webpage files/,
+			unsupported: /not webpages which we yet don't show/,
 			failed: /blocking automated fetches/,
 			slow: /taking longer than usual/,
 		};

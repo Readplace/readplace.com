@@ -8,7 +8,7 @@ const SUMMARY_SKIP_MESSAGES: Record<SummarySkipReason, string> = {
 	"ai-unavailable":
 		"Our summariser couldn't produce a useful summary for this article.",
 	"crawl-unsupported":
-		"Summaries aren't generated for PDFs and other non-webpage files.",
+		"Summary not generated for this link.",
 };
 
 const SUMMARY_SKIP_FALLBACK = "No summary was generated for this article.";

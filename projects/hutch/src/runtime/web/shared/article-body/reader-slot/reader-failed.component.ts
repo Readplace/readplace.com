@@ -26,9 +26,11 @@ export interface ReaderFailedInput {
 }
 
 const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
-	unsupported: "We can't show PDFs and other non-webpage files in the reader.",
-	failed: "We couldn't pull the article text. The site may be blocking automated fetches.",
-	slow: "This one's taking longer than usual.",
+	unsupported:
+		"There are some links that are not webpages which we yet don't show in the reader.",
+	failed:
+		"We couldn't pull the article text. The site may be blocking automated fetches. Use the browser extension to save it.",
+	slow: "Reader view is taking longer than usual.",
 };
 
 export function renderReaderFailed(input: ReaderFailedInput): string {
