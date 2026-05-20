@@ -57,6 +57,14 @@
   }
 }
 
+html {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--popup-bg);
+}
+
 body {
   width: 350px;
   font-family: Inter, "Source Sans Pro", system-ui, -apple-system, sans-serif;
