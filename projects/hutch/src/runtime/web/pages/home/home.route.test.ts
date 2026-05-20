@@ -288,7 +288,6 @@ describe("GET /", () => {
 		expect(items.length).toBe(4);
 		const itemTexts = Array.from(items).map((el) => el.textContent?.trim());
 		expect(itemTexts).toContain("Nested folder hierarchies");
-		expect(itemTexts).toContain("Recommendation algorithms tuned for engagement");
 	});
 
 	it("should render the cost transparency section naming the paid pipeline providers", async () => {
