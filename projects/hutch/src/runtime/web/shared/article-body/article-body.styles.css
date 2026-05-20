@@ -331,7 +331,7 @@
   animation: article-body-summary-dots 1.4s steps(4, end) infinite;
 }
 
-.article-body__reader-slot--failed {
+.article-body__reader-slot--notice {
   text-align: center;
   padding: 3rem 1.5rem;
   background: var(--color-surface);

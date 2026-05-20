@@ -6,7 +6,6 @@ import { ReaderArticleHashId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
-import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import { toQueueArticleViewModel, toQueueViewModel } from "./queue.viewmodel";
 
 const ARTICLE_URL = "https://example.com/post";
@@ -414,7 +413,7 @@ describe("toQueueArticleViewModel — isStalePending", () => {
 	it("is false on the first tick of a normal pending row (polling continues)", () => {
 		const vm = toQueueArticleViewModel({
 			...baseParams,
-			crawl: { status: "pending" } as ArticleCrawl,
+			crawl: { status: "pending" },
 			pollCount: 1,
 		});
 		expect(vm.isStalePending).toBe(false);
@@ -424,7 +423,7 @@ describe("toQueueArticleViewModel — isStalePending", () => {
 	it("is true once the pending row has exhausted the poll cap (cardPollUrl drops)", () => {
 		const vm = toQueueArticleViewModel({
 			...baseParams,
-			crawl: { status: "pending" } as ArticleCrawl,
+			crawl: { status: "pending" },
 			pollCount: 4,
 		});
 		expect(vm.isStalePending).toBe(true);
@@ -434,7 +433,7 @@ describe("toQueueArticleViewModel — isStalePending", () => {
 	it("is false for terminal failed rows (the reader-failure page handles the click-through)", () => {
 		const vm = toQueueArticleViewModel({
 			...baseParams,
-			crawl: { status: "failed", reason: "x" } as ArticleCrawl,
+			crawl: { status: "failed", reason: "x" },
 			pollCount: 4,
 		});
 		expect(vm.isStalePending).toBe(false);
@@ -444,7 +443,7 @@ describe("toQueueArticleViewModel — isStalePending", () => {
 	it("is false for terminal unsupported rows", () => {
 		const vm = toQueueArticleViewModel({
 			...baseParams,
-			crawl: { status: "unsupported", reason: "x" } as ArticleCrawl,
+			crawl: { status: "unsupported", reason: "x" },
 			pollCount: 4,
 		});
 		expect(vm.isStalePending).toBe(false);
@@ -454,7 +453,7 @@ describe("toQueueArticleViewModel — isStalePending", () => {
 	it("is false for ready rows whose summary has also settled", () => {
 		const vm = toQueueArticleViewModel({
 			...baseParams,
-			crawl: { status: "ready" } as ArticleCrawl,
+			crawl: { status: "ready" },
 			summary: { status: "ready", summary: "ok" },
 			pollCount: 4,
 		});

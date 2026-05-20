@@ -87,6 +87,8 @@ describe("renderReaderFailed", () => {
 			renderReaderFailed({ url: "https://example.com/post", variant: "failed" }),
 		);
 
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "slot must render so the absence check is meaningful");
 		const installCta = doc.querySelector("[data-test-reader-failed-install]");
 		assert.equal(installCta, null);
 	});

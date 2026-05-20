@@ -32,18 +32,22 @@ export interface ReaderSlotInput {
  * reframe as the failure variants — the user shouldn't sit watching a dead
  * spinner; the URL is recoverable on the source right now.
  */
+function pollOrSlow(input: ReaderSlotInput, oob: boolean): string {
+	return input.readerPollUrl
+		? renderReaderPending({ pollUrl: input.readerPollUrl, oob })
+		: renderReaderFailed({
+				url: input.url,
+				variant: "slow",
+				extensionInstallUrl: input.extensionInstallUrl,
+				oob,
+			});
+}
+
 export function renderReaderSlot(input: ReaderSlotInput): string {
 	const oob = input.oob === true;
 	if (input.crawl === undefined) {
 		if (input.content) return renderReaderReady({ content: input.content, oob });
-		return input.readerPollUrl
-			? renderReaderPending({ pollUrl: input.readerPollUrl, oob })
-			: renderReaderFailed({
-					url: input.url,
-					variant: "slow",
-					extensionInstallUrl: input.extensionInstallUrl,
-					oob,
-				});
+		return pollOrSlow(input, oob);
 	}
 
 	switch (input.crawl.status) {
@@ -52,23 +56,9 @@ export function renderReaderSlot(input: ReaderSlotInput): string {
 			 * inconsistency picked up by stuck-articles-canary; render pending
 			 * so the slot retries instead of erroring. */
 			if (input.content) return renderReaderReady({ content: input.content, oob });
-			return input.readerPollUrl
-				? renderReaderPending({ pollUrl: input.readerPollUrl, oob })
-				: renderReaderFailed({
-						url: input.url,
-						variant: "slow",
-						extensionInstallUrl: input.extensionInstallUrl,
-						oob,
-					});
+			return pollOrSlow(input, oob);
 		case "pending":
-			return input.readerPollUrl
-				? renderReaderPending({ pollUrl: input.readerPollUrl, oob })
-				: renderReaderFailed({
-						url: input.url,
-						variant: "slow",
-						extensionInstallUrl: input.extensionInstallUrl,
-						oob,
-					});
+			return pollOrSlow(input, oob);
 		case "failed":
 			return renderReaderFailed({
 				url: input.url,
