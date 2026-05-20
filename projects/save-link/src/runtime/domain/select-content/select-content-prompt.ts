@@ -10,6 +10,11 @@ export const SELECT_CONTENT_SYSTEM_PROMPT = [
 	'sign in", any sign-up/subscribe interstitial, "verify you are human", "loading…",',
 	"sitemap/navigation-only content, error pages, off-topic chrome.",
 	"Prefer a slightly shorter body that drops the chrome over a longer body that keeps it.",
+	'Reserve "tie" for candidates that are byte-identical or differ only in cosmetic',
+	"whitespace; if one candidate carries even a single anti-signal the other lacks,",
+	'commit to a winner — do NOT default to "tie" on long inputs. A "tie" verdict tells',
+	"downstream code to keep whatever was canonical before, which silently locks in any",
+	"stale chrome-laden content the cleaner candidate would have replaced.",
 	'Reply with strict JSON only — no prose, no code fences: {"winner": "<label>" | "tie", "reason": "<short>"}.',
 	"<label> must be one of the candidate labels A, B, C, ... shown in the user message.",
 ].join(" ");
