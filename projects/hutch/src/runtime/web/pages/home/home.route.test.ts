@@ -253,14 +253,72 @@ describe("GET /", () => {
 		expect(rows?.length).toBe(7);
 	});
 
-	it("should render the trust section with two trust items", async () => {
+	it("should render the trust section with three trust items", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const trustSection = doc.querySelector('[data-test-section="trust"]');
 		const cards = trustSection?.querySelectorAll(".trust-card");
-		expect(cards?.length).toBe(1);
+		expect(cards?.length).toBe(3);
+	});
+
+	it("should render the canonical disambiguation section explaining extension capture vs link submission", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const section = doc.querySelector('[data-test-section="canonical"]');
+		assert(section, "canonical disambiguation section must be rendered");
+		expect(section.querySelector(".home-canonical__heading")?.textContent).toContain("Same article");
+		const body = section.textContent ?? "";
+		expect(body).toContain("DeepSeek");
+		expect(body).toContain("extension");
+		expect(body).toContain("canonical");
+	});
+
+	it("should render the decline statements section listing what Readplace will not become", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const section = doc.querySelector('[data-test-section="decline"]');
+		assert(section, "decline statements section must be rendered");
+		const items = section.querySelectorAll("[data-test-decline-list] .home-decline__item");
+		expect(items.length).toBe(4);
+		const itemTexts = Array.from(items).map((el) => el.textContent?.trim());
+		expect(itemTexts).toContain("Nested folder hierarchies");
+		expect(itemTexts).toContain("Recommendation algorithms tuned for engagement");
+	});
+
+	it("should render the cost transparency section naming the paid pipeline providers", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const section = doc.querySelector('[data-test-section="cost-transparency"]');
+		assert(section, "cost transparency section must be rendered");
+		expect(section.querySelector(".home-cost__heading")?.textContent).toContain("$3.99");
+		const items = section.querySelectorAll("[data-test-cost-list] .home-cost__item");
+		expect(items.length).toBe(3);
+		const text = section.textContent ?? "";
+		expect(text).toContain("Mozilla Readability");
+		expect(text).toContain("DeepSeek");
+		expect(text).toContain("Deep Infra");
+		expect(text).toContain("no data resale");
+	});
+
+	it("should render the failure-mode paragraph inside the backstory", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const para = doc.querySelector("[data-test-failure-mode]");
+		assert(para, "failure-mode paragraph must be rendered");
+		const text = para.textContent ?? "";
+		expect(text).toContain("GitHub");
+		expect(text).toContain("Sydney");
+		expect(text).toContain("self-host");
 	});
 
 
@@ -334,8 +392,9 @@ describe("GET /", () => {
 		const schemas = Array.from(scripts).map((s) => JSON.parse(s.textContent ?? "{}"));
 		const faq = schemas.find((s: { "@type": string }) => s["@type"] === "FAQPage");
 
-		expect(faq.mainEntity.length).toBe(4);
+		expect(faq.mainEntity.length).toBe(5);
 		expect(faq.mainEntity[0].name).toBe("What is Readplace?");
+		expect(faq.mainEntity[4].name).toBe("What does the $3.99/month subscription pay for?");
 	});
 
 	it("should render section landmarks with aria-labels", async () => {
