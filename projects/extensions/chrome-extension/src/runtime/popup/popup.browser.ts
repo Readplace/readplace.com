@@ -14,6 +14,21 @@ declare const __APP_DOMAINS__: string[];
 
 const logger = HutchLogger.from(consoleLogger);
 
+// Suppress Cmd+D / Ctrl+D inside the popup canvas. Content scripts don't run
+// on chrome-extension:// pages, so the page-level intercept can't reach here —
+// without this listener the browser's native "Bookmark this page" fires
+// against the underlying tab when the popup has focus.
+document.addEventListener(
+	"keydown",
+	(event) => {
+		if ((event.metaKey || event.ctrlKey) && event.key === "d") {
+			event.preventDefault();
+			event.stopPropagation();
+		}
+	},
+	true,
+);
+
 function showView(id: string) {
 	for (const view of document.querySelectorAll(".view")) {
 		(view as HTMLElement).hidden = true;
