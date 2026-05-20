@@ -39,40 +39,20 @@ const tokenStorage: TokenStorage = {
 	},
 };
 
-let popupWindow: { id: number } | null = null;
-let openingPopup: Promise<void> = Promise.resolve();
-
 const shell: BrowserShell = {
-	onShortcutPressed(handler) {
-		browser.runtime.onMessage.addListener((raw, _sender) => {
-			if ((raw as { type: string }).type === "shortcut-pressed") {
-				handler();
-			}
-			return undefined;
-		});
+	onShortcutPressed(_handler) {
+		// "shortcut-pressed" is handled in the main onMessage listener below.
 	},
 
 	openPopup({ url, title }) {
-		const params = `?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`;
-		openingPopup = openingPopup.then(() => {
-			const closeExisting = popupWindow
-				? browser.windows.remove(popupWindow.id).catch(() => {})
-				: Promise.resolve();
-			return closeExisting
-				.then(() => browser.windows.create({
-					url: browser.runtime.getURL(
-						`popup/popup.template.html${params}`,
-					),
-					type: "popup",
-					width: 380,
-					height: 520,
-				}))
-				.then((win) => {
-					if (win.id != null) {
-						popupWindow = { id: win.id };
-					}
-				})
-				.catch((err) => logger.error(err));
+		// chrome.action.openPopup() can't accept query params, so hand the
+		// target off through session storage. The popup reads-and-removes it
+		// on init. Caller MUST be in a user-gesture context (e.g. contextMenus
+		// .onClicked) for openPopup to succeed.
+		void browser.storage.session.set({ pendingTarget: { url, title } });
+		browser.action.openPopup().catch(async (err) => {
+			await browser.storage.session.remove("pendingTarget").catch(() => {});
+			logger.error(err);
 		});
 	},
 
@@ -120,14 +100,6 @@ const shell: BrowserShell = {
 		});
 	},
 
-	onPopupClosed(handler) {
-		browser.windows.onRemoved.addListener((windowId) => {
-			if (popupWindow && windowId === popupWindow.id) {
-				popupWindow = null;
-				handler();
-			}
-		});
-	},
 };
 
 async function initCore() {
@@ -211,6 +183,7 @@ async function captureActiveTabHtml(): Promise<string | undefined> {
 
 browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 	if ((raw as { type: string }).type === "shortcut-pressed") {
+		browser.action.openPopup().catch((err) => logger.error(err));
 		return;
 	}
 

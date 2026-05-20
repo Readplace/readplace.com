@@ -271,6 +271,15 @@ async function showListView() {
 }
 
 async function getActiveTab(): Promise<{ url: string; title: string } | null> {
+	const stored = await browser.storage.session.get("pendingTarget");
+	const pending = stored.pendingTarget;
+	if (pending && typeof pending.url === "string") {
+		await browser.storage.session.remove("pendingTarget").catch(() => {});
+		const title =
+			typeof pending.title === "string" ? pending.title : pending.url;
+		return { url: pending.url, title };
+	}
+
 	const params = new URLSearchParams(window.location.search);
 	const paramUrl = params.get("url");
 	if (paramUrl) return { url: paramUrl, title: params.get("title") ?? paramUrl };

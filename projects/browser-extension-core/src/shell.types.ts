@@ -14,5 +14,4 @@ export interface BrowserShell {
 	}, tab?: { url?: string; title?: string }) => void) => void;
 	onTabActivated: (handler: (tabId: number, url: string) => void) => void;
 	onTabUpdated: (handler: (tabId: number, url: string) => void) => void;
-	onPopupClosed: (handler: () => void) => void;
 }

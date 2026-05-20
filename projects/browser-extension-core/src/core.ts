@@ -118,10 +118,6 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 					.catch((err) => logger.error(err));
 			});
 
-			shell.onPopupClosed(() => {
-				updateActiveTabIcon().catch(() => {});
-			});
-
 			shell.onTabActivated((tabId, url) => {
 				updateIconForTab(tabId, url).catch(() => {});
 			});
