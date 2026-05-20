@@ -34,6 +34,15 @@
   "background": {
     "service_worker": "background/background.browser.js"
   },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+D",
+        "mac": "Command+D"
+      },
+      "description": "Activate the extension"
+    }
+  },
   "content_scripts": [
     {
       "matches": [

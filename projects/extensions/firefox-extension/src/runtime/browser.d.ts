@@ -6,6 +6,12 @@ declare namespace browser {
 			function set(items: Record<string, unknown>): Promise<void>;
 			function remove(key: string): Promise<void>;
 		}
+		namespace session {
+			// biome-ignore lint/suspicious/noExplicitAny: browser API returns dynamic values
+			function get(key: string): Promise<Record<string, any>>;
+			function set(items: Record<string, unknown>): Promise<void>;
+			function remove(key: string): Promise<void>;
+		}
 	}
 
 	namespace runtime {
@@ -74,25 +80,7 @@ declare namespace browser {
 			path?: Record<number, string>;
 			imageData?: Record<number, ImageData>;
 		}): Promise<void>;
-
-	}
-
-	namespace windows {
-		function create(createData: {
-			url?: string;
-			type?: "normal" | "popup" | "panel" | "detached_panel";
-			width?: number;
-			height?: number;
-		}): Promise<{ id?: number }>;
-
-		function update(
-			windowId: number,
-			updateInfo: { focused?: boolean },
-		): Promise<{ id?: number }>;
-
-		const onRemoved: {
-			addListener(callback: (windowId: number) => void): void;
-		};
+		function openPopup(): Promise<void>;
 	}
 
 	namespace menus {

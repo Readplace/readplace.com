@@ -6,6 +6,12 @@ declare module "webextension-polyfill" {
 			function set(items: Record<string, unknown>): Promise<void>;
 			function remove(key: string): Promise<void>;
 		}
+		namespace Session {
+			// biome-ignore lint/suspicious/noExplicitAny: browser API returns dynamic values
+			function get(key: string): Promise<Record<string, any>>;
+			function set(items: Record<string, unknown>): Promise<void>;
+			function remove(key: string): Promise<void>;
+		}
 	}
 
 	namespace Runtime {
@@ -73,6 +79,7 @@ declare module "webextension-polyfill" {
 			path?: Record<number, string>;
 			imageData?: Record<number, ImageData>;
 		}): Promise<void>;
+		function openPopup(): Promise<void>;
 	}
 
 	namespace ContextMenus {
@@ -100,38 +107,18 @@ declare module "webextension-polyfill" {
 		};
 	}
 
-	namespace Windows {
-		function create(createData: {
-			url?: string;
-			type?: "normal" | "popup" | "panel" | "detached_panel";
-			width?: number;
-			height?: number;
-		}): Promise<{ id?: number }>;
-
-		function update(
-			windowId: number,
-			updateInfo: { focused?: boolean },
-		): Promise<{ id?: number }>;
-
-		const onRemoved: {
-			addListener(callback: (windowId: number) => void): void;
-		};
-	}
-
-	const storage: { local: typeof Storage.Local };
+	const storage: { local: typeof Storage.Local; session: typeof Storage.Session };
 	const runtime: typeof Runtime;
 	const tabs: typeof Tabs;
 	const action: typeof Action;
 	const contextMenus: typeof ContextMenus;
-	const windows: typeof Windows;
 
 	const browser: {
-		storage: { local: typeof Storage.Local };
+		storage: { local: typeof Storage.Local; session: typeof Storage.Session };
 		runtime: typeof Runtime;
 		tabs: typeof Tabs;
 		action: typeof Action;
 		contextMenus: typeof ContextMenus;
-		windows: typeof Windows;
 	};
 
 	export default browser;

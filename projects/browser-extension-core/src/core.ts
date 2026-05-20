@@ -7,8 +7,8 @@ import { createEventBus } from "./event-bus";
 import { UnauthorizedError } from "./auth/unauthorized-error";
 import { initSaveCurrentTab } from "./save-current-tab";
 import { initIconStatus } from "./icon-status";
-import { initSaveFromContextMenu } from "./save-from-context-menu";
-import { initHandleShortcutCommand } from "./handle-shortcut-command";
+import { initGetContextMenuTarget } from "./get-context-menu-target";
+import { initGetShortcutTarget } from "./handle-shortcut-command";
 
 export interface ReadingList {
 	saveUrl: SaveUrl;
@@ -63,17 +63,9 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 		whenLoggedIn: auth.whenLoggedIn,
 		setIcon: shell.setIcon,
 	});
-	const saveFromContextMenu = initSaveFromContextMenu({
-		saveUrl: readingList.saveUrl,
-	});
-
-	let loginWindow: { tabId: number; tabUrl: string } | null = null;
-
-	const handleShortcut = initHandleShortcutCommand({
+	const getContextMenuTarget = initGetContextMenuTarget();
+	const getShortcutTarget = initGetShortcutTarget({
 		queryActiveTabs: shell.queryActiveTabs,
-		whenLoggedIn: auth.whenLoggedIn,
-		saveCurrentTab,
-		hasLoginWindow: () => loginWindow != null,
 	});
 
 	function emitResult<T>(event: string, guardedResult: GuardedResult<T>): void;
@@ -112,47 +104,18 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 			eventBus.emit("pre-init");
 
 			shell.onContextMenuClicked((info, tab) => {
-				const guarded = auth.whenLoggedIn(() => saveFromContextMenu(info, tab));
-				emitResult("saved-current-tab", guarded);
-				if (guarded.ok) {
-					guarded.value.then(() => updateActiveTabIcon()).catch(() => {});
-				}
+				const target = getContextMenuTarget(info, tab);
+				if (!target) return;
+				shell.openPopup({ url: target.url, title: target.title });
 			});
 
 			shell.onShortcutPressed(() => {
-				handleShortcut()
-					.then(async (result) => {
-						if (!result) return;
-
-						if (result.action === "login-window-focused") {
-							shell.focusLoginWindow();
-							return;
-						}
-
-						if (result.action === "not-logged-in") {
-							const tab = await shell.getActiveTab();
-							loginWindow = tab
-								? { tabId: 0, tabUrl: result.url }
-								: null;
-							shell.openLoginScreen({
-								url: result.url,
-								title: result.title,
-							});
-							return;
-						}
-
-						if (result.action === "saved") {
-							updateActiveTabIcon().catch(() => {});
-						}
+				getShortcutTarget()
+					.then((target) => {
+						if (!target) return;
+						shell.openPopup({ url: target.url, title: target.title });
 					})
 					.catch((err) => logger.error(err));
-			});
-
-			shell.onLoginWindowClosed(() => {
-				if (loginWindow) {
-					updateActiveTabIcon().catch(() => {});
-					loginWindow = null;
-				}
 			});
 
 			shell.onTabActivated((tabId, url) => {

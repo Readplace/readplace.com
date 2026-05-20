@@ -6,12 +6,16 @@ import type {
 	SaveUrlResult,
 	RemoveUrlResult,
 } from "browser-extension-core";
-import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl } from "browser-extension-core";
+import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, installShortcuts, isCmdD } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 declare const __APP_DOMAINS__: string[];
 
 const logger = HutchLogger.from(consoleLogger);
+
+// Suppress Cmd+D inside the popup canvas — content scripts don't run on
+// moz-extension:// pages, so the page-level intercept can't reach here.
+installShortcuts(document, [{ matches: isCmdD }]);
 
 function showView(id: string) {
 	for (const view of document.querySelectorAll(".view")) {
@@ -271,6 +275,15 @@ async function showListView() {
 }
 
 async function getActiveTab(): Promise<{ url: string; title: string } | null> {
+	const stored = await browser.storage.session.get("pendingTarget");
+	const pending = stored.pendingTarget;
+	if (pending && typeof pending.url === "string") {
+		await browser.storage.session.remove("pendingTarget").catch(() => {});
+		const title =
+			typeof pending.title === "string" ? pending.title : pending.url;
+		return { url: pending.url, title };
+	}
+
 	const params = new URLSearchParams(window.location.search);
 	const paramUrl = params.get("url");
 	if (paramUrl) return { url: paramUrl, title: params.get("title") ?? paramUrl };

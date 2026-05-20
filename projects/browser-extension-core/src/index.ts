@@ -49,5 +49,7 @@ export { isAppUrl } from "./popup/is-app-url";
 export {
 	MENU_ITEM_SAVE_PAGE,
 	MENU_ITEM_SAVE_LINK,
-} from "./save-from-context-menu";
+} from "./get-context-menu-target";
+export { installShortcuts, isCmdD } from "./keydown-shortcuts";
+export type { Shortcut } from "./keydown-shortcuts";
 

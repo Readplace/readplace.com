@@ -39,45 +39,21 @@ const tokenStorage: TokenStorage = {
 	},
 };
 
-let loginWindow: { id: number; tabId: number; tabUrl: string } | null = null;
-
 const shell: BrowserShell = {
-	onShortcutPressed(handler) {
-		browser.runtime.onMessage.addListener((raw, _sender, _sendResponse) => {
-			if ((raw as { type: string }).type === "shortcut-pressed") {
-				handler();
-			}
-			return undefined;
+	onShortcutPressed(_handler) {
+		// "shortcut-pressed" is handled in the main onMessage listener below.
+	},
+
+	openPopup({ url, title }) {
+		// browserAction.openPopup() can't accept query params, so hand the
+		// target off through session storage. The popup reads-and-removes it
+		// on init. Caller MUST be in a user-gesture context (e.g. menus
+		// .onClicked) for openPopup to succeed.
+		void browser.storage.session.set({ pendingTarget: { url, title } });
+		browser.browserAction.openPopup().catch(async (err) => {
+			await browser.storage.session.remove("pendingTarget").catch(() => {});
+			logger.error(err);
 		});
-	},
-
-	openLoginScreen({ url, title }) {
-		const params = `?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`;
-		browser.tabs
-			.query({ active: true, currentWindow: true })
-			.then(async (tabs) => {
-				const tab = tabs[0];
-				const win = await browser.windows.create({
-					url: browser.runtime.getURL(
-						`popup/popup.template.html${params}`,
-					),
-					type: "popup",
-					width: 380,
-					height: 520,
-				});
-				if (win.id != null && tab?.id != null) {
-					loginWindow = { id: win.id, tabId: tab.id, tabUrl: url };
-				}
-			})
-			.catch((err) => logger.error(err));
-	},
-
-	focusLoginWindow() {
-		if (loginWindow) {
-			browser.windows
-				.update(loginWindow.id, { focused: true })
-				.catch((err) => logger.error(err));
-		}
 	},
 
 	getActiveTab: async () => {
@@ -135,14 +111,6 @@ const shell: BrowserShell = {
 		});
 	},
 
-	onLoginWindowClosed(handler) {
-		browser.windows.onRemoved.addListener((windowId) => {
-			if (loginWindow && windowId === loginWindow.id) {
-				loginWindow = null;
-				handler();
-			}
-		});
-	},
 };
 
 async function initCore() {
@@ -226,6 +194,7 @@ async function captureActiveTabHtml(): Promise<string | undefined> {
 
 browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 	if ((raw as { type: string }).type === "shortcut-pressed") {
+		browser.browserAction.openPopup().catch((err) => logger.error(err));
 		return;
 	}
 
