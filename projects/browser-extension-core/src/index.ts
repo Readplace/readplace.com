@@ -50,4 +50,6 @@ export {
 	MENU_ITEM_SAVE_PAGE,
 	MENU_ITEM_SAVE_LINK,
 } from "./get-context-menu-target";
+export { installShortcuts, isCmdD } from "./keydown-shortcuts";
+export type { Shortcut } from "./keydown-shortcuts";
 

@@ -1,17 +1,15 @@
 /* c8 ignore start -- content script, runs in browser page context only */
 import browser from "webextension-polyfill";
+import { installShortcuts, isCmdD } from "browser-extension-core";
 
-document.addEventListener(
-	"keydown",
-	(event) => {
-		if ((event.metaKey || event.ctrlKey) && event.key === "d") {
-			event.preventDefault();
-			event.stopPropagation();
+installShortcuts(document, [
+	{
+		matches: isCmdD,
+		action: () => {
 			browser.runtime.sendMessage({ type: "shortcut-pressed" });
-		}
+		},
 	},
-	true,
-);
+]);
 
 browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 	if ((raw as { type: string }).type === "capture-html") {
