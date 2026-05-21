@@ -276,7 +276,7 @@ export function HomePage(params: {
 							name: "What does the $3.99/month subscription pay for?",
 							acceptedAnswer: {
 								"@type": "Answer",
-								text: "Each saved article runs through a paid pipeline: Mozilla Readability parses the page (free, open source), DeepSeek V3.2 writes the TL;DR and disambiguates the canonical URL when an extension capture and a link submission point at the same article, and Deep Infra extracts text from multi-page scanned PDFs with vision OCR — up to 300 pages and 50 MB per file. The $3.99/month covers the infrastructure cost and crawler maintenance. There is no ad path, no data resale, and no third-party tracking.",
+								text: "Each saved article runs through a paid pipeline: Mozilla Readability parses the page (free, open source), DeepSeek V3.2 writes the TL;DR and disambiguates the canonical URL when an extension capture and a link submission point at the same article, and Deep Infra extracts text from multi-page scanned PDFs with vision OCR — up to 300 pages and 500 MB per file. The $3.99/month covers the infrastructure cost and crawler maintenance. There is no ad path, no data resale, and no third-party tracking.",
 							},
 						},
 					],

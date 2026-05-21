@@ -25,7 +25,7 @@ const defaultExecCurl: ExecCurl = (args, options, callback) => {
 	const child = execFile(
 		"curl",
 		args,
-		{ encoding: "buffer", maxBuffer: 50 * 1024 * 1024, timeout: options.timeoutMs },
+		{ encoding: "buffer", maxBuffer: 500 * 1024 * 1024, timeout: options.timeoutMs },
 		callback,
 	);
 	return {

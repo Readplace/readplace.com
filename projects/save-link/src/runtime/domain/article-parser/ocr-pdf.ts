@@ -41,7 +41,7 @@ const DEFAULT_DPI = 150;
  * Byte-size cap. PDFs larger than this are rejected before the orchestrator
  * stages them to S3, matching today's behaviour.
  */
-const MAX_PDF_BYTES = 50 * 1024 * 1024;
+const MAX_PDF_BYTES = 500 * 1024 * 1024;
 
 export function initOcrPdf(deps: {
 	extractPdfMetadata: ExtractPdfMetadata;
