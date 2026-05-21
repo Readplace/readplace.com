@@ -37,7 +37,7 @@ async function startTestServer(): Promise<ChildProcess> {
 		stdio: "inherit",
 		detached: true,
 	});
-	child.on("error", () => {});
+	child.on("error", () => {}); // waitForServer will throw on its own timeout
 	await waitForServer(TEST_PORT, 30_000);
 	const userRes = await fetch(`${ORIGIN}/e2e/users`, {
 		method: "POST",
