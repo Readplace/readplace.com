@@ -6,7 +6,7 @@ import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { BotDefenseEvent } from "./providers/auth/bot-defense.types";
 import type { ConversionEvent } from "./providers/auth/conversion.types";
 import type { ExchangeGoogleCode } from "./providers/google-auth/google-token.types";
-import type { ParseArticle } from "./providers/article-parser/article-parser.types";
+import type { ParseArticle } from "@packages/article-parser";
 import type {
 	PublishLinkSaved,
 	PublishRecrawlLinkInitiated,

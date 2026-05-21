@@ -5,7 +5,7 @@ import type { SimpleCrawl } from "@packages/crawl-article";
 import { markCrawlFailed } from "@packages/domain/article-aggregate";
 import { initSaveAnonymousLinkCommandHandler } from "./save-anonymous-link-command-handler";
 import { initProcessContentWithLocalMedia } from "./process-content-with-local-media";
-import type { ParseHtml } from "../article-parser/article-parser.types";
+import type { ParseHtml } from "@packages/article-parser";
 import type { DownloadMedia } from "./download-media";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";

@@ -4,7 +4,7 @@ import { noopLogger } from "@packages/hutch-logger";
 import type { SimpleCrawl } from "@packages/crawl-article";
 import { initRecrawlLinkInitiatedHandler } from "./recrawl-link-initiated-handler";
 import { initProcessContentWithLocalMedia } from "./process-content-with-local-media";
-import type { ParseHtml } from "../article-parser/article-parser.types";
+import type { ParseHtml } from "@packages/article-parser";
 import type { DownloadMedia } from "./download-media";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";

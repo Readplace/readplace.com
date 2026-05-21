@@ -5,8 +5,8 @@ import { noopLogger } from "@packages/hutch-logger";
 import { calculateReadTime, validateSaveableUrl } from "@packages/domain/article";
 import type { BotDefenseEvent } from "./providers/auth/bot-defense.types";
 import type { ConversionEvent } from "./providers/auth/conversion.types";
-import type { ParseArticle } from "./providers/article-parser/article-parser.types";
-import { initReadabilityParser } from "./providers/article-parser/readability-parser";
+import type { ParseArticle } from "@packages/article-parser";
+import { initReadabilityParser } from "@packages/article-parser";
 import { initInMemoryArticleCrawl } from "./providers/article-crawl/in-memory-article-crawl";
 import { initInMemoryArticleStore } from "./providers/article-store/in-memory-article-store";
 import { initInMemoryAuth } from "./providers/auth/in-memory-auth";
@@ -44,7 +44,6 @@ import type {
 	TestAppFixture,
 } from "./bundle.types";
 
-export { initReadabilityParser };
 
 /** Inlined from projects/hutch/src/runtime/web/pages/queue/queue.error.ts.
  * Keep in sync — both locations carry the same wire-format `error_code` →

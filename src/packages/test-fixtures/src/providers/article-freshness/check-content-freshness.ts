@@ -2,7 +2,7 @@ import type { CrawlArticle, CrawlArticleResult } from "@packages/crawl-article";
 import type {
 	ParseArticleResult,
 	ParseHtml,
-} from "../article-parser/article-parser.types";
+} from "@packages/article-parser";
 import type { FindArticleCrawlStatus } from "../article-crawl/article-crawl.types";
 import type { FindArticleFreshness } from "../article-store/article-store.types";
 import type { PublishRefreshArticleContent } from "../events/publish-refresh-article-content.types";

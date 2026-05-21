@@ -5,7 +5,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
-import type { ParseArticle } from "@packages/test-fixtures/providers/article-parser";
+import type { ParseArticle } from "@packages/article-parser";
 import type { PublishLinkSaved } from "@packages/test-fixtures/providers/events";
 import type { PublishRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
 import type { PublishSaveAnonymousLink } from "@packages/test-fixtures/providers/events";

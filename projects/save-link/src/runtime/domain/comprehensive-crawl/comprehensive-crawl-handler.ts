@@ -11,7 +11,7 @@ import {
 	TierContentExtractedEvent,
 } from "@packages/hutch-infra-components";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
-import type { ParseHtml } from "../article-parser/article-parser.types";
+import type { ParseHtml } from "@packages/article-parser";
 import type { DownloadMedia } from "../save-link/download-media";
 import type { PutImageObject } from "../../providers/article-store/s3-put-image-object";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";

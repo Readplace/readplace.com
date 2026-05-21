@@ -2,7 +2,7 @@ import type { Server } from "node:http";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { MinutesSchema } from "@packages/domain/article";
-import type { ParseArticle, ParseArticleResult } from "@packages/test-fixtures/providers/article-parser";
+import type { ParseArticle, ParseArticleResult } from "@packages/article-parser";
 import { useTestServer, type TestAppHarness } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,

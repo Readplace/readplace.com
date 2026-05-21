@@ -9,8 +9,8 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
-	initReadabilityParser,
 } from "@packages/test-fixtures";
+import { initReadabilityParser } from "@packages/article-parser";
 
 import request from "supertest";
 

@@ -1,0 +1,10 @@
+{
+  "name": "@packages/article-parser",
+  "targets": {
+    "check": {
+      "command": "pnpm lint && pnpm test-with-coverage",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["compile"]
+    }
+  }
+}

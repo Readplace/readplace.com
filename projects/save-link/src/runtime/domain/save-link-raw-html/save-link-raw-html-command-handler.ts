@@ -12,7 +12,7 @@ import {
 	type LogParseError,
 } from "@packages/hutch-infra-components";
 import { ArticleResourceUniqueId } from "../save-link/article-resource-unique-id";
-import type { ParseHtml } from "../article-parser/article-parser.types";
+import type { ParseHtml } from "@packages/article-parser";
 import type { DownloadMedia } from "../save-link/download-media";
 import type { ProcessContent } from "../save-link/save-link-work";
 import { estimatedReadTimeFromWordCount } from "../save-link/estimated-read-time";

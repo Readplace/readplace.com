@@ -10,8 +10,7 @@ import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-art
 import type { ExtractPdf } from "@packages/crawl-article";
 import { CRAWL_PERSONAS, initComprehensiveCrawl, initCrawlArticle, initCrawlFetch, initSimpleCrawl } from "@packages/crawl-article";
 import type { PublishStaleCheckRequested } from "@packages/test-fixtures/providers/events";
-import { initReadabilityParser } from "@packages/test-fixtures/providers/article-parser";
-import { mediumPreParser, theInformationPreParser } from "@packages/test-fixtures/providers/article-parser";
+import { initReadabilityParser, mediumPreParser, theInformationPreParser } from "@packages/article-parser";
 import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 import {
 	createOAuthModel,

@@ -33,6 +33,7 @@ export default {
 		// Used by scripts/check-unused-css.js (not a source-level import)
 		"@packages/check-unused-css",
 		// knip doesn't resolve workspace subpath for @packages/* imports
+		"@packages/article-parser",
 		"@packages/article-resource-unique-id",
 		"@packages/article-state-types",
 		"@packages/crawl-article",

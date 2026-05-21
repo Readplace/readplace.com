@@ -10,8 +10,8 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
-	initReadabilityParser,
 } from "@packages/test-fixtures";
+import { initReadabilityParser } from "@packages/article-parser";
 
 const useApp = useTestServer();
 

@@ -11,13 +11,12 @@ import {
   createFakePublishRecrawlLinkInitiated,
   createFakePublishSaveAnonymousLink,
   createFakeSummaryProvider,
-  initReadabilityParser,
 } from '@packages/test-fixtures'
 import { requireEnv } from '../runtime/domain/require-env'
 import { initRefreshArticleIfStale } from '@packages/test-fixtures/providers/article-freshness'
 import type { ExtractPdf } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initComprehensiveCrawl, initCrawlArticle, initCrawlFetch, initSimpleCrawl } from '@packages/crawl-article'
-import { mediumPreParser, theInformationPreParser } from '@packages/test-fixtures/providers/article-parser'
+import { initReadabilityParser, mediumPreParser, theInformationPreParser } from '@packages/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
 import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/providers/events'
 import { initInMemoryStripeCheckout } from '@packages/test-fixtures/providers/stripe-checkout'

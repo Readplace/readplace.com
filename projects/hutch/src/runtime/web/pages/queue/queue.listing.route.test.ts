@@ -10,8 +10,8 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
 	createNoopLogError,
-	initReadabilityParser,
 } from "@packages/test-fixtures";
+import { initReadabilityParser } from "@packages/article-parser";
 
 import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 

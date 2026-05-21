@@ -14,6 +14,7 @@ export default {
 	ignoreDependencies: [
 		...(base.ignoreDependencies ?? []),
 		// Workspace dependencies with subpath imports not detected by knip
+		"@packages/article-parser",
 		"@packages/hutch-infra-components",
 		"@packages/hutch-storage-client",
 		"@packages/article-resource-unique-id",
