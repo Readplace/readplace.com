@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import type {
 	EventBridgeClient,
 	PutEventsCommand,
@@ -5,17 +6,15 @@ import type {
 import { initEventBridgePublisher, PayloadTooLargeError } from "./index";
 
 function createFakeClient(sendImpl?: (cmd: PutEventsCommand) => Promise<unknown>): {
-	client: EventBridgeClient;
+	client: Pick<EventBridgeClient, "send">;
 	commands: PutEventsCommand[];
 } {
 	const commands: PutEventsCommand[] = [];
-	const client = {
-		send: jest.fn(async (cmd: PutEventsCommand) => {
-			commands.push(cmd);
-			return sendImpl ? await sendImpl(cmd) : { FailedEntryCount: 0 };
-		}),
-	} as unknown as EventBridgeClient;
-	return { client, commands };
+	const send = jest.fn().mockImplementation(async (cmd: PutEventsCommand) => {
+		commands.push(cmd);
+		return sendImpl ? await sendImpl(cmd) : { FailedEntryCount: 0 };
+	});
+	return { client: { send }, commands };
 }
 
 describe("initEventBridgePublisher", () => {
@@ -99,12 +98,11 @@ describe("initEventBridgePublisher", () => {
 			});
 			fail("expected publishEvent to throw");
 		} catch (error) {
-			expect(error).toBeInstanceOf(PayloadTooLargeError);
-			const e = error as PayloadTooLargeError;
-			expect(e.source).toBe("hutch.api");
-			expect(e.detailType).toBe("BloatedCommand");
-			expect(e.byteLength).toBeGreaterThan(240_000);
-			expect(e.name).toBe("PayloadTooLargeError");
+			assert(error instanceof PayloadTooLargeError);
+			expect(error.source).toBe("hutch.api");
+			expect(error.detailType).toBe("BloatedCommand");
+			expect(error.byteLength).toBeGreaterThan(240_000);
+			expect(error.name).toBe("PayloadTooLargeError");
 		}
 	});
 

@@ -44,7 +44,7 @@ export class PayloadTooLargeError extends Error {
 }
 
 export function initEventBridgePublisher(deps: {
-	client: EventBridgeClient;
+	client: Pick<EventBridgeClient, "send">;
 	eventBusName: string;
 }): { publishEvent: PublishEvent } {
 	const { client, eventBusName } = deps;
