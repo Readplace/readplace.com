@@ -4,6 +4,7 @@ import { pickExcerpt } from "../../../providers/article-summary/article-summary.
 import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import type { ComponentError } from "../../shared/component-error.types";
+import { MAX_POLLS } from "../../shared/article-reader/article-reader";
 import { buildCardPollUrl } from "./queue-card/queue-card-poll-url";
 import { isCardTerminal } from "./queue-card/is-card-terminal";
 import type { QueueUrlState } from "./queue.url";
@@ -71,14 +72,6 @@ export interface QueueViewModel {
 	importFlash?: string;
 	importSkipped?: ImportSkippedViewModel;
 }
-
-/**
- * Hard cap on how many `every 3s` ticks a single card emits before stopping.
- * 40 ticks ≈ 2 minutes — long enough that ordinary crawl + summary completion
- * lands inside the window, short enough that a hung row doesn't poll forever
- * on a backgrounded tab. Mirrors the reader-poll cap in article-reader.ts.
- */
-export const MAX_CARD_POLLS = 40;
 
 function formatRelativeDate(date: Date, now: Date): string {
 	const diffMs = now.getTime() - date.getTime();
@@ -202,7 +195,7 @@ export function toQueueViewModel(
 				summary: options?.summaryByUrl?.get(a.url),
 				crawl: options?.crawlByUrl?.get(a.url),
 				filters,
-				maxPolls: MAX_CARD_POLLS,
+				maxPolls: MAX_POLLS,
 			}),
 		),
 		filters,

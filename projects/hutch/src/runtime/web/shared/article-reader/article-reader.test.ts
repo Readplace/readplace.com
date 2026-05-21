@@ -5,7 +5,7 @@ import { ReaderArticleHashId } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import type { GlobalArticleData } from "@packages/test-fixtures/providers/article-store";
-import { initArticleReader } from "./article-reader";
+import { MAX_POLLS, initArticleReader } from "./article-reader";
 import type {
 	ArticleReaderDeps,
 	ArticleSnapshot,
@@ -501,7 +501,7 @@ describe("initArticleReader", () => {
 			expect(slot.getAttribute("hx-get")).toBe("/test/summary?poll=4");
 		});
 
-		it("stops polling at MAX_POLLS=40", async () => {
+		it("stops polling at MAX_POLLS", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending" },
 				summary: { status: "pending" },
@@ -510,7 +510,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleSummaryPoll({
 				articleUrl: ARTICLE_URL,
-				pollCount: 40,
+				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
 			});
@@ -608,7 +608,7 @@ describe("initArticleReader", () => {
 			expect(slot.getAttribute("hx-get")).toBe("/test/reader?poll=3");
 		});
 
-		it("stops polling at MAX_POLLS=40", async () => {
+		it("stops polling at MAX_POLLS", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending" },
 			});
@@ -616,7 +616,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
-				pollCount: 40,
+				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
 			});
@@ -709,7 +709,7 @@ describe("initArticleReader", () => {
 			expect(slot.getAttribute("hx-get")).toBe("/test/reader?poll=6");
 		});
 
-		it("stops at MAX_POLLS=40 even when stuck in the promotion race", async () => {
+		it("stops at MAX_POLLS even when stuck in the promotion race", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },
 				content: undefined,
@@ -718,7 +718,7 @@ describe("initArticleReader", () => {
 
 			const component = await reader.handleReaderPoll({
 				articleUrl: ARTICLE_URL,
-				pollCount: 40,
+				pollCount: MAX_POLLS,
 				pollUrlBuilder: makePollUrlBuilder(),
 				extensionInstallUrl: undefined,
 			});

@@ -16,6 +16,7 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
 } from "@packages/test-fixtures";
+import { MAX_POLLS } from "../../shared/article-reader/article-reader";
 
 const ARTICLE_URL = "https://example.com/post";
 const ENCODED = encodeURIComponent(ARTICLE_URL);
@@ -1020,7 +1021,7 @@ describe("View routes", () => {
 			});
 
 			const response = await request(harness.server).get(
-				`/view/summary?url=${encodeURIComponent(ARTICLE_URL)}&poll=40`,
+				`/view/summary?url=${encodeURIComponent(ARTICLE_URL)}&poll=${MAX_POLLS}`,
 			);
 
 			expect(response.status).toBe(200);

@@ -60,7 +60,8 @@ import { parseQueueUrl, buildQueueUrl } from "./queue.url";
 import { tabQuery } from "./queue.tabs";
 import type { HttpErrorMessageMapping } from "./queue.error";
 import { importFlashMapping } from "./queue.error";
-import { MAX_CARD_POLLS, toQueueArticleViewModel, toQueueViewModel } from "./queue.viewmodel";
+import { MAX_POLLS } from "../../shared/article-reader/article-reader";
+import { toQueueArticleViewModel, toQueueViewModel } from "./queue.viewmodel";
 import { QueuePage } from "./queue.component";
 import {
 	renderQueueCard,
@@ -600,7 +601,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			crawl,
 			filters,
 			pollCount: requestedPoll + 1,
-			maxPolls: MAX_CARD_POLLS,
+			maxPolls: MAX_POLLS,
 		});
 		const html = renderQueueCard(
 			toQueueCardDisplayModel(articleVm, { isFirst: false }),

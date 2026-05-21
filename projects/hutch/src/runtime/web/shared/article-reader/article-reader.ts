@@ -27,7 +27,14 @@ import type {
 	ResolveReaderStateParams,
 } from "./article-reader.types";
 
-const MAX_POLLS = 40;
+/**
+ * Hard cap on how many `every 3s` poll ticks an article slot or card emits
+ * before the client stops. 300 × 3s = 900s, matching the comprehensive-crawl
+ * orchestrator Lambda timeout in projects/save-link/src/infra/index.ts. Past
+ * that, the orchestrator has given up — polling further can't reveal new
+ * state.
+ */
+export const MAX_POLLS = 300;
 
 /**
  * Required input for every poll response. Holds the *full* world state — both

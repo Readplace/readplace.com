@@ -12,6 +12,7 @@ import {
 	createNoopLogError,
 } from "@packages/test-fixtures";
 import { initReadabilityParser } from "@packages/article-parser";
+import { MAX_POLLS } from "../../shared/article-reader/article-reader";
 
 const useApp = useTestServer();
 
@@ -384,7 +385,7 @@ describe("Queue routes", () => {
 			expect(card.getAttribute("data-card-status")).toBe("terminal");
 		});
 
-		it("GET /queue/:id/card stops polling at MAX_CARD_POLLS even while still pending", async () => {
+		it("GET /queue/:id/card stops polling at MAX_POLLS even while still pending", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -395,7 +396,7 @@ describe("Queue routes", () => {
 				.send({ url: "https://example.com/card-fragment-cap" });
 
 			const articleId = await getFirstArticleId(agent);
-			const response = await agent.get(`/queue/${articleId}/card?poll=40`);
+			const response = await agent.get(`/queue/${articleId}/card?poll=${MAX_POLLS}`);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;

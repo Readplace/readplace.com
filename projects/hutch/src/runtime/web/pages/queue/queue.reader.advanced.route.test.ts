@@ -11,6 +11,7 @@ import {
 	createNoopLogError,
 } from "@packages/test-fixtures";
 import { initReadabilityParser } from "@packages/article-parser";
+import { MAX_POLLS } from "../../shared/article-reader/article-reader";
 
 const useApp = useTestServer();
 
@@ -380,7 +381,7 @@ describe("Queue routes", () => {
 				.querySelector("[data-test-article-list] .queue-article")
 				?.getAttribute("data-test-article");
 
-			const pollResponse = await agent.get(`/queue/${articleId}/reader?poll=40`);
+			const pollResponse = await agent.get(`/queue/${articleId}/reader?poll=${MAX_POLLS}`);
 			expect(pollResponse.status).toBe(200);
 			const doc = new JSDOM(pollResponse.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-slot]");

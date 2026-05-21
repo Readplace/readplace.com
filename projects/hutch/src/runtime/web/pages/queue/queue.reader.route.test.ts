@@ -11,6 +11,7 @@ import {
 	createNoopLogError,
 } from "@packages/test-fixtures";
 import { initReadabilityParser } from "@packages/article-parser";
+import { MAX_POLLS } from "../../shared/article-reader/article-reader";
 
 import request from "supertest";
 
@@ -780,7 +781,7 @@ describe("Queue routes", () => {
 				.querySelector("[data-test-article-list] .queue-article")
 				?.getAttribute("data-test-article");
 
-			const response = await agent.get(`/queue/${articleId}/summary?poll=40`);
+			const response = await agent.get(`/queue/${articleId}/summary?poll=${MAX_POLLS}`);
 			const doc = new JSDOM(response.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-summary]");
 			assert(slot, "summary slot must be rendered");
