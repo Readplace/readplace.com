@@ -7,7 +7,7 @@ import { retriable } from "@packages/retriable";
 import { normalizeUnknownError } from "./normalize-error";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 
-const DEFAULT_BATCH_SIZE = 2;
+const DEFAULT_BATCH_SIZE = 1;
 
 // In-flight page-Lambda invocations. Sized so the worst-case PDF
 // (`MAX_PDF_PAGES` pages, all in one wave at `DEFAULT_BATCH_SIZE` per chunk)
