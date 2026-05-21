@@ -5,10 +5,14 @@
     "nodePackages.pnpm",
     "pulumi-bin",
     "awscli2",
-    "jq@latest"
+    "jq@latest",
+    "docker@latest"
   ],
   "shell": {
-    "init_hook": ["echo 'Welcome to readplace monorepo!' > /dev/null"],
+    "init_hook": [
+      "echo 'Welcome to readplace monorepo!' > /dev/null",
+      "if ! docker info >/dev/null 2>&1; then echo 'Starting Docker daemon (OrbStack)...'; open -ga OrbStack; n=0; until docker info >/dev/null 2>&1 || [ $n -ge 30 ]; do sleep 1; n=$((n+1)); done; fi"
+    ],
     "scripts": {
       "test":  ["pnpm test"],
       "check": ["pnpm check"]

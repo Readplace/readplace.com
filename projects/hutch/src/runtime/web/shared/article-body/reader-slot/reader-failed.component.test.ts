@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { MAX_PDF_PAGES } from "@packages/crawl-article";
 import { JSDOM } from "jsdom";
 import { renderReaderFailed } from "./reader-failed.component";
 
@@ -62,6 +63,12 @@ describe("renderReaderFailed", () => {
 		assert.equal(
 			doc.querySelector(".article-body__reader-failed-title")?.textContent,
 			"This isn't a webpage we can save",
+		);
+		const expectedMaxPages = Math.round(0.7 * MAX_PDF_PAGES);
+		const text = doc.querySelector(".article-body__reader-failed-text")?.textContent;
+		assert(
+			text?.includes(`PDFs with less than ${expectedMaxPages} pages`),
+			`unsupported copy should advertise the ${expectedMaxPages}-page soft cap derived from MAX_PDF_PAGES`,
 		);
 	});
 

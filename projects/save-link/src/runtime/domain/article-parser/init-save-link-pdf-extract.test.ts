@@ -1,31 +1,24 @@
 import assert from "node:assert/strict";
-import type { PdfDocument, PdfRasterizer } from "@packages/crawl-article";
 import { noopLogger } from "@packages/hutch-logger";
+import type { ExtractPdfMetadata } from "@packages/crawl-article";
+import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 import { initSaveLinkPdfExtract } from "./init-save-link-pdf-extract";
 
-function stubRasterizer(params: { numPages: number; title?: string }): PdfRasterizer {
-	return {
-		async open(): Promise<PdfDocument> {
-			return {
-				numPages: params.numPages,
-				loadPage() {
-					return {
-						renderToPng: () => Buffer.from([0x89, 0x50, 0x4e, 0x47]),
-						destroy: () => {},
-					};
-				},
-				getTitle: () => params.title,
-				destroy: async () => {},
-			};
-		},
-	};
-}
-
 describe("initSaveLinkPdfExtract", () => {
-	it("runs the vision OCR pipeline end-to-end and returns the rendered HTML", async () => {
+	it("wires the fan-out pipeline end-to-end and returns the joined HTML", async () => {
+		const extractPdfMetadata: ExtractPdfMetadata = async () => ({ numPages: 2, title: "Scanned Doc" });
+		const stagePdf: StagePdfToS3 = async () => ({
+			key: "pdf-rasterise-staging/abc/source.pdf",
+			cleanup: async () => {},
+		});
+		const invokePageOcr: InvokePdfPageOcr = async ({ pageIndices }) => ({
+			html: pageIndices.map((idx) => `<p>page-${idx}</p>`).join(""),
+		});
+
 		const extractPdf = initSaveLinkPdfExtract({
-			rasterizer: stubRasterizer({ numPages: 1, title: "Scanned Doc" }),
-			createChatCompletion: async () => ({ choices: [{ message: { content: "<h2>Heading</h2><p>body</p>" } }] }),
+			extractPdfMetadata,
+			stagePdf,
+			invokePageOcr,
 			logger: noopLogger,
 		});
 
@@ -33,7 +26,7 @@ describe("initSaveLinkPdfExtract", () => {
 		assert.equal(result.kind, "fetched");
 		assert(result.kind === "fetched");
 		assert.equal(result.title, "Scanned Doc");
-		assert(result.html.includes("<h2>Heading</h2>"));
-		assert(result.html.includes("<p>body</p>"));
+		assert(result.html.includes("<p>page-0</p>"));
+		assert(result.html.includes("<p>page-1</p>"));
 	});
 });
