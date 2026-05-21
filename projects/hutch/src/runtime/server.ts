@@ -104,6 +104,7 @@ import { HomePage } from "./web/pages/home";
 import { PrivacyPage } from "./web/pages/privacy";
 import { TermsPage } from "./web/pages/terms";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
+import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { InstallPage, fetchFirefoxDownloadUrl, fetchChromeDownloadUrl } from "./web/pages/install";
 import { NotFoundPage } from "./web/pages/not-found";
 import { requireEnv, getEnv } from "./domain/require-env";
@@ -385,6 +386,21 @@ export function createApp(dependencies: AppDependencies): Express {
 	if (getEnv("NODE_ENV") !== "production") {
 		app.get("/e2e/article/:id", (req: Request, res: Response) => {
 			sendComponent(req, res, Base(E2EFixturePage(), bannerStateFromRequest(req)));
+		});
+
+		/**
+		 * Path-uniqued PDF fixture for the extension's pdf-save-flow staging e2e
+		 * (projects/extensions/{chrome,firefox}-extension/src/e2e/pdf-save-flow/
+		 * run.e2e-staging.main.ts). The `:id` segment is ignored — bytes are
+		 * identical for every id — so callers pass `randomUUID()` to ensure each
+		 * CI run targets a fresh save row and the deferred OCR pipeline cannot
+		 * brick a subsequent run with cached state. Same gating as
+		 * /e2e/article/:id: present on staging (NODE_ENV=development) and dev,
+		 * absent on the production Lambda.
+		 */
+		const E2E_FIXTURE_PDF = createE2EFixturePdf("READPLACE_E2E_PDF_FIXTURE");
+		app.get("/e2e/fixtures/pdf/:id.pdf", (_req: Request, res: Response) => {
+			res.type("application/pdf").send(E2E_FIXTURE_PDF);
 		});
 	}
 
