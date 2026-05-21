@@ -137,6 +137,21 @@ describe("fetchCurl argument construction", () => {
 		expect(args[sepIdx + 1]).toBe(url);
 	});
 
+	it("re-encodes a partially decoded URL (literal spaces) before passing to curl", async () => {
+		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
+		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl });
+		// Some upstream paths (e.g. recrawl handlers reading a decoded path param)
+		// pass URLs with literal spaces and brackets. curl rejects literal spaces
+		// with "Malformed input to a URL function" (exit 3) even under --globoff.
+		const decoded = "https://www.cia.gov/readingroom/docs/COMPUTERS AND AUTOMATION [16505689].pdf";
+		await fetchCurl(decoded);
+		const args = fake.calls[0].args;
+		const sepIdx = args.indexOf("--");
+		expect(args[sepIdx + 1]).toBe(
+			"https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf",
+		);
+	});
+
 	it("title-cases header names per Cloudflare JA3 fingerprinting", async () => {
 		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl });

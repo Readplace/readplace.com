@@ -107,7 +107,11 @@ function buildCurlArgs(params: { url: string; headers?: Record<string, string> }
 			args.push("--header", `${toTitleCase(key)}: ${value}`);
 		}
 	}
-	args.push("--", params.url);
+	// Re-encode through WHATWG URL so callers that hand us a partially decoded
+	// URL (literal spaces from a recrawl path param, etc.) still produce a form
+	// curl will accept. `new URL(...).href` percent-encodes spaces while leaving
+	// `[`/`]` literal in the path — the exact shape `--globoff` is meant for.
+	args.push("--", new URL(params.url).href);
 	return args;
 }
 
