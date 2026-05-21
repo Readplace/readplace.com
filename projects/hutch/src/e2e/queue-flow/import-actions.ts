@@ -184,7 +184,7 @@ export function createImportActions(
 				const urls = paginationUrls(config.baseUrl)
 				await uploadUrlsAndOpenReview(page, config, urls)
 
-				const paginationInfo = page.locator('.import__pagination-info')
+				const paginationInfo = page.locator('[data-test-import-pagination-info]')
 				await expect(paginationInfo).toContainText('Page 1 of 2')
 				const page1Checkboxes = page.locator('[data-test-import-checkbox]')
 				await expect(page1Checkboxes).toHaveCount(50)
