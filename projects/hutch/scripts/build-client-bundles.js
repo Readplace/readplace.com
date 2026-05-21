@@ -87,6 +87,27 @@ const BUNDLES = [
 	{
 		entry: path.join(
 			PROJECT_ROOT,
+			"src/runtime/web/shared/article-body/reader-slot/reader-iframe.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "reader-iframe.client.js"),
+		globalName: "ReaderIframe",
+		footer: [
+			// HTMX swaps the reader-slot wrapper on every poll response that
+			// transitions crawl status; rescan re-binds the auto-height
+			// observers to the new iframe element and disposes the old ones.
+			"ReaderIframe.initReaderIframes({",
+			"  document: window.document,",
+			"  ResizeObserver: window.ResizeObserver,",
+			"  MutationObserver: window.MutationObserver,",
+			"  addSwapListener: function (listener) {",
+			"    window.document.body.addEventListener('htmx:afterSwap', listener);",
+			"  }",
+			"});",
+		].join("\n"),
+	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
 			"src/runtime/web/shared/extension-suggestion-banner/extension-suggestion-banner.client.ts",
 		),
 		outfile: path.join(OUT_DIR, "extension-suggestion-banner.client.js"),
