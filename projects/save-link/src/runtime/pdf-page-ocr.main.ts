@@ -13,18 +13,20 @@ const deepInfraApiKey = requireEnv("DEEPINFRA_API_KEY");
 
 const s3Client = new S3Client({});
 
-// Per-attempt timeout sized for DeepInfra single-image TTFB. With M=1 (see
-// DEFAULT_BATCH_SIZE in ocr-pdf.ts) observed P99 latency on the densest
-// pages we've seen — yellowpaper-class math — sits at ~80s. 90s gives
-// ~10s of headroom over P99 without slack. Three attempts × 90s = 270s
-// leaves ~330s under the 600s Lambda timeout for S3 download, pdftoppm,
-// and stitching, and absorbs DeepInfra 429s without exhausting the budget
-// on a single slow attempt.
+// Per-attempt timeout sized for DeepInfra single-image TTFB. Observed P99
+// latency on the densest pages — yellowpaper-class math — sits at ~80s;
+// 90s gives ~10s of headroom. SDK-level retries are disabled: a stuck
+// DeepInfra socket inside a warm Lambda container tends to stay stuck for
+// the full retry budget, while a fresh Lambda invocation gets a clean
+// socket pool and usually clears the failure on the first try. Retries
+// therefore live in the orchestrator (`PAGE_OCR_MAX_ATTEMPTS` in
+// ocr-pdf.ts), which re-invokes this Lambda — typically into a new
+// container — instead of looping on the same socket.
 const deepInfraClient = new OpenAI({
 	apiKey: deepInfraApiKey,
 	baseURL: "https://api.deepinfra.com/v1/openai",
 	timeout: 90_000,
-	maxRetries: 2,
+	maxRetries: 0,
 });
 
 const baseDownload = initDownloadStagedPdf({ client: s3Client, bucketName: contentBucketName });

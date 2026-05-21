@@ -42,11 +42,12 @@ const DEFAULT_CONCURRENCY = 150;
 const DEFAULT_DPI = 150;
 
 
-// Per-chunk retry budget. The OpenAI SDK inside the page Lambda already burns
-// 90s × 3 attempts against DeepInfra (`pdf-page-ocr.main.ts`); this layer adds
-// two fresh-container retries on top, so an upstream stall that sticks to a
-// single warm DeepInfra socket can clear on a new Lambda invocation. Worst-case
-// wall time per chunk = MAX_ATTEMPTS × slowest-page time.
+// Per-chunk retry budget. The OpenAI SDK in the page Lambda runs a single
+// attempt with a 90s timeout (`pdf-page-ocr.main.ts`); retries live here so
+// each fresh attempt lands in a (likely new) Lambda container with a clean
+// DeepInfra socket pool, which clears socket-level stalls that a same-process
+// SDK retry would re-hit. Worst-case wall time per chunk =
+// MAX_ATTEMPTS × 90s + (MAX_ATTEMPTS - 1) × RETRY_DELAY_MS.
 const PAGE_OCR_MAX_ATTEMPTS = 3;
 const PAGE_OCR_RETRY_DELAY_MS = 2000;
 
