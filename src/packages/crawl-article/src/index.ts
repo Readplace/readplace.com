@@ -18,9 +18,8 @@ export type {
 } from "./crawl-article.types";
 export { initCrawlFetch } from "./crawl-fetch";
 export type { CrawlFetch, CrawlFetchInit } from "./crawl-fetch";
-export type { ExtractPdf, PdfDocument, PdfExtractProgress, PdfExtractResult, PdfPage, PdfRasterizer } from "./pdf-extract.types";
+export type { ExtractPdf, PdfExtractProgress, PdfExtractResult } from "./pdf-extract.types";
 export { isPdfContentType, isPdfMagicBytes } from "./pdf-detect";
-export { initPdftoppmRasterizer } from "./init-pdftoppm-rasterizer";
 export { extractPdfMetadata } from "./extract-pdf-metadata";
 export type { ExtractPdfMetadata, PdfMetadata } from "./extract-pdf-metadata";
 export { MAX_PDF_PAGES } from "./pdf-page-limits";
