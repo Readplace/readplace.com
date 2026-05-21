@@ -7,16 +7,7 @@ import { retriable } from "@packages/retriable";
 import { normalizeUnknownError } from "./normalize-error";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 
-// Pages per page-Lambda invocation. Each Lambda downloads the staged PDF
-// once, rasterises this many pages, and sends them as a single vision
-// request. Multi-image batching amplifies DeepInfra TTFB non-linearly:
-// 2-image chunks on yellowpaper-class content sit at 100-190s, while
-// the same pages as single-image calls land in ~25-76s. M=1 eliminates
-// that penalty at the cost of doubling S3 GETs and Lambda invokes — both
-// cheap compared to the OCR wall time we recover. The module-level
-// PDF cache in pdf-page-ocr.main.ts absorbs the extra GETs on warm
-// container reuse.
-const DEFAULT_BATCH_SIZE = 1;
+const DEFAULT_BATCH_SIZE = 3;
 
 // In-flight page-Lambda invocations. Sized so the worst-case PDF
 // (`MAX_PDF_PAGES` pages, all in one wave at `DEFAULT_BATCH_SIZE` per chunk)
