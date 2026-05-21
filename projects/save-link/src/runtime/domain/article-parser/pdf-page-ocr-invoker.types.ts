@@ -11,15 +11,16 @@ export interface InvokePdfPageOcrInput {
 }
 
 /**
- * Successful sync-invoke response — the semantic HTML fragment covering all
- * pages in the chunk in `pageIndices` order. The orchestrator joins fragments
- * across chunks in chunk-dispatch order.
+ * Sync-invoke response: success carries the semantic HTML fragment covering
+ * every page in `pageIndices`, ordered by chunk dispatch. Failure carries the
+ * thrown error so the orchestrator can retry against a fresh Lambda container
+ * via `@packages/retriable` without losing the original cause.
  */
-export interface InvokePdfPageOcrOutput {
-	readonly html: string;
-}
+export type InvokePdfPageOcrResult =
+	| { readonly ok: true; readonly html: string }
+	| { readonly ok: false; readonly error: Error };
 
-export type InvokePdfPageOcr = (input: InvokePdfPageOcrInput) => Promise<InvokePdfPageOcrOutput>;
+export type InvokePdfPageOcr = (input: InvokePdfPageOcrInput) => Promise<InvokePdfPageOcrResult>;
 
 /**
  * Best-effort cleanup the orchestrator runs after the fan-out completes (or

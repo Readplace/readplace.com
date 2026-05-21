@@ -2,17 +2,19 @@
 import { InvokeCommand, type LambdaClient } from "@aws-sdk/client-lambda";
 import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { InvokePdfPageOcr, InvokePdfPageOcrOutput } from "./pdf-page-ocr-invoker.types";
+import { normalizeUnknownError } from "./normalize-error";
+import type { InvokePdfPageOcr, InvokePdfPageOcrResult } from "./pdf-page-ocr-invoker.types";
 
 const OutputSchema = z.object({
 	html: z.string(),
 });
 
 /**
- * Sync-invokes the per-page OCR Lambda. Returns the HTML fragment.
- * The page Lambda's own retries (DeepInfra 429/5xx) live inside the OpenAI
- * client; the orchestrator does not retry individual pages — if one fails
- * here, the whole crawl fails and SQS redrives.
+ * Sync-invokes the per-page OCR Lambda. Returns a tagged union so the
+ * orchestrator (`ocr-pdf.ts`) can drive retries through `@packages/retriable`
+ * without losing the underlying error to the worker's catch block. The page
+ * Lambda's DeepInfra 429/5xx retries still live inside the OpenAI client; this
+ * layer adds a fresh-container retry budget on top.
  */
 export function initInvokePdfPageOcr(deps: {
 	client: LambdaClient;
@@ -21,25 +23,29 @@ export function initInvokePdfPageOcr(deps: {
 }): { invokePageOcr: InvokePdfPageOcr } {
 	const { client, functionName, logger } = deps;
 
-	const invokePageOcr: InvokePdfPageOcr = async (input): Promise<InvokePdfPageOcrOutput> => {
-		const payload = Buffer.from(JSON.stringify(input));
-		const response = await client.send(
-			new InvokeCommand({
-				FunctionName: functionName,
-				InvocationType: "RequestResponse",
-				Payload: payload,
-			}),
-		);
-		if (response.FunctionError) {
-			const errorBody = response.Payload ? Buffer.from(response.Payload).toString("utf-8") : "<no payload>";
-			throw new Error(`pdf-page-ocr Lambda ${response.FunctionError}: ${errorBody}`);
+	const invokePageOcr: InvokePdfPageOcr = async (input): Promise<InvokePdfPageOcrResult> => {
+		try {
+			const payload = Buffer.from(JSON.stringify(input));
+			const response = await client.send(
+				new InvokeCommand({
+					FunctionName: functionName,
+					InvocationType: "RequestResponse",
+					Payload: payload,
+				}),
+			);
+			if (response.FunctionError) {
+				const errorBody = response.Payload ? Buffer.from(response.Payload).toString("utf-8") : "<no payload>";
+				return { ok: false, error: new Error(`pdf-page-ocr Lambda ${response.FunctionError}: ${errorBody}`) };
+			}
+			if (!response.Payload) {
+				return { ok: false, error: new Error("pdf-page-ocr Lambda returned no payload") };
+			}
+			const responseText = Buffer.from(response.Payload).toString("utf-8");
+			logger.info(`[invoke-page-ocr] pages=[${input.pageIndices.join(",")}] bytes=${responseText.length}`);
+			return { ok: true, html: OutputSchema.parse(JSON.parse(responseText)).html };
+		} catch (error) {
+			return { ok: false, error: normalizeUnknownError(error) };
 		}
-		if (!response.Payload) {
-			throw new Error("pdf-page-ocr Lambda returned no payload");
-		}
-		const responseText = Buffer.from(response.Payload).toString("utf-8");
-		logger.info(`[invoke-page-ocr] pages=[${input.pageIndices.join(",")}] bytes=${responseText.length}`);
-		return OutputSchema.parse(JSON.parse(responseText));
 	};
 
 	return { invokePageOcr };

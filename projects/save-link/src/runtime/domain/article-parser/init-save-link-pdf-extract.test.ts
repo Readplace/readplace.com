@@ -12,6 +12,7 @@ describe("initSaveLinkPdfExtract", () => {
 			cleanup: async () => {},
 		});
 		const invokePageOcr: InvokePdfPageOcr = async ({ pageIndices }) => ({
+			ok: true,
 			html: pageIndices.map((idx) => `<p>page-${idx}</p>`).join(""),
 		});
 

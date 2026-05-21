@@ -221,6 +221,9 @@ importers:
       '@packages/onboarding-extension-signal':
         specifier: workspace:*
         version: link:../../src/packages/onboarding-extension-signal
+      '@packages/retriable':
+        specifier: workspace:*
+        version: link:../../src/packages/retriable
       browser-extension-core:
         specifier: workspace:*
         version: link:../browser-extension-core
@@ -409,6 +412,9 @@ importers:
       '@packages/hutch-storage-client':
         specifier: workspace:*
         version: link:../../src/packages/hutch-storage-client
+      '@packages/retriable':
+        specifier: workspace:*
+        version: link:../../src/packages/retriable
       '@packages/test-fixtures':
         specifier: workspace:*
         version: link:../../src/packages/test-fixtures
@@ -752,6 +758,24 @@ importers:
       concurrently:
         specifier: 9.2.1
         version: 9.2.1
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  src/packages/retriable:
+    devDependencies:
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
+      c8:
+        specifier: 10.1.3
+        version: 10.1.3
+      concurrently:
+        specifier: 9.2.1
+        version: 9.2.1
+      jest:
+        specifier: 29.7.0
+        version: 29.7.0(@types/node@22.19.1)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.1)(typescript@5.9.3))
       typescript:
         specifier: 5.9.3
         version: 5.9.3

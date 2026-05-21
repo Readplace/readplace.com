@@ -3,6 +3,8 @@ import { parseHTML } from "linkedom";
 import type { ExtractPdf, ExtractPdfMetadata, PdfExtractResult } from "@packages/crawl-article";
 import { deriveTitleFromUrl, escapeHtmlText, MAX_PDF_PAGES } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
+import { retriable } from "@packages/retriable";
+import { normalizeUnknownError } from "./normalize-error";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 
 // Pages per page-Lambda invocation. Each Lambda downloads the staged PDF
@@ -44,6 +46,14 @@ const DEFAULT_DPI = 150;
  * stages them to S3, matching today's behaviour.
  */
 const MAX_PDF_BYTES = 50 * 1024 * 1024;
+
+// Per-chunk retry budget. The OpenAI SDK inside the page Lambda already burns
+// 90s × 3 attempts against DeepInfra (`pdf-page-ocr.main.ts`); this layer adds
+// two fresh-container retries on top, so an upstream stall that sticks to a
+// single warm DeepInfra socket can clear on a new Lambda invocation. Worst-case
+// wall time per chunk = MAX_ATTEMPTS × slowest-page time.
+const PAGE_OCR_MAX_ATTEMPTS = 3;
+const PAGE_OCR_RETRY_DELAY_MS = 2000;
 
 export function initOcrPdf(deps: {
 	extractPdfMetadata: ExtractPdfMetadata;
@@ -92,6 +102,15 @@ export function initOcrPdf(deps: {
 		const partCount = chunks.length;
 		let completedParts = 0;
 
+		const invokePageOcrWithRetry = retriable(invokePageOcr, {
+			maxAttempts: PAGE_OCR_MAX_ATTEMPTS,
+			retryDelayMs: PAGE_OCR_RETRY_DELAY_MS,
+			shouldRetry: (result) => !result.ok,
+			beforeRetry: (input) => {
+				logger.warn(`[ocr-pdf] retrying chunk pages=[${input.pageIndices.join(",")}]`);
+			},
+		});
+
 		try {
 			const staged = await stagePdf(buffer);
 			try {
@@ -100,11 +119,12 @@ export function initOcrPdf(deps: {
 					concurrency,
 					async (pageIndices) => {
 						const chunkStart = Date.now();
-						const { html } = await invokePageOcr({ pdfS3Key: staged.key, pageIndices, dpi });
-						logger.info(`[ocr-pdf] chunk pages=[${pageIndices.join(",")}] done dt=${Date.now() - chunkStart}ms chars=${html.length} total=${Date.now() - t0}ms`);
+						const result = await invokePageOcrWithRetry({ pdfS3Key: staged.key, pageIndices, dpi });
+						if (!result.ok) throw result.error;
+						logger.info(`[ocr-pdf] chunk pages=[${pageIndices.join(",")}] done dt=${Date.now() - chunkStart}ms chars=${result.html.length} total=${Date.now() - t0}ms`);
 						completedParts += 1;
 						onProgress?.({ partIndex: completedParts, partCount });
-						return html;
+						return result.html;
 					},
 				);
 
@@ -120,7 +140,12 @@ export function initOcrPdf(deps: {
 				await staged.cleanup();
 			}
 		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
+			// The mapper only ever throws `Error` instances (via `result.error`
+			// from InvokePdfPageOcrResult), and `stagePdf` is documented to throw
+			// `Error`s. `normalizeUnknownError` exists for the boundary where
+			// non-Error values are possible — keep it as the single normalisation
+			// point so the inline `instanceof` branch never goes stale.
+			const message = normalizeUnknownError(error).message;
 			logger.error(`[ocr-pdf] fan-out failed t=${Date.now() - t0}ms reason=${message}`);
 			return { kind: "failed", reason: `OCR pipeline failed: ${message}` };
 		}

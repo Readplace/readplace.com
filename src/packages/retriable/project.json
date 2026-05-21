@@ -1,0 +1,9 @@
+{
+  "name": "@packages/retriable",
+  "targets": {
+    "check": {
+      "command": "pnpm lint",
+      "options": { "cwd": "{projectRoot}" }
+    }
+  }
+}

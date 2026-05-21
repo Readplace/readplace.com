@@ -1,4 +1,4 @@
-import { noopLogger } from "@packages/hutch-logger";
+import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import type { ExtractPdfMetadata } from "@packages/crawl-article";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 import { initOcrPdf } from "./ocr-pdf";
@@ -16,6 +16,7 @@ function stubStagePdf(opts: { key?: string; onCleanup?: () => void } = {}): Stag
 
 function stubInvokePageOcr(html: (pageIndex: number) => string): InvokePdfPageOcr {
 	return async ({ pageIndices }) => ({
+		ok: true,
 		html: pageIndices.map((idx) => html(idx)).join(""),
 	});
 }
@@ -162,7 +163,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			stagePdf: stubStagePdf({ key: "pdf-rasterise-staging/abc/source.pdf" }),
 			invokePageOcr: async (input) => {
 				captured.push({ pdfS3Key: input.pdfS3Key, pageIndices: input.pageIndices, dpi: input.dpi });
-				return { html: input.pageIndices.map((i) => `<p>p${i}</p>`).join("") };
+				return { ok: true, html: input.pageIndices.map((i) => `<p>p${i}</p>`).join("") };
 			},
 			batchSize: 3,
 		});
@@ -184,7 +185,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			stagePdf: stubStagePdf(),
 			invokePageOcr: async ({ dpi }) => {
 				captured.push(dpi);
-				return { html: "<p>x</p>" };
+				return { ok: true, html: "<p>x</p>" };
 			},
 			dpi: 200,
 		});
@@ -202,7 +203,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			invokePageOcr: async ({ pageIndices }) => {
 				const first = pageIndices[0];
 				await new Promise((resolve) => setTimeout(resolve, (3 - first) * 5));
-				return { html: `<p>page-${first}</p>` };
+				return { ok: true, html: `<p>page-${first}</p>` };
 			},
 			batchSize: 1,
 		});
@@ -231,7 +232,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 				observedPeak = Math.max(observedPeak, inFlight);
 				await new Promise((resolve) => setTimeout(resolve, 5));
 				inFlight -= 1;
-				return { html: `<p>${pageIndices[0]}</p>` };
+				return { ok: true, html: `<p>${pageIndices[0]}</p>` };
 			},
 			concurrency: 3,
 			batchSize: 1,
@@ -353,27 +354,18 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: S3 PutObject denied" });
 	});
 
-	it("returns kind 'failed' stringifying a non-Error throw from the fan-out", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 1 }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: async () => { throw "opaque invoke failure"; },
-		});
-
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
-
-		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: opaque invoke failure" });
-	});
-
-	it("returns kind 'failed' when any page Lambda invocation throws", async () => {
+	it("returns kind 'failed' after exhausting the page-invocation retry budget", async () => {
+		const callsForFailingChunk: number[] = [];
 		const ocr = initOcrPdf({
 			logger: noopLogger,
 			extractPdfMetadata: stubMetadata({ numPages: 3 }),
 			stagePdf: stubStagePdf(),
 			invokePageOcr: async ({ pageIndices }) => {
-				if (pageIndices[0] === 1) throw new Error("Lambda timed out");
-				return { html: `<p>${pageIndices[0]}</p>` };
+				if (pageIndices[0] === 1) {
+					callsForFailingChunk.push(pageIndices[0]);
+					return { ok: false, error: new Error("Lambda timed out") };
+				}
+				return { ok: true, html: `<p>${pageIndices[0]}</p>` };
 			},
 			batchSize: 1,
 		});
@@ -381,9 +373,11 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
 		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: Lambda timed out" });
+		// 3 attempts = first + 2 retries; matches PAGE_OCR_MAX_ATTEMPTS in ocr-pdf.ts.
+		expect(callsForFailingChunk).toEqual([1, 1, 1]);
 	});
 
-	it("stops dispatching new work once a sibling invocation has failed", async () => {
+	it("stops dispatching new work once a sibling invocation has exhausted its retry budget", async () => {
 		const seen: number[] = [];
 		const ocr = initOcrPdf({
 			logger: noopLogger,
@@ -392,8 +386,8 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			invokePageOcr: async ({ pageIndices }) => {
 				const pageIndex = pageIndices[0];
 				seen.push(pageIndex);
-				if (pageIndex === 1) throw new Error("page 2 failed");
-				return { html: `<p>${pageIndex}</p>` };
+				if (pageIndex === 1) return { ok: false, error: new Error("page 2 failed") };
+				return { ok: true, html: `<p>${pageIndex}</p>` };
 			},
 			concurrency: 1,
 			batchSize: 1,
@@ -401,10 +395,9 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
-		// With concurrency=1 and batchSize=1 the worker processes pages serially.
-		// After page 1 throws, the failed flag halts the loop, so pages 2/3/4
-		// are not invoked.
-		expect(seen).toEqual([0, 1]);
+		// concurrency=1, batchSize=1: serial. Page 1 burns all 3 attempts, then
+		// the worker's `failed=true` halts dispatch — pages 2/3/4 never run.
+		expect(seen).toEqual([0, 1, 1, 1]);
 	});
 
 	it("calls staged.cleanup() after a successful fan-out", async () => {
@@ -421,13 +414,13 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		expect(cleanupCalls).toBe(1);
 	});
 
-	it("calls staged.cleanup() even when a page invocation throws", async () => {
+	it("calls staged.cleanup() even when every page invocation fails", async () => {
 		let cleanupCalls = 0;
 		const ocr = initOcrPdf({
 			logger: noopLogger,
 			extractPdfMetadata: stubMetadata({ numPages: 2 }),
 			stagePdf: stubStagePdf({ onCleanup: () => { cleanupCalls += 1; } }),
-			invokePageOcr: async () => { throw new Error("invoke failure"); },
+			invokePageOcr: async () => ({ ok: false, error: new Error("invoke failure") }),
 		});
 
 		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
@@ -469,7 +462,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 				const first = pageIndices[0];
 				// Reverse the natural finish order so chunks complete later → earlier.
 				await new Promise((resolve) => setTimeout(resolve, (3 - first) * 5));
-				return { html: `<p>${first}</p>` };
+				return { ok: true, html: `<p>${first}</p>` };
 			},
 			batchSize: 1,
 		});
@@ -495,5 +488,71 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
 		expect(result).toEqual({ kind: "failed", reason: "OCR returned no text across all batches" });
+	});
+
+	it("recovers when a chunk succeeds on the 2nd attempt", async () => {
+		let callCount = 0;
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 1 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: async ({ pageIndices }) => {
+				callCount += 1;
+				if (callCount === 1) return { ok: false, error: new Error("transient") };
+				return { ok: true, html: `<p>${pageIndices[0]}</p>` };
+			},
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		expect(result.html).toContain("<p>0</p>");
+		expect(callCount).toBe(2);
+	});
+
+	it("recovers when a chunk succeeds on the 3rd attempt", async () => {
+		let callCount = 0;
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 1 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: async ({ pageIndices }) => {
+				callCount += 1;
+				if (callCount < 3) return { ok: false, error: new Error("transient") };
+				return { ok: true, html: `<p>${pageIndices[0]}</p>` };
+			},
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		expect(result.html).toContain("<p>0</p>");
+		expect(callCount).toBe(3);
+	});
+
+	it("emits a warning log between attempts via beforeRetry", async () => {
+		const warnings: string[] = [];
+		const capturingLogger: HutchLogger = {
+			info: () => {},
+			error: () => {},
+			warn: (msg) => { warnings.push(String(msg)); },
+			debug: () => {},
+		};
+		const ocr = initOcrPdf({
+			logger: capturingLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 1 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: async () => ({ ok: false, error: new Error("nope") }),
+		});
+
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		// 3 attempts ⇒ 2 retries ⇒ 2 beforeRetry callbacks.
+		expect(warnings).toEqual([
+			"[ocr-pdf] retrying chunk pages=[0]",
+			"[ocr-pdf] retrying chunk pages=[0]",
+		]);
 	});
 });

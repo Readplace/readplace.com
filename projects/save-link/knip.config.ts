@@ -22,6 +22,7 @@ export default {
 		"@packages/article-store",
 		"@packages/crawl-article",
 		"@packages/domain",
+		"@packages/retriable",
 		"@packages/test-fixtures",
 		// Used only in infra code (Pulumi IaC, compiled separately)
 		"@pulumi/aws",

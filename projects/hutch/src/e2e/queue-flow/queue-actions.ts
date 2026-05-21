@@ -4,7 +4,7 @@ import type { PageAction } from '../hateoas/navigation-handler.types'
 import type { QueueActionKey, SaveArticleKey, PaginationArticleKey } from './action-catalog'
 import { TEST_ARTICLE_COUNT, PAGINATION_ARTICLE_COUNT } from './action-catalog'
 import { isOnPage, clickAndWaitForPageReload } from '../page-interactions'
-import { retriable } from '../../retriable'
+import { retriable } from '@packages/retriable'
 import type { AuthProgress } from './auth-actions'
 
 export type QueueProgress = {

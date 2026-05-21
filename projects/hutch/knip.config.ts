@@ -39,6 +39,7 @@ export default {
 		"@packages/crawl-article",
 		"@packages/domain",
 		"@packages/onboarding-extension-signal",
+		"@packages/retriable",
 		"@packages/test-fixtures",
 	],
 	ignoreBinaries: [
