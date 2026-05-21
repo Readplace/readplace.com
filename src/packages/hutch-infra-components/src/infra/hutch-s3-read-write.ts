@@ -2,6 +2,13 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import type { LambdaPolicy } from "./hutch-lambda";
 
+/** A single S3 lifecycle expiration rule that targets one or more key prefixes. */
+interface BucketExpirationRule {
+	id: string;
+	expirationDays: number;
+	prefixes: string[];
+}
+
 export class HutchS3ReadWrite extends pulumi.ComponentResource {
 	public readonly bucket: aws.s3.Bucket["bucket"];
 	public readonly arn: aws.s3.Bucket["arn"];
@@ -14,6 +21,7 @@ export class HutchS3ReadWrite extends pulumi.ComponentResource {
 		name: string,
 		args: {
 			bucketName: pulumi.Input<string>;
+			expirationRules?: BucketExpirationRule[];
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -31,6 +39,20 @@ export class HutchS3ReadWrite extends pulumi.ComponentResource {
 			ignorePublicAcls: true,
 			restrictPublicBuckets: true,
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+
+		if (args.expirationRules && args.expirationRules.length > 0) {
+			new aws.s3.BucketLifecycleConfigurationV2(`${name}-lifecycle`, {
+				bucket: bucket.id,
+				rules: args.expirationRules.flatMap((rule) =>
+					rule.prefixes.map((prefix) => ({
+						id: `${rule.id}-${prefix.replace(/[/]/g, "-")}`,
+						status: "Enabled",
+						filter: { prefix },
+						expiration: { days: rule.expirationDays },
+					})),
+				),
+			}, { parent: this });
+		}
 
 		this.bucket = bucket.bucket;
 		this.arn = bucket.arn;

@@ -309,13 +309,16 @@ export const GenerateSummaryCommand = defineCommand({
 });
 export type GenerateSummaryDetail = z.infer<typeof GenerateSummaryCommand.detailSchema>;
 
+/** Refresh handler reads the freshly-fetched HTML from S3 (refresh-html/ prefix
+ * in PENDING_HTML_BUCKET) using the same key derivation the publisher used —
+ * mirrors the SaveLinkRawHtmlCommand pattern. Inlining the HTML in this detail
+ * blew past EventBridge's 256 KB per-request cap for large articles. */
 export const RefreshArticleContentCommand = defineEvent({
 	name: "refresh-article-content-command",
 	source: "hutch.api",
 	detailType: "RefreshArticleContentCommand",
 	detailSchema: z.object({
 		url: z.string(),
-		html: z.string(),
 		metadata: z.object({
 			title: z.string(),
 			siteName: z.string(),

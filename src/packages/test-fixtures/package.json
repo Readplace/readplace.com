@@ -53,6 +53,10 @@
       "types": "./dist/providers/pending-html/index.d.ts",
       "default": "./dist/providers/pending-html/index.js"
     },
+    "./providers/refresh-html": {
+      "types": "./dist/providers/refresh-html/index.d.ts",
+      "default": "./dist/providers/refresh-html/index.js"
+    },
     "./providers/pending-signup": {
       "types": "./dist/providers/pending-signup/index.d.ts",
       "default": "./dist/providers/pending-signup/index.js"
@@ -91,6 +95,7 @@
       "providers/email-verification": ["./dist/providers/email-verification/index.d.ts"],
       "providers/password-reset": ["./dist/providers/password-reset/index.d.ts"],
       "providers/pending-html": ["./dist/providers/pending-html/index.d.ts"],
+      "providers/refresh-html": ["./dist/providers/refresh-html/index.d.ts"],
       "providers/pending-signup": ["./dist/providers/pending-signup/index.d.ts"],
       "providers/stripe-checkout": ["./dist/providers/stripe-checkout/index.d.ts"],
       "providers/import-session": ["./dist/providers/import-session/index.d.ts"],

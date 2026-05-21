@@ -48,6 +48,7 @@ import { initInMemorySaveLinkRawHtmlCommand } from "@packages/test-fixtures/prov
 import { initInMemoryRefreshArticleContent } from "@packages/test-fixtures/providers/events";
 import { initInMemoryUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
 import { initPutPendingHtml } from "./providers/pending-html/put-pending-html";
+import { initPutRefreshHtml } from "./providers/refresh-html/put-refresh-html";
 import { initInMemoryPendingHtml } from "@packages/test-fixtures/providers/pending-html";
 import { initInMemoryImportSession } from "@packages/test-fixtures/providers/import-session";
 import { initDynamoDbImportSession } from "./providers/import-session/dynamodb-import-session";
@@ -137,7 +138,8 @@ function initProviders() {
 		const { publishSaveAnonymousLink } = initEventBridgeSaveAnonymousLink({ publishEvent });
 		const { publishStaleCheckRequested } = initEventBridgeStaleCheckRequested({ publishEvent });
 		const { publishSaveLinkRawHtmlCommand } = initEventBridgeSaveLinkRawHtmlCommand({ publishEvent });
-		const { publishRefreshArticleContent } = initEventBridgeRefreshArticleContent({ publishEvent });
+		const { putRefreshHtml } = initPutRefreshHtml({ client: s3Client, bucketName: pendingHtmlBucketName });
+		const { publishRefreshArticleContent } = initEventBridgeRefreshArticleContent({ publishEvent, putRefreshHtml });
 		const { publishUpdateFetchTimestamp } = initEventBridgeUpdateFetchTimestamp({ publishEvent });
 		const { publishExportUserDataCommand } = initEventBridgeExportUserDataCommand({ publishEvent });
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });

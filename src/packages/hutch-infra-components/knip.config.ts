@@ -9,4 +9,7 @@ export default {
 		"knip",
 		"biome",
 	],
+	jest: {
+		entry: ["src/**/*.test.ts"],
+	},
 } satisfies KnipConfig;
