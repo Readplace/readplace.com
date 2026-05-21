@@ -8,6 +8,7 @@ import type {
   PasswordResetActionKey,
   SavePermalinkActionKey,
   BannerOnReaderActionKey,
+  ImportActionKey,
   QueueFlowActionKey,
 } from './action-catalog'
 import { createAuthActions, type AuthData, type AuthProgress } from './auth-actions'
@@ -23,6 +24,7 @@ export type PreQueueActionFactories = {
   passwordReset: (authProgress: AuthProgress) => Record<PasswordResetActionKey, PageAction>
   savePermalink: (authProgress: AuthProgress) => Record<SavePermalinkActionKey, PageAction>
   bannerOnReader: (authProgress: AuthProgress) => Record<BannerOnReaderActionKey, PageAction>
+  importActions: (authProgress: AuthProgress) => Record<ImportActionKey, PageAction>
 }
 
 export interface QueueFlowConfig {
@@ -30,6 +32,7 @@ export interface QueueFlowConfig {
   testArticles: TestArticleData
   authData: AuthData
   passwordResetProgress: PasswordResetProgress
+  queueProgress: QueueProgress
   preQueueActionFactories: PreQueueActionFactories
   preQueueProgressObjects: Record<string, boolean>[]
   maxNavigations?: number
@@ -42,29 +45,9 @@ export async function runQueueFlow(page: Page, config: QueueFlowConfig): Promise
     loggedIn: false,
   }
 
-  const queueProgress: QueueProgress = {
-    allArticlesAdded: false,
-    paginationArticlesAdded: false,
-    verifiedPage1HasNext: false,
-    navigatedToPage2: false,
-    verifiedPage2: false,
-    navigatedBackToPage1: false,
-    verifiedBackOnPage1: false,
-    refreshedExistingArticle: false,
-    paginationArticlesDeleted: false,
-    verifiedNewestFirst: false,
-    sortedOldestFirst: false,
-    verifiedOldestFirst: false,
-    openedFirstArticle: false,
-    backFromReader: false,
-    verifiedReadStatus: false,
-    deletedLastArticle: false,
-    checkedReadTab: false,
-    checkedUnreadTab: false,
-    cleanupDeleted: false,
-  }
+  const queueProgress = config.queueProgress
 
-  const { anonymousView, onboarding, seed, cleanup, passwordReset, savePermalink, bannerOnReader } = config.preQueueActionFactories
+  const { anonymousView, onboarding, seed, cleanup, passwordReset, savePermalink, bannerOnReader, importActions } = config.preQueueActionFactories
 
   const allActions: Record<QueueFlowActionKey, PageAction> = {
     ...anonymousView(authProgress),
@@ -76,6 +59,7 @@ export async function runQueueFlow(page: Page, config: QueueFlowConfig): Promise
     ...bannerOnReader(authProgress),
     ...createAuthActions(config.authData, authProgress, config.passwordResetProgress),
     ...createQueueActions(authProgress, queueProgress, config.testArticles),
+    ...importActions(authProgress),
   }
 
   const allProgressObjects: Record<string, boolean>[] = [

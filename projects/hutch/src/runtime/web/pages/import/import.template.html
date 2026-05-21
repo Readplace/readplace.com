@@ -32,7 +32,6 @@
         </form>
 
         <form class="import__commit-form" method="POST" action="{{commitUrl}}"
-              hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
               data-test-form="import-commit">
           <button class="import__commit-btn" type="submit" data-test-action="import-commit">
             Import {{totalSelected}} selected
@@ -75,7 +74,7 @@
           <span aria-hidden="true">&larr;</span> Previous
         </span>
         {{/if}}
-        <span class="import__pagination-info">Page <strong>{{currentPage}}</strong> of {{totalPages}}</span>
+        <span class="import__pagination-info" data-test-import-pagination-info>Page <strong>{{currentPage}}</strong> of {{totalPages}}</span>
         {{#if hasNext}}
         <a class="import__pagination-link import__pagination-link--next" href="{{nextUrl}}" data-test-import-pagination-next>
           Next <span aria-hidden="true">&rarr;</span>
