@@ -435,13 +435,14 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		expect(cleanupCalls).toBe(1);
 	});
 
-	it("fires onProgress once per page with 1-based pageIndex and total pageCount", async () => {
-		const progress: { pageIndex: number; pageCount: number }[] = [];
+	it("fires onProgress once per chunk completion with 1-based partIndex and total partCount (chunks, not pages)", async () => {
+		const progress: { partIndex: number; partCount: number }[] = [];
 		const ocr = initOcrPdf({
 			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 3 }),
+			extractPdfMetadata: stubMetadata({ numPages: 6 }),
 			stagePdf: stubStagePdf(),
 			invokePageOcr: stubInvokePageOcr(() => "<p>x</p>"),
+			batchSize: 2,
 		});
 
 		await ocr({
@@ -450,11 +451,37 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			onProgress: (params) => { progress.push(params); },
 		});
 
+		// 6 pages / batchSize 2 = 3 chunks → 3 onProgress fires.
 		expect(progress).toEqual([
-			{ pageIndex: 1, pageCount: 3 },
-			{ pageIndex: 2, pageCount: 3 },
-			{ pageIndex: 3, pageCount: 3 },
+			{ partIndex: 1, partCount: 3 },
+			{ partIndex: 2, partCount: 3 },
+			{ partIndex: 3, partCount: 3 },
 		]);
+	});
+
+	it("fires partIndex in chunk-completion order (out-of-order chunks still increment partIndex monotonically)", async () => {
+		const progress: { partIndex: number; partCount: number }[] = [];
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 3 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: async ({ pageIndices }) => {
+				const first = pageIndices[0];
+				// Reverse the natural finish order so chunks complete later → earlier.
+				await new Promise((resolve) => setTimeout(resolve, (3 - first) * 5));
+				return { html: `<p>${first}</p>` };
+			},
+			batchSize: 1,
+		});
+
+		await ocr({
+			buffer: Buffer.from("%PDF"),
+			url: "https://example.com/x.pdf",
+			onProgress: (params) => { progress.push(params); },
+		});
+
+		expect(progress.map((p) => p.partIndex)).toEqual([1, 2, 3]);
+		expect(progress.every((p) => p.partCount === 3)).toBe(true);
 	});
 
 	it("treats a zero-page PDF as failed (no fragments to join)", async () => {

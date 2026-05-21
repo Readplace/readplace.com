@@ -158,6 +158,94 @@ describe("initArticleReader", () => {
 			});
 		});
 
+		it("scales pct inside the comprehensive-extracting → crawl-parsed band when per-part progress is reported", async () => {
+			const { deps } = initFakeDeps({
+				crawl: {
+					status: "pending",
+					stage: "comprehensive-extracting",
+					parts: { current: 1, total: 2 },
+				},
+				summary: { status: "pending" },
+			});
+			const reader = initArticleReader(deps);
+
+			const result = await reader.resolveReaderState({
+				article: makeSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			expect(result.progress).toEqual({
+				stage: "comprehensive-extracting",
+				pct: 26,
+				tickAt: FIXED_NOW.toISOString(),
+			});
+		});
+
+		it("emits stage-base pct when stage=comprehensive-extracting and no parts have been recorded yet", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "pending", stage: "comprehensive-extracting" },
+				summary: { status: "pending" },
+			});
+			const reader = initArticleReader(deps);
+
+			const result = await reader.resolveReaderState({
+				article: makeSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			expect(result.progress).toEqual({
+				stage: "comprehensive-extracting",
+				pct: 23,
+				tickAt: FIXED_NOW.toISOString(),
+			});
+		});
+
+		it("does not scale pct on stages outside the comprehensive-extracting band (parts are ignored on other stages)", async () => {
+			const { deps } = initFakeDeps({
+				crawl: {
+					status: "pending",
+					stage: "crawl-fetching",
+					parts: { current: 1, total: 2 },
+				},
+				summary: { status: "pending" },
+			});
+			const reader = initArticleReader(deps);
+
+			const result = await reader.resolveReaderState({
+				article: makeSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			expect(result.progress).toEqual({
+				stage: "crawl-fetching",
+				pct: 5,
+				tickAt: FIXED_NOW.toISOString(),
+			});
+		});
+
+		it("clamps the scaled pct at the top of the band when parts.current === parts.total", async () => {
+			const { deps } = initFakeDeps({
+				crawl: {
+					status: "pending",
+					stage: "comprehensive-extracting",
+					parts: { current: 4, total: 4 },
+				},
+				summary: { status: "pending" },
+			});
+			const reader = initArticleReader(deps);
+
+			const result = await reader.resolveReaderState({
+				article: makeSnapshot(),
+				pollUrlBuilder: makePollUrlBuilder(),
+			});
+
+			expect(result.progress).toEqual({
+				stage: "comprehensive-extracting",
+				pct: 29,
+				tickAt: FIXED_NOW.toISOString(),
+			});
+		});
+
 		it("hands the unified bar over to the summary stage once the crawl has gone ready", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "ready" },

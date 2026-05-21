@@ -77,6 +77,62 @@ describe("initDynamoDbArticleCrawl", () => {
 			expect(result).toEqual({ status: "pending", stage: "crawl-parsed" });
 		});
 
+		it("returns pending with parts when crawlPartCurrent and crawlPartTotal are recorded", async () => {
+			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
+				client: clientReturning({
+					url: URL,
+					crawlStatus: "pending",
+					crawlStage: "comprehensive-extracting",
+					crawlPartCurrent: 17,
+					crawlPartTotal: 150,
+				}),
+				tableName: TABLE,
+			});
+
+			const result = await findArticleCrawlStatus(URL);
+
+			expect(result).toEqual({
+				status: "pending",
+				stage: "comprehensive-extracting",
+				parts: { current: 17, total: 150 },
+			});
+		});
+
+		it("omits parts when only one of crawlPartCurrent / crawlPartTotal is present", async () => {
+			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
+				client: clientReturning({
+					url: URL,
+					crawlStatus: "pending",
+					crawlStage: "comprehensive-extracting",
+					crawlPartCurrent: 17,
+				}),
+				tableName: TABLE,
+			});
+
+			const result = await findArticleCrawlStatus(URL);
+
+			expect(result).toEqual({
+				status: "pending",
+				stage: "comprehensive-extracting",
+			});
+		});
+
+		it("does not surface parts on terminal ready rows", async () => {
+			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
+				client: clientReturning({
+					url: URL,
+					crawlStatus: "ready",
+					crawlPartCurrent: 4,
+					crawlPartTotal: 4,
+				}),
+				tableName: TABLE,
+			});
+
+			const result = await findArticleCrawlStatus(URL);
+
+			expect(result).toEqual({ status: "ready" });
+		});
+
 		it("returns ready when crawlStatus=ready", async () => {
 			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
 				client: clientReturning({ url: URL, crawlStatus: "ready" }),

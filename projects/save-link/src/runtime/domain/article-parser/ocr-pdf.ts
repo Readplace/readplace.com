@@ -87,6 +87,8 @@ export function initOcrPdf(deps: {
 		}
 
 		const chunks = chunkPages(metadata.numPages, batchSize);
+		const partCount = chunks.length;
+		let completedParts = 0;
 
 		try {
 			const staged = await stagePdf(buffer);
@@ -98,9 +100,8 @@ export function initOcrPdf(deps: {
 						const chunkStart = Date.now();
 						const { html } = await invokePageOcr({ pdfS3Key: staged.key, pageIndices, dpi });
 						logger.info(`[ocr-pdf] chunk pages=[${pageIndices.join(",")}] done dt=${Date.now() - chunkStart}ms chars=${html.length} total=${Date.now() - t0}ms`);
-						for (const pageIndex of pageIndices) {
-							onProgress?.({ pageIndex: pageIndex + 1, pageCount: metadata.numPages });
-						}
+						completedParts += 1;
+						onProgress?.({ partIndex: completedParts, partCount });
 						return html;
 					},
 				);

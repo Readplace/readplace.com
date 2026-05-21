@@ -1,6 +1,7 @@
 import { parseHTML } from "linkedom";
 import type {
 	ComprehensiveCrawl,
+	ComprehensiveCrawlProgress,
 	CrawlArticle,
 	CrawlArticleResult,
 	SimpleCrawl,
@@ -194,7 +195,7 @@ export function initComprehensiveCrawl(deps: {
 					url: params.url,
 					extractPdf,
 					logError,
-					onPdfPage: params.onPdfPage,
+					onProgress: params.onProgress,
 				});
 			}
 			logError(`[CrawlArticle] Comprehensive crawl invoked on non-pdf "${contentType}" for ${params.url}`);
@@ -232,7 +233,7 @@ async function handlePdfBuffer(args: {
 	url: string;
 	extractPdf: ExtractPdf;
 	logError: (message: string, error?: Error) => void;
-	onPdfPage?: (params: { pageIndex: number; pageCount: number }) => void;
+	onProgress?: ComprehensiveCrawlProgress;
 }): Promise<CrawlArticleResult> {
 	if (args.buffer.length > MAX_PDF_BYTES) {
 		args.logError(`[CrawlArticle] PDF body too large (${args.buffer.length} bytes) for ${args.url}`);
@@ -241,7 +242,7 @@ async function handlePdfBuffer(args: {
 	const extracted = await args.extractPdf({
 		buffer: args.buffer,
 		url: args.url,
-		onProgress: args.onPdfPage,
+		onProgress: args.onProgress,
 	});
 	if (extracted.kind === "failed") {
 		args.logError(`[CrawlArticle] PDF extraction failed for ${args.url}: ${extracted.reason}`);

@@ -31,6 +31,8 @@ const ArticleCrawlRow = z.object({
 			"crawl-content-uploaded",
 		]),
 	),
+	crawlPartCurrent: dynamoField(z.number()),
+	crawlPartTotal: dynamoField(z.number()),
 });
 
 type ArticleCrawlRowShape = z.infer<typeof ArticleCrawlRow>;
@@ -54,9 +56,14 @@ function rowToArticleCrawl(
 		return { status: "unsupported", reason: row.crawlUnsupportedReason };
 	}
 	if (row.crawlStatus === "pending") {
-		return row.crawlStage
-			? { status: "pending", stage: row.crawlStage }
-			: { status: "pending" };
+		const parts =
+			row.crawlPartCurrent !== undefined && row.crawlPartTotal !== undefined
+				? { current: row.crawlPartCurrent, total: row.crawlPartTotal }
+				: undefined;
+		const pending: ArticleCrawl = { status: "pending" };
+		if (row.crawlStage) pending.stage = row.crawlStage;
+		if (parts) pending.parts = parts;
+		return pending;
 	}
 	if (row.crawlStatus === "ready") return { status: "ready" };
 	// Legacy row (status attribute missing). Return undefined so the caller
