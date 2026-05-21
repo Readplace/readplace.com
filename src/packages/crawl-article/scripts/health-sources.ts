@@ -161,9 +161,10 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: true,
 	},
 	{
-		// Exercises the PDF path end-to-end: detection + pdftoppm rasterisation +
-		// DeepInfra vision OCR + sanitizer + Readability over the synthetic
-		// HTML. fai.org serves the file with Content-Type `application/pdf`.
+		// Exercises the PDF path end-to-end: detection + per-page OCR Lambda
+		// fan-out (rasterisation + DeepInfra vision) + sanitizer + Readability
+		// over the synthetic HTML. fai.org serves the file with Content-Type
+		// `application/pdf`.
 		//
 		// PDFs do not expose og:image/twitter:image metadata, so the thumbnail
 		// path is intentionally skipped — same precedent as the X/Twitter

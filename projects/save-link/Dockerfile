@@ -8,9 +8,9 @@
 # producing one image per Lambda.
 FROM public.ecr.aws/lambda/nodejs:22
 
-# poppler-utils provides pdftoppm + pdfinfo, used by initPdftoppmRasterizer
-# to rasterise PDFs to PNG and read page count + title metadata. Cleaning
-# the dnf cache shaves ~30 MB off the final image.
+# poppler-utils provides pdftoppm + pdfinfo, used by renderPdfPageToPng
+# and extractPdfMetadata to rasterise PDF pages and read page count + title
+# metadata. Cleaning the dnf cache shaves ~30 MB off the final image.
 RUN dnf install -y poppler-utils && dnf clean all
 
 ARG HANDLER_DIR
