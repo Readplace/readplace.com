@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { MAX_PDF_BYTES } from "./pdf-page-limits";
 
 const MAX_REDIRECTS = 5;
 const DEFAULT_TIMEOUT_MS = 10000;
@@ -25,7 +26,7 @@ const defaultExecCurl: ExecCurl = (args, options, callback) => {
 	const child = execFile(
 		"curl",
 		args,
-		{ encoding: "buffer", maxBuffer: 50 * 1024 * 1024, timeout: options.timeoutMs },
+		{ encoding: "buffer", maxBuffer: MAX_PDF_BYTES.bytes, timeout: options.timeoutMs },
 		callback,
 	);
 	return {

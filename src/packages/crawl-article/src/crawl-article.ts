@@ -11,13 +11,13 @@ import type { CrawlFetch } from "./crawl-fetch";
 import { extensionFromContentType } from "./extension-from-content-type";
 import { headerOrUndefined } from "./header-utils";
 import { isPdfContentType, isPdfMagicBytes } from "./pdf-detect";
+import { MAX_PDF_BYTES } from "./pdf-page-limits";
 import type { ExtractPdf } from "./pdf-extract.types";
 import { initFetchTweetViaOembed, isTweetUrl } from "./x-twitter-preprocessor";
 
 const FETCH_TIMEOUT_MS = 10000;
 const THUMBNAIL_FETCH_TIMEOUT_MS = 5000;
 const MAX_THUMBNAIL_BYTES = 5 * 1024 * 1024;
-const MAX_PDF_BYTES = 25 * 1024 * 1024;
 
 /**
  * Browser-like headers required by Fastly/Cloudflare edge sniffers.
@@ -235,7 +235,7 @@ async function handlePdfBuffer(args: {
 	logError: (message: string, error?: Error) => void;
 	onProgress?: ComprehensiveCrawlProgress;
 }): Promise<CrawlArticleResult> {
-	if (args.buffer.length > MAX_PDF_BYTES) {
+	if (args.buffer.length > MAX_PDF_BYTES.bytes) {
 		args.logError(`[CrawlArticle] PDF body too large (${args.buffer.length} bytes) for ${args.url}`);
 		return { status: "unsupported", reason: `pdf body too large: ${args.buffer.length} bytes` };
 	}
