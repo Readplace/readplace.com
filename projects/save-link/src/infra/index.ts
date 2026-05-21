@@ -511,12 +511,12 @@ const comprehensiveCrawlCommandStagingDelete: LambdaPolicy = {
 };
 
 const comprehensiveCrawlCommandLambda = new HutchLambda("comprehensive-crawl-command", {
-	// 3008 MB is the account's Lambda cap (~1.7 vCPU) and 900 s is the Lambda
-	// maximum. With per-page rasterisation moved to pdf-page-ocr Lambdas, the
-	// orchestrator's CPU/memory floor is set by JSON parsing fan-out responses
-	// and joining HTML; today's ceiling is preserved as headroom for the
-	// transitional period while the fan-out path proves out in production.
-	memorySize: 3008,
+	// Post-fan-out the orchestrator only runs pdfinfo, one S3 PutObject, up to
+	// 32 concurrent JSON Lambda responses, HTML join + sanitisation, and one
+	// tier-write — same workload shape as the simple-only save-link Lambdas at
+	// 512 MB. Timeout stays at the Lambda 900 s ceiling so a 200-page PDF with
+	// concurrency=32 still fits its worst-case ⌈pages/concurrency⌉ batches.
+	memorySize: 512,
 	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["comprehensive-crawl-command"] },
 	environment: {
