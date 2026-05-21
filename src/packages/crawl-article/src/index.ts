@@ -13,6 +13,7 @@ export type {
 	CrawlArticleResult,
 	SimpleCrawl,
 	ComprehensiveCrawl,
+	ComprehensiveCrawlProgress,
 	ThumbnailImage,
 } from "./crawl-article.types";
 export { initCrawlFetch } from "./crawl-fetch";

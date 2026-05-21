@@ -88,6 +88,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		updateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
+		markCrawlProgress: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		downloadMedia: noopDownloadMedia,
 		processContent,
@@ -287,12 +288,12 @@ describe("initComprehensiveCrawlHandler", () => {
 		});
 	});
 
-	it("latches comprehensive-extracting on the first onPdfPage callback so the bar advances inside the extractor but later pages do not re-write the stage", async () => {
-		const comprehensiveCrawl: ComprehensiveCrawl = async ({ onPdfPage }) => {
-			if (onPdfPage) {
-				onPdfPage({ pageIndex: 1, pageCount: 3 });
-				onPdfPage({ pageIndex: 2, pageCount: 3 });
-				onPdfPage({ pageIndex: 3, pageCount: 3 });
+	it("latches comprehensive-extracting on the first onProgress callback so the bar advances inside the extractor but later parts do not re-write the stage", async () => {
+		const comprehensiveCrawl: ComprehensiveCrawl = async ({ onProgress }) => {
+			if (onProgress) {
+				onProgress({ partIndex: 1, partCount: 3 });
+				onProgress({ partIndex: 2, partCount: 3 });
+				onProgress({ partIndex: 3, partCount: 3 });
 			}
 			return { status: "fetched", html: "<html><body><p>x</p></body></html>" };
 		};
@@ -315,8 +316,8 @@ describe("initComprehensiveCrawlHandler", () => {
 	});
 
 	it("logs a warning and continues when the comprehensive-extracting stage write fails (best-effort beacon)", async () => {
-		const comprehensiveCrawl: ComprehensiveCrawl = async ({ onPdfPage }) => {
-			if (onPdfPage) onPdfPage({ pageIndex: 1, pageCount: 1 });
+		const comprehensiveCrawl: ComprehensiveCrawl = async ({ onProgress }) => {
+			if (onProgress) onProgress({ partIndex: 1, partCount: 1 });
 			await new Promise((resolve) => setImmediate(resolve));
 			return { status: "fetched", html: "<html><body><p>x</p></body></html>" };
 		};
@@ -341,6 +342,54 @@ describe("initComprehensiveCrawlHandler", () => {
 				error: "Error: DynamoDB throttled",
 			}),
 		);
+	});
+
+	it("forwards per-part progress through markCrawlProgress (the throttle's first write lands immediately so the bar moves as soon as part 1 completes)", async () => {
+		const comprehensiveCrawl: ComprehensiveCrawl = async ({ onProgress }) => {
+			if (onProgress) onProgress({ partIndex: 1, partCount: 5 });
+			return { status: "fetched", html: "<html><body><p>x</p></body></html>" };
+		};
+		const markCrawlProgress = jest.fn().mockResolvedValue(undefined);
+
+		const handler = createHandler({ comprehensiveCrawl, markCrawlProgress });
+
+		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), stubContext, () => {});
+
+		expect(markCrawlProgress).toHaveBeenCalledWith({
+			url: "https://example.com/doc.pdf",
+			partCurrent: 1,
+			partTotal: 5,
+		});
+	});
+
+	it("flushes the terminal progress value after comprehensiveCrawl returns so the final partCurrent === partTotal write always lands", async () => {
+		const comprehensiveCrawl: ComprehensiveCrawl = async ({ onProgress }) => {
+			// Rapid fan-out of 4 parts — without flush, the throttle would write
+			// only the first part (the rest fall inside the throttle window).
+			if (onProgress) {
+				onProgress({ partIndex: 1, partCount: 4 });
+				onProgress({ partIndex: 2, partCount: 4 });
+				onProgress({ partIndex: 3, partCount: 4 });
+				onProgress({ partIndex: 4, partCount: 4 });
+			}
+			return { status: "fetched", html: "<html><body><p>x</p></body></html>" };
+		};
+		const markCrawlProgress = jest.fn().mockResolvedValue(undefined);
+
+		const handler = createHandler({
+			comprehensiveCrawl,
+			markCrawlProgress,
+			progressIntervalMs: 10_000,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), stubContext, () => {});
+
+		const lastCall = markCrawlProgress.mock.calls[markCrawlProgress.mock.calls.length - 1];
+		expect(lastCall[0]).toEqual({
+			url: "https://example.com/doc.pdf",
+			partCurrent: 4,
+			partTotal: 4,
+		});
 	});
 
 	it("uploads the crawled thumbnail to S3 and threads the resolved CDN URL into the tier-source metadata", async () => {

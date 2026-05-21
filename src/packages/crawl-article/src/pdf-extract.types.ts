@@ -10,13 +10,14 @@ export type PdfExtractResult =
 	| { kind: "failed"; reason: string };
 
 /**
- * Optional callback the extractor fires after each page so the orchestrator
- * can record progress for the reader-facing progress bar. The callback is
- * synchronous and best-effort — the extractor does not await it and never
- * surfaces errors from it. Page indices are 1-based to match the pdfjs
- * `getPage(pageNum)` numbering.
+ * Optional callback the extractor fires after each completed unit of work
+ * (a "part") so the orchestrator can record progress for the reader-facing
+ * progress bar. The provider decides what counts as a part — the OCR PDF path
+ * counts completed Lambda chunks. The callback is synchronous and best-effort:
+ * the extractor does not await it and never surfaces errors from it. Indices
+ * are 1-based.
  */
-export type PdfExtractProgress = (params: { pageIndex: number; pageCount: number }) => void;
+export type PdfExtractProgress = (params: { partIndex: number; partCount: number }) => void;
 
 export type ExtractPdf = (params: {
 	buffer: Buffer;

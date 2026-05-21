@@ -1,7 +1,12 @@
 import type { CrawlStage } from "@packages/domain/article";
 
+export interface CrawlParts {
+	current: number;
+	total: number;
+}
+
 export type ArticleCrawl =
-	| { status: "pending"; stage?: CrawlStage }
+	| { status: "pending"; stage?: CrawlStage; parts?: CrawlParts }
 	| { status: "ready" }
 	| { status: "failed"; reason: string }
 	| { status: "unsupported"; reason: string };

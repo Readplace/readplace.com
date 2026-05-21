@@ -11,6 +11,8 @@ import {
 	TierContentExtractedEvent,
 } from "@packages/hutch-infra-components";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
+import type { MarkCrawlProgress } from "../../providers/article-crawl/mark-crawl-progress";
+import { initProgressThrottle } from "../crawl-article-state/init-progress-throttle";
 import type { ParseHtml } from "@packages/article-parser";
 import type { DownloadMedia } from "../save-link/download-media";
 import type { PutImageObject } from "../../providers/article-store/s3-put-image-object";
@@ -31,6 +33,7 @@ export function initComprehensiveCrawlHandler(deps: {
 	updateFetchTimestamp: UpdateFetchTimestamp;
 	transitionAndPersist: TransitionAndPersist;
 	markCrawlStage: MarkCrawlStage;
+	markCrawlProgress: MarkCrawlProgress;
 	publishEvent: PublishEvent;
 	downloadMedia: DownloadMedia;
 	processContent: ProcessContent;
@@ -40,6 +43,7 @@ export function initComprehensiveCrawlHandler(deps: {
 	logParseError: LogParseError;
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;
+	progressIntervalMs?: number;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		comprehensiveCrawl,
@@ -49,6 +53,7 @@ export function initComprehensiveCrawlHandler(deps: {
 		updateFetchTimestamp,
 		transitionAndPersist,
 		markCrawlStage,
+		markCrawlProgress,
 		publishEvent,
 		downloadMedia,
 		processContent,
@@ -58,6 +63,7 @@ export function initComprehensiveCrawlHandler(deps: {
 		logParseError,
 		logCrawlOutcome,
 		readTierSnapshot,
+		progressIntervalMs = 1500,
 	} = deps;
 
 	const logPrefix = "[ComprehensiveCrawlCommand]";
@@ -89,28 +95,37 @@ export function initComprehensiveCrawlHandler(deps: {
 				});
 
 				/*
-				 * Server only commits two coarse stages for the comprehensive path —
+				 * Server commits two coarse stages for the comprehensive path —
 				 * `comprehensive-fetching` (written by the dispatcher in save-link-work
 				 * before this Lambda is even invoked) and `comprehensive-extracting`,
-				 * latched once by the first onPdfPage callback. The client smoother
-				 * interpolates between the two so the reader's bar drifts upward
-				 * during the multi-second extraction window without every page
-				 * incurring a DynamoDB write.
+				 * latched once by the first onProgress callback. Per-part progress
+				 * (partCurrent/partTotal) is routed through a throttle so the OCR
+				 * fan-out's chunk-completion firehose collapses to ~1 DDB write per
+				 * `progressIntervalMs`, matching the UI's 3 s poll cadence.
 				 */
 				let stageLatched = false;
+				const progressThrottle = initProgressThrottle({
+					markCrawlProgress,
+					intervalMs: progressIntervalMs,
+					now: () => Date.now(),
+					logger,
+				});
 				const crawlResult = await comprehensiveCrawl({
 					url,
-					onPdfPage: ({ pageIndex }) => {
-						if (pageIndex !== 1 || stageLatched) return;
-						stageLatched = true;
-						markCrawlStage({ url, stage: "comprehensive-extracting" }).catch((error: unknown) => {
-							logger.warn(`${logPrefix} comprehensive-extracting stage write failed`, {
-								url,
-								error: String(error),
+					onProgress: ({ partIndex, partCount }) => {
+						if (!stageLatched) {
+							stageLatched = true;
+							markCrawlStage({ url, stage: "comprehensive-extracting" }).catch((error: unknown) => {
+								logger.warn(`${logPrefix} comprehensive-extracting stage write failed`, {
+									url,
+									error: String(error),
+								});
 							});
-						});
+						}
+						progressThrottle.report({ url, partCurrent: partIndex, partTotal: partCount });
 					},
 				});
+				await progressThrottle.flush({ url });
 
 				if (crawlResult.status === "unsupported") {
 					// Comprehensive saw the body and confirmed it cannot be extracted
