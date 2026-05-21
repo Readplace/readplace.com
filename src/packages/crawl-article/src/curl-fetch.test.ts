@@ -126,6 +126,17 @@ describe("fetchCurl argument construction", () => {
 		expect(args[sepIdx + 1]).toBe("https://example.com/page?q=1");
 	});
 
+	it("passes --globoff so bracketed URLs are not parsed as range expansions", async () => {
+		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
+		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl });
+		const url = "https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf";
+		await fetchCurl(url);
+		const args = fake.calls[0].args;
+		expect(args).toContain("--globoff");
+		const sepIdx = args.indexOf("--");
+		expect(args[sepIdx + 1]).toBe(url);
+	});
+
 	it("title-cases header names per Cloudflare JA3 fingerprinting", async () => {
 		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl });

@@ -86,6 +86,11 @@ export const fetchCurl: CurlFetch = createCurlFetch({ execCurl: defaultExecCurl 
 function buildCurlArgs(params: { url: string; headers?: Record<string, string> }): string[] {
 	const args = [
 		"--http2",
+		// Disable curl's URL globbing so `[…]` and `{…}` in real URLs (e.g.
+		// CIA reading-room docs like `…/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf`)
+		// are treated as literal path characters instead of range/list expansions
+		// that fail the command at parse time with exit code 3.
+		"--globoff",
 		"--silent",
 		"--show-error",
 		"--location",
