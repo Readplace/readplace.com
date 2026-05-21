@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { parseHTML } from "linkedom";
 import type { ExtractPdf, ExtractPdfMetadata, PdfExtractResult } from "@packages/crawl-article";
-import { deriveTitleFromUrl, escapeHtmlText, MAX_PDF_PAGES } from "@packages/crawl-article";
+import { deriveTitleFromUrl, escapeHtmlText, MAX_PDF_BYTES, MAX_PDF_PAGES } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 
@@ -37,11 +37,6 @@ const DEFAULT_CONCURRENCY = 150;
  */
 const DEFAULT_DPI = 150;
 
-/**
- * Byte-size cap. PDFs larger than this are rejected before the orchestrator
- * stages them to S3, matching today's behaviour.
- */
-const MAX_PDF_BYTES = 500 * 1024 * 1024;
 
 export function initOcrPdf(deps: {
 	extractPdfMetadata: ExtractPdfMetadata;
@@ -58,7 +53,7 @@ export function initOcrPdf(deps: {
 	const batchSize = deps.batchSize ?? DEFAULT_BATCH_SIZE;
 	const dpi = deps.dpi ?? DEFAULT_DPI;
 	const maxPages = deps.maxPages ?? MAX_PDF_PAGES;
-	const maxPdfBytes = deps.maxPdfBytes ?? MAX_PDF_BYTES;
+	const maxPdfBytes = deps.maxPdfBytes ?? MAX_PDF_BYTES.bytes;
 	const { logger, extractPdfMetadata, stagePdf, invokePageOcr } = deps;
 
 	return async ({ buffer, url, onProgress }): Promise<PdfExtractResult> => {
