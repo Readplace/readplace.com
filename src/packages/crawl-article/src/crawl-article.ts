@@ -312,12 +312,28 @@ async function tryFetchImage(args: {
 	}
 }
 
+const TWEET_STATUS_PATH = /^(\/[^/]+\/status\/\d+)/;
+
+/** Twitter's oembed endpoint 404s on any tweet URL carrying a sub-path like
+ * `/video/<n>`, `/photo/<n>`, `/analytics`, `/likes`, `/retweets`, `/quotes`.
+ * Canonicalise to `<origin>/<handle>/status/<id>` so those forms still resolve. */
+function canonicaliseTweetUrl(raw: string): string {
+	try {
+		const u = new URL(raw);
+		const match = u.pathname.match(TWEET_STATUS_PATH);
+		return match ? `${u.origin}${match[1]}` : raw;
+	} catch {
+		return raw;
+	}
+}
+
 /** X/Twitter returns a JS app shell with no content. The oembed API returns the actual tweet text. */
 async function fetchViaOembed(
 	deps: { crawlFetch: CrawlFetch; logError: (message: string, error?: Error) => void },
 	params: { url: string },
 ) {
-	const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(params.url)}`;
+	const canonicalUrl = canonicaliseTweetUrl(params.url);
+	const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(canonicalUrl)}`;
 	try {
 		const response = await deps.crawlFetch(oembedUrl, {
 			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),

@@ -129,6 +129,15 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: false,
 	},
 	{
+		// Tweet URLs with a `/video/<n>` or `/photo/<n>` sub-path 404 against
+		// Twitter's oembed endpoint. The crawler canonicalises to the bare
+		// `<handle>/status/<id>` form so this longhand URL still resolves.
+		label: "X (Twitter — /video/<n> longhand)",
+		url: "https://x.com/AnatoliKopadze/status/2057105488165163198/video/1?s=46",
+		expectedContent: "Stanford lecture",
+		expectsThumbnail: false,
+	},
+	{
 		label: "Static HTML (hex.ooo)",
 		url: "https://hex.ooo/library/last_question.html",
 		expectedContent: "he had had to carry the ice and glassware",

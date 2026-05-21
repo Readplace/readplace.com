@@ -356,7 +356,7 @@ describe("initSimpleCrawl — X/Twitter oembed fallback", () => {
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] oembed error for https://x.com/user/status/123", curlError);
 	});
 
-	it("encodes the tweet URL in the oembed request", async () => {
+	it("canonicalises the tweet URL — strips query string before calling oembed", async () => {
 		let capturedUrl = "";
 		const fakeFetch: typeof fetch = async (input) => {
 			capturedUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
@@ -369,7 +369,23 @@ describe("initSimpleCrawl — X/Twitter oembed fallback", () => {
 
 		await simpleCrawl({ url: "https://x.com/user/status/123?ref=test" });
 
-		expect(capturedUrl).toBe("https://publish.twitter.com/oembed?url=https%3A%2F%2Fx.com%2Fuser%2Fstatus%2F123%3Fref%3Dtest");
+		expect(capturedUrl).toBe("https://publish.twitter.com/oembed?url=https%3A%2F%2Fx.com%2Fuser%2Fstatus%2F123");
+	});
+
+	it("canonicalises the tweet URL — strips /video/<n>?s=<n> sub-path that oembed 404s on", async () => {
+		let capturedUrl = "";
+		const fakeFetch: typeof fetch = async (input) => {
+			capturedUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+			return new Response(JSON.stringify({ author_name: "", html: "" }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		};
+		const simpleCrawl = initSimple({ fetch: fakeFetch });
+
+		await simpleCrawl({ url: "https://x.com/AnatoliKopadze/status/2057105488165163198/video/1?s=46" });
+
+		expect(capturedUrl).toBe("https://publish.twitter.com/oembed?url=https%3A%2F%2Fx.com%2FAnatoliKopadze%2Fstatus%2F2057105488165163198");
 	});
 });
 
