@@ -6,7 +6,7 @@ import type { DownloadStagedPdf, PdfPageOcrInput, PdfPageOcrOutput } from "./pdf
 
 const InputSchema = z.object({
 	pdfS3Key: z.string().min(1),
-	pageIndex: z.number().int().min(0),
+	pageIndices: z.array(z.number().int().min(0)).min(1),
 	dpi: z.number().int().min(72).max(600),
 });
 
@@ -21,22 +21,27 @@ export function initPdfPageOcrHandler(deps: {
 	return async (rawInput) => {
 		const input: PdfPageOcrInput = InputSchema.parse(rawInput);
 		const t0 = Date.now();
-		logger.info(`[pdf-page-ocr] start key=${input.pdfS3Key} page=${input.pageIndex} dpi=${input.dpi}`);
+		const indicesLabel = input.pageIndices.join(",");
+		logger.info(`[pdf-page-ocr] start key=${input.pdfS3Key} pages=[${indicesLabel}] dpi=${input.dpi}`);
 
 		const pdfBuffer = await downloadStagedPdf({ key: input.pdfS3Key });
 		logger.info(`[pdf-page-ocr] downloaded pdf bytes=${pdfBuffer.length} dt=${Date.now() - t0}ms`);
 
-		const tRender = Date.now();
-		const pngBuffer = await renderPdfPageToPng({
-			buffer: pdfBuffer,
-			pageIndex: input.pageIndex,
-			dpi: input.dpi,
-		});
-		logger.info(`[pdf-page-ocr] rasterised page=${input.pageIndex} bytes=${pngBuffer.length} dt=${Date.now() - tRender}ms`);
+		const pngBuffers: Buffer[] = [];
+		for (const pageIndex of input.pageIndices) {
+			const tRender = Date.now();
+			const pngBuffer = await renderPdfPageToPng({
+				buffer: pdfBuffer,
+				pageIndex,
+				dpi: input.dpi,
+			});
+			logger.info(`[pdf-page-ocr] rasterised page=${pageIndex} bytes=${pngBuffer.length} dt=${Date.now() - tRender}ms`);
+			pngBuffers.push(pngBuffer);
+		}
 
 		const tOcr = Date.now();
-		const html = await createVisionMessage({ images: [{ pngBuffer }] });
-		logger.info(`[pdf-page-ocr] ocr done chars=${html.length} dt=${Date.now() - tOcr}ms total=${Date.now() - t0}ms`);
+		const html = await createVisionMessage({ images: pngBuffers.map((pngBuffer) => ({ pngBuffer })) });
+		logger.info(`[pdf-page-ocr] ocr done pages=${input.pageIndices.length} chars=${html.length} dt=${Date.now() - tOcr}ms total=${Date.now() - t0}ms`);
 
 		return { html };
 	};

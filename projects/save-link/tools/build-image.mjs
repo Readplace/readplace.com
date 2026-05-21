@@ -16,7 +16,8 @@
  */
 import assert from "node:assert";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
@@ -25,8 +26,6 @@ import { copyAssetFiles } from "@packages/hutch-infra-components/infra/copy-asse
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, "..");
 const REPO_NAME = "hutch-ocr-lambda";
-const AWS_REGION = process.env.AWS_REGION;
-assert(AWS_REGION, "AWS_REGION environment variable is required");
 
 const HANDLERS = [
 	{
@@ -59,19 +58,18 @@ function resolveRepositoryUrl() {
 	const stdout = run("aws", [
 		"ecr", "describe-repositories",
 		"--repository-names", REPO_NAME,
-		"--region", AWS_REGION,
 		"--query", "repositories[0].repositoryUri",
 		"--output", "text",
 	]);
 	if (!stdout) {
-		throw new Error(`ECR repository '${REPO_NAME}' not found in ${AWS_REGION}. Deploy the platform stack first.`);
+		throw new Error(`ECR repository '${REPO_NAME}' not found in target region. Deploy the platform stack first.`);
 	}
 	return stdout;
 }
 
 function loginToEcr(repositoryUrl) {
 	const registry = repositoryUrl.split("/")[0];
-	const password = run("aws", ["ecr", "get-login-password", "--region", AWS_REGION]);
+	const password = run("aws", ["ecr", "get-login-password"]);
 	run("docker", ["login", "--username", "AWS", "--password-stdin", registry], { input: password });
 }
 
@@ -124,7 +122,14 @@ async function main() {
 
 	const tags = {};
 	for (const handler of HANDLERS) {
-		const tag = `${gitSha}-${handler.name}`;
+		/* Tag includes a hash of the bundled index.js so a re-deploy on the same
+		 * git SHA with different bundle contents (e.g. a workspace dependency
+		 * was recompiled with new code) produces a new tag — without it, Pulumi
+		 * sees the same imageUri and skips updating the Lambda even though the
+		 * underlying ECR content changed. */
+		const bundlePath = resolve(PROJECT_ROOT, ".lib", handler.name, "index.js");
+		const bundleHash = createHash("sha256").update(readFileSync(bundlePath)).digest("hex").slice(0, 12);
+		const tag = `${gitSha}-${bundleHash}-${handler.name}`;
 		tags[handler.name] = buildAndPushImage(handler, repositoryUrl, tag);
 	}
 

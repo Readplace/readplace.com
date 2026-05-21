@@ -1,6 +1,8 @@
+import { Agent } from "node:https";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { LambdaClient } from "@aws-sdk/client-lambda";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
@@ -27,7 +29,16 @@ const pdfPageOcrFunctionName = requireEnv("PDF_PAGE_OCR_FUNCTION_NAME");
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
-const lambdaClient = new LambdaClient({});
+// The default HTTPS agent caps in-flight requests per host at 50; the
+// orchestrator fans out up to `DEFAULT_CONCURRENCY` (= 150) simultaneous
+// `InvokeCommand` calls to the page Lambda, so the agent's `maxSockets`
+// must exceed that or the SDK silently queues. 200 leaves headroom for
+// transient retries on top of the orchestrator's bounded fan-out.
+const lambdaClient = new LambdaClient({
+	requestHandler: new NodeHttpHandler({
+		httpsAgent: new Agent({ maxSockets: 200 }),
+	}),
+});
 const dynamoClient = createDynamoDocumentClient();
 const eventBridgeClient = new EventBridgeClient({});
 const now = () => new Date();

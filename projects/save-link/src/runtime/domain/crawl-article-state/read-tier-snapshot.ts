@@ -1,7 +1,7 @@
 import type { TierName } from "@packages/hutch-infra-components";
 
 export type PickedTier = TierName | "none";
-export type CrawlStatus = "ready" | "failed" | "pending" | "absent";
+export type CrawlStatus = "ready" | "failed" | "pending" | "unsupported" | "absent";
 export type TierStatus = "success" | "failed" | "not_attempted";
 
 export type TierSnapshot = {

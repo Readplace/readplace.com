@@ -1,17 +1,19 @@
 /**
- * Input payload sent to the per-page OCR Lambda via sync invoke. The
+ * Input payload sent to the per-chunk OCR Lambda via sync invoke. The
  * orchestrator stages the PDF buffer to S3 once per job and passes the key
- * here so each invocation can pull just the bytes it needs.
+ * here; `pageIndices` carries the 0-based page numbers the chunk should
+ * rasterise and OCR in one multi-image vision call.
  */
 export interface InvokePdfPageOcrInput {
 	readonly pdfS3Key: string;
-	readonly pageIndex: number;
+	readonly pageIndices: readonly number[];
 	readonly dpi: number;
 }
 
 /**
- * Successful sync-invoke response — the semantic HTML fragment for the page.
- * The orchestrator joins fragments by `pageIndex` order.
+ * Successful sync-invoke response — the semantic HTML fragment covering all
+ * pages in the chunk in `pageIndices` order. The orchestrator joins fragments
+ * across chunks in chunk-dispatch order.
  */
 export interface InvokePdfPageOcrOutput {
 	readonly html: string;

@@ -15,7 +15,9 @@ function stubStagePdf(opts: { key?: string; onCleanup?: () => void } = {}): Stag
 }
 
 function stubInvokePageOcr(html: (pageIndex: number) => string): InvokePdfPageOcr {
-	return async ({ pageIndex }) => ({ html: html(pageIndex) });
+	return async ({ pageIndices }) => ({
+		html: pageIndices.map((idx) => html(idx)).join(""),
+	});
 }
 
 describe("initOcrPdf — fan-out per page Lambda", () => {
@@ -152,26 +154,25 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		expect(result.html).not.toContain("javascript:");
 	});
 
-	it("fans out one invocation per page with the staged key, page index, and DPI", async () => {
-		const captured: Array<{ pdfS3Key: string; pageIndex: number; dpi: number }> = [];
+	it("dispatches one invocation per chunk carrying the staged key, page indices, and DPI", async () => {
+		const captured: Array<{ pdfS3Key: string; pageIndices: readonly number[]; dpi: number }> = [];
 		const ocr = initOcrPdf({
 			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 5 }),
+			extractPdfMetadata: stubMetadata({ numPages: 7 }),
 			stagePdf: stubStagePdf({ key: "pdf-rasterise-staging/abc/source.pdf" }),
 			invokePageOcr: async (input) => {
-				captured.push({ ...input });
-				return { html: `<p>p${input.pageIndex}</p>` };
+				captured.push({ pdfS3Key: input.pdfS3Key, pageIndices: input.pageIndices, dpi: input.dpi });
+				return { html: input.pageIndices.map((i) => `<p>p${i}</p>`).join("") };
 			},
+			batchSize: 3,
 		});
 
 		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
 		expect(captured).toEqual([
-			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndex: 0, dpi: 150 },
-			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndex: 1, dpi: 150 },
-			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndex: 2, dpi: 150 },
-			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndex: 3, dpi: 150 },
-			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndex: 4, dpi: 150 },
+			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndices: [0, 1, 2], dpi: 150 },
+			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndices: [3, 4, 5], dpi: 150 },
+			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndices: [6], dpi: 150 },
 		]);
 	});
 
@@ -193,16 +194,17 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		expect(captured).toEqual([200]);
 	});
 
-	it("concatenates page fragments in page-index order even when invocations complete out of order", async () => {
+	it("concatenates chunk fragments in chunk-dispatch order even when invocations complete out of order", async () => {
 		const ocr = initOcrPdf({
 			logger: noopLogger,
 			extractPdfMetadata: stubMetadata({ numPages: 3 }),
 			stagePdf: stubStagePdf(),
-			invokePageOcr: async ({ pageIndex }) => {
-				// Earlier pages resolve later — verifies index-ordered result join.
-				await new Promise((resolve) => setTimeout(resolve, (3 - pageIndex) * 5));
-				return { html: `<p>page-${pageIndex}</p>` };
+			invokePageOcr: async ({ pageIndices }) => {
+				const first = pageIndices[0];
+				await new Promise((resolve) => setTimeout(resolve, (3 - first) * 5));
+				return { html: `<p>page-${first}</p>` };
 			},
+			batchSize: 1,
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
@@ -224,14 +226,15 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			logger: noopLogger,
 			extractPdfMetadata: stubMetadata({ numPages: 10 }),
 			stagePdf: stubStagePdf(),
-			invokePageOcr: async ({ pageIndex }) => {
+			invokePageOcr: async ({ pageIndices }) => {
 				inFlight += 1;
 				observedPeak = Math.max(observedPeak, inFlight);
 				await new Promise((resolve) => setTimeout(resolve, 5));
 				inFlight -= 1;
-				return { html: `<p>${pageIndex}</p>` };
+				return { html: `<p>${pageIndices[0]}</p>` };
 			},
 			concurrency: 3,
+			batchSize: 1,
 		});
 
 		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
@@ -368,10 +371,11 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			logger: noopLogger,
 			extractPdfMetadata: stubMetadata({ numPages: 3 }),
 			stagePdf: stubStagePdf(),
-			invokePageOcr: async ({ pageIndex }) => {
-				if (pageIndex === 1) throw new Error("Lambda timed out");
-				return { html: `<p>${pageIndex}</p>` };
+			invokePageOcr: async ({ pageIndices }) => {
+				if (pageIndices[0] === 1) throw new Error("Lambda timed out");
+				return { html: `<p>${pageIndices[0]}</p>` };
 			},
+			batchSize: 1,
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
@@ -385,18 +389,21 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			logger: noopLogger,
 			extractPdfMetadata: stubMetadata({ numPages: 5 }),
 			stagePdf: stubStagePdf(),
-			invokePageOcr: async ({ pageIndex }) => {
+			invokePageOcr: async ({ pageIndices }) => {
+				const pageIndex = pageIndices[0];
 				seen.push(pageIndex);
 				if (pageIndex === 1) throw new Error("page 2 failed");
 				return { html: `<p>${pageIndex}</p>` };
 			},
 			concurrency: 1,
+			batchSize: 1,
 		});
 
 		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
-		// With concurrency=1 the worker processes pages serially. After page 1
-		// throws, the failed flag halts the loop, so pages 2/3/4 are not invoked.
+		// With concurrency=1 and batchSize=1 the worker processes pages serially.
+		// After page 1 throws, the failed flag halts the loop, so pages 2/3/4
+		// are not invoked.
 		expect(seen).toEqual([0, 1]);
 	});
 

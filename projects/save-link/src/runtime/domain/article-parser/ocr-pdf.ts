@@ -1,19 +1,34 @@
 import assert from "node:assert";
 import { parseHTML } from "linkedom";
 import type { ExtractPdf, ExtractPdfMetadata, PdfExtractResult } from "@packages/crawl-article";
-import { deriveTitleFromUrl, escapeHtmlText } from "@packages/crawl-article";
+import { deriveTitleFromUrl, escapeHtmlText, MAX_PDF_PAGES } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 
-/**
- * Default bounded concurrency for per-page Lambda fan-out. Caps the
- * orchestrator's in-flight `lambda:InvokeFunction` calls to protect both
- * DeepInfra rate limits and the AWS account Lambda concurrency quota. 32
- * matches today's effective ceiling — Promise.all over `createVisionMessage`
- * inside the old single-Lambda design tipped over around the same point
- * because of DeepInfra TTFB stalls.
- */
-const DEFAULT_CONCURRENCY = 32;
+// Pages per page-Lambda invocation. Each Lambda downloads the staged PDF
+// once, rasterises this many pages, and sends them as a single multi-image
+// vision request. Multi-image batching amplifies DeepInfra TTFB — empirically
+// 5-image batches on math-heavy PDFs spend ≥120s waiting for first token,
+// so M is kept small. M=2 still halves S3 GET pressure and request count vs
+// M=1, without pushing per-chunk wall time past the OpenAI client's
+// per-attempt timeout budget.
+const DEFAULT_BATCH_SIZE = 2;
+
+// In-flight page-Lambda invocations. Sized so the worst-case PDF
+// (`MAX_PDF_PAGES` pages, all in one wave at `DEFAULT_BATCH_SIZE` per chunk)
+// fits without spilling into a second wave — total wall time becomes
+// bounded by the slowest single chunk (~200 s on dense math) instead of
+// scaling with page count. Caps in play:
+//   - DeepInfra account: 200 concurrent requests (this uses ~75%, leaves
+//     room for SDK retries + other workloads sharing the DeepInfra account)
+//   - AWS Lambda account concurrency: 1000 (this uses ~15%)
+//   - AWS Lambda burst quota: 500/region in ap-southeast-2 (this uses ~30%
+//     in the <1 s scale-up event)
+//   - LambdaClient HTTPS agent `maxSockets`: defaults to 50; must be raised
+//     where the client is constructed (see comprehensive-crawl-command.main.ts)
+//     or this many in-flight `InvokeCommand` calls will queue at the SDK
+//     layer and effective concurrency caps at 50.
+const DEFAULT_CONCURRENCY = 150;
 
 /**
  * Page-image render DPI. Matches the resolution baked into the rasterizer's
@@ -21,13 +36,6 @@ const DEFAULT_CONCURRENCY = 32;
  * dense-text legibility).
  */
 const DEFAULT_DPI = 150;
-
-/**
- * Page cap. Defends the OCR pipeline against PDFs with 1000+ pages where
- * fan-out would hit either the page Lambda's S3 GET throttling or the OCR
- * cost ceiling.
- */
-export const MAX_PAGES = 200;
 
 /**
  * Byte-size cap. PDFs larger than this are rejected before the orchestrator
@@ -41,13 +49,15 @@ export function initOcrPdf(deps: {
 	invokePageOcr: InvokePdfPageOcr;
 	logger: HutchLogger;
 	concurrency?: number;
+	batchSize?: number;
 	dpi?: number;
 	maxPages?: number;
 	maxPdfBytes?: number;
 }): ExtractPdf {
 	const concurrency = deps.concurrency ?? DEFAULT_CONCURRENCY;
+	const batchSize = deps.batchSize ?? DEFAULT_BATCH_SIZE;
 	const dpi = deps.dpi ?? DEFAULT_DPI;
-	const maxPages = deps.maxPages ?? MAX_PAGES;
+	const maxPages = deps.maxPages ?? MAX_PDF_PAGES;
 	const maxPdfBytes = deps.maxPdfBytes ?? MAX_PDF_BYTES;
 	const { logger, extractPdfMetadata, stagePdf, invokePageOcr } = deps;
 
@@ -76,17 +86,21 @@ export function initOcrPdf(deps: {
 			return { kind: "failed", reason: "unsupported-large-file" };
 		}
 
+		const chunks = chunkPages(metadata.numPages, batchSize);
+
 		try {
 			const staged = await stagePdf(buffer);
 			try {
 				const fragments = await mapWithConcurrency(
-					Array.from({ length: metadata.numPages }, (_v, i) => i),
+					chunks,
 					concurrency,
-					async (pageIndex) => {
-						const pageStart = Date.now();
-						const { html } = await invokePageOcr({ pdfS3Key: staged.key, pageIndex, dpi });
-						logger.info(`[ocr-pdf] page ${pageIndex + 1}/${metadata.numPages} done dt=${Date.now() - pageStart}ms chars=${html.length} total=${Date.now() - t0}ms`);
-						onProgress?.({ pageIndex: pageIndex + 1, pageCount: metadata.numPages });
+					async (pageIndices) => {
+						const chunkStart = Date.now();
+						const { html } = await invokePageOcr({ pdfS3Key: staged.key, pageIndices, dpi });
+						logger.info(`[ocr-pdf] chunk pages=[${pageIndices.join(",")}] done dt=${Date.now() - chunkStart}ms chars=${html.length} total=${Date.now() - t0}ms`);
+						for (const pageIndex of pageIndices) {
+							onProgress?.({ pageIndex: pageIndex + 1, pageCount: metadata.numPages });
+						}
 						return html;
 					},
 				);
@@ -110,12 +124,21 @@ export function initOcrPdf(deps: {
 	};
 }
 
-/**
- * Bounded-concurrency map: runs `mapper` over `items` with at most
- * `concurrency` in-flight at a time and preserves index order in the result.
- * Stops dispatching new work as soon as any mapper rejects so the orchestrator
- * does not spend on doomed pages once one has failed.
- */
+function chunkPages(numPages: number, batchSize: number): number[][] {
+	const chunks: number[][] = [];
+	for (let start = 0; start < numPages; start += batchSize) {
+		const end = Math.min(start + batchSize, numPages);
+		const chunk: number[] = [];
+		for (let i = start; i < end; i++) chunk.push(i);
+		chunks.push(chunk);
+	}
+	return chunks;
+}
+
+// `Promise.allSettled` (not `Promise.all`) so the caller's `finally` cleanup
+// runs only after every in-flight worker settles — otherwise an early
+// rejection resolves the outer await while siblings are still mid-`mapper`,
+// and a downstream cleanup races their next side effect.
 async function mapWithConcurrency<T, R>(
 	items: readonly T[],
 	concurrency: number,
@@ -136,7 +159,14 @@ async function mapWithConcurrency<T, R>(
 		}
 	};
 	const workerCount = Math.min(concurrency, items.length);
-	await Promise.all(Array.from({ length: workerCount }, worker));
+	const settled = await Promise.allSettled(
+		Array.from({ length: workerCount }, worker),
+	);
+	for (const outcome of settled) {
+		if (outcome.status === "rejected") {
+			throw outcome.reason;
+		}
+	}
 	return results;
 }
 

@@ -435,12 +435,14 @@ const pdfPageOcrStagingRead: LambdaPolicy = {
 };
 
 const pdfPageOcrLambda = new HutchLambda("pdf-page-ocr", {
-	// 1769 MB lands one vCPU per Lambda for CPU-bound pdftoppm (~400 ms/page)
-	// without overpaying on per-invocation memory. 300 s timeout matches
-	// gemma-4-31B-it's observed per-page ceiling and the shared OpenAI
-	// client's `timeout: 300_000`.
+	// 1769 MB lands one vCPU per Lambda for CPU-bound pdftoppm. 600 s timeout
+	// gives the OpenAI SDK room to retry on DeepInfra 429 / 5xx (configured
+	// in pdf-page-ocr.main.ts as timeout=120s × maxRetries=3) before Lambda
+	// kills the process. Per-Lambda batches of pages share a single
+	// multi-image vision call, so wall time per invocation rises with
+	// batch size — 600 s covers the slowest dense academic page tail.
 	memorySize: 1769,
-	timeout: 300,
+	timeout: 600,
 	containerImage: { imageUri: ocrImageTags["pdf-page-ocr"] },
 	environment: {
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -463,8 +465,14 @@ const pdfPageOcrLambda = new HutchLambda("pdf-page-ocr", {
 // RecrawlContentExtractedEvent when the recrawl flag is set on the command).
 //
 // 1800s visibility = 2× the 900s Lambda timeout per AWS guidance.
+// dlqMaxReceiveCount=1: SQS retries are disabled for the comprehensive path —
+// a failed OCR run re-OCRs every page from scratch on retry (no resume), so
+// the cost of an automatic redrive is high and the success rate of a literal
+// re-run without changed inputs is low. The DLQ → SNS alarm is the operator
+// signal; /admin/recrawl is the manual retry.
 const comprehensiveCrawlCommandQueue = new HutchSQS("comprehensive-crawl-command", {
 	visibilityTimeoutSeconds: 1800,
+	dlqMaxReceiveCount: 1,
 });
 
 const comprehensiveCrawlCommandDynamodb = new HutchDynamoDBAccess("comprehensive-crawl-command-dynamodb", {

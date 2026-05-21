@@ -11,8 +11,8 @@ describe("initSaveLinkPdfExtract", () => {
 			key: "pdf-rasterise-staging/abc/source.pdf",
 			cleanup: async () => {},
 		});
-		const invokePageOcr: InvokePdfPageOcr = async ({ pageIndex }) => ({
-			html: `<p>page-${pageIndex}</p>`,
+		const invokePageOcr: InvokePdfPageOcr = async ({ pageIndices }) => ({
+			html: pageIndices.map((idx) => `<p>page-${idx}</p>`).join(""),
 		});
 
 		const extractPdf = initSaveLinkPdfExtract({

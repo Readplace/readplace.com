@@ -6,7 +6,7 @@
   "types": "dist/src/index.d.ts",
   "private": true,
   "scripts": {
-    "compile": "tsc",
+    "compile": "rm -rf dist && tsc",
     "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src scripts\" \"knip\"",
     "test": "jest --testMatch='**/dist/src/**/*.test.js'",
     "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",

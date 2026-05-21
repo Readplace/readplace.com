@@ -1,11 +1,16 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { MAX_PDF_PAGES } from "@packages/crawl-article";
 import { render } from "../../../render";
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "reader-failed.template.html"),
 	"utf-8",
 );
+
+// 70% of the OCR hard cap so a PDF right at the advertised limit still has
+// headroom before the per-page Lambda fan-out refuses to run.
+const MAX_SUPPORTED_PAGES = Math.round(0.7 * MAX_PDF_PAGES);
 
 export interface ReaderFailedInput {
 	url: string;
@@ -27,5 +32,6 @@ export function renderReaderFailed(input: ReaderFailedInput): string {
 		isUnsupported: input.variant === "unsupported",
 		extensionInstallUrl: input.extensionInstallUrl,
 		oob: input.oob === true,
+		maxSupportedPages: MAX_SUPPORTED_PAGES,
 	});
 }

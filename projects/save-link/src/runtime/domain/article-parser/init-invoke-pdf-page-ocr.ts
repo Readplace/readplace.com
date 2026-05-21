@@ -38,7 +38,7 @@ export function initInvokePdfPageOcr(deps: {
 			throw new Error("pdf-page-ocr Lambda returned no payload");
 		}
 		const responseText = Buffer.from(response.Payload).toString("utf-8");
-		logger.info(`[invoke-page-ocr] page=${input.pageIndex} bytes=${responseText.length}`);
+		logger.info(`[invoke-page-ocr] pages=[${input.pageIndices.join(",")}] bytes=${responseText.length}`);
 		return OutputSchema.parse(JSON.parse(responseText));
 	};
 
