@@ -10,10 +10,12 @@ const ARTICLE_URL_SHARE = "https://example.com/post?utm_medium=share";
 const ARTICLE_URL_COPY = "https://example.com/post?utm_medium=copy";
 const ARTICLE_TITLE = "Hello World";
 
-const FIXTURE = `<!DOCTYPE html><html><body>
+function buildFixture(options: { autoOpen?: "true" | "false" } = {}): string {
+	const autoOpen = options.autoOpen ?? "true";
+	return `<!DOCTYPE html><html><body>
 <span data-share-balloon-status></span>
 <div data-article-body></div>
-<div data-share-balloon-wrap hidden>
+<div data-share-balloon-wrap data-share-balloon-auto-open="${autoOpen}" hidden>
   <div data-share-balloon-buttons>
     <div data-share-balloon-chat></div>
     <button type="button" data-share-balloon-copy data-share-url="${ARTICLE_URL_COPY}"></button>
@@ -23,6 +25,7 @@ const FIXTURE = `<!DOCTYPE html><html><body>
   <span data-share-balloon-copied>Link copied!</span>
 </div>
 </body></html>`;
+}
 
 interface NavigatorStub {
 	share?: (data: { title: string; url: string }) => Promise<void>;
@@ -31,8 +34,8 @@ interface NavigatorStub {
 
 type TestWindow = ReturnType<typeof createDom>["window"];
 
-function createDom() {
-	const dom = new JSDOM(FIXTURE, { url: "https://readplace.com/" });
+function createDom(options: { autoOpen?: "true" | "false" } = {}) {
+	const dom = new JSDOM(buildFixture(options), { url: "https://readplace.com/" });
 	return { window: dom.window, document: dom.window.document };
 }
 
@@ -63,9 +66,10 @@ function setup(
 		dismissed?: boolean;
 		navigator?: NavigatorStub;
 		articleHeight?: number;
+		autoOpen?: "true" | "false";
 	} = {},
 ) {
-	const { window, document } = createDom();
+	const { window, document } = createDom({ autoOpen: options.autoOpen });
 	setScrollY(window, options.scrollY ?? 0);
 	setArticleHeight(document, options.articleHeight ?? 4000);
 	if (options.dismissed) {
@@ -152,6 +156,59 @@ describe("initShareBalloon — attach/dismiss flow", () => {
 		jest.advanceTimersByTime(1000);
 
 		expect(wrap.classList.contains(OPEN_CLASS)).toBe(true);
+	});
+});
+
+describe("initShareBalloon — autoOpen=false (article loading or errored)", () => {
+	it("does not attach the scroll listener so scrolling past the threshold never opens the balloon", () => {
+		const { window, document, ctrl } = setup({
+			articleHeight: 2000,
+			autoOpen: "false",
+		});
+		const wrap = element(document, "[data-share-balloon-wrap]");
+		ctrl.attach();
+
+		setScrollY(window, 1500);
+		fireScroll(window);
+		jest.advanceTimersByTime(5000);
+
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
+	});
+
+	it("does not auto-open even when the page was already scrolled past the threshold on attach", () => {
+		const { document, ctrl } = setup({
+			articleHeight: 2000,
+			scrollY: 1500,
+			autoOpen: "false",
+		});
+		const wrap = element(document, "[data-share-balloon-wrap]");
+
+		ctrl.attach();
+		jest.advanceTimersByTime(5000);
+
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
+	});
+
+	it("still unhides the wrap so the share and copy buttons remain reachable", () => {
+		const { document, ctrl } = setup({ autoOpen: "false" });
+		const wrap = element(document, "[data-share-balloon-wrap]");
+
+		ctrl.attach();
+
+		expect(wrap.hasAttribute("hidden")).toBe(false);
+	});
+
+	it("still wires the copy button so the buttons keep working without the balloon", async () => {
+		const writeText = jest.fn(() => Promise.resolve());
+		const { document, ctrl } = setup({
+			autoOpen: "false",
+			navigator: { clipboard: { writeText } },
+		});
+		ctrl.attach();
+
+		fireEvent.click(element(document, "[data-share-balloon-copy]"));
+
+		expect(writeText).toHaveBeenCalledWith(ARTICLE_URL_COPY);
 	});
 });
 
