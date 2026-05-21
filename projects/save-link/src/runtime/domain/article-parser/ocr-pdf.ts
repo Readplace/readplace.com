@@ -6,13 +6,15 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 
 // Pages per page-Lambda invocation. Each Lambda downloads the staged PDF
-// once, rasterises this many pages, and sends them as a single multi-image
-// vision request. Multi-image batching amplifies DeepInfra TTFB — empirically
-// 5-image batches on math-heavy PDFs spend ≥120s waiting for first token,
-// so M is kept small. M=2 still halves S3 GET pressure and request count vs
-// M=1, without pushing per-chunk wall time past the OpenAI client's
-// per-attempt timeout budget.
-const DEFAULT_BATCH_SIZE = 2;
+// once, rasterises this many pages, and sends them as a single vision
+// request. Multi-image batching amplifies DeepInfra TTFB non-linearly:
+// 2-image chunks on yellowpaper-class content sit at 100-190s, while
+// the same pages as single-image calls land in ~25-76s. M=1 eliminates
+// that penalty at the cost of doubling S3 GETs and Lambda invokes — both
+// cheap compared to the OCR wall time we recover. The module-level
+// PDF cache in pdf-page-ocr.main.ts absorbs the extra GETs on warm
+// container reuse.
+const DEFAULT_BATCH_SIZE = 1;
 
 // In-flight page-Lambda invocations. Sized so the worst-case PDF
 // (`MAX_PDF_PAGES` pages, all in one wave at `DEFAULT_BATCH_SIZE` per chunk)
