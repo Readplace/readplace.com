@@ -40,5 +40,13 @@ module.exports = {
       env: { HEADLESS: 'true', E2E_PORT: port },
       e2e: true,
     },
+    {
+      type: 'node-test',
+      name: 'Running PDF save E2E (local, stubbed PDF extractor)',
+      files: ['dist/e2e/pdf-save-flow/run.e2e-local.main.js'],
+      timeout: 90000,
+      env: { E2E_PORT: port },
+      e2e: true,
+    },
   ],
 };

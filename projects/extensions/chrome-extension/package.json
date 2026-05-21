@@ -13,6 +13,7 @@
     "test:sequential": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000 --runInBand --passWithNoTests",
     "test-with-coverage": "pnpm compile && c8 node scripts/run-tests-with-coverage.js && node enforce-coverage.config.js",
     "test:e2e": "E2E_PORT=3001 HUTCH_SERVER_URL=http://127.0.0.1:3001 node scripts/build-extension.js && E2E_PORT=3001 node --test dist/e2e/login-flow/run.e2e-local.main.js",
+    "test:e2e:pdf-save-staging": "node --test dist/e2e/pdf-save-flow/run.e2e-staging.main.js",
     "deploy-infra": "nx run deploy-infra",
     "post-deploy": "echo 'No post-deploy steps'",
     "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",

@@ -16,3 +16,8 @@ export type {
 	DriverNavigation,
 } from "./flow-state-handler.types";
 export type { ElementQueries } from "./element-queries.types";
+export {
+	obtainAccessToken,
+	runPdfSaveScenario,
+} from "./pdf-save-scenario";
+export type { PdfSaveScenarioConfig } from "./pdf-save-scenario";
