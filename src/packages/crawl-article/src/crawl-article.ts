@@ -15,7 +15,7 @@ import type { ExtractPdf } from "./pdf-extract.types";
 const FETCH_TIMEOUT_MS = 10000;
 const THUMBNAIL_FETCH_TIMEOUT_MS = 5000;
 const MAX_THUMBNAIL_BYTES = 5 * 1024 * 1024;
-const MAX_PDF_BYTES = 25 * 1024 * 1024;
+const MAX_PDF_BYTES = 500 * 1024 * 1024;
 
 /**
  * Browser-like headers required by Fastly/Cloudflare edge sniffers.
