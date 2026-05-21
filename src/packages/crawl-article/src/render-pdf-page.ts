@@ -1,39 +1,14 @@
 /* c8 ignore start -- thin poppler-utils boundary wrapper, exercised in production at Lambda cold start and in CI via the PDF health canary (scripts/health-sources.ts → arXiv Transformer paper). The child_process call to pdftoppm can't be unit-tested without re-implementing it. */
-import { spawn } from "node:child_process";
 import { readFile, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { runCommand } from "./run-command";
 
 export type RenderPdfPageToPng = (params: {
 	buffer: Buffer;
 	pageIndex: number;
 	dpi: number;
 }) => Promise<Buffer>;
-
-interface SpawnResult {
-	stdout: string;
-	stderr: string;
-}
-
-function runCommand(command: string, args: string[]): Promise<SpawnResult> {
-	return new Promise((resolve, reject) => {
-		const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
-		const stdoutChunks: Buffer[] = [];
-		const stderrChunks: Buffer[] = [];
-		child.stdout.on("data", (c: Buffer) => stdoutChunks.push(c));
-		child.stderr.on("data", (c: Buffer) => stderrChunks.push(c));
-		child.on("error", reject);
-		child.on("close", (code) => {
-			const stdout = Buffer.concat(stdoutChunks).toString("utf-8");
-			const stderr = Buffer.concat(stderrChunks).toString("utf-8");
-			if (code === 0) {
-				resolve({ stdout, stderr });
-			} else {
-				reject(new Error(`${command} exited with code ${code}: ${stderr.trim()}`));
-			}
-		});
-	});
-}
 
 /**
  * Renders a single PDF page to PNG. Uses pdftoppm's `-f <n> -l <n>` to limit

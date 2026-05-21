@@ -119,10 +119,11 @@ async function main() {
 
 	loginToEcr(repositoryUrl);
 
+	console.log(`[build-image] bundling ${HANDLERS.length} handlers in parallel`);
+	await Promise.all(HANDLERS.map((handler) => bundleHandler(handler)));
+
 	const tags = {};
 	for (const handler of HANDLERS) {
-		console.log(`[build-image] bundling ${handler.name}`);
-		await bundleHandler(handler);
 		const tag = `${gitSha}-${handler.name}`;
 		tags[handler.name] = buildAndPushImage(handler, repositoryUrl, tag);
 	}

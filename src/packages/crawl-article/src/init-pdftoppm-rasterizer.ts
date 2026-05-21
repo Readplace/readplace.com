@@ -1,11 +1,11 @@
 /* c8 ignore start -- thin poppler-utils boundary wrapper, exercised in production at Lambda cold start and in CI via the PDF health canary (scripts/health-sources.ts → arXiv Transformer paper). The child_process calls to pdftoppm/pdfinfo can't be unit-tested without re-implementing them, so all tests stub PdfRasterizer at the OCR consumer (see ocr-pdf.test.ts). */
-import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PdfDocument, PdfPage, PdfRasterizer } from "./pdf-extract.types";
+import { runCommand } from "./run-command";
 
 /**
  * 150 DPI matches the rendering resolution the vision model expects:
@@ -14,31 +14,6 @@ import type { PdfDocument, PdfPage, PdfRasterizer } from "./pdf-extract.types";
  * memory; lower DPIs lose small-text fidelity.
  */
 const DEFAULT_DPI = 150;
-
-interface SpawnResult {
-	stdout: string;
-	stderr: string;
-}
-
-function runCommand(command: string, args: string[]): Promise<SpawnResult> {
-	return new Promise((resolve, reject) => {
-		const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
-		const stdoutChunks: Buffer[] = [];
-		const stderrChunks: Buffer[] = [];
-		child.stdout.on("data", (c: Buffer) => stdoutChunks.push(c));
-		child.stderr.on("data", (c: Buffer) => stderrChunks.push(c));
-		child.on("error", reject);
-		child.on("close", (code) => {
-			const stdout = Buffer.concat(stdoutChunks).toString("utf-8");
-			const stderr = Buffer.concat(stderrChunks).toString("utf-8");
-			if (code === 0) {
-				resolve({ stdout, stderr });
-			} else {
-				reject(new Error(`${command} exited with code ${code}: ${stderr.trim()}`));
-			}
-		});
-	});
-}
 
 interface PdfInfo {
 	numPages: number;
