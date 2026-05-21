@@ -28,6 +28,7 @@ describe("initProgressThrottle", () => {
 		});
 
 		throttle.report({ url: URL, partCurrent: 1, partTotal: 100 });
+		await Promise.resolve();
 		await throttle.flush({ url: URL });
 
 		expect(calls).toEqual([{ url: URL, partCurrent: 1, partTotal: 100 }]);
@@ -112,6 +113,7 @@ describe("initProgressThrottle", () => {
 		});
 
 		throttle.report({ url: URL, partCurrent: 1, partTotal: 1 });
+		await Promise.resolve();
 		await throttle.flush({ url: URL });
 		await throttle.flush({ url: URL });
 
@@ -147,9 +149,33 @@ describe("initProgressThrottle", () => {
 		throttle.report({ url: URL, partCurrent: 1, partTotal: 1 });
 		await throttle.flush({ url: URL });
 
+		expect(warn).toHaveBeenCalledTimes(2);
 		expect(warn).toHaveBeenCalledWith(
 			"[progress-throttle] write failed",
 			expect.objectContaining({ url: URL, error: "Error: DynamoDB throttled" }),
 		);
+	});
+
+	it("flush retries and succeeds when the initial fire-and-forget write failed", async () => {
+		const warn = jest.fn();
+		let callCount = 0;
+		const calls: Recorded[] = [];
+		const failOnce: MarkCrawlProgress = async (params) => {
+			callCount += 1;
+			if (callCount === 1) throw new Error("DynamoDB throttled");
+			calls.push(params);
+		};
+		const throttle = initProgressThrottle({
+			markCrawlProgress: failOnce,
+			intervalMs: 1500,
+			now: () => 0,
+			logger: { ...noopLogger, warn },
+		});
+
+		throttle.report({ url: URL, partCurrent: 1, partTotal: 1 });
+		await throttle.flush({ url: URL });
+
+		expect(warn).toHaveBeenCalledTimes(1);
+		expect(calls).toEqual([{ url: URL, partCurrent: 1, partTotal: 1 }]);
 	});
 });

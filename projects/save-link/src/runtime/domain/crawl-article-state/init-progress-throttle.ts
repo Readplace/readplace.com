@@ -41,14 +41,15 @@ export function initProgressThrottle(deps: {
 		url: string,
 		entry: PendingProgress,
 	): Promise<void> => {
-		entry.lastWrittenCurrent = entry.partCurrent;
+		const writtenCurrent = entry.partCurrent;
 		entry.lastWriteAtMs = now();
 		try {
 			await markCrawlProgress({
 				url,
-				partCurrent: entry.partCurrent,
+				partCurrent: writtenCurrent,
 				partTotal: entry.partTotal,
 			});
+			entry.lastWrittenCurrent = writtenCurrent;
 		} catch (error) {
 			logger.warn("[progress-throttle] write failed", {
 				url,
