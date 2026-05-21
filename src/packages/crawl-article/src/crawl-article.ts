@@ -11,6 +11,7 @@ import { extensionFromContentType } from "./extension-from-content-type";
 import { headerOrUndefined } from "./header-utils";
 import { isPdfContentType, isPdfMagicBytes } from "./pdf-detect";
 import type { ExtractPdf } from "./pdf-extract.types";
+import { initFetchTweetViaOembed, isTweetUrl } from "./x-twitter-preprocessor";
 
 const FETCH_TIMEOUT_MS = 10000;
 const THUMBNAIL_FETCH_TIMEOUT_MS = 5000;
@@ -81,8 +82,6 @@ export const CRAWL_PERSONAS = [
 	},
 ] as const;
 
-const X_TWITTER_PATTERN = /^https?:\/\/(x\.com|twitter\.com)\//;
-
 function initConditionalFetch(deps: {
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
@@ -126,9 +125,10 @@ export function initSimpleCrawl(deps: {
 }): SimpleCrawl {
 	const { crawlFetch, logError } = deps;
 	const conditionalFetch = initConditionalFetch({ crawlFetch, logError });
+	const fetchTweetViaOembed = initFetchTweetViaOembed({ crawlFetch, logError });
 	return async (params) => {
-		if (X_TWITTER_PATTERN.test(params.url)) {
-			return fetchViaOembed({ crawlFetch, logError }, params);
+		if (isTweetUrl(params.url)) {
+			return fetchTweetViaOembed(params);
 		}
 
 		try {
@@ -309,47 +309,6 @@ async function tryFetchImage(args: {
 	} catch (error) {
 		logError(`[CrawlArticle] Thumbnail network error for ${url}`, error instanceof Error ? error : undefined);
 		return undefined;
-	}
-}
-
-const TWEET_STATUS_PATH = /^(\/[^/]+\/status\/\d+)/;
-
-/** Twitter's oembed endpoint 404s on any tweet URL carrying a sub-path like
- * `/video/<n>`, `/photo/<n>`, `/analytics`, `/likes`, `/retweets`, `/quotes`.
- * Canonicalise to `<origin>/<handle>/status/<id>` so those forms still resolve. */
-function canonicaliseTweetUrl(raw: string): string {
-	try {
-		const u = new URL(raw);
-		const match = u.pathname.match(TWEET_STATUS_PATH);
-		return match ? `${u.origin}${match[1]}` : raw;
-	} catch {
-		return raw;
-	}
-}
-
-/** X/Twitter returns a JS app shell with no content. The oembed API returns the actual tweet text. */
-async function fetchViaOembed(
-	deps: { crawlFetch: CrawlFetch; logError: (message: string, error?: Error) => void },
-	params: { url: string },
-) {
-	const canonicalUrl = canonicaliseTweetUrl(params.url);
-	const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(canonicalUrl)}`;
-	try {
-		const response = await deps.crawlFetch(oembedUrl, {
-			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-		});
-		if (!response.ok) {
-			deps.logError(`[CrawlArticle] oembed HTTP ${response.status} for ${params.url}`);
-			return { status: "failed" } as const;
-		}
-		const data = await response.json() as Record<string, unknown>;
-		const authorName = typeof data.author_name === "string" ? data.author_name : "";
-		const embed = typeof data.html === "string" ? data.html : "";
-		const html = `<html><head><title>${authorName}</title></head><body>${embed}</body></html>`;
-		return { status: "fetched", html } as const;
-	} catch (error) {
-		deps.logError(`[CrawlArticle] oembed error for ${params.url}`, error instanceof Error ? error : undefined);
-		return { status: "failed" } as const;
 	}
 }
 

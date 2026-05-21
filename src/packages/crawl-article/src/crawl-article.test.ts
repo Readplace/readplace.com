@@ -290,102 +290,20 @@ describe("initSimpleCrawl — TTL refresh with conditional headers", () => {
 	});
 });
 
-describe("initSimpleCrawl — X/Twitter oembed fallback", () => {
-	it("fetches tweet content via oembed API for x.com URLs", async () => {
+describe("initSimpleCrawl — X/Twitter routing", () => {
+	it("routes tweet URLs through the oembed preprocessor instead of the HTML path", async () => {
 		const fakeFetch: typeof fetch = async (input) => {
 			const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-			if (url.includes("publish.twitter.com/oembed")) {
-				return new Response(JSON.stringify({
-					author_name: "Elon Musk",
-					html: '<blockquote class="twitter-tweet"><p lang="en" dir="ltr">Test tweet</p></blockquote>\n',
-				}), {
-					status: 200,
-					headers: { "content-type": "application/json" },
-				});
-			}
-			return new Response("<html></html>", { status: 200, headers: { "content-type": "text/html" } });
+			expect(url).toMatch(/^https:\/\/publish\.twitter\.com\/oembed/);
+			return new Response(JSON.stringify({ author_name: "User", html: "<blockquote>x</blockquote>" }), {
+				status: 200, headers: { "content-type": "application/json" },
+			});
 		};
 		const simpleCrawl = initSimple({ fetch: fakeFetch });
 
-		const result = await simpleCrawl({ url: "https://x.com/elonmusk/status/1519480761749016577" });
-
-		expect(result).toEqual({
-			status: "fetched",
-			html: '<html><head><title>Elon Musk</title></head><body><blockquote class="twitter-tweet"><p lang="en" dir="ltr">Test tweet</p></blockquote>\n</body></html>',
-		});
-	});
-
-	it("fetches tweet content via oembed API for twitter.com URLs", async () => {
-		const fakeFetch: typeof fetch = async () =>
-			new Response(JSON.stringify({
-				author_name: "User",
-				html: "<blockquote>Tweet</blockquote>\n",
-			}), {
-				status: 200,
-				headers: { "content-type": "application/json" },
-			});
-		const simpleCrawl = initSimple({ fetch: fakeFetch });
-
-		const result = await simpleCrawl({ url: "https://twitter.com/user/status/123" });
+		const result = await simpleCrawl({ url: "https://x.com/user/status/123" });
 
 		expect(result.status).toBe("fetched");
-	});
-
-	it("returns 'failed' when oembed API returns non-ok status", async () => {
-		const fakeFetch: typeof fetch = async () => new Response(null, { status: 404 });
-		const logError = jest.fn();
-		const simpleCrawl = initSimple({ fetch: fakeFetch, logError });
-
-		const result = await simpleCrawl({ url: "https://x.com/user/status/123" });
-
-		expect(result).toEqual({ status: "failed" });
-		expect(logError).toHaveBeenCalledWith("[CrawlArticle] oembed HTTP 404 for https://x.com/user/status/123");
-	});
-
-	it("returns 'failed' when oembed API throws a network error", async () => {
-		const networkError = new Error("timeout");
-		const fakeFetch: typeof fetch = async () => { throw networkError; };
-		const curlError = new Error("curl also failed");
-		const stubCurl: typeof fetchCurl = async () => { throw curlError; };
-		const logError = jest.fn();
-		const simpleCrawl = initSimple({ fetch: fakeFetch, fetchCurl: stubCurl, logError });
-
-		const result = await simpleCrawl({ url: "https://x.com/user/status/123" });
-
-		expect(result).toEqual({ status: "failed" });
-		expect(logError).toHaveBeenCalledWith("[CrawlArticle] oembed error for https://x.com/user/status/123", curlError);
-	});
-
-	it("canonicalises the tweet URL — strips query string before calling oembed", async () => {
-		let capturedUrl = "";
-		const fakeFetch: typeof fetch = async (input) => {
-			capturedUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-			return new Response(JSON.stringify({ author_name: "", html: "" }), {
-				status: 200,
-				headers: { "content-type": "application/json" },
-			});
-		};
-		const simpleCrawl = initSimple({ fetch: fakeFetch });
-
-		await simpleCrawl({ url: "https://x.com/user/status/123?ref=test" });
-
-		expect(capturedUrl).toBe("https://publish.twitter.com/oembed?url=https%3A%2F%2Fx.com%2Fuser%2Fstatus%2F123");
-	});
-
-	it("canonicalises the tweet URL — strips /video/<n>?s=<n> sub-path that oembed 404s on", async () => {
-		let capturedUrl = "";
-		const fakeFetch: typeof fetch = async (input) => {
-			capturedUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-			return new Response(JSON.stringify({ author_name: "", html: "" }), {
-				status: 200,
-				headers: { "content-type": "application/json" },
-			});
-		};
-		const simpleCrawl = initSimple({ fetch: fakeFetch });
-
-		await simpleCrawl({ url: "https://x.com/AnatoliKopadze/status/2057105488165163198/video/1?s=46" });
-
-		expect(capturedUrl).toBe("https://publish.twitter.com/oembed?url=https%3A%2F%2Fx.com%2FAnatoliKopadze%2Fstatus%2F2057105488165163198");
 	});
 });
 
