@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import http2 from "node:http2";
 import { fetchCurl } from "./curl-fetch";
+import type { PersonaFetch } from "./persona-fallback";
 
 const MAX_REDIRECTS = 5;
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
@@ -127,8 +128,20 @@ export function withH2Fallback(
 	baseFetch: typeof fetch,
 	h2FetchImpl: typeof fetchH2 = fetchH2,
 	curlFetchImpl: typeof fetchCurl = fetchCurl,
-): typeof fetch {
+): PersonaFetch {
 	return async (input, init) => {
+		// Persona carries a proxy: skip baseFetch and h2 (neither honours it
+		// and the proxy persona is reserved for IP-class blocks where direct
+		// egress is the failing path). Curl is the only transport that
+		// threads `--proxy`, so route straight there.
+		if (init?.proxy) {
+			const url = urlFromInput(input);
+			return curlFetchImpl(url, {
+				headers: toPlainHeaders(init.headers),
+				signal: init.signal ?? undefined,
+				proxy: init.proxy,
+			});
+		}
 		let response: Response;
 		try {
 			response = await baseFetch(input, init);

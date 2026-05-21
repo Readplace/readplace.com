@@ -532,6 +532,31 @@ describe("withH2Fallback", () => {
 		});
 	});
 
+	it("short-circuits to curl with --proxy when init carries a proxy, skipping baseFetch and h2", async () => {
+		const baseFetch = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>();
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>();
+		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>(async () =>
+			new Response("<html>via-proxy</html>", { status: 200, headers: { "content-type": "text/html" } }),
+		);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
+
+		const response = await wrapped("https://example.com/page", {
+			headers: { "user-agent": "Test/1.0" },
+			proxy: "http://user:pass@proxy.example:22225",
+		});
+
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("<html>via-proxy</html>");
+		expect(baseFetch).not.toHaveBeenCalled();
+		expect(h2Impl).not.toHaveBeenCalled();
+		expect(curlImpl).toHaveBeenCalledTimes(1);
+		expect(curlImpl).toHaveBeenCalledWith("https://example.com/page", {
+			headers: { "user-agent": "Test/1.0" },
+			signal: undefined,
+			proxy: "http://user:pass@proxy.example:22225",
+		});
+	});
+
 	it("succeeds via h2 when baseFetch throws (e.g. Akamai RST_STREAM) and h2 bypasses the block", async () => {
 		const rstError = new Error("INTERNAL_ERROR: HTTP/2 stream closed");
 		const baseFetch: typeof fetch = async () => {

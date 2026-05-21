@@ -7,6 +7,12 @@ const DEFAULT_TIMEOUT_MS = 10000;
 type CurlFetchInit = {
 	headers?: Record<string, string>;
 	signal?: AbortSignal;
+	/**
+	 * Optional egress proxy URL. When set, `--proxy <url>` is added to the
+	 * curl argv so the request egresses via that proxy (e.g. a residential
+	 * IP) instead of the host's outbound address.
+	 */
+	proxy?: string;
 };
 
 type CurlChild = {
@@ -53,7 +59,7 @@ export function createCurlFetch(deps: { execCurl: ExecCurl }): CurlFetch {
 	const { execCurl } = deps;
 	return function fetchCurl(url, init) {
 		return new Promise((resolve, reject) => {
-			const args = buildCurlArgs({ url, headers: init?.headers });
+			const args = buildCurlArgs({ url, headers: init?.headers, proxy: init?.proxy });
 			const timeoutMs = init?.signal ? undefined : DEFAULT_TIMEOUT_MS;
 			const child = execCurl(args, { timeoutMs }, (error, stdout) => {
 				if (error) {
@@ -83,7 +89,7 @@ export function createCurlFetch(deps: { execCurl: ExecCurl }): CurlFetch {
 
 export const fetchCurl: CurlFetch = createCurlFetch({ execCurl: defaultExecCurl });
 
-function buildCurlArgs(params: { url: string; headers?: Record<string, string> }): string[] {
+function buildCurlArgs(params: { url: string; headers?: Record<string, string>; proxy?: string }): string[] {
 	const args = [
 		"--http2",
 		// Disable curl's URL globbing so `[…]` and `{…}` in real URLs (e.g.
@@ -102,6 +108,9 @@ function buildCurlArgs(params: { url: string; headers?: Record<string, string> }
 		"-",
 		"--compressed",
 	];
+	if (params.proxy) {
+		args.push("--proxy", params.proxy);
+	}
 	if (params.headers) {
 		for (const [key, value] of Object.entries(params.headers)) {
 			args.push("--header", `${toTitleCase(key)}: ${value}`);

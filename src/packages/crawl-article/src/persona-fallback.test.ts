@@ -31,6 +31,8 @@ describe("isBlockClassError", () => {
 		"NGHTTP2_INTERNAL_ERROR",
 		"ERR_HTTP2_STREAM_ERROR: RST_STREAM",
 		"ERR_HTTP2_PROTOCOL_ERROR",
+		"fetchCurl failed for https://example.com: curl: (47) Maximum (5) redirects followed",
+		"undici fetch failed: max_redirects exceeded",
 	])("treats %j as block-class error", (message) => {
 		expect(isBlockClassError(new Error(message))).toBe(true);
 	});
@@ -187,5 +189,59 @@ describe("withPersonaFallback", () => {
 
 		expect(captured[0].input).toBe("https://example.com/path");
 		expect(captured[0].signal).toBe(controller.signal);
+	});
+
+	it("threads persona.proxy through to the inner fetch init", async () => {
+		const captured: { proxy: string | undefined }[] = [];
+		const inner = async (_input: unknown, init?: { proxy?: string }) => {
+			captured.push({ proxy: init?.proxy });
+			return new Response("ok", { status: 200 });
+		};
+		const proxyPersona: Persona = {
+			name: "with-proxy",
+			headers: { "user-agent": "Test/1.0" },
+			proxy: "http://user:pass@brd.superproxy.io:22225",
+		};
+		const wrapped = withPersonaFallback(inner as typeof fetch, [proxyPersona]);
+
+		await wrapped("https://example.com");
+
+		expect(captured[0].proxy).toBe("http://user:pass@brd.superproxy.io:22225");
+	});
+
+	it("omits proxy from the inner init for personas that don't carry one", async () => {
+		const captured: { hasProxyKey: boolean; proxy: unknown }[] = [];
+		const inner = async (_input: unknown, init?: Record<string, unknown>) => {
+			captured.push({ hasProxyKey: init !== undefined && "proxy" in init, proxy: init?.proxy });
+			return new Response("ok", { status: 200 });
+		};
+		const wrapped = withPersonaFallback(inner as typeof fetch, [personaPrimary]);
+
+		await wrapped("https://example.com");
+
+		expect(captured[0].hasProxyKey).toBe(false);
+		expect(captured[0].proxy).toBeUndefined();
+	});
+
+	it("advances to a proxy-bearing persona after a free persona returns block-class, and the proxy reaches the inner init", async () => {
+		const captured: { proxy: string | undefined }[] = [];
+		const inner = async (_input: unknown, init?: { proxy?: string }) => {
+			captured.push({ proxy: init?.proxy });
+			if (captured.length === 1) return new Response("blocked", { status: 403 });
+			return new Response("ok", { status: 200 });
+		};
+		const proxyPersona: Persona = {
+			name: "with-proxy",
+			headers: { "user-agent": "Test/1.0" },
+			proxy: "http://proxy.example:22225",
+		};
+		const wrapped = withPersonaFallback(inner as typeof fetch, [personaPrimary, proxyPersona]);
+
+		const response = await wrapped("https://example.com");
+
+		expect(response.status).toBe(200);
+		expect(captured).toHaveLength(2);
+		expect(captured[0].proxy).toBeUndefined();
+		expect(captured[1].proxy).toBe("http://proxy.example:22225");
 	});
 });

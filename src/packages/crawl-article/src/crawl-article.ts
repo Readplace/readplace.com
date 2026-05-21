@@ -13,6 +13,7 @@ import { headerOrUndefined } from "./header-utils";
 import { isPdfContentType, isPdfMagicBytes } from "./pdf-detect";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
 import type { ExtractPdf } from "./pdf-extract.types";
+import type { Persona } from "./persona-fallback";
 import { initFetchTweetViaOembed, isTweetUrl } from "./x-twitter-preprocessor";
 
 const FETCH_TIMEOUT_MS = 10000;
@@ -32,6 +33,25 @@ export const DEFAULT_CRAWL_HEADERS = {
 		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
 	accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 	"accept-language": "en-US,en;q=0.9",
+} as const;
+
+/**
+ * Coherent "real Chrome navigating to a document" header set. Reused by the
+ * `default-browser` persona and (when an egress proxy is configured) the
+ * `residential-proxy` persona — both want the same browser-shaped fingerprint,
+ * they differ only in the outbound IP.
+ */
+const BROWSER_PERSONA_HEADERS = {
+	...DEFAULT_CRAWL_HEADERS,
+	"sec-ch-ua":
+		'"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+	"sec-ch-ua-mobile": "?0",
+	"sec-ch-ua-platform": '"macOS"',
+	"sec-fetch-dest": "document",
+	"sec-fetch-mode": "navigate",
+	"sec-fetch-site": "none",
+	"sec-fetch-user": "?1",
+	"upgrade-insecure-requests": "1",
 } as const;
 
 /**
@@ -56,22 +76,15 @@ export const DEFAULT_CRAWL_HEADERS = {
  *    origins that explicitly allow disclosed bots and reject any browser-
  *    shaped client they can't fingerprint (verified: Adobe accepts this;
  *    default-curl UA also works but ReadplaceBot is the polite-bot signal).
+ *
+ * Optional 3rd persona (`residential-proxy`) is appended at the composition
+ * root via `appendResidentialProxyPersona` when the runtime is configured
+ * with an egress proxy URL — see that helper for the IP-class-block rationale.
  */
 export const CRAWL_PERSONAS = [
 	{
 		name: "default-browser",
-		headers: {
-			...DEFAULT_CRAWL_HEADERS,
-			"sec-ch-ua":
-				'"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-			"sec-ch-ua-mobile": "?0",
-			"sec-ch-ua-platform": '"macOS"',
-			"sec-fetch-dest": "document",
-			"sec-fetch-mode": "navigate",
-			"sec-fetch-site": "none",
-			"sec-fetch-user": "?1",
-			"upgrade-insecure-requests": "1",
-		},
+		headers: BROWSER_PERSONA_HEADERS,
 	},
 	{
 		name: "honest-bot",
@@ -82,6 +95,34 @@ export const CRAWL_PERSONAS = [
 		},
 	},
 ] as const;
+
+/**
+ * Returns `personas` with a `residential-proxy` persona appended when
+ * `proxyUrl` is set; otherwise returns `personas` unchanged. The proxy
+ * persona always lands LAST so the free direct-egress attempts run first —
+ * each blocked URL costs at most one residential-proxy request.
+ *
+ * Why a separate persona rather than wiring the proxy into every persona:
+ * the free personas are the bulk of traffic (Wikipedia, Medium, …) and must
+ * stay on direct egress to avoid bandwidth spend on the working majority.
+ * The residential-proxy persona engages only when the prior personas hit a
+ * block-class outcome (403/406/451, h2 RST_STREAM, curl exit 47 redirect
+ * loop, …) — the persona-fallback wrapper enforces that ordering.
+ */
+export function appendResidentialProxyPersona(
+	personas: ReadonlyArray<Persona>,
+	proxyUrl: string | undefined,
+): ReadonlyArray<Persona> {
+	if (!proxyUrl) return personas;
+	return [
+		...personas,
+		{
+			name: "residential-proxy",
+			headers: BROWSER_PERSONA_HEADERS,
+			proxy: proxyUrl,
+		},
+	];
+}
 
 function initConditionalFetch(deps: {
 	crawlFetch: CrawlFetch;

@@ -185,14 +185,35 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectedContent: "Attention Is All You Need",
 		expectsThumbnail: false,
 	},
-	// USDA (https://www.rd.usda.gov/sites/default/files/pdf-sample_0.pdf) is
-	// fronted by Akamai BotManager, which RSTs HTTP/2 streams from AWS-range
-	// IPs regardless of HTTP-header persona (confirmed via prod Lambda logs
-	// after CRAWL_PERSONAS landed: both `default-browser` and `honest-bot`
-	// produced curl exit 92 INTERNAL_ERROR). The same default-browser persona
-	// returns 200 from a residential IP. Re-adding this entry requires a
-	// non-AWS egress path (residential proxy as a third persona, or
-	// equivalent) — not a new HTTP-header variation.
+	{
+		// Akamai BotManager RSTs HTTP/2 streams from AWS-range IPs regardless of
+		// HTTP-header persona — both `default-browser` and `honest-bot` get a
+		// curl exit 92 INTERNAL_ERROR. The `residential-proxy` persona engages
+		// after both free personas fail and egresses via a non-AWS IP, which
+		// Akamai treats as a real browser. If this entry fails, the
+		// residential-proxy persona is broken (missing env var, proxy
+		// credentials rotated, Bright Data zone disabled) — fix the proxy, do
+		// not delete the entry.
+		label: "PDF (USDA via Akamai — AWS-IP gated)",
+		url: "https://www.rd.usda.gov/sites/default/files/pdf-sample_0.pdf",
+		expectedContent: "Dummy PDF",
+		expectsThumbnail: false,
+	},
+	{
+		// CIA reading-room's edge 302-loops back to /readingroom for AWS-range
+		// source IPs, producing curl exit 47 ("Maximum (5) redirects followed").
+		// Same headers + curl args succeed from a residential IP, which is what
+		// the `residential-proxy` persona routes through. Exercises a different
+		// IP-class signature than USDA (302 redirect-loop vs. h2 RST_STREAM) AND
+		// keeps `--globoff` + WHATWG URL re-encoding under canary coverage via
+		// the bracketed path segment `[16505689]`. expectedContent anchors on a
+		// phrase from the dossier body (the Kennedy assassination commission
+		// report, despite the misleading filename) that survives OCR.
+		label: "PDF (CIA reading room — AWS-IP gated + bracketed URL)",
+		url: "https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf",
+		expectedContent: "Warren Commission",
+		expectsThumbnail: false,
+	},
 	{
 		// Adobe-class fingerprint-strict origin. Sent today's partial Chrome
 		// headers and Adobe's edge RSTs the h2 stream (curl exit 92,

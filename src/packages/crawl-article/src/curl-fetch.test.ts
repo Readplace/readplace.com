@@ -152,6 +152,23 @@ describe("fetchCurl argument construction", () => {
 		);
 	});
 
+	it("appends --proxy <url> when init.proxy is set", async () => {
+		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
+		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl });
+		await fetchCurl("https://example.com", { proxy: "http://user:pass@brd.superproxy.io:22225" });
+		const args = fake.calls[0].args;
+		const proxyIdx = args.indexOf("--proxy");
+		expect(proxyIdx).toBeGreaterThan(0);
+		expect(args[proxyIdx + 1]).toBe("http://user:pass@brd.superproxy.io:22225");
+	});
+
+	it("omits --proxy when init.proxy is not set", async () => {
+		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
+		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl });
+		await fetchCurl("https://example.com");
+		expect(fake.calls[0].args).not.toContain("--proxy");
+	});
+
 	it("title-cases header names per Cloudflare JA3 fingerprinting", async () => {
 		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl });

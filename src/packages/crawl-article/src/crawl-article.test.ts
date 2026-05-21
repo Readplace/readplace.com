@@ -1,5 +1,7 @@
 import assert from "node:assert";
 import {
+	appendResidentialProxyPersona,
+	CRAWL_PERSONAS,
 	initComprehensiveCrawl,
 	initCrawlArticle,
 	initSimpleCrawl,
@@ -949,5 +951,35 @@ describe("initCrawlArticle — composed (simple ▸ comprehensive)", () => {
 
 		expect(result).toEqual({ status: "unsupported", reason: "non-pdf content type: application/json" });
 		expect(extractPdf).not.toHaveBeenCalled();
+	});
+});
+
+describe("appendResidentialProxyPersona", () => {
+	it("returns the persona list unchanged when proxyUrl is undefined", () => {
+		const result = appendResidentialProxyPersona(CRAWL_PERSONAS, undefined);
+		expect(result).toBe(CRAWL_PERSONAS);
+	});
+
+	it("appends a residential-proxy persona at the end when proxyUrl is set", () => {
+		const proxyUrl = "http://user:pass@brd.superproxy.io:22225";
+		const result = appendResidentialProxyPersona(CRAWL_PERSONAS, proxyUrl);
+		expect(result).toHaveLength(CRAWL_PERSONAS.length + 1);
+		const last = result[result.length - 1];
+		expect(last.name).toBe("residential-proxy");
+		expect(last.proxy).toBe(proxyUrl);
+	});
+
+	it("gives the proxy persona browser-shaped headers (Sec-Fetch-* + sec-ch-ua-*)", () => {
+		const result = appendResidentialProxyPersona(CRAWL_PERSONAS, "http://proxy:22225");
+		const proxyPersona = result[result.length - 1];
+		expect(proxyPersona.headers["user-agent"]).toContain("Chrome");
+		expect(proxyPersona.headers["sec-fetch-dest"]).toBe("document");
+		expect(proxyPersona.headers["sec-ch-ua-platform"]).toBe('"macOS"');
+	});
+
+	it("keeps the existing personas in their original order — proxy is appended, not inserted", () => {
+		const result = appendResidentialProxyPersona(CRAWL_PERSONAS, "http://proxy:22225");
+		expect(result[0].name).toBe(CRAWL_PERSONAS[0].name);
+		expect(result[1].name).toBe(CRAWL_PERSONAS[1].name);
 	});
 });

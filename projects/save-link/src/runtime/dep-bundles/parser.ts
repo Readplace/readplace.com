@@ -10,6 +10,7 @@ import {
 	initCrawlFetch,
 	initSimpleCrawl,
 	CRAWL_PERSONAS,
+	appendResidentialProxyPersona,
 } from "@packages/crawl-article";
 import {
 	initReadabilityParser,
@@ -17,6 +18,7 @@ import {
 	theInformationPreParser,
 } from "@packages/article-parser";
 import type { ParseHtml } from "@packages/article-parser";
+import { getEnv } from "../../require-env";
 import type { LogError } from "./observability";
 
 export type ParserDepBundle = {
@@ -38,7 +40,7 @@ export function initParserDepBundle(deps: {
 }): ParserDepBundle {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,
-		personas: CRAWL_PERSONAS,
+		personas: appendResidentialProxyPersona(CRAWL_PERSONAS, getEnv("RESIDENTIAL_PROXY_URL")),
 	});
 	const simpleCrawl = initSimpleCrawl({ crawlFetch, logError: deps.logError });
 	const { parseHtml } = initReadabilityParser({
@@ -72,7 +74,7 @@ export function initComprehensiveParserDepBundle(deps: {
 }): ComprehensiveParserDepBundle {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,
-		personas: CRAWL_PERSONAS,
+		personas: appendResidentialProxyPersona(CRAWL_PERSONAS, getEnv("RESIDENTIAL_PROXY_URL")),
 	});
 	const simpleCrawl = initSimpleCrawl({ crawlFetch, logError: deps.logError });
 	const comprehensiveCrawl = initComprehensiveCrawl({

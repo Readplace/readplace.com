@@ -128,6 +128,14 @@ const contentMediaCdn = new HutchS3ContentMediaCDN("content-media", {
 
 const deepseekApiKey = pulumi.secret(requireEnv("DEEPSEEK_API_KEY"));
 const deepInfraApiKey = pulumi.secret(requireEnv("DEEPINFRA_API_KEY"));
+/**
+ * Residential-proxy egress URL (Bright Data PAYG zone) consumed by the
+ * crawler when the in-AWS direct egress hits an IP-class block. Same
+ * GitHub-Actions-secret → requireEnv pattern as DEEPINFRA_API_KEY. Empty
+ * value disables the residential-proxy persona at runtime (the runtime's
+ * `getEnv` returns undefined for empty strings).
+ */
+const residentialProxyUrl = pulumi.secret(requireEnv("RESIDENTIAL_PROXY_URL"));
 
 const eventBus = HutchEventBus.fromPlatformStack(config);
 
@@ -217,6 +225,7 @@ const saveLinkCommandLambda = new HutchLambda("save-link-command", {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		RESIDENTIAL_PROXY_URL: residentialProxyUrl,
 	},
 	policies: [
 		...saveLinkCommandDynamodb.policies,
@@ -274,6 +283,7 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda("save-link-raw-html-command
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		RESIDENTIAL_PROXY_URL: residentialProxyUrl,
 	},
 	policies: [
 		...saveLinkRawHtmlCommandDynamodb.policies,
@@ -332,6 +342,7 @@ const saveAnonymousLinkCommandLambda = new HutchLambda("save-anonymous-link-comm
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		RESIDENTIAL_PROXY_URL: residentialProxyUrl,
 	},
 	policies: [
 		...saveAnonymousLinkCommandDynamodb.policies,
@@ -526,6 +537,7 @@ const comprehensiveCrawlCommandLambda = new HutchLambda("comprehensive-crawl-com
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 		PDF_PAGE_OCR_FUNCTION_NAME: pdfPageOcrLambda.functionName,
+		RESIDENTIAL_PROXY_URL: residentialProxyUrl,
 	},
 	policies: [
 		...comprehensiveCrawlCommandDynamodb.policies,
@@ -599,6 +611,7 @@ const staleCheckRequestedLambda = new HutchLambda("stale-check-requested", {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
+		RESIDENTIAL_PROXY_URL: residentialProxyUrl,
 	},
 	policies: [
 		...staleCheckRequestedDynamodb.policies,
@@ -832,6 +845,7 @@ const recrawlLinkInitiatedLambda = new HutchLambda("recrawl-link-initiated", {
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		RESIDENTIAL_PROXY_URL: residentialProxyUrl,
 	},
 	policies: [
 		...recrawlLinkInitiatedDynamodb.policies,
