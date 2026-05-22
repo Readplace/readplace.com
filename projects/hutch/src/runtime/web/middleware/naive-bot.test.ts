@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response } from "express";
+import type { Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { type BotBlockEvent, createBlockNaiveBotMiddleware } from "./naive-bot";
 
@@ -10,13 +10,14 @@ interface RunResult {
 
 function run({ ua, path = "/" }: { ua?: string; path?: string }): RunResult {
 	let status: number | undefined;
+	let nextCalled = false;
 	const res = {
-		status: (code: number) => {
+		status(code: number) {
 			status = code;
 			return res;
 		},
-		end: jest.fn(),
-	} as unknown as Response;
+		end() {},
+	};
 
 	const headers: Record<string, string | undefined> = { "user-agent": ua };
 	const req = {
@@ -24,7 +25,7 @@ function run({ ua, path = "/" }: { ua?: string; path?: string }): RunResult {
 		get(name: string): string | undefined {
 			return headers[name.toLowerCase()];
 		},
-	} as unknown as Request;
+	};
 
 	const logged: BotBlockEvent[] = [];
 	const logger: HutchLogger.Typed<BotBlockEvent> = {
@@ -34,13 +35,9 @@ function run({ ua, path = "/" }: { ua?: string; path?: string }): RunResult {
 		debug: () => {},
 	};
 
-	const next = jest.fn() as unknown as NextFunction;
-	createBlockNaiveBotMiddleware({ logger })(req, res, next);
-	return {
-		status,
-		nextCalled: (next as jest.Mock).mock.calls.length > 0,
-		logged,
-	};
+	const next = () => { nextCalled = true; };
+	createBlockNaiveBotMiddleware({ logger })(req as Request, res as Response, next);
+	return { status, nextCalled, logged };
 }
 
 describe("createBlockNaiveBotMiddleware", () => {
