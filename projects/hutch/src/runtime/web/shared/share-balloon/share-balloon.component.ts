@@ -23,12 +23,7 @@ export interface ShareBalloonInput {
 	shareTitle: string;
 	shareHint: string;
 	shareSource: ShareBalloonSource;
-	/**
-	 * When false, the client skips the scroll-to-open listener so the chat
-	 * balloon stays closed. Used by reader/view pages while the article is
-	 * still loading or has errored, so we don't ask the user to share a
-	 * page that hasn't rendered yet.
-	 */
+	/** Avoids prompting the user to share a page that hasn't rendered yet. */
 	autoOpen: boolean;
 }
 

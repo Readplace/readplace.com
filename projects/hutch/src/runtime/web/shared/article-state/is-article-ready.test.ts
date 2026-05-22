@@ -50,15 +50,21 @@ describe("isArticleReady", () => {
 		).toBe(false);
 	});
 
-	it("covers every CrawlStatus variant — a new variant must break this test", () => {
-		const variants: Array<{ crawl: ArticleCrawl; expected: boolean }> = [
-			{ crawl: { status: "ready" }, expected: true },
-			{ crawl: { status: "pending" }, expected: false },
-			{ crawl: { status: "failed", reason: "x" }, expected: false },
-			{ crawl: { status: "unsupported", reason: "x" }, expected: false },
-		];
+	it("covers every CrawlStatus variant — adding a new variant will cause a compile error", () => {
+		const variants = {
+			ready: { crawl: { status: "ready" }, expected: true },
+			pending: { crawl: { status: "pending" }, expected: false },
+			failed: { crawl: { status: "failed", reason: "x" }, expected: false },
+			unsupported: {
+				crawl: { status: "unsupported", reason: "x" },
+				expected: false,
+			},
+		} satisfies Record<
+			ArticleCrawl["status"],
+			{ crawl: ArticleCrawl; expected: boolean }
+		>;
 
-		for (const { crawl, expected } of variants) {
+		for (const { crawl, expected } of Object.values(variants)) {
 			expect(isArticleReady({ crawl, content: CONTENT })).toBe(expected);
 		}
 	});
