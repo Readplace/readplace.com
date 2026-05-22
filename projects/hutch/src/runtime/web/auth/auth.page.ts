@@ -233,6 +233,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					deps.botDefenseLogger.info(createBotDefenseEvent({
 						trip: { reason: result.reason, timeToSubmitMs: result.timeToSubmitMs },
 						ip: req.ip,
+						userAgent: req.get("user-agent"),
 						body,
 						now: deps.now(),
 					}));
