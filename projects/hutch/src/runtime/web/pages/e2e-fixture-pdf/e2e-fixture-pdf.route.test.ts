@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import request from "supertest";
 import { useTestServer } from "../../../test-app";
 import {
@@ -31,8 +32,9 @@ describe("GET /e2e/fixtures/pdf/:id.pdf", () => {
 		};
 		const a = await request(harness.server).get("/e2e/fixtures/pdf/run-a.pdf").buffer(true).parse(parsePdf);
 		const b = await request(harness.server).get("/e2e/fixtures/pdf/run-b.pdf").buffer(true).parse(parsePdf);
-		expect(Buffer.isBuffer(a.body)).toBe(true);
-		expect((a.body as Buffer).equals(b.body as Buffer)).toBe(true);
+		assert(Buffer.isBuffer(a.body), "response body must be a Buffer");
+		assert(Buffer.isBuffer(b.body), "response body must be a Buffer");
+		expect(a.body.equals(b.body)).toBe(true);
 	});
 
 	it("serves a spec-compliant PDF starting with %PDF-1.4", async () => {
@@ -45,7 +47,7 @@ describe("GET /e2e/fixtures/pdf/:id.pdf", () => {
 				res.on("data", (chunk: Buffer) => chunks.push(chunk));
 				res.on("end", () => cb(null, Buffer.concat(chunks)));
 			});
-		const body = response.body as Buffer;
-		expect(body.toString("binary", 0, 8)).toBe("%PDF-1.4");
+		assert(Buffer.isBuffer(response.body), "response body must be a Buffer");
+		expect(response.body.toString("binary", 0, 8)).toBe("%PDF-1.4");
 	});
 });

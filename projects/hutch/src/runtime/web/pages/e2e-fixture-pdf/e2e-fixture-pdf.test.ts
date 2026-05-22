@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { createE2EFixturePdf } from "./e2e-fixture-pdf";
 
 describe("createE2EFixturePdf", () => {
@@ -39,8 +40,7 @@ describe("createE2EFixturePdf", () => {
 		const buffer = createE2EFixturePdf("X");
 		const body = buffer.toString("binary");
 		const streamMatch = body.match(/<<\/Length (\d+)>>\nstream\n([\s\S]*?)\nendstream/);
-		expect(streamMatch).not.toBeNull();
-		if (!streamMatch) return;
+		assert(streamMatch, "content stream must match");
 		const declaredLength = Number(streamMatch[1]);
 		const actualLength = Buffer.byteLength(`${streamMatch[2]}\n`, "binary");
 		expect(declaredLength).toBe(actualLength);
