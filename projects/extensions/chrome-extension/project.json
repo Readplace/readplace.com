@@ -11,6 +11,10 @@
     "test:e2e": {
       "dependsOn": ["compile", "hutch:compile"]
     },
+    "post-deploy": {
+      "command": "bash scripts/post-deploy.sh",
+      "options": { "cwd": "{projectRoot}" }
+    },
     "check": {
       "command": "pnpm lint && pnpm test-with-coverage",
       "options": { "cwd": "{projectRoot}" }

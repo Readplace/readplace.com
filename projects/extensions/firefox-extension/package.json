@@ -14,8 +14,9 @@
     "test:sequential": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000 --runInBand --passWithNoTests",
     "test-with-coverage": "c8 node scripts/run-tests-with-coverage.js && node enforce-coverage.config.js",
     "test:e2e": "E2E_PORT=3000 HUTCH_SERVER_URL=http://127.0.0.1:3000 node scripts/build-extension.js && E2E_PORT=3000 node --test dist/e2e/login-flow/run.e2e-local.main.js",
+    "test:e2e:pdf-save-staging": "node --test dist/e2e/pdf-save-flow/run.e2e-staging.main.js",
     "deploy-infra": "nx run deploy-infra",
-    "post-deploy": "echo 'No post-deploy steps'",
+    "post-deploy": "nx run firefox-extension:post-deploy",
     "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
     "check": "nx run firefox-extension:check",
     "ext:run": "EXTENSION_VERSION=\"${EXTENSION_VERSION:-0.0.0}\" HUTCH_SERVER_URL=https://readplace.com node scripts/build-extension.js && web-ext run --source-dir dist-extension-compiled"
