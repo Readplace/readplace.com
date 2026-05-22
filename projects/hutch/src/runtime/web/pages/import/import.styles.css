@@ -52,6 +52,45 @@
   margin: 0 0 24px;
 }
 
+.import__idle {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.import__upload-form .import__uploading {
+  display: none;
+}
+
+.import__upload-form[data-import-state="uploading"] .import__idle {
+  display: none;
+}
+
+.import__upload-form[data-import-state="uploading"] .import__uploading {
+  display: block;
+}
+
+.import__progress-bar {
+  height: 8px;
+  background: var(--muted);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.import__progress-fill {
+  height: 100%;
+  background: var(--color-brand);
+  width: 0%;
+  transition: width 150ms linear;
+}
+
+.import__progress-label {
+  margin: 12px 0 0;
+  font-size: 0.9375rem;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
 .import__file-input {
   position: absolute;
   width: 1px;

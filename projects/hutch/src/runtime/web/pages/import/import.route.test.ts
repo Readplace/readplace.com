@@ -59,6 +59,39 @@ describe("Import routes", () => {
 			expect(button.textContent).toBe("Upload");
 		});
 
+		it("renders the upload form in idle state with both idle and uploading regions", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/import");
+
+			const doc = new JSDOM(response.text).window.document;
+			const form = doc.querySelector<HTMLFormElement>('[data-test-form="import-file"]');
+			assert(form, "upload form must be rendered");
+			expect(form.getAttribute("data-import-state")).toBe("idle");
+			expect(form.getAttribute("hx-post")).toBe("/import");
+			expect(form.getAttribute("hx-encoding")).toBe("multipart/form-data");
+			const idle = form.querySelector('[data-import-region="idle"]');
+			const uploading = form.querySelector('[data-import-region="uploading"]');
+			assert(idle, "idle region must always be rendered");
+			assert(uploading, "uploading region must always be rendered");
+			const fill = uploading.querySelector('[data-import-progress-fill]');
+			const label = uploading.querySelector('[data-import-progress-label]');
+			assert(fill, "progress fill must be rendered inside the uploading region");
+			assert(label, "progress label must be rendered inside the uploading region");
+		});
+
+		it("includes the import client bundle on the upload page", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/import");
+
+			const doc = new JSDOM(response.text).window.document;
+			const script = doc.querySelector('script[src="/client-dist/import.client.js"]');
+			assert(script, "import.client.js bundle must be loaded on the upload page");
+		});
+
 		it("renders the import_no_urls message when error_code=import_no_urls", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);

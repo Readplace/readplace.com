@@ -27,6 +27,8 @@ async function uploadUrlsAndOpenReview(
 		mimeType: 'text/plain',
 		buffer: Buffer.from(urls.join('\n'), 'utf-8'),
 	})
+	const form = page.locator('form.import__upload-form')
+	await expect(form).toHaveAttribute('data-import-state', 'uploading')
 	await page.waitForSelector('[data-test-import-list]')
 }
 
