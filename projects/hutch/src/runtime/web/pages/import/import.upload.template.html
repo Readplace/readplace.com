@@ -8,23 +8,34 @@
       {{#if errorMessage}}
       <p class="import__upload-error" role="alert" data-test-import-error>{{errorMessage}}</p>
       {{/if}}
-      <form class="import__upload-form" method="POST" action="{{uploadAction}}" enctype="multipart/form-data" data-test-form="import-file">
-        <label class="import__dropzone" data-import-dropzone>
-          <input type="file" name="file" required class="import__file-input" data-test-import-file-input>
-          <span class="import__dropzone-icon" aria-hidden="true">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="17 8 12 3 7 8"></polyline>
-              <line x1="12" y1="3" x2="12" y2="15"></line>
-            </svg>
-          </span>
-          <span class="import__dropzone-primary">
-            <span class="import__dropzone-link">Choose a file</span>
-            <span class="import__dropzone-or"> or drag it here</span>
-          </span>
-          <span class="import__dropzone-meta" data-import-dropzone-meta>HTML, JSON, or plain text &middot; up to 5&nbsp;MiB &middot; up to 2,000 links</span>
-        </label>
-        <button class="import__upload-btn" type="submit" data-test-action="import-upload">Upload</button>
+      <form class="import__upload-form" method="POST" action="{{uploadAction}}" enctype="multipart/form-data"
+            data-import-state="idle" data-test-form="import-file"
+            hx-post="{{uploadAction}}" hx-encoding="multipart/form-data"
+            hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+        <div class="import__idle" data-import-region="idle">
+          <label class="import__dropzone" data-import-dropzone>
+            <input type="file" name="file" required class="import__file-input" data-test-import-file-input>
+            <span class="import__dropzone-icon" aria-hidden="true">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+            </span>
+            <span class="import__dropzone-primary">
+              <span class="import__dropzone-link">Choose a file</span>
+              <span class="import__dropzone-or"> or drag it here</span>
+            </span>
+            <span class="import__dropzone-meta" data-import-dropzone-meta>HTML, JSON, or plain text &middot; up to 5&nbsp;MiB &middot; up to 2,000 links</span>
+          </label>
+          <button class="import__upload-btn" type="submit" data-test-action="import-upload">Upload</button>
+        </div>
+        <div class="import__uploading" data-import-region="uploading" aria-live="polite">
+          <div class="import__progress-bar" data-import-progress-bar>
+            <div class="import__progress-fill" data-import-progress-fill style="width: 0%"></div>
+          </div>
+          <p class="import__progress-label" data-import-progress-label>Preparing upload&hellip;</p>
+        </div>
       </form>
       <p class="import__fallback">
         Larger files or more than 2,000 links? Email

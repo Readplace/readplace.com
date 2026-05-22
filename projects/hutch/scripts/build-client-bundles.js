@@ -82,6 +82,11 @@ const BUNDLES = [
 			"    window.document.body.addEventListener('htmx:afterSwap', listener);",
 			"  }",
 			"});",
+			"ImportClient.initUploadProgress({",
+			"  document: window.document,",
+			"  formatBytes: ImportClient.formatBytes,",
+			"  nativeSubmit: function (form) { form.submit(); }",
+			"});",
 		].join("\n"),
 	},
 	{

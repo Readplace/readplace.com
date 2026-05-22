@@ -98,6 +98,6 @@ export function ImportUploadPage(vm: ImportUploadViewModel): PageBody {
 		styles: IMPORT_STYLES,
 		bodyClass: "page-import",
 		content: { html: content },
-		scripts: UPLOAD_AUTO_SUBMIT_SCRIPT,
+		scripts: `${IMPORT_CLIENT_SCRIPT}${UPLOAD_AUTO_SUBMIT_SCRIPT}`,
 	};
 }
