@@ -100,7 +100,7 @@ export function initShareBalloon(
 
 	function isArticleReady(): boolean {
 		const slot = deps.document.querySelector<HTMLElement>(
-			"[data-test-reader-slot]",
+			"[data-reader-status]",
 		);
 		/** No reader-slot in the DOM means the host page does not track article
 		 * crawl state (e.g. share-balloon-only test fixtures). Default to ready

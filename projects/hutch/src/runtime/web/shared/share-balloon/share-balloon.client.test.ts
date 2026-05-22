@@ -19,7 +19,7 @@ function buildFixture(
 	const readerSlot =
 		readerStatus === "absent"
 			? ""
-			: `<div data-test-reader-slot data-reader-status="${readerStatus}"></div>`;
+			: `<div data-reader-status="${readerStatus}"></div>`;
 	return `<!DOCTYPE html><html><body>
 <span data-share-balloon-status></span>
 <div data-article-body></div>
@@ -263,7 +263,7 @@ describe("initShareBalloon — reader-slot gating (article loading or errored)",
 		jest.advanceTimersByTime(5000);
 		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
 
-		element(document, "[data-test-reader-slot]").setAttribute(
+		element(document, "[data-reader-status]").setAttribute(
 			"data-reader-status",
 			"ready",
 		);
@@ -283,7 +283,7 @@ describe("initShareBalloon — reader-slot gating (article loading or errored)",
 		ctrl.attach();
 		fireEvent.click(element(document, "[data-share-balloon-close]"));
 
-		element(document, "[data-test-reader-slot]").setAttribute(
+		element(document, "[data-reader-status]").setAttribute(
 			"data-reader-status",
 			"ready",
 		);
