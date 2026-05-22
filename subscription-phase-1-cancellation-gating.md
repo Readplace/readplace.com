@@ -60,7 +60,7 @@ Read-only means:
 | `projects/hutch/src/runtime/domain/access/effective-access.test.ts` | Unit tests for all four states. |
 | `projects/hutch/src/runtime/web/middleware/require-write-access.middleware.ts` | Express middleware. Loads access for `req.userId`; if read-only, returns 402 with HTML for browser routes or 402 JSON for the extension OAuth route. |
 | `projects/hutch/src/runtime/web/middleware/require-write-access.middleware.test.ts` | Integration test using supertest against a minimal app. |
-| `projects/hutch/src/runtime/web/pages/webhooks/stripe-webhook.page.ts` | `POST /webhooks/stripe`. Verifies signature using `STRIPE_WEBHOOK_SECRET`. Handles `customer.subscription.deleted` → `subscriptionProviders.markCancelled({ subscriptionId })`. Idempotent — re-deliveries are no-ops. Returns 200 on signature failure with logging (per Stripe docs, return non-2xx only when we genuinely want a retry). |
+| `projects/hutch/src/runtime/web/pages/webhooks/stripe-webhook.page.ts` | `POST /webhooks/stripe`. Verifies signature using `STRIPE_WEBHOOK_SECRET`. Handles `customer.subscription.deleted` → `subscriptionProviders.markCancelled({ subscriptionId })`. Idempotent — re-deliveries are no-ops. Returns 400 on signature failure with error-level logging — an invalid signature means the request is not from Stripe and must be rejected. |
 | `projects/hutch/src/runtime/web/pages/webhooks/stripe-webhook.route.test.ts` | Integration tests: valid signature + known event → row updated; valid signature + unknown event type → 200 no-op; invalid signature → 400; redelivery of same event → idempotent. |
 
 ### Files to modify

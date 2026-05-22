@@ -103,6 +103,12 @@ This means:
 4. If row.status === 'pending_cancellation':
      a. stripeSubscriptions.clearCancellation({ subscriptionId: row.subscriptionId })
         // stripe.subscriptions.update(id, { cancel_at_period_end: false })
+        // Race window: if the `customer.subscription.deleted` webhook fires
+        // between the row read (step 1) and this Stripe API call, the
+        // subscription no longer exists in Stripe and the update throws.
+        // Catch the Stripe error (resource_missing / 404) and fall through
+        // to step 5 (cancelled path: create a new subscription on the
+        // existing customer). This avoids surfacing a 500 to the user.
      b. subscriptionProviders.markActive({ userId })
 5. If row.status === 'cancelled':
      a. created = stripeSubscriptions.createSubscription({
