@@ -50,6 +50,27 @@ describe("emitUserCreated", () => {
 		expect(JSON.stringify(captured[0])).not.toContain("stripe_checkout_session_id");
 	});
 
+	it("emits a trial signup event without a stripe checkout session id", () => {
+		const { logger, captured } = createCapturingLogger();
+
+		emitUserCreated(
+			{ logger, now: TEST_NOW },
+			{
+				userId: TEST_USER_ID,
+				email: "trial@example.com",
+				method: "email",
+				tier: "trial",
+				attribution: undefined,
+			},
+		);
+
+		expect(captured[0]).toMatchObject({
+			tier: "trial",
+			method: "email",
+		});
+		expect(JSON.stringify(captured[0])).not.toContain("stripe_checkout_session_id");
+	});
+
 	it("includes stripe_checkout_session_id for paid signups so the event can be joined to Stripe payment data downstream", () => {
 		const { logger, captured } = createCapturingLogger();
 

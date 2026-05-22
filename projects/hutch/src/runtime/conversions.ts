@@ -24,7 +24,7 @@ export function emitUserCreated(
 		userId: UserId;
 		email: string;
 		method: "email" | "google";
-		tier: "free" | "paid";
+		tier: "free" | "paid" | "trial";
 		stripeCheckoutSessionId?: string;
 		attribution: ClickAttribution | undefined;
 	},

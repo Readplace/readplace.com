@@ -99,7 +99,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		emailField: toFieldViewModel(errors, "email"),
 		passwordField: toFieldViewModel(errors, "password"),
 		confirmPasswordField: toFieldViewModel(errors, "confirmPassword"),
-		submitLabel: `Join Readplace${trialSuffix}`,
+		paidSubmitLabel: "Subscribe — $3.99/month",
 		googleLabel: `Sign up with Google${trialSuffix}`,
 		foundingProgressHtml: renderFoundingProgress({
 			userCount: data.userCount,

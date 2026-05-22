@@ -60,6 +60,22 @@ describe("initInMemoryStripeCheckout", () => {
 		}
 	});
 
+	it("returns generated subscriptionId and customerId for a created session", async () => {
+		const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+		const session = await stripe.createCheckoutSession({
+			customerEmail: "buyer@example.com",
+			successUrl: "https://app.test/ok",
+			cancelUrl: "https://app.test/cancel",
+		});
+
+		const retrieved = await stripe.retrieveCheckoutSession(session.id);
+		assert.equal(retrieved.ok, true);
+		if (retrieved.ok) {
+			expect(retrieved.subscriptionId).toMatch(/^sub_test_[0-9a-f]+$/);
+			expect(retrieved.customerId).toMatch(/^cus_test_[0-9a-f]+$/);
+		}
+	});
+
 	it("uses the injected clock for created timestamp", async () => {
 		const fixedDate = new Date("2026-06-15T10:00:00Z");
 		const stripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => fixedDate });

@@ -57,6 +57,8 @@ import { initInMemoryStripeCheckout } from "@packages/test-fixtures/providers/st
 import { initStripeCheckout } from "./providers/stripe-checkout/stripe-checkout";
 import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pending-signup";
 import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-pending-signup";
+import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
+import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initLogParseError, type ParseErrorEvent } from "@packages/hutch-infra-components";
 import { validateSaveableUrl } from "@packages/domain/article";
@@ -114,6 +116,7 @@ function initProviders() {
 		const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 		const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
 		const importSessionsTable = requireEnv("DYNAMODB_IMPORT_SESSIONS_TABLE");
+		const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
 		const client = createDynamoDocumentClient();
 		const s3Client = new S3Client({});
 
@@ -179,6 +182,11 @@ function initProviders() {
 			fetch: globalThis.fetch,
 		});
 		const pendingSignup = initDynamoDbPendingSignup({ client, tableName: pendingSignupsTable });
+		const subscriptionProviders = initDynamoDbSubscriptionProviders({
+			client,
+			tableName: subscriptionProvidersTable,
+			now: () => new Date(),
+		});
 		const importSessionStore = initDynamoDbImportSession({
 			client,
 			tableName: importSessionsTable,
@@ -190,6 +198,7 @@ function initProviders() {
 			articleStore,
 			readArticleContent,
 			importSessionStore,
+			subscriptionProviders,
 
 			...initResendEmail(resendApiKey),
 			...initDynamoDbEmailVerification({ client, tableName: verificationTokensTable }),
@@ -221,6 +230,7 @@ function initProviders() {
 	const oauthModel = createOAuthModel(initInMemoryOAuthModel());
 	const devStripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const devPendingSignup = initInMemoryPendingSignup();
+	const devSubscriptionProviders = initInMemorySubscriptionProviders({ now: () => new Date() });
 	const devGoogleClientId = getEnv("GOOGLE_LOGIN_CLIENT_ID");
 	const devGoogleClientSecret = getEnv("GOOGLE_LOGIN_CLIENT_SECRET");
 	assert(
@@ -338,6 +348,7 @@ function initProviders() {
 			logError,
 		}),
 		importSessionStore,
+		subscriptionProviders: devSubscriptionProviders,
 
 		...initLogEmail(),
 		...initInMemoryEmailVerification(),

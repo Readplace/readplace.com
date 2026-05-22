@@ -308,6 +308,7 @@ describe("Auth routes", () => {
 				password: "password123",
 				confirmPassword: "password123",
 				loadedAt: freshLoadedAt(),
+				intent: "paid",
 			});
 
 			expect(response.status).toBe(303);
@@ -336,6 +337,7 @@ describe("Auth routes", () => {
 				password: "password123",
 				confirmPassword: "password123",
 				loadedAt: freshLoadedAt(),
+				intent: "paid",
 			});
 
 			expect(response.status).toBe(303);
@@ -356,6 +358,7 @@ describe("Auth routes", () => {
 				password: "password123",
 				confirmPassword: "password123",
 				loadedAt: freshLoadedAt(),
+				intent: "paid",
 			});
 
 			expect(response.status).toBe(303);
@@ -371,6 +374,7 @@ describe("Auth routes", () => {
 				password: "password123",
 				confirmPassword: "password123",
 				loadedAt: freshLoadedAt(),
+				intent: "paid",
 			});
 
 			expect(response.status).toBe(303);
@@ -389,6 +393,7 @@ describe("Auth routes", () => {
 				password: "password123",
 				confirmPassword: "password123",
 				loadedAt: freshLoadedAt(),
+				intent: "paid",
 			});
 
 			expect(response.status).toBe(303);
@@ -426,6 +431,7 @@ describe("Auth routes", () => {
 				password: "password123",
 				confirmPassword: "password123",
 				loadedAt: freshLoadedAt(),
+				intent: "paid",
 			});
 
 			expect(response.status).toBe(422);
@@ -445,6 +451,7 @@ describe("Auth routes", () => {
 				password: "password123",
 				confirmPassword: "password123",
 				loadedAt: freshLoadedAt(),
+				intent: "paid",
 			});
 
 			expect(response.status).toBe(303);
@@ -610,6 +617,160 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('[data-test-error="password"]')?.textContent).toBe("Password must be at least 8 characters");
+		});
+
+		it("returns 400 when intent is missing from a valid signup payload", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "missing-intent@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(400);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("Start free trial");
+		});
+
+		it("returns 400 when intent is unknown", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "bad-intent@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+				intent: "premium",
+			});
+
+			expect(response.status).toBe(400);
+		});
+	});
+
+	describe("POST /signup — trial intent", () => {
+		it("creates a trialing subscription row with trialEndsAt ~14 days out and redirects to /queue", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, subscriptionProviders } = harness;
+
+			const before = Date.now();
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "trial@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+				intent: "trial",
+			});
+			const after = Date.now();
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
+			expect(response.headers["set-cookie"].length).toBeGreaterThan(0);
+
+			const lookup = await auth.findUserByEmail("trial@example.com");
+			assert(lookup, "trial signup must persist a user");
+
+			const subRow = await subscriptionProviders.findByUserId(lookup.userId);
+			assert(subRow, "subscription_providers row must be written for the trial user");
+			expect(subRow.status).toBe("trialing");
+			expect(subRow.provider).toBe("stripe");
+			expect(subRow.subscriptionId).toBeUndefined();
+			expect(subRow.customerId).toBeUndefined();
+
+			assert(subRow.trialEndsAt, "trialEndsAt must be set on a trialing row");
+			const trialEndsMs = new Date(subRow.trialEndsAt).getTime();
+			const expectedEndsMin = before + 14 * 86400000;
+			const expectedEndsMax = after + 14 * 86400000;
+			expect(trialEndsMs).toBeGreaterThanOrEqual(expectedEndsMin);
+			expect(trialEndsMs).toBeLessThanOrEqual(expectedEndsMax);
+		}, 30000);
+
+		it("emits a user_created conversion event with tier=trial on trial signup", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { conversions } = harness;
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "trial-convert@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+				intent: "trial",
+			});
+
+			expect(response.status).toBe(303);
+			expect(conversions.events).toHaveLength(1);
+			expect(conversions.events[0]).toMatchObject({
+				stream: "conversions",
+				event: "user_created",
+				method: "email",
+				tier: "trial",
+			});
+		});
+
+		it("does not create a Stripe checkout when intent=trial", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { pendingSignup } = harness;
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "trial-no-stripe@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+				intent: "trial",
+			});
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
+
+			const consumed = await pendingSignup.consumePendingSignup(
+				CheckoutSessionIdSchema.parse("cs_test_never_created"),
+			);
+			expect(consumed).toBeNull();
+		});
+
+		it("creates a trialing row even when the founding allocation is exhausted", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, subscriptionProviders } = harness;
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "trial-after-limit@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+				intent: "trial",
+			});
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
+			const lookup = await auth.findUserByEmail("trial-after-limit@example.com");
+			assert(lookup, "user must be persisted");
+			const subRow = await subscriptionProviders.findByUserId(lookup.userId);
+			assert(subRow, "trial row must be written even after the founding limit");
+			expect(subRow.status).toBe("trialing");
+		}, 30000);
+
+		it("rejects a trial signup that targets an email that already exists", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			await auth.createUser({ email: "already@example.com", password: "existing-password" });
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "already@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+				intent: "trial",
+			});
+
+			expect(response.status).toBe(422);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+				"already exists",
+			);
 		});
 	});
 
@@ -795,6 +956,7 @@ describe("Auth routes", () => {
 				confirmPassword: "password123",
 				loadedAt: String(Date.now() - 5000),
 				website: "",
+				intent: "paid",
 			});
 
 			expect(response.status).toBe(303);

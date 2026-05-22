@@ -65,6 +65,10 @@
       "types": "./dist/providers/stripe-checkout/index.d.ts",
       "default": "./dist/providers/stripe-checkout/index.js"
     },
+    "./providers/subscription-providers": {
+      "types": "./dist/providers/subscription-providers/index.d.ts",
+      "default": "./dist/providers/subscription-providers/index.js"
+    },
     "./providers/import-session": {
       "types": "./dist/providers/import-session/index.d.ts",
       "default": "./dist/providers/import-session/index.js"
@@ -98,6 +102,7 @@
       "providers/refresh-html": ["./dist/providers/refresh-html/index.d.ts"],
       "providers/pending-signup": ["./dist/providers/pending-signup/index.d.ts"],
       "providers/stripe-checkout": ["./dist/providers/stripe-checkout/index.d.ts"],
+      "providers/subscription-providers": ["./dist/providers/subscription-providers/index.d.ts"],
       "providers/import-session": ["./dist/providers/import-session/index.d.ts"],
       "providers/oauth": ["./dist/providers/oauth/index.d.ts"],
       "providers/events": ["./dist/providers/events/index.d.ts"],

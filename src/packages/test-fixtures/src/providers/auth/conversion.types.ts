@@ -7,7 +7,7 @@ export interface ConversionEvent {
 	user_id: UserId;
 	email_hash: string;
 	method: "email" | "google";
-	tier: "free" | "paid";
+	tier: "free" | "paid" | "trial";
 	utm_source?: string;
 	utm_medium?: string;
 	utm_campaign?: string;
