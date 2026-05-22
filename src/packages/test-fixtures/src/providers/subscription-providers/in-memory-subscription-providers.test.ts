@@ -125,6 +125,7 @@ describe("initInMemorySubscriptionProviders", () => {
 		const row = await subs.findByUserId(userId);
 		assert(row, "row must exist");
 		expect(row.status).toBe("active");
+		expect(row.cancellationEffectiveAt).toBeUndefined();
 		expect(row.updatedAt).toBe("2026-05-28T00:00:00.000Z");
 	});
 

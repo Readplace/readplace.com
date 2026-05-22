@@ -88,8 +88,9 @@ export function initInMemorySubscriptionProviders(opts: {
 	const markActive: MarkSubscriptionActive = async ({ userId }) => {
 		const existing = rows.get(userId);
 		assert(existing, `No subscription row for user ${userId}`);
+		const { cancellationEffectiveAt: _ca, ...rest } = existing;
 		rows.set(userId, {
-			...existing,
+			...rest,
 			status: "active",
 			updatedAt: opts.now().toISOString(),
 		});
