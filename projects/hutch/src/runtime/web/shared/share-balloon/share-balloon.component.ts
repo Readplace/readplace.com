@@ -23,8 +23,6 @@ export interface ShareBalloonInput {
 	shareTitle: string;
 	shareHint: string;
 	shareSource: ShareBalloonSource;
-	/** Avoids prompting the user to share a page that hasn't rendered yet. */
-	autoOpen: boolean;
 }
 
 function withUtm(
@@ -53,6 +51,5 @@ export function renderShareBalloon(input: ShareBalloonInput): string {
 		shareIconSvg: SHARE_ICON_SVG,
 		copyIconSvg: COPY_ICON_SVG,
 		founderAvatarUrl: FOUNDER_AVATAR_URL,
-		autoOpen: input.autoOpen ? "true" : "false",
 	});
 }

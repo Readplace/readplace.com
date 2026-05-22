@@ -6,7 +6,6 @@ import {
 	SaveableUrlSchema,
 } from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
-import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import { UserIdSchema } from "@packages/domain/user";
 import { Base } from "../../base.component";
 import { ReaderPage } from "./reader.component";
@@ -36,54 +35,15 @@ function makeArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 	};
 }
 
-function render(
-	article: SavedArticle,
-	options?: { crawl?: ArticleCrawl },
-): Document {
-	const html = Base(ReaderPage(article, { crawl: options?.crawl }), {
-		isAuthenticated: true,
-		emailVerified: undefined,
-	}).to("text/html").body;
-	return new JSDOM(html).window.document;
-}
+describe("ReaderPage", () => {
+	it("renders the share balloon wrap so client init can attach to it", () => {
+		const html = Base(ReaderPage(makeArticle()), {
+			isAuthenticated: true,
+			emailVerified: undefined,
+		}).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
 
-function autoOpenAttr(doc: Document): string | null {
-	const wrap = doc.querySelector("[data-test-share-balloon-wrap]");
-	assert(wrap, "share balloon wrap must be rendered");
-	return wrap.getAttribute("data-share-balloon-auto-open");
-}
-
-describe("ReaderPage — share balloon auto-open gating", () => {
-	it("enables auto-open when content is present and crawl is ready", () => {
-		const doc = render(makeArticle(), { crawl: { status: "ready" } });
-		expect(autoOpenAttr(doc)).toBe("true");
-	});
-
-	it("disables auto-open while the crawl is still pending (article loading)", () => {
-		const article = makeArticle({ content: undefined });
-		const doc = render(article, { crawl: { status: "pending" } });
-		expect(autoOpenAttr(doc)).toBe("false");
-	});
-
-	it("disables auto-open when the crawl has failed (article errored)", () => {
-		const article = makeArticle({ content: undefined });
-		const doc = render(article, {
-			crawl: { status: "failed", reason: "blocked" },
-		});
-		expect(autoOpenAttr(doc)).toBe("false");
-	});
-
-	it("disables auto-open when the crawl is unsupported (article errored)", () => {
-		const article = makeArticle({ content: undefined });
-		const doc = render(article, {
-			crawl: { status: "unsupported", reason: "non-html content type" },
-		});
-		expect(autoOpenAttr(doc)).toBe("false");
-	});
-
-	it("disables auto-open when content is missing on a legacy row (read-after-write race)", () => {
-		const article = makeArticle({ content: undefined });
-		const doc = render(article);
-		expect(autoOpenAttr(doc)).toBe("false");
+		const wrap = doc.querySelector("[data-test-share-balloon-wrap]");
+		assert(wrap, "share balloon wrap must be rendered");
 	});
 });

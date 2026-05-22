@@ -85,7 +85,6 @@ export function initShareBalloon(
 	const shareUrl = pickAttribute(btn, "data-share-url");
 	const copyUrl = pickAttribute(copyBtn, "data-share-url");
 	const title = pickAttribute(btn, "data-share-title");
-	const autoOpen = pickAttribute(wrap, "data-share-balloon-auto-open") !== "false";
 
 	const canShare = typeof deps.navigator.share === "function";
 	const canCopy = deps.navigator.clipboard !== undefined;
@@ -93,10 +92,22 @@ export function initShareBalloon(
 	let openTimerId: ShareTimerId | null = null;
 	let fadeTimerId: ShareTimerId | null = null;
 	let scrollListener: (() => void) | null = null;
+	let htmxSwapListener: (() => void) | null = null;
 	let closeListener: ((event: Event) => void) | null = null;
 	let clickListener: (() => void) | null = null;
 	let copyListener: (() => void) | null = null;
 	let attached = false;
+
+	function isArticleReady(): boolean {
+		const slot = deps.document.querySelector<HTMLElement>(
+			"[data-test-reader-slot]",
+		);
+		/** No reader-slot in the DOM means the host page does not track article
+		 * crawl state (e.g. share-balloon-only test fixtures). Default to ready
+		 * so the balloon retains its pre-#389 behaviour in those contexts. */
+		if (slot === null) return true;
+		return slot.getAttribute("data-reader-status") === "ready";
+	}
 
 	function openBalloon() {
 		openTimerId = null;
@@ -120,11 +131,23 @@ export function initShareBalloon(
 	function onScroll() {
 		const threshold = articleEl.offsetHeight * 0.5;
 		if (deps.window.scrollY < threshold) return;
+		/** Keep the scroll listener attached while the article is still loading
+		 * or errored — HTMX may transition the reader-slot to "ready" later,
+		 * and we want the next scroll (or htmx:afterSwap below) to re-trigger
+		 * this check rather than detaching prematurely. */
+		if (!isArticleReady()) return;
 		if (scrollListener !== null) {
 			deps.window.removeEventListener("scroll", scrollListener);
 			scrollListener = null;
 		}
 		openTimerId = deps.setTimeoutFn(openBalloon, OPEN_DELAY_MS);
+	}
+
+	function onHtmxSwap() {
+		/** After HTMX OOB-swaps the reader-slot (pending → ready), re-evaluate
+		 * the open condition so the balloon can appear without the user having
+		 * to scroll again. */
+		if (scrollListener !== null) onScroll();
 	}
 
 	function flashCopied() {
@@ -160,6 +183,10 @@ export function initShareBalloon(
 			deps.window.removeEventListener("scroll", scrollListener);
 			scrollListener = null;
 		}
+		if (htmxSwapListener !== null) {
+			deps.document.removeEventListener("htmx:afterSwap", htmxSwapListener);
+			htmxSwapListener = null;
+		}
 		wrap.classList.remove(OPEN_CLASS);
 		writeDismissed();
 	}
@@ -172,9 +199,11 @@ export function initShareBalloon(
 		btn.hidden = !canShare;
 		copyBtn.hidden = !canCopy;
 
-		if (autoOpen && !readDismissed()) {
+		if (!readDismissed()) {
 			scrollListener = onScroll;
 			deps.window.addEventListener("scroll", scrollListener, { passive: true });
+			htmxSwapListener = onHtmxSwap;
+			deps.document.addEventListener("htmx:afterSwap", htmxSwapListener);
 			onScroll();
 		}
 
@@ -194,6 +223,10 @@ export function initShareBalloon(
 		if (scrollListener !== null) {
 			deps.window.removeEventListener("scroll", scrollListener);
 			scrollListener = null;
+		}
+		if (htmxSwapListener !== null) {
+			deps.document.removeEventListener("htmx:afterSwap", htmxSwapListener);
+			htmxSwapListener = null;
 		}
 		if (closeListener !== null) {
 			closeBtn.removeEventListener("click", closeListener);

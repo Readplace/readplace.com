@@ -10,12 +10,21 @@ const ARTICLE_URL_SHARE = "https://example.com/post?utm_medium=share";
 const ARTICLE_URL_COPY = "https://example.com/post?utm_medium=copy";
 const ARTICLE_TITLE = "Hello World";
 
-function buildFixture(options: { autoOpen?: "true" | "false" } = {}): string {
-	const autoOpen = options.autoOpen ?? "true";
+type ReaderStatus = "ready" | "pending" | "failed" | "unsupported";
+
+function buildFixture(
+	options: { readerStatus?: ReaderStatus | "absent" } = {},
+): string {
+	const readerStatus = options.readerStatus ?? "absent";
+	const readerSlot =
+		readerStatus === "absent"
+			? ""
+			: `<div data-test-reader-slot data-reader-status="${readerStatus}"></div>`;
 	return `<!DOCTYPE html><html><body>
 <span data-share-balloon-status></span>
 <div data-article-body></div>
-<div data-share-balloon-wrap data-share-balloon-auto-open="${autoOpen}" hidden>
+${readerSlot}
+<div data-share-balloon-wrap hidden>
   <div data-share-balloon-buttons>
     <div data-share-balloon-chat></div>
     <button type="button" data-share-balloon-copy data-share-url="${ARTICLE_URL_COPY}"></button>
@@ -34,7 +43,9 @@ interface NavigatorStub {
 
 type TestWindow = ReturnType<typeof createDom>["window"];
 
-function createDom(options: { autoOpen?: "true" | "false" } = {}) {
+function createDom(
+	options: { readerStatus?: ReaderStatus | "absent" } = {},
+) {
 	const dom = new JSDOM(buildFixture(options), { url: "https://readplace.com/" });
 	return { window: dom.window, document: dom.window.document };
 }
@@ -66,10 +77,10 @@ function setup(
 		dismissed?: boolean;
 		navigator?: NavigatorStub;
 		articleHeight?: number;
-		autoOpen?: "true" | "false";
+		readerStatus?: ReaderStatus | "absent";
 	} = {},
 ) {
-	const { window, document } = createDom({ autoOpen: options.autoOpen });
+	const { window, document } = createDom({ readerStatus: options.readerStatus });
 	setScrollY(window, options.scrollY ?? 0);
 	setArticleHeight(document, options.articleHeight ?? 4000);
 	if (options.dismissed) {
@@ -159,11 +170,11 @@ describe("initShareBalloon — attach/dismiss flow", () => {
 	});
 });
 
-describe("initShareBalloon — autoOpen=false (article loading or errored)", () => {
-	it("does not attach the scroll listener so scrolling past the threshold never opens the balloon", () => {
+describe("initShareBalloon — reader-slot gating (article loading or errored)", () => {
+	it("does not open after scrolling past the threshold while the reader-slot status is pending", () => {
 		const { window, document, ctrl } = setup({
 			articleHeight: 2000,
-			autoOpen: "false",
+			readerStatus: "pending",
 		});
 		const wrap = element(document, "[data-share-balloon-wrap]");
 		ctrl.attach();
@@ -175,11 +186,11 @@ describe("initShareBalloon — autoOpen=false (article loading or errored)", () 
 		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
 	});
 
-	it("does not auto-open even when the page was already scrolled past the threshold on attach", () => {
+	it("does not open when the page was already scrolled past the threshold on attach but the reader-slot is pending", () => {
 		const { document, ctrl } = setup({
 			articleHeight: 2000,
 			scrollY: 1500,
-			autoOpen: "false",
+			readerStatus: "pending",
 		});
 		const wrap = element(document, "[data-share-balloon-wrap]");
 
@@ -189,8 +200,38 @@ describe("initShareBalloon — autoOpen=false (article loading or errored)", () 
 		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
 	});
 
-	it("still unhides the wrap so the share and copy buttons remain reachable", () => {
-		const { document, ctrl } = setup({ autoOpen: "false" });
+	it("does not open while the reader-slot reports a failed crawl", () => {
+		const { window, document, ctrl } = setup({
+			articleHeight: 2000,
+			readerStatus: "failed",
+		});
+		const wrap = element(document, "[data-share-balloon-wrap]");
+		ctrl.attach();
+
+		setScrollY(window, 1500);
+		fireScroll(window);
+		jest.advanceTimersByTime(5000);
+
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
+	});
+
+	it("does not open while the reader-slot reports an unsupported crawl", () => {
+		const { window, document, ctrl } = setup({
+			articleHeight: 2000,
+			readerStatus: "unsupported",
+		});
+		const wrap = element(document, "[data-share-balloon-wrap]");
+		ctrl.attach();
+
+		setScrollY(window, 1500);
+		fireScroll(window);
+		jest.advanceTimersByTime(5000);
+
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
+	});
+
+	it("still unhides the wrap so the share and copy buttons remain reachable while the article is loading", () => {
+		const { document, ctrl } = setup({ readerStatus: "pending" });
 		const wrap = element(document, "[data-share-balloon-wrap]");
 
 		ctrl.attach();
@@ -201,7 +242,7 @@ describe("initShareBalloon — autoOpen=false (article loading or errored)", () 
 	it("still wires the copy button so the buttons keep working without the balloon", async () => {
 		const writeText = jest.fn(() => Promise.resolve());
 		const { document, ctrl } = setup({
-			autoOpen: "false",
+			readerStatus: "pending",
 			navigator: { clipboard: { writeText } },
 		});
 		ctrl.attach();
@@ -209,6 +250,61 @@ describe("initShareBalloon — autoOpen=false (article loading or errored)", () 
 		fireEvent.click(element(document, "[data-share-balloon-copy]"));
 
 		expect(writeText).toHaveBeenCalledWith(ARTICLE_URL_COPY);
+	});
+
+	it("opens after the reader-slot flips to ready via htmx:afterSwap, even without another scroll event", () => {
+		const { window, document, ctrl } = setup({
+			articleHeight: 2000,
+			scrollY: 1500,
+			readerStatus: "pending",
+		});
+		const wrap = element(document, "[data-share-balloon-wrap]");
+		ctrl.attach();
+		jest.advanceTimersByTime(5000);
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
+
+		element(document, "[data-test-reader-slot]").setAttribute(
+			"data-reader-status",
+			"ready",
+		);
+		document.dispatchEvent(new window.Event("htmx:afterSwap"));
+		jest.advanceTimersByTime(1000);
+
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(true);
+	});
+
+	it("ignores htmx:afterSwap once the balloon has been dismissed", () => {
+		const { window, document, ctrl } = setup({
+			articleHeight: 2000,
+			scrollY: 1500,
+			readerStatus: "pending",
+		});
+		const wrap = element(document, "[data-share-balloon-wrap]");
+		ctrl.attach();
+		fireEvent.click(element(document, "[data-share-balloon-close]"));
+
+		element(document, "[data-test-reader-slot]").setAttribute(
+			"data-reader-status",
+			"ready",
+		);
+		document.dispatchEvent(new window.Event("htmx:afterSwap"));
+		jest.advanceTimersByTime(5000);
+
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(false);
+	});
+
+	it("opens when the reader-slot is already ready at attach time and the user has scrolled", () => {
+		const { document, ctrl } = setup({
+			articleHeight: 2000,
+			scrollY: 1500,
+			readerStatus: "ready",
+		});
+		const wrap = element(document, "[data-share-balloon-wrap]");
+
+		ctrl.attach();
+		jest.advanceTimersByTime(1000);
+
+		expect(wrap.classList.contains(OPEN_CLASS)).toBe(true);
 	});
 });
 

@@ -337,48 +337,4 @@ describe("ViewPage", () => {
 		assert(link, "cta action must still be rendered without content");
 	});
 
-	describe("share balloon auto-open gating", () => {
-		function autoOpenAttr(doc: Document): string | null {
-			const wrap = doc.querySelector("[data-test-share-balloon-wrap]");
-			assert(wrap, "share balloon wrap must be rendered");
-			return wrap.getAttribute("data-share-balloon-auto-open");
-		}
-
-		it("enables auto-open when content is present and crawl is ready", () => {
-			const doc = render({ ...baseInput, crawl: { status: "ready" } });
-			expect(autoOpenAttr(doc)).toBe("true");
-		});
-
-		it("disables auto-open while the crawl is still pending (article loading)", () => {
-			const doc = render({
-				...baseInput,
-				content: undefined,
-				crawl: { status: "pending" },
-			});
-			expect(autoOpenAttr(doc)).toBe("false");
-		});
-
-		it("disables auto-open when the crawl has failed (article errored)", () => {
-			const doc = render({
-				...baseInput,
-				content: undefined,
-				crawl: { status: "failed", reason: "blocked" },
-			});
-			expect(autoOpenAttr(doc)).toBe("false");
-		});
-
-		it("disables auto-open when the crawl is unsupported (article errored)", () => {
-			const doc = render({
-				...baseInput,
-				content: undefined,
-				crawl: { status: "unsupported", reason: "non-html content type" },
-			});
-			expect(autoOpenAttr(doc)).toBe("false");
-		});
-
-		it("disables auto-open when content is missing on a legacy row (read-after-write race)", () => {
-			const doc = render({ ...baseInput, content: undefined, crawl: undefined });
-			expect(autoOpenAttr(doc)).toBe("false");
-		});
-	});
 });
