@@ -9,6 +9,7 @@ import type {
 
 interface StoredEntry {
 	signup: PendingSignup;
+	createdAt?: number;
 	checkoutRecoveryEmailSentAt?: number;
 }
 
@@ -20,8 +21,8 @@ export function initInMemoryPendingSignup(): {
 } {
 	const store = new Map<CheckoutSessionId, StoredEntry>();
 
-	const storePendingSignup: StorePendingSignup = async ({ checkoutSessionId, signup }) => {
-		store.set(checkoutSessionId, { signup });
+	const storePendingSignup: StorePendingSignup = async ({ checkoutSessionId, signup, createdAt }) => {
+		store.set(checkoutSessionId, { signup, createdAt });
 	};
 
 	const consumePendingSignup: ConsumePendingSignup = async (checkoutSessionId) => {
@@ -35,6 +36,7 @@ export function initInMemoryPendingSignup(): {
 		Array.from(store.entries()).map(([checkoutSessionId, entry]) => ({
 			checkoutSessionId,
 			email: entry.signup.email,
+			...(entry.createdAt !== undefined ? { createdAt: entry.createdAt } : {}),
 			...(entry.checkoutRecoveryEmailSentAt !== undefined
 				? { checkoutRecoveryEmailSentAt: entry.checkoutRecoveryEmailSentAt }
 				: {}),

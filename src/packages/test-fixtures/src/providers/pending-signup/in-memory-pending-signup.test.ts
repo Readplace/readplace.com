@@ -16,6 +16,7 @@ describe("initInMemoryPendingSignup", () => {
 		await storePendingSignup({
 			checkoutSessionId,
 			signup: { method: "email", email: "buyer@example.com", passwordHash: "hash:hex" },
+			createdAt: 1735000000,
 		});
 
 		const first = await consumePendingSignup(checkoutSessionId);
@@ -37,6 +38,7 @@ describe("initInMemoryPendingSignup", () => {
 		await storePendingSignup({
 			checkoutSessionId,
 			signup: { method: "google", email: "google@example.com", userId, returnUrl: "/save" },
+			createdAt: 1735000000,
 		});
 
 		const first = await consumePendingSignup(checkoutSessionId);
@@ -64,10 +66,12 @@ describe("initInMemoryPendingSignup", () => {
 		await storePendingSignup({
 			checkoutSessionId: emailId,
 			signup: { method: "email", email: "a@example.com", passwordHash: "hash" },
+			createdAt: 1734000000,
 		});
 		await storePendingSignup({
 			checkoutSessionId: googleId,
 			signup: { method: "google", email: "b@example.com", userId },
+			createdAt: 1734000001,
 		});
 
 		const before = await listAllPendingSignups();
@@ -75,6 +79,7 @@ describe("initInMemoryPendingSignup", () => {
 		const emailRow = before.find((r) => r.checkoutSessionId === emailId);
 		assert(emailRow, "email row must be present");
 		expect(emailRow.email).toBe("a@example.com");
+		expect(emailRow.createdAt).toBe(1734000000);
 		expect(emailRow.checkoutRecoveryEmailSentAt).toBeUndefined();
 
 		await markCheckoutRecoveryEmailSent({

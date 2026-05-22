@@ -290,6 +290,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				passwordHash,
 				...(returnUrl ? { returnUrl } : {}),
 			},
+			createdAt: Math.floor(deps.now().getTime() / 1000),
 		});
 
 		res.redirect(303, checkout.url);

@@ -9,12 +9,14 @@ export type PendingSignup =
 export interface PendingSignupSummary {
 	checkoutSessionId: CheckoutSessionId;
 	email: string;
+	createdAt?: number;
 	checkoutRecoveryEmailSentAt?: number;
 }
 
 export type StorePendingSignup = (params: {
 	checkoutSessionId: CheckoutSessionId;
 	signup: PendingSignup;
+	createdAt: number;
 }) => Promise<void>;
 
 export type ConsumePendingSignup = (

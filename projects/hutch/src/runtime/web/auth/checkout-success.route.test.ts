@@ -159,6 +159,7 @@ describe("GET /auth/checkout/success", () => {
 				email: "google-buyer@example.com",
 				userId: UserIdSchema.parse("u-google-checkout-1"),
 			},
+			createdAt: 1735000000,
 		});
 		stripe.markPaid(checkout.id);
 
@@ -192,6 +193,7 @@ describe("GET /auth/checkout/success", () => {
 				email: "google-welcome@example.com",
 				userId: UserIdSchema.parse("u-google-welcome-1"),
 			},
+			createdAt: 1735000000,
 		});
 		stripe.markPaid(checkout.id);
 
@@ -232,6 +234,7 @@ describe("GET /auth/checkout/success", () => {
 				email: "preexisting@example.com",
 				userId: UserIdSchema.parse("u-google-different"),
 			},
+			createdAt: 1735000000,
 		});
 		stripe.markPaid(checkout.id);
 
@@ -271,6 +274,7 @@ describe("GET /auth/checkout/success", () => {
 				email: "existing-welcome@example.com",
 				userId: UserIdSchema.parse("u-google-existing-welcome"),
 			},
+			createdAt: 1735000000,
 		});
 		stripe.markPaid(checkout.id);
 
