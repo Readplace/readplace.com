@@ -16,6 +16,7 @@ import {
 	SHARE_BALLOON_SCRIPT,
 	renderShareBalloon,
 } from "../../shared/share-balloon/share-balloon.component";
+import { isArticleReady } from "../../shared/article-state/is-article-ready";
 import { VIEW_STYLES } from "./view.styles";
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
@@ -84,6 +85,10 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		shareTitle: input.metadata.title,
 		shareHint: "Click here to share this view!",
 		shareSource: "reader-public",
+		autoOpen: isArticleReady({
+			crawl: input.crawl,
+			content: input.content,
+		}),
 	});
 
 	const content = render(VIEW_TEMPLATE, {

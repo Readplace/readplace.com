@@ -85,6 +85,7 @@ export function initShareBalloon(
 	const shareUrl = pickAttribute(btn, "data-share-url");
 	const copyUrl = pickAttribute(copyBtn, "data-share-url");
 	const title = pickAttribute(btn, "data-share-title");
+	const autoOpen = pickAttribute(wrap, "data-share-balloon-auto-open") !== "false";
 
 	const canShare = typeof deps.navigator.share === "function";
 	const canCopy = deps.navigator.clipboard !== undefined;
@@ -171,7 +172,7 @@ export function initShareBalloon(
 		btn.hidden = !canShare;
 		copyBtn.hidden = !canCopy;
 
-		if (!readDismissed()) {
+		if (autoOpen && !readDismissed()) {
 			scrollListener = onScroll;
 			deps.window.addEventListener("scroll", scrollListener, { passive: true });
 			onScroll();
