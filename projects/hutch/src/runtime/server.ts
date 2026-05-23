@@ -21,16 +21,12 @@ import type {
 	UserExistsByEmail,
 	VerifyCredentials,
 } from "@packages/test-fixtures/providers/auth";
+import type { RetrieveCheckoutSession } from "@packages/test-fixtures/providers/stripe-checkout";
+import type { ConsumePendingSignup } from "@packages/test-fixtures/providers/pending-signup";
 import type {
-	CreateCheckoutSession,
-	RetrieveCheckoutSession,
-} from "@packages/test-fixtures/providers/stripe-checkout";
-import type {
-	ConsumePendingSignup,
-	StorePendingSignup,
-} from "@packages/test-fixtures/providers/pending-signup";
-import type {
+	FindSubscriptionByUserId,
 	UpsertActiveSubscription,
+	UpsertTrialingSubscription,
 } from "@packages/test-fixtures/providers/subscription-providers";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
 import type {
@@ -110,6 +106,8 @@ import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { InstallPage, fetchFirefoxDownloadUrl, fetchChromeDownloadUrl } from "./web/pages/install";
 import { NotFoundPage } from "./web/pages/not-found";
+import { initGetEffectiveAccess } from "./domain/access/effective-access";
+import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
 import { requireEnv, getEnv } from "./domain/require-env";
 import "./web/session.types";
 
@@ -177,12 +175,12 @@ interface AppDependencies {
 	logParseError: LogParseError;
 	importSessionStore: ImportSessionStore;
 	now: () => Date;
-	createCheckoutSession: CreateCheckoutSession;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
-	storePendingSignup: StorePendingSignup;
 	consumePendingSignup: ConsumePendingSignup;
 	subscriptionProviders: {
 		upsertActive: UpsertActiveSubscription;
+		upsertTrialing: UpsertTrialingSubscription;
+		findByUserId: FindSubscriptionByUserId;
 	};
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
@@ -430,6 +428,12 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use("/blog", blogRouter);
 	app.use("/embed", initEmbedRoutes({ appOrigin }));
 
+	const getEffectiveAccess = initGetEffectiveAccess({
+		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
+		now: deps.now,
+	});
+	const requireWriteAccess = initRequireWriteAccess({ getEffectiveAccess });
+
 	const authRouter = initAuthRoutes({
 		hashPassword: deps.hashPassword,
 		createUserWithPasswordHash: deps.createUserWithPasswordHash,
@@ -444,12 +448,12 @@ export function createApp(dependencies: AppDependencies): Express {
 		sendEmail: deps.sendEmail,
 		createVerificationToken: deps.createVerificationToken,
 		verifyEmailToken: deps.verifyEmailToken,
-		createCheckoutSession: deps.createCheckoutSession,
 		retrieveCheckoutSession: deps.retrieveCheckoutSession,
-		storePendingSignup: deps.storePendingSignup,
 		consumePendingSignup: deps.consumePendingSignup,
-		subscriptionProviders: deps.subscriptionProviders,
-		appOrigin,
+		subscriptionProviders: {
+			upsertActive: deps.subscriptionProviders.upsertActive,
+			upsertTrialing: deps.subscriptionProviders.upsertTrialing,
+		},
 		baseUrl: deps.baseUrl,
 		staticBaseUrl,
 		logError: deps.logError,
@@ -473,8 +477,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			countUsers,
 			markEmailVerified: deps.markEmailVerified,
 			exchangeGoogleCode: deps.googleAuth.exchangeGoogleCode,
-			createCheckoutSession: deps.createCheckoutSession,
-			storePendingSignup: deps.storePendingSignup,
+			upsertTrialing: deps.subscriptionProviders.upsertTrialing,
 			sendEmail: deps.sendEmail,
 			logError: deps.logError,
 			now: deps.now,
@@ -522,6 +525,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		readArticleContent: deps.readArticleContent,
 		httpErrorMessageMapping: deps.httpErrorMessageMapping,
 		dualAuth: dualAuthMiddleware,
+		requireWriteAccess,
+		getEffectiveAccess,
 		logError: deps.logError,
 		logParseError: deps.logParseError,
 		now: deps.now,
@@ -549,7 +554,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		salt: deps.salt,
 		now: deps.now,
 	});
-	app.use("/import", requireAuth, importRouter);
+	app.use("/import", requireAuth, requireWriteAccess, importRouter);
 
 	const saveRouter = initSaveRoutes();
 	app.use("/save", saveRouter);

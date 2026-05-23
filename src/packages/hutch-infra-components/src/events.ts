@@ -386,4 +386,14 @@ export type UpdateFetchTimestampDetail = z.infer<
 	typeof UpdateFetchTimestampCommand.detailSchema
 >;
 
+export const SubscriptionCancelledEvent = defineEvent({
+	name: "subscription-cancelled",
+	source: "hutch.stripe-webhook",
+	detailType: "SubscriptionCancelled",
+	detailSchema: z.object({
+		subscriptionId: z.string(),
+	}),
+});
+export type SubscriptionCancelledDetail = z.infer<typeof SubscriptionCancelledEvent.detailSchema>;
+
 export type { HutchEvent, HutchCommand };

@@ -77,6 +77,7 @@ import {
 	isExtensionInstalled,
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
+import type { GetEffectiveAccess } from "../../../domain/access/effective-access";
 function readImportSkippedFlash(
 	req: Request,
 	res: Response,
@@ -129,6 +130,11 @@ interface QueueDependencies {
 	 * `GET /:id/read` permalink. Owned by the composition root so the same
 	 * middleware applies to all other authenticated mounts. */
 	dualAuth: RequestHandler;
+	/** 402-gates the save endpoints when a user's subscription is inactive
+	 * (cancelled or trial-expired). Mounted only on save routes — list, view,
+	 * mark-as-read, and delete remain reachable for read-only users. */
+	requireWriteAccess: RequestHandler;
+	getEffectiveAccess: GetEffectiveAccess;
 	logError: (message: string, error?: Error) => void;
 	logParseError: LogParseError;
 	now: () => Date;
@@ -295,12 +301,13 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const saveError = deps.httpErrorMessageMapping(req.query);
 		const importFlash = importFlashMapping(req.query);
 		const importSkipped = readImportSkippedFlash(req, res);
-		const [summaryByUrl, crawlByUrl, unreadCount] = await Promise.all([
+		const [summaryByUrl, crawlByUrl, unreadCount, effectiveAccess] = await Promise.all([
 			loadSummaries(deps.findGeneratedSummary, result.articles),
 			loadCrawls(deps.findArticleCrawlStatus, result.articles),
 			urlState.tab === "queue"
 				? Promise.resolve(result.total)
 				: deps.findArticlesByUser({ userId, status: "unread", page: 1, pageSize: 1 }).then(r => r.total),
+			deps.getEffectiveAccess(userId),
 		]);
 		const vm = toQueueViewModel(result, urlState, {
 			unreadCount,
@@ -309,6 +316,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			importSkipped,
 			summaryByUrl,
 			crawlByUrl,
+			effectiveAccess,
+			now: deps.now(),
 		});
 		const extensionInstalled = isExtensionInstalled(req);
 		const extensionSavedArticle = isExtensionSavedArticle(req);
@@ -333,7 +342,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		res.redirect(303, "/queue");
 	});
 
-	router.post("/", express.json(), async (req: Request, res: Response) => {
+	router.post("/", deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
 		if (!wantsSiren(req)) {
 			res.status(406).send("Not Acceptable");
 			return;
@@ -416,7 +425,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		next(err);
 	};
 
-	router.post("/save-html", express.json({ limit: MAX_RAW_HTML_REQUEST_BYTES }), saveHtmlLimitHandler, async (req: Request, res: Response) => {
+	router.post("/save-html", deps.requireWriteAccess, express.json({ limit: MAX_RAW_HTML_REQUEST_BYTES }), saveHtmlLimitHandler, async (req: Request, res: Response) => {
 		if (!wantsSiren(req)) {
 			res.status(406).send("Not Acceptable");
 			return;
@@ -490,7 +499,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 	});
 
-	router.post("/save", async (req: Request, res: Response) => {
+	router.post("/save", deps.requireWriteAccess, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";

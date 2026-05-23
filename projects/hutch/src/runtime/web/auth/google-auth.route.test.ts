@@ -346,7 +346,7 @@ describe("Google auth routes", () => {
 			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("Account creation failed");
 		});
 
-		it("redirects a brand-new user through Stripe when at the founding limit", async () => {
+		it("creates the Google user with a trialing subscription_providers row when the founding allocation is exhausted", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
@@ -356,7 +356,7 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
-			const { auth } = harness;
+			const { auth, subscriptionProviders, conversions } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
@@ -367,50 +367,25 @@ describe("Google auth routes", () => {
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toMatch(/^https:\/\/checkout\.stripe\.test\//);
+			expect(response.headers.location).toBe("/queue");
+			expect(cookiesFrom(response).join(";")).toContain("hutch_sid=");
 
 			const lookup = await auth.findUserByEmail("brand-new@example.com");
-			expect(lookup).toBeNull();
+			assert(lookup, "trial Google signup must persist a user");
+			expect(lookup.emailVerified).toBe(true);
+			const subRow = await subscriptionProviders.findByUserId(lookup.userId);
+			assert(subRow, "Google trial signup must write a subscription_providers row");
+			expect(subRow.status).toBe("trialing");
+			assert(subRow.trialEndsAt, "trialing row must carry trialEndsAt");
+			const trialMs = new Date(subRow.trialEndsAt).getTime() - Date.now();
+			expect(trialMs).toBeGreaterThan(13 * 86_400_000);
+			expect(trialMs).toBeLessThan(15 * 86_400_000);
+
+			const conversionEvent = conversions.events.find((e) => e.method === "google" && e.tier === "trial");
+			assert(conversionEvent, "Google trial signup must emit a user_created conversion event with tier=trial");
 		}, 30000);
 
-		it("should create the Google user only after successful Stripe checkout when at the founding limit", async () => {
-			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			const harness = useApp({
-				...fixture,
-				google: {
-					exchangeGoogleCode: stubExchange({ email: "brand-new@example.com" }),
-					clientId: "test-google-client-id",
-					clientSecret: "test-google-client-secret",
-				},
-			});
-			const { auth, stripe } = harness;
-			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
-			}
-			const state = signState(freshState());
-			const agent = request.agent(harness.server);
-			const callbackResponse = await agent
-				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
-				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
-			const stripeUrl = callbackResponse.headers.location;
-			const checkoutSessionId = CheckoutSessionIdSchema.parse(
-				new URL(stripeUrl).pathname.replace(/^\//, ""),
-			);
-			stripe.markPaid(checkoutSessionId);
-
-			const successResponse = await agent.get(
-				`/auth/checkout/success?session_id=${encodeURIComponent(checkoutSessionId)}`,
-			);
-
-			expect(successResponse.status).toBe(303);
-			expect(successResponse.headers.location).toBe("/queue");
-			expect(cookiesFrom(successResponse).join(";")).toContain("hutch_sid=");
-
-			const lookup = await auth.findUserByEmail("brand-new@example.com");
-			expect(lookup?.emailVerified).toBe(true);
-		}, 30000);
-
-		it("should preserve the return URL through the Stripe checkout boundary when at the founding limit", async () => {
+		it("preserves the return URL through Google trial signup when the founding allocation is exhausted", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
@@ -420,26 +395,54 @@ describe("Google auth routes", () => {
 					clientSecret: "test-google-client-secret",
 				},
 			});
-			const { auth, stripe } = harness;
+			const { auth } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 			const state = signState(freshState({ returnUrl: "/save?url=https%3A%2F%2Fexample.com" }));
-			const agent = request.agent(harness.server);
-			const callbackResponse = await agent
+
+			const response = await request(harness.server)
 				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
 				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
-			const checkoutSessionId = CheckoutSessionIdSchema.parse(
-				new URL(callbackResponse.headers.location).pathname.replace(/^\//, ""),
-			);
-			stripe.markPaid(checkoutSessionId);
 
-			const successResponse = await agent.get(
-				`/auth/checkout/success?session_id=${encodeURIComponent(checkoutSessionId)}`,
-			);
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/save?url=https%3A%2F%2Fexample.com");
+		}, 30000);
 
-			expect(successResponse.status).toBe(303);
-			expect(successResponse.headers.location).toBe("/save?url=https%3A%2F%2Fexample.com");
+		it("falls back to logging in an existing user when createGoogleUser fails in the trial branch", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			let raceFindCount = 0;
+			const harness = useApp({
+				...fixture,
+				auth: {
+					...fixture.auth,
+					findUserByEmail: async (email) => {
+						if (email === "race-trial@example.com") {
+							raceFindCount++;
+							if (raceFindCount === 1) return null;
+						}
+						return fixture.auth.findUserByEmail(email);
+					},
+				},
+				google: {
+					exchangeGoogleCode: stubExchange({ email: "race-trial@example.com" }),
+					clientId: "test-google-client-id",
+					clientSecret: "test-google-client-secret",
+				},
+			});
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await fixture.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+			await fixture.auth.createUser({ email: "race-trial@example.com", password: "existing" });
+			const state = signState(freshState());
+
+			const response = await request(harness.server)
+				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
+			expect(cookiesFrom(response).join(";")).toContain("hutch_sid=");
 		}, 30000);
 
 		it("should reuse an existing verified email/password account and keep the password working", async () => {

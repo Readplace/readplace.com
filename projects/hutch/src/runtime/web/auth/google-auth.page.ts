@@ -13,8 +13,8 @@ import type {
 } from "@packages/test-fixtures/providers/auth";
 import type { SendEmail } from "@packages/test-fixtures/providers/email";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
-import type { StorePendingSignup } from "@packages/test-fixtures/providers/pending-signup";
-import type { CreateCheckoutSession } from "@packages/test-fixtures/providers/stripe-checkout";
+import type { UpsertTrialingSubscription } from "@packages/test-fixtures/providers/subscription-providers";
+import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { initSendWelcomeEmail } from "./send-welcome-email";
 import { Base } from "../base.component";
@@ -54,8 +54,7 @@ interface GoogleAuthDependencies {
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	exchangeGoogleCode: ExchangeGoogleCode;
-	createCheckoutSession: CreateCheckoutSession;
-	storePendingSignup: StorePendingSignup;
+	upsertTrialing: UpsertTrialingSubscription;
 	sendEmail: SendEmail;
 	logError: (message: string, error?: Error) => void;
 	now: () => Date;
@@ -219,30 +218,44 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			return;
 		}
 
-		const returnSuffix = safeReturnUrl
-			? `&return=${encodeURIComponent(safeReturnUrl)}`
-			: "";
-		const successUrl = `${deps.appOrigin}/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}${returnSuffix}`;
-		const cancelUrl = `${deps.appOrigin}/login`;
-
-		const checkout = await deps.createCheckoutSession({
-			customerEmail: tokenResult.email,
-			successUrl,
-			cancelUrl,
+		const created = await deps.createGoogleUser({
+			email: tokenResult.email,
+			userId: newUserId,
 		});
+		if (!created.ok) {
+			const lookup = await deps.findUserByEmail(tokenResult.email);
+			if (lookup) {
+				if (!lookup.emailVerified) {
+					await deps.markEmailVerified(tokenResult.email);
+				}
+				const sessionIdRace = await deps.createSession({ userId: lookup.userId, emailVerified: true });
+				res.cookie(SESSION_COOKIE_NAME, sessionIdRace, SESSION_COOKIE_OPTIONS);
+				res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
+				return;
+			}
+			await renderError("Account creation failed. Please try again.");
+			return;
+		}
 
-		await deps.storePendingSignup({
-			checkoutSessionId: checkout.id,
-			signup: {
-				method: "google",
+		const trialEndsAt = new Date(
+			deps.now().getTime() + STRIPE_TRIAL_PERIOD_DAYS * 86_400_000,
+		).toISOString();
+		await deps.upsertTrialing({ userId: created.userId, trialEndsAt });
+
+		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
+		res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+		sendWelcomeEmail(tokenResult.email);
+		emitUserCreated(
+			{ logger: deps.conversionLogger, now: deps.now },
+			{
+				userId: created.userId,
 				email: tokenResult.email,
-				userId: newUserId,
-				...(safeReturnUrl ? { returnUrl: safeReturnUrl } : {}),
+				method: "google",
+				tier: "trial",
+				attribution: readClickAttribution(req),
 			},
-			createdAt: Math.floor(deps.now().getTime() / 1000),
-		});
-
-		res.redirect(303, checkout.url);
+		);
+		res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 	});
 
 	return router;

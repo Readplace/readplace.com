@@ -3,9 +3,23 @@
       <div class="queue__header">
         <h1 class="queue__title">My Queue</h1>
       </div>
-      <form class="queue__save-form" method="POST" action="/queue/save" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:#latest-saved:top" hx-disabled-elt=".queue__save-btn" data-test-form="save-article"{{#if saveUrl}} data-auto-submit{{/if}}>
-        <input class="queue__save-input" type="url" name="url" placeholder="Paste a URL to save an article…" required value="{{saveUrl}}">
-        <button class="queue__save-btn" type="submit"><span class="queue__save-btn-label">Save</span><span class="queue__save-btn-saving">Saving…</span></button>
+      <aside class="queue-banner {{subscriptionBannerStateClass}}" aria-live="polite" data-test-subscription-banner>
+        {{#if subscriptionBannerIsTrialCountdown}}
+        <p class="queue-banner__message"><strong data-test-trial-days-left>{{trialDaysLeft}} {{trialDaysLeftWord}} left</strong> in your free trial.</p>
+        <a class="queue-banner__cta" href="/account">Subscribe — $3.99/month</a>
+        {{/if}}
+        {{#if subscriptionBannerIsPendingCancellation}}
+        <p class="queue-banner__message">Your subscription will end on <time datetime="{{cancellationEffectiveAtIso}}">{{cancellationEffectiveAtFormatted}}</time>.</p>
+        <a class="queue-banner__cta" href="/account">Manage subscription →</a>
+        {{/if}}
+        {{#if subscriptionBannerIsInactive}}
+        <p class="queue-banner__message"><strong>Subscription not active.</strong> Your saved articles are still here.</p>
+        <a class="queue-banner__cta" href="/account">Subscribe — $3.99/month</a>
+        {{/if}}
+      </aside>
+      <form class="{{saveFormClass}}" method="POST" action="/queue/save" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:#latest-saved:top" hx-disabled-elt=".queue__save-btn" data-test-form="save-article"{{#if saveUrl}} data-auto-submit{{/if}}>
+        <input class="queue__save-input" type="url" name="url" placeholder="Paste a URL to save an article…" required value="{{saveUrl}}"{{#if accessIsReadOnly}} disabled{{/if}}>
+        <button class="queue__save-btn" type="submit"{{#if accessIsReadOnly}} disabled{{/if}}><span class="queue__save-btn-label">Save</span><span class="queue__save-btn-saving">Saving…</span></button>
       </form>
       {{#if saveError}}<p class="queue__save-error" data-test-save-error{{#if saveErrorCode}} data-test-saveable-url-code="{{saveErrorCode}}"{{/if}}>{{saveError}}</p>{{/if}}
       {{#if importFlash}}<p class="queue__import-flash" data-test-import-flash>{{importFlash}}</p>{{/if}}

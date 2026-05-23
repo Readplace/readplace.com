@@ -9,6 +9,13 @@ import { buildCardPollUrl } from "./queue-card/queue-card-poll-url";
 import { isCardTerminal } from "./queue-card/is-card-terminal";
 import type { QueueUrlState } from "./queue.url";
 import { buildQueueUrl } from "./queue.url";
+import type { EffectiveAccess } from "../../../domain/access/effective-access";
+
+export type SubscriptionBannerState =
+	| { state: "none" }
+	| { state: "trial-countdown"; daysLeft: number; daysLeftWord: "day" | "days" }
+	| { state: "pending-cancellation"; cancellationEffectiveAtIso: string; cancellationEffectiveAtFormatted: string }
+	| { state: "inactive" };
 
 export interface ArticleActionField {
 	name: string;
@@ -79,6 +86,41 @@ export interface QueueViewModel {
 	saveErrorCode?: SaveableUrlErrorCode;
 	importFlash?: string;
 	importSkipped?: ImportSkippedViewModel;
+	subscriptionBanner: SubscriptionBannerState;
+	accessIsReadOnly: boolean;
+}
+
+function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number; daysLeftWord: "day" | "days" } {
+	const remaining = new Date(trialEndsAt).getTime() - now.getTime();
+	const daysLeft = Math.max(1, Math.ceil(remaining / 86_400_000));
+	return { daysLeft, daysLeftWord: daysLeft === 1 ? "day" : "days" };
+}
+
+function formatCancellationDate(iso: string): string {
+	return new Date(iso).toLocaleDateString("en-AU", {
+		day: "numeric",
+		month: "short",
+		year: "numeric",
+	});
+}
+
+function toSubscriptionBannerState(access: EffectiveAccess, now: Date): SubscriptionBannerState {
+	switch (access.banner) {
+		case "none":
+			return { state: "none" };
+		case "trial-countdown": {
+			const { daysLeft, daysLeftWord } = formatTrialDaysLeft(access.trialEndsAt, now);
+			return { state: "trial-countdown", daysLeft, daysLeftWord };
+		}
+		case "pending-cancellation":
+			return {
+				state: "pending-cancellation",
+				cancellationEffectiveAtIso: access.cancellationEffectiveAt,
+				cancellationEffectiveAtFormatted: formatCancellationDate(access.cancellationEffectiveAt),
+			};
+		case "inactive":
+			return { state: "inactive" };
+	}
 }
 
 function formatRelativeDate(date: Date, now: Date): string {
@@ -188,6 +230,7 @@ export function toQueueViewModel(
 		unreadCount?: number;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
+		effectiveAccess?: EffectiveAccess;
 	},
 ): QueueViewModel {
 	const now = options?.now ?? new Date();
@@ -196,6 +239,17 @@ export function toQueueViewModel(
 	const queueUrl = buildQueueUrl(filters);
 	const queryIndex = queueUrl.indexOf("?");
 	const returnQuery = queryIndex !== -1 ? queueUrl.slice(queryIndex) : "";
+
+	/** When effectiveAccess is omitted the caller is a server-side render path
+	 * that has no authenticated user (Siren API, public reader permalink, etc.)
+	 * — those code paths never reach the banner-rendering template, so we treat
+	 * "no info" as founding/full-access for view-model purposes. The
+	 * authenticated GET /queue handler always passes effectiveAccess. */
+	const access: EffectiveAccess = options?.effectiveAccess ?? {
+		tier: "founding",
+		access: "full",
+		banner: "none",
+	};
 
 	return {
 		articles: result.articles.map((a) =>
@@ -233,5 +287,7 @@ export function toQueueViewModel(
 		saveErrorCode: options?.saveErrorCode,
 		importFlash: options?.importFlash,
 		importSkipped: options?.importSkipped,
+		subscriptionBanner: toSubscriptionBannerState(access, now),
+		accessIsReadOnly: access.access === "read-only",
 	};
 }
