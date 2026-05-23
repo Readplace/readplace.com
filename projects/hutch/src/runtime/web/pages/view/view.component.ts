@@ -60,6 +60,7 @@ export interface ViewPageInput {
 	progress?: ProgressTick;
 	actions: ViewAction[];
 	extensionInstallUrl?: string;
+	sharerUserIdPrefix?: string;
 }
 
 export function ViewPage(input: ViewPageInput): PageBody {
@@ -85,6 +86,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		shareTitle: input.metadata.title,
 		shareHint: "Click here to share this view!",
 		shareSource: "reader-public",
+		sharerUserIdPrefix: input.sharerUserIdPrefix,
 	});
 
 	const content = render(VIEW_TEMPLATE, {

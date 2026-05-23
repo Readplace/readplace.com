@@ -341,4 +341,40 @@ describe("ViewPage", () => {
 		assert(link, "cta action must still be rendered without content");
 	});
 
+	it("stamps utm_content on the share balloon URLs when sharerUserIdPrefix is provided", () => {
+		const doc = render({ ...baseInput, sharerUserIdPrefix: "abcdef" });
+
+		const shareBtn = doc.querySelector("[data-test-share-balloon]");
+		assert(shareBtn, "share button must be rendered");
+		const shareHref = shareBtn.getAttribute("data-share-url");
+		assert(shareHref, "share button must carry a data-share-url");
+		const shareUrl = new URL(shareHref);
+		expect(shareUrl.searchParams.get("utm_content")).toBe("abcdef");
+
+		const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
+		assert(copyBtn, "copy button must be rendered");
+		const copyHref = copyBtn.getAttribute("data-share-url");
+		assert(copyHref, "copy button must carry a data-share-url");
+		const copyUrl = new URL(copyHref);
+		expect(copyUrl.searchParams.get("utm_content")).toBe("abcdef");
+	});
+
+	it("omits utm_content on the share balloon URLs when no sharerUserIdPrefix is provided", () => {
+		const doc = render();
+
+		const shareBtn = doc.querySelector("[data-test-share-balloon]");
+		assert(shareBtn, "share button must be rendered");
+		const shareHref = shareBtn.getAttribute("data-share-url");
+		assert(shareHref, "share button must carry a data-share-url");
+		const shareUrl = new URL(shareHref);
+		expect(shareUrl.searchParams.get("utm_content")).toBeNull();
+
+		const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
+		assert(copyBtn, "copy button must be rendered");
+		const copyHref = copyBtn.getAttribute("data-share-url");
+		assert(copyHref, "copy button must carry a data-share-url");
+		const copyUrl = new URL(copyHref);
+		expect(copyUrl.searchParams.get("utm_content")).toBeNull();
+	});
+
 });
