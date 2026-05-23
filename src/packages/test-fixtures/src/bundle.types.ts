@@ -15,6 +15,7 @@ import type {
 	PublishStaleCheckRequested,
 	PublishUpdateFetchTimestamp,
 	PublishExportUserDataCommand,
+	PublishCancelSubscriptionCommand,
 } from "./providers/events";
 import type { PutPendingHtml } from "./providers/pending-html/pending-html.types";
 import type {
@@ -63,6 +64,7 @@ import type {
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
 	MarkSubscriptionCancelled,
+	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
@@ -129,6 +131,7 @@ export interface StripeCheckoutBundle {
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	markPaid: (id: CheckoutSessionId) => void;
 	getCheckoutUrl: (id: CheckoutSessionId) => string;
+	getTrialPeriodDays: (id: CheckoutSessionId) => number | undefined;
 }
 
 export interface PendingSignupBundle {
@@ -143,6 +146,7 @@ export interface SubscriptionProvidersBundle {
 	upsertActive: UpsertActiveSubscription;
 	markPendingCancellation: MarkSubscriptionPendingCancellation;
 	markCancelled: MarkSubscriptionCancelled;
+	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
 }
 
@@ -191,6 +195,7 @@ export interface EventsBundle {
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	publishExportUserDataCommand: PublishExportUserDataCommand;
+	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 }
 
 export interface PendingHtmlBundle {

@@ -367,6 +367,43 @@ describe("initDynamoDbSubscriptionProviders", () => {
 		});
 	});
 
+	describe("markCancelledByUserId", () => {
+		it("issues a guarded Update that sets cancelled and removes trialEndsAt + cancellationEffectiveAt", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			await subs.markCancelledByUserId({ userId: USER_ID });
+
+			const command = received as {
+				input: {
+					Key?: Record<string, unknown>;
+					UpdateExpression?: string;
+					ConditionExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.Key).toEqual({ userId: USER_ID });
+			expect(command.input.UpdateExpression).toContain("SET #status = :cancelled");
+			expect(command.input.UpdateExpression).toContain("updatedAt = :now");
+			expect(command.input.UpdateExpression).toContain(
+				"REMOVE trialEndsAt, cancellationEffectiveAt",
+			);
+			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
+			expect(command.input.ExpressionAttributeValues?.[":cancelled"]).toBe("cancelled");
+			expect(command.input.ExpressionAttributeValues?.[":now"]).toBe(
+				"2026-05-22T10:00:00.000Z",
+			);
+		});
+	});
+
 	describe("markActive", () => {
 		it("issues a guarded Update that sets status=active and removes cancellationEffectiveAt", async () => {
 			let received: unknown;

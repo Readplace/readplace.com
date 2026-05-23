@@ -111,6 +111,25 @@ describe("Base component", () => {
 		expect(doc.querySelector('[data-test-nav-item="import"]')).toBeNull();
 	});
 
+	it("renders the Account nav item for an authenticated request, pointing at /account", () => {
+		const page = createTestPageBody();
+		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const link = doc.querySelector('[data-test-nav-item="account"]');
+		assert(link, "Account nav item must be rendered for authenticated users");
+		expect(link.textContent).toBe("Account");
+		expect(link.getAttribute("href")).toBe("/account");
+	});
+
+	it("hides the Account nav item for unauthenticated requests", () => {
+		const page = createTestPageBody();
+		const result = Base(page, { isAuthenticated: false, emailVerified: undefined }).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(doc.querySelector('[data-test-nav-item="account"]')).toBeNull();
+	});
+
 	it("should include the footer with copyright", () => {
 		const page = createTestPageBody();
 		const result = Base(page, GUEST_STATE).to("text/html");

@@ -47,5 +47,9 @@ export type MarkSubscriptionCancelled = (input: {
 	subscriptionId: string;
 }) => Promise<void>;
 
+export type MarkSubscriptionCancelledByUserId = (input: {
+	userId: UserId;
+}) => Promise<void>;
+
 export type MarkSubscriptionActive = (input: { userId: UserId }) => Promise<void>;
 /* c8 ignore stop */

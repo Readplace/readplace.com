@@ -113,6 +113,44 @@ describe("initInMemorySubscriptionProviders", () => {
 		await expect(subs.markCancelled({ subscriptionId: "sub_missing" })).rejects.toThrow(/No subscription row/);
 	});
 
+	it("marks a trialing subscription as cancelled by userId and clears trialEndsAt", async () => {
+		const clock = { iso: "2026-05-22T00:00:00.000Z" };
+		const subs = initInMemorySubscriptionProviders({ now: () => new Date(clock.iso) });
+		await subs.upsertTrialing({ userId, trialEndsAt: "2026-06-05T00:00:00.000Z" });
+
+		clock.iso = "2026-06-01T00:00:00.000Z";
+		await subs.markCancelledByUserId({ userId });
+
+		const row = await subs.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.status).toBe("cancelled");
+		expect(row.trialEndsAt).toBeUndefined();
+		expect(row.cancellationEffectiveAt).toBeUndefined();
+		expect(row.updatedAt).toBe("2026-06-01T00:00:00.000Z");
+	});
+
+	it("marks an active subscription as cancelled by userId and clears cancellationEffectiveAt", async () => {
+		const clock = { iso: "2026-05-22T00:00:00.000Z" };
+		const subs = initInMemorySubscriptionProviders({ now: () => new Date(clock.iso) });
+		await subs.upsertActive({ userId, subscriptionId: "sub_paid", customerId: "cus_paid" });
+		await subs.markPendingCancellation({ userId, cancellationEffectiveAt: "2026-07-01T00:00:00.000Z" });
+
+		clock.iso = "2026-06-01T00:00:00.000Z";
+		await subs.markCancelledByUserId({ userId });
+
+		const row = await subs.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.status).toBe("cancelled");
+		expect(row.cancellationEffectiveAt).toBeUndefined();
+		expect(row.subscriptionId).toBe("sub_paid");
+		expect(row.updatedAt).toBe("2026-06-01T00:00:00.000Z");
+	});
+
+	it("throws when markCancelledByUserId is called for an unknown user", async () => {
+		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+		await expect(subs.markCancelledByUserId({ userId })).rejects.toThrow(/No subscription row/);
+	});
+
 	it("marks a pending_cancellation row back to active when resumed", async () => {
 		const clock = { iso: "2026-05-22T00:00:00.000Z" };
 		const subs = initInMemorySubscriptionProviders({ now: () => new Date(clock.iso) });

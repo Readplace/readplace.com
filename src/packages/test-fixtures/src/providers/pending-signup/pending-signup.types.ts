@@ -4,7 +4,11 @@ import type { CheckoutSessionId } from "../stripe-checkout/stripe-checkout.types
 
 export type PendingSignup =
 	| { method: "email"; email: string; passwordHash: string; returnUrl?: string }
-	| { method: "google"; email: string; userId: UserId; returnUrl?: string };
+	| { method: "google"; email: string; userId: UserId; returnUrl?: string }
+	/** An already-signed-in user clicked Subscribe on /account. There is no
+	 * account to create — just upsertActive on the existing userId once the
+	 * Stripe checkout completes. */
+	| { method: "existing-user-subscribe"; email: string; userId: UserId; returnUrl?: string };
 
 export interface PendingSignupSummary {
 	checkoutSessionId: CheckoutSessionId;

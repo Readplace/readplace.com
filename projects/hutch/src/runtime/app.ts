@@ -39,7 +39,11 @@ import { initEventBridgeSaveLinkRawHtmlCommand } from "./providers/events/eventb
 import { initEventBridgeRefreshArticleContent } from "./providers/events/eventbridge-refresh-article-content";
 import { initEventBridgeUpdateFetchTimestamp } from "./providers/events/eventbridge-update-fetch-timestamp";
 import { initEventBridgeExportUserDataCommand } from "./providers/events/eventbridge-export-user-data-command";
-import { initInMemoryExportUserDataCommand } from "@packages/test-fixtures/providers/events";
+import { initEventBridgeCancelSubscriptionCommand } from "./providers/events/eventbridge-cancel-subscription-command";
+import {
+	initInMemoryCancelSubscriptionCommand,
+	initInMemoryExportUserDataCommand,
+} from "@packages/test-fixtures/providers/events";
 import { initInMemoryLinkSaved } from "@packages/test-fixtures/providers/events";
 import { initInMemoryRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
 import { initInMemorySaveAnonymousLink } from "@packages/test-fixtures/providers/events";
@@ -145,6 +149,7 @@ function initProviders() {
 		const { publishRefreshArticleContent } = initEventBridgeRefreshArticleContent({ publishEvent, putRefreshHtml });
 		const { publishUpdateFetchTimestamp } = initEventBridgeUpdateFetchTimestamp({ publishEvent });
 		const { publishExportUserDataCommand } = initEventBridgeExportUserDataCommand({ publishEvent });
+		const { publishCancelSubscriptionCommand } = initEventBridgeCancelSubscriptionCommand({ publishEvent });
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
 		const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 		const simpleCrawl = initSimpleCrawl({ crawlFetch, logError });
@@ -215,6 +220,7 @@ function initProviders() {
 			publishSaveLinkRawHtmlCommand,
 			publishUpdateFetchTimestamp,
 			publishExportUserDataCommand,
+			publishCancelSubscriptionCommand,
 			putPendingHtml,
 			findGeneratedSummary: summaryStore.findGeneratedSummary,
 			markSummaryPending: summaryStore.markSummaryPending,
@@ -324,6 +330,7 @@ function initProviders() {
 	const { publishUpdateFetchTimestamp } = initInMemoryUpdateFetchTimestamp({ logger: consoleLogger });
 	const { publishSaveLinkRawHtmlCommand } = initInMemorySaveLinkRawHtmlCommand({ logger: consoleLogger });
 	const { publishExportUserDataCommand } = initInMemoryExportUserDataCommand({ logger: consoleLogger });
+	const { publishCancelSubscriptionCommand } = initInMemoryCancelSubscriptionCommand({ logger: consoleLogger });
 	const { putPendingHtml } = initInMemoryPendingHtml();
 	const stubFindGeneratedSummary = async (_url: string) => undefined;
 	const stubMarkSummaryPending = async (_params: { url: string }) => {};
@@ -367,6 +374,7 @@ function initProviders() {
 		publishSaveLinkRawHtmlCommand,
 		publishUpdateFetchTimestamp,
 		publishExportUserDataCommand,
+		publishCancelSubscriptionCommand,
 		putPendingHtml,
 		findGeneratedSummary: stubFindGeneratedSummary,
 		markSummaryPending: stubMarkSummaryPending,

@@ -6,14 +6,15 @@ import type { FindSubscriptionByUserId } from "@packages/test-fixtures/providers
 export type FullAccessTier =
 	| { tier: "founding"; access: "full"; banner: "none" }
 	| { tier: "paid"; access: "full"; banner: "none" }
-	| { tier: "paid"; access: "full"; banner: "pending-cancellation"; cancellationEffectiveAt: string }
 	| { tier: "trial"; access: "full"; banner: "trial-countdown"; trialEndsAt: string };
 
 /** Read-only: the user can view + export but cannot save or use the extension.
- * The `reason` field is INTERNAL state used by Phase 3 to branch the Subscribe
- * button (trial → checkout vs. cancelled → one-click resume). It MUST NOT leak
- * into visible copy — the inactive banner uses identical wording for both
- * reasons. */
+ * The `reason` field is INTERNAL state. It must NOT leak into visible copy —
+ * the inactive banner uses identical wording across all reasons (a cancelled
+ * user and a trial-expired user see the same message). The reason exists so
+ * callers can branch on it for non-user-facing concerns (e.g. analytics, or a
+ * future one-click Subscribe upgrade for cancelled users with a Stripe
+ * customer record). */
 export type InactiveAccess = {
 	tier: "inactive";
 	access: "read-only";
@@ -35,15 +36,18 @@ export function initGetEffectiveAccess(deps: {
 		switch (row.status) {
 			case "active":
 				return { tier: "paid", access: "full", banner: "none" };
-			case "pending_cancellation": {
-				assert(row.cancellationEffectiveAt, "pending_cancellation row must have cancellationEffectiveAt");
+			/** Defensive branch. The redesigned cancel chain does not produce
+			 * `pending_cancellation` — paid cancels go straight to `cancelled`
+			 * via Stripe's immediate-cancel API. Any row that ends up in this
+			 * state (legacy data, manual seeding) is treated as inactive so
+			 * the user can subscribe back. */
+			case "pending_cancellation":
 				return {
-					tier: "paid",
-					access: "full",
-					banner: "pending-cancellation",
-					cancellationEffectiveAt: row.cancellationEffectiveAt,
+					tier: "inactive",
+					access: "read-only",
+					banner: "inactive",
+					reason: "subscription-cancelled",
 				};
-			}
 			case "trialing": {
 				assert(row.trialEndsAt, "trialing row must have trialEndsAt");
 				if (deps.now() < new Date(row.trialEndsAt)) {

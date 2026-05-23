@@ -10,6 +10,7 @@ import type {
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
 	MarkSubscriptionCancelled,
+	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
 	SubscriptionRecord,
 	UpsertActiveSubscription,
@@ -53,6 +54,7 @@ export function initDynamoDbSubscriptionProviders(deps: {
 	upsertActive: UpsertActiveSubscription;
 	markPendingCancellation: MarkSubscriptionPendingCancellation;
 	markCancelled: MarkSubscriptionCancelled;
+	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
 } {
 	const table = defineDynamoTable({
@@ -152,6 +154,20 @@ export function initDynamoDbSubscriptionProviders(deps: {
 		});
 	};
 
+	const markCancelledByUserId: MarkSubscriptionCancelledByUserId = async ({ userId }) => {
+		await table.update({
+			Key: { userId },
+			UpdateExpression:
+				"SET #status = :cancelled, updatedAt = :now REMOVE trialEndsAt, cancellationEffectiveAt",
+			ConditionExpression: "attribute_exists(userId)",
+			ExpressionAttributeNames: { "#status": "status" },
+			ExpressionAttributeValues: {
+				":cancelled": "cancelled",
+				":now": deps.now().toISOString(),
+			},
+		});
+	};
+
 	const markActive: MarkSubscriptionActive = async ({ userId }) => {
 		await table.update({
 			Key: { userId },
@@ -172,6 +188,7 @@ export function initDynamoDbSubscriptionProviders(deps: {
 		upsertActive,
 		markPendingCancellation,
 		markCancelled,
+		markCancelledByUserId,
 		markActive,
 	};
 }

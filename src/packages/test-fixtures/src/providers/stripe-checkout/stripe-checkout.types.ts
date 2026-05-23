@@ -10,6 +10,11 @@ export type CreateCheckoutSession = (params: {
 	customerEmail: string;
 	successUrl: string;
 	cancelUrl: string;
+	/** Overrides the default 14-day trial baked into the Stripe checkout
+	 * session. Pass `0` to suppress the trial entirely — used when an
+	 * already-trialing user upgrades from `/account` so they don't get a
+	 * second free trial on top of their existing one. */
+	trialPeriodDays?: number;
 }) => Promise<CheckoutSession>;
 
 export type CheckoutSessionStatus = "open" | "complete" | "expired";

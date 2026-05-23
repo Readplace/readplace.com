@@ -1,0 +1,90 @@
+.account {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+.account__header {
+  margin-bottom: 24px;
+}
+
+.account__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+/* purgecss-ignore-start: account-card and its modifiers are interpolated from AccountViewModel.stateClass in account.template.html */
+.account-card {
+  padding: 20px;
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  border-left: 3px solid var(--primary);
+  margin-bottom: 16px;
+}
+
+.account-card--founding {
+  border-left-color: var(--primary);
+}
+
+.account-card--active {
+  border-left-color: var(--primary);
+}
+
+.account-card--trial {
+  border-left-color: var(--primary);
+}
+
+.account-card--inactive {
+  border-left-color: var(--error);
+}
+/* purgecss-ignore-end */
+
+.account-card__status {
+  font-size: 1rem;
+  margin: 0 0 16px;
+  color: var(--foreground);
+}
+
+.account-card__notice {
+  font-size: 0.875rem;
+  margin: 0 0 12px;
+  color: var(--foreground);
+  font-style: italic;
+}
+
+.account-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.account-card__action-btn {
+  display: inline-flex;
+  padding: 10px 18px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 0;
+  cursor: pointer;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  text-decoration: none;
+}
+
+.account-card__action-btn:hover {
+  opacity: 0.9;
+}
+
+.account-card__action-btn--secondary {
+  background: transparent;
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+
+.account-card__export-link {
+  font-size: 0.875rem;
+  color: var(--foreground);
+  text-decoration: underline;
+}

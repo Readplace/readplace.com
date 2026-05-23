@@ -51,7 +51,7 @@ describe("requireWriteAccess middleware", () => {
 		expect(response.status).toBe(200);
 	});
 
-	it("allows a paid subscriber whose subscription is pending cancellation through", async () => {
+	it("treats a legacy pending_cancellation row as read-only (no flow in the redesign produces it)", async () => {
 		const { app, providers } = buildApp(TEST_USER_ID);
 		await providers.upsertActive({
 			userId: TEST_USER_ID,
@@ -65,7 +65,8 @@ describe("requireWriteAccess middleware", () => {
 
 		const response = await request(app).post("/protected").set("Accept", "text/html");
 
-		expect(response.status).toBe(200);
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue?inactive=1");
 	});
 
 	it("allows a trial user inside the trial window through", async () => {

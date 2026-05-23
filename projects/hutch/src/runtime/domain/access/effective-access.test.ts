@@ -38,7 +38,7 @@ describe("initGetEffectiveAccess", () => {
 		assert.deepEqual(result, { tier: "paid", access: "full", banner: "none" });
 	});
 
-	it("returns paid/full with a pending-cancellation banner when the row is pending_cancellation", async () => {
+	it("treats a legacy pending_cancellation row as inactive/read-only (no flow in the redesign produces it)", async () => {
 		const { providers, getEffectiveAccess } = buildSubject();
 		await providers.upsertActive({
 			userId: USER_ID,
@@ -54,10 +54,10 @@ describe("initGetEffectiveAccess", () => {
 		const result = await getEffectiveAccess(USER_ID);
 
 		assert.deepEqual(result, {
-			tier: "paid",
-			access: "full",
-			banner: "pending-cancellation",
-			cancellationEffectiveAt,
+			tier: "inactive",
+			access: "read-only",
+			banner: "inactive",
+			reason: "subscription-cancelled",
 		});
 	});
 

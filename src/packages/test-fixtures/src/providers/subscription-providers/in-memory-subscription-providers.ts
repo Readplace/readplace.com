@@ -5,6 +5,7 @@ import type {
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
 	MarkSubscriptionCancelled,
+	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
 	SubscriptionRecord,
 	UpsertActiveSubscription,
@@ -20,6 +21,7 @@ export function initInMemorySubscriptionProviders(opts: {
 	upsertActive: UpsertActiveSubscription;
 	markPendingCancellation: MarkSubscriptionPendingCancellation;
 	markCancelled: MarkSubscriptionCancelled;
+	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
 } {
 	const rows = new Map<UserId, SubscriptionRecord>();
@@ -85,6 +87,17 @@ export function initInMemorySubscriptionProviders(opts: {
 		throw new Error(`No subscription row for subscriptionId ${subscriptionId}`);
 	};
 
+	const markCancelledByUserId: MarkSubscriptionCancelledByUserId = async ({ userId }) => {
+		const existing = rows.get(userId);
+		assert(existing, `No subscription row for user ${userId}`);
+		const { trialEndsAt: _t, cancellationEffectiveAt: _ca, ...rest } = existing;
+		rows.set(userId, {
+			...rest,
+			status: "cancelled",
+			updatedAt: opts.now().toISOString(),
+		});
+	};
+
 	const markActive: MarkSubscriptionActive = async ({ userId }) => {
 		const existing = rows.get(userId);
 		assert(existing, `No subscription row for user ${userId}`);
@@ -103,6 +116,7 @@ export function initInMemorySubscriptionProviders(opts: {
 		upsertActive,
 		markPendingCancellation,
 		markCancelled,
+		markCancelledByUserId,
 		markActive,
 	};
 }

@@ -21,13 +21,20 @@ import type {
 	UserExistsByEmail,
 	VerifyCredentials,
 } from "@packages/test-fixtures/providers/auth";
-import type { RetrieveCheckoutSession } from "@packages/test-fixtures/providers/stripe-checkout";
-import type { ConsumePendingSignup } from "@packages/test-fixtures/providers/pending-signup";
+import type {
+	CreateCheckoutSession,
+	RetrieveCheckoutSession,
+} from "@packages/test-fixtures/providers/stripe-checkout";
+import type {
+	ConsumePendingSignup,
+	StorePendingSignup,
+} from "@packages/test-fixtures/providers/pending-signup";
 import type {
 	FindSubscriptionByUserId,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "@packages/test-fixtures/providers/subscription-providers";
+import type { PublishCancelSubscriptionCommand } from "@packages/test-fixtures/providers/events";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
 import type {
 	DeleteArticle,
@@ -87,6 +94,7 @@ import { initViewRoutes } from "./web/pages/view/view.page";
 import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
 import { initEmbedRoutes } from "./web/pages/embed/embed.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
+import { initAccountRoutes } from "./web/pages/account/account.page";
 import { initBlogRoutes } from "./web/pages/blog";
 import { initBlogPosts } from "./web/pages/blog/blog.posts";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
@@ -176,7 +184,10 @@ interface AppDependencies {
 	importSessionStore: ImportSessionStore;
 	now: () => Date;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
+	createCheckoutSession: CreateCheckoutSession;
 	consumePendingSignup: ConsumePendingSignup;
+	storePendingSignup: StorePendingSignup;
+	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 	subscriptionProviders: {
 		upsertActive: UpsertActiveSubscription;
 		upsertTrialing: UpsertTrialingSubscription;
@@ -607,6 +618,20 @@ export function createApp(dependencies: AppDependencies): Express {
 		buildBannerState,
 	});
 	app.use("/export", requireAuth, exportRouter);
+
+	const accountRouter = initAccountRoutes({
+		getEffectiveAccess,
+		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
+		findEmailByUserId: deps.findEmailByUserId,
+		publishCancelSubscriptionCommand: deps.publishCancelSubscriptionCommand,
+		createCheckoutSession: deps.createCheckoutSession,
+		storePendingSignup: deps.storePendingSignup,
+		buildCheckoutSuccessUrl: (sessionIdPlaceholder) =>
+			`${appOrigin}/auth/checkout/success?session_id=${sessionIdPlaceholder}`,
+		appOrigin,
+		now: deps.now,
+	});
+	app.use("/account", requireAuth, accountRouter);
 
 	const oauthRouter = initOAuthRoutes({
 		model: deps.oauthModel,

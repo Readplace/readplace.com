@@ -77,7 +77,7 @@ describe("Queue page banner state", () => {
 		expect(banner.classList.contains("queue-banner--none")).toBe(true);
 	});
 
-	it("renders the pending-cancellation aside with the formatted effective date for users mid-cancellation, and no header countdown", async () => {
+	it("treats a legacy pending_cancellation row as inactive (no flow in the redesigned chain produces this state)", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "pending-cancel@example.com");
@@ -95,9 +95,9 @@ describe("Queue page banner state", () => {
 		const response = await agent.get("/queue");
 		const doc = new JSDOM(response.text).window.document;
 		const banner = doc.querySelector("[data-test-subscription-banner]");
-		assert(banner, "queue banner aside must always be rendered");
-		expect(banner.classList.contains("queue-banner--pending-cancellation")).toBe(true);
-		expect(banner.querySelector("time")?.getAttribute("datetime")).toBe(effectiveAt);
+		assert(banner, "queue banner must always be rendered");
+		expect(banner.classList.contains("queue-banner--inactive")).toBe(true);
+		expect(banner.textContent).toContain("Subscription not active.");
 		expect(banner.querySelector(".queue-banner__cta")?.getAttribute("href")).toBe("/account");
 		expect(doc.querySelector("[data-test-trial-countdown]")).toBeNull();
 	});

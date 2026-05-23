@@ -46,7 +46,10 @@ import type {
 	UserExistsByEmail,
 	VerifyCredentials,
 } from "@packages/test-fixtures/providers/auth";
-import type { PublishExportUserDataCommand } from "@packages/test-fixtures/providers/events";
+import type {
+	PublishCancelSubscriptionCommand,
+	PublishExportUserDataCommand,
+} from "@packages/test-fixtures/providers/events";
 import type {
 	CheckoutSessionId,
 	CreateCheckoutSession,
@@ -61,6 +64,7 @@ import type {
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
 	MarkSubscriptionCancelled,
+	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
@@ -128,6 +132,7 @@ export interface StripeCheckoutBundle {
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	markPaid: (id: CheckoutSessionId) => void;
 	getCheckoutUrl: (id: CheckoutSessionId) => string;
+	getTrialPeriodDays: (id: CheckoutSessionId) => number | undefined;
 }
 
 export interface PendingSignupBundle {
@@ -142,6 +147,7 @@ export interface SubscriptionProvidersBundle {
 	upsertActive: UpsertActiveSubscription;
 	markPendingCancellation: MarkSubscriptionPendingCancellation;
 	markCancelled: MarkSubscriptionCancelled;
+	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
 }
 
@@ -189,6 +195,7 @@ export interface EventsBundle {
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	publishExportUserDataCommand: PublishExportUserDataCommand;
+	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 }
 
 export interface PendingHtmlBundle {
@@ -363,6 +370,7 @@ function flattenFixtureToAppDependencies(
 		publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
 		publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 		publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+		publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 		putPendingHtml: fixture.pendingHtml.putPendingHtml,
 		findGeneratedSummary: fixture.summary.findGeneratedSummary,
 		markSummaryPending: fixture.summary.markSummaryPending,
@@ -380,7 +388,9 @@ function flattenFixtureToAppDependencies(
 		importSessionStore: fixture.importSession.importSessionStore,
 		now: fixture.shared.now,
 		retrieveCheckoutSession: fixture.stripe.retrieveCheckoutSession,
+		createCheckoutSession: fixture.stripe.createCheckoutSession,
 		consumePendingSignup: fixture.pendingSignup.consumePendingSignup,
+		storePendingSignup: fixture.pendingSignup.storePendingSignup,
 		subscriptionProviders: {
 			upsertActive: fixture.subscriptionProviders.upsertActive,
 			upsertTrialing: fixture.subscriptionProviders.upsertTrialing,
