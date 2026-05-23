@@ -261,6 +261,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			findArticlesByUser: articleStoreMemory.findArticlesByUser,
 			saveArticle: articleStoreMemory.saveArticle,
 			saveArticleGlobally: articleStoreMemory.saveArticleGlobally,
+			bumpArticleSavedAt: articleStoreMemory.bumpArticleSavedAt,
 			deleteArticle: articleStoreMemory.deleteArticle,
 			updateArticleStatus: articleStoreMemory.updateArticleStatus,
 			readArticleContent: (url) =>

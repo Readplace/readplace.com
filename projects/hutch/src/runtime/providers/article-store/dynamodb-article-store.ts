@@ -15,6 +15,7 @@ import { ReaderArticleHashId, ReaderArticleHashIdSchema } from "@packages/domain
 import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
 import type {
+	BumpArticleSavedAt,
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
@@ -37,7 +38,13 @@ const ArticleFreshnessRow = z.object({
 	contentFetchedAt: dynamoField(z.string()),
 });
 
-/** `routeId` column holds the `ReaderArticleHashId.value` (32-char hex). The Zod schema rehydrates it into a `ReaderArticleHashId` instance on read. */
+/** `routeId` column holds the `ReaderArticleHashId.value` (32-char hex). The Zod schema rehydrates it into a `ReaderArticleHashId` instance on read.
+ *
+ * `savedAt` is the public-row freshness anchor: when the row is first created
+ * it records the original save; on every re-save the domain bumps it via
+ * `bumpArticleSavedAt` so downstream consumers (expiry counter, freshness
+ * policies) can compute time-based behaviour from a single timestamp. Stored
+ * as ISO-8601 to match the column convention used by `UserArticleRow`. */
 const ArticleRow = z.object({
 	url: z.string(),
 	routeId: ReaderArticleHashIdSchema,
@@ -49,6 +56,7 @@ const ArticleRow = z.object({
 	imageUrl: dynamoField(z.string()),
 	content: dynamoField(z.string()),
 	estimatedReadTime: MinutesSchema,
+	savedAt: dynamoField(z.string()),
 	contentSourceTier: dynamoField(z.enum(["tier-0", "tier-1"])),
 });
 /** Every ArticleRow attribute except `content`, derived so the list stays in sync with the schema. */
@@ -92,6 +100,7 @@ export function initDynamoDbArticleStore(deps: {
 }): {
 	saveArticle: SaveArticle;
 	saveArticleGlobally: SaveArticleGlobally;
+	bumpArticleSavedAt: BumpArticleSavedAt;
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
@@ -127,17 +136,12 @@ export function initDynamoDbArticleStore(deps: {
 		return row ?? null;
 	}
 
-	const ignoreDuplicate = (error: unknown) => {
-		if (error instanceof ConditionalCheckFailedException) return;
-		throw error;
-	};
-
 	const saveArticleGlobally: SaveArticleGlobally = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const routeId = ReaderArticleHashId.from(params.url);
 
-		await articles
-			.put({
+		try {
+			await articles.put({
 				Item: {
 					url: articleResourceUniqueId.value,
 					routeId: routeId.value,
@@ -152,21 +156,52 @@ export function initDynamoDbArticleStore(deps: {
 				},
 				ConditionExpression: "attribute_not_exists(#url)",
 				ExpressionAttributeNames: { "#url": "url" },
-			})
-			.catch(ignoreDuplicate);
+			});
+			return { created: true };
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) {
+				return { created: false };
+			}
+			throw error;
+		}
+	};
+
+	const bumpArticleSavedAt: BumpArticleSavedAt = async (params) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		try {
+			await articles.update({
+				Key: { url: articleResourceUniqueId.value },
+				UpdateExpression: "SET savedAt = :savedAt",
+				ConditionExpression: "attribute_exists(#url)",
+				ExpressionAttributeNames: { "#url": "url" },
+				ExpressionAttributeValues: {
+					":savedAt": params.savedAt.toISOString(),
+				},
+			});
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return;
+			throw error;
+		}
 	};
 
 	const saveArticle: SaveArticle = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const now = new Date();
 
-		await Promise.all([
-			saveArticleGlobally({
+		const upsertGlobal = async () => {
+			const { created } = await saveArticleGlobally({
 				url: params.url,
 				metadata: params.metadata,
 				estimatedReadTime: params.estimatedReadTime,
 				savedAt: now,
-			}),
+			});
+			if (!created) {
+				await bumpArticleSavedAt({ url: params.url, savedAt: now });
+			}
+		};
+
+		await Promise.all([
+			upsertGlobal(),
 			userArticles.update({
 				Key: { userId: params.userId, url: articleResourceUniqueId.value },
 				UpdateExpression:
@@ -372,6 +407,7 @@ export function initDynamoDbArticleStore(deps: {
 					"wordCount",
 					"imageUrl",
 					"estimatedReadTime",
+					"savedAt",
 					"contentSourceTier",
 				],
 			},
@@ -388,6 +424,7 @@ export function initDynamoDbArticleStore(deps: {
 				imageUrl: row.imageUrl,
 			},
 			estimatedReadTime: row.estimatedReadTime,
+			savedAt: row.savedAt ? new Date(row.savedAt) : new Date(0),
 			contentSourceTier: row.contentSourceTier,
 		};
 	};
@@ -404,6 +441,7 @@ export function initDynamoDbArticleStore(deps: {
 	return {
 		saveArticle,
 		saveArticleGlobally,
+		bumpArticleSavedAt,
 		findArticleById,
 		findArticleByUrl,
 		findArticleUrlById,
