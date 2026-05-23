@@ -1,3 +1,4 @@
+import { decomposeTimeLeft } from "@packages/time-left";
 import type { EffectiveAccess } from "../../../domain/access/effective-access";
 import { ACCOUNT_CANCEL_URL, ACCOUNT_SUBSCRIBE_URL } from "./account.url";
 
@@ -31,7 +32,9 @@ function formatTrialEndsAt(iso: string): string {
 
 function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number; daysLeftWord: "day" | "days" } {
 	const remaining = new Date(trialEndsAt).getTime() - now.getTime();
-	const daysLeft = Math.max(1, Math.ceil(remaining / 86_400_000));
+	const timeLeft = decomposeTimeLeft(remaining);
+	const hasRemainder = timeLeft.hours > 0 || timeLeft.minutes > 0 || timeLeft.seconds > 0;
+	const daysLeft = Math.max(1, timeLeft.days + (hasRemainder ? 1 : 0));
 	return { daysLeft, daysLeftWord: daysLeft === 1 ? "day" : "days" };
 }
 
