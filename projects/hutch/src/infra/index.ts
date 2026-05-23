@@ -2,8 +2,8 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import assert from "node:assert";
 import { resolve } from "node:path";
-import { HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda } from "@packages/hutch-infra-components/infra";
-import { ExportUserDataCommand } from "@packages/hutch-infra-components";
+import { HutchLambda, HutchAPIGateway, HutchAPIGatewayLambdaRoute, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda } from "@packages/hutch-infra-components/infra";
+import { ExportUserDataCommand, SubscriptionCancelledEvent } from "@packages/hutch-infra-components";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
 import { PARSE_ERROR_STREAM, CRAWL_OUTCOME_STREAM } from "@packages/hutch-infra-components";
 import { DomainRegistration } from "./domain-registration";
@@ -155,7 +155,6 @@ const lambda = new HutchLambda("hutch", {
 		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
 		STRIPE_PRICE_ID: requireEnv("STRIPE_PRICE_ID"),
-		STRIPE_WEBHOOK_SECRET: requireEnv("STRIPE_WEBHOOK_SECRET"),
 		STATIC_BASE_URL: staticAssets.baseUrl,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -302,6 +301,74 @@ const exportUserDataLambdaWithSQS = new HutchSQSBackedLambda("export-user-data",
 });
 
 eventBus.subscribe(ExportUserDataCommand, exportUserDataLambdaWithSQS);
+
+// --- Stripe Webhook Receiver ---
+// Receives HTTP POST from Stripe via API Gateway, verifies the HMAC signature,
+// and emits domain events (e.g. SubscriptionCancelledEvent) via EventBridge.
+// Always returns 200 to Stripe so we control retries ourselves via the
+// downstream SQS-backed handler's DLQ.
+
+const stripeWebhookReceiverLambda = new HutchLambda("stripe-webhook-receiver", {
+	entryPoint: "./src/runtime/stripe-webhook-receiver.main.ts",
+	outputDir: ".lib/stripe-webhook-receiver",
+	assetDir: "./src/runtime",
+	memorySize: 128,
+	timeout: 10,
+	environment: {
+		STRIPE_WEBHOOK_SECRET: requireEnv("STRIPE_WEBHOOK_SECRET"),
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [],
+});
+
+eventBus.grantPublish(stripeWebhookReceiverLambda);
+
+new HutchAPIGatewayLambdaRoute("stripe-webhook", {
+	apiGatewayId: api.id,
+	apiGatewayExecutionArn: api.executionArn,
+	lambda: stripeWebhookReceiverLambda,
+	routeKeys: ["POST /webhooks/stripe"],
+});
+
+// --- Handle Subscription Cancelled ---
+// SQS-backed Lambda that reacts to SubscriptionCancelledEvent by marking the
+// subscription_providers row as cancelled. Failed messages land in a DLQ with
+// an email alarm so operators can redrive without relying on Stripe retries.
+
+const handleSubscriptionCancelledDynamodb = new HutchDynamoDBAccess("handle-subscription-cancelled-dynamodb", {
+	tables: [
+		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
+	],
+	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem"],
+});
+
+const handleSubscriptionCancelledQueue = new HutchSQS("handle-subscription-cancelled", {
+	visibilityTimeoutSeconds: 30,
+});
+
+const handleSubscriptionCancelledLambda = new HutchLambda("handle-subscription-cancelled", {
+	entryPoint: "./src/runtime/handle-subscription-cancelled.main.ts",
+	outputDir: ".lib/handle-subscription-cancelled",
+	assetDir: "./src/runtime",
+	memorySize: 128,
+	timeout: 30,
+	environment: {
+		PERSISTENCE: "prod",
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
+	},
+	policies: [
+		...handleSubscriptionCancelledDynamodb.policies,
+	],
+});
+
+const handleSubscriptionCancelledWithSQS = new HutchSQSBackedLambda("handle-subscription-cancelled", {
+	lambda: handleSubscriptionCancelledLambda,
+	queue: handleSubscriptionCancelledQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(SubscriptionCancelledEvent, handleSubscriptionCancelledWithSQS);
 
 // --- Analytics Dashboard ---
 

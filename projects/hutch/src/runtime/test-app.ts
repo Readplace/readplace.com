@@ -317,12 +317,6 @@ export interface TestAppResult {
 	analytics: AnalyticsBundle;
 }
 
-/** Shared signing secret for Stripe webhook integration tests. Test code that
- * builds a webhook request uses `signStripeWebhookHeader` with this same value;
- * tests that exercise the spoofed-signature path pass a different secret to
- * `signStripeWebhookHeader`. */
-export const TEST_STRIPE_WEBHOOK_SECRET = "whsec_test_phase_1_signing_secret";
-
 function flattenFixtureToAppDependencies(
 	fixture: TestAppFixture,
 	analyticsBundle: AnalyticsBundle,
@@ -391,9 +385,7 @@ function flattenFixtureToAppDependencies(
 			upsertActive: fixture.subscriptionProviders.upsertActive,
 			upsertTrialing: fixture.subscriptionProviders.upsertTrialing,
 			findByUserId: fixture.subscriptionProviders.findByUserId,
-			markCancelled: fixture.subscriptionProviders.markCancelled,
 		},
-		stripeWebhookSecret: TEST_STRIPE_WEBHOOK_SECRET,
 		botDefenseLogger: fixture.botDefense.logger,
 		conversionLogger: fixture.conversions.logger,
 		analytics: analyticsBundle.logger,

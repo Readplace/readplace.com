@@ -117,7 +117,6 @@ function initProviders() {
 		const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
 		const importSessionsTable = requireEnv("DYNAMODB_IMPORT_SESSIONS_TABLE");
 		const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
-		const stripeWebhookSecret = requireEnv("STRIPE_WEBHOOK_SECRET");
 		const client = createDynamoDocumentClient();
 		const s3Client = new S3Client({});
 
@@ -200,7 +199,6 @@ function initProviders() {
 			readArticleContent,
 			importSessionStore,
 			subscriptionProviders,
-			stripeWebhookSecret,
 
 			...initResendEmail(resendApiKey),
 			...initDynamoDbEmailVerification({ client, tableName: verificationTokensTable }),
@@ -351,13 +349,6 @@ function initProviders() {
 		}),
 		importSessionStore,
 		subscriptionProviders: devSubscriptionProviders,
-		/** Dev path uses a sentinel that lets the server initialise without
-		 * pulling a Stripe webhook secret from env — the webhook handler verifies
-		 * incoming signatures against this same string, so a real Stripe event
-		 * would fail signature verification (which is what we want locally;
-		 * point Stripe CLI at a forwarded session and set STRIPE_WEBHOOK_SECRET
-		 * via .envrc when actually testing the integration). */
-		stripeWebhookSecret: getEnv("STRIPE_WEBHOOK_SECRET") ?? "whsec_local_dev_unset",
 
 		...initLogEmail(),
 		...initInMemoryEmailVerification(),

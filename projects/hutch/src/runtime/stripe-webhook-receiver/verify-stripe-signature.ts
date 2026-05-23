@@ -1,8 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
-import type { HutchLogger } from "@packages/hutch-logger";
-import type { MarkSubscriptionCancelled } from "@packages/test-fixtures/providers/subscription-providers";
 
 const StripeEventSchema = z
 	.object({
@@ -11,13 +8,15 @@ const StripeEventSchema = z
 	})
 	.passthrough();
 
+export type StripeEvent = z.infer<typeof StripeEventSchema>;
+
 /** Default Stripe webhook timestamp tolerance — 5 minutes. Matches the Stripe
  * SDK default; trades replay-attack window length for clock-skew tolerance on
  * deployment hosts. */
 const TIMESTAMP_TOLERANCE_SECONDS = 300;
 
-type VerifyResult =
-	| { ok: true; event: z.infer<typeof StripeEventSchema> }
+export type VerifyResult =
+	| { ok: true; event: StripeEvent }
 	| { ok: false; reason: string };
 
 function parseSignatureHeader(header: string): { timestamp: string; v1: string[] } | undefined {
@@ -45,7 +44,7 @@ function signaturesMatch(expected: string, candidates: readonly string[]): boole
 	return false;
 }
 
-function verifyStripeSignature(params: {
+export function verifyStripeSignature(params: {
 	rawBody: Buffer;
 	signatureHeader: string;
 	secret: string;
@@ -88,67 +87,4 @@ export function signStripeWebhookHeader(params: {
 	const payload = `${params.timestampSeconds}.${params.rawBody.toString("utf-8")}`;
 	const signature = createHmac("sha256", params.secret).update(payload).digest("hex");
 	return `t=${params.timestampSeconds},v1=${signature}`;
-}
-
-export function initStripeWebhookRoutes(deps: {
-	webhookSecret: string;
-	markCancelled: MarkSubscriptionCancelled;
-	logger: HutchLogger;
-	now: () => Date;
-}): Router {
-	const router = express.Router();
-
-	/** Synchronous API-Gateway-fronted Lambda — Stripe expects a 2xx within
-	 * seconds. This is the allowed exception in the infrastructure-design skill
-	 * to the SQS-backed-Lambda rule: API Gateway is the queue analogue and 5xx
-	 * surfaces back to Stripe so it retries on its own schedule.
-	 *
-	 * Mounted before any global JSON body parser — Stripe signature verification
-	 * needs the unmodified raw request bytes. */
-	router.post(
-		"/",
-		express.raw({ type: "application/json" }),
-		async (req: Request, res: Response) => {
-			const signatureHeader = req.header("Stripe-Signature");
-			if (!signatureHeader) {
-				res.status(400).type("text/plain").send("Missing signature");
-				return;
-			}
-
-			const rawBody: Buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from("");
-			const verifyResult = verifyStripeSignature({
-				rawBody,
-				signatureHeader,
-				secret: deps.webhookSecret,
-				nowSeconds: Math.floor(deps.now().getTime() / 1000),
-			});
-
-			if (!verifyResult.ok) {
-				deps.logger.warn("[stripe-webhook] invalid signature", { reason: verifyResult.reason });
-				res.status(400).type("text/plain").send("Bad signature");
-				return;
-			}
-
-			const event = verifyResult.event;
-			if (event.type === "customer.subscription.deleted") {
-				const subscriptionId = event.data.object.id;
-				try {
-					await deps.markCancelled({ subscriptionId });
-					deps.logger.info("[stripe-webhook] cancelled", { subscriptionId });
-				} catch (err) {
-					deps.logger.warn("[stripe-webhook] unknown subscription, ignoring", {
-						subscriptionId,
-						error: err instanceof Error ? err.message : String(err),
-					});
-				}
-			}
-			/** Other event types are acknowledged with 200 so Stripe stops retrying.
-			 * Adding new handlers means extending the switch; do NOT 4xx unknown
-			 * events — that would block unrelated webhooks from settling. */
-
-			res.status(200).type("text/plain").send("");
-		},
-	);
-
-	return router;
 }

@@ -25,7 +25,6 @@ import type { RetrieveCheckoutSession } from "@packages/test-fixtures/providers/
 import type { ConsumePendingSignup } from "@packages/test-fixtures/providers/pending-signup";
 import type {
 	FindSubscriptionByUserId,
-	MarkSubscriptionCancelled,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "@packages/test-fixtures/providers/subscription-providers";
@@ -69,7 +68,7 @@ import type {
 	VerifyPasswordResetToken,
 } from "@packages/test-fixtures/providers/password-reset";
 import type { OAuthModel } from "@packages/test-fixtures/providers/oauth";
-import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import type { HutchLogger } from "@packages/hutch-logger";
 import type { AnalyticsEvent } from "./web/middleware/analytics";
 import { initAuthRoutes } from "./web/auth/auth.page";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
@@ -109,7 +108,6 @@ import { InstallPage, fetchFirefoxDownloadUrl, fetchChromeDownloadUrl } from "./
 import { NotFoundPage } from "./web/pages/not-found";
 import { initGetEffectiveAccess } from "./domain/access/effective-access";
 import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
-import { initStripeWebhookRoutes } from "./web/pages/webhooks/stripe-webhook.page";
 import { requireEnv, getEnv } from "./domain/require-env";
 import "./web/session.types";
 
@@ -183,9 +181,7 @@ interface AppDependencies {
 		upsertActive: UpsertActiveSubscription;
 		upsertTrialing: UpsertTrialingSubscription;
 		findByUserId: FindSubscriptionByUserId;
-		markCancelled: MarkSubscriptionCancelled;
 	};
-	stripeWebhookSecret: string;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
@@ -212,18 +208,6 @@ export function createApp(dependencies: AppDependencies): Express {
 	const blogPosts = initBlogPosts({
 		foundingMemberLimit: foundingAllocation.foundingMemberLimit,
 	});
-
-	/** Stripe webhook MUST mount before any global body parser. Signature
-	 * verification needs the unmodified request bytes; once a parser consumes
-	 * the stream it cannot be replayed. The route declares its own
-	 * `express.raw({ type: "application/json" })`. */
-	const stripeWebhookRouter = initStripeWebhookRoutes({
-		webhookSecret: deps.stripeWebhookSecret,
-		markCancelled: deps.subscriptionProviders.markCancelled,
-		logger: HutchLogger.from(consoleLogger),
-		now: deps.now,
-	});
-	app.use("/webhooks/stripe", stripeWebhookRouter);
 
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());
