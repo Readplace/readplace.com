@@ -1,5 +1,6 @@
 import type { UserId } from "@packages/domain/user";
 import type { TimeLeft } from "@packages/time-left";
+import { z } from "zod";
 
 /** Public /view pages remain accessible for 3 days after the most recent
  * save. The window creates urgency for organic visitors ("save it before it
@@ -22,15 +23,19 @@ const SHARED_USER_ID_PREFIX_PATTERN = /^[0-9a-f]{6}/;
 
 export type SharedUserId = string & { readonly __brand: "SharedUserId" };
 
+const SharedUserIdSchema = z
+	.string()
+	.regex(SHARED_USER_ID_PREFIX_PATTERN)
+	.transform((s): SharedUserId => s as SharedUserId);
+
 export function sharedUserIdFrom(userId: UserId): SharedUserId {
-	return userId.slice(0, SHARED_USER_ID_PREFIX_LENGTH).toLowerCase() as SharedUserId;
+	return SharedUserIdSchema.parse(userId.slice(0, SHARED_USER_ID_PREFIX_LENGTH).toLowerCase());
 }
 
 export function sharedUserIdFromQueryParams(utmContent: string | undefined): SharedUserId | null {
 	if (utmContent === undefined) return null;
-	const normalized = utmContent.toLowerCase();
-	if (!SHARED_USER_ID_PREFIX_PATTERN.test(normalized)) return null;
-	return normalized as SharedUserId;
+	const result = SharedUserIdSchema.safeParse(utmContent.toLowerCase());
+	return result.success ? result.data : null;
 }
 
 export type ComputePublicViewExpiryInput = {
