@@ -51,7 +51,7 @@ describe("initBuildBannerState", () => {
 
 		const result = await buildBannerState({});
 
-		expect(result).toEqual({ isAuthenticated: false, emailVerified: undefined });
+		expect(result).toEqual({ isAuthenticated: false, emailVerified: undefined, showAccountMenu: false });
 		expect(getEffectiveAccess).not.toHaveBeenCalled();
 	});
 
