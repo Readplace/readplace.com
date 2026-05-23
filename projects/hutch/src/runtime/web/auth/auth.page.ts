@@ -295,11 +295,9 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			});
 		} catch (err) {
 			deps.logError(
-				"[Auth] Trial-end schedule creation failed",
+				"[Auth] Trial-end schedule creation failed — continuing without schedule",
 				err instanceof Error ? err : new Error(String(err)),
 			);
-			res.status(500).type("text").send("Trial setup failed — please try again.");
-			return;
 		}
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });

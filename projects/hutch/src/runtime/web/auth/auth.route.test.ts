@@ -373,9 +373,8 @@ describe("Auth routes", () => {
 			expect(typeof stripe.markPaid).toBe("function");
 		}, 30000);
 
-		it("returns 500 and does NOT persist a trial row when the trial-end scheduler fails", async () => {
+		it("completes trial signup even when the trial-end scheduler fails", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-			// Replace the trial scheduler's createTrialEndSchedule with a failing fake.
 			fixture.trialScheduler.createTrialEndSchedule = async () => {
 				throw new Error("Scheduler outage");
 			};
@@ -391,16 +390,11 @@ describe("Auth routes", () => {
 				loadedAt: freshLoadedAt(),
 			});
 
-			expect(response.status).toBe(500);
-			// The user row was created BEFORE the scheduler call, so the failure
-			// leaves an orphan trialing row. Operations playbook: the scheduler
-			// retry path is handled out-of-band; on this branch, we simply fail
-			// loudly so the user retries (idempotent signup is enforced by the
-			// unique-email constraint in createUserWithPasswordHash).
+			expect(response.status).toBe(303);
 			const lookup = await harness.auth.findUserByEmail("trial-fail@example.com");
-			assert(lookup, "user row gets persisted before scheduler call");
+			assert(lookup, "user row must persist");
 			const subRow = await harness.subscriptionProviders.findByUserId(lookup.userId);
-			assert(subRow, "trial subscription row also persists");
+			assert(subRow, "trial subscription row must persist");
 			expect(subRow.status).toBe("trialing");
 		}, 30000);
 

@@ -250,11 +250,9 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			});
 		} catch (err) {
 			deps.logError(
-				"[Google Auth] Trial-end schedule creation failed",
+				"[Google Auth] Trial-end schedule creation failed — continuing without schedule",
 				err instanceof Error ? err : new Error(String(err)),
 			);
-			await renderError("Trial setup failed — please try again.");
-			return;
 		}
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
