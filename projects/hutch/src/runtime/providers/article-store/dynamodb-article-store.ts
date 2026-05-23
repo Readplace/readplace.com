@@ -56,7 +56,7 @@ const ArticleRow = z.object({
 	imageUrl: dynamoField(z.string()),
 	content: dynamoField(z.string()),
 	estimatedReadTime: MinutesSchema,
-	savedAt: z.string(),
+	savedAt: dynamoField(z.string()),
 	contentSourceTier: dynamoField(z.enum(["tier-0", "tier-1"])),
 });
 /** Every ArticleRow attribute except `content`, derived so the list stays in sync with the schema. */
@@ -424,7 +424,7 @@ export function initDynamoDbArticleStore(deps: {
 				imageUrl: row.imageUrl,
 			},
 			estimatedReadTime: row.estimatedReadTime,
-			savedAt: new Date(row.savedAt),
+			savedAt: row.savedAt ? new Date(row.savedAt) : new Date(0),
 			contentSourceTier: row.contentSourceTier,
 		};
 	};
