@@ -3,7 +3,7 @@
  * /view page.
  *
  * Reads:
- *   [data-test-view-expiry][data-expiry-state="counting"][data-expires-at]
+ *   [data-expiry-state="counting"][data-expires-at]
  *
  * The server renders the counter with the correct initial value so the page
  * is correct on first paint and remains correct without JS. This module
@@ -87,7 +87,7 @@ interface ExpiryCounterController {
 export function initExpiryCounter(
 	deps: ExpiryCounterDeps,
 ): ExpiryCounterController | undefined {
-	const el = deps.document.querySelector("[data-test-view-expiry]");
+	const el = deps.document.querySelector("[data-expiry-state]");
 	if (el === null) return undefined;
 	if (el.getAttribute("data-expiry-state") !== "counting") return undefined;
 	const expiresAtRaw = el.getAttribute("data-expires-at");
