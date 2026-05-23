@@ -313,6 +313,13 @@ eventBus.subscribe(ExportUserDataCommand, exportUserDataLambdaWithSQS);
 // API Gateway returns 5xx and Stripe retries. Downstream handler failures are
 // caught by the SQS-backed handler's DLQ.
 
+const stripeWebhookReceiverDynamodb = new HutchDynamoDBAccess("stripe-webhook-receiver-dynamodb", {
+	tables: [
+		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
+	],
+	actions: ["dynamodb:GetItem", "dynamodb:Query"],
+});
+
 const stripeWebhookReceiverLambda = new HutchLambda("stripe-webhook-receiver", {
 	entryPoint: "./src/runtime/stripe-webhook-receiver.main.ts",
 	outputDir: ".lib/stripe-webhook-receiver",
@@ -322,8 +329,11 @@ const stripeWebhookReceiverLambda = new HutchLambda("stripe-webhook-receiver", {
 	environment: {
 		STRIPE_WEBHOOK_SECRET: requireEnv("STRIPE_WEBHOOK_SECRET"),
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 	},
-	policies: [],
+	policies: [
+		...stripeWebhookReceiverDynamodb.policies,
+	],
 });
 
 eventBus.grantPublish(stripeWebhookReceiverLambda);
