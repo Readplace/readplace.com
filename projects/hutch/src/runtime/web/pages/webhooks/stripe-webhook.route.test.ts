@@ -196,6 +196,19 @@ describe("POST /webhooks/stripe", () => {
 		expect(response.status).toBe(400);
 	});
 
+	it("rejects requests whose body is signed correctly but is not valid JSON", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const rawBody = Buffer.from("not-json{{{");
+		const response = await request(harness.server)
+			.post("/webhooks/stripe")
+			.set("Stripe-Signature", buildSignature(rawBody))
+			.set("Content-Type", "application/json")
+			.send(rawBody.toString("utf-8"));
+
+		expect(response.status).toBe(400);
+	});
+
 	it("rejects requests whose body is signed correctly but is not a valid Stripe event shape", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 

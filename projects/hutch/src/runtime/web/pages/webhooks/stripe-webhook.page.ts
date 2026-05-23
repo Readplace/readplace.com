@@ -66,7 +66,13 @@ function verifyStripeSignature(params: {
 		return { ok: false, reason: "signature-mismatch" };
 	}
 
-	const eventResult = StripeEventSchema.safeParse(JSON.parse(params.rawBody.toString("utf-8")));
+	let body: unknown;
+	try {
+		body = JSON.parse(params.rawBody.toString("utf-8"));
+	} catch {
+		return { ok: false, reason: "invalid-json" };
+	}
+	const eventResult = StripeEventSchema.safeParse(body);
 	if (!eventResult.success) return { ok: false, reason: "invalid-event-shape" };
 	return { ok: true, event: eventResult.data };
 }
