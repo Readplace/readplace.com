@@ -209,7 +209,7 @@ describe("renderArticleBody", () => {
 		const slot = doc.querySelector("[data-test-mark-read-bottom-slot]");
 		assert(slot, "bottom mark-read slot must be rendered");
 		expect(
-			slot.classList.contains("article-body__mark-read-bottom-slot--visible"),
+			slot.classList.contains("article-body__mark-read-slot--visible"),
 		).toBe(true);
 
 		const form = slot.querySelector("[data-test-mark-read-bottom-form]");
@@ -232,7 +232,7 @@ describe("renderArticleBody", () => {
 		assert(bottom, "bottom mark-read slot must be rendered");
 		expect(top.classList.contains("article-body__mark-read-slot--hidden")).toBe(true);
 		expect(
-			bottom.classList.contains("article-body__mark-read-bottom-slot--hidden"),
+			bottom.classList.contains("article-body__mark-read-slot--hidden"),
 		).toBe(true);
 	});
 

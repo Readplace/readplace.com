@@ -45,7 +45,7 @@
 
 .article-body__mark-read {
   display: inline-block;
-  padding: 0.4rem 0.9rem;
+  padding: 0.5rem 1rem;
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--color-on-brand);
@@ -438,31 +438,3 @@
   text-decoration: underline;
 }
 
-.article-body__mark-read-bottom-slot--visible {
-  display: inline-flex;
-}
-
-.article-body__mark-read-bottom-slot--hidden {
-  display: none;
-}
-
-.article-body__mark-read-bottom-form {
-  margin: 0;
-}
-
-.article-body__mark-read-bottom {
-  display: inline-block;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-on-brand);
-  background: var(--color-brand);
-  border: 1px solid var(--color-brand);
-  border-radius: 6px;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.article-body__mark-read-bottom:hover {
-  filter: brightness(1.05);
-}
