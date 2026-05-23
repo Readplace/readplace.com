@@ -5,6 +5,7 @@ import type {
 	Minutes,
 } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
+import { decomposeTimeLeft, formatCounter } from "@packages/time-left";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { requireEnv } from "../../../domain/require-env";
@@ -16,11 +17,13 @@ import {
 	SHARE_BALLOON_SCRIPT,
 	renderShareBalloon,
 } from "../../shared/share-balloon/share-balloon.component";
+import type { SharedUserId } from "./view-expiry";
 import { VIEW_STYLES } from "./view.styles";
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
 const READER_IFRAME_SCRIPT = `<script src="/client-dist/reader-iframe.client.js" defer></script>`;
+const EXPIRY_COUNTER_SCRIPT = `<script src="/client-dist/expiry-counter.client.js" defer></script>`;
 
 const CANONICAL_BASE_URL = "https://readplace.com";
 const DEFAULT_OG_IMAGE = `${STATIC_BASE_URL}/og-image-1200x630.png`;
@@ -46,6 +49,34 @@ export interface ViewAction {
 	name: string;
 	href: string;
 	variant: "primary" | "secondary";
+	expirySaveLink?: boolean;
+}
+
+export type ExpiryState = "permanent" | "counting" | "expired";
+
+export interface ExpiryFields {
+	state: ExpiryState;
+	message: string;
+	expiresAtIso?: string;
+}
+
+/** Public /view pages can be permanent (founder syndication or authenticated
+ * sharer), counting down to expiry, or already expired. The counter text uses
+ * day/hour/minute/second resolution so the urgency feels live without leaking
+ * sub-second jitter into the SSR markup. */
+export function buildExpiryFields(
+	expiresAt: Date | null,
+	now: Date,
+): ExpiryFields {
+	if (expiresAt === null) return { state: "permanent", message: "" };
+	const msLeft = expiresAt.getTime() - now.getTime();
+	const expiresAtIso = expiresAt.toISOString();
+	if (msLeft <= 0) return { state: "expired", message: "Public access has expired.", expiresAtIso };
+	return {
+		state: "counting",
+		message: `Public access will expire in ${formatCounter(decomposeTimeLeft(msLeft))}`,
+		expiresAtIso,
+	};
 }
 
 export interface ViewPageInput {
@@ -60,7 +91,9 @@ export interface ViewPageInput {
 	progress?: ProgressTick;
 	actions: ViewAction[];
 	extensionInstallUrl?: string;
-	sharerUserIdPrefix?: string;
+	expiresAt: Date | null;
+	now: Date;
+	sharerUserIdPrefix?: SharedUserId;
 }
 
 export function ViewPage(input: ViewPageInput): PageBody {
@@ -89,11 +122,16 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		sharerUserIdPrefix: input.sharerUserIdPrefix,
 	});
 
+	const expiry = buildExpiryFields(input.expiresAt, input.now);
+
 	const content = render(VIEW_TEMPLATE, {
 		innerContent,
 		articleUrl: input.articleUrl,
 		actions: input.actions,
 		shareBalloon,
+		expiryState: expiry.state,
+		expiryMessage: expiry.message,
+		expiresAtIso: expiry.expiresAtIso,
 	});
 
 	const ogImage = input.metadata.imageUrl ?? DEFAULT_OG_IMAGE;
@@ -132,6 +170,6 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		styles: VIEW_STYLES,
 		bodyClass: "page-view",
 		content: { html: content },
-		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT,
+		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + EXPIRY_COUNTER_SCRIPT,
 	};
 }
