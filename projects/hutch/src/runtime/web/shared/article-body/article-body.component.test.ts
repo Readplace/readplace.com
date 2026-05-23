@@ -148,16 +148,24 @@ describe("renderArticleBody", () => {
 		);
 	});
 
-	it("renders a mark-read form in the top slot when markReadAction is provided", () => {
+	it("renders a mark-read form in the top slot when markReadActions is provided", () => {
 		const html = renderArticleBody({
 			...baseInput,
 			content: "<p>Body</p>",
-			markReadAction: {
-				topPostUrl: "/queue/abc/status?utm_content=mark-read-top",
-				bottomPostUrl: "/queue/abc/status?utm_content=mark-read-bottom",
-				label: "Mark as read",
-				fields: [{ name: "status", value: "read" }],
-			},
+			markReadActions: [
+				{
+					position: "top",
+					postUrl: "/queue/abc/status?utm_content=mark-read-top",
+					label: "Mark as read",
+					fields: [{ name: "status", value: "read" }],
+				},
+				{
+					position: "bottom",
+					postUrl: "/queue/abc/status?utm_content=mark-read-bottom",
+					label: "Mark as read",
+					fields: [{ name: "status", value: "read" }],
+				},
+			],
 		});
 		const doc = parse(html);
 
@@ -177,16 +185,24 @@ describe("renderArticleBody", () => {
 		expect(button.textContent).toBe("Mark as read");
 	});
 
-	it("renders a mark-read form in the bottom slot when markReadAction is provided", () => {
+	it("renders a mark-read form in the bottom slot when markReadActions is provided", () => {
 		const html = renderArticleBody({
 			...baseInput,
 			content: "<p>Body</p>",
-			markReadAction: {
-				topPostUrl: "/queue/abc/status?utm_content=mark-read-top",
-				bottomPostUrl: "/queue/abc/status?utm_content=mark-read-bottom",
-				label: "Mark as read",
-				fields: [{ name: "status", value: "read" }],
-			},
+			markReadActions: [
+				{
+					position: "top",
+					postUrl: "/queue/abc/status?utm_content=mark-read-top",
+					label: "Mark as read",
+					fields: [{ name: "status", value: "read" }],
+				},
+				{
+					position: "bottom",
+					postUrl: "/queue/abc/status?utm_content=mark-read-bottom",
+					label: "Mark as read",
+					fields: [{ name: "status", value: "read" }],
+				},
+			],
 		});
 		const doc = parse(html);
 
@@ -203,7 +219,7 @@ describe("renderArticleBody", () => {
 		);
 	});
 
-	it("hides both mark-read slots when markReadAction is not provided", () => {
+	it("hides both mark-read slots when markReadActions is not provided", () => {
 		const html = renderArticleBody({
 			...baseInput,
 			content: "<p>Body</p>",

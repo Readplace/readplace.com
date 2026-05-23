@@ -69,12 +69,20 @@ export function ReaderPage(
 			bottomHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-bottom",
 			label: "← Back to queue",
 		},
-		markReadAction: {
-			topPostUrl: markReadPostUrl(articleId, "top"),
-			bottomPostUrl: markReadPostUrl(articleId, "bottom"),
-			label: "Mark as read",
-			fields: [{ name: "status", value: "read" }],
-		},
+		markReadActions: [
+			{
+				position: "top",
+				postUrl: markReadPostUrl(articleId, "top"),
+				label: "Mark as read",
+				fields: [{ name: "status", value: "read" }],
+			},
+			{
+				position: "bottom",
+				postUrl: markReadPostUrl(articleId, "bottom"),
+				label: "Mark as read",
+				fields: [{ name: "status", value: "read" }],
+			},
+		],
 		extensionInstallUrl: options?.extensionInstallUrl,
 	});
 	const shareBalloon = renderShareBalloon({
