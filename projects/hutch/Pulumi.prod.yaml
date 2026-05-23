@@ -25,6 +25,7 @@ config:
   hutch:dynamodbPasswordResetTokensTable: hutch-password-reset-tokens
   hutch:dynamodbPendingSignupsTable: hutch-pending-signups
   hutch:dynamodbImportSessionsTable: hutch-import-sessions-prod
+  hutch:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-prod
   hutch:contentBucketName: hutch-article-content-prod
   hutch:pendingHtmlBucketName: hutch-pending-html-prod
   hutch:userExportBucketName: hutch-user-exports-prod

@@ -99,7 +99,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		emailField: toFieldViewModel(errors, "email"),
 		passwordField: toFieldViewModel(errors, "password"),
 		confirmPasswordField: toFieldViewModel(errors, "confirmPassword"),
-		submitLabel: `Join Readplace${trialSuffix}`,
+		submitLabel: "Join Readplace",
 		googleLabel: `Sign up with Google${trialSuffix}`,
 		foundingProgressHtml: renderFoundingProgress({
 			userCount: data.userCount,
@@ -107,6 +107,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		}),
 		foundingMemberLimit: data.foundingAllocation.foundingMemberLimit,
 		foundingAvailable: !data.foundingAllocation.isFoundingAllocationExhausted(data.userCount),
+		trialDays: STRIPE_TRIAL_PERIOD_DAYS,
 	});
 
 	return {

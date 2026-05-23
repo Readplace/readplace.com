@@ -57,6 +57,15 @@ import type {
 	StorePendingSignup,
 } from "@packages/test-fixtures/providers/pending-signup";
 import type {
+	FindSubscriptionBySubscriptionId,
+	FindSubscriptionByUserId,
+	MarkSubscriptionActive,
+	MarkSubscriptionCancelled,
+	MarkSubscriptionPendingCancellation,
+	UpsertActiveSubscription,
+	UpsertTrialingSubscription,
+} from "@packages/test-fixtures/providers/subscription-providers";
+import type {
 	ArticleMetadata,
 	Minutes,
 } from "@packages/domain/article";
@@ -124,6 +133,16 @@ export interface StripeCheckoutBundle {
 export interface PendingSignupBundle {
 	storePendingSignup: StorePendingSignup;
 	consumePendingSignup: ConsumePendingSignup;
+}
+
+export interface SubscriptionProvidersBundle {
+	findByUserId: FindSubscriptionByUserId;
+	findBySubscriptionId: FindSubscriptionBySubscriptionId;
+	upsertTrialing: UpsertTrialingSubscription;
+	upsertActive: UpsertActiveSubscription;
+	markPendingCancellation: MarkSubscriptionPendingCancellation;
+	markCancelled: MarkSubscriptionCancelled;
+	markActive: MarkSubscriptionActive;
 }
 
 export interface ArticleStoreBundle {
@@ -269,6 +288,7 @@ export interface TestAppFixture {
 	shared: SharedBundle;
 	stripe: StripeCheckoutBundle;
 	pendingSignup: PendingSignupBundle;
+	subscriptionProviders: SubscriptionProvidersBundle;
 	botDefense: BotDefenseBundle;
 	conversions: ConversionsBundle;
 	foundingAllocation: FoundingAllocationBundle;
@@ -291,6 +311,7 @@ export interface TestAppResult {
 	passwordReset: PasswordResetBundle;
 	stripe: StripeCheckoutBundle;
 	pendingSignup: PendingSignupBundle;
+	subscriptionProviders: SubscriptionProvidersBundle;
 	botDefense: BotDefenseBundle;
 	conversions: ConversionsBundle;
 	analytics: AnalyticsBundle;
@@ -362,6 +383,9 @@ function flattenFixtureToAppDependencies(
 		retrieveCheckoutSession: fixture.stripe.retrieveCheckoutSession,
 		storePendingSignup: fixture.pendingSignup.storePendingSignup,
 		consumePendingSignup: fixture.pendingSignup.consumePendingSignup,
+		subscriptionProviders: {
+			upsertActive: fixture.subscriptionProviders.upsertActive,
+		},
 		botDefenseLogger: fixture.botDefense.logger,
 		conversionLogger: fixture.conversions.logger,
 		analytics: analyticsBundle.logger,
@@ -392,6 +416,7 @@ export function createTestApp(fixture: TestAppFixture): TestAppResult {
 		passwordReset: fixture.passwordReset,
 		stripe: fixture.stripe,
 		pendingSignup: fixture.pendingSignup,
+		subscriptionProviders: fixture.subscriptionProviders,
 		botDefense: fixture.botDefense,
 		conversions: fixture.conversions,
 		analytics: analyticsBundle,

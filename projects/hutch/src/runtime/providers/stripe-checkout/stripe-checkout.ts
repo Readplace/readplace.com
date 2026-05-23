@@ -20,6 +20,8 @@ const RetrieveSessionResponse = z.object({
 	payment_status: z.enum(["paid", "unpaid", "no_payment_required"]),
 	status: z.enum(["open", "complete", "expired"]),
 	created: z.number(),
+	subscription: z.string().nullish(),
+	customer: z.string().nullish(),
 });
 
 const StripeErrorResponse = z.object({
@@ -107,6 +109,8 @@ export function initStripeCheckout(deps: {
 			customerEmail,
 			status: parsed.status,
 			created: parsed.created,
+			...(parsed.subscription ? { subscriptionId: parsed.subscription } : {}),
+			...(parsed.customer ? { customerId: parsed.customer } : {}),
 		};
 	};
 

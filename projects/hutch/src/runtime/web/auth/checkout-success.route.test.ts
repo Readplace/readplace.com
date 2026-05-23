@@ -114,6 +114,29 @@ describe("GET /auth/checkout/success", () => {
 		expect(credentials.ok).toBe(true);
 	});
 
+	it("writes an active subscription_providers row with the Stripe ids on first paid visit", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, stripe, subscriptionProviders } = harness;
+
+		await completeStripeSignup({
+			server: harness.server,
+			auth,
+			stripe,
+			email: "sub-active@example.com",
+			password: "password123",
+		});
+
+		const lookup = await auth.findUserByEmail("sub-active@example.com");
+		assert(lookup, "user must exist after paid signup");
+		const subRow = await subscriptionProviders.findByUserId(lookup.userId);
+		assert(subRow, "subscription_providers row must be written for the paid user");
+		expect(subRow.status).toBe("active");
+		expect(subRow.provider).toBe("stripe");
+		expect(subRow.subscriptionId).toMatch(/^sub_test_[0-9a-f]+$/);
+		expect(subRow.customerId).toMatch(/^cus_test_[0-9a-f]+$/);
+		expect(subRow.trialEndsAt).toBeUndefined();
+	});
+
 	it("renders 409 when the email has been claimed since the Stripe redirect started", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth, stripe } = harness;

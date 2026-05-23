@@ -59,6 +59,15 @@ import type {
 	StorePendingSignup,
 } from "./providers/pending-signup/pending-signup.types";
 import type {
+	FindSubscriptionBySubscriptionId,
+	FindSubscriptionByUserId,
+	MarkSubscriptionActive,
+	MarkSubscriptionCancelled,
+	MarkSubscriptionPendingCancellation,
+	UpsertActiveSubscription,
+	UpsertTrialingSubscription,
+} from "./providers/subscription-providers/subscription-providers.types";
+import type {
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
@@ -124,6 +133,16 @@ export interface StripeCheckoutBundle {
 export interface PendingSignupBundle {
 	storePendingSignup: StorePendingSignup;
 	consumePendingSignup: ConsumePendingSignup;
+}
+
+export interface SubscriptionProvidersBundle {
+	findByUserId: FindSubscriptionByUserId;
+	findBySubscriptionId: FindSubscriptionBySubscriptionId;
+	upsertTrialing: UpsertTrialingSubscription;
+	upsertActive: UpsertActiveSubscription;
+	markPendingCancellation: MarkSubscriptionPendingCancellation;
+	markCancelled: MarkSubscriptionCancelled;
+	markActive: MarkSubscriptionActive;
 }
 
 export interface ArticleStoreBundle {
@@ -269,6 +288,7 @@ export interface TestAppFixture {
 	shared: SharedBundle;
 	stripe: StripeCheckoutBundle;
 	pendingSignup: PendingSignupBundle;
+	subscriptionProviders: SubscriptionProvidersBundle;
 	botDefense: BotDefenseBundle;
 	conversions: ConversionsBundle;
 	foundingAllocation: FoundingAllocationBundle;

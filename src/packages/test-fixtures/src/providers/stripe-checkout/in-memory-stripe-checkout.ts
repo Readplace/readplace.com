@@ -12,6 +12,8 @@ interface StoredSession {
 	paid: boolean;
 	status: CheckoutSessionStatus;
 	created: number;
+	subscriptionId: string;
+	customerId: string;
 }
 
 export function initInMemoryStripeCheckout(opts: {
@@ -29,11 +31,14 @@ export function initInMemoryStripeCheckout(opts: {
 
 	const createCheckoutSession: CreateCheckoutSession = async ({ customerEmail, successUrl }) => {
 		const id = CheckoutSessionIdSchema.parse(`cs_test_${randomBytes(12).toString("hex")}`);
+		const sessionSuffix = randomBytes(8).toString("hex");
 		sessions.set(id, {
 			customerEmail,
 			paid: false,
 			status: "open",
 			created: Math.floor(opts.now().getTime() / 1000),
+			subscriptionId: `sub_test_${sessionSuffix}`,
+			customerId: `cus_test_${sessionSuffix}`,
 		});
 		const url = `${opts.checkoutBaseUrl}/${id}?next=${encodeURIComponent(successUrl)}`;
 		urls.set(id, url);
@@ -49,6 +54,8 @@ export function initInMemoryStripeCheckout(opts: {
 			customerEmail: session.customerEmail,
 			status: session.status,
 			created: session.created,
+			subscriptionId: session.subscriptionId,
+			customerId: session.customerId,
 		};
 	};
 

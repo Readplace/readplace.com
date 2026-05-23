@@ -611,6 +611,7 @@ describe("Auth routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('[data-test-error="password"]')?.textContent).toBe("Password must be at least 8 characters");
 		});
+
 	});
 
 	describe("POST /signup — bot defense", () => {
@@ -968,6 +969,27 @@ describe("Auth routes", () => {
 			const blurb = doc.querySelector("[data-test-founding-blurb]");
 			expect(blurb?.textContent).toBe(`Free account for the first ${TEST_FOUNDING_MEMBER_LIMIT} readers`);
 		});
+
+		it("hides the trial hint on /signup when the founding allocation is available", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup");
+			const doc = new JSDOM(response.text).window.document;
+
+			expect(doc.querySelector("[data-test-trial-hint]")).toBeNull();
+		});
+	});
+
+	describe("Signup submit button", () => {
+		it("renders a single 'Join Readplace' submit button (no intent attribute)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/signup");
+			const doc = new JSDOM(response.text).window.document;
+
+			const submits = doc.querySelectorAll('[data-test-form="signup"] button[type="submit"]');
+			expect(submits).toHaveLength(1);
+			expect(submits[0]?.textContent).toBe("Join Readplace");
+			expect(submits[0]?.getAttribute("name")).toBeNull();
+		});
 	});
 
 	describe("Founding members progress — exhausted allocation", () => {
@@ -981,6 +1003,17 @@ describe("Auth routes", () => {
 			const signupDoc = new JSDOM((await request(harness.server).get("/signup")).text).window.document;
 			expect(signupDoc.querySelector("[data-test-founding-progress]")).toBeNull();
 			expect(signupDoc.querySelector("[data-test-founding-blurb]")).toBeNull();
+		}, 30000);
+
+		it("renders '14 days. Cancel any time.' trial hint on /signup when the founding allocation is exhausted", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await auth.createUser({ email: `user${i}@test.com`, password: "password123" });
+			}
+
+			const doc = new JSDOM((await request(harness.server).get("/signup")).text).window.document;
+			expect(doc.querySelector("[data-test-trial-hint]")?.textContent).toBe("14 days. Cancel any time.");
 		}, 30000);
 	});
 });

@@ -29,6 +29,9 @@ import type {
 	ConsumePendingSignup,
 	StorePendingSignup,
 } from "@packages/test-fixtures/providers/pending-signup";
+import type {
+	UpsertActiveSubscription,
+} from "@packages/test-fixtures/providers/subscription-providers";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
 import type {
 	DeleteArticle,
@@ -178,6 +181,9 @@ interface AppDependencies {
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	storePendingSignup: StorePendingSignup;
 	consumePendingSignup: ConsumePendingSignup;
+	subscriptionProviders: {
+		upsertActive: UpsertActiveSubscription;
+	};
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
@@ -442,6 +448,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		retrieveCheckoutSession: deps.retrieveCheckoutSession,
 		storePendingSignup: deps.storePendingSignup,
 		consumePendingSignup: deps.consumePendingSignup,
+		subscriptionProviders: deps.subscriptionProviders,
 		appOrigin,
 		baseUrl: deps.baseUrl,
 		staticBaseUrl,
