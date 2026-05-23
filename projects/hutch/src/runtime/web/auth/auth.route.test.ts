@@ -1044,7 +1044,7 @@ describe("Auth routes", () => {
 			expect(signupDoc.querySelector("[data-test-founding-blurb]")).toBeNull();
 		}, 30000);
 
-		it("renders '14 days trial. Cancel any time.' trial hint on /signup when the founding allocation is exhausted", async () => {
+		it("renders 'Cancel any time.' trial hint on /signup when the founding allocation is exhausted", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
@@ -1052,7 +1052,19 @@ describe("Auth routes", () => {
 			}
 
 			const doc = new JSDOM((await request(harness.server).get("/signup")).text).window.document;
-			expect(doc.querySelector("[data-test-trial-hint]")?.textContent).toBe("14 days trial. Cancel any time.");
+			expect(doc.querySelector("[data-test-trial-hint]")?.textContent).toBe("Cancel any time.");
+		}, 30000);
+
+		it("renders 'Join Readplace (14 days free)' submit button on /signup when the founding allocation is exhausted", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await auth.createUser({ email: `user${i}@test.com`, password: "password123" });
+			}
+
+			const doc = new JSDOM((await request(harness.server).get("/signup")).text).window.document;
+			const submit = doc.querySelector('[data-test-form="signup"] button[type="submit"]');
+			expect(submit?.textContent).toBe("Join Readplace (14 days free)");
 		}, 30000);
 	});
 });
