@@ -239,6 +239,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 				userId: newUserId,
 				...(safeReturnUrl ? { returnUrl: safeReturnUrl } : {}),
 			},
+			createdAt: Math.floor(deps.now().getTime() / 1000),
 		});
 
 		res.redirect(303, checkout.url);
