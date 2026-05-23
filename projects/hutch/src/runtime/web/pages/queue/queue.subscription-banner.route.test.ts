@@ -31,7 +31,7 @@ describe("Queue page banner state", () => {
 		expect(doc.querySelector("[data-test-trial-countdown]")).toBeNull();
 	});
 
-	it("renders the header trial countdown with `Xd Xh Xm Xs in your free trial` for a trialing user, while the queue aside stays in the `none` state", async () => {
+	it("renders the header trial countdown and the queue aside trial-countdown banner for a trialing user", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "trialing@example.com");
@@ -47,8 +47,8 @@ describe("Queue page banner state", () => {
 		expect(countdown.getAttribute("data-trial-state")).toBe("active");
 		expect(countdown.textContent).toMatch(/^\d+d \d+h \d+m \d+s in your free trial$/);
 		const banner = doc.querySelector("[data-test-subscription-banner]");
-		assert(banner, "queue banner aside must still be rendered");
-		expect(banner.classList.contains("queue-banner--none")).toBe(true);
+		assert(banner, "queue banner aside must be rendered");
+		expect(banner.classList.contains("queue-banner--trial-countdown")).toBe(true);
 	});
 
 	it("flips the header countdown to 'Free trial is over!' and disables the save form after the trial window ends", async () => {
@@ -73,8 +73,8 @@ describe("Queue page banner state", () => {
 		assert(submitButton, "save button must still be rendered");
 		expect(submitButton.hasAttribute("disabled")).toBe(true);
 		const banner = doc.querySelector("[data-test-subscription-banner]");
-		assert(banner, "queue banner aside must still be rendered (it's now empty for inactive)");
-		expect(banner.classList.contains("queue-banner--none")).toBe(true);
+		assert(banner, "queue banner aside must be rendered");
+		expect(banner.classList.contains("queue-banner--inactive")).toBe(true);
 	});
 
 	it("treats a legacy pending_cancellation row as inactive (no flow in the redesigned chain produces this state)", async () => {
@@ -99,7 +99,10 @@ describe("Queue page banner state", () => {
 		expect(banner.classList.contains("queue-banner--inactive")).toBe(true);
 		expect(banner.textContent).toContain("Subscription not active.");
 		expect(banner.querySelector(".queue-banner__cta")?.getAttribute("href")).toBe("/account");
-		expect(doc.querySelector("[data-test-trial-countdown]")).toBeNull();
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "header countdown must be rendered for inactive users");
+		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
+		expect(countdown.textContent).toBe("Free trial is over!");
 	});
 
 	it("flips the header countdown to 'Free trial is over!' for a cancelled user too, with the same wording as trial-expired", async () => {

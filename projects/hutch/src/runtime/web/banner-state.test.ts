@@ -98,7 +98,7 @@ describe("initBuildBannerState", () => {
 		});
 	});
 
-	it("leaves trial undefined for founding members, paid users, and users with a pending cancellation", async () => {
+	it("leaves trial undefined for founding members and paid users", async () => {
 		const founding: EffectiveAccess = {
 			tier: "founding",
 			access: "full",
@@ -109,14 +109,8 @@ describe("initBuildBannerState", () => {
 			access: "full",
 			banner: "none",
 		};
-		const pendingCancellation: EffectiveAccess = {
-			tier: "paid",
-			access: "full",
-			banner: "pending-cancellation",
-			cancellationEffectiveAt: "2026-02-01T00:00:00.000Z",
-		};
 
-		for (const access of [founding, paid, pendingCancellation]) {
+		for (const access of [founding, paid]) {
 			const build = initBuildBannerState({
 				getEffectiveAccess: async () => access,
 				now: () => FIXED_NOW,
