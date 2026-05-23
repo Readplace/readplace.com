@@ -27,7 +27,7 @@
             {{#if confirmPasswordField.error}}<p class="auth-form__error" data-test-error="confirmPassword">{{confirmPasswordField.error}}</p>{{/if}}
           </div>
           <button class="auth-form__submit" type="submit" data-test-action="signup">{{submitLabel}}</button>
-          {{#unless foundingAvailable}}<p class="auth-form__hint" data-test-trial-hint>14 days. Cancel any time.</p>{{/unless}}
+          {{#unless foundingAvailable}}<p class="auth-form__hint" data-test-trial-hint>{{trialDays}} days. Cancel any time.</p>{{/unless}}
         </form>
         <div class="auth-google-section" data-test-google-section>
           <div class="auth-divider">or</div>

@@ -31,7 +31,6 @@ import type {
 } from "@packages/test-fixtures/providers/pending-signup";
 import type {
 	UpsertActiveSubscription,
-	UpsertTrialingSubscription,
 } from "@packages/test-fixtures/providers/subscription-providers";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
 import type {
@@ -183,7 +182,6 @@ interface AppDependencies {
 	storePendingSignup: StorePendingSignup;
 	consumePendingSignup: ConsumePendingSignup;
 	subscriptionProviders: {
-		upsertTrialing: UpsertTrialingSubscription;
 		upsertActive: UpsertActiveSubscription;
 	};
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;

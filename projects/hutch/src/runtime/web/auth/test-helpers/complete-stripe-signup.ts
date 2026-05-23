@@ -55,7 +55,6 @@ export async function completeStripeSignup(params: {
 			password: params.password,
 			confirmPassword: params.password,
 			loadedAt: String(Date.now() - 5000),
-			intent: "paid",
 		});
 
 	assert.equal(signupResponse.status, 303, "signup should redirect to Stripe");

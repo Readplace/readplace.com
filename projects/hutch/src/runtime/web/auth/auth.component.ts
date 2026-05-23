@@ -107,6 +107,7 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		}),
 		foundingMemberLimit: data.foundingAllocation.foundingMemberLimit,
 		foundingAvailable: !data.foundingAllocation.isFoundingAllocationExhausted(data.userCount),
+		trialDays: STRIPE_TRIAL_PERIOD_DAYS,
 	});
 
 	return {

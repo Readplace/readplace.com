@@ -384,7 +384,6 @@ function flattenFixtureToAppDependencies(
 		storePendingSignup: fixture.pendingSignup.storePendingSignup,
 		consumePendingSignup: fixture.pendingSignup.consumePendingSignup,
 		subscriptionProviders: {
-			upsertTrialing: fixture.subscriptionProviders.upsertTrialing,
 			upsertActive: fixture.subscriptionProviders.upsertActive,
 		},
 		botDefenseLogger: fixture.botDefense.logger,
