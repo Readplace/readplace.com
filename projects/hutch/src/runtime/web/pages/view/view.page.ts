@@ -30,7 +30,7 @@ import { htmlToMarkdown } from "../../html-to-markdown";
 import { buildMarkdownFrontmatter } from "../../markdown-frontmatter";
 import { MarkdownPage } from "../../markdown-page";
 import { Base } from "../../base.component";
-import { bannerStateFromRequest } from "../../banner-state";
+import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "../../send-component";
 import { extensionInstallUrlIfMissing, isExtensionInstalled } from "../../onboarding/extension-install";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
@@ -56,12 +56,13 @@ interface ViewDependencies {
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	now: () => Date;
+	buildBannerState: BuildBannerState;
 }
 
-function renderError(req: Request, res: Response) {
+async function renderError(deps: ViewDependencies, req: Request, res: Response): Promise<void> {
 	const redirectUrl = req.userId ? "/queue" : "/";
 	const linkLabel = req.userId ? "Go to your queue" : "Go to homepage";
-	sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel }), bannerStateFromRequest(req)));
+	sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel }), await deps.buildBannerState(req)));
 }
 
 function hostnameFrom(validatedUrl: string): string {
@@ -87,16 +88,16 @@ function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
 }
 
 function handleViewLanding(deps: ViewDependencies) {
-	return (req: Request, res: Response) => {
+	return async (req: Request, res: Response) => {
 		const submittedUrl =
 			typeof req.query.url === "string" ? req.query.url : undefined;
 		if (submittedUrl === undefined) {
-			sendComponent(req, res, Base(ViewLandingPage(), bannerStateFromRequest(req)));
+			sendComponent(req, res, Base(ViewLandingPage(), await deps.buildBannerState(req)));
 			return;
 		}
 		const validation = deps.validateSaveableUrl(submittedUrl);
 		if (validation.status === "ERROR") {
-			renderError(req, res);
+			await renderError(deps, req, res);
 			return;
 		}
 		res.redirect(302, `/view/${encodeURIComponent(validation.url)}`);
@@ -115,7 +116,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const normalizedUrl = rawPath.replace(/^(https?):\/(?!\/)/i, "$1://");
 		const validation = deps.validateSaveableUrl(normalizedUrl);
 		if (validation.status === "ERROR") {
-			renderError(req, res);
+			await renderError(deps, req, res);
 			return;
 		}
 		const articleUrl = validation.url;
@@ -206,7 +207,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 					actions,
 					extensionInstallUrl: extensionInstallUrlIfMissing(req),
 				}),
-				{ ...bannerStateFromRequest(req), showExtensionSuggestionBanner, extensionInstalled: isExtensionInstalled(req) },
+				{ ...(await deps.buildBannerState(req)), showExtensionSuggestionBanner, extensionInstalled: isExtensionInstalled(req) },
 			),
 		);
 	};

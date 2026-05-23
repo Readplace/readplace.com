@@ -372,6 +372,85 @@ export const NAV_STYLES = `
   }
 `;
 
+export const TRIAL_COUNTDOWN_STYLES = `
+  .trial-countdown {
+    margin: 0;
+    padding: 0 12px;
+    color: var(--color-error);
+    font-weight: 600;
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+    transition: color 0.3s ease, background 0.3s ease, font-weight 0.3s ease;
+  }
+
+  /* purgecss-ignore-start: modifier suffix is interpolated from BannerState.trial.escalation in header.template.html */
+  .trial-countdown--soft {
+    font-weight: 500;
+    opacity: 0.85;
+  }
+
+  .trial-countdown--moderate {
+    font-weight: 600;
+  }
+
+  .trial-countdown--urgent {
+    font-weight: 700;
+    padding: 2px 10px;
+    background: var(--error-bg);
+    border-radius: var(--radius-sm);
+  }
+
+  .trial-countdown--critical {
+    font-weight: 700;
+    padding: 2px 10px;
+    background: var(--color-error);
+    color: var(--error-foreground);
+    border-radius: var(--radius-sm);
+    animation: trial-countdown-pulse 1.5s ease-in-out infinite;
+  }
+
+  .trial-countdown--expired {
+    font-weight: 700;
+    padding: 2px 10px;
+    background: var(--color-error);
+    color: var(--error-foreground);
+    border-radius: var(--radius-sm);
+    animation: trial-countdown-shake 0.5s ease-in-out 1;
+  }
+  /* purgecss-ignore-end */
+
+  @keyframes trial-countdown-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+  }
+
+  @keyframes trial-countdown-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-2px); }
+    75% { transform: translateX(2px); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .trial-countdown {
+      transition: none;
+      animation: none !important;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .header__content {
+      flex-wrap: wrap;
+    }
+
+    .trial-countdown {
+      flex-basis: 100%;
+      padding: 4px 0 0;
+      order: 99;
+    }
+  }
+`;
+
 export const VERIFY_BANNER_STYLES = `
   .verify-banner {
     background: var(--color-warning);

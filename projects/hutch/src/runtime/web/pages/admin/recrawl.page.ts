@@ -15,7 +15,7 @@ import type {
 import type { PublishRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
 import type { FindUserByEmail } from "@packages/test-fixtures/providers/auth";
 import { Base } from "../../base.component";
-import { bannerStateFromRequest } from "../../banner-state";
+import type { BuildBannerState } from "../../banner-state";
 import { extensionInstallUrlIfMissing } from "../../onboarding/extension-install";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.types";
@@ -38,6 +38,7 @@ export interface AdminRecrawlDependencies {
 	adminEmails: readonly string[];
 	serviceToken: string;
 	now: () => Date;
+	buildBannerState: BuildBannerState;
 }
 
 function pollUrlBuilderFor(articleUrl: string): PollUrlBuilder {
@@ -54,28 +55,34 @@ function noStore(_req: Request, res: Response, next: NextFunction): void {
 	next();
 }
 
-function renderNotFound(req: Request, res: Response) {
+async function renderNotFound(
+	deps: AdminRecrawlDependencies,
+	req: Request,
+	res: Response,
+): Promise<void> {
 	const html = Base(SaveErrorPage({
 		redirectUrl: "/admin/recrawl",
 		linkLabel: "Back to recrawl",
-	}), bannerStateFromRequest(req)).to("text/html");
+	}), await deps.buildBannerState(req)).to("text/html");
 	res.status(404).type("html").send(html.body);
 }
 
-function handleLanding(req: Request, res: Response): void {
-	const submittedUrl =
-		typeof req.query.url === "string" ? req.query.url : undefined;
-	if (submittedUrl === undefined) {
-		const html = Base(AdminRecrawlLandingPage(), bannerStateFromRequest(req)).to("text/html");
-		res.status(html.statusCode).type("html").send(html.body);
-		return;
-	}
-	const parsed = RecrawlUrlSchema.safeParse(submittedUrl);
-	if (!parsed.success) {
-		renderNotFound(req, res);
-		return;
-	}
-	res.redirect(302, `/admin/recrawl/${encodeURIComponent(parsed.data)}`);
+function handleLanding(deps: AdminRecrawlDependencies) {
+	return async (req: Request, res: Response): Promise<void> => {
+		const submittedUrl =
+			typeof req.query.url === "string" ? req.query.url : undefined;
+		if (submittedUrl === undefined) {
+			const html = Base(AdminRecrawlLandingPage(), await deps.buildBannerState(req)).to("text/html");
+			res.status(html.statusCode).type("html").send(html.body);
+			return;
+		}
+		const parsed = RecrawlUrlSchema.safeParse(submittedUrl);
+		if (!parsed.success) {
+			await renderNotFound(deps, req, res);
+			return;
+		}
+		res.redirect(302, `/admin/recrawl/${encodeURIComponent(parsed.data)}`);
+	};
 }
 
 function handleRecrawlArticle(
@@ -92,7 +99,7 @@ function handleRecrawlArticle(
 		const normalizedUrl = rawPath.replace(/^(https?):\/(?!\/)/i, "$1://");
 		const parsed = RecrawlUrlSchema.safeParse(normalizedUrl);
 		if (!parsed.success) {
-			renderNotFound(req, res);
+			await renderNotFound(deps, req, res);
 			return;
 		}
 		const articleUrl = parsed.data;
@@ -101,7 +108,7 @@ function handleRecrawlArticle(
 		if (!existing) {
 			// The endpoint is explicitly for human intervention on an existing
 			// saved URL. Do not create a stub; surface 404.
-			renderNotFound(req, res);
+			await renderNotFound(deps, req, res);
 			return;
 		}
 
@@ -136,7 +143,7 @@ function handleRecrawlArticle(
 			progress: state.progress,
 			contentSourceTier: existing.contentSourceTier,
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
-		}), bannerStateFromRequest(req)).to("text/html");
+		}), await deps.buildBannerState(req)).to("text/html");
 		assert(
 			state.crawl?.status === "pending",
 			"force-pending + resolveReaderState must leave the crawl in 'pending'",
@@ -205,7 +212,7 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 	router.use(noStore);
 	router.use(requireAdmin);
 
-	router.get("/", handleLanding);
+	router.get("/", handleLanding(deps));
 	router.get("/summary", handleSummaryPoll(reader));
 	router.get("/reader", handleReaderPoll(reader));
 	router.get<string, Record<string, string>>(

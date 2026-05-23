@@ -313,6 +313,99 @@ describe("Base component", () => {
 		).toBe("https://readplace.com/queue");
 	});
 
+	it("does not render the trial countdown when state.trial is undefined", () => {
+		const page = createTestPageBody();
+		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(doc.querySelector("[data-test-trial-countdown]")).toBeNull();
+		expect(
+			doc.querySelector('script[src$="/client-dist/trial-countdown.client.js"]'),
+		).toBeNull();
+	});
+
+	it("renders the trial countdown with text/data-attrs and includes the client script when trial.state='active'", () => {
+		const page = createTestPageBody();
+		const result = Base(page, {
+			isAuthenticated: true,
+			emailVerified: true,
+			trial: {
+				state: "active",
+				endsAtIso: "2026-01-15T00:00:00.000Z",
+				serverNowIso: "2026-01-01T00:00:00.000Z",
+				remaining: {
+					days: 13,
+					hours: 12,
+					minutes: 33,
+					seconds: 22,
+					totalMs: 1,
+				},
+				escalation: "moderate",
+			},
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "trial countdown must be rendered when trial.state='active'");
+		expect(countdown.textContent).toBe("13d 12h 33m 22s in your free trial");
+		expect(countdown.getAttribute("data-trial-state")).toBe("active");
+		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe("2026-01-15T00:00:00.000Z");
+		expect(countdown.getAttribute("data-server-now-iso")).toBe("2026-01-01T00:00:00.000Z");
+		expect(countdown.classList.contains("trial-countdown--moderate")).toBe(true);
+		expect(countdown.getAttribute("role")).toBe("timer");
+		expect(countdown.getAttribute("aria-live")).toBe("off");
+
+		const script = doc.querySelector(
+			'script[src$="/client-dist/trial-countdown.client.js"]',
+		);
+		assert(script, "trial countdown client script must load when state='active'");
+		expect(script.hasAttribute("defer")).toBe(true);
+	});
+
+	it("renders the trial countdown as 'Free trial is over!' and skips the client script when trial.state='expired'", () => {
+		const page = createTestPageBody();
+		const result = Base(page, {
+			isAuthenticated: true,
+			emailVerified: true,
+			trial: { state: "expired" },
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "trial countdown must be rendered when trial.state='expired'");
+		expect(countdown.textContent).toBe("Free trial is over!");
+		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
+		expect(countdown.classList.contains("trial-countdown--expired")).toBe(true);
+
+		expect(
+			doc.querySelector('script[src$="/client-dist/trial-countdown.client.js"]'),
+		).toBeNull();
+	});
+
+	it("places the trial countdown directly after the header brand inside .header__content", () => {
+		const page = createTestPageBody();
+		const result = Base(page, {
+			isAuthenticated: true,
+			emailVerified: true,
+			trial: {
+				state: "active",
+				endsAtIso: "2026-01-15T00:00:00.000Z",
+				serverNowIso: "2026-01-01T00:00:00.000Z",
+				remaining: { days: 13, hours: 12, minutes: 33, seconds: 22, totalMs: 1 },
+				escalation: "soft",
+			},
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const headerContent = doc.querySelector(".header__content");
+		assert(headerContent, "header content container must exist");
+		const brand = headerContent.querySelector(".header__brand");
+		assert(brand, "brand link must exist");
+		const next = brand.nextElementSibling;
+		assert(next, "an element must follow the brand inside .header__content");
+		expect(next.hasAttribute("data-test-trial-countdown")).toBe(true);
+	});
+
 	it("should preserve query string when normalizing canonical URLs", () => {
 		const page = createTestPageBody({
 			seo: {

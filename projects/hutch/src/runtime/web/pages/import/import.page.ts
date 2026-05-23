@@ -14,7 +14,7 @@ import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { ValidateSaveableUrl, SaveableUrl, SaveableUrlErrorCode } from "@packages/domain/article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { Base } from "../../base.component";
-import { bannerStateFromRequest } from "../../banner-state";
+import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "../../send-component";
 import { saveArticleFromUrl, type SaveArticleFromUrlDependencies } from "../../shared/save-article/save-article-from-url";
 import type { AnalyticsEvent } from "../../middleware/analytics";
@@ -36,6 +36,7 @@ interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
 	salt: string;
 	now: () => Date;
+	buildBannerState: BuildBannerState;
 }
 
 const UPLOAD_ERROR_REDIRECT = {
@@ -56,13 +57,13 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		next(err);
 	};
 
-	router.get("/", (req: Request, res: Response) => {
+	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const errorMessage = importErrorMessageMapping(req.query);
 		const vm = toImportUploadViewModel({
 			errors: errorMessage ? [{ message: errorMessage }] : undefined,
 		});
-		sendComponent(req, res, Base(ImportUploadPage(vm), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(ImportUploadPage(vm), await deps.buildBannerState(req)));
 	});
 
 	router.post("/", rawBodyParser, sizeLimitHandler, async (req: Request, res: Response) => {
@@ -125,7 +126,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		const totalSelected =
 			pageResult.session.totalUrls - pageResult.session.deselected.size;
 		const vm = toImportViewModel(pageResult, totalSelected);
-		sendComponent(req, res, Base(ImportPage(vm), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(ImportPage(vm), await deps.buildBannerState(req)));
 	});
 
 	router.post("/:id/toggle", async (req: Request, res: Response) => {

@@ -30,7 +30,7 @@ import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/strip
 import type { RetrieveCheckoutSession } from "@packages/test-fixtures/providers/stripe-checkout";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
 import { Base } from "../base.component";
-import { bannerStateFromRequest } from "../banner-state";
+import { bannerStateFromRequest, type BuildBannerState } from "../banner-state";
 import { sendComponent } from "../send-component";
 import type { ComponentError } from "../shared/component-error.types";
 import { LoginSchema } from "./auth.schema";
@@ -84,6 +84,7 @@ interface AuthDependencies {
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
 	foundingAllocation: FoundingAllocation;
+	buildBannerState: BuildBannerState;
 }
 
 export function initAuthRoutes(deps: AuthDependencies): Router {
@@ -425,7 +426,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				Base(VerifyEmailPage({
 					success: false,
 					error: "No verification token provided.",
-				}), bannerStateFromRequest(req)),
+				}), await deps.buildBannerState(req)),
 			);
 			return;
 		}
@@ -438,7 +439,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				Base(VerifyEmailPage({
 					success: false,
 					error: "This verification link is invalid or has already been used.",
-				}), bannerStateFromRequest(req)),
+				}), await deps.buildBannerState(req)),
 			);
 			return;
 		}
@@ -451,7 +452,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			await deps.markSessionEmailVerified(sessionId);
 		}
 
-		sendComponent(req, res, Base(VerifyEmailPage({ success: true }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(VerifyEmailPage({ success: true }), await deps.buildBannerState(req)));
 	});
 
 	router.post("/logout", async (req: Request, res: Response) => {

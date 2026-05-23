@@ -10,10 +10,12 @@ import {
 	HEADER_STYLES,
 	NAV_STYLES,
 	OFFLINE_BANNER_STYLES,
+	TRIAL_COUNTDOWN_STYLES,
 	VERIFY_BANNER_STYLES,
 	UTILITY_STYLES,
 } from "./base.styles";
 import type { BannerState } from "./banner-state";
+import { formatTrialDisplay, type TrialDisplay } from "./trial-countdown.format";
 import type { Component, ParsedComponent } from "./component.types";
 import { HtmlPage } from "./html-page";
 import { htmlToMarkdown } from "./html-to-markdown";
@@ -34,11 +36,19 @@ const BASE_TEMPLATE = readFileSync(join(__dirname, "base.template.html"), "utf-8
 
 function renderHeader(
 	variant: "default" | "transparent",
-	options: { isAuthenticated: boolean },
+	options: { isAuthenticated: boolean; trial: TrialDisplay | undefined },
 ): string {
+	const trial = options.trial;
 	return render(HEADER_TEMPLATE, {
 		transparent: variant === "transparent",
 		isAuthenticated: options.isAuthenticated,
+		trial: Boolean(trial),
+		trialDisplayText: trial ? formatTrialDisplay(trial) : "",
+		trialState: trial?.state ?? "",
+		trialEscalationClass:
+			trial?.state === "active" ? trial.escalation : "expired",
+		trialEndsAtIso: trial?.state === "active" ? trial.endsAtIso : "",
+		serverNowIso: trial?.state === "active" ? trial.serverNowIso : "",
 	});
 }
 
@@ -85,6 +95,8 @@ const LIVERELOAD_SCRIPT = getEnv("LIVERELOAD")
 	: "";
 
 const HTMX_SCRIPTS = `<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js" integrity="sha384-/TgkGk7p307TH7EXJDuUlgG3Ce1UVolAOFopFekQkkXihi5u/6OCvVKyz1W+idaz" crossorigin="anonymous"></script><script>htmx.config.scrollBehavior='smooth';</script>`;
+
+const TRIAL_COUNTDOWN_SCRIPT = `<script src="/client-dist/trial-countdown.client.js" defer></script>`;
 
 const OFFLINE_INDICATOR_SCRIPT = `
 <script>
@@ -200,6 +212,7 @@ function renderBaseTemplate(body: PageBody, state: BannerState): string {
 		footerStyles: FOOTER_STYLES,
 		offlineBannerStyles: OFFLINE_BANNER_STYLES,
 		verifyBannerStyles: VERIFY_BANNER_STYLES,
+		trialCountdownStyles: TRIAL_COUNTDOWN_STYLES,
 		extensionSuggestionBannerStyles: EXTENSION_SUGGESTION_BANNER_STYLES,
 		showVerificationBanner: state.isAuthenticated && state.emailVerified === false,
 		extensionSuggestionBanner: renderExtensionSuggestionBanner({
@@ -207,7 +220,10 @@ function renderBaseTemplate(body: PageBody, state: BannerState): string {
 			extensionInstalled: state.extensionInstalled ?? false,
 		}),
 		bodyClass: body.bodyClass,
-		header: renderHeader(headerVariant, { isAuthenticated: state.isAuthenticated }),
+		header: renderHeader(headerVariant, {
+			isAuthenticated: state.isAuthenticated,
+			trial: state.trial,
+		}),
 		content: injectPageStylesIntoMain(body.content.html, body.styles),
 		footer: renderFooter(),
 		navScript: NAV_SCRIPT,
@@ -215,6 +231,7 @@ function renderBaseTemplate(body: PageBody, state: BannerState): string {
 		scripts:
 			HTMX_SCRIPTS +
 			EXTENSION_SUGGESTION_BANNER_SCRIPT +
+			(state.trial?.state === "active" ? TRIAL_COUNTDOWN_SCRIPT : "") +
 			(body.scripts ?? "") +
 			LIVERELOAD_SCRIPT,
 	});

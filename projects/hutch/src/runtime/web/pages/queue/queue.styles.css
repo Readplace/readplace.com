@@ -29,14 +29,8 @@
   display: none;
 }
 
-.queue-banner--trial-countdown,
-.queue-banner--pending-cancellation,
-.queue-banner--inactive {
+.queue-banner--pending-cancellation {
   display: flex;
-}
-
-.queue-banner--inactive {
-  border-left-color: var(--error);
 }
 /* purgecss-ignore-end */
 

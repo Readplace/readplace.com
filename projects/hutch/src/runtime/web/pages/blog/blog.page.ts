@@ -1,7 +1,7 @@
 import type { Request, Response, Router } from "express";
 import express from "express";
 import { Base } from "../../base.component";
-import { bannerStateFromRequest } from "../../banner-state";
+import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "../../send-component";
 import { BlogIndexPage } from "./blog-index.component";
 import { BlogPostPage } from "./blog-post.component";
@@ -14,16 +14,16 @@ const SLUG_REDIRECTS: Record<string, string> = {
 	"hutch-vs-karakeep-hosted-vs-self-hosted-read-it-later": "readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later",
 };
 
-export function initBlogRoutes(deps: { blogPosts: BlogPosts }): Router {
+export function initBlogRoutes(deps: { blogPosts: BlogPosts; buildBannerState: BuildBannerState }): Router {
 	const router = express.Router();
-	const { blogPosts } = deps;
+	const { blogPosts, buildBannerState } = deps;
 
-	router.get("/", (req: Request, res: Response) => {
+	router.get("/", async (req: Request, res: Response) => {
 		const posts = blogPosts.getAllPosts();
-		sendComponent(req, res, Base(BlogIndexPage({ posts }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(BlogIndexPage({ posts }), await buildBannerState(req)));
 	});
 
-	router.get("/:slug", (req: Request, res: Response) => {
+	router.get("/:slug", async (req: Request, res: Response) => {
 		const newSlug = SLUG_REDIRECTS[req.params.slug];
 		if (newSlug) {
 			res.redirect(301, `/blog/${newSlug}`);
@@ -31,10 +31,10 @@ export function initBlogRoutes(deps: { blogPosts: BlogPosts }): Router {
 		}
 		const post = blogPosts.findPostBySlug(req.params.slug);
 		if (!post) {
-			sendComponent(req, res, Base(NotFoundPage(), bannerStateFromRequest(req)));
+			sendComponent(req, res, Base(NotFoundPage(), await buildBannerState(req)));
 			return;
 		}
-		sendComponent(req, res, Base(BlogPostPage({ post }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(BlogPostPage({ post }), await buildBannerState(req)));
 	});
 
 	return router;

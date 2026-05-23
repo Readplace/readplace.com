@@ -4,17 +4,9 @@
         <h1 class="queue__title">My Queue</h1>
       </div>
       <aside class="queue-banner {{subscriptionBannerStateClass}}" aria-live="polite" data-test-subscription-banner>
-        {{#if subscriptionBannerIsTrialCountdown}}
-        <p class="queue-banner__message"><strong data-test-trial-days-left>{{trialDaysLeft}} {{trialDaysLeftWord}} left</strong> in your free trial.</p>
-        <a class="queue-banner__cta" href="/account">Subscribe — $3.99/month</a>
-        {{/if}}
         {{#if subscriptionBannerIsPendingCancellation}}
         <p class="queue-banner__message">Your subscription will end on <time datetime="{{cancellationEffectiveAtIso}}">{{cancellationEffectiveAtFormatted}}</time>.</p>
         <a class="queue-banner__cta" href="/account">Manage subscription →</a>
-        {{/if}}
-        {{#if subscriptionBannerIsInactive}}
-        <p class="queue-banner__message"><strong>Subscription not active.</strong> Your saved articles are still here.</p>
-        <a class="queue-banner__cta" href="/account">Subscribe — $3.99/month</a>
         {{/if}}
       </aside>
       <form class="{{saveFormClass}}" method="POST" action="/queue/save" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:#latest-saved:top" hx-disabled-elt=".queue__save-btn" data-test-form="save-article"{{#if saveUrl}} data-auto-submit{{/if}}>

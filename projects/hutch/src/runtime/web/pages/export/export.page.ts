@@ -4,7 +4,7 @@ import express from "express";
 import type { FindEmailByUserId } from "@packages/test-fixtures/providers/auth";
 import type { PublishExportUserDataCommand } from "@packages/test-fixtures/providers/events";
 import { Base } from "../../base.component";
-import { bannerStateFromRequest } from "../../banner-state";
+import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "../../send-component";
 import { ExportPage } from "./export.component";
 
@@ -13,14 +13,15 @@ interface ExportDependencies {
 	findEmailByUserId: FindEmailByUserId;
 	logError: (message: string, error?: Error) => void;
 	now: () => Date;
+	buildBannerState: BuildBannerState;
 }
 
 export function initExportRoutes(deps: ExportDependencies): Router {
 	const router = express.Router();
 
-	router.get("/", (req: Request, res: Response) => {
+	router.get("/", async (req: Request, res: Response) => {
 		const status = req.query.status === "preparing" ? "preparing" : "idle";
-		sendComponent(req, res, Base(ExportPage({ status }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(ExportPage({ status }), await deps.buildBannerState(req)));
 	});
 
 	router.post("/start", async (req: Request, res: Response) => {
