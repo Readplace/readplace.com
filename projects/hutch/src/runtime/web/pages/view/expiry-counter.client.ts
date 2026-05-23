@@ -67,7 +67,7 @@ export function initExpiryCounter(deps: ExpiryCounterDeps): ExpiryCounterControl
 	if (expiresAtRaw === null) return NOOP_CONTROLLER;
 	const expiresAtMs = Date.parse(expiresAtRaw);
 	if (!Number.isFinite(expiresAtMs)) return NOOP_CONTROLLER;
-	const counterEl: Element = counter;
+	const el: Element = counter; // narrows Element|null for the tick() closure
 
 	let stopped = false;
 	let intervalId: unknown;
@@ -91,18 +91,19 @@ export function initExpiryCounter(deps: ExpiryCounterDeps): ExpiryCounterControl
 		if (stopped) return;
 		const msLeft = expiresAtMs - deps.now();
 		if (msLeft <= 0) {
-			counterEl.textContent = "Public access has expired.";
-			counterEl.setAttribute("data-expiry-state", "expired");
-			counterEl.classList.remove("view__expiry--counting");
-			counterEl.classList.add("view__expiry--expired");
+			el.textContent = "Public access has expired.";
+			el.setAttribute("data-expiry-state", "expired");
+			el.classList.remove("view__expiry--counting");
+			el.classList.add("view__expiry--expired");
 			stop();
 			return;
 		}
 		const timeLeft = decomposeTimeLeft(msLeft);
-		counterEl.textContent = formatCountingMessage(msLeft);
+		el.textContent = formatCountingMessage(msLeft);
 		rewriteSaveLinks(formatSaveUtmContent(timeLeft));
 	}
 
+	tick();
 	intervalId = deps.setIntervalFn(tick, 1000);
 	return { stop };
 }
