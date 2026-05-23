@@ -143,7 +143,7 @@ describe("stripe-webhook-receiver-handler", () => {
 		assert.equal(published.length, 0);
 	});
 
-	it("returns 200 even when EventBridge emission fails with Error", async () => {
+	it("throws when EventBridge emission fails so API Gateway returns 5xx and Stripe retries", async () => {
 		const handler = initStripeWebhookReceiverHandler({
 			webhookSecret: TEST_SECRET,
 			publishEvent: async () => { throw new Error("EventBridge down"); },
@@ -153,34 +153,17 @@ describe("stripe-webhook-receiver-handler", () => {
 
 		const body = buildStripeEvent({ type: "customer.subscription.deleted", subscriptionId: "sub_fail" });
 		const rawBody = Buffer.from(body);
-		const result = await handler(
-			buildApiGatewayEvent({ body, signatureHeader: buildSignature(rawBody) }),
-			{} as never,
-			() => {},
+
+		await assert.rejects(
+			async () => {
+				await handler(
+					buildApiGatewayEvent({ body, signatureHeader: buildSignature(rawBody) }),
+					{} as never,
+					() => {},
+				);
+			},
+			{ message: "EventBridge down" },
 		);
-
-		assert(result);
-		assert.equal(result.statusCode, 200);
-	});
-
-	it("returns 200 even when EventBridge emission fails with non-Error", async () => {
-		const handler = initStripeWebhookReceiverHandler({
-			webhookSecret: TEST_SECRET,
-			publishEvent: async () => { throw "string error"; },
-			logger: HutchLogger.from(noopLogger),
-			now: () => new Date(),
-		});
-
-		const body = buildStripeEvent({ type: "customer.subscription.deleted", subscriptionId: "sub_fail2" });
-		const rawBody = Buffer.from(body);
-		const result = await handler(
-			buildApiGatewayEvent({ body, signatureHeader: buildSignature(rawBody) }),
-			{} as never,
-			() => {},
-		);
-
-		assert(result);
-		assert.equal(result.statusCode, 200);
 	});
 
 	it("handles base64-encoded bodies from API Gateway", async () => {

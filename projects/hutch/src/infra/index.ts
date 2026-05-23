@@ -305,8 +305,9 @@ eventBus.subscribe(ExportUserDataCommand, exportUserDataLambdaWithSQS);
 // --- Stripe Webhook Receiver ---
 // Receives HTTP POST from Stripe via API Gateway, verifies the HMAC signature,
 // and emits domain events (e.g. SubscriptionCancelledEvent) via EventBridge.
-// Always returns 200 to Stripe so we control retries ourselves via the
-// downstream SQS-backed handler's DLQ.
+// Returns 200 after successful publish; lets EventBridge failures propagate so
+// API Gateway returns 5xx and Stripe retries. Downstream handler failures are
+// caught by the SQS-backed handler's DLQ.
 
 const stripeWebhookReceiverLambda = new HutchLambda("stripe-webhook-receiver", {
 	entryPoint: "./src/runtime/stripe-webhook-receiver.main.ts",

@@ -38,27 +38,19 @@ export function initStripeWebhookReceiverHandler(deps: {
 
 		if (stripeEvent.type === "customer.subscription.deleted") {
 			const subscriptionId = stripeEvent.data.object.id;
-			try {
-				await deps.publishEvent({
-					source: SubscriptionCancelledEvent.source,
-					detailType: SubscriptionCancelledEvent.detailType,
-					detail: JSON.stringify(
-						SubscriptionCancelledEvent.detailSchema.parse({ subscriptionId }),
-					),
-				});
-				deps.logger.info("[stripe-webhook] emitted SubscriptionCancelled", { subscriptionId });
-			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				deps.logger.error("[stripe-webhook] failed to emit SubscriptionCancelled", {
-					subscriptionId,
-					error: message,
-				});
-			}
+			await deps.publishEvent({
+				source: SubscriptionCancelledEvent.source,
+				detailType: SubscriptionCancelledEvent.detailType,
+				detail: JSON.stringify(
+					SubscriptionCancelledEvent.detailSchema.parse({ subscriptionId }),
+				),
+			});
+			deps.logger.info("[stripe-webhook] emitted SubscriptionCancelled", { subscriptionId });
 		}
 
-		/** Acknowledge every valid Stripe event with 200 so Stripe stops
-		 * retrying. Unknown event types are silently accepted — adding new
-		 * domain-event mappings means extending the if-chain above. */
+		/** Unknown event types are silently accepted with 200 — adding new
+		 * domain-event mappings means extending the if-chain above. Known
+		 * events reach here only after successful EventBridge publish. */
 		return { statusCode: 200, body: "" };
 	};
 }
