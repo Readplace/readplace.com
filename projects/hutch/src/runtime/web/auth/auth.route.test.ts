@@ -1044,7 +1044,7 @@ describe("Auth routes", () => {
 			expect(signupDoc.querySelector("[data-test-founding-blurb]")).toBeNull();
 		}, 30000);
 
-		it("renders '14 days. Cancel any time.' trial hint on /signup when the founding allocation is exhausted", async () => {
+		it("renders '14 days trial. Cancel any time.' trial hint on /signup when the founding allocation is exhausted", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
@@ -1052,7 +1052,7 @@ describe("Auth routes", () => {
 			}
 
 			const doc = new JSDOM((await request(harness.server).get("/signup")).text).window.document;
-			expect(doc.querySelector("[data-test-trial-hint]")?.textContent).toBe("14 days. Cancel any time.");
+			expect(doc.querySelector("[data-test-trial-hint]")?.textContent).toBe("14 days trial. Cancel any time.");
 		}, 30000);
 	});
 });
