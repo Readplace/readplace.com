@@ -56,6 +56,7 @@ function defaultFakeArticle(): GlobalArticleData {
 			wordCount: 100,
 		},
 		estimatedReadTime: 1 as Minutes,
+		savedAt: FIXED_NOW,
 	};
 }
 

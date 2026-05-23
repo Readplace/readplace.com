@@ -68,6 +68,7 @@ import type {
 	UpsertTrialingSubscription,
 } from "./providers/subscription-providers/subscription-providers.types";
 import type {
+	BumpArticleSavedAt,
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
@@ -153,6 +154,7 @@ export interface ArticleStoreBundle {
 	findArticlesByUser: FindArticlesByUser;
 	saveArticle: SaveArticle;
 	saveArticleGlobally: SaveArticleGlobally;
+	bumpArticleSavedAt: BumpArticleSavedAt;
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	readArticleContent: ReadArticleContent;

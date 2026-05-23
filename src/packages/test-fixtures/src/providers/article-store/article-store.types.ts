@@ -42,8 +42,21 @@ export interface SaveArticleGloballyParams {
 	savedAt: Date;
 }
 
+/** Returned `{ created }` lets the caller distinguish a fresh insert from a
+ * no-op upsert on an existing row. The store performs the conditional put
+ * only; whether to bump `savedAt` (or take any other follow-up) is a
+ * domain decision the caller layers on top via `bumpArticleSavedAt`. */
 export type SaveArticleGlobally = (
 	params: SaveArticleGloballyParams,
+) => Promise<{ created: boolean }>;
+
+export interface BumpArticleSavedAtParams {
+	url: string;
+	savedAt: Date;
+}
+
+export type BumpArticleSavedAt = (
+	params: BumpArticleSavedAtParams,
 ) => Promise<void>;
 
 export type FindArticleById = (
@@ -64,6 +77,7 @@ export interface GlobalArticleData {
 	url: string;
 	metadata: SavedArticle["metadata"];
 	estimatedReadTime: SavedArticle["estimatedReadTime"];
+	savedAt: Date;
 	contentSourceTier?: "tier-0" | "tier-1";
 }
 

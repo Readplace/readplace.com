@@ -9,6 +9,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
+	BumpArticleSavedAt,
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
@@ -63,6 +64,7 @@ function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): Saved
 export function initInMemoryArticleStore(): {
 	saveArticle: SaveArticle;
 	saveArticleGlobally: SaveArticleGlobally;
+	bumpArticleSavedAt: BumpArticleSavedAt;
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
@@ -91,28 +93,39 @@ export function initInMemoryArticleStore(): {
 
 	const saveArticleGlobally: SaveArticleGlobally = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
-		const routeId = ReaderArticleHashId.from(params.url);
-
-		if (!articles.has(articleResourceUniqueId.value)) {
-			articles.set(articleResourceUniqueId.value, {
-				url: articleResourceUniqueId.value,
-				originalUrl: params.url,
-				routeId,
-				metadata: params.metadata,
-				estimatedReadTime: params.estimatedReadTime,
-				savedAt: params.savedAt,
-			});
+		if (articles.has(articleResourceUniqueId.value)) {
+			return { created: false };
 		}
+		const routeId = ReaderArticleHashId.from(params.url);
+		articles.set(articleResourceUniqueId.value, {
+			url: articleResourceUniqueId.value,
+			originalUrl: params.url,
+			routeId,
+			metadata: params.metadata,
+			estimatedReadTime: params.estimatedReadTime,
+			savedAt: params.savedAt,
+		});
+		return { created: true };
+	};
+
+	const bumpArticleSavedAt: BumpArticleSavedAt = async (params) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		const article = articles.get(articleResourceUniqueId.value);
+		if (!article) return;
+		article.savedAt = params.savedAt;
 	};
 
 	const saveArticle: SaveArticle = async (params) => {
 		const now = new Date();
-		await saveArticleGlobally({
+		const { created } = await saveArticleGlobally({
 			url: params.url,
 			metadata: params.metadata,
 			estimatedReadTime: params.estimatedReadTime,
 			savedAt: now,
 		});
+		if (!created) {
+			await bumpArticleSavedAt({ url: params.url, savedAt: now });
+		}
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 
 		const uaKey = userArticleKey(params.userId, articleResourceUniqueId.value);
@@ -160,6 +173,7 @@ export function initInMemoryArticleStore(): {
 			content: article.content,
 
 			estimatedReadTime: article.estimatedReadTime,
+			savedAt: article.savedAt,
 			contentSourceTier: article.contentSourceTier,
 		};
 	};
@@ -273,6 +287,7 @@ export function initInMemoryArticleStore(): {
 	return {
 		saveArticle,
 		saveArticleGlobally,
+		bumpArticleSavedAt,
 		findArticleById,
 		findArticleByUrl,
 		findArticleUrlById,
