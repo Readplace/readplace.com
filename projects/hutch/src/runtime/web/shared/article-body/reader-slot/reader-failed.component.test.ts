@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { renderReaderFailed } from "./reader-failed.component";
+import {
+	renderReaderFailed,
+	type ReaderFailedVariant,
+} from "./reader-failed.component";
 
 function parse(html: string) {
 	return new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window
@@ -14,7 +17,7 @@ describe("renderReaderFailed", () => {
 				renderReaderFailed({ url: "https://example.com/post", variant }),
 			);
 			assert.equal(
-				doc.querySelector(".article-body__reader-failed-title")?.textContent,
+				doc.querySelector(".article-body__reader-notice-title")?.textContent,
 				"Your link is saved",
 				`title for variant=${variant}`,
 			);
@@ -38,19 +41,19 @@ describe("renderReaderFailed", () => {
 	});
 
 	it("uses a different one-line explanation per variant", () => {
-		const explanations: Record<string, RegExp> = {
-			unsupported: /not webpages which we yet don't show/,
-			failed: /blocking automated fetches/,
-			slow: /taking longer than usual/,
-		};
-		for (const [variant, expected] of Object.entries(explanations)) {
+		const cases: [ReaderFailedVariant, RegExp][] = [
+			["unsupported", /not webpages which we yet don't show/],
+			["failed", /blocking automated fetches/],
+			["slow", /taking longer than usual/],
+		];
+		for (const [variant, expected] of cases) {
 			const doc = parse(
 				renderReaderFailed({
 					url: "https://example.com/post",
-					variant: variant as "unsupported" | "failed" | "slow",
+					variant,
 				}),
 			);
-			const text = doc.querySelector(".article-body__reader-failed-text")?.textContent ?? "";
+			const text = doc.querySelector(".article-body__reader-notice-text")?.textContent ?? "";
 			assert.match(text, expected, `explanation for variant=${variant}`);
 		}
 	});

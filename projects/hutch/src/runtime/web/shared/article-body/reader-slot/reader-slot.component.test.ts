@@ -50,7 +50,7 @@ describe("renderReaderSlot", () => {
 		expect(slot.getAttribute("data-reader-status")).toBe("slow");
 		expect(slot.getAttribute("hx-get")).toBeNull();
 		assert.equal(
-			doc.querySelector(".article-body__reader-failed-title")?.textContent,
+			doc.querySelector(".article-body__reader-notice-title")?.textContent,
 			"Your link is saved",
 		);
 	});
@@ -68,7 +68,7 @@ describe("renderReaderSlot", () => {
 		expect(slot.getAttribute("data-reader-status")).toBe("failed");
 		expect(slot.getAttribute("hx-get")).toBeNull();
 		assert.equal(
-			doc.querySelector(".article-body__reader-failed-title")?.textContent,
+			doc.querySelector(".article-body__reader-notice-title")?.textContent,
 			"Your link is saved",
 		);
 		expect(
@@ -94,7 +94,7 @@ describe("renderReaderSlot", () => {
 		expect(slot.getAttribute("data-reader-status")).toBe("unsupported");
 		expect(slot.getAttribute("hx-get")).toBeNull();
 		assert.equal(
-			doc.querySelector(".article-body__reader-failed-title")?.textContent,
+			doc.querySelector(".article-body__reader-notice-title")?.textContent,
 			"Your link is saved",
 		);
 	});

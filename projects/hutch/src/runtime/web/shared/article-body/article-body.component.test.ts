@@ -221,7 +221,7 @@ describe("renderArticleBody", () => {
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
 		expect(slot.getAttribute("data-reader-status")).toBe("failed");
-		const link = slot.querySelector(".article-body__reader-failed-link");
+		const link = slot.querySelector(".article-body__reader-notice-link");
 		expect(link?.getAttribute("href")).toBe("https://example.com/post");
 	});
 
