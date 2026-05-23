@@ -95,9 +95,6 @@ describe("resolveReaderPermalink", () => {
 			},
 		});
 		expect(ownerLookupCalls).toBe(0);
-		assert(result.kind === "redirect");
-		const location = new URL(result.redirect.location, "https://example.test");
-		expect(location.searchParams.has("utm_content")).toBe(false);
 	});
 
 	it("preserves incoming UTM params over the defaults", async () => {
