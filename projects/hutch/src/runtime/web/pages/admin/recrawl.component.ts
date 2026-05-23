@@ -10,6 +10,7 @@ import type { ProgressTick } from "@packages/domain/article";
 import { RECRAWL_STYLES } from "./recrawl.styles";
 
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
+const READER_IFRAME_SCRIPT = `<script src="/client-dist/reader-iframe.client.js" defer></script>`;
 
 /**
  * Both the initial SSR <title> and the OOB <title> swap emitted by recrawl
@@ -77,7 +78,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		styles: RECRAWL_STYLES,
 		bodyClass: "page-admin-recrawl",
 		content: { html: content },
-		scripts: PROGRESS_BAR_SCRIPT,
+		scripts: PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT,
 	};
 }
 

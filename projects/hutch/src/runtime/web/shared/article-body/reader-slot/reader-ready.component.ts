@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "../../../render";
+import { buildReaderIframeSrcdoc } from "./reader-iframe-srcdoc";
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "reader-ready.template.html"),
@@ -13,5 +14,6 @@ export interface ReaderReadyInput {
 }
 
 export function renderReaderReady(input: ReaderReadyInput): string {
-	return render(TEMPLATE, { content: input.content, oob: input.oob === true });
+	const srcdoc = buildReaderIframeSrcdoc({ content: input.content });
+	return render(TEMPLATE, { srcdoc, oob: input.oob === true });
 }

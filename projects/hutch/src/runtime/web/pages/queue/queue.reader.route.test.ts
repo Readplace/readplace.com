@@ -67,7 +67,13 @@ describe("Queue routes", () => {
 
 			expect(readerResponse.status).toBe(200);
 			const doc = new JSDOM(readerResponse.text).window.document;
-			expect(doc.querySelector("[data-test-reader-content]")?.textContent).toContain("archived content");
+			const iframe = doc.querySelector("iframe[data-reader-iframe]");
+			assert(iframe, "reader iframe must be rendered");
+			const srcdoc = iframe.getAttribute("srcdoc");
+			assert(srcdoc, "iframe must carry srcdoc");
+			const iframeDoc = new JSDOM(srcdoc).window.document;
+			assert(iframeDoc.body, "iframe body must exist");
+			expect(iframeDoc.body.textContent).toContain("archived content");
 			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe("Saved Post");
 			expect(doc.querySelector("[data-test-back-link]")?.getAttribute("href")).toBe("/queue?utm_source=reader&utm_medium=internal&utm_content=back-top");
 			expect(doc.querySelector("[data-test-back-bottom-link]")?.getAttribute("href")).toBe("/queue?utm_source=reader&utm_medium=internal&utm_content=back-bottom");

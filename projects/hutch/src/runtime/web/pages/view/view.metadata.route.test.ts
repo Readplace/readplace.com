@@ -460,9 +460,13 @@ describe("View routes", () => {
 			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe(
 				"Cached Title",
 			);
-			expect(
-				doc.querySelector("[data-test-reader-content]")?.innerHTML.trim(),
-			).toBe("<p>Cached body.</p>");
+			const iframe = doc.querySelector("iframe[data-reader-iframe]");
+			assert(iframe, "reader iframe must be rendered");
+			const srcdoc = iframe.getAttribute("srcdoc");
+			assert(srcdoc, "iframe must carry srcdoc");
+			const iframeDoc = new JSDOM(srcdoc).window.document;
+			assert(iframeDoc.body, "iframe body must exist");
+			expect(iframeDoc.body.innerHTML.trim()).toBe("<p>Cached body.</p>");
 			// Background freshness check is always requested — the stale-check
 			// Lambda decides whether to refresh, /view never blocks on it.
 			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: ARTICLE_URL });

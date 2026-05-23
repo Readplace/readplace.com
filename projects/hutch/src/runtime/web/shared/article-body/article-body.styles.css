@@ -212,110 +212,19 @@
   width: 100%;
 }
 
-.article-body__content {
-  font-size: 1.125rem;
-  line-height: 1.8;
-  color: var(--color-text-primary);
-}
-
-.article-body__content p {
-  margin: 0 0 1.25rem;
-}
-
-.article-body__content h1,
-.article-body__content h2,
-.article-body__content h3,
-.article-body__content h4 {
-  margin: 2rem 0 1rem;
-  line-height: 1.3;
-}
-
-.article-body__content h2 {
-  font-size: 1.5rem;
-}
-
-.article-body__content h3 {
-  font-size: 1.25rem;
-}
-
-.article-body__content img {
-  max-width: 100%;
-  height: auto;
-  border-radius: 4px;
-  margin: 1rem 0;
-}
-
-/*
- * Inline nav-icon SVGs from extracted articles often have only a viewBox
- * and no width/height — the browser then stretches them to fill the column
- * (an icon with viewBox="0 0 32 44" inside a 680px reader column renders
- * ~680×935px). Treat unsized SVGs as inline icons so nav fragments that
- * survive Readability don't dominate the page. Author-sized SVGs (real
- * diagrams with width/height) match the general .article-body__content svg
- * rule below and stay at their authored size, capped to column width.
+/**
+ * 1. No `overflow: hidden`: the iframe height is sized to match its content
+ *    by reader-iframe.client.ts. If that calculation regresses, the resulting
+ *    internal scrollbar is an intentional debug signal — do not mask it.
+ * 2. Transparent background so the parent surface colour shows through and
+ *    the iframe is visually indistinguishable from inline content.
  */
-.article-body__content svg {
-  max-width: 100%;
-  height: auto;
-}
-
-.article-body__content svg:not([width]):not([height]) {
-  max-height: 1.5rem;
-  vertical-align: middle;
-}
-
-.article-body__content a {
-  color: var(--color-brand);
-}
-
-.article-body__content blockquote {
-  margin: 1.5rem 0;
-  padding: 0.5rem 0 0.5rem 1.25rem;
-  border-left: 3px solid var(--color-border);
-  color: var(--color-text-secondary);
-}
-
-.article-body__content pre {
-  overflow-x: auto;
-  padding: 1rem;
-  background: var(--color-surface);
-  border-radius: 4px;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  margin: 1.25rem 0;
-}
-
-.article-body__content code {
-  font-size: 0.875em;
-  padding: 0.15em 0.3em;
-  background: var(--color-surface);
-  border-radius: 3px;
-}
-
-.article-body__content pre code {
-  padding: 0;
-  background: none;
-}
-
-.article-body__content ul,
-.article-body__content ol {
-  margin: 1rem 0;
-  padding-left: 1.5rem;
-}
-
-.article-body__content li {
-  margin-bottom: 0.5rem;
-}
-
-.article-body__content figure {
-  margin: 1.5rem 0;
-}
-
-.article-body__content figcaption {
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
-  margin-top: 0.5rem;
-  text-align: center;
+.article-body__reader-iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent; /* 2 */
 }
 
 .article-body__progress {
