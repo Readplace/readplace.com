@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import {
-	renderReaderFailed,
 	type ReaderFailedVariant,
+	renderReaderFailed,
 } from "./reader-failed.component";
 
 function parse(html: string) {
@@ -41,7 +41,7 @@ describe("renderReaderFailed", () => {
 	});
 
 	it("uses a different one-line explanation per variant", () => {
-		const cases: [ReaderFailedVariant, RegExp][] = [
+		const cases: Array<[ReaderFailedVariant, RegExp]> = [
 			["unsupported", /not webpages which we yet don't show/],
 			["failed", /blocking automated fetches/],
 			["slow", /taking longer than usual/],
