@@ -324,22 +324,48 @@ describe("Auth routes", () => {
 			expect(consumed).toBeNull();
 		}, 30000);
 
-		it("should redirect to Stripe checkout when at the founding limit", async () => {
+		it("creates a trialing subscription_providers row and redirects to /queue when the founding allocation is exhausted", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
+			const { auth, subscriptionProviders, conversions, stripe, pendingSignup } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 
+			const before = Date.now();
 			const response = await request(harness.server).post("/signup").type("form").send({
-				email: "paid@example.com",
+				email: "trial@example.com",
 				password: "password123",
 				confirmPassword: "password123",
 				loadedAt: freshLoadedAt(),
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toMatch(/^https:\/\/checkout\.stripe\.test\//);
+			expect(response.headers.location).toBe("/queue");
+			expect(response.headers["set-cookie"].length).toBeGreaterThan(0);
+
+			const lookup = await auth.findUserByEmail("trial@example.com");
+			assert(lookup, "trial signup must persist a user");
+			const subRow = await subscriptionProviders.findByUserId(lookup.userId);
+			assert(subRow, "trial signup must write a subscription_providers row");
+			expect(subRow.status).toBe("trialing");
+			assert(subRow.trialEndsAt, "trialing row must carry trialEndsAt");
+			const trialEndsAtMs = new Date(subRow.trialEndsAt).getTime();
+			const fourteenDaysMs = 14 * 86_400_000;
+			expect(trialEndsAtMs).toBeGreaterThanOrEqual(before + fourteenDaysMs - 5000);
+			expect(trialEndsAtMs).toBeLessThanOrEqual(Date.now() + fourteenDaysMs + 5000);
+			expect(subRow.subscriptionId).toBeUndefined();
+			expect(subRow.customerId).toBeUndefined();
+
+			const conversionEvent = conversions.events.find((e) => e.method === "email" && e.tier === "trial");
+			assert(conversionEvent, "trial signup must emit a user_created conversion event with tier=trial");
+
+			// No Stripe checkout, no pending signup row.
+			const consumed = await pendingSignup.consumePendingSignup(
+				CheckoutSessionIdSchema.parse("cs_test_never_created"),
+			);
+			expect(consumed).toBeNull();
+			// stripe.markPaid stays accessible for callers — confirming the bundle is unaffected.
+			expect(typeof stripe.markPaid).toBe("function");
 		}, 30000);
 
 		it("should fall back to free signup after a manual deletion drops the count below the limit", async () => {
@@ -433,32 +459,37 @@ describe("Auth routes", () => {
 			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("already exists");
 		});
 
-		it("should redirect new visitors to a Stripe checkout URL when at the founding limit", async () => {
+		it("sends a verification email after a trial signup so the user can confirm their address before the trial ends", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth } = harness;
+			const { auth, email } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
 
 			const response = await request(harness.server).post("/signup").type("form").send({
-				email: "new@example.com",
+				email: "verify-trial@example.com",
 				password: "password123",
 				confirmPassword: "password123",
 				loadedAt: freshLoadedAt(),
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toMatch(/^https:\/\/checkout\.stripe\.test\//);
+			expect(response.headers.location).toBe("/queue");
+			const sent = email.getSentEmails();
+			const verification = sent.find((m) => m.to === "verify-trial@example.com");
+			assert(verification, "trial signup must trigger a verification email");
+			expect(verification.subject).toBe("Verify your email — Readplace");
 		}, 30000);
 
 		it("should create the account on successful Stripe checkout and redirect to /queue", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, stripe } = harness;
+			const { auth, stripe, pendingSignup } = harness;
 
 			const { successResponse } = await completeStripeSignup({
 				server: harness.server,
 				auth,
 				stripe,
+				pendingSignup,
 				email: "new@example.com",
 				password: "password123",
 			});
@@ -470,12 +501,13 @@ describe("Auth routes", () => {
 
 		it("should redirect to return URL after successful Stripe checkout", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, stripe } = harness;
+			const { auth, stripe, pendingSignup } = harness;
 
 			const { successResponse } = await completeStripeSignup({
 				server: harness.server,
 				auth,
 				stripe,
+				pendingSignup,
 				email: "new@example.com",
 				password: "password123",
 				returnUrl: "/oauth/authorize?client_id=test",
@@ -487,12 +519,13 @@ describe("Auth routes", () => {
 
 		it("should ignore protocol-relative return URLs on signup", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, stripe } = harness;
+			const { auth, stripe, pendingSignup } = harness;
 
 			const { successResponse } = await completeStripeSignup({
 				server: harness.server,
 				auth,
 				stripe,
+				pendingSignup,
 				email: "new@example.com",
 				password: "password123",
 				returnUrl: "//evil.com",
@@ -504,12 +537,13 @@ describe("Auth routes", () => {
 
 		it("should ignore non-relative return URLs on signup", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, stripe } = harness;
+			const { auth, stripe, pendingSignup } = harness;
 
 			const { successResponse } = await completeStripeSignup({
 				server: harness.server,
 				auth,
 				stripe,
+				pendingSignup,
 				email: "new@example.com",
 				password: "password123",
 				returnUrl: "https://evil.com",
@@ -783,9 +817,9 @@ describe("Auth routes", () => {
 			expect(consumed).toBeNull();
 		});
 
-		it("falls through to the existing happy path (303 to Stripe) when the honeypot is empty, loadedAt is older than 2.5s, and the founding allocation is exhausted", async () => {
+		it("falls through to the trial signup happy path (303 to /queue) when the honeypot is empty, loadedAt is older than 2.5s, and the founding allocation is exhausted", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, botDefense } = harness;
+			const { auth, botDefense, subscriptionProviders } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
@@ -799,8 +833,13 @@ describe("Auth routes", () => {
 			});
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toMatch(/^https:\/\/checkout\.stripe\.test\//);
+			expect(response.headers.location).toBe("/queue");
 			expect(botDefense.events).toEqual([]);
+
+			const lookup = await auth.findUserByEmail("real@example.com");
+			assert(lookup, "trial signup must persist a user");
+			const subRow = await subscriptionProviders.findByUserId(lookup.userId);
+			expect(subRow?.status).toBe("trialing");
 		}, 30000);
 	});
 

@@ -155,6 +155,7 @@ const lambda = new HutchLambda("hutch", {
 		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
 		STRIPE_PRICE_ID: requireEnv("STRIPE_PRICE_ID"),
+		STRIPE_WEBHOOK_SECRET: requireEnv("STRIPE_WEBHOOK_SECRET"),
 		STATIC_BASE_URL: staticAssets.baseUrl,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		CONTENT_BUCKET_NAME: contentBucketName,

@@ -15,12 +15,13 @@ describe("Email verification", () => {
 	describe("POST /signup → Stripe → success", () => {
 		it("should send a verification email after successful Stripe checkout", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, email, stripe } = harness;
+			const { auth, email, stripe, pendingSignup } = harness;
 
 			await completeStripeSignup({
 				server: harness.server,
 				auth,
 				stripe,
+				pendingSignup,
 				email: "new@example.com",
 				password: "password123",
 			});
@@ -50,12 +51,13 @@ describe("Email verification", () => {
 					logError: () => { resolveErrorLogged(); },
 				},
 			});
-			const { auth, stripe } = harness;
+			const { auth, stripe, pendingSignup } = harness;
 
 			const { successResponse } = await completeStripeSignup({
 				server: harness.server,
 				auth,
 				stripe,
+				pendingSignup,
 				email: "fail-email@example.com",
 				password: "password123",
 			});
@@ -83,12 +85,13 @@ describe("Email verification", () => {
 	describe("GET /verify-email", () => {
 		it("should verify email with a valid token", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, email, stripe } = harness;
+			const { auth, email, stripe, pendingSignup } = harness;
 
 			await completeStripeSignup({
 				server: harness.server,
 				auth,
 				stripe,
+				pendingSignup,
 				email: "verify@example.com",
 				password: "password123",
 			});
@@ -127,12 +130,13 @@ describe("Email verification", () => {
 
 		it("should reject a token that has already been used", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, email, stripe } = harness;
+			const { auth, email, stripe, pendingSignup } = harness;
 
 			await completeStripeSignup({
 				server: harness.server,
 				auth,
 				stripe,
+				pendingSignup,
 				email: "once@example.com",
 				password: "password123",
 			});
@@ -152,12 +156,13 @@ describe("Email verification", () => {
 
 		it("should mark email as verified after successful verification", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, email, stripe } = harness;
+			const { auth, email, stripe, pendingSignup } = harness;
 
 			const { successResponse } = await completeStripeSignup({
 				server: harness.server,
 				auth,
 				stripe,
+				pendingSignup,
 				email: "flag@example.com",
 				password: "password123",
 			});
@@ -186,12 +191,13 @@ describe("Email verification", () => {
 
 		it("should not mark email as verified when token is invalid", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, stripe } = harness;
+			const { auth, stripe, pendingSignup } = harness;
 
 			const { successResponse } = await completeStripeSignup({
 				server: harness.server,
 				auth,
 				stripe,
+				pendingSignup,
 				email: "noverify@example.com",
 				password: "password123",
 			});
@@ -211,12 +217,13 @@ describe("Email verification", () => {
 
 		it("should send a welcome email after successful verification", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, email, stripe } = harness;
+			const { auth, email, stripe, pendingSignup } = harness;
 
 			await completeStripeSignup({
 				server: harness.server,
 				auth,
 				stripe,
+				pendingSignup,
 				email: "welcome@example.com",
 				password: "password123",
 			});
@@ -241,12 +248,13 @@ describe("Email verification", () => {
 
 		it("should not send a welcome email when the verification token is invalid", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, email, stripe } = harness;
+			const { auth, email, stripe, pendingSignup } = harness;
 
 			await completeStripeSignup({
 				server: harness.server,
 				auth,
 				stripe,
+				pendingSignup,
 				email: "nowelcome@example.com",
 				password: "password123",
 			});

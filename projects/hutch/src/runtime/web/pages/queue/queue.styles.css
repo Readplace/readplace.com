@@ -14,6 +14,55 @@
   color: var(--foreground);
 }
 
+.queue-banner {
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  background: var(--muted);
+  border-left: 3px solid var(--primary);
+}
+
+/* purgecss-ignore-start: modifier suffix is interpolated from QueueViewModel.subscriptionBanner.state in queue.template.html */
+.queue-banner--none {
+  display: none;
+}
+
+.queue-banner--trial-countdown,
+.queue-banner--pending-cancellation,
+.queue-banner--inactive {
+  display: flex;
+}
+
+.queue-banner--inactive {
+  border-left-color: var(--error);
+}
+/* purgecss-ignore-end */
+
+.queue-banner__message {
+  flex: 1;
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--foreground);
+}
+
+.queue-banner__cta {
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.queue-banner__cta:hover {
+  opacity: 0.9;
+}
+
 .queue__save-form {
   display: flex;
   gap: 8px;
@@ -52,6 +101,12 @@
 
 .queue__save-btn:hover {
   opacity: 0.9;
+}
+
+.queue__save-form--disabled .queue__save-input,
+.queue__save-form--disabled .queue__save-btn {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .queue__save-btn-saving {

@@ -21,16 +21,14 @@ import type {
 } from "@packages/test-fixtures/providers/email-verification";
 import { VerificationTokenSchema } from "@packages/test-fixtures/providers/email-verification";
 import assert from "node:assert";
+import type { ConsumePendingSignup } from "@packages/test-fixtures/providers/pending-signup";
 import type {
-	ConsumePendingSignup,
-	StorePendingSignup,
-} from "@packages/test-fixtures/providers/pending-signup";
-import type { UpsertActiveSubscription } from "@packages/test-fixtures/providers/subscription-providers";
+	UpsertActiveSubscription,
+	UpsertTrialingSubscription,
+} from "@packages/test-fixtures/providers/subscription-providers";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
-import type {
-	CreateCheckoutSession,
-	RetrieveCheckoutSession,
-} from "@packages/test-fixtures/providers/stripe-checkout";
+import type { RetrieveCheckoutSession } from "@packages/test-fixtures/providers/stripe-checkout";
+import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
 import { Base } from "../base.component";
 import { bannerStateFromRequest } from "../banner-state";
 import { sendComponent } from "../send-component";
@@ -73,14 +71,12 @@ interface AuthDependencies {
 	sendEmail: SendEmail;
 	createVerificationToken: CreateVerificationToken;
 	verifyEmailToken: VerifyEmailToken;
-	createCheckoutSession: CreateCheckoutSession;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
-	storePendingSignup: StorePendingSignup;
 	consumePendingSignup: ConsumePendingSignup;
 	subscriptionProviders: {
 		upsertActive: UpsertActiveSubscription;
+		upsertTrialing: UpsertTrialingSubscription;
 	};
-	appOrigin: string;
 	baseUrl: string;
 	staticBaseUrl: string;
 	logError: (message: string, error?: Error) => void;
@@ -100,18 +96,6 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 	});
 
 	const validateSignup = initValidateSignup({ findUserByEmail: deps.findUserByEmail });
-
-	const buildSuccessUrl = (returnUrl: string | undefined): string => {
-		/** Stripe substitutes {CHECKOUT_SESSION_ID} server-side, so the URL must
-		 * contain the literal placeholder — we cannot URL-encode the braces. */
-		const returnSuffix = returnUrl ? `&return=${encodeURIComponent(returnUrl)}` : "";
-		return `${deps.appOrigin}/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}${returnSuffix}`;
-	};
-
-	const buildCancelUrl = (path: "/signup", returnUrl: string | undefined): string => {
-		const suffix = returnUrl ? `?return=${encodeURIComponent(returnUrl)}` : "";
-		return `${deps.appOrigin}${path}${suffix}`;
-	};
 
 	const sendWelcomeEmail = initSendWelcomeEmail({
 		sendEmail: deps.sendEmail,
@@ -282,24 +266,34 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			return;
 		}
 
-		const checkout = await deps.createCheckoutSession({
-			customerEmail: email,
-			successUrl: buildSuccessUrl(returnUrl),
-			cancelUrl: buildCancelUrl("/signup", returnUrl),
+		const created = await deps.createUserWithPasswordHash({ email, passwordHash });
+		if (!created.ok) {
+			await renderFailure(email, [{ message: "An account with this email already exists" }]);
+			return;
+		}
+
+		const trialEndsAt = new Date(
+			deps.now().getTime() + STRIPE_TRIAL_PERIOD_DAYS * 86_400_000,
+		).toISOString();
+		await deps.subscriptionProviders.upsertTrialing({
+			userId: created.userId,
+			trialEndsAt,
 		});
 
-		await deps.storePendingSignup({
-			checkoutSessionId: checkout.id,
-			signup: {
-				method: "email",
+		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
+		res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+		sendVerificationEmail(created.userId, email);
+		emitUserCreated(
+			{ logger: deps.conversionLogger, now: deps.now },
+			{
+				userId: created.userId,
 				email,
-				passwordHash,
-				...(returnUrl ? { returnUrl } : {}),
+				method: "email",
+				tier: "trial",
+				attribution: readClickAttribution(req),
 			},
-			createdAt: Math.floor(deps.now().getTime() / 1000),
-		});
-
-		res.redirect(303, checkout.url);
+		);
+		res.redirect(303, parseReturnUrl({ return: returnUrl }));
 	});
 
 	router.get("/auth/checkout/success", async (req: Request, res: Response) => {

@@ -2,72 +2,63 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import type { SuperTest, Test } from "supertest";
 import request from "supertest";
-import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
 import type { CheckoutSessionId } from "@packages/test-fixtures/providers/stripe-checkout";
-import type { AuthBundle } from "../../../test-app";
+import type { AuthBundle, PendingSignupBundle } from "../../../test-app";
 
 interface StripeBundle {
+	createCheckoutSession: (input: {
+		customerEmail: string;
+		successUrl: string;
+		cancelUrl: string;
+	}) => Promise<{ id: CheckoutSessionId; url: string }>;
 	markPaid: (id: CheckoutSessionId) => void;
 }
 
-/** Drives an email-signup flow through the Stripe checkout boundary in a single
- * step: posts to /signup, asserts the redirect to the Stripe URL, marks the
- * session paid via the in-memory Stripe fake, then GETs the success URL using
- * the shared agent so the session cookie persists.
+/** Drives `GET /auth/checkout/success` directly: creates a Stripe checkout
+ * session via the in-memory fake, stores a pending signup keyed by that
+ * session id, marks the session paid, then GETs the success URL using a shared
+ * agent so the resulting session cookie persists.
  *
- * Stripe checkout is gated behind the founding-member allocation: signups only
- * route through Stripe once the user count reaches the configured limit. The
- * default test fixture uses limit=3, so seeding 3 fake users here pushes any
- * subsequent signup onto the paid path. Tests with custom limits pass
- * `foundingMemberLimit` explicitly. */
+ * Phase 1 removed Stripe checkout from `POST /signup` (it's a no-card trial
+ * now), so this helper no longer drives through the signup form. The
+ * `/auth/checkout/success` endpoint remains live — Phase 2 will create
+ * pending signups via `POST /account/subscribe` to feed it again. */
 export async function completeStripeSignup(params: {
 	server: Server;
 	auth: AuthBundle;
 	stripe: StripeBundle;
+	pendingSignup: PendingSignupBundle;
 	email: string;
 	password: string;
 	returnUrl?: string;
 	agent?: SuperTest<Test>;
-	foundingMemberLimit?: number;
 }): Promise<{
-	signupResponse: import("supertest").Response;
 	successResponse: import("supertest").Response;
 	checkoutSessionId: CheckoutSessionId;
 }> {
-	const seedCount = params.foundingMemberLimit ?? 3;
-	for (let i = 0; i < seedCount; i++) {
-		const seedEmail = `stripe-seed-${i}@test.invalid`;
-		const existing = await params.auth.findUserByEmail(seedEmail);
-		if (!existing) {
-			await params.auth.createUser({ email: seedEmail, password: "password123" });
-		}
-	}
+	const checkout = await params.stripe.createCheckoutSession({
+		customerEmail: params.email,
+		successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
+		cancelUrl: "http://localhost:3000/signup",
+	});
+	const passwordHash = `plain:${params.password}`;
+	await params.pendingSignup.storePendingSignup({
+		checkoutSessionId: checkout.id,
+		signup: {
+			method: "email",
+			email: params.email,
+			passwordHash,
+			...(params.returnUrl ? { returnUrl: params.returnUrl } : {}),
+		},
+		createdAt: 1735000000,
+	});
+	params.stripe.markPaid(checkout.id);
 
 	const agent = params.agent ?? request.agent(params.server);
-	const signupPath = params.returnUrl
-		? `/signup?return=${encodeURIComponent(params.returnUrl)}`
-		: "/signup";
-	const signupResponse = await agent
-		.post(signupPath)
-		.type("form")
-		.send({
-			email: params.email,
-			password: params.password,
-			confirmPassword: params.password,
-			loadedAt: String(Date.now() - 5000),
-		});
-
-	assert.equal(signupResponse.status, 303, "signup should redirect to Stripe");
-	const stripeUrl = signupResponse.headers.location;
-	assert(stripeUrl?.startsWith("https://checkout.stripe.test/"), `unexpected redirect: ${stripeUrl}`);
-	const checkoutSessionId = CheckoutSessionIdSchema.parse(
-		new URL(stripeUrl).pathname.replace(/^\//, ""),
-	);
-
-	params.stripe.markPaid(checkoutSessionId);
-
 	const successResponse = await agent.get(
-		`/auth/checkout/success?session_id=${encodeURIComponent(checkoutSessionId)}`,
+		`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
 	);
-	return { signupResponse, successResponse, checkoutSessionId };
+	const lookup = await params.auth.findUserByEmail(params.email);
+	assert(lookup, "user must exist after Stripe success");
+	return { successResponse, checkoutSessionId: checkout.id };
 }

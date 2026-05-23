@@ -3,19 +3,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
-import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
-
-/** Matches the default test fixture's `foundingAllocation.foundingMemberLimit`.
- * Tests own this constant so production changes to `PROD_FOUNDING_MEMBER_LIMIT`
- * cannot ripple through seed loops or assertions. */
-const TEST_FOUNDING_MEMBER_LIMIT = 3;
-
-async function seedAboveFoundingLimit(auth: { createUser: (params: { email: string; password: string }) => Promise<{ ok: boolean }> }) {
-	for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
-		await auth.createUser({ email: `gate-${i}@test.invalid`, password: "password123" });
-	}
-}
 
 const useApp = useTestServer();
 
@@ -42,38 +30,41 @@ describe("GET /auth/checkout/success", () => {
 
 	it("renders 402 when the checkout has not been paid yet", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth, stripe } = harness;
-		await seedAboveFoundingLimit(auth);
+		const { stripe, pendingSignup } = harness;
 
-		const signup = await request(harness.server).post("/signup").type("form").send({
-			email: "unpaid@example.com",
-			password: "password123",
-			confirmPassword: "password123",
-			loadedAt: String(Date.now() - 5000),
+		const checkout = await stripe.createCheckoutSession({
+			customerEmail: "unpaid@example.com",
+			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
+			cancelUrl: "http://localhost:3000/signup",
 		});
-		const checkoutSessionId = CheckoutSessionIdSchema.parse(
-			new URL(signup.headers.location).pathname.replace(/^\//, ""),
-		);
+		await pendingSignup.storePendingSignup({
+			checkoutSessionId: checkout.id,
+			signup: {
+				method: "email",
+				email: "unpaid@example.com",
+				passwordHash: "plain:password123",
+			},
+			createdAt: 1735000000,
+		});
 
 		const response = await request(harness.server).get(
-			`/auth/checkout/success?session_id=${encodeURIComponent(checkoutSessionId)}`,
+			`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
 		);
 
 		expect(response.status).toBe(402);
 		const doc = new JSDOM(response.text).window.document;
 		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("not completed");
-		// Side note: keeps the unused stripe deconstruction warning quiet
-		expect(typeof stripe.markPaid).toBe("function");
 	});
 
 	it("renders 409 when the checkout has been paid but the pending signup was already consumed", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth, stripe } = harness;
+		const { auth, stripe, pendingSignup } = harness;
 
 		const { checkoutSessionId } = await completeStripeSignup({
 			server: harness.server,
 			auth,
 			stripe,
+			pendingSignup,
 			email: "double@example.com",
 			password: "password123",
 		});
@@ -89,12 +80,13 @@ describe("GET /auth/checkout/success", () => {
 
 	it("creates the user, sets a session cookie, and redirects to /queue on first paid visit", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth, stripe } = harness;
+		const { auth, stripe, pendingSignup } = harness;
 
 		const { successResponse } = await completeStripeSignup({
 			server: harness.server,
 			auth,
 			stripe,
+			pendingSignup,
 			email: "buyer@example.com",
 			password: "password123",
 		});
@@ -116,12 +108,13 @@ describe("GET /auth/checkout/success", () => {
 
 	it("writes an active subscription_providers row with the Stripe ids on first paid visit", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth, stripe, subscriptionProviders } = harness;
+		const { auth, stripe, subscriptionProviders, pendingSignup } = harness;
 
 		await completeStripeSignup({
 			server: harness.server,
 			auth,
 			stripe,
+			pendingSignup,
 			email: "sub-active@example.com",
 			password: "password123",
 		});
@@ -139,24 +132,28 @@ describe("GET /auth/checkout/success", () => {
 
 	it("renders 409 when the email has been claimed since the Stripe redirect started", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth, stripe } = harness;
-		await seedAboveFoundingLimit(auth);
+		const { auth, stripe, pendingSignup } = harness;
 
-		const signup = await request(harness.server).post("/signup").type("form").send({
-			email: "race@example.com",
-			password: "password123",
-			confirmPassword: "password123",
-			loadedAt: String(Date.now() - 5000),
+		const checkout = await stripe.createCheckoutSession({
+			customerEmail: "race@example.com",
+			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
+			cancelUrl: "http://localhost:3000/signup",
 		});
-		const checkoutSessionId = CheckoutSessionIdSchema.parse(
-			new URL(signup.headers.location).pathname.replace(/^\//, ""),
-		);
-		stripe.markPaid(checkoutSessionId);
+		await pendingSignup.storePendingSignup({
+			checkoutSessionId: checkout.id,
+			signup: {
+				method: "email",
+				email: "race@example.com",
+				passwordHash: "plain:password123",
+			},
+			createdAt: 1735000000,
+		});
+		stripe.markPaid(checkout.id);
 
 		await auth.createUser({ email: "race@example.com", password: "different-password" });
 
 		const response = await request(harness.server).get(
-			`/auth/checkout/success?session_id=${encodeURIComponent(checkoutSessionId)}`,
+			`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
 		);
 
 		expect(response.status).toBe(409);

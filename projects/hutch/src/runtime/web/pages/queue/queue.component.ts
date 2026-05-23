@@ -37,6 +37,16 @@ interface QueueDisplayModel {
 	nextUrl?: string;
 	currentPage: number;
 	totalPages: number;
+	subscriptionBannerStateClass: string;
+	subscriptionBannerIsTrialCountdown: boolean;
+	subscriptionBannerIsPendingCancellation: boolean;
+	subscriptionBannerIsInactive: boolean;
+	trialDaysLeft?: number;
+	trialDaysLeftWord?: string;
+	cancellationEffectiveAtIso?: string;
+	cancellationEffectiveAtFormatted?: string;
+	accessIsReadOnly: boolean;
+	saveFormClass: string;
 }
 
 function filterLinkClass(isActive: boolean): string {
@@ -62,6 +72,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 			browser: options.browser,
 		});
 
+	const banner = vm.subscriptionBanner;
 	return {
 		saveError: vm.errors?.[0]?.message,
 		saveErrorCode: vm.saveErrorCode,
@@ -89,6 +100,18 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		nextUrl: vm.paginationUrls.next,
 		currentPage: vm.currentPage,
 		totalPages: vm.totalPages,
+		subscriptionBannerStateClass: `queue-banner--${banner.state}`,
+		subscriptionBannerIsTrialCountdown: banner.state === "trial-countdown",
+		subscriptionBannerIsPendingCancellation: banner.state === "pending-cancellation",
+		subscriptionBannerIsInactive: banner.state === "inactive",
+		trialDaysLeft: banner.state === "trial-countdown" ? banner.daysLeft : undefined,
+		trialDaysLeftWord: banner.state === "trial-countdown" ? banner.daysLeftWord : undefined,
+		cancellationEffectiveAtIso:
+			banner.state === "pending-cancellation" ? banner.cancellationEffectiveAtIso : undefined,
+		cancellationEffectiveAtFormatted:
+			banner.state === "pending-cancellation" ? banner.cancellationEffectiveAtFormatted : undefined,
+		accessIsReadOnly: vm.accessIsReadOnly,
+		saveFormClass: vm.accessIsReadOnly ? "queue__save-form queue__save-form--disabled" : "queue__save-form",
 	};
 }
 
