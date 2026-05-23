@@ -7,6 +7,7 @@ import type {
 	FindArticleUrlById,
 } from "@packages/test-fixtures/providers/article-store";
 import type { Redirect } from "../../redirect.component";
+import { shareUserIdPrefix } from "../../shared/share-user-id";
 import { collectUtmParams } from "../../shared/utm";
 
 export interface ReaderPermalinkDeps {
@@ -32,17 +33,29 @@ const REDIRECT_TO_QUEUE: ReaderPermalinkResult = {
 /** UTM params on the /view redirect let analytics distinguish shared
  * /read clicks from organic /view traffic. Preserve any incoming UTM
  * (e.g. a campaign-tagged share URL) over the defaults so external
- * attribution survives the redirect. */
-function buildShareRedirectUrl(articleUrl: string, query: Request["query"]): string {
+ * attribution survives the redirect. When the requester is logged in,
+ * `utm_content` is overridden with their userId prefix so the receiving
+ * `/view` page treats the link as permanent (no expiry); a re-shared
+ * link therefore carries the latest sharer's trace, not the original. */
+function buildShareRedirectUrl(
+	articleUrl: string,
+	query: Request["query"],
+	requesterId: UserId | undefined,
+): string {
 	const incomingUtm = collectUtmParams(query);
-	const utmParams: [string, string][] = incomingUtm.length > 0
-		? incomingUtm
-		: [
-			["utm_source", "read"],
-			["utm_medium", "share"],
-			["utm_campaign", "read-permalink"],
-		];
-	return `/view/${encodeURIComponent(articleUrl)}?${new URLSearchParams(utmParams).toString()}`;
+	const params = new URLSearchParams(
+		incomingUtm.length > 0
+			? incomingUtm
+			: [
+				["utm_source", "read"],
+				["utm_medium", "share"],
+				["utm_campaign", "read-permalink"],
+			],
+	);
+	if (requesterId !== undefined) {
+		params.set("utm_content", shareUserIdPrefix(requesterId));
+	}
+	return `/view/${encodeURIComponent(articleUrl)}?${params.toString()}`;
 }
 
 export function initReaderPermalink(deps: ReaderPermalinkDeps) {
@@ -65,7 +78,10 @@ export function initReaderPermalink(deps: ReaderPermalinkDeps) {
 		 * owner, so caches must not pin a single response. */
 		return {
 			kind: "redirect",
-			redirect: { statusCode: 302, location: buildShareRedirectUrl(articleUrl, input.query) },
+			redirect: {
+				statusCode: 302,
+				location: buildShareRedirectUrl(articleUrl, input.query, input.requesterId),
+			},
 		};
 	};
 }
