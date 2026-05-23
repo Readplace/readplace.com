@@ -242,6 +242,23 @@ describe("initExpiryCounter", () => {
 		assert.equal(state.pending().length, 0);
 	});
 
+	it("stop() is idempotent — calling it twice does not throw", () => {
+		const startMs = Date.parse("2026-05-01T00:00:00.000Z");
+		const expiresAt = "2026-05-03T10:05:33.000Z";
+		const doc = makeDoc(counterHtml(expiresAt));
+		const { state, setIntervalFn, clearIntervalFn } = createFakeTimers(startMs);
+		const controller = initExpiryCounter({
+			document: doc,
+			now: () => state.now,
+			setIntervalFn,
+			clearIntervalFn,
+		});
+
+		controller.stop();
+		controller.stop();
+		assert.equal(state.pending().length, 0);
+	});
+
 	it("stop() clears the interval and prevents further ticks from mutating the DOM", () => {
 		const startMs = Date.parse("2026-05-01T00:00:00.000Z");
 		const expiresAt = "2026-05-03T10:05:33.000Z";

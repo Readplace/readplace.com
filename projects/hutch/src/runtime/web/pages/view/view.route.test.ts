@@ -1198,6 +1198,7 @@ describe("View routes", () => {
 						publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 						publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 						publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+						publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					},
 					shared: { ...fixture.shared, now: () => now },
 				}),
