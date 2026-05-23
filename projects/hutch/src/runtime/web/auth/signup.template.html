@@ -26,9 +26,8 @@
             <input class="auth-form__input{{confirmPasswordField.errorClass}}" type="password" id="confirmPassword" name="confirmPassword" required autocomplete="new-password">
             {{#if confirmPasswordField.error}}<p class="auth-form__error" data-test-error="confirmPassword">{{confirmPasswordField.error}}</p>{{/if}}
           </div>
-          <button class="auth-form__submit" type="submit" name="intent" value="trial" data-test-action="signup-trial">Start free trial</button>
-          <p class="auth-form__hint" data-test-trial-hint>14 days, no credit card required. Cancel any time.</p>
-          <button class="auth-form__submit auth-form__submit--secondary" type="submit" name="intent" value="paid" data-test-action="signup-paid">{{paidSubmitLabel}}</button>
+          <button class="auth-form__submit" type="submit" data-test-action="signup">{{submitLabel}}</button>
+          {{#unless foundingAvailable}}<p class="auth-form__hint" data-test-trial-hint>14 days. Cancel any time.</p>{{/unless}}
         </form>
         <div class="auth-google-section" data-test-google-section>
           <div class="auth-divider">or</div>

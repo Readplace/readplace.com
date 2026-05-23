@@ -45,7 +45,7 @@ export function createAuthActions(
         )
         await clickAndWaitForPageReload(
           page,
-          page.locator('[data-test-action="signup-trial"]'),
+          page.locator('[data-test-action="signup"]'),
         )
 
         const onQueue = await isOnPage(page, 'page-queue')

@@ -25,11 +25,7 @@ import type {
 	ConsumePendingSignup,
 	StorePendingSignup,
 } from "@packages/test-fixtures/providers/pending-signup";
-import type {
-	UpsertActiveSubscription,
-	UpsertTrialingSubscription,
-} from "@packages/test-fixtures/providers/subscription-providers";
-import { TRIAL_DURATION_DAYS } from "../../domain/subscription/trial-config";
+import type { UpsertActiveSubscription } from "@packages/test-fixtures/providers/subscription-providers";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
 import type {
 	CreateCheckoutSession,
@@ -57,8 +53,6 @@ import { emitUserCreated } from "../../conversions";
 const TokenQuerySchema = z.object({ token: z.string().optional() }).passthrough();
 const CheckoutSuccessQuerySchema = z.object({ session_id: z.string().min(1) }).passthrough();
 const SignupQuerySchema = z.object({ email: z.string().email() }).passthrough();
-const SignupIntentSchema = z.enum(["trial", "paid"]);
-const MS_PER_DAY = 86400000;
 
 const EMAIL_FROM = "Fayner Brack <readplace@readplace.com>";
 
@@ -84,7 +78,6 @@ interface AuthDependencies {
 	storePendingSignup: StorePendingSignup;
 	consumePendingSignup: ConsumePendingSignup;
 	subscriptionProviders: {
-		upsertTrialing: UpsertTrialingSubscription;
 		upsertActive: UpsertActiveSubscription;
 	};
 	appOrigin: string;
@@ -219,7 +212,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const returnUrl = extractReturnUrl(req.query);
 		const body = (req.body ?? {}) as Record<string, unknown>;
 
-		const renderFailure = async (email: string | undefined, errors: ComponentError[], statusCode = 422) => {
+		const renderFailure = async (email: string | undefined, errors: ComponentError[]) => {
 			const userCount = await fetchUserCount();
 			sendComponent(
 				req, res,
@@ -232,7 +225,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 						email,
 						errors,
 					},
-					{ statusCode },
+					{ statusCode: 422 },
 				), bannerStateFromRequest(req)),
 			);
 		};
@@ -261,43 +254,8 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			return;
 		}
 
-		const intentResult = SignupIntentSchema.safeParse(body.intent);
-		if (!intentResult.success) {
-			await renderFailure(result.email, [{ message: "Please choose Start free trial or Subscribe." }], 400);
-			return;
-		}
-		const intent = intentResult.data;
-
 		const { email, password } = result;
 		const passwordHash = await deps.hashPassword(password);
-
-		if (intent === "trial") {
-			const created = await deps.createUserWithPasswordHash({ email, passwordHash });
-			if (!created.ok) {
-				await renderFailure(email, [{ message: "An account with this email already exists" }]);
-				return;
-			}
-
-			const trialEndsAt = new Date(deps.now().getTime() + TRIAL_DURATION_DAYS * MS_PER_DAY).toISOString();
-			await deps.subscriptionProviders.upsertTrialing({ userId: created.userId, trialEndsAt });
-
-			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
-			res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
-			sendVerificationEmail(created.userId, email);
-			emitUserCreated(
-				{ logger: deps.conversionLogger, now: deps.now },
-				{
-					userId: created.userId,
-					email,
-					method: "email",
-					tier: "trial",
-					attribution: readClickAttribution(req),
-				},
-			);
-			res.redirect(303, parseReturnUrl({ return: returnUrl }));
-			return;
-		}
-
 		const userCount = await fetchUserCount();
 
 		if (!deps.foundingAllocation.isFoundingAllocationExhausted(userCount)) {
