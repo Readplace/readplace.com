@@ -34,7 +34,12 @@ import type {
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "@packages/test-fixtures/providers/subscription-providers";
+import type {
+	CreateTrialEndSchedule,
+	DeleteTrialEndSchedule,
+} from "@packages/test-fixtures/providers/trial-scheduler";
 import type { PublishCancelSubscriptionCommand } from "@packages/test-fixtures/providers/events";
+import type { CreateSubscriptionOnExistingCustomer } from "@packages/test-fixtures/providers/stripe-subscriptions";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
 import type {
 	DeleteArticle,
@@ -75,7 +80,7 @@ import type {
 	VerifyPasswordResetToken,
 } from "@packages/test-fixtures/providers/password-reset";
 import type { OAuthModel } from "@packages/test-fixtures/providers/oauth";
-import type { HutchLogger } from "@packages/hutch-logger";
+import { HutchLogger } from "@packages/hutch-logger";
 import type { AnalyticsEvent } from "./web/middleware/analytics";
 import { initAuthRoutes } from "./web/auth/auth.page";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
@@ -193,6 +198,12 @@ interface AppDependencies {
 		upsertTrialing: UpsertTrialingSubscription;
 		findByUserId: FindSubscriptionByUserId;
 	};
+	trialScheduler: {
+		createTrialEndSchedule: CreateTrialEndSchedule;
+		deleteTrialEndSchedule: DeleteTrialEndSchedule;
+	};
+	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
+	stripePriceId: string;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
@@ -470,6 +481,10 @@ export function createApp(dependencies: AppDependencies): Express {
 			upsertActive: deps.subscriptionProviders.upsertActive,
 			upsertTrialing: deps.subscriptionProviders.upsertTrialing,
 		},
+		trialScheduler: {
+			createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
+			deleteTrialEndSchedule: deps.trialScheduler.deleteTrialEndSchedule,
+		},
 		baseUrl: deps.baseUrl,
 		staticBaseUrl,
 		logError: deps.logError,
@@ -495,6 +510,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			markEmailVerified: deps.markEmailVerified,
 			exchangeGoogleCode: deps.googleAuth.exchangeGoogleCode,
 			upsertTrialing: deps.subscriptionProviders.upsertTrialing,
+			createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
 			sendEmail: deps.sendEmail,
 			logError: deps.logError,
 			now: deps.now,
@@ -622,13 +638,24 @@ export function createApp(dependencies: AppDependencies): Express {
 	const accountRouter = initAccountRoutes({
 		getEffectiveAccess,
 		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
+		upsertActiveSubscription: deps.subscriptionProviders.upsertActive,
 		findEmailByUserId: deps.findEmailByUserId,
 		publishCancelSubscriptionCommand: deps.publishCancelSubscriptionCommand,
 		createCheckoutSession: deps.createCheckoutSession,
+		createSubscriptionOnExistingCustomer: deps.createSubscriptionOnExistingCustomer,
 		storePendingSignup: deps.storePendingSignup,
+		stripePriceId: deps.stripePriceId,
 		buildCheckoutSuccessUrl: (sessionIdPlaceholder) =>
 			`${appOrigin}/auth/checkout/success?session_id=${sessionIdPlaceholder}`,
 		appOrigin,
+		logger: HutchLogger.from({
+			info: () => {},
+			error: (...args) => {
+				deps.logError(String(args[0]), args[1] instanceof Error ? args[1] : undefined);
+			},
+			warn: () => {},
+			debug: () => {},
+		}),
 		now: deps.now,
 	});
 	app.use("/account", requireAuth, accountRouter);

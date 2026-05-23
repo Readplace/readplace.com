@@ -130,6 +130,26 @@ describe("GET /auth/checkout/success", () => {
 		expect(subRow.trialEndsAt).toBeUndefined();
 	});
 
+	it("calls deleteTrialEndSchedule on first paid visit so any prior trial scheduler is cleared", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth, stripe, pendingSignup, trialScheduler } = harness;
+
+		await completeStripeSignup({
+			server: harness.server,
+			auth,
+			stripe,
+			pendingSignup,
+			email: "sub-clear-schedule@example.com",
+			password: "password123",
+		});
+
+		const lookup = await auth.findUserByEmail("sub-clear-schedule@example.com");
+		assert(lookup, "user must exist after paid signup");
+		// Schedule delete is idempotent so it's safe to call even when no
+		// schedule exists (first-time-paid signup).
+		expect(trialScheduler.deleteCalls()).toContain(lookup.userId);
+	});
+
 	it("renders 409 when the email has been claimed since the Stripe redirect started", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth, stripe, pendingSignup } = harness;

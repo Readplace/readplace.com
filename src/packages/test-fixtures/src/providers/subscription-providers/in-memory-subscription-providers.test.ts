@@ -171,4 +171,24 @@ describe("initInMemorySubscriptionProviders", () => {
 		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
 		await expect(subs.markActive({ userId })).rejects.toThrow(/No subscription row/);
 	});
+
+	it("seedRow lets tests inject hypothetical row shapes (e.g. trialing with customerId)", async () => {
+		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+
+		subs.seedRow({
+			userId,
+			provider: "stripe",
+			status: "trialing",
+			customerId: "cus_seeded",
+			trialEndsAt: "2026-06-05T00:00:00.000Z",
+			createdAt: "2026-05-01T00:00:00.000Z",
+			updatedAt: "2026-05-01T00:00:00.000Z",
+		});
+
+		const row = await subs.findByUserId(userId);
+		assert(row, "seeded row must be findable");
+		expect(row.status).toBe("trialing");
+		expect(row.customerId).toBe("cus_seeded");
+		expect(row.trialEndsAt).toBe("2026-06-05T00:00:00.000Z");
+	});
 });

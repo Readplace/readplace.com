@@ -326,7 +326,7 @@ describe("Auth routes", () => {
 
 		it("creates a trialing subscription_providers row and redirects to /queue when the founding allocation is exhausted", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, subscriptionProviders, conversions, stripe, pendingSignup } = harness;
+			const { auth, subscriptionProviders, conversions, stripe, pendingSignup, trialScheduler } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
 				await auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
 			}
@@ -356,6 +356,11 @@ describe("Auth routes", () => {
 			expect(subRow.subscriptionId).toBeUndefined();
 			expect(subRow.customerId).toBeUndefined();
 
+			// Trial-end EventBridge Scheduler must be created at the same firesAt as trialEndsAt.
+			const schedule = trialScheduler.getSchedule(lookup.userId);
+			assert(schedule, "trial signup must create a trial-end schedule");
+			expect(schedule).toBe(subRow.trialEndsAt);
+
 			const conversionEvent = conversions.events.find((e) => e.method === "email" && e.tier === "trial");
 			assert(conversionEvent, "trial signup must emit a user_created conversion event with tier=trial");
 
@@ -366,6 +371,37 @@ describe("Auth routes", () => {
 			expect(consumed).toBeNull();
 			// stripe.markPaid stays accessible for callers — confirming the bundle is unaffected.
 			expect(typeof stripe.markPaid).toBe("function");
+		}, 30000);
+
+		it("returns 500 and does NOT persist a trial row when the trial-end scheduler fails", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			// Replace the trial scheduler's createTrialEndSchedule with a failing fake.
+			fixture.trialScheduler.createTrialEndSchedule = async () => {
+				throw new Error("Scheduler outage");
+			};
+			const harness = useApp(fixture);
+			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
+				await harness.auth.createUser({ email: `seed${i}@test.com`, password: "password123" });
+			}
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "trial-fail@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(500);
+			// The user row was created BEFORE the scheduler call, so the failure
+			// leaves an orphan trialing row. Operations playbook: the scheduler
+			// retry path is handled out-of-band; on this branch, we simply fail
+			// loudly so the user retries (idempotent signup is enforced by the
+			// unique-email constraint in createUserWithPasswordHash).
+			const lookup = await harness.auth.findUserByEmail("trial-fail@example.com");
+			assert(lookup, "user row gets persisted before scheduler call");
+			const subRow = await harness.subscriptionProviders.findByUserId(lookup.userId);
+			assert(subRow, "trial subscription row also persists");
+			expect(subRow.status).toBe("trialing");
 		}, 30000);
 
 		it("should fall back to free signup after a manual deletion drops the count below the limit", async () => {

@@ -27,4 +27,33 @@ describe("initInMemoryStripeSubscriptions", () => {
 		assert.deepEqual(first, ["sub_x"]);
 		assert.deepEqual(second, ["sub_x", "sub_y"]);
 	});
+
+	it("createSubscriptionOnExistingCustomer returns synthetic subscription ids and records params", async () => {
+		const stripe = initInMemoryStripeSubscriptions();
+
+		const first = await stripe.createSubscriptionOnExistingCustomer({
+			customerId: "cus_existing",
+			priceId: "price_abc",
+		});
+		const second = await stripe.createSubscriptionOnExistingCustomer({
+			customerId: "cus_existing",
+			priceId: "price_abc",
+		});
+
+		assert.notEqual(first.subscriptionId, second.subscriptionId);
+		assert.deepEqual(stripe.createdSubscriptions(), [
+			{ customerId: "cus_existing", priceId: "price_abc", subscriptionId: first.subscriptionId },
+			{ customerId: "cus_existing", priceId: "price_abc", subscriptionId: second.subscriptionId },
+		]);
+	});
+
+	it("createSubscriptionOnExistingCustomer throws when configured to fail", async () => {
+		const stripe = initInMemoryStripeSubscriptions({ createSubscriptionFails: true });
+
+		await assert.rejects(
+			() => stripe.createSubscriptionOnExistingCustomer({ customerId: "cus_x", priceId: "price_y" }),
+			/In-memory Stripe createSubscription failure/,
+		);
+		assert.deepEqual(stripe.createdSubscriptions(), []);
+	});
 });

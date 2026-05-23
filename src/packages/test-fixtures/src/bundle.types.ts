@@ -66,9 +66,18 @@ import type {
 	MarkSubscriptionCancelled,
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
+	SubscriptionRecord,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "./providers/subscription-providers/subscription-providers.types";
+import type {
+	CreateTrialEndSchedule,
+	DeleteTrialEndSchedule,
+} from "./providers/trial-scheduler/trial-scheduler.types";
+import type {
+	CreateSubscriptionOnExistingCustomer,
+} from "./providers/stripe-subscriptions/stripe-subscriptions.types";
+import type { UserId } from "@packages/domain/user";
 import type {
 	BumpArticleSavedAt,
 	DeleteArticle,
@@ -148,6 +157,20 @@ export interface SubscriptionProvidersBundle {
 	markCancelled: MarkSubscriptionCancelled;
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
+	seedRow: (row: SubscriptionRecord) => void;
+}
+
+export interface TrialSchedulerBundle {
+	createTrialEndSchedule: CreateTrialEndSchedule;
+	deleteTrialEndSchedule: DeleteTrialEndSchedule;
+	getSchedule: (userId: UserId) => string | undefined;
+	allSchedules: () => readonly { userId: UserId; firesAt: string }[];
+	deleteCalls: () => readonly UserId[];
+}
+
+export interface StripeSubscriptionsBundle {
+	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
+	createdSubscriptions: () => readonly { customerId: string; priceId: string; subscriptionId: string }[];
 }
 
 export interface ArticleStoreBundle {
@@ -296,6 +319,9 @@ export interface TestAppFixture {
 	stripe: StripeCheckoutBundle;
 	pendingSignup: PendingSignupBundle;
 	subscriptionProviders: SubscriptionProvidersBundle;
+	trialScheduler: TrialSchedulerBundle;
+	stripeSubscriptions: StripeSubscriptionsBundle;
+	stripePriceId: string;
 	botDefense: BotDefenseBundle;
 	conversions: ConversionsBundle;
 	foundingAllocation: FoundingAllocationBundle;

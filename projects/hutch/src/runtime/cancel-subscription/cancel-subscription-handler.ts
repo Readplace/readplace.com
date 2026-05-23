@@ -16,6 +16,7 @@ import type {
 } from "@packages/test-fixtures/providers/subscription-providers";
 import type { PublishSubscriptionCancelled } from "@packages/test-fixtures/providers/events";
 import type { CancelSubscriptionImmediately } from "@packages/test-fixtures/providers/stripe-subscriptions";
+import type { DeleteTrialEndSchedule } from "@packages/test-fixtures/providers/trial-scheduler";
 
 type CancelBranch = (row: SubscriptionRecord) => Promise<void>;
 
@@ -23,6 +24,7 @@ interface HandlerDeps {
 	findSubscriptionByUserId: FindSubscriptionByUserId;
 	cancelStripeSubscriptionImmediately: CancelSubscriptionImmediately;
 	publishSubscriptionCancelled: PublishSubscriptionCancelled;
+	deleteTrialEndSchedule: DeleteTrialEndSchedule;
 	logger: HutchLogger;
 }
 
@@ -77,6 +79,12 @@ export function initCancelSubscriptionHandler(
 			deps.logger.warn("[cancel-subscription] no row for user — noop", { userId });
 			return;
 		}
+		// Delete the trial-end EventBridge schedule unconditionally. The trialing
+		// branch MUST clear the schedule before it can fire and try to charge a
+		// now-cancelled user; all other branches call delete idempotently because
+		// no schedule exists for them — DeleteSchedule swallows
+		// ResourceNotFoundException in the provider.
+		await deps.deleteTrialEndSchedule({ userId });
 		await branches[row.status](row);
 	}
 
