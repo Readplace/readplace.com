@@ -1,0 +1,9 @@
+{
+  "name": "@packages/time-left",
+  "targets": {
+    "check": {
+      "command": "pnpm lint",
+      "options": { "cwd": "{projectRoot}" }
+    }
+  }
+}

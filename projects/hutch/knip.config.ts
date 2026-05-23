@@ -40,6 +40,7 @@ export default {
 		"@packages/domain",
 		"@packages/onboarding-extension-signal",
 		"@packages/retriable",
+		"@packages/time-left",
 		"@packages/test-fixtures",
 	],
 	ignoreBinaries: [

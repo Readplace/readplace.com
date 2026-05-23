@@ -1,45 +1,58 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
 import {
-	PERMANENT_UTM_SOURCE,
+	PERMANENT_UTM_SOURCES,
 	PUBLIC_VIEW_ACCESS_WINDOW_MS,
-	SHARED_USER_ID_PREFIX_LENGTH,
 	computePublicViewExpiry,
-	decomposeTimeLeft,
-	formatCounter,
 	formatSaveUtmContent,
-	hasSharedUserIdPrefix,
-	shareUserIdPrefix,
+	sharedUserIdFrom,
+	sharedUserIdFromQueryParams,
 } from "./view-expiry";
 
-describe("shareUserIdPrefix", () => {
-	it("returns the first SHARED_USER_ID_PREFIX_LENGTH chars of the user id", () => {
+describe("sharedUserIdFrom", () => {
+	it("returns the first 6 chars of the user id, lowercased", () => {
 		const userId = UserIdSchema.parse("abc123deadbeef1234567890abcdef01");
-		const prefix = shareUserIdPrefix(userId);
-		expect(prefix).toBe("abc123");
-		expect(prefix.length).toBe(SHARED_USER_ID_PREFIX_LENGTH);
+		const prefix = sharedUserIdFrom(userId);
+		assert.equal(prefix, "abc123");
+		assert.equal(prefix.length, 6);
+	});
+
+	it("normalises uppercase hex to lowercase", () => {
+		const userId = UserIdSchema.parse("ABCDEF1234567890abcdef0123456789");
+		const prefix = sharedUserIdFrom(userId);
+		assert.equal(prefix, "abcdef");
 	});
 });
 
-describe("hasSharedUserIdPrefix", () => {
-	it("returns true when utm_content starts with 6 hex chars", () => {
-		expect(hasSharedUserIdPrefix("abc123")).toBe(true);
+describe("sharedUserIdFromQueryParams", () => {
+	it("returns SharedUserId when utm_content starts with 6 hex chars", () => {
+		const result = sharedUserIdFromQueryParams("abc123");
+		assert(result !== null);
+		assert.equal(result, "abc123");
 	});
 
-	it("returns true when 6 hex chars are followed by more characters", () => {
-		expect(hasSharedUserIdPrefix("abc123-share")).toBe(true);
+	it("returns SharedUserId when 6 hex chars are followed by more characters", () => {
+		const result = sharedUserIdFromQueryParams("abc123-share");
+		assert(result !== null);
+		assert.equal(result, "abc123-share");
 	});
 
-	it("returns false for non-hex values like 'paste-another-link'", () => {
-		expect(hasSharedUserIdPrefix("paste-another-link")).toBe(false);
+	it("normalises uppercase hex in utm_content", () => {
+		const result = sharedUserIdFromQueryParams("ABCDEF");
+		assert(result !== null);
+		assert.equal(result, "abcdef");
 	});
 
-	it("returns false when fewer than 6 hex chars are present", () => {
-		expect(hasSharedUserIdPrefix("abcde")).toBe(false);
+	it("returns null for non-hex values like 'paste-another-link'", () => {
+		assert.equal(sharedUserIdFromQueryParams("paste-another-link"), null);
 	});
 
-	it("returns false when utm_content is undefined", () => {
-		expect(hasSharedUserIdPrefix(undefined)).toBe(false);
+	it("returns null when fewer than 6 hex chars are present", () => {
+		assert.equal(sharedUserIdFromQueryParams("abcde"), null);
+	});
+
+	it("returns null when utm_content is undefined", () => {
+		assert.equal(sharedUserIdFromQueryParams(undefined), null);
 	});
 });
 
@@ -53,19 +66,17 @@ describe("computePublicViewExpiry", () => {
 			utmContent: undefined,
 		});
 		assert(result.expiresAt, "expiresAt must be set for organic visits");
-		expect(result.expiresAt.toISOString()).toBe("2026-05-04T00:00:00.000Z");
-		expect(result.expiresAt.getTime() - savedAt.getTime()).toBe(
-			PUBLIC_VIEW_ACCESS_WINDOW_MS,
-		);
+		assert.equal(result.expiresAt.toISOString(), "2026-05-04T00:00:00.000Z");
+		assert.equal(result.expiresAt.getTime() - savedAt.getTime(), PUBLIC_VIEW_ACCESS_WINDOW_MS);
 	});
 
 	it("returns null for utm_source=fagnerbrack.com", () => {
 		const result = computePublicViewExpiry({
 			savedAt,
-			utmSource: PERMANENT_UTM_SOURCE,
+			utmSource: PERMANENT_UTM_SOURCES[0],
 			utmContent: undefined,
 		});
-		expect(result.expiresAt).toBeNull();
+		assert.equal(result.expiresAt, null);
 	});
 
 	it("returns null when utm_content carries a 6-hex-char prefix", () => {
@@ -74,7 +85,7 @@ describe("computePublicViewExpiry", () => {
 			utmSource: undefined,
 			utmContent: "abc123-share",
 		});
-		expect(result.expiresAt).toBeNull();
+		assert.equal(result.expiresAt, null);
 	});
 
 	it("applies the standard expiry when utm_content is non-hex like 'paste-another-link'", () => {
@@ -84,56 +95,15 @@ describe("computePublicViewExpiry", () => {
 			utmContent: "paste-another-link",
 		});
 		assert(result.expiresAt, "expiresAt must be set for analytics-only utm_content");
-		expect(result.expiresAt.toISOString()).toBe("2026-05-04T00:00:00.000Z");
-	});
-});
-
-describe("decomposeTimeLeft", () => {
-	it("splits 1d 10h 5m 33s into components", () => {
-		const ms =
-			1 * 24 * 60 * 60 * 1000 +
-			10 * 60 * 60 * 1000 +
-			5 * 60 * 1000 +
-			33 * 1000;
-		expect(decomposeTimeLeft(ms)).toEqual({
-			days: 1,
-			hours: 10,
-			minutes: 5,
-			seconds: 33,
-		});
-	});
-
-	it("returns all zeros for zero input", () => {
-		expect(decomposeTimeLeft(0)).toEqual({
-			days: 0,
-			hours: 0,
-			minutes: 0,
-			seconds: 0,
-		});
-	});
-
-	it("clamps negative input to zero", () => {
-		expect(decomposeTimeLeft(-1000)).toEqual({
-			days: 0,
-			hours: 0,
-			minutes: 0,
-			seconds: 0,
-		});
-	});
-});
-
-describe("formatCounter", () => {
-	it("renders '1d 10h 5m 33s'", () => {
-		expect(
-			formatCounter({ days: 1, hours: 10, minutes: 5, seconds: 33 }),
-		).toBe("1d 10h 5m 33s");
+		assert.equal(result.expiresAt.toISOString(), "2026-05-04T00:00:00.000Z");
 	});
 });
 
 describe("formatSaveUtmContent", () => {
 	it("renders '2d_4h_left' at day/hour resolution only", () => {
-		expect(
+		assert.equal(
 			formatSaveUtmContent({ days: 2, hours: 4, minutes: 30, seconds: 15 }),
-		).toBe("2d_4h_left");
+			"2d_4h_left",
+		);
 	});
 });
