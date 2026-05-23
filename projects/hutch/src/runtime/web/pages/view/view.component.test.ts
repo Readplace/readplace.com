@@ -346,12 +346,16 @@ describe("ViewPage", () => {
 
 		const shareBtn = doc.querySelector("[data-test-share-balloon]");
 		assert(shareBtn, "share button must be rendered");
-		const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
+		const shareHref = shareBtn.getAttribute("data-share-url");
+		assert(shareHref, "share button must carry a data-share-url");
+		const shareUrl = new URL(shareHref);
 		expect(shareUrl.searchParams.get("utm_content")).toBe("abcdef");
 
 		const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
 		assert(copyBtn, "copy button must be rendered");
-		const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
+		const copyHref = copyBtn.getAttribute("data-share-url");
+		assert(copyHref, "copy button must carry a data-share-url");
+		const copyUrl = new URL(copyHref);
 		expect(copyUrl.searchParams.get("utm_content")).toBe("abcdef");
 	});
 
@@ -360,12 +364,16 @@ describe("ViewPage", () => {
 
 		const shareBtn = doc.querySelector("[data-test-share-balloon]");
 		assert(shareBtn, "share button must be rendered");
-		const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
+		const shareHref = shareBtn.getAttribute("data-share-url");
+		assert(shareHref, "share button must carry a data-share-url");
+		const shareUrl = new URL(shareHref);
 		expect(shareUrl.searchParams.get("utm_content")).toBeNull();
 
 		const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
 		assert(copyBtn, "copy button must be rendered");
-		const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
+		const copyHref = copyBtn.getAttribute("data-share-url");
+		assert(copyHref, "copy button must carry a data-share-url");
+		const copyUrl = new URL(copyHref);
 		expect(copyUrl.searchParams.get("utm_content")).toBeNull();
 	});
 
