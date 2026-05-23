@@ -3,7 +3,7 @@ import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { SubscriptionCancelledEvent } from "@packages/hutch-infra-components";
 import { initStripeWebhookReceiverHandler } from "./stripe-webhook-receiver-handler";
-import { signStripeWebhookHeader } from "./verify-stripe-signature";
+import { signStripeWebhookHeader } from "./sign-stripe-webhook-header.test-helper";
 
 const TEST_SECRET = "whsec_test_handler_secret";
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { verifyStripeSignature, signStripeWebhookHeader } from "./verify-stripe-signature";
+import { verifyStripeSignature } from "./verify-stripe-signature";
+import { signStripeWebhookHeader } from "./sign-stripe-webhook-header.test-helper";
 
 const SECRET = "whsec_test_verify";
 
