@@ -27,6 +27,18 @@ describe("bannerStateFromRequest", () => {
 		expect(bannerStateFromRequest({ emailVerified: false }).emailVerified).toBe(false);
 		expect(bannerStateFromRequest({}).emailVerified).toBeUndefined();
 	});
+
+	it("sets showAccountMenu=true when query.feature is 'account'", () => {
+		expect(bannerStateFromRequest({ query: { feature: "account" } }).showAccountMenu).toBe(true);
+	});
+
+	it("sets showAccountMenu=false when query.feature is absent", () => {
+		expect(bannerStateFromRequest({}).showAccountMenu).toBe(false);
+	});
+
+	it("sets showAccountMenu=false when query.feature is a different value", () => {
+		expect(bannerStateFromRequest({ query: { feature: "other" } }).showAccountMenu).toBe(false);
+	});
 });
 
 describe("initBuildBannerState", () => {
@@ -39,7 +51,7 @@ describe("initBuildBannerState", () => {
 
 		const result = await buildBannerState({});
 
-		expect(result).toEqual({ isAuthenticated: false, emailVerified: undefined });
+		expect(result).toEqual({ isAuthenticated: false, emailVerified: undefined, showAccountMenu: false });
 		expect(getEffectiveAccess).not.toHaveBeenCalled();
 	});
 
@@ -98,7 +110,7 @@ describe("initBuildBannerState", () => {
 		});
 	});
 
-	it("leaves trial undefined for founding members, paid users, and users with a pending cancellation", async () => {
+	it("leaves trial undefined for founding members and paid users", async () => {
 		const founding: EffectiveAccess = {
 			tier: "founding",
 			access: "full",
@@ -109,14 +121,8 @@ describe("initBuildBannerState", () => {
 			access: "full",
 			banner: "none",
 		};
-		const pendingCancellation: EffectiveAccess = {
-			tier: "paid",
-			access: "full",
-			banner: "pending-cancellation",
-			cancellationEffectiveAt: "2026-02-01T00:00:00.000Z",
-		};
 
-		for (const access of [founding, paid, pendingCancellation]) {
+		for (const access of [founding, paid]) {
 			const build = initBuildBannerState({
 				getEffectiveAccess: async () => access,
 				now: () => FIXED_NOW,

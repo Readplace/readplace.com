@@ -67,6 +67,7 @@ describe("POST /queue/save-html", () => {
 				publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 				publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 			},
 		});
 		return { testApp, pendingHtml: testApp.pendingHtml, publishedSaveHtml, publishedLinkSaved };
@@ -148,6 +149,7 @@ describe("POST /queue/save-html", () => {
 				publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 				publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 			},
 			freshness: { refreshArticleIfStale: async () => { throw new Error("boom"); } },
 			shared: {
@@ -334,6 +336,7 @@ describe("Collection-Siren advertises both save actions", () => {
 				publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 				publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 			},
 		});
 		const accessToken = await createAccessToken(testApp);

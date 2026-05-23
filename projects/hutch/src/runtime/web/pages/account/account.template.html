@@ -1,0 +1,26 @@
+    <main class="account">
+      <div class="account__header">
+        <h1 class="account__title">{{heading}}</h1>
+      </div>
+      <section class="{{stateClass}}" data-test-account-card data-test-account-state="{{state}}">
+        {{#if showCancellingNotice}}
+        <p class="account-card__notice" data-test-cancelling-notice>Cancellation in progress — refresh in a few seconds to see the update.</p>
+        {{/if}}
+        <p class="account-card__status" data-test-account-status>{{statusLine}}</p>
+        <div class="account-card__actions">
+          {{#if showSubscribeForm}}
+          <form method="POST" action="{{subscribeFormUrl}}" data-test-account-subscribe-form>
+            <button type="submit" class="account-card__action-btn" data-test-account-subscribe>Subscribe — $3.99/month</button>
+          </form>
+          {{/if}}
+          {{#if showCancelForm}}
+          <form method="POST" action="{{cancelFormUrl}}" data-test-account-cancel-form>
+            <button type="submit" class="account-card__action-btn account-card__action-btn--secondary" data-test-account-cancel>Cancel subscription</button>
+          </form>
+          {{/if}}
+          {{#if showExportLink}}
+          <a class="account-card__export-link" href="{{exportUrl}}" data-test-account-export-link>Export your data →</a>
+          {{/if}}
+        </div>
+      </section>
+    </main>

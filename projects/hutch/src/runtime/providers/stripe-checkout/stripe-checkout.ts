@@ -46,12 +46,14 @@ export function initStripeCheckout(deps: {
 		customerEmail,
 		successUrl,
 		cancelUrl,
+		trialPeriodDays,
 	}) => {
+		const effectiveTrialDays = trialPeriodDays ?? STRIPE_TRIAL_PERIOD_DAYS;
 		const body = new URLSearchParams({
 			mode: "subscription",
 			"line_items[0][price]": deps.priceId,
 			"line_items[0][quantity]": "1",
-			"subscription_data[trial_period_days]": String(STRIPE_TRIAL_PERIOD_DAYS),
+			"subscription_data[trial_period_days]": String(effectiveTrialDays),
 			customer_email: customerEmail,
 			success_url: successUrl,
 			cancel_url: cancelUrl,

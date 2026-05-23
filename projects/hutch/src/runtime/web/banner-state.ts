@@ -8,6 +8,7 @@ import { toTrialDisplay, type TrialDisplay } from "./trial-countdown.format";
 export interface BannerStateSource {
 	userId?: UserId;
 	emailVerified?: boolean;
+	query?: Record<string, unknown>;
 }
 
 export interface BannerState {
@@ -27,12 +28,14 @@ export interface BannerState {
 	 * pending cancellation; "active" for trialing users; "expired" for users
 	 * whose trial has lapsed or whose subscription was cancelled. */
 	trial?: TrialDisplay;
+	showAccountMenu?: boolean;
 }
 
 export function bannerStateFromRequest(source: BannerStateSource): BannerState {
 	return {
 		isAuthenticated: Boolean(source.userId),
 		emailVerified: source.emailVerified,
+		showAccountMenu: source.query?.feature === "account",
 	};
 }
 

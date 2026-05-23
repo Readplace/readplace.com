@@ -72,7 +72,6 @@ export function toTrialDisplay(
 		case "inactive":
 			return { state: "expired" };
 		case "none":
-		case "pending-cancellation":
 			return undefined;
 	}
 }

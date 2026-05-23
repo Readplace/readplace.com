@@ -54,6 +54,7 @@ describe("Queue freshness integration", () => {
 				publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 				publishUpdateFetchTimestamp: async (p) => { timestampPublished.push(p); },
 				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 			},
 			freshness: { refreshArticleIfStale },
 		});

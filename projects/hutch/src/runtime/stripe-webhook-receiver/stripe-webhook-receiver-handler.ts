@@ -3,11 +3,13 @@ import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2, Handler
 import type { HutchLogger } from "@packages/hutch-logger";
 import { SubscriptionCancelledEvent } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
+import type { FindSubscriptionBySubscriptionId } from "@packages/test-fixtures/providers/subscription-providers";
 import { verifyStripeSignature } from "./verify-stripe-signature";
 
 export function initStripeWebhookReceiverHandler(deps: {
 	webhookSecret: string;
 	publishEvent: PublishEvent;
+	findSubscriptionBySubscriptionId: FindSubscriptionBySubscriptionId;
 	logger: HutchLogger;
 	now: () => Date;
 }): Handler<APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2> {
@@ -38,14 +40,28 @@ export function initStripeWebhookReceiverHandler(deps: {
 
 		if (stripeEvent.type === "customer.subscription.deleted") {
 			const subscriptionId = stripeEvent.data.object.id;
+			const row = await deps.findSubscriptionBySubscriptionId(subscriptionId);
+			if (!row) {
+				deps.logger.warn("[stripe-webhook] no subscription row found — skipping event emission", {
+					subscriptionId,
+				});
+				return { statusCode: 200, body: "" };
+			}
 			await deps.publishEvent({
 				source: SubscriptionCancelledEvent.source,
 				detailType: SubscriptionCancelledEvent.detailType,
 				detail: JSON.stringify(
-					SubscriptionCancelledEvent.detailSchema.parse({ subscriptionId }),
+					SubscriptionCancelledEvent.detailSchema.parse({
+						userId: row.userId,
+						subscriptionId,
+						reason: "stripe_webhook",
+					}),
 				),
 			});
-			deps.logger.info("[stripe-webhook] emitted SubscriptionCancelled", { subscriptionId });
+			deps.logger.info("[stripe-webhook] emitted SubscriptionCancelled", {
+				userId: row.userId,
+				subscriptionId,
+			});
 		}
 
 		/** Unknown event types are silently accepted with 200 — adding new

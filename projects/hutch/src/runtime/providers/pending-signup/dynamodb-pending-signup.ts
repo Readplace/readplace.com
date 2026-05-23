@@ -17,7 +17,7 @@ import type {
 
 const PendingSignupRow = z.object({
 	checkoutSessionId: CheckoutSessionIdSchema,
-	method: z.enum(["email", "google"]),
+	method: z.enum(["email", "google", "existing-user-subscribe"]),
 	email: z.string(),
 	passwordHash: dynamoField(z.string()),
 	userId: dynamoField(UserIdSchema),
@@ -63,6 +63,7 @@ export function initDynamoDbPendingSignup(deps: {
 				createdAt,
 				...(signup.method === "email" ? { passwordHash: signup.passwordHash } : {}),
 				...(signup.method === "google" ? { userId: signup.userId } : {}),
+				...(signup.method === "existing-user-subscribe" ? { userId: signup.userId } : {}),
 				...(signup.returnUrl ? { returnUrl: signup.returnUrl } : {})
 			},
 		});
@@ -83,6 +84,18 @@ export function initDynamoDbPendingSignup(deps: {
 				method: "email",
 				email: Attributes.email,
 				passwordHash,
+				...(returnUrl ? { returnUrl } : {}),
+			};
+			return signup;
+		}
+
+		if (Attributes.method === "existing-user-subscribe") {
+			const userId = Attributes.userId;
+			if (!userId) return null;
+			const signup: PendingSignup = {
+				method: "existing-user-subscribe",
+				email: Attributes.email,
+				userId,
 				...(returnUrl ? { returnUrl } : {}),
 			};
 			return signup;

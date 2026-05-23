@@ -386,14 +386,40 @@ export type UpdateFetchTimestampDetail = z.infer<
 	typeof UpdateFetchTimestampCommand.detailSchema
 >;
 
+/** Broadened in Phase 2 to carry `userId` so handlers can update the row by
+ * primary key instead of GSI-querying on `subscriptionId`. Trial cancellations
+ * (no Stripe subscription) emit this event directly with `userId` and no
+ * `subscriptionId`; Stripe-originated cancellations look up the userId in the
+ * webhook receiver before publishing. `reason` is audit-only. */
 export const SubscriptionCancelledEvent = defineEvent({
 	name: "subscription-cancelled",
-	source: "hutch.stripe-webhook",
+	source: "hutch.subscriptions",
 	detailType: "SubscriptionCancelled",
 	detailSchema: z.object({
-		subscriptionId: z.string(),
+		userId: z.string(),
+		subscriptionId: z.string().optional(),
+		reason: z.enum([
+			"stripe_webhook",
+			"user_initiated_trial",
+			"user_initiated_paid_confirmed",
+		]),
 	}),
 });
 export type SubscriptionCancelledDetail = z.infer<typeof SubscriptionCancelledEvent.detailSchema>;
+
+/** User-initiated cancel request. Published by `POST /account/cancel` and
+ * consumed by the `cancel-subscription` Lambda which branches on the row's
+ * current status — paid users go through Stripe's API (which fires the
+ * `customer.subscription.deleted` webhook), trial users emit
+ * `SubscriptionCancelledEvent` directly. */
+export const CancelSubscriptionCommand = defineEvent({
+	name: "cancel-subscription-command",
+	source: "hutch.subscriptions",
+	detailType: "CancelSubscriptionCommand",
+	detailSchema: z.object({
+		userId: z.string(),
+	}),
+});
+export type CancelSubscriptionDetail = z.infer<typeof CancelSubscriptionCommand.detailSchema>;
 
 export type { HutchEvent, HutchCommand };

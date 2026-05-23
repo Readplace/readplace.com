@@ -3,7 +3,11 @@ import * as aws from "@pulumi/aws";
 import assert from "node:assert";
 import { resolve } from "node:path";
 import { HutchLambda, HutchAPIGateway, HutchAPIGatewayLambdaRoute, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda } from "@packages/hutch-infra-components/infra";
-import { ExportUserDataCommand, SubscriptionCancelledEvent } from "@packages/hutch-infra-components";
+import {
+	CancelSubscriptionCommand,
+	ExportUserDataCommand,
+	SubscriptionCancelledEvent,
+} from "@packages/hutch-infra-components";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
 import { PARSE_ERROR_STREAM, CRAWL_OUTCOME_STREAM } from "@packages/hutch-infra-components";
 import { DomainRegistration } from "./domain-registration";
@@ -309,6 +313,13 @@ eventBus.subscribe(ExportUserDataCommand, exportUserDataLambdaWithSQS);
 // API Gateway returns 5xx and Stripe retries. Downstream handler failures are
 // caught by the SQS-backed handler's DLQ.
 
+const stripeWebhookReceiverDynamodb = new HutchDynamoDBAccess("stripe-webhook-receiver-dynamodb", {
+	tables: [
+		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
+	],
+	actions: ["dynamodb:GetItem", "dynamodb:Query"],
+});
+
 const stripeWebhookReceiverLambda = new HutchLambda("stripe-webhook-receiver", {
 	entryPoint: "./src/runtime/stripe-webhook-receiver.main.ts",
 	outputDir: ".lib/stripe-webhook-receiver",
@@ -318,8 +329,11 @@ const stripeWebhookReceiverLambda = new HutchLambda("stripe-webhook-receiver", {
 	environment: {
 		STRIPE_WEBHOOK_SECRET: requireEnv("STRIPE_WEBHOOK_SECRET"),
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 	},
-	policies: [],
+	policies: [
+		...stripeWebhookReceiverDynamodb.policies,
+	],
 });
 
 eventBus.grantPublish(stripeWebhookReceiverLambda);
@@ -338,9 +352,9 @@ new HutchAPIGatewayLambdaRoute("stripe-webhook", {
 
 const handleSubscriptionCancelledDynamodb = new HutchDynamoDBAccess("handle-subscription-cancelled-dynamodb", {
 	tables: [
-		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
+		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
 	],
-	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem"],
+	actions: ["dynamodb:UpdateItem"],
 });
 
 const handleSubscriptionCancelledQueue = new HutchSQS("handle-subscription-cancelled", {
@@ -370,6 +384,54 @@ const handleSubscriptionCancelledWithSQS = new HutchSQSBackedLambda("handle-subs
 });
 
 eventBus.subscribe(SubscriptionCancelledEvent, handleSubscriptionCancelledWithSQS);
+
+// --- Cancel Subscription Command ---
+// SQS-backed Lambda that reacts to CancelSubscriptionCommand (user-initiated
+// cancel from POST /account/cancel). Branches on the row's current status:
+//   - active           → calls Stripe subscriptions.cancel (immediate)
+//   - trialing         → publishes SubscriptionCancelledEvent directly
+//   - pending_cancel.  → publishes SubscriptionCancelledEvent (defensive)
+//   - cancelled        → noop
+// Failed messages land in a DLQ with an email alarm so operators can redrive.
+
+const cancelSubscriptionDynamodb = new HutchDynamoDBAccess("cancel-subscription-dynamodb", {
+	tables: [
+		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
+	],
+	actions: ["dynamodb:GetItem"],
+});
+
+const cancelSubscriptionQueue = new HutchSQS("cancel-subscription", {
+	visibilityTimeoutSeconds: 30,
+});
+
+const cancelSubscriptionLambda = new HutchLambda("cancel-subscription", {
+	entryPoint: "./src/runtime/cancel-subscription.main.ts",
+	outputDir: ".lib/cancel-subscription",
+	assetDir: "./src/runtime",
+	memorySize: 128,
+	timeout: 30,
+	environment: {
+		PERSISTENCE: "prod",
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
+		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [
+		...cancelSubscriptionDynamodb.policies,
+	],
+});
+
+eventBus.grantPublish(cancelSubscriptionLambda);
+
+const cancelSubscriptionWithSQS = new HutchSQSBackedLambda("cancel-subscription", {
+	lambda: cancelSubscriptionLambda,
+	queue: cancelSubscriptionQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(CancelSubscriptionCommand, cancelSubscriptionWithSQS);
 
 // --- Analytics Dashboard ---
 

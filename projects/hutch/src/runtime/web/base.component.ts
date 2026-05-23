@@ -36,7 +36,7 @@ const BASE_TEMPLATE = readFileSync(join(__dirname, "base.template.html"), "utf-8
 
 function renderHeader(
 	variant: "default" | "transparent",
-	options: { isAuthenticated: boolean; trial: TrialDisplay | undefined },
+	options: { isAuthenticated: boolean; trial: TrialDisplay | undefined; showAccountMenu: boolean },
 ): string {
 	const trial = options.trial;
 	return render(HEADER_TEMPLATE, {
@@ -49,6 +49,7 @@ function renderHeader(
 			trial?.state === "active" ? trial.escalation : "expired",
 		trialEndsAtIso: trial?.state === "active" ? trial.endsAtIso : "",
 		serverNowIso: trial?.state === "active" ? trial.serverNowIso : "",
+		showAccountMenu: options.showAccountMenu,
 	});
 }
 
@@ -223,6 +224,7 @@ function renderBaseTemplate(body: PageBody, state: BannerState): string {
 		header: renderHeader(headerVariant, {
 			isAuthenticated: state.isAuthenticated,
 			trial: state.trial,
+			showAccountMenu: state.showAccountMenu ?? false,
 		}),
 		content: injectPageStylesIntoMain(body.content.html, body.styles),
 		footer: renderFooter(),

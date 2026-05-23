@@ -20,6 +20,7 @@ import { initInMemorySubscriptionProviders } from "./providers/subscription-prov
 import { initInMemoryImportSession } from "./providers/import-session/in-memory-import-session";
 import { initInMemorySaveLinkRawHtmlCommand } from "./providers/events/in-memory-save-link-raw-html-command";
 import { initInMemoryExportUserDataCommand } from "./providers/events/in-memory-export-user-data-command";
+import { initInMemoryCancelSubscriptionCommand } from "./providers/events/in-memory-cancel-subscription-command";
 import {
 	createOAuthModel,
 	initInMemoryOAuthModel,
@@ -225,6 +226,9 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const { publishExportUserDataCommand } = initInMemoryExportUserDataCommand({
 		logger: noopLogger,
 	});
+	const { publishCancelSubscriptionCommand } = initInMemoryCancelSubscriptionCommand({
+		logger: noopLogger,
+	});
 	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), { appOrigin });
 	const stripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const pendingSignup = initInMemoryPendingSignup();
@@ -289,6 +293,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			publishStaleCheckRequested: initInMemoryStaleCheckRequested({ logger: noopLogger }).publishStaleCheckRequested,
 			publishUpdateFetchTimestamp: createInMemoryPublishUpdateFetchTimestamp(),
 			publishExportUserDataCommand,
+			publishCancelSubscriptionCommand,
 		},
 		pendingHtml: {
 			putPendingHtml: pendingHtml.putPendingHtml,

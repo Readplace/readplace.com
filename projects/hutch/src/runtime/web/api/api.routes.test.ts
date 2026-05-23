@@ -354,6 +354,7 @@ describe("POST /queue (Siren save article)", () => {
 				publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 				publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 			},
 		});
 		const client = await harness.oauthModel.getClient("hutch-firefox-extension", "");

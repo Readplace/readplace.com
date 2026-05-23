@@ -15,7 +15,7 @@ const subscriptionProviders = initDynamoDbSubscriptionProviders({
 });
 
 export const handler = initHandleSubscriptionCancelledHandler({
-	markCancelled: subscriptionProviders.markCancelled,
+	markCancelledByUserId: subscriptionProviders.markCancelledByUserId,
 	logger: HutchLogger.from(consoleLogger),
 });
 /* c8 ignore stop */

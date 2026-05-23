@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import type { SQSEvent } from "aws-lambda";
+import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initHandleSubscriptionCancelledHandler } from "./handle-subscription-cancelled-handler";
+
+const USER_ID = UserIdSchema.parse("user-cancel");
 
 function buildSqsEvent(records: Array<{ messageId: string; body: string }>): SQSEvent {
 	return {
@@ -24,37 +27,75 @@ function buildSqsEvent(records: Array<{ messageId: string; body: string }>): SQS
 	};
 }
 
-function buildEventBridgeBody(subscriptionId: string): string {
-	return JSON.stringify({ detail: { subscriptionId } });
+function buildEventBridgeBody(detail: {
+	userId: string;
+	subscriptionId?: string;
+	reason?: "stripe_webhook" | "user_initiated_trial" | "user_initiated_paid_confirmed";
+}): string {
+	return JSON.stringify({
+		detail: {
+			userId: detail.userId,
+			...(detail.subscriptionId !== undefined ? { subscriptionId: detail.subscriptionId } : {}),
+			reason: detail.reason ?? "stripe_webhook",
+		},
+	});
 }
 
 describe("handle-subscription-cancelled-handler", () => {
-	it("marks the subscription as cancelled for a valid event", async () => {
-		const cancelled: string[] = [];
+	it("marks the subscription as cancelled by userId for a valid Stripe-originated event", async () => {
+		const cancelledUserIds: string[] = [];
 		const handler = initHandleSubscriptionCancelledHandler({
-			markCancelled: async ({ subscriptionId }) => { cancelled.push(subscriptionId); },
+			markCancelledByUserId: async ({ userId }) => { cancelledUserIds.push(userId); },
 			logger: HutchLogger.from(noopLogger),
 		});
 
 		const result = await handler(
-			buildSqsEvent([{ messageId: "msg-1", body: buildEventBridgeBody("sub_to_cancel") }]),
+			buildSqsEvent([
+				{
+					messageId: "msg-1",
+					body: buildEventBridgeBody({ userId: USER_ID, subscriptionId: "sub_x", reason: "stripe_webhook" }),
+				},
+			]),
 			{} as never,
 			() => {},
 		);
 
 		assert(result);
 		assert.equal(result.batchItemFailures.length, 0);
-		assert.deepStrictEqual(cancelled, ["sub_to_cancel"]);
+		assert.deepStrictEqual(cancelledUserIds, [USER_ID]);
 	});
 
-	it("reports a batch item failure when markCancelled throws", async () => {
+	it("marks cancelled for a trial-initiated event with no subscriptionId", async () => {
+		const cancelledUserIds: string[] = [];
 		const handler = initHandleSubscriptionCancelledHandler({
-			markCancelled: async () => { throw new Error("DynamoDB timeout"); },
+			markCancelledByUserId: async ({ userId }) => { cancelledUserIds.push(userId); },
 			logger: HutchLogger.from(noopLogger),
 		});
 
 		const result = await handler(
-			buildSqsEvent([{ messageId: "msg-fail", body: buildEventBridgeBody("sub_fail") }]),
+			buildSqsEvent([
+				{
+					messageId: "msg-trial",
+					body: buildEventBridgeBody({ userId: USER_ID, reason: "user_initiated_trial" }),
+				},
+			]),
+			{} as never,
+			() => {},
+		);
+
+		assert(result);
+		assert.equal(result.batchItemFailures.length, 0);
+		assert.deepStrictEqual(cancelledUserIds, [USER_ID]);
+	});
+
+	it("reports a batch item failure when markCancelledByUserId throws", async () => {
+		const handler = initHandleSubscriptionCancelledHandler({
+			markCancelledByUserId: async () => { throw new Error("DynamoDB timeout"); },
+			logger: HutchLogger.from(noopLogger),
+		});
+
+		const result = await handler(
+			buildSqsEvent([{ messageId: "msg-fail", body: buildEventBridgeBody({ userId: USER_ID }) }]),
 			{} as never,
 			() => {},
 		);
@@ -66,7 +107,7 @@ describe("handle-subscription-cancelled-handler", () => {
 
 	it("reports a batch item failure for malformed JSON", async () => {
 		const handler = initHandleSubscriptionCancelledHandler({
-			markCancelled: async () => {},
+			markCancelledByUserId: async () => {},
 			logger: HutchLogger.from(noopLogger),
 		});
 
@@ -81,14 +122,14 @@ describe("handle-subscription-cancelled-handler", () => {
 		assert.equal(result.batchItemFailures[0].itemIdentifier, "msg-bad");
 	});
 
-	it("reports a batch item failure when the detail is missing subscriptionId", async () => {
+	it("reports a batch item failure when the detail is missing userId", async () => {
 		const handler = initHandleSubscriptionCancelledHandler({
-			markCancelled: async () => {},
+			markCancelledByUserId: async () => {},
 			logger: HutchLogger.from(noopLogger),
 		});
 
 		const result = await handler(
-			buildSqsEvent([{ messageId: "msg-schema", body: JSON.stringify({ detail: {} }) }]),
+			buildSqsEvent([{ messageId: "msg-schema", body: JSON.stringify({ detail: { reason: "stripe_webhook" } }) }]),
 			{} as never,
 			() => {},
 		);
@@ -101,19 +142,19 @@ describe("handle-subscription-cancelled-handler", () => {
 		const cancelled: string[] = [];
 		let callCount = 0;
 		const handler = initHandleSubscriptionCancelledHandler({
-			markCancelled: async ({ subscriptionId }) => {
+			markCancelledByUserId: async ({ userId }) => {
 				callCount++;
-				if (subscriptionId === "sub_boom") throw new Error("boom");
-				cancelled.push(subscriptionId);
+				if (userId === "user-boom") throw new Error("boom");
+				cancelled.push(userId);
 			},
 			logger: HutchLogger.from(noopLogger),
 		});
 
 		const result = await handler(
 			buildSqsEvent([
-				{ messageId: "msg-ok-1", body: buildEventBridgeBody("sub_ok_1") },
-				{ messageId: "msg-boom", body: buildEventBridgeBody("sub_boom") },
-				{ messageId: "msg-ok-2", body: buildEventBridgeBody("sub_ok_2") },
+				{ messageId: "msg-ok-1", body: buildEventBridgeBody({ userId: "user-ok-1" }) },
+				{ messageId: "msg-boom", body: buildEventBridgeBody({ userId: "user-boom" }) },
+				{ messageId: "msg-ok-2", body: buildEventBridgeBody({ userId: "user-ok-2" }) },
 			]),
 			{} as never,
 			() => {},
@@ -121,7 +162,7 @@ describe("handle-subscription-cancelled-handler", () => {
 
 		assert(result);
 		assert.equal(callCount, 3);
-		assert.deepStrictEqual(cancelled, ["sub_ok_1", "sub_ok_2"]);
+		assert.deepStrictEqual(cancelled, ["user-ok-1", "user-ok-2"]);
 		assert.equal(result.batchItemFailures.length, 1);
 		assert.equal(result.batchItemFailures[0].itemIdentifier, "msg-boom");
 	});

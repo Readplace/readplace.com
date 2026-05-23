@@ -144,7 +144,7 @@ describe("toTrialDisplay", () => {
 		expect(toTrialDisplay(cancelled, now)).toEqual({ state: "expired" });
 	});
 
-	it("returns undefined for founding/paid/pending-cancellation so the countdown is hidden", () => {
+	it("returns undefined for founding/paid so the countdown is hidden", () => {
 		const founding: EffectiveAccess = {
 			tier: "founding",
 			access: "full",
@@ -155,14 +155,7 @@ describe("toTrialDisplay", () => {
 			access: "full",
 			banner: "none",
 		};
-		const pendingCancellation: EffectiveAccess = {
-			tier: "paid",
-			access: "full",
-			banner: "pending-cancellation",
-			cancellationEffectiveAt: "2026-02-01T00:00:00.000Z",
-		};
 		expect(toTrialDisplay(founding, now)).toBeUndefined();
 		expect(toTrialDisplay(paid, now)).toBeUndefined();
-		expect(toTrialDisplay(pendingCancellation, now)).toBeUndefined();
 	});
 });

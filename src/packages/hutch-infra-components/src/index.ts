@@ -49,6 +49,8 @@ export {
 	type UserDataExportFailedDetail,
 	SubscriptionCancelledEvent,
 	type SubscriptionCancelledDetail,
+	CancelSubscriptionCommand,
+	type CancelSubscriptionDetail,
 	type HutchEvent,
 	type HutchCommand,
 } from "./events";

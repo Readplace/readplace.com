@@ -29,7 +29,8 @@
   display: none;
 }
 
-.queue-banner--pending-cancellation {
+.queue-banner--trial-countdown,
+.queue-banner--inactive {
   display: flex;
 }
 /* purgecss-ignore-end */
@@ -42,7 +43,7 @@
 }
 
 .queue-banner__cta {
-  display: none;
+  display: inline-flex;
   flex: 0 0 auto;
   padding: 8px 16px;
   background: var(--primary);

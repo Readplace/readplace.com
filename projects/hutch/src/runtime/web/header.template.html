@@ -23,6 +23,7 @@
             <li><a href="/queue" class="nav__link" data-test-nav-item="queue">Queue</a></li>
             <li><a href="/import?utm_source=header-nav&amp;utm_medium=internal&amp;utm_content=import-link" class="nav__link" data-test-nav-item="import">Import Links</a></li>
             <li><a href="/export" class="nav__link" data-test-nav-item="export">Export</a></li>
+            {{#if showAccountMenu}}<li><a href="/account?feature=account" class="nav__link" data-test-nav-item="account">Account</a></li>{{/if}}
             <li>
               <form method="POST" action="/logout">
                 <button type="submit" class="nav__link" data-test-nav-item="logout">Sign out</button>
