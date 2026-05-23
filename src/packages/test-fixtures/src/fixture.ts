@@ -269,6 +269,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			writeContent: articleStoreMemory.writeContent,
 			writeMetadata: articleStoreMemory.writeMetadata,
 			setContentSourceTier: articleStoreMemory.setContentSourceTier,
+			updateGlobalSavedAt: articleStoreMemory.updateGlobalSavedAt,
 		},
 		articleCrawl: {
 			findArticleCrawlStatus: articleCrawl.findArticleCrawlStatus,

@@ -164,6 +164,7 @@ export interface ArticleStoreBundle {
 		estimatedReadTime: Minutes;
 	}) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
+	updateGlobalSavedAt: (params: { url: string; savedAt: Date }) => Promise<void>;
 }
 
 export interface ArticleCrawlBundle {

@@ -44,7 +44,7 @@ export interface SaveArticleGloballyParams {
 
 export type SaveArticleGlobally = (
 	params: SaveArticleGloballyParams,
-) => Promise<void>;
+) => Promise<{ created: boolean }>;
 
 export type FindArticleById = (
 	id: ReaderArticleHashId,

@@ -74,6 +74,7 @@ export function initInMemoryArticleStore(): {
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
 	writeMetadata: (params: { url: string; metadata: ArticleMetadata; estimatedReadTime: Minutes }) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
+	updateGlobalSavedAt: (params: { url: string; savedAt: Date }) => Promise<void>;
 } {
 	const articles = new Map<string, GlobalArticle>();
 	const userArticles = new Map<string, UserArticle>();
@@ -95,9 +96,7 @@ export function initInMemoryArticleStore(): {
 
 		const existing = articles.get(articleResourceUniqueId.value);
 		if (existing) {
-			/** Bump savedAt on re-save so the public /view expiry counter resets to the full 3-day window. Metadata is left untouched so a stub re-save can't clobber real parsed metadata. */
-			existing.savedAt = params.savedAt;
-			return;
+			return { created: false };
 		}
 		articles.set(articleResourceUniqueId.value, {
 			url: articleResourceUniqueId.value,
@@ -107,17 +106,23 @@ export function initInMemoryArticleStore(): {
 			estimatedReadTime: params.estimatedReadTime,
 			savedAt: params.savedAt,
 		});
+		return { created: true };
 	};
 
 	const saveArticle: SaveArticle = async (params) => {
 		const now = new Date();
-		await saveArticleGlobally({
+		const { created } = await saveArticleGlobally({
 			url: params.url,
 			metadata: params.metadata,
 			estimatedReadTime: params.estimatedReadTime,
 			savedAt: now,
 		});
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		if (!created) {
+			const existing = articles.get(articleResourceUniqueId.value);
+			assert(existing, "article must exist when saveArticleGlobally returns created: false");
+			existing.savedAt = now;
+		}
 
 		const uaKey = userArticleKey(params.userId, articleResourceUniqueId.value);
 		const existing = userArticles.get(uaKey);
@@ -275,6 +280,13 @@ export function initInMemoryArticleStore(): {
 		article.contentSourceTier = params.tier;
 	};
 
+	const updateGlobalSavedAt = async (params: { url: string; savedAt: Date }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		const article = articles.get(articleResourceUniqueId.value);
+		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);
+		article.savedAt = params.savedAt;
+	};
+
 	return {
 		saveArticle,
 		saveArticleGlobally,
@@ -289,5 +301,6 @@ export function initInMemoryArticleStore(): {
 		writeContent,
 		writeMetadata,
 		setContentSourceTier,
+		updateGlobalSavedAt,
 	};
 }

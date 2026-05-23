@@ -150,14 +150,10 @@ export function initDynamoDbArticleStore(deps: {
 				ConditionExpression: "attribute_not_exists(#url)",
 				ExpressionAttributeNames: { "#url": "url" },
 			});
+			return { created: true };
 		} catch (error) {
 			if (!(error instanceof ConditionalCheckFailedException)) throw error;
-			/** Row already exists — bump savedAt so the public /view expiry counter resets to the full 3-day window on every re-save. Metadata is left untouched so a stub re-save (the view fallback path passes hostname-only metadata) cannot clobber the real parsed metadata. */
-			await articles.update({
-				Key: { url: articleResourceUniqueId.value },
-				UpdateExpression: "SET savedAt = :savedAt",
-				ExpressionAttributeValues: { ":savedAt": savedAtIso },
-			});
+			return { created: false };
 		}
 	};
 
@@ -165,7 +161,7 @@ export function initDynamoDbArticleStore(deps: {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const now = new Date();
 
-		await Promise.all([
+		const [globalResult] = await Promise.all([
 			saveArticleGlobally({
 				url: params.url,
 				metadata: params.metadata,
@@ -183,6 +179,13 @@ export function initDynamoDbArticleStore(deps: {
 				},
 			}),
 		]);
+		if (!globalResult.created) {
+			await articles.update({
+				Key: { url: articleResourceUniqueId.value },
+				UpdateExpression: "SET savedAt = :savedAt",
+				ExpressionAttributeValues: { ":savedAt": now.toISOString() },
+			});
+		}
 
 		const [article, userArticle] = await Promise.all([
 			articles.get({ url: articleResourceUniqueId.value }),

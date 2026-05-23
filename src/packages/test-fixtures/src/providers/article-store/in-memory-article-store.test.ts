@@ -86,7 +86,7 @@ describe("initInMemoryArticleStore", () => {
 			expect(found?.savedAt.toISOString()).toBe(firstSave.toISOString());
 		});
 
-		it("bumps savedAt on re-save so the public /view counter resets to a full 3-day window each time the article is re-crawled", async () => {
+		it("returns { created: false } on duplicate without mutating savedAt or metadata", async () => {
 			const store = initInMemoryArticleStore();
 			const url = "https://example.com/article";
 			const firstSave = new Date("2026-05-20T00:00:00.000Z");
@@ -98,16 +98,16 @@ describe("initInMemoryArticleStore", () => {
 				savedAt: firstSave,
 			});
 
-			await store.saveArticleGlobally({
+			const result = await store.saveArticleGlobally({
 				url,
 				metadata: { title: "stub-from-view", siteName: "example.com", excerpt: "", wordCount: 0 },
 				estimatedReadTime: 0 as Minutes,
 				savedAt: reSave,
 			});
 
+			expect(result).toEqual({ created: false });
 			const found = await store.findArticleByUrl(url);
-			expect(found?.savedAt.toISOString()).toBe(reSave.toISOString());
-			/** Stub metadata from the second call must not clobber the real parsed metadata. */
+			expect(found?.savedAt.toISOString()).toBe(firstSave.toISOString());
 			expect(found?.metadata.title).toBe("Hello");
 			expect(found?.metadata.wordCount).toBe(100);
 		});

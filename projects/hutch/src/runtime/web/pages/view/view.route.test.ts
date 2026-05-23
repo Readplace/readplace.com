@@ -7,7 +7,6 @@ import type {
 } from "@packages/article-parser";
 import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/article-crawl";
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
-import type { Minutes } from "@packages/domain/article";
 import { useTestServer } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
@@ -1250,7 +1249,7 @@ describe("View routes", () => {
 			expect(saveLink).toBeNull();
 		});
 
-		it("resets the counter to a full 3-day window when the article is re-saved (savedAt is bumped on saveArticleGlobally)", async () => {
+		it("resets the counter to a full 3-day window when the global savedAt is bumped", async () => {
 			const firstVisit = new Date("2026-04-20T00:00:00.000Z");
 			const reVisit = new Date("2026-04-22T00:00:00.000Z");
 			let currentNow = firstVisit;
@@ -1278,10 +1277,8 @@ describe("View routes", () => {
 
 			await request(harness.server).get(`/view/${ENCODED}`);
 			currentNow = reVisit;
-			await harness.articleStore.saveArticleGlobally({
+			await harness.articleStore.updateGlobalSavedAt({
 				url: ARTICLE_URL,
-				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
-				estimatedReadTime: 0 as Minutes,
 				savedAt: reVisit,
 			});
 
