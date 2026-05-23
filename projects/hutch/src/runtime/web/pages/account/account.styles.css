@@ -99,12 +99,6 @@
   opacity: 0.9;
 }
 
-.account-card__action-btn--secondary {
-  background: transparent;
-  color: var(--foreground);
-  border: 1px solid var(--border);
-}
-
 .account-card__cancel-link {
   font-size: 0.875rem;
   color: var(--foreground);

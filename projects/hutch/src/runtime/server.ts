@@ -126,6 +126,8 @@ import "./web/session.types";
 
 export const PORT = requireEnv("PORT", { defaultValue: "3000" });
 
+const noop = () => {};
+
 interface AppDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
@@ -649,12 +651,12 @@ export function createApp(dependencies: AppDependencies): Express {
 			`${appOrigin}/auth/checkout/success?session_id=${sessionIdPlaceholder}`,
 		appOrigin,
 		logger: HutchLogger.from({
-			info: () => {},
+			info: noop,
 			error: (...args) => {
 				deps.logError(String(args[0]), args[1] instanceof Error ? args[1] : undefined);
 			},
-			warn: () => {},
-			debug: () => {},
+			warn: noop,
+			debug: noop,
 		}),
 		now: deps.now,
 	});
