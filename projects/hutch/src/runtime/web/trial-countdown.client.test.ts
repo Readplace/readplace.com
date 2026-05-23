@@ -93,15 +93,15 @@ function getCountdownElement(doc: Document): Element {
 }
 
 describe("initTrialCountdown — tick updates the text every second using a clock-skew-corrected now", () => {
-	it("rewrites the textContent every 1000ms with the new Xd Xh Xm Xs string", () => {
+	it("rewrites the textContent every 1000ms with the new countdown string so the user sees the second-by-second tick when under a minute matters", () => {
 		const serverNow = "2026-01-01T00:00:00.000Z";
-		const endsAt = new Date(Date.parse(serverNow) + 2 * ONE_HOUR_MS).toISOString();
+		const endsAt = new Date(Date.parse(serverNow) + 5 * ONE_MINUTE_MS).toISOString();
 		const { document } = createDom(
 			buildFixture({
 				endsAtIso: endsAt,
 				serverNowIso: serverNow,
 				state: "active",
-				escalation: "urgent",
+				escalation: "critical",
 				text: "placeholder",
 			}),
 		);
@@ -111,13 +111,13 @@ describe("initTrialCountdown — tick updates the text every second using a cloc
 		initTrialCountdown(clock.deps).attach();
 
 		const el = getCountdownElement(document);
-		expect(el.textContent).toBe("0d 2h 0m 0s in your free trial");
+		expect(el.textContent).toBe("5m 0s left in your free trial");
 
 		advanceClock(clock, ONE_SECOND_MS);
-		expect(el.textContent).toBe("0d 1h 59m 59s in your free trial");
+		expect(el.textContent).toBe("4m 59s left in your free trial");
 
 		advanceClock(clock, ONE_SECOND_MS);
-		expect(el.textContent).toBe("0d 1h 59m 58s in your free trial");
+		expect(el.textContent).toBe("4m 58s left in your free trial");
 	});
 
 	it("corrects for client clock skew so a client clock that's 10 minutes ahead still produces the server-relative countdown", () => {
@@ -138,7 +138,7 @@ describe("initTrialCountdown — tick updates the text every second using a cloc
 		initTrialCountdown(clock.deps).attach();
 
 		expect(getCountdownElement(document).textContent).toBe(
-			"0d 5h 0m 0s in your free trial",
+			"5h 0m left in your free trial",
 		);
 	});
 });
@@ -254,7 +254,7 @@ describe("initTrialCountdown — htmx swaps", () => {
 
 		clock.swapListener();
 
-		expect(el.textContent).toBe("0d 1h 0m 0s in your free trial");
+		expect(el.textContent).toBe("1h 0m left in your free trial");
 	});
 });
 
@@ -308,7 +308,7 @@ describe("initTrialCountdown — clock skew fallback", () => {
 		initTrialCountdown(clock.deps).attach();
 
 		expect(getCountdownElement(document).textContent).toBe(
-			"0d 1h 0m 0s in your free trial",
+			"1h 0m left in your free trial",
 		);
 	});
 
@@ -328,7 +328,7 @@ describe("initTrialCountdown — clock skew fallback", () => {
 		initTrialCountdown(clock.deps).attach();
 
 		expect(getCountdownElement(document).textContent).toBe(
-			"0d 0h 30m 0s in your free trial",
+			"30m 0s left in your free trial",
 		);
 	});
 });

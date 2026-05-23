@@ -45,7 +45,9 @@ describe("Queue page banner state", () => {
 		const countdown = doc.querySelector("[data-test-trial-countdown]");
 		assert(countdown, "global trial countdown must be rendered for a trialing user");
 		expect(countdown.getAttribute("data-trial-state")).toBe("active");
-		expect(countdown.textContent).toMatch(/^\d+d \d+h \d+m \d+s in your free trial$/);
+		expect(countdown.textContent).toMatch(
+			/^(\d+d \d+h|\d+h \d+m|\d+m \d+s|\d+s) left in your free trial$/,
+		);
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "queue banner aside must be rendered");
 		expect(banner.classList.contains("queue-banner--trial-countdown")).toBe(true);

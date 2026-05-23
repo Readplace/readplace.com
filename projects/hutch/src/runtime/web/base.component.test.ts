@@ -374,7 +374,7 @@ describe("Base component", () => {
 
 		const countdown = doc.querySelector("[data-test-trial-countdown]");
 		assert(countdown, "trial countdown must be rendered when trial.state='active'");
-		expect(countdown.textContent).toBe("13d 12h 33m 22s in your free trial");
+		expect(countdown.textContent).toBe("13d 12h left in your free trial");
 		expect(countdown.getAttribute("data-trial-state")).toBe("active");
 		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe("2026-01-15T00:00:00.000Z");
 		expect(countdown.getAttribute("data-server-now-iso")).toBe("2026-01-01T00:00:00.000Z");
