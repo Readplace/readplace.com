@@ -7,6 +7,7 @@ import type {
 } from "@packages/article-parser";
 import type { FindArticleCrawlStatus } from "@packages/test-fixtures/providers/article-crawl";
 import type { FindGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
+import type { Minutes } from "@packages/domain/article";
 import { useTestServer } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
@@ -1150,6 +1151,147 @@ describe("View routes", () => {
 				.set("If-None-Match", etag);
 			expect(second.status).toBe(304);
 			expect(second.text).toBe("");
+		});
+	});
+
+	describe("Public access expiry counter", () => {
+		function buildHarness(now: Date) {
+			const parseArticle: ParseArticle = async () => buildParseResult();
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			return useApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
+				events: {
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+				},
+				shared: { ...fixture.shared, now: () => now },
+			});
+		}
+
+		it("renders the counter in state='counting' with a 3-day deadline for an organic anonymous visit", async () => {
+			const fixedNow = new Date("2026-04-25T12:00:00.000Z");
+			const harness = buildHarness(fixedNow);
+
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const expiry = doc.querySelector("[data-test-view-expiry]");
+			assert(expiry, "expiry element must be rendered");
+			expect(expiry.getAttribute("data-expiry-state")).toBe("counting");
+			const expiresAt = expiry.getAttribute("data-expires-at");
+			assert(expiresAt, "data-expires-at must be set when counting");
+			const expectedExpiry = new Date(
+				fixedNow.getTime() + 3 * 24 * 60 * 60 * 1000,
+			);
+			expect(expiresAt).toBe(expectedExpiry.toISOString());
+		});
+
+		it("renders the counter in state='permanent' when the visitor arrives with utm_source=fagnerbrack.com so syndication links never expire", async () => {
+			const harness = buildHarness(new Date("2026-04-25T12:00:00.000Z"));
+
+			const response = await request(harness.server).get(
+				`/view/${ENCODED}?utm_source=fagnerbrack.com`,
+			);
+
+			const doc = new JSDOM(response.text).window.document;
+			const expiry = doc.querySelector("[data-test-view-expiry]");
+			assert(expiry, "expiry element must be rendered");
+			expect(expiry.getAttribute("data-expiry-state")).toBe("permanent");
+			expect(expiry.hasAttribute("data-expires-at")).toBe(false);
+		});
+
+		it("renders the counter in state='permanent' when utm_content carries a 6-hex-char userId prefix (share-balloon or /read redirect)", async () => {
+			const harness = buildHarness(new Date("2026-04-25T12:00:00.000Z"));
+
+			const response = await request(harness.server).get(
+				`/view/${ENCODED}?utm_source=share-balloon&utm_content=a3f1c2`,
+			);
+
+			const doc = new JSDOM(response.text).window.document;
+			const expiry = doc.querySelector("[data-test-view-expiry]");
+			assert(expiry, "expiry element must be rendered");
+			expect(expiry.getAttribute("data-expiry-state")).toBe("permanent");
+		});
+
+		it("stamps the Save action's utm_content with the time left in Xd_Yh_left format and marks the link with data-expiry-save-link so the client script keeps it in sync", async () => {
+			const harness = buildHarness(new Date("2026-04-25T12:00:00.000Z"));
+
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const saveLink = doc.querySelector("[data-expiry-save-link]");
+			assert(saveLink, "Save action must carry data-expiry-save-link when counting");
+			const href = saveLink.getAttribute("href");
+			assert(href, "save link must have an href");
+			const parsed = new URL(href, "http://localhost");
+			expect(parsed.searchParams.get("utm_content")).toBe("3d_0h_left");
+		});
+
+		it("omits the Save link's data-expiry-save-link marker for permanent views so the client script has nothing to keep in sync", async () => {
+			const harness = buildHarness(new Date("2026-04-25T12:00:00.000Z"));
+
+			const response = await request(harness.server).get(
+				`/view/${ENCODED}?utm_source=fagnerbrack.com`,
+			);
+
+			const doc = new JSDOM(response.text).window.document;
+			const saveLink = doc.querySelector("[data-expiry-save-link]");
+			expect(saveLink).toBeNull();
+		});
+
+		it("resets the counter to a full 3-day window when the article is re-saved (savedAt is bumped on saveArticleGlobally)", async () => {
+			const firstVisit = new Date("2026-04-20T00:00:00.000Z");
+			const reVisit = new Date("2026-04-22T00:00:00.000Z");
+			let currentNow = firstVisit;
+			const parseArticle: ParseArticle = async () => buildParseResult();
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const harness = useApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
+				events: {
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+				},
+				shared: { ...fixture.shared, now: () => currentNow },
+			});
+
+			await request(harness.server).get(`/view/${ENCODED}`);
+			currentNow = reVisit;
+			await harness.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: 0 as Minutes,
+				savedAt: reVisit,
+			});
+
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const doc = new JSDOM(response.text).window.document;
+			const expiry = doc.querySelector("[data-test-view-expiry]");
+			assert(expiry, "expiry element must be rendered");
+			const expiresAt = expiry.getAttribute("data-expires-at");
+			const expected = new Date(reVisit.getTime() + 3 * 24 * 60 * 60 * 1000);
+			expect(expiresAt).toBe(expected.toISOString());
 		});
 	});
 });

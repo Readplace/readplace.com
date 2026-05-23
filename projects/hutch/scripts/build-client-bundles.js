@@ -126,6 +126,22 @@ const BUNDLES = [
 			"});",
 		].join("\n"),
 	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
+			"src/runtime/web/pages/view/expiry-counter.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "expiry-counter.client.js"),
+		globalName: "ExpiryCounter",
+		footer: [
+			"ExpiryCounter.initExpiryCounter({",
+			"  document: window.document,",
+			"  now: function () { return Date.now(); },",
+			"  setIntervalFn: function (cb, ms) { return window.setInterval(cb, ms); },",
+			"  clearIntervalFn: function (id) { window.clearInterval(id); }",
+			"});",
+		].join("\n"),
+	},
 ];
 
 function buildOptions(bundle) {

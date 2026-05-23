@@ -65,6 +65,52 @@ describe("initInMemoryArticleStore", () => {
 			expect(found?.url).toBe("https://example.com/article");
 			expect(found?.metadata.title).toBe("Test Article");
 		});
+
+		it("returns the global savedAt so the public /view expiry counter can compute (savedAt + 3 days)", async () => {
+			const store = initInMemoryArticleStore();
+			const firstSave = new Date("2026-05-20T00:00:00.000Z");
+			await store.saveArticleGlobally({
+				url: "https://example.com/article",
+				metadata: {
+					title: "Hello",
+					siteName: "example.com",
+					excerpt: "",
+					wordCount: 0,
+				},
+				estimatedReadTime: 0 as Minutes,
+				savedAt: firstSave,
+			});
+
+			const found = await store.findArticleByUrl("https://example.com/article");
+
+			expect(found?.savedAt.toISOString()).toBe(firstSave.toISOString());
+		});
+
+		it("bumps savedAt on re-save so the public /view counter resets to a full 3-day window each time the article is re-crawled", async () => {
+			const store = initInMemoryArticleStore();
+			const url = "https://example.com/article";
+			const firstSave = new Date("2026-05-20T00:00:00.000Z");
+			const reSave = new Date("2026-05-21T00:00:00.000Z");
+			await store.saveArticleGlobally({
+				url,
+				metadata: { title: "Hello", siteName: "example.com", excerpt: "", wordCount: 100 },
+				estimatedReadTime: 0 as Minutes,
+				savedAt: firstSave,
+			});
+
+			await store.saveArticleGlobally({
+				url,
+				metadata: { title: "stub-from-view", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: 0 as Minutes,
+				savedAt: reSave,
+			});
+
+			const found = await store.findArticleByUrl(url);
+			expect(found?.savedAt.toISOString()).toBe(reSave.toISOString());
+			/** Stub metadata from the second call must not clobber the real parsed metadata. */
+			expect(found?.metadata.title).toBe("Hello");
+			expect(found?.metadata.wordCount).toBe(100);
+		});
 	});
 
 	describe("findArticleUrlById", () => {

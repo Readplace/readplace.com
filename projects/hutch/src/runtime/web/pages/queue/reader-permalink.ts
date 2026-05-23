@@ -8,6 +8,7 @@ import type {
 } from "@packages/test-fixtures/providers/article-store";
 import type { Redirect } from "../../redirect.component";
 import { collectUtmParams } from "../../shared/utm";
+import { shareUserIdPrefix } from "../view/view-expiry";
 
 export interface ReaderPermalinkDeps {
 	findArticleById: FindArticleById;
@@ -32,17 +33,28 @@ const REDIRECT_TO_QUEUE: ReaderPermalinkResult = {
 /** UTM params on the /view redirect let analytics distinguish shared
  * /read clicks from organic /view traffic. Preserve any incoming UTM
  * (e.g. a campaign-tagged share URL) over the defaults so external
- * attribution survives the redirect. */
-function buildShareRedirectUrl(articleUrl: string, query: Request["query"]): string {
+ * attribution survives the redirect. When the requester is authenticated,
+ * stamp the first 6 chars of their userId into `utm_content` so the
+ * receiving public /view recognises the link as a logged-in user's share
+ * and skips the 3-day access expiry — see view-expiry.ts. */
+function buildShareRedirectUrl(
+	articleUrl: string,
+	query: Request["query"],
+	requesterId: UserId | undefined,
+): string {
 	const incomingUtm = collectUtmParams(query);
-	const utmParams: [string, string][] = incomingUtm.length > 0
+	const baseParams: [string, string][] = incomingUtm.length > 0
 		? incomingUtm
 		: [
 			["utm_source", "read"],
 			["utm_medium", "share"],
 			["utm_campaign", "read-permalink"],
 		];
-	return `/view/${encodeURIComponent(articleUrl)}?${new URLSearchParams(utmParams).toString()}`;
+	const params = new URLSearchParams(baseParams);
+	if (requesterId !== undefined) {
+		params.set("utm_content", shareUserIdPrefix(requesterId));
+	}
+	return `/view/${encodeURIComponent(articleUrl)}?${params.toString()}`;
 }
 
 export function initReaderPermalink(deps: ReaderPermalinkDeps) {
@@ -65,7 +77,10 @@ export function initReaderPermalink(deps: ReaderPermalinkDeps) {
 		 * owner, so caches must not pin a single response. */
 		return {
 			kind: "redirect",
-			redirect: { statusCode: 302, location: buildShareRedirectUrl(articleUrl, input.query) },
+			redirect: {
+				statusCode: 302,
+				location: buildShareRedirectUrl(articleUrl, input.query, input.requesterId),
+			},
 		};
 	};
 }

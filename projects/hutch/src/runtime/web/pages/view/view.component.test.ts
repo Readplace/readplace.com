@@ -23,6 +23,7 @@ const baseInput: ViewPageInput = {
 			variant: "primary",
 		},
 	],
+	expiresAt: null,
 };
 
 function render(input = baseInput) {
@@ -341,4 +342,91 @@ describe("ViewPage", () => {
 		assert(link, "cta action must still be rendered without content");
 	});
 
+	describe("Public access expiry counter", () => {
+		it("renders the counter element in state='permanent' (and no expires-at attribute) when the view does not expire", () => {
+			const doc = render({ ...baseInput, expiresAt: null });
+
+			const expiry = doc.querySelector("[data-test-view-expiry]");
+			assert(expiry, "expiry element must always render so client JS can find it");
+			expect(expiry.getAttribute("data-expiry-state")).toBe("permanent");
+			expect(expiry.hasAttribute("data-expires-at")).toBe(false);
+			expect(expiry.classList.contains("view__expiry--permanent")).toBe(true);
+		});
+
+		it("renders the counter in state='counting' with the SSR-correct initial text and an ISO data-expires-at when the view will expire", () => {
+			const expiresAt = new Date(Date.now() + 60_000); // 1 minute in the future
+			const doc = render({ ...baseInput, expiresAt });
+
+			const expiry = doc.querySelector("[data-test-view-expiry]");
+			assert(expiry, "expiry element must be rendered");
+			expect(expiry.getAttribute("data-expiry-state")).toBe("counting");
+			expect(expiry.getAttribute("data-expires-at")).toBe(expiresAt.toISOString());
+			expect(expiry.textContent?.trim()).toMatch(
+				/^Public access will expire in 0d 0h 0m 59s$|^Public access will expire in 0d 0h 1m 0s$/,
+			);
+		});
+
+		it("renders the counter in state='expired' with a terminal message when expiresAt is in the past", () => {
+			const expiresAt = new Date(Date.now() - 60_000);
+			const doc = render({ ...baseInput, expiresAt });
+
+			const expiry = doc.querySelector("[data-test-view-expiry]");
+			assert(expiry, "expiry element must be rendered");
+			expect(expiry.getAttribute("data-expiry-state")).toBe("expired");
+			expect(expiry.textContent?.trim()).toBe("Public access has expired.");
+		});
+
+		it("marks any action with expirySaveLink=true via data-expiry-save-link so the client script can rewrite its utm_content as the counter ticks", () => {
+			const doc = render({
+				...baseInput,
+				expiresAt: new Date(Date.now() + 60_000),
+				actions: [
+					{
+						name: "Save to My Queue",
+						href: "/save?url=x&utm_content=2d_4h_left",
+						variant: "primary",
+						expirySaveLink: true,
+					},
+					{
+						name: "Paste another link",
+						href: "/view?utm_source=view-article",
+						variant: "secondary",
+					},
+				],
+			});
+
+			const links = doc.querySelectorAll("[data-test-view-cta-action]");
+			expect(links.length).toBe(2);
+			expect(links[0]?.hasAttribute("data-expiry-save-link")).toBe(true);
+			expect(links[1]?.hasAttribute("data-expiry-save-link")).toBe(false);
+		});
+
+		it("loads the expiry-counter client bundle so the SSR counter ticks down once the page hydrates", () => {
+			const doc = render({ ...baseInput, expiresAt: new Date(Date.now() + 60_000) });
+
+			const script = doc.querySelector(
+				'script[src$="/client-dist/expiry-counter.client.js"]',
+			);
+			assert(script, "expiry-counter client script must be rendered");
+			expect(script.hasAttribute("defer")).toBe(true);
+		});
+
+		it("stamps the share balloon's utm_content with the visitor's sharerUserIdPrefix when provided so receiving views treat the link as a logged-in user's share", () => {
+			const doc = render({ ...baseInput, sharerUserIdPrefix: "a3f1c2" });
+
+			const shareBtn = doc.querySelector("[data-test-share-balloon]");
+			assert(shareBtn, "share button must be rendered");
+			const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
+			expect(shareUrl.searchParams.get("utm_content")).toBe("a3f1c2");
+		});
+
+		it("omits utm_content from the share balloon when no sharerUserIdPrefix is provided so anonymous shares fall back to standard expiry on the receiving page", () => {
+			const doc = render(baseInput);
+
+			const shareBtn = doc.querySelector("[data-test-share-balloon]");
+			assert(shareBtn, "share button must be rendered");
+			const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
+			expect(shareUrl.searchParams.get("utm_content")).toBeNull();
+		});
+	});
 });

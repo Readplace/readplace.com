@@ -43,6 +43,12 @@ import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { ViewLandingPage } from "./view-landing.component";
 import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.component";
+import {
+	computePublicViewExpiry,
+	decomposeTimeLeft,
+	formatSaveUtmContent,
+	shareUserIdPrefix,
+} from "./view-expiry";
 
 interface ViewDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
@@ -136,7 +142,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 					wordCount: 0,
 				},
 				estimatedReadTime: calculateReadTime(0),
-				savedAt: new Date(),
+				savedAt: deps.now(),
 			});
 			await deps.markCrawlPending({ url: articleUrl });
 			await deps.markSummaryPending({ url: articleUrl });
@@ -171,12 +177,28 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		}
 
 		const utmParams = collectUtmParams(req.query);
+		const utmSource = typeof req.query.utm_source === "string" ? req.query.utm_source : undefined;
+		const utmContent = typeof req.query.utm_content === "string" ? req.query.utm_content : undefined;
+
+		const expiry = computePublicViewExpiry({
+			savedAt: articleSnapshot.savedAt,
+			utmSource,
+			utmContent,
+		});
+
+		const saveHrefParams = new URLSearchParams([["url", articleUrl], ...utmParams]);
+		if (expiry.expiresAt !== null) {
+			/** Stamp the visitor's remaining-time snapshot into the Save link so the analytics row for a save click captures urgency. The client script re-stamps this on every tick so a click made hours later carries the latest day/hour value. */
+			const timeLeft = decomposeTimeLeft(expiry.expiresAt.getTime() - deps.now().getTime());
+			saveHrefParams.set("utm_content", formatSaveUtmContent(timeLeft));
+		}
 
 		const actions: ViewAction[] = [
 			{
 				name: "Save to My Queue",
-				href: `/save?${new URLSearchParams([["url", articleUrl], ...utmParams]).toString()}`,
+				href: `/save?${saveHrefParams.toString()}`,
 				variant: "primary",
+				expirySaveLink: expiry.expiresAt !== null,
 			},
 			{
 				name: "Paste another link",
@@ -205,6 +227,9 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 					progress: state.progress,
 					actions,
 					extensionInstallUrl: extensionInstallUrlIfMissing(req),
+					expiresAt: expiry.expiresAt,
+					sharerUserIdPrefix: req.userId ? shareUserIdPrefix(req.userId) : undefined,
+					now: deps.now(),
 				}),
 				{ ...bannerStateFromRequest(req), showExtensionSuggestionBanner, extensionInstalled: isExtensionInstalled(req) },
 			),

@@ -65,6 +65,8 @@ export interface GlobalArticleData {
 	metadata: SavedArticle["metadata"];
 	estimatedReadTime: SavedArticle["estimatedReadTime"];
 	contentSourceTier?: "tier-0" | "tier-1";
+	/** When this URL first entered the global article table. Re-saves of the same URL bump this so the public /view counter resets to the full 3-day window. */
+	savedAt: Date;
 }
 
 export type FindArticleByUrl = (

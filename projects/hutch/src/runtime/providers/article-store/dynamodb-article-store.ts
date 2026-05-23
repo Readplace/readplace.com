@@ -50,6 +50,7 @@ const ArticleRow = z.object({
 	content: dynamoField(z.string()),
 	estimatedReadTime: MinutesSchema,
 	contentSourceTier: dynamoField(z.enum(["tier-0", "tier-1"])),
+	savedAt: z.string(),
 });
 /** Every ArticleRow attribute except `content`, derived so the list stays in sync with the schema. */
 const ArticleMetadataFields = ArticleRow.omit({ content: true }).keyof().options;
@@ -127,17 +128,13 @@ export function initDynamoDbArticleStore(deps: {
 		return row ?? null;
 	}
 
-	const ignoreDuplicate = (error: unknown) => {
-		if (error instanceof ConditionalCheckFailedException) return;
-		throw error;
-	};
-
 	const saveArticleGlobally: SaveArticleGlobally = async (params) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const routeId = ReaderArticleHashId.from(params.url);
+		const savedAtIso = params.savedAt.toISOString();
 
-		await articles
-			.put({
+		try {
+			await articles.put({
 				Item: {
 					url: articleResourceUniqueId.value,
 					routeId: routeId.value,
@@ -148,12 +145,20 @@ export function initDynamoDbArticleStore(deps: {
 					wordCount: params.metadata.wordCount,
 					imageUrl: params.metadata.imageUrl,
 					estimatedReadTime: params.estimatedReadTime,
-					savedAt: params.savedAt.toISOString(),
+					savedAt: savedAtIso,
 				},
 				ConditionExpression: "attribute_not_exists(#url)",
 				ExpressionAttributeNames: { "#url": "url" },
-			})
-			.catch(ignoreDuplicate);
+			});
+		} catch (error) {
+			if (!(error instanceof ConditionalCheckFailedException)) throw error;
+			/** Row already exists — bump savedAt so the public /view expiry counter resets to the full 3-day window on every re-save. Metadata is left untouched so a stub re-save (the view fallback path passes hostname-only metadata) cannot clobber the real parsed metadata. */
+			await articles.update({
+				Key: { url: articleResourceUniqueId.value },
+				UpdateExpression: "SET savedAt = :savedAt",
+				ExpressionAttributeValues: { ":savedAt": savedAtIso },
+			});
+		}
 	};
 
 	const saveArticle: SaveArticle = async (params) => {
@@ -373,6 +378,7 @@ export function initDynamoDbArticleStore(deps: {
 					"imageUrl",
 					"estimatedReadTime",
 					"contentSourceTier",
+					"savedAt",
 				],
 			},
 		);
@@ -389,6 +395,7 @@ export function initDynamoDbArticleStore(deps: {
 			},
 			estimatedReadTime: row.estimatedReadTime,
 			contentSourceTier: row.contentSourceTier,
+			savedAt: new Date(row.savedAt),
 		};
 	};
 

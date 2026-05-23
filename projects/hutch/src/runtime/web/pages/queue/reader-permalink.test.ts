@@ -1,15 +1,17 @@
+import assert from "node:assert/strict";
 import type { Minutes, SavedArticle } from "@packages/domain/article";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { initReaderPermalink, type ReaderPermalinkDeps } from "./reader-permalink";
 
-const OWNER_ID = UserIdSchema.parse("owner-user");
-const STRANGER_ID = UserIdSchema.parse("stranger-user");
+const OWNER_ID = UserIdSchema.parse("a3f1c2deadbeef0123456789abcdef01");
+const STRANGER_ID = UserIdSchema.parse("b4c5d6abcdef0123456789abcdef0123");
 const ARTICLE_URL = "https://example.com/shared-article";
 const ARTICLE_ID = ReaderArticleHashId.from(ARTICLE_URL);
 const UNKNOWN_HASH = "0".repeat(32);
 
 const DEFAULT_UTM = "utm_source=read&utm_medium=share&utm_campaign=read-permalink";
+const STRANGER_UTM_CONTENT = "b4c5d6";
 
 function savedArticleFor(userId = OWNER_ID): SavedArticle {
 	return {
@@ -55,7 +57,7 @@ describe("resolveReaderPermalink", () => {
 		expect(result).toEqual({ kind: "article", article: owned });
 	});
 
-	it("redirects a logged-in non-owner to the public /view permalink with default UTM params", async () => {
+	it("redirects a logged-in non-owner to the public /view permalink with the requester's userId prefix stamped into utm_content so the receiving view treats it as a permanent share", async () => {
 		const resolve = initReaderPermalink(createDeps({
 			findArticleById: async () => null,
 			findArticleUrlById: async (id) =>
@@ -68,12 +70,12 @@ describe("resolveReaderPermalink", () => {
 			kind: "redirect",
 			redirect: {
 				statusCode: 302,
-				location: `/view/${encodeURIComponent(ARTICLE_URL)}?${DEFAULT_UTM}`,
+				location: `/view/${encodeURIComponent(ARTICLE_URL)}?${DEFAULT_UTM}&utm_content=${STRANGER_UTM_CONTENT}`,
 			},
 		});
 	});
 
-	it("redirects an anonymous visitor to the public /view permalink without consulting findArticleById", async () => {
+	it("redirects an anonymous visitor to the public /view permalink without a utm_content userId (no share-trace available) so the standard expiry applies", async () => {
 		let ownerLookupCalls = 0;
 		const resolve = initReaderPermalink(createDeps({
 			findArticleById: async () => {
@@ -113,6 +115,23 @@ describe("resolveReaderPermalink", () => {
 				location: `/view/${encodeURIComponent(ARTICLE_URL)}?utm_source=newsletter&utm_campaign=weekly`,
 			},
 		});
+	});
+
+	it("overrides incoming utm_content with the requester's userId prefix so a re-shared link still carries the latest sharer's trace", async () => {
+		const resolve = initReaderPermalink(createDeps({
+			findArticleUrlById: async () => ARTICLE_URL,
+		}));
+
+		const result = await resolve({
+			rawId: ARTICLE_ID.value,
+			requesterId: STRANGER_ID,
+			query: { utm_source: "newsletter", utm_content: "old-trace" },
+		});
+
+		assert(result.kind === "redirect", "result must be a redirect");
+		const location = new URL(result.redirect.location, "http://localhost");
+		expect(location.searchParams.get("utm_source")).toBe("newsletter");
+		expect(location.searchParams.get("utm_content")).toBe(STRANGER_UTM_CONTENT);
 	});
 
 	it("redirects to /queue when the hash is well-formed but no article matches", async () => {

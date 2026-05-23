@@ -46,4 +46,23 @@ describe("ReaderPage", () => {
 		const wrap = doc.querySelector("[data-test-share-balloon-wrap]");
 		assert(wrap, "share balloon wrap must be rendered");
 	});
+
+	it("stamps the share-balloon's utm_content with the article owner's first 6 userId chars so the public /view treats the link as permanent", () => {
+		const ownerId = UserIdSchema.parse("a3f1c2deadbeef0123456789abcdef01");
+		const html = Base(ReaderPage(makeArticle({ userId: ownerId })), {
+			isAuthenticated: true,
+			emailVerified: undefined,
+		}).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+
+		const shareBtn = doc.querySelector("[data-test-share-balloon]");
+		assert(shareBtn, "share button must be rendered");
+		const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
+		expect(shareUrl.searchParams.get("utm_content")).toBe("a3f1c2");
+
+		const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
+		assert(copyBtn, "copy button must be rendered");
+		const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
+		expect(copyUrl.searchParams.get("utm_content")).toBe("a3f1c2");
+	});
 });

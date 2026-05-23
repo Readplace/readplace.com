@@ -93,16 +93,20 @@ export function initInMemoryArticleStore(): {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const routeId = ReaderArticleHashId.from(params.url);
 
-		if (!articles.has(articleResourceUniqueId.value)) {
-			articles.set(articleResourceUniqueId.value, {
-				url: articleResourceUniqueId.value,
-				originalUrl: params.url,
-				routeId,
-				metadata: params.metadata,
-				estimatedReadTime: params.estimatedReadTime,
-				savedAt: params.savedAt,
-			});
+		const existing = articles.get(articleResourceUniqueId.value);
+		if (existing) {
+			/** Bump savedAt on re-save so the public /view expiry counter resets to the full 3-day window. Metadata is left untouched so a stub re-save can't clobber real parsed metadata. */
+			existing.savedAt = params.savedAt;
+			return;
 		}
+		articles.set(articleResourceUniqueId.value, {
+			url: articleResourceUniqueId.value,
+			originalUrl: params.url,
+			routeId,
+			metadata: params.metadata,
+			estimatedReadTime: params.estimatedReadTime,
+			savedAt: params.savedAt,
+		});
 	};
 
 	const saveArticle: SaveArticle = async (params) => {
@@ -161,6 +165,7 @@ export function initInMemoryArticleStore(): {
 
 			estimatedReadTime: article.estimatedReadTime,
 			contentSourceTier: article.contentSourceTier,
+			savedAt: article.savedAt,
 		};
 	};
 

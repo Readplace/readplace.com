@@ -23,16 +23,25 @@ export interface ShareBalloonInput {
 	shareTitle: string;
 	shareHint: string;
 	shareSource: ShareBalloonSource;
+	/** First 6 chars of the sharer's userId, stamped into `utm_content` so the receiving public /view treats the link as permanent (see view-expiry.ts). Omit for anonymous visitors — the standard expiry then applies on the receiving page. */
+	sharerUserIdPrefix?: string;
 }
 
 function withUtm(
 	baseUrl: string,
-	params: { medium: "copy" | "share"; campaign: ShareBalloonSource },
+	params: {
+		medium: "copy" | "share";
+		campaign: ShareBalloonSource;
+		sharerUserIdPrefix: string | undefined;
+	},
 ): string {
 	const url = new URL(baseUrl);
 	url.searchParams.set("utm_source", "share-balloon");
 	url.searchParams.set("utm_medium", params.medium);
 	url.searchParams.set("utm_campaign", params.campaign);
+	if (params.sharerUserIdPrefix !== undefined) {
+		url.searchParams.set("utm_content", params.sharerUserIdPrefix);
+	}
 	return url.toString();
 }
 
@@ -41,10 +50,12 @@ export function renderShareBalloon(input: ShareBalloonInput): string {
 		shareUrlCopy: withUtm(input.shareUrl, {
 			medium: "copy",
 			campaign: input.shareSource,
+			sharerUserIdPrefix: input.sharerUserIdPrefix,
 		}),
 		shareUrlShare: withUtm(input.shareUrl, {
 			medium: "share",
 			campaign: input.shareSource,
+			sharerUserIdPrefix: input.sharerUserIdPrefix,
 		}),
 		shareTitle: input.shareTitle,
 		shareHint: input.shareHint,
