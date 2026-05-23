@@ -13,9 +13,7 @@ import type { EffectiveAccess } from "../../../domain/access/effective-access";
 
 export type SubscriptionBannerState =
 	| { state: "none" }
-	| { state: "trial-countdown"; daysLeft: number; daysLeftWord: "day" | "days" }
-	| { state: "pending-cancellation"; cancellationEffectiveAtIso: string; cancellationEffectiveAtFormatted: string }
-	| { state: "inactive" };
+	| { state: "pending-cancellation"; cancellationEffectiveAtIso: string; cancellationEffectiveAtFormatted: string };
 
 export interface ArticleActionField {
 	name: string;
@@ -90,12 +88,6 @@ export interface QueueViewModel {
 	accessIsReadOnly: boolean;
 }
 
-function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number; daysLeftWord: "day" | "days" } {
-	const remaining = new Date(trialEndsAt).getTime() - now.getTime();
-	const daysLeft = Math.max(1, Math.ceil(remaining / 86_400_000));
-	return { daysLeft, daysLeftWord: daysLeft === 1 ? "day" : "days" };
-}
-
 function formatCancellationDate(iso: string): string {
 	return new Date(iso).toLocaleDateString("en-AU", {
 		day: "numeric",
@@ -104,22 +96,18 @@ function formatCancellationDate(iso: string): string {
 	});
 }
 
-function toSubscriptionBannerState(access: EffectiveAccess, now: Date): SubscriptionBannerState {
+function toSubscriptionBannerState(access: EffectiveAccess): SubscriptionBannerState {
 	switch (access.banner) {
 		case "none":
+		case "trial-countdown":
+		case "inactive":
 			return { state: "none" };
-		case "trial-countdown": {
-			const { daysLeft, daysLeftWord } = formatTrialDaysLeft(access.trialEndsAt, now);
-			return { state: "trial-countdown", daysLeft, daysLeftWord };
-		}
 		case "pending-cancellation":
 			return {
 				state: "pending-cancellation",
 				cancellationEffectiveAtIso: access.cancellationEffectiveAt,
 				cancellationEffectiveAtFormatted: formatCancellationDate(access.cancellationEffectiveAt),
 			};
-		case "inactive":
-			return { state: "inactive" };
 	}
 }
 
@@ -287,7 +275,7 @@ export function toQueueViewModel(
 		saveErrorCode: options?.saveErrorCode,
 		importFlash: options?.importFlash,
 		importSkipped: options?.importSkipped,
-		subscriptionBanner: toSubscriptionBannerState(access, now),
+		subscriptionBanner: toSubscriptionBannerState(access),
 		accessIsReadOnly: access.access === "read-only",
 	};
 }

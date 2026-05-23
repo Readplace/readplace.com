@@ -5,7 +5,7 @@ import ExpressOAuthServer from "@node-oauth/express-oauth-server";
 import type { OAuthModel } from "@packages/test-fixtures/providers/oauth";
 import { getClient, validateRedirectUri } from "@packages/test-fixtures/providers/oauth";
 import { Base } from "../base.component";
-import { bannerStateFromRequest } from "../banner-state";
+import type { BuildBannerState } from "../banner-state";
 import { sendComponent } from "../send-component";
 import { OAuthAuthorizePage, OAuthCallbackPage } from "./oauth.component";
 
@@ -26,6 +26,7 @@ const denyBodySchema = z.object({
 
 interface OAuthRouteDeps {
 	model: OAuthModel;
+	buildBannerState: BuildBannerState;
 }
 
 export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
@@ -40,7 +41,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 		},
 	});
 
-	router.get("/authorize", (req: Request, res: Response) => {
+	router.get("/authorize", async (req: Request, res: Response) => {
 		const parsed = authorizeQuerySchema.safeParse(req.query);
 		if (!parsed.success) {
 			res.status(400).json({
@@ -83,7 +84,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 				redirectUri: redirect_uri,
 				codeChallenge: parsed.data.code_challenge,
 				state,
-			}), bannerStateFromRequest(req)),
+			}), await deps.buildBannerState(req)),
 		);
 	});
 
@@ -163,8 +164,8 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 		res.status(200).json({});
 	});
 
-	router.get("/callback", (req: Request, res: Response) => {
-		sendComponent(req, res, Base(OAuthCallbackPage(), bannerStateFromRequest(req)));
+	router.get("/callback", async (req: Request, res: Response) => {
+		sendComponent(req, res, Base(OAuthCallbackPage(), await deps.buildBannerState(req)));
 	});
 
 	return router;

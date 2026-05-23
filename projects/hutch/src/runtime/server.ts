@@ -94,7 +94,7 @@ import { initDualAuth, type ValidateAccessToken } from "./web/dual-auth.middlewa
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
 import { initOAuthRoutes } from "./web/oauth/oauth.routes";
 import { Base } from "./web/base.component";
-import { bannerStateFromRequest } from "./web/banner-state";
+import { initBuildBannerState } from "./web/banner-state";
 import { sendComponent } from "./web/send-component";
 import { wantsMarkdown, wantsSiren } from "./web/content-negotiation";
 import { contentSignalMiddleware } from "./web/content-signal.middleware";
@@ -241,6 +241,16 @@ export function createApp(dependencies: AppDependencies): Express {
 	const markExtensionInstalled = initMarkExtensionInstalled();
 	app.use(markExtensionInstalled);
 
+	const getEffectiveAccess = initGetEffectiveAccess({
+		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
+		now: deps.now,
+	});
+	const requireWriteAccess = initRequireWriteAccess({ getEffectiveAccess });
+	const buildBannerState = initBuildBannerState({
+		getEffectiveAccess,
+		now: deps.now,
+	});
+
 	app.get("/favicon.ico", (_req: Request, res: Response) => {
 		res.redirect(301, `${staticBaseUrl}/favicon.ico`);
 	});
@@ -365,19 +375,20 @@ export function createApp(dependencies: AppDependencies): Express {
 			: ua.includes("Chrome/") ? "chrome"
 			: "other";
 		const userCount = await countUsers().catch(() => 0);
+		const banner = await buildBannerState(req);
 		sendComponent(
 			req,
 			res,
-			Base(HomePage({ userCount, staticBaseUrl, browser, foundingAllocation }), bannerStateFromRequest(req)),
+			Base(HomePage({ userCount, staticBaseUrl, browser, foundingAllocation }), banner),
 		);
 	});
 
-	app.get("/privacy", (req: Request, res: Response) => {
-		sendComponent(req, res, Base(PrivacyPage(), bannerStateFromRequest(req)));
+	app.get("/privacy", async (req: Request, res: Response) => {
+		sendComponent(req, res, Base(PrivacyPage(), await buildBannerState(req)));
 	});
 
-	app.get("/terms", (req: Request, res: Response) => {
-		sendComponent(req, res, Base(TermsPage(), bannerStateFromRequest(req)));
+	app.get("/terms", async (req: Request, res: Response) => {
+		sendComponent(req, res, Base(TermsPage(), await buildBannerState(req)));
 	});
 
 	// Path-uniqued article fixture for staging e2e tests. The :id segment is
@@ -388,8 +399,8 @@ export function createApp(dependencies: AppDependencies): Express {
 	// Lambda; tests (NODE_ENV=test via Jest) and local dev (NODE_ENV unset)
 	// both expose it.
 	if (getEnv("NODE_ENV") !== "production") {
-		app.get("/e2e/article/:id", (req: Request, res: Response) => {
-			sendComponent(req, res, Base(E2EFixturePage(), bannerStateFromRequest(req)));
+		app.get("/e2e/article/:id", async (req: Request, res: Response) => {
+			sendComponent(req, res, Base(E2EFixturePage(), await buildBannerState(req)));
 		});
 
 		/**
@@ -414,10 +425,10 @@ export function createApp(dependencies: AppDependencies): Express {
 			fetchFirefoxDownloadUrl(),
 			fetchChromeDownloadUrl(),
 		]);
-		sendComponent(req, res, Base(InstallPage({ firefox, chrome, browser }), bannerStateFromRequest(req)));
+		sendComponent(req, res, Base(InstallPage({ firefox, chrome, browser }), await buildBannerState(req)));
 	});
 
-	const blogRouter = initBlogRoutes({ blogPosts });
+	const blogRouter = initBlogRoutes({ blogPosts, buildBannerState });
 	app.use("/blog", (req: Request, res: Response, next: NextFunction) => {
 		if (req.headers.host === "hutch-app.com") {
 			res.redirect(301, `${appOrigin}${req.originalUrl}`);
@@ -427,12 +438,6 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	app.use("/blog", blogRouter);
 	app.use("/embed", initEmbedRoutes({ appOrigin }));
-
-	const getEffectiveAccess = initGetEffectiveAccess({
-		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
-		now: deps.now,
-	});
-	const requireWriteAccess = initRequireWriteAccess({ getEffectiveAccess });
 
 	const authRouter = initAuthRoutes({
 		hashPassword: deps.hashPassword,
@@ -461,6 +466,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		botDefenseLogger: deps.botDefenseLogger,
 		conversionLogger: deps.conversionLogger,
 		foundingAllocation,
+		buildBannerState,
 	});
 	app.use(authRouter);
 
@@ -527,6 +533,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		dualAuth: dualAuthMiddleware,
 		requireWriteAccess,
 		getEffectiveAccess,
+		buildBannerState,
 		logError: deps.logError,
 		logParseError: deps.logParseError,
 		now: deps.now,
@@ -553,10 +560,11 @@ export function createApp(dependencies: AppDependencies): Express {
 		analytics: deps.analytics,
 		salt: deps.salt,
 		now: deps.now,
+		buildBannerState,
 	});
 	app.use("/import", requireAuth, requireWriteAccess, importRouter);
 
-	const saveRouter = initSaveRoutes();
+	const saveRouter = initSaveRoutes({ buildBannerState });
 	app.use("/save", saveRouter);
 
 	const viewRouter = initViewRoutes({
@@ -571,6 +579,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishSaveAnonymousLink: deps.publishSaveAnonymousLink,
 		publishStaleCheckRequested: deps.publishStaleCheckRequested,
 		now: deps.now,
+		buildBannerState,
 	});
 	app.use("/view", viewRouter);
 
@@ -586,6 +595,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		adminEmails: deps.adminEmails,
 		serviceToken: deps.recrawlServiceToken,
 		now: deps.now,
+		buildBannerState,
 	});
 	app.use("/admin/recrawl", adminRecrawlRouter);
 
@@ -594,18 +604,20 @@ export function createApp(dependencies: AppDependencies): Express {
 		findEmailByUserId: deps.findEmailByUserId,
 		logError: deps.logError,
 		now: () => new Date(),
+		buildBannerState,
 	});
 	app.use("/export", requireAuth, exportRouter);
 
 	const oauthRouter = initOAuthRoutes({
 		model: deps.oauthModel,
+		buildBannerState,
 	});
 	app.use("/oauth/token", extensionCors);
 	app.use("/oauth/revoke", extensionCors);
 	app.use("/oauth", oauthRouter);
 
-	app.use((req: Request, res: Response) => {
-		sendComponent(req, res, Base(NotFoundPage(), bannerStateFromRequest(req)));
+	app.use(async (req: Request, res: Response) => {
+		sendComponent(req, res, Base(NotFoundPage(), await buildBannerState(req)));
 	});
 
 	return app;

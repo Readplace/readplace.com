@@ -2,7 +2,7 @@ import type { Router } from "express";
 import express from "express";
 import { z } from "zod";
 import { Base } from "../../base.component";
-import { bannerStateFromRequest } from "../../banner-state";
+import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "../../send-component";
 import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "./save-error.component";
@@ -15,16 +15,16 @@ function parseUrl(raw: unknown): string | undefined {
 	return parsed.success ? parsed.data : undefined;
 }
 
-export function initSaveRoutes(): Router {
+export function initSaveRoutes(deps: { buildBannerState: BuildBannerState }): Router {
 	const router = express.Router();
 
-	router.get("/", (req, res) => {
+	router.get("/", async (req, res) => {
 		const url = parseUrl(typeof req.query.url === "string" ? req.query.url : undefined);
 
 		if (!url) {
 			const redirectUrl = req.userId ? "/queue" : "/";
 			const linkLabel = req.userId ? "Go to your queue" : "Go to homepage";
-			sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel }), bannerStateFromRequest(req)));
+			sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel }), await deps.buildBannerState(req)));
 			return;
 		}
 

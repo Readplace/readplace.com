@@ -45,7 +45,7 @@ import type { PublishSaveLinkRawHtmlCommand } from "@packages/test-fixtures/prov
 import type { PutPendingHtml } from "@packages/test-fixtures/providers/pending-html";
 import { saveArticleFromUrl } from "../../shared/save-article/save-article-from-url";
 import { Base } from "../../base.component";
-import { bannerStateFromRequest } from "../../banner-state";
+import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "../../send-component";
 import { RedirectComponent } from "../../redirect.component";
 import { CacheableComponent } from "../../conditional-get";
@@ -135,6 +135,7 @@ interface QueueDependencies {
 	 * mark-as-read, and delete remain reachable for read-only users. */
 	requireWriteAccess: RequestHandler;
 	getEffectiveAccess: GetEffectiveAccess;
+	buildBannerState: BuildBannerState;
 	logError: (message: string, error?: Error) => void;
 	logParseError: LogParseError;
 	now: () => Date;
@@ -253,7 +254,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				audioEnabled,
 				extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			}), {
-				...bannerStateFromRequest(req),
+				...(await deps.buildBannerState(req)),
 				showExtensionSuggestionBanner,
 				extensionInstalled: isExtensionInstalled(req),
 			}),
@@ -332,7 +333,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			req, res,
 			Base(
 				QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, extensionSavedArticle, browser, onboardingDismissed }),
-				bannerStateFromRequest(req),
+				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);
 	});
@@ -520,7 +521,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				summaryByUrl,
 				crawlByUrl,
 			});
-			sendComponent(req, res, Base(QueuePage(vm, { statusCode: 422 }), bannerStateFromRequest(req)));
+			sendComponent(req, res, Base(QueuePage(vm, { statusCode: 422 }), await deps.buildBannerState(req)));
 			return;
 		}
 

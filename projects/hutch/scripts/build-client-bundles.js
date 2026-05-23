@@ -126,6 +126,25 @@ const BUNDLES = [
 			"});",
 		].join("\n"),
 	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
+			"src/runtime/web/trial-countdown.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "trial-countdown.client.js"),
+		globalName: "TrialCountdown",
+		footer: [
+			"document.addEventListener('DOMContentLoaded', function () {",
+			"  TrialCountdown.initTrialCountdown({",
+			"    document: window.document,",
+			"    now: function () { return Date.now(); },",
+			"    setIntervalFn: function (cb, ms) { return window.setInterval(cb, ms); },",
+			"    clearIntervalFn: function (id) { window.clearInterval(id); },",
+			"    addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); }",
+			"  }).attach();",
+			"});",
+		].join("\n"),
+	},
 ];
 
 function buildOptions(bundle) {

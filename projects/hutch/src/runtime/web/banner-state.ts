@@ -1,4 +1,9 @@
 import type { UserId } from "@packages/domain/user";
+import type {
+	EffectiveAccess,
+	GetEffectiveAccess,
+} from "../domain/access/effective-access";
+import { toTrialDisplay, type TrialDisplay } from "./trial-countdown.format";
 
 export interface BannerStateSource {
 	userId?: UserId;
@@ -17,11 +22,37 @@ export interface BannerState {
 	 * the article with their already-installed extension; when false (or unset) it
 	 * pitches the install. Sourced from the extension liveness cookie. */
 	extensionInstalled?: boolean;
+	/** Drives the global trial countdown rendered below the brand in the header.
+	 * Undefined for guests, founding members, paid users, and users with a
+	 * pending cancellation; "active" for trialing users; "expired" for users
+	 * whose trial has lapsed or whose subscription was cancelled. */
+	trial?: TrialDisplay;
 }
 
 export function bannerStateFromRequest(source: BannerStateSource): BannerState {
 	return {
 		isAuthenticated: Boolean(source.userId),
 		emailVerified: source.emailVerified,
+	};
+}
+
+export type BuildBannerState = (
+	source: BannerStateSource,
+	options?: { preFetchedAccess?: EffectiveAccess },
+) => Promise<BannerState>;
+
+export function initBuildBannerState(deps: {
+	getEffectiveAccess: GetEffectiveAccess;
+	now: () => Date;
+}): BuildBannerState {
+	return async (source, options) => {
+		const base = bannerStateFromRequest(source);
+		const userId: UserId | undefined = source.userId;
+		if (!userId) return base;
+		const access =
+			options?.preFetchedAccess ?? (await deps.getEffectiveAccess(userId));
+		const trial = toTrialDisplay(access, deps.now());
+		if (!trial) return base;
+		return { ...base, trial };
 	};
 }

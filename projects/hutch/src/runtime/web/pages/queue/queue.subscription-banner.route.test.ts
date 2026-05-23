@@ -17,8 +17,8 @@ async function loginUser(harness: ReturnType<ReturnType<typeof useTestServer>>, 
 	return { agent, userId: lookup.userId };
 }
 
-describe("Queue subscription banner", () => {
-	it("renders the banner with state class `queue-banner--none` for a founding member (no row)", async () => {
+describe("Queue page banner state", () => {
+	it("renders the aside with state class `queue-banner--none` and no header countdown for a founding member (no row)", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth } = harness;
 		const agent = await loginAgent(harness.server, auth);
@@ -26,15 +26,15 @@ describe("Queue subscription banner", () => {
 		const response = await agent.get("/queue");
 		const doc = new JSDOM(response.text).window.document;
 		const banner = doc.querySelector("[data-test-subscription-banner]");
-		assert(banner, "queue banner must always be rendered");
+		assert(banner, "queue banner aside must always be rendered");
 		expect(banner.classList.contains("queue-banner--none")).toBe(true);
+		expect(doc.querySelector("[data-test-trial-countdown]")).toBeNull();
 	});
 
-	it("renders the trial-countdown banner with the days-left text for a trialing user", async () => {
+	it("renders the header trial countdown with `Xd Xh Xm Xs in your free trial` for a trialing user, while the queue aside stays in the `none` state", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "trialing@example.com");
-		// 7 days remaining (rounded to days via Math.ceil on remaining ms).
 		await subscriptionProviders.upsertTrialing({
 			userId,
 			trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString(),
@@ -42,27 +42,16 @@ describe("Queue subscription banner", () => {
 
 		const response = await agent.get("/queue");
 		const doc = new JSDOM(response.text).window.document;
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "global trial countdown must be rendered for a trialing user");
+		expect(countdown.getAttribute("data-trial-state")).toBe("active");
+		expect(countdown.textContent).toMatch(/^\d+d \d+h \d+m \d+s in your free trial$/);
 		const banner = doc.querySelector("[data-test-subscription-banner]");
-		assert(banner, "queue banner must always be rendered");
-		expect(banner.classList.contains("queue-banner--trial-countdown")).toBe(true);
-		expect(doc.querySelector("[data-test-trial-days-left]")?.textContent).toBe("7 days left");
+		assert(banner, "queue banner aside must still be rendered");
+		expect(banner.classList.contains("queue-banner--none")).toBe(true);
 	});
 
-	it("uses singular 'day' when one day remains in the trial window", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders } = harness;
-		const { agent, userId } = await loginUser(harness, "one-day@example.com");
-		await subscriptionProviders.upsertTrialing({
-			userId,
-			trialEndsAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-		});
-
-		const response = await agent.get("/queue");
-		const doc = new JSDOM(response.text).window.document;
-		expect(doc.querySelector("[data-test-trial-days-left]")?.textContent).toBe("1 day left");
-	});
-
-	it("flips to inactive banner with read-only save form after the trial window ends", async () => {
+	it("flips the header countdown to 'Free trial is over!' and disables the save form after the trial window ends", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "expired-trial@example.com");
@@ -73,18 +62,22 @@ describe("Queue subscription banner", () => {
 
 		const response = await agent.get("/queue");
 		const doc = new JSDOM(response.text).window.document;
-		const banner = doc.querySelector("[data-test-subscription-banner]");
-		assert(banner, "queue banner must always be rendered");
-		expect(banner.classList.contains("queue-banner--inactive")).toBe(true);
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "global trial countdown must be rendered for an expired-trial user");
+		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
+		expect(countdown.textContent).toBe("Free trial is over!");
 		const saveForm = doc.querySelector('[data-test-form="save-article"]');
 		assert(saveForm, "save form must still be rendered");
 		expect(saveForm.classList.contains("queue__save-form--disabled")).toBe(true);
 		const submitButton = saveForm.querySelector("button[type='submit']");
 		assert(submitButton, "save button must still be rendered");
 		expect(submitButton.hasAttribute("disabled")).toBe(true);
+		const banner = doc.querySelector("[data-test-subscription-banner]");
+		assert(banner, "queue banner aside must still be rendered (it's now empty for inactive)");
+		expect(banner.classList.contains("queue-banner--none")).toBe(true);
 	});
 
-	it("renders the pending-cancellation banner with the formatted effective date for users mid-cancellation", async () => {
+	it("renders the pending-cancellation aside with the formatted effective date for users mid-cancellation, and no header countdown", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "pending-cancel@example.com");
@@ -102,13 +95,14 @@ describe("Queue subscription banner", () => {
 		const response = await agent.get("/queue");
 		const doc = new JSDOM(response.text).window.document;
 		const banner = doc.querySelector("[data-test-subscription-banner]");
-		assert(banner, "queue banner must always be rendered");
+		assert(banner, "queue banner aside must always be rendered");
 		expect(banner.classList.contains("queue-banner--pending-cancellation")).toBe(true);
 		expect(banner.querySelector("time")?.getAttribute("datetime")).toBe(effectiveAt);
 		expect(banner.querySelector(".queue-banner__cta")?.getAttribute("href")).toBe("/account");
+		expect(doc.querySelector("[data-test-trial-countdown]")).toBeNull();
 	});
 
-	it("renders the inactive banner with identical wording for a cancelled user (no leak of the internal 'reason' state)", async () => {
+	it("flips the header countdown to 'Free trial is over!' for a cancelled user too, with the same wording as trial-expired", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "cancelled-user@example.com");
@@ -121,11 +115,10 @@ describe("Queue subscription banner", () => {
 
 		const response = await agent.get("/queue");
 		const doc = new JSDOM(response.text).window.document;
-		const banner = doc.querySelector("[data-test-subscription-banner]");
-		assert(banner, "queue banner must always be rendered");
-		expect(banner.classList.contains("queue-banner--inactive")).toBe(true);
-		// Same wording as the trial-expired banner — reason is internal only.
-		expect(banner.textContent).toContain("Subscription not active.");
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "global trial countdown must be rendered for a cancelled user");
+		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
+		expect(countdown.textContent).toBe("Free trial is over!");
 	});
 });
 
@@ -170,5 +163,4 @@ describe("POST /queue/save read-only gating", () => {
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/queue#latest-saved");
 	});
-
 });
