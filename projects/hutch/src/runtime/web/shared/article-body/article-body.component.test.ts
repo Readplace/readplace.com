@@ -148,6 +148,94 @@ describe("renderArticleBody", () => {
 		);
 	});
 
+	it("renders a mark-read form in the top slot when markReadActions is provided", () => {
+		const html = renderArticleBody({
+			...baseInput,
+			content: "<p>Body</p>",
+			markReadActions: [
+				{
+					position: "top",
+					postUrl: "/queue/abc/status?utm_content=mark-read-top",
+					label: "Mark as read",
+					fields: [{ name: "status", value: "read" }],
+				},
+				{
+					position: "bottom",
+					postUrl: "/queue/abc/status?utm_content=mark-read-bottom",
+					label: "Mark as read",
+					fields: [{ name: "status", value: "read" }],
+				},
+			],
+		});
+		const doc = parse(html);
+
+		const slot = doc.querySelector("[data-test-mark-read-slot]");
+		assert(slot, "top mark-read slot must be rendered");
+		expect(slot.classList.contains("article-body__mark-read-slot--visible")).toBe(true);
+
+		const form = slot.querySelector("[data-test-mark-read-form]");
+		assert(form, "top mark-read form must be rendered");
+		expect(form.getAttribute("method")).toMatch(/post/i);
+		expect(form.getAttribute("action")).toBe("/queue/abc/status?utm_content=mark-read-top");
+		const hidden = form.querySelector('input[type="hidden"][name="status"]');
+		assert(hidden, "form must carry the status hidden input");
+		expect(hidden.getAttribute("value")).toBe("read");
+		const button = form.querySelector("[data-test-mark-read-btn]");
+		assert(button, "top mark-read button must be rendered");
+		expect(button.textContent).toBe("Mark as read");
+	});
+
+	it("renders a mark-read form in the bottom slot when markReadActions is provided", () => {
+		const html = renderArticleBody({
+			...baseInput,
+			content: "<p>Body</p>",
+			markReadActions: [
+				{
+					position: "top",
+					postUrl: "/queue/abc/status?utm_content=mark-read-top",
+					label: "Mark as read",
+					fields: [{ name: "status", value: "read" }],
+				},
+				{
+					position: "bottom",
+					postUrl: "/queue/abc/status?utm_content=mark-read-bottom",
+					label: "Mark as read",
+					fields: [{ name: "status", value: "read" }],
+				},
+			],
+		});
+		const doc = parse(html);
+
+		const slot = doc.querySelector("[data-test-mark-read-bottom-slot]");
+		assert(slot, "bottom mark-read slot must be rendered");
+		expect(
+			slot.classList.contains("article-body__mark-read-slot--visible"),
+		).toBe(true);
+
+		const form = slot.querySelector("[data-test-mark-read-bottom-form]");
+		assert(form, "bottom mark-read form must be rendered");
+		expect(form.getAttribute("action")).toBe(
+			"/queue/abc/status?utm_content=mark-read-bottom",
+		);
+	});
+
+	it("hides both mark-read slots when markReadActions is not provided", () => {
+		const html = renderArticleBody({
+			...baseInput,
+			content: "<p>Body</p>",
+		});
+		const doc = parse(html);
+
+		const top = doc.querySelector("[data-test-mark-read-slot]");
+		const bottom = doc.querySelector("[data-test-mark-read-bottom-slot]");
+		assert(top, "top mark-read slot must be rendered");
+		assert(bottom, "bottom mark-read slot must be rendered");
+		expect(top.classList.contains("article-body__mark-read-slot--hidden")).toBe(true);
+		expect(
+			bottom.classList.contains("article-body__mark-read-slot--hidden"),
+		).toBe(true);
+	});
+
 	it("marks the audio slot as visible when audioEnabled is true", () => {
 		const html = renderArticleBody({
 			...baseInput,

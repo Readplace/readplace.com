@@ -25,7 +25,10 @@ export function parseQueueUrl(query: Record<string, unknown>): QueueUrlState {
 	};
 }
 
-export function buildQueueUrl(state: Partial<QueueUrlState>): string {
+export function buildQueueUrl(
+	state: Partial<QueueUrlState>,
+	extraParams: readonly (readonly [string, string])[] = [],
+): string {
 	const params = new URLSearchParams();
 	const tab = state.tab ?? "queue";
 	const { defaultOrder } = tabQuery(tab);
@@ -38,6 +41,9 @@ export function buildQueueUrl(state: Partial<QueueUrlState>): string {
 	}
 	if (state.page && state.page > 1) {
 		params.set("page", String(state.page));
+	}
+	for (const [key, value] of extraParams) {
+		params.append(key, value);
 	}
 
 	const qs = params.toString();

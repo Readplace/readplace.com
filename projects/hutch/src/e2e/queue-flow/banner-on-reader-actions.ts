@@ -18,7 +18,7 @@ export type BannerOnReaderProgress = {
  *   1. Public reader `/view/<url>` — anonymous and authenticated users share
  *      the same route; the existing anonymous flow covers it logged-out, so
  *      this proves the logged-in path also triggers the banner.
- *   2. Owner reader `/queue/:id/read` — the only authenticated-only trigger.
+ *   2. Owner reader `/queue/:id/view` — the only authenticated-only trigger.
  *
  * The banner's visibility class is applied by the client script after
  * DOMContentLoaded, so only a real browser proves the SSR data attribute,
@@ -154,16 +154,12 @@ export function createBannerOnReaderActions(
 				}
 			},
 			execute: async (page) => {
-				// Visiting the reader marked the article as read, so the delete
-				// button lives in the read tab. Switch there to delete, then
-				// return to the unread tab so subsequent actions see /queue in
-				// its default state.
-				await clickAndWaitForPageReload(page, page.locator('[data-test-filter="read"]'))
+				// The reader no longer auto-marks articles as read, so the
+				// article is still in the default unread tab — delete directly.
 				await clickAndWaitForPageReload(
 					page,
 					page.locator('[data-test-action="delete"]').first(),
 				)
-				await clickAndWaitForPageReload(page, page.locator('[data-test-filter="unread"]'))
 				progress.bannerTestArticleDeleted = true
 			},
 		},

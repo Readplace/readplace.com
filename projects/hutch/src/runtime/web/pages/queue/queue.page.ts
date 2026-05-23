@@ -57,6 +57,7 @@ import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { toArticleEntity } from "../../api/article-siren";
 import { parseQueueUrl, buildQueueUrl } from "./queue.url";
+import { collectUtmParams } from "../../shared/utm";
 import { tabQuery } from "./queue.tabs";
 import type { HttpErrorMessageMapping } from "./queue.error";
 import { importFlashMapping } from "./queue.error";
@@ -68,7 +69,7 @@ import {
 	toQueueCardDisplayModel,
 } from "./queue-card/queue-card.component";
 import { computeQueueCardEtag, etagMatches } from "./queue-card/queue-card.etag";
-import { ReaderPage, formatReaderDocumentTitle } from "../reader/reader.component";
+import { ReaderPage, formatReaderDocumentTitle, markReadPostUrl } from "../reader/reader.component";
 import { ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import {
 	detectBrowser,
@@ -167,6 +168,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		findArticleByUrl: deps.findArticleByUrl,
 		formatDocumentTitle: formatReaderDocumentTitle,
 		backLink: { href: "/queue", label: "← Back to queue" },
+		markReadAction: (articleId) => ({
+			postUrl: markReadPostUrl(articleId, "top"),
+			label: "Mark as read",
+			fields: [{ name: "status", value: "read" }],
+		}),
 		now: deps.now,
 	});
 	const resolveReaderPermalink = initReaderPermalink({
@@ -184,13 +190,24 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	/** Public share-able permalink. Users copy this URL from the browser
 	 * address bar to share an article, so any visitor — owner, different
 	 * logged-in user, or anonymous — must land somewhere useful. Owners get
-	 * their personalised reader (mark-as-read, progress). Everyone else is
-	 * redirected to `/view/<original-url>`, the public route that already
-	 * has full OG/Twitter/Schema.org metadata so social-media previews
-	 * unfurl correctly. Declared BEFORE `router.use(deps.dualAuth)` so the
-	 * auth middleware doesn't pre-empt anonymous traffic with a /login
-	 * redirect. */
-	router.get("/:id/read", async (req: Request, res: Response) => {
+	 * their personalised reader (mark-as-read button, progress). Everyone
+	 * else is redirected to `/view/<original-url>`, the public route that
+	 * already has full OG/Twitter/Schema.org metadata so social-media
+	 * previews unfurl correctly. Declared BEFORE `router.use(deps.dualAuth)`
+	 * so the auth middleware doesn't pre-empt anonymous traffic with a
+	 * /login redirect.
+	 *
+	 * The legacy `/queue/:id/read` URL — previously the page itself, now
+	 * the explicit mutation — 301-redirects to `/queue/:id/view` so old
+	 * bookmarks, share links, search-engine indexes and Siren `rel="read"`
+	 * hrefs emitted by historical responses keep resolving. */
+	router.get("/:id/read", (req: Request, res: Response) => {
+		const queryIndex = req.originalUrl.indexOf("?");
+		const queryString = queryIndex !== -1 ? req.originalUrl.slice(queryIndex) : "";
+		res.redirect(301, `/queue/${req.params.id}/view${queryString}`);
+	});
+
+	router.get("/:id/view", async (req: Request, res: Response) => {
 		const result = await resolveReaderPermalink({
 			rawId: req.params.id,
 			requesterId: req.userId,
@@ -203,8 +220,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 
 		const ownedArticle = result.article;
-
-		await deps.updateArticleStatus(ownedArticle.id, ownedArticle.userId, "read");
 
 		const audioEnabled = deps.featureToggle.isEnabled(req, "audio");
 		const state = await reader.resolveReaderState({
@@ -619,7 +634,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			await deps.updateArticleStatus(parsedId.data, userId, parsedStatus.data);
 		}
 
-		res.redirect(303, buildQueueUrl(parseQueueUrl(req.query)));
+		res.redirect(303, buildQueueUrl(parseQueueUrl(req.query), collectUtmParams(req.query)));
 	});
 
 	router.post("/:id/delete", async (req: Request, res: Response) => {

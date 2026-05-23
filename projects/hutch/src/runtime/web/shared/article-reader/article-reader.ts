@@ -237,6 +237,9 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			estimatedReadTime: article.estimatedReadTime,
 			url: articleUrl,
 			backLink: deps.backLink,
+			markReadAction: deps.markReadAction
+				? deps.markReadAction(article.id.value)
+				: undefined,
 		});
 		const titleOob = renderDocumentTitleOob(
 			deps.formatDocumentTitle(article.metadata.title),

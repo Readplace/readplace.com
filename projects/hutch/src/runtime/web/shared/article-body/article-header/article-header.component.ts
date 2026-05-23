@@ -12,6 +12,11 @@ export interface ArticleHeaderInput {
 	estimatedReadTime: Minutes;
 	url: string;
 	backLink?: { href: string; label: string };
+	markReadAction?: {
+		postUrl: string;
+		label: string;
+		fields: ReadonlyArray<{ name: string; value: string }>;
+	};
 }
 
 function renderTemplate(input: ArticleHeaderInput, oob: boolean): string {
@@ -21,6 +26,7 @@ function renderTemplate(input: ArticleHeaderInput, oob: boolean): string {
 		estimatedReadTime: input.estimatedReadTime,
 		url: input.url,
 		backLink: input.backLink,
+		markReadAction: input.markReadAction,
 		oob,
 	});
 }

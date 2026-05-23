@@ -521,10 +521,10 @@ export function createApp(dependencies: AppDependencies): Express {
 		featureToggle,
 	});
 	/** `dualAuthMiddleware` is applied INSIDE the queue router rather than at this
-	 * mount so that `GET /queue/:id/read` can stay publicly reachable. Shared
-	 * `/read` permalinks (people copy them from the browser URL bar) redirect
-	 * non-owners and anonymous visitors to `/view/<url>` instead of bouncing
-	 * them to /login. */
+	 * mount so that `GET /queue/:id/view` (and its legacy `/read` redirect) can
+	 * stay publicly reachable. Shared reader permalinks (people copy them from
+	 * the browser URL bar) redirect non-owners and anonymous visitors to
+	 * `/view/<url>` instead of bouncing them to /login. */
 	app.use("/queue", extensionCors, queueRouter);
 
 	const importRouter = initImportSessionRoutes({

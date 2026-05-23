@@ -1,5 +1,8 @@
 <div id="article-header" class="article-body__header"{{#if oob}} hx-swap-oob="outerHTML"{{/if}}>
-  {{#if backLink}}<div class="article-body__back-slot article-body__back-slot--visible" data-test-back-slot><a class="article-body__back" href="{{backLink.href}}" data-test-back-link>{{backLink.label}}</a></div>{{else}}<div class="article-body__back-slot article-body__back-slot--hidden" data-test-back-slot></div>{{/if}}
+  <div class="article-body__actions article-body__actions--top">
+    {{#if backLink}}<div class="article-body__back-slot article-body__back-slot--visible" data-test-back-slot><a class="article-body__back" href="{{backLink.href}}" data-test-back-link>{{backLink.label}}</a></div>{{else}}<div class="article-body__back-slot article-body__back-slot--hidden" data-test-back-slot></div>{{/if}}
+    {{#if markReadAction}}<div class="article-body__mark-read-slot article-body__mark-read-slot--visible" data-test-mark-read-slot><form class="article-body__mark-read-form" method="POST" action="{{markReadAction.postUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-mark-read-form>{{#each markReadAction.fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}<button class="article-body__mark-read" type="submit" data-test-mark-read-btn>{{markReadAction.label}}</button></form></div>{{else}}<div class="article-body__mark-read-slot article-body__mark-read-slot--hidden" data-test-mark-read-slot></div>{{/if}}
+  </div>
   <h1 class="article-body__title" data-test-reader-title>{{title}}</h1>
   <div class="article-body__meta">
     <span data-test-reader-site>{{siteName}}</span>
@@ -7,3 +10,4 @@
   </div>
   <a class="article-body__original-link" href="{{url}}" target="_blank" rel="noopener" data-test-original-link>View original</a>
 </div>
+

@@ -66,7 +66,6 @@ export type QueueActionKey =
 	| 'sort-oldest-first'
 	| 'verify-oldest-first-order'
 	| 'read-first-article'
-	| 'go-back-to-queue'
 	| 'verify-first-is-read'
 	| 'delete-last-article'
 	| 'check-read-tab'

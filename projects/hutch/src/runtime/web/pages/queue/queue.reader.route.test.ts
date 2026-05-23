@@ -63,7 +63,7 @@ describe("Queue routes", () => {
 				.querySelector("[data-test-article-list] .queue-article")
 				?.getAttribute("data-test-article");
 
-			const readerResponse = await agent.get(`/queue/${articleId}/read`);
+			const readerResponse = await agent.get(`/queue/${articleId}/view`);
 
 			expect(readerResponse.status).toBe(200);
 			const doc = new JSDOM(readerResponse.text).window.document;
@@ -74,12 +74,12 @@ describe("Queue routes", () => {
 			expect(doc.querySelector("[data-test-original-link]")?.getAttribute("href")).toBe("https://example.com/saved-post");
 		});
 
-		it("should mark unread article as read when opening reader", async () => {
+		it("should leave the article unread when opening the reader (the user must click the explicit Mark-as-read button)", async () => {
 			const articleHtml = `
-			<html><head><title>Auto Read</title></head>
+			<html><head><title>Stay Unread</title></head>
 			<body><article>
-				<h1>Auto Read</h1>
-				<p>This article should be marked as read when opened in the reader view.</p>
+				<h1>Stay Unread</h1>
+				<p>Opening the reader view alone must not flip the read status — only an explicit POST does.</p>
 				<p>Additional paragraph with more text to exceed the minimum threshold.</p>
 			</article></body></html>`;
 
@@ -110,7 +110,7 @@ describe("Queue routes", () => {
 			await agent
 				.post("/queue/save")
 				.type("form")
-				.send({ url: "https://example.com/auto-read" });
+				.send({ url: "https://example.com/stay-unread" });
 
 			const queueResponse = await agent.get("/queue");
 			const queueDoc = new JSDOM(queueResponse.text).window.document;
@@ -120,11 +120,154 @@ describe("Queue routes", () => {
 			const article = queueDoc.querySelector(".queue-article");
 			expect(article?.classList.contains("queue-article--unread")).toBe(true);
 
-			await agent.get(`/queue/${articleId}/read`);
+			await agent.get(`/queue/${articleId}/view`);
+
+			const afterResponse = await agent.get("/queue");
+			const afterDoc = new JSDOM(afterResponse.text).window.document;
+			const afterArticle = afterDoc.querySelector(".queue-article");
+			assert(afterArticle, "article must remain visible in the unread queue");
+			expect(afterArticle.classList.contains("queue-article--unread")).toBe(true);
+		});
+
+		it("should mark the article as read only when the user POSTs status=read from the reader", async () => {
+			const articleHtml = `
+			<html><head><title>Explicit Mark</title></head>
+			<body><article>
+				<h1>Explicit Mark</h1>
+				<p>The reader page exposes a Mark-as-read button that POSTs status=read.</p>
+				<p>Additional paragraph with more text to exceed the minimum threshold.</p>
+			</article></body></html>`;
+
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const { parseArticle } = initReadabilityParser({ crawlArticle, sitePreParsers: [], logError: createNoopLogError() });
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const harness = useApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle },
+				events: {
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+				},
+			});
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: "https://example.com/explicit-mark" });
+
+			const queueResponse = await agent.get("/queue");
+			const queueDoc = new JSDOM(queueResponse.text).window.document;
+			const articleId = queueDoc
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert.ok(articleId, "saved article must show up in queue");
+
+			const statusResponse = await agent
+				.post(`/queue/${articleId}/status`)
+				.query({
+					utm_source: "reader",
+					utm_medium: "internal",
+					utm_content: "mark-read-bottom",
+				})
+				.type("form")
+				.send({ status: "read" });
+
+			expect(statusResponse.status).toBe(303);
+			expect(statusResponse.headers.location).toBe(
+				"/queue?utm_source=reader&utm_medium=internal&utm_content=mark-read-bottom",
+			);
 
 			const afterResponse = await agent.get("/queue");
 			const afterDoc = new JSDOM(afterResponse.text).window.document;
 			expect(afterDoc.querySelectorAll(".queue-article").length).toBe(0);
+		});
+
+		it("renders top- and bottom-slot mark-read forms in the reader page so the user can click them to POST status=read", async () => {
+			const articleHtml = `
+			<html><head><title>Form Render</title></head>
+			<body><article>
+				<h1>Form Render</h1>
+				<p>The reader must expose the mark-as-read affordances declared in the article-body component.</p>
+				<p>Additional paragraph with more text to exceed the minimum threshold.</p>
+			</article></body></html>`;
+
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const { parseArticle } = initReadabilityParser({ crawlArticle, sitePreParsers: [], logError: createNoopLogError() });
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const harness = useApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle },
+				events: {
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+				},
+			});
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: "https://example.com/form-render" });
+
+			const queueResponse = await agent.get("/queue");
+			const queueDoc = new JSDOM(queueResponse.text).window.document;
+			const articleId = queueDoc
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert.ok(articleId, "saved article must show up in queue");
+
+			const readerResponse = await agent.get(`/queue/${articleId}/view`);
+			const doc = new JSDOM(readerResponse.text).window.document;
+
+			const topForm = doc.querySelector("[data-test-mark-read-form]");
+			const bottomForm = doc.querySelector("[data-test-mark-read-bottom-form]");
+			assert(topForm, "top mark-read form must be rendered");
+			assert(bottomForm, "bottom mark-read form must be rendered");
+			expect(topForm.getAttribute("action")).toBe(
+				`/queue/${articleId}/status?utm_source=reader&utm_medium=internal&utm_content=mark-read-top`,
+			);
+			expect(bottomForm.getAttribute("action")).toBe(
+				`/queue/${articleId}/status?utm_source=reader&utm_medium=internal&utm_content=mark-read-bottom`,
+			);
+			expect(
+				topForm.querySelector('input[type="hidden"][name="status"]')?.getAttribute("value"),
+			).toBe("read");
+		});
+
+		it("redirects the legacy /queue/:id/read URL to /queue/:id/view with a 301 so old bookmarks, shares and Siren read links keep resolving", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const articleHash = "a".repeat(32);
+
+			const response = await request(harness.server)
+				.get(`/queue/${articleHash}/read?utm_source=twitter&utm_medium=social`);
+
+			expect(response.status).toBe(301);
+			expect(response.headers.location).toBe(
+				`/queue/${articleHash}/view?utm_source=twitter&utm_medium=social`,
+			);
 		});
 
 		it("should redirect to queue for non-existent article", async () => {
@@ -132,7 +275,7 @@ describe("Queue routes", () => {
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
 
-			const response = await agent.get("/queue/nonexistent/read");
+			const response = await agent.get("/queue/nonexistent/view");
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/queue");
@@ -141,7 +284,7 @@ describe("Queue routes", () => {
 		it("should redirect anonymous visitors with a malformed id to /queue", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(harness.server).get("/queue/someid/read");
+			const response = await request(harness.server).get("/queue/someid/view");
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/queue");
@@ -150,7 +293,7 @@ describe("Queue routes", () => {
 		it("should redirect anonymous visitors with an unknown but well-formed hash to /queue", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
-			const response = await request(harness.server).get(`/queue/${"a".repeat(32)}/read`);
+			const response = await request(harness.server).get(`/queue/${"a".repeat(32)}/view`);
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/queue");
@@ -170,7 +313,7 @@ describe("Queue routes", () => {
 				?.getAttribute("data-test-article");
 			assert.ok(articleId, "owner must see the saved article in their queue");
 
-			const response = await request(harness.server).get(`/queue/${articleId}/read`);
+			const response = await request(harness.server).get(`/queue/${articleId}/view`);
 
 			expect(response.status).toBe(302);
 			const location = new URL(response.headers.location, TEST_APP_ORIGIN);
@@ -201,7 +344,7 @@ describe("Queue routes", () => {
 				.type("form")
 				.send({ email: "guest@example.com", password: "password123" });
 
-			const response = await guestAgent.get(`/queue/${articleId}/read`);
+			const response = await guestAgent.get(`/queue/${articleId}/view`);
 
 			expect(response.status).toBe(302);
 			const location = new URL(response.headers.location, TEST_APP_ORIGIN);
@@ -226,7 +369,7 @@ describe("Queue routes", () => {
 			assert.ok(articleId, "owner must see the saved article in their queue");
 
 			const response = await request(harness.server)
-				.get(`/queue/${articleId}/read`)
+				.get(`/queue/${articleId}/view`)
 				.query({ utm_source: "twitter", utm_medium: "social" });
 
 			expect(response.status).toBe(302);
@@ -278,7 +421,7 @@ describe("Queue routes", () => {
 			const queueResponse = await agent.get("/queue");
 			const doc = new JSDOM(queueResponse.text).window.document;
 			const titleLink = doc.querySelector("[data-test-article-title]");
-			expect(titleLink?.getAttribute("href")).toContain("/read");
+			expect(titleLink?.getAttribute("href")).toContain("/view");
 		});
 
 		it("should display AI summary when status=ready", async () => {
@@ -333,7 +476,7 @@ describe("Queue routes", () => {
 				.querySelector("[data-test-article-list] .queue-article")
 				?.getAttribute("data-test-article");
 
-			const readerResponse = await agent.get(`/queue/${articleId}/read`);
+			const readerResponse = await agent.get(`/queue/${articleId}/view`);
 			const doc = new JSDOM(readerResponse.text).window.document;
 			const summarySlot = doc.querySelector("[data-test-reader-summary]");
 			assert(summarySlot, "summary slot must be rendered");
@@ -389,7 +532,7 @@ describe("Queue routes", () => {
 				.querySelector("[data-test-article-list] .queue-article")
 				?.getAttribute("data-test-article");
 
-			const readerResponse = await agent.get(`/queue/${articleId}/read`);
+			const readerResponse = await agent.get(`/queue/${articleId}/view`);
 			const doc = new JSDOM(readerResponse.text).window.document;
 			const summarySlot = doc.querySelector("[data-test-reader-summary]");
 			assert(summarySlot, "summary slot must be rendered");
@@ -452,7 +595,7 @@ describe("Queue routes", () => {
 				.querySelector("[data-test-article-list] .queue-article")
 				?.getAttribute("data-test-article");
 
-			const readerResponse = await agent.get(`/queue/${articleId}/read`);
+			const readerResponse = await agent.get(`/queue/${articleId}/view`);
 			const doc = new JSDOM(readerResponse.text).window.document;
 			const summarySlot = doc.querySelector("[data-test-reader-summary]");
 			assert(summarySlot, "summary slot must be rendered");
@@ -519,7 +662,7 @@ describe("Queue routes", () => {
 				.querySelector("[data-test-article-list] .queue-article")
 				?.getAttribute("data-test-article");
 
-			const readerResponse = await agent.get(`/queue/${articleId}/read`);
+			const readerResponse = await agent.get(`/queue/${articleId}/view`);
 			const doc = new JSDOM(readerResponse.text).window.document;
 			const summarySlot = doc.querySelector("[data-test-reader-summary]");
 			assert(summarySlot, "summary slot must be rendered");
@@ -579,7 +722,7 @@ describe("Queue routes", () => {
 				.querySelector("[data-test-article-list] .queue-article")
 				?.getAttribute("data-test-article");
 
-			const readerResponse = await agent.get(`/queue/${articleId}/read`);
+			const readerResponse = await agent.get(`/queue/${articleId}/view`);
 			const doc = new JSDOM(readerResponse.text).window.document;
 			const summarySlot = doc.querySelector("[data-test-reader-summary]");
 			assert(summarySlot, "summary slot must be rendered");

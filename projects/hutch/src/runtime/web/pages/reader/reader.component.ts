@@ -29,6 +29,15 @@ export function formatReaderDocumentTitle(articleTitle: string): string {
 	return `${articleTitle} — Readplace Reader`;
 }
 
+export function markReadPostUrl(articleId: string, slot: "top" | "bottom"): string {
+	const params = new URLSearchParams([
+		["utm_source", "reader"],
+		["utm_medium", "internal"],
+		["utm_content", `mark-read-${slot}`],
+	]);
+	return `/queue/${articleId}/status?${params.toString()}`;
+}
+
 export function ReaderPage(
 	article: SavedArticle,
 	options?: {
@@ -41,6 +50,7 @@ export function ReaderPage(
 		extensionInstallUrl?: string;
 	},
 ): PageBody {
+	const articleId = article.id.value;
 	const innerContent = renderArticleBody({
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
@@ -59,6 +69,20 @@ export function ReaderPage(
 			bottomHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-bottom",
 			label: "← Back to queue",
 		},
+		markReadActions: [
+			{
+				position: "top",
+				postUrl: markReadPostUrl(articleId, "top"),
+				label: "Mark as read",
+				fields: [{ name: "status", value: "read" }],
+			},
+			{
+				position: "bottom",
+				postUrl: markReadPostUrl(articleId, "bottom"),
+				label: "Mark as read",
+				fields: [{ name: "status", value: "read" }],
+			},
+		],
 		extensionInstallUrl: options?.extensionInstallUrl,
 	});
 	const shareBalloon = renderShareBalloon({
@@ -73,7 +97,7 @@ export function ReaderPage(
 		seo: {
 			title: formatReaderDocumentTitle(article.metadata.title),
 			description: truncateForSeo(pickExcerpt(options?.summary, article.metadata.excerpt)),
-			canonicalUrl: `/queue/${article.id.value}/read`,
+			canonicalUrl: `/queue/${articleId}/view`,
 			robots: "noindex, nofollow",
 		},
 		styles: READER_STYLES,
