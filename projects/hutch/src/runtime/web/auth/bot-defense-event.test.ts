@@ -7,6 +7,7 @@ describe("createBotDefenseEvent", () => {
 		const event = createBotDefenseEvent({
 			trip: { reason: "honeypot" },
 			ip: undefined,
+			userAgent: undefined,
 			body: {},
 			now: REJECT_AT,
 		});
@@ -22,6 +23,7 @@ describe("createBotDefenseEvent", () => {
 		const event = createBotDefenseEvent({
 			trip: { reason: "honeypot" },
 			ip: "203.0.113.1",
+			userAgent: undefined,
 			body: {},
 			now: REJECT_AT,
 		});
@@ -32,6 +34,7 @@ describe("createBotDefenseEvent", () => {
 		const event = createBotDefenseEvent({
 			trip: { reason: "honeypot" },
 			ip: undefined,
+			userAgent: undefined,
 			body: {},
 			now: REJECT_AT,
 		});
@@ -42,16 +45,63 @@ describe("createBotDefenseEvent", () => {
 		const event = createBotDefenseEvent({
 			trip: { reason: "honeypot" },
 			ip: "",
+			userAgent: undefined,
 			body: {},
 			now: REJECT_AT,
 		});
 		expect(event).not.toHaveProperty("ip");
 	});
 
+	it("includes user_agent when provided", () => {
+		const event = createBotDefenseEvent({
+			trip: { reason: "honeypot" },
+			ip: undefined,
+			userAgent: "Mozilla/5.0 (compatible; FakeBot/1.0)",
+			body: {},
+			now: REJECT_AT,
+		});
+		expect(event.user_agent).toBe("Mozilla/5.0 (compatible; FakeBot/1.0)");
+	});
+
+	it("truncates user_agent to 200 characters", () => {
+		const longUA = "A".repeat(300);
+		const event = createBotDefenseEvent({
+			trip: { reason: "honeypot" },
+			ip: undefined,
+			userAgent: longUA,
+			body: {},
+			now: REJECT_AT,
+		});
+		expect(event.user_agent).toBe("A".repeat(200));
+	});
+
+	it("omits user_agent when undefined", () => {
+		const event = createBotDefenseEvent({
+			trip: { reason: "honeypot" },
+			ip: undefined,
+			userAgent: undefined,
+			body: {},
+			now: REJECT_AT,
+		});
+		expect(event).not.toHaveProperty("user_agent");
+	});
+
+	it("omits user_agent when empty string", () => {
+		const event = createBotDefenseEvent({
+			trip: { reason: "honeypot" },
+			ip: undefined,
+			userAgent: "",
+			body: {},
+			now: REJECT_AT,
+		});
+		expect(event).not.toHaveProperty("user_agent");
+	});
+
 	it("derives email_domain from body.email, lowercased", () => {
 		const event = createBotDefenseEvent({
 			trip: { reason: "honeypot" },
 			ip: undefined,
+			userAgent: undefined,
 			body: { email: "Bot@Example.COM" },
 			now: REJECT_AT,
 		});
@@ -62,6 +112,7 @@ describe("createBotDefenseEvent", () => {
 		const event = createBotDefenseEvent({
 			trip: { reason: "honeypot" },
 			ip: undefined,
+			userAgent: undefined,
 			body: {},
 			now: REJECT_AT,
 		});
@@ -72,6 +123,7 @@ describe("createBotDefenseEvent", () => {
 		const event = createBotDefenseEvent({
 			trip: { reason: "honeypot" },
 			ip: undefined,
+			userAgent: undefined,
 			body: { email: 123 },
 			now: REJECT_AT,
 		});
@@ -82,6 +134,7 @@ describe("createBotDefenseEvent", () => {
 		const event = createBotDefenseEvent({
 			trip: { reason: "honeypot" },
 			ip: undefined,
+			userAgent: undefined,
 			body: { email: "no-at-sign" },
 			now: REJECT_AT,
 		});
@@ -92,6 +145,7 @@ describe("createBotDefenseEvent", () => {
 		const event = createBotDefenseEvent({
 			trip: { reason: "honeypot" },
 			ip: undefined,
+			userAgent: undefined,
 			body: { email: "trailing@" },
 			now: REJECT_AT,
 		});
@@ -102,6 +156,7 @@ describe("createBotDefenseEvent", () => {
 		const event = createBotDefenseEvent({
 			trip: { reason: "submit_too_fast", timeToSubmitMs: 1234 },
 			ip: undefined,
+			userAgent: undefined,
 			body: {},
 			now: REJECT_AT,
 		});
@@ -112,6 +167,7 @@ describe("createBotDefenseEvent", () => {
 		const event = createBotDefenseEvent({
 			trip: { reason: "submit_too_fast", timeToSubmitMs: 0 },
 			ip: undefined,
+			userAgent: undefined,
 			body: {},
 			now: REJECT_AT,
 		});
@@ -122,6 +178,7 @@ describe("createBotDefenseEvent", () => {
 		const event = createBotDefenseEvent({
 			trip: { reason: "honeypot" },
 			ip: undefined,
+			userAgent: undefined,
 			body: {},
 			now: REJECT_AT,
 		});

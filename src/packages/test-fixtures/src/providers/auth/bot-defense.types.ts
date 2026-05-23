@@ -10,6 +10,7 @@ export interface BotDefenseEvent {
 	reason: BotDefenseRejectReason;
 	timestamp: string;
 	ip?: string;
+	user_agent?: string;
 	email_domain?: string;
 	time_to_submit_ms?: number;
 }
