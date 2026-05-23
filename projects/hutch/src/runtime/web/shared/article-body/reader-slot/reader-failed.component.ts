@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { MAX_PDF_PAGES } from "@packages/crawl-article";
 import { render } from "../../../render";
 
 const TEMPLATE = readFileSync(
@@ -8,30 +7,39 @@ const TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-// 70% of the OCR hard cap so a PDF right at the advertised limit still has
-// headroom before the per-page Lambda fan-out refuses to run.
-const MAX_SUPPORTED_PAGES = Math.round(0.7 * MAX_PDF_PAGES);
+export type ReaderFailedVariant = "failed" | "unsupported" | "slow";
 
 export interface ReaderFailedInput {
 	url: string;
 	/**
-	 * Distinguishes "we couldn't grab this article" (transient/operator-resolvable
-	 * `failed`) from "this isn't a webpage we can save" (terminal `unsupported`,
-	 * e.g. PDF/image origin). Same template, different copy on the title line.
+	 * Distinguishes the three states that all surface the same "your link is
+	 * saved, open it on the source" page:
+	 *   - `unsupported`: terminal — PDFs, images, archives, anything reader view can't render.
+	 *   - `failed`: transient — site blocked us (Cloudflare etc.) or the fetch errored.
+	 *   - `slow`: pending past the poll cap — worker still might land but the user shouldn't wait.
+	 * Same template, the explanation line differs.
 	 */
-	variant: "failed" | "unsupported";
+	variant: ReaderFailedVariant;
 	/** Install URL for the browser extension; omit when the user already has it installed. */
 	extensionInstallUrl?: string;
 	oob?: boolean;
 }
 
+const EXPLANATIONS: Record<ReaderFailedVariant, string> = {
+	unsupported:
+		"There are some links that are not webpages which we yet don't show in the reader.",
+	failed:
+		"We couldn't pull the article text. The site may be blocking automated fetches. Use the browser extension to save it.",
+	slow: "Reader view is taking longer than usual.",
+};
+
 export function renderReaderFailed(input: ReaderFailedInput): string {
 	return render(TEMPLATE, {
 		url: input.url,
 		variant: input.variant,
-		isUnsupported: input.variant === "unsupported",
+		hostname: new URL(input.url).hostname,
+		explanation: EXPLANATIONS[input.variant],
 		extensionInstallUrl: input.extensionInstallUrl,
 		oob: input.oob === true,
-		maxSupportedPages: MAX_SUPPORTED_PAGES,
 	});
 }

@@ -26,13 +26,28 @@ export interface ReaderSlotInput {
  * dynamodb-article-crawl.ts:rowToArticleCrawl: rows that pre-date the
  * state machines have no `crawlStatus` attribute. We render content if
  * present, otherwise treat it as pending.
+ *
+ * Pending without a poll URL (the worker is still going but the page has
+ * exhausted its 40-tick budget) routes to the same `Your link is saved`
+ * reframe as the failure variants — the user shouldn't sit watching a dead
+ * spinner; the URL is recoverable on the source right now.
  */
+function pollOrSlow(input: ReaderSlotInput, oob: boolean): string {
+	return input.readerPollUrl
+		? renderReaderPending({ pollUrl: input.readerPollUrl, oob })
+		: renderReaderFailed({
+				url: input.url,
+				variant: "slow",
+				extensionInstallUrl: input.extensionInstallUrl,
+				oob,
+			});
+}
+
 export function renderReaderSlot(input: ReaderSlotInput): string {
 	const oob = input.oob === true;
 	if (input.crawl === undefined) {
-		return input.content
-			? renderReaderReady({ content: input.content, oob })
-			: renderReaderPending({ pollUrl: input.readerPollUrl, oob });
+		if (input.content) return renderReaderReady({ content: input.content, oob });
+		return pollOrSlow(input, oob);
 	}
 
 	switch (input.crawl.status) {
@@ -40,11 +55,10 @@ export function renderReaderSlot(input: ReaderSlotInput): string {
 			/* Worker-bug catch-all: a ready row with no content is a writer
 			 * inconsistency picked up by stuck-articles-canary; render pending
 			 * so the slot retries instead of erroring. */
-			return input.content
-				? renderReaderReady({ content: input.content, oob })
-				: renderReaderPending({ pollUrl: input.readerPollUrl, oob });
+			if (input.content) return renderReaderReady({ content: input.content, oob });
+			return pollOrSlow(input, oob);
 		case "pending":
-			return renderReaderPending({ pollUrl: input.readerPollUrl, oob });
+			return pollOrSlow(input, oob);
 		case "failed":
 			return renderReaderFailed({
 				url: input.url,

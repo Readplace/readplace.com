@@ -608,7 +608,7 @@ describe("initArticleReader", () => {
 			expect(slot.getAttribute("hx-get")).toBe("/test/reader?poll=3");
 		});
 
-		it("stops polling at MAX_POLLS", async () => {
+		it("stops polling at MAX_POLLS=40 and swaps to the 'Your link is saved' slow reframe", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending" },
 			});
@@ -621,10 +621,14 @@ describe("initArticleReader", () => {
 				extensionInstallUrl: undefined,
 			});
 
-			const slot = parse(toHtml(component)).querySelector("[data-test-reader-slot]");
+			const doc = parse(toHtml(component));
+			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, "reader slot must be rendered");
-			expect(slot.getAttribute("data-reader-status")).toBe("pending");
+			expect(slot.getAttribute("data-reader-status")).toBe("slow");
 			expect(slot.hasAttribute("hx-get")).toBe(false);
+			const primary = doc.querySelector("[data-test-reader-failed-primary]");
+			assert(primary, "primary source CTA must be rendered when the poll cap is reached");
+			expect(primary.getAttribute("href")).toBe(ARTICLE_URL);
 		});
 
 		it("includes the unified progress bar as an hx-swap-oob fragment driven by the recorded crawl stage", async () => {

@@ -12,6 +12,7 @@
 			<span>{{savedAgo}}</span>
 		</div>
 		<p class="queue-article__excerpt">{{excerpt}}</p>
+		{{#if isStalePending}}<p class="queue-article__stale-pending" data-test-stale-pending>Taking a while — <a href="{{url}}" target="_blank" rel="noopener">open on {{#if siteName}}{{siteName}}{{else}}the source{{/if}}</a></p>{{/if}}
 	</div>
 	<div class="queue-article__actions">
 		{{#each actions}}

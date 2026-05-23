@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
-import { MAX_PDF_PAGES } from "@packages/crawl-article";
 import { JSDOM } from "jsdom";
-import { renderReaderFailed } from "./reader-failed.component";
+import {
+	type ReaderFailedVariant,
+	renderReaderFailed,
+} from "./reader-failed.component";
 
 function parse(html: string) {
 	return new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window
@@ -9,78 +11,87 @@ function parse(html: string) {
 }
 
 describe("renderReaderFailed", () => {
-	it("renders the failure copy and a link back to the original article for variant=failed", () => {
-		const doc = parse(
-			renderReaderFailed({ url: "https://example.com/post", variant: "failed" }),
-		);
-
-		const slot = doc.querySelector("[data-test-reader-slot]");
-		assert(slot, "reader slot must be rendered");
-		assert.equal(slot.getAttribute("data-reader-status"), "failed");
-		assert.equal(
-			doc.querySelector(".article-body__reader-failed-title")?.textContent,
-			"We couldn't grab this article",
-		);
-		const link = doc.querySelector(".article-body__reader-failed-link");
-		assert.equal(link?.getAttribute("href"), "https://example.com/post");
-		assert.equal(link?.getAttribute("rel"), "noopener");
+	it("renders the reassuring 'Your link is saved' title regardless of variant", () => {
+		for (const variant of ["failed", "unsupported", "slow"] as const) {
+			const doc = parse(
+				renderReaderFailed({ url: "https://example.com/post", variant }),
+			);
+			assert.equal(
+				doc.querySelector(".article-body__reader-notice-title")?.textContent,
+				"Your link is saved",
+				`title for variant=${variant}`,
+			);
+		}
 	});
 
-	it("renders an install CTA when extensionInstallUrl is provided for variant=failed", () => {
+	it("renders the primary CTA pointing at the source URL with the hostname in the visible text", () => {
 		const doc = parse(
 			renderReaderFailed({
-				url: "https://example.com/post",
+				url: "https://example.com/some-article",
 				variant: "failed",
-				extensionInstallUrl: "/install?browser=chrome",
 			}),
 		);
 
-		const installCta = doc.querySelector("[data-test-reader-failed-install]");
-		assert(installCta, "install CTA must be rendered when the extension is missing");
-		assert.equal(installCta.getAttribute("href"), "/install?browser=chrome");
+		const primary = doc.querySelector("[data-test-reader-failed-primary]");
+		assert(primary, "primary CTA must be rendered");
+		assert.equal(primary.getAttribute("href"), "https://example.com/some-article");
+		assert.equal(primary.getAttribute("target"), "_blank");
+		assert.equal(primary.getAttribute("rel"), "noopener");
+		assert.match(primary.textContent ?? "", /example\.com/);
 	});
 
-	it("omits the install CTA when extensionInstallUrl is not provided (extension already installed)", () => {
+	it("uses a different one-line explanation per variant", () => {
+		const cases: Array<[ReaderFailedVariant, RegExp]> = [
+			["unsupported", /not webpages which we yet don't show/],
+			["failed", /blocking automated fetches/],
+			["slow", /taking longer than usual/],
+		];
+		for (const [variant, expected] of cases) {
+			const doc = parse(
+				renderReaderFailed({
+					url: "https://example.com/post",
+					variant,
+				}),
+			);
+			const text = doc.querySelector(".article-body__reader-notice-text")?.textContent ?? "";
+			assert.match(text, expected, `explanation for variant=${variant}`);
+		}
+	});
+
+	it("exposes the variant on the slot via data-reader-status (so tests can pin behaviour per variant)", () => {
+		for (const variant of ["failed", "unsupported", "slow"] as const) {
+			const doc = parse(
+				renderReaderFailed({ url: "https://example.com/post", variant }),
+			);
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, `slot must be rendered for variant=${variant}`);
+			assert.equal(slot.getAttribute("data-reader-status"), variant);
+		}
+	});
+
+	it("renders the extension install pitch when extensionInstallUrl is provided — for all variants", () => {
+		for (const variant of ["failed", "unsupported", "slow"] as const) {
+			const doc = parse(
+				renderReaderFailed({
+					url: "https://example.com/post",
+					variant,
+					extensionInstallUrl: "/install?browser=chrome",
+				}),
+			);
+
+			const installCta = doc.querySelector("[data-test-reader-failed-install]");
+			assert(installCta, `install CTA must be rendered for variant=${variant}`);
+			assert.equal(installCta.getAttribute("href"), "/install?browser=chrome");
+		}
+	});
+
+	it("omits the extension install pitch when extensionInstallUrl is not provided (extension already installed)", () => {
 		const doc = parse(
 			renderReaderFailed({ url: "https://example.com/post", variant: "failed" }),
 		);
 
-		const installCta = doc.querySelector("[data-test-reader-failed-install]");
-		assert.equal(installCta, null);
-	});
-
-	it("renders the 'not a webpage' copy and the unsupported reader-status for variant=unsupported", () => {
-		const doc = parse(
-			renderReaderFailed({
-				url: "https://example.com/document.pdf",
-				variant: "unsupported",
-			}),
-		);
-
 		const slot = doc.querySelector("[data-test-reader-slot]");
-		assert(slot, "reader slot must be rendered");
-		assert.equal(slot.getAttribute("data-reader-status"), "unsupported");
-		assert.equal(
-			doc.querySelector(".article-body__reader-failed-title")?.textContent,
-			"This isn't a webpage we can save",
-		);
-		const expectedMaxPages = Math.round(0.7 * MAX_PDF_PAGES);
-		const text = doc.querySelector(".article-body__reader-failed-text")?.textContent;
-		assert(
-			text?.includes(`PDFs with less than ${expectedMaxPages} pages`),
-			`unsupported copy should advertise the ${expectedMaxPages}-page soft cap derived from MAX_PDF_PAGES`,
-		);
-	});
-
-	it("never renders the install CTA for variant=unsupported (no browser-extension recovery path)", () => {
-		const doc = parse(
-			renderReaderFailed({
-				url: "https://example.com/document.pdf",
-				variant: "unsupported",
-				extensionInstallUrl: "/install?browser=chrome",
-			}),
-		);
-
+		assert(slot, "slot must render so the absence check is meaningful");
 		const installCta = doc.querySelector("[data-test-reader-failed-install]");
 		assert.equal(installCta, null);
 	});

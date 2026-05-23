@@ -6,7 +6,7 @@ import { ReaderArticleHashId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
 import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
-import { toQueueViewModel } from "./queue.viewmodel";
+import { toQueueArticleViewModel, toQueueViewModel } from "./queue.viewmodel";
 
 const ARTICLE_URL = "https://example.com/post";
 const ARTICLE_ID = ReaderArticleHashId.from(ARTICLE_URL).value;
@@ -397,5 +397,66 @@ describe("toQueueViewModel", () => {
 		});
 
 		expect(vm.articles[0].excerpt).toBe("An excerpt");
+	});
+});
+
+describe("toQueueArticleViewModel — isStalePending", () => {
+	const baseParams = {
+		article: makeArticle(),
+		now: NOW,
+		returnQuery: "",
+		summary: undefined,
+		filters: DEFAULT_FILTERS,
+		maxPolls: 3,
+	};
+
+	it("is false on the first tick of a normal pending row (polling continues)", () => {
+		const vm = toQueueArticleViewModel({
+			...baseParams,
+			crawl: { status: "pending" },
+			pollCount: 1,
+		});
+		expect(vm.isStalePending).toBe(false);
+		expect(vm.cardPollUrl).toBeDefined();
+	});
+
+	it("is true once the pending row has exhausted the poll cap (cardPollUrl drops)", () => {
+		const vm = toQueueArticleViewModel({
+			...baseParams,
+			crawl: { status: "pending" },
+			pollCount: 4,
+		});
+		expect(vm.isStalePending).toBe(true);
+		expect(vm.cardPollUrl).toBeUndefined();
+	});
+
+	it("is false for terminal failed rows (the reader-failure page handles the click-through)", () => {
+		const vm = toQueueArticleViewModel({
+			...baseParams,
+			crawl: { status: "failed", reason: "x" },
+			pollCount: 4,
+		});
+		expect(vm.isStalePending).toBe(false);
+		expect(vm.cardPollUrl).toBeUndefined();
+	});
+
+	it("is false for terminal unsupported rows", () => {
+		const vm = toQueueArticleViewModel({
+			...baseParams,
+			crawl: { status: "unsupported", reason: "x" },
+			pollCount: 4,
+		});
+		expect(vm.isStalePending).toBe(false);
+		expect(vm.cardPollUrl).toBeUndefined();
+	});
+
+	it("is false for ready rows whose summary has also settled", () => {
+		const vm = toQueueArticleViewModel({
+			...baseParams,
+			crawl: { status: "ready" },
+			summary: { status: "ready", summary: "ok" },
+			pollCount: 4,
+		});
+		expect(vm.isStalePending).toBe(false);
 	});
 });

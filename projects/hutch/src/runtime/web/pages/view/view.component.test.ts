@@ -327,12 +327,12 @@ describe("ViewPage", () => {
 		expect(details.hasAttribute("open")).toBe(true);
 	});
 
-	it("renders the pending reader slot while still showing the CTA action when content is undefined", () => {
+	it("renders the 'slow' reframe (source-link CTA) when content is undefined and there's no polling on the public view", () => {
 		const doc = render({ ...baseInput, content: undefined });
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
-		expect(slot.getAttribute("data-reader-status")).toBe("pending");
+		expect(slot.getAttribute("data-reader-status")).toBe("slow");
 		const link = doc.querySelector("[data-test-view-cta-action]");
 		assert(link, "cta action must still be rendered without content");
 	});
