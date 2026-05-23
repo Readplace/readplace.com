@@ -12,7 +12,11 @@ export function initEventBridgeCancelSubscriptionCommand(deps: {
 		await publishEvent({
 			source: CancelSubscriptionCommand.source,
 			detailType: CancelSubscriptionCommand.detailType,
-			detail: JSON.stringify({ userId: params.userId }),
+			detail: JSON.stringify(
+				CancelSubscriptionCommand.detailSchema.parse({
+					userId: params.userId,
+				}),
+			),
 		});
 	};
 
