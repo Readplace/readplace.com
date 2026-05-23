@@ -27,6 +27,18 @@ describe("bannerStateFromRequest", () => {
 		expect(bannerStateFromRequest({ emailVerified: false }).emailVerified).toBe(false);
 		expect(bannerStateFromRequest({}).emailVerified).toBeUndefined();
 	});
+
+	it("sets showAccountMenu=true when query.feature is 'account'", () => {
+		expect(bannerStateFromRequest({ query: { feature: "account" } }).showAccountMenu).toBe(true);
+	});
+
+	it("sets showAccountMenu=false when query.feature is absent", () => {
+		expect(bannerStateFromRequest({}).showAccountMenu).toBe(false);
+	});
+
+	it("sets showAccountMenu=false when query.feature is a different value", () => {
+		expect(bannerStateFromRequest({ query: { feature: "other" } }).showAccountMenu).toBe(false);
+	});
 });
 
 describe("initBuildBannerState", () => {
