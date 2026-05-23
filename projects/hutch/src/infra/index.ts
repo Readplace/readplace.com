@@ -352,9 +352,9 @@ new HutchAPIGatewayLambdaRoute("stripe-webhook", {
 
 const handleSubscriptionCancelledDynamodb = new HutchDynamoDBAccess("handle-subscription-cancelled-dynamodb", {
 	tables: [
-		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
+		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
 	],
-	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem"],
+	actions: ["dynamodb:UpdateItem"],
 });
 
 const handleSubscriptionCancelledQueue = new HutchSQS("handle-subscription-cancelled", {
