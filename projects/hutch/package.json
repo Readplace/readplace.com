@@ -55,6 +55,7 @@
     "@packages/hutch-storage-client": "workspace:*",
     "@packages/onboarding-extension-signal": "workspace:*",
     "@packages/retriable": "workspace:*",
+    "@packages/time-left": "workspace:*",
     "browser-extension-core": "workspace:*",
     "compression": "1.8.1",
     "cookie-parser": "1.4.7",
