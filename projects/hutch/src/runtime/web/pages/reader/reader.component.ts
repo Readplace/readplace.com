@@ -12,6 +12,7 @@ import {
 	SHARE_BALLOON_SCRIPT,
 	renderShareBalloon,
 } from "../../shared/share-balloon/share-balloon.component";
+import { shareUserIdPrefix } from "../../shared/share-balloon/share-user-id-prefix";
 import { READER_STYLES } from "./reader.styles";
 
 const CANONICAL_BASE_URL = "https://readplace.com";
@@ -91,6 +92,7 @@ export function ReaderPage(
 		shareTitle: article.metadata.title,
 		shareHint: "Click here to share this post!",
 		shareSource: "reader-internal",
+		sharerUserIdPrefix: shareUserIdPrefix(article.userId),
 	});
 	const content = render(READER_TEMPLATE, { innerContent, shareBalloon });
 

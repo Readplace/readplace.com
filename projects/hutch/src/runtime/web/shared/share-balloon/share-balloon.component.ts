@@ -23,16 +23,24 @@ export interface ShareBalloonInput {
 	shareTitle: string;
 	shareHint: string;
 	shareSource: ShareBalloonSource;
+	sharerUserIdPrefix?: string;
 }
 
 function withUtm(
 	baseUrl: string,
-	params: { medium: "copy" | "share"; campaign: ShareBalloonSource },
+	params: {
+		medium: "copy" | "share";
+		campaign: ShareBalloonSource;
+		content?: string;
+	},
 ): string {
 	const url = new URL(baseUrl);
 	url.searchParams.set("utm_source", "share-balloon");
 	url.searchParams.set("utm_medium", params.medium);
 	url.searchParams.set("utm_campaign", params.campaign);
+	if (params.content !== undefined) {
+		url.searchParams.set("utm_content", params.content);
+	}
 	return url.toString();
 }
 
@@ -41,10 +49,12 @@ export function renderShareBalloon(input: ShareBalloonInput): string {
 		shareUrlCopy: withUtm(input.shareUrl, {
 			medium: "copy",
 			campaign: input.shareSource,
+			content: input.sharerUserIdPrefix,
 		}),
 		shareUrlShare: withUtm(input.shareUrl, {
 			medium: "share",
 			campaign: input.shareSource,
+			content: input.sharerUserIdPrefix,
 		}),
 		shareTitle: input.shareTitle,
 		shareHint: input.shareHint,
