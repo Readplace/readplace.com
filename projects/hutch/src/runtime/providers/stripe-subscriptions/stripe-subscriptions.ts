@@ -36,6 +36,14 @@ export function initStripeSubscriptions(deps: {
 			},
 		);
 
+		// 404 means the subscription is already gone — that is the desired end
+		// state, so succeed silently. Without this, SQS at-least-once retries
+		// of a CancelSubscriptionCommand whose first attempt deleted the sub
+		// would 404 forever and poison the queue into the DLQ.
+		if (response.status === 404) {
+			return;
+		}
+
 		if (!response.ok) {
 			const json = await response.json();
 			const parsed = StripeErrorResponse.safeParse(json);

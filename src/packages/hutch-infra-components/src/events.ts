@@ -387,10 +387,13 @@ export type UpdateFetchTimestampDetail = z.infer<
 >;
 
 /** Broadened in Phase 2 to carry `userId` so handlers can update the row by
- * primary key instead of GSI-querying on `subscriptionId`. Trial cancellations
- * (no Stripe subscription) emit this event directly with `userId` and no
- * `subscriptionId`; Stripe-originated cancellations look up the userId in the
- * webhook receiver before publishing. `reason` is audit-only. */
+ * primary key instead of GSI-querying on `subscriptionId`. Emitted by the
+ * `cancel-subscription` Lambda for every user-initiated cancel (trialing →
+ * no `subscriptionId`; active and pending_cancellation → with `subscriptionId`)
+ * and by `stripe-webhook-receiver` on `customer.subscription.deleted` for
+ * Stripe-side cancellations (dashboard, dunning). Both paths can fire for the
+ * same cancel; `handle-subscription-cancelled` is idempotent so duplicate
+ * emits are safe. `reason` is audit-only. */
 export const SubscriptionCancelledEvent = defineEvent({
 	name: "subscription-cancelled",
 	source: "hutch.subscriptions",
@@ -409,9 +412,11 @@ export type SubscriptionCancelledDetail = z.infer<typeof SubscriptionCancelledEv
 
 /** User-initiated cancel request. Published by `POST /account/cancel` and
  * consumed by the `cancel-subscription` Lambda which branches on the row's
- * current status — paid users go through Stripe's API (which fires the
- * `customer.subscription.deleted` webhook), trial users emit
- * `SubscriptionCancelledEvent` directly. */
+ * current status — active paid users get Stripe DELETE plus a direct
+ * `SubscriptionCancelledEvent`; trialing users emit
+ * `SubscriptionCancelledEvent` directly with no Stripe call;
+ * pending_cancellation users emit directly too. The Stripe webhook is
+ * belt-and-suspenders, not load-bearing for the row update. */
 export const CancelSubscriptionCommand = defineEvent({
 	name: "cancel-subscription-command",
 	source: "hutch.subscriptions",

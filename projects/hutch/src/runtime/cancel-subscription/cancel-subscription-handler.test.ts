@@ -47,7 +47,7 @@ function buildSubject(): Subject {
 }
 
 describe("cancel-subscription handler", () => {
-	it("calls Stripe DELETE for an active subscription and emits no event directly", async () => {
+	it("calls Stripe DELETE for an active subscription and emits SubscriptionCancelled directly so the row updates without webhook dependency", async () => {
 		const subject = buildSubject();
 		await subject.providers.upsertActive({
 			userId: USER_ID,
@@ -64,7 +64,10 @@ describe("cancel-subscription handler", () => {
 		assert(result);
 		assert.equal(result.batchItemFailures.length, 0);
 		assert.deepEqual(subject.cancelledByStripe(), ["sub_active_123"]);
-		assert.equal(subject.cancelledEvents.length, 0);
+		assert.equal(subject.cancelledEvents.length, 1);
+		assert.equal(subject.cancelledEvents[0].userId, USER_ID);
+		assert.equal(subject.cancelledEvents[0].subscriptionId, "sub_active_123");
+		assert.equal(subject.cancelledEvents[0].reason, "user_initiated_paid_confirmed");
 		assert.deepEqual(subject.trialScheduler.deleteCalls(), [USER_ID]);
 	});
 

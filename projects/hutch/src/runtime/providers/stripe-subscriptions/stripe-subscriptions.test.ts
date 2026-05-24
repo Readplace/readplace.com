@@ -46,27 +46,36 @@ describe("initStripeSubscriptions", () => {
 			);
 		});
 
-		it("throws with the Stripe error message when the API returns a non-2xx", async () => {
+		it("treats 404 as success — the sub is already gone, which is the goal state for cancellation", async () => {
 			const fakeFetch: typeof globalThis.fetch = async () =>
 				jsonResponse(404, { error: { code: "resource_missing", message: "No such subscription" } });
 
 			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
 
+			await stripe.cancelImmediately({ subscriptionId: "sub_gone" });
+		});
+
+		it("throws with the Stripe error message when the API returns a non-2xx other than 404", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(500, { error: { code: "api_error", message: "Stripe is down" } });
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
 			await assert.rejects(
-				() => stripe.cancelImmediately({ subscriptionId: "sub_gone" }),
-				/Stripe cancelImmediately failed \(404\): No such subscription/,
+				() => stripe.cancelImmediately({ subscriptionId: "sub_kaboom" }),
+				/Stripe cancelImmediately failed \(500\): Stripe is down/,
 			);
 		});
 
 		it("falls back to a generic error message when the Stripe error shape is unrecognised", async () => {
 			const fakeFetch: typeof globalThis.fetch = async () =>
-				jsonResponse(500, { unexpected: "shape" });
+				jsonResponse(503, { unexpected: "shape" });
 
 			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
 
 			await assert.rejects(
 				() => stripe.cancelImmediately({ subscriptionId: "sub_x" }),
-				/Stripe cancelImmediately failed \(500\): Stripe error/,
+				/Stripe cancelImmediately failed \(503\): Stripe error/,
 			);
 		});
 

@@ -33,7 +33,18 @@ function buildBranches(deps: HandlerDeps): Record<SubscriptionStatus, CancelBran
 		active: async (row) => {
 			assert(row.subscriptionId, "active row must carry a Stripe subscriptionId");
 			await deps.cancelStripeSubscriptionImmediately({ subscriptionId: row.subscriptionId });
-			deps.logger.info("[cancel-subscription] active → Stripe DELETE issued", {
+			// Publish directly rather than waiting for the Stripe
+			// `customer.subscription.deleted` webhook to drive the row update.
+			// If the webhook is misconfigured, delayed, or lost, the row would
+			// stay `active` and the next cancel attempt would 404 against
+			// Stripe and DLQ. handle-subscription-cancelled is idempotent so
+			// the eventual webhook arrival is harmless.
+			await deps.publishSubscriptionCancelled({
+				userId: row.userId,
+				subscriptionId: row.subscriptionId,
+				reason: "user_initiated_paid_confirmed",
+			});
+			deps.logger.info("[cancel-subscription] active → Stripe DELETE issued, SubscriptionCancelled emitted", {
 				userId: row.userId,
 				subscriptionId: row.subscriptionId,
 			});
