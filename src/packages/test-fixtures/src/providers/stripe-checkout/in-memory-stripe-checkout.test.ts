@@ -136,33 +136,4 @@ describe("initInMemoryStripeCheckout", () => {
 		);
 	});
 
-	it("records trialPeriodDays when supplied so tests can assert the no-double-trial path", async () => {
-		const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
-		const session = await stripe.createCheckoutSession({
-			customerEmail: "trialing@example.com",
-			successUrl: "https://app.test/ok",
-			cancelUrl: "https://app.test/cancel",
-			trialPeriodDays: 0,
-		});
-
-		expect(stripe.getTrialPeriodDays(session.id)).toBe(0);
-	});
-
-	it("leaves trialPeriodDays undefined when omitted so default Stripe behaviour applies", async () => {
-		const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
-		const session = await stripe.createCheckoutSession({
-			customerEmail: "default-trial@example.com",
-			successUrl: "https://app.test/ok",
-			cancelUrl: "https://app.test/cancel",
-		});
-
-		expect(stripe.getTrialPeriodDays(session.id)).toBeUndefined();
-	});
-
-	it("throws when looking up trialPeriodDays for an unknown session", () => {
-		const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
-		expect(() => stripe.getTrialPeriodDays(CheckoutSessionIdSchema.parse("cs_test_missing"))).toThrow(
-			/No checkout session/,
-		);
-	});
 });

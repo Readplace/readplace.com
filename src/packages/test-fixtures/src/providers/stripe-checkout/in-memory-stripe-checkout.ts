@@ -14,7 +14,6 @@ interface StoredSession {
 	created: number;
 	subscriptionId: string;
 	customerId: string;
-	trialPeriodDays?: number;
 }
 
 export function initInMemoryStripeCheckout(opts: {
@@ -26,12 +25,11 @@ export function initInMemoryStripeCheckout(opts: {
 	markPaid: (id: CheckoutSessionId) => void;
 	markExpired: (id: CheckoutSessionId) => void;
 	getCheckoutUrl: (id: CheckoutSessionId) => string;
-	getTrialPeriodDays: (id: CheckoutSessionId) => number | undefined;
 } {
 	const sessions = new Map<CheckoutSessionId, StoredSession>();
 	const urls = new Map<CheckoutSessionId, string>();
 
-	const createCheckoutSession: CreateCheckoutSession = async ({ customerEmail, successUrl, trialPeriodDays }) => {
+	const createCheckoutSession: CreateCheckoutSession = async ({ customerEmail, successUrl }) => {
 		const id = CheckoutSessionIdSchema.parse(`cs_test_${randomBytes(12).toString("hex")}`);
 		const sessionSuffix = randomBytes(8).toString("hex");
 		sessions.set(id, {
@@ -41,7 +39,6 @@ export function initInMemoryStripeCheckout(opts: {
 			created: Math.floor(opts.now().getTime() / 1000),
 			subscriptionId: `sub_test_${sessionSuffix}`,
 			customerId: `cus_test_${sessionSuffix}`,
-			...(trialPeriodDays !== undefined ? { trialPeriodDays } : {}),
 		});
 		const url = `${opts.checkoutBaseUrl}/${id}?next=${encodeURIComponent(successUrl)}`;
 		urls.set(id, url);
@@ -81,11 +78,5 @@ export function initInMemoryStripeCheckout(opts: {
 		return url;
 	};
 
-	const getTrialPeriodDays = (id: CheckoutSessionId): number | undefined => {
-		const session = sessions.get(id);
-		if (!session) throw new Error(`No checkout session: ${id}`);
-		return session.trialPeriodDays;
-	};
-
-	return { createCheckoutSession, retrieveCheckoutSession, markPaid, markExpired, getCheckoutUrl, getTrialPeriodDays };
+	return { createCheckoutSession, retrieveCheckoutSession, markPaid, markExpired, getCheckoutUrl };
 }

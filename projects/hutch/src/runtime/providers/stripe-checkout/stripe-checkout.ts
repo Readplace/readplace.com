@@ -1,7 +1,6 @@
 /* c8 ignore start -- thin Stripe API wrapper, tested via integration */
 import { z } from "zod";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
 import type {
 	CreateCheckoutSession,
 	RetrieveCheckoutSession,
@@ -46,10 +45,8 @@ export function initStripeCheckout(deps: {
 		customerEmail,
 		successUrl,
 		cancelUrl,
-		trialPeriodDays,
 	}) => {
-		const effectiveTrialDays = trialPeriodDays ?? STRIPE_TRIAL_PERIOD_DAYS;
-		const params: Record<string, string> = {
+		const body = new URLSearchParams({
 			mode: "subscription",
 			"line_items[0][price]": deps.priceId,
 			"line_items[0][quantity]": "1",
@@ -58,15 +55,7 @@ export function initStripeCheckout(deps: {
 			cancel_url: cancelUrl,
 			"payment_method_types[0]": "card",
 			allow_promotion_codes: "true",
-		};
-		/** Stripe rejects subscription_data[trial_period_days] < 1 — to suppress
-		 * the trial the parameter must be omitted entirely. Callers pass 0 to
-		 * mean "no trial" (e.g. trialing/cancelled users who've already used
-		 * theirs) and we drop the field here. */
-		if (effectiveTrialDays >= 1) {
-			params["subscription_data[trial_period_days]"] = String(effectiveTrialDays);
-		}
-		const body = new URLSearchParams(params);
+		});
 
 		const response = await deps.fetch(`${STRIPE_API}/checkout/sessions`, {
 			method: "POST",
