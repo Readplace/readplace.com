@@ -198,6 +198,26 @@ describe("EXCLUDE_PATTERNS — operator-curated exact-URL entries", () => {
 			excluded: false,
 			label: "PwC same job ID different role slug — should NOT match",
 		},
+		{
+			url: "https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf",
+			excluded: true,
+			label: "CIA reading room PDF exact (government anti-bot IP block)",
+		},
+		{
+			url: "https://www.cia.gov/readingroom/docs/OTHER%20DOCUMENT.pdf",
+			excluded: false,
+			label: "CIA reading room different doc — should NOT match",
+		},
+		{
+			url: "https://www.realestate.com.au/",
+			excluded: true,
+			label: "realestate.com.au bare homepage exact",
+		},
+		{
+			url: "https://www.realestate.com.au/property-house-vic-melbourne-123456",
+			excluded: false,
+			label: "realestate.com.au specific listing — should NOT match",
+		},
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {

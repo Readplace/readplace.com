@@ -68,6 +68,14 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// PwC HR system returns HTTP 410 Gone on every attempt — job posting was
 	// delisted at origin, so recrawl can never succeed.
 	/^https:\/\/jobs-au\.pwc\.com\/experiencedhires\/au\/en\/job\/597385WD\/Senior-Manager-Finance-Transformation-Global-Business-Services$/i,
+	// CIA reading room PDF — government anti-bot protection RSTs HTTP/2 from
+	// AWS-range IPs (same pattern as USDA above). Requires a non-AWS egress
+	// path (residential proxy) to resolve.
+	/^https:\/\/www\.cia\.gov\/readingroom\/docs\/COMPUTERS%20AND%20AUTOMATION%20\[16505689\]\.pdf$/i,
+	// Homepage with no article content — user saved a bare domain, not a
+	// specific article. Even if the fetch bypassed the origin's anti-bot
+	// protection, Readability would extract site chrome, not article content.
+	/^https:\/\/www\.realestate\.com\.au\/$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {
