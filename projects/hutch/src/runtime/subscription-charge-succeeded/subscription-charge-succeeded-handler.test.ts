@@ -1,32 +1,11 @@
 import assert from "node:assert/strict";
-import type { SQSEvent } from "aws-lambda";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
+import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initSubscriptionChargeSucceededHandler } from "./subscription-charge-succeeded-handler";
 
 const USER_ID = UserIdSchema.parse("2".repeat(32));
-
-function buildSqsEvent(records: Array<{ messageId: string; body: string }>): SQSEvent {
-	return {
-		Records: records.map((r) => ({
-			messageId: r.messageId,
-			receiptHandle: "handle",
-			body: r.body,
-			attributes: {
-				ApproximateReceiveCount: "1",
-				SentTimestamp: "0",
-				SenderId: "sender",
-				ApproximateFirstReceiveTimestamp: "0",
-			},
-			messageAttributes: {},
-			md5OfBody: "",
-			eventSource: "aws:sqs",
-			eventSourceARN: "arn:aws:sqs:us-east-1:123456789:test-queue",
-			awsRegion: "us-east-1",
-		})),
-	};
-}
 
 function buildBody(detail: {
 	userId: string;

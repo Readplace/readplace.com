@@ -92,6 +92,10 @@
     "./providers/google-auth": {
       "types": "./dist/providers/google-auth/index.d.ts",
       "default": "./dist/providers/google-auth/index.js"
+    },
+    "./sqs": {
+      "types": "./dist/sqs/index.d.ts",
+      "default": "./dist/sqs/index.js"
     }
   },
   "typesVersions": {
@@ -116,7 +120,8 @@
       "providers/import-session": ["./dist/providers/import-session/index.d.ts"],
       "providers/oauth": ["./dist/providers/oauth/index.d.ts"],
       "providers/events": ["./dist/providers/events/index.d.ts"],
-      "providers/google-auth": ["./dist/providers/google-auth/index.d.ts"]
+      "providers/google-auth": ["./dist/providers/google-auth/index.d.ts"],
+      "sqs": ["./dist/sqs/index.d.ts"]
     }
   },
   "private": true,
