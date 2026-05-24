@@ -18,6 +18,17 @@ Infrastructure code must not branch on environment names (e.g., `if (stage === "
 | `config.require` / `config.requireBoolean` | The value must be set in every environment |
 | `config.getObject` / `config.get` | The value is optional and absence is meaningful (e.g., empty list = feature disabled) |
 
+## No Full Table Scans in DynamoDB
+
+DynamoDB `Scan` operations read every item in the table before applying filters. They are O(n) in table size regardless of result count and consume read capacity proportional to the total data scanned — not the data returned. A scan that returns zero items still reads every row.
+
+**Severity:** High priority. A full table scan on a request path becomes a latency and cost bottleneck as the table grows and must be caught in code review.
+
+**How to avoid:**
+- Model access patterns at table design time so every query can use a `Query` on a partition key (table or GSI).
+- When a new access pattern requires `begins_with` or equality on a non-key attribute, add a dedicated GSI with that attribute as the partition key. Write the GSI attribute on every item creation path.
+- `Select: "COUNT"` does not help — it avoids data transfer but still reads every item.
+
 ## Every Lambda Must Be Backed by a Queue with DLQ
 
 Every Lambda must be invoked through an SQS queue redriving to a DLQ. Use the reusable components from `@packages/hutch-infra-components/infra` — discover them with `grep -l "export class Hutch" src/packages/hutch-infra-components/src/infra/`.

@@ -7,7 +7,7 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import { UserIdSchema } from "@packages/domain/user";
+import { UserIdSchema, userIdPrefixFrom } from "@packages/domain/user";
 import type {
 	CountUsers,
 	CreateGoogleUser,
@@ -35,6 +35,8 @@ const UserRow = z.object({
 	emailVerified: dynamoField(z.boolean()),
 	/* Optional in the schema so reads of pre-backfill rows don't throw; new writes always set it. */
 	registeredAt: dynamoField(z.string()),
+	/* Optional so reads of pre-backfill rows don't throw; new writes always set it. */
+	userIdPrefix: dynamoField(z.string()),
 });
 
 const SessionRow = z.object({
@@ -89,6 +91,7 @@ export function initDynamoDbAuth(deps: {
 					passwordHash,
 					emailVerified: false,
 					registeredAt: new Date().toISOString(),
+					userIdPrefix: userIdPrefixFrom(userId),
 				},
 				ConditionExpression: "attribute_not_exists(email)",
 			});
@@ -113,6 +116,7 @@ export function initDynamoDbAuth(deps: {
 					passwordHash,
 					emailVerified: false,
 					registeredAt: new Date().toISOString(),
+					userIdPrefix: userIdPrefixFrom(userId),
 				},
 				ConditionExpression: "attribute_not_exists(email)",
 			});
@@ -135,6 +139,7 @@ export function initDynamoDbAuth(deps: {
 					userId,
 					emailVerified: true,
 					registeredAt: new Date().toISOString(),
+					userIdPrefix: userIdPrefixFrom(userId),
 				},
 				ConditionExpression: "attribute_not_exists(email)",
 			});
@@ -238,12 +243,13 @@ export function initDynamoDbAuth(deps: {
 	};
 
 	const existsUserByIdPrefix: ExistsUserByIdPrefix = async (prefix) => {
-		const { count } = await users.scan({
-			FilterExpression: "begins_with(userId, :prefix)",
+		const { items } = await users.query({
+			IndexName: "userIdPrefix-index",
+			KeyConditionExpression: "userIdPrefix = :prefix",
 			ExpressionAttributeValues: { ":prefix": prefix },
-			Select: "COUNT",
+			Limit: 1,
 		});
-		return count > 0;
+		return items.length > 0;
 	};
 
 	const updatePassword: UpdatePassword = async ({ email, password }) => {

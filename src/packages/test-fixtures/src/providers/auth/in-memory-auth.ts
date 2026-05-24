@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import type { UserId } from "@packages/domain/user";
-import { UserIdSchema } from "@packages/domain/user";
+import { UserIdSchema, userIdPrefixFrom } from "@packages/domain/user";
 import type {
 	CountUsers,
 	CreateGoogleUser,
@@ -59,6 +59,7 @@ export function initInMemoryAuth(opts: {
 	const _verifyPassword = opts.verifyPassword;
 	const users = new Map<string, StoredUser>();
 	const sessions = new Map<string, StoredSession>();
+	const userIdPrefixes = new Set<string>();
 
 	const createUser: CreateUser = async ({ email, password }) => {
 		const normalizedEmail = normalizeEmail(email);
@@ -77,6 +78,7 @@ export function initInMemoryAuth(opts: {
 			emailVerified: false,
 			registeredAt: new Date().toISOString(),
 		});
+		userIdPrefixes.add(userIdPrefixFrom(userId));
 
 		return { ok: true, userId };
 	};
@@ -97,6 +99,7 @@ export function initInMemoryAuth(opts: {
 			emailVerified: false,
 			registeredAt: new Date().toISOString(),
 		});
+		userIdPrefixes.add(userIdPrefixFrom(userId));
 
 		return { ok: true, userId };
 	};
@@ -115,6 +118,7 @@ export function initInMemoryAuth(opts: {
 			emailVerified: true,
 			registeredAt: new Date().toISOString(),
 		});
+		userIdPrefixes.add(userIdPrefixFrom(userId));
 
 		return { ok: true, userId };
 	};
@@ -184,10 +188,7 @@ export function initInMemoryAuth(opts: {
 	};
 
 	const existsUserByIdPrefix: ExistsUserByIdPrefix = async (prefix) => {
-		for (const user of users.values()) {
-			if (user.id.startsWith(prefix)) return true;
-		}
-		return false;
+		return userIdPrefixes.has(prefix);
 	};
 
 	const findEmailByUserId: FindEmailByUserId = async (userId) => {

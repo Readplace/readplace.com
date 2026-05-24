@@ -1,6 +1,7 @@
 import type { UserId } from "@packages/domain/user";
+import type { UserIdPrefix } from "@packages/domain/user";
+import { userIdPrefixFrom, parseUserIdPrefix } from "@packages/domain/user";
 import type { TimeLeft } from "@packages/time-left";
-import { z } from "zod";
 
 /** Public /view pages remain accessible for 3 days after the most recent
  * save. The window creates urgency for organic visitors ("save it before it
@@ -13,29 +14,14 @@ export const PUBLIC_VIEW_ACCESS_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
  * encourage, not penalise. */
 export const PERMANENT_ARTICLE_DOMAINS: readonly string[] = ["fagnerbrack.com"];
 
-/** Hex prefix length taken from the sharer's UserId and stamped into
- * utm_content when an authenticated user shares a link. Long enough to be
- * collision-resistant for share attribution; short enough that the full
- * UserId is never exposed. */
-const SHARED_USER_ID_PREFIX_LENGTH = 6;
-
-const SHARED_USER_ID_PREFIX_PATTERN = /^[0-9a-f]{6}$/;
-
-export type SharedUserId = string & { readonly __brand: "SharedUserId" };
-
-const SharedUserIdSchema = z
-	.string()
-	.regex(SHARED_USER_ID_PREFIX_PATTERN)
-	.transform((s): SharedUserId => s as SharedUserId);
+export type SharedUserId = UserIdPrefix;
 
 export function sharedUserIdFrom(userId: UserId): SharedUserId {
-	return SharedUserIdSchema.parse(userId.slice(0, SHARED_USER_ID_PREFIX_LENGTH).toLowerCase());
+	return userIdPrefixFrom(userId);
 }
 
 export function sharedUserIdFromQueryParams(utmContent: string | undefined): SharedUserId | null {
-	if (utmContent === undefined) return null;
-	const result = SharedUserIdSchema.safeParse(utmContent.toLowerCase());
-	return result.success ? result.data : null;
+	return parseUserIdPrefix(utmContent);
 }
 
 export type ComputePublicViewExpiryInput = {

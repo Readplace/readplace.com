@@ -61,13 +61,13 @@ export function withSaveUtmContent(href: string, stamp: string): string {
 const NOOP_CONTROLLER: ExpiryCounterController = { stop() {} };
 
 export function initExpiryCounter(deps: ExpiryCounterDeps): ExpiryCounterController {
-	const counter: Element | null = deps.document.querySelector('[data-expiry-state="counting"]');
-	if (counter === null) return NOOP_CONTROLLER;
-	const expiresAtRaw = counter.getAttribute("data-expires-at");
+	const match = deps.document.querySelector('[data-expiry-state="counting"]');
+	if (match === null) return NOOP_CONTROLLER;
+	const expiresAtRaw = match.getAttribute("data-expires-at");
 	if (expiresAtRaw === null) return NOOP_CONTROLLER;
 	const expiresAtMs = Date.parse(expiresAtRaw);
 	if (!Number.isFinite(expiresAtMs)) return NOOP_CONTROLLER;
-	const el: Element = counter; // narrows Element|null for the tick() closure
+	const counter = match; // TS doesn't propagate narrowing into function-declaration closures
 
 	let stopped = false;
 	let intervalId: unknown;
@@ -93,15 +93,15 @@ export function initExpiryCounter(deps: ExpiryCounterDeps): ExpiryCounterControl
 		const msLeft = expiresAtMs - deps.now();
 		/* c8 ignore next -- V8 block coverage phantom: conditional branch already exercised by expired test (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 		if (msLeft <= 0) {
-			el.textContent = "Public access has expired.";
-			el.setAttribute("data-expiry-state", "expired");
-			el.classList.remove("view__expiry--counting");
-			el.classList.add("view__expiry--expired");
+			counter.textContent = "Public access has expired.";
+			counter.setAttribute("data-expiry-state", "expired");
+			counter.classList.remove("view__expiry--counting");
+			counter.classList.add("view__expiry--expired");
 			stop();
 			return;
 		}
 		const timeLeft = decomposeTimeLeft(msLeft);
-		el.textContent = formatCountingMessage(msLeft);
+		counter.textContent = formatCountingMessage(msLeft);
 		rewriteSaveLinks(formatSaveUtmContent(timeLeft));
 	}
 
