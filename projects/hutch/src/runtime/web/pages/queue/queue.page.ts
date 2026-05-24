@@ -329,10 +329,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		 * again so they can install the extension here. */
 		const onboardingDismissed = extensionInstalled && req.cookies?.[DISMISS_COOKIE_NAME] === ONBOARDING_VERSION;
 		const browser = detectBrowser(req);
+		const showSubscriptionBanner = deps.featureToggle.isEnabled(req, "subscription");
 		sendComponent(
 			req, res,
 			Base(
-				QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, extensionSavedArticle, browser, onboardingDismissed }),
+				QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, extensionSavedArticle, browser, onboardingDismissed, showSubscriptionBanner }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);
@@ -521,7 +522,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				summaryByUrl,
 				crawlByUrl,
 			});
-			sendComponent(req, res, Base(QueuePage(vm, { statusCode: 422 }), await deps.buildBannerState(req)));
+			const showSubscriptionBanner = deps.featureToggle.isEnabled(req, "subscription");
+			sendComponent(req, res, Base(QueuePage(vm, { statusCode: 422, showSubscriptionBanner }), await deps.buildBannerState(req)));
 			return;
 		}
 

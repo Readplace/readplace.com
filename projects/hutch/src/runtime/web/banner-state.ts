@@ -28,14 +28,18 @@ export interface BannerState {
 	 * pending cancellation; "active" for trialing users; "expired" for users
 	 * whose trial has lapsed or whose subscription was cancelled. */
 	trial?: TrialDisplay;
-	showAccountMenu?: boolean;
+	/** Single feature toggle (?feature=subscription) gating subscription-aware UI:
+	 * the /account menu entry in the header, and the queue-page banner aside
+	 * that surfaces either the trial countdown or the "subscription not active"
+	 * message. */
+	showSubscription?: boolean;
 }
 
 export function bannerStateFromRequest(source: BannerStateSource): BannerState {
 	return {
 		isAuthenticated: Boolean(source.userId),
 		emailVerified: source.emailVerified,
-		showAccountMenu: source.query?.feature === "account",
+		showSubscription: source.query?.feature === "subscription",
 	};
 }
 
