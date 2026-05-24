@@ -73,6 +73,10 @@
       "types": "./dist/providers/subscription-providers/index.d.ts",
       "default": "./dist/providers/subscription-providers/index.js"
     },
+    "./providers/trial-scheduler": {
+      "types": "./dist/providers/trial-scheduler/index.d.ts",
+      "default": "./dist/providers/trial-scheduler/index.js"
+    },
     "./providers/import-session": {
       "types": "./dist/providers/import-session/index.d.ts",
       "default": "./dist/providers/import-session/index.js"
@@ -88,6 +92,10 @@
     "./providers/google-auth": {
       "types": "./dist/providers/google-auth/index.d.ts",
       "default": "./dist/providers/google-auth/index.js"
+    },
+    "./sqs": {
+      "types": "./dist/sqs/index.d.ts",
+      "default": "./dist/sqs/index.js"
     }
   },
   "typesVersions": {
@@ -108,10 +116,12 @@
       "providers/stripe-checkout": ["./dist/providers/stripe-checkout/index.d.ts"],
       "providers/stripe-subscriptions": ["./dist/providers/stripe-subscriptions/index.d.ts"],
       "providers/subscription-providers": ["./dist/providers/subscription-providers/index.d.ts"],
+      "providers/trial-scheduler": ["./dist/providers/trial-scheduler/index.d.ts"],
       "providers/import-session": ["./dist/providers/import-session/index.d.ts"],
       "providers/oauth": ["./dist/providers/oauth/index.d.ts"],
       "providers/events": ["./dist/providers/events/index.d.ts"],
-      "providers/google-auth": ["./dist/providers/google-auth/index.d.ts"]
+      "providers/google-auth": ["./dist/providers/google-auth/index.d.ts"],
+      "sqs": ["./dist/sqs/index.d.ts"]
     }
   },
   "private": true,

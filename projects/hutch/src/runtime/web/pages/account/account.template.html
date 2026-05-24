@@ -3,6 +3,38 @@
         <h1 class="account__title">{{heading}}</h1>
       </div>
       <section class="{{stateClass}}" data-test-account-card data-test-account-state="{{state}}">
+        {{#if stateIsErrorPaymentMethod}}
+        <h2 class="account-card__heading" data-test-account-error-heading>We couldn't restart your subscription</h2>
+        <p class="account-card__body">
+          The card we have on file is no longer valid. Email
+          <a class="account-card__support-link" href="mailto:support@readplace.com" data-test-account-support-link>support@readplace.com</a>
+          and we'll get you back up and running.
+        </p>
+        <a class="account-card__export-link" href="{{exportUrl}}" data-test-account-export-link>Export your data →</a>
+        {{else}}
+        {{#if stateIsConfirmCancel}}
+        <h2 class="account-card__heading" data-test-account-confirm-heading>Cancel your subscription?</h2>
+        <p class="account-card__body">
+          Your saved articles stay exactly where they are.
+          <strong>You'll be able to export your data after cancellation</strong> —
+          visit the Export page any time.
+        </p>
+        <p class="account-card__body">
+          Cancellation takes effect immediately. You'll switch to read-only mode —
+          you can still view and export your saved articles, but you won't be able to
+          save new ones or use the browser extension.
+        </p>
+        <p class="account-card__body">
+          Resuming later is one click. Your card on file stays put, so you won't
+          need to re-enter payment details.
+        </p>
+        <form class="account-card__cancel-form" method="POST" action="{{cancelFormUrl}}"
+              hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
+              data-test-account-cancel-form>
+          <button type="submit" class="account-card__cancel-button" data-test-account-cancel>Cancel subscription</button>
+        </form>
+        <a class="account-card__keep-link" href="/account" data-test-account-keep-link>Keep my subscription</a>
+        {{else}}
         {{#if showCancellingNotice}}
         <p class="account-card__notice" data-test-cancelling-notice>Cancellation in progress — refresh in a few seconds to see the update.</p>
         {{/if}}
@@ -13,14 +45,14 @@
             <button type="submit" class="account-card__action-btn" data-test-account-subscribe>Subscribe — $3.99/month</button>
           </form>
           {{/if}}
-          {{#if showCancelForm}}
-          <form method="POST" action="{{cancelFormUrl}}" data-test-account-cancel-form>
-            <button type="submit" class="account-card__action-btn account-card__action-btn--secondary" data-test-account-cancel>Cancel subscription</button>
-          </form>
+          {{#if showCancelLink}}
+          <a class="account-card__cancel-link" href="{{cancelLinkUrl}}" data-test-account-cancel-link>Cancel subscription</a>
           {{/if}}
           {{#if showExportLink}}
           <a class="account-card__export-link" href="{{exportUrl}}" data-test-account-export-link>Export your data →</a>
           {{/if}}
         </div>
+        {{/if}}
+        {{/if}}
       </section>
     </main>

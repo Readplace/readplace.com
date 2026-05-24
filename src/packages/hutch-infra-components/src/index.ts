@@ -51,6 +51,12 @@ export {
 	type SubscriptionCancelledDetail,
 	CancelSubscriptionCommand,
 	type CancelSubscriptionDetail,
+	SubscriptionStartRequestCommand,
+	type SubscriptionStartRequestDetail,
+	SubscriptionChargeSucceededEvent,
+	type SubscriptionChargeSucceededDetail,
+	SubscriptionChargeFailedEvent,
+	type SubscriptionChargeFailedDetail,
 	type HutchEvent,
 	type HutchCommand,
 } from "./events";

@@ -28,7 +28,12 @@ import { initDynamoDbGeneratedSummary } from "./providers/article-summary/dynamo
 import { initDynamoDbArticleCrawl } from "./providers/article-crawl/dynamodb-article-crawl";
 import { initInMemoryArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
 import { S3Client } from "@aws-sdk/client-s3";
+import { SchedulerClient } from "@aws-sdk/client-scheduler";
 import { initS3ReadContent } from "./providers/article-store/s3-read-content";
+import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
+import { initAwsTrialScheduler } from "./providers/trial-scheduler/aws-trial-scheduler";
+import { initInMemoryStripeSubscriptions } from "@packages/test-fixtures/providers/stripe-subscriptions";
+import { initInMemoryTrialScheduler } from "@packages/test-fixtures/providers/trial-scheduler";
 import { initReadArticleContent } from "@packages/test-fixtures/providers/article-store";
 import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-infra-components/runtime";
 import { initEventBridgeLinkSaved } from "./providers/events/eventbridge-link-saved";
@@ -121,8 +126,12 @@ function initProviders() {
 		const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
 		const importSessionsTable = requireEnv("DYNAMODB_IMPORT_SESSIONS_TABLE");
 		const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
+		const trialSchedulerGroupName = requireEnv("TRIAL_SCHEDULER_GROUP_NAME");
+		const trialSchedulerRoleArn = requireEnv("TRIAL_SCHEDULER_ROLE_ARN");
+		const eventBusArn = requireEnv("EVENT_BUS_ARN");
 		const client = createDynamoDocumentClient();
 		const s3Client = new S3Client({});
+		const schedulerClient = new SchedulerClient({});
 
 		const auth = initDynamoDbAuth({ client, usersTableName: usersTable, sessionsTableName: sessionsTable });
 		const articleStore = initDynamoDbArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable });
@@ -186,11 +195,21 @@ function initProviders() {
 			priceId: stripePriceId,
 			fetch: globalThis.fetch,
 		});
+		const stripeSubscriptions = initStripeSubscriptions({
+			apiKey: stripeApiKey,
+			fetch: globalThis.fetch,
+		});
 		const pendingSignup = initDynamoDbPendingSignup({ client, tableName: pendingSignupsTable });
 		const subscriptionProviders = initDynamoDbSubscriptionProviders({
 			client,
 			tableName: subscriptionProvidersTable,
 			now: () => new Date(),
+		});
+		const trialScheduler = initAwsTrialScheduler({
+			client: schedulerClient,
+			scheduleGroupName: trialSchedulerGroupName,
+			schedulerRoleArn: trialSchedulerRoleArn,
+			eventBusArn,
 		});
 		const importSessionStore = initDynamoDbImportSession({
 			client,
@@ -204,6 +223,9 @@ function initProviders() {
 			readArticleContent,
 			importSessionStore,
 			subscriptionProviders,
+			trialScheduler,
+			createSubscriptionOnExistingCustomer: stripeSubscriptions.createSubscriptionOnExistingCustomer,
+			stripePriceId,
 
 			...initResendEmail(resendApiKey),
 			...initDynamoDbEmailVerification({ client, tableName: verificationTokensTable }),
@@ -235,8 +257,10 @@ function initProviders() {
 	const articleStore = initInMemoryArticleStore();
 	const oauthModel = createOAuthModel(initInMemoryOAuthModel());
 	const devStripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
+	const devStripeSubscriptions = initInMemoryStripeSubscriptions();
 	const devPendingSignup = initInMemoryPendingSignup();
 	const devSubscriptionProviders = initInMemorySubscriptionProviders({ now: () => new Date() });
+	const devTrialScheduler = initInMemoryTrialScheduler();
 	const devGoogleClientId = getEnv("GOOGLE_LOGIN_CLIENT_ID");
 	const devGoogleClientSecret = getEnv("GOOGLE_LOGIN_CLIENT_SECRET");
 	assert(
@@ -356,6 +380,9 @@ function initProviders() {
 		}),
 		importSessionStore,
 		subscriptionProviders: devSubscriptionProviders,
+		trialScheduler: devTrialScheduler,
+		createSubscriptionOnExistingCustomer: devStripeSubscriptions.createSubscriptionOnExistingCustomer,
+		stripePriceId: "price_dev_default",
 
 		...initLogEmail(),
 		...initInMemoryEmailVerification(),

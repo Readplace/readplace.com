@@ -16,7 +16,9 @@ import { initInMemoryPasswordReset } from "./providers/password-reset/in-memory-
 import { initInMemoryPendingHtml } from "./providers/pending-html/in-memory-pending-html";
 import { initInMemoryPendingSignup } from "./providers/pending-signup/in-memory-pending-signup";
 import { initInMemoryStripeCheckout } from "./providers/stripe-checkout/in-memory-stripe-checkout";
+import { initInMemoryStripeSubscriptions } from "./providers/stripe-subscriptions/in-memory-stripe-subscriptions";
 import { initInMemorySubscriptionProviders } from "./providers/subscription-providers/in-memory-subscription-providers";
+import { initInMemoryTrialScheduler } from "./providers/trial-scheduler/in-memory-trial-scheduler";
 import { initInMemoryImportSession } from "./providers/import-session/in-memory-import-session";
 import { initInMemorySaveLinkRawHtmlCommand } from "./providers/events/in-memory-save-link-raw-html-command";
 import { initInMemoryExportUserDataCommand } from "./providers/events/in-memory-export-user-data-command";
@@ -233,6 +235,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const stripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const pendingSignup = initInMemoryPendingSignup();
 	const subscriptionProviders = initInMemorySubscriptionProviders({ now: () => new Date() });
+	const trialScheduler = initInMemoryTrialScheduler();
+	const stripeSubscriptions = initInMemoryStripeSubscriptions();
 
 	const botDefenseEvents: BotDefenseEvent[] = [];
 	/** Shared capture handler for every level — production code only ever calls
@@ -328,6 +332,9 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		stripe,
 		pendingSignup,
 		subscriptionProviders,
+		trialScheduler,
+		stripeSubscriptions,
+		stripePriceId: "price_test_default",
 		botDefense: { logger: botDefenseLogger, events: botDefenseEvents },
 		conversions: { logger: conversionLogger, events: conversionEvents },
 		/** Small enough that founding-allocation seed loops finish in

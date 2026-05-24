@@ -422,4 +422,63 @@ export const CancelSubscriptionCommand = defineEvent({
 });
 export type CancelSubscriptionDetail = z.infer<typeof CancelSubscriptionCommand.detailSchema>;
 
+/** Trial-end auto-conversion request. Published by the EventBridge Scheduler
+ * one-shot rule created at trial signup (fires at `trialEndsAt`). Consumed by
+ * the `subscription-start-request` Lambda which reads the row and decides:
+ *   - row missing or not `trialing` → noop (already converted or cancelled)
+ *   - `trialing` + `customerId` → attempt Stripe `subscriptions.create` →
+ *     `SubscriptionChargeSucceeded` / `SubscriptionChargeFailed`
+ *   - `trialing` without `customerId` → publish `SubscriptionChargeFailed`
+ *     immediately with reason `no_card_on_file`. */
+export const SubscriptionStartRequestCommand = defineEvent({
+	name: "subscription-start-request-command",
+	source: "hutch.subscriptions",
+	detailType: "SubscriptionStartRequestCommand",
+	detailSchema: z.object({
+		userId: z.string(),
+	}),
+});
+export type SubscriptionStartRequestDetail = z.infer<
+	typeof SubscriptionStartRequestCommand.detailSchema
+>;
+
+/** Irreversible fact: a Stripe subscription was successfully created on an
+ * existing customer at trial-end. Published by the `subscription-start-request`
+ * Lambda; consumed by the `subscription-charge-succeeded` Lambda which writes
+ * `status='active'` via `upsertActive`. */
+export const SubscriptionChargeSucceededEvent = defineEvent({
+	name: "subscription-charge-succeeded",
+	source: "hutch.subscriptions",
+	detailType: "SubscriptionChargeSucceeded",
+	detailSchema: z.object({
+		userId: z.string(),
+		subscriptionId: z.string(),
+		customerId: z.string(),
+	}),
+});
+export type SubscriptionChargeSucceededDetail = z.infer<
+	typeof SubscriptionChargeSucceededEvent.detailSchema
+>;
+
+/** Irreversible fact: a trial-end charge attempt failed. Reasons:
+ *   - `no_card_on_file` — the trialing row has no `customerId`, so no card
+ *     can be charged. Typical for trials signed up via the no-card path.
+ *   - `stripe_error` — Stripe rejected `subscriptions.create` (declined card,
+ *     expired card, removed payment method, etc.).
+ * Published by the `subscription-start-request` Lambda; consumed by the
+ * `subscription-charge-failed` Lambda which dispatches
+ * `CancelSubscriptionCommand`, closing the loop via the existing cancel chain. */
+export const SubscriptionChargeFailedEvent = defineEvent({
+	name: "subscription-charge-failed",
+	source: "hutch.subscriptions",
+	detailType: "SubscriptionChargeFailed",
+	detailSchema: z.object({
+		userId: z.string(),
+		reason: z.enum(["no_card_on_file", "stripe_error"]),
+	}),
+});
+export type SubscriptionChargeFailedDetail = z.infer<
+	typeof SubscriptionChargeFailedEvent.detailSchema
+>;
+
 export type { HutchEvent, HutchCommand };

@@ -14,6 +14,7 @@ import type {
 import type { SendEmail } from "@packages/test-fixtures/providers/email";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
 import type { UpsertTrialingSubscription } from "@packages/test-fixtures/providers/subscription-providers";
+import type { CreateTrialEndSchedule } from "@packages/test-fixtures/providers/trial-scheduler";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { initSendWelcomeEmail } from "./send-welcome-email";
@@ -55,6 +56,7 @@ interface GoogleAuthDependencies {
 	markEmailVerified: MarkEmailVerified;
 	exchangeGoogleCode: ExchangeGoogleCode;
 	upsertTrialing: UpsertTrialingSubscription;
+	createTrialEndSchedule: CreateTrialEndSchedule;
 	sendEmail: SendEmail;
 	logError: (message: string, error?: Error) => void;
 	now: () => Date;
@@ -241,6 +243,17 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			deps.now().getTime() + STRIPE_TRIAL_PERIOD_DAYS * 86_400_000,
 		).toISOString();
 		await deps.upsertTrialing({ userId: created.userId, trialEndsAt });
+		try {
+			await deps.createTrialEndSchedule({
+				userId: created.userId,
+				firesAt: trialEndsAt,
+			});
+		} catch (err) {
+			deps.logError(
+				"[Google Auth] Trial-end schedule creation failed — continuing without schedule",
+				err instanceof Error ? err : new Error(String(err)),
+			);
+		}
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 		res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);

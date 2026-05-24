@@ -23,6 +23,7 @@ export function initInMemorySubscriptionProviders(opts: {
 	markCancelled: MarkSubscriptionCancelled;
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
+	seedRow: (row: SubscriptionRecord) => void;
 } {
 	const rows = new Map<UserId, SubscriptionRecord>();
 
@@ -109,6 +110,14 @@ export function initInMemorySubscriptionProviders(opts: {
 		});
 	};
 
+	/** Test-only escape hatch for seeding hypothetical row shapes (e.g. a
+	 * trialing row that also has a customerId — production paths never write
+	 * this combination, but the trial-end charge handler must still cover the
+	 * defensive case). DO NOT use in production code. */
+	const seedRow = (row: SubscriptionRecord): void => {
+		rows.set(row.userId, row);
+	};
+
 	return {
 		findByUserId,
 		findBySubscriptionId,
@@ -118,5 +127,6 @@ export function initInMemorySubscriptionProviders(opts: {
 		markCancelled,
 		markCancelledByUserId,
 		markActive,
+		seedRow,
 	};
 }

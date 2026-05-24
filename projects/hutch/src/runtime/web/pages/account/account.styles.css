@@ -38,12 +38,34 @@
 .account-card--inactive {
   border-left-color: var(--error);
 }
+
+.account-card--confirm-cancel {
+  border-left-color: var(--error);
+}
+
+.account-card--error-payment-method {
+  border-left-color: var(--error);
+}
 /* purgecss-ignore-end */
 
 .account-card__status {
   font-size: 1rem;
   margin: 0 0 16px;
   color: var(--foreground);
+}
+
+.account-card__heading {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: var(--foreground);
+}
+
+.account-card__body {
+  font-size: 0.9375rem;
+  margin: 0 0 12px;
+  color: var(--foreground);
+  line-height: 1.45;
 }
 
 .account-card__notice {
@@ -77,10 +99,43 @@
   opacity: 0.9;
 }
 
-.account-card__action-btn--secondary {
-  background: transparent;
+.account-card__cancel-link {
+  font-size: 0.875rem;
   color: var(--foreground);
-  border: 1px solid var(--border);
+  text-decoration: underline;
+}
+
+.account-card__cancel-form {
+  margin: 0 0 12px;
+}
+
+.account-card__cancel-button {
+  display: inline-flex;
+  padding: 10px 18px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 0;
+  cursor: pointer;
+  background: var(--error);
+  color: var(--primary-foreground);
+}
+
+.account-card__cancel-button:hover {
+  opacity: 0.9;
+}
+
+.account-card__keep-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.9375rem;
+  color: var(--foreground);
+  text-decoration: underline;
+}
+
+.account-card__support-link {
+  color: var(--foreground);
+  text-decoration: underline;
 }
 
 .account-card__export-link {

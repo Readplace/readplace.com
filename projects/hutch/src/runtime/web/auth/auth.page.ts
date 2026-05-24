@@ -26,6 +26,10 @@ import type {
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "@packages/test-fixtures/providers/subscription-providers";
+import type {
+	CreateTrialEndSchedule,
+	DeleteTrialEndSchedule,
+} from "@packages/test-fixtures/providers/trial-scheduler";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
 import type { RetrieveCheckoutSession } from "@packages/test-fixtures/providers/stripe-checkout";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
@@ -76,6 +80,10 @@ interface AuthDependencies {
 	subscriptionProviders: {
 		upsertActive: UpsertActiveSubscription;
 		upsertTrialing: UpsertTrialingSubscription;
+	};
+	trialScheduler: {
+		createTrialEndSchedule: CreateTrialEndSchedule;
+		deleteTrialEndSchedule: DeleteTrialEndSchedule;
 	};
 	baseUrl: string;
 	staticBaseUrl: string;
@@ -280,6 +288,17 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			userId: created.userId,
 			trialEndsAt,
 		});
+		try {
+			await deps.trialScheduler.createTrialEndSchedule({
+				userId: created.userId,
+				firesAt: trialEndsAt,
+			});
+		} catch (err) {
+			deps.logError(
+				"[Auth] Trial-end schedule creation failed — continuing without schedule",
+				err instanceof Error ? err : new Error(String(err)),
+			);
+		}
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
 		res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
@@ -360,6 +379,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			}
 
 			await deps.subscriptionProviders.upsertActive({ userId: created.userId, subscriptionId, customerId });
+			await deps.trialScheduler.deleteTrialEndSchedule({ userId: created.userId });
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
 			res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
 			sendVerificationEmail(created.userId, pending.email);
@@ -384,6 +404,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				subscriptionId,
 				customerId,
 			});
+			await deps.trialScheduler.deleteTrialEndSchedule({ userId: pending.userId });
 			res.redirect(303, returnPath);
 			return;
 		}
@@ -402,6 +423,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				await deps.markEmailVerified(pending.email);
 			}
 			await deps.subscriptionProviders.upsertActive({ userId: lookup.userId, subscriptionId, customerId });
+			await deps.trialScheduler.deleteTrialEndSchedule({ userId: lookup.userId });
 			const sessionId = await deps.createSession({ userId: lookup.userId, emailVerified: true });
 			res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
 			res.redirect(303, returnPath);
@@ -409,6 +431,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		}
 
 		await deps.subscriptionProviders.upsertActive({ userId: created.userId, subscriptionId, customerId });
+		await deps.trialScheduler.deleteTrialEndSchedule({ userId: created.userId });
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
 		res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
 		sendWelcomeEmail(pending.email);

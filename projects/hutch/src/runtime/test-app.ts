@@ -70,6 +70,11 @@ import type {
 	UpsertTrialingSubscription,
 } from "@packages/test-fixtures/providers/subscription-providers";
 import type {
+	CreateTrialEndSchedule,
+	DeleteTrialEndSchedule,
+} from "@packages/test-fixtures/providers/trial-scheduler";
+import type { CreateSubscriptionOnExistingCustomer } from "@packages/test-fixtures/providers/stripe-subscriptions";
+import type {
 	ArticleMetadata,
 	Minutes,
 } from "@packages/domain/article";
@@ -149,6 +154,30 @@ export interface SubscriptionProvidersBundle {
 	markCancelled: MarkSubscriptionCancelled;
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
+	seedRow: (row: {
+		userId: import("@packages/domain/user").UserId;
+		provider: "stripe";
+		subscriptionId?: string;
+		customerId?: string;
+		status: "trialing" | "active" | "pending_cancellation" | "cancelled";
+		trialEndsAt?: string;
+		cancellationEffectiveAt?: string;
+		createdAt: string;
+		updatedAt: string;
+	}) => void;
+}
+
+export interface TrialSchedulerBundle {
+	createTrialEndSchedule: CreateTrialEndSchedule;
+	deleteTrialEndSchedule: DeleteTrialEndSchedule;
+	getSchedule: (userId: import("@packages/domain/user").UserId) => string | undefined;
+	allSchedules: () => readonly { userId: import("@packages/domain/user").UserId; firesAt: string }[];
+	deleteCalls: () => readonly import("@packages/domain/user").UserId[];
+}
+
+export interface StripeSubscriptionsBundle {
+	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
+	createdSubscriptions: () => readonly { customerId: string; priceId: string; subscriptionId: string }[];
 }
 
 export interface ArticleStoreBundle {
@@ -296,6 +325,9 @@ export interface TestAppFixture {
 	stripe: StripeCheckoutBundle;
 	pendingSignup: PendingSignupBundle;
 	subscriptionProviders: SubscriptionProvidersBundle;
+	trialScheduler: TrialSchedulerBundle;
+	stripeSubscriptions: StripeSubscriptionsBundle;
+	stripePriceId: string;
 	botDefense: BotDefenseBundle;
 	conversions: ConversionsBundle;
 	foundingAllocation: FoundingAllocationBundle;
@@ -319,6 +351,8 @@ export interface TestAppResult {
 	stripe: StripeCheckoutBundle;
 	pendingSignup: PendingSignupBundle;
 	subscriptionProviders: SubscriptionProvidersBundle;
+	trialScheduler: TrialSchedulerBundle;
+	stripeSubscriptions: StripeSubscriptionsBundle;
 	botDefense: BotDefenseBundle;
 	conversions: ConversionsBundle;
 	analytics: AnalyticsBundle;
@@ -396,6 +430,13 @@ function flattenFixtureToAppDependencies(
 			upsertTrialing: fixture.subscriptionProviders.upsertTrialing,
 			findByUserId: fixture.subscriptionProviders.findByUserId,
 		},
+		trialScheduler: {
+			createTrialEndSchedule: fixture.trialScheduler.createTrialEndSchedule,
+			deleteTrialEndSchedule: fixture.trialScheduler.deleteTrialEndSchedule,
+		},
+		createSubscriptionOnExistingCustomer:
+			fixture.stripeSubscriptions.createSubscriptionOnExistingCustomer,
+		stripePriceId: fixture.stripePriceId,
 		botDefenseLogger: fixture.botDefense.logger,
 		conversionLogger: fixture.conversions.logger,
 		analytics: analyticsBundle.logger,
@@ -427,6 +468,8 @@ export function createTestApp(fixture: TestAppFixture): TestAppResult {
 		stripe: fixture.stripe,
 		pendingSignup: fixture.pendingSignup,
 		subscriptionProviders: fixture.subscriptionProviders,
+		trialScheduler: fixture.trialScheduler,
+		stripeSubscriptions: fixture.stripeSubscriptions,
 		botDefense: fixture.botDefense,
 		conversions: fixture.conversions,
 		analytics: analyticsBundle,

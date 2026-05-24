@@ -1,5 +1,8 @@
 import { z } from "zod";
-import type { CancelSubscriptionImmediately } from "@packages/test-fixtures/providers/stripe-subscriptions";
+import type {
+	CancelSubscriptionImmediately,
+	CreateSubscriptionOnExistingCustomer,
+} from "@packages/test-fixtures/providers/stripe-subscriptions";
 
 const STRIPE_API = "https://api.stripe.com/v1";
 
@@ -11,11 +14,16 @@ const StripeErrorResponse = z.object({
 	}),
 });
 
+const StripeSubscriptionResponse = z.object({
+	id: z.string(),
+});
+
 export function initStripeSubscriptions(deps: {
 	apiKey: string;
 	fetch: typeof globalThis.fetch;
 }): {
 	cancelImmediately: CancelSubscriptionImmediately;
+	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 } {
 	const authHeader = { Authorization: `Bearer ${deps.apiKey}` };
 
@@ -40,5 +48,38 @@ export function initStripeSubscriptions(deps: {
 		}
 	};
 
-	return { cancelImmediately };
+	const createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer = async ({
+		customerId,
+		priceId,
+	}) => {
+		const body = new URLSearchParams();
+		body.set("customer", customerId);
+		body.set("items[0][price]", priceId);
+
+		const response = await deps.fetch(`${STRIPE_API}/subscriptions`, {
+			method: "POST",
+			headers: {
+				...authHeader,
+				"Content-Type": "application/x-www-form-urlencoded",
+			},
+			body: body.toString(),
+		});
+
+		if (!response.ok) {
+			const json = await response.json();
+			const parsed = StripeErrorResponse.safeParse(json);
+			const message = parsed.success
+				? parsed.data.error.message ?? "Stripe error"
+				: "Stripe error";
+			throw new Error(
+				`Stripe createSubscriptionOnExistingCustomer failed (${response.status}): ${message}`,
+			);
+		}
+
+		const json = await response.json();
+		const subscription = StripeSubscriptionResponse.parse(json);
+		return { subscriptionId: subscription.id };
+	};
+
+	return { cancelImmediately, createSubscriptionOnExistingCustomer };
 }

@@ -57,7 +57,7 @@ describe("GET /account (founding member, no subscription row)", () => {
 });
 
 describe("GET /account (active paid subscription)", () => {
-	it("renders the active card with a Cancel form and no Subscribe form", async () => {
+	it("renders the active card with a Cancel LINK (not a POST form) and no Subscribe form", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "active@example.com");
@@ -74,16 +74,102 @@ describe("GET /account (active paid subscription)", () => {
 		const card = findCard(doc);
 		expect(card.classList.contains("account-card--active")).toBe(true);
 		expect(card.getAttribute("data-test-account-state")).toBe("active");
-		const cancelForm = doc.querySelector("[data-test-account-cancel-form]");
-		assert(cancelForm, "cancel form must be present for active users");
-		expect(cancelForm.getAttribute("action")).toBe("/account/cancel");
-		expect(cancelForm.getAttribute("method")?.toUpperCase()).toBe("POST");
+		// Phase 3: the Cancel button on the active card is now a GET link to
+		// the confirmation step, NOT a destructive POST form.
+		const cancelLink = doc.querySelector("[data-test-account-cancel-link]");
+		assert(cancelLink, "cancel LINK must be present for active users");
+		expect(cancelLink.getAttribute("href")).toBe("/account?confirm=cancel");
+		expect(doc.querySelector("[data-test-account-cancel-form]")).toBeNull();
 		expect(doc.querySelector("[data-test-account-subscribe-form]")).toBeNull();
 	});
 });
 
+describe("GET /account?confirm=cancel (active user)", () => {
+	it("renders the confirmation step with reassurance copy, a destructive POST form and a keep-link", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "confirm@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_confirm",
+			customerId: "cus_confirm",
+		});
+
+		const response = await agent.get("/account?confirm=cancel");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const card = findCard(doc);
+		expect(card.classList.contains("account-card--confirm-cancel")).toBe(true);
+		expect(card.getAttribute("data-test-account-state")).toBe("confirm-cancel");
+
+		const heading = doc.querySelector("[data-test-account-confirm-heading]");
+		assert(heading, "confirmation heading must render");
+		expect(heading.textContent).toContain("Cancel your subscription?");
+
+		const cardText = card.textContent ?? "";
+		expect(cardText).toContain("export your data after cancellation");
+
+		const cancelForm = doc.querySelector("[data-test-account-cancel-form]");
+		assert(cancelForm, "destructive POST form must live inside confirmation");
+		expect(cancelForm.getAttribute("action")).toBe("/account/cancel");
+		expect(cancelForm.getAttribute("method")?.toUpperCase()).toBe("POST");
+
+		const keepLink = doc.querySelector("[data-test-account-keep-link]");
+		assert(keepLink, "keep-link must allow exit from the confirmation step");
+		expect(keepLink.getAttribute("href")).toBe("/account");
+	});
+
+	it("falls through to the underlying state when confirm=cancel is set but the user is not active", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/account?confirm=cancel");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const card = findCard(doc);
+		// Founding state — the confirm step does not apply.
+		expect(card.classList.contains("account-card--confirm-cancel")).toBe(false);
+		expect(card.classList.contains("account-card--founding")).toBe(true);
+	});
+});
+
+describe("GET /account?error=payment_method", () => {
+	it("renders the payment-method error card with a support email link and an export link", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "pay-err@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_pay_err",
+			customerId: "cus_pay_err",
+		});
+		await subscriptionProviders.markCancelled({ subscriptionId: "sub_pay_err" });
+
+		const response = await agent.get("/account?error=payment_method");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const card = findCard(doc);
+		expect(card.classList.contains("account-card--error-payment-method")).toBe(true);
+		expect(card.getAttribute("data-test-account-state")).toBe("error-payment-method");
+
+		const heading = doc.querySelector("[data-test-account-error-heading]");
+		assert(heading, "error heading must render");
+
+		const supportLink = doc.querySelector("[data-test-account-support-link]");
+		assert(supportLink, "support email link must render");
+		expect(supportLink.getAttribute("href")).toBe("mailto:support@readplace.com");
+
+		const exportLink = doc.querySelector("[data-test-account-export-link]");
+		assert(exportLink, "export link must render in error card");
+		expect(exportLink.getAttribute("href")).toBe("/export");
+	});
+});
+
 describe("GET /account (trialing inside trial window)", () => {
-	it("renders the trial card with days-left text, Subscribe and Cancel forms", async () => {
+	it("renders the trial card with days-left text, Subscribe form and a Cancel LINK", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "trial@example.com");
@@ -105,9 +191,9 @@ describe("GET /account (trialing inside trial window)", () => {
 		const subscribeForm = doc.querySelector("[data-test-account-subscribe-form]");
 		assert(subscribeForm, "subscribe form must be present for trial users");
 		expect(subscribeForm.getAttribute("action")).toBe("/account/subscribe");
-		const cancelForm = doc.querySelector("[data-test-account-cancel-form]");
-		assert(cancelForm, "cancel form must be present for trial users");
-		expect(cancelForm.getAttribute("action")).toBe("/account/cancel");
+		const cancelLink = doc.querySelector("[data-test-account-cancel-link]");
+		assert(cancelLink, "cancel LINK must be present for trial users");
+		expect(cancelLink.getAttribute("href")).toBe("/account?confirm=cancel");
 	});
 });
 
@@ -276,16 +362,75 @@ describe("POST /account/subscribe", () => {
 		expect(stripe.getTrialPeriodDays(sessionId)).toBe(0);
 	});
 
-	it("creates a Stripe checkout session with the default trial period for a cancelled user", async () => {
+	it("Phase 3: cancelled user with customerId resubscribes in ONE click via Stripe subscriptions.create (NO checkout UI)", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders, stripe } = harness;
-		const { agent, userId } = await loginUser(harness, "cancelled-subscribe@example.com");
+		const { subscriptionProviders, stripeSubscriptions } = harness;
+		const { agent, userId } = await loginUser(harness, "one-click@example.com");
 		await subscriptionProviders.upsertActive({
 			userId,
 			subscriptionId: "sub_was_paid",
 			customerId: "cus_was_paid",
 		});
 		await subscriptionProviders.markCancelled({ subscriptionId: "sub_was_paid" });
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		// The one-click path calls Stripe subscriptions.create with the saved customer.
+		const created = stripeSubscriptions.createdSubscriptions();
+		expect(created).toHaveLength(1);
+		expect(created[0].customerId).toBe("cus_was_paid");
+		expect(created[0].priceId).toBe("price_test_default");
+
+		// Row is now active with the NEW subscriptionId, replacing sub_was_paid.
+		const row = await subscriptionProviders.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.status).toBe("active");
+		expect(row.subscriptionId).toBe(created[0].subscriptionId);
+		expect(row.customerId).toBe("cus_was_paid");
+	});
+
+	it("Phase 3: cancelled user with customerId — Stripe throws → 303 to /account?error=payment_method, row unchanged", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		// Replace the stripe subscriptions wrapper with one that throws.
+		fixture.stripeSubscriptions.createSubscriptionOnExistingCustomer = async () => {
+			throw new Error("card_declined");
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "card-declined@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_was_paid",
+			customerId: "cus_will_fail",
+		});
+		await subscriptionProviders.markCancelled({ subscriptionId: "sub_was_paid" });
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=payment_method");
+
+		// Row must remain cancelled — no double-write.
+		const row = await subscriptionProviders.findByUserId(userId);
+		assert(row, "row must still exist");
+		expect(row.status).toBe("cancelled");
+	});
+
+	it("Phase 3: cancelled user WITHOUT customerId (defensive) falls back to the Stripe checkout flow", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, stripe } = harness;
+		const { agent, userId } = await loginUser(harness, "no-customer@example.com");
+		// Seed a cancelled row with NO customerId — out-of-band shape that the
+		// defensive path must still handle without crashing.
+		subscriptionProviders.seedRow({
+			userId,
+			provider: "stripe",
+			status: "cancelled",
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
 
 		const response = await agent.post("/account/subscribe");
 

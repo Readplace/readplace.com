@@ -7,6 +7,9 @@ import {
 	CancelSubscriptionCommand,
 	ExportUserDataCommand,
 	SubscriptionCancelledEvent,
+	SubscriptionChargeFailedEvent,
+	SubscriptionChargeSucceededEvent,
+	SubscriptionStartRequestCommand,
 } from "@packages/hutch-infra-components";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
 import { PARSE_ERROR_STREAM, CRAWL_OUTCOME_STREAM } from "@packages/hutch-infra-components";
@@ -18,6 +21,7 @@ import { requireEnv } from "../runtime/domain/require-env";
 
 const config = new pulumi.Config();
 const stage = config.require("stage");
+const trialSchedulerGroupName = config.require("trialSchedulerGroupName");
 const domains = config.getObject<string[]>("domains") ?? [];
 const deletionProtection = config.requireBoolean("deletionProtection");
 const staticDomains = config.requireObject<string[]>("staticDomains");
@@ -134,6 +138,97 @@ export const appOrigin: pulumi.Input<string> = canonicalDomain
 	? `https://${canonicalDomain}`
 	: api.apiEndpoint;
 
+// --- EventBridge Scheduler Group + Execution Role ---
+// One-shot schedules created at trial signup live in a dedicated group so a
+// stage's schedules are isolated from prod. The scheduler-execution role is
+// assumed by the EventBridge Scheduler service when a schedule fires; it has
+// permission to put events on the hutch bus (which then routes the
+// SubscriptionStartRequestCommand to the subscription-start-request Lambda).
+
+const trialSchedulerGroup = new aws.scheduler.ScheduleGroup(
+	"hutch-trial-scheduler-group",
+	{ name: trialSchedulerGroupName },
+);
+
+const trialSchedulerRole = new aws.iam.Role("hutch-trial-scheduler-role", {
+	assumeRolePolicy: JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [
+			{
+				Effect: "Allow",
+				Principal: { Service: "scheduler.amazonaws.com" },
+				Action: "sts:AssumeRole",
+			},
+		],
+	}),
+});
+
+new aws.iam.RolePolicy("hutch-trial-scheduler-role-policy", {
+	role: trialSchedulerRole.id,
+	policy: pulumi.all([eventBus.eventBusArn]).apply(([busArn]) =>
+		JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [
+				{
+					Effect: "Allow",
+					Action: ["events:PutEvents"],
+					Resource: busArn,
+				},
+			],
+		}),
+	),
+});
+
+const trialSchedulerManagePolicyDoc = pulumi
+	.all([trialSchedulerGroup.arn, trialSchedulerRole.arn])
+	.apply(([groupArn, roleArn]) =>
+		JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [
+				{
+					Effect: "Allow",
+					Action: ["scheduler:CreateSchedule", "scheduler:DeleteSchedule"],
+					Resource: `${groupArn.replace(":schedule-group/", ":schedule/")}*`,
+				},
+				{
+					Effect: "Allow",
+					Action: ["scheduler:CreateSchedule"],
+					Resource: groupArn,
+				},
+				{
+					Effect: "Allow",
+					Action: ["iam:PassRole"],
+					Resource: roleArn,
+				},
+			],
+		}),
+	);
+
+const trialSchedulerManagePolicy = {
+	name: "hutch-trial-scheduler-manage",
+	policy: trialSchedulerManagePolicyDoc,
+};
+
+const trialSchedulerDeletePolicyDoc = pulumi
+	.all([trialSchedulerGroup.arn])
+	.apply(([groupArn]) =>
+		JSON.stringify({
+			Version: "2012-10-17",
+			Statement: [
+				{
+					Effect: "Allow",
+					Action: ["scheduler:DeleteSchedule"],
+					Resource: `${groupArn.replace(":schedule-group/", ":schedule/")}*`,
+				},
+			],
+		}),
+	);
+
+const trialSchedulerDeletePolicy = {
+	name: "hutch-trial-scheduler-delete",
+	policy: trialSchedulerDeletePolicyDoc,
+};
+
 const lambda = new HutchLambda("hutch", {
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/hutch-api",
@@ -161,16 +256,20 @@ const lambda = new HutchLambda("hutch", {
 		STRIPE_PRICE_ID: requireEnv("STRIPE_PRICE_ID"),
 		STATIC_BASE_URL: staticAssets.baseUrl,
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		EVENT_BUS_ARN: eventBus.eventBusArn,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
 		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
 		ADMIN_EMAILS: requireEnv("ADMIN_EMAILS"),
 		RECRAWL_SERVICE_TOKEN: requireEnv("RECRAWL_SERVICE_TOKEN"),
+		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
+		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
 	},
 	policies: [
 		...dynamodb.policies,
 		...HutchS3ReadWrite.readPoliciesForBucket("hutch-content-s3", contentBucketName),
 		...HutchS3ReadWrite.writePoliciesForBucket("hutch-pending-html", pendingHtmlBucketName),
+		trialSchedulerManagePolicy,
 	],
 });
 
@@ -416,9 +515,11 @@ const cancelSubscriptionLambda = new HutchLambda("cancel-subscription", {
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
 	},
 	policies: [
 		...cancelSubscriptionDynamodb.policies,
+		trialSchedulerDeletePolicy,
 	],
 });
 
@@ -432,6 +533,118 @@ const cancelSubscriptionWithSQS = new HutchSQSBackedLambda("cancel-subscription"
 });
 
 eventBus.subscribe(CancelSubscriptionCommand, cancelSubscriptionWithSQS);
+
+// --- Subscription Start Request (trial-end auto-charge) ---
+// SQS-backed Lambda invoked by the EventBridge Scheduler one-shot rule created
+// at trial signup. Reads the subscription_providers row, attempts a Stripe
+// subscriptions.create on an existing customer if one is present (rare —
+// no-card trials are the typical case), and publishes either
+// SubscriptionChargeSucceeded or SubscriptionChargeFailed. Failed messages
+// land in a DLQ with an email alarm.
+
+const subscriptionStartRequestDynamodb = new HutchDynamoDBAccess("subscription-start-request-dynamodb", {
+	tables: [{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem"],
+});
+
+const subscriptionStartRequestQueue = new HutchSQS("subscription-start-request", {
+	visibilityTimeoutSeconds: 30,
+});
+
+const subscriptionStartRequestLambda = new HutchLambda("subscription-start-request", {
+	entryPoint: "./src/runtime/subscription-start-request.main.ts",
+	outputDir: ".lib/subscription-start-request",
+	assetDir: "./src/runtime",
+	memorySize: 128,
+	timeout: 30,
+	environment: {
+		PERSISTENCE: "prod",
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
+		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
+		STRIPE_PRICE_ID: requireEnv("STRIPE_PRICE_ID"),
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [...subscriptionStartRequestDynamodb.policies],
+});
+
+eventBus.grantPublish(subscriptionStartRequestLambda);
+
+const subscriptionStartRequestWithSQS = new HutchSQSBackedLambda("subscription-start-request", {
+	lambda: subscriptionStartRequestLambda,
+	queue: subscriptionStartRequestQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(SubscriptionStartRequestCommand, subscriptionStartRequestWithSQS);
+
+// --- Subscription Charge Succeeded ---
+// SQS-backed Lambda that flips the row to status='active' when the trial-end
+// charge attempt succeeds. Failed messages land in a DLQ.
+
+const subscriptionChargeSucceededDynamodb = new HutchDynamoDBAccess("subscription-charge-succeeded-dynamodb", {
+	tables: [{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:UpdateItem"],
+});
+
+const subscriptionChargeSucceededQueue = new HutchSQS("subscription-charge-succeeded", {
+	visibilityTimeoutSeconds: 30,
+});
+
+const subscriptionChargeSucceededLambda = new HutchLambda("subscription-charge-succeeded", {
+	entryPoint: "./src/runtime/subscription-charge-succeeded.main.ts",
+	outputDir: ".lib/subscription-charge-succeeded",
+	assetDir: "./src/runtime",
+	memorySize: 128,
+	timeout: 30,
+	environment: {
+		PERSISTENCE: "prod",
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
+	},
+	policies: [...subscriptionChargeSucceededDynamodb.policies],
+});
+
+const subscriptionChargeSucceededWithSQS = new HutchSQSBackedLambda("subscription-charge-succeeded", {
+	lambda: subscriptionChargeSucceededLambda,
+	queue: subscriptionChargeSucceededQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(SubscriptionChargeSucceededEvent, subscriptionChargeSucceededWithSQS);
+
+// --- Subscription Charge Failed ---
+// SQS-backed Lambda that dispatches CancelSubscriptionCommand when the
+// trial-end charge attempt fails (no card on file or Stripe error). The
+// downstream cancel chain takes over from there.
+
+const subscriptionChargeFailedQueue = new HutchSQS("subscription-charge-failed", {
+	visibilityTimeoutSeconds: 30,
+});
+
+const subscriptionChargeFailedLambda = new HutchLambda("subscription-charge-failed", {
+	entryPoint: "./src/runtime/subscription-charge-failed.main.ts",
+	outputDir: ".lib/subscription-charge-failed",
+	assetDir: "./src/runtime",
+	memorySize: 128,
+	timeout: 30,
+	environment: {
+		PERSISTENCE: "prod",
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [],
+});
+
+eventBus.grantPublish(subscriptionChargeFailedLambda);
+
+const subscriptionChargeFailedWithSQS = new HutchSQSBackedLambda("subscription-charge-failed", {
+	lambda: subscriptionChargeFailedLambda,
+	queue: subscriptionChargeFailedQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(SubscriptionChargeFailedEvent, subscriptionChargeFailedWithSQS);
 
 // --- Analytics Dashboard ---
 
