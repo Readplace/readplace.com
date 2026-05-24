@@ -103,6 +103,20 @@ body {
   margin: 1.25rem 0;
 }
 
+/**
+ * 1. Wide tables (common in extracted PDFs) would otherwise push past the
+ *    iframe width. The horizontal scrollbar that appears on the iframe then
+ *    steals vertical space at the bottom, which forces the browser to add a
+ *    vertical scrollbar too — even though reader-iframe.client.ts sized the
+ *    iframe to its content height. Contain the overflow inside the table
+ *    itself so neither iframe scrollbar appears.
+ */
+.article-body__content table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .article-body__content code {
   font-size: 0.875em;
   padding: 0.15em 0.3em;

@@ -55,6 +55,21 @@ describe("buildReaderIframeSrcdoc", () => {
 		expect(css).toContain("background: transparent");
 	});
 
+	it("contains wide tables inside themselves so they do not push the iframe horizontally and trigger a stray vertical scrollbar", () => {
+		const srcdoc = buildReaderIframeSrcdoc({ content: "" });
+		const doc = new JSDOM(srcdoc).window.document;
+		const style = doc.querySelector("style");
+		assert(style, "style block must exist");
+		const css = style.textContent ?? "";
+
+		expect(css).toMatch(
+			/\.article-body__content\s+table\s*{[^}]*overflow-x:\s*auto/,
+		);
+		expect(css).toMatch(
+			/\.article-body__content\s+table\s*{[^}]*max-width:\s*100%/,
+		);
+	});
+
 	it("does not strip the article content's own tags (the sandbox is responsible for isolation)", () => {
 		const dangerous =
 			'<p>safe</p><style>html{display:none}</style><img onerror="x">';
