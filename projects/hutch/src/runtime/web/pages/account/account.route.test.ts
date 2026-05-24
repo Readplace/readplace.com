@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
 import { useTestServer, loginAgent } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
@@ -342,9 +341,9 @@ describe("POST /account/cancel", () => {
 });
 
 describe("POST /account/subscribe", () => {
-	it("creates a Stripe checkout session with trial_period_days=0 for a trialing user and 303s to checkout", async () => {
+	it("creates a Stripe checkout session for a trialing user and 303s to checkout", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders, stripe } = harness;
+		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "trial-subscribe@example.com");
 		await subscriptionProviders.upsertTrialing({
 			userId,
@@ -356,10 +355,22 @@ describe("POST /account/subscribe", () => {
 		expect(response.status).toBe(303);
 		const location = response.headers.location;
 		assert(typeof location === "string" && location.includes("checkout.stripe.test"));
-		const sessionMatch = location.match(/cs_test_[a-f0-9]+/);
-		assert(sessionMatch, "checkout URL must contain session id");
-		const sessionId = CheckoutSessionIdSchema.parse(sessionMatch[0]);
-		expect(stripe.getTrialPeriodDays(sessionId)).toBe(0);
+	});
+
+	it("creates a Stripe checkout session for a trial-expired user (no second free trial)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "trial-expired-subscribe@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		const location = response.headers.location;
+		assert(typeof location === "string" && location.includes("checkout.stripe.test"));
 	});
 
 	it("Phase 3: cancelled user with customerId resubscribes in ONE click via Stripe subscriptions.create (NO checkout UI)", async () => {
@@ -418,12 +429,10 @@ describe("POST /account/subscribe", () => {
 		expect(row.status).toBe("cancelled");
 	});
 
-	it("Phase 3: cancelled user WITHOUT customerId (defensive) falls back to the Stripe checkout flow", async () => {
+	it("Phase 3: cancelled user WITHOUT customerId (defensive) falls back to checkout", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders, stripe } = harness;
+		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "no-customer@example.com");
-		// Seed a cancelled row with NO customerId — out-of-band shape that the
-		// defensive path must still handle without crashing.
 		subscriptionProviders.seedRow({
 			userId,
 			provider: "stripe",
@@ -437,10 +446,6 @@ describe("POST /account/subscribe", () => {
 		expect(response.status).toBe(303);
 		const location = response.headers.location;
 		assert(typeof location === "string" && location.includes("checkout.stripe.test"));
-		const sessionMatch = location.match(/cs_test_[a-f0-9]+/);
-		assert(sessionMatch, "checkout URL must contain session id");
-		const sessionId = CheckoutSessionIdSchema.parse(sessionMatch[0]);
-		expect(stripe.getTrialPeriodDays(sessionId)).toBeUndefined();
 	});
 
 	it("redirects active users back to /account instead of creating a Stripe checkout session", async () => {

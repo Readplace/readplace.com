@@ -140,7 +140,6 @@ export interface StripeCheckoutBundle {
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	markPaid: (id: CheckoutSessionId) => void;
 	getCheckoutUrl: (id: CheckoutSessionId) => string;
-	getTrialPeriodDays: (id: CheckoutSessionId) => number | undefined;
 }
 
 export interface PendingSignupBundle {
