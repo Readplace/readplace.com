@@ -55,16 +55,6 @@ export function initStripeCheckout(deps: {
 			cancel_url: cancelUrl,
 			"payment_method_types[0]": "card",
 			allow_promotion_codes: "true",
-			/**
-			 * 1. Save the collected card as the subscription's default payment method.
-			 *    Stripe then charges renewals AND any later off_session API call
-			 *    (price increase, plan change, post-cancel re-subscribe via
-			 *    `subscriptions.create` with this customer) without bouncing the
-			 *    user back through SCA. Without it Stripe may keep the
-			 *    PaymentMethod attached but not flagged as default, and the next
-			 *    invoice can fail with `authentication_required`.
-			 */
-			"subscription_data[payment_settings][save_default_payment_method]": "on_subscription", /* 1 */
 		});
 
 		const response = await deps.fetch(`${STRIPE_API}/checkout/sessions`, {

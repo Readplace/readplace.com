@@ -106,24 +106,16 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				res.redirect(303, checkout.url);
 				return;
 			}
-			try {
-				const { subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
-					customerId: row.customerId,
-					priceId: deps.stripePriceId,
-				});
-				await deps.upsertActiveSubscription({
-					userId,
-					subscriptionId,
-					customerId: row.customerId,
-				});
-				res.redirect(303, buildAccountUrl());
-			} catch (err) {
-				deps.logger.error(
-					"[subscribe/cancelled] createSubscriptionOnExistingCustomer failed",
-					{ userId, error: err instanceof Error ? err.message : String(err) },
-				);
-				res.redirect(303, ACCOUNT_ERROR_PAYMENT_METHOD_URL);
-			}
+			const { subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
+				customerId: row.customerId,
+				priceId: deps.stripePriceId,
+			});
+			await deps.upsertActiveSubscription({
+				userId,
+				subscriptionId,
+				customerId: row.customerId,
+			});
+			res.redirect(303, buildAccountUrl());
 		},
 		noop: async (_req, res) => {
 			res.redirect(303, buildAccountUrl());
@@ -137,7 +129,19 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const row = await deps.findSubscriptionByUserId(req.userId);
 		const branch = pickSubscribeBranch(row?.status);
-		await subscribeBranches[branch](req, res);
+		try {
+			await subscribeBranches[branch](req, res);
+		} catch (err) {
+			/** Single route-level catch keeps every branch resilient: Stripe
+			 * (checkout create, subscriptions.create), DynamoDB (pending-signup
+			 * write, upsertActive) or any other downstream failure redirects to
+			 * the payment-method error page instead of crashing the Lambda. */
+			deps.logger.error(`[subscribe/${branch}] failed`, {
+				userId: req.userId,
+				error: err instanceof Error ? err.message : String(err),
+			});
+			res.redirect(303, ACCOUNT_ERROR_PAYMENT_METHOD_URL);
+		}
 	});
 
 	return router;
