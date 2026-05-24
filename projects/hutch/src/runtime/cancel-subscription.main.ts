@@ -14,8 +14,6 @@ const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_T
 const stripeApiKey = requireEnv("STRIPE_SECRET_KEY");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const trialSchedulerGroupName = requireEnv("TRIAL_SCHEDULER_GROUP_NAME");
-const trialSchedulerRoleArn = requireEnv("TRIAL_SCHEDULER_ROLE_ARN");
-const eventBusArn = requireEnv("EVENT_BUS_ARN");
 
 const subscriptionProviders = initDynamoDbSubscriptionProviders({
 	client: createDynamoDocumentClient(),
@@ -38,8 +36,6 @@ const { publishSubscriptionCancelled } = initEventBridgeSubscriptionCancelled({ 
 const trialScheduler = initAwsTrialScheduler({
 	client: new SchedulerClient({}),
 	scheduleGroupName: trialSchedulerGroupName,
-	schedulerRoleArn: trialSchedulerRoleArn,
-	eventBusArn,
 });
 
 export const handler = initCancelSubscriptionHandler({

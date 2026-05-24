@@ -515,9 +515,7 @@ const cancelSubscriptionLambda = new HutchLambda("cancel-subscription", {
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
 		EVENT_BUS_NAME: eventBus.eventBusName,
-		EVENT_BUS_ARN: eventBus.eventBusArn,
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
-		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
 	},
 	policies: [
 		...cancelSubscriptionDynamodb.policies,

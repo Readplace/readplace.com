@@ -95,8 +95,6 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
-				schedulerRoleArn: ROLE_ARN,
-				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await scheduler.deleteTrialEndSchedule({ userId: USER_ID });
@@ -115,8 +113,6 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
-				schedulerRoleArn: ROLE_ARN,
-				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await assert.doesNotReject(scheduler.deleteTrialEndSchedule({ userId: USER_ID }));
@@ -129,8 +125,6 @@ describe("initAwsTrialScheduler", () => {
 			const scheduler = initAwsTrialScheduler({
 				client,
 				scheduleGroupName: GROUP_NAME,
-				schedulerRoleArn: ROLE_ARN,
-				eventBusArn: EVENT_BUS_ARN,
 			});
 
 			await assert.rejects(scheduler.deleteTrialEndSchedule({ userId: USER_ID }), /Internal failure/);
