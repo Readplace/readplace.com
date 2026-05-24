@@ -961,7 +961,7 @@ describe("appendResidentialProxyPersona", () => {
 	});
 
 	it("appends a residential-proxy persona at the end when proxyUrl is set", () => {
-		const proxyUrl = "http://user:pass@brd.superproxy.io:22225";
+		const proxyUrl = "http://user:pass@p.webshare.io:80";
 		const result = appendResidentialProxyPersona(CRAWL_PERSONAS, proxyUrl);
 		expect(result).toHaveLength(CRAWL_PERSONAS.length + 1);
 		const last = result[result.length - 1];

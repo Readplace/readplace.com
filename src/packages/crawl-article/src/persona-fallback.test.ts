@@ -200,13 +200,13 @@ describe("withPersonaFallback", () => {
 		const proxyPersona: Persona = {
 			name: "with-proxy",
 			headers: { "user-agent": "Test/1.0" },
-			proxy: "http://user:pass@brd.superproxy.io:22225",
+			proxy: "http://user:pass@p.webshare.io:80",
 		};
 		const wrapped = withPersonaFallback(inner as typeof fetch, [proxyPersona]);
 
 		await wrapped("https://example.com");
 
-		expect(captured[0].proxy).toBe("http://user:pass@brd.superproxy.io:22225");
+		expect(captured[0].proxy).toBe("http://user:pass@p.webshare.io:80");
 	});
 
 	it("omits proxy from the inner init for personas that don't carry one", async () => {

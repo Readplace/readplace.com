@@ -192,7 +192,7 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		// after both free personas fail and egresses via a non-AWS IP, which
 		// Akamai treats as a real browser. If this entry fails, the
 		// residential-proxy persona is broken (missing env var, proxy
-		// credentials rotated, Bright Data zone disabled) — fix the proxy, do
+		// credentials rotated, Webshare account suspended / quota exhausted) — fix the proxy, do
 		// not delete the entry.
 		label: "PDF (USDA via Akamai — AWS-IP gated)",
 		url: "https://www.rd.usda.gov/sites/default/files/pdf-sample_0.pdf",

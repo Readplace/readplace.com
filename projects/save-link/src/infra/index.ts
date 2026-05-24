@@ -129,9 +129,10 @@ const contentMediaCdn = new HutchS3ContentMediaCDN("content-media", {
 const deepseekApiKey = pulumi.secret(requireEnv("DEEPSEEK_API_KEY"));
 const deepInfraApiKey = pulumi.secret(requireEnv("DEEPINFRA_API_KEY"));
 /**
- * Residential-proxy egress URL (Bright Data PAYG zone) consumed by the
- * crawler when the in-AWS direct egress hits an IP-class block. Same
- * GitHub-Actions-secret → requireEnv pattern as DEEPINFRA_API_KEY. Empty
+ * Residential-proxy egress URL (any HTTP(S) residential proxy — current
+ * provider: Webshare Rotating Residential, `http://USER:PASS@p.webshare.io:80`)
+ * consumed by the crawler when the in-AWS direct egress hits an IP-class block.
+ * Same GitHub-Actions-secret → requireEnv pattern as DEEPINFRA_API_KEY. Empty
  * value disables the residential-proxy persona at runtime (the runtime's
  * `getEnv` returns undefined for empty strings).
  */
