@@ -10,7 +10,6 @@
         {{/if}}
         {{#if subscriptionBannerIsInactive}}
         <p class="queue-banner__message"><strong>Subscription not active.</strong> Your saved articles are still here.</p>
-        <a class="queue-banner__cta" href="/account">Subscribe — $3.99/month</a>
         {{/if}}
       </aside>
       <form class="{{saveFormClass}}" method="POST" action="/queue/save" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:#latest-saved:top" hx-disabled-elt=".queue__save-btn" data-test-form="save-article"{{#if saveUrl}} data-auto-submit{{/if}}>

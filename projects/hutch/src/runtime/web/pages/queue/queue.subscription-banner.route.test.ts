@@ -138,8 +138,10 @@ describe("Queue page banner state", () => {
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "queue banner must always be rendered");
 		expect(banner.classList.contains("queue-banner--inactive")).toBe(true);
-		expect(banner.textContent).toContain("Subscription not active.");
-		expect(banner.querySelector(".queue-banner__cta")?.getAttribute("href")).toBe("/account");
+		/** Subscribe CTA lives on /account — /queue surfaces only the copy. */
+		expect(banner.textContent?.replace(/\s+/g, " ").trim()).toBe(
+			"Subscription not active. Your saved articles are still here.",
+		);
 		const countdown = doc.querySelector("[data-test-trial-countdown]");
 		assert(countdown, "header countdown must be rendered for inactive users");
 		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
