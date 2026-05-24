@@ -44,10 +44,8 @@ import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { ViewLandingPage } from "./view-landing.component";
 import type { ExistsUserByIdPrefix } from "@packages/test-fixtures/providers/auth";
-import { PERMANENT_ARTICLE_DOMAINS, computePublicViewExpiry, formatSaveUtmContent, sharedUserIdFrom, sharedUserIdFromQueryParams } from "./view-expiry";
+import { PERMANENT_ARTICLE_DOMAINS, computePublicViewExpiry, formatSaveUtmContent, sharedUserIdFrom, sharedUserIdFromQueryParams, type ExpiryCountdown } from "./view-expiry";
 import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.component";
-
-export type ExpiryCountdown = "enabled" | "disabled";
 
 interface ViewDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;

@@ -16,6 +16,7 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
 } from "@packages/test-fixtures";
+import { calculateReadTime } from "@packages/domain/article";
 import { MAX_POLLS } from "../../shared/article-reader/article-reader";
 
 const ARTICLE_URL = "https://example.com/post";
@@ -1211,7 +1212,7 @@ describe("View routes", () => {
 			await fixture.articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
 				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
-				estimatedReadTime: 1 as never,
+				estimatedReadTime: calculateReadTime(0),
 				savedAt: new Date("2026-05-03T13:54:27.000Z"),
 			});
 
@@ -1262,7 +1263,7 @@ describe("View routes", () => {
 			await fixture.articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
 				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
-				estimatedReadTime: 1 as never,
+				estimatedReadTime: calculateReadTime(0),
 				savedAt: new Date("2026-05-03T13:54:27.000Z"),
 			});
 
@@ -1282,7 +1283,7 @@ describe("View routes", () => {
 			await fixture.articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
 				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
-				estimatedReadTime: 1 as never,
+				estimatedReadTime: calculateReadTime(0),
 				savedAt: new Date("2026-05-01T00:00:00.000Z"),
 			});
 
@@ -1301,7 +1302,7 @@ describe("View routes", () => {
 			await fixture.articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
 				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
-				estimatedReadTime: 1 as never,
+				estimatedReadTime: calculateReadTime(0),
 				savedAt: new Date("2026-05-03T13:00:00.000Z"),
 			});
 
@@ -1339,7 +1340,7 @@ describe("View routes", () => {
 			await fixture.articleStore.saveArticleGlobally({
 				url: ARTICLE_URL,
 				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
-				estimatedReadTime: 1 as never,
+				estimatedReadTime: calculateReadTime(0),
 				savedAt: new Date("2026-05-01T00:00:00.000Z"),
 			});
 

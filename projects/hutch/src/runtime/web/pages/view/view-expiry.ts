@@ -3,6 +3,8 @@ import type { UserIdPrefix } from "@packages/domain/user";
 import { userIdPrefixFrom, parseUserIdPrefix } from "@packages/domain/user";
 import type { TimeLeft } from "@packages/time-left";
 
+export type ExpiryCountdown = "enabled" | "disabled";
+
 /** Public /view pages remain accessible for 3 days after the most recent
  * save. The window creates urgency for organic visitors ("save it before it
  * disappears") while articles from permanent domains and validated sharers
