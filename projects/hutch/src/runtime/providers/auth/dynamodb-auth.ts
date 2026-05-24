@@ -15,6 +15,7 @@ import type {
 	CreateUser,
 	CreateUserWithPasswordHash,
 	DestroySession,
+	ExistsUserByIdPrefix,
 	FindEmailByUserId,
 	FindUserByEmail,
 	GetSessionUserId,
@@ -60,6 +61,7 @@ export function initDynamoDbAuth(deps: {
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	userExistsByEmail: UserExistsByEmail;
+	existsUserByIdPrefix: ExistsUserByIdPrefix;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
 } {
@@ -235,6 +237,15 @@ export function initDynamoDbAuth(deps: {
 		return row ? row.email : null;
 	};
 
+	const existsUserByIdPrefix: ExistsUserByIdPrefix = async (prefix) => {
+		const { count } = await users.scan({
+			FilterExpression: "begins_with(userId, :prefix)",
+			ExpressionAttributeValues: { ":prefix": prefix },
+			Select: "COUNT",
+		});
+		return count > 0;
+	};
+
 	const updatePassword: UpdatePassword = async ({ email, password }) => {
 		const normalizedEmail = normalizeEmail(email);
 		const passwordHash = await hashPassword(password);
@@ -259,6 +270,7 @@ export function initDynamoDbAuth(deps: {
 		markEmailVerified,
 		markSessionEmailVerified,
 		userExistsByEmail,
+		existsUserByIdPrefix,
 		updatePassword,
 		findEmailByUserId,
 	};

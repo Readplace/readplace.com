@@ -52,6 +52,8 @@ export type FindUserByEmail = (email: string) => Promise<FindUserByEmailResult>;
 
 export type FindEmailByUserId = (userId: UserId) => Promise<string | null>;
 
+export type ExistsUserByIdPrefix = (prefix: string) => Promise<boolean>;
+
 export type CreateGoogleUser = (user: {
 	email: string;
 	userId: UserId;

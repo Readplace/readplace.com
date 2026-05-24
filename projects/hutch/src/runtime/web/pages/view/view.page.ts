@@ -43,8 +43,11 @@ import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
 import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { ViewLandingPage } from "./view-landing.component";
-import { computePublicViewExpiry, formatSaveUtmContent, sharedUserIdFrom } from "./view-expiry";
+import type { ExistsUserByIdPrefix } from "@packages/test-fixtures/providers/auth";
+import { PERMANENT_ARTICLE_DOMAINS, computePublicViewExpiry, formatSaveUtmContent, sharedUserIdFrom, sharedUserIdFromQueryParams } from "./view-expiry";
 import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.component";
+
+export type ExpiryCountdown = "enabled" | "disabled";
 
 interface ViewDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
@@ -57,6 +60,8 @@ interface ViewDependencies {
 	saveArticleGlobally: SaveArticleGlobally;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
+	existsUserByIdPrefix: ExistsUserByIdPrefix;
+	expiryCountdown: ExpiryCountdown;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
 }
@@ -174,14 +179,21 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		}
 
 		const utmParams = collectUtmParams(req.query);
-		const utmSource = typeof req.query.utm_source === "string" ? req.query.utm_source : undefined;
 		const utmContent = typeof req.query.utm_content === "string" ? req.query.utm_content : undefined;
 		const now = deps.now();
-		const { expiresAt } = computePublicViewExpiry({
-			savedAt: articleSnapshot.savedAt,
-			utmSource,
-			utmContent,
-		});
+
+		let expiresAt: Date | null = null;
+		if (deps.expiryCountdown === "enabled") {
+			const sharerPrefix = sharedUserIdFromQueryParams(utmContent);
+			const isValidSharer = sharerPrefix !== null && await deps.existsUserByIdPrefix(sharerPrefix);
+			const articleDomain = new URL(articleUrl).hostname;
+			({ expiresAt } = computePublicViewExpiry({
+				savedAt: articleSnapshot.savedAt,
+				articleDomain,
+				permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
+				isValidSharer,
+			}));
+		}
 
 		const saveParams = new URLSearchParams([["url", articleUrl], ...utmParams]);
 		const msLeft = expiresAt === null ? null : expiresAt.getTime() - now.getTime();

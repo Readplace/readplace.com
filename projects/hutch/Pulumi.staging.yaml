@@ -23,5 +23,6 @@ config:
   hutch:pendingHtmlBucketName: hutch-pending-html-staging
   hutch:userExportBucketName: hutch-user-exports-staging
   hutch:alertEmail: readplace+staging@readplace.com
+  hutch:expiryCountdown: enabled
   hutch:excludedVisitorHashes: []
 encryptionsalt: v1:fILgDgnVVEY=:v1:sFKytKYEpZU4Qs+9:o/Q+JSj6rS/qo7p6WyjaekWrgFAk5A==

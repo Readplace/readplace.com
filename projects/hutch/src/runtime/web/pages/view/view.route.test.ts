@@ -1205,7 +1205,7 @@ describe("View routes", () => {
 			};
 		}
 
-		it("renders state=counting and the SSR countdown when the visit has no permanent UTM and the article was saved less than 3 days ago", async () => {
+		it("renders state=counting and the SSR countdown when the article domain is not permanent and was saved less than 3 days ago", async () => {
 			const now = new Date("2026-05-04T00:00:00.000Z");
 			const { fixture, harness } = makeHarness(now);
 			await fixture.articleStore.saveArticleGlobally({
@@ -1224,13 +1224,13 @@ describe("View routes", () => {
 			expect(counter.textContent).toBe("Public access will expire in 2d 13h 54m 27s");
 		});
 
-		it("renders state=permanent for utm_source=fagnerbrack.com", async () => {
+		it("renders state=permanent when the article domain is in PERMANENT_ARTICLE_DOMAINS", async () => {
 			const now = new Date("2026-05-04T00:00:00.000Z");
 			const { harness } = makeHarness(now);
+			const permanentUrl = "https://fagnerbrack.com/some-article";
+			const encoded = encodeURIComponent(permanentUrl);
 
-			const response = await request(harness.server).get(
-				`/view/${ENCODED}?utm_source=fagnerbrack.com`,
-			);
+			const response = await request(harness.server).get(`/view/${encoded}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const counter = doc.querySelector("[data-test-view-expiry]");
@@ -1239,18 +1239,41 @@ describe("View routes", () => {
 			expect(counter.classList.contains("view__expiry--permanent")).toBe(true);
 		});
 
-		it("renders state=permanent when utm_content carries a 6-hex sharer prefix", async () => {
+		it("renders state=permanent when utm_content carries a 6-hex prefix matching an existing user", async () => {
 			const now = new Date("2026-05-04T00:00:00.000Z");
 			const { harness } = makeHarness(now);
+			const result = await harness.auth.createUser({ email: "sharer@example.com", password: "password123" });
+			assert(result.ok);
+			const prefix = result.userId.slice(0, 6).toLowerCase();
 
 			const response = await request(harness.server).get(
-				`/view/${ENCODED}?utm_content=a3f1c2`,
+				`/view/${ENCODED}?utm_content=${prefix}`,
 			);
 
 			const doc = new JSDOM(response.text).window.document;
 			const counter = doc.querySelector("[data-test-view-expiry]");
 			assert(counter, "expiry element must be rendered");
 			expect(counter.getAttribute("data-expiry-state")).toBe("permanent");
+		});
+
+		it("renders state=counting when utm_content carries a 6-hex prefix not matching any user", async () => {
+			const now = new Date("2026-05-04T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			await fixture.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: 1 as never,
+				savedAt: new Date("2026-05-03T13:54:27.000Z"),
+			});
+
+			const response = await request(harness.server).get(
+				`/view/${ENCODED}?utm_content=ffffff`,
+			);
+
+			const doc = new JSDOM(response.text).window.document;
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			expect(counter.getAttribute("data-expiry-state")).toBe("counting");
 		});
 
 		it("renders state=expired and the expired copy when savedAt is more than 3 days ago", async () => {
@@ -1293,13 +1316,13 @@ describe("View routes", () => {
 			expect(action.hasAttribute("data-expiry-save-link")).toBe(true);
 		});
 
-		it("does not stamp time-left utm_content (and omits data-expiry-save-link) on a permanent share", async () => {
+		it("does not stamp time-left utm_content on a permanent-domain article", async () => {
 			const now = new Date("2026-05-04T00:00:00.000Z");
 			const { harness } = makeHarness(now);
+			const permanentUrl = "https://fagnerbrack.com/some-article";
+			const encoded = encodeURIComponent(permanentUrl);
 
-			const response = await request(harness.server).get(
-				`/view/${ENCODED}?utm_source=fagnerbrack.com`,
-			);
+			const response = await request(harness.server).get(`/view/${encoded}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
