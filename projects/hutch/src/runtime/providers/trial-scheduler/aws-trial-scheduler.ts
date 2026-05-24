@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import {
 	CreateScheduleCommand,
 	DeleteScheduleCommand,
@@ -24,13 +25,15 @@ function scheduleNameFor(userId: UserId): string {
 export function initAwsTrialScheduler(deps: {
 	client: Pick<SchedulerClient, "send">;
 	scheduleGroupName: string;
-	schedulerRoleArn: string;
-	eventBusArn: string;
+	schedulerRoleArn?: string;
+	eventBusArn?: string;
 }): {
 	createTrialEndSchedule: CreateTrialEndSchedule;
 	deleteTrialEndSchedule: DeleteTrialEndSchedule;
 } {
 	const createTrialEndSchedule: CreateTrialEndSchedule = async ({ userId, firesAt }) => {
+		assert(deps.eventBusArn, "eventBusArn is required for createTrialEndSchedule");
+		assert(deps.schedulerRoleArn, "schedulerRoleArn is required for createTrialEndSchedule");
 		await deps.client.send(
 			new CreateScheduleCommand({
 				Name: scheduleNameFor(userId),
@@ -61,11 +64,7 @@ export function initAwsTrialScheduler(deps: {
 				}),
 			);
 		} catch (err) {
-			if (
-				err instanceof Error &&
-				(err.name === "ResourceNotFoundException" ||
-					"name" in err && (err as { name: string }).name === "ResourceNotFoundException")
-			) {
+			if (err instanceof Error && err.name === "ResourceNotFoundException") {
 				return;
 			}
 			throw err;
