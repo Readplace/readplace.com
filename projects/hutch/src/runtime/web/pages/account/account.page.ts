@@ -58,7 +58,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 
 	async function startCheckout(
 		req: Request,
-		trialPeriodDays: number | undefined,
+		trialPeriodDays: number,
 	): Promise<{ id: CheckoutSessionId; url: string }> {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
@@ -104,7 +104,10 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					"[subscribe] cancelled row without customerId — falling back to checkout",
 					{ userId },
 				);
-				const checkout = await startCheckout(req, undefined);
+				/** Cancelled users have already consumed their free trial —
+				 * suppress it on the fallback checkout so they don't get a
+				 * second one. */
+				const checkout = await startCheckout(req, 0);
 				res.redirect(303, checkout.url);
 				return;
 			}

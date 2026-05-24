@@ -49,17 +49,24 @@ export function initStripeCheckout(deps: {
 		trialPeriodDays,
 	}) => {
 		const effectiveTrialDays = trialPeriodDays ?? STRIPE_TRIAL_PERIOD_DAYS;
-		const body = new URLSearchParams({
+		const params: Record<string, string> = {
 			mode: "subscription",
 			"line_items[0][price]": deps.priceId,
 			"line_items[0][quantity]": "1",
-			"subscription_data[trial_period_days]": String(effectiveTrialDays),
 			customer_email: customerEmail,
 			success_url: successUrl,
 			cancel_url: cancelUrl,
 			"payment_method_types[0]": "card",
 			allow_promotion_codes: "true",
-		});
+		};
+		/** Stripe rejects subscription_data[trial_period_days] < 1 — to suppress
+		 * the trial the parameter must be omitted entirely. Callers pass 0 to
+		 * mean "no trial" (e.g. trialing/cancelled users who've already used
+		 * theirs) and we drop the field here. */
+		if (effectiveTrialDays >= 1) {
+			params["subscription_data[trial_period_days]"] = String(effectiveTrialDays);
+		}
+		const body = new URLSearchParams(params);
 
 		const response = await deps.fetch(`${STRIPE_API}/checkout/sessions`, {
 			method: "POST",

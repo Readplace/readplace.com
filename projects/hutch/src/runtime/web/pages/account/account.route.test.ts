@@ -362,6 +362,26 @@ describe("POST /account/subscribe", () => {
 		expect(stripe.getTrialPeriodDays(sessionId)).toBe(0);
 	});
 
+	it("suppresses trial_period_days for a trial-expired user buying the subscription (no second free trial)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, stripe } = harness;
+		const { agent, userId } = await loginUser(harness, "trial-expired-subscribe@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		const location = response.headers.location;
+		assert(typeof location === "string" && location.includes("checkout.stripe.test"));
+		const sessionMatch = location.match(/cs_test_[a-f0-9]+/);
+		assert(sessionMatch, "checkout URL must contain session id");
+		const sessionId = CheckoutSessionIdSchema.parse(sessionMatch[0]);
+		expect(stripe.getTrialPeriodDays(sessionId)).toBe(0);
+	});
+
 	it("Phase 3: cancelled user with customerId resubscribes in ONE click via Stripe subscriptions.create (NO checkout UI)", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders, stripeSubscriptions } = harness;
@@ -418,7 +438,7 @@ describe("POST /account/subscribe", () => {
 		expect(row.status).toBe("cancelled");
 	});
 
-	it("Phase 3: cancelled user WITHOUT customerId (defensive) falls back to the Stripe checkout flow", async () => {
+	it("Phase 3: cancelled user WITHOUT customerId (defensive) falls back to checkout with trial_period_days=0 — already used their trial", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders, stripe } = harness;
 		const { agent, userId } = await loginUser(harness, "no-customer@example.com");
@@ -440,7 +460,7 @@ describe("POST /account/subscribe", () => {
 		const sessionMatch = location.match(/cs_test_[a-f0-9]+/);
 		assert(sessionMatch, "checkout URL must contain session id");
 		const sessionId = CheckoutSessionIdSchema.parse(sessionMatch[0]);
-		expect(stripe.getTrialPeriodDays(sessionId)).toBeUndefined();
+		expect(stripe.getTrialPeriodDays(sessionId)).toBe(0);
 	});
 
 	it("redirects active users back to /account instead of creating a Stripe checkout session", async () => {
