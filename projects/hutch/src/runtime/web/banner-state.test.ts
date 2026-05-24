@@ -28,16 +28,20 @@ describe("bannerStateFromRequest", () => {
 		expect(bannerStateFromRequest({}).emailVerified).toBeUndefined();
 	});
 
-	it("sets showAccountMenu=true when query.feature is 'account'", () => {
-		expect(bannerStateFromRequest({ query: { feature: "account" } }).showAccountMenu).toBe(true);
+	it("sets showSubscription=true when query.feature is 'subscription'", () => {
+		expect(bannerStateFromRequest({ query: { feature: "subscription" } }).showSubscription).toBe(true);
 	});
 
-	it("sets showAccountMenu=false when query.feature is absent", () => {
-		expect(bannerStateFromRequest({}).showAccountMenu).toBe(false);
+	it("sets showSubscription=false when query.feature is absent", () => {
+		expect(bannerStateFromRequest({}).showSubscription).toBe(false);
 	});
 
-	it("sets showAccountMenu=false when query.feature is a different value", () => {
-		expect(bannerStateFromRequest({ query: { feature: "other" } }).showAccountMenu).toBe(false);
+	it("sets showSubscription=false when query.feature is a different value", () => {
+		expect(bannerStateFromRequest({ query: { feature: "other" } }).showSubscription).toBe(false);
+	});
+
+	it("sets showSubscription=false when query.feature is the legacy 'account' value (renamed to 'subscription')", () => {
+		expect(bannerStateFromRequest({ query: { feature: "account" } }).showSubscription).toBe(false);
 	});
 });
 
@@ -51,7 +55,7 @@ describe("initBuildBannerState", () => {
 
 		const result = await buildBannerState({});
 
-		expect(result).toEqual({ isAuthenticated: false, emailVerified: undefined, showAccountMenu: false });
+		expect(result).toEqual({ isAuthenticated: false, emailVerified: undefined, showSubscription: false });
 		expect(getEffectiveAccess).not.toHaveBeenCalled();
 	});
 

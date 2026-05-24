@@ -111,20 +111,20 @@ describe("Base component", () => {
 		expect(doc.querySelector('[data-test-nav-item="import"]')).toBeNull();
 	});
 
-	it("renders the Account nav item when showAccountMenu is true", () => {
+	it("renders the Account nav item when showSubscription is true", () => {
 		const page = createTestPageBody();
-		const result = Base(page, { isAuthenticated: true, emailVerified: true, showAccountMenu: true }).to("text/html");
+		const result = Base(page, { isAuthenticated: true, emailVerified: true, showSubscription: true }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
 		const link = doc.querySelector('[data-test-nav-item="account"]');
 		assert(link, "Account nav item must be rendered when feature flag is set");
 		expect(link.textContent).toBe("Account");
-		expect(link.getAttribute("href")).toBe("/account?feature=account");
+		expect(link.getAttribute("href")).toBe("/account?feature=subscription");
 	});
 
-	it("hides the Account nav item when showAccountMenu is false", () => {
+	it("hides the Account nav item when showSubscription is false", () => {
 		const page = createTestPageBody();
-		const result = Base(page, { isAuthenticated: true, emailVerified: true, showAccountMenu: false }).to("text/html");
+		const result = Base(page, { isAuthenticated: true, emailVerified: true, showSubscription: false }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
 		expect(doc.querySelector('[data-test-nav-item="account"]')).toBeNull();
