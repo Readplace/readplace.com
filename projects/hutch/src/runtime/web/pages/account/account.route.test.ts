@@ -63,6 +63,7 @@ describe("GET /account (founding member, no subscription row)", () => {
 		expect(card.classList.contains("account-card--founding")).toBe(true);
 		expect(card.getAttribute("data-test-account-state")).toBe("founding");
 		expect(actionKeys(doc)).toEqual([]);
+		expect(doc.querySelector("[data-test-trial-countdown]")).toBeNull();
 	});
 });
 
@@ -90,6 +91,7 @@ describe("GET /account (active paid subscription)", () => {
 		expect(cancelForm.tagName.toLowerCase()).toBe("form");
 		expect(cancelForm.getAttribute("action")).toBe("/account/cancel");
 		expect(cancelForm.getAttribute("method")?.toUpperCase()).toBe("POST");
+		expect(doc.querySelector("[data-test-trial-countdown]")).toBeNull();
 	});
 });
 
@@ -129,10 +131,8 @@ describe("GET /account (trialing inside trial window)", () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "trial@example.com");
-		await subscriptionProviders.upsertTrialing({
-			userId,
-			trialEndsAt: new Date(Date.now() + 7 * ONE_DAY_MS).toISOString(),
-		});
+		const trialEndsAt = new Date(Date.now() + 7 * ONE_DAY_MS).toISOString();
+		await subscriptionProviders.upsertTrialing({ userId, trialEndsAt });
 
 		const response = await agent.get("/account");
 
@@ -149,6 +149,26 @@ describe("GET /account (trialing inside trial window)", () => {
 		const subscribe = findAction(doc, "subscribe");
 		expect(subscribe.tagName.toLowerCase()).toBe("form");
 		expect(subscribe.getAttribute("action")).toBe("/account/subscribe");
+	});
+
+	it("renders the global trial countdown in the nav for a trialing user (regression: /account previously dropped it)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "trial-nav@example.com");
+		const trialEndsAt = new Date(Date.now() + 7 * ONE_DAY_MS).toISOString();
+		await subscriptionProviders.upsertTrialing({ userId, trialEndsAt });
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "trial countdown must render in the nav for a trialing user");
+		expect(countdown.getAttribute("data-trial-state")).toBe("active");
+		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe(trialEndsAt);
+		const serverNow = countdown.getAttribute("data-server-now-iso") ?? "";
+		assert(serverNow.length > 0, "server-now ISO must be populated for active trial");
+		expect(Number.isNaN(Date.parse(serverNow))).toBe(false);
 	});
 });
 
@@ -173,6 +193,9 @@ describe("GET /account (inactive — trial expired vs cancelled render identical
 			"Subscription not active.",
 		);
 		expect(actionKeys(doc)).toEqual(["subscribe"]);
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "inactive users see the expired pill in the nav (same as /queue)");
+		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
 	});
 
 	it("byte-for-byte identical card DOM for trial-expired vs cancelled — reason does not leak", async () => {

@@ -15,7 +15,7 @@ import type { PublishCancelSubscriptionCommand } from "@packages/test-fixtures/p
 import type { CreateSubscriptionOnExistingCustomer } from "@packages/test-fixtures/providers/stripe-subscriptions";
 import type { StorePendingSignup } from "@packages/test-fixtures/providers/pending-signup";
 import { Base } from "../../base.component";
-import { bannerStateFromRequest } from "../../banner-state";
+import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";
 import { sendComponent } from "../../send-component";
 import type { GetEffectiveAccess } from "../../../domain/access/effective-access";
@@ -37,6 +37,7 @@ interface AccountDependencies {
 	appOrigin: string;
 	logger: HutchLogger;
 	now: () => Date;
+	buildBannerState: BuildBannerState;
 }
 
 type SubscribeBranchKey = "trialing" | "cancelled" | "noop" | "forbidden";
@@ -48,7 +49,8 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const access = await deps.getEffectiveAccess(req.userId);
 		const vm = toAccountViewModel(access, parseAccountQuery(req.query), deps.now());
-		sendComponent(req, res, Base(AccountPage(vm), bannerStateFromRequest(req)));
+		const bannerState = await deps.buildBannerState(req, { preFetchedAccess: access });
+		sendComponent(req, res, Base(AccountPage(vm), bannerState));
 	});
 
 	router.post("/cancel", async (req: Request, res: Response) => {
