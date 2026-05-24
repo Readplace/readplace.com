@@ -83,22 +83,43 @@ describe("deriveTrialEscalation", () => {
 });
 
 describe("formatTrialDisplay", () => {
-	it("renders the active countdown as `Xd Xh Xm Xs in your free trial`", () => {
-		expect(
-			formatTrialDisplay({
-				state: "active",
-				endsAtIso: "2026-01-15T00:00:00.000Z",
-				serverNowIso: "2026-01-01T00:00:00.000Z",
-				remaining: {
-					days: 13,
-					hours: 12,
-					minutes: 33,
-					seconds: 22,
-					totalMs: 1,
-				},
-				escalation: "soft",
-			}),
-		).toBe("13d 12h 33m 22s in your free trial");
+	function active(remaining: {
+		days: number;
+		hours: number;
+		minutes: number;
+		seconds: number;
+	}) {
+		return formatTrialDisplay({
+			state: "active",
+			endsAtIso: "2026-01-15T00:00:00.000Z",
+			serverNowIso: "2026-01-01T00:00:00.000Z",
+			remaining: { ...remaining, totalMs: 1 },
+			escalation: "soft",
+		});
+	}
+
+	it("drops minutes and seconds when at least one day remains so multi-day trials show a stable `Xd Yh`", () => {
+		expect(active({ days: 13, hours: 12, minutes: 33, seconds: 22 })).toBe(
+			"13d 12h left in your free trial",
+		);
+	});
+
+	it("falls back to `Xh Ym` when less than a day remains so the user sees minute-by-minute progress", () => {
+		expect(active({ days: 0, hours: 2, minutes: 33, seconds: 22 })).toBe(
+			"2h 33m left in your free trial",
+		);
+	});
+
+	it("falls back to `Xm Ys` when less than an hour remains so the user sees the second tick", () => {
+		expect(active({ days: 0, hours: 0, minutes: 5, seconds: 22 })).toBe(
+			"5m 22s left in your free trial",
+		);
+	});
+
+	it("falls back to bare `Ys` when less than a minute remains so the final countdown isn't padded with `0d 0h 0m`", () => {
+		expect(active({ days: 0, hours: 0, minutes: 0, seconds: 53 })).toBe(
+			"53s left in your free trial",
+		);
 	});
 
 	it("renders the expired state as the standalone 'Free trial is over!' message", () => {

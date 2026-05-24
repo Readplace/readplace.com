@@ -50,8 +50,15 @@ export function deriveTrialEscalation(
 
 export function formatTrialDisplay(trial: TrialDisplay): string {
 	if (trial.state === "expired") return "Free trial is over!";
-	const { days, hours, minutes, seconds } = trial.remaining;
-	return `${days}d ${hours}h ${minutes}m ${seconds}s in your free trial`;
+	return `${formatTrialUnits(trial.remaining)} left in your free trial`;
+}
+
+function formatTrialUnits(remaining: TrialRemaining): string {
+	const { days, hours, minutes, seconds } = remaining;
+	if (days > 0) return `${days}d ${hours}h`;
+	if (hours > 0) return `${hours}h ${minutes}m`;
+	if (minutes > 0) return `${minutes}m ${seconds}s`;
+	return `${seconds}s`;
 }
 
 export function toTrialDisplay(
