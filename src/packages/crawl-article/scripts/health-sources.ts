@@ -185,14 +185,26 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectedContent: "Attention Is All You Need",
 		expectsThumbnail: false,
 	},
-	// USDA (https://www.rd.usda.gov/sites/default/files/pdf-sample_0.pdf) is
-	// fronted by Akamai BotManager, which RSTs HTTP/2 streams from AWS-range
-	// IPs regardless of HTTP-header persona (confirmed via prod Lambda logs
-	// after CRAWL_PERSONAS landed: both `default-browser` and `honest-bot`
-	// produced curl exit 92 INTERNAL_ERROR). The same default-browser persona
-	// returns 200 from a residential IP. Re-adding this entry requires a
-	// non-AWS egress path (residential proxy as a third persona, or
-	// equivalent) — not a new HTTP-header variation.
+	{
+		// Akamai BotManager blocks standard curl's TLS fingerprint with HTTP/2
+		// RST_STREAM (exit 92). curl-impersonate's Chrome ClientHello bypasses
+		// this without a proxy — the discriminator is the TLS handshake, not the
+		// source IP.
+		label: "PDF (USDA sample)",
+		url: "https://www.rd.usda.gov/sites/default/files/pdf-sample_0.pdf",
+		expectedContent: "Dummy PDF file",
+		expectsThumbnail: false,
+	},
+	{
+		// CIA reading-room 302-loops AWS IPs to /readingroom when the TLS
+		// fingerprint looks non-browser (curl exit 47). curl-impersonate with
+		// Chrome fingerprint returns 200 directly. Exercises --globoff +
+		// WHATWG URL re-encoding via the bracketed path segment `[16505689]`.
+		label: "PDF (CIA reading room)",
+		url: "https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf",
+		expectedContent: "Warren Commission",
+		expectsThumbnail: false,
+	},
 	{
 		// Adobe-class fingerprint-strict origin. Sent today's partial Chrome
 		// headers and Adobe's edge RSTs the h2 stream (curl exit 92,

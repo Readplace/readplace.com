@@ -7,10 +7,9 @@ export default {
 	...base,
 	entry: [
 		"**/*.main.ts",
+		"tools/*.mjs",
 	],
-	ignore: [
-		...(base.ignore ?? [])
-	],
+	ignore: [],
 	ignoreDependencies: [
 		...(base.ignoreDependencies ?? []),
 		// Workspace dependencies with subpath imports not detected by knip
@@ -24,11 +23,11 @@ export default {
 		"@packages/domain",
 		"@packages/retriable",
 		"@packages/test-fixtures",
-		// Used only in infra code (Pulumi IaC, compiled separately)
-		"@pulumi/aws",
 	],
 	ignoreBinaries: [
-		...(base.ignoreBinaries ?? []),
+		// knip + nx are used in package.json scripts
+		"knip",
+		"nx",
 		// Used via deploy script, installed globally or via npx
 		"pulumi",
 	],

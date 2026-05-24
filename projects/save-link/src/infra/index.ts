@@ -67,6 +67,17 @@ const ocrImageTags = z
 	})
 	.parse(JSON.parse(readFileSync(".lib/ocr-image-tags.json", "utf-8")));
 
+// --- curl-impersonate Lambda Layer ---
+// Contains the curl_chrome116 binary + BoringSSL shared libraries that produce
+// a Chrome TLS fingerprint, bypassing Akamai/Cloudflare JA3/JA4 blocks.
+// Built by tools/build-curl-impersonate-layer.mjs before `pulumi up`.
+const curlImpersonateLayer = new aws.lambda.LayerVersion("curl-impersonate", {
+	layerName: "curl-impersonate-chrome",
+	compatibleRuntimes: [aws.lambda.Runtime.NodeJS22dX],
+	code: new pulumi.asset.FileArchive(".lib/curl-impersonate-layer.zip"),
+	description: "curl-impersonate Chrome variant (curl_chrome116) for TLS fingerprint bypass",
+});
+
 // --- Content S3 Bucket ---
 
 const contentBucket = new HutchS3ReadWrite("content-bucket", {
@@ -211,6 +222,7 @@ const saveLinkCommandLambda = new HutchLambda("save-link-command", {
 	// so this Lambda no longer needs the mupdf / OCR headroom.
 	memorySize: 512,
 	timeout: 240,
+	layers: [curlImpersonateLayer.arn],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -267,6 +279,7 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda("save-link-raw-html-command
 	// No canvas rendering or OCR, so less headroom than the OCR-capable Lambdas.
 	memorySize: 512,
 	timeout: 240,
+	layers: [curlImpersonateLayer.arn],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -326,6 +339,7 @@ const saveAnonymousLinkCommandLambda = new HutchLambda("save-anonymous-link-comm
 	// Mirrors save-link-command (simple-only) — PDFs dispatched out.
 	memorySize: 512,
 	timeout: 240,
+	layers: [curlImpersonateLayer.arn],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
@@ -594,6 +608,7 @@ const staleCheckRequestedLambda = new HutchLambda("stale-check-requested", {
 	// the mupdf / OCR headroom.
 	memorySize: 512,
 	timeout: 240,
+	layers: [curlImpersonateLayer.arn],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
@@ -826,6 +841,7 @@ const recrawlLinkInitiatedLambda = new HutchLambda("recrawl-link-initiated", {
 	// Lambda emits RecrawlContentExtractedEvent instead of TierContentExtracted.
 	memorySize: 512,
 	timeout: 240,
+	layers: [curlImpersonateLayer.arn],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
 		CONTENT_BUCKET_NAME: contentBucketName,
