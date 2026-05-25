@@ -49,6 +49,24 @@ export const SaveLinkRawHtmlCommand = defineEvent({
 });
 export type SaveLinkRawHtmlDetail = z.infer<typeof SaveLinkRawHtmlCommand.detailSchema>;
 
+/** Tier-0 PDF entry point. The extension uploads PDF bytes from the user's
+ * browser context (their real session cookies + real TLS fingerprint pass
+ * the origin's bot defenses) and the server stages them to S3 before
+ * publishing this command. The downstream `save-link-raw-pdf` Lambda reads
+ * the staged buffer and runs `extractPdf` directly — no second fetch, no
+ * bot defenses to negotiate. Mirrors `SaveLinkRawHtmlCommand` for the HTML
+ * tier-0 path. */
+export const SaveLinkRawPdfCommand = defineEvent({
+	name: "save-link-raw-pdf-command",
+	source: "hutch.api",
+	detailType: "SaveLinkRawPdfCommand",
+	detailSchema: z.object({
+		url: z.string(),
+		userId: z.string(),
+	}),
+});
+export type SaveLinkRawPdfDetail = z.infer<typeof SaveLinkRawPdfCommand.detailSchema>;
+
 export const SaveAnonymousLinkCommand = defineEvent({
 	name: "save-anonymous-link-command",
 	source: "hutch.api",

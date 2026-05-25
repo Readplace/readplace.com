@@ -26,6 +26,11 @@ export type SaveUrl = (params: {
 	url: string;
 	title: string;
 	rawHtml?: string;
+	/** Raw PDF bytes captured from the user's browser context. When present
+	 * (and the server advertises the `save-pdf` action), routes through the
+	 * tier-0 PDF upload path so the server skips the bot-defended fetch. Any
+	 * failure falls back to the URL-only `save-article` path. */
+	pdfBytes?: ArrayBuffer;
 }) => Promise<SaveUrlResult>;
 
 export type RemoveUrl = (

@@ -164,7 +164,7 @@ export async function parseHtmlFromBuffer(input: {
  */
 export async function parsePdfFromBuffer(input: {
 	buffer: Buffer;
-	response: Response;
+	response: Response | undefined;
 	url: string;
 	extractPdf: ExtractPdf;
 	onProgress?: ComprehensiveCrawlProgress;
@@ -186,8 +186,10 @@ export async function parsePdfFromBuffer(input: {
 	const result: CrawlArticleResult & { status: "fetched" } = {
 		status: "fetched",
 		html: extracted.html,
-		etag: headerOrUndefined(input.response.headers, "etag"),
-		lastModified: headerOrUndefined(input.response.headers, "last-modified"),
+		etag: input.response ? headerOrUndefined(input.response.headers, "etag") : undefined,
+		lastModified: input.response
+			? headerOrUndefined(input.response.headers, "last-modified")
+			: undefined,
 	};
 	return result;
 }

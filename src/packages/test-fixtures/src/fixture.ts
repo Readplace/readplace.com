@@ -14,6 +14,7 @@ import { initInMemoryEmail } from "./providers/email/in-memory-email";
 import { initInMemoryEmailVerification } from "./providers/email-verification/in-memory-email-verification";
 import { initInMemoryPasswordReset } from "./providers/password-reset/in-memory-password-reset";
 import { initInMemoryPendingHtml } from "./providers/pending-html/in-memory-pending-html";
+import { initInMemoryPendingPdf } from "./providers/pending-pdf/in-memory-pending-pdf";
 import { initInMemoryPendingSignup } from "./providers/pending-signup/in-memory-pending-signup";
 import { initInMemoryStripeCheckout } from "./providers/stripe-checkout/in-memory-stripe-checkout";
 import { initInMemoryStripeSubscriptions } from "./providers/stripe-subscriptions/in-memory-stripe-subscriptions";
@@ -21,6 +22,7 @@ import { initInMemorySubscriptionProviders } from "./providers/subscription-prov
 import { initInMemoryTrialScheduler } from "./providers/trial-scheduler/in-memory-trial-scheduler";
 import { initInMemoryImportSession } from "./providers/import-session/in-memory-import-session";
 import { initInMemorySaveLinkRawHtmlCommand } from "./providers/events/in-memory-save-link-raw-html-command";
+import { initInMemorySaveLinkRawPdfCommand } from "./providers/events/in-memory-save-link-raw-pdf-command";
 import { initInMemoryExportUserDataCommand } from "./providers/events/in-memory-export-user-data-command";
 import { initInMemoryCancelSubscriptionCommand } from "./providers/events/in-memory-cancel-subscription-command";
 import { initInMemorySubscriptionReactivated } from "./providers/events/in-memory-subscription-reactivated";
@@ -223,7 +225,11 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const emailVerification = initInMemoryEmailVerification();
 	const passwordReset = initInMemoryPasswordReset();
 	const pendingHtml = initInMemoryPendingHtml();
+	const pendingPdf = initInMemoryPendingPdf();
 	const { publishSaveLinkRawHtmlCommand } = initInMemorySaveLinkRawHtmlCommand({
+		logger: noopLogger,
+	});
+	const { publishSaveLinkRawPdfCommand } = initInMemorySaveLinkRawPdfCommand({
 		logger: noopLogger,
 	});
 	const { publishExportUserDataCommand } = initInMemoryExportUserDataCommand({
@@ -298,6 +304,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 			publishSaveLinkRawHtmlCommand,
+			publishSaveLinkRawPdfCommand,
 			publishStaleCheckRequested: initInMemoryStaleCheckRequested({ logger: noopLogger }).publishStaleCheckRequested,
 			publishUpdateFetchTimestamp: createInMemoryPublishUpdateFetchTimestamp(),
 			publishExportUserDataCommand,
@@ -307,6 +314,10 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		pendingHtml: {
 			putPendingHtml: pendingHtml.putPendingHtml,
 			readPendingHtml: pendingHtml.readPendingHtml,
+		},
+		pendingPdf: {
+			putPendingPdf: pendingPdf.putPendingPdf,
+			readPendingPdfSync: pendingPdf.readPendingPdfSync,
 		},
 		summary,
 		freshness: { refreshArticleIfStale: createNoopRefreshArticleIfStale() },

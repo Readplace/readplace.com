@@ -9,6 +9,7 @@ export interface ParseErrorEvent {
 	source:
 		| "save-link"
 		| "save-link-raw-html"
+		| "save-link-raw-pdf"
 		| "hutch-handler"
 		| "hutch-view"
 		| "hutch-queue"

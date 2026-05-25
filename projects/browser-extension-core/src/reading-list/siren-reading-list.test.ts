@@ -6,6 +6,7 @@ import {
 	initExtension,
 	initSaveArticleUnderstanding,
 	initSaveHtmlUnderstanding,
+	initSavePdfUnderstanding,
 	initDeleteArticleUnderstanding,
 	initListArticlesUnderstanding,
 	groupOf,
@@ -1347,6 +1348,274 @@ describe("save-html action", () => {
 	});
 });
 
+describe("save-pdf action", () => {
+	const COLLECTION_ACTIONS_WITH_SAVE_PDF = [
+		COLLECTION_ACTIONS[0],
+		{
+			name: "save-pdf",
+			href: "/queue/save-pdf",
+			method: "POST",
+			type: "multipart/form-data",
+			fields: [
+				{ name: "url", type: "url" },
+				{ name: "pdf", type: "file" },
+			],
+		},
+		COLLECTION_ACTIONS[1],
+	];
+
+	function collectionWithSavePdfResponse(entities: unknown[] = []) {
+		return JSON.stringify({
+			class: ["collection", "articles"],
+			entities,
+			links: [{ rel: ["self"], href: "/queue" }],
+			actions: COLLECTION_ACTIONS_WITH_SAVE_PDF,
+		});
+	}
+
+	function articleResponse(savedAt: string) {
+		return JSON.stringify({
+			class: ["article"],
+			properties: {
+				id: "article-1",
+				url: "https://example.com/x.pdf",
+				title: "Captured PDF",
+				savedAt,
+			},
+			actions: [
+				{
+					name: "delete",
+					href: "/queue/article-1/delete",
+					method: "POST",
+				},
+			],
+		});
+	}
+
+	function createUnderstandingsWithSavePdf() {
+		return groupOf(
+			initSaveArticleUnderstanding(),
+			initSavePdfUnderstanding(),
+			initDeleteArticleUnderstanding(),
+			httpCacheable(initListArticlesUnderstanding()),
+		);
+	}
+
+	function bytesToBase64(bytes: Uint8Array): string {
+		let binary = "";
+		for (let i = 0; i < bytes.length; i += 1) {
+			binary += String.fromCharCode(bytes[i] as number);
+		}
+		return btoa(binary);
+	}
+
+	it("POSTs to the save-pdf action with multipart/form-data containing url and pdf, returns the saved item", async () => {
+		const savedAt = "2026-01-15T10:00:00.000Z";
+		let capturedBody: FormData | undefined;
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSavePdfResponse(),
+				},
+				"POST http://localhost:3000/queue/save-pdf": (init) => {
+					capturedBody = init?.body instanceof FormData ? init.body : undefined;
+					return { status: 201, body: articleResponse(savedAt) };
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSavePdf(), createDeps(fetchFn));
+		const collection = await start();
+
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]);
+		const result = await collection.actions["save-pdf"]({
+			url: "https://example.com/x.pdf",
+			pdfBytes: bytesToBase64(pdfBytes),
+		});
+
+		expect(result.items[0].url).toBe("https://example.com/x.pdf");
+		expect(result.items[0].id).toBe("article-1");
+		expect(calls).toContain("POST http://localhost:3000/queue/save-pdf");
+		assert(capturedBody, "save-pdf request must carry a FormData body");
+		expect(capturedBody.get("url")).toBe("https://example.com/x.pdf");
+		const pdfPart = capturedBody.get("pdf");
+		assert(pdfPart instanceof Blob, "save-pdf body must include a pdf Blob");
+		expect(pdfPart.type).toBe("application/pdf");
+		const roundTripped = new Uint8Array(await pdfPart.arrayBuffer());
+		expect(Array.from(roundTripped)).toEqual(Array.from(pdfBytes));
+	});
+
+	it("follows the fallback save-article action from the Siren error body when save-pdf errors", async () => {
+		const savedAt = "2026-01-15T10:00:00.000Z";
+		const fallbackBodies: (string | undefined)[] = [];
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSavePdfResponse(),
+				},
+				"POST http://localhost:3000/queue/save-pdf": {
+					status: 422,
+					body: JSON.stringify({
+						class: ["error"],
+						properties: {
+							code: "pdf-too-large",
+							message: "PDF upload exceeded 500 MB",
+						},
+						actions: [
+							{
+								name: "save-article",
+								href: "/queue",
+								method: "POST",
+								type: "application/json",
+								fields: [{ name: "url", type: "url" }],
+							},
+						],
+					}),
+				},
+				"POST http://localhost:3000/queue": (init) => {
+					fallbackBodies.push(typeof init?.body === "string" ? init.body : undefined);
+					return { status: 201, body: articleResponse(savedAt) };
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSavePdf(), createDeps(fetchFn));
+		const collection = await start();
+
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+		const result = await collection.actions["save-pdf"]({
+			url: "https://example.com/x.pdf",
+			pdfBytes: bytesToBase64(pdfBytes),
+		});
+
+		expect(result.items[0].id).toBe("article-1");
+		expect(calls).toContain("POST http://localhost:3000/queue/save-pdf");
+		expect(calls).toContain("POST http://localhost:3000/queue");
+		expect(fallbackBodies).toHaveLength(1);
+		expect(JSON.parse(fallbackBodies[0] ?? "{}")).toEqual({
+			url: "https://example.com/x.pdf",
+		});
+	});
+
+	it("throws when the save-pdf POST fails without a fallback action", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSavePdfResponse(),
+				},
+				"POST http://localhost:3000/queue/save-pdf": { status: 500 },
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSavePdf(), createDeps(fetchFn));
+		const collection = await start();
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+		await expect(
+			collection.actions["save-pdf"]({
+				url: "https://example.com/x.pdf",
+				pdfBytes: bytesToBase64(pdfBytes),
+			}),
+		).rejects.toThrow("Save failed: 500");
+	});
+
+	it("throws when the Siren error body has no actions field", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSavePdfResponse(),
+				},
+				"POST http://localhost:3000/queue/save-pdf": {
+					status: 422,
+					body: JSON.stringify({
+						class: ["error"],
+						properties: { code: "broken", message: "no fallback" },
+					}),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSavePdf(), createDeps(fetchFn));
+		const collection = await start();
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+		await expect(
+			collection.actions["save-pdf"]({
+				url: "https://example.com/x.pdf",
+				pdfBytes: bytesToBase64(pdfBytes),
+			}),
+		).rejects.toThrow("Save failed: 422");
+	});
+
+	it("throws when the Siren error body has an empty actions array", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSavePdfResponse(),
+				},
+				"POST http://localhost:3000/queue/save-pdf": {
+					status: 422,
+					body: JSON.stringify({
+						class: ["error"],
+						properties: { code: "broken", message: "empty actions" },
+						actions: [],
+					}),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSavePdf(), createDeps(fetchFn));
+		const collection = await start();
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+		await expect(
+			collection.actions["save-pdf"]({
+				url: "https://example.com/x.pdf",
+				pdfBytes: bytesToBase64(pdfBytes),
+			}),
+		).rejects.toThrow("Save failed: 422");
+	});
+
+	it("defaults the fallback action Content-Type to application/json when it isn't declared on the Siren action", async () => {
+		const savedAt = "2026-01-15T10:00:00.000Z";
+		let fallbackHeaders: Record<string, string> | undefined;
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSavePdfResponse(),
+				},
+				"POST http://localhost:3000/queue/save-pdf": {
+					status: 422,
+					body: JSON.stringify({
+						class: ["error"],
+						properties: { code: "broken", message: "fallback" },
+						actions: [
+							{
+								name: "save-article",
+								href: "/queue",
+								method: "POST",
+								fields: [{ name: "url", type: "url" }],
+							},
+						],
+					}),
+				},
+				"POST http://localhost:3000/queue": (init) => {
+					fallbackHeaders = (init?.headers as Record<string, string>) ?? undefined;
+					return { status: 201, body: articleResponse(savedAt) };
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSavePdf(), createDeps(fetchFn));
+		const collection = await start();
+
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+		const result = await collection.actions["save-pdf"]({
+			url: "https://example.com/x.pdf",
+			pdfBytes: bytesToBase64(pdfBytes),
+		});
+		expect(result.items[0].id).toBe("article-1");
+		expect(fallbackHeaders?.["Content-Type"]).toBe("application/json");
+	});
+});
+
 describe("initSirenReadingList capability negotiation", () => {
 	function createAdapterDeps(
 		fetchFn: SirenReadingListDeps["fetchFn"],
@@ -1449,6 +1718,50 @@ describe("initSirenReadingList capability negotiation", () => {
 		assert.equal(result.ok, true);
 		expect(calls).toContain("POST http://localhost:3000/queue");
 		expect(calls).not.toContain("POST http://localhost:3000/queue/save-html");
+	});
+
+	it("prefers save-pdf when pdfBytes is provided AND the server advertises save-pdf", async () => {
+		const COLLECTION_WITH_PDF = [
+			COLLECTION_ACTIONS[0],
+			{
+				name: "save-pdf",
+				href: "/queue/save-pdf",
+				method: "POST",
+				type: "multipart/form-data",
+				fields: [
+					{ name: "url", type: "url" },
+					{ name: "pdf", type: "file" },
+				],
+			},
+			COLLECTION_ACTIONS[1],
+		];
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: JSON.stringify({
+						class: ["collection", "articles"],
+						entities: [],
+						links: [{ rel: ["self"], href: "/queue" }],
+						actions: COLLECTION_WITH_PDF,
+					}),
+				},
+				"POST http://localhost:3000/queue/save-pdf": {
+					status: 201,
+					body: articleResponseFor("/queue/article-1"),
+				},
+			}),
+		);
+		const list = initSirenReadingList(createAdapterDeps(fetchFn));
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]).buffer;
+		const result = await list.saveUrl({
+			url: "https://example.com/x.pdf",
+			title: "",
+			pdfBytes,
+		});
+		assert.equal(result.ok, true);
+		expect(calls).toContain("POST http://localhost:3000/queue/save-pdf");
+		expect(calls).not.toContain("POST http://localhost:3000/queue");
 	});
 });
 

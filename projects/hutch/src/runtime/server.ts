@@ -77,8 +77,10 @@ import type { PublishRecrawlLinkInitiated } from "@packages/test-fixtures/provid
 import type { PublishSaveAnonymousLink } from "@packages/test-fixtures/providers/events";
 import type { PublishStaleCheckRequested } from "@packages/test-fixtures/providers/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/test-fixtures/providers/events";
+import type { PublishSaveLinkRawPdfCommand } from "@packages/test-fixtures/providers/events";
 import type { PublishExportUserDataCommand } from "@packages/test-fixtures/providers/events";
 import type { PutPendingHtml } from "@packages/test-fixtures/providers/pending-html";
+import type { PutPendingPdf } from "@packages/test-fixtures/providers/pending-pdf";
 import type { SendEmail } from "@packages/test-fixtures/providers/email";
 import type {
 	CreateVerificationToken,
@@ -184,9 +186,11 @@ interface AppDependencies {
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
+	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
 	publishExportUserDataCommand: PublishExportUserDataCommand;
 	findEmailByUserId: FindEmailByUserId;
 	putPendingHtml: PutPendingHtml;
+	putPendingPdf: PutPendingPdf;
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
@@ -567,7 +571,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		updateArticleStatus: deps.updateArticleStatus,
 		publishLinkSaved: deps.publishLinkSaved,
 		publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
+		publishSaveLinkRawPdfCommand: deps.publishSaveLinkRawPdfCommand,
 		putPendingHtml: deps.putPendingHtml,
+		putPendingPdf: deps.putPendingPdf,
 		findGeneratedSummary: deps.findGeneratedSummary,
 		markSummaryPending: deps.markSummaryPending,
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
