@@ -1,6 +1,3 @@
-import { DEFAULT_CRAWL_HEADERS } from "./crawl-article";
-import type { fetchCurl } from "./curl-fetch";
-
 const REDDIT_WEB_HOSTS: ReadonlySet<string> = new Set([
 	"www.reddit.com",
 	"m.reddit.com",
@@ -10,42 +7,29 @@ const REDDIT_WEB_HOSTS: ReadonlySet<string> = new Set([
 
 const SHORTLINK_PATH = /^\/r\/[^/]+\/s\/[A-Za-z0-9_-]+\/?$/;
 
-const RESOLVE_TIMEOUT_MS = 5000;
-
 export type RedditPreprocessor = (url: string) => Promise<string>;
-
-type RedditPreprocessorDeps = {
-	/** Curl-impersonate fetcher. Reddit returns 403 to undici's TLS fingerprint
-	 * from AWS Lambda's outbound IPs but serves 301s to Chrome's fingerprint —
-	 * the resolver must use curl-impersonate, not globalThis.fetch. */
-	fetchCurl: typeof fetchCurl;
-	logError: (message: string, error?: Error) => void;
-};
 
 /**
  * www.reddit.com serves a JavaScript challenge or 403 to crawler-shaped
  * traffic from AWS Lambda's outbound IPs. old.reddit.com (the legacy
  * interface) returns full article HTML on the same canonical /comments/<id>
- * paths, and keeps the `<link rel="canonical">` pointing at www.reddit.com so
+ * paths and keeps the `<link rel="canonical">` pointing at www.reddit.com so
  * downstream consumers still get the public canonical URL. Rewriting is the
  * cheapest bypass: no extra fetch, no persona variation needed.
  *
- * /r/<sub>/s/<id> shortlinks are www-only — old.reddit.com 302s them to a
- * submit/login flow. The preprocessor first resolves the shortlink to its
- * canonical /comments/<id>/<slug>/ form via a curl-impersonate request with
- * redirects disabled (one round trip, 301 + Location), then rewrites the
- * resolved URL to old.reddit.com. If resolution fails the original URL passes
- * through unchanged.
+ * Known limitation: /r/<sub>/s/<id> shortlinks are NOT supported from AWS
+ * Lambda. Resolving them requires fetching www.reddit.com to read the 301
+ * Location header, and Reddit IP-blocks AWS Lambda egress on that endpoint
+ * regardless of TLS fingerprint (undici and curl-impersonate both get 403).
+ * Pre-resolution must happen on a non-AWS IP (the browser extension's
+ * residential IP, or an external resolver service) before the URL reaches
+ * the crawler. /s/ shortlinks that hit the crawler will fail with 403.
  */
-export function initRedditPreprocessor(deps: RedditPreprocessorDeps): RedditPreprocessor {
+export function initRedditPreprocessor(): RedditPreprocessor {
 	return async (url) => {
 		const parsed = parseUrl(url);
 		if (!parsed || !REDDIT_WEB_HOSTS.has(parsed.hostname)) return url;
-		if (SHORTLINK_PATH.test(parsed.pathname)) {
-			const canonical = await resolveShortlink(deps, parsed);
-			if (!canonical || !REDDIT_WEB_HOSTS.has(canonical.hostname)) return url;
-			return toOldReddit(canonical).href;
-		}
+		if (SHORTLINK_PATH.test(parsed.pathname)) return url;
 		return toOldReddit(parsed).href;
 	};
 }
@@ -62,27 +46,4 @@ function toOldReddit(url: URL): URL {
 	const next = new URL(url.href);
 	next.hostname = "old.reddit.com";
 	return next;
-}
-
-async function resolveShortlink(deps: RedditPreprocessorDeps, url: URL): Promise<URL | null> {
-	try {
-		const response = await deps.fetchCurl(url.href, {
-			headers: { ...DEFAULT_CRAWL_HEADERS },
-			followRedirects: false,
-			signal: AbortSignal.timeout(RESOLVE_TIMEOUT_MS),
-		});
-		const location = response.headers.get("location");
-		deps.logError(
-			`[reddit-preprocessor] shortlink probe ${url.href} -> status=${response.status} location=${location ?? "<none>"} server=${response.headers.get("server") ?? "<none>"}`,
-		);
-		if (response.status < 300 || response.status >= 400) return null;
-		if (!location) return null;
-		return new URL(location, url);
-	} catch (error) {
-		deps.logError(
-			`[reddit-preprocessor] shortlink resolution failed for ${url.href}`,
-			error instanceof Error ? error : undefined,
-		);
-		return null;
-	}
 }

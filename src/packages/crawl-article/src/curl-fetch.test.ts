@@ -126,17 +126,6 @@ describe("fetchCurl argument construction", () => {
 		expect(args[sepIdx + 1]).toBe("https://example.com/page?q=1");
 	});
 
-	it("omits --location and --max-redirs when followRedirects is false (so 3xx responses surface directly)", async () => {
-		const fake = makeFakeExec({ stdout: "HTTP/1.1 301 Moved Permanently\r\nlocation: /next\r\n\r\n" });
-		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl });
-		const response = await fetchCurl("https://example.com/short", { followRedirects: false });
-		const args = fake.calls[0].args;
-		expect(args).not.toContain("--location");
-		expect(args).not.toContain("--max-redirs");
-		expect(response.status).toBe(301);
-		expect(response.headers.get("location")).toBe("/next");
-	});
-
 	it("passes --globoff so bracketed URLs are not parsed as range expansions", async () => {
 		const fake = makeFakeExec({ stdout: "HTTP/1.1 200 OK\r\n\r\n" });
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl });

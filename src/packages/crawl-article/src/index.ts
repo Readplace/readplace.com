@@ -9,7 +9,6 @@ export {
 export type { Persona } from "./persona-fallback";
 export { initRedditPreprocessor } from "./reddit-preprocessor";
 export type { RedditPreprocessor } from "./reddit-preprocessor";
-export { fetchCurl } from "./curl-fetch";
 export { extensionFromContentType } from "./extension-from-content-type";
 export type {
 	CrawlArticle,

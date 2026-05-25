@@ -7,10 +7,6 @@ const DEFAULT_TIMEOUT_MS = 10000;
 type CurlFetchInit = {
 	headers?: Record<string, string>;
 	signal?: AbortSignal;
-	/** When false, curl returns the first response (incl. 3xx with Location)
-	 * without following. Default true — matches the fall-through fetcher
-	 * contract used by withH2Fallback and the persona chain. */
-	followRedirects?: boolean;
 };
 
 type CurlChild = {
@@ -65,11 +61,7 @@ export function createCurlFetch(deps: { execCurl: ExecCurl }): CurlFetch {
 	const { execCurl } = deps;
 	return function fetchCurl(url, init) {
 		return new Promise((resolve, reject) => {
-			const args = buildCurlArgs({
-				url,
-				headers: init?.headers,
-				followRedirects: init?.followRedirects ?? true,
-			});
+			const args = buildCurlArgs({ url, headers: init?.headers });
 			const timeoutMs = init?.signal ? undefined : DEFAULT_TIMEOUT_MS;
 			const child = execCurl(args, { timeoutMs }, (error, stdout) => {
 				if (error) {
@@ -99,7 +91,7 @@ export function createCurlFetch(deps: { execCurl: ExecCurl }): CurlFetch {
 
 export const fetchCurl: CurlFetch = createCurlFetch({ execCurl: defaultExecCurl });
 
-function buildCurlArgs(params: { url: string; headers?: Record<string, string>; followRedirects: boolean }): string[] {
+function buildCurlArgs(params: { url: string; headers?: Record<string, string> }): string[] {
 	const args = [
 		"--http2",
 		// Disable curl's URL globbing so `[…]` and `{…}` in real URLs (e.g.
@@ -109,15 +101,15 @@ function buildCurlArgs(params: { url: string; headers?: Record<string, string>; 
 		"--globoff",
 		"--silent",
 		"--show-error",
+		"--location",
+		"--max-redirs",
+		String(MAX_REDIRECTS),
 		"--dump-header",
 		"-",
 		"--output",
 		"-",
 		"--compressed",
 	];
-	if (params.followRedirects) {
-		args.push("--location", "--max-redirs", String(MAX_REDIRECTS));
-	}
 	if (params.headers) {
 		for (const [key, value] of Object.entries(params.headers)) {
 			args.push("--header", `${toTitleCase(key)}: ${value}`);

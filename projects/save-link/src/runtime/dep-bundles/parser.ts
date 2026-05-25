@@ -5,7 +5,6 @@ import type {
 	SimpleCrawl,
 } from "@packages/crawl-article";
 import {
-	fetchCurl,
 	initComprehensiveCrawl,
 	initCrawlArticle,
 	initCrawlFetch,
@@ -42,7 +41,7 @@ export function initParserDepBundle(deps: {
 		fetch: globalThis.fetch,
 		personas: CRAWL_PERSONAS,
 	});
-	const preprocessUrl = initRedditPreprocessor({ fetchCurl, logError: deps.logError });
+	const preprocessUrl = initRedditPreprocessor();
 	const simpleCrawl = initSimpleCrawl({ crawlFetch, preprocessUrl, logError: deps.logError });
 	const { parseHtml } = initReadabilityParser({
 		// parseArticle (the only crawlArticle consumer in the parser) is only
@@ -77,7 +76,7 @@ export function initComprehensiveParserDepBundle(deps: {
 		fetch: globalThis.fetch,
 		personas: CRAWL_PERSONAS,
 	});
-	const preprocessUrl = initRedditPreprocessor({ fetchCurl, logError: deps.logError });
+	const preprocessUrl = initRedditPreprocessor();
 	const simpleCrawl = initSimpleCrawl({ crawlFetch, preprocessUrl, logError: deps.logError });
 	const comprehensiveCrawl = initComprehensiveCrawl({
 		crawlFetch,

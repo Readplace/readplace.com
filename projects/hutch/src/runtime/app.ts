@@ -8,7 +8,7 @@ import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
 import type { ExtractPdf } from "@packages/crawl-article";
-import { CRAWL_PERSONAS, fetchCurl, initComprehensiveCrawl, initCrawlArticle, initCrawlFetch, initRedditPreprocessor, initSimpleCrawl } from "@packages/crawl-article";
+import { CRAWL_PERSONAS, initComprehensiveCrawl, initCrawlArticle, initCrawlFetch, initRedditPreprocessor, initSimpleCrawl } from "@packages/crawl-article";
 import type { PublishStaleCheckRequested } from "@packages/test-fixtures/providers/events";
 import { initReadabilityParser, mediumPreParser, theInformationPreParser } from "@packages/article-parser";
 import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
@@ -161,7 +161,7 @@ function initProviders() {
 		const { publishCancelSubscriptionCommand } = initEventBridgeCancelSubscriptionCommand({ publishEvent });
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
 		const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
-		const preprocessUrl = initRedditPreprocessor({ fetchCurl, logError });
+		const preprocessUrl = initRedditPreprocessor();
 		const simpleCrawl = initSimpleCrawl({ crawlFetch, preprocessUrl, logError });
 		const comprehensiveCrawl = initComprehensiveCrawl({ crawlFetch, preprocessUrl, extractPdf, logError });
 		const crawlArticle = initCrawlArticle({ simpleCrawl, comprehensiveCrawl });
@@ -283,7 +283,7 @@ function initProviders() {
 	const crawlStore = initInMemoryArticleCrawl();
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
 	const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
-	const preprocessUrl = initRedditPreprocessor({ fetchCurl, logError });
+	const preprocessUrl = initRedditPreprocessor();
 	const simpleCrawl = initSimpleCrawl({ crawlFetch, preprocessUrl, logError });
 	const comprehensiveCrawl = initComprehensiveCrawl({ crawlFetch, preprocessUrl, extractPdf, logError });
 	const crawlArticle = initCrawlArticle({ simpleCrawl, comprehensiveCrawl });

@@ -186,19 +186,6 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: false,
 	},
 	{
-		// /r/<sub>/s/<id> shortlinks resolve only against www.reddit.com. The
-		// reddit-preprocessor first resolves the shortlink to its canonical
-		// /comments/<id>/<slug>/ form via curl-impersonate (Chrome TLS
-		// fingerprint, since undici from Lambda gets 403), then rewrites the
-		// resolved URL to old.reddit.com — old returns the article HTML where
-		// www serves a JS challenge to Lambda IPs. A green run here exercises
-		// both the shortlink resolver AND the www→old rewrite.
-		label: "Reddit (/s/ shortlink)",
-		url: "https://www.reddit.com/r/javascript/s/3GQafG3qjy",
-		expectedContent: "You might not need",
-		expectsThumbnail: true,
-	},
-	{
 		// Akamai BotManager blocks standard curl's TLS fingerprint with HTTP/2
 		// RST_STREAM (exit 92). curl-impersonate's Chrome ClientHello bypasses
 		// this without a proxy — the discriminator is the TLS handshake, not the
