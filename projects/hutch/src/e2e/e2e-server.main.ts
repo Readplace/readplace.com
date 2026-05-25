@@ -15,7 +15,7 @@ import {
 import { requireEnv } from '../runtime/domain/require-env'
 import { initRefreshArticleIfStale } from '@packages/test-fixtures/providers/article-freshness'
 import type { ExtractPdf } from '@packages/crawl-article'
-import { CRAWL_PERSONAS, initComprehensiveCrawl, initCrawlArticle, initCrawlFetch, initSimpleCrawl } from '@packages/crawl-article'
+import { CRAWL_PERSONAS, initComprehensiveCrawl, initCrawlArticle, initCrawlFetch, initRedditPreprocessor, initSimpleCrawl } from '@packages/crawl-article'
 import { initReadabilityParser, mediumPreParser, theInformationPreParser } from '@packages/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
 import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/providers/events'
@@ -53,8 +53,9 @@ const extractPdf: ExtractPdf = async () => ({
   title: E2E_PDF_TITLE,
   html: `<!DOCTYPE html><html><head><title>${E2E_PDF_TITLE}</title></head><body><article><h1>${E2E_PDF_TITLE}</h1>${E2E_PDF_BODY_PARAGRAPHS}</article></body></html>`,
 })
-const simpleCrawl = initSimpleCrawl({ crawlFetch, logError })
-const comprehensiveCrawl = initComprehensiveCrawl({ crawlFetch, extractPdf, logError })
+const preprocessUrl = initRedditPreprocessor({ fetch: globalThis.fetch, logError })
+const simpleCrawl = initSimpleCrawl({ crawlFetch, preprocessUrl, logError })
+const comprehensiveCrawl = initComprehensiveCrawl({ crawlFetch, preprocessUrl, extractPdf, logError })
 const crawlArticle = initCrawlArticle({ simpleCrawl, comprehensiveCrawl })
 const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, sitePreParsers: [theInformationPreParser, mediumPreParser], logError })
 

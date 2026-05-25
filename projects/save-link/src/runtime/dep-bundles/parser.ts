@@ -8,6 +8,7 @@ import {
 	initComprehensiveCrawl,
 	initCrawlArticle,
 	initCrawlFetch,
+	initRedditPreprocessor,
 	initSimpleCrawl,
 	CRAWL_PERSONAS,
 } from "@packages/crawl-article";
@@ -40,7 +41,8 @@ export function initParserDepBundle(deps: {
 		fetch: globalThis.fetch,
 		personas: CRAWL_PERSONAS,
 	});
-	const simpleCrawl = initSimpleCrawl({ crawlFetch, logError: deps.logError });
+	const preprocessUrl = initRedditPreprocessor({ fetch: globalThis.fetch, logError: deps.logError });
+	const simpleCrawl = initSimpleCrawl({ crawlFetch, preprocessUrl, logError: deps.logError });
 	const { parseHtml } = initReadabilityParser({
 		// parseArticle (the only crawlArticle consumer in the parser) is only
 		// exercised by tests; the production parseHtml path receives HTML
@@ -74,9 +76,11 @@ export function initComprehensiveParserDepBundle(deps: {
 		fetch: globalThis.fetch,
 		personas: CRAWL_PERSONAS,
 	});
-	const simpleCrawl = initSimpleCrawl({ crawlFetch, logError: deps.logError });
+	const preprocessUrl = initRedditPreprocessor({ fetch: globalThis.fetch, logError: deps.logError });
+	const simpleCrawl = initSimpleCrawl({ crawlFetch, preprocessUrl, logError: deps.logError });
 	const comprehensiveCrawl = initComprehensiveCrawl({
 		crawlFetch,
+		preprocessUrl,
 		extractPdf: deps.extractPdf,
 		logError: deps.logError,
 	});

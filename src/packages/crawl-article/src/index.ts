@@ -7,6 +7,8 @@ export {
 	CRAWL_PERSONAS,
 } from "./crawl-article";
 export type { Persona } from "./persona-fallback";
+export { initRedditPreprocessor } from "./reddit-preprocessor";
+export type { RedditPreprocessor } from "./reddit-preprocessor";
 export { extensionFromContentType } from "./extension-from-content-type";
 export type {
 	CrawlArticle,
