@@ -289,6 +289,25 @@ describe("withH2Fallback", () => {
 		});
 	});
 
+	it("escalates to curl when h2 also returns 403 (e.g. old.reddit.com blocks both undici and Node http2)", async () => {
+		const baseFetch: typeof fetch = async () =>
+			new Response("Forbidden", { status: 403, headers: { server: "snooserv" } });
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+			new Response("Forbidden", { status: 403, headers: { server: "snooserv" } }),
+		);
+		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>(async () =>
+			new Response("<html>curl bypassed snooserv</html>", { status: 200, headers: { "content-type": "text/html" } }),
+		);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
+
+		const response = await wrapped("https://old.reddit.com/r/javascript/comments/abc");
+
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("<html>curl bypassed snooserv</html>");
+		expect(h2Impl).toHaveBeenCalledTimes(1);
+		expect(curlImpl).toHaveBeenCalledTimes(1);
+	});
+
 	it("does not invoke curl when h2 succeeds", async () => {
 		const baseFetch: typeof fetch = async () =>
 			new Response("challenge", { status: 403, headers: { server: "cloudflare" } });
