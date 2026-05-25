@@ -1,0 +1,22 @@
+      {{#if errorMessage}}
+      <p class="import__upload-error" role="alert" data-test-import-error>{{errorMessage}}</p>
+      {{/if}}
+      <form class="import__from-url-form" method="POST" action="{{fromUrlAction}}"
+            data-test-form="import-from-url"
+            hx-post="{{fromUrlAction}}" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+        <label class="import__from-url-label" for="import-from-url-input">Newsletter or index URL</label>
+        <div class="import__from-url-row">
+          <input id="import-from-url-input"
+                 class="import__from-url-input"
+                 type="url"
+                 name="url"
+                 required
+                 inputmode="url"
+                 autocomplete="off"
+                 spellcheck="false"
+                 placeholder="https://newsletter.example/issue-42"
+                 data-test-import-from-url-input>
+          <button class="import__from-url-btn" type="submit" data-test-action="import-from-url-submit">Fetch links</button>
+        </div>
+        <p class="import__from-url-meta">Readplace will load the page and list every outbound link.</p>
+      </form>

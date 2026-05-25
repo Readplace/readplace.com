@@ -1,0 +1,10 @@
+      <nav class="import__tabs" aria-label="Import source" data-test-import-tabs>
+        <a class="import__tab {{#if isUpload}}import__tab--active{{/if}}"
+           href="/import"
+           {{#if isUpload}}aria-current="page"{{/if}}
+           data-test-import-tab="upload">Upload a file</a>
+        <a class="import__tab {{#if isFromUrl}}import__tab--active{{/if}}"
+           href="/import?mode=from-url"
+           {{#if isFromUrl}}aria-current="page"{{/if}}
+           data-test-import-tab="from-url">Paste a link</a>
+      </nav>

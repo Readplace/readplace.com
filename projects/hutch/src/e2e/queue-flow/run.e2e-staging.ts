@@ -5,6 +5,7 @@ import { test } from '@playwright/test'
 import type { PageAction } from '../hateoas/navigation-handler.types'
 import {
   IMPORT_ACTION_KEYS,
+  IMPORT_FROM_URL_ACTION_KEYS,
   ONBOARDING_ACTION_KEYS,
   PASSWORD_RESET_ACTION_KEYS,
   SEED_ACTION_KEYS,
@@ -12,6 +13,7 @@ import {
 import { createBannerOnReaderActions, type BannerOnReaderProgress } from './banner-on-reader-actions'
 import { createCleanupActions, type CleanupProgress } from './cleanup-actions'
 import type { ImportProgress } from './import-actions'
+import type { ImportFromUrlProgress } from './import-from-url-actions'
 import { createSavePermalinkActions, type SavePermalinkProgress } from './save-permalink-actions'
 import { createAnonymousViewPageActions, type ViewPageProgress } from './view-page-actions'
 import type { OnboardingProgress } from './onboarding-actions'
@@ -109,6 +111,12 @@ test.describe('Queue management flow (staging)', () => {
       paginatedSelectAllSpansPagesImported: true,
     }
 
+    const importFromUrlProgress: ImportFromUrlProgress = {
+      happyPathImported: true,
+      pageError500Surfaced: true,
+      pageWithoutLinksSurfaced: true,
+    }
+
     const queueProgress: QueueProgress = {
       allArticlesAdded: false,
       paginationArticlesAdded: false,
@@ -175,6 +183,7 @@ test.describe('Queue management flow (staging)', () => {
           bannerOnReaderProgress,
         ),
         importActions: skipFactory(IMPORT_ACTION_KEYS),
+        importFromUrlActions: skipFactory(IMPORT_FROM_URL_ACTION_KEYS),
       },
       preQueueProgressObjects: [
         viewPageProgress,
@@ -185,6 +194,7 @@ test.describe('Queue management flow (staging)', () => {
         seedProgress,
         passwordResetProgress,
         importProgress,
+        importFromUrlProgress,
       ],
       maxNavigations: 100,
     })

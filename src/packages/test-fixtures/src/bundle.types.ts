@@ -3,6 +3,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type { ArticleMetadata, Minutes, ValidateSaveableUrl } from "@packages/domain/article";
 import type { ImportSessionStore } from "@packages/domain/import-session";
+import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { BotDefenseEvent } from "./providers/auth/bot-defense.types";
 import type { ConversionEvent } from "./providers/auth/conversion.types";
 import type { ExchangeGoogleCode } from "./providers/google-auth/google-token.types";
@@ -295,6 +296,7 @@ export interface SharedBundle {
 
 export interface ImportSessionBundle {
 	importSessionStore: ImportSessionStore;
+	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 }
 
 export interface BotDefenseBundle {

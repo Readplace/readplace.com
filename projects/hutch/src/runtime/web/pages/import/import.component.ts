@@ -3,10 +3,16 @@ import { join } from "node:path";
 import type { PageBody } from "../../page-body.types";
 import { render } from "../../render";
 import { IMPORT_STYLES } from "./import.styles";
-import type { ImportUploadViewModel, ImportViewModel } from "./import.viewmodel";
+import type { ImportAcquireViewModel, ImportViewModel } from "./import.viewmodel";
 
 const IMPORT_TEMPLATE = readFileSync(join(__dirname, "import.template.html"), "utf-8");
+const IMPORT_ACQUIRE_TEMPLATE = readFileSync(join(__dirname, "import.acquire.template.html"), "utf-8");
+const IMPORT_TABS_TEMPLATE = readFileSync(join(__dirname, "import.tabs.template.html"), "utf-8");
 const IMPORT_UPLOAD_TEMPLATE = readFileSync(join(__dirname, "import.upload.template.html"), "utf-8");
+const IMPORT_FROM_URL_PANEL_TEMPLATE = readFileSync(
+	join(__dirname, "import.from-url.panel.template.html"),
+	"utf-8",
+);
 const IMPORT_CLIENT_SCRIPT = `<script src="/client-dist/import.client.js" defer></script>`;
 
 const UPLOAD_AUTO_SUBMIT_SCRIPT = `
@@ -82,22 +88,24 @@ export function ImportPage(vm: ImportViewModel): PageBody {
 	};
 }
 
-export function ImportUploadPage(vm: ImportUploadViewModel): PageBody {
-	const content = render(IMPORT_UPLOAD_TEMPLATE, {
-		...vm,
-		errorMessage: vm.errors?.[0]?.message,
-	});
+export function ImportAcquirePage(vm: ImportAcquireViewModel): PageBody {
+	const data = { ...vm, errorMessage: vm.errors?.[0]?.message };
+	const tabsHtml = render(IMPORT_TABS_TEMPLATE, data);
+	const panelHtml = vm.isUpload
+		? render(IMPORT_UPLOAD_TEMPLATE, data)
+		: render(IMPORT_FROM_URL_PANEL_TEMPLATE, data);
+	const content = render(IMPORT_ACQUIRE_TEMPLATE, { ...data, tabsHtml, panelHtml });
 
 	return {
 		seo: {
 			title: "Import Links — Readplace",
-			description: "Upload an export file and import the links into your queue.",
-			canonicalUrl: "/import",
+			description: "Upload an export file or paste a URL to import links into your queue.",
+			canonicalUrl: vm.isUpload ? "/import" : "/import?mode=from-url",
 			robots: "noindex, nofollow",
 		},
 		styles: IMPORT_STYLES,
 		bodyClass: "page-import",
 		content: { html: content },
-		scripts: `${IMPORT_CLIENT_SCRIPT}${UPLOAD_AUTO_SUBMIT_SCRIPT}`,
+		scripts: vm.isUpload ? `${IMPORT_CLIENT_SCRIPT}${UPLOAD_AUTO_SUBMIT_SCRIPT}` : IMPORT_CLIENT_SCRIPT,
 	};
 }

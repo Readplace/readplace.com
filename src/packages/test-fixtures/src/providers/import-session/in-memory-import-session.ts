@@ -31,7 +31,7 @@ export function initInMemoryImportSession(deps: {
 	}
 
 	return {
-		createImportSession: async ({ userId, urls, truncated, totalFoundInFile }) => {
+		createImportSession: async ({ userId, urls, truncated, totalFound }) => {
 			const id = ImportSessionIdSchema.parse(randomBytes(16).toString("hex"));
 			const createdAt = deps.now().toISOString();
 			const expiresAt = Math.floor(deps.now().getTime() / 1000) + IMPORT_SESSION_TTL_SECONDS;
@@ -42,7 +42,7 @@ export function initInMemoryImportSession(deps: {
 				createdAt,
 				expiresAt,
 				totalUrls: urls.length,
-				totalFoundInFile,
+				totalFound,
 				truncated,
 				deselected,
 			};

@@ -260,16 +260,16 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			x: 6, y: 40, width: 12, height: 4,
 			view: "pie",
 		}),
-		/** Stacked counts of import_uploaded vs import_committed surface
-		 *  silent upload→commit failures (uploaded but never committed). */
+		/** Stacked counts of acquire events vs import_committed surface
+		 *  silent acquire→commit failures (acquired but never committed). */
 		logWidget({
 			region,
-			title: "Import upload → commit funnel per day",
+			title: "Import acquire → commit funnel per day",
 			logGroupNames: [hutchLogGroupName],
 			query: [
 				"fields @timestamp, event",
 				`| filter stream = "${STREAMS.analytics}"`,
-				`| filter event in ["${ANALYTICS_EVENTS.importUploaded}", "${ANALYTICS_EVENTS.importCommitted}"]`,
+				`| filter event in ["${ANALYTICS_EVENTS.importUploaded}", "${ANALYTICS_EVENTS.importFromUrlAcquired}", "${ANALYTICS_EVENTS.importCommitted}"]`,
 				"| stats count(*) as imports by bin(1d), event",
 			].join(" "),
 			x: 0, y: 44, width: 24, height: 6,

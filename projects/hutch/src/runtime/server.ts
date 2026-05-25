@@ -101,6 +101,7 @@ import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initQueueRoutes } from "./web/pages/queue/queue.page";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
+import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { initSaveRoutes } from "./web/pages/save/save.page";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
@@ -200,6 +201,7 @@ interface AppDependencies {
 	httpErrorMessageMapping: HttpErrorMessageMapping;
 	logParseError: LogParseError;
 	importSessionStore: ImportSessionStore;
+	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	now: () => Date;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	createCheckoutSession: CreateCheckoutSession;
@@ -457,6 +459,36 @@ export function createApp(dependencies: AppDependencies): Express {
 		app.get("/e2e/fixtures/pdf/:id.pdf", (_req: Request, res: Response) => {
 			res.type("application/pdf").send(E2E_FIXTURE_PDF);
 		});
+
+		/** Deterministic newsletter-style page for the /import?mode=from-url
+		 * e2e flow. Same gating as the article fixture: present on staging and
+		 * dev, absent on the production Lambda. The `:label` segment lets tests
+		 * inject per-run-unique links so concurrent CI runs don't collide on
+		 * the same harvested URL set. */
+		app.get("/e2e/fixtures/links-page/:label", (req: Request, res: Response) => {
+			const label = String(req.params.label).replace(/[^a-zA-Z0-9-]/g, "");
+			const anchors = [1, 2, 3]
+				.map(
+					(i) =>
+						`<a href="${appOrigin}/privacy?import-from-url-${label}-${i}">Article ${i}</a>`,
+				)
+				.join("\n");
+			res
+				.type("text/html")
+				.send(
+					`<!doctype html><html><head><title>Test newsletter ${label}</title></head><body><nav><a href="/subscribe">Subscribe</a></nav>${anchors}</body></html>`,
+				);
+		});
+
+		app.get("/e2e/fixtures/links-page-empty", (_req: Request, res: Response) => {
+			res
+				.type("text/html")
+				.send("<!doctype html><html><body><p>No outbound links here.</p></body></html>");
+		});
+
+		app.get("/e2e/fixtures/links-page-error", (_req: Request, res: Response) => {
+			res.status(500).type("text/html").send("<html><body>boom</body></html>");
+		});
 	}
 
 	app.get("/install", async (req: Request, res: Response) => {
@@ -597,6 +629,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const importRouter = initImportSessionRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,
 		importSessionStore: deps.importSessionStore,
+		extractLinksFromPageUrl: deps.extractLinksFromPageUrl,
 		saveArticle: deps.saveArticle,
 		updateArticleStatus: deps.updateArticleStatus,
 		markCrawlPending: deps.markCrawlPending,

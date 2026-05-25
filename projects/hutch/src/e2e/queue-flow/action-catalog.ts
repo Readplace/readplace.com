@@ -38,6 +38,11 @@ export type ImportActionKey =
 	| 'import-deselect-all-select-some'
 	| 'import-paginated-select-all-spans-pages'
 
+export type ImportFromUrlActionKey =
+	| 'import-from-url-happy-path'
+	| 'import-from-url-page-returns-500'
+	| 'import-from-url-page-has-no-links'
+
 export const TEST_ARTICLE_COUNT = 4
 export const PAGINATION_ARTICLE_COUNT = 17
 export const SEED_ARTICLE_COUNT = 2
@@ -83,6 +88,7 @@ export type QueueFlowActionKey =
 	| SeedActionKey
 	| QueueActionKey
 	| ImportActionKey
+	| ImportFromUrlActionKey
 
 // Fails to compile if the tuple omits any union member — keeps skipFactory
 // callers in run.e2e-staging.ts from silently dropping a key the local test
@@ -125,3 +131,9 @@ export const IMPORT_ACTION_KEYS = [
 	'import-deselect-all-select-some',
 	'import-paginated-select-all-spans-pages',
 ] as const satisfies AssertExhaustive<ImportActionKey, readonly ImportActionKey[]>
+
+export const IMPORT_FROM_URL_ACTION_KEYS = [
+	'import-from-url-happy-path',
+	'import-from-url-page-returns-500',
+	'import-from-url-page-has-no-links',
+] as const satisfies AssertExhaustive<ImportFromUrlActionKey, readonly ImportFromUrlActionKey[]>

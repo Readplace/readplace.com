@@ -39,6 +39,98 @@
   border-radius: var(--radius-sm);
 }
 
+/* ---------- Acquisition tabs ---------- */
+
+.import__tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin: 0 0 24px;
+}
+
+.import__tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.import__tab:hover {
+  color: var(--foreground);
+}
+
+.import__tab--active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+
+/* ---------- From-URL panel ---------- */
+
+.import__from-url-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin: 0 0 24px;
+}
+
+.import__from-url-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+.import__from-url-row {
+  display: flex;
+  gap: 8px;
+}
+
+.import__from-url-input {
+  flex: 1;
+  height: var(--input-height);
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.import__from-url-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-color: var(--primary);
+}
+
+.import__from-url-btn {
+  height: var(--input-height);
+  padding: 0 20px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.import__from-url-btn:hover {
+  background: var(--color-brand-dark);
+}
+
+.import__from-url-meta {
+  margin: 4px 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
 /* ---------- Upload page ---------- */
 
 .import--upload .import__header {

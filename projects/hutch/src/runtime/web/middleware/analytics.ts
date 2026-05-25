@@ -49,6 +49,20 @@ export interface ImportCommittedEvent {
 	is_authenticated: 1;
 }
 
+export interface ImportFromUrlAcquiredEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.importFromUrlAcquired;
+	timestamp: string;
+	path: "/import/from-url";
+	utm_source: "import-feature";
+	utm_medium: "form";
+	utm_campaign: "from-url";
+	url_count: number;
+	truncated: 0 | 1;
+	visitor_hash: string | null;
+	is_authenticated: 1;
+}
+
 export interface ArticleReadEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.articleRead;
@@ -61,6 +75,7 @@ export type AnalyticsEvent =
 	| AnalyticsPageview
 	| ImportUploadedEvent
 	| ImportCommittedEvent
+	| ImportFromUrlAcquiredEvent
 	| ArticleReadEvent;
 
 const SKIP_PATHS = new Set([

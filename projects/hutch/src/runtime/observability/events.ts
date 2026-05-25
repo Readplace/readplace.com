@@ -18,6 +18,7 @@ export const STREAMS = {
 export const ANALYTICS_EVENTS = {
 	pageview: "pageview",
 	importUploaded: "import_uploaded",
+	importFromUrlAcquired: "import_from_url_acquired",
 	importCommitted: "import_committed",
 	articleRead: "article_read",
 } as const;

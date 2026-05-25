@@ -3,6 +3,7 @@ import { test } from '@playwright/test'
 import { createBannerOnReaderActions, type BannerOnReaderProgress } from './banner-on-reader-actions'
 import { createCleanupActions, type CleanupProgress } from './cleanup-actions'
 import { createImportActions, type ImportProgress } from './import-actions'
+import { createImportFromUrlActions, type ImportFromUrlProgress } from './import-from-url-actions'
 import { createOnboardingActions, type OnboardingProgress } from './onboarding-actions'
 import { createPasswordResetActions, type PasswordResetProgress } from './password-reset-actions'
 import { createSavePermalinkActions, type SavePermalinkProgress } from './save-permalink-actions'
@@ -89,6 +90,12 @@ test.describe('Queue management flow (local)', () => {
       paginatedSelectAllSpansPagesImported: false,
     }
 
+    const importFromUrlProgress: ImportFromUrlProgress = {
+      happyPathImported: false,
+      pageError500Surfaced: false,
+      pageWithoutLinksSurfaced: false,
+    }
+
     await runQueueFlow(page, {
       baseURL: BASE_URL,
       testArticles: createLocalTestArticles(BASE_URL),
@@ -123,8 +130,9 @@ test.describe('Queue management flow (local)', () => {
           bannerOnReaderProgress,
         ),
         importActions: createImportActions({ baseUrl: BASE_URL }, queueProgress, importProgress),
+        importFromUrlActions: createImportFromUrlActions({ baseUrl: BASE_URL }, queueProgress, importFromUrlProgress),
       },
-      preQueueProgressObjects: [viewPageProgress, seedProgress, cleanupProgress, passwordResetProgress, onboardingProgress, savePermalinkProgress, bannerOnReaderProgress, importProgress],
+      preQueueProgressObjects: [viewPageProgress, seedProgress, cleanupProgress, passwordResetProgress, onboardingProgress, savePermalinkProgress, bannerOnReaderProgress, importProgress, importFromUrlProgress],
       maxNavigations: 120,
     })
   })

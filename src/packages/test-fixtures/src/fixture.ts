@@ -20,6 +20,7 @@ import { initInMemoryStripeSubscriptions } from "./providers/stripe-subscription
 import { initInMemorySubscriptionProviders } from "./providers/subscription-providers/in-memory-subscription-providers";
 import { initInMemoryTrialScheduler } from "./providers/trial-scheduler/in-memory-trial-scheduler";
 import { initInMemoryImportSession } from "./providers/import-session/in-memory-import-session";
+import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initInMemorySaveLinkRawHtmlCommand } from "./providers/events/in-memory-save-link-raw-html-command";
 import { initInMemoryExportUserDataCommand } from "./providers/events/in-memory-export-user-data-command";
 import { initInMemoryCancelSubscriptionCommand } from "./providers/events/in-memory-cancel-subscription-command";
@@ -198,6 +199,15 @@ export function createFakePublishRecrawlLinkInitiated(
 	};
 }
 
+export const stubExtractLinksFromPageUrl: ExtractLinksFromPageUrl = async () => ({
+	status: "OK",
+	links: {
+		urls: ["https://example.com/a", "https://example.com/b"],
+		truncated: false,
+		totalFound: 2,
+	},
+});
+
 export const TEST_APP_ORIGIN = "http://localhost:3000";
 
 export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
@@ -324,6 +334,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		},
 		importSession: {
 			importSessionStore: initInMemoryImportSession({ now: () => new Date() }),
+			extractLinksFromPageUrl: stubExtractLinksFromPageUrl,
 		},
 		shared: {
 			validateSaveableUrl,

@@ -2,15 +2,29 @@ import type { ImportSessionPage } from "@packages/domain/import-session";
 import type { ComponentError } from "../../shared/component-error.types";
 import { buildImportToggleAllUrl, buildImportToggleUrl, buildImportUrl } from "./import.url";
 
-export interface ImportUploadViewModel {
+export type ImportMode = "upload" | "from-url";
+
+export interface ImportAcquireViewModel {
+	readonly mode: ImportMode;
+	readonly isUpload: boolean;
+	readonly isFromUrl: boolean;
 	readonly errors?: readonly ComponentError[];
 	readonly uploadAction: string;
+	readonly fromUrlAction: string;
 }
 
-export function toImportUploadViewModel(input: { errors?: readonly ComponentError[] }): ImportUploadViewModel {
+export function toImportAcquireViewModel(input: {
+	mode?: string;
+	errors?: readonly ComponentError[];
+}): ImportAcquireViewModel {
+	const mode: ImportMode = input.mode === "from-url" ? "from-url" : "upload";
 	return {
+		mode,
+		isUpload: mode === "upload",
+		isFromUrl: mode === "from-url",
 		errors: input.errors,
 		uploadAction: "/import",
+		fromUrlAction: "/import/from-url",
 	};
 }
 
@@ -24,7 +38,7 @@ export interface ImportViewModel {
 	readonly sessionId: string;
 	readonly rows: readonly ImportRowViewModel[];
 	readonly totalUrls: number;
-	readonly totalFoundInFile: number;
+	readonly totalFound: number;
 	readonly totalSelected: number;
 	readonly truncated: boolean;
 	readonly currentPage: number;
@@ -60,7 +74,7 @@ export function toImportViewModel(
 			};
 		}),
 		totalUrls: session.totalUrls,
-		totalFoundInFile: session.totalFoundInFile,
+		totalFound: session.totalFound,
 		totalSelected,
 		truncated: session.truncated,
 		currentPage: page,

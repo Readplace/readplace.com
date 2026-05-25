@@ -1,5 +1,6 @@
 export type {
 	ImportSession,
+	ImportLinksResult,
 	ImportSessionPage,
 	CreateImportSession,
 	FindImportSession,
@@ -21,4 +22,5 @@ export {
 	IMPORT_PAGE_SIZE,
 	IMPORT_COMMIT_CONCURRENCY,
 } from "./import-session.schema";
-export { extractUrls, type ExtractUrlsResult } from "./extract-urls";
+export { extractUrls } from "./extract-urls";
+export { collectImportLinks } from "./collect-import-links";

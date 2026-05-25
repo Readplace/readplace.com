@@ -51,6 +51,7 @@
     "@packages/article-state-types": "workspace:*",
     "@packages/crawl-article": "workspace:*",
     "@packages/domain": "workspace:*",
+    "@packages/extract-links-from-page": "workspace:*",
     "@packages/hutch-infra-components": "workspace:*",
     "@packages/hutch-logger": "workspace:*",
     "@packages/hutch-storage-client": "workspace:*",

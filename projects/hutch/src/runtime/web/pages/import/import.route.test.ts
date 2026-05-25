@@ -43,7 +43,7 @@ describe("Import routes", () => {
 	});
 
 	describe("GET /import (authenticated)", () => {
-		it("renders the upload form", async () => {
+		it("renders the upload form with the upload tab marked active", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
@@ -57,6 +57,12 @@ describe("Import routes", () => {
 			const button = form.querySelector('[data-test-action="import-upload"]');
 			assert(button, "Upload button must remain in the DOM as the no-JS fallback");
 			expect(button.textContent).toBe("Upload");
+			const uploadTab = doc.querySelector('[data-test-import-tab="upload"]');
+			assert(uploadTab, "upload tab anchor must be rendered");
+			expect(uploadTab.getAttribute("aria-current")).toBe("page");
+			const fromUrlTab = doc.querySelector('[data-test-import-tab="from-url"]');
+			assert(fromUrlTab, "from-url tab anchor must be rendered");
+			expect(fromUrlTab.getAttribute("aria-current")).toBeNull();
 		});
 
 		it("renders the upload form in idle state with both idle and uploading regions", async () => {

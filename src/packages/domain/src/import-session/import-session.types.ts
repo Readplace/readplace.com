@@ -1,13 +1,19 @@
 import type { UserId } from "../user/user.types";
 import type { ImportSessionId } from "./import-session.schema";
 
+export interface ImportLinksResult {
+	readonly urls: readonly string[];
+	readonly truncated: boolean;
+	readonly totalFound: number;
+}
+
 export interface ImportSession {
 	readonly id: ImportSessionId;
 	readonly userId: UserId;
 	readonly createdAt: string;
 	readonly expiresAt: number;
 	readonly totalUrls: number;
-	readonly totalFoundInFile: number;
+	readonly totalFound: number;
 	readonly truncated: boolean;
 	readonly deselected: ReadonlySet<number>;
 }
@@ -23,7 +29,7 @@ export type CreateImportSession = (params: {
 	userId: UserId;
 	urls: readonly string[];
 	truncated: boolean;
-	totalFoundInFile: number;
+	totalFound: number;
 }) => Promise<ImportSession>;
 
 export type FindImportSession = (params: {
