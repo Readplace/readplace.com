@@ -14,19 +14,25 @@ const deepInfraApiKey = requireEnv("DEEPINFRA_API_KEY");
 
 const s3Client = new S3Client({});
 
-// Per-attempt timeout sized for DeepInfra batched-image TTFB. With M=2 (see
-// DEFAULT_BATCH_SIZE in ocr-pdf.ts), per-page budget is the prior M=1 cap
-// (~90s) divided across the batch's pages — i.e. 90 / 3 ≈ 30s of model
-// time per page. 120s covers 2 pages × 30s with a 60s buffer for the
-// non-linear TTFB amplification multi-image batches show on dense content.
-// Three attempts × 120s = 360s leaves ~240s under the 600s Lambda timeout
-// for S3 download, pdftoppm, and stitching, and absorbs DeepInfra 429s
-// without exhausting the budget on a single slow attempt.
+// Per-request SDK timeout sized to DeepInfra's empirical server-side cap
+// plus a 100 s buffer. Observed: vision requests that don't return are
+// closed by DeepInfra at ~302 s with the SDK reporting "Request timed
+// out" — that's the server closing the socket, not the SDK's own clock
+// firing. Raising the SDK timeout above ~302 s does not change wall
+// clock for failing pages because the server tears down first; 400 s
+// gives the SDK 100 s of headroom over the observed cap so we never
+// give up before the server does. Successful vision calls in
+// production have run as long as 360 s, so the buffer also covers
+// pages that legitimately need the extra time before the model returns.
+// The in-Lambda text-layer fallback (see pdf-page-ocr-handler.ts)
+// recovers from the timeout for PDFs that carry an embedded text layer.
+// maxRetries=0 because SDK-level retries would not bypass the server-
+// side cap and the text-layer fallback is the recovery mechanism.
 const deepInfraClient = new OpenAI({
 	apiKey: deepInfraApiKey,
 	baseURL: "https://api.deepinfra.com/v1/openai",
-	timeout: 120_000,
-	maxRetries: 2,
+	timeout: 400_000,
+	maxRetries: 0,
 });
 
 const baseDownload = initDownloadStagedPdf({ client: s3Client, bucketName: contentBucketName });

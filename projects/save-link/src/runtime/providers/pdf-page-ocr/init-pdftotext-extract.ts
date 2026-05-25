@@ -1,3 +1,8 @@
+/* c8 ignore start -- thin `pdftotext` process wrapper, exercised end-to-end
+ * by the tier-1 canary against the staged source PDF and mocked in unit
+ * tests via the ExtractPageTextLayer dep. The Lambda's container image
+ * already installs poppler-utils for pdfinfo (see projects/save-link/Dockerfile),
+ * which ships pdftotext in the same package — no Dockerfile change needed. */
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
@@ -5,12 +10,6 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import type { ExtractPageTextLayer } from "../../domain/pdf-page-ocr/pdf-page-ocr-handler.types";
 
-/* c8 ignore start -- thin `pdftotext` process wrapper; exercised end-to-end
- * by the tier-1 canary against the staged source PDF and mocked in unit
- * tests via the ExtractPageTextLayer dep. The Lambda's container image
- * already installs poppler-utils for pdfinfo (see projects/save-link/Dockerfile),
- * which ships pdftotext in the same package — no Dockerfile change needed.
- */
 export function initPdftotextExtract(): { extractPageTextLayer: ExtractPageTextLayer } {
 	return {
 		extractPageTextLayer: async ({ pdfBuffer, pageIndex }) => {

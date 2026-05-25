@@ -2,6 +2,7 @@ import { z } from "zod";
 import { escapeHtmlText, type RenderPdfPageToPng } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { CreateVisionMessage } from "../article-parser/create-deepinfra-vision-message";
+import { normalizeUnknownError } from "../article-parser/normalize-error";
 import type {
 	DownloadStagedPdf,
 	ExtractPageTextLayer,
@@ -57,7 +58,7 @@ export function initPdfPageOcrHandler(deps: {
 			 * artifacts like stray bullets and ligature drops) but for the pages
 			 * where the vision model simply cannot return at all, garbled text
 			 * is still better than an `ocr-failed` placeholder. */
-			const message = visionError instanceof Error ? visionError.message : String(visionError);
+			const message = normalizeUnknownError(visionError).message;
 			logger.warn(`[pdf-page-ocr] vision OCR failed, attempting text-layer fallback dt=${Date.now() - tOcr}ms reason=${message}`);
 
 			const fragments: string[] = [];
@@ -69,7 +70,7 @@ export function initPdfPageOcrHandler(deps: {
 					trimmed = text.trim();
 					logger.info(`[pdf-page-ocr] text-layer page=${pageIndex} chars=${trimmed.length} dt=${Date.now() - tLayer}ms`);
 				} catch (textLayerError) {
-					const tlMessage = textLayerError instanceof Error ? textLayerError.message : String(textLayerError);
+					const tlMessage = normalizeUnknownError(textLayerError).message;
 					logger.warn(`[pdf-page-ocr] text-layer extraction failed page=${pageIndex} dt=${Date.now() - tLayer}ms reason=${tlMessage}`);
 				}
 				if (trimmed.length === 0) {

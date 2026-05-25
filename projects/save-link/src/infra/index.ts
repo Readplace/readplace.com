@@ -460,14 +460,16 @@ const pdfPageOcrStagingRead: LambdaPolicy = {
 };
 
 const pdfPageOcrLambda = new HutchLambda("pdf-page-ocr", {
-	// 1769 MB lands one vCPU per Lambda for CPU-bound pdftoppm. 600 s timeout
-	// gives the OpenAI SDK room to retry on DeepInfra 429 / 5xx (configured
-	// in pdf-page-ocr.main.ts as timeout=240s × maxRetries=1, i.e. 2 total attempts) before Lambda
-	// kills the process. Per-Lambda batches of pages share a single
-	// multi-image vision call, so wall time per invocation rises with
-	// batch size — 600 s covers the slowest dense academic page tail.
+	// 1769 MB lands one vCPU per Lambda for CPU-bound pdftoppm. 900 s
+	// timeout is AWS Lambda's hard ceiling — overprovisioned versus the
+	// SDK config in pdf-page-ocr.main.ts (timeout=400s, maxRetries=0) and
+	// the observed DeepInfra server-side cap of ~302s, but the headroom is
+	// free (Lambda is billed on actual execution time, not configured
+	// timeout) and covers cases where successful vision calls run up to
+	// the SDK ceiling, S3 download, pdftoppm rasterisation, the text-
+	// layer fallback path, HTML stitching, and serialisation.
 	memorySize: 1769,
-	timeout: 600,
+	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["pdf-page-ocr"] },
 	environment: {
 		CONTENT_BUCKET_NAME: contentBucketName,
