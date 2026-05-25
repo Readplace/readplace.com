@@ -168,7 +168,7 @@ describe("GET /account (trialing inside trial window)", () => {
 		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe(trialEndsAt);
 		const serverNow = countdown.getAttribute("data-server-now-iso") ?? "";
 		assert(serverNow.length > 0, "server-now ISO must be populated for active trial");
-		expect(Number.isNaN(Date.parse(serverNow))).toBe(false);
+		expect(Date.parse(serverNow)).toBeGreaterThan(0);
 	});
 });
 
