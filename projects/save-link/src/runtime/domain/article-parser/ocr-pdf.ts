@@ -34,12 +34,26 @@ const DEFAULT_DPI = 150;
 
 
 // Per-chunk retry budget. The OpenAI SDK inside the page Lambda already burns
-// 90s × 3 attempts against DeepInfra (`pdf-page-ocr.main.ts`); this layer adds
-// two fresh-container retries on top, so an upstream stall that sticks to a
+// 120s × 3 attempts against DeepInfra (`pdf-page-ocr.main.ts`); this layer adds
+// one fresh-container retry on top, so an upstream stall that sticks to a
 // single warm DeepInfra socket can clear on a new Lambda invocation. Worst-case
-// wall time per chunk = MAX_ATTEMPTS × slowest-page time.
-const PAGE_OCR_MAX_ATTEMPTS = 3;
+// wall time per chunk = MAX_ATTEMPTS × per-Lambda SDK budget (360s) = 720s,
+// which fits under the 900s orchestrator timeout (see
+// projects/save-link/src/infra/index.ts) and leaves room for the partial-
+// success threshold check below to actually run. A higher MAX_ATTEMPTS would
+// push the per-chunk budget past the orchestrator timeout and the orchestrator
+// would die before any partial result could be persisted.
+const PAGE_OCR_MAX_ATTEMPTS = 2;
 const PAGE_OCR_RETRY_DELAY_MS = 2000;
+
+// Minimum fraction of chunks that must succeed for the OCR to be accepted.
+// A scanned document with a handful of image-heavy pages that defeat the
+// vision model is far more useful with the readable pages stitched together
+// than with no text at all — readers can fill the gaps from the original PDF
+// link. Failed chunks render as `<p class="ocr-failed">` placeholders so the
+// document still reads as a whole and CSS can style the gaps. Below the
+// threshold the result is rejected the same way a total fan-out failure is.
+const DEFAULT_PARTIAL_SUCCESS_THRESHOLD = 0.9;
 
 export function initOcrPdf(deps: {
 	extractPdfMetadata: ExtractPdfMetadata;
@@ -51,12 +65,14 @@ export function initOcrPdf(deps: {
 	dpi?: number;
 	maxPages?: number;
 	maxPdfBytes?: number;
+	partialSuccessThreshold?: number;
 }): ExtractPdf {
 	const concurrency = deps.concurrency ?? DEFAULT_CONCURRENCY;
 	const batchSize = deps.batchSize ?? DEFAULT_BATCH_SIZE;
 	const dpi = deps.dpi ?? DEFAULT_DPI;
 	const maxPages = deps.maxPages ?? MAX_PDF_PAGES;
 	const maxPdfBytes = deps.maxPdfBytes ?? MAX_PDF_BYTES.bytes;
+	const partialSuccessThreshold = deps.partialSuccessThreshold ?? DEFAULT_PARTIAL_SUCCESS_THRESHOLD;
 	const { logger, extractPdfMetadata, stagePdf, invokePageOcr } = deps;
 
 	return async ({ buffer, url, onProgress }): Promise<PdfExtractResult> => {
@@ -86,6 +102,9 @@ export function initOcrPdf(deps: {
 
 		const chunks = chunkPages(metadata.numPages, batchSize);
 		const partCount = chunks.length;
+		if (partCount === 0) {
+			return { kind: "failed", reason: "OCR returned no text across all batches" };
+		}
 		let completedParts = 0;
 
 		const invokePageOcrWithRetry = retriable(invokePageOcr, {
@@ -100,18 +119,37 @@ export function initOcrPdf(deps: {
 		try {
 			const staged = await stagePdf(buffer);
 			try {
-				const fragments = await mapWithConcurrency(
+				const outcomes = await mapWithConcurrency(
 					chunks,
 					concurrency,
-					async (pageIndices) => {
+					async (pageIndices): Promise<ChunkOutcome> => {
 						const chunkStart = Date.now();
 						const result = await invokePageOcrWithRetry({ pdfS3Key: staged.key, pageIndices, dpi });
-						if (!result.ok) throw result.error;
+						if (!result.ok) {
+							return { ok: false, pageIndices, error: result.error };
+						}
 						logger.info(`[ocr-pdf] chunk pages=[${pageIndices.join(",")}] done dt=${Date.now() - chunkStart}ms chars=${result.html.length} total=${Date.now() - t0}ms`);
 						completedParts += 1;
 						onProgress?.({ partIndex: completedParts, partCount });
-						return result.html;
+						return { ok: true, pageIndices, html: result.html };
 					},
+				);
+
+				const successCount = outcomes.filter((o) => o.ok).length;
+				const successRatio = successCount / partCount;
+				if (successRatio < partialSuccessThreshold) {
+					const failedPages = collectFailedPages(outcomes);
+					logger.error(`[ocr-pdf] succeeded ${successCount}/${partCount} chunks ratio=${successRatio.toFixed(2)} threshold=${partialSuccessThreshold} — below threshold; failed pages=[${failedPages.join(",")}]`);
+					return { kind: "failed", reason: `OCR succeeded for ${successCount} of ${partCount} chunks — below ${Math.round(partialSuccessThreshold * 100)}% threshold` };
+				}
+
+				if (successCount < partCount) {
+					const failedPages = collectFailedPages(outcomes);
+					logger.warn(`[ocr-pdf] accepting partial result ${successCount}/${partCount} chunks ratio=${successRatio.toFixed(2)} threshold=${partialSuccessThreshold}; failed pages=[${failedPages.join(",")}]`);
+				}
+
+				const fragments = outcomes.map((outcome) =>
+					outcome.ok ? outcome.html : renderFailedChunkPlaceholder(outcome.pageIndices),
 				);
 
 				const combined = fragments.map((t) => t.trim()).filter((t) => t.length > 0).join("\n");
@@ -126,16 +164,39 @@ export function initOcrPdf(deps: {
 				await staged.cleanup();
 			}
 		} catch (error) {
-			// The mapper only ever throws `Error` instances (via `result.error`
-			// from InvokePdfPageOcrResult), and `stagePdf` is documented to throw
-			// `Error`s. `normalizeUnknownError` exists for the boundary where
-			// non-Error values are possible — keep it as the single normalisation
-			// point so the inline `instanceof` branch never goes stale.
+			// Chunk failures are captured into ChunkOutcome and surface via the
+			// partial-success threshold above, not via throw. This catch covers
+			// the remaining error surface: `stagePdf` (documented to throw
+			// `Error`s) and unexpected throws from the sanitiser, logger, or
+			// progress callback. `normalizeUnknownError` is the single
+			// normalisation point for the rare non-Error throw, so the inline
+			// `instanceof` branch can never go stale.
 			const message = normalizeUnknownError(error).message;
 			logger.error(`[ocr-pdf] fan-out failed t=${Date.now() - t0}ms reason=${message}`);
 			return { kind: "failed", reason: `OCR pipeline failed: ${message}` };
 		}
 	};
+}
+
+type ChunkOutcome =
+	| { ok: true; pageIndices: readonly number[]; html: string }
+	| { ok: false; pageIndices: readonly number[]; error: Error };
+
+function collectFailedPages(outcomes: readonly ChunkOutcome[]): number[] {
+	const failed: number[] = [];
+	for (const outcome of outcomes) {
+		if (!outcome.ok) failed.push(...outcome.pageIndices);
+	}
+	return failed.sort((a, b) => a - b);
+}
+
+/** Placeholder for a chunk the vision model could not OCR. Page numbers are
+ * 1-based here because this string is reader-facing — pageIndices are 0-based
+ * internally. */
+function renderFailedChunkPlaceholder(pageIndices: readonly number[]): string {
+	return pageIndices
+		.map((idx) => `<p class="ocr-failed">[Page ${idx + 1}: OCR unavailable]</p>`)
+		.join("");
 }
 
 function chunkPages(numPages: number, batchSize: number): number[][] {
@@ -200,6 +261,7 @@ const ALLOWED_ATTRIBUTES_BY_TAG: Record<string, ReadonlySet<string>> = {
 	img: new Set(["src", "alt"]),
 	td: new Set(["colspan", "rowspan"]),
 	th: new Set(["colspan", "rowspan"]),
+	p: new Set(["class"]), /** `class="ocr-failed"` from renderFailedChunkPlaceholder must survive sanitisation so the reader UI can style failed pages distinctly. */
 };
 
 const EMPTY_ATTR_SET: ReadonlySet<string> = new Set();

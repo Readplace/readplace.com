@@ -195,12 +195,23 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectedContent: "Dummy PDF file",
 		expectsThumbnail: false,
 	},
-	// {
-	// 	label: "PDF (CIA reading room)",
-	// 	url: "https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf",
-	// 	expectedContent: "Warren Commission",
-	// 	expectsThumbnail: false,
-	// },
+	{
+		// CIA reading-room 302-loops AWS IPs to /readingroom when the TLS
+		// fingerprint looks non-browser (curl exit 47). curl-impersonate with
+		// Chrome fingerprint returns 200 directly. Exercises --globoff +
+		// WHATWG URL re-encoding via the bracketed path segment `[16505689]`.
+		// Pages 23–25 of this 31-page scan are image-heavy and individually
+		// defeat DeepInfra's 360s SDK budget; the OCR pipeline's partial-
+		// success threshold (see ocr-pdf.ts) accepts the remaining ≥28/31
+		// pages and renders placeholders for the rest. `expectedContent`
+		// appears on pages 1, 2, 3, 5, 6, 18, 21, 28, 30, 31, all outside the
+		// known-flaky range — confirmed via `pdftotext -f N -l N` against the
+		// staged source PDF.
+		label: "PDF (CIA reading room)",
+		url: "https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf",
+		expectedContent: "Warren Commission",
+		expectsThumbnail: false,
+	},
 	{
 		// Adobe-class fingerprint-strict origin. Sent today's partial Chrome
 		// headers and Adobe's edge RSTs the h2 stream (curl exit 92,
