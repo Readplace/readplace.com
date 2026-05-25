@@ -375,11 +375,51 @@ export function createQueueActions(
         )
         expect(hasUnreadClass).toBe(true)
 
+        // The earlier anonymous-visit-view-page step dismisses the share
+        // balloon and persists that to localStorage; clear it here so the
+        // balloon's scroll listener attaches when /reader mounts below.
+        await page.evaluate(() => window.localStorage.removeItem('readplace.share-dismissed'))
+
         await page.locator('[data-test-article-title]').first().click()
         await page.waitForLoadState('domcontentloaded')
 
         const onReader = await isOnPage(page, 'page-reader')
         expect(onReader).toBe(true)
+
+        // Trigger the share balloon, click Copy, then visit the produced
+        // /view link in a fresh anonymous browser context. Regression guard
+        // for a 500 from existsUserByIdPrefix when the share URL carries a
+        // utm_content prefix that hits the KEYS_ONLY userIdPrefix-index GSI.
+        await page.evaluate(() => {
+          const article = document.querySelector<HTMLElement>('[data-article-body]')
+          const height = article ? article.offsetHeight : 0
+          window.scrollTo(0, Math.ceil(height * 0.5) + 1)
+        })
+        const shareWrap = page.locator('[data-test-share-balloon-wrap]')
+        await expect(shareWrap).toHaveClass(/share-balloon__wrap--open/, { timeout: 3000 })
+        const copyButton = page.locator('[data-test-share-balloon-copy]')
+        const shareUrl = await copyButton.getAttribute('data-share-url')
+        assert.ok(shareUrl, 'share copy button must expose data-share-url')
+        await copyButton.click()
+
+        // share-balloon hardcodes the canonical https://readplace.com host so
+        // the URL stays right when posted to social media. Rewrite to the test
+        // server's origin so the anon visit hits the app under test.
+        const sharePath = new URL(shareUrl)
+        const localShareUrl = `${new URL(page.url()).origin}${sharePath.pathname}${sharePath.search}`
+
+        const browser = page.context().browser()
+        assert.ok(browser, 'browser must be reachable from page context')
+        const anonContext = await browser.newContext()
+        try {
+          const anonPage = await anonContext.newPage()
+          const response = await anonPage.goto(localShareUrl, { waitUntil: 'domcontentloaded' })
+          assert.ok(response, `share URL ${localShareUrl} must return a response`)
+          assert.equal(response.status(), 200, `share URL ${localShareUrl} should load with 200`)
+          await expect(anonPage.locator('body.page-view')).toHaveCount(1)
+        } finally {
+          await anonContext.close()
+        }
 
         // Click Mark-as-read to explicitly mark the article; the form
         // POSTs status=read and redirects to /queue.
