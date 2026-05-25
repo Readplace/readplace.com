@@ -32,6 +32,89 @@ sendComponent(req, res, Base(LoginPage(vm), bannerStateFromRequest(req)));
 
 Extract a helper only when it owns real logic (branching, validation, transformation) — not when it just renames a chain.
 
+### Iterate Lists, Don't Branch in Templates
+
+When a region of the template renders a variable set of items (nav links, card actions, form fields, list rows), build a typed array in the view-model / page component and let the template iterate it with `{{#each items}}`. Do **not** scatter `{{#if showImport}}` / `{{#if hasCancelButton}}` / `{{#if accessIsReadOnly}}` conditionals across the markup. The branching belongs in TypeScript where it's testable in isolation and where the editor can verify the union of cases; the template's job is to render one item shape, once.
+
+This applies even when the list has only 1–2 items today. The cost of the abstraction is a tiny typed item builder; the win is that adding, removing, or reordering items is one edit in one TypeScript function, not a search-and-replace across template branches.
+
+```typescript
+// ❌ BAD — booleans flow into the template, every variant grows another {{#if}}
+return render(TEMPLATE, {
+	isAuthenticated,
+	accessIsReadOnly,
+	showSubscription,
+});
+```
+```html
+{{#if isAuthenticated}}
+<li><a href="/queue" data-test-nav-item="queue">Queue</a></li>
+{{#if accessIsFull}}<li><a href="/import?..." data-test-nav-item="import">Import Links</a></li>{{/if}}
+<li><a href="/export" data-test-nav-item="export">Export</a></li>
+{{#if showSubscription}}{{#if accessIsFull}}<li><a href="/account?..." data-test-nav-item="account">Account</a></li>{{/if}}{{/if}}
+<li><form method="POST" action="/logout"><button data-test-nav-item="logout">Sign out</button></form></li>
+{{else}}
+<li><a href="/#what-works" data-test-nav-item="features">Features</a></li>
+<li><a href="/signup" data-test-nav-item="signup">Sign up</a></li>
+{{/if}}
+```
+
+```typescript
+// ✅ GOOD — list is built in TS, template iterates one item shape
+export function buildNavItems(input: {
+	isAuthenticated: boolean;
+	accessIsReadOnly: boolean;
+	showSubscription: boolean;
+}): NavItem[] {
+	if (!input.isAuthenticated) return [NAV_FEATURES, NAV_SIGNUP];
+	const items = [NAV_QUEUE];
+	if (!input.accessIsReadOnly) items.push(NAV_IMPORT);
+	items.push(NAV_EXPORT);
+	if (input.showSubscription && !input.accessIsReadOnly) items.push(NAV_ACCOUNT);
+	items.push(NAV_LOGOUT);
+	return items;
+}
+```
+```html
+{{#each navItems}}
+<li>
+  <form method="{{method}}" action="{{href}}">
+    <button type="submit" data-test-nav-item="{{key}}">{{label}}</button>
+  </form>
+</li>
+{{/each}}
+```
+
+#### Forms Everywhere — Don't Split Items Into `<a>` vs `<form>`
+
+When some items are GET (link-like) and others are POST (mutations), do **not** add an `isLink: method === "GET"` discriminator and branch the template on it. Render every item the same way: `<form method="{{method}}" action="{{href}}"><button>{{label}}</button></form>`. A `method="GET"` form with no inputs navigates to the action URL on submit — the browser appends `?` and follows — so it behaves exactly like a link.
+
+Why prefer this even though `<form>` is heavier markup than `<a>`:
+
+- **One template shape, one styling target.** No `{{#if isLink}}` / `{{else}}` branch; `.nav__link` (or whatever you call it) styles `button.nav__link` and that's it.
+- **Adding a new variant is one item in the builder, not a new branch in the template.** Today's GET nav item becomes tomorrow's POST mutation without touching the template.
+- **Excessive markup is not a performance issue at this scale.** A few extra `<form>` and `<button>` elements per page weigh nothing next to the page itself.
+- **CSRF posture stays consistent.** POSTs (logout, cancel) and GETs (queue, export) use the same wrapper, so it's harder to accidentally render a POST mutation as a click-only `<a>`.
+
+The same rule applies to action lists, card actions, and any other repeated UI element with mixed methods. Reserve raw `<a href>` for the rare standalone link that doesn't fit the iteration (e.g., a single brand link in the header).
+
+Worked examples in the codebase to copy from:
+
+- `projects/hutch/src/runtime/web/banner-state.ts` (`buildNavItems` → `NavItem[]`) + `header.template.html` (`{{#each navItems}}`) — mixed `<a>` / `<form>` items.
+- `projects/hutch/src/runtime/web/pages/account/account.view-model.ts` (`AccountAction[]`) + `account.template.html` — primary / destructive variants.
+- `projects/hutch/src/runtime/web/pages/queue/queue-card/queue-card.component.ts` (`actions[]` + per-action `fields[]`) + `queue-card.template.html` — nested iteration: each action carries its own hidden-input form fields.
+- `projects/hutch/src/runtime/web/pages/view/view.component.ts` + `view.template.html` — actions on the view page.
+- `projects/hutch/src/runtime/web/onboarding/onboarding.template.html` — onboarding step actions.
+
+Tests asserting on the list use positive assertions on the rendered keys (per [test-driven-design's "Never Rely on `querySelector(...).toBeNull()`"](../test-driven-design/SKILL.md)):
+
+```typescript
+const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
+	(el) => el.getAttribute("data-test-nav-item"),
+);
+expect(navItems).toEqual(["queue", "export", "logout"]); // read-only user
+```
+
 ## Server-Side Rendering with Progressive Enhancement
 
 This project uses an SSR-first approach. Core principles:

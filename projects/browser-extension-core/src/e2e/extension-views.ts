@@ -32,7 +32,12 @@ export const ELEMENT_IDS = {
 } as const;
 
 export const CSS_SELECTORS = {
-	submitButton: 'button[type="submit"]',
+	/** Scoped to the login form by `data-test-form="login"` so it never picks
+	 * up other submit buttons on the page (the SSR header now renders every
+	 * nav item as a `<form method="…"><button type="submit">…</button></form>`,
+	 * so the bare `button[type="submit"]` selector resolved to the first nav
+	 * button on /login and silently navigated the page away). */
+	submitButton: '[data-test-form="login"] button[type="submit"]',
 	approveButton: 'button[value="approve"]',
 	listItem: "#link-list .list-view__item",
 	listItemTitle: "#link-list .list-view__item-title",
