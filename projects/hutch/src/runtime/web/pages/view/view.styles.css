@@ -23,6 +23,13 @@
   margin: 0 auto;
 }
 
+.view__cta-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
 .view__cta-btn {
   display: block;
   box-sizing: border-box;
@@ -35,6 +42,13 @@
   text-align: center;
   text-decoration: none;
   cursor: pointer;
+}
+
+.view__cta-hint {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--color-error);
+  text-align: center;
 }
 
 /* purgecss-ignore-start: modifier suffix is interpolated from ViewAction.variant in view.template.html */
@@ -88,7 +102,7 @@
 }
 
 .view__expiry--counting {
-  color: var(--color-text-muted);
+  color: var(--color-error);
 }
 
 .view__expiry--expired {

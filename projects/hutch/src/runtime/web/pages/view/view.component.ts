@@ -50,6 +50,7 @@ export interface ViewAction {
 	href: string;
 	variant: "primary" | "secondary";
 	expirySaveLink?: boolean;
+	hint?: string;
 }
 
 export type ExpiryState = "permanent" | "counting" | "expired";
