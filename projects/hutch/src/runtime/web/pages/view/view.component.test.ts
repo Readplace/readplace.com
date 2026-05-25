@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import type { Minutes } from "@packages/domain/article";
+import { calculateReadTime } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import { Base } from "../../base.component";
 import { buildExpiryFields, ViewPage, type ViewPageInput } from "./view.component";
@@ -15,7 +15,7 @@ const baseInput: ViewPageInput = {
 		wordCount: 500,
 		imageUrl: "https://cdn.example.com/hero.jpg",
 	},
-	estimatedReadTime: 3 as Minutes,
+	estimatedReadTime: calculateReadTime(0),
 	content: "<p>Body copy.</p>",
 	summary: { status: "skipped" },
 	actions: [
