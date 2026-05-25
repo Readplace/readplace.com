@@ -1,14 +1,21 @@
 import assert from "node:assert";
 import type { UserId } from "@packages/domain/user";
 import type {
+	ClearChargeFailed,
 	FindSubscriptionBySubscriptionId,
 	FindSubscriptionByUserId,
+	FindSubscriptionByUserIdConsistent,
+	MarkChargeFailed,
+	MarkChargeRequested,
 	MarkSubscriptionActive,
 	MarkSubscriptionCancelled,
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
 	SubscriptionRecord,
 	UpsertActiveSubscription,
+	UpsertCancelledSubscription,
+	UpsertCustomerId,
+	UpsertPaymentMethod,
 	UpsertTrialingSubscription,
 } from "./subscription-providers.types";
 
@@ -16,9 +23,16 @@ export function initInMemorySubscriptionProviders(opts: {
 	now: () => Date;
 }): {
 	findByUserId: FindSubscriptionByUserId;
+	findByUserIdConsistent: FindSubscriptionByUserIdConsistent;
 	findBySubscriptionId: FindSubscriptionBySubscriptionId;
 	upsertTrialing: UpsertTrialingSubscription;
 	upsertActive: UpsertActiveSubscription;
+	upsertCancelled: UpsertCancelledSubscription;
+	upsertCustomerId: UpsertCustomerId;
+	upsertPaymentMethod: UpsertPaymentMethod;
+	markChargeRequested: MarkChargeRequested;
+	markChargeFailed: MarkChargeFailed;
+	clearChargeFailed: ClearChargeFailed;
 	markPendingCancellation: MarkSubscriptionPendingCancellation;
 	markCancelled: MarkSubscriptionCancelled;
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
@@ -28,6 +42,9 @@ export function initInMemorySubscriptionProviders(opts: {
 	const rows = new Map<UserId, SubscriptionRecord>();
 
 	const findByUserId: FindSubscriptionByUserId = async (userId) => rows.get(userId);
+
+	const findByUserIdConsistent: FindSubscriptionByUserIdConsistent = async (userId) =>
+		rows.get(userId);
 
 	const findBySubscriptionId: FindSubscriptionBySubscriptionId = async (subscriptionId) => {
 		for (const row of rows.values()) {
@@ -52,7 +69,7 @@ export function initInMemorySubscriptionProviders(opts: {
 	const upsertActive: UpsertActiveSubscription = async ({ userId, subscriptionId, customerId }) => {
 		const existing = rows.get(userId);
 		const nowIso = opts.now().toISOString();
-		rows.set(userId, {
+		const next: SubscriptionRecord = {
 			userId,
 			provider: "stripe",
 			subscriptionId,
@@ -60,6 +77,96 @@ export function initInMemorySubscriptionProviders(opts: {
 			status: "active",
 			createdAt: existing?.createdAt ?? nowIso,
 			updatedAt: nowIso,
+		};
+		if (existing?.paymentMethodId) next.paymentMethodId = existing.paymentMethodId;
+		if (existing?.paymentMethodBrand) next.paymentMethodBrand = existing.paymentMethodBrand;
+		if (existing?.paymentMethodLast4) next.paymentMethodLast4 = existing.paymentMethodLast4;
+		rows.set(userId, next);
+	};
+
+	const upsertCancelled: UpsertCancelledSubscription = async ({ userId }) => {
+		const existing = rows.get(userId);
+		const nowIso = opts.now().toISOString();
+		const base: SubscriptionRecord = {
+			userId,
+			provider: "stripe",
+			status: "cancelled",
+			createdAt: existing?.createdAt ?? nowIso,
+			updatedAt: nowIso,
+		};
+		if (existing?.customerId) base.customerId = existing.customerId;
+		if (existing?.paymentMethodId) base.paymentMethodId = existing.paymentMethodId;
+		if (existing?.paymentMethodBrand) base.paymentMethodBrand = existing.paymentMethodBrand;
+		if (existing?.paymentMethodLast4) base.paymentMethodLast4 = existing.paymentMethodLast4;
+		rows.set(userId, base);
+	};
+
+	const upsertCustomerId: UpsertCustomerId = async ({ userId, customerId }) => {
+		const existing = rows.get(userId);
+		if (existing?.customerId) {
+			return { ok: false, reason: "customer-id-already-set" };
+		}
+		const nowIso = opts.now().toISOString();
+		const next: SubscriptionRecord = existing
+			? { ...existing, customerId, updatedAt: nowIso }
+			: {
+					userId,
+					provider: "stripe",
+					status: "cancelled",
+					customerId,
+					createdAt: nowIso,
+					updatedAt: nowIso,
+				};
+		rows.set(userId, next);
+		return { ok: true };
+	};
+
+	const upsertPaymentMethod: UpsertPaymentMethod = async ({ userId, paymentMethodId, brand, last4 }) => {
+		const existing = rows.get(userId);
+		assert(existing, `No subscription row for user ${userId}`);
+		const { chargeFailedAt: _faf, chargeFailedReason: _frs, ...rest } = existing;
+		rows.set(userId, {
+			...rest,
+			paymentMethodId,
+			paymentMethodBrand: brand,
+			paymentMethodLast4: last4,
+			updatedAt: opts.now().toISOString(),
+		});
+	};
+
+	const markChargeRequested: MarkChargeRequested = async ({ userId, requestedAt }) => {
+		const existing = rows.get(userId);
+		assert(existing, `No subscription row for user ${userId}`);
+		if (existing.chargeRequestedAt) {
+			return { ok: false, reason: "charge-already-requested" };
+		}
+		rows.set(userId, {
+			...existing,
+			chargeRequestedAt: requestedAt,
+			updatedAt: opts.now().toISOString(),
+		});
+		return { ok: true };
+	};
+
+	const markChargeFailed: MarkChargeFailed = async ({ userId, failedAt, reason }) => {
+		const existing = rows.get(userId);
+		assert(existing, `No subscription row for user ${userId}`);
+		const { chargeRequestedAt: _crq, ...rest } = existing;
+		rows.set(userId, {
+			...rest,
+			chargeFailedAt: failedAt,
+			chargeFailedReason: reason,
+			updatedAt: opts.now().toISOString(),
+		});
+	};
+
+	const clearChargeFailed: ClearChargeFailed = async ({ userId }) => {
+		const existing = rows.get(userId);
+		assert(existing, `No subscription row for user ${userId}`);
+		const { chargeFailedAt: _faf, chargeFailedReason: _frs, ...rest } = existing;
+		rows.set(userId, {
+			...rest,
+			updatedAt: opts.now().toISOString(),
 		});
 	};
 
@@ -120,9 +227,16 @@ export function initInMemorySubscriptionProviders(opts: {
 
 	return {
 		findByUserId,
+		findByUserIdConsistent,
 		findBySubscriptionId,
 		upsertTrialing,
 		upsertActive,
+		upsertCancelled,
+		upsertCustomerId,
+		upsertPaymentMethod,
+		markChargeRequested,
+		markChargeFailed,
+		clearChargeFailed,
 		markPendingCancellation,
 		markCancelled,
 		markCancelledByUserId,

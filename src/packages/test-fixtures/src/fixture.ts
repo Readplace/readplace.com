@@ -24,6 +24,7 @@ import { initInMemorySaveLinkRawHtmlCommand } from "./providers/events/in-memory
 import { initInMemoryExportUserDataCommand } from "./providers/events/in-memory-export-user-data-command";
 import { initInMemoryCancelSubscriptionCommand } from "./providers/events/in-memory-cancel-subscription-command";
 import { initInMemorySubscriptionReactivated } from "./providers/events/in-memory-subscription-reactivated";
+import { initInMemoryAddPaymentMethodCommand } from "./providers/events/in-memory-add-payment-method-command";
 import {
 	createOAuthModel,
 	initInMemoryOAuthModel,
@@ -233,6 +234,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		logger: noopLogger,
 	});
 	const { publishSubscriptionReactivated } = initInMemorySubscriptionReactivated({
+	const { publishAddPaymentMethodCommand } = initInMemoryAddPaymentMethodCommand({
 		logger: noopLogger,
 	});
 	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), { appOrigin });
@@ -303,6 +305,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			publishExportUserDataCommand,
 			publishCancelSubscriptionCommand,
 			publishSubscriptionReactivated,
+			publishAddPaymentMethodCommand,
 		},
 		pendingHtml: {
 			putPendingHtml: pendingHtml.putPendingHtml,

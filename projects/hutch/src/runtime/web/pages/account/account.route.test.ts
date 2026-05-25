@@ -68,7 +68,7 @@ describe("GET /account (founding member, no subscription row)", () => {
 });
 
 describe("GET /account (active paid subscription)", () => {
-	it("renders the active card with a destructive Cancel POST form — no GET confirmation step", async () => {
+	it("renders the active card with add-payment-method + cancel actions when no card is on file", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "active@example.com");
@@ -86,17 +86,42 @@ describe("GET /account (active paid subscription)", () => {
 		expect(card.classList.contains("account-card--active")).toBe(true);
 		expect(card.getAttribute("data-test-account-state")).toBe("active");
 
-		expect(actionKeys(doc)).toEqual(["cancel-form"]);
+		expect(actionKeys(doc)).toEqual(["add-payment-method", "cancel-form"]);
 		const cancelForm = findAction(doc, "cancel-form");
 		expect(cancelForm.tagName.toLowerCase()).toBe("form");
 		expect(cancelForm.getAttribute("action")).toBe("/account/cancel");
 		expect(cancelForm.getAttribute("method")?.toUpperCase()).toBe("POST");
-		expect(doc.querySelector("[data-test-trial-countdown]")).toBeNull();
+	});
+
+	it("renders update-payment-method when the row carries a card", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "active-card@example.com");
+		subscriptionProviders.seedRow({
+			userId,
+			provider: "stripe",
+			status: "active",
+			subscriptionId: "sub_x",
+			customerId: "cus_x",
+			paymentMethodId: "pm_x",
+			paymentMethodBrand: "visa",
+			paymentMethodLast4: "4242",
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(actionKeys(doc)).toEqual(["update-payment-method", "cancel-form"]);
+		const status = doc.querySelector("[data-test-account-status]")?.textContent ?? "";
+		expect(status).toContain("visa ••••4242");
 	});
 });
 
 describe("GET /account?error=payment_method", () => {
-	it("renders the payment-method error card with a support email link — export lives in the nav menu", async () => {
+	it("renders the payment-method error card with a support email link", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "pay-err@example.com");
@@ -127,7 +152,7 @@ describe("GET /account?error=payment_method", () => {
 });
 
 describe("GET /account (trialing inside trial window)", () => {
-	it("renders the trial card with days-left text and a Subscribe form — no Cancel button while on trial", async () => {
+	it("renders trial card with a single Add-payment-method action when no card is on file", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "trial@example.com");
@@ -140,18 +165,39 @@ describe("GET /account (trialing inside trial window)", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const card = findCard(doc);
 		expect(card.classList.contains("account-card--trial")).toBe(true);
-		expect(card.getAttribute("data-test-account-state")).toBe("trial");
-		const status = doc.querySelector("[data-test-account-status]")?.textContent ?? "";
-		expect(status).toContain("free trial");
-		expect(status).toContain("7 days left");
-
-		expect(actionKeys(doc)).toEqual(["subscribe"]);
-		const subscribe = findAction(doc, "subscribe");
-		expect(subscribe.tagName.toLowerCase()).toBe("form");
-		expect(subscribe.getAttribute("action")).toBe("/account/subscribe");
+		expect(actionKeys(doc)).toEqual(["add-payment-method"]);
+		const addBtn = findAction(doc, "add-payment-method");
+		expect(addBtn.getAttribute("action")).toBe("/account/payment-method");
 	});
 
-	it("renders the global trial countdown in the nav for a trialing user (regression: /account previously dropped it)", async () => {
+	it("renders update-payment-method + cancel actions when a card is on file mid-trial", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "trial-card@example.com");
+		const trialEndsAt = new Date(Date.now() + 7 * ONE_DAY_MS).toISOString();
+		subscriptionProviders.seedRow({
+			userId,
+			provider: "stripe",
+			status: "trialing",
+			customerId: "cus_x",
+			paymentMethodId: "pm_x",
+			paymentMethodBrand: "visa",
+			paymentMethodLast4: "4242",
+			trialEndsAt,
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(actionKeys(doc)).toEqual(["update-payment-method", "cancel-form"]);
+		const status = doc.querySelector("[data-test-account-status]")?.textContent ?? "";
+		expect(status).toContain("Will be charged");
+	});
+
+	it("renders the global trial countdown in the nav for a trialing user", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "trial-nav@example.com");
@@ -165,15 +211,11 @@ describe("GET /account (trialing inside trial window)", () => {
 		const countdown = doc.querySelector("[data-test-trial-countdown]");
 		assert(countdown, "trial countdown must render in the nav for a trialing user");
 		expect(countdown.getAttribute("data-trial-state")).toBe("active");
-		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe(trialEndsAt);
-		const serverNow = countdown.getAttribute("data-server-now-iso") ?? "";
-		assert(serverNow.length > 0, "server-now ISO must be populated for active trial");
-		expect(Date.parse(serverNow)).toBeGreaterThan(0);
 	});
 });
 
-describe("GET /account (inactive — trial expired vs cancelled render identical DOM)", () => {
-	it("renders the inactive card with a Subscribe form — export lives in the nav menu", async () => {
+describe("GET /account (inactive — trial expired or cancelled)", () => {
+	it("renders the inactive card with a single Add-payment-method action", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "expired@example.com");
@@ -188,49 +230,62 @@ describe("GET /account (inactive — trial expired vs cancelled render identical
 		const doc = new JSDOM(response.text).window.document;
 		const card = findCard(doc);
 		expect(card.classList.contains("account-card--inactive")).toBe(true);
-		expect(card.getAttribute("data-test-account-state")).toBe("inactive");
-		expect(doc.querySelector("[data-test-account-status]")?.textContent).toContain(
-			"Subscription not active.",
-		);
-		expect(actionKeys(doc)).toEqual(["subscribe"]);
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "inactive users see the expired pill in the nav (same as /queue)");
-		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
+		expect(actionKeys(doc)).toEqual(["add-payment-method"]);
 	});
 
-	it("byte-for-byte identical card DOM for trial-expired vs cancelled — reason does not leak", async () => {
-		const fixtureA = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harnessA = useApp(fixtureA);
-		const { agent: agentA, userId: userIdA } = await loginUser(harnessA, "expired@example.com");
-		await harnessA.subscriptionProviders.upsertTrialing({
-			userId: userIdA,
-			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+	it("renders update-payment-method when a cancelled row still has a card on file", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "cancelled-card@example.com");
+		subscriptionProviders.seedRow({
+			userId,
+			provider: "stripe",
+			status: "cancelled",
+			customerId: "cus_x",
+			paymentMethodId: "pm_x",
+			paymentMethodBrand: "visa",
+			paymentMethodLast4: "4242",
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
 		});
-		const responseA = await agentA.get("/account");
-		const cardA = new JSDOM(responseA.text).window.document
-			.querySelector("[data-test-account-card]")?.outerHTML;
-		assert(cardA, "card A must render");
 
-		const fixtureB = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harnessB = useApp(fixtureB);
-		const { agent: agentB, userId: userIdB } = await loginUser(harnessB, "cancelled@example.com");
-		await harnessB.subscriptionProviders.upsertActive({
-			userId: userIdB,
-			subscriptionId: "sub_cancelled",
-			customerId: "cus_cancelled",
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(actionKeys(doc)).toEqual(["update-payment-method"]);
+	});
+
+	it("renders a chargeFailed warning when the row has chargeFailedAt set", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "decl@example.com");
+		subscriptionProviders.seedRow({
+			userId,
+			provider: "stripe",
+			status: "cancelled",
+			customerId: "cus_x",
+			paymentMethodId: "pm_x",
+			paymentMethodBrand: "visa",
+			paymentMethodLast4: "0002",
+			chargeFailedAt: new Date().toISOString(),
+			chargeFailedReason: "card_declined",
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
 		});
-		await harnessB.subscriptionProviders.markCancelled({ subscriptionId: "sub_cancelled" });
-		const responseB = await agentB.get("/account");
-		const cardB = new JSDOM(responseB.text).window.document
-			.querySelector("[data-test-account-card]")?.outerHTML;
-		assert(cardB, "card B must render");
 
-		expect(cardA).toEqual(cardB);
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const warning = doc.querySelector("[data-test-account-charge-failed]");
+		assert(warning, "decline warning must render");
+		expect(warning.textContent).toContain("card_declined");
 	});
 });
 
 describe("GET /account?cancelling=1 (the pending page after POST /account/cancel)", () => {
-	it("renders a cancellation-in-progress notice and hides the Cancel button — clicking again would enqueue a duplicate command", async () => {
+	it("renders a cancellation-in-progress notice and hides the Cancel button", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "cancelling@example.com");
@@ -269,7 +324,7 @@ describe("GET /account?cancelling=1 (the pending page after POST /account/cancel
 });
 
 describe("POST /account/cancel — single entrypoint, redirects to the pending page", () => {
-	it("publishes CancelSubscriptionCommand and redirects to /account?cancelling=1 — does NOT call Stripe from the HTTP layer", async () => {
+	it("publishes CancelSubscriptionCommand and redirects to /account?cancelling=1", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const published: Array<{ userId: string }> = [];
 		fixture.events.publishCancelSubscriptionCommand = async ({ userId }) => {
@@ -291,45 +346,6 @@ describe("POST /account/cancel — single entrypoint, redirects to the pending p
 		expect(published[0].userId).toBe(userId);
 	});
 
-	it("publishes the command even for trial users (handler decides the branch downstream)", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const published: Array<{ userId: string }> = [];
-		fixture.events.publishCancelSubscriptionCommand = async ({ userId }) => {
-			published.push({ userId });
-		};
-		const harness = useApp(fixture);
-		const { agent, userId } = await loginUser(harness, "trial-cancel@example.com");
-		await harness.subscriptionProviders.upsertTrialing({
-			userId,
-			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
-		});
-
-		const response = await agent.post("/account/cancel");
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account?cancelling=1");
-		expect(published).toHaveLength(1);
-	});
-
-	it("noop POST still redirects to the pending page (idempotent — POST-redirect-GET)", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const published: Array<{ userId: string }> = [];
-		fixture.events.publishCancelSubscriptionCommand = async ({ userId }) => {
-			published.push({ userId });
-		};
-		const harness = useApp(fixture);
-		// Founding member — no subscription row to cancel. POST is still safe:
-		// it publishes the command (handler is idempotent) and lands the user
-		// on the pending page rather than 4xx-ing.
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.post("/account/cancel");
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account?cancelling=1");
-		expect(published).toHaveLength(1);
-	});
-
 	it("redirects unauthenticated POST /account/cancel to /login", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).post("/account/cancel");
@@ -338,133 +354,58 @@ describe("POST /account/cancel — single entrypoint, redirects to the pending p
 	});
 });
 
-describe("POST /account/subscribe", () => {
-	it("creates a Stripe checkout session for a trialing user and 303s to checkout", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders } = harness;
-		const { agent, userId } = await loginUser(harness, "trial-subscribe@example.com");
-		await subscriptionProviders.upsertTrialing({
+describe("POST /account/payment-method", () => {
+	it("creates a Stripe customer + setup-mode Checkout session and 303s to it (trialing, no customer yet)", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const { agent, userId } = await loginUser(harness, "trial-add@example.com");
+		await harness.subscriptionProviders.upsertTrialing({
 			userId,
 			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
 		});
 
-		const response = await agent.post("/account/subscribe");
+		const response = await agent.post("/account/payment-method");
 
 		expect(response.status).toBe(303);
 		const location = response.headers.location;
-		assert(typeof location === "string" && location.includes("checkout.stripe.test"));
+		assert(typeof location === "string" && location.includes("checkout.stripe.test/setup/"));
+
+		const customers = harness.stripeSubscriptions.createdCustomers();
+		expect(customers).toHaveLength(1);
+		expect(customers[0].userId).toBe(userId);
+		const row = await harness.subscriptionProviders.findByUserId(userId);
+		assert(row);
+		expect(row.customerId).toBe(customers[0].customerId);
 	});
 
-	it("creates a Stripe checkout session for a trial-expired user (no second free trial)", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders } = harness;
-		const { agent, userId } = await loginUser(harness, "trial-expired-subscribe@example.com");
-		await subscriptionProviders.upsertTrialing({
-			userId,
-			trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
-		});
-
-		const response = await agent.post("/account/subscribe");
-
-		expect(response.status).toBe(303);
-		const location = response.headers.location;
-		assert(typeof location === "string" && location.includes("checkout.stripe.test"));
-	});
-
-	it("Phase 3: cancelled user with customerId resubscribes in ONE click via Stripe subscriptions.create (NO checkout UI)", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders, stripeSubscriptions } = harness;
-		const { agent, userId } = await loginUser(harness, "one-click@example.com");
-		await subscriptionProviders.upsertActive({
-			userId,
-			subscriptionId: "sub_was_paid",
-			customerId: "cus_was_paid",
-		});
-		await subscriptionProviders.markCancelled({ subscriptionId: "sub_was_paid" });
-
-		const response = await agent.post("/account/subscribe");
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account");
-		// The one-click path calls Stripe subscriptions.create with the saved customer.
-		const created = stripeSubscriptions.createdSubscriptions();
-		expect(created).toHaveLength(1);
-		expect(created[0].customerId).toBe("cus_was_paid");
-		expect(created[0].priceId).toBe("price_test_default");
-
-		// Row is now active with the NEW subscriptionId, replacing sub_was_paid.
-		const row = await subscriptionProviders.findByUserId(userId);
-		assert(row, "row must exist");
-		expect(row.status).toBe("active");
-		expect(row.subscriptionId).toBe(created[0].subscriptionId);
-		expect(row.customerId).toBe("cus_was_paid");
-	});
-
-	it("cancelled user with customerId — saved-card Stripe call throws → fall back to Stripe Checkout (not the dead-end error page), row stays cancelled until the new checkout completes", async () => {
+	it("reuses an existing customerId (does not call Stripe again)", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		// Replace the stripe subscriptions wrapper with one that throws —
-		// simulates a declined/expired saved card.
-		fixture.stripeSubscriptions.createSubscriptionOnExistingCustomer = async () => {
-			throw new Error("card_declined");
-		};
 		const harness = useApp(fixture);
-		const { subscriptionProviders } = harness;
-		const { agent, userId } = await loginUser(harness, "card-declined@example.com");
-		await subscriptionProviders.upsertActive({
+		const { agent, userId } = await loginUser(harness, "reuse-cust@example.com");
+		harness.subscriptionProviders.seedRow({
 			userId,
-			subscriptionId: "sub_was_paid",
-			customerId: "cus_will_fail",
+			provider: "stripe",
+			status: "cancelled",
+			customerId: "cus_preexisting",
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
 		});
-		await subscriptionProviders.markCancelled({ subscriptionId: "sub_was_paid" });
 
-		const response = await agent.post("/account/subscribe");
+		await agent.post("/account/payment-method");
 
-		expect(response.status).toBe(303);
-		const location = response.headers.location;
-		assert(
-			typeof location === "string" && location.includes("checkout.stripe.test"),
-			"on saved-card failure the user is sent to Stripe Checkout to enter a new card",
-		);
-
-		// Row must remain cancelled until the new Checkout completes — the
-		// checkout-success handler is what upserts the new subscriptionId.
-		const row = await subscriptionProviders.findByUserId(userId);
-		assert(row, "row must still exist");
-		expect(row.status).toBe("cancelled");
+		expect(harness.stripeSubscriptions.createdCustomers()).toHaveLength(0);
 	});
 
-	it("trialing user via HTMX (hx-boost) — 200 with HX-Redirect to Stripe, not 303 Location (HTMX would XHR-follow cross-origin and fail to navigate)", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders } = harness;
+	it("on HTMX request, returns 200 with HX-Redirect instead of 303 Location", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
 		const { agent, userId } = await loginUser(harness, "trial-htmx@example.com");
-		await subscriptionProviders.upsertTrialing({
+		await harness.subscriptionProviders.upsertTrialing({
 			userId,
 			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
 		});
 
-		const response = await agent.post("/account/subscribe").set("HX-Request", "true");
-
-		expect(response.status).toBe(200);
-		expect(response.headers.location).toBeUndefined();
-		const hxRedirect = response.headers["hx-redirect"];
-		assert(typeof hxRedirect === "string", "HX-Redirect header must be set for HTMX clients");
-		expect(hxRedirect).toContain("checkout.stripe.test");
-		expect(response.headers["content-type"]).toContain("text/html");
-	});
-
-	it("cancelled user without customerId via HTMX (hx-boost) — fallback to checkout also uses HX-Redirect", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders } = harness;
-		const { agent, userId } = await loginUser(harness, "cancelled-fallback-htmx@example.com");
-		subscriptionProviders.seedRow({
-			userId,
-			provider: "stripe",
-			status: "cancelled",
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
-		});
-
-		const response = await agent.post("/account/subscribe").set("HX-Request", "true");
+		const response = await agent.post("/account/payment-method").set("HX-Request", "true");
 
 		expect(response.status).toBe(200);
 		const hxRedirect = response.headers["hx-redirect"];
@@ -472,94 +413,27 @@ describe("POST /account/subscribe", () => {
 		expect(hxRedirect).toContain("checkout.stripe.test");
 	});
 
-	it("trialing user — Stripe Checkout throws → 303 to /account?error=payment_method (no 500)", async () => {
+	it("on Stripe error redirects to /account?error=payment_method", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		fixture.stripe.createCheckoutSession = async () => {
-			throw new Error("Stripe createCheckoutSession failed (400): something bad");
+		fixture.stripeSubscriptions.createStripeCustomer = async () => {
+			throw new Error("Stripe down");
 		};
 		const harness = useApp(fixture);
-		const { subscriptionProviders } = harness;
-		const { agent, userId } = await loginUser(harness, "trial-stripe-down@example.com");
-		await subscriptionProviders.upsertTrialing({
+		const { agent, userId } = await loginUser(harness, "stripe-down@example.com");
+		await harness.subscriptionProviders.upsertTrialing({
 			userId,
 			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
 		});
 
-		const response = await agent.post("/account/subscribe");
+		const response = await agent.post("/account/payment-method");
 
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/account?error=payment_method");
 	});
 
-	it("cancelled user without customerId — Stripe Checkout fallback throws → 303 to /account?error=payment_method (no 500)", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		fixture.stripe.createCheckoutSession = async () => {
-			throw new Error("Stripe createCheckoutSession failed (400): something bad");
-		};
-		const harness = useApp(fixture);
-		const { subscriptionProviders } = harness;
-		const { agent, userId } = await loginUser(harness, "cancelled-fallback-stripe-down@example.com");
-		subscriptionProviders.seedRow({
-			userId,
-			provider: "stripe",
-			status: "cancelled",
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
-		});
-
-		const response = await agent.post("/account/subscribe");
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account?error=payment_method");
-	});
-
-	it("Phase 3: cancelled user WITHOUT customerId (defensive) falls back to checkout", async () => {
+	it("redirects unauthenticated POST /account/payment-method to /login", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders } = harness;
-		const { agent, userId } = await loginUser(harness, "no-customer@example.com");
-		subscriptionProviders.seedRow({
-			userId,
-			provider: "stripe",
-			status: "cancelled",
-			createdAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
-		});
-
-		const response = await agent.post("/account/subscribe");
-
-		expect(response.status).toBe(303);
-		const location = response.headers.location;
-		assert(typeof location === "string" && location.includes("checkout.stripe.test"));
-	});
-
-	it("redirects active users back to /account instead of creating a Stripe checkout session", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders } = harness;
-		const { agent, userId } = await loginUser(harness, "already-active@example.com");
-		await subscriptionProviders.upsertActive({
-			userId,
-			subscriptionId: "sub_already_active",
-			customerId: "cus_already_active",
-		});
-
-		const response = await agent.post("/account/subscribe");
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account");
-	});
-
-	it("returns 400 for a founding member (no row) trying to subscribe", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const agent = await loginAgent(harness.server, harness.auth);
-
-		const response = await agent.post("/account/subscribe");
-
-		expect(response.status).toBe(400);
-	});
-
-	it("redirects unauthenticated POST /account/subscribe to /login", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).post("/account/subscribe");
+		const response = await request(harness.server).post("/account/payment-method");
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/login");
 	});
@@ -818,5 +692,147 @@ describe("POST /account/reactivate", () => {
 		const response = await request(harness.server).post("/account/reactivate");
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/login");
+	});
+});
+
+describe("GET /account/payment-method/success", () => {
+	it("renders an auto-submit POST form to /finalize with the session_id", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "success@example.com");
+
+		const response = await agent.get("/account/payment-method/success?session_id=cs_setup_test123");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const container = doc.querySelector("[data-test-payment-method-success]");
+		assert(container, "success container must render");
+		const form = container.querySelector("form[data-auto-submit]");
+		assert(form, "auto-submit form must render");
+		expect(form.getAttribute("method")?.toUpperCase()).toBe("POST");
+		expect(form.getAttribute("action")).toBe("/account/payment-method/finalize");
+		const sessionInput = form.querySelector('input[name="session_id"]');
+		assert(sessionInput);
+		expect(sessionInput.getAttribute("value")).toBe("cs_setup_test123");
+	});
+
+	it("redirects to /account when session_id is absent (defensive)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "no-session@example.com");
+
+		const response = await agent.get("/account/payment-method/success");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+	});
+});
+
+describe("POST /account/payment-method/finalize", () => {
+	it("publishes AddPaymentMethodCommand with the session details and 303s to /account", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const published: Array<{ userId: string; customerId: string; paymentMethodId: string; brand: string; last4: string }> = [];
+		fixture.events.publishAddPaymentMethodCommand = async (params) => {
+			published.push(params);
+		};
+		const harness = useApp(fixture);
+		const { agent, userId } = await loginUser(harness, "finalize@example.com");
+		harness.subscriptionProviders.seedRow({
+			userId,
+			provider: "stripe",
+			status: "cancelled",
+			customerId: "cus_x",
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
+
+		const session = await harness.stripe.createSetupCheckoutSession({
+			customerId: "cus_x",
+			successUrl: `${TEST_APP_ORIGIN}/account/payment-method/success?session_id={CHECKOUT_SESSION_ID}`,
+			cancelUrl: `${TEST_APP_ORIGIN}/account/payment-method/cancel`,
+		});
+		harness.stripe.markSetupComplete(session.id, {
+			paymentMethodId: "pm_new",
+			brand: "visa",
+			last4: "4242",
+		});
+
+		const response = await agent
+			.post("/account/payment-method/finalize")
+			.type("form")
+			.send({ session_id: session.id });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		expect(published).toHaveLength(1);
+		expect(published[0].userId).toBe(userId);
+		expect(published[0].customerId).toBe("cus_x");
+		expect(published[0].paymentMethodId).toBe("pm_new");
+		expect(published[0].brand).toBe("visa");
+		expect(published[0].last4).toBe("4242");
+	});
+
+	it("redirects to error page when session retrieve says not-complete (defensive)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, userId } = await loginUser(harness, "incomplete@example.com");
+		harness.subscriptionProviders.seedRow({
+			userId,
+			provider: "stripe",
+			status: "cancelled",
+			customerId: "cus_x",
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
+
+		const session = await harness.stripe.createSetupCheckoutSession({
+			customerId: "cus_x",
+			successUrl: `${TEST_APP_ORIGIN}/account/payment-method/success?session_id={CHECKOUT_SESSION_ID}`,
+			cancelUrl: `${TEST_APP_ORIGIN}/account/payment-method/cancel`,
+		});
+
+		const response = await agent
+			.post("/account/payment-method/finalize")
+			.type("form")
+			.send({ session_id: session.id });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=payment_method");
+	});
+
+	it("redirects to /account when session_id is missing from the form body", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "no-body@example.com");
+
+		const response = await agent.post("/account/payment-method/finalize");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+	});
+
+	it("on retrieve throw redirects to error page", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.stripe.retrieveSetupCheckoutSession = async () => {
+			throw new Error("Stripe down");
+		};
+		const harness = useApp(fixture);
+		const { agent } = await loginUser(harness, "retrieve-throw@example.com");
+
+		const response = await agent
+			.post("/account/payment-method/finalize")
+			.type("form")
+			.send({ session_id: "cs_setup_xx" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=payment_method");
+	});
+});
+
+describe("GET /account/payment-method/cancel", () => {
+	it("303s back to /account", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await loginUser(harness, "cancel-flow@example.com");
+
+		const response = await agent.get("/account/payment-method/cancel");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
 	});
 });

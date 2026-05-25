@@ -55,7 +55,9 @@ import { initEventBridgeUpdateFetchTimestamp } from "./providers/events/eventbri
 import { initEventBridgeExportUserDataCommand } from "./providers/events/eventbridge-export-user-data-command";
 import { initEventBridgeCancelSubscriptionCommand } from "./providers/events/eventbridge-cancel-subscription-command";
 import { initEventBridgeSubscriptionReactivated } from "./providers/events/eventbridge-subscription-reactivated";
+import { initEventBridgeAddPaymentMethodCommand } from "./providers/events/eventbridge-add-payment-method-command";
 import {
+	initInMemoryAddPaymentMethodCommand,
 	initInMemoryCancelSubscriptionCommand,
 	initInMemoryExportUserDataCommand,
 	initInMemorySubscriptionReactivated,
@@ -170,6 +172,7 @@ function initProviders() {
 		const { publishExportUserDataCommand } = initEventBridgeExportUserDataCommand({ publishEvent });
 		const { publishCancelSubscriptionCommand } = initEventBridgeCancelSubscriptionCommand({ publishEvent });
 		const { publishSubscriptionReactivated } = initEventBridgeSubscriptionReactivated({ publishEvent });
+		const { publishAddPaymentMethodCommand } = initEventBridgeAddPaymentMethodCommand({ publishEvent });
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
 		const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 		const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
@@ -231,10 +234,16 @@ function initProviders() {
 			articleStore,
 			readArticleContent,
 			importSessionStore,
-			subscriptionProviders,
+			subscriptionProviders: {
+				upsertActive: subscriptionProviders.upsertActive,
+				upsertTrialing: subscriptionProviders.upsertTrialing,
+				upsertCustomerId: subscriptionProviders.upsertCustomerId,
+				findByUserId: subscriptionProviders.findByUserId,
+			},
 			trialScheduler,
 			createSubscriptionOnExistingCustomer: stripeSubscriptions.createSubscriptionOnExistingCustomer,
 			reverseScheduledCancellation: stripeSubscriptions.reverseScheduledCancellation,
+			createStripeCustomer: stripeSubscriptions.createStripeCustomer,
 			stripePriceId,
 
 			...initResendEmail(resendApiKey),
@@ -254,6 +263,7 @@ function initProviders() {
 			publishExportUserDataCommand,
 			publishCancelSubscriptionCommand,
 			publishSubscriptionReactivated,
+			publishAddPaymentMethodCommand,
 			putPendingHtml,
 			findGeneratedSummary: summaryStore.findGeneratedSummary,
 			markSummaryPending: summaryStore.markSummaryPending,
@@ -362,6 +372,7 @@ function initProviders() {
 	const { publishExportUserDataCommand } = initInMemoryExportUserDataCommand({ logger: consoleLogger });
 	const { publishCancelSubscriptionCommand } = initInMemoryCancelSubscriptionCommand({ logger: consoleLogger });
 	const { publishSubscriptionReactivated } = initInMemorySubscriptionReactivated({ logger: consoleLogger });
+	const { publishAddPaymentMethodCommand } = initInMemoryAddPaymentMethodCommand({ logger: consoleLogger });
 	const { putPendingHtml } = initInMemoryPendingHtml();
 	const { refreshArticleIfStale } = initRefreshArticleIfStale({
 		findArticleFreshness: articleStore.findArticleFreshness,
@@ -384,18 +395,25 @@ function initProviders() {
 			logError,
 		}),
 		importSessionStore,
-		subscriptionProviders: devSubscriptionProviders,
+		subscriptionProviders: {
+			upsertActive: devSubscriptionProviders.upsertActive,
+			upsertTrialing: devSubscriptionProviders.upsertTrialing,
+			upsertCustomerId: devSubscriptionProviders.upsertCustomerId,
+			findByUserId: devSubscriptionProviders.findByUserId,
+		},
 		trialScheduler: devTrialScheduler,
 		createSubscriptionOnExistingCustomer: devStripeSubscriptions.createSubscriptionOnExistingCustomer,
 		reverseScheduledCancellation: devStripeSubscriptions.reverseScheduledCancellation,
+		createStripeCustomer: devStripeSubscriptions.createStripeCustomer,
 		stripePriceId: "price_dev_default",
 
 		...initLogEmail(),
 		...initInMemoryEmailVerification(),
 		...initInMemoryPasswordReset(),
 		createCheckoutSession: devStripe.createCheckoutSession,
+		createSetupCheckoutSession: devStripe.createSetupCheckoutSession,
 		retrieveCheckoutSession: devStripe.retrieveCheckoutSession,
-		storePendingSignup: devPendingSignup.storePendingSignup,
+		retrieveSetupCheckoutSession: devStripe.retrieveSetupCheckoutSession,
 		consumePendingSignup: devPendingSignup.consumePendingSignup,
 		googleAuth,
 		oauthModel,
@@ -409,6 +427,7 @@ function initProviders() {
 		publishExportUserDataCommand,
 		publishCancelSubscriptionCommand,
 		publishSubscriptionReactivated,
+		publishAddPaymentMethodCommand,
 		putPendingHtml,
 		findGeneratedSummary: summaryStore.findGeneratedSummary,
 		markSummaryPending: summaryStore.markSummaryPending,

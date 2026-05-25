@@ -24,6 +24,11 @@ export function initSubscriptionChargeSucceededHandler(deps: {
 				const envelope = z.object({ detail: z.unknown() }).parse(JSON.parse(record.body));
 				const detail = SubscriptionChargeSucceededEvent.detailSchema.parse(envelope.detail);
 				const userId = UserIdSchema.parse(detail.userId);
+				/** upsertActive uses REMOVE to drop chargeRequestedAt, chargeFailedAt
+				 * and chargeFailedReason — the active state machine has no use for
+				 * the in-flight or failure sentinels, so clearing them here keeps
+				 * the row truthful and the UI banner from lying about a stale
+				 * failure after a successful charge. */
 				await deps.upsertActive({
 					userId,
 					subscriptionId: detail.subscriptionId,

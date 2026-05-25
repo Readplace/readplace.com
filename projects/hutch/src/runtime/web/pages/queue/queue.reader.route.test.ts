@@ -49,6 +49,7 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
 				},
 			});
 			const { auth } = harness;
@@ -112,6 +113,7 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
 				},
 			});
 			const { auth } = harness;
@@ -169,6 +171,7 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
 				},
 			});
 			const { auth } = harness;
@@ -236,6 +239,7 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
 				},
 			});
 			const { auth } = harness;
@@ -424,6 +428,7 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
 				},
 			});
 			const { auth } = harness;
@@ -473,6 +478,7 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
@@ -536,6 +542,7 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
 				},
 			});
 			const { auth } = harness;
@@ -596,6 +603,7 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
@@ -665,6 +673,7 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
@@ -732,6 +741,7 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
 				},
 			});
 			const { auth } = harness;
@@ -782,6 +792,7 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
 				},
 			});
 			const { auth } = harness;
@@ -840,6 +851,7 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
@@ -896,6 +908,7 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
 				},
 			});
 			const { auth } = harness;
@@ -942,6 +955,7 @@ describe("Queue routes", () => {
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
 				},
 			});
 			const { auth } = harness;

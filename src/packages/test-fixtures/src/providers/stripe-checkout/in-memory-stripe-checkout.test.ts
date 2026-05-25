@@ -136,4 +136,112 @@ describe("initInMemoryStripeCheckout", () => {
 		);
 	});
 
+	describe("setup mode", () => {
+		it("createSetupCheckoutSession returns a setup-prefixed URL containing the success URL", async () => {
+			const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+			const session = await stripe.createSetupCheckoutSession({
+				customerId: "cus_x",
+				successUrl: "https://app.test/account/payment-method/success?session_id={CHECKOUT_SESSION_ID}",
+				cancelUrl: "https://app.test/account",
+			});
+			expect(session.id).toMatch(/^cs_setup_/);
+			expect(session.url).toContain("https://checkout.stripe.test/setup/");
+			expect(stripe.getCheckoutUrl(session.id)).toBe(session.url);
+		});
+
+		it("retrieveSetupCheckoutSession returns not-complete until markSetupComplete is called", async () => {
+			const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+			const session = await stripe.createSetupCheckoutSession({
+				customerId: "cus_x",
+				successUrl: "https://app.test/ok",
+				cancelUrl: "https://app.test/cancel",
+			});
+			const before = await stripe.retrieveSetupCheckoutSession(session.id);
+			expect(before).toEqual({ ok: false, reason: "not-complete" });
+			stripe.markSetupComplete(session.id);
+			const after = await stripe.retrieveSetupCheckoutSession(session.id);
+			assert.equal(after.ok, true);
+			if (after.ok) {
+				expect(after.status).toBe("complete");
+				expect(after.customerId).toBe("cus_x");
+				expect(after.paymentMethodId).toMatch(/^pm_test_/);
+				expect(after.brand).toBe("visa");
+				expect(after.last4).toBe("4242");
+			}
+		});
+
+		it("markSetupComplete accepts overrides for paymentMethodId/brand/last4", async () => {
+			const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+			const session = await stripe.createSetupCheckoutSession({
+				customerId: "cus_y",
+				successUrl: "https://app.test/ok",
+				cancelUrl: "https://app.test/cancel",
+			});
+			stripe.markSetupComplete(session.id, { paymentMethodId: "pm_override", brand: "amex", last4: "0005" });
+			const result = await stripe.retrieveSetupCheckoutSession(session.id);
+			assert.equal(result.ok, true);
+			if (result.ok) {
+				expect(result.paymentMethodId).toBe("pm_override");
+				expect(result.brand).toBe("amex");
+				expect(result.last4).toBe("0005");
+			}
+		});
+
+		it("retrieveSetupCheckoutSession returns not-found for an unknown session id", async () => {
+			const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+			const result = await stripe.retrieveSetupCheckoutSession(
+				CheckoutSessionIdSchema.parse("cs_setup_missing"),
+			);
+			expect(result).toEqual({ ok: false, reason: "not-found" });
+		});
+
+		it("retrieveSetupCheckoutSession returns not-found when the id is a subscription session, not a setup one", async () => {
+			const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+			const subscriptionSession = await stripe.createCheckoutSession({
+				customerEmail: "x@example.com",
+				successUrl: "https://app.test/ok",
+				cancelUrl: "https://app.test/cancel",
+			});
+			const result = await stripe.retrieveSetupCheckoutSession(subscriptionSession.id);
+			expect(result).toEqual({ ok: false, reason: "not-found" });
+		});
+
+		it("retrieveCheckoutSession returns not-found when the id is a setup session, not a subscription one", async () => {
+			const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+			const setupSession = await stripe.createSetupCheckoutSession({
+				customerId: "cus_x",
+				successUrl: "https://app.test/ok",
+				cancelUrl: "https://app.test/cancel",
+			});
+			const result = await stripe.retrieveCheckoutSession(setupSession.id);
+			expect(result).toEqual({ ok: false, reason: "not-found" });
+		});
+
+		it("markSetupComplete throws for an unknown session", () => {
+			const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+			expect(() =>
+				stripe.markSetupComplete(CheckoutSessionIdSchema.parse("cs_setup_missing")),
+			).toThrow(/No checkout session/);
+		});
+
+		it("markSetupComplete throws when the session is a subscription session, not a setup one", async () => {
+			const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+			const subscriptionSession = await stripe.createCheckoutSession({
+				customerEmail: "x@example.com",
+				successUrl: "https://app.test/ok",
+				cancelUrl: "https://app.test/cancel",
+			});
+			expect(() => stripe.markSetupComplete(subscriptionSession.id)).toThrow(/not in setup mode/);
+		});
+
+		it("markPaid throws when the session is a setup session, not a subscription one", async () => {
+			const stripe = initInMemoryStripeCheckout(DEFAULT_OPTS);
+			const setupSession = await stripe.createSetupCheckoutSession({
+				customerId: "cus_x",
+				successUrl: "https://app.test/ok",
+				cancelUrl: "https://app.test/cancel",
+			});
+			expect(() => stripe.markPaid(setupSession.id)).toThrow(/not in subscription mode/);
+		});
+	});
 });

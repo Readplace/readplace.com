@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbSubscriptionProviders } from "./dynamodb-subscription-providers";
 
@@ -432,6 +433,338 @@ describe("initDynamoDbSubscriptionProviders", () => {
 			expect(command.input.UpdateExpression).toContain("REMOVE cancellationEffectiveAt");
 			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
 			expect(command.input.ExpressionAttributeValues?.[":status"]).toBe("active");
+		});
+	});
+
+	describe("findByUserIdConsistent", () => {
+		it("issues a GetItem with ConsistentRead", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return { Item: undefined };
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			await subs.findByUserIdConsistent(USER_ID);
+
+			const command = received as { input: { ConsistentRead?: boolean } };
+			expect(command.input.ConsistentRead).toBe(true);
+		});
+
+		it("parses and returns the row when present", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					userId: USER_ID,
+					provider: "stripe",
+					status: "trialing",
+					trialEndsAt: "2026-06-05T00:00:00.000Z",
+					createdAt: "2026-05-22T10:00:00.000Z",
+					updatedAt: "2026-05-22T10:00:00.000Z",
+				},
+			}));
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+			const row = await subs.findByUserIdConsistent(USER_ID);
+			assert(row);
+			expect(row.status).toBe("trialing");
+		});
+	});
+
+	describe("upsertCancelled", () => {
+		it("issues an Update that sets status=cancelled and removes trial + cancellation + chargeRequestedAt", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			await subs.upsertCancelled({ userId: USER_ID });
+
+			const command = received as {
+				input: {
+					Key?: Record<string, unknown>;
+					UpdateExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.Key).toEqual({ userId: USER_ID });
+			expect(command.input.UpdateExpression).toContain("#status = :status");
+			expect(command.input.UpdateExpression).toContain("REMOVE");
+			expect(command.input.UpdateExpression).toContain("trialEndsAt");
+			expect(command.input.UpdateExpression).toContain("chargeRequestedAt");
+			expect(command.input.ExpressionAttributeValues?.[":status"]).toBe("cancelled");
+		});
+	});
+
+	describe("upsertCustomerId", () => {
+		it("issues a guarded Update with attribute_not_exists(customerId) and returns ok on success", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			const result = await subs.upsertCustomerId({ userId: USER_ID, customerId: "cus_new" });
+			expect(result).toEqual({ ok: true });
+
+			const command = received as {
+				input: {
+					UpdateExpression?: string;
+					ConditionExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.ConditionExpression).toContain("attribute_not_exists(customerId)");
+			expect(command.input.UpdateExpression).toContain("customerId = :customerId");
+			expect(command.input.ExpressionAttributeValues?.[":customerId"]).toBe("cus_new");
+		});
+
+		it("returns customer-id-already-set when ConditionalCheckFailedException is thrown", async () => {
+			const client = createFakeClient(() => {
+				throw new ConditionalCheckFailedException({
+					$metadata: {},
+					message: "The conditional request failed",
+				});
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+			const result = await subs.upsertCustomerId({ userId: USER_ID, customerId: "cus_loser" });
+			expect(result).toEqual({ ok: false, reason: "customer-id-already-set" });
+		});
+
+		it("re-throws non-conditional-check errors", async () => {
+			const client = createFakeClient(() => {
+				throw new Error("network down");
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+			await expect(
+				subs.upsertCustomerId({ userId: USER_ID, customerId: "cus_x" }),
+			).rejects.toThrow(/network down/);
+		});
+	});
+
+	describe("upsertPaymentMethod", () => {
+		it("issues a guarded Update that sets pm fields and removes chargeFailed sentinels", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			await subs.upsertPaymentMethod({
+				userId: USER_ID,
+				paymentMethodId: "pm_x",
+				brand: "visa",
+				last4: "4242",
+			});
+
+			const command = received as {
+				input: {
+					UpdateExpression?: string;
+					ConditionExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
+			expect(command.input.UpdateExpression).toContain("paymentMethodId = :pm");
+			expect(command.input.UpdateExpression).toContain("paymentMethodBrand = :brand");
+			expect(command.input.UpdateExpression).toContain("paymentMethodLast4 = :last4");
+			expect(command.input.UpdateExpression).toContain("REMOVE chargeFailedAt, chargeFailedReason");
+			expect(command.input.ExpressionAttributeValues?.[":pm"]).toBe("pm_x");
+			expect(command.input.ExpressionAttributeValues?.[":brand"]).toBe("visa");
+			expect(command.input.ExpressionAttributeValues?.[":last4"]).toBe("4242");
+		});
+	});
+
+	describe("markChargeRequested", () => {
+		it("returns ok when the conditional write succeeds", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			const result = await subs.markChargeRequested({
+				userId: USER_ID,
+				requestedAt: "2026-06-05T00:00:00.000Z",
+			});
+			expect(result).toEqual({ ok: true });
+
+			const command = received as {
+				input: {
+					UpdateExpression?: string;
+					ConditionExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.ConditionExpression).toContain(
+				"attribute_exists(userId) AND attribute_not_exists(chargeRequestedAt)",
+			);
+			expect(command.input.UpdateExpression).toContain("chargeRequestedAt = :req");
+			expect(command.input.ExpressionAttributeValues?.[":req"]).toBe("2026-06-05T00:00:00.000Z");
+		});
+
+		it("returns charge-already-requested on conditional failure", async () => {
+			const client = createFakeClient(() => {
+				throw new ConditionalCheckFailedException({
+					$metadata: {},
+					message: "The conditional request failed",
+				});
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+			const result = await subs.markChargeRequested({
+				userId: USER_ID,
+				requestedAt: "2026-06-05T00:00:00.000Z",
+			});
+			expect(result).toEqual({ ok: false, reason: "charge-already-requested" });
+		});
+
+		it("re-throws non-conditional-check errors", async () => {
+			const client = createFakeClient(() => {
+				throw new Error("transient");
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+			await expect(
+				subs.markChargeRequested({ userId: USER_ID, requestedAt: "2026-06-05T00:00:00.000Z" }),
+			).rejects.toThrow(/transient/);
+		});
+	});
+
+	describe("markChargeFailed", () => {
+		it("issues a guarded Update that sets chargeFailedAt + reason and removes chargeRequestedAt", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			await subs.markChargeFailed({
+				userId: USER_ID,
+				failedAt: "2026-06-05T00:01:00.000Z",
+				reason: "card_declined",
+			});
+
+			const command = received as {
+				input: {
+					UpdateExpression?: string;
+					ConditionExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
+			expect(command.input.UpdateExpression).toContain("chargeFailedAt = :at");
+			expect(command.input.UpdateExpression).toContain("chargeFailedReason = :reason");
+			expect(command.input.UpdateExpression).toContain("REMOVE chargeRequestedAt");
+			expect(command.input.ExpressionAttributeValues?.[":at"]).toBe("2026-06-05T00:01:00.000Z");
+			expect(command.input.ExpressionAttributeValues?.[":reason"]).toBe("card_declined");
+		});
+	});
+
+	describe("clearChargeFailed", () => {
+		it("issues a guarded Update that removes chargeFailed sentinels", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			await subs.clearChargeFailed({ userId: USER_ID });
+
+			const command = received as {
+				input: {
+					UpdateExpression?: string;
+					ConditionExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
+			expect(command.input.UpdateExpression).toContain("REMOVE chargeFailedAt, chargeFailedReason");
+		});
+	});
+
+	describe("toRecord (via findByUserId)", () => {
+		it("surfaces paymentMethodId, paymentMethodBrand, paymentMethodLast4, chargeRequestedAt, chargeFailedAt, chargeFailedReason when present", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					userId: USER_ID,
+					provider: "stripe",
+					status: "cancelled",
+					customerId: "cus_x",
+					paymentMethodId: "pm_x",
+					paymentMethodBrand: "visa",
+					paymentMethodLast4: "4242",
+					chargeRequestedAt: "2026-06-05T00:00:00.000Z",
+					chargeFailedAt: "2026-06-05T00:01:00.000Z",
+					chargeFailedReason: "card_declined",
+					createdAt: "2026-05-20T10:00:00.000Z",
+					updatedAt: "2026-06-05T00:01:00.000Z",
+				},
+			}));
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+			const row = await subs.findByUserId(USER_ID);
+			assert(row);
+			expect(row.paymentMethodId).toBe("pm_x");
+			expect(row.paymentMethodBrand).toBe("visa");
+			expect(row.paymentMethodLast4).toBe("4242");
+			expect(row.chargeRequestedAt).toBe("2026-06-05T00:00:00.000Z");
+			expect(row.chargeFailedAt).toBe("2026-06-05T00:01:00.000Z");
+			expect(row.chargeFailedReason).toBe("card_declined");
 		});
 	});
 });

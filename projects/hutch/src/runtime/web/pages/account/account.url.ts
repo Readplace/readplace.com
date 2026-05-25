@@ -7,5 +7,6 @@ export function buildAccountUrl(params?: { cancelling?: boolean }): string {
 
 export const ACCOUNT_CANCEL_URL = "/account/cancel";
 export const ACCOUNT_REACTIVATE_URL = "/account/reactivate";
-export const ACCOUNT_SUBSCRIBE_URL = "/account/subscribe";
+export const ACCOUNT_PAYMENT_METHOD_URL = "/account/payment-method";
+export const ACCOUNT_PAYMENT_METHOD_FINALIZE_URL = "/account/payment-method/finalize";
 export const ACCOUNT_ERROR_PAYMENT_METHOD_URL = "/account?error=payment_method";

@@ -53,7 +53,6 @@ export const LAMBDA_NAMES = {
 	hutchHandler: "hutch",
 	subscriptionStartRequest: "subscription-start-request",
 	subscriptionChargeSucceeded: "subscription-charge-succeeded",
-	subscriptionChargeFailed: "subscription-charge-failed",
 	cancelSubscription: "cancel-subscription",
 	handleSubscriptionCancelled: "handle-subscription-cancelled",
 } as const;
@@ -64,7 +63,6 @@ export const LOG_GROUPS = {
 	hutchHandler: `/aws/lambda/${LAMBDA_NAMES.hutchHandler}-handler`,
 	subscriptionStartRequest: `/aws/lambda/${LAMBDA_NAMES.subscriptionStartRequest}-handler`,
 	subscriptionChargeSucceeded: `/aws/lambda/${LAMBDA_NAMES.subscriptionChargeSucceeded}-handler`,
-	subscriptionChargeFailed: `/aws/lambda/${LAMBDA_NAMES.subscriptionChargeFailed}-handler`,
 	cancelSubscription: `/aws/lambda/${LAMBDA_NAMES.cancelSubscription}-handler`,
 	handleSubscriptionCancelled: `/aws/lambda/${LAMBDA_NAMES.handleSubscriptionCancelled}-handler`,
 } as const satisfies {

@@ -1,9 +1,10 @@
 import { decomposeTimeLeft } from "@packages/time-left";
 import type { EffectiveAccess } from "../../../domain/access/effective-access";
+import type { SubscriptionRecord } from "@packages/test-fixtures/providers/subscription-providers";
 import {
 	ACCOUNT_CANCEL_URL,
+	ACCOUNT_PAYMENT_METHOD_URL,
 	ACCOUNT_REACTIVATE_URL,
-	ACCOUNT_SUBSCRIBE_URL,
 } from "./account.url";
 
 export type AccountCardState =
@@ -14,7 +15,11 @@ export type AccountCardState =
 	| "inactive"
 	| "error-payment-method";
 
-export type AccountActionKey = "subscribe" | "cancel-form" | "reactivate-form";
+export type AccountActionKey =
+	| "add-payment-method"
+	| "update-payment-method"
+	| "cancel-form"
+	| "reactivate-form";
 
 export type AccountActionVariant = "primary" | "secondary" | "destructive";
 
@@ -24,7 +29,15 @@ export interface AccountAction {
 	variant: AccountActionVariant;
 	method: "GET" | "POST";
 	href: string;
-	isLink: boolean;
+}
+
+export interface PaymentMethodSummary {
+	brand: string;
+	last4: string;
+}
+
+export interface ChargeFailedSummary {
+	reason: string;
 }
 
 export interface AccountViewModel {
@@ -38,6 +51,8 @@ export interface AccountViewModel {
 	trialDaysLeftWord?: "day" | "days";
 	showCancellingNotice: boolean;
 	stateIsErrorPaymentMethod: boolean;
+	paymentMethod?: PaymentMethodSummary;
+	chargeFailed?: ChargeFailedSummary;
 	actions: AccountAction[];
 }
 
@@ -69,33 +84,37 @@ export function parseAccountQuery(query: Record<string, unknown> | undefined): A
 	};
 }
 
-function action(input: Omit<AccountAction, "isLink">): AccountAction {
-	return { ...input, isLink: input.method === "GET" };
-}
-
-const SUBSCRIBE_ACTION = action({
-	key: "subscribe",
-	name: "Subscribe — $3.99/month",
+const ADD_PAYMENT_METHOD_ACTION: AccountAction = {
+	key: "add-payment-method",
+	name: "Add payment method",
 	variant: "primary",
 	method: "POST",
-	href: ACCOUNT_SUBSCRIBE_URL,
-});
+	href: ACCOUNT_PAYMENT_METHOD_URL,
+};
 
-const CANCEL_FORM_ACTION = action({
+const UPDATE_PAYMENT_METHOD_ACTION: AccountAction = {
+	key: "update-payment-method",
+	name: "Update payment method",
+	variant: "secondary",
+	method: "POST",
+	href: ACCOUNT_PAYMENT_METHOD_URL,
+};
+
+const CANCEL_FORM_ACTION: AccountAction = {
 	key: "cancel-form",
 	name: "Cancel subscription",
 	variant: "destructive",
 	method: "POST",
 	href: ACCOUNT_CANCEL_URL,
-});
+};
 
-const REACTIVATE_FORM_ACTION = action({
+const REACTIVATE_FORM_ACTION: AccountAction = {
 	key: "reactivate-form",
 	name: "Reactivate subscription",
 	variant: "primary",
 	method: "POST",
 	href: ACCOUNT_REACTIVATE_URL,
-});
+};
 
 function baseFor(state: AccountCardState, actions: AccountAction[]): {
 	state: AccountCardState;
@@ -115,13 +134,24 @@ function baseFor(state: AccountCardState, actions: AccountAction[]): {
 	};
 }
 
+function paymentMethodFrom(row: SubscriptionRecord | undefined): PaymentMethodSummary | undefined {
+	if (!row?.paymentMethodId || !row.paymentMethodBrand || !row.paymentMethodLast4) {
+		return undefined;
+	}
+	return { brand: row.paymentMethodBrand, last4: row.paymentMethodLast4 };
+}
+
+function chargeFailedFrom(row: SubscriptionRecord | undefined): ChargeFailedSummary | undefined {
+	if (!row?.chargeFailedAt) return undefined;
+	return { reason: row.chargeFailedReason ?? "card_declined" };
+}
+
 export function toAccountViewModel(
 	access: EffectiveAccess,
 	queryState: AccountUrlState,
 	now: Date,
+	row?: SubscriptionRecord,
 ): AccountViewModel {
-	// Payment-method error takes priority over every underlying state — the user
-	// just bounced off Stripe's create-subscription endpoint.
 	if (queryState.errorPaymentMethod) {
 		return {
 			...baseFor("error-payment-method", []),
@@ -129,6 +159,9 @@ export function toAccountViewModel(
 			stateIsErrorPaymentMethod: true,
 		};
 	}
+
+	const paymentMethod = paymentMethodFrom(row);
+	const chargeFailed = chargeFailedFrom(row);
 
 	switch (access.banner) {
 		case "none":
@@ -143,20 +176,36 @@ export function toAccountViewModel(
 				 * command has already been published and clicking again would
 				 * just enqueue a duplicate. The "Cancellation in progress"
 				 * notice tells the user what's happening. */
-				...baseFor("active", queryState.cancelling ? [] : [CANCEL_FORM_ACTION]),
-				statusLine: "Subscription: Active.",
+				...baseFor(
+					"active",
+					queryState.cancelling
+						? []
+						: [...(paymentMethod ? [UPDATE_PAYMENT_METHOD_ACTION] : [ADD_PAYMENT_METHOD_ACTION]), CANCEL_FORM_ACTION],
+				),
+				statusLine: paymentMethod
+					? `Subscription active. Card: ${paymentMethod.brand} ••••${paymentMethod.last4}.`
+					: "Subscription: Active.",
 				showCancellingNotice: queryState.cancelling,
+				...(paymentMethod ? { paymentMethod } : {}),
+				...(chargeFailed ? { chargeFailed } : {}),
 			};
 		case "trial-countdown": {
 			const trialEndsAt = access.trialEndsAt;
 			const { daysLeft, daysLeftWord } = formatTrialDaysLeft(trialEndsAt, now);
+			const actions: AccountAction[] = paymentMethod
+				? [UPDATE_PAYMENT_METHOD_ACTION, CANCEL_FORM_ACTION]
+				: [ADD_PAYMENT_METHOD_ACTION];
 			return {
-				...baseFor("trial", [SUBSCRIBE_ACTION]),
-				statusLine: `Your free trial ends on ${formatTrialEndsAt(trialEndsAt)} — ${daysLeft} ${daysLeftWord} left.`,
+				...baseFor("trial", actions),
+				statusLine: paymentMethod
+					? `Trial in progress. Card on file: ${paymentMethod.brand} ••••${paymentMethod.last4}. Will be charged $3.99 on ${formatTrialEndsAt(trialEndsAt)}.`
+					: `Your free trial ends on ${formatTrialEndsAt(trialEndsAt)} — ${daysLeft} ${daysLeftWord} left. Add a card to keep your subscription active.`,
 				trialEndsAtIso: trialEndsAt,
 				trialEndsAtFormatted: formatTrialEndsAt(trialEndsAt),
 				trialDaysLeft: daysLeft,
 				trialDaysLeftWord: daysLeftWord,
+				...(paymentMethod ? { paymentMethod } : {}),
+				...(chargeFailed ? { chargeFailed } : {}),
 			};
 		}
 		case "cancellation-scheduled":
@@ -166,8 +215,13 @@ export function toAccountViewModel(
 			};
 		case "inactive":
 			return {
-				...baseFor("inactive", [SUBSCRIBE_ACTION]),
+				...baseFor(
+					"inactive",
+					[paymentMethod ? UPDATE_PAYMENT_METHOD_ACTION : ADD_PAYMENT_METHOD_ACTION],
+				),
 				statusLine: "Subscription not active.",
+				...(paymentMethod ? { paymentMethod } : {}),
+				...(chargeFailed ? { chargeFailed } : {}),
 			};
 	}
 }

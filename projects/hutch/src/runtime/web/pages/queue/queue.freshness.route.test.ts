@@ -56,6 +56,7 @@ describe("Queue freshness integration", () => {
 				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
 			},
 			freshness: { refreshArticleIfStale },
 		});

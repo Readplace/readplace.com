@@ -24,16 +24,18 @@ import type {
 } from "@packages/test-fixtures/providers/auth";
 import type {
 	CreateCheckoutSession,
+	CreateSetupCheckoutSession,
 	RetrieveCheckoutSession,
+	RetrieveSetupCheckoutSession,
 } from "@packages/test-fixtures/providers/stripe-checkout";
 import type {
 	ConsumePendingSignup,
-	StorePendingSignup,
 } from "@packages/test-fixtures/providers/pending-signup";
 import type {
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
 	UpsertActiveSubscription,
+	UpsertCustomerId,
 	UpsertTrialingSubscription,
 } from "@packages/test-fixtures/providers/subscription-providers";
 import type {
@@ -42,11 +44,12 @@ import type {
 	DeleteTrialEndSchedule,
 } from "@packages/test-fixtures/providers/trial-scheduler";
 import type {
+	PublishAddPaymentMethodCommand,
 	PublishCancelSubscriptionCommand,
 	PublishSubscriptionReactivated,
 } from "@packages/test-fixtures/providers/events";
 import type {
-	CreateSubscriptionOnExistingCustomer,
+	CreateStripeCustomer,
 	ReverseScheduledCancellation,
 } from "@packages/test-fixtures/providers/stripe-subscriptions";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
@@ -202,14 +205,17 @@ interface AppDependencies {
 	importSessionStore: ImportSessionStore;
 	now: () => Date;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
+	retrieveSetupCheckoutSession: RetrieveSetupCheckoutSession;
 	createCheckoutSession: CreateCheckoutSession;
+	createSetupCheckoutSession: CreateSetupCheckoutSession;
 	consumePendingSignup: ConsumePendingSignup;
-	storePendingSignup: StorePendingSignup;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 	publishSubscriptionReactivated: PublishSubscriptionReactivated;
+	publishAddPaymentMethodCommand: PublishAddPaymentMethodCommand;
 	subscriptionProviders: {
 		upsertActive: UpsertActiveSubscription;
 		upsertTrialing: UpsertTrialingSubscription;
+		upsertCustomerId: UpsertCustomerId;
 		findByUserId: FindSubscriptionByUserId;
 		markActive: MarkSubscriptionActive;
 	};
@@ -218,7 +224,7 @@ interface AppDependencies {
 		deleteTrialEndSchedule: DeleteTrialEndSchedule;
 		deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	};
-	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
+	createStripeCustomer: CreateStripeCustomer;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	stripePriceId: string;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
@@ -663,19 +669,21 @@ export function createApp(dependencies: AppDependencies): Express {
 		upsertActiveSubscription: deps.subscriptionProviders.upsertActive,
 		upsertTrialingSubscription: deps.subscriptionProviders.upsertTrialing,
 		markActiveSubscription: deps.subscriptionProviders.markActive,
+		upsertCustomerId: deps.subscriptionProviders.upsertCustomerId,
 		findEmailByUserId: deps.findEmailByUserId,
 		publishCancelSubscriptionCommand: deps.publishCancelSubscriptionCommand,
 		publishSubscriptionReactivated: deps.publishSubscriptionReactivated,
-		createCheckoutSession: deps.createCheckoutSession,
-		createSubscriptionOnExistingCustomer: deps.createSubscriptionOnExistingCustomer,
+		publishAddPaymentMethodCommand: deps.publishAddPaymentMethodCommand,
+		createStripeCustomer: deps.createStripeCustomer,
 		reverseScheduledCancellation: deps.reverseScheduledCancellation,
 		createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
 		deleteDeferredCancellationSchedule:
 			deps.trialScheduler.deleteDeferredCancellationSchedule,
-		storePendingSignup: deps.storePendingSignup,
-		stripePriceId: deps.stripePriceId,
-		buildCheckoutSuccessUrl: (sessionIdPlaceholder) =>
-			`${appOrigin}/auth/checkout/success?session_id=${sessionIdPlaceholder}`,
+		createSetupCheckoutSession: deps.createSetupCheckoutSession,
+		retrieveSetupCheckoutSession: deps.retrieveSetupCheckoutSession,
+		buildPaymentMethodSuccessUrl: (sessionIdPlaceholder) =>
+			`${appOrigin}/account/payment-method/success?session_id=${sessionIdPlaceholder}`,
+		buildPaymentMethodCancelUrl: () => "/account/payment-method/cancel",
 		appOrigin,
 		logger: HutchLogger.from({
 			info: noop,

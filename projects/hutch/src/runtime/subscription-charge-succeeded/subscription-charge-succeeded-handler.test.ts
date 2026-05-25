@@ -72,6 +72,48 @@ describe("subscription-charge-succeeded handler", () => {
 		}]);
 	});
 
+	it("clears chargeFailedAt and chargeRequestedAt sentinels on the row when activating", async () => {
+		const { providers, handler } = setup();
+		providers.seedRow({
+			userId: USER_ID,
+			provider: "stripe",
+			status: "cancelled",
+			customerId: "cus_was",
+			paymentMethodId: "pm_was",
+			paymentMethodBrand: "visa",
+			paymentMethodLast4: "4242",
+			chargeFailedAt: "2026-05-01T00:00:00.000Z",
+			chargeFailedReason: "card_declined",
+			chargeRequestedAt: "2026-05-01T00:00:00.000Z",
+			createdAt: "2026-04-01T00:00:00.000Z",
+			updatedAt: "2026-05-01T00:00:00.000Z",
+		});
+
+		const result = await handler(
+			buildSqsEvent([
+				{
+					messageId: "msg-clear",
+					body: buildBody({
+						userId: USER_ID,
+						subscriptionId: "sub_fresh",
+						customerId: "cus_was",
+					}),
+				},
+			]),
+			{} as never,
+			() => {},
+		);
+
+		assert(result);
+		assert.equal(result.batchItemFailures.length, 0);
+		const row = await providers.findByUserId(USER_ID);
+		assert(row);
+		assert.equal(row.status, "active");
+		assert.equal(row.chargeFailedAt, undefined);
+		assert.equal(row.chargeFailedReason, undefined);
+		assert.equal(row.chargeRequestedAt, undefined);
+	});
+
 	it("reports a batch item failure for malformed JSON and emits no subscription event", async () => {
 		const { captured, handler } = setup();
 

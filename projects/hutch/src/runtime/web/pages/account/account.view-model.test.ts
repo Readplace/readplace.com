@@ -1,8 +1,26 @@
 import assert from "node:assert/strict";
 import { toAccountViewModel, parseAccountQuery } from "./account.view-model";
 import type { EffectiveAccess } from "../../../domain/access/effective-access";
+import type { SubscriptionRecord } from "@packages/test-fixtures/providers/subscription-providers";
+import { UserIdSchema } from "@packages/domain/user";
 
 const ONE_DAY_MS = 86_400_000;
+const USER_ID = UserIdSchema.parse("u".repeat(32));
+
+function rowWithCard(overrides: Partial<SubscriptionRecord> = {}): SubscriptionRecord {
+	return {
+		userId: USER_ID,
+		provider: "stripe",
+		status: "active",
+		customerId: "cus_x",
+		paymentMethodId: "pm_x",
+		paymentMethodBrand: "visa",
+		paymentMethodLast4: "4242",
+		createdAt: "2026-05-01T00:00:00.000Z",
+		updatedAt: "2026-05-01T00:00:00.000Z",
+		...overrides,
+	};
+}
 
 describe("toAccountViewModel — state", () => {
 	it("shows singular 'day' when trial ends in less than 24 hours", () => {
@@ -55,18 +73,34 @@ describe("toAccountViewModel — actions", () => {
 		assert.deepEqual(vm.actions, []);
 	});
 
-	it("active paid users get a destructive cancel form (POST) — no GET confirmation step", () => {
+	it("active paid users without a card get add-payment-method + cancel-form actions", () => {
 		const vm = toAccountViewModel(
 			{ tier: "paid", access: "full", banner: "none" },
 			baseQuery,
 			now,
 		);
-		assert.equal(vm.actions.length, 1);
-		assert.equal(vm.actions[0].key, "cancel-form");
-		assert.equal(vm.actions[0].variant, "destructive");
-		assert.equal(vm.actions[0].method, "POST");
-		assert.equal(vm.actions[0].href, "/account/cancel");
-		assert.equal(vm.actions[0].isLink, false);
+		const keys = vm.actions.map((a) => a.key);
+		assert.deepEqual(keys, ["add-payment-method", "cancel-form"]);
+		const cancel = vm.actions.find((a) => a.key === "cancel-form");
+		assert(cancel);
+		assert.equal(cancel.variant, "destructive");
+		assert.equal(cancel.method, "POST");
+		assert.equal(cancel.href, "/account/cancel");
+	});
+
+	it("active paid users with a card on file get update-payment-method + cancel-form", () => {
+		const vm = toAccountViewModel(
+			{ tier: "paid", access: "full", banner: "none" },
+			baseQuery,
+			now,
+			rowWithCard({ status: "active" }),
+		);
+		const keys = vm.actions.map((a) => a.key);
+		assert.deepEqual(keys, ["update-payment-method", "cancel-form"]);
+		assert(vm.paymentMethod);
+		assert.equal(vm.paymentMethod.brand, "visa");
+		assert.equal(vm.paymentMethod.last4, "4242");
+		assert.match(vm.statusLine, /visa ••••4242/);
 	});
 
 	it("active paid users with cancelling=1 get no actions — the Cancel command is already in flight", () => {
@@ -79,7 +113,7 @@ describe("toAccountViewModel — actions", () => {
 		assert.equal(vm.showCancellingNotice, true);
 	});
 
-	it("trial users get a primary subscribe action only — no cancel button while on trial", () => {
+	it("trial users without a card get a single add-payment-method action", () => {
 		const trialEndsAt = new Date(now.getTime() + 5 * ONE_DAY_MS).toISOString();
 		const vm = toAccountViewModel(
 			{ tier: "trial", access: "full", banner: "trial-countdown", trialEndsAt },
@@ -87,21 +121,46 @@ describe("toAccountViewModel — actions", () => {
 			now,
 		);
 		const keys = vm.actions.map((a) => a.key);
-		assert.deepEqual(keys, ["subscribe"]);
+		assert.deepEqual(keys, ["add-payment-method"]);
 		assert.equal(vm.actions[0].variant, "primary");
 		assert.equal(vm.actions[0].method, "POST");
-		assert.equal(vm.actions[0].href, "/account/subscribe");
+		assert.equal(vm.actions[0].href, "/account/payment-method");
+		assert.match(vm.statusLine, /Add a card/);
 	});
 
-	it("inactive users get a primary subscribe action only (export lives in the nav menu)", () => {
+	it("trial users with a card get update-payment-method + cancel-form and a 'will be charged' statusLine", () => {
+		const trialEndsAt = new Date(now.getTime() + 5 * ONE_DAY_MS).toISOString();
+		const vm = toAccountViewModel(
+			{ tier: "trial", access: "full", banner: "trial-countdown", trialEndsAt },
+			baseQuery,
+			now,
+			rowWithCard({ status: "trialing", trialEndsAt }),
+		);
+		const keys = vm.actions.map((a) => a.key);
+		assert.deepEqual(keys, ["update-payment-method", "cancel-form"]);
+		assert.match(vm.statusLine, /Will be charged \$3\.99/);
+	});
+
+	it("inactive users without a card get a single add-payment-method action", () => {
 		const vm = toAccountViewModel(
 			{ tier: "inactive", access: "read-only", banner: "inactive", reason: "trial-expired" },
 			baseQuery,
 			now,
 		);
 		const keys = vm.actions.map((a) => a.key);
-		assert.deepEqual(keys, ["subscribe"]);
+		assert.deepEqual(keys, ["add-payment-method"]);
 		assert.equal(vm.actions[0].variant, "primary");
+	});
+
+	it("inactive users with a card on file get update-payment-method instead", () => {
+		const vm = toAccountViewModel(
+			{ tier: "inactive", access: "read-only", banner: "inactive", reason: "subscription-cancelled" },
+			baseQuery,
+			now,
+			rowWithCard({ status: "cancelled" }),
+		);
+		const keys = vm.actions.map((a) => a.key);
+		assert.deepEqual(keys, ["update-payment-method"]);
 	});
 
 	it("error-payment-method state exposes no actions (support email lives in the body copy)", () => {
@@ -153,6 +212,35 @@ describe("toAccountViewModel — actions", () => {
 		assert.equal(vm.statusLine, `Your subscription ends on ${new Date("2026-06-05T00:00:00.000Z").toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}.`);
 		const keys = vm.actions.map((a) => a.key);
 		assert.deepEqual(keys, ["reactivate-form"]);
+	});
+
+	it("rows with chargeFailedAt expose a chargeFailed summary for the warning banner", () => {
+		const vm = toAccountViewModel(
+			{ tier: "inactive", access: "read-only", banner: "inactive", reason: "subscription-cancelled" },
+			baseQuery,
+			now,
+			rowWithCard({
+				status: "cancelled",
+				chargeFailedAt: "2026-05-01T00:00:00.000Z",
+				chargeFailedReason: "card_declined",
+			}),
+		);
+		assert(vm.chargeFailed);
+		assert.equal(vm.chargeFailed.reason, "card_declined");
+	});
+
+	it("rows with chargeFailedAt but missing chargeFailedReason default the reason to card_declined", () => {
+		const vm = toAccountViewModel(
+			{ tier: "inactive", access: "read-only", banner: "inactive", reason: "subscription-cancelled" },
+			baseQuery,
+			now,
+			rowWithCard({
+				status: "cancelled",
+				chargeFailedAt: "2026-05-01T00:00:00.000Z",
+			}),
+		);
+		assert(vm.chargeFailed);
+		assert.equal(vm.chargeFailed.reason, "card_declined");
 	});
 });
 

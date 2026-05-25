@@ -4,13 +4,12 @@ import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-inf
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
-import { initEventBridgeSubscriptionChargeSucceeded } from "./providers/events/eventbridge-subscription-charge-succeeded";
-import { initSubscriptionStartRequestHandler } from "./subscription-start-request/subscription-start-request-handler";
+import { initEventBridgePaymentMethodAdded } from "./providers/events/eventbridge-payment-method-added";
+import { initAddPaymentMethodHandler } from "./add-payment-method/add-payment-method-handler";
 import { requireEnv } from "./domain/require-env";
 
 const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
 const stripeApiKey = requireEnv("STRIPE_SECRET_KEY");
-const stripePriceId = requireEnv("STRIPE_PRICE_ID");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 
 const subscriptionProviders = initDynamoDbSubscriptionProviders({
@@ -29,20 +28,12 @@ const { publishEvent } = initEventBridgePublisher({
 	eventBusName,
 });
 
-const { publishSubscriptionChargeSucceeded } = initEventBridgeSubscriptionChargeSucceeded({
-	publishEvent,
-});
+const { publishPaymentMethodAdded } = initEventBridgePaymentMethodAdded({ publishEvent });
 
-export const handler = initSubscriptionStartRequestHandler({
-	findByUserIdConsistent: subscriptionProviders.findByUserIdConsistent,
-	upsertCancelled: subscriptionProviders.upsertCancelled,
-	markChargeRequested: subscriptionProviders.markChargeRequested,
-	markChargeFailed: subscriptionProviders.markChargeFailed,
-	clearChargeFailed: subscriptionProviders.clearChargeFailed,
-	createSubscriptionWithOffSessionPayment: stripeSubscriptions.createSubscriptionWithOffSessionPayment,
-	publishSubscriptionChargeSucceeded,
-	stripePriceId,
+export const handler = initAddPaymentMethodHandler({
+	upsertPaymentMethod: subscriptionProviders.upsertPaymentMethod,
+	setDefaultPaymentMethod: stripeSubscriptions.setDefaultPaymentMethod,
+	publishPaymentMethodAdded,
 	logger: HutchLogger.from(consoleLogger),
-	now: () => new Date(),
 });
 /* c8 ignore stop */

@@ -48,6 +48,7 @@ import type {
 	ExistsUserByIdPrefix,
 } from "@packages/test-fixtures/providers/auth";
 import type {
+	PublishAddPaymentMethodCommand,
 	PublishCancelSubscriptionCommand,
 	PublishExportUserDataCommand,
 	PublishSubscriptionReactivated,
@@ -55,7 +56,9 @@ import type {
 import type {
 	CheckoutSessionId,
 	CreateCheckoutSession,
+	CreateSetupCheckoutSession,
 	RetrieveCheckoutSession,
+	RetrieveSetupCheckoutSession,
 } from "@packages/test-fixtures/providers/stripe-checkout";
 import type {
 	ConsumePendingSignup,
@@ -69,6 +72,7 @@ import type {
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
 	UpsertActiveSubscription,
+	UpsertCustomerId,
 	UpsertTrialingSubscription,
 } from "@packages/test-fixtures/providers/subscription-providers";
 import type {
@@ -78,6 +82,7 @@ import type {
 	DeleteTrialEndSchedule,
 } from "@packages/test-fixtures/providers/trial-scheduler";
 import type {
+	CreateStripeCustomer,
 	CreateSubscriptionOnExistingCustomer,
 	ReverseScheduledCancellation,
 	ScheduleCancellationAtPeriodEnd,
@@ -143,8 +148,14 @@ export interface AuthBundle {
 
 export interface StripeCheckoutBundle {
 	createCheckoutSession: CreateCheckoutSession;
+	createSetupCheckoutSession: CreateSetupCheckoutSession;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
+	retrieveSetupCheckoutSession: RetrieveSetupCheckoutSession;
 	markPaid: (id: CheckoutSessionId) => void;
+	markSetupComplete: (
+		id: CheckoutSessionId,
+		input?: { paymentMethodId?: string; brand?: string; last4?: string },
+	) => void;
 	getCheckoutUrl: (id: CheckoutSessionId) => string;
 }
 
@@ -158,6 +169,7 @@ export interface SubscriptionProvidersBundle {
 	findBySubscriptionId: FindSubscriptionBySubscriptionId;
 	upsertTrialing: UpsertTrialingSubscription;
 	upsertActive: UpsertActiveSubscription;
+	upsertCustomerId: UpsertCustomerId;
 	markPendingCancellation: MarkSubscriptionPendingCancellation;
 	markCancelled: MarkSubscriptionCancelled;
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
@@ -170,6 +182,12 @@ export interface SubscriptionProvidersBundle {
 		status: "trialing" | "active" | "pending_cancellation" | "cancelled";
 		trialEndsAt?: string;
 		cancellationEffectiveAt?: string;
+		paymentMethodId?: string;
+		paymentMethodBrand?: string;
+		paymentMethodLast4?: string;
+		chargeRequestedAt?: string;
+		chargeFailedAt?: string;
+		chargeFailedReason?: string;
 		createdAt: string;
 		updatedAt: string;
 	}) => void;
@@ -197,7 +215,16 @@ export interface StripeSubscriptionsBundle {
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
-	createdSubscriptions: () => readonly { customerId: string; priceId: string; subscriptionId: string }[];
+	createStripeCustomer: CreateStripeCustomer;
+	createdCustomers: () => readonly { email: string; userId: string; customerId: string }[];
+	defaultPaymentMethodAssignments: () => readonly { customerId: string; paymentMethodId: string }[];
+	createdSubscriptions: () => readonly {
+		customerId: string;
+		priceId: string;
+		subscriptionId: string;
+		defaultPaymentMethodId?: string;
+		idempotencyKey?: string;
+	}[];
 	scheduledCancellations: () => readonly { subscriptionId: string; cancellationEffectiveAt: string }[];
 	reversedCancellations: () => readonly string[];
 }
@@ -248,6 +275,7 @@ export interface EventsBundle {
 	publishExportUserDataCommand: PublishExportUserDataCommand;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 	publishSubscriptionReactivated: PublishSubscriptionReactivated;
+	publishAddPaymentMethodCommand: PublishAddPaymentMethodCommand;
 }
 
 export interface PendingHtmlBundle {
@@ -430,6 +458,7 @@ function flattenFixtureToAppDependencies(
 		publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 		publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 		publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+		publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
 		putPendingHtml: fixture.pendingHtml.putPendingHtml,
 		findGeneratedSummary: fixture.summary.findGeneratedSummary,
 		markSummaryPending: fixture.summary.markSummaryPending,
@@ -447,12 +476,14 @@ function flattenFixtureToAppDependencies(
 		importSessionStore: fixture.importSession.importSessionStore,
 		now: fixture.shared.now,
 		retrieveCheckoutSession: fixture.stripe.retrieveCheckoutSession,
+		retrieveSetupCheckoutSession: fixture.stripe.retrieveSetupCheckoutSession,
 		createCheckoutSession: fixture.stripe.createCheckoutSession,
+		createSetupCheckoutSession: fixture.stripe.createSetupCheckoutSession,
 		consumePendingSignup: fixture.pendingSignup.consumePendingSignup,
-		storePendingSignup: fixture.pendingSignup.storePendingSignup,
 		subscriptionProviders: {
 			upsertActive: fixture.subscriptionProviders.upsertActive,
 			upsertTrialing: fixture.subscriptionProviders.upsertTrialing,
+			upsertCustomerId: fixture.subscriptionProviders.upsertCustomerId,
 			findByUserId: fixture.subscriptionProviders.findByUserId,
 			markActive: fixture.subscriptionProviders.markActive,
 		},
@@ -462,8 +493,7 @@ function flattenFixtureToAppDependencies(
 			deleteDeferredCancellationSchedule:
 				fixture.trialScheduler.deleteDeferredCancellationSchedule,
 		},
-		createSubscriptionOnExistingCustomer:
-			fixture.stripeSubscriptions.createSubscriptionOnExistingCustomer,
+		createStripeCustomer: fixture.stripeSubscriptions.createStripeCustomer,
 		reverseScheduledCancellation:
 			fixture.stripeSubscriptions.reverseScheduledCancellation,
 		stripePriceId: fixture.stripePriceId,

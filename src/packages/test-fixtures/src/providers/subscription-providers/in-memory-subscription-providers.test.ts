@@ -191,4 +191,216 @@ describe("initInMemorySubscriptionProviders", () => {
 		expect(row.customerId).toBe("cus_seeded");
 		expect(row.trialEndsAt).toBe("2026-06-05T00:00:00.000Z");
 	});
+
+	it("findByUserIdConsistent mirrors findByUserId for the in-memory store", async () => {
+		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+		expect(await subs.findByUserIdConsistent(userId)).toBeUndefined();
+		await subs.upsertTrialing({ userId, trialEndsAt: "2026-06-05T00:00:00.000Z" });
+		const row = await subs.findByUserIdConsistent(userId);
+		assert(row);
+		expect(row.status).toBe("trialing");
+	});
+
+	describe("upsertCustomerId", () => {
+		it("creates a cancelled row with the customerId when none exists", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			const result = await subs.upsertCustomerId({ userId, customerId: "cus_brand_new" });
+			expect(result.ok).toBe(true);
+			const row = await subs.findByUserId(userId);
+			assert(row);
+			expect(row.status).toBe("cancelled");
+			expect(row.customerId).toBe("cus_brand_new");
+		});
+
+		it("writes the customerId onto an existing trialing row without changing status", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await subs.upsertTrialing({ userId, trialEndsAt: "2026-06-05T00:00:00.000Z" });
+			const result = await subs.upsertCustomerId({ userId, customerId: "cus_added" });
+			expect(result.ok).toBe(true);
+			const row = await subs.findByUserId(userId);
+			assert(row);
+			expect(row.status).toBe("trialing");
+			expect(row.customerId).toBe("cus_added");
+		});
+
+		it("returns customer-id-already-set when the row already has a customerId", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await subs.upsertCustomerId({ userId, customerId: "cus_winner" });
+			const result = await subs.upsertCustomerId({ userId, customerId: "cus_loser" });
+			expect(result).toEqual({ ok: false, reason: "customer-id-already-set" });
+			const row = await subs.findByUserId(userId);
+			assert(row);
+			expect(row.customerId).toBe("cus_winner");
+		});
+	});
+
+	describe("upsertPaymentMethod", () => {
+		it("writes paymentMethodId, brand, last4 and clears any prior chargeFailedAt", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			subs.seedRow({
+				userId,
+				provider: "stripe",
+				status: "cancelled",
+				customerId: "cus_x",
+				chargeFailedAt: "2026-05-01T00:00:00.000Z",
+				chargeFailedReason: "card_declined",
+				createdAt: "2026-04-01T00:00:00.000Z",
+				updatedAt: "2026-05-01T00:00:00.000Z",
+			});
+			await subs.upsertPaymentMethod({ userId, paymentMethodId: "pm_new", brand: "visa", last4: "4242" });
+			const row = await subs.findByUserId(userId);
+			assert(row);
+			expect(row.paymentMethodId).toBe("pm_new");
+			expect(row.paymentMethodBrand).toBe("visa");
+			expect(row.paymentMethodLast4).toBe("4242");
+			expect(row.chargeFailedAt).toBeUndefined();
+			expect(row.chargeFailedReason).toBeUndefined();
+		});
+
+		it("throws when called for an unknown user", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await expect(
+				subs.upsertPaymentMethod({ userId, paymentMethodId: "pm_x", brand: "visa", last4: "0000" }),
+			).rejects.toThrow(/No subscription row/);
+		});
+	});
+
+	describe("markChargeRequested", () => {
+		it("returns ok and writes chargeRequestedAt on first call", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await subs.upsertTrialing({ userId, trialEndsAt: "2026-06-05T00:00:00.000Z" });
+			const res = await subs.markChargeRequested({ userId, requestedAt: "2026-06-05T00:00:00.000Z" });
+			expect(res.ok).toBe(true);
+			const row = await subs.findByUserId(userId);
+			assert(row);
+			expect(row.chargeRequestedAt).toBe("2026-06-05T00:00:00.000Z");
+		});
+
+		it("returns charge-already-requested when the sentinel is set", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			subs.seedRow({
+				userId,
+				provider: "stripe",
+				status: "trialing",
+				customerId: "cus_x",
+				paymentMethodId: "pm_x",
+				paymentMethodBrand: "visa",
+				paymentMethodLast4: "4242",
+				chargeRequestedAt: "2026-06-05T00:00:00.000Z",
+				createdAt: "2026-05-01T00:00:00.000Z",
+				updatedAt: "2026-05-01T00:00:00.000Z",
+			});
+			const res = await subs.markChargeRequested({ userId, requestedAt: "2026-06-06T00:00:00.000Z" });
+			expect(res).toEqual({ ok: false, reason: "charge-already-requested" });
+		});
+
+		it("throws when called for an unknown user", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await expect(subs.markChargeRequested({ userId, requestedAt: "2026-06-05T00:00:00.000Z" })).rejects.toThrow(
+				/No subscription row/,
+			);
+		});
+	});
+
+	describe("markChargeFailed and clearChargeFailed", () => {
+		it("writes chargeFailedAt + chargeFailedReason and clears chargeRequestedAt", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			subs.seedRow({
+				userId,
+				provider: "stripe",
+				status: "cancelled",
+				customerId: "cus_x",
+				paymentMethodId: "pm_x",
+				paymentMethodBrand: "visa",
+				paymentMethodLast4: "4242",
+				chargeRequestedAt: "2026-06-05T00:00:00.000Z",
+				createdAt: "2026-05-01T00:00:00.000Z",
+				updatedAt: "2026-05-01T00:00:00.000Z",
+			});
+			await subs.markChargeFailed({ userId, failedAt: "2026-06-05T00:01:00.000Z", reason: "card_declined" });
+			const row = await subs.findByUserId(userId);
+			assert(row);
+			expect(row.chargeFailedAt).toBe("2026-06-05T00:01:00.000Z");
+			expect(row.chargeFailedReason).toBe("card_declined");
+			expect(row.chargeRequestedAt).toBeUndefined();
+		});
+
+		it("clearChargeFailed removes chargeFailedAt + chargeFailedReason", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			subs.seedRow({
+				userId,
+				provider: "stripe",
+				status: "active",
+				customerId: "cus_x",
+				subscriptionId: "sub_x",
+				chargeFailedAt: "2026-05-01T00:00:00.000Z",
+				chargeFailedReason: "card_declined",
+				createdAt: "2026-04-01T00:00:00.000Z",
+				updatedAt: "2026-05-01T00:00:00.000Z",
+			});
+			await subs.clearChargeFailed({ userId });
+			const row = await subs.findByUserId(userId);
+			assert(row);
+			expect(row.chargeFailedAt).toBeUndefined();
+			expect(row.chargeFailedReason).toBeUndefined();
+		});
+
+		it("markChargeFailed throws for an unknown user", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await expect(
+				subs.markChargeFailed({ userId, failedAt: "2026-06-05T00:00:00.000Z", reason: "card_declined" }),
+			).rejects.toThrow(/No subscription row/);
+		});
+
+		it("clearChargeFailed throws for an unknown user", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await expect(subs.clearChargeFailed({ userId })).rejects.toThrow(/No subscription row/);
+		});
+	});
+
+	describe("upsertCancelled", () => {
+		it("creates a cancelled row for an unknown user", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await subs.upsertCancelled({ userId });
+			const row = await subs.findByUserId(userId);
+			assert(row);
+			expect(row.status).toBe("cancelled");
+		});
+
+		it("preserves customerId and payment method fields when cancelling an existing row", async () => {
+			const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+			await subs.upsertTrialing({ userId, trialEndsAt: "2026-06-05T00:00:00.000Z" });
+			await subs.upsertCustomerId({ userId, customerId: "cus_keep" });
+			await subs.upsertPaymentMethod({ userId, paymentMethodId: "pm_keep", brand: "visa", last4: "4242" });
+			await subs.upsertCancelled({ userId });
+			const row = await subs.findByUserId(userId);
+			assert(row);
+			expect(row.status).toBe("cancelled");
+			expect(row.customerId).toBe("cus_keep");
+			expect(row.paymentMethodId).toBe("pm_keep");
+			expect(row.paymentMethodBrand).toBe("visa");
+			expect(row.paymentMethodLast4).toBe("4242");
+		});
+	});
+
+	it("upsertActive preserves payment method fields when activating an existing row", async () => {
+		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
+		subs.seedRow({
+			userId,
+			provider: "stripe",
+			status: "cancelled",
+			customerId: "cus_x",
+			paymentMethodId: "pm_keep",
+			paymentMethodBrand: "visa",
+			paymentMethodLast4: "4242",
+			createdAt: "2026-04-01T00:00:00.000Z",
+			updatedAt: "2026-04-01T00:00:00.000Z",
+		});
+		await subs.upsertActive({ userId, subscriptionId: "sub_new", customerId: "cus_x" });
+		const row = await subs.findByUserId(userId);
+		assert(row);
+		expect(row.paymentMethodId).toBe("pm_keep");
+		expect(row.paymentMethodBrand).toBe("visa");
+		expect(row.paymentMethodLast4).toBe("4242");
+	});
 });

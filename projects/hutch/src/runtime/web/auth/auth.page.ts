@@ -398,17 +398,6 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			return;
 		}
 
-		if (pending.method === "existing-user-subscribe") {
-			await deps.subscriptionProviders.upsertActive({
-				userId: pending.userId,
-				subscriptionId,
-				customerId,
-			});
-			await deps.trialScheduler.deleteTrialEndSchedule({ userId: pending.userId });
-			res.redirect(303, returnPath);
-			return;
-		}
-
 		const created = await deps.createGoogleUser({
 			email: pending.email,
 			userId: pending.userId,

@@ -32,7 +32,10 @@ export type DynamoTable<TSchema extends z.ZodObject> = {
 	 */
 	get: (
 		key: Key,
-		options?: { projection?: readonly (keyof z.infer<TSchema>)[] },
+		options?: {
+			projection?: readonly (keyof z.infer<TSchema>)[];
+			consistentRead?: boolean;
+		},
 	) => Promise<z.infer<TSchema> | undefined>;
 
 	/** Raw Put passthrough. Item is not parsed — writes bypass the read-side schema. */
@@ -105,11 +108,13 @@ export function defineDynamoTable<TSchema extends z.ZodObject>(config: {
 						),
 					}
 				: {};
+			const consistentOptions = options?.consistentRead ? { ConsistentRead: true } : {};
 			const result = await client.send(
 				new GetCommand({
 					TableName: tableName,
 					Key: key,
 					...projectionOptions,
+					...consistentOptions,
 				}),
 			);
 			if (!result.Item) return undefined;

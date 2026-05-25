@@ -17,6 +17,7 @@ import type {
 	PublishUpdateFetchTimestamp,
 	PublishExportUserDataCommand,
 	PublishCancelSubscriptionCommand,
+	PublishAddPaymentMethodCommand,
 } from "./providers/events";
 import type { PutPendingHtml } from "./providers/pending-html/pending-html.types";
 import type {
@@ -55,7 +56,9 @@ import type {
 import type {
 	CheckoutSessionId,
 	CreateCheckoutSession,
+	CreateSetupCheckoutSession,
 	RetrieveCheckoutSession,
+	RetrieveSetupCheckoutSession,
 } from "./providers/stripe-checkout/stripe-checkout.types";
 import type {
 	ConsumePendingSignup,
@@ -70,6 +73,7 @@ import type {
 	MarkSubscriptionPendingCancellation,
 	SubscriptionRecord,
 	UpsertActiveSubscription,
+	UpsertCustomerId,
 	UpsertTrialingSubscription,
 } from "./providers/subscription-providers/subscription-providers.types";
 import type {
@@ -79,6 +83,7 @@ import type {
 	DeleteTrialEndSchedule,
 } from "./providers/trial-scheduler/trial-scheduler.types";
 import type {
+	CreateStripeCustomer,
 	CreateSubscriptionOnExistingCustomer,
 	ReverseScheduledCancellation,
 	ScheduleCancellationAtPeriodEnd,
@@ -144,8 +149,14 @@ export interface AuthBundle {
 
 export interface StripeCheckoutBundle {
 	createCheckoutSession: CreateCheckoutSession;
+	createSetupCheckoutSession: CreateSetupCheckoutSession;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
+	retrieveSetupCheckoutSession: RetrieveSetupCheckoutSession;
 	markPaid: (id: CheckoutSessionId) => void;
+	markSetupComplete: (
+		id: CheckoutSessionId,
+		input?: { paymentMethodId?: string; brand?: string; last4?: string },
+	) => void;
 	getCheckoutUrl: (id: CheckoutSessionId) => string;
 }
 
@@ -159,6 +170,7 @@ export interface SubscriptionProvidersBundle {
 	findBySubscriptionId: FindSubscriptionBySubscriptionId;
 	upsertTrialing: UpsertTrialingSubscription;
 	upsertActive: UpsertActiveSubscription;
+	upsertCustomerId: UpsertCustomerId;
 	markPendingCancellation: MarkSubscriptionPendingCancellation;
 	markCancelled: MarkSubscriptionCancelled;
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
@@ -183,7 +195,16 @@ export interface StripeSubscriptionsBundle {
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
-	createdSubscriptions: () => readonly { customerId: string; priceId: string; subscriptionId: string }[];
+	createStripeCustomer: CreateStripeCustomer;
+	createdCustomers: () => readonly { email: string; userId: string; customerId: string }[];
+	defaultPaymentMethodAssignments: () => readonly { customerId: string; paymentMethodId: string }[];
+	createdSubscriptions: () => readonly {
+		customerId: string;
+		priceId: string;
+		subscriptionId: string;
+		defaultPaymentMethodId?: string;
+		idempotencyKey?: string;
+	}[];
 	scheduledCancellations: () => readonly { subscriptionId: string; cancellationEffectiveAt: string }[];
 	reversedCancellations: () => readonly string[];
 }
@@ -235,6 +256,7 @@ export interface EventsBundle {
 	publishExportUserDataCommand: PublishExportUserDataCommand;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
 	publishSubscriptionReactivated: PublishSubscriptionReactivated;
+	publishAddPaymentMethodCommand: PublishAddPaymentMethodCommand;
 }
 
 export interface PendingHtmlBundle {

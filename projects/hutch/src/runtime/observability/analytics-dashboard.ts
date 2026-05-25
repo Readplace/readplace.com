@@ -319,7 +319,6 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 export const SUBSCRIPTION_DASHBOARD_LOG_GROUPS: readonly string[] = [
 	LOG_GROUPS.subscriptionStartRequest,
 	LOG_GROUPS.subscriptionChargeSucceeded,
-	LOG_GROUPS.subscriptionChargeFailed,
 	LOG_GROUPS.cancelSubscription,
 	LOG_GROUPS.handleSubscriptionCancelled,
 ];

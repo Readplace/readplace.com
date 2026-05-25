@@ -122,6 +122,7 @@ const { app: hutchApp, auth, email } = createTestApp({
     publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
     publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
     publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+    publishAddPaymentMethodCommand: fixture.events.publishAddPaymentMethodCommand,
   },
   freshness: { refreshArticleIfStale },
   summary,

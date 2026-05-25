@@ -4,11 +4,12 @@ import assert from "node:assert";
 import { resolve } from "node:path";
 import { HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda, HutchStripeWebhookReceiver } from "@packages/hutch-infra-components/infra";
 import {
+	AddPaymentMethodCommand,
 	CancelSubscriptionCommand,
 	ExportUserDataCommand,
+	PaymentMethodAddedEvent,
 	SubscriptionCancellationScheduledEvent,
 	SubscriptionCancelledEvent,
-	SubscriptionChargeFailedEvent,
 	SubscriptionChargeSucceededEvent,
 	SubscriptionStartRequestCommand,
 } from "@packages/hutch-infra-components";
@@ -576,7 +577,7 @@ eventBus.subscribe(
 
 const subscriptionStartRequestDynamodb = new HutchDynamoDBAccess("subscription-start-request-dynamodb", {
 	tables: [{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false }],
-	actions: ["dynamodb:GetItem"],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
 const subscriptionStartRequestQueue = new HutchSQS("subscription-start-request", {
@@ -645,38 +646,86 @@ const subscriptionChargeSucceededWithSQS = new HutchSQSBackedLambda("subscriptio
 
 eventBus.subscribe(SubscriptionChargeSucceededEvent, subscriptionChargeSucceededWithSQS);
 
-// --- Subscription Charge Failed ---
-// SQS-backed Lambda that dispatches CancelSubscriptionCommand when the
-// trial-end charge attempt fails (no card on file or Stripe error). The
-// downstream cancel chain takes over from there.
+// --- Add Payment Method ---
+// SQS-backed Lambda invoked by POST /account/payment-method/finalize once the
+// user completes Stripe Checkout in setup mode. PATCHes the Stripe Customer
+// with the new default payment method, writes the brand/last4 to the row, and
+// publishes PaymentMethodAddedEvent so the downstream charge flow can pick up.
 
-const subscriptionChargeFailedQueue = new HutchSQS("subscription-charge-failed", {
+const addPaymentMethodDynamodb = new HutchDynamoDBAccess("add-payment-method-dynamodb", {
+	tables: [{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:UpdateItem"],
+});
+
+const addPaymentMethodQueue = new HutchSQS("add-payment-method", {
 	visibilityTimeoutSeconds: 30,
 });
 
-const subscriptionChargeFailedLambda = new HutchLambda(LAMBDA_NAMES.subscriptionChargeFailed, {
-	entryPoint: "./src/runtime/subscription-charge-failed.main.ts",
-	outputDir: ".lib/subscription-charge-failed",
+const addPaymentMethodLambda = new HutchLambda("add-payment-method", {
+	entryPoint: "./src/runtime/add-payment-method.main.ts",
+	outputDir: ".lib/add-payment-method",
 	assetDir: "./src/runtime",
 	memorySize: 128,
 	timeout: 30,
 	environment: {
 		PERSISTENCE: "prod",
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
+		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
 		EVENT_BUS_NAME: eventBus.eventBusName,
 	},
-	policies: [],
+	policies: [...addPaymentMethodDynamodb.policies],
 });
 
-eventBus.grantPublish(subscriptionChargeFailedLambda);
+eventBus.grantPublish(addPaymentMethodLambda);
 
-const subscriptionChargeFailedWithSQS = new HutchSQSBackedLambda("subscription-charge-failed", {
-	lambda: subscriptionChargeFailedLambda,
-	queue: subscriptionChargeFailedQueue,
+const addPaymentMethodWithSQS = new HutchSQSBackedLambda("add-payment-method", {
+	lambda: addPaymentMethodLambda,
+	queue: addPaymentMethodQueue,
 	alertEmailDLQEntry: alertEmail,
 	batchSize: 1,
 });
 
-eventBus.subscribe(SubscriptionChargeFailedEvent, subscriptionChargeFailedWithSQS);
+eventBus.subscribe(AddPaymentMethodCommand, addPaymentMethodWithSQS);
+
+// --- Payment Method Added ---
+// SQS-backed Lambda that dispatches SubscriptionStartRequestCommand when a
+// payment method lands on a trialing or cancelled row, so the existing
+// trial-end charge flow can decide whether to charge now (cancelled or
+// trial-expired) or wait for the scheduler (trial still active).
+
+const paymentMethodAddedDynamodb = new HutchDynamoDBAccess("payment-method-added-dynamodb", {
+	tables: [{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem"],
+});
+
+const paymentMethodAddedQueue = new HutchSQS("payment-method-added", {
+	visibilityTimeoutSeconds: 30,
+});
+
+const paymentMethodAddedLambda = new HutchLambda("payment-method-added", {
+	entryPoint: "./src/runtime/payment-method-added.main.ts",
+	outputDir: ".lib/payment-method-added",
+	assetDir: "./src/runtime",
+	memorySize: 128,
+	timeout: 30,
+	environment: {
+		PERSISTENCE: "prod",
+		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [...paymentMethodAddedDynamodb.policies],
+});
+
+eventBus.grantPublish(paymentMethodAddedLambda);
+
+const paymentMethodAddedWithSQS = new HutchSQSBackedLambda("payment-method-added", {
+	lambda: paymentMethodAddedLambda,
+	queue: paymentMethodAddedQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(PaymentMethodAddedEvent, paymentMethodAddedWithSQS);
 
 // --- Analytics Dashboard ---
 // The widget builder lives in runtime/observability/analytics-dashboard so the
@@ -718,10 +767,6 @@ const subscriptionLogGroups = [
 	}),
 	new aws.cloudwatch.LogGroup("subscription-charge-succeeded-log-group", {
 		name: LOG_GROUPS.subscriptionChargeSucceeded,
-		retentionInDays: 30,
-	}),
-	new aws.cloudwatch.LogGroup("subscription-charge-failed-log-group", {
-		name: LOG_GROUPS.subscriptionChargeFailed,
 		retentionInDays: 30,
 	}),
 	new aws.cloudwatch.LogGroup("cancel-subscription-log-group", {

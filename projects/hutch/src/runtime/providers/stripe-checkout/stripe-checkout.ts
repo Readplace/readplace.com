@@ -3,7 +3,9 @@ import { z } from "zod";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
 import type {
 	CreateCheckoutSession,
+	CreateSetupCheckoutSession,
 	RetrieveCheckoutSession,
+	RetrieveSetupCheckoutSession,
 } from "@packages/test-fixtures/providers/stripe-checkout";
 
 const STRIPE_API = "https://api.stripe.com/v1";
@@ -23,6 +25,25 @@ const RetrieveSessionResponse = z.object({
 	customer: z.string().nullish(),
 });
 
+const RetrieveSetupSessionResponse = z.object({
+	status: z.enum(["open", "complete", "expired"]),
+	customer: z.string().nullish(),
+	setup_intent: z.union([
+		z.string(),
+		z.object({
+			payment_method: z.union([
+				z.string(),
+				z.object({
+					id: z.string(),
+					card: z.object({ brand: z.string(), last4: z.string() }).nullish(),
+				}),
+				z.null(),
+			]).nullish(),
+		}),
+		z.null(),
+	]).nullish(),
+});
+
 const StripeErrorResponse = z.object({
 	error: z.object({
 		code: z.string().optional(),
@@ -37,7 +58,9 @@ export function initStripeCheckout(deps: {
 	fetch: typeof globalThis.fetch;
 }): {
 	createCheckoutSession: CreateCheckoutSession;
+	createSetupCheckoutSession: CreateSetupCheckoutSession;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
+	retrieveSetupCheckoutSession: RetrieveSetupCheckoutSession;
 } {
 	const authHeader = { Authorization: `Bearer ${deps.apiKey}` };
 
@@ -79,6 +102,42 @@ export function initStripeCheckout(deps: {
 		return { id: parsed.id, url: parsed.url };
 	};
 
+	const createSetupCheckoutSession: CreateSetupCheckoutSession = async ({
+		customerId,
+		successUrl,
+		cancelUrl,
+	}) => {
+		const body = new URLSearchParams({
+			mode: "setup",
+			customer: customerId,
+			"setup_intent_data[usage]": "off_session",
+			"payment_method_types[0]": "card",
+			success_url: successUrl,
+			cancel_url: cancelUrl,
+		});
+
+		const response = await deps.fetch(`${STRIPE_API}/checkout/sessions`, {
+			method: "POST",
+			headers: {
+				...authHeader,
+				"Content-Type": "application/x-www-form-urlencoded",
+			},
+			body: body.toString(),
+		});
+
+		const json = await response.json();
+		if (!response.ok) {
+			const parsed = StripeErrorResponse.safeParse(json);
+			const message = parsed.success
+				? parsed.data.error.message ?? "Stripe error"
+				: "Stripe error";
+			throw new Error(`Stripe createSetupCheckoutSession failed (${response.status}): ${message}`);
+		}
+
+		const parsed = CreateSessionResponse.parse(json);
+		return { id: parsed.id, url: parsed.url };
+	};
+
 	const retrieveCheckoutSession: RetrieveCheckoutSession = async (id) => {
 		const response = await deps.fetch(`${STRIPE_API}/checkout/sessions/${encodeURIComponent(id)}`, {
 			method: "GET",
@@ -112,6 +171,55 @@ export function initStripeCheckout(deps: {
 		};
 	};
 
-	return { createCheckoutSession, retrieveCheckoutSession };
+	const retrieveSetupCheckoutSession: RetrieveSetupCheckoutSession = async (id) => {
+		const url = `${STRIPE_API}/checkout/sessions/${encodeURIComponent(id)}?expand[]=setup_intent.payment_method`;
+		const response = await deps.fetch(url, {
+			method: "GET",
+			headers: authHeader,
+		});
+
+		if (response.status === 404) {
+			return { ok: false, reason: "not-found" };
+		}
+
+		const json = await response.json();
+		if (!response.ok) {
+			const parsed = StripeErrorResponse.safeParse(json);
+			const code = parsed.success ? parsed.data.error.code : undefined;
+			if (code === "resource_missing") return { ok: false, reason: "not-found" };
+			const message = parsed.success ? parsed.data.error.message ?? "Stripe error" : "Stripe error";
+			throw new Error(`Stripe retrieveSetupCheckoutSession failed (${response.status}): ${message}`);
+		}
+
+		const parsed = RetrieveSetupSessionResponse.parse(json);
+		if (parsed.status !== "complete") {
+			return { ok: false, reason: "not-complete" };
+		}
+
+		const intent = parsed.setup_intent;
+		const paymentMethod = typeof intent === "object" && intent !== null ? intent.payment_method : undefined;
+		if (!paymentMethod || typeof paymentMethod !== "object" || !paymentMethod.card) {
+			return { ok: false, reason: "no-payment-method" };
+		}
+		if (!parsed.customer) {
+			return { ok: false, reason: "no-payment-method" };
+		}
+
+		return {
+			ok: true,
+			status: parsed.status,
+			customerId: parsed.customer,
+			paymentMethodId: paymentMethod.id,
+			brand: paymentMethod.card.brand,
+			last4: paymentMethod.card.last4,
+		};
+	};
+
+	return {
+		createCheckoutSession,
+		createSetupCheckoutSession,
+		retrieveCheckoutSession,
+		retrieveSetupCheckoutSession,
+	};
 }
 /* c8 ignore stop */

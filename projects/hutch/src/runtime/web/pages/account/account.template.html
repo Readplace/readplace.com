@@ -14,21 +14,20 @@
         {{#if showCancellingNotice}}
         <p class="account-card__notice" data-test-cancelling-notice>Cancellation in progress — refresh in a few seconds to see the update.</p>
         {{/if}}
+        {{#if chargeFailed}}
+        <p class="account-card__warning" data-test-account-charge-failed>
+          We couldn't charge your card ({{chargeFailed.reason}}). Please update it.
+        </p>
+        {{/if}}
         <p class="account-card__status" data-test-account-status>{{statusLine}}</p>
         {{/if}}
         <div class="account-card__actions">
           {{#each actions}}
-          {{#if isLink}}
-          <a class="account-card__action account-card__action--{{variant}}"
-             href="{{href}}"
-             data-test-account-action="{{key}}">{{name}}</a>
-          {{else}}
-          <form method="POST" action="{{href}}" class="account-card__action-form"
+          <form method="{{method}}" action="{{href}}" class="account-card__action-form"
                 hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
                 data-test-account-action="{{key}}">
             <button type="submit" class="account-card__action account-card__action--{{variant}}">{{name}}</button>
           </form>
-          {{/if}}
           {{/each}}
         </div>
       </section>

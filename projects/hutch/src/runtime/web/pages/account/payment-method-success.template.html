@@ -1,0 +1,10 @@
+    <main class="account-payment-method-success" data-test-payment-method-success>
+      <h1 class="account-payment-method-success__title">Saving your payment method…</h1>
+      <p class="account-payment-method-success__body">One moment — we're finishing up.</p>
+      <form method="POST" action="{{finalizeUrl}}" data-auto-submit hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+        <input type="hidden" name="session_id" value="{{sessionId}}">
+        <noscript>
+          <button type="submit">Continue</button>
+        </noscript>
+      </form>
+    </main>
