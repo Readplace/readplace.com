@@ -7,6 +7,7 @@ import { initPdfPageOcrHandler } from "./domain/pdf-page-ocr/pdf-page-ocr-handle
 import { initCreateDeepInfraVisionMessage } from "./domain/article-parser/create-deepinfra-vision-message";
 import { initDownloadStagedPdf } from "./providers/pdf-page-ocr/init-download-staged-pdf";
 import { initLastPdfCache } from "./providers/pdf-page-ocr/init-last-pdf-cache";
+import { initPdftotextExtract } from "./providers/pdf-page-ocr/init-pdftotext-extract";
 
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const deepInfraApiKey = requireEnv("DEEPINFRA_API_KEY");
@@ -33,10 +34,12 @@ const { downloadStagedPdf } = initLastPdfCache({ downloadStagedPdf: baseDownload
 const createVisionMessage = initCreateDeepInfraVisionMessage({
 	createChatCompletion: (params) => deepInfraClient.chat.completions.create(params),
 });
+const { extractPageTextLayer } = initPdftotextExtract();
 
 export const handler = initPdfPageOcrHandler({
 	downloadStagedPdf,
 	renderPdfPageToPng,
 	createVisionMessage,
+	extractPageTextLayer,
 	logger: consoleLogger,
 });

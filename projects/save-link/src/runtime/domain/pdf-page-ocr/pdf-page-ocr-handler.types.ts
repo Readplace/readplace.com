@@ -25,3 +25,17 @@ export interface PdfPageOcrOutput {
  * same key on every page invocation, so warm S3 caching pays off.
  */
 export type DownloadStagedPdf = (params: { key: string }) => Promise<Buffer>;
+
+/**
+ * Per-page text-layer extraction. When the vision OCR call exhausts its
+ * retry budget on a chunk, the handler falls back to this — for PDFs with
+ * an embedded text layer (most PDFs produced by digital authoring tools,
+ * including the Aspose-converted CIA reading-room scans), it returns the
+ * raw text Poppler reads out of the page. Returns an empty string if the
+ * page has no extractable text layer; the handler then rethrows the
+ * original vision error so the orchestrator counts the chunk as failed.
+ */
+export type ExtractPageTextLayer = (params: {
+	pdfBuffer: Buffer;
+	pageIndex: number;
+}) => Promise<{ text: string }>;
