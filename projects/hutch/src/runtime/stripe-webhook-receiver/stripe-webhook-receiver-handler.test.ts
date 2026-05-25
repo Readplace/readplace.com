@@ -1,25 +1,15 @@
 import assert from "node:assert/strict";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
-import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
-import { SubscriptionCancelledEvent } from "@packages/hutch-infra-components";
-import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
-import { initStripeWebhookReceiverHandler } from "./stripe-webhook-receiver-handler";
+import type { StripeEventType } from "@packages/hutch-infra-components";
+import {
+	type StripeEventHandler,
+	initStripeWebhookReceiverHandler,
+} from "./stripe-webhook-receiver-handler";
+import { UnconfiguredStripeEventError } from "./unconfigured-stripe-event-error";
 import { signStripeWebhookHeader } from "./sign-stripe-webhook-header.test-helper";
 
 const TEST_SECRET = "whsec_test_handler_secret";
-
-async function buildSubscriptionLookup(rows: Array<{ userId: string; subscriptionId: string }>) {
-	const providers = initInMemorySubscriptionProviders({ now: () => new Date() });
-	for (const r of rows) {
-		await providers.upsertActive({
-			userId: UserIdSchema.parse(r.userId),
-			subscriptionId: r.subscriptionId,
-			customerId: `cus_for_${r.subscriptionId}`,
-		});
-	}
-	return providers.findBySubscriptionId;
-}
 
 function buildApiGatewayEvent(params: {
 	body: string;
@@ -67,15 +57,22 @@ function buildSignature(rawBody: Buffer, opts?: { secret?: string; timestampSeco
 	});
 }
 
+function buildEventHandlers(
+	overrides: Partial<Record<StripeEventType, StripeEventHandler>> = {},
+): Record<StripeEventType, StripeEventHandler> {
+	return {
+		"customer.subscription.deleted": async () => {},
+		...overrides,
+	};
+}
+
 describe("stripe-webhook-receiver-handler", () => {
 	it("returns 400 when Stripe-Signature header is missing", async () => {
-		const published: unknown[] = [];
 		const handler = initStripeWebhookReceiverHandler({
 			webhookSecret: TEST_SECRET,
-			publishEvent: async (e) => { published.push(e); },
-			findSubscriptionBySubscriptionId: async () => undefined,
 			logger: HutchLogger.from(noopLogger),
 			now: () => new Date(),
+			eventHandlers: buildEventHandlers(),
 		});
 
 		const body = buildStripeEvent({ type: "customer.subscription.deleted", subscriptionId: "sub_1" });
@@ -83,17 +80,14 @@ describe("stripe-webhook-receiver-handler", () => {
 
 		assert(result);
 		assert.equal(result.statusCode, 400);
-		assert.equal(published.length, 0);
 	});
 
 	it("returns 400 when the signature does not match", async () => {
-		const published: unknown[] = [];
 		const handler = initStripeWebhookReceiverHandler({
 			webhookSecret: TEST_SECRET,
-			publishEvent: async (e) => { published.push(e); },
-			findSubscriptionBySubscriptionId: async () => undefined,
 			logger: HutchLogger.from(noopLogger),
 			now: () => new Date(),
+			eventHandlers: buildEventHandlers(),
 		});
 
 		const body = buildStripeEvent({ type: "customer.subscription.deleted", subscriptionId: "sub_1" });
@@ -109,23 +103,22 @@ describe("stripe-webhook-receiver-handler", () => {
 
 		assert(result);
 		assert.equal(result.statusCode, 400);
-		assert.equal(published.length, 0);
 	});
 
-	it("emits SubscriptionCancelledEvent with userId resolved via GSI lookup and returns 200", async () => {
-		const findSubscriptionBySubscriptionId = await buildSubscriptionLookup([
-			{ userId: "user-cancel-me", subscriptionId: "sub_cancel_me" },
-		]);
-		const published: Array<{ source: string; detailType: string; detail: string }> = [];
+	it("dispatches to the wired event handler and returns 200", async () => {
+		const calls: Array<{ subscriptionId: string }> = [];
 		const handler = initStripeWebhookReceiverHandler({
 			webhookSecret: TEST_SECRET,
-			publishEvent: async (e) => { published.push(e); },
-			findSubscriptionBySubscriptionId,
 			logger: HutchLogger.from(noopLogger),
 			now: () => new Date(),
+			eventHandlers: buildEventHandlers({
+				"customer.subscription.deleted": async ({ stripeEvent }) => {
+					calls.push({ subscriptionId: stripeEvent.data.object.id });
+				},
+			}),
 		});
 
-		const body = buildStripeEvent({ type: "customer.subscription.deleted", subscriptionId: "sub_cancel_me" });
+		const body = buildStripeEvent({ type: "customer.subscription.deleted", subscriptionId: "sub_dispatched" });
 		const rawBody = Buffer.from(body);
 		const result = await handler(
 			buildApiGatewayEvent({ body, signatureHeader: buildSignature(rawBody) }),
@@ -135,72 +128,44 @@ describe("stripe-webhook-receiver-handler", () => {
 
 		assert(result);
 		assert.equal(result.statusCode, 200);
-		assert.equal(published.length, 1);
-		assert.equal(published[0].source, SubscriptionCancelledEvent.source);
-		assert.equal(published[0].detailType, SubscriptionCancelledEvent.detailType);
-		assert.deepStrictEqual(JSON.parse(published[0].detail), {
-			userId: "user-cancel-me",
-			subscriptionId: "sub_cancel_me",
-			reason: "stripe_webhook",
-		});
+		assert.deepStrictEqual(calls, [{ subscriptionId: "sub_dispatched" }]);
 	});
 
-	it("returns 200 without emitting when the subscriptionId has no matching row (already removed)", async () => {
-		const published: unknown[] = [];
+	it("throws UnconfiguredStripeEventError for unknown Stripe event types so API Gateway returns 5xx and the operator alarm fires", async () => {
 		const handler = initStripeWebhookReceiverHandler({
 			webhookSecret: TEST_SECRET,
-			publishEvent: async (e) => { published.push(e); },
-			findSubscriptionBySubscriptionId: async () => undefined,
 			logger: HutchLogger.from(noopLogger),
 			now: () => new Date(),
-		});
-
-		const body = buildStripeEvent({ type: "customer.subscription.deleted", subscriptionId: "sub_gone" });
-		const rawBody = Buffer.from(body);
-		const result = await handler(
-			buildApiGatewayEvent({ body, signatureHeader: buildSignature(rawBody) }),
-			{} as never,
-			() => {},
-		);
-
-		assert(result);
-		assert.equal(result.statusCode, 200);
-		assert.equal(published.length, 0);
-	});
-
-	it("returns 200 without emitting an event for unknown Stripe event types", async () => {
-		const published: unknown[] = [];
-		const handler = initStripeWebhookReceiverHandler({
-			webhookSecret: TEST_SECRET,
-			publishEvent: async (e) => { published.push(e); },
-			findSubscriptionBySubscriptionId: async () => undefined,
-			logger: HutchLogger.from(noopLogger),
-			now: () => new Date(),
+			eventHandlers: buildEventHandlers(),
 		});
 
 		const body = buildStripeEvent({ type: "invoice.created", subscriptionId: "sub_ignore" });
 		const rawBody = Buffer.from(body);
-		const result = await handler(
-			buildApiGatewayEvent({ body, signatureHeader: buildSignature(rawBody) }),
-			{} as never,
-			() => {},
-		);
 
-		assert(result);
-		assert.equal(result.statusCode, 200);
-		assert.equal(published.length, 0);
+		await assert.rejects(
+			async () => {
+				await handler(
+					buildApiGatewayEvent({ body, signatureHeader: buildSignature(rawBody) }),
+					{} as never,
+					() => {},
+				);
+			},
+			(error: unknown) => {
+				assert(error instanceof UnconfiguredStripeEventError);
+				assert.equal(error.type, "invoice.created");
+				return true;
+			},
+		);
 	});
 
-	it("throws when EventBridge emission fails so API Gateway returns 5xx and Stripe retries", async () => {
-		const findSubscriptionBySubscriptionId = await buildSubscriptionLookup([
-			{ userId: "user-fail", subscriptionId: "sub_fail" },
-		]);
+	it("propagates downstream handler failures so API Gateway returns 5xx and Stripe retries", async () => {
 		const handler = initStripeWebhookReceiverHandler({
 			webhookSecret: TEST_SECRET,
-			publishEvent: async () => { throw new Error("EventBridge down"); },
-			findSubscriptionBySubscriptionId,
 			logger: HutchLogger.from(noopLogger),
 			now: () => new Date(),
+			eventHandlers: buildEventHandlers({
+				"customer.subscription.deleted": async () => { throw new Error("EventBridge down"); },
+			}),
 		});
 
 		const body = buildStripeEvent({ type: "customer.subscription.deleted", subscriptionId: "sub_fail" });
@@ -218,17 +183,17 @@ describe("stripe-webhook-receiver-handler", () => {
 		);
 	});
 
-	it("handles base64-encoded bodies from API Gateway", async () => {
-		const findSubscriptionBySubscriptionId = await buildSubscriptionLookup([
-			{ userId: "user-b64", subscriptionId: "sub_b64" },
-		]);
-		const published: Array<{ source: string; detailType: string; detail: string }> = [];
+	it("decodes base64-encoded bodies before dispatching", async () => {
+		const calls: Array<{ subscriptionId: string }> = [];
 		const handler = initStripeWebhookReceiverHandler({
 			webhookSecret: TEST_SECRET,
-			publishEvent: async (e) => { published.push(e); },
-			findSubscriptionBySubscriptionId,
 			logger: HutchLogger.from(noopLogger),
 			now: () => new Date(),
+			eventHandlers: buildEventHandlers({
+				"customer.subscription.deleted": async ({ stripeEvent }) => {
+					calls.push({ subscriptionId: stripeEvent.data.object.id });
+				},
+			}),
 		});
 
 		const body = buildStripeEvent({ type: "customer.subscription.deleted", subscriptionId: "sub_b64" });
@@ -242,11 +207,6 @@ describe("stripe-webhook-receiver-handler", () => {
 
 		assert(result);
 		assert.equal(result.statusCode, 200);
-		assert.equal(published.length, 1);
-		assert.deepStrictEqual(JSON.parse(published[0].detail), {
-			userId: "user-b64",
-			subscriptionId: "sub_b64",
-			reason: "stripe_webhook",
-		});
+		assert.deepStrictEqual(calls, [{ subscriptionId: "sub_b64" }]);
 	});
 });

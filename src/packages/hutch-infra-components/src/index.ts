@@ -69,3 +69,4 @@ export {
 	type TierName,
 	initLogCrawlOutcome,
 } from "./crawl-outcome";
+export type { StripeEventType } from "./stripe-events";

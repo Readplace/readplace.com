@@ -2,7 +2,7 @@ import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import assert from "node:assert";
 import { resolve } from "node:path";
-import { HutchLambda, HutchAPIGateway, HutchAPIGatewayLambdaRoute, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda } from "@packages/hutch-infra-components/infra";
+import { HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, HutchS3ReadWrite, HutchSQS, HutchSQSBackedLambda, HutchStripeWebhookReceiver } from "@packages/hutch-infra-components/infra";
 import {
 	CancelSubscriptionCommand,
 	ExportUserDataCommand,
@@ -409,40 +409,23 @@ eventBus.subscribe(ExportUserDataCommand, exportUserDataLambdaWithSQS);
 // --- Stripe Webhook Receiver ---
 // Receives HTTP POST from Stripe via API Gateway, verifies the HMAC signature,
 // and emits domain events (e.g. SubscriptionCancelledEvent) via EventBridge.
-// Returns 200 after successful publish; lets EventBridge failures propagate so
-// API Gateway returns 5xx and Stripe retries. Downstream handler failures are
-// caught by the SQS-backed handler's DLQ.
+// `events` declares the Stripe event types the runtime dispatch map is wired
+// for — unknown types throw, surfacing as Lambda errors that fire the
+// component's CloudWatch alarm. The shared StripeEventType union ties this
+// array to the runtime composition root at the type level.
 
-const stripeWebhookReceiverDynamodb = new HutchDynamoDBAccess("stripe-webhook-receiver-dynamodb", {
-	tables: [
-		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
-	],
-	actions: ["dynamodb:GetItem", "dynamodb:Query"],
-});
-
-const stripeWebhookReceiverLambda = new HutchLambda("stripe-webhook-receiver", {
-	entryPoint: "./src/runtime/stripe-webhook-receiver.main.ts",
-	outputDir: ".lib/stripe-webhook-receiver",
-	assetDir: "./src/runtime",
-	memorySize: 128,
-	timeout: 10,
-	environment: {
-		STRIPE_WEBHOOK_SECRET: requireEnv("STRIPE_WEBHOOK_SECRET"),
-		EVENT_BUS_NAME: eventBus.eventBusName,
-		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
-	},
-	policies: [
-		...stripeWebhookReceiverDynamodb.policies,
-	],
-});
-
-eventBus.grantPublish(stripeWebhookReceiverLambda);
-
-new HutchAPIGatewayLambdaRoute("stripe-webhook", {
+new HutchStripeWebhookReceiver("stripe-webhook-receiver", {
 	apiGatewayId: api.id,
 	apiGatewayExecutionArn: api.executionArn,
-	lambda: stripeWebhookReceiverLambda,
-	routeKeys: ["POST /webhooks/stripe"],
+	routeKey: "POST /webhooks/stripe",
+	eventBus,
+	subscriptionProvidersTable: {
+		arn: storage.subscriptionProvidersTable.arn,
+		name: storage.subscriptionProvidersTable.name,
+	},
+	webhookSecret: requireEnv("STRIPE_WEBHOOK_SECRET"),
+	events: ["customer.subscription.deleted"],
+	alertEmail,
 });
 
 // --- Handle Subscription Cancelled ---
