@@ -72,6 +72,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 			botDefense: fixture.botDefense,
 			conversions: fixture.conversions,
 			foundingAllocation: fixture.foundingAllocation,
+			extractArticleHeadMetadata: fixture.extractArticleHeadMetadata,
 		});
 
 		expect(typeof result.app).toBe("function");

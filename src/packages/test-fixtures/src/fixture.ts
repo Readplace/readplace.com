@@ -341,5 +341,9 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		 * milliseconds while still leaving room for "one above the limit" tests
 		 * to seed N+1 distinct emails. Production injects 50 via app.ts. */
 		foundingAllocation: { foundingMemberLimit: 3 },
+		// The default fixture returns no metadata so existing tests still hit
+		// the same "no imageUrl → default OG image" fallback the route already
+		// covered. Tests that need a real extraction override this field.
+		extractArticleHeadMetadata: async () => ({}),
 	};
 }

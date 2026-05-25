@@ -98,6 +98,7 @@ import { initSaveRoutes } from "./web/pages/save/save.page";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
 import type { ExpiryCountdown } from "./web/pages/view/view-expiry";
+import type { ExtractArticleHeadMetadata } from "@packages/test-fixtures/providers/article-head-metadata";
 import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
 import { initEmbedRoutes } from "./web/pages/embed/embed.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
@@ -215,6 +216,7 @@ interface AppDependencies {
 	salt: string;
 	foundingAllocation: FoundingAllocation;
 	expiryCountdown: ExpiryCountdown;
+	extractArticleHeadMetadata: ExtractArticleHeadMetadata;
 }
 
 function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -611,6 +613,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		saveArticleGlobally: deps.saveArticleGlobally,
 		publishSaveAnonymousLink: deps.publishSaveAnonymousLink,
 		publishStaleCheckRequested: deps.publishStaleCheckRequested,
+		extractArticleHeadMetadata: deps.extractArticleHeadMetadata,
 		existsUserByIdPrefix: deps.existsUserByIdPrefix,
 		expiryCountdown: deps.expiryCountdown,
 		now: deps.now,

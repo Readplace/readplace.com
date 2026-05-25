@@ -231,6 +231,121 @@ describe("View routes", () => {
 		});
 	});
 
+	describe("first-visit OG extraction", () => {
+		it("seeds the stub row with real metadata from the synchronous head extractor", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				extractArticleHeadMetadata: async () => ({
+					imageUrl: "https://cdn.example.com/hero.jpg",
+					title: "Real Title",
+					excerpt: "Real excerpt.",
+					siteName: "example.com",
+				}),
+				events: {
+					...fixture.events,
+					publishSaveAnonymousLink: async () => {},
+					publishLinkSaved: async () => {},
+					publishRecrawlLinkInitiated: async () => {},
+				},
+			});
+			const { articleStore } = harness;
+
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(
+				doc.querySelector('meta[property="og:image"]')?.getAttribute("content"),
+			).toBe("https://cdn.example.com/hero.jpg");
+			expect(
+				doc.querySelector('meta[property="og:title"]')?.getAttribute("content"),
+			).toBe("Real Title | Reader View");
+			expect(
+				doc
+					.querySelector('meta[property="og:description"]')
+					?.getAttribute("content"),
+			).toBe("Real excerpt.");
+
+			const stored = await articleStore.findArticleByUrl(ARTICLE_URL);
+			expect(stored?.metadata.imageUrl).toBe("https://cdn.example.com/hero.jpg");
+			expect(stored?.metadata.title).toBe("Real Title");
+			expect(stored?.metadata.siteName).toBe("example.com");
+			expect(stored?.metadata.excerpt).toBe("Real excerpt.");
+		});
+
+		it("falls back to the Readplace default OG image when the extractor returns nothing", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				events: {
+					...fixture.events,
+					publishSaveAnonymousLink: async () => {},
+					publishLinkSaved: async () => {},
+					publishRecrawlLinkInitiated: async () => {},
+				},
+			});
+
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			expect(
+				doc.querySelector('meta[property="og:image"]')?.getAttribute("content"),
+			).toMatch(/og-image-1200x630\.png$/);
+		});
+
+		it("sets Cache-Control: public, max-age=60, must-revalidate so poisoned previews refresh quickly", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				events: {
+					...fixture.events,
+					publishSaveAnonymousLink: async () => {},
+					publishLinkSaved: async () => {},
+					publishRecrawlLinkInitiated: async () => {},
+				},
+			});
+
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
+
+			expect(response.headers["cache-control"]).toBe(
+				"public, max-age=60, must-revalidate",
+			);
+		});
+
+		it("does not call the head extractor on a cache-hit — the cold-path contract", async () => {
+			const extractArticleHeadMetadata = jest.fn(async () => ({}));
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				extractArticleHeadMetadata,
+				events: {
+					...fixture.events,
+					publishSaveAnonymousLink: async () => {},
+					publishLinkSaved: async () => {},
+					publishRecrawlLinkInitiated: async () => {},
+				},
+			});
+			const { articleStore } = harness;
+			await articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: {
+					title: "Cached",
+					siteName: "example.com",
+					excerpt: "Cached excerpt.",
+					wordCount: 200,
+					imageUrl: "https://cdn.example.com/cached.jpg",
+				},
+				estimatedReadTime: MinutesSchema.parse(2),
+				savedAt: new Date(),
+			});
+
+			await request(harness.server).get(`/view/${ENCODED}`);
+
+			expect(extractArticleHeadMetadata).not.toHaveBeenCalled();
+		});
+	});
+
 	describe("Error paths", () => {
 		it("renders the error page for an invalid URL path param (unauthenticated)", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));

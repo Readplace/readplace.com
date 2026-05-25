@@ -29,6 +29,10 @@
       "types": "./dist/providers/article-freshness/index.d.ts",
       "default": "./dist/providers/article-freshness/index.js"
     },
+    "./providers/article-head-metadata": {
+      "types": "./dist/providers/article-head-metadata/index.d.ts",
+      "default": "./dist/providers/article-head-metadata/index.js"
+    },
     "./providers/article-summary": {
       "types": "./dist/providers/article-summary/index.d.ts",
       "default": "./dist/providers/article-summary/index.js"
@@ -105,6 +109,7 @@
       "providers/article-crawl": ["./dist/providers/article-crawl/index.d.ts"],
       "providers/article-store": ["./dist/providers/article-store/index.d.ts"],
       "providers/article-freshness": ["./dist/providers/article-freshness/index.d.ts"],
+      "providers/article-head-metadata": ["./dist/providers/article-head-metadata/index.d.ts"],
       "providers/article-summary": ["./dist/providers/article-summary/index.d.ts"],
       "providers/auth": ["./dist/providers/auth/index.d.ts"],
       "providers/email": ["./dist/providers/email/index.d.ts"],

@@ -105,6 +105,7 @@ import type {
 } from "@packages/test-fixtures/providers/password-reset";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
 import type { OAuthModel } from "@packages/test-fixtures/providers/oauth";
+import type { ExtractArticleHeadMetadata } from "@packages/test-fixtures/providers/article-head-metadata";
 import type { ValidateAccessToken } from "./web/dual-auth.middleware";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import request from "supertest";
@@ -332,6 +333,7 @@ export interface TestAppFixture {
 	botDefense: BotDefenseBundle;
 	conversions: ConversionsBundle;
 	foundingAllocation: FoundingAllocationBundle;
+	extractArticleHeadMetadata: ExtractArticleHeadMetadata;
 }
 
 export interface AnalyticsBundle {
@@ -447,6 +449,7 @@ function flattenFixtureToAppDependencies(
 			foundingMemberLimit: fixture.foundingAllocation.foundingMemberLimit,
 		}),
 		expiryCountdown: "enabled",
+		extractArticleHeadMetadata: fixture.extractArticleHeadMetadata,
 	};
 }
 

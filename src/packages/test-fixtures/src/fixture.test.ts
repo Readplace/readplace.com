@@ -108,6 +108,17 @@ describe("createDefaultTestAppFixture", () => {
 		expect(typeof fixture.stripe.createCheckoutSession).toBe("function");
 		expect(typeof fixture.pendingSignup.storePendingSignup).toBe("function");
 		expect(fixture.botDefense.events).toEqual([]);
+		expect(typeof fixture.extractArticleHeadMetadata).toBe("function");
+	});
+
+	it("extractArticleHeadMetadata defaults to a no-op returning {} so the fallback OG image renders unchanged", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+
+		const result = await fixture.extractArticleHeadMetadata({
+			articleUrl: "https://example.com/x",
+		});
+
+		expect(result).toEqual({});
 	});
 
 	it("captures bot-defense events through every log level into the same array", () => {

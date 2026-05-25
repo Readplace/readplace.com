@@ -57,6 +57,7 @@ import { initInMemorySaveLinkRawHtmlCommand } from "@packages/test-fixtures/prov
 import { initInMemoryRefreshArticleContent } from "@packages/test-fixtures/providers/events";
 import { initInMemoryUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
 import { initPutPendingHtml } from "./providers/pending-html/put-pending-html";
+import { initExtractArticleHeadMetadata } from "./providers/article-head-metadata/extract-article-head-metadata";
 import { initInMemoryPendingHtml } from "@packages/test-fixtures/providers/pending-html";
 import { initInMemoryImportSession } from "@packages/test-fixtures/providers/import-session";
 import { initDynamoDbImportSession } from "./providers/import-session/dynamodb-import-session";
@@ -216,6 +217,11 @@ function initProviders() {
 			now: () => new Date(),
 		});
 
+		const { extractArticleHeadMetadata } = initExtractArticleHeadMetadata({
+			fetch: globalThis.fetch,
+			logger: HutchLogger.from(consoleLogger),
+		});
+
 		return {
 			auth,
 			articleStore,
@@ -249,6 +255,7 @@ function initProviders() {
 			markCrawlPending: crawlStore.markCrawlPending,
 			forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 			refreshArticleIfStale,
+			extractArticleHeadMetadata,
 		};
 	}
 
@@ -370,6 +377,11 @@ function initProviders() {
 
 	const importSessionStore = initInMemoryImportSession({ now: () => new Date() });
 
+	const { extractArticleHeadMetadata } = initExtractArticleHeadMetadata({
+		fetch: globalThis.fetch,
+		logger: HutchLogger.from(consoleLogger),
+	});
+
 	return {
 		auth,
 		articleStore,
@@ -408,6 +420,7 @@ function initProviders() {
 		markCrawlPending: crawlStore.markCrawlPending,
 		forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 		refreshArticleIfStale,
+		extractArticleHeadMetadata,
 	};
 }
 

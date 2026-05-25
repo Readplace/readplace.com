@@ -25,6 +25,7 @@ import type {
 	PublishStaleCheckRequested,
 } from "@packages/test-fixtures/providers/events";
 import { decomposeTimeLeft } from "@packages/time-left";
+import type { ExtractArticleHeadMetadata } from "@packages/test-fixtures/providers/article-head-metadata";
 import { wantsMarkdown } from "../../content-negotiation";
 import { CacheableComponent } from "../../conditional-get";
 import { htmlToMarkdown } from "../../html-to-markdown";
@@ -58,6 +59,7 @@ interface ViewDependencies {
 	saveArticleGlobally: SaveArticleGlobally;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
+	extractArticleHeadMetadata: ExtractArticleHeadMetadata;
 	existsUserByIdPrefix: ExistsUserByIdPrefix;
 	expiryCountdown: ExpiryCountdown;
 	now: () => Date;
@@ -133,13 +135,15 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const existing = await deps.findArticleByUrl(articleUrl);
 		if (!existing) {
 			const hostname = hostnameFrom(articleUrl);
+			const head = await deps.extractArticleHeadMetadata({ articleUrl });
 			await deps.saveArticleGlobally({
 				url: articleUrl,
 				metadata: {
-					title: hostname,
-					siteName: hostname,
-					excerpt: "",
+					title: head.title ?? hostname,
+					siteName: head.siteName ?? hostname,
+					excerpt: head.excerpt ?? "",
 					wordCount: 0,
+					...(head.imageUrl ? { imageUrl: head.imageUrl } : {}),
 				},
 				estimatedReadTime: calculateReadTime(0),
 				savedAt: deps.now(),
@@ -218,6 +222,14 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		});
 
 		const sharerUserIdPrefix = req.userId ? sharedUserIdFrom(req.userId) : undefined;
+
+		// Social crawlers (Slack, Twitter, Facebook) cache the first preview they
+		// see. The stub written here on a cache miss may carry hostname-only
+		// metadata if the synchronous head extraction failed; max-age=60 lets
+		// those crawlers revalidate within a minute once the async pipeline fills
+		// in real metadata. The HTML is intrinsically public — no logged-in state
+		// is leaked into the response — so `public` is safe.
+		res.setHeader("Cache-Control", "public, max-age=60, must-revalidate");
 
 		sendComponent(
 			req, res,
