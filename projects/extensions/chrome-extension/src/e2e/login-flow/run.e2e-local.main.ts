@@ -143,8 +143,8 @@ async function discoverExtensionId(driver: ChromeDriver): Promise<string> {
 	throw new Error("Could not find extension service worker target within 15s");
 }
 
-// CI resource contention (parallel NX tasks) crashes Chrome intermittently.
-// Retry the full test since the crash can happen at any point mid-execution.
+// CI resource contention (parallel NX tasks) crashes Chrome or causes Selenium
+// element-location timeouts intermittently. Retry the full test for both cases.
 const MAX_ATTEMPTS = 3;
 test("should complete OAuth login flow, save links, and paginate the list", async () => {
 	const server = await startTestServer();
@@ -154,10 +154,12 @@ test("should complete OAuth login flow, save links, and paginate the list", asyn
 				await runTest();
 				return;
 			} catch (err) {
-				const isChromeExit = err instanceof Error && (
-					err.message.includes("ECONNREFUSED") || err.message.includes("Chrome instance exited")
+				const isRetryable = err instanceof Error && (
+					err.message.includes("ECONNREFUSED") ||
+					err.message.includes("Chrome instance exited") ||
+					err.name === "TimeoutError"
 				);
-				if (!isChromeExit || attempt === MAX_ATTEMPTS) throw err;
+				if (!isRetryable || attempt === MAX_ATTEMPTS) throw err;
 			}
 		}
 	} finally {
