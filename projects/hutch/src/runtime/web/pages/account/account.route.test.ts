@@ -403,6 +403,45 @@ describe("POST /account/subscribe", () => {
 		expect(row.status).toBe("cancelled");
 	});
 
+	it("trialing user via HTMX (hx-boost) — 200 with HX-Redirect to Stripe, not 303 Location (HTMX would XHR-follow cross-origin and fail to navigate)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "trial-htmx@example.com");
+		await subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.post("/account/subscribe").set("HX-Request", "true");
+
+		expect(response.status).toBe(200);
+		expect(response.headers.location).toBeUndefined();
+		const hxRedirect = response.headers["hx-redirect"];
+		assert(typeof hxRedirect === "string", "HX-Redirect header must be set for HTMX clients");
+		expect(hxRedirect).toContain("checkout.stripe.test");
+		expect(response.headers["content-type"]).toContain("text/html");
+	});
+
+	it("cancelled user without customerId via HTMX (hx-boost) — fallback to checkout also uses HX-Redirect", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "cancelled-fallback-htmx@example.com");
+		subscriptionProviders.seedRow({
+			userId,
+			provider: "stripe",
+			status: "cancelled",
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		});
+
+		const response = await agent.post("/account/subscribe").set("HX-Request", "true");
+
+		expect(response.status).toBe(200);
+		const hxRedirect = response.headers["hx-redirect"];
+		assert(typeof hxRedirect === "string", "HX-Redirect header must be set for HTMX clients");
+		expect(hxRedirect).toContain("checkout.stripe.test");
+	});
+
 	it("trialing user — Stripe Checkout throws → 303 to /account?error=payment_method (no 500)", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.stripe.createCheckoutSession = async () => {

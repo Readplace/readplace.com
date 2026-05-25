@@ -84,13 +84,28 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		return checkout;
 	}
 
+	/** HTMX intercepts hx-boost forms via XHR. A 303 Location to an external
+	 * origin (Stripe Checkout) makes HTMX issue a cross-origin XHR and then
+	 * fail to swap the response into <main>, so the browser never leaves
+	 * /account. HX-Redirect is HTMX's contract for "navigate the whole
+	 * browser to URL X" — it triggers `window.location.href = url`. Plain
+	 * (non-HTMX) form posts still get the 303 Location, so progressive
+	 * enhancement is preserved. */
+	function redirectToCheckout(req: Request, res: Response, url: string): void {
+		if (req.get("HX-Request") === "true") {
+			res.set("HX-Redirect", url).type("text/html").status(200).end();
+			return;
+		}
+		res.redirect(303, url);
+	}
+
 	const subscribeBranches: Record<
 		SubscribeBranchKey,
 		(req: Request, res: Response) => Promise<void>
 	> = {
 		trialing: async (req, res) => {
 			const checkout = await startCheckout(req);
-			res.redirect(303, checkout.url);
+			redirectToCheckout(req, res, checkout.url);
 		},
 		cancelled: async (req, res) => {
 			assert(req.userId, "userId required - route must be protected by requireAuth");
@@ -103,7 +118,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 					{ userId },
 				);
 				const checkout = await startCheckout(req);
-				res.redirect(303, checkout.url);
+				redirectToCheckout(req, res, checkout.url);
 				return;
 			}
 			const { subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
