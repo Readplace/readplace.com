@@ -1,3 +1,6 @@
+import { DEFAULT_CRAWL_HEADERS } from "./crawl-article";
+import type { fetchCurl } from "./curl-fetch";
+
 const REDDIT_WEB_HOSTS: ReadonlySet<string> = new Set([
 	"www.reddit.com",
 	"m.reddit.com",
@@ -12,7 +15,10 @@ const RESOLVE_TIMEOUT_MS = 5000;
 export type RedditPreprocessor = (url: string) => Promise<string>;
 
 type RedditPreprocessorDeps = {
-	fetch: typeof globalThis.fetch;
+	/** Curl-impersonate fetcher. Reddit returns 403 to undici's TLS fingerprint
+	 * from AWS Lambda's outbound IPs but serves 301s to Chrome's fingerprint —
+	 * the resolver must use curl-impersonate, not globalThis.fetch. */
+	fetchCurl: typeof fetchCurl;
 	logError: (message: string, error?: Error) => void;
 };
 
@@ -26,9 +32,10 @@ type RedditPreprocessorDeps = {
  *
  * /r/<sub>/s/<id> shortlinks are www-only — old.reddit.com 302s them to a
  * submit/login flow. The preprocessor first resolves the shortlink to its
- * canonical /comments/<id>/<slug>/ form via a redirect:manual fetch (one
- * request, 301 + Location), then rewrites the resolved URL to old.reddit.com.
- * If resolution fails the original URL passes through unchanged.
+ * canonical /comments/<id>/<slug>/ form via a curl-impersonate request with
+ * redirects disabled (one round trip, 301 + Location), then rewrites the
+ * resolved URL to old.reddit.com. If resolution fails the original URL passes
+ * through unchanged.
  */
 export function initRedditPreprocessor(deps: RedditPreprocessorDeps): RedditPreprocessor {
 	return async (url) => {
@@ -59,8 +66,9 @@ function toOldReddit(url: URL): URL {
 
 async function resolveShortlink(deps: RedditPreprocessorDeps, url: URL): Promise<URL | null> {
 	try {
-		const response = await deps.fetch(url.href, {
-			redirect: "manual",
+		const response = await deps.fetchCurl(url.href, {
+			headers: { ...DEFAULT_CRAWL_HEADERS },
+			followRedirects: false,
 			signal: AbortSignal.timeout(RESOLVE_TIMEOUT_MS),
 		});
 		if (response.status < 300 || response.status >= 400) return null;

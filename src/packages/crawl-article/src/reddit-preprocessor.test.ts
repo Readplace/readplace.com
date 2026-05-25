@@ -1,12 +1,13 @@
+import type { fetchCurl } from "./curl-fetch";
 import { initRedditPreprocessor } from "./reddit-preprocessor";
 
 function noopLogError() {}
 
-function fetchReturning(response: Response): typeof globalThis.fetch {
+function curlReturning(response: Response): typeof fetchCurl {
 	return async () => response;
 }
 
-function fetchThrowing(error: Error): typeof globalThis.fetch {
+function curlThrowing(error: Error): typeof fetchCurl {
 	return async () => {
 		throw error;
 	};
@@ -16,7 +17,7 @@ describe("initRedditPreprocessor", () => {
 	describe("URL rewriting (no fetch involved)", () => {
 		it("rewrites www.reddit.com /comments/ URLs to old.reddit.com", async () => {
 			const preprocess = initRedditPreprocessor({
-				fetch: fetchReturning(new Response(null, { status: 200 })),
+				fetchCurl: curlReturning(new Response(null, { status: 200 })),
 				logError: noopLogError,
 			});
 
@@ -33,7 +34,7 @@ describe("initRedditPreprocessor", () => {
 			"rewrites %s /comments/ URLs to old.reddit.com",
 			async (host) => {
 				const preprocess = initRedditPreprocessor({
-					fetch: fetchReturning(new Response(null, { status: 200 })),
+					fetchCurl: curlReturning(new Response(null, { status: 200 })),
 					logError: noopLogError,
 				});
 
@@ -49,7 +50,7 @@ describe("initRedditPreprocessor", () => {
 
 		it("preserves search params and hash when rewriting", async () => {
 			const preprocess = initRedditPreprocessor({
-				fetch: fetchReturning(new Response(null, { status: 200 })),
+				fetchCurl: curlReturning(new Response(null, { status: 200 })),
 				logError: noopLogError,
 			});
 
@@ -64,7 +65,7 @@ describe("initRedditPreprocessor", () => {
 
 		it("does not rewrite old.reddit.com URLs (they are the target form)", async () => {
 			const preprocess = initRedditPreprocessor({
-				fetch: fetchReturning(new Response(null, { status: 200 })),
+				fetchCurl: curlReturning(new Response(null, { status: 200 })),
 				logError: noopLogError,
 			});
 			const input = "https://old.reddit.com/r/javascript/comments/1tlsqd1/title/";
@@ -76,7 +77,7 @@ describe("initRedditPreprocessor", () => {
 
 		it("does not rewrite non-Reddit URLs", async () => {
 			const preprocess = initRedditPreprocessor({
-				fetch: fetchReturning(new Response(null, { status: 200 })),
+				fetchCurl: curlReturning(new Response(null, { status: 200 })),
 				logError: noopLogError,
 			});
 			const input = "https://example.com/article";
@@ -88,7 +89,7 @@ describe("initRedditPreprocessor", () => {
 
 		it("passes through malformed URLs unchanged", async () => {
 			const preprocess = initRedditPreprocessor({
-				fetch: fetchReturning(new Response(null, { status: 200 })),
+				fetchCurl: curlReturning(new Response(null, { status: 200 })),
 				logError: noopLogError,
 			});
 			const input = "not a url";
@@ -103,31 +104,31 @@ describe("initRedditPreprocessor", () => {
 		it("resolves /s/<id> to canonical via 301 Location, then rewrites to old.reddit.com", async () => {
 			const canonical =
 				"https://www.reddit.com/r/javascript/comments/1tlsqd1/you_might_not_need_the_repository_pattern/?share_id=abc";
-			const fetchImpl = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>(async () =>
+			const fetchCurlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>(async () =>
 				new Response(null, { status: 301, headers: { location: canonical } }),
 			);
-			const preprocess = initRedditPreprocessor({ fetch: fetchImpl, logError: noopLogError });
+			const preprocess = initRedditPreprocessor({ fetchCurl: fetchCurlImpl, logError: noopLogError });
 
 			const result = await preprocess("https://www.reddit.com/r/javascript/s/3GQafG3qjy");
 
 			expect(result).toBe(
 				"https://old.reddit.com/r/javascript/comments/1tlsqd1/you_might_not_need_the_repository_pattern/?share_id=abc",
 			);
-			expect(fetchImpl).toHaveBeenCalledWith(
+			expect(fetchCurlImpl).toHaveBeenCalledWith(
 				"https://www.reddit.com/r/javascript/s/3GQafG3qjy",
-				expect.objectContaining({ redirect: "manual" }),
+				expect.objectContaining({ followRedirects: false }),
 			);
 		});
 
 		it.each([302, 303, 307, 308])(
 			"resolves /s/<id> on a %i status with Location",
 			async (status) => {
-				const fetchImpl: typeof globalThis.fetch = async () =>
+				const fetchCurlImpl: typeof fetchCurl = async () =>
 					new Response(null, {
 						status,
 						headers: { location: "https://www.reddit.com/r/javascript/comments/1tlsqd1/title/" },
 					});
-				const preprocess = initRedditPreprocessor({ fetch: fetchImpl, logError: noopLogError });
+				const preprocess = initRedditPreprocessor({ fetchCurl: fetchCurlImpl, logError: noopLogError });
 
 				const result = await preprocess("https://www.reddit.com/r/javascript/s/3GQafG3qjy");
 
@@ -136,9 +137,9 @@ describe("initRedditPreprocessor", () => {
 		);
 
 		it("passes the original URL through when the shortlink response is 200 (no redirect)", async () => {
-			const fetchImpl: typeof globalThis.fetch = async () =>
+			const fetchCurlImpl: typeof fetchCurl = async () =>
 				new Response("ok", { status: 200 });
-			const preprocess = initRedditPreprocessor({ fetch: fetchImpl, logError: noopLogError });
+			const preprocess = initRedditPreprocessor({ fetchCurl: fetchCurlImpl, logError: noopLogError });
 			const input = "https://www.reddit.com/r/javascript/s/3GQafG3qjy";
 
 			const result = await preprocess(input);
@@ -147,9 +148,9 @@ describe("initRedditPreprocessor", () => {
 		});
 
 		it("passes the original URL through when the shortlink response is 403", async () => {
-			const fetchImpl: typeof globalThis.fetch = async () =>
+			const fetchCurlImpl: typeof fetchCurl = async () =>
 				new Response("forbidden", { status: 403 });
-			const preprocess = initRedditPreprocessor({ fetch: fetchImpl, logError: noopLogError });
+			const preprocess = initRedditPreprocessor({ fetchCurl: fetchCurlImpl, logError: noopLogError });
 			const input = "https://www.reddit.com/r/javascript/s/3GQafG3qjy";
 
 			const result = await preprocess(input);
@@ -158,9 +159,9 @@ describe("initRedditPreprocessor", () => {
 		});
 
 		it("passes the original URL through when the redirect response has no Location header", async () => {
-			const fetchImpl: typeof globalThis.fetch = async () =>
+			const fetchCurlImpl: typeof fetchCurl = async () =>
 				new Response(null, { status: 301 });
-			const preprocess = initRedditPreprocessor({ fetch: fetchImpl, logError: noopLogError });
+			const preprocess = initRedditPreprocessor({ fetchCurl: fetchCurlImpl, logError: noopLogError });
 			const input = "https://www.reddit.com/r/javascript/s/3GQafG3qjy";
 
 			const result = await preprocess(input);
@@ -169,12 +170,12 @@ describe("initRedditPreprocessor", () => {
 		});
 
 		it("passes the original URL through when the redirect target is not a Reddit URL", async () => {
-			const fetchImpl: typeof globalThis.fetch = async () =>
+			const fetchCurlImpl: typeof fetchCurl = async () =>
 				new Response(null, {
 					status: 301,
 					headers: { location: "https://malicious.example.com/" },
 				});
-			const preprocess = initRedditPreprocessor({ fetch: fetchImpl, logError: noopLogError });
+			const preprocess = initRedditPreprocessor({ fetchCurl: fetchCurlImpl, logError: noopLogError });
 			const input = "https://www.reddit.com/r/javascript/s/3GQafG3qjy";
 
 			const result = await preprocess(input);
@@ -184,8 +185,8 @@ describe("initRedditPreprocessor", () => {
 
 		it("logs and passes through when the shortlink fetch throws", async () => {
 			const logError = jest.fn<void, [string, Error?]>();
-			const fetchImpl = fetchThrowing(new Error("network down"));
-			const preprocess = initRedditPreprocessor({ fetch: fetchImpl, logError });
+			const fetchCurlImpl = curlThrowing(new Error("network down"));
+			const preprocess = initRedditPreprocessor({ fetchCurl: fetchCurlImpl, logError });
 			const input = "https://www.reddit.com/r/javascript/s/3GQafG3qjy";
 
 			const result = await preprocess(input);
@@ -199,10 +200,10 @@ describe("initRedditPreprocessor", () => {
 
 		it("logs without an Error when the fetch throws a non-Error value", async () => {
 			const logError = jest.fn<void, [string, Error?]>();
-			const fetchImpl: typeof globalThis.fetch = async () => {
+			const fetchCurlImpl: typeof fetchCurl = async () => {
 				throw "string error";
 			};
-			const preprocess = initRedditPreprocessor({ fetch: fetchImpl, logError });
+			const preprocess = initRedditPreprocessor({ fetchCurl: fetchCurlImpl, logError });
 			const input = "https://www.reddit.com/r/javascript/s/3GQafG3qjy";
 
 			const result = await preprocess(input);
@@ -212,12 +213,12 @@ describe("initRedditPreprocessor", () => {
 		});
 
 		it("resolves /s/<id> with a relative Location header against the shortlink origin", async () => {
-			const fetchImpl: typeof globalThis.fetch = async () =>
+			const fetchCurlImpl: typeof fetchCurl = async () =>
 				new Response(null, {
 					status: 301,
 					headers: { location: "/r/javascript/comments/1tlsqd1/title/" },
 				});
-			const preprocess = initRedditPreprocessor({ fetch: fetchImpl, logError: noopLogError });
+			const preprocess = initRedditPreprocessor({ fetchCurl: fetchCurlImpl, logError: noopLogError });
 
 			const result = await preprocess("https://www.reddit.com/r/javascript/s/3GQafG3qjy");
 
@@ -225,12 +226,12 @@ describe("initRedditPreprocessor", () => {
 		});
 
 		it("does not treat /r/<sub>/comments/<id>/ as a shortlink", async () => {
-			const fetchImpl = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>();
-			const preprocess = initRedditPreprocessor({ fetch: fetchImpl, logError: noopLogError });
+			const fetchCurlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>();
+			const preprocess = initRedditPreprocessor({ fetchCurl: fetchCurlImpl, logError: noopLogError });
 
 			await preprocess("https://www.reddit.com/r/javascript/comments/1tlsqd1/title/");
 
-			expect(fetchImpl).not.toHaveBeenCalled();
+			expect(fetchCurlImpl).not.toHaveBeenCalled();
 		});
 	});
 });
