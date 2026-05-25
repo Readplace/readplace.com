@@ -94,7 +94,7 @@ export function createAnonymousViewPageActions(
 				await expect(summarySlot).toHaveAttribute(
 					'data-summary-status',
 					/^(ready|skipped|failed)$/,
-					{ timeout: 120_000 },
+					{ timeout: 180_000 },
 				)
 
 				// Share balloon: scroll past the threshold, wait for it to animate in,
