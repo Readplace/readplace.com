@@ -27,15 +27,11 @@ export interface PdfPageOcrOutput {
 export type DownloadStagedPdf = (params: { key: string }) => Promise<Buffer>;
 
 /**
- * Per-page text-layer extraction. When the vision OCR call exhausts its
- * retry budget on a chunk, the handler falls back to this — for PDFs with
- * an embedded text layer (most PDFs produced by digital authoring tools,
- * including the Aspose-converted CIA reading-room scans), it returns the
- * raw text Poppler reads out of the page. Returns an empty string if the
- * page has no extractable text layer; the handler then rethrows the
- * original vision error so the orchestrator counts the chunk as failed.
+ * Runs OCR over a batch of rendered page images and returns a single HTML
+ * fragment. The handler stitches per-chunk fragments via the orchestrator.
+ * In production this is wired to Tesseract (local, deterministic, runs
+ * inside the Lambda container).
  */
-export type ExtractPageTextLayer = (params: {
-	pdfBuffer: Buffer;
-	pageIndex: number;
-}) => Promise<{ text: string }>;
+export type RunPageOcr = (params: {
+	images: ReadonlyArray<{ pngBuffer: Buffer }>;
+}) => Promise<string>;
