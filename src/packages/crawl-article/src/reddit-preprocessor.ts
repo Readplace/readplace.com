@@ -71,8 +71,11 @@ async function resolveShortlink(deps: RedditPreprocessorDeps, url: URL): Promise
 			followRedirects: false,
 			signal: AbortSignal.timeout(RESOLVE_TIMEOUT_MS),
 		});
-		if (response.status < 300 || response.status >= 400) return null;
 		const location = response.headers.get("location");
+		deps.logError(
+			`[reddit-preprocessor] shortlink probe ${url.href} -> status=${response.status} location=${location ?? "<none>"} server=${response.headers.get("server") ?? "<none>"}`,
+		);
+		if (response.status < 300 || response.status >= 400) return null;
 		if (!location) return null;
 		return new URL(location, url);
 	} catch (error) {
