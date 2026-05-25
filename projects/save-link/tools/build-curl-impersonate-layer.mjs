@@ -13,12 +13,11 @@
  *
  * Source: https://github.com/lexiforest/curl-impersonate (active fork)
  */
-import { createWriteStream, mkdirSync, existsSync, chmodSync, readFileSync } from "node:fs";
+import { createWriteStream, mkdirSync, existsSync, chmodSync, readFileSync, rmSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { pipeline } from "node:stream/promises";
-import { rmSync } from "node:fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, "..");
