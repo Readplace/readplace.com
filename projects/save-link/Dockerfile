@@ -15,7 +15,7 @@ RUN dnf install -y poppler-utils curl && dnf clean all
 # curl-impersonate (Chrome variant) for TLS-fingerprint bypass. The layer
 # approach doesn't apply to container-image Lambdas, so we install the binary
 # directly. Placed in /opt/bin with libs in /opt/lib to match the layer layout.
-ARG CURL_IMPERSONATE_VERSION=0.8.0
+ARG CURL_IMPERSONATE_VERSION
 RUN mkdir -p /opt/bin /opt/lib && \
     curl -fsSL "https://github.com/lexiforest/curl-impersonate/releases/download/v${CURL_IMPERSONATE_VERSION}/curl-impersonate-v${CURL_IMPERSONATE_VERSION}.x86_64-linux-gnu.tar.gz" \
       | tar --extract --gzip --directory /tmp && \

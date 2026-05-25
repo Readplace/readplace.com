@@ -26,6 +26,7 @@ import { copyAssetFiles } from "@packages/hutch-infra-components/infra/copy-asse
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, "..");
 const REPO_NAME = "hutch-ocr-lambda";
+const CURL_IMPERSONATE_VERSION = readFileSync(resolve(PROJECT_ROOT, ".curl-impersonate-version"), "utf-8").trim();
 
 const HANDLERS = [
 	{
@@ -102,6 +103,7 @@ function buildAndPushImage(handler, repositoryUrl, tag) {
 		// with InvalidParameterValueException ("image manifest ... not supported").
 		"--provenance=false",
 		"--build-arg", `HANDLER_DIR=${handlerDirRelative}`,
+		"--build-arg", `CURL_IMPERSONATE_VERSION=${CURL_IMPERSONATE_VERSION}`,
 		"--tag", imageUri,
 		"--file", "Dockerfile",
 		"--push",

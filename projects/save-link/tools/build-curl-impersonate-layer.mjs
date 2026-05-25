@@ -13,19 +13,19 @@
  *
  * Source: https://github.com/lexiforest/curl-impersonate (active fork)
  */
-import { createWriteStream, mkdirSync, existsSync, chmodSync } from "node:fs";
+import { createWriteStream, mkdirSync, existsSync, chmodSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { pipeline } from "node:stream/promises";
-import { createReadStream, rmSync } from "node:fs";
+import { rmSync } from "node:fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, "..");
 const OUTPUT_DIR = resolve(PROJECT_ROOT, ".lib", "curl-impersonate-layer");
 const OUTPUT_ZIP = resolve(PROJECT_ROOT, ".lib", "curl-impersonate-layer.zip");
 
-const RELEASE_VERSION = "0.8.0";
+const RELEASE_VERSION = readFileSync(resolve(PROJECT_ROOT, ".curl-impersonate-version"), "utf-8").trim();
 const RELEASE_URL = `https://github.com/lexiforest/curl-impersonate/releases/download/v${RELEASE_VERSION}/curl-impersonate-v${RELEASE_VERSION}.x86_64-linux-gnu.tar.gz`;
 
 function run(command, args, options = {}) {
