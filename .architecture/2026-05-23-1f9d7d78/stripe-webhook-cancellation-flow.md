@@ -1,7 +1,7 @@
 # Stripe Webhook Cancellation Flow — Event Storming
 
-**Base commit:** `53a7bed3` &nbsp;•&nbsp; **Commit date:** 2026-05-23 &nbsp;•&nbsp; **Generated:** 2026-05-23 &nbsp;•&nbsp; **Branch:** `claude/stoic-brahmagupta-IPsCv`
-**Subject:** `feat(hutch): extract Stripe webhook into dedicated Lambda with EventBridge`
+**Base commit:** `1f9d7d78` &nbsp;•&nbsp; **Commit date:** 2026-05-23 &nbsp;•&nbsp; **Generated:** 2026-05-23 &nbsp;•&nbsp; **Branch:** `main`
+**Subject:** `feat(hutch): wire trial signup, access gating, and Stripe webhook (#396)`
 
 A point-in-time map of the Stripe webhook cancellation flow: Stripe sends `customer.subscription.deleted` to a dedicated API Gateway-fronted Lambda that verifies the HMAC signature and emits `SubscriptionCancelledEvent` via EventBridge. A separate SQS-backed Lambda subscribes to the event and marks the subscription as cancelled in DynamoDB. The SSR Lambda's `initGetEffectiveAccess` reads the subscription status at request time and gates write access accordingly.
 
@@ -17,6 +17,10 @@ What is new in this snapshot:
 ---
 
 ## Legend
+
+![Legend](diagrams/legend.svg)
+
+<details><summary>Mermaid source</summary>
 
 ```mermaid
 flowchart LR
@@ -39,11 +43,17 @@ flowchart LR
     N[New in this snapshot]:::new
 ```
 
+</details>
+
 ---
 
 ## End-to-end flow — Stripe cancellation to write-access gating
 
 Stripe sends `customer.subscription.deleted` via HTTP POST to an API Gateway route. The `stripe-webhook-receiver` Lambda verifies the HMAC-SHA256 signature (including timestamp tolerance), parses the event body, and publishes `SubscriptionCancelledEvent` to EventBridge. EventBridge routes the event to an SQS queue fronting the `handle-subscription-cancelled` Lambda, which marks the subscription row as cancelled. On the next authenticated request, the SSR Lambda's `initGetEffectiveAccess` reads the updated row and returns `InactiveAccess`, causing `requireWriteAccess` to 402-gate write endpoints.
+
+![End-to-end flow](diagrams/end-to-end-flow.svg)
+
+<details><summary>Mermaid source</summary>
 
 ```mermaid
 flowchart TD
@@ -100,6 +110,8 @@ flowchart TD
     SubRow -->|query at request time| SSR
     SSR -->|status=cancelled| Gate[requireWriteAccess middleware<br/>402-gates POST /queue, /save, /import/*]:::new
 ```
+
+</details>
 
 ---
 
