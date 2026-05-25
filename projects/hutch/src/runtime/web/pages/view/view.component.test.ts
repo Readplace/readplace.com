@@ -108,6 +108,41 @@ describe("ViewPage", () => {
 		expect(link.textContent).toBe("Read in your queue");
 	});
 
+	it("renders an action's hint as a small caption below the button when provided", () => {
+		const doc = render({
+			...baseInput,
+			actions: [
+				{
+					name: "Save to My Queue",
+					href: "/save?url=x",
+					variant: "primary",
+					hint: "Never expires",
+				},
+			],
+		});
+
+		const hint = doc.querySelector("[data-test-view-cta-hint]");
+		assert(hint, "cta hint must be rendered when hint is provided");
+		assert.equal(hint.tagName, "SMALL");
+		assert.equal(hint.textContent, "Never expires");
+	});
+
+	it("omits the hint element when an action has no hint", () => {
+		const doc = render({
+			...baseInput,
+			actions: [
+				{
+					name: "Paste another link",
+					href: "/view",
+					variant: "secondary",
+				},
+			],
+		});
+
+		const hints = doc.querySelectorAll("[data-test-view-cta-hint]");
+		assert.equal(hints.length, 0);
+	});
+
 	it("renders multiple actions when the model has more than one", () => {
 		const doc = render({
 			...baseInput,

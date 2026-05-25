@@ -204,6 +204,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 				href: `/save?${saveParams.toString()}`,
 				variant: "primary",
 				expirySaveLink: counting,
+				hint: "Never expires",
 			},
 			{
 				name: "Paste another link",
