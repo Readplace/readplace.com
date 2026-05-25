@@ -29,10 +29,11 @@
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
     "test-with-coverage": "c8 node scripts/run-tests-with-coverage.js && node enforce-coverage.config.js",
     "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\"",
-    "check-infra": "nx run save-link:build-image && PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
+    "check-infra": "nx run save-link:build-image && pnpm build-curl-impersonate-layer && PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
     "check": "nx run save-link:check",
     "build-image": "node tools/build-image.mjs",
-    "deploy-infra": "nx run save-link:build-image && PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\" $([ \"$CI\" = true ] && echo --yes)",
+    "build-curl-impersonate-layer": "node tools/build-curl-impersonate-layer.mjs",
+    "deploy-infra": "nx run save-link:build-image && pnpm build-curl-impersonate-layer && PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\" $([ \"$CI\" = true ] && echo --yes)",
     "post-deploy": "echo 'No post-deploy steps'"
   },
   "dependencies": {

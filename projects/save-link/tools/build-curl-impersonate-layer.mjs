@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
  * Build script for the curl-impersonate Lambda layer. Downloads the prebuilt
- * curl-impersonate-chrome release for Linux x86_64 and packages the binary +
- * shared libraries into a layer zip at .lib/curl-impersonate-layer.zip.
+ * curl-impersonate-chrome release for Linux x86_64 and packages the binary
+ * pair into a layer zip at .lib/curl-impersonate-layer.zip.
  *
  * Lambda layers mount at /opt/, so the zip layout is:
- *   bin/curl_chrome116   — the impersonate binary (Lambda adds /opt/bin to PATH)
- *   lib/                 — shared libraries (Lambda adds /opt/lib to LD_LIBRARY_PATH)
+ *   bin/curl_chrome116            — bash wrapper (Lambda adds /opt/bin to PATH)
+ *   bin/curl-impersonate-chrome   — the actual binary the wrapper execs
  *
  * Runs before `pulumi up` (either in CI or locally). The infra reads the zip
  * path from this script's output location.
@@ -62,21 +62,15 @@ function extractAndPackage(tarPath) {
 
 	const layerRoot = resolve(OUTPUT_DIR, "layer");
 	const binDir = resolve(layerRoot, "bin");
-	const libDir = resolve(layerRoot, "lib");
 	mkdirSync(binDir, { recursive: true });
-	mkdirSync(libDir, { recursive: true });
 
+	/* curl_chrome116 is a bash wrapper that execs ./curl-impersonate-chrome
+	 * from the same directory, so both files must be co-located in /opt/bin.
+	 * v0.8.0+ ship statically-linked binaries — no .so files to stage. */
 	run("cp", [resolve(extractDir, "curl_chrome116"), binDir]);
+	run("cp", [resolve(extractDir, "curl-impersonate-chrome"), binDir]);
 	chmodSync(resolve(binDir, "curl_chrome116"), 0o755);
-
-	/* Copy all shared libraries the binary needs. The release bundles them
-	 * alongside the binary — they include libcurl-impersonate-chrome and the
-	 * BoringSSL/NSS libraries that produce the Chrome TLS fingerprint. */
-	const lsOutput = run("ls", [extractDir]);
-	const libs = lsOutput.split("\n").filter((f) => f.includes(".so"));
-	for (const lib of libs) {
-		run("cp", ["--no-dereference", resolve(extractDir, lib), libDir]);
-	}
+	chmodSync(resolve(binDir, "curl-impersonate-chrome"), 0o755);
 
 	return layerRoot;
 }

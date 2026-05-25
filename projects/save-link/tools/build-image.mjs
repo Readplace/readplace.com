@@ -10,8 +10,11 @@
  *   3. docker buildx build with HANDLER_DIR=.lib/<name> + push to ECR
  *
  * All handlers share the same base image (poppler-utils for pdftoppm + pdfinfo).
- * Image tag: <gitSha>-<name>. ECR repo URL is resolved from the platform stack
- * via `aws ecr describe-repositories` — the platform stack must already be
+ * Image tag: <gitSha>-<contentHash>-<name>, where contentHash covers the
+ * bundled handler code, the Dockerfile, and the curl-impersonate build-arg —
+ * see the inline comment near the tag construction for why each input is
+ * required. ECR repo URL is resolved from the platform stack via
+ * `aws ecr describe-repositories` — the platform stack must already be
  * deployed before this runs.
  */
 import assert from "node:assert";
@@ -122,16 +125,27 @@ async function main() {
 	console.log(`[build-image] bundling ${HANDLERS.length} handlers in parallel`);
 	await Promise.all(HANDLERS.map((handler) => bundleHandler(handler)));
 
+	/* Image-level inputs shared across handlers — Dockerfile contents and the
+	 * curl-impersonate version pinned via build-arg. If either changes, every
+	 * handler's image changes too, so they must contribute to the tag. */
+	const dockerfileContents = readFileSync(resolve(PROJECT_ROOT, "Dockerfile"));
+
 	const tags = {};
 	for (const handler of HANDLERS) {
-		/* Tag includes a hash of the bundled index.js so a re-deploy on the same
-		 * git SHA with different bundle contents (e.g. a workspace dependency
-		 * was recompiled with new code) produces a new tag — without it, Pulumi
-		 * sees the same imageUri and skips updating the Lambda even though the
-		 * underlying ECR content changed. */
+		/* The tag combines a hash of every input that can change the image so
+		 * Pulumi sees a different imageUri and triggers a Lambda redeploy. ECR
+		 * tags are mutable, so without this Pulumi would skip the update even
+		 * when the underlying image content changed. Inputs hashed:
+		 *   - the bundled handler code (per-handler)
+		 *   - the Dockerfile (shared across handlers)
+		 *   - the curl-impersonate version build-arg (shared across handlers) */
 		const bundlePath = resolve(PROJECT_ROOT, ".lib", handler.name, "index.js");
-		const bundleHash = createHash("sha256").update(readFileSync(bundlePath)).digest("hex").slice(0, 12);
-		const tag = `${gitSha}-${bundleHash}-${handler.name}`;
+		const contentHash = createHash("sha256")
+			.update(readFileSync(bundlePath))
+			.update(dockerfileContents)
+			.update(CURL_IMPERSONATE_VERSION)
+			.digest("hex").slice(0, 12);
+		const tag = `${gitSha}-${contentHash}-${handler.name}`;
 		tags[handler.name] = buildAndPushImage(handler, repositoryUrl, tag);
 	}
 

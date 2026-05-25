@@ -8,24 +8,26 @@
 # producing one image per Lambda.
 FROM public.ecr.aws/lambda/nodejs:22
 
-# poppler-utils provides pdftoppm + pdfinfo; curl is needed to download
-# curl-impersonate in the next step. Cleaning the dnf cache shaves ~30 MB.
-RUN dnf install -y poppler-utils curl && dnf clean all
+# poppler-utils provides pdftoppm + pdfinfo; tar + gzip are needed to extract
+# the curl-impersonate tarball below. Cleaning the dnf cache shaves ~30 MB.
+# curl is intentionally not installed — the base image already provides
+# curl-minimal (enough to fetch the tarball), and runtime fetches go through
+# curl-impersonate for TLS-fingerprint bypass.
+RUN dnf install -y poppler-utils tar gzip && dnf clean all
 
 # curl-impersonate (Chrome variant) for TLS-fingerprint bypass. The layer
 # approach doesn't apply to container-image Lambdas, so we install the binary
-# directly. Placed in /opt/bin with libs in /opt/lib to match the layer layout.
+# directly. curl_chrome116 is a bash wrapper that execs ./curl-impersonate-chrome
+# from the same directory, so both files must be co-located in /opt/bin.
 ARG CURL_IMPERSONATE_VERSION
-RUN mkdir -p /opt/bin /opt/lib && \
+RUN mkdir -p /opt/bin && \
     curl -fsSL "https://github.com/lexiforest/curl-impersonate/releases/download/v${CURL_IMPERSONATE_VERSION}/curl-impersonate-v${CURL_IMPERSONATE_VERSION}.x86_64-linux-gnu.tar.gz" \
       | tar --extract --gzip --directory /tmp && \
-    cp /tmp/curl_chrome116 /opt/bin/ && \
-    cp /tmp/*.so* /opt/lib/ && \
-    chmod 755 /opt/bin/curl_chrome116 && \
-    rm -rf /tmp/curl_*
+    cp /tmp/curl_chrome116 /tmp/curl-impersonate-chrome /opt/bin/ && \
+    chmod 755 /opt/bin/curl_chrome116 /opt/bin/curl-impersonate-chrome && \
+    rm -rf /tmp/curl_* /tmp/curl-impersonate-chrome
 
-ENV PATH="/opt/bin:${PATH}" \
-    LD_LIBRARY_PATH="/opt/lib:${LD_LIBRARY_PATH}"
+ENV PATH="/opt/bin:${PATH}"
 
 ARG HANDLER_DIR
 COPY ${HANDLER_DIR}/ ${LAMBDA_TASK_ROOT}/
