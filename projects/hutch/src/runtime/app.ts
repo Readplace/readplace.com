@@ -77,7 +77,7 @@ import type { ConversionEvent } from "./conversions";
 import type { AnalyticsEvent } from "./web/middleware/analytics";
 import { httpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import {
-	PROD_FOUNDING_MEMBER_LIMIT,
+	FOUNDING_MEMBER_LIMIT,
 	initFoundingAllocation,
 } from "./web/shared/founding-progress/founding-allocation";
 import { getEnv, requireEnv } from "./domain/require-env";
@@ -463,7 +463,7 @@ export function createHutchApp(deps?: {
 		analytics: analyticsLogger,
 		salt,
 		foundingAllocation: initFoundingAllocation({
-			foundingMemberLimit: PROD_FOUNDING_MEMBER_LIMIT,
+			foundingMemberLimit: FOUNDING_MEMBER_LIMIT,
 		}),
 		expiryCountdown,
 	});
