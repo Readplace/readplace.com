@@ -167,7 +167,9 @@ async function h2ThenCurl(
 	 * would open a TCP connection only to abort it immediately. */
 	if (!fallbackInit.signal?.aborted) {
 		try {
-			return await h2FetchImpl(url, fallbackInit);
+			const h2Response = await h2FetchImpl(url, fallbackInit);
+			if (h2Response.status !== 403) return h2Response;
+			await h2Response.text();
 		} catch (error) {
 			if (!shouldTryFallback(error, fallbackInit.signal)) throw error;
 		}
