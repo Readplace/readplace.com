@@ -186,23 +186,13 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: false,
 	},
 	{
-		// www.reddit.com serves a JavaScript challenge or 403 to AWS Lambda's
-		// outbound IPs. The reddit-preprocessor rewrites www → old.reddit.com,
-		// which returns the article HTML directly with no challenge. If this
-		// entry fails, the rewrite is missing or old.reddit.com itself is being
-		// blocked — investigate before touching the URL.
-		label: "Reddit (canonical /comments/)",
-		url: "https://www.reddit.com/r/javascript/comments/1tlsqd1/you_might_not_need_the_repository_pattern/",
-		expectedContent: "You might not need",
-		expectsThumbnail: true,
-	},
-	{
-		// /r/<sub>/s/<id> shortlinks resolve only against www.reddit.com (old
-		// 302s them to a submit/login flow). The reddit-preprocessor resolves
-		// the shortlink via redirect:manual against www.reddit.com to extract
-		// the canonical Location, then rewrites to old.reddit.com. If this
-		// entry fails before the canonical entry above does, the shortlink
-		// resolution from Lambda is broken — investigate that path first.
+		// /r/<sub>/s/<id> shortlinks resolve only against www.reddit.com. The
+		// reddit-preprocessor first resolves the shortlink to its canonical
+		// /comments/<id>/<slug>/ form via curl-impersonate (Chrome TLS
+		// fingerprint, since undici from Lambda gets 403), then rewrites the
+		// resolved URL to old.reddit.com — old returns the article HTML where
+		// www serves a JS challenge to Lambda IPs. A green run here exercises
+		// both the shortlink resolver AND the www→old rewrite.
 		label: "Reddit (/s/ shortlink)",
 		url: "https://www.reddit.com/r/javascript/s/3GQafG3qjy",
 		expectedContent: "You might not need",
