@@ -125,16 +125,19 @@ describe("withH2Fallback", () => {
 		expect(h2Impl).not.toHaveBeenCalled();
 	});
 
-	it("passes through 403 when server header is not 'cloudflare'", async () => {
+	it("retries via h2 on a non-Cloudflare 403 (e.g. Reddit snooserv)", async () => {
 		const baseFetch: typeof fetch = async () =>
-			new Response("Forbidden", { status: 403, headers: { server: "nginx" } });
-		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>();
+			new Response("Forbidden", { status: 403, headers: { server: "snooserv" } });
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+			new Response("<html>real</html>", { status: 200, headers: { "content-type": "text/html" } }),
+		);
 		const wrapped = withH2Fallback(baseFetch, h2Impl);
 
 		const response = await wrapped("https://example.com");
 
-		expect(response.status).toBe(403);
-		expect(h2Impl).not.toHaveBeenCalled();
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("<html>real</html>");
+		expect(h2Impl).toHaveBeenCalledTimes(1);
 	});
 
 	it("retries via h2 when Cloudflare returns a managed challenge", async () => {
@@ -194,16 +197,19 @@ describe("withH2Fallback", () => {
 		expect(h2Impl).toHaveBeenCalledTimes(1);
 	});
 
-	it("passes through 403 when the server header is missing", async () => {
+	it("retries via h2 on a 403 with no server header", async () => {
 		const baseFetch: typeof fetch = async () =>
 			new Response("Forbidden", { status: 403 });
-		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>();
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+			new Response("<html>real</html>", { status: 200, headers: { "content-type": "text/html" } }),
+		);
 		const wrapped = withH2Fallback(baseFetch, h2Impl);
 
 		const response = await wrapped("https://example.com");
 
-		expect(response.status).toBe(403);
-		expect(h2Impl).not.toHaveBeenCalled();
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("<html>real</html>");
+		expect(h2Impl).toHaveBeenCalledTimes(1);
 	});
 
 	it("extracts the URL string from a URL object input", async () => {

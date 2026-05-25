@@ -106,11 +106,12 @@ function toFetchHeaders(incoming: http2.IncomingHttpHeaders): Headers {
 }
 
 /**
- * Wraps a fetch with an HTTP/2 fallback that kicks in on any Cloudflare 403
- * (`server: cloudflare`). Covers both managed challenges (`cf-mitigated:
- * challenge`) and plain "Attention Required!" interstitials (no cf-mitigated
- * header), since both are TLS-fingerprint blocks that real browsers bypass
- * via h2. Non-Cloudflare 403s and non-403 responses pass through unchanged.
+ * Wraps a fetch with an HTTP/2 fallback that kicks in on any 403 response,
+ * regardless of the origin's CDN vendor. Cloudflare, Reddit (snooserv), and
+ * other origins use TLS-fingerprint heuristics to block crawler-shaped
+ * traffic; switching the TLS client (h2 → curl-impersonate) bypasses the
+ * block while an HTTP-header-only persona swap (same undici ClientHello)
+ * would not. Non-403 responses pass through unchanged.
  *
  * If the primary fetch fails with a transient TLS- or connection-level error
  * (timeout, ECONNRESET, "fetch failed", HTTP/2 RST_STREAM from Akamai
@@ -138,7 +139,6 @@ export function withH2Fallback(
 			return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);
 		}
 		if (response.status !== 403) return response;
-		if (response.headers.get("server")?.toLowerCase() !== "cloudflare") return response;
 		await response.text();
 		const url = urlFromInput(input);
 		return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);

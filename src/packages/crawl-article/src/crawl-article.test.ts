@@ -10,6 +10,12 @@ import { initCrawlFetch } from "./crawl-fetch";
 import type { fetchCurl } from "./curl-fetch";
 import type { fetchH2 } from "./h2-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
+
+jest.mock("./pdf-page-limits", () => ({
+	MAX_PDF_PAGES: 300,
+	MAX_PDF_BYTES: { bytes: 25 * 1024 * 1024, label: "25 MB" },
+}));
+
 const PDF_EXTRACT_FAILURE_REASON = "synthetic extractor failure";
 
 const noopLogError = () => {};
@@ -315,8 +321,10 @@ describe("initSimpleCrawl — X/Twitter routing", () => {
 describe("initSimpleCrawl — failure modes", () => {
 	it("returns status 'failed' and logs HTTP status when response is not ok and not 304", async () => {
 		const fakeFetch: typeof fetch = async () => new Response(null, { status: 403 });
+		const block403H2: typeof fetchH2 = async () => new Response(null, { status: 403 });
+		const block403Curl: typeof fetchCurl = async () => new Response(null, { status: 403 });
 		const logError = jest.fn();
-		const simpleCrawl = initSimple({ fetch: fakeFetch, logError });
+		const simpleCrawl = initSimple({ fetch: fakeFetch, logError, fetchH2: block403H2, fetchCurl: block403Curl });
 
 		const result = await simpleCrawl({ url: "https://example.com" });
 
@@ -485,8 +493,10 @@ describe("initSimpleCrawl — thumbnail fetch (fetchThumbnail opt-in)", () => {
 
 	it("logs and returns thumbnailImage undefined when the thumbnail HTTP request fails", async () => {
 		const fakeFetch = articleThenImageFetch(new Response(null, { status: 403 }));
+		const block403H2: typeof fetchH2 = async () => new Response(null, { status: 403 });
+		const block403Curl: typeof fetchCurl = async () => new Response(null, { status: 403 });
 		const logError = jest.fn();
-		const simpleCrawl = initSimple({ fetch: fakeFetch, logError });
+		const simpleCrawl = initSimple({ fetch: fakeFetch, logError, fetchH2: block403H2, fetchCurl: block403Curl });
 
 		const result = await simpleCrawl({ url: "https://example.com", fetchThumbnail: true });
 
