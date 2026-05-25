@@ -16,6 +16,7 @@ import type { CreateSubscriptionOnExistingCustomer } from "@packages/test-fixtur
 import type { StorePendingSignup } from "@packages/test-fixtures/providers/pending-signup";
 import { Base } from "../../base.component";
 import { bannerStateFromRequest } from "../../banner-state";
+import { HxRedirectPage } from "../../hx-redirect-page";
 import { sendComponent } from "../../send-component";
 import type { GetEffectiveAccess } from "../../../domain/access/effective-access";
 import { AccountPage } from "./account.component";
@@ -87,13 +88,12 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 	/** HTMX intercepts hx-boost forms via XHR. A 303 Location to an external
 	 * origin (Stripe Checkout) makes HTMX issue a cross-origin XHR and then
 	 * fail to swap the response into <main>, so the browser never leaves
-	 * /account. HX-Redirect is HTMX's contract for "navigate the whole
-	 * browser to URL X" — it triggers `window.location.href = url`. Plain
-	 * (non-HTMX) form posts still get the 303 Location, so progressive
-	 * enhancement is preserved. */
+	 * /account. HxRedirectPage carries HTMX's HX-Redirect header, which
+	 * triggers `window.location.href = url`. Plain (non-HTMX) form posts
+	 * still get the 303 Location, so progressive enhancement is preserved. */
 	function redirectToCheckout(req: Request, res: Response, url: string): void {
 		if (req.get("HX-Request") === "true") {
-			res.set("HX-Redirect", url).type("text/html").status(200).end();
+			sendComponent(req, res, HxRedirectPage(url));
 			return;
 		}
 		res.redirect(303, url);
