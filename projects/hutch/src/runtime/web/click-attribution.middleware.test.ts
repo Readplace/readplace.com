@@ -105,29 +105,41 @@ describe("createClickAttributionMiddleware", () => {
 		});
 	});
 
-	it("drops self-referrers (internal navigation) so capture only fires on cross-site clicks", () => {
+	it("drops self-referrers (internal navigation) so the cookie carries no referrer_host but still records landing_path/first_seen_at", () => {
 		const req = createReq({
+			path: "/",
 			hostname: "readplace.com",
 			headers: { referer: "https://readplace.com/blog/something" },
 		});
 		const { cookies } = runMiddleware(req);
 
-		expect(cookies).toEqual([]);
+		expect(cookies).toHaveLength(1);
+		const value = parseCookieValue(cookies[0].value);
+		expect(value).toEqual({
+			first_seen_at: "2026-05-13T10:00:00.000Z",
+			landing_path: "/",
+		});
+		expect(JSON.stringify(value)).not.toContain("referrer_host");
 	});
 
-	it("drops unparseable referer headers and does not write a cookie when no other attribution is present", () => {
+	it("drops unparseable referer headers but still writes the bare landing_path / first_seen_at cookie", () => {
 		const req = createReq({ headers: { referer: "not a url" } });
 		const { cookies } = runMiddleware(req);
 
-		expect(cookies).toEqual([]);
+		expect(cookies).toHaveLength(1);
+		expect(JSON.stringify(parseCookieValue(cookies[0].value))).not.toContain("referrer_host");
 	});
 
-	it("does not write a cookie when no utm or referrer attribution is present", () => {
+	it("writes the cookie even when no utm or referrer attribution is present so organic landings carry landing_path / first_seen_at", () => {
 		const req = createReq({ path: "/queue" });
 		const { cookies, nextCalled } = runMiddleware(req);
 
-		expect(cookies).toEqual([]);
 		expect(nextCalled).toBe(true);
+		expect(cookies).toHaveLength(1);
+		expect(parseCookieValue(cookies[0].value)).toEqual({
+			first_seen_at: "2026-05-13T10:00:00.000Z",
+			landing_path: "/queue",
+		});
 	});
 
 	it("skips non-GET requests so form posts can never reset the first-touch cookie", () => {
@@ -194,6 +206,18 @@ describe("createClickAttributionMiddleware", () => {
 		const value = parseCookieValue(cookies[0].value);
 		expect(value).toMatchObject({ utm_medium: "email" });
 		expect(JSON.stringify(value)).not.toContain("utm_source");
+	});
+
+	it("attribution-less landings emit a cookie whose JSON drops every optional key (only first_seen_at + landing_path on the wire)", () => {
+		const req = createReq({ path: "/" });
+		const { cookies } = runMiddleware(req);
+
+		const serialized = cookies[0].value;
+		expect(serialized).not.toContain("utm_source");
+		expect(serialized).not.toContain("utm_medium");
+		expect(serialized).not.toContain("utm_campaign");
+		expect(serialized).not.toContain("utm_content");
+		expect(serialized).not.toContain("referrer_host");
 	});
 });
 

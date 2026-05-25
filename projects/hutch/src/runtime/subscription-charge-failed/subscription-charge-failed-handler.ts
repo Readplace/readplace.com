@@ -9,9 +9,11 @@ import { UserIdSchema } from "@packages/domain/user";
 import { SubscriptionChargeFailedEvent } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { PublishCancelSubscriptionCommand } from "@packages/test-fixtures/providers/events";
+import type { EmitSubscriptionEvent } from "../observability/subscription-events";
 
 export function initSubscriptionChargeFailedHandler(deps: {
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
+	emit: EmitSubscriptionEvent;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event) => {
@@ -22,6 +24,7 @@ export function initSubscriptionChargeFailedHandler(deps: {
 				const envelope = z.object({ detail: z.unknown() }).parse(JSON.parse(record.body));
 				const detail = SubscriptionChargeFailedEvent.detailSchema.parse(envelope.detail);
 				const userId = UserIdSchema.parse(detail.userId);
+				deps.emit.chargeFailed({ userId, reason: detail.reason });
 				deps.logger.info("[charge-failed] dispatching cancel", {
 					userId,
 					reason: detail.reason,

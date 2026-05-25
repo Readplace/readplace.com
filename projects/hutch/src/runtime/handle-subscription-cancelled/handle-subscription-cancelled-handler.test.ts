@@ -3,6 +3,25 @@ import type { SQSEvent } from "aws-lambda";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initHandleSubscriptionCancelledHandler } from "./handle-subscription-cancelled-handler";
+import { initEmitSubscriptionEvent, type EmitSubscriptionEvent, type SubscriptionLogEvent } from "../observability/subscription-events";
+
+function makeEmit(): { emit: EmitSubscriptionEvent; captured: SubscriptionLogEvent[] } {
+	const captured: SubscriptionLogEvent[] = [];
+	const emit = initEmitSubscriptionEvent({
+		logger: {
+			info: (data) => { captured.push(data); },
+			error: () => {},
+			warn: () => {},
+			debug: () => {},
+		},
+		now: () => new Date("2026-06-06T00:00:00.000Z"),
+	});
+	return { emit, captured };
+}
+
+function makeNoopEmit(): EmitSubscriptionEvent {
+	return makeEmit().emit;
+}
 
 const USER_ID = UserIdSchema.parse("user-cancel");
 
@@ -42,10 +61,12 @@ function buildEventBridgeBody(detail: {
 }
 
 describe("handle-subscription-cancelled-handler", () => {
-	it("marks the subscription as cancelled by userId for a valid Stripe-originated event", async () => {
+	it("marks the subscription as cancelled by userId and emits a cancelled log line so the dashboard can record Stripe-direct cancellations", async () => {
 		const cancelledUserIds: string[] = [];
+		const { emit, captured } = makeEmit();
 		const handler = initHandleSubscriptionCancelledHandler({
 			markCancelledByUserId: async ({ userId }) => { cancelledUserIds.push(userId); },
+			emit,
 			logger: HutchLogger.from(noopLogger),
 		});
 
@@ -63,12 +84,21 @@ describe("handle-subscription-cancelled-handler", () => {
 		assert(result);
 		assert.equal(result.batchItemFailures.length, 0);
 		assert.deepStrictEqual(cancelledUserIds, [USER_ID]);
+		assert.deepEqual(captured, [{
+			stream: "subscriptions",
+			event: "cancelled",
+			timestamp: "2026-06-06T00:00:00.000Z",
+			user_id: USER_ID,
+			subscription_id: "sub_x",
+			reason: "stripe_webhook",
+		}]);
 	});
 
 	it("marks cancelled for a trial-initiated event with no subscriptionId", async () => {
 		const cancelledUserIds: string[] = [];
 		const handler = initHandleSubscriptionCancelledHandler({
 			markCancelledByUserId: async ({ userId }) => { cancelledUserIds.push(userId); },
+			emit: makeNoopEmit(),
 			logger: HutchLogger.from(noopLogger),
 		});
 
@@ -91,6 +121,7 @@ describe("handle-subscription-cancelled-handler", () => {
 	it("reports a batch item failure when markCancelledByUserId throws", async () => {
 		const handler = initHandleSubscriptionCancelledHandler({
 			markCancelledByUserId: async () => { throw new Error("DynamoDB timeout"); },
+			emit: makeNoopEmit(),
 			logger: HutchLogger.from(noopLogger),
 		});
 
@@ -108,6 +139,7 @@ describe("handle-subscription-cancelled-handler", () => {
 	it("reports a batch item failure for malformed JSON", async () => {
 		const handler = initHandleSubscriptionCancelledHandler({
 			markCancelledByUserId: async () => {},
+			emit: makeNoopEmit(),
 			logger: HutchLogger.from(noopLogger),
 		});
 
@@ -125,6 +157,7 @@ describe("handle-subscription-cancelled-handler", () => {
 	it("reports a batch item failure when the detail is missing userId", async () => {
 		const handler = initHandleSubscriptionCancelledHandler({
 			markCancelledByUserId: async () => {},
+			emit: makeNoopEmit(),
 			logger: HutchLogger.from(noopLogger),
 		});
 
@@ -147,6 +180,7 @@ describe("handle-subscription-cancelled-handler", () => {
 				if (userId === "user-boom") throw new Error("boom");
 				cancelled.push(userId);
 			},
+			emit: makeNoopEmit(),
 			logger: HutchLogger.from(noopLogger),
 		});
 

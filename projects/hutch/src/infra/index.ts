@@ -12,7 +12,11 @@ import {
 	SubscriptionStartRequestCommand,
 } from "@packages/hutch-infra-components";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
-import { PARSE_ERROR_STREAM, CRAWL_OUTCOME_STREAM } from "@packages/hutch-infra-components";
+import { ANALYTICS_EVENTS, METRICS, STREAMS } from "../runtime/observability/events";
+import {
+	buildAnalyticsDashboardBody,
+	SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
+} from "../runtime/observability/analytics-dashboard";
 import { DomainRegistration } from "./domain-registration";
 import { DomainRedirect } from "./domain-redirect";
 import { HutchStorage } from "./hutch-storage";
@@ -648,102 +652,25 @@ const subscriptionChargeFailedWithSQS = new HutchSQSBackedLambda("subscription-c
 eventBus.subscribe(SubscriptionChargeFailedEvent, subscriptionChargeFailedWithSQS);
 
 // --- Analytics Dashboard ---
+// The widget builder lives in runtime/observability/analytics-dashboard so the
+// dashboard JSON is constructable and assertable outside the Pulumi runtime —
+// see analytics-dashboard.test.ts for the coverage / no-unknown-references
+// drift checks against the constants in runtime/observability/events.
 
 const region = aws.config.requireRegion();
-
-/**
- * Single log group uses the `SOURCE '<name>'` shorthand. Multiple log groups
- * use the `logGroups(namePrefix: [...])` function — comma-separated quoted
- * names do NOT work, CloudWatch reads the whole string as one log group and
- * rejects with "LogGroupName cannot contain a comma".
- * See https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-Source.html
- */
-function sourceClause(logGroupNames: readonly string[]): string {
-	if (logGroupNames.length === 1) return `SOURCE '${logGroupNames[0]}'`;
-	const prefixes = logGroupNames.map((n) => `'${n}'`).join(", ");
-	return `SOURCE logGroups(namePrefix: [${prefixes}])`;
-}
-
-function logWidget(params: {
-	title: string;
-	logGroupNames: string[];
-	query: string;
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-	view: "pie" | "table" | "bar" | "timeSeries";
-}) {
-	return {
-		type: "log",
-		x: params.x,
-		y: params.y,
-		width: params.width,
-		height: params.height,
-		properties: {
-			region,
-			title: params.title,
-			query: `${sourceClause(params.logGroupNames)} | ${params.query}`,
-			view: params.view,
-		},
-	};
-}
 
 const excludedVisitorHashes = config.requireObject<string[]>("excludedVisitorHashes");
 for (const hash of excludedVisitorHashes) {
 	assert(/^[a-f0-9]+$/.test(hash), `excludedVisitorHashes entries must be lowercase hex (got: ${hash})`);
 }
 
-function excludeVisitorHashesClause(): string[] {
-	if (excludedVisitorHashes.length === 0) return [];
-	const list = excludedVisitorHashes.map((h) => `"${h}"`).join(", ");
-	return [`| filter (not ispresent(visitor_hash)) or (visitor_hash not in [${list}])`];
-}
-
-/**
- * HutchLambda names it a Lambda `{name}-handler`, which makes the CloudWatch
- * log group `/aws/lambda/{name}-handler`. Names below mirror the HutchLambda
- * resource names in `projects/save-link/src/infra/index.ts`.
- *
- * The `tier` is derived from each log group's source — it's not an attribute of
- * ParseErrorEvent (which stays at the generic parse-error abstraction, see
- * `src/packages/hutch-infra-components/src/logs.ts`). The dashboard infers the
- * tier by grouping widgets by handler log group and tagging the widget title.
- */
-const SAVE_LINK_HANDLER_LOG_GROUPS = [
-	{ logGroup: "/aws/lambda/save-link-command-handler", tier: "tier-1" },
-	{ logGroup: "/aws/lambda/save-anonymous-link-command-handler", tier: "tier-1" },
-	{ logGroup: "/aws/lambda/save-link-raw-html-command-handler", tier: "tier-0" },
-] as const;
-
-/**
- * Public View Entry Point widgets (appended to readplace-analytics below)
- *
- * Tracks the funnel into the public reader view (`/view`) for non-authenticated
- * users arriving from the homepage and the public landing.
- *
- * 1. Homepage paste-link click — utm_content=homepage-link-input
- *    (form on `/` redirects to /view/<url>, logged as path=/view, status=302)
- * 2. /view landing "Open in reader view" click — utm_content=open-in-reader-view
- *    (form on /view redirects to /view/<url>, logged as path=/view, status=302)
- * 3. /view article "Paste another link" click — utm_content=paste-another-link
- *    (link on /view/<url> goes back to /view, logged as path=/view, status=200)
- */
-const PUBLIC_VIEW_ENTRY_POINTS = [
-	{ id: "homepage-link-input", title: "Homepage \"Open in reader view\" click" },
-	{ id: "open-in-reader-view", title: "/view landing \"Open in reader view\" click" },
-	{ id: "paste-another-link", title: "/view \"Paste another link\" click" },
-] as const;
-
-const entryPointFilter = `| filter utm_content in [${PUBLIC_VIEW_ENTRY_POINTS.map((e) => `"${e.id}"`).join(", ")}]`;
-
 new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 	name: "imports-completed",
 	logGroupName: logGroup.name,
-	pattern: '{ $.stream = "analytics" && $.event = "import_committed" }',
+	pattern: `{ $.stream = "${STREAMS.analytics}" && $.event = "${ANALYTICS_EVENTS.importCommitted}" }`,
 	metricTransformation: {
-		name: "ImportsCompleted",
-		namespace: "Readplace/Imports",
+		name: METRICS.importsCompleted.name,
+		namespace: METRICS.importsCompleted.namespace,
 		value: "1",
 		defaultValue: "0",
 		unit: "Count",
@@ -753,295 +680,15 @@ new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 new aws.cloudwatch.Dashboard("readplace-analytics", {
 	dashboardName: "readplace-analytics",
 	dashboardBody: pulumi.output(logGroup.name).apply((hutchLogGroupName) =>
-		JSON.stringify({
-			widgets: [
-				logWidget({
-					title: "Pageviews by utm_source (%)",
-					logGroupNames: [hutchLogGroupName],
-					query: [
-						"fields @timestamp, utm_source",
-						"| filter stream = \"analytics\" and event = \"pageview\"",
-						...excludeVisitorHashesClause(),
-						"| filter ispresent(utm_source) and utm_source != \"\"",
-						"| stats count(*) as visits by utm_source",
-						"| sort visits desc",
-						"| limit 10",
-					].join(" "),
-					x: 0, y: 0, width: 12, height: 8,
-					view: "pie",
-				}),
-				logWidget({
-					title: "Top Referrers",
-					logGroupNames: [hutchLogGroupName],
-					query: [
-						"fields @timestamp, referrer_host",
-						"| filter stream = \"analytics\" and event = \"pageview\"",
-						...excludeVisitorHashesClause(),
-						"| filter ispresent(referrer_host) and referrer_host != \"\"",
-						"| stats count(*) as visits by referrer_host",
-						"| sort visits desc",
-						"| limit 10",
-					].join(" "),
-					x: 12, y: 0, width: 12, height: 8,
-					view: "pie",
-				}),
-				{
-					type: "metric",
-					x: 0, y: 8, width: 6, height: 4,
-					properties: {
-						region,
-						title: "Imports completed (lifetime)",
-						metrics: [["Readplace/Imports", "ImportsCompleted", { stat: "Sum" }]],
-						period: 86400,
-						stat: "Sum",
-						view: "singleValue",
-						sparkline: true,
-						setPeriodToTimeRange: true,
-					},
-				},
-				logWidget({
-					title: "Recent Analytics Events",
-					logGroupNames: [hutchLogGroupName],
-					query: [
-						"fields @timestamp, path, utm_source, utm_medium, utm_campaign, utm_content, referrer_host, visitor_hash, is_authenticated",
-						"| filter stream = \"analytics\"",
-						...excludeVisitorHashesClause(),
-						"| sort @timestamp desc",
-						"| limit 50",
-					].join(" "),
-					x: 0, y: 12, width: 24, height: 8,
-					view: "table",
-				}),
-				logWidget({
-					title: "Pageviews by Source / Medium / Content (%)",
-					logGroupNames: [hutchLogGroupName],
-					query: [
-						"fields @timestamp, utm_source, utm_medium, utm_content, concat(utm_source, \" / \", coalesce(utm_medium, \"-\"), \" / \", coalesce(utm_content, \"-\")) as utm_path",
-						"| filter stream = \"analytics\" and event = \"pageview\"",
-						...excludeVisitorHashesClause(),
-						"| filter ispresent(utm_source) and utm_source != \"\"",
-						"| stats count(*) as visits by utm_path",
-						"| sort visits desc",
-						"| limit 10",
-					].join(" "),
-					x: 0, y: 20, width: 12, height: 8,
-					view: "pie",
-				}),
-				logWidget({
-					title: "Distinct Visitors per Day",
-					logGroupNames: [hutchLogGroupName],
-					query: [
-						"fields @timestamp, visitor_hash",
-						"| filter stream = \"analytics\" and event = \"pageview\"",
-						"| filter ispresent(visitor_hash)",
-						...excludeVisitorHashesClause(),
-						"| stats count_distinct(visitor_hash) as visitors by bin(1d)",
-					].join(" "),
-					x: 12, y: 20, width: 12, height: 8,
-					view: "timeSeries",
-				}),
-				logWidget({
-					title: "Distinct Authenticated Readers per Day",
-					logGroupNames: [hutchLogGroupName],
-					query: [
-						"fields @timestamp, visitor_hash, path, is_authenticated",
-						"| filter stream = \"analytics\" and event = \"pageview\"",
-						"| filter ispresent(visitor_hash)",
-						...excludeVisitorHashesClause(),
-						"| filter is_authenticated",
-						"| filter path like /^\\/[^\\/]+\\/read$/",
-						"| stats count_distinct(visitor_hash) as authenticated_unique_readers by bin(1d)",
-					].join(" "),
-					x: 0, y: 28, width: 12, height: 8,
-					view: "timeSeries",
-				}),
-				logWidget({
-					title: "Public View Entry Point — clicks per day",
-					logGroupNames: [hutchLogGroupName],
-					query: [
-						"fields @timestamp, utm_content",
-						"| filter stream = \"analytics\" and event = \"pageview\"",
-						"| filter path = \"/view\"",
-						...excludeVisitorHashesClause(),
-						entryPointFilter,
-						"| stats count(*) as clicks by bin(1d), utm_content",
-					].join(" "),
-					x: 0, y: 36, width: 24, height: 8,
-					view: "timeSeries",
-				}),
-				logWidget({
-					title: "Public View Entry Point — by Source / Medium / Content (%)",
-					logGroupNames: [hutchLogGroupName],
-					query: [
-						"fields @timestamp, utm_source, utm_medium, utm_content, concat(utm_source, \" / \", coalesce(utm_medium, \"-\"), \" / \", utm_content) as utm_path",
-						"| filter stream = \"analytics\" and event = \"pageview\"",
-						"| filter path = \"/view\"",
-						...excludeVisitorHashesClause(),
-						entryPointFilter,
-						"| stats count(*) as clicks by utm_path",
-						"| sort clicks desc",
-					].join(" "),
-					x: 0, y: 44, width: 12, height: 8,
-					view: "pie",
-				}),
-				logWidget({
-					title: "Public View Entry Point — unique visitors per day",
-					logGroupNames: [hutchLogGroupName],
-					query: [
-						"fields @timestamp, utm_content, visitor_hash",
-						"| filter stream = \"analytics\" and event = \"pageview\"",
-						"| filter path = \"/view\"",
-						"| filter ispresent(visitor_hash)",
-						...excludeVisitorHashesClause(),
-						entryPointFilter,
-						"| stats count_distinct(visitor_hash) as unique_visitors by bin(1d), utm_content",
-					].join(" "),
-					x: 12, y: 44, width: 12, height: 8,
-					view: "timeSeries",
-				}),
-				...PUBLIC_VIEW_ENTRY_POINTS.map((entry, i) =>
-					logWidget({
-						title: `Recent — ${entry.title}`,
-						logGroupNames: [hutchLogGroupName],
-						query: [
-							"fields @timestamp, path, utm_source, utm_medium, utm_content, referrer_host, visitor_hash, is_authenticated",
-							"| filter stream = \"analytics\" and event = \"pageview\"",
-							"| filter path = \"/view\"",
-							...excludeVisitorHashesClause(),
-							`| filter utm_content = "${entry.id}"`,
-							"| sort @timestamp desc",
-							"| limit 50",
-						].join(" "),
-						x: 0, y: 52 + i * 8, width: 24, height: 8,
-						view: "table",
-					}),
-				),
-				/**
-				 * Top Medium Posts by Clicks — counts inbound pageviews where the
-				 * Medium `source=post_page-----<id>` parameter is present, grouped
-				 * by post id. The middleware extracts the id into `medium_post_id`;
-				 * this widget answers "which Medium post is sending readers to
-				 * Readplace?" at per-post fidelity (utm_source only gives per-author).
-				 * To resolve an id back to a post, open https://medium.com/p/<id>.
-				 */
-				logWidget({
-					title: "Top Medium Posts by Clicks",
-					logGroupNames: [hutchLogGroupName],
-					query: [
-						"fields @timestamp, medium_post_id",
-						"| filter stream = \"analytics\" and event = \"pageview\"",
-						"| filter ispresent(medium_post_id) and medium_post_id != \"\"",
-						...excludeVisitorHashesClause(),
-						"| stats count(*) as clicks by medium_post_id",
-						"| sort clicks desc",
-						"| limit 10",
-					].join(" "),
-					x: 0, y: 76, width: 12, height: 8,
-					view: "pie",
-				}),
-				/** Conversions — y=80; no excludeVisitorHashesClause() because conversion events carry no visitor_hash */
-				logWidget({
-					title: "Conversions by Source (unique users)",
-					logGroupNames: [hutchLogGroupName],
-					query: [
-						"fields @timestamp, user_id, coalesce(utm_source, referrer_host, \"direct\") as source",
-						"| filter stream = \"conversions\" and event = \"user_created\"",
-						"| stats count_distinct(user_id) as unique_users by source",
-						"| sort unique_users desc",
-						"| limit 20",
-					].join(" "),
-					x: 0, y: 80, width: 12, height: 8,
-					view: "pie",
-				}),
-				logWidget({
-					title: "Conversions by Source × Tier (free vs paid)",
-					logGroupNames: [hutchLogGroupName],
-					query: [
-						"fields @timestamp, user_id, coalesce(utm_source, referrer_host, \"direct\") as source, tier",
-						"| filter stream = \"conversions\" and event = \"user_created\"",
-						"| stats count_distinct(user_id) as unique_users by source, tier",
-						"| sort unique_users desc",
-						"| limit 30",
-					].join(" "),
-					x: 12, y: 80, width: 12, height: 8,
-					view: "table",
-				}),
-				logWidget({
-					title: "Recent Conversions",
-					logGroupNames: [hutchLogGroupName],
-					query: [
-						"fields @timestamp, user_id, method, tier, utm_source, utm_medium, utm_campaign, utm_content, referrer_host, landing_path",
-						"| filter stream = \"conversions\" and event = \"user_created\"",
-						"| sort @timestamp desc",
-						"| limit 50",
-					].join(" "),
-					x: 0, y: 88, width: 24, height: 8,
-					view: "table",
-				}),
-			],
-		}),
+		JSON.stringify(buildAnalyticsDashboardBody({
+			region,
+			hutchLogGroupName,
+			subscriptionLogGroupNames: SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
+			excludedVisitorHashes,
+		})),
 	),
 });
 
-new aws.cloudwatch.Dashboard("readplace-observability", {
-	dashboardName: "readplace-observability",
-	dashboardBody: pulumi.output(logGroup.name).apply((hutchLogGroupName) =>
-		JSON.stringify({
-			widgets: [
-				logWidget({
-					title: "Top /view URLs by Unique Visitors",
-					logGroupNames: [hutchLogGroupName],
-					query: [
-						"fields @timestamp, path, visitor_hash",
-						"| filter stream = \"analytics\" and event = \"pageview\"",
-						"| filter ispresent(visitor_hash)",
-						...excludeVisitorHashesClause(),
-						"| filter path like /^\\/https?:\\//",
-						"| stats count_distinct(visitor_hash) as unique_visitors, count(*) as total_hits by path",
-						"| sort unique_visitors desc",
-						"| limit 10",
-					].join(" "),
-					x: 0, y: 0, width: 24, height: 8,
-					view: "table",
-				}),
-				...[
-					{ logGroup: hutchLogGroupName, tier: "ingress / non-tier" },
-					...SAVE_LINK_HANDLER_LOG_GROUPS,
-				].map((entry, i) =>
-					logWidget({
-						title: `Parse Errors — ${entry.tier} — ${entry.logGroup}`,
-						logGroupNames: [entry.logGroup],
-						query: [
-							"fields @timestamp, url, reason, source",
-							`| filter stream = "${PARSE_ERROR_STREAM}"`,
-							"| sort @timestamp desc",
-							"| limit 100",
-						].join(" "),
-						x: 0, y: 8 + i * 8, width: 24, height: 8,
-						view: "table",
-					}),
-				),
-				...SAVE_LINK_HANDLER_LOG_GROUPS.map(({ logGroup }, i) =>
-					logWidget({
-						title: `Crawl Outcomes — ${logGroup}`,
-						logGroupNames: [logGroup],
-						query: [
-							"fields @timestamp, url, thisTier, thisTierStatus, otherTierStatus, pickedTier",
-							`| filter stream = "${CRAWL_OUTCOME_STREAM}"`,
-							"| sort @timestamp desc",
-							"| limit 100",
-						].join(" "),
-						x: 0,
-						y: 8 + (1 + SAVE_LINK_HANDLER_LOG_GROUPS.length + i) * 8,
-						width: 24,
-						height: 8,
-						view: "table",
-					}),
-				),
-			],
-		}),
-	),
-});
 
 // --- Exports ---
 

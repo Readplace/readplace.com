@@ -9,9 +9,11 @@ import { UserIdSchema } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { SubscriptionCancelledEvent } from "@packages/hutch-infra-components";
 import type { MarkSubscriptionCancelledByUserId } from "@packages/test-fixtures/providers/subscription-providers";
+import type { EmitSubscriptionEvent } from "../observability/subscription-events";
 
 export function initHandleSubscriptionCancelledHandler(deps: {
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
+	emit: EmitSubscriptionEvent;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	return async (event) => {
@@ -23,6 +25,11 @@ export function initHandleSubscriptionCancelledHandler(deps: {
 				const detail = SubscriptionCancelledEvent.detailSchema.parse(envelope.detail);
 				const userId = UserIdSchema.parse(detail.userId);
 				await deps.markCancelledByUserId({ userId });
+				deps.emit.cancelled({
+					userId,
+					reason: detail.reason,
+					subscriptionId: detail.subscriptionId,
+				});
 				deps.logger.info("[SubscriptionCancelled] marked cancelled", {
 					userId,
 					subscriptionId: detail.subscriptionId,

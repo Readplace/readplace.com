@@ -19,6 +19,7 @@ import { sendComponent } from "../../send-component";
 import { saveArticleFromUrl, type SaveArticleFromUrlDependencies } from "../../shared/save-article/save-article-from-url";
 import type { AnalyticsEvent } from "../../middleware/analytics";
 import { hashIp } from "../../middleware/analytics";
+import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import {
 	IMPORT_SKIPPED_COOKIE_NAME,
 	encodeImportSkippedCookie,
@@ -87,8 +88,8 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			totalFoundInFile,
 		});
 		deps.analytics.info({
-			stream: "analytics",
-			event: "import_uploaded",
+			stream: STREAMS.analytics,
+			event: ANALYTICS_EVENTS.importUploaded,
 			timestamp: deps.now().toISOString(),
 			path: "/import",
 			utm_source: "import-feature",
@@ -237,8 +238,8 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		}
 
 		deps.analytics.info({
-			stream: "analytics",
-			event: "import_committed",
+			stream: STREAMS.analytics,
+			event: ANALYTICS_EVENTS.importCommitted,
 			timestamp: deps.now().toISOString(),
 			path: "/import/commit",
 			utm_source: "import-feature",

@@ -3,6 +3,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { UserId } from "@packages/domain/user";
 import type { ConversionEvent } from "@packages/test-fixtures/providers/auth";
 import type { ClickAttribution } from "./web/click-attribution.middleware";
+import { CONVERSION_EVENTS, STREAMS } from "./observability/events";
 
 export type { ConversionEvent };
 
@@ -30,8 +31,8 @@ export function emitUserCreated(
 	},
 ): void {
 	const event: ConversionEvent = {
-		stream: "conversions",
-		event: "user_created",
+		stream: STREAMS.conversions,
+		event: CONVERSION_EVENTS.userCreated,
 		timestamp: deps.now().toISOString(),
 		user_id: params.userId,
 		email_hash: hashEmail(params.email),

@@ -2,10 +2,11 @@ import { createHash } from "node:crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { isbot } from "isbot";
 import type { HutchLogger } from "@packages/hutch-logger";
+import { ANALYTICS_EVENTS, STREAMS } from "../../observability/events";
 
 export interface AnalyticsPageview {
-	stream: "analytics";
-	event: "pageview";
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.pageview;
 	timestamp: string;
 	path: string;
 	utm_source?: string;
@@ -19,8 +20,8 @@ export interface AnalyticsPageview {
 }
 
 export interface ImportUploadedEvent {
-	stream: "analytics";
-	event: "import_uploaded";
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.importUploaded;
 	timestamp: string;
 	path: "/import";
 	utm_source: "import-feature";
@@ -33,8 +34,8 @@ export interface ImportUploadedEvent {
 }
 
 export interface ImportCommittedEvent {
-	stream: "analytics";
-	event: "import_committed";
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.importCommitted;
 	timestamp: string;
 	path: "/import/commit";
 	utm_source: "import-feature";
@@ -116,8 +117,8 @@ export function createAnalyticsMiddleware(deps: {
 		res.on("finish", () => {
 			if (!shouldLog(req, res.statusCode)) return;
 			deps.logger.info({
-				stream: "analytics",
-				event: "pageview",
+				stream: STREAMS.analytics,
+				event: ANALYTICS_EVENTS.pageview,
 				timestamp: deps.now().toISOString(),
 				path: req.path,
 				utm_source: extractQueryString(req, "utm_source"),

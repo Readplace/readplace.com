@@ -168,8 +168,8 @@ describe("Email verification", () => {
 			});
 
 			const cookies = successResponse.headers["set-cookie"];
-			const cookieString = Array.isArray(cookies) ? cookies[0] : cookies;
-			const sessionMatch = cookieString.match(/hutch_sid=([^;]+)/);
+			const cookieList = Array.isArray(cookies) ? cookies : [cookies];
+			const sessionMatch = cookieList.map((c) => c.match(/hutch_sid=([^;]+)/)).find((m) => m);
 			assert(sessionMatch, "Expected session cookie");
 			const sessionId = sessionMatch[1];
 			const session = await auth.getSessionUserId(sessionId);
@@ -203,8 +203,8 @@ describe("Email verification", () => {
 			});
 
 			const cookies = successResponse.headers["set-cookie"];
-			const cookieString = Array.isArray(cookies) ? cookies[0] : cookies;
-			const sessionMatch = cookieString.match(/hutch_sid=([^;]+)/);
+			const cookieList = Array.isArray(cookies) ? cookies : [cookies];
+			const sessionMatch = cookieList.map((c) => c.match(/hutch_sid=([^;]+)/)).find((m) => m);
 			assert(sessionMatch, "Expected session cookie");
 			const sessionId = sessionMatch[1];
 
