@@ -241,13 +241,11 @@ describe("Queue routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			const navButton = doc.querySelector('[data-test-nav-item="import"]');
-			assert(navButton, "Import Links nav item must be rendered for authenticated users");
-			const navForm = navButton.closest("form");
-			assert(navForm, "Import Links nav item must be wrapped in a form");
-			const navAction = navForm.getAttribute("action");
-			assert(navAction, "Import Links nav item form must have an action");
-			expect(new URL(navAction, "https://readplace.com").pathname).toBe("/import");
+			const navLink = doc.querySelector('[data-test-nav-item="import"]');
+			assert(navLink, "Import Links nav item must be rendered for authenticated users");
+			const navHref = navLink.getAttribute("href");
+			assert(navHref, "Import Links nav item must have an href");
+			expect(new URL(navHref, "https://readplace.com").pathname).toBe("/import");
 			expect(doc.querySelector("form.queue__import-form")).toBeNull();
 			expect(doc.querySelector('[data-test-form="import-file"]')).toBeNull();
 		});

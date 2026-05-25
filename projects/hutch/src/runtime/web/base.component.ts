@@ -14,7 +14,7 @@ import {
 	VERIFY_BANNER_STYLES,
 	UTILITY_STYLES,
 } from "./base.styles";
-import { buildNavItems, type BannerState } from "./banner-state";
+import type { BannerState } from "./banner-state";
 import { formatTrialDisplay, type TrialDisplay } from "./trial-countdown.format";
 import type { Component, ParsedComponent } from "./component.types";
 import { HtmlPage } from "./html-page";
@@ -36,21 +36,12 @@ const BASE_TEMPLATE = readFileSync(join(__dirname, "base.template.html"), "utf-8
 
 function renderHeader(
 	variant: "default" | "transparent",
-	options: {
-		isAuthenticated: boolean;
-		trial: TrialDisplay | undefined;
-		showSubscription: boolean;
-		accessIsReadOnly: boolean;
-	},
+	options: { isAuthenticated: boolean; trial: TrialDisplay | undefined; showSubscription: boolean },
 ): string {
 	const trial = options.trial;
-	const navItems = buildNavItems({
-		isAuthenticated: options.isAuthenticated,
-		accessIsReadOnly: options.accessIsReadOnly,
-		showSubscription: options.showSubscription,
-	});
 	return render(HEADER_TEMPLATE, {
 		transparent: variant === "transparent",
+		isAuthenticated: options.isAuthenticated,
 		trial: Boolean(trial),
 		trialDisplayText: trial ? formatTrialDisplay(trial) : "",
 		trialState: trial?.state ?? "",
@@ -58,8 +49,7 @@ function renderHeader(
 			trial?.state === "active" ? trial.escalation : "expired",
 		trialEndsAtIso: trial?.state === "active" ? trial.endsAtIso : "",
 		serverNowIso: trial?.state === "active" ? trial.serverNowIso : "",
-		navItems,
-		navVariant: options.isAuthenticated ? "authenticated" : "guest",
+		showSubscription: options.showSubscription,
 	});
 }
 
@@ -235,7 +225,6 @@ function renderBaseTemplate(body: PageBody, state: BannerState): string {
 			isAuthenticated: state.isAuthenticated,
 			trial: state.trial,
 			showSubscription: state.showSubscription ?? false,
-			accessIsReadOnly: state.accessIsReadOnly ?? false,
 		}),
 		content: injectPageStylesIntoMain(body.content.html, body.styles),
 		footer: renderFooter(),
