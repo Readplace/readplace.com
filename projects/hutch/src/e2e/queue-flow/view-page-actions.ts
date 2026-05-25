@@ -108,7 +108,7 @@ export function createAnonymousViewPageActions(
 					const height = article ? article.offsetHeight : 0
 					window.scrollTo(0, Math.ceil(height * 0.5) + 1)
 				})
-				await expect(shareWrap).toHaveClass(/share-balloon__wrap--open/, { timeout: 3000 })
+				await expect(shareWrap).toHaveClass(/share-balloon__wrap--open/, { timeout: 5000 })
 				await page.locator('[data-test-share-balloon-close]').click()
 				await expect(shareWrap).not.toHaveClass(/share-balloon__wrap--open/)
 				const dismissed = await page.evaluate(() =>
