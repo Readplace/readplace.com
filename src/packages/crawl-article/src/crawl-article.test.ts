@@ -11,6 +11,8 @@ import type { fetchCurl } from "./curl-fetch";
 import type { fetchH2 } from "./h2-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
 
+/* Size guard uses MAX_PDF_BYTES (500 MB in prod). Mock to a testable
+ * threshold so the oversized-PDF test doesn't need to allocate 500 MB. */
 jest.mock("./pdf-page-limits", () => ({
 	MAX_PDF_BYTES: { bytes: 25 * 1024 * 1024, label: "25 MB" },
 	MAX_PDF_PAGES: 300,
@@ -31,6 +33,12 @@ const stubFetchCurl: typeof fetchCurl = async () => {
 const stubFetchH2: typeof fetchH2 = async () => {
 	throw new Error("stub fetchH2: not invoked");
 };
+
+/* Stubs that return 403 instead of throwing — used by tests that verify
+ * the crawl code's handling of 403 responses. withH2Fallback now retries
+ * any 403 via h2→curl, so these stubs let the fallback chain complete. */
+const stubFetch403H2: typeof fetchH2 = async () => new Response(null, { status: 403 });
+const stubFetch403Curl: typeof fetchCurl = async () => new Response(null, { status: 403 });
 
 // Default stub: PDF extraction is exercised by its own tests via `initCrawl`
 // overrides — the HTML-path tests must not silently invoke a real extractor.

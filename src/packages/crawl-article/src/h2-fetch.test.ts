@@ -133,7 +133,7 @@ describe("withH2Fallback", () => {
 		);
 		const wrapped = withH2Fallback(baseFetch, h2Impl);
 
-		const response = await wrapped("https://example.com");
+		const response = await wrapped("https://old.reddit.com/r/javascript/comments/abc/");
 
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe("<html>h2 bypassed snooserv</html>");
@@ -540,6 +540,64 @@ describe("withH2Fallback", () => {
 			headers: { "user-agent": "Test/1.0" },
 			signal: expect.any(AbortSignal),
 		});
+	});
+
+	it("retries via h2 when a redirect changed the URL path (silent bot-block redirect)", async () => {
+		const baseFetch: typeof fetch = async () => {
+			const response = new Response("<html>reading room index</html>", {
+				status: 200,
+				headers: { "content-type": "text/html" },
+			});
+			Object.defineProperty(response, "redirected", { value: true });
+			Object.defineProperty(response, "url", { value: "https://www.cia.gov/readingroom" });
+			return response;
+		};
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+			new Response("%PDF-1.4 ...", { status: 200, headers: { "content-type": "application/pdf" } }),
+		);
+		const wrapped = withH2Fallback(baseFetch, h2Impl);
+
+		const response = await wrapped("https://www.cia.gov/readingroom/docs/DOC.pdf");
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("content-type")).toBe("application/pdf");
+		expect(h2Impl).toHaveBeenCalledWith(
+			"https://www.cia.gov/readingroom/docs/DOC.pdf",
+			expect.anything(),
+		);
+	});
+
+	it("passes through a redirect that kept the same path", async () => {
+		const baseFetch: typeof fetch = async () => {
+			const response = new Response("<html>ok</html>", {
+				status: 200,
+				headers: { "content-type": "text/html" },
+			});
+			Object.defineProperty(response, "redirected", { value: true });
+			Object.defineProperty(response, "url", { value: "https://www.example.com/page" });
+			return response;
+		};
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>();
+		const wrapped = withH2Fallback(baseFetch, h2Impl);
+
+		const response = await wrapped("http://www.example.com/page");
+
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("<html>ok</html>");
+		expect(h2Impl).not.toHaveBeenCalled();
+	});
+
+	it("passes through a non-redirected 200 response unchanged", async () => {
+		const baseFetch: typeof fetch = async () =>
+			new Response("<html>direct</html>", { status: 200, headers: { "content-type": "text/html" } });
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>();
+		const wrapped = withH2Fallback(baseFetch, h2Impl);
+
+		const response = await wrapped("https://example.com/page");
+
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("<html>direct</html>");
+		expect(h2Impl).not.toHaveBeenCalled();
 	});
 
 	it("succeeds via h2 when baseFetch throws (e.g. Akamai RST_STREAM) and h2 bypasses the block", async () => {

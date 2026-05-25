@@ -106,26 +106,28 @@ function toFetchHeaders(incoming: http2.IncomingHttpHeaders): Headers {
 }
 
 /**
- * Wraps a fetch with an HTTP/2 + curl-impersonate fallback that kicks in on
- * any 403 response. 403s on the crawl path are almost always TLS-fingerprint
- * or IP-based edge blocks (Cloudflare managed challenges and "Attention
- * Required!" interstitials, Reddit's snooserv block on AWS-range IPs, Akamai
- * BotManager, etc.). Real browsers — and curl-impersonate's Chrome
- * ClientHello — bypass the typical instance of each. The handful of true
- * permission-denied 403s the crawler can hit (paywalled subscriber pages,
- * friends-only Medium drafts) also return 403 from h2/curl; the extra
- * attempts add ~1-2s of latency but never mask a real failure.
+ * Wraps a fetch with an HTTP/2 → curl-impersonate fallback chain that fires
+ * on any 403 response or on a silent bot-block redirect.
+ *
+ * **403 gate (any origin):** Any 403 is treated as a likely TLS-fingerprint
+ * or IP-reputation block. The original guard only checked `server: cloudflare`,
+ * but origins like old.reddit.com (snooserv) also 403-block non-browser TLS
+ * fingerprints without a Cloudflare header. Varying the TLS client via H2 or
+ * curl-impersonate is the right remedy regardless of CDN vendor.
+ *
+ * **Redirect gate:** Some origins (e.g. CIA reading-room) 302-redirect
+ * bot-fingerprinted traffic to a generic landing page instead of returning
+ * 403. The base fetch follows the redirect silently, returning 200 with wrong
+ * content. When the response path differs from the requested path the wrapper
+ * retries via H2/curl, where curl-impersonate's Chrome fingerprint bypasses
+ * the redirect and serves the real resource.
  *
  * If the primary fetch fails with a transient TLS- or connection-level error
  * (timeout, ECONNRESET, "fetch failed", HTTP/2 RST_STREAM from Akamai
  * BotManager, etc.), the wrapper tries Node's http2 module first, then a
- * curl subprocess. The http2 module's TLS fingerprint differs from undici's
- * (different ALPN negotiation path), which bypasses CDN JA3 heuristics that
- * key on the undici ClientHello. curl's OpenSSL-based fingerprint differs
- * from both, and its fresh TCP connection also sidesteps upstream nginx/edge
- * sniffers that drop specific Lambda outbound IPs. Clear network failures
- * (DNS, connection refused) and explicit user-aborts skip both h2 and curl
- * since they would fail the same way and only add latency.
+ * curl subprocess. Clear network failures (DNS, connection refused) and
+ * explicit user-aborts skip both h2 and curl since they would fail the same
+ * way and only add latency.
  */
 export function withH2Fallback(
 	baseFetch: typeof fetch,
@@ -141,10 +143,17 @@ export function withH2Fallback(
 			const url = urlFromInput(input);
 			return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);
 		}
-		if (response.status !== 403) return response;
-		await response.text();
-		const url = urlFromInput(input);
-		return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);
+		if (response.status === 403) {
+			await response.text();
+			const url = urlFromInput(input);
+			return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);
+		}
+		if (response.ok && isPathChangingRedirect(input, response)) {
+			await response.text();
+			const url = urlFromInput(input);
+			return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);
+		}
+		return response;
 	};
 }
 
@@ -178,6 +187,22 @@ async function h2ThenCurl(
 		return curlFetchImpl(url, { headers: fallbackInit.headers });
 	}
 	return curlFetchImpl(url, fallbackInit);
+}
+
+/**
+ * Detects when the base fetch silently followed a redirect that changed the
+ * URL path — a bot-mitigation pattern where the origin returns 200 with wrong
+ * content instead of blocking with 403 (e.g. CIA 302 to /readingroom).
+ */
+function isPathChangingRedirect(input: FetchInput, response: Response): boolean {
+	if (!response.redirected || !response.url) return false;
+	try {
+		const requestedPath = new URL(urlFromInput(input)).pathname;
+		const resolvedPath = new URL(response.url).pathname;
+		return requestedPath !== resolvedPath;
+	} catch {
+		return false;
+	}
 }
 
 function isTimeoutError(reason: unknown): boolean {
