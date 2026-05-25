@@ -189,6 +189,12 @@ export class HutchLambda extends pulumi.ComponentResource {
 			 */
 			external?: string[];
 			/**
+			 * Lambda layer ARNs to attach. Layers mount at /opt/ — Lambda adds
+			 * /opt/bin to PATH and /opt/lib to LD_LIBRARY_PATH automatically.
+			 * Only applicable to zip-packaged Lambdas (ignored for container images).
+			 */
+			layers?: pulumi.Input<string>[];
+			/**
 			 * When set, the Lambda is provisioned as a container image instead of
 			 * a zip. The image must already be pushed to ECR — typically by a
 			 * `build-image` step that runs before `pulumi up`. `entryPoint`,
@@ -233,6 +239,7 @@ export class HutchLambda extends pulumi.ComponentResource {
 		const hasEnvironment = Object.keys(args.environment).length > 0;
 		const environmentArg = hasEnvironment ? { environment: { variables: args.environment } } : {};
 
+		const layersArg = args.layers?.length ? { layers: args.layers } : {};
 		let lambdaFunction: aws.lambda.Function;
 		if (args.containerImage) {
 			lambdaFunction = new aws.lambda.Function(lambdaName, {
@@ -287,6 +294,7 @@ export class HutchLambda extends pulumi.ComponentResource {
 				memorySize: args.memorySize,
 				timeout: args.timeout,
 				...environmentArg,
+				...layersArg,
 			}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 		}
 

@@ -22,9 +22,16 @@ export type ExecCurl = (
 
 type CurlFetch = (url: string, init?: CurlFetchInit) => Promise<Response>;
 
+/**
+ * Binary name for the curl-impersonate Chrome variant. Lambda layers mount at
+ * /opt/ and Lambda adds /opt/bin to PATH, so the bare binary name resolves
+ * without a full path on both Lambda (layer) and container-image runtimes.
+ */
+export const CURL_IMPERSONATE_BIN = "curl_chrome116";
+
 const defaultExecCurl: ExecCurl = (args, options, callback) => {
 	const child = execFile(
-		"curl",
+		CURL_IMPERSONATE_BIN,
 		args,
 		{ encoding: "buffer", maxBuffer: MAX_PDF_BYTES.bytes, timeout: options.timeoutMs },
 		callback,
@@ -40,10 +47,11 @@ const defaultExecCurl: ExecCurl = (args, options, callback) => {
 };
 
 /**
- * Fetch via curl subprocess. curl's TLS fingerprint (OpenSSL-based) differs
- * from Node.js's (BoringSSL/undici), so Cloudflare's JA3/JA4 heuristics
- * treat it as a trusted client. Used as a last-resort fallback when both
- * Node's fetch and the HTTP/2 module are blocked by TLS fingerprinting.
+ * Fetch via curl-impersonate subprocess. curl-impersonate patches curl's TLS
+ * ClientHello to match Chrome's fingerprint (JA3/JA4, ALPN, extensions order,
+ * supported curves), bypassing CDN TLS-fingerprint blocks (Akamai BotManager,
+ * Cloudflare) that reject both Node.js's undici and standard curl. Used as a
+ * last-resort fallback when both Node's fetch and the HTTP/2 module are blocked.
  *
  * The execCurl dependency is injectable so tests can drive the full function
  * (argument construction, header title-casing, abort handling, error mapping,

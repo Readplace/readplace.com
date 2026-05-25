@@ -1,4 +1,4 @@
-import { type ExecCurl, createCurlFetch } from "./curl-fetch";
+import { type ExecCurl, CURL_IMPERSONATE_BIN, createCurlFetch } from "./curl-fetch";
 
 type ExecCall = {
 	args: readonly string[];
@@ -231,5 +231,11 @@ describe("createCurlFetch defaults", () => {
 		const fake = makeFakeExec();
 		const fetchCurl = createCurlFetch({ execCurl: fake.execCurl });
 		expect(typeof fetchCurl).toBe("function");
+	});
+});
+
+describe("CURL_IMPERSONATE_BIN", () => {
+	it("is the curl-impersonate Chrome variant binary name", () => {
+		expect(CURL_IMPERSONATE_BIN).toBe("curl_chrome116");
 	});
 });

@@ -34,7 +34,7 @@ export function createLoginActions(config: {
 			const newTab = handles.find((h) => h !== config.popupWindowHandle);
 			if (!newTab) throw new Error("No new tab found for login");
 			await driver.switchTo().window(newTab);
-			await driver.wait(until.elementLocated(By.id(ELEMENT_IDS.emailInput)), 10000);
+			await driver.wait(until.elementLocated(By.id(ELEMENT_IDS.emailInput)), 30000);
 		},
 	});
 

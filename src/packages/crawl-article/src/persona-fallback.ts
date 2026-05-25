@@ -29,6 +29,8 @@ const BLOCK_ERROR_SIGNATURES = [
 	"rst_stream", /* explicit ERR_HTTP2_STREAM_ERROR from undici / Node's http2 */
 	"not closed cleanly", /* curl exit 92 — server killed the h2 stream mid-request */
 	"err_http2_protocol_error", /* undici's mapping of generic h2 protocol errors */
+	"maximum (5) redirects followed", /* curl exit 47 — origin 302-loops AWS-range IPs */
+	"max_redirects", /* undici's mapping of redirect-loop failures */
 ];
 
 export function isBlockClassResponse(response: Response): boolean {
