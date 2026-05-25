@@ -9,6 +9,7 @@ import type { CrawlArticleResult } from "./crawl-article.types";
 import { initCrawlFetch } from "./crawl-fetch";
 import type { fetchCurl } from "./curl-fetch";
 import type { fetchH2 } from "./h2-fetch";
+import { MAX_PDF_BYTES } from "./pdf-page-limits";
 import type { ExtractPdf } from "./pdf-extract.types";
 
 jest.mock("./pdf-page-limits", () => ({
@@ -852,8 +853,8 @@ describe("initComprehensiveCrawl — PDF extraction", () => {
 		);
 	});
 
-	it("returns status 'unsupported' with the byte count when PDF body exceeds 25 MiB", async () => {
-		const oversize = Buffer.concat([Buffer.from("%PDF-1.4"), Buffer.alloc(25 * 1024 * 1024 + 1, 0x20)]);
+	it("returns status 'unsupported' with the byte count when PDF body exceeds MAX_PDF_BYTES", async () => {
+		const oversize = Buffer.concat([Buffer.from("%PDF-1.4"), Buffer.alloc(MAX_PDF_BYTES.bytes + 1 - 8, 0x20)]);
 		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>();
 		const fakeFetch: typeof fetch = async () => pdfResponse(oversize);
 		const logError = jest.fn();

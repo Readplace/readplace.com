@@ -149,9 +149,11 @@ export function withH2Fallback(
 }
 
 /**
- * Try Node's http2 module, then curl subprocess. Shared by the Cloudflare-403
+ * Try Node's http2 module, then curl subprocess. Shared by the 403
  * path and the baseFetch-error path — both represent a TLS-fingerprint block
- * where varying the TLS client is the right remedy.
+ * where varying the TLS client is the right remedy. If h2 returns a 403,
+ * the origin also blocks h2's fingerprint — escalate to curl-impersonate
+ * (Chrome TLS fingerprint) before giving up.
  */
 async function h2ThenCurl(
 	url: string,
