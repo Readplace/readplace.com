@@ -20,16 +20,10 @@ export function initHandleCustomerSubscriptionDeleted(
 			});
 			return;
 		}
-		await deps.publishEvent({
-			source: SubscriptionCancelledEvent.source,
-			detailType: SubscriptionCancelledEvent.detailType,
-			detail: JSON.stringify(
-				SubscriptionCancelledEvent.detailSchema.parse({
-					userId: row.userId,
-					subscriptionId,
-					reason: "stripe_webhook",
-				}),
-			),
+		await deps.publishEvent(SubscriptionCancelledEvent, {
+			userId: row.userId,
+			subscriptionId,
+			reason: "stripe_webhook",
 		});
 		logger.info("[stripe-webhook] emitted SubscriptionCancelled", {
 			userId: row.userId,

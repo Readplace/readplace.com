@@ -6,16 +6,9 @@ import type { PublishSaveAnonymousLink } from "@packages/test-fixtures/providers
 export function initEventBridgeSaveAnonymousLink(deps: {
 	publishEvent: PublishEvent;
 }): { publishSaveAnonymousLink: PublishSaveAnonymousLink } {
-	const { publishEvent } = deps;
-
-	const publishSaveAnonymousLink: PublishSaveAnonymousLink = async (params) => {
-		await publishEvent({
-			source: SaveAnonymousLinkCommand.source,
-			detailType: SaveAnonymousLinkCommand.detailType,
-			detail: JSON.stringify({ url: params.url }),
-		});
+	return {
+		publishSaveAnonymousLink: (params) =>
+			deps.publishEvent(SaveAnonymousLinkCommand, params),
 	};
-
-	return { publishSaveAnonymousLink };
 }
 /* c8 ignore stop */

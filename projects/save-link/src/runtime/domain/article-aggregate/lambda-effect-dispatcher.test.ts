@@ -1,4 +1,14 @@
 import type { Effect } from "@packages/domain/article-aggregate";
+import {
+	AnonymousLinkSavedEvent,
+	CrawlArticleCompletedEvent,
+	CrawlArticleFailedEvent,
+	LinkSavedEvent,
+	RecrawlCompletedEvent,
+	SubmitLinkCommand,
+	SummaryGeneratedEvent,
+	SummaryGenerationFailedEvent,
+} from "@packages/hutch-infra-components";
 import { initLambdaEffectDispatcher } from "./lambda-effect-dispatcher";
 
 describe("initLambdaEffectDispatcher", () => {
@@ -61,14 +71,10 @@ describe("initLambdaEffectDispatcher", () => {
 			receiveCount: 4,
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "CrawlArticleFailed",
-			detail: JSON.stringify({
-				url: "https://example.com/article",
-				reason: "exceeded SQS maxReceiveCount",
-				receiveCount: 4,
-			}),
+		expect(publishEvent).toHaveBeenCalledWith(CrawlArticleFailedEvent, {
+			url: "https://example.com/article",
+			reason: "exceeded SQS maxReceiveCount",
+			receiveCount: 4,
 		});
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
@@ -87,10 +93,8 @@ describe("initLambdaEffectDispatcher", () => {
 			url: "https://example.com/article",
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "RecrawlCompleted",
-			detail: JSON.stringify({ url: "https://example.com/article" }),
+		expect(publishEvent).toHaveBeenCalledWith(RecrawlCompletedEvent, {
+			url: "https://example.com/article",
 		});
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
@@ -147,10 +151,8 @@ describe("initLambdaEffectDispatcher", () => {
 			url: "https://example.com/article",
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "CrawlArticleCompleted",
-			detail: JSON.stringify({ url: "https://example.com/article" }),
+		expect(publishEvent).toHaveBeenCalledWith(CrawlArticleCompletedEvent, {
+			url: "https://example.com/article",
 		});
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
@@ -170,13 +172,9 @@ describe("initLambdaEffectDispatcher", () => {
 			userId: "user-123",
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "LinkSaved",
-			detail: JSON.stringify({
-				url: "https://example.com/article",
-				userId: "user-123",
-			}),
+		expect(publishEvent).toHaveBeenCalledWith(LinkSavedEvent, {
+			url: "https://example.com/article",
+			userId: "user-123",
 		});
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
@@ -195,10 +193,8 @@ describe("initLambdaEffectDispatcher", () => {
 			url: "https://example.com/article",
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "AnonymousLinkSaved",
-			detail: JSON.stringify({ url: "https://example.com/article" }),
+		expect(publishEvent).toHaveBeenCalledWith(AnonymousLinkSavedEvent, {
+			url: "https://example.com/article",
 		});
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
@@ -219,14 +215,10 @@ describe("initLambdaEffectDispatcher", () => {
 			outputTokens: 567,
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "GlobalSummaryGenerated",
-			detail: JSON.stringify({
-				url: "https://example.com/article",
-				inputTokens: 1234,
-				outputTokens: 567,
-			}),
+		expect(publishEvent).toHaveBeenCalledWith(SummaryGeneratedEvent, {
+			url: "https://example.com/article",
+			inputTokens: 1234,
+			outputTokens: 567,
 		});
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
@@ -245,10 +237,8 @@ describe("initLambdaEffectDispatcher", () => {
 			url: "https://example.com/article",
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.api",
-			detailType: "SubmitLinkCommand",
-			detail: JSON.stringify({ url: "https://example.com/article" }),
+		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
+			url: "https://example.com/article",
 		});
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});
@@ -268,13 +258,9 @@ describe("initLambdaEffectDispatcher", () => {
 			userId: "user-123",
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.api",
-			detailType: "SubmitLinkCommand",
-			detail: JSON.stringify({
-				url: "https://example.com/article",
-				userId: "user-123",
-			}),
+		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
+			url: "https://example.com/article",
+			userId: "user-123",
 		});
 	});
 
@@ -294,14 +280,10 @@ describe("initLambdaEffectDispatcher", () => {
 			rawHtml: "<html>captured DOM</html>",
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.api",
-			detailType: "SubmitLinkCommand",
-			detail: JSON.stringify({
-				url: "https://example.com/article",
-				userId: "user-123",
-				rawHtml: "<html>captured DOM</html>",
-			}),
+		expect(publishEvent).toHaveBeenCalledWith(SubmitLinkCommand, {
+			url: "https://example.com/article",
+			userId: "user-123",
+			rawHtml: "<html>captured DOM</html>",
 		});
 	});
 
@@ -321,14 +303,10 @@ describe("initLambdaEffectDispatcher", () => {
 			receiveCount: 4,
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "SummaryGenerationFailed",
-			detail: JSON.stringify({
-				url: "https://example.com/article",
-				reason: "exceeded SQS maxReceiveCount",
-				receiveCount: 4,
-			}),
+		expect(publishEvent).toHaveBeenCalledWith(SummaryGenerationFailedEvent, {
+			url: "https://example.com/article",
+			reason: "exceeded SQS maxReceiveCount",
+			receiveCount: 4,
 		});
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});

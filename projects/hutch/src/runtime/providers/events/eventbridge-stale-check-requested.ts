@@ -6,16 +6,9 @@ import type { PublishStaleCheckRequested } from "@packages/test-fixtures/provide
 export function initEventBridgeStaleCheckRequested(deps: {
 	publishEvent: PublishEvent;
 }): { publishStaleCheckRequested: PublishStaleCheckRequested } {
-	const { publishEvent } = deps;
-
-	const publishStaleCheckRequested: PublishStaleCheckRequested = async (params) => {
-		await publishEvent({
-			source: StaleCheckRequestedEvent.source,
-			detailType: StaleCheckRequestedEvent.detailType,
-			detail: JSON.stringify({ url: params.url }),
-		});
+	return {
+		publishStaleCheckRequested: (params) =>
+			deps.publishEvent(StaleCheckRequestedEvent, params),
 	};
-
-	return { publishStaleCheckRequested };
 }
 /* c8 ignore stop */

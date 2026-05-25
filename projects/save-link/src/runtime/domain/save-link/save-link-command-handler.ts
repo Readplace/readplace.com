@@ -75,14 +75,10 @@ export function initSaveLinkCommandHandler(deps: {
 					continue;
 				}
 
-				await publishEvent({
-					source: TierContentExtractedEvent.source,
-					detailType: TierContentExtractedEvent.detailType,
-					detail: JSON.stringify({
-						url: detail.url,
-						tier: "tier-1",
-						userId: detail.userId,
-					}),
+				await publishEvent(TierContentExtractedEvent, {
+					url: detail.url,
+					tier: "tier-1",
+					userId: detail.userId,
 				});
 				logger.info("[SaveLinkCommand] emitted TierContentExtractedEvent", {
 					url: detail.url,

@@ -106,11 +106,7 @@ export function initSelectMostCompleteContentHandler(deps: {
 							 * CrawlArticleCompleted directly to settle the pipeline
 							 * and skip; no aggregate transition because crawl/summary
 							 * state is unchanged. */
-							await publishEvent({
-								source: CrawlArticleCompletedEvent.source,
-								detailType: CrawlArticleCompletedEvent.detailType,
-								detail: JSON.stringify({ url: detail.url }),
-							});
+							await publishEvent(CrawlArticleCompletedEvent, { url: detail.url });
 							continue;
 						}
 						/* Either first save (no canonical yet) OR canonical exists

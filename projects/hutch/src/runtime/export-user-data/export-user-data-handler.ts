@@ -121,15 +121,11 @@ async function processCommand(
 		to: detail.email,
 	});
 
-	await deps.publishEvent({
-		source: UserDataExportedEvent.source,
-		detailType: UserDataExportedEvent.detailType,
-		detail: JSON.stringify({
-			userId: detail.userId,
-			articleCount: articles.length,
-			s3Key,
-			exportedAt,
-		}),
+	await deps.publishEvent(UserDataExportedEvent, {
+		userId: detail.userId,
+		articleCount: articles.length,
+		s3Key,
+		exportedAt,
 	});
 
 	deps.logger.info("[ExportUserData] export completed", {

@@ -1,4 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
+import { RefreshContentExtractedEvent } from "@packages/hutch-infra-components";
 import type { ReadRefreshHtml } from "@packages/test-fixtures/providers/refresh-html";
 import type { Context, SQSEvent, SQSRecordAttributes } from "aws-lambda";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
@@ -120,10 +121,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 		await handler(createSqsEvent(DETAIL), stubContext, () => {});
 
 		expect(publishEvent).toHaveBeenCalledTimes(1);
-		const call = publishEvent.mock.calls[0][0];
-		expect(call.source).toBe("hutch.save-link");
-		expect(call.detailType).toBe("RefreshContentExtracted");
-		expect(JSON.parse(call.detail)).toEqual({
+		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, {
 			url: URL,
 			etag: '"new-etag"',
 			lastModified: "Sun, 10 May 2026 12:00:00 GMT",

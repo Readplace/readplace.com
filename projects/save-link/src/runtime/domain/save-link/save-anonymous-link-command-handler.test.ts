@@ -3,6 +3,7 @@ import urls from "@11ty/posthtml-urls";
 import { noopLogger } from "@packages/hutch-logger";
 import type { SimpleCrawl } from "@packages/crawl-article";
 import { markCrawlFailed } from "@packages/domain/article-aggregate";
+import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initSaveAnonymousLinkCommandHandler } from "./save-anonymous-link-command-handler";
 import { initProcessContentWithLocalMedia } from "./process-content-with-local-media";
 import type { ParseHtml } from "@packages/article-parser";
@@ -113,10 +114,9 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		expect(putTierSource).toHaveBeenCalledWith(
 			expect.objectContaining({ url: "https://example.com/article", tier: "tier-1" }),
 		);
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "TierContentExtracted",
-			detail: JSON.stringify({ url: "https://example.com/article", tier: "tier-1" }),
+		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
+			url: "https://example.com/article",
+			tier: "tier-1",
 		});
 	});
 

@@ -55,15 +55,11 @@ export function initRefreshArticleContentHandler(deps: {
 					},
 				});
 
-				await publishEvent({
-					source: RefreshContentExtractedEvent.source,
-					detailType: RefreshContentExtractedEvent.detailType,
-					detail: JSON.stringify({
-						url: detail.url,
-						etag: detail.etag,
-						lastModified: detail.lastModified,
-						contentFetchedAt: detail.contentFetchedAt,
-					}),
+				await publishEvent(RefreshContentExtractedEvent, {
+					url: detail.url,
+					etag: detail.etag,
+					lastModified: detail.lastModified,
+					contentFetchedAt: detail.contentFetchedAt,
 				});
 
 				logger.info("[RefreshArticleContent] tier-1 source written + event published", {

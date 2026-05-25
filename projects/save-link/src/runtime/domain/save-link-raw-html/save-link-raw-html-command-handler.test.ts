@@ -2,6 +2,7 @@ import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import { noopLogger } from "@packages/hutch-logger";
 import { markCrawlFailed } from "@packages/domain/article-aggregate";
+import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initSaveLinkRawHtmlCommandHandler } from "./save-link-raw-html-command-handler";
 import { initProcessContentWithLocalMedia } from "../save-link/process-content-with-local-media";
 import type { ParseHtml } from "@packages/article-parser";
@@ -115,14 +116,10 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 				imageUrl: undefined,
 			},
 		});
-		expect(deps.publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "TierContentExtracted",
-			detail: JSON.stringify({
-				url: "https://example.com/article",
-				tier: "tier-0",
-				userId: "user-1",
-			}),
+		expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
+			url: "https://example.com/article",
+			tier: "tier-0",
+			userId: "user-1",
 		});
 	});
 

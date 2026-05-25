@@ -3,6 +3,7 @@ import {
 	EventBridgeClient,
 	type PublishEvent,
 } from "@packages/hutch-infra-components/runtime";
+import { SimpleCrawlUnsupportedEvent } from "@packages/hutch-infra-components";
 import {
 	initEmitSimpleCrawlUnsupported,
 	initEventsDepBundle,
@@ -29,10 +30,11 @@ describe("initEmitSimpleCrawlUnsupported", () => {
 		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
 		await emit({ url: "https://example.com/doc.pdf", userId: "user-1" });
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "SimpleCrawlUnsupported",
-			detail: JSON.stringify({ url: "https://example.com/doc.pdf", userId: "user-1" }),
+		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
+			url: "https://example.com/doc.pdf",
+			userId: "user-1",
+			recrawl: undefined,
+			refresh: undefined,
 		});
 	});
 
@@ -42,10 +44,11 @@ describe("initEmitSimpleCrawlUnsupported", () => {
 		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
 		await emit({ url: "https://example.com/doc.pdf", recrawl: true });
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "SimpleCrawlUnsupported",
-			detail: JSON.stringify({ url: "https://example.com/doc.pdf", recrawl: true }),
+		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
+			url: "https://example.com/doc.pdf",
+			userId: undefined,
+			recrawl: true,
+			refresh: undefined,
 		});
 	});
 
@@ -55,10 +58,11 @@ describe("initEmitSimpleCrawlUnsupported", () => {
 		const emit = initEmitSimpleCrawlUnsupported({ publishEvent });
 		await emit({ url: "https://example.com/doc.pdf", refresh: true });
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "SimpleCrawlUnsupported",
-			detail: JSON.stringify({ url: "https://example.com/doc.pdf", refresh: true }),
+		expect(publishEvent).toHaveBeenCalledWith(SimpleCrawlUnsupportedEvent, {
+			url: "https://example.com/doc.pdf",
+			userId: undefined,
+			recrawl: undefined,
+			refresh: true,
 		});
 	});
 });

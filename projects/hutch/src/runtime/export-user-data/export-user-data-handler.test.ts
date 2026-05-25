@@ -3,6 +3,7 @@ import type { SQSBatchResponse, SQSEvent, SQSRecord, SQSRecordAttributes } from 
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import type { Minutes } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
+import { UserDataExportedEvent } from "@packages/hutch-infra-components";
 import type { UploadUserDataExport } from "../providers/user-data-export/user-data-export.types";
 import { initExportUserDataHandler } from "./export-user-data-handler";
 
@@ -64,11 +65,11 @@ function createHarness(): HandlerHarness {
 		sendEmail: async (msg) => {
 			emailCalls.push({ to: msg.to, subject: msg.subject, html: msg.html });
 		},
-		publishEvent: async (params: { source: string; detailType: string; detail: string }) => {
+		publishEvent: async (event, detail) => {
 			publishedEvents.push({
-				source: params.source,
-				detailType: params.detailType,
-				detail: JSON.parse(params.detail),
+				source: event.source,
+				detailType: event.detailType,
+				detail,
 			});
 		},
 		logger: HutchLogger.from(noopLogger),
@@ -130,7 +131,8 @@ describe("initExportUserDataHandler", () => {
 		expect(email.html).toContain("7 days");
 
 		expect(harness.publishedEvents).toHaveLength(1);
-		expect(harness.publishedEvents[0].detailType).toBe("UserDataExported");
+		expect(harness.publishedEvents[0].source).toBe(UserDataExportedEvent.source);
+		expect(harness.publishedEvents[0].detailType).toBe(UserDataExportedEvent.detailType);
 		expect(harness.publishedEvents[0].detail).toEqual({
 			userId,
 			articleCount: 1,
@@ -248,8 +250,8 @@ describe("initExportUserDataHandler", () => {
 			sendEmail: async (msg) => {
 				emailCalls.push({ to: msg.to });
 			},
-			publishEvent: async (params) => {
-				publishedEvents.push({ detail: JSON.parse(params.detail) });
+			publishEvent: async (_event, detail) => {
+				publishedEvents.push({ detail });
 			},
 			logger: HutchLogger.from(noopLogger),
 			now: fixedNow,

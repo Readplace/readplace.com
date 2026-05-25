@@ -52,24 +52,11 @@ const { publishRefreshArticleContent } = initEventBridgeRefreshArticleContent({
 	putRefreshHtml,
 });
 
-const publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp = async (params) => {
-	await events.publishEvent({
-		source: UpdateFetchTimestampCommand.source,
-		detailType: UpdateFetchTimestampCommand.detailType,
-		detail: JSON.stringify({
-			url: params.url,
-			contentFetchedAt: params.contentFetchedAt,
-		}),
-	});
-};
+const publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp = (params) =>
+	events.publishEvent(UpdateFetchTimestampCommand, params);
 
-const publishSaveAnonymousLink: PublishSaveAnonymousLink = async (params) => {
-	await events.publishEvent({
-		source: SaveAnonymousLinkCommand.source,
-		detailType: SaveAnonymousLinkCommand.detailType,
-		detail: JSON.stringify({ url: params.url }),
-	});
-};
+const publishSaveAnonymousLink: PublishSaveAnonymousLink = (params) =>
+	events.publishEvent(SaveAnonymousLinkCommand, params);
 
 const { findArticleFreshness } = initFindArticleFreshness({
 	client: dynamoClient,

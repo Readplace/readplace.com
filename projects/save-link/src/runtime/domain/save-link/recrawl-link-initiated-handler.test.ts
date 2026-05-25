@@ -2,6 +2,7 @@ import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import { noopLogger } from "@packages/hutch-logger";
 import type { SimpleCrawl } from "@packages/crawl-article";
+import { RecrawlContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initRecrawlLinkInitiatedHandler } from "./recrawl-link-initiated-handler";
 import { initProcessContentWithLocalMedia } from "./process-content-with-local-media";
 import type { ParseHtml } from "@packages/article-parser";
@@ -107,10 +108,8 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		await handler(createSqsEvent({ url: "https://example.com/article" }), stubContext, () => {});
 
 		expect(publishEvent).toHaveBeenCalledTimes(1);
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "RecrawlContentExtracted",
-			detail: JSON.stringify({ url: "https://example.com/article" }),
+		expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, {
+			url: "https://example.com/article",
 		});
 	});
 

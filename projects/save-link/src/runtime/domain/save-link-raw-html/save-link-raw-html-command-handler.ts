@@ -125,14 +125,10 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 					pickedTier: snapshot.pickedTier,
 				});
 
-				await publishEvent({
-					source: TierContentExtractedEvent.source,
-					detailType: TierContentExtractedEvent.detailType,
-					detail: JSON.stringify({
-						url: detail.url,
-						tier: TIER,
-						userId: detail.userId,
-					}),
+				await publishEvent(TierContentExtractedEvent, {
+					url: detail.url,
+					tier: TIER,
+					userId: detail.userId,
 				});
 			} catch (error) {
 				logger.error("[SaveLinkRawHtmlCommand] record failed", {

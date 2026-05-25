@@ -6,21 +6,9 @@ import type { PublishSubscriptionChargeFailed } from "@packages/test-fixtures/pr
 export function initEventBridgeSubscriptionChargeFailed(deps: {
 	publishEvent: PublishEvent;
 }): { publishSubscriptionChargeFailed: PublishSubscriptionChargeFailed } {
-	const { publishEvent } = deps;
-
-	const publishSubscriptionChargeFailed: PublishSubscriptionChargeFailed = async (params) => {
-		await publishEvent({
-			source: SubscriptionChargeFailedEvent.source,
-			detailType: SubscriptionChargeFailedEvent.detailType,
-			detail: JSON.stringify(
-				SubscriptionChargeFailedEvent.detailSchema.parse({
-					userId: params.userId,
-					reason: params.reason,
-				}),
-			),
-		});
+	return {
+		publishSubscriptionChargeFailed: (params) =>
+			deps.publishEvent(SubscriptionChargeFailedEvent, params),
 	};
-
-	return { publishSubscriptionChargeFailed };
 }
 /* c8 ignore stop */

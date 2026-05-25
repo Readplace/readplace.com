@@ -6,16 +6,9 @@ import type { PublishRecrawlLinkInitiated } from "@packages/test-fixtures/provid
 export function initEventBridgeRecrawlLinkInitiated(deps: {
 	publishEvent: PublishEvent;
 }): { publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated } {
-	const { publishEvent } = deps;
-
-	const publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated = async (params) => {
-		await publishEvent({
-			source: RecrawlLinkInitiatedEvent.source,
-			detailType: RecrawlLinkInitiatedEvent.detailType,
-			detail: JSON.stringify({ url: params.url }),
-		});
+	return {
+		publishRecrawlLinkInitiated: (params) =>
+			deps.publishEvent(RecrawlLinkInitiatedEvent, params),
 	};
-
-	return { publishRecrawlLinkInitiated };
 }
 /* c8 ignore stop */

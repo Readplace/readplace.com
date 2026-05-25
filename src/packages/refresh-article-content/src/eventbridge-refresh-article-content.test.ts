@@ -1,3 +1,4 @@
+import { RefreshArticleContentCommand } from "@packages/hutch-infra-components";
 import { initEventBridgeRefreshArticleContent } from "./eventbridge-refresh-article-content";
 
 const PARAMS = {
@@ -48,11 +49,7 @@ describe("initEventBridgeRefreshArticleContent (put HTML to S3 then publish even
 		await publishRefreshArticleContent(PARAMS);
 
 		expect(publishEvent).toHaveBeenCalledTimes(1);
-		const call = publishEvent.mock.calls[0][0];
-		expect(call.source).toBe("hutch.api");
-		expect(call.detailType).toBe("RefreshArticleContentCommand");
-		const detail = JSON.parse(call.detail);
-		expect(detail).toEqual({
+		expect(publishEvent).toHaveBeenCalledWith(RefreshArticleContentCommand, {
 			url: PARAMS.url,
 			metadata: PARAMS.metadata,
 			estimatedReadTime: PARAMS.estimatedReadTime,
@@ -60,7 +57,8 @@ describe("initEventBridgeRefreshArticleContent (put HTML to S3 then publish even
 			lastModified: PARAMS.lastModified,
 			contentFetchedAt: PARAMS.contentFetchedAt,
 		});
-		expect(detail.html).toBeUndefined();
+		const [, detail] = publishEvent.mock.calls[0];
+		expect(detail).not.toHaveProperty("html");
 	});
 
 	it("does not publish when putRefreshHtml rejects so the consumer never reads a missing S3 object", async () => {

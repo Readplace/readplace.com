@@ -1,4 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
+import { ComprehensiveCrawlCommand } from "@packages/hutch-infra-components";
 import { initSimpleCrawlUnsupportedPolicyHandler } from "./simple-crawl-unsupported-policy-handler";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
 
@@ -61,15 +62,11 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 		);
 
 		expect(publishEvent).toHaveBeenCalledTimes(1);
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "ComprehensiveCrawlCommand",
-			detail: JSON.stringify({
-				url: "https://example.com/doc.pdf",
-				userId: "user-1",
-				recrawl: undefined,
-				refresh: undefined,
-			}),
+		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
+			url: "https://example.com/doc.pdf",
+			userId: "user-1",
+			recrawl: undefined,
+			refresh: undefined,
 		});
 	});
 
@@ -87,15 +84,11 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "ComprehensiveCrawlCommand",
-			detail: JSON.stringify({
-				url: "https://example.com/doc.pdf",
-				userId: undefined,
-				recrawl: true,
-				refresh: undefined,
-			}),
+		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
+			url: "https://example.com/doc.pdf",
+			userId: undefined,
+			recrawl: true,
+			refresh: undefined,
 		});
 	});
 
@@ -113,15 +106,11 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "ComprehensiveCrawlCommand",
-			detail: JSON.stringify({
-				url: "https://example.com/doc.pdf",
-				userId: undefined,
-				recrawl: undefined,
-				refresh: true,
-			}),
+		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
+			url: "https://example.com/doc.pdf",
+			userId: undefined,
+			recrawl: undefined,
+			refresh: true,
 		});
 	});
 
@@ -139,15 +128,11 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			() => {},
 		);
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "ComprehensiveCrawlCommand",
-			detail: JSON.stringify({
-				url: "https://example.com/blob",
-				userId: undefined,
-				recrawl: undefined,
-				refresh: undefined,
-			}),
+		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
+			url: "https://example.com/blob",
+			userId: undefined,
+			recrawl: undefined,
+			refresh: undefined,
 		});
 	});
 

@@ -232,33 +232,21 @@ export function initComprehensiveCrawlHandler(deps: {
 					// runs the selector across all tier sources, picks a winner, and
 					// drives the refreshContent transition (which sets freshness +
 					// canonical) — mirrors the in-place refresh flow shape.
-					await publishEvent({
-						source: RefreshContentExtractedEvent.source,
-						detailType: RefreshContentExtractedEvent.detailType,
-						detail: JSON.stringify({
-							url,
-							etag: crawlResult.etag,
-							lastModified: crawlResult.lastModified,
-							contentFetchedAt,
-						}),
+					await publishEvent(RefreshContentExtractedEvent, {
+						url,
+						etag: crawlResult.etag,
+						lastModified: crawlResult.lastModified,
+						contentFetchedAt,
 					});
 					logger.info(`${logPrefix} emitted RefreshContentExtractedEvent`, { url });
 				} else if (recrawl) {
 					// Recrawl chain runs a clone of the selector that ALWAYS dispatches
 					// generate-summary regardless of canonical change. Emit the recrawl-
 					// specific event so admin recrawls of PDFs preserve that semantics.
-					await publishEvent({
-						source: RecrawlContentExtractedEvent.source,
-						detailType: RecrawlContentExtractedEvent.detailType,
-						detail: JSON.stringify({ url }),
-					});
+					await publishEvent(RecrawlContentExtractedEvent, { url });
 					logger.info(`${logPrefix} emitted RecrawlContentExtractedEvent`, { url });
 				} else {
-					await publishEvent({
-						source: TierContentExtractedEvent.source,
-						detailType: TierContentExtractedEvent.detailType,
-						detail: JSON.stringify({ url, tier: "tier-1", userId }),
-					});
+					await publishEvent(TierContentExtractedEvent, { url, tier: "tier-1", userId });
 					logger.info(`${logPrefix} emitted TierContentExtractedEvent`, { url, tier: "tier-1" });
 				}
 			} catch (error) {
