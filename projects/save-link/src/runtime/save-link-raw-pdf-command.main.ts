@@ -22,7 +22,7 @@ import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
-const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
+const pendingPdfBucketName = requireEnv("PENDING_PDF_BUCKET_NAME");
 const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
@@ -59,7 +59,7 @@ const media = initMediaDepBundle({ parser, articleStore, logger: consoleLogger, 
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
 const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });
 
-const { readPendingPdf } = initReadPendingPdf({ client: s3Client, bucketName: pendingHtmlBucketName });
+const { readPendingPdf } = initReadPendingPdf({ client: s3Client, bucketName: pendingPdfBucketName });
 
 export const handler = initSaveLinkRawPdfCommandHandler({
 	readPendingPdf,
