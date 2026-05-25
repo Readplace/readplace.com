@@ -14,13 +14,13 @@ import {
 	VERIFY_BANNER_STYLES,
 	UTILITY_STYLES,
 } from "./base.styles";
-import { buildNavItems, type BannerState } from "./banner-state";
-import { formatTrialDisplay, type TrialDisplay } from "./trial-countdown.format";
+import type { BannerState } from "./banner-state";
 import type { Component, ParsedComponent } from "./component.types";
 import { HtmlPage } from "./html-page";
 import { htmlToMarkdown } from "./html-to-markdown";
 import { MarkdownPage } from "./markdown-page";
 import { buildMarkdownFrontmatter } from "./markdown-frontmatter";
+import { Nav } from "./nav.component";
 import type { PageBody, SeoMetadata } from "./page-body.types";
 import { render } from "./render";
 import {
@@ -30,38 +30,8 @@ import {
 import { EXTENSION_SUGGESTION_BANNER_STYLES } from "./shared/extension-suggestion-banner/extension-suggestion-banner.styles";
 import { getEnv, requireEnv } from "../domain/require-env";
 
-const HEADER_TEMPLATE = readFileSync(join(__dirname, "header.template.html"), "utf-8");
 const FOOTER_TEMPLATE = readFileSync(join(__dirname, "footer.template.html"), "utf-8");
 const BASE_TEMPLATE = readFileSync(join(__dirname, "base.template.html"), "utf-8");
-
-function renderHeader(
-	variant: "default" | "transparent",
-	options: {
-		isAuthenticated: boolean;
-		trial: TrialDisplay | undefined;
-		showSubscription: boolean;
-		accessIsReadOnly: boolean;
-	},
-): string {
-	const trial = options.trial;
-	const navItems = buildNavItems({
-		isAuthenticated: options.isAuthenticated,
-		accessIsReadOnly: options.accessIsReadOnly,
-		showSubscription: options.showSubscription,
-	});
-	return render(HEADER_TEMPLATE, {
-		transparent: variant === "transparent",
-		trial: Boolean(trial),
-		trialDisplayText: trial ? formatTrialDisplay(trial) : "",
-		trialState: trial?.state ?? "",
-		trialEscalationClass:
-			trial?.state === "active" ? trial.escalation : "expired",
-		trialEndsAtIso: trial?.state === "active" ? trial.endsAtIso : "",
-		serverNowIso: trial?.state === "active" ? trial.serverNowIso : "",
-		navItems,
-		navVariant: options.isAuthenticated ? "authenticated" : "guest",
-	});
-}
 
 function renderFooter(): string {
 	return render(FOOTER_TEMPLATE, {
@@ -231,11 +201,12 @@ function renderBaseTemplate(body: PageBody, state: BannerState): string {
 			extensionInstalled: state.extensionInstalled ?? false,
 		}),
 		bodyClass: body.bodyClass,
-		header: renderHeader(headerVariant, {
+		header: Nav({
+			variant: headerVariant,
 			isAuthenticated: state.isAuthenticated,
-			trial: state.trial,
 			showSubscription: state.showSubscription ?? false,
 			accessIsReadOnly: state.accessIsReadOnly ?? false,
+			trialCounter: state.trial,
 		}),
 		content: injectPageStylesIntoMain(body.content.html, body.styles),
 		footer: renderFooter(),

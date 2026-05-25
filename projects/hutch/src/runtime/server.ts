@@ -665,6 +665,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			debug: noop,
 		}),
 		now: deps.now,
+		buildBannerState,
 	});
 	app.use("/account", requireAuth, accountRouter);
 
