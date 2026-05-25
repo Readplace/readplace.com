@@ -2,14 +2,15 @@
     <div class="header__content">
       <a href="/" class="header__brand">Read<span class="header__brand-mark">place</span></a>
       {{#if trial}}
-      <p class="trial-countdown trial-countdown--{{trialEscalationClass}}"
+      <a class="trial-countdown trial-countdown--{{trialEscalationClass}}"
+         href="/account"
          data-trial-ends-at-iso="{{trialEndsAtIso}}"
          data-server-now-iso="{{serverNowIso}}"
          data-trial-state="{{trialState}}"
          role="timer"
          aria-live="off"
          aria-atomic="true"
-         data-test-trial-countdown>{{trialDisplayText}}</p>
+         data-test-trial-countdown>{{trialDisplayText}}</a>
       {{/if}}
       <nav class="nav">
         <button class="nav__toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-menu">

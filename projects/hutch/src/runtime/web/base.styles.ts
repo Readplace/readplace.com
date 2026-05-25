@@ -381,7 +381,14 @@ export const TRIAL_COUNTDOWN_STYLES = `
     font-size: 0.875rem;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.01em;
+    text-decoration: none;
     transition: color 0.3s ease, background 0.3s ease, font-weight 0.3s ease;
+  }
+
+  .trial-countdown:hover {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
   }
 
   /* purgecss-ignore-start: modifier suffix is interpolated from BannerState.trial.escalation in header.template.html */

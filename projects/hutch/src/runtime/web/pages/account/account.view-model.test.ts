@@ -69,6 +69,16 @@ describe("toAccountViewModel — actions", () => {
 		assert.equal(vm.actions[0].isLink, false);
 	});
 
+	it("active paid users with cancelling=1 get no actions — the Cancel command is already in flight", () => {
+		const vm = toAccountViewModel(
+			{ tier: "paid", access: "full", banner: "none" },
+			{ ...baseQuery, cancelling: true },
+			now,
+		);
+		assert.deepEqual(vm.actions, []);
+		assert.equal(vm.showCancellingNotice, true);
+	});
+
 	it("trial users get a primary subscribe action only — no cancel button while on trial", () => {
 		const trialEndsAt = new Date(now.getTime() + 5 * ONE_DAY_MS).toISOString();
 		const vm = toAccountViewModel(

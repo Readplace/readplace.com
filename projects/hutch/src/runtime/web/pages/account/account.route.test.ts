@@ -207,7 +207,7 @@ describe("GET /account (inactive — trial expired vs cancelled render identical
 });
 
 describe("GET /account?cancelling=1 (the pending page after POST /account/cancel)", () => {
-	it("renders a cancellation-in-progress notice on top of the active card", async () => {
+	it("renders a cancellation-in-progress notice and hides the Cancel button — clicking again would enqueue a duplicate command", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "cancelling@example.com");
@@ -224,6 +224,7 @@ describe("GET /account?cancelling=1 (the pending page after POST /account/cancel
 		const notice = doc.querySelector("[data-test-cancelling-notice]");
 		assert(notice, "cancelling notice must render");
 		expect(notice.textContent).toContain("Cancellation in progress");
+		expect(actionKeys(doc)).toEqual([]);
 	});
 
 	it("does not render the cancellation-in-progress notice when ?cancelling=1 is absent", async () => {

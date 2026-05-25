@@ -172,7 +172,7 @@ describe("initTrialCountdown — escalation class transitions as the deadline ap
 });
 
 describe("initTrialCountdown — expiration", () => {
-	it("swaps the text to 'Free trial is over!', sets data-trial-state=expired, aria-live=polite, and clears the interval", () => {
+	it("swaps the text to 'Subscription not active', sets data-trial-state=expired, aria-live=polite, and clears the interval", () => {
 		const serverNow = "2026-01-01T00:00:00.000Z";
 		const endsAt = new Date(Date.parse(serverNow) + 2 * ONE_SECOND_MS).toISOString();
 		const { document } = createDom(
@@ -193,7 +193,7 @@ describe("initTrialCountdown — expiration", () => {
 		advanceClock(clock, 3 * ONE_SECOND_MS);
 
 		const el = getCountdownElement(document);
-		expect(el.textContent).toBe("Free trial is over!");
+		expect(el.textContent).toBe("Subscription not active");
 		expect(el.getAttribute("data-trial-state")).toBe("expired");
 		expect(el.getAttribute("aria-live")).toBe("polite");
 		expect(el.classList.contains("trial-countdown--expired")).toBe(true);
@@ -278,7 +278,7 @@ describe("initTrialCountdown — already-expired initial state", () => {
 				serverNowIso: "2026-01-02T00:00:00.000Z",
 				state: "expired",
 				escalation: "expired",
-				text: "Free trial is over!",
+				text: "Subscription not active",
 			}),
 		);
 
@@ -287,7 +287,7 @@ describe("initTrialCountdown — already-expired initial state", () => {
 
 		expect(clock.timers.size).toBe(0);
 		const el = getCountdownElement(document);
-		expect(el.textContent).toBe("Free trial is over!");
+		expect(el.textContent).toBe("Subscription not active");
 	});
 });
 
@@ -367,7 +367,7 @@ describe("initTrialCountdown — idempotent state transitions", () => {
 				serverNowIso: "2026-01-02T00:00:00.000Z",
 				state: "expired",
 				escalation: "expired",
-				text: "Free trial is over!",
+				text: "Subscription not active",
 			}),
 		);
 

@@ -70,7 +70,7 @@ describe("Queue page banner state", () => {
 		expect(banner.textContent?.trim()).toBe("");
 	});
 
-	it("flips the header countdown to 'Free trial is over!' and disables the save form after the trial window ends", async () => {
+	it("flips the header countdown to 'Subscription not active' and disables the save form after the trial window ends", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "expired-trial@example.com");
@@ -84,7 +84,7 @@ describe("Queue page banner state", () => {
 		const countdown = doc.querySelector("[data-test-trial-countdown]");
 		assert(countdown, "global trial countdown must be rendered for an expired-trial user");
 		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
-		expect(countdown.textContent).toBe("Free trial is over!");
+		expect(countdown.textContent).toBe("Subscription not active");
 		const saveForm = doc.querySelector('[data-test-form="save-article"]');
 		assert(saveForm, "save form must still be rendered");
 		expect(saveForm.classList.contains("queue__save-form--disabled")).toBe(true);
@@ -145,10 +145,10 @@ describe("Queue page banner state", () => {
 		const countdown = doc.querySelector("[data-test-trial-countdown]");
 		assert(countdown, "header countdown must be rendered for inactive users");
 		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
-		expect(countdown.textContent).toBe("Free trial is over!");
+		expect(countdown.textContent).toBe("Subscription not active");
 	});
 
-	it("flips the header countdown to 'Free trial is over!' for a cancelled user too, with the same wording as trial-expired", async () => {
+	it("flips the header countdown to 'Subscription not active' for a cancelled user too, with the same wording as trial-expired", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "cancelled-user@example.com");
@@ -164,7 +164,7 @@ describe("Queue page banner state", () => {
 		const countdown = doc.querySelector("[data-test-trial-countdown]");
 		assert(countdown, "global trial countdown must be rendered for a cancelled user");
 		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
-		expect(countdown.textContent).toBe("Free trial is over!");
+		expect(countdown.textContent).toBe("Subscription not active");
 	});
 });
 

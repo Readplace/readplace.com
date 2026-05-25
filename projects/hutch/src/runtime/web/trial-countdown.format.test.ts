@@ -122,8 +122,8 @@ describe("formatTrialDisplay", () => {
 		);
 	});
 
-	it("renders the expired state as the standalone 'Free trial is over!' message", () => {
-		expect(formatTrialDisplay({ state: "expired" })).toBe("Free trial is over!");
+	it("renders the expired state as the standalone 'Subscription not active' message — unified for trial-expired and post-cancellation", () => {
+		expect(formatTrialDisplay({ state: "expired" })).toBe("Subscription not active");
 	});
 });
 

@@ -389,7 +389,7 @@ describe("Base component", () => {
 		expect(script.hasAttribute("defer")).toBe(true);
 	});
 
-	it("renders the trial countdown as 'Free trial is over!' and skips the client script when trial.state='expired'", () => {
+	it("renders the trial countdown as 'Subscription not active' and skips the client script when trial.state='expired'", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
 			isAuthenticated: true,
@@ -400,13 +400,28 @@ describe("Base component", () => {
 
 		const countdown = doc.querySelector("[data-test-trial-countdown]");
 		assert(countdown, "trial countdown must be rendered when trial.state='expired'");
-		expect(countdown.textContent).toBe("Free trial is over!");
+		expect(countdown.textContent).toBe("Subscription not active");
 		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
 		expect(countdown.classList.contains("trial-countdown--expired")).toBe(true);
 
 		expect(
 			doc.querySelector('script[src$="/client-dist/trial-countdown.client.js"]'),
 		).toBeNull();
+	});
+
+	it("renders the trial countdown as an anchor to /account so the user can fix the subscription state from any page", () => {
+		const page = createTestPageBody();
+		const result = Base(page, {
+			isAuthenticated: true,
+			emailVerified: true,
+			trial: { state: "expired" },
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "trial countdown must be rendered");
+		expect(countdown.tagName.toLowerCase()).toBe("a");
+		expect(countdown.getAttribute("href")).toBe("/account");
 	});
 
 	it("places the trial countdown directly after the header brand inside .header__content", () => {

@@ -126,7 +126,11 @@ export function toAccountViewModel(
 				};
 			}
 			return {
-				...baseFor("active", [CANCEL_FORM_ACTION]),
+				/** Hide the Cancel button while a cancellation is in flight: the
+				 * command has already been published and clicking again would
+				 * just enqueue a duplicate. The "Cancellation in progress"
+				 * notice tells the user what's happening. */
+				...baseFor("active", queryState.cancelling ? [] : [CANCEL_FORM_ACTION]),
 				statusLine: "Subscription: Active.",
 				showCancellingNotice: queryState.cancelling,
 			};

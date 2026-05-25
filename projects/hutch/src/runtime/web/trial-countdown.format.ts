@@ -49,7 +49,11 @@ export function deriveTrialEscalation(
 }
 
 export function formatTrialDisplay(trial: TrialDisplay): string {
-	if (trial.state === "expired") return "Free trial is over!";
+	/** Same copy for trial-expired and post-cancellation: both land users in
+	 * the same read-only state, so a unified "Subscription not active"
+	 * message matches what the account card says and avoids surfacing the
+	 * trial mechanic to users who never had one. */
+	if (trial.state === "expired") return "Subscription not active";
 	return `${formatTrialUnits(trial.remaining)} left in your free trial`;
 }
 
