@@ -372,8 +372,8 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
-		// 2 successes out of 3 chunks = 67%, below the default 90% threshold.
-		expect(result).toEqual({ kind: "failed", reason: "OCR succeeded for 2 of 3 chunks — below 90% threshold" });
+		// 2 successes out of 3 chunks = 67%, below the default 80% threshold.
+		expect(result).toEqual({ kind: "failed", reason: "OCR succeeded for 2 of 3 chunks — below 80% threshold" });
 		// 2 attempts = first + 1 retry; matches PAGE_OCR_MAX_ATTEMPTS in ocr-pdf.ts.
 		expect(callsForFailingChunk).toEqual([1, 1]);
 	});
@@ -569,7 +569,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			extractPdfMetadata: stubMetadata({ numPages: 10 }),
 			stagePdf: stubStagePdf(),
 			invokePageOcr: async ({ pageIndices }) => {
-				if (pageIndices[0] < 2) return { ok: false, error: new Error("DeepInfra timed out") };
+				if (pageIndices[0] < 3) return { ok: false, error: new Error("DeepInfra timed out") };
 				return { ok: true, html: `<p>page-${pageIndices[0]}</p>` };
 			},
 			batchSize: 1,
@@ -577,8 +577,8 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
-		// 8 ok / 10 = 80%, below the default 90% threshold.
-		expect(result).toEqual({ kind: "failed", reason: "OCR succeeded for 8 of 10 chunks — below 90% threshold" });
+		// 7 ok / 10 = 70%, below the default 80% threshold.
+		expect(result).toEqual({ kind: "failed", reason: "OCR succeeded for 7 of 10 chunks — below 80% threshold" });
 	});
 
 	it("renders one placeholder per page for a multi-page chunk when overall ratio passes the threshold", async () => {
@@ -664,8 +664,9 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
-		// 3/4 = 75%, below the bumped 100% threshold even though the default
-		// 90% threshold would have accepted.
+		// 3/4 = 75%, below the bumped 100% threshold. The default 80% would
+		// also have failed this case, but the test still exercises the
+		// override path because partialSuccessThreshold is read from deps.
 		expect(result).toEqual({ kind: "failed", reason: "OCR succeeded for 3 of 4 chunks — below 100% threshold" });
 	});
 });

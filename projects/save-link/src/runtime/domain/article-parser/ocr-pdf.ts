@@ -53,7 +53,7 @@ const PAGE_OCR_RETRY_DELAY_MS = 2000;
 // link. Failed chunks render as `<p class="ocr-failed">` placeholders so the
 // document still reads as a whole and CSS can style the gaps. Below the
 // threshold the result is rejected the same way a total fan-out failure is.
-const DEFAULT_PARTIAL_SUCCESS_THRESHOLD = 0.9;
+const DEFAULT_PARTIAL_SUCCESS_THRESHOLD = 0.8;
 
 export function initOcrPdf(deps: {
 	extractPdfMetadata: ExtractPdfMetadata;
