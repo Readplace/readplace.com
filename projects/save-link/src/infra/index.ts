@@ -68,8 +68,9 @@ const ocrImageTags = z
 	.parse(JSON.parse(readFileSync(".lib/ocr-image-tags.json", "utf-8")));
 
 // --- curl-impersonate Lambda Layer ---
-// Contains the curl_chrome116 binary + BoringSSL shared libraries that produce
-// a Chrome TLS fingerprint, bypassing Akamai/Cloudflare JA3/JA4 blocks.
+// Contains the curl_chrome116 bash wrapper and the statically-linked
+// curl-impersonate-chrome binary (BoringSSL embedded) that produce a Chrome
+// TLS fingerprint, bypassing Akamai/Cloudflare JA3/JA4 blocks.
 // Built by tools/build-curl-impersonate-layer.mjs before `pulumi up`.
 const curlImpersonateLayer = new aws.lambda.LayerVersion("curl-impersonate", {
 	layerName: "curl-impersonate-chrome",
