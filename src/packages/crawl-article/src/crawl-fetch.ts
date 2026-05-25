@@ -14,7 +14,7 @@ export type CrawlFetchInit = {
 /**
  * Universal browser-like fetcher used for every external resource (HTML,
  * images, oembed JSON). Composes the same fallback chain as `crawlArticle`:
- * AIA chasing → HTTP/2 fallback for Cloudflare TLS challenges → curl
+ * AIA chasing → HTTP/2 fallback for any 403 TLS-fingerprint block → curl
  * fallback for JA3/JA4 + transient TLS errors → persona fallback for
  * block-class responses/errors (403/406/451, h2 RST_STREAM, curl exit 92).
  * Persona headers are merged with per-call headers (caller wins); `referer`

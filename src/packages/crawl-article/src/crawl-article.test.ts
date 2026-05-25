@@ -10,6 +10,12 @@ import { initCrawlFetch } from "./crawl-fetch";
 import type { fetchCurl } from "./curl-fetch";
 import type { fetchH2 } from "./h2-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
+
+jest.mock("./pdf-page-limits", () => ({
+	...jest.requireActual("./pdf-page-limits"),
+	MAX_PDF_BYTES: { bytes: 25 * 1024 * 1024, label: "25 MiB" },
+}));
+
 const PDF_EXTRACT_FAILURE_REASON = "synthetic extractor failure";
 
 const noopLogError = () => {};
@@ -315,8 +321,10 @@ describe("initSimpleCrawl — X/Twitter routing", () => {
 describe("initSimpleCrawl — failure modes", () => {
 	it("returns status 'failed' and logs HTTP status when response is not ok and not 304", async () => {
 		const fakeFetch: typeof fetch = async () => new Response(null, { status: 403 });
+		const fakeH2: typeof fetchH2 = async () => new Response(null, { status: 403 });
+		const fakeCurl: typeof fetchCurl = async () => new Response(null, { status: 403 });
 		const logError = jest.fn();
-		const simpleCrawl = initSimple({ fetch: fakeFetch, logError });
+		const simpleCrawl = initSimple({ fetch: fakeFetch, fetchH2: fakeH2, fetchCurl: fakeCurl, logError });
 
 		const result = await simpleCrawl({ url: "https://example.com" });
 
@@ -485,8 +493,10 @@ describe("initSimpleCrawl — thumbnail fetch (fetchThumbnail opt-in)", () => {
 
 	it("logs and returns thumbnailImage undefined when the thumbnail HTTP request fails", async () => {
 		const fakeFetch = articleThenImageFetch(new Response(null, { status: 403 }));
+		const fakeH2: typeof fetchH2 = async () => new Response(null, { status: 403 });
+		const fakeCurl: typeof fetchCurl = async () => new Response(null, { status: 403 });
 		const logError = jest.fn();
-		const simpleCrawl = initSimple({ fetch: fakeFetch, logError });
+		const simpleCrawl = initSimple({ fetch: fakeFetch, fetchH2: fakeH2, fetchCurl: fakeCurl, logError });
 
 		const result = await simpleCrawl({ url: "https://example.com", fetchThumbnail: true });
 
@@ -842,7 +852,7 @@ describe("initComprehensiveCrawl — PDF extraction", () => {
 		);
 	});
 
-	it("returns status 'unsupported' with the byte count when PDF body exceeds 25 MiB", async () => {
+	it("returns status 'unsupported' with the byte count when PDF body exceeds MAX_PDF_BYTES", async () => {
 		const oversize = Buffer.concat([Buffer.from("%PDF-1.4"), Buffer.alloc(25 * 1024 * 1024 + 1, 0x20)]);
 		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>();
 		const fakeFetch: typeof fetch = async () => pdfResponse(oversize);

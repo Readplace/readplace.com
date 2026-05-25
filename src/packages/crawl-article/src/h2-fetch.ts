@@ -106,22 +106,21 @@ function toFetchHeaders(incoming: http2.IncomingHttpHeaders): Headers {
 }
 
 /**
- * Wraps a fetch with an HTTP/2 fallback that kicks in on any Cloudflare 403
- * (`server: cloudflare`). Covers both managed challenges (`cf-mitigated:
- * challenge`) and plain "Attention Required!" interstitials (no cf-mitigated
- * header), since both are TLS-fingerprint blocks that real browsers bypass
- * via h2. Non-Cloudflare 403s and non-403 responses pass through unchanged.
+ * Wraps a fetch with an h2→curl fallback chain that kicks in on any 403
+ * response or transient TLS/connection error.
  *
- * If the primary fetch fails with a transient TLS- or connection-level error
- * (timeout, ECONNRESET, "fetch failed", HTTP/2 RST_STREAM from Akamai
- * BotManager, etc.), the wrapper tries Node's http2 module first, then a
- * curl subprocess. The http2 module's TLS fingerprint differs from undici's
- * (different ALPN negotiation path), which bypasses CDN JA3 heuristics that
- * key on the undici ClientHello. curl's OpenSSL-based fingerprint differs
- * from both, and its fresh TCP connection also sidesteps upstream nginx/edge
- * sniffers that drop specific Lambda outbound IPs. Clear network failures
- * (DNS, connection refused) and explicit user-aborts skip both h2 and curl
- * since they would fail the same way and only add latency.
+ * 403 path: any origin that 403s the base fetch (Cloudflare, snooserv,
+ * Akamai, etc.) triggers the chain. The discriminator is the TLS
+ * fingerprint, not the CDN vendor — varying the TLS client is the right
+ * remedy regardless of who sent the 403. If h2 also returns 403, the
+ * wrapper escalates to curl-impersonate (Chrome TLS fingerprint) before
+ * giving up.
+ *
+ * Error path: transient TLS- or connection-level errors (timeout,
+ * ECONNRESET, "fetch failed", HTTP/2 RST_STREAM from Akamai BotManager,
+ * etc.) trigger the same chain. Clear network failures (DNS, connection
+ * refused) and explicit user-aborts skip both h2 and curl since they
+ * would fail the same way and only add latency.
  */
 export function withH2Fallback(
 	baseFetch: typeof fetch,
@@ -138,7 +137,6 @@ export function withH2Fallback(
 			return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);
 		}
 		if (response.status !== 403) return response;
-		if (response.headers.get("server")?.toLowerCase() !== "cloudflare") return response;
 		await response.text();
 		const url = urlFromInput(input);
 		return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);
@@ -146,9 +144,11 @@ export function withH2Fallback(
 }
 
 /**
- * Try Node's http2 module, then curl subprocess. Shared by the Cloudflare-403
+ * Try Node's http2 module, then curl subprocess. Shared by the 403
  * path and the baseFetch-error path — both represent a TLS-fingerprint block
- * where varying the TLS client is the right remedy.
+ * where varying the TLS client is the right remedy. If h2 returns a 403,
+ * the origin also blocks h2's fingerprint — escalate to curl-impersonate
+ * (Chrome TLS fingerprint) before giving up.
  */
 async function h2ThenCurl(
 	url: string,
@@ -164,7 +164,8 @@ async function h2ThenCurl(
 	 * would open a TCP connection only to abort it immediately. */
 	if (!fallbackInit.signal?.aborted) {
 		try {
-			return await h2FetchImpl(url, fallbackInit);
+			const h2Response = await h2FetchImpl(url, fallbackInit);
+			if (h2Response.status !== 403) return h2Response;
 		} catch (error) {
 			if (!shouldTryFallback(error, fallbackInit.signal)) throw error;
 		}
