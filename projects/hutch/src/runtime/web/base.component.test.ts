@@ -90,13 +90,16 @@ describe("Base component", () => {
 		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
-		const link = doc.querySelector('[data-test-nav-item="import"]');
-		assert(link, "Import Links nav item must be rendered for authenticated users");
-		expect(link.textContent).toBe("Import Links");
+		const button = doc.querySelector('[data-test-nav-item="import"]');
+		assert(button, "Import Links nav item must be rendered for authenticated users");
+		expect(button.textContent).toBe("Import Links");
 
-		const href = link.getAttribute("href");
-		assert(href, "Import Links nav item must have an href");
-		const url = new URL(href, "https://readplace.com");
+		const form = button.closest("form");
+		assert(form, "Import Links nav item must be wrapped in a form");
+		expect(form.getAttribute("method")?.toUpperCase()).toBe("GET");
+		const action = form.getAttribute("action");
+		assert(action, "Import Links form must have an action");
+		const url = new URL(action, "https://readplace.com");
 		expect(url.pathname).toBe("/import");
 		expect(url.searchParams.get("utm_source")).toBe("header-nav");
 		expect(url.searchParams.get("utm_medium")).toBe("internal");
@@ -116,10 +119,13 @@ describe("Base component", () => {
 		const result = Base(page, { isAuthenticated: true, emailVerified: true, showSubscription: true }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
-		const link = doc.querySelector('[data-test-nav-item="account"]');
-		assert(link, "Account nav item must be rendered when feature flag is set");
-		expect(link.textContent).toBe("Account");
-		expect(link.getAttribute("href")).toBe("/account?feature=subscription");
+		const button = doc.querySelector('[data-test-nav-item="account"]');
+		assert(button, "Account nav item must be rendered when feature flag is set");
+		expect(button.textContent).toBe("Account");
+		const form = button.closest("form");
+		assert(form, "Account nav item must be wrapped in a form");
+		expect(form.getAttribute("method")?.toUpperCase()).toBe("GET");
+		expect(form.getAttribute("action")).toBe("/account?feature=subscription");
 	});
 
 	it("hides the Account nav item when showSubscription is false", () => {
@@ -136,6 +142,38 @@ describe("Base component", () => {
 		const doc = new JSDOM(result.body).window.document;
 
 		expect(doc.querySelector('[data-test-nav-item="account"]')).toBeNull();
+	});
+
+	it("renders the full nav (queue + import + export + account + logout) for an authenticated full-access user with showSubscription", () => {
+		const page = createTestPageBody();
+		const result = Base(page, {
+			isAuthenticated: true,
+			emailVerified: true,
+			showSubscription: true,
+			accessIsReadOnly: false,
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
+			(el) => el.getAttribute("data-test-nav-item"),
+		);
+		expect(navItems).toEqual(["queue", "import", "export", "account", "logout"]);
+	});
+
+	it("hides import + account from the nav for a read-only user (trial-expired / subscription-cancelled) — only queue, export, logout remain", () => {
+		const page = createTestPageBody();
+		const result = Base(page, {
+			isAuthenticated: true,
+			emailVerified: true,
+			showSubscription: true,
+			accessIsReadOnly: true,
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
+			(el) => el.getAttribute("data-test-nav-item"),
+		);
+		expect(navItems).toEqual(["queue", "export", "logout"]);
 	});
 
 	it("should include the footer with copyright", () => {
