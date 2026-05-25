@@ -1,4 +1,4 @@
-import type { UserId } from "@packages/domain/user";
+import type { UserId, UserIdPrefix } from "@packages/domain/user";
 
 export type CreateUserResult =
 	| { ok: true; userId: UserId }
@@ -52,7 +52,7 @@ export type FindUserByEmail = (email: string) => Promise<FindUserByEmailResult>;
 
 export type FindEmailByUserId = (userId: UserId) => Promise<string | null>;
 
-export type ExistsUserByIdPrefix = (prefix: string) => Promise<boolean>;
+export type ExistsUserByIdPrefix = (prefix: UserIdPrefix) => Promise<boolean>;
 
 export type CreateGoogleUser = (user: {
 	email: string;
