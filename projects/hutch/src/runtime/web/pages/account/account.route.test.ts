@@ -377,9 +377,10 @@ describe("POST /account/subscribe", () => {
 		expect(row.customerId).toBe("cus_was_paid");
 	});
 
-	it("Phase 3: cancelled user with customerId — Stripe throws → 303 to /account?error=payment_method, row unchanged", async () => {
+	it("cancelled user with customerId — saved-card Stripe call throws → fall back to Stripe Checkout (not the dead-end error page), row stays cancelled until the new checkout completes", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		// Replace the stripe subscriptions wrapper with one that throws.
+		// Replace the stripe subscriptions wrapper with one that throws —
+		// simulates a declined/expired saved card.
 		fixture.stripeSubscriptions.createSubscriptionOnExistingCustomer = async () => {
 			throw new Error("card_declined");
 		};
@@ -396,9 +397,14 @@ describe("POST /account/subscribe", () => {
 		const response = await agent.post("/account/subscribe");
 
 		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account?error=payment_method");
+		const location = response.headers.location;
+		assert(
+			typeof location === "string" && location.includes("checkout.stripe.test"),
+			"on saved-card failure the user is sent to Stripe Checkout to enter a new card",
+		);
 
-		// Row must remain cancelled — no double-write.
+		// Row must remain cancelled until the new Checkout completes — the
+		// checkout-success handler is what upserts the new subscriptionId.
 		const row = await subscriptionProviders.findByUserId(userId);
 		assert(row, "row must still exist");
 		expect(row.status).toBe("cancelled");

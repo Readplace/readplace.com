@@ -121,16 +121,32 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				redirectToCheckout(req, res, checkout.url);
 				return;
 			}
-			const { subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
-				customerId: row.customerId,
-				priceId: deps.stripePriceId,
-			});
-			await deps.upsertActiveSubscription({
-				userId,
-				subscriptionId,
-				customerId: row.customerId,
-			});
-			res.redirect(303, buildAccountUrl());
+			try {
+				const { subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
+					customerId: row.customerId,
+					priceId: deps.stripePriceId,
+				});
+				await deps.upsertActiveSubscription({
+					userId,
+					subscriptionId,
+					customerId: row.customerId,
+				});
+				res.redirect(303, buildAccountUrl());
+			} catch (err) {
+				/** Stripe rejected the saved card (declined, expired, fingerprint
+				 * mismatch, etc.). Rather than parking the user on a dead-end
+				 * error page, fall through to Stripe Checkout so they can enter
+				 * a new card. The fresh Checkout flow creates a brand-new
+				 * subscription on success; the previously cancelled subscription
+				 * stays orphan in Stripe and the user's row gets the new
+				 * subscriptionId — same shape as a first-time subscription. */
+				deps.logger.warn(
+					"[subscribe/cancelled] one-click resub failed — falling back to checkout",
+					{ userId, error: err instanceof Error ? err.message : String(err) },
+				);
+				const checkout = await startCheckout(req);
+				redirectToCheckout(req, res, checkout.url);
+			}
 		},
 		noop: async (_req, res) => {
 			res.redirect(303, buildAccountUrl());
