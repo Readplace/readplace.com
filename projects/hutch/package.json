@@ -55,6 +55,7 @@
     "@packages/hutch-logger": "workspace:*",
     "@packages/hutch-storage-client": "workspace:*",
     "@packages/onboarding-extension-signal": "workspace:*",
+    "@packages/refresh-article-content": "workspace:*",
     "@packages/retriable": "workspace:*",
     "@packages/time-left": "workspace:*",
     "browser-extension-core": "workspace:*",

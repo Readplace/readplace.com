@@ -1,0 +1,9 @@
+{
+  "name": "@packages/refresh-article-content",
+  "targets": {
+    "check": {
+      "command": "pnpm lint",
+      "options": { "cwd": "{projectRoot}" }
+    }
+  }
+}

@@ -224,6 +224,9 @@ importers:
       '@packages/onboarding-extension-signal':
         specifier: workspace:*
         version: link:../../src/packages/onboarding-extension-signal
+      '@packages/refresh-article-content':
+        specifier: workspace:*
+        version: link:../../src/packages/refresh-article-content
       '@packages/retriable':
         specifier: workspace:*
         version: link:../../src/packages/retriable
@@ -418,6 +421,9 @@ importers:
       '@packages/hutch-storage-client':
         specifier: workspace:*
         version: link:../../src/packages/hutch-storage-client
+      '@packages/refresh-article-content':
+        specifier: workspace:*
+        version: link:../../src/packages/refresh-article-content
       '@packages/retriable':
         specifier: workspace:*
         version: link:../../src/packages/retriable
@@ -764,6 +770,37 @@ importers:
       concurrently:
         specifier: 9.2.1
         version: 9.2.1
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  src/packages/refresh-article-content:
+    dependencies:
+      '@packages/article-resource-unique-id':
+        specifier: workspace:*
+        version: link:../article-resource-unique-id
+      '@packages/hutch-infra-components':
+        specifier: workspace:*
+        version: link:../hutch-infra-components
+      '@packages/test-fixtures':
+        specifier: workspace:*
+        version: link:../test-fixtures
+    devDependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1001.0
+        version: 3.1001.0
+      '@types/jest':
+        specifier: 29.5.14
+        version: 29.5.14
+      c8:
+        specifier: 10.1.3
+        version: 10.1.3
+      concurrently:
+        specifier: 9.2.1
+        version: 9.2.1
+      jest:
+        specifier: 29.7.0
+        version: 29.7.0(@types/node@22.19.1)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.1)(typescript@5.9.3))
       typescript:
         specifier: 5.9.3
         version: 5.9.3
