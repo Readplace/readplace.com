@@ -24,6 +24,7 @@ import type {
 	PublishSaveAnonymousLink,
 	PublishStaleCheckRequested,
 } from "@packages/test-fixtures/providers/events";
+import { decomposeTimeLeft } from "@packages/time-left";
 import { wantsMarkdown } from "../../content-negotiation";
 import { CacheableComponent } from "../../conditional-get";
 import { htmlToMarkdown } from "../../html-to-markdown";
@@ -39,10 +40,11 @@ import type {
 	PollUrlBuilder,
 } from "../../shared/article-reader/article-reader.types";
 import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
-import { shareUserIdPrefix } from "../../shared/share-balloon/share-user-id-prefix";
 import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { ViewLandingPage } from "./view-landing.component";
+import type { ExistsUserByIdPrefix } from "@packages/test-fixtures/providers/auth";
+import { PERMANENT_ARTICLE_DOMAINS, computePublicViewExpiry, formatSaveUtmContent, sharedUserIdFrom, sharedUserIdFromQueryParams, type ExpiryCountdown } from "./view-expiry";
 import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.component";
 
 interface ViewDependencies {
@@ -56,6 +58,8 @@ interface ViewDependencies {
 	saveArticleGlobally: SaveArticleGlobally;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
+	existsUserByIdPrefix: ExistsUserByIdPrefix;
+	expiryCountdown: ExpiryCountdown;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
 }
@@ -138,7 +142,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 					wordCount: 0,
 				},
 				estimatedReadTime: calculateReadTime(0),
-				savedAt: new Date(),
+				savedAt: deps.now(),
 			});
 			await deps.markCrawlPending({ url: articleUrl });
 			await deps.markSummaryPending({ url: articleUrl });
@@ -173,12 +177,33 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		}
 
 		const utmParams = collectUtmParams(req.query);
+		const utmContent = typeof req.query.utm_content === "string" ? req.query.utm_content : undefined;
+		const now = deps.now();
+
+		let expiresAt: Date | null = null;
+		if (deps.expiryCountdown === "enabled") {
+			const sharerPrefix = sharedUserIdFromQueryParams(utmContent);
+			const isValidSharer = sharerPrefix !== null && await deps.existsUserByIdPrefix(sharerPrefix);
+			const articleDomain = new URL(articleUrl).hostname;
+			({ expiresAt } = computePublicViewExpiry({
+				savedAt: articleSnapshot.savedAt,
+				articleDomain,
+				permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
+				isValidSharer,
+			}));
+		}
+
+		const saveParams = new URLSearchParams([["url", articleUrl], ...utmParams]);
+		const msLeft = expiresAt === null ? null : expiresAt.getTime() - now.getTime();
+		const counting = msLeft !== null && msLeft > 0;
+		if (counting) saveParams.set("utm_content", formatSaveUtmContent(decomposeTimeLeft(msLeft)));
 
 		const actions: ViewAction[] = [
 			{
 				name: "Save to My Queue",
-				href: `/save?${new URLSearchParams([["url", articleUrl], ...utmParams]).toString()}`,
+				href: `/save?${saveParams.toString()}`,
 				variant: "primary",
+				expirySaveLink: counting,
 			},
 			{
 				name: "Paste another link",
@@ -191,6 +216,8 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			crawlStatus: state.crawl?.status,
 			summaryStatus: state.summary?.status,
 		});
+
+		const sharerUserIdPrefix = req.userId ? sharedUserIdFrom(req.userId) : undefined;
 
 		sendComponent(
 			req, res,
@@ -207,7 +234,9 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 					progress: state.progress,
 					actions,
 					extensionInstallUrl: extensionInstallUrlIfMissing(req),
-					sharerUserIdPrefix: req.userId ? shareUserIdPrefix(req.userId) : undefined,
+					expiresAt,
+					now,
+					sharerUserIdPrefix,
 				}),
 				{ ...(await deps.buildBannerState(req)), showExtensionSuggestionBanner, extensionInstalled: isExtensionInstalled(req) },
 			),

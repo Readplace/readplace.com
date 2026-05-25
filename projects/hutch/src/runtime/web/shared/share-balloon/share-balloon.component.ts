@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { UserIdPrefix } from "@packages/domain/user";
 import { requireEnv } from "../../../domain/require-env";
 import { render } from "../../render";
 import { COPY_ICON_SVG } from "./copy-icon";
@@ -23,7 +24,10 @@ export interface ShareBalloonInput {
 	shareTitle: string;
 	shareHint: string;
 	shareSource: ShareBalloonSource;
-	sharerUserIdPrefix?: string;
+	/** First 6 hex chars of the authenticated sharer's UserId. When present,
+	 * stamped into utm_content so recipients hit the permanent-share branch
+	 * of {@link computePublicViewExpiry} and skip the expiry counter. */
+	sharerUserIdPrefix?: UserIdPrefix;
 }
 
 function withUtm(

@@ -264,6 +264,7 @@ const lambda = new HutchLambda("hutch", {
 		RECRAWL_SERVICE_TOKEN: requireEnv("RECRAWL_SERVICE_TOKEN"),
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
 		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
+		EXPIRY_COUNTDOWN: config.require("expiryCountdown"),
 	},
 	policies: [
 		...dynamodb.policies,

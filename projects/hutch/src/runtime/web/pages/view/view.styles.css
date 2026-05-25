@@ -74,3 +74,24 @@
   margin-top: 1.5rem;
   pointer-events: none;
 }
+
+.view__expiry {
+  max-width: var(--reader-max-width);
+  margin: 0.5rem auto 0;
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+/* purgecss-ignore-start: modifier suffix is interpolated from ExpiryState in view.template.html */
+.view__expiry--permanent {
+  display: none;
+}
+
+.view__expiry--counting {
+  color: var(--color-text-muted);
+}
+
+.view__expiry--expired {
+  color: var(--color-error);
+}
+/* purgecss-ignore-end */

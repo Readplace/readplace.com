@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import type { Minutes } from "@packages/domain/article";
+import { calculateReadTime } from "@packages/domain/article";
+import { UserIdSchema } from "@packages/domain/user";
 import { Base } from "../../base.component";
-import { ViewPage, type ViewPageInput } from "./view.component";
+import { buildExpiryFields, ViewPage, type ViewPageInput } from "./view.component";
+import { sharedUserIdFrom } from "./view-expiry";
 
 const baseInput: ViewPageInput = {
 	articleUrl: "https://example.com/post",
@@ -13,7 +15,7 @@ const baseInput: ViewPageInput = {
 		wordCount: 500,
 		imageUrl: "https://cdn.example.com/hero.jpg",
 	},
-	estimatedReadTime: 3 as Minutes,
+	estimatedReadTime: calculateReadTime(0),
 	content: "<p>Body copy.</p>",
 	summary: { status: "skipped" },
 	actions: [
@@ -23,6 +25,8 @@ const baseInput: ViewPageInput = {
 			variant: "primary",
 		},
 	],
+	expiresAt: null,
+	now: new Date("2026-05-01T00:00:00.000Z"),
 };
 
 function render(input = baseInput) {
@@ -341,40 +345,168 @@ describe("ViewPage", () => {
 		assert(link, "cta action must still be rendered without content");
 	});
 
-	it("stamps utm_content on the share balloon URLs when sharerUserIdPrefix is provided", () => {
-		const doc = render({ ...baseInput, sharerUserIdPrefix: "abcdef" });
+	describe("expiry counter", () => {
+		const now = new Date("2026-05-01T00:00:00.000Z");
 
-		const shareBtn = doc.querySelector("[data-test-share-balloon]");
-		assert(shareBtn, "share button must be rendered");
-		const shareHref = shareBtn.getAttribute("data-share-url");
-		assert(shareHref, "share button must carry a data-share-url");
-		const shareUrl = new URL(shareHref);
-		expect(shareUrl.searchParams.get("utm_content")).toBe("abcdef");
+		it("renders state=permanent with no counter text when expiresAt is null", () => {
+			const doc = render({ ...baseInput, expiresAt: null, now });
 
-		const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
-		assert(copyBtn, "copy button must be rendered");
-		const copyHref = copyBtn.getAttribute("data-share-url");
-		assert(copyHref, "copy button must carry a data-share-url");
-		const copyUrl = new URL(copyHref);
-		expect(copyUrl.searchParams.get("utm_content")).toBe("abcdef");
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			assert.equal(counter.getAttribute("data-expiry-state"), "permanent");
+			assert.equal(counter.getAttribute("data-expires-at"), null);
+			assert(
+				counter.classList.contains("view__expiry--permanent"),
+				"permanent state must apply the hidden CSS modifier",
+			);
+			assert.equal(counter.textContent, "");
+		});
+
+		it("renders state=counting with the SSR countdown text when expiresAt is in the future", () => {
+			const expiresAt = new Date("2026-05-03T10:05:33.000Z");
+			const doc = render({ ...baseInput, expiresAt, now });
+
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			assert.equal(counter.getAttribute("data-expiry-state"), "counting");
+			assert.equal(
+				counter.getAttribute("data-expires-at"),
+				"2026-05-03T10:05:33.000Z",
+			);
+			assert(
+				counter.classList.contains("view__expiry--counting"),
+				"counting state must apply the counting CSS modifier",
+			);
+			assert.equal(counter.textContent, "Public access will expire in 2d 10h 5m 33s");
+		});
+
+		it("renders state=expired with the expired copy when expiresAt is at or before now", () => {
+			const expiresAt = new Date("2026-04-30T23:59:59.000Z");
+			const doc = render({ ...baseInput, expiresAt, now });
+
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			assert.equal(counter.getAttribute("data-expiry-state"), "expired");
+			assert(
+				counter.classList.contains("view__expiry--expired"),
+				"expired state must apply the expired CSS modifier",
+			);
+			assert.equal(counter.textContent, "Public access has expired.");
+		});
+
+		it("boots the expiry-counter client via the external script bundle", () => {
+			const doc = render({ ...baseInput, expiresAt: null, now });
+
+			const script = doc.querySelector(
+				'script[src$="/client-dist/expiry-counter.client.js"]',
+			);
+			assert(script, "expiry-counter client script must be rendered");
+			assert(script.hasAttribute("defer"));
+		});
+
+		it("adds data-expiry-save-link to actions where expirySaveLink is true", () => {
+			const doc = render({
+				...baseInput,
+				actions: [
+					{
+						name: "Save to My Queue",
+						href: "/save?url=https%3A%2F%2Fexample.com%2Fpost&utm_content=2d_10h_left",
+						variant: "primary",
+						expirySaveLink: true,
+					},
+					{
+						name: "Paste another link",
+						href: "/view?utm_source=view-article",
+						variant: "secondary",
+					},
+				],
+				expiresAt: new Date("2026-05-03T10:05:33.000Z"),
+				now,
+			});
+
+			const actions = doc.querySelectorAll("[data-test-view-cta-action]");
+			assert.equal(actions.length, 2);
+			assert(actions[0]?.hasAttribute("data-expiry-save-link"));
+			assert.equal(actions[1]?.hasAttribute("data-expiry-save-link"), false);
+		});
+
+		it("omits data-expiry-save-link when expirySaveLink is undefined", () => {
+			const doc = render({
+				...baseInput,
+				actions: [
+					{
+						name: "Save to My Queue",
+						href: "/save?url=x",
+						variant: "primary",
+					},
+				],
+				expiresAt: null,
+				now,
+			});
+
+			const action = doc.querySelector("[data-test-view-cta-action]");
+			assert(action, "cta action must be rendered");
+			assert.equal(action.hasAttribute("data-expiry-save-link"), false);
+		});
+
+		it("stamps utm_content on share-balloon URLs with the sharerUserIdPrefix when provided", () => {
+			const userId = UserIdSchema.parse("abc123deadbeef1234567890abcdef01");
+			const doc = render({
+				...baseInput,
+				sharerUserIdPrefix: sharedUserIdFrom(userId),
+			});
+
+			const shareBtn = doc.querySelector("[data-test-share-balloon]");
+			assert(shareBtn, "share button must be rendered");
+			const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
+			assert.equal(shareUrl.searchParams.get("utm_content"), "abc123");
+
+			const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
+			assert(copyBtn, "copy button must be rendered");
+			const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
+			assert.equal(copyUrl.searchParams.get("utm_content"), "abc123");
+		});
+
+		it("omits utm_content from share-balloon URLs when no sharerUserIdPrefix is provided", () => {
+			const doc = render(baseInput);
+
+			const shareBtn = doc.querySelector("[data-test-share-balloon]");
+			assert(shareBtn, "share button must be rendered");
+			const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
+			assert.equal(shareUrl.searchParams.get("utm_content"), null);
+		});
+	});
+});
+
+describe("buildExpiryFields", () => {
+	const now = new Date("2026-05-01T00:00:00.000Z");
+
+	it("returns permanent for expiresAt=null", () => {
+		assert.deepStrictEqual(buildExpiryFields(null, now), {
+			state: "permanent",
+			message: "",
+		});
 	});
 
-	it("omits utm_content on the share balloon URLs when no sharerUserIdPrefix is provided", () => {
-		const doc = render();
-
-		const shareBtn = doc.querySelector("[data-test-share-balloon]");
-		assert(shareBtn, "share button must be rendered");
-		const shareHref = shareBtn.getAttribute("data-share-url");
-		assert(shareHref, "share button must carry a data-share-url");
-		const shareUrl = new URL(shareHref);
-		expect(shareUrl.searchParams.get("utm_content")).toBeNull();
-
-		const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
-		assert(copyBtn, "copy button must be rendered");
-		const copyHref = copyBtn.getAttribute("data-share-url");
-		assert(copyHref, "copy button must carry a data-share-url");
-		const copyUrl = new URL(copyHref);
-		expect(copyUrl.searchParams.get("utm_content")).toBeNull();
+	it("returns counting with the countdown text and ISO timestamp when expiresAt > now", () => {
+		const expiresAt = new Date("2026-05-03T10:05:33.000Z");
+		assert.deepStrictEqual(buildExpiryFields(expiresAt, now), {
+			state: "counting",
+			message: "Public access will expire in 2d 10h 5m 33s",
+			expiresAtIso: "2026-05-03T10:05:33.000Z",
+		});
 	});
 
+	it("returns expired when expiresAt <= now", () => {
+		const expiresAt = new Date("2026-04-30T23:59:59.000Z");
+		assert.deepStrictEqual(buildExpiryFields(expiresAt, now), {
+			state: "expired",
+			message: "Public access has expired.",
+			expiresAtIso: "2026-04-30T23:59:59.000Z",
+		});
+	});
+
+	it("returns expired exactly at the boundary (expiresAt === now)", () => {
+		assert.equal(buildExpiryFields(now, now).state, "expired");
+	});
 });

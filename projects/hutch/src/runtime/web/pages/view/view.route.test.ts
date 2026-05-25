@@ -16,6 +16,7 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
 } from "@packages/test-fixtures";
+import { calculateReadTime } from "@packages/domain/article";
 import { MAX_POLLS } from "../../shared/article-reader/article-reader";
 
 const ARTICLE_URL = "https://example.com/post";
@@ -1173,6 +1174,230 @@ describe("View routes", () => {
 				.set("If-None-Match", etag);
 			expect(second.status).toBe(304);
 			expect(second.text).toBe("");
+		});
+	});
+
+	describe("Expiry counter", () => {
+		function makeHarness(now: Date) {
+			const parseArticle: ParseArticle = async () => buildParseResult();
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			return {
+				fixture,
+				harness: useApp({
+					...fixture,
+					parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
+					events: {
+						publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+						publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+						publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+						publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+						publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+						publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+						publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+						publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					},
+					shared: { ...fixture.shared, now: () => now },
+				}),
+			};
+		}
+
+		it("renders state=counting and the SSR countdown when the article domain is not permanent and was saved less than 3 days ago", async () => {
+			const now = new Date("2026-05-04T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			await fixture.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: calculateReadTime(0),
+				savedAt: new Date("2026-05-03T13:54:27.000Z"),
+			});
+
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			expect(counter.getAttribute("data-expiry-state")).toBe("counting");
+			expect(counter.textContent).toBe("Public access will expire in 2d 13h 54m 27s");
+		});
+
+		it("renders state=permanent when the article domain is in PERMANENT_ARTICLE_DOMAINS", async () => {
+			const now = new Date("2026-05-04T00:00:00.000Z");
+			const { harness } = makeHarness(now);
+			const permanentUrl = "https://fagnerbrack.com/some-article";
+			const encoded = encodeURIComponent(permanentUrl);
+
+			const response = await request(harness.server).get(`/view/${encoded}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			expect(counter.getAttribute("data-expiry-state")).toBe("permanent");
+			expect(counter.classList.contains("view__expiry--permanent")).toBe(true);
+		});
+
+		it("renders state=permanent when utm_content carries a 6-hex prefix matching an existing user", async () => {
+			const now = new Date("2026-05-04T00:00:00.000Z");
+			const { harness } = makeHarness(now);
+			const result = await harness.auth.createUser({ email: "sharer@example.com", password: "password123" });
+			assert(result.ok);
+			const prefix = result.userId.slice(0, 6).toLowerCase();
+
+			const response = await request(harness.server).get(
+				`/view/${ENCODED}?utm_content=${prefix}`,
+			);
+
+			const doc = new JSDOM(response.text).window.document;
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			expect(counter.getAttribute("data-expiry-state")).toBe("permanent");
+		});
+
+		it("renders state=counting when utm_content carries a 6-hex prefix not matching any user", async () => {
+			const now = new Date("2026-05-04T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			await fixture.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: calculateReadTime(0),
+				savedAt: new Date("2026-05-03T13:54:27.000Z"),
+			});
+
+			const response = await request(harness.server).get(
+				`/view/${ENCODED}?utm_content=ffffff`,
+			);
+
+			const doc = new JSDOM(response.text).window.document;
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			expect(counter.getAttribute("data-expiry-state")).toBe("counting");
+		});
+
+		it("renders state=expired and the expired copy when savedAt is more than 3 days ago", async () => {
+			const now = new Date("2026-05-10T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			await fixture.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: calculateReadTime(0),
+				savedAt: new Date("2026-05-01T00:00:00.000Z"),
+			});
+
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			expect(counter.getAttribute("data-expiry-state")).toBe("expired");
+			expect(counter.textContent).toBe("Public access has expired.");
+		});
+
+		it("stamps utm_content=Xd_Yh_left on the Save link when counting", async () => {
+			const now = new Date("2026-05-04T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			await fixture.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: calculateReadTime(0),
+				savedAt: new Date("2026-05-03T13:00:00.000Z"),
+			});
+
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const action = ctaAction(doc);
+			const href = action.getAttribute("href");
+			assert(href, "Save action must carry an href");
+			const parsed = new URL(href, "http://localhost");
+			expect(parsed.searchParams.get("utm_content")).toBe("2d_13h_left");
+			expect(action.hasAttribute("data-expiry-save-link")).toBe(true);
+		});
+
+		it("does not stamp time-left utm_content on a permanent-domain article", async () => {
+			const now = new Date("2026-05-04T00:00:00.000Z");
+			const { harness } = makeHarness(now);
+			const permanentUrl = "https://fagnerbrack.com/some-article";
+			const encoded = encodeURIComponent(permanentUrl);
+
+			const response = await request(harness.server).get(`/view/${encoded}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const action = ctaAction(doc);
+			const href = action.getAttribute("href");
+			assert(href, "Save action must carry an href");
+			const parsed = new URL(href, "http://localhost");
+			expect(parsed.searchParams.get("utm_content")).toBe(null);
+			expect(action.hasAttribute("data-expiry-save-link")).toBe(false);
+		});
+
+		it("re-saving an article (savedAt bump) resets the counter to the full 3-day window", async () => {
+			const now = new Date("2026-05-10T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			await fixture.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "stub", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: calculateReadTime(0),
+				savedAt: new Date("2026-05-01T00:00:00.000Z"),
+			});
+
+			const expiredResponse = await request(harness.server).get(`/view/${ENCODED}`);
+			const expiredCounter = new JSDOM(expiredResponse.text).window.document.querySelector(
+				"[data-test-view-expiry]",
+			);
+			assert(expiredCounter, "expiry element must be rendered");
+			expect(expiredCounter.getAttribute("data-expiry-state")).toBe("expired");
+
+			await fixture.articleStore.bumpArticleSavedAt({
+				url: ARTICLE_URL,
+				savedAt: now,
+			});
+
+			const freshResponse = await request(harness.server).get(`/view/${ENCODED}`);
+			const freshCounter = new JSDOM(freshResponse.text).window.document.querySelector(
+				"[data-test-view-expiry]",
+			);
+			assert(freshCounter, "expiry element must be rendered");
+			expect(freshCounter.getAttribute("data-expiry-state")).toBe("counting");
+			expect(freshCounter.textContent).toBe("Public access will expire in 3d 0h 0m 0s");
+		});
+
+		it("stamps share-balloon utm_content with the sharer prefix when an authenticated user views the page", async () => {
+			const now = new Date("2026-05-04T00:00:00.000Z");
+			const { harness } = makeHarness(now);
+			const { auth } = harness;
+			await auth.createUser({ email: "sharer@example.com", password: "password123" });
+			const agent = request.agent(harness.server);
+			await agent
+				.post("/login")
+				.type("form")
+				.send({ email: "sharer@example.com", password: "password123" });
+
+			const response = await agent.get(`/view/${ENCODED}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const shareBtn = doc.querySelector("[data-test-share-balloon]");
+			assert(shareBtn, "share button must be rendered");
+			const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
+			const stamped = shareUrl.searchParams.get("utm_content");
+			assert(stamped, "utm_content must be stamped onto the share URL");
+			expect(stamped).toMatch(/^[0-9a-f]{6}$/);
+		});
+
+		it("omits utm_content on the share-balloon URL for an anonymous viewer", async () => {
+			const now = new Date("2026-05-04T00:00:00.000Z");
+			const { harness } = makeHarness(now);
+
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const shareBtn = doc.querySelector("[data-test-share-balloon]");
+			assert(shareBtn, "share button must be rendered");
+			const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
+			expect(shareUrl.searchParams.get("utm_content")).toBe(null);
 		});
 	});
 });

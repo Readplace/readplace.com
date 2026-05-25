@@ -9,7 +9,8 @@
     <aside class="view__cta" data-test-view-cta>
       <div class="view__cta-content">
         {{#each actions}}
-        <a class="view__cta-btn view__cta-btn--{{variant}}" href="{{href}}" data-test-view-cta-action>{{name}}</a>
+        <a class="view__cta-btn view__cta-btn--{{variant}}" href="{{href}}" data-test-view-cta-action{{#if expirySaveLink}} data-expiry-save-link{{/if}}>{{name}}</a>
         {{/each}}
       </div>
+      <p class="view__expiry view__expiry--{{expiryState}}" data-test-view-expiry data-expiry-state="{{expiryState}}"{{#if expiresAtIso}} data-expires-at="{{expiresAtIso}}"{{/if}}>{{expiryMessage}}</p>
     </aside>

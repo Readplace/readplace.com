@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { UserIdPrefixSchema } from "@packages/domain/user";
 import { renderShareBalloon } from "./share-balloon.component";
 
 function parse(html: string): Document {
@@ -30,7 +31,7 @@ describe("renderShareBalloon", () => {
 			shareTitle: "A title",
 			shareHint: "share me",
 			shareSource: "reader-internal",
-			sharerUserIdPrefix: "abcdef",
+			sharerUserIdPrefix: UserIdPrefixSchema.parse("abcdef"),
 		});
 		const doc = parse(html);
 

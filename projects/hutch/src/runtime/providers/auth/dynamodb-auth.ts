@@ -7,7 +7,7 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import { UserIdSchema } from "@packages/domain/user";
+import { UserIdSchema, userIdPrefixFrom } from "@packages/domain/user";
 import type {
 	CountUsers,
 	CreateGoogleUser,
@@ -15,6 +15,7 @@ import type {
 	CreateUser,
 	CreateUserWithPasswordHash,
 	DestroySession,
+	ExistsUserByIdPrefix,
 	FindEmailByUserId,
 	FindUserByEmail,
 	GetSessionUserId,
@@ -34,6 +35,8 @@ const UserRow = z.object({
 	emailVerified: dynamoField(z.boolean()),
 	/* Optional in the schema so reads of pre-backfill rows don't throw; new writes always set it. */
 	registeredAt: dynamoField(z.string()),
+	/* Optional so reads of pre-backfill rows don't throw; new writes always set it. */
+	userIdPrefix: dynamoField(z.string()),
 });
 
 const SessionRow = z.object({
@@ -60,6 +63,7 @@ export function initDynamoDbAuth(deps: {
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	userExistsByEmail: UserExistsByEmail;
+	existsUserByIdPrefix: ExistsUserByIdPrefix;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
 } {
@@ -87,6 +91,7 @@ export function initDynamoDbAuth(deps: {
 					passwordHash,
 					emailVerified: false,
 					registeredAt: new Date().toISOString(),
+					userIdPrefix: userIdPrefixFrom(userId),
 				},
 				ConditionExpression: "attribute_not_exists(email)",
 			});
@@ -111,6 +116,7 @@ export function initDynamoDbAuth(deps: {
 					passwordHash,
 					emailVerified: false,
 					registeredAt: new Date().toISOString(),
+					userIdPrefix: userIdPrefixFrom(userId),
 				},
 				ConditionExpression: "attribute_not_exists(email)",
 			});
@@ -133,6 +139,7 @@ export function initDynamoDbAuth(deps: {
 					userId,
 					emailVerified: true,
 					registeredAt: new Date().toISOString(),
+					userIdPrefix: userIdPrefixFrom(userId),
 				},
 				ConditionExpression: "attribute_not_exists(email)",
 			});
@@ -235,6 +242,16 @@ export function initDynamoDbAuth(deps: {
 		return row ? row.email : null;
 	};
 
+	const existsUserByIdPrefix: ExistsUserByIdPrefix = async (prefix) => {
+		const { items } = await users.query({
+			IndexName: "userIdPrefix-index",
+			KeyConditionExpression: "userIdPrefix = :prefix",
+			ExpressionAttributeValues: { ":prefix": prefix },
+			Limit: 1,
+		});
+		return items.length > 0;
+	};
+
 	const updatePassword: UpdatePassword = async ({ email, password }) => {
 		const normalizedEmail = normalizeEmail(email);
 		const passwordHash = await hashPassword(password);
@@ -259,6 +276,7 @@ export function initDynamoDbAuth(deps: {
 		markEmailVerified,
 		markSessionEmailVerified,
 		userExistsByEmail,
+		existsUserByIdPrefix,
 		updatePassword,
 		findEmailByUserId,
 	};

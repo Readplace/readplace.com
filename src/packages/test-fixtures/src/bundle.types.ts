@@ -41,6 +41,7 @@ import type {
 	CreateUser,
 	CreateUserWithPasswordHash,
 	DestroySession,
+	ExistsUserByIdPrefix,
 	FindEmailByUserId,
 	FindUserByEmail,
 	GetSessionUserId,
@@ -130,6 +131,7 @@ export interface AuthBundle {
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	userExistsByEmail: UserExistsByEmail;
+	existsUserByIdPrefix: ExistsUserByIdPrefix;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
 	deleteUser: (email: string) => Promise<void>;

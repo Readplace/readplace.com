@@ -426,6 +426,7 @@ export function createHutchApp(deps?: {
 
 	const appOrigin = deps?.appOrigin ?? requireEnv("APP_ORIGIN", { defaultValue: `http://localhost:${getEnv("PORT") || "3000"}` });
 	const staticBaseUrl = requireEnv("STATIC_BASE_URL");
+	const expiryCountdown = requireEnv<"enabled" | "disabled">("EXPIRY_COUNTDOWN");
 	const adminEmails = parseAdminEmails(requireEnv("ADMIN_EMAILS"));
 	const recrawlServiceToken = requireEnv("RECRAWL_SERVICE_TOKEN");
 	const salt = requireEnv("ANALYTICS_SALT");
@@ -462,6 +463,7 @@ export function createHutchApp(deps?: {
 		foundingAllocation: initFoundingAllocation({
 			foundingMemberLimit: PROD_FOUNDING_MEMBER_LIMIT,
 		}),
+		expiryCountdown,
 	});
 
 	return { app, auth, articleStore, oauthModel, analyticsLogger };

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
 import {
-	PERMANENT_UTM_SOURCES,
+	PERMANENT_ARTICLE_DOMAINS,
 	PUBLIC_VIEW_ACCESS_WINDOW_MS,
 	computePublicViewExpiry,
 	formatSaveUtmContent,
@@ -25,16 +25,15 @@ describe("sharedUserIdFrom", () => {
 });
 
 describe("sharedUserIdFromQueryParams", () => {
-	it("returns SharedUserId when utm_content starts with 6 hex chars", () => {
+	it("returns SharedUserId when utm_content is exactly 6 hex chars", () => {
 		const result = sharedUserIdFromQueryParams("abc123");
 		assert(result !== null);
 		assert.equal(result, "abc123");
 	});
 
-	it("returns SharedUserId when 6 hex chars are followed by more characters", () => {
+	it("returns null when utm_content has 6 hex chars followed by more characters", () => {
 		const result = sharedUserIdFromQueryParams("abc123-share");
-		assert(result !== null);
-		assert.equal(result, "abc123-share");
+		assert.equal(result, null);
 	});
 
 	it("normalises uppercase hex in utm_content", () => {
@@ -62,39 +61,67 @@ describe("computePublicViewExpiry", () => {
 	it("returns savedAt + 3 days for organic visits", () => {
 		const result = computePublicViewExpiry({
 			savedAt,
-			utmSource: undefined,
-			utmContent: undefined,
+			articleDomain: "example.com",
+			permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
+			isValidSharer: false,
 		});
 		assert(result.expiresAt, "expiresAt must be set for organic visits");
 		assert.equal(result.expiresAt.toISOString(), "2026-05-04T00:00:00.000Z");
 		assert.equal(result.expiresAt.getTime() - savedAt.getTime(), PUBLIC_VIEW_ACCESS_WINDOW_MS);
 	});
 
-	it("returns null for utm_source=fagnerbrack.com", () => {
+	it("returns null when article domain matches a permanent domain", () => {
 		const result = computePublicViewExpiry({
 			savedAt,
-			utmSource: PERMANENT_UTM_SOURCES[0],
-			utmContent: undefined,
+			articleDomain: "fagnerbrack.com",
+			permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
+			isValidSharer: false,
 		});
 		assert.equal(result.expiresAt, null);
 	});
 
-	it("returns null when utm_content carries a 6-hex-char prefix", () => {
+	it("returns null when isValidSharer is true", () => {
 		const result = computePublicViewExpiry({
 			savedAt,
-			utmSource: undefined,
-			utmContent: "abc123-share",
+			articleDomain: "example.com",
+			permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
+			isValidSharer: true,
 		});
 		assert.equal(result.expiresAt, null);
 	});
 
-	it("applies the standard expiry when utm_content is non-hex like 'paste-another-link'", () => {
+	it("applies the standard expiry when isValidSharer is false and domain is not permanent", () => {
 		const result = computePublicViewExpiry({
 			savedAt,
-			utmSource: undefined,
-			utmContent: "paste-another-link",
+			articleDomain: "example.com",
+			permanentArticleDomains: PERMANENT_ARTICLE_DOMAINS,
+			isValidSharer: false,
 		});
-		assert(result.expiresAt, "expiresAt must be set for analytics-only utm_content");
+		assert(result.expiresAt, "expiresAt must be set for non-sharer, non-permanent visits");
+		assert.equal(result.expiresAt.toISOString(), "2026-05-04T00:00:00.000Z");
+	});
+
+	it("returns null when article domain matches any of multiple permanent domains", () => {
+		const multiDomains = ["first.com", "second.com", "third.com"];
+		for (const domain of multiDomains) {
+			const result = computePublicViewExpiry({
+				savedAt,
+				articleDomain: domain,
+				permanentArticleDomains: multiDomains,
+				isValidSharer: false,
+			});
+			assert.equal(result.expiresAt, null, `expected permanent for ${domain}`);
+		}
+	});
+
+	it("applies the standard expiry when article domain is not in a multi-domain permanent list", () => {
+		const result = computePublicViewExpiry({
+			savedAt,
+			articleDomain: "unknown.com",
+			permanentArticleDomains: ["first.com", "second.com", "third.com"],
+			isValidSharer: false,
+		});
+		assert(result.expiresAt, "expiresAt must be set for non-permanent domain");
 		assert.equal(result.expiresAt.toISOString(), "2026-05-04T00:00:00.000Z");
 	});
 });

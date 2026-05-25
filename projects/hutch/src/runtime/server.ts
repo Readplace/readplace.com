@@ -20,6 +20,7 @@ import type {
 	UpdatePassword,
 	UserExistsByEmail,
 	VerifyCredentials,
+	ExistsUserByIdPrefix,
 } from "@packages/test-fixtures/providers/auth";
 import type {
 	CreateCheckoutSession,
@@ -96,6 +97,7 @@ import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { initSaveRoutes } from "./web/pages/save/save.page";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
+import type { ExpiryCountdown } from "./web/pages/view/view-expiry";
 import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
 import { initEmbedRoutes } from "./web/pages/embed/embed.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
@@ -163,6 +165,7 @@ interface AppDependencies {
 	createPasswordResetToken: CreatePasswordResetToken;
 	verifyPasswordResetToken: VerifyPasswordResetToken;
 	userExistsByEmail: UserExistsByEmail;
+	existsUserByIdPrefix: ExistsUserByIdPrefix;
 	updatePassword: UpdatePassword;
 	baseUrl: string;
 	logError: (message: string, error?: Error) => void;
@@ -211,6 +214,7 @@ interface AppDependencies {
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
 	salt: string;
 	foundingAllocation: FoundingAllocation;
+	expiryCountdown: ExpiryCountdown;
 }
 
 function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -607,6 +611,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		saveArticleGlobally: deps.saveArticleGlobally,
 		publishSaveAnonymousLink: deps.publishSaveAnonymousLink,
 		publishStaleCheckRequested: deps.publishStaleCheckRequested,
+		existsUserByIdPrefix: deps.existsUserByIdPrefix,
+		expiryCountdown: deps.expiryCountdown,
 		now: deps.now,
 		buildBannerState,
 	});

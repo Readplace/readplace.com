@@ -45,6 +45,7 @@ import type {
 	UpdatePassword,
 	UserExistsByEmail,
 	VerifyCredentials,
+	ExistsUserByIdPrefix,
 } from "@packages/test-fixtures/providers/auth";
 import type {
 	PublishCancelSubscriptionCommand,
@@ -127,6 +128,7 @@ export interface AuthBundle {
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	userExistsByEmail: UserExistsByEmail;
+	existsUserByIdPrefix: ExistsUserByIdPrefix;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
 	deleteUser: (email: string) => Promise<void>;
@@ -382,6 +384,7 @@ function flattenFixtureToAppDependencies(
 		markEmailVerified: fixture.auth.markEmailVerified,
 		markSessionEmailVerified: fixture.auth.markSessionEmailVerified,
 		userExistsByEmail: fixture.auth.userExistsByEmail,
+		existsUserByIdPrefix: fixture.auth.existsUserByIdPrefix,
 		updatePassword: fixture.auth.updatePassword,
 		findEmailByUserId: fixture.auth.findEmailByUserId,
 		findArticleById: fixture.articleStore.findArticleById,
@@ -443,6 +446,7 @@ function flattenFixtureToAppDependencies(
 		foundingAllocation: initFoundingAllocation({
 			foundingMemberLimit: fixture.foundingAllocation.foundingMemberLimit,
 		}),
+		expiryCountdown: "enabled",
 	};
 }
 
