@@ -139,6 +139,8 @@ describe("ViewPage", () => {
 			],
 		});
 
+		const action = doc.querySelector("[data-test-view-cta-action]");
+		assert(action, "cta action must be rendered so selector is valid");
 		const hints = doc.querySelectorAll("[data-test-view-cta-hint]");
 		assert.equal(hints.length, 0);
 	});
