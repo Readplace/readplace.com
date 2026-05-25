@@ -545,6 +545,7 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const queueRouter = initQueueRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,
+		appOrigin,
 		findArticlesByUser: deps.findArticlesByUser,
 		findArticleById: deps.findArticleById,
 		findArticleByUrl: deps.findArticleByUrl,
@@ -602,6 +603,7 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const viewRouter = initViewRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,
+		appOrigin,
 		findArticleByUrl: deps.findArticleByUrl,
 		readArticleContent: deps.readArticleContent,
 		findGeneratedSummary: deps.findGeneratedSummary,

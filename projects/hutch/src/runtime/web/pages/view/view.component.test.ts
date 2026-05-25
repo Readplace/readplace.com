@@ -8,6 +8,7 @@ import { sharedUserIdFrom } from "./view-expiry";
 
 const baseInput: ViewPageInput = {
 	articleUrl: "https://example.com/post",
+	appOrigin: "http://localhost:3000",
 	metadata: {
 		title: "Hello World",
 		siteName: "example.com",
@@ -511,6 +512,44 @@ describe("ViewPage", () => {
 			assert(shareBtn, "share button must be rendered");
 			const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
 			assert.equal(shareUrl.searchParams.get("utm_content"), null);
+		});
+
+		it("renders the share-balloon URLs against the supplied appOrigin, not a hardcoded host", () => {
+			const doc = render({
+				...baseInput,
+				appOrigin: "https://staging.readplace.com",
+			});
+
+			const shareBtn = doc.querySelector("[data-test-share-balloon]");
+			assert(shareBtn, "share button must be rendered");
+			const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
+			assert.equal(shareUrl.origin, "https://staging.readplace.com");
+
+			const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
+			assert(copyBtn, "copy button must be rendered");
+			const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
+			assert.equal(copyUrl.origin, "https://staging.readplace.com");
+		});
+
+		it("keeps the SEO canonical URL on https://readplace.com regardless of appOrigin (search indexing must stay on production)", () => {
+			const doc = render({
+				...baseInput,
+				appOrigin: "https://staging.readplace.com",
+			});
+
+			const canonical = `https://readplace.com/view/${encodeURIComponent("https://example.com/post")}`;
+			assert.equal(
+				doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
+				canonical,
+			);
+			assert.equal(
+				doc.querySelector('meta[property="og:url"]')?.getAttribute("content"),
+				canonical,
+			);
+			const script = doc.querySelector('script[type="application/ld+json"]');
+			assert(script, "JSON-LD script must be rendered");
+			const data = JSON.parse(script.textContent ?? "{}");
+			assert.equal(data.url, canonical);
 		});
 	});
 });
