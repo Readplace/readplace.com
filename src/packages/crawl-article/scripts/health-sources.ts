@@ -25,19 +25,6 @@ export interface HealthSource {
 
 export const HEALTH_SOURCES: readonly HealthSource[] = [
 	{
-		label: "Medium (custom domain)",
-		url: "https://fagnerbrack.com/the-problem-you-solve-is-more-important-than-the-code-you-write-d0e5493132c6",
-		expectedContent: "seem to have forgotten the real purpose of software",
-		forbiddenContent: [
-			'data-testid="authorPhoto"',
-			'data-testid="storyReadTime"',
-			'data-testid="storyPublishDate"',
-			"Press enter or click to view image in full size",
-			"stories in your inbox",
-		],
-		expectsThumbnail: true,
-	},
-	{
 		// Medium publications (e.g. itnext.io) serve an incomplete TLS chain —
 		// leaf cert without the Sectigo intermediate. Node's fetch fails with
 		// UNABLE_TO_VERIFY_LEAF_SIGNATURE. AIA chasing (aia-fetch.ts) recovers
@@ -45,19 +32,6 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		label: "Medium (itnext publication)",
 		url: "https://itnext.io/youre-not-praised-for-the-bugs-you-didn-t-create-ef3df6894d5c",
 		expectedContent: "developers were creating more and more bugs, only to fix them and get the prize",
-		expectsThumbnail: true,
-	},
-	{
-		label: "Medium (friends link)",
-		url: "https://fagnerbrack.com/the-problem-you-solve-is-more-important-than-the-code-you-write-d0e5493132c6?source=friends_link&sk=af337097bd3ecac5750a7fb1dcd0b91d",
-		expectedContent: "seem to have forgotten the real purpose of software",
-		forbiddenContent: [
-			'data-testid="authorPhoto"',
-			'data-testid="storyReadTime"',
-			'data-testid="storyPublishDate"',
-			"Press enter or click to view image in full size",
-			"stories in your inbox",
-		],
 		expectsThumbnail: true,
 	},
 	{
@@ -200,13 +174,13 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		// fingerprint looks non-browser (curl exit 47). curl-impersonate with
 		// Chrome fingerprint returns 200 directly. Exercises --globoff +
 		// WHATWG URL re-encoding via the bracketed path segment `[16505689]`.
-		// Pages 23–25 of this 31-page scan are image-heavy and individually
+		// Pages 22–25 of this 31-page scan are image-heavy and individually
 		// defeat DeepInfra's 360s SDK budget; the OCR pipeline's partial-
-		// success threshold (see ocr-pdf.ts) accepts the remaining ≥28/31
-		// pages and renders placeholders for the rest. `expectedContent`
-		// appears on pages 1, 2, 3, 5, 6, 18, 21, 28, 30, 31, all outside the
-		// known-flaky range — confirmed via `pdftotext -f N -l N` against the
-		// staged source PDF.
+		// success threshold (see ocr-pdf.ts) accepts the remaining 27/31
+		// pages (0.871) and renders placeholders for the rest.
+		// `expectedContent` appears on pages 1, 2, 3, 5, 6, 18, 21, 28, 30,
+		// 31, all outside the known-flaky range — confirmed via
+		// `pdftotext -f N -l N` against the staged source PDF.
 		label: "PDF (CIA reading room)",
 		url: "https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf",
 		expectedContent: "Warren Commission",

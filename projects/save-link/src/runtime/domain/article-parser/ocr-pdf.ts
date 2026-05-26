@@ -26,24 +26,31 @@ const DEFAULT_BATCH_SIZE = 1;
 const DEFAULT_CONCURRENCY = 150;
 
 /**
- * Page-image render DPI. Matches the resolution baked into the rasterizer's
- * own default (DPIs higher than 150 blow up token cost without improving
- * dense-text legibility).
+ * Page-image render DPI. 300 is the standard sweet spot for printed text and
+ * matches the resolution most magazine/book PDFs were originally scanned at,
+ * so re-rasterising at 300 doesn't introduce upscaling artefacts. Tesseract
+ * benefits markedly from the extra detail on degraded scans — visible-but-
+ * smudged characters (digits, punctuation, narrow letters) become legible
+ * where 150 dpi rasters were ambiguous. The previous "150 dpi to keep token
+ * cost down" note dates from the DeepInfra vision era; with Tesseract
+ * running locally there is no token cost, just ~2× more compute per page
+ * and ~4× larger temp PNGs in /tmp (per-chunk, cleaned up immediately).
  */
-const DEFAULT_DPI = 150;
+const DEFAULT_DPI = 300;
 
 
-// Per-chunk retry budget. The OpenAI SDK inside the page Lambda already burns
-// 120s × 3 attempts against DeepInfra (`pdf-page-ocr.main.ts`); this layer adds
-// one fresh-container retry on top, so an upstream stall that sticks to a
-// single warm DeepInfra socket can clear on a new Lambda invocation. Worst-case
-// wall time per chunk = MAX_ATTEMPTS × per-Lambda SDK budget (360s) = 720s,
-// which fits under the 900s orchestrator timeout (see
-// projects/save-link/src/infra/index.ts) and leaves room for the partial-
-// success threshold check below to actually run. A higher MAX_ATTEMPTS would
-// push the per-chunk budget past the orchestrator timeout and the orchestrator
-// would die before any partial result could be persisted.
-const PAGE_OCR_MAX_ATTEMPTS = 2;
+// One attempt per chunk. The per-page Lambda runs the vision call (400 s
+// SDK budget, see pdf-page-ocr.main.ts — DeepInfra's server cuts off at
+// ~302 s so the effective per-chunk wall clock is ~302 s anyway) and
+// falls back to pdftotext on vision exhaustion. The only failures that
+// bubble up to the orchestrator are pages that have no text layer to
+// fall back to; those are deterministic and a fresh Lambda container
+// would not recover from them. With chunks running in parallel at
+// concurrency 150, the orchestrator wall clock is bounded by the
+// slowest single chunk (~302 s in practice), well under the 900 s
+// orchestrator Lambda timeout. Bumping to two attempts is wasted budget
+// for the same reason — the fallback already handled the recovery.
+const PAGE_OCR_MAX_ATTEMPTS = 1;
 const PAGE_OCR_RETRY_DELAY_MS = 2000;
 
 // Minimum fraction of chunks that must succeed for the OCR to be accepted.
@@ -53,7 +60,7 @@ const PAGE_OCR_RETRY_DELAY_MS = 2000;
 // link. Failed chunks render as `<p class="ocr-failed">` placeholders so the
 // document still reads as a whole and CSS can style the gaps. Below the
 // threshold the result is rejected the same way a total fan-out failure is.
-const DEFAULT_PARTIAL_SUCCESS_THRESHOLD = 0.9;
+const DEFAULT_PARTIAL_SUCCESS_THRESHOLD = 0.8;
 
 export function initOcrPdf(deps: {
 	extractPdfMetadata: ExtractPdfMetadata;
@@ -111,9 +118,6 @@ export function initOcrPdf(deps: {
 			maxAttempts: PAGE_OCR_MAX_ATTEMPTS,
 			retryDelayMs: PAGE_OCR_RETRY_DELAY_MS,
 			shouldRetry: (result) => !result.ok,
-			beforeRetry: (input) => {
-				logger.warn(`[ocr-pdf] retrying chunk pages=[${input.pageIndices.join(",")}]`);
-			},
 		});
 
 		try {

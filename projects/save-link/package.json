@@ -50,6 +50,7 @@
     "@packages/hutch-infra-components": "workspace:*",
     "@packages/hutch-logger": "workspace:*",
     "@packages/hutch-storage-client": "workspace:*",
+    "@packages/refresh-article-content": "workspace:*",
     "@packages/retriable": "workspace:*",
     "@packages/test-fixtures": "workspace:*",
     "@smithy/node-http-handler": "4.7.3",

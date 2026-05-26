@@ -125,16 +125,19 @@ describe("withH2Fallback", () => {
 		expect(h2Impl).not.toHaveBeenCalled();
 	});
 
-	it("passes through 403 when server header is not 'cloudflare'", async () => {
+	it("retries via h2 on a 403 from a non-Cloudflare origin (e.g. Reddit/Fastly snooserv)", async () => {
 		const baseFetch: typeof fetch = async () =>
-			new Response("Forbidden", { status: 403, headers: { server: "nginx" } });
-		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>();
+			new Response("Forbidden", { status: 403, headers: { server: "snooserv" } });
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+			new Response("<html>h2 bypassed snooserv</html>", { status: 200, headers: { "content-type": "text/html" } }),
+		);
 		const wrapped = withH2Fallback(baseFetch, h2Impl);
 
 		const response = await wrapped("https://example.com");
 
-		expect(response.status).toBe(403);
-		expect(h2Impl).not.toHaveBeenCalled();
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("<html>h2 bypassed snooserv</html>");
+		expect(h2Impl).toHaveBeenCalledTimes(1);
 	});
 
 	it("retries via h2 when Cloudflare returns a managed challenge", async () => {
@@ -180,9 +183,9 @@ describe("withH2Fallback", () => {
 		expect(h2Impl).toHaveBeenCalledTimes(1);
 	});
 
-	it("matches the server header case-insensitively", async () => {
+	it("retries via h2 on a 403 even when the server header is missing", async () => {
 		const baseFetch: typeof fetch = async () =>
-			new Response("blocked", { status: 403, headers: { server: "Cloudflare" } });
+			new Response("Forbidden", { status: 403 });
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
 			new Response("<html>ok</html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
@@ -192,18 +195,6 @@ describe("withH2Fallback", () => {
 
 		expect(response.status).toBe(200);
 		expect(h2Impl).toHaveBeenCalledTimes(1);
-	});
-
-	it("passes through 403 when the server header is missing", async () => {
-		const baseFetch: typeof fetch = async () =>
-			new Response("Forbidden", { status: 403 });
-		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>();
-		const wrapped = withH2Fallback(baseFetch, h2Impl);
-
-		const response = await wrapped("https://example.com");
-
-		expect(response.status).toBe(403);
-		expect(h2Impl).not.toHaveBeenCalled();
 	});
 
 	it("extracts the URL string from a URL object input", async () => {
@@ -296,6 +287,25 @@ describe("withH2Fallback", () => {
 			headers: { "user-agent": "Test/1.0" },
 			signal: expect.any(AbortSignal),
 		});
+	});
+
+	it("escalates to curl when h2 also returns 403 (e.g. old.reddit.com blocks both undici and Node http2)", async () => {
+		const baseFetch: typeof fetch = async () =>
+			new Response("Forbidden", { status: 403, headers: { server: "snooserv" } });
+		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
+			new Response("Forbidden", { status: 403, headers: { server: "snooserv" } }),
+		);
+		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>(async () =>
+			new Response("<html>curl bypassed snooserv</html>", { status: 200, headers: { "content-type": "text/html" } }),
+		);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
+
+		const response = await wrapped("https://old.reddit.com/r/javascript/comments/abc");
+
+		expect(response.status).toBe(200);
+		expect(await response.text()).toBe("<html>curl bypassed snooserv</html>");
+		expect(h2Impl).toHaveBeenCalledTimes(1);
+		expect(curlImpl).toHaveBeenCalledTimes(1);
 	});
 
 	it("does not invoke curl when h2 succeeds", async () => {

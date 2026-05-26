@@ -1,19 +1,18 @@
 import { noopLogger } from "@packages/hutch-logger";
 import type { RenderPdfPageToPng } from "@packages/crawl-article";
-import type { CreateVisionMessage } from "../article-parser/create-deepinfra-vision-message";
-import type { DownloadStagedPdf } from "./pdf-page-ocr-handler.types";
+import type { DownloadStagedPdf, RunPageOcr } from "./pdf-page-ocr-handler.types";
 import { initPdfPageOcrHandler } from "./pdf-page-ocr-handler";
 
 const stubDownload = (pdfBuffer: Buffer): DownloadStagedPdf => async () => pdfBuffer;
 const stubRender = (png: Buffer): RenderPdfPageToPng => async () => png;
-const stubVision = (html: string): CreateVisionMessage => async () => html;
+const stubOcr = (html: string): RunPageOcr => async () => html;
 
 describe("initPdfPageOcrHandler", () => {
 	it("downloads the staged PDF, rasterises each requested page, OCRs the batch, and returns HTML", async () => {
 		const renderedPages: number[] = [];
 		const renderedDpis: number[] = [];
 		let downloadKey: string | undefined;
-		let visionImageCount = 0;
+		let ocrImageCount = 0;
 		const handler = initPdfPageOcrHandler({
 			downloadStagedPdf: async ({ key }) => {
 				downloadKey = key;
@@ -24,8 +23,8 @@ describe("initPdfPageOcrHandler", () => {
 				renderedDpis.push(dpi);
 				return Buffer.from([0x89, 0x50, 0x4e, 0x47, pageIndex]);
 			},
-			createVisionMessage: async ({ images }) => {
-				visionImageCount = images.length;
+			runPageOcr: async ({ images }) => {
+				ocrImageCount = images.length;
 				return "<p>hello</p>";
 			},
 			logger: noopLogger,
@@ -41,14 +40,14 @@ describe("initPdfPageOcrHandler", () => {
 		expect(downloadKey).toBe("pdf-rasterise-staging/abc/source.pdf");
 		expect(renderedPages).toEqual([7, 8, 9]);
 		expect(renderedDpis).toEqual([150, 150, 150]);
-		expect(visionImageCount).toBe(3);
+		expect(ocrImageCount).toBe(3);
 	});
 
 	it("rejects malformed payloads via Zod (missing pdfS3Key)", async () => {
 		const handler = initPdfPageOcrHandler({
 			downloadStagedPdf: stubDownload(Buffer.alloc(0)),
 			renderPdfPageToPng: stubRender(Buffer.alloc(0)),
-			createVisionMessage: stubVision("x"),
+			runPageOcr: stubOcr("x"),
 			logger: noopLogger,
 		});
 
@@ -59,7 +58,7 @@ describe("initPdfPageOcrHandler", () => {
 		const handler = initPdfPageOcrHandler({
 			downloadStagedPdf: stubDownload(Buffer.alloc(0)),
 			renderPdfPageToPng: stubRender(Buffer.alloc(0)),
-			createVisionMessage: stubVision("x"),
+			runPageOcr: stubOcr("x"),
 			logger: noopLogger,
 		});
 
@@ -70,7 +69,7 @@ describe("initPdfPageOcrHandler", () => {
 		const handler = initPdfPageOcrHandler({
 			downloadStagedPdf: stubDownload(Buffer.alloc(0)),
 			renderPdfPageToPng: stubRender(Buffer.alloc(0)),
-			createVisionMessage: stubVision("x"),
+			runPageOcr: stubOcr("x"),
 			logger: noopLogger,
 		});
 
@@ -81,7 +80,7 @@ describe("initPdfPageOcrHandler", () => {
 		const handler = initPdfPageOcrHandler({
 			downloadStagedPdf: stubDownload(Buffer.alloc(0)),
 			renderPdfPageToPng: stubRender(Buffer.alloc(0)),
-			createVisionMessage: stubVision("x"),
+			runPageOcr: stubOcr("x"),
 			logger: noopLogger,
 		});
 
@@ -93,7 +92,7 @@ describe("initPdfPageOcrHandler", () => {
 		const handler = initPdfPageOcrHandler({
 			downloadStagedPdf: async () => { throw new Error("AccessDenied"); },
 			renderPdfPageToPng: stubRender(Buffer.alloc(0)),
-			createVisionMessage: stubVision("x"),
+			runPageOcr: stubOcr("x"),
 			logger: noopLogger,
 		});
 
@@ -104,21 +103,21 @@ describe("initPdfPageOcrHandler", () => {
 		const handler = initPdfPageOcrHandler({
 			downloadStagedPdf: stubDownload(Buffer.from("%PDF")),
 			renderPdfPageToPng: async () => { throw new Error("pdftoppm failed"); },
-			createVisionMessage: stubVision("x"),
+			runPageOcr: stubOcr("x"),
 			logger: noopLogger,
 		});
 
 		await expect(handler({ pdfS3Key: "x", pageIndices: [0], dpi: 150 })).rejects.toThrow("pdftoppm failed");
 	});
 
-	it("propagates errors from the vision model", async () => {
+	it("propagates errors from the OCR engine", async () => {
 		const handler = initPdfPageOcrHandler({
 			downloadStagedPdf: stubDownload(Buffer.from("%PDF")),
 			renderPdfPageToPng: stubRender(Buffer.from([0x89, 0x50, 0x4e, 0x47])),
-			createVisionMessage: async () => { throw new Error("DeepInfra 429"); },
+			runPageOcr: async () => { throw new Error("tesseract exited 1"); },
 			logger: noopLogger,
 		});
 
-		await expect(handler({ pdfS3Key: "x", pageIndices: [0], dpi: 150 })).rejects.toThrow("DeepInfra 429");
+		await expect(handler({ pdfS3Key: "x", pageIndices: [0], dpi: 150 })).rejects.toThrow("tesseract exited 1");
 	});
 });

@@ -39,6 +39,7 @@ export default {
 		"@packages/crawl-article",
 		"@packages/domain",
 		"@packages/onboarding-extension-signal",
+		"@packages/refresh-article-content",
 		"@packages/retriable",
 		"@packages/time-left",
 		"@packages/test-fixtures",
