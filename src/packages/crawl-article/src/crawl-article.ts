@@ -1,4 +1,3 @@
-import { parseHTML } from "linkedom";
 import type {
 	ComprehensiveCrawl,
 	ComprehensiveCrawlProgress,
@@ -9,6 +8,7 @@ import type {
 } from "./crawl-article.types";
 import type { CrawlFetch } from "./crawl-fetch";
 import { extensionFromContentType } from "./extension-from-content-type";
+import { extractThumbnailCandidates } from "./extract-thumbnail";
 import { headerOrUndefined } from "./header-utils";
 import { isPdfContentType, isPdfMagicBytes } from "./pdf-detect";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
@@ -318,54 +318,6 @@ async function tryFetchImage(args: {
 	}
 }
 
-function extractThumbnailCandidates(params: {
-	html: string;
-	baseUrl?: string;
-}): string[] {
-	const { html, baseUrl } = params;
-	const { document } = parseHTML(html);
-	const seen = new Set<string>();
-	const candidates: string[] = [];
-
-	function push(raw: string | null | undefined) {
-		const resolved = resolveIfRelative(raw, baseUrl);
-		if (resolved && isValidHttpUrl(resolved) && !seen.has(resolved)) {
-			seen.add(resolved);
-			candidates.push(resolved);
-		}
-	}
-
-	push(document.querySelector('meta[property="og:image"]')?.getAttribute("content"));
-	push(document.querySelector('meta[name="twitter:image"]')?.getAttribute("content"));
-	for (const img of document.querySelectorAll("img[src]")) {
-		push(img.getAttribute("src"));
-	}
-
-	return candidates;
-}
-
-function resolveIfRelative(
-	url: string | null | undefined,
-	baseUrl: string | undefined,
-): string | undefined {
-	if (!url) return undefined;
-	if (isValidHttpUrl(url)) return url;
-	if (!baseUrl) return url;
-	try {
-		return new URL(url, baseUrl).href;
-	} catch {
-		return url;
-	}
-}
-
-function isValidHttpUrl(url: string): boolean {
-	try {
-		const parsed = new URL(url);
-		return parsed.protocol === "http:" || parsed.protocol === "https:";
-	} catch {
-		return false;
-	}
-}
 
 /** Accept text/html and application/xhtml+xml — both are HTML-parseable by linkedom. */
 function isHtmlContentType(contentType: string): boolean {

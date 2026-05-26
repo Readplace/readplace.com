@@ -197,7 +197,11 @@ describe("initReadabilityParser", () => {
 		</article></body></html>`;
 
 		const { parseHtml } = initParser();
-		const result = parseHtml({ url: "https://blog.example.com/post", html: htmlWithRelativeImg });
+		const result = parseHtml({
+			url: "https://blog.example.com/post",
+			html: htmlWithRelativeImg,
+			thumbnailUrl: null,
+		});
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -220,6 +224,7 @@ describe("initReadabilityParser", () => {
 		const result = parseHtml({
 			url: "https://blog.example.com/post",
 			html: htmlWithRelativeLink,
+			thumbnailUrl: null,
 		});
 
 		expect(result.ok).toBe(true);
@@ -230,7 +235,11 @@ describe("initReadabilityParser", () => {
 
 	it("should return error for invalid URL passed to parseHtml directly", () => {
 		const { parseHtml } = initParser();
-		const result = parseHtml({ url: "not-a-url", html: "<html><body></body></html>" });
+		const result = parseHtml({
+			url: "not-a-url",
+			html: "<html><body></body></html>",
+			thumbnailUrl: null,
+		});
 
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
@@ -241,7 +250,11 @@ describe("initReadabilityParser", () => {
 	it("should use fallback values when readability returns empty fields", () => {
 		const minimalHtml = `<html><head></head><body>${"<p>word </p>".repeat(100)}</body></html>`;
 		const { parseHtml } = initParser();
-		const result = parseHtml({ url: "https://example.com/page", html: minimalHtml });
+		const result = parseHtml({
+			url: "https://example.com/page",
+			html: minimalHtml,
+			thumbnailUrl: null,
+		});
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -285,6 +298,7 @@ describe("initReadabilityParser", () => {
 			const result = parseHtml({
 				url: "https://matching.example.com/article",
 				html: "<html><body><nav>nav nav nav</nav><p>Original body that should be replaced.</p></body></html>",
+				thumbnailUrl: null,
 			});
 
 			expect(calls).toEqual([
@@ -326,6 +340,7 @@ describe("initReadabilityParser", () => {
 			const result = parseHtml({
 				url: "https://example.com/article",
 				html: "<html><body><p>Original.</p></body></html>",
+				thumbnailUrl: null,
 			});
 
 			expect(calls).toEqual(["first.extract", "second.extract"]);
@@ -348,6 +363,7 @@ describe("initReadabilityParser", () => {
 			const result = parseHtml({
 				url: "https://example.com/article",
 				html: `<html><head><title>Real Title</title></head><body><article><p>Real article body with enough words for readability to extract successfully as the main content.</p></article></body></html>`,
+				thumbnailUrl: null,
 			});
 
 			expect(result.ok).toBe(true);
@@ -374,6 +390,7 @@ describe("initReadabilityParser", () => {
 			const result = parseHtml({
 				url: "https://example.com/article",
 				html: `<html><body><article><p>Original body that remains after the throwing pre-parser was swallowed, with enough words for readability to score it.</p></article></body></html>`,
+				thumbnailUrl: null,
 			});
 
 			expect(result.ok).toBe(true);
@@ -402,6 +419,7 @@ describe("initReadabilityParser", () => {
 			parseHtml({
 				url: "https://example.com/article",
 				html: `<html><body><article><p>Body with enough words for readability extraction to succeed even when the pre-parser fails.</p></article></body></html>`,
+				thumbnailUrl: null,
 			});
 
 			expect(logged).toHaveLength(1);
@@ -419,6 +437,7 @@ describe("initReadabilityParser", () => {
 				const result = parseHtml({
 					url: "https://example.com/article",
 					html: ARTICLE_HTML,
+					thumbnailUrl: null,
 				});
 
 				expect(result.ok).toBe(false);
@@ -442,6 +461,7 @@ describe("initReadabilityParser", () => {
 				const result = parseHtml({
 					url: "https://example.com/article",
 					html: ARTICLE_HTML,
+					thumbnailUrl: null,
 				});
 
 				expect(result.ok).toBe(false);
@@ -456,7 +476,7 @@ describe("initReadabilityParser", () => {
 		it("returns ok:false when the pre-Readability normalization step throws (linkedom returns documentElement=null for empty HTML, and the safety net must cover it)", () => {
 			const { parseHtml } = initParser();
 
-			const result = parseHtml({ url: "https://example.com/article", html: "" });
+			const result = parseHtml({ url: "https://example.com/article", html: "", thumbnailUrl: null });
 
 			expect(result.ok).toBe(false);
 			if (!result.ok) {
@@ -481,6 +501,7 @@ describe("initReadabilityParser", () => {
 			const result = parseHtml({
 				url: "https://hex.ooo/library/last_question.html",
 				html,
+				thumbnailUrl: null,
 			});
 
 			expect(result.ok).toBe(true);
@@ -507,6 +528,7 @@ describe("initReadabilityParser", () => {
 			const result = parseHtml({
 				url: "https://unplannedobsolescence.com/blog/prolog-basics-pokemon/",
 				html,
+				thumbnailUrl: null,
 			});
 
 			expect(result.ok).toBe(true);
@@ -532,6 +554,7 @@ describe("initReadabilityParser", () => {
 			const result = parseHtml({
 				url: "https://example.com/article",
 				html: "<html><body></body></html>",
+				thumbnailUrl: null,
 			});
 
 			expect(result.ok).toBe(true);

@@ -423,6 +423,40 @@ describe("initComprehensiveCrawlHandler", () => {
 		);
 	});
 
+	it("threads comprehensiveCrawl.thumbnailUrl into parseHtml so the raw URL survives when the image download is skipped (parity with simple-crawl path)", async () => {
+		const comprehensiveCrawl: ComprehensiveCrawl = async () => ({
+			status: "fetched",
+			html: "<html></html>",
+			thumbnailUrl: "https://example.com/og.png",
+		});
+		const parseHtml = jest.fn(((_params) => ({
+			ok: true as const,
+			article: {
+				title: "T", siteName: "s", excerpt: "e", wordCount: 1,
+				content: "<p>x</p>",
+				imageUrl: "https://example.com/og.png",
+			},
+		})) satisfies ParseHtml);
+		const putImageObject: PutImageObject = jest.fn().mockResolvedValue(undefined);
+		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
+
+		const handler = createHandler({ comprehensiveCrawl, parseHtml, putImageObject, putTierSource });
+
+		await handler(createSqsEvent({ url: "https://example.com/article" }), stubContext, () => {});
+
+		expect(parseHtml).toHaveBeenCalledWith({
+			url: "https://example.com/article",
+			html: "<html></html>",
+			thumbnailUrl: "https://example.com/og.png",
+		});
+		expect(putImageObject).not.toHaveBeenCalled();
+		expect(putTierSource).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadata: expect.objectContaining({ imageUrl: "https://example.com/og.png" }),
+			}),
+		);
+	});
+
 	it("records contentFetchedAt + etag + lastModified after a successful PDF extraction so future saves can short-circuit on TTL", async () => {
 		const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
 		const comprehensiveCrawl: ComprehensiveCrawl = async () => ({

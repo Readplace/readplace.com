@@ -127,7 +127,11 @@ export function initStaleCheckHandler(deps: {
 			return "tier-1-deferred";
 		}
 
-		const parsed = parseHtml({ url, html: result.html, thumbnailUrl: result.thumbnailUrl });
+		const parsed = parseHtml({
+			url,
+			html: result.html,
+			thumbnailUrl: result.thumbnailUrl ?? null,
+		});
 		if (!parsed.ok) return "skip";
 
 		await publishRefreshArticleContent({

@@ -60,7 +60,7 @@ export function initReadabilityParser(deps: {
 					excerpt: `Content saved from ${hostname}.`,
 					wordCount: 0,
 					content: "",
-					imageUrl: params.thumbnailUrl,
+					imageUrl: params.thumbnailUrl ?? undefined,
 				},
 			};
 		}
@@ -77,7 +77,7 @@ export function initReadabilityParser(deps: {
 				excerpt: parsed.excerpt || `Content saved from ${hostname}.`,
 				wordCount: Array.from(parsed.textContent.matchAll(/\S+/g)).length, /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 				content: resolveRelativeUrls({ html: parsed.content, baseUrl: params.url }),
-				imageUrl: params.thumbnailUrl,
+				imageUrl: params.thumbnailUrl ?? undefined,
 			},
 		};
 	};
@@ -94,7 +94,7 @@ export function initReadabilityParser(deps: {
 			return { ok: false, reason: "Could not fetch article" };
 		}
 
-		return parseHtml({ url, html: result.html, thumbnailUrl: result.thumbnailUrl });
+		return parseHtml({ url, html: result.html, thumbnailUrl: result.thumbnailUrl ?? null });
 	};
 
 	return { parseArticle, parseHtml };

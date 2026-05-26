@@ -156,7 +156,11 @@ export function initComprehensiveCrawlHandler(deps: {
 					throw new Error(`crawl failed for ${url}: ${reason}`);
 				}
 
-				const parseResult = parseHtml({ url, html: crawlResult.html });
+				const parseResult = parseHtml({
+					url,
+					html: crawlResult.html,
+					thumbnailUrl: crawlResult.thumbnailUrl ?? null,
+				});
 				if (!parseResult.ok) {
 					logParseError({ url, reason: parseResult.reason });
 					await transitionAndPersist(markCrawlFailed, {

@@ -13,6 +13,7 @@ import {
 } from "@packages/hutch-infra-components";
 import { ArticleResourceUniqueId } from "../save-link/article-resource-unique-id";
 import type { ParseHtml } from "@packages/article-parser";
+import { extractFirstThumbnailUrl } from "@packages/crawl-article";
 import type { DownloadMedia } from "../save-link/download-media";
 import type { ProcessContent } from "../save-link/save-link-work";
 import { estimatedReadTimeFromWordCount } from "../save-link/estimated-read-time";
@@ -59,7 +60,11 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 				const detail = SaveLinkRawHtmlCommand.detailSchema.parse(envelope.detail);
 
 				const rawHtml = await readPendingHtml(detail.url);
-				const parseResult = parseHtml({ url: detail.url, html: rawHtml });
+				const parseResult = parseHtml({
+					url: detail.url,
+					html: rawHtml,
+					thumbnailUrl: extractFirstThumbnailUrl({ html: rawHtml, baseUrl: detail.url }),
+				});
 				if (!parseResult.ok) {
 					logParseError({ url: detail.url, reason: parseResult.reason });
 					const snapshot = await readTierSnapshot({ url: detail.url });

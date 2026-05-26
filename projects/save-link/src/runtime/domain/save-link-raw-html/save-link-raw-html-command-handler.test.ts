@@ -331,6 +331,76 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		);
 	});
 
+	it("extracts og:image from the captured rawHtml and threads it as thumbnailUrl into parseHtml so the tier-0 metadata carries imageUrl", async () => {
+		const rawHtml = `<html><head>
+			<meta property="og:image" content="https://example.com/og.png">
+		</head><body><article><p>Body</p></article></body></html>`;
+		const parseHtml = jest.fn(((_params) => ({
+			ok: true as const,
+			article: {
+				title: "T",
+				siteName: "example.com",
+				excerpt: "e",
+				wordCount: 1,
+				content: "<p>x</p>",
+				imageUrl: "https://example.com/og.png",
+			},
+		})) satisfies ParseHtml);
+		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
+		const { handler } = createHandler({
+			readPendingHtml: jest.fn().mockResolvedValue(rawHtml),
+			parseHtml,
+			putTierSource,
+		});
+
+		await handler(
+			createSqsEvent({ url: "https://example.com/article", userId: "user-1" }),
+			stubContext,
+			() => {},
+		);
+
+		expect(parseHtml).toHaveBeenCalledWith({
+			url: "https://example.com/article",
+			html: rawHtml,
+			thumbnailUrl: "https://example.com/og.png",
+		});
+		expect(putTierSource).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadata: expect.objectContaining({ imageUrl: "https://example.com/og.png" }),
+			}),
+		);
+	});
+
+	it("passes thumbnailUrl=null when the captured rawHtml exposes no image candidates", async () => {
+		const rawHtml = `<html><head><title>No images</title></head><body><article><p>Body</p></article></body></html>`;
+		const parseHtml = jest.fn(((_params) => ({
+			ok: true as const,
+			article: {
+				title: "T",
+				siteName: "example.com",
+				excerpt: "e",
+				wordCount: 1,
+				content: "<p>x</p>",
+			},
+		})) satisfies ParseHtml);
+		const { handler } = createHandler({
+			readPendingHtml: jest.fn().mockResolvedValue(rawHtml),
+			parseHtml,
+		});
+
+		await handler(
+			createSqsEvent({ url: "https://example.com/article", userId: "user-1" }),
+			stubContext,
+			() => {},
+		);
+
+		expect(parseHtml).toHaveBeenCalledWith({
+			url: "https://example.com/article",
+			html: rawHtml,
+			thumbnailUrl: null,
+		});
+	});
+
 	it("reports the record as a batch failure on invalid event detail (Zod failure)", async () => {
 		const { handler } = createHandler();
 

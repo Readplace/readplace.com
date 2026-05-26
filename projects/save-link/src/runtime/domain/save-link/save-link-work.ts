@@ -136,7 +136,11 @@ export function initSaveLinkWork(deps: {
 
 		await markCrawlStage({ url, stage: "crawl-fetched" });
 
-		const parseResult = parseHtml({ url, html: crawlResult.html });
+		const parseResult = parseHtml({
+			url,
+			html: crawlResult.html,
+			thumbnailUrl: crawlResult.thumbnailUrl ?? null,
+		});
 		if (!parseResult.ok) {
 			logParseError({ url, reason: parseResult.reason });
 			// Parse failures are terminal: re-running the worker against the

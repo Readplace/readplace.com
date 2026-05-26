@@ -74,7 +74,11 @@ export function initRefreshArticleIfStale(deps: {
 		url: string,
 		result: CrawlArticleResult & { status: "fetched" },
 	): Promise<ContentFreshnessResult> {
-		const parsed = deps.parseHtml({ url, html: result.html, thumbnailUrl: result.thumbnailUrl });
+		const parsed = deps.parseHtml({
+			url,
+			html: result.html,
+			thumbnailUrl: result.thumbnailUrl ?? null,
+		});
 		if (!parsed.ok) return { action: "skip" };
 
 		await deps.publishRefreshArticleContent({

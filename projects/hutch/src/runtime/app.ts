@@ -311,7 +311,11 @@ function initProviders() {
 			await crawlStore.markCrawlFailed({ url, reason: `crawl-${crawlResult.status}` });
 			return;
 		}
-		const result = parseHtml({ url, html: crawlResult.html });
+		const result = parseHtml({
+			url,
+			html: crawlResult.html,
+			thumbnailUrl: crawlResult.thumbnailUrl ?? null,
+		});
 		if (!result.ok) {
 			await crawlStore.markCrawlFailed({ url, reason: result.reason });
 			return;

@@ -504,6 +504,61 @@ describe("initSaveLinkCommandHandler", () => {
 		);
 	});
 
+	it("threads crawlResult.thumbnailUrl into parseHtml so the raw og:image URL persists when the thumbnail image download was skipped", async () => {
+		const simpleCrawl: SimpleCrawl = async () => ({
+			status: "fetched",
+			html: "<html></html>",
+			thumbnailUrl: "https://example.com/og.png",
+		});
+		const parseHtml = jest.fn(((_params) => ({
+			ok: true as const,
+			article: {
+				title: "T", siteName: "s", excerpt: "e", wordCount: 1,
+				content: "<p>x</p>",
+				imageUrl: "https://example.com/og.png",
+			},
+		})) satisfies ParseHtml);
+		const putImageObject: PutImageObject = jest.fn().mockResolvedValue(undefined);
+		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
+
+		const handler = createHandler({ simpleCrawl, parseHtml, putImageObject, putTierSource });
+
+		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), stubContext, () => {});
+
+		expect(parseHtml).toHaveBeenCalledWith({
+			url: "https://example.com/article",
+			html: "<html></html>",
+			thumbnailUrl: "https://example.com/og.png",
+		});
+		expect(putImageObject).not.toHaveBeenCalled();
+		expect(putTierSource).toHaveBeenCalledWith(
+			expect.objectContaining({
+				metadata: expect.objectContaining({ imageUrl: "https://example.com/og.png" }),
+			}),
+		);
+	});
+
+	it("passes thumbnailUrl=null when the crawler returned no thumbnail candidate", async () => {
+		const simpleCrawl: SimpleCrawl = async () => ({
+			status: "fetched",
+			html: "<html></html>",
+		});
+		const parseHtml = jest.fn(((_params) => ({
+			ok: true as const,
+			article: { title: "T", siteName: "s", excerpt: "e", wordCount: 1, content: "<p>x</p>" },
+		})) satisfies ParseHtml);
+
+		const handler = createHandler({ simpleCrawl, parseHtml });
+
+		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), stubContext, () => {});
+
+		expect(parseHtml).toHaveBeenCalledWith({
+			url: "https://example.com/article",
+			html: "<html></html>",
+			thumbnailUrl: null,
+		});
+	});
+
 	it("threads downloaded media through processContent so HTML references the CDN URLs", async () => {
 		const parseWithImage: ParseHtml = () => ({
 			ok: true,
