@@ -160,14 +160,13 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: false,
 	},
 	{
-		// www.reddit.com 403s the entire AWS-Lambda egress on the article HTML
-		// path regardless of TLS fingerprint (verified in prod: both undici
-		// and curl-impersonate get `status=403, server=snooserv`). The
-		// reddit-preprocessor sidesteps the block by rewriting the host to
-		// old.reddit.com — the legacy interface serves the same article body
-		// from a CDN edge that does not blanket-block AWS IPs. If this entry
-		// regresses, the rewrite is broken or old.reddit.com has tightened
-		// up; investigate before touching the URL.
+		// www.reddit.com AND old.reddit.com both 403 AWS-Lambda / datacenter
+		// egress IPs (`status=403, server=snooserv`, network-policy block).
+		// The crawler fetches Reddit posts via the oEmbed endpoint
+		// (https://www.reddit.com/oembed) which is not behind the same IP
+		// block. oEmbed returns the post title + author + a blockquote embed;
+		// no og:image metadata, so expectsThumbnail is false (same precedent
+		// as X/Twitter oembed).
 		//
 		// The exact URL string (with share_id / utm_* params) is the canonical
 		// form that lives in the prod articles DB — the canary needs an
@@ -178,7 +177,7 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		label: "Reddit (canonical /comments/)",
 		url: "https://www.reddit.com/r/javascript/comments/1tlsqd1/you_might_not_need_the_repository_pattern/?share_id=XQwXp33EQ7UCMVHKY2jVi&utm_content=2&utm_medium=ios_app&utm_name=ioscss&utm_source=share&utm_term=1",
 		expectedContent: "You might not need",
-		expectsThumbnail: true,
+		expectsThumbnail: false,
 	},
 	{
 		// Akamai BotManager blocks standard curl's TLS fingerprint with HTTP/2

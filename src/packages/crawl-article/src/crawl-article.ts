@@ -13,6 +13,7 @@ import { headerOrUndefined } from "./header-utils";
 import { isPdfContentType, isPdfMagicBytes } from "./pdf-detect";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
 import type { ExtractPdf } from "./pdf-extract.types";
+import { initFetchRedditViaOembed, isRedditUrl } from "./reddit-oembed";
 import type { RedditPreprocessor } from "./reddit-preprocessor";
 import { initFetchTweetViaOembed, isTweetUrl } from "./x-twitter-preprocessor";
 
@@ -129,9 +130,13 @@ export function initSimpleCrawl(deps: {
 	const { crawlFetch, preprocessUrl, logError } = deps;
 	const conditionalFetch = initConditionalFetch({ crawlFetch, logError });
 	const fetchTweetViaOembed = initFetchTweetViaOembed({ crawlFetch, logError });
+	const fetchRedditViaOembed = initFetchRedditViaOembed({ crawlFetch, logError });
 	return async (params) => {
 		if (isTweetUrl(params.url)) {
 			return fetchTweetViaOembed(params);
+		}
+		if (isRedditUrl(params.url)) {
+			return fetchRedditViaOembed(params);
 		}
 
 		try {
