@@ -175,10 +175,10 @@ describe("GET /", () => {
 
 		const coreSection = doc.querySelector('[data-test-section="core-features"]');
 		const features = coreSection?.querySelectorAll("[data-test-feature]");
-		expect(features?.length).toBe(12);
+		expect(features?.length).toBe(5);
 	});
 
-	it("should render three demo videos: Desktop, Firefox Extension, and Chrome Extension", async () => {
+	it("should render two demo videos: Desktop and Browsee Extension", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
@@ -186,7 +186,7 @@ describe("GET /", () => {
 		const demoSection = doc.querySelector('[data-test-section="demo"]');
 		const videoLabels = demoSection?.querySelectorAll(".home-demo__video-label");
 		const labels = Array.from(videoLabels ?? []).map((el) => el.textContent);
-		expect(labels).toEqual(["Desktop", "Firefox Extension", "Chrome Extension"]);
+		expect(labels).toEqual(["Desktop", "Browsee Extension"]);
 	});
 
 	it("should render the backstory section", async () => {
@@ -300,7 +300,8 @@ describe("GET /", () => {
 		const text = section.textContent ?? "";
 		expect(text).toContain("Mozilla Readability");
 		expect(text).toContain("DeepSeek");
-		expect(text).toContain("Deep Infra");
+		expect(text).toContain("Tesseract");
+		expect(text).not.toContain("Deep Infra");
 		expect(text).toContain("no data resale");
 	});
 
@@ -332,9 +333,41 @@ describe("GET /", () => {
 		const doc = new JSDOM(response.text).window.document;
 
 		expect(doc.title).toContain("Readplace");
+		expect(doc.title).toContain("Read the web, not the slop.");
 		expect(doc.title).toContain("Read-It-Later App");
 		const description = doc.querySelector('meta[name="description"]');
+		expect(description?.getAttribute("content")).toContain("Read the web, not the slop.");
+		expect(description?.getAttribute("content")).toContain("no LLM hallucination");
 		expect(description?.getAttribute("content")).toContain("read-it-later");
+
+		const keywords = doc.querySelector('meta[name="keywords"]');
+		expect(keywords?.getAttribute("content")).toContain("read the web not the slop");
+		expect(keywords?.getAttribute("content")).toContain("no LLM hallucination");
+		expect(keywords?.getAttribute("content")).toContain("real OCR");
+	});
+
+	it("should render the 'Read the web. Not the slop.' tagline as the hero heading", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const tagline = doc.querySelector("[data-test-tagline]");
+		assert(tagline, "tagline must be rendered");
+		expect(tagline.textContent?.trim()).toBe("Read the web. Not the slop.");
+	});
+
+	it("should render the correctness-over-hallucination emphasis paragraph in the cost transparency section", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const para = doc.querySelector("[data-test-no-hallucination]");
+		assert(para, "correctness-over-hallucination emphasis paragraph must be rendered");
+		const text = para.textContent ?? "";
+		expect(text).toContain("correctness over hallucination");
+		expect(text).toContain("No AI generated slop");
+		expect(text).toContain("Tesseract");
+		expect(text).toContain("What you read is what was on the page");
 	});
 
 	it("should include author and keywords meta tags", async () => {
@@ -388,9 +421,10 @@ describe("GET /", () => {
 		const schemas = Array.from(scripts).map((s) => JSON.parse(s.textContent ?? "{}"));
 		const faq = schemas.find((s: { "@type": string }) => s["@type"] === "FAQPage");
 
-		expect(faq.mainEntity.length).toBe(5);
+		expect(faq.mainEntity.length).toBe(6);
 		expect(faq.mainEntity[0].name).toBe("What is Readplace?");
 		expect(faq.mainEntity[4].name).toBe("What does the $3.99/month subscription pay for?");
+		expect(faq.mainEntity[5].name).toBe("Does Readplace hallucinate text when extracting PDFs?");
 	});
 
 	it("should render section landmarks with aria-labels", async () => {

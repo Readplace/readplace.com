@@ -119,19 +119,19 @@ export function HomePage(params: {
 		: "home-pricing__fallback--visible";
 	return {
 		seo: {
-			title: "Readplace — Read-It-Later App | Save Articles, Read Them Later",
+			title: "Readplace — Read the web, not the slop. | Read-It-Later App",
 			description:
-				"A read-it-later app and Pocket alternative. Save articles with one click, read them later. Privacy-first, built in Australia by the creator of js-cookie.",
+				"Read the web, not the slop. A read-it-later app and Pocket alternative — save articles with one click, read them later in a clean reader view. Real Tesseract OCR for scanned PDFs (no LLM hallucination). Privacy-first, built in Australia by the creator of js-cookie.",
 			canonicalUrl: "https://readplace.com",
 			ogType: "website",
 			ogImage: `${staticBaseUrl}/og-image-1200x630.png`,
 			ogImageType: "image/png",
 			ogImageAlt:
-				"Readplace — A read-it-later app and Pocket alternative. Save articles, read them later.",
+				"Readplace — Read the web, not the slop. A read-it-later app and Pocket alternative.",
 			twitterImage: `${staticBaseUrl}/twitter-card-1200x600.png`,
 				author: "Fayner Brack",
 			keywords:
-				"read it later, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, Firefox extension, Chrome extension, article reader, distraction free reading, AI summaries",
+				"read the web not the slop, slop-free reading, no LLM hallucination, real OCR, Tesseract OCR, deterministic PDF extraction, read it later, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, Firefox extension, Chrome extension, article reader, distraction free reading, AI summaries",
 			structuredData: [
 				{
 					"@context": "https://schema.org",
@@ -142,7 +142,7 @@ export function HomePage(params: {
 					alternateName: ["Readplace Read-It-Later App", "Readplace App"],
 					url: "https://readplace.com",
 					description:
-						"A privacy-first read-it-later app and Pocket alternative. Save articles with one click, read them later.",
+						"Read the web, not the slop. A privacy-first read-it-later app and Pocket alternative. Save articles with one click, read them later. Real Tesseract OCR for scanned PDFs — no LLM hallucination.",
 					applicationCategory: "ProductivityApplication",
 					applicationSubCategory: "Read-It-Later",
 					operatingSystem: "Web",
@@ -227,7 +227,7 @@ export function HomePage(params: {
 						award: "Creator of js-cookie — 22 billion+ annual downloads on jsDelivr CDN",
 					},
 					description:
-						"Readplace is a privacy-first read-it-later app and Pocket alternative.",
+						"Readplace is a privacy-first read-it-later app and Pocket alternative. Read the web, not the slop.",
 					foundingDate: "2025",
 					areaServed: "Worldwide",
 					address: {
@@ -277,7 +277,15 @@ export function HomePage(params: {
 							name: "What does the $3.99/month subscription pay for?",
 							acceptedAnswer: {
 								"@type": "Answer",
-								text: `Each saved article runs through a paid pipeline: Mozilla Readability parses the page (free, open source), DeepSeek V3.2 writes the TL;DR and disambiguates the canonical URL when an extension capture and a link submission point at the same article, and Deep Infra extracts text from multi-page scanned PDFs with vision OCR — up to 300 pages and ${MAX_PDF_BYTES.label} per file. The $3.99/month covers the infrastructure cost and crawler maintenance. There is no ad path, no data resale, and no third-party tracking.`,
+								text: `Each saved article runs through a pipeline: Mozilla Readability parses the page (free, open source); real Tesseract OCR runs locally on Lambda to extract text from multi-page scanned PDFs — pixel-level character recognition, not an LLM "reading" the image, so it never hallucinates — up to 300 pages and ${MAX_PDF_BYTES.label} per file (free, open source); and DeepSeek V3.2 writes the TL;DR, disambiguates the canonical URL when an extension capture and a link submission point at the same article, and cleans up Tesseract's OCR output for structure only (paragraphs, headings, lists) before a deterministic document-diff review rejects any token the LLM tried to add or remove, so no hallucinated words ever reach you. The $3.99/month covers the infrastructure cost and crawler maintenance. There is no ad path, no data resale, and no third-party tracking.`,
+							},
+						},
+						{
+							"@type": "Question",
+							name: "Does Readplace hallucinate text when extracting PDFs?",
+							acceptedAnswer: {
+								"@type": "Answer",
+								text: "No. Readplace prioritises correctness over hallucination — no AI generated slop in your PDFs. Tesseract OCR does the recognition deterministically, character by character, on the actual pixels of the page. DeepSeek is only allowed to restore structural markup (paragraphs, headings, lists) on top of the OCR output, and a document-diff review then rejects any token the LLM tried to add or remove. The words you read are the words on the page. Other read-it-later apps that 'use AI for PDFs' typically feed the image to a multimodal LLM and accept whatever it returns, which can silently substitute, summarise, or invent text — that is the AI generated slop we refuse to ship.",
 							},
 						},
 					],
@@ -288,7 +296,8 @@ export function HomePage(params: {
 					name: "Readplace — Read-It-Later App",
 					alternateName: "Readplace App",
 					url: "https://readplace.com",
-					description: "A privacy-first read-it-later app.",
+					description: "Read the web, not the slop. A privacy-first read-it-later app with real Tesseract OCR for PDFs — no LLM hallucination.",
+					slogan: "Read the web, not the slop.",
 				},
 			],
 		},
@@ -307,67 +316,32 @@ export function HomePage(params: {
 			fallbackStateClass,
 			featuredFeatures: [
 				{
-					name: "Reader View",
+					name: "TL;DR Summaries",
 					description:
-						"Clean article view powered by Mozilla Firefox's Readability engine — the same library Firefox uses. No ads, no sidebars, no pop-ups.",
+						"Every saved article gets a TL;DR outlining the most important points. Built on the same AI that powers the reading experience.",
+				},
+				{
+					name: "PDF Extraction with Vision OCR",
+					description:
+						"Save any PDF link. Vision OCR turns it into a clean, readable article with a TL;DR — scanned pages included.",
 				},
 				{
 					name: "Browser Extensions",
 					description:
 						"Save any page with one click, Ctrl/Cmd+D, or right-click. The extension captures the full rendered page — picking the most complete version of the content over what a URL-only crawl would see. Available for Firefox and Chrome.",
 				},
-				{
-					name: "TL;DR Summaries",
-					description:
-						"Every saved article gets a TL;DR outlining the most important points. Built on the same AI that powers the reading experience.",
-				},
 			],
 			compactFeatures: [
-				{
-					name: "Public Reader View",
-					description:
-						"Paste any link to read or share it — no account, no signup.",
-				},
-				{
-					name: "Mobile Web",
-					description:
-						"Works in any mobile browser. No app store, no native install.",
-				},
-				{
-					name: "Web App",
-					description:
-						"Manage and organise your reading list from any browser.",
-				},
 				{
 					name: "Links Import",
 					description:
 						"Upload bookmarks, notes, newsletters — any text-shaped export — and Readplace pulls every URL out for you to review before saving.",
 				},
 				{
-					name: "PDF Extraction",
-					description:
-						"Save any PDF link. Vision OCR turns it into a clean, readable article with a TL;DR — scanned pages included.",
-				},
-				{
-					name: "Auto Dark Mode",
-					description:
-						"Follows your system preference automatically.",
-				},
-				{
-					name: "Secure Auth",
-					description:
-						"OAuth with PKCE. Tokens stored locally in your browser.",
-				},
-				{
-					name: "Self-Updating Extension",
-					description:
-						"No browser store dependency. The extension updates itself.",
-				},
-				{
 					name: "Privacy First",
 					description:
 						"Hosted in Sydney. Australian Privacy Act compliant. No tracking, no ads.",
-				}
+				},
 			],
 			plannedFeatures: [
 				{

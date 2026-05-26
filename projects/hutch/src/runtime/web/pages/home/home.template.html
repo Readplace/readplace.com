@@ -1,8 +1,8 @@
   <main>
     <section class="home-try" data-test-section="try" aria-label="Try the reader view">
       <div class="home-try__container">
-        <h1 class="home-try__title">Paste any article link. See it instantly.</h1>
-        <p class="home-try__lede">A clean reader view with a TL;DR summary &mdash; in seconds. No signup. No download. Try it with that one article you've been meaning to read.</p>
+        <h1 class="home-try__title" data-test-tagline>Read the web. Not the slop.</h1>
+        <p class="home-try__lede">Paste any article link. Get a clean reader view with a TL;DR summary &mdash; articles or PDFs, in seconds. No signup. No download. Try it with that one article you've been meaning to read.</p>
         <form class="home-try__form" method="GET" action="/view" data-test-home-try-form>
           <label class="home-try__label sr-only" for="home-try-url">Article URL</label>
           <input
@@ -70,14 +70,7 @@
             </video>
           </div>
           <div class="home-demo__video-wrapper">
-            <p class="home-demo__video-label">Firefox Extension</p>
-            <video class="home-demo__video" autoplay muted loop playsinline>
-              <source src="{{staticBaseUrl}}/videos/firefox-extension-demo.mp4" type="video/mp4; codecs=av01.0.05M.08">
-              <source src="{{staticBaseUrl}}/videos/firefox-extension-demo-h264.mp4" type="video/mp4">
-            </video>
-          </div>
-          <div class="home-demo__video-wrapper">
-            <p class="home-demo__video-label">Chrome Extension</p>
+            <p class="home-demo__video-label">Browsee Extension</p>
             <video class="home-demo__video" autoplay muted loop playsinline>
               <source src="{{staticBaseUrl}}/videos/chrome-extension-demo.mp4" type="video/mp4; codecs=av01.0.05M.08">
               <source src="{{staticBaseUrl}}/videos/chrome-extension-demo-h264.mp4" type="video/mp4">
@@ -113,23 +106,45 @@
 
     <section id="how-saving-works" class="home-canonical" data-test-section="canonical" aria-label="How saving works">
       <div class="home-canonical__container">
-        <h2 class="home-canonical__heading">Same article, different URLs.</h2>
+        <h2 class="home-canonical__heading">Same article, different versions?</h2>
         <p class="home-canonical__body">When you save from the browser extension, Readplace captures the rendered page you&rsquo;re looking at. When you paste a link on the homepage, Readplace fetches it server-side. DeepSeek does the canonical disambiguation so both paths converge on the same article &mdash; even when the source URL is wrapped in a tracker (<code>utm_*</code>, <code>gclid</code>).</p>
+        <figure class="home-canonical__diagram" data-test-canonical-diagram aria-label="Both capture paths converge through DeepSeek into one canonical article">
+          <div class="home-canonical__diagram-inputs">
+            <div class="home-canonical__diagram-node">
+              <strong>Browser extension</strong>
+              <span>rendered page</span>
+            </div>
+            <div class="home-canonical__diagram-node">
+              <strong>Pasted link</strong>
+              <span>server-side fetch</span>
+            </div>
+          </div>
+          <span class="home-canonical__diagram-arrow" aria-hidden="true">&rarr;</span>
+          <div class="home-canonical__diagram-node home-canonical__diagram-node--accent">
+            <strong>DeepSeek</strong>
+            <span>canonical disambiguation</span>
+          </div>
+          <span class="home-canonical__diagram-arrow" aria-hidden="true">&rarr;</span>
+          <div class="home-canonical__diagram-node">
+            <strong>One article</strong>
+            <span>trackers stripped</span>
+          </div>
+        </figure>
         <p class="home-canonical__body">The extension-captured version wins when both exist, as long as it&rsquo;s the most complete version of the content. If you saved from the extension while logged in to a site, you captured the full article &mdash; saving again when logged out won&rsquo;t overwrite it with the paywalled version. Most read-later apps replace the captured version with whatever the canonical URL returns; Readplace keeps the most complete one.</p>
       </div>
     </section>
 
     <section id="roadmap" class="home-roadmap" data-test-section="roadmap" aria-label="Planned features">
       <div class="home-roadmap__container">
-        <h2 class="home-roadmap__heading">What I'm building next.</h2>
-        <ol class="home-roadmap__list">
+        <h2 class="home-roadmap__heading">What's Next</h2>
+        <div class="home-roadmap__list">
           {{#each plannedFeatures}}
-          <li class="feature-card feature-card--roadmap" data-test-feature="{{name}}">
+          <p class="feature-card feature-card--roadmap" data-test-feature="{{name}}">
             <strong class="feature-card__name">{{name}}</strong>
             <span class="feature-card__description">{{description}}</span>
-          </li>
+          </p>
           {{/each}}
-        </ol>
+        </div>
       </div>
     </section>
 
@@ -187,7 +202,7 @@
             </tr>
             <tr>
               <th scope="row">PDF Text Extraction</th>
-              <td class="comparison-table__hutch">300 pages / {{maxPdfBytesLabel}} &mdash; vision OCR for scanned PDFs</td>
+              <td class="comparison-table__hutch">300 pages / {{maxPdfBytesLabel}} &mdash; <strong>Tesseract OCR</strong><span class="comparison-table__hutch-sub">No hallucination. DeepSeek restores structure only.</span></td>
               <td>30&nbsp;MB &mdash; pre-OCR required for scans</td>
               <td>Premium only &mdash; no OCR for scans</td>
               <td>100&nbsp;MB free / 300&nbsp;MB Pro &mdash; no OCR</td>
@@ -214,7 +229,7 @@
             </tr>
             <tr>
               <th scope="row">Platforms</th>
-              <td class="comparison-table__hutch">Mobile + Desktop Web, Chrome, Firefox (no native app needed)</td>
+              <td class="comparison-table__hutch">Mobile + Desktop Web, Chrome, Firefox<span class="comparison-table__hutch-sub">No native app needed.</span></td>
               <td>Web, iOS, Android, Extensions</td>
               <td>Web, iOS, Android, Kobo</td>
               <td>Web, iOS, Android, Extensions</td>
@@ -246,7 +261,7 @@
 
     <section id="not-becoming" class="home-decline" data-test-section="decline" aria-label="What Readplace will not become">
       <div class="home-decline__container">
-        <h2 class="home-decline__heading">What Readplace will not become.</h2>
+        <h2 class="home-decline__heading">What Readplace will NOT become.</h2>
         <p class="home-decline__lead">Readplace will not add:</p>
         <ul class="home-decline__list" data-test-decline-list>
           <li class="home-decline__item">Nested folder hierarchies</li>
@@ -258,17 +273,24 @@
       </div>
     </section>
 
+    <section class="home-transition" data-test-section="transition" aria-label="Transition to cost transparency">
+      <div class="home-transition__container">
+        <h2 class="home-transition__heading">And that's why I need your help!</h2>
+      </div>
+    </section>
+
     <section id="what-you-pay-for" class="home-cost" data-test-section="cost-transparency" aria-label="What your subscription pays for">
       <div class="home-cost__container">
         <h2 class="home-cost__heading">What $3.99 a month pays for.</h2>
-        <p class="home-cost__lead">Each saved article runs through a paid pipeline:</p>
+        <p class="home-cost__lead">Every saved article runs through this pipeline:</p>
         <ul class="home-cost__list" data-test-cost-list>
-          <li class="home-cost__item"><strong>Mozilla Readability</strong> parses the page (free, open source).</li>
-          <li class="home-cost__item"><strong>DeepSeek V3.2</strong> writes the TL;DR and disambiguates the canonical URL when an extension capture and a link submission point at the same article.</li>
-          <li class="home-cost__item"><strong>Deep Infra</strong> extracts text from multi-page scanned PDFs with vision OCR &mdash; up to 300 pages and {{maxPdfBytesLabel}} per file.</li>
+          <li class="home-cost__item"><strong>Mozilla Readability</strong> &mdash; parses the page.</li>
+          <li class="home-cost__item"><strong>Real Tesseract OCR</strong> &mdash; up to 300 pages / {{maxPdfBytesLabel}}. Pixel-level recognition, not an LLM guessing at an image.</li>
+          <li class="home-cost__item"><strong>DeepSeek V3.2</strong> &mdash; writes the TL;DR and restores OCR structure. A document-diff blocks any word it tries to add or remove.</li>
         </ul>
-        <p class="home-cost__body">At $3.99 a month, the subscription covers the infrastructure cost and the crawler maintenance. There is no ad path, no data resale, and no VC bridge to &ldquo;figure out monetisation later.&rdquo; This is the whole business.</p>
-        <p class="home-cost__body home-cost__body--muted">You can price-check the providers yourself: <a href="https://api-docs.deepseek.com/quick_start/pricing" rel="external">DeepSeek pricing</a>, <a href="https://deepinfra.com/pricing" rel="external">Deep Infra pricing</a>.</p>
+        <p class="home-cost__body home-cost__body--emphasis" data-test-no-hallucination><strong>No AI generated slop &mdash; correctness over hallucination.</strong> Tesseract reads the page character by character; the LLM only restores structure, gated by a document-diff. <strong>What you read is what was on the page.</strong></p>
+        <p class="home-cost__body">$3.99/month covers infrastructure and crawler maintenance. No ads, no data resale, no VC bridge. This is the whole business.</p>
+        <p class="home-cost__body home-cost__body--muted">Price-check the providers: <a href="https://api-docs.deepseek.com/quick_start/pricing" rel="external">DeepSeek pricing</a>. Tesseract runs in <a href="https://aws.amazon.com/lambda/pricing/" rel="external">AWS Lambda</a> on a per-request basis.</p>
       </div>
     </section>
 
@@ -290,7 +312,7 @@
               <li class="pricing-card__feature">Save unlimited articles</li>
               <li class="pricing-card__feature">Firefox and Chrome extensions</li>
               <li class="pricing-card__feature">TL;DR summaries included</li>
-              <li class="pricing-card__feature">PDF extraction with vision OCR</li>
+              <li class="pricing-card__feature">PDF extraction with Tesseract OCR</li>
               <li class="pricing-card__feature">All features as they ship</li>
               <li class="pricing-card__feature">Direct access to the developer</li>
             </ul>
@@ -305,7 +327,7 @@
             <li class="pricing-card__feature">Save unlimited articles</li>
             <li class="pricing-card__feature">Firefox and Chrome extensions</li>
             <li class="pricing-card__feature">TL;DR summaries included</li>
-            <li class="pricing-card__feature">PDF extraction with vision OCR</li>
+            <li class="pricing-card__feature">PDF extraction with Tesseract OCR</li>
             <li class="pricing-card__feature">All features as they ship</li>
             <li class="pricing-card__feature">Direct access to the developer</li>
           </ul>

@@ -409,7 +409,10 @@
 
 @media (min-width: 768px) {
   .home-demo__videos {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
   }
 }
 
@@ -570,6 +573,78 @@
   color: var(--foreground); /* 2 */
 }
 
+/**
+ * Canonical disambiguation diagram — two inputs converging through DeepSeek
+ * into one canonical article. Grid columns: [inputs] → [pivot] → [result].
+ * Below 640px the grid collapses to one column and the arrows rotate down.
+ */
+.home-canonical__diagram {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto 1fr;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0;
+  padding: 20px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.home-canonical__diagram-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.home-canonical__diagram-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  line-height: 1.4;
+}
+
+.home-canonical__diagram-node strong {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.home-canonical__diagram-node span {
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+.home-canonical__diagram-node--accent {
+  background: var(--color-brand-light);
+  border-color: var(--primary);
+}
+
+.home-canonical__diagram-node--accent strong {
+  color: var(--color-brand-dark);
+}
+
+.home-canonical__diagram-arrow {
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--muted-foreground);
+}
+
+@media (max-width: 640px) {
+  .home-canonical__diagram {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .home-canonical__diagram-arrow {
+    transform: rotate(90deg);
+  }
+}
+
 /* Roadmap Section */
 .home-roadmap {
   padding: 48px 20px 80px;
@@ -597,14 +672,12 @@
 }
 
 .home-roadmap__list {
-  list-style: decimal;
-  padding-left: 1.25rem;
   margin: 0;
 }
 
 .feature-card--roadmap {
   padding: 4px 0;
-  margin-bottom: 8px;
+  margin: 0 0 8px;
   font-size: 0.9375rem;
   line-height: 1.6;
   color: var(--muted-foreground);
@@ -712,6 +785,15 @@
   color: var(--color-brand-dark);
 }
 
+.comparison-table__hutch-sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.4;
+  opacity: 0.75;
+}
+
 .comparison-table__check {
   color: var(--color-success);
 }
@@ -795,6 +877,38 @@
 }
 
 /**
+ * Bridge title between the "won't become" decline and the "what you pay for"
+ * receipt. Pivots the page from principles to ask — small section, no card,
+ * mirrors the muted background of the decline section above so it reads as a
+ * continuation rather than a new block.
+ */
+.home-transition {
+  padding: 24px 20px 48px;
+  background: var(--muted);
+  text-align: center;
+}
+
+.home-transition__container {
+  max-width: var(--reader-max-width);
+  margin: 0 auto;
+}
+
+.home-transition__heading {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #2B3A55;
+  margin: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .home-transition__heading {
+    color: var(--foreground);
+  }
+}
+
+/**
  * Cost Transparency Block ("What $3.99 a month pays for")
  *
  * 1. Card surface so the section reads as a discrete receipt-style block,
@@ -870,6 +984,20 @@
   font-size: 0.875rem;
   color: var(--color-text-muted);
   margin-bottom: 0;
+}
+
+.home-cost__body--emphasis {
+  padding: 16px 18px;
+  margin: 8px 0 16px;
+  border-left: 3px solid var(--primary);
+  background: var(--muted);
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+}
+
+.home-cost__body--emphasis strong {
+  color: var(--foreground);
+  font-weight: 700;
 }
 
 .home-cost__body a {
