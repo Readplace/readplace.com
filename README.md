@@ -4,109 +4,50 @@ A read-it-later app. Save articles, read them later. Built from a personal readi
 
 → [readplace.com](https://readplace.com)
 
----
-
-## The AI Engineering Workflow
-
-This repo is also a working example of how I use Claude + GitHub Actions as a solo developer. The short version: Claude acts as an autonomous agent in the CI pipeline — reviewing PRs, fixing failures, resolving conflicts, and responding to natural-language instructions in issue comments.
-
-### How it works
-
-Every PR triggers a pipeline of Claude-powered workflows that run in parallel:
-
-```
-PR opened / updated
-  ├── Claude Code Review      → reviews the diff, leaves comments
-  ├── Claude CI Fix           → if CI fails, Claude attempts a fix and pushes a commit
-  ├── Claude Conflict Fixer   → detects merge conflicts, resolves and commits
-  └── Claude Auto Fix         → applies high-priority review suggestions automatically
-```
-
-You can also talk to Claude directly in any issue or PR comment. It will respond, create branches, open PRs, and commit code — all without leaving GitHub.
-
-### The workflows
-
-| File | What it does |
-|---|---|
-| `ci.yml` | Standard CI — lint, test, build |
-| `claude-listener.yml` | Listens for `@claude` mentions in issues/comments. Claude reads the context and takes action. |
-| `claude-PR-code-reviewer.yml` | Reviews every PR diff. Posts inline comments. Flags issues by severity. |
-| `claude-PR-CI-failure-fixer.yml` | When CI fails, Claude reads the logs, diagnoses the failure, and pushes a fix commit. |
-| `claude-PR-code-review-auto-apply.yml` | Takes high and medium-priority review comments and applies them automatically — no manual intervention needed. |
-| `claude-PR-conflict-fixer.yml` | Detects merge conflicts on PRs and resolves them. |
-
-Each workflow has a companion `.md` file (e.g. `claude-PR-CI-failure-fixer.md`) — that's the prompt file. Separating prompts from workflow orchestration keeps things maintainable and makes prompt iteration fast without touching the YAML.
-
-### Design principles
-
-**Single execution point.** Each workflow has one clearly defined trigger and one job. No fan-out inside a workflow — fan-out happens at the workflow level, which makes failures isolated and logs readable.
-
-**Prompts are files, not strings.** Every Claude instruction lives in a `.md` file next to its workflow. This means prompts are version-controlled, diffable, and editable without YAML escaping headaches.
-
-**Attempt counters prevent loops.** Workflows that push commits (CI fixer, conflict resolver) track attempt counts to avoid infinite retry loops. If Claude can't fix something in N attempts, it fails loudly instead of spinning.
-
-**HTML markers for inter-workflow communication.** When one workflow needs to signal state to another, it uses HTML comments embedded in PR descriptions or issue bodies — durable, inspectable, no external state store needed.
-
-### Setup
-
-You need one secret: `ANTHROPIC_API_KEY`.
-
-Add it to your repo's Actions secrets and the workflows work as-is. The Claude integration uses [`claude-code-action`](https://github.com/anthropics/claude-code-action).
-
-```
-Settings → Secrets and variables → Actions → New repository secret
-Name: ANTHROPIC_API_KEY
-Value: sk-ant-...
-```
-
-### What it looks like in practice
-
-As of this writing the Actions tab shows 1,300+ workflow runs. Claude handles the mechanical parts (CI flakiness, review nits, conflict resolution) so I stay focused on architecture and product decisions.
-
-The browser extension and web app in this repo were built through PR review cycles with Claude.
+Solo-built, with Claude as a working agent in the pipeline.
 
 ---
 
-## The App
+## How it works
 
-Readplace is a read-it-later app for people who actually read what they save.
+### Hypermedia all the way down
 
-**What works now:**
-- Browser extension (Firefox) — save any page in one click
-- Web app — view and manage saved articles
+One URL space serves two clients. Browsers get HTML; the browser extension gets Siren over the same routes via content negotiation. The extension only knows the entry point — every subsequent step is discovered through server-published action names (`save-article`, `search`, `delete`) and link rels. URLs and HTTP methods are not part of the contract, so renaming a route is a server-internal change and the extension keeps working without a redeploy.
 
-**Coming soon:**
-- Chrome extension
-- Import from Pocket, Instapaper, Omnivore exports
-- Reader view with custom themes
-- Full-text search
-- Highlights and notes
-- Offline reading
-- Newsletter inbox
+### SSR with the URL as state
 
-**Stack:** Node.js, TypeScript, DynamoDB, Pulumi. Deliberately boring infrastructure — after maintaining [js-cookie](https://github.com/js-cookie/js-cookie) for 10+ years (22B+ annual npm downloads), I've learned that the best tech stack is the one that doesn't need babysitting.
+Pages render on the server. Every interaction is a plain form submit or link navigation that works with zero client-side JavaScript; `hx-boost` adds an SPA-like feel on top without owning state. GETs are side-effect-free; mutations follow POST-Redirect-GET. There is no React, no client-side state library, and no parallel JSON API serving the same data — the URL is the state, and the server's HTML response is the truth.
 
-**Pricing:** Free for the first 50 members. $3.99/month for everyone else.
+### Async work is Command → System → Event
+
+A request emits a Command. A handler runs it and publishes one or more Events. EventBridge routes them; an SQS queue with a dead-letter queue sits in front of every Lambda; DynamoDB holds the state machine. Independent consumers subscribe to events without the publisher knowing they exist, which means new behaviours (crawl, summarise, notify) plug in without touching the code that produced the event.
+
+### Deliberately boring infrastructure
+
+Pulumi over AWS managed services — Lambda, DynamoDB, EventBridge, S3, CloudFront. No Kubernetes, no ORMs, no custom orchestration. Dependencies are wired explicitly at the composition root for each entry point; nothing silently falls back to an in-memory store or a no-op logger. After maintaining [js-cookie](https://github.com/js-cookie/js-cookie) for 10+ years (22B+ annual npm downloads), I've learned that the best stack is the one that doesn't need babysitting.
+
+The codebase has strong opinions on testing, typing, branded IDs, and comments that document **why** rather than **what** — [CLAUDE.md](./CLAUDE.md) has the detail, written for AI agents but reads as a human contributor's guide.
+
+---
+
+## AI in the loop
+
+Claude reviews every PR, fixes CI failures, resolves merge conflicts, and applies high-priority review comments — all from GitHub Actions, on every push. You can also `@claude` in any issue or PR comment to get a response that's allowed to commit. One secret (`ANTHROPIC_API_KEY`) bootstraps the pipeline.
+
+The full setup — pipeline diagram, workflow inventory, design principles — lives in [AI_WORKFLOWS.md](./AI_WORKFLOWS.md).
+
 ---
 
 ## Development
-
-### Prerequisites
-
-- [Devbox](https://www.jetify.com/devbox) (optional, provides Node.js + pnpm)
-
-### Setup
 
 ```bash
 pnpm install
 ```
 
-### Commands
-
-Check out the [package.json](./package.json) for all available commands.
+`pnpm check` runs lint, type-checking, unit and integration tests, Playwright E2E, and a 100% coverage gate. Run `pnpm run` to see every task. An optional devbox manifest at the repo root pins the toolchain (Node, pnpm, AWS CLI, Pulumi) if you'd rather not install them yourself.
 
 ---
 
-## Questions / Community
+## Questions
 
 Open an issue.
