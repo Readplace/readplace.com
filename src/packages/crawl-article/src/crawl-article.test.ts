@@ -313,6 +313,23 @@ describe("initSimpleCrawl — X/Twitter routing", () => {
 	});
 });
 
+describe("initSimpleCrawl — Reddit routing", () => {
+	it("routes Reddit /comments/ URLs through the oembed preprocessor instead of the HTML path", async () => {
+		const fakeFetch: typeof fetch = async (input) => {
+			const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+			expect(url).toMatch(/^https:\/\/www\.reddit\.com\/oembed/);
+			return new Response(JSON.stringify({ title: "Post", author_name: "user", html: "<blockquote>x</blockquote>" }), {
+				status: 200, headers: { "content-type": "application/json" },
+			});
+		};
+		const simpleCrawl = initSimple({ fetch: fakeFetch });
+
+		const result = await simpleCrawl({ url: "https://www.reddit.com/r/javascript/comments/1tlsqd1/title/" });
+
+		expect(result.status).toBe("fetched");
+	});
+});
+
 describe("initSimpleCrawl — failure modes", () => {
 	it("returns status 'failed' and logs HTTP status when response is not ok and not 304", async () => {
 		const fakeFetch: typeof fetch = async () => new Response(null, { status: 403 });
