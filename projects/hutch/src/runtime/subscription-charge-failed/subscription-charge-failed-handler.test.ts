@@ -135,8 +135,8 @@ describe("subscription-charge-failed handler", () => {
 		assert.equal(result.batchItemFailures.length, 1);
 	});
 
-	it("reports a batch item failure when publishCancelSubscriptionCommand throws", async () => {
-		const { emit } = makeEmit();
+	it("reports a batch item failure when publishCancelSubscriptionCommand throws and does not emit (prevents duplicate on SQS retry)", async () => {
+		const { emit, captured } = makeEmit();
 		const handler = initSubscriptionChargeFailedHandler({
 			publishCancelSubscriptionCommand: async () => {
 				throw new Error("EventBridge unavailable");
@@ -161,5 +161,6 @@ describe("subscription-charge-failed handler", () => {
 		assert(result);
 		assert.equal(result.batchItemFailures.length, 1);
 		assert.equal(result.batchItemFailures[0].itemIdentifier, "msg-publish-fail");
+		assert.equal(captured.length, 0);
 	});
 });

@@ -24,12 +24,12 @@ export function initSubscriptionChargeFailedHandler(deps: {
 				const envelope = z.object({ detail: z.unknown() }).parse(JSON.parse(record.body));
 				const detail = SubscriptionChargeFailedEvent.detailSchema.parse(envelope.detail);
 				const userId = UserIdSchema.parse(detail.userId);
-				deps.emit.chargeFailed({ userId, reason: detail.reason });
 				deps.logger.info("[charge-failed] dispatching cancel", {
 					userId,
 					reason: detail.reason,
 				});
 				await deps.publishCancelSubscriptionCommand({ userId });
+				deps.emit.chargeFailed({ userId, reason: detail.reason });
 			} catch (error) {
 				deps.logger.error("[charge-failed] record failed", {
 					messageId: record.messageId,

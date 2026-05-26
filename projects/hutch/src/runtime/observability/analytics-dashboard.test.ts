@@ -150,6 +150,16 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		}
 	});
 
+	it("every LOG_GROUPS value is wired into the dashboard builder as hutchLogGroupName or via SUBSCRIPTION_DASHBOARD_LOG_GROUPS — adding a log group without a dashboard reference fails CI", () => {
+		const wired = new Set<string>([
+			LOG_GROUPS.hutchHandler,
+			...SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
+		]);
+		const declared = Object.values(LOG_GROUPS);
+		const unwired = declared.filter((name) => !wired.has(name));
+		expect(unwired).toEqual([]);
+	});
+
 	it("omits the visitor_hash exclusion clause from every widget query when no hashes are configured", () => {
 		const body = buildAnalyticsDashboardBody({
 			region: "ap-southeast-2",
