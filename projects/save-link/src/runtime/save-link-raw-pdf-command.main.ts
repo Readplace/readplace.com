@@ -13,6 +13,9 @@ import { initSaveLinkRawPdfCommandHandler } from "./domain/save-link-raw-pdf/sav
 import { initSaveLinkPdfExtract } from "./domain/article-parser/init-save-link-pdf-extract";
 import { initStagePdfToS3 } from "./domain/article-parser/init-stage-pdf-to-s3";
 import { initInvokePdfPageOcr } from "./domain/article-parser/init-invoke-pdf-page-ocr";
+import { initInvokePdfPageLlmCleanup } from "./domain/article-parser/init-invoke-pdf-page-llm-cleanup";
+import { initInvokePdfDocumentDiffReview } from "./domain/article-parser/init-invoke-pdf-document-diff-review";
+import { initInvokePdfPageHtmlConvert } from "./domain/article-parser/init-invoke-pdf-page-html-convert";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
 import { initArticleStoreDepBundle } from "./dep-bundles/article-store";
@@ -27,6 +30,9 @@ const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
 const pdfPageOcrFunctionName = requireEnv("PDF_PAGE_OCR_FUNCTION_NAME");
+const pdfPageLlmCleanupFunctionName = requireEnv("PDF_PAGE_LLM_CLEANUP_FUNCTION_NAME");
+const pdfDocumentDiffReviewFunctionName = requireEnv("PDF_DOCUMENT_DIFF_REVIEW_FUNCTION_NAME");
+const pdfPageHtmlConvertFunctionName = requireEnv("PDF_PAGE_HTML_CONVERT_FUNCTION_NAME");
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
@@ -41,11 +47,17 @@ const now = () => new Date();
 
 const { stagePdf } = initStagePdfToS3({ client: s3Client, bucketName: contentBucketName, logger: consoleLogger });
 const { invokePageOcr } = initInvokePdfPageOcr({ client: lambdaClient, functionName: pdfPageOcrFunctionName, logger: consoleLogger });
+const { invokePageLlmCleanup } = initInvokePdfPageLlmCleanup({ client: lambdaClient, functionName: pdfPageLlmCleanupFunctionName, logger: consoleLogger });
+const { invokeDocumentDiffReview } = initInvokePdfDocumentDiffReview({ client: lambdaClient, functionName: pdfDocumentDiffReviewFunctionName, logger: consoleLogger });
+const { invokePageHtmlConvert } = initInvokePdfPageHtmlConvert({ client: lambdaClient, functionName: pdfPageHtmlConvertFunctionName, logger: consoleLogger });
 
 const extractPdf = initSaveLinkPdfExtract({
 	extractPdfMetadata,
 	stagePdf,
 	invokePageOcr,
+	invokePageLlmCleanup,
+	invokeDocumentDiffReview,
+	invokePageHtmlConvert,
 	logger: consoleLogger,
 });
 
