@@ -26,6 +26,12 @@ You can also talk to Claude directly in any issue or PR comment. It will respond
 | `claude-PR-CI-failure-fixer.yml` | When CI fails, Claude reads the logs, diagnoses the failure, and pushes a fix commit. |
 | `claude-PR-code-review-auto-apply.yml` | Takes high and medium-priority review comments and applies them automatically — no manual intervention needed. |
 | `claude-PR-conflict-fixer.yml` | Detects merge conflicts on PRs and resolves them. |
+| `tier-1-plus-crawl-pipeline-health.yml` | End-to-end crawl pipeline canary against prod; opens a `@claude` issue on failure. |
+| `failed-articles-canary.yml` | Surfaces articles whose crawl/summary pipelines reached a terminal failure; opens a debug-worklist issue. |
+| `stuck-articles-canary.yml` | Detects articles stuck in non-terminal pipeline states; fails if actionable stuck rows exist. |
+| `publish-chrome-extension.yml` | Publishes Chrome extension to the Chrome Web Store. |
+| `submit-ff-extension-for-signing.yml` | Submits Firefox extension to AMO for signing. |
+| `sync-signed-extension.yml` | Syncs signed Firefox extension from AMO to S3. |
 
 Each workflow has a companion `.md` file (e.g. `claude-PR-CI-failure-fixer.md`) — that's the prompt file. Separating prompts from workflow orchestration keeps things maintainable and makes prompt iteration fast without touching the YAML.
 
@@ -53,6 +59,4 @@ Value: sk-ant-...
 
 ## What it looks like in practice
 
-As of this writing the Actions tab shows 1,300+ workflow runs. Claude handles the mechanical parts (CI flakiness, review nits, conflict resolution) so I stay focused on architecture and product decisions.
-
-The browser extension and web app in this repo were built through PR review cycles with Claude.
+Claude handles the mechanical parts (CI flakiness, review nits, conflict resolution) so I stay focused on architecture and product decisions. The browser extension and web app in this repo were built through PR review cycles with Claude.
