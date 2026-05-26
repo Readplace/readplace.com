@@ -292,14 +292,14 @@ function initProviders() {
 		sitePreParsers: [theInformationPreParser, mediumPreParser],
 		logError,
 	});
-	const finaliseSummaryFromContent = async (url: string, textContent: string) => {
-		await summaryStore.markSummaryPending({ url });
-		const summary = devSummariseInline({ textContent });
+	const finaliseSummaryFromContent = async (params: { url: string; textContent: string }) => {
+		await summaryStore.markSummaryPending({ url: params.url });
+		const summary = devSummariseInline({ textContent: params.textContent });
 		if (summary.kind === "ready") {
-			await summaryStore.markSummaryReady({ url, summary: summary.summary, excerpt: summary.excerpt });
+			await summaryStore.markSummaryReady({ url: params.url, summary: summary.summary, excerpt: summary.excerpt });
 			return;
 		}
-		await summaryStore.markSummarySkipped({ url, reason: summary.reason });
+		await summaryStore.markSummarySkipped({ url: params.url, reason: summary.reason });
 	};
 	const runCrawlAndSummariseInline = async (url: string) => {
 		const crawlResult = await crawlArticle({ url });
@@ -318,7 +318,7 @@ function initProviders() {
 		}
 		await articleStore.writeContent({ url, content: result.article.content });
 		await crawlStore.markCrawlReady({ url });
-		await finaliseSummaryFromContent(url, result.article.content);
+		await finaliseSummaryFromContent({ url, textContent: result.article.content });
 	};
 	const { publishLinkSaved: logOnlyPublishLinkSaved } = initInMemoryLinkSaved({ logger: consoleLogger });
 	const publishLinkSaved: typeof logOnlyPublishLinkSaved = async (params) => {
