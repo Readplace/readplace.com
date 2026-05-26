@@ -18,6 +18,7 @@ const CrawlStageSchema = z.enum([
 	"crawl-fetched",
 	"comprehensive-fetching",
 	"comprehensive-extracting",
+	"comprehensive-cleaning",
 	"crawl-parsed",
 	"crawl-metadata-written",
 	"crawl-content-uploaded",

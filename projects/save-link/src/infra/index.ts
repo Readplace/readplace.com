@@ -35,6 +35,8 @@ import {
 import { requireEnv } from "../require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
 import { SELECT_CONTENT_TIMEOUTS } from "../runtime/domain/select-content/timeouts";
+import { OCR_LLM_CLEANUP_TIMEOUTS } from "../runtime/domain/pdf-page-llm-cleanup/timeouts";
+import { OCR_DOCUMENT_DIFF_REVIEW_TIMEOUTS } from "../runtime/domain/pdf-document-diff-review/timeouts";
 
 /* Pulumi requires unique resource names per stack. Two Lambdas that attach
  * the same shared queue's send-policy would collide on the policy's name,
@@ -476,6 +478,53 @@ const pdfPageOcrLambda = new HutchLambda("pdf-page-ocr", {
 	policies: [pdfPageOcrStagingRead],
 });
 
+// --- PDF page LLM cleanup Lambda (sync-invoked) ---
+// Stage 1 of the LLM-assisted OCR cleanup pipeline. Sync-invoked from the
+// comprehensive-crawl orchestrator per page after Tesseract returns. Pure
+// network call (DeepSeek chat-completion); no rasterisation, no Tesseract
+// binary, no S3 access. Sized small accordingly.
+//
+// No DLQ / no HutchSQSBackedLambda wrapper for the same reason as
+// pdf-page-ocr: sync request/response Lambda, exception documented in
+// .claude/skills/infrastructure-design/SKILL.md. Cleanup failures fall back
+// to the original Tesseract text inside the orchestrator, so a Lambda-level
+// failure here never strands the article — Tesseract output ships unchanged.
+const pdfPageLlmCleanupLambda = new HutchLambda("pdf-page-llm-cleanup", {
+	memorySize: 512,
+	timeout: OCR_LLM_CLEANUP_TIMEOUTS.lambdaSeconds,
+	entryPoint: "./src/runtime/pdf-page-llm-cleanup.main.ts",
+	outputDir: ".lib/pdf-page-llm-cleanup",
+	assetDir: "./src",
+	environment: {
+		DEEPSEEK_API_KEY: deepseekApiKey,
+	},
+	policies: [],
+});
+
+// --- PDF document diff-review Lambda (sync-invoked) ---
+// Stage 2 of the LLM-assisted OCR cleanup pipeline. Single invocation per
+// document with every successful page's original + cleaned text; the Lambda
+// computes word-level diffs, sends them plus the full cleaned text to
+// DeepSeek with JSON mode, applies the model's APPROVE/REJECT/MODIFY/NEW
+// decisions per-page, and returns one final text per page. Same DLQ
+// exception as pdf-page-ocr (sync request/response).
+//
+// Larger memory than Stage 1 because the handler holds the whole document
+// in memory across diff construction, the LLM call, and decision
+// application. Longer timeout for the same reason — a 75-page document
+// hits multiple chunked DeepSeek calls.
+const pdfDocumentDiffReviewLambda = new HutchLambda("pdf-document-diff-review", {
+	memorySize: 1024,
+	timeout: OCR_DOCUMENT_DIFF_REVIEW_TIMEOUTS.lambdaSeconds,
+	entryPoint: "./src/runtime/pdf-document-diff-review.main.ts",
+	outputDir: ".lib/pdf-document-diff-review",
+	assetDir: "./src",
+	environment: {
+		DEEPSEEK_API_KEY: deepseekApiKey,
+	},
+	policies: [],
+});
+
 // --- ComprehensiveCrawlCommand handler ---
 // PDF / heavy crawl path runs in its own Lambda so it cannot starve the
 // HTML-only save-link workers. The `simple-crawl-unsupported-policy` Lambda
@@ -511,6 +560,22 @@ const comprehensiveCrawlCommandInvokePageOcr: LambdaPolicy = {
 	})),
 };
 
+const comprehensiveCrawlCommandInvokePageLlmCleanup: LambdaPolicy = {
+	name: "comprehensive-crawl-command-invoke-page-llm-cleanup",
+	policy: pdfPageLlmCleanupLambda.arn.apply((arn) => JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [{ Effect: "Allow", Action: ["lambda:InvokeFunction"], Resource: arn }],
+	})),
+};
+
+const comprehensiveCrawlCommandInvokeDocumentDiffReview: LambdaPolicy = {
+	name: "comprehensive-crawl-command-invoke-document-diff-review",
+	policy: pdfDocumentDiffReviewLambda.arn.apply((arn) => JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [{ Effect: "Allow", Action: ["lambda:InvokeFunction"], Resource: arn }],
+	})),
+};
+
 const comprehensiveCrawlCommandStagingDelete: LambdaPolicy = {
 	name: "comprehensive-crawl-command-staging-delete",
 	policy: contentBucket.arn.apply((arn) => JSON.stringify({
@@ -539,6 +604,8 @@ const comprehensiveCrawlCommandLambda = new HutchLambda("comprehensive-crawl-com
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 		PDF_PAGE_OCR_FUNCTION_NAME: pdfPageOcrLambda.functionName,
+		PDF_PAGE_LLM_CLEANUP_FUNCTION_NAME: pdfPageLlmCleanupLambda.functionName,
+		PDF_DOCUMENT_DIFF_REVIEW_FUNCTION_NAME: pdfDocumentDiffReviewLambda.functionName,
 	},
 	policies: [
 		...comprehensiveCrawlCommandDynamodb.policies,
@@ -547,6 +614,8 @@ const comprehensiveCrawlCommandLambda = new HutchLambda("comprehensive-crawl-com
 		...contentBucket.writePolicies("comprehensive-crawl-command-s3"),
 		comprehensiveCrawlCommandStagingDelete,
 		comprehensiveCrawlCommandInvokePageOcr,
+		comprehensiveCrawlCommandInvokePageLlmCleanup,
+		comprehensiveCrawlCommandInvokeDocumentDiffReview,
 		...renamePolicies(generateSummaryQueue.policies, "comprehensive-crawl-command"),
 	],
 });

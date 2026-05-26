@@ -18,6 +18,7 @@ export const CRAWL_STAGE_TO_PCT = {
 	"crawl-fetched": 17,
 	"comprehensive-fetching": 20,
 	"comprehensive-extracting": 23,
+	"comprehensive-cleaning": 26,
 	"crawl-parsed": 29,
 	"crawl-metadata-written": 41,
 	"crawl-content-uploaded": 53,

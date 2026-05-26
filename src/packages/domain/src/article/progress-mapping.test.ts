@@ -44,9 +44,11 @@ describe("progress-mapping", () => {
 		const fetched = crawlStagePct("crawl-fetched");
 		const compFetching = crawlStagePct("comprehensive-fetching");
 		const compExtracting = crawlStagePct("comprehensive-extracting");
+		const compCleaning = crawlStagePct("comprehensive-cleaning");
 		const parsed = crawlStagePct("crawl-parsed");
 		expect(compFetching).toBeGreaterThan(fetched);
 		expect(compExtracting).toBeGreaterThan(compFetching);
-		expect(parsed).toBeGreaterThan(compExtracting);
+		expect(compCleaning).toBeGreaterThan(compExtracting);
+		expect(parsed).toBeGreaterThan(compCleaning);
 	});
 });

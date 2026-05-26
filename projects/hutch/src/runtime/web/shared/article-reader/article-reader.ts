@@ -154,13 +154,15 @@ function buildUnifiedProgress(
 	if (crawl?.status === "pending") {
 		const stage: CrawlStage = crawl.stage ?? DEFAULT_CRAWL_STAGE;
 		const stagePct = CRAWL_STAGE_TO_PCT[stage];
-		// Scale the bar inside the comprehensive-extracting → crawl-parsed band
+		// Scale the bar inside the comprehensive-extracting / -cleaning band
 		// when the OCR provider reports per-part progress. Without this, a
-		// 300-page PDF would sit at the bottom of the band (23 %) for minutes
-		// while the bar's client-side smoother drifts forward without ground
-		// truth from the server.
+		// 300-page PDF would sit at the bottom of the band (23–26 %) for
+		// minutes while the bar's client-side smoother drifts forward
+		// without ground truth from the server.
+		const isComprehensiveSubStage =
+			stage === "comprehensive-extracting" || stage === "comprehensive-cleaning";
 		const pct =
-			stage === "comprehensive-extracting" &&
+			isComprehensiveSubStage &&
 			crawl.parts !== undefined &&
 			crawl.parts.total > 0
 				? stagePct +

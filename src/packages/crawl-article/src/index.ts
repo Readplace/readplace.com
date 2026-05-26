@@ -18,7 +18,7 @@ export type {
 } from "./crawl-article.types";
 export { initCrawlFetch } from "./crawl-fetch";
 export type { CrawlFetch, CrawlFetchInit } from "./crawl-fetch";
-export type { ExtractPdf, PdfExtractProgress, PdfExtractResult } from "./pdf-extract.types";
+export type { ExtractPdf, PdfExtractProgress, PdfExtractResult, PdfExtractStage } from "./pdf-extract.types";
 export { isPdfContentType, isPdfMagicBytes } from "./pdf-detect";
 export { extractPdfMetadata } from "./extract-pdf-metadata";
 export type { ExtractPdfMetadata, PdfMetadata } from "./extract-pdf-metadata";

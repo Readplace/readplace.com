@@ -1,6 +1,8 @@
 import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import type { ExtractPdfMetadata } from "@packages/crawl-article";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
+import type { InvokePdfPageLlmCleanup } from "./pdf-page-llm-cleanup-invoker.types";
+import type { InvokePdfDocumentDiffReview } from "./pdf-document-diff-review-invoker.types";
 import { initOcrPdf } from "./ocr-pdf";
 
 function stubMetadata(meta: { numPages: number; title?: string }): ExtractPdfMetadata {
@@ -14,20 +16,56 @@ function stubStagePdf(opts: { key?: string; onCleanup?: () => void } = {}): Stag
 	});
 }
 
-function stubInvokePageOcr(html: (pageIndex: number) => string): InvokePdfPageOcr {
+/** Wraps each page's text in the Tesseract-shape HTML the real provider emits. */
+function tesseractParagraph(text: string): string {
+	return `<p class="ocr-tesseract">${text}</p>`;
+}
+
+function stubInvokePageOcr(text: (pageIndex: number) => string): InvokePdfPageOcr {
 	return async ({ pageIndices }) => ({
 		ok: true,
-		html: pageIndices.map((idx) => html(idx)).join(""),
+		html: pageIndices.map((idx) => tesseractParagraph(text(idx))).join(""),
+	});
+}
+
+/** Cleanup pass-through: returns the original Tesseract text unchanged so
+ * tests that don't care about cleanup behaviour observe just the Tesseract
+ * fan-out + diff-review pipeline. `applied: false` keeps the input/output
+ * symmetric (the handler reports this when guardrails reject; here it just
+ * means the model produced no corrections). */
+const stubCleanupPassthrough: InvokePdfPageLlmCleanup = async ({ ocrText }) => ({
+	ok: true,
+	cleanedText: ocrText,
+	applied: false,
+	tokens: { input: 0, output: 0 },
+});
+
+/** Diff-review pass-through: returns each page's cleanedText as the final
+ * text. Used by tests that exercise the orchestration but not the diff-
+ * review logic. */
+const stubDiffReviewPassthrough: InvokePdfDocumentDiffReview = async ({ pages }) => ({
+	ok: true,
+	pages: pages.map((p) => ({ pageIndex: p.pageIndex, finalText: p.cleanedText })),
+	applied: false,
+});
+
+function makeOcr(overrides: Partial<Parameters<typeof initOcrPdf>[0]> = {}) {
+	return initOcrPdf({
+		logger: noopLogger,
+		extractPdfMetadata: stubMetadata({ numPages: 1 }),
+		stagePdf: stubStagePdf(),
+		invokePageOcr: stubInvokePageOcr(() => "default page text"),
+		invokePageLlmCleanup: stubCleanupPassthrough,
+		invokeDocumentDiffReview: stubDiffReviewPassthrough,
+		...overrides,
 	});
 }
 
 describe("initOcrPdf — fan-out per page Lambda", () => {
 	it("returns synthetic HTML stitched from per-page invocation fragments", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 3, title: "Scanned Document" }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: stubInvokePageOcr((i) => `<p>page-${i + 1}</p>`),
+			invokePageOcr: stubInvokePageOcr((i) => `page-${i + 1}`),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF-1.4"), url: "https://example.com/scan.pdf" });
@@ -37,133 +75,19 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		expect(result.title).toBe("Scanned Document");
 		expect(result.html).toContain("<title>Scanned Document</title>");
 		expect(result.html).toContain("<h1>Scanned Document</h1>");
-		expect(result.html).toContain("<p>page-1</p>");
-		expect(result.html).toContain("<p>page-2</p>");
-		expect(result.html).toContain("<p>page-3</p>");
-	});
-
-	it("preserves structured HTML returned by the page Lambda verbatim", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 1, title: "Structured" }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: stubInvokePageOcr(() => "<h2>Section</h2><ul><li>one</li></ul><table><tr><td>cell</td></tr></table>"),
-		});
-
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
-
-		expect(result.kind).toBe("fetched");
-		if (result.kind !== "fetched") return;
-		expect(result.html).toContain("<h2>Section</h2>");
-		expect(result.html).toContain("<ul><li>one</li></ul>");
-		expect(result.html).toContain("<td>cell</td>");
-	});
-
-	it("strips <script>, <iframe>, and other dangerous elements", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 1, title: "Risky" }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: stubInvokePageOcr(() => "<p>safe</p><script>alert(1)</script><iframe src=\"x\"></iframe>"),
-		});
-
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
-
-		expect(result.kind).toBe("fetched");
-		if (result.kind !== "fetched") return;
-		expect(result.html).toContain("<p>safe</p>");
-		expect(result.html).not.toContain("<script");
-		expect(result.html).not.toContain("<iframe");
-	});
-
-	it("strips disallowed attributes while keeping href/src/alt/colspan/rowspan", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 1, title: "Attrs" }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: stubInvokePageOcr(() =>
-				"<a href=\"https://example.com\" class=\"x\" onclick=\"x()\">link</a>" +
-				"<img src=\"https://example.com/a.png\" alt=\"a\" style=\"x\">" +
-				"<table><tr><td colspan=\"2\" id=\"y\">cell</td></tr></table>",
-			),
-		});
-
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
-
-		expect(result.kind).toBe("fetched");
-		if (result.kind !== "fetched") return;
-		expect(result.html).toContain('href="https://example.com"');
-		expect(result.html).toContain('src="https://example.com/a.png"');
-		expect(result.html).toContain('alt="a"');
-		expect(result.html).toContain('colspan="2"');
-		expect(result.html).not.toContain('class="x"');
-		expect(result.html).not.toContain('onclick');
-		expect(result.html).not.toContain('style="x"');
-		expect(result.html).not.toContain('id="y"');
-	});
-
-	it("strips <svg> and <math> from the page response", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 1, title: "SVG" }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: stubInvokePageOcr(() =>
-				"<p>safe</p><svg><foreignObject><div>xss</div></foreignObject></svg><math><mi>x</mi></math>",
-			),
-		});
-
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
-
-		expect(result.kind).toBe("fetched");
-		if (result.kind !== "fetched") return;
-		expect(result.html).toContain("<p>safe</p>");
-		expect(result.html).not.toContain("<svg");
-		expect(result.html).not.toContain("<math");
-	});
-
-	it("drops href and src values starting with data:", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 1, title: "Data" }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: stubInvokePageOcr(() =>
-				'<a href="data:text/html,<script>alert(1)</script>">click</a>' +
-				'<img src="data:image/png;base64,abc" alt="img">',
-			),
-		});
-
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
-
-		expect(result.kind).toBe("fetched");
-		if (result.kind !== "fetched") return;
-		expect(result.html).not.toContain("data:");
-		expect(result.html).toContain('alt="img"');
-	});
-
-	it("drops href values starting with javascript:", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 1, title: "JS" }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: stubInvokePageOcr(() => "<a href=\"javascript:alert(1)\">click</a>"),
-		});
-
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
-
-		expect(result.kind).toBe("fetched");
-		if (result.kind !== "fetched") return;
-		expect(result.html).not.toContain("javascript:");
+		expect(result.html).toContain('<p class="ocr-tesseract">page-1</p>');
+		expect(result.html).toContain('<p class="ocr-tesseract">page-2</p>');
+		expect(result.html).toContain('<p class="ocr-tesseract">page-3</p>');
 	});
 
 	it("dispatches one invocation per chunk carrying the staged key, page indices, and DPI", async () => {
 		const captured: Array<{ pdfS3Key: string; pageIndices: readonly number[]; dpi: number }> = [];
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 7 }),
 			stagePdf: stubStagePdf({ key: "pdf-rasterise-staging/abc/source.pdf" }),
 			invokePageOcr: async (input) => {
 				captured.push({ pdfS3Key: input.pdfS3Key, pageIndices: input.pageIndices, dpi: input.dpi });
-				return { ok: true, html: input.pageIndices.map((i) => `<p>p${i}</p>`).join("") };
+				return { ok: true, html: input.pageIndices.map((i) => tesseractParagraph(`p${i}`)).join("") };
 			},
 			batchSize: 3,
 		});
@@ -179,13 +103,10 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 	it("honours an overridden DPI in the invocation payload", async () => {
 		const captured: number[] = [];
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 1 }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: async ({ dpi }) => {
+		const ocr = makeOcr({
+			invokePageOcr: async ({ dpi, pageIndices }) => {
 				captured.push(dpi);
-				return { ok: true, html: "<p>x</p>" };
+				return { ok: true, html: pageIndices.map((i) => tesseractParagraph(`p${i}`)).join("") };
 			},
 			dpi: 200,
 		});
@@ -196,14 +117,12 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 	});
 
 	it("concatenates chunk fragments in chunk-dispatch order even when invocations complete out of order", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 3 }),
-			stagePdf: stubStagePdf(),
 			invokePageOcr: async ({ pageIndices }) => {
 				const first = pageIndices[0];
 				await new Promise((resolve) => setTimeout(resolve, (3 - first) * 5));
-				return { ok: true, html: `<p>page-${first}</p>` };
+				return { ok: true, html: tesseractParagraph(`page-${first}`) };
 			},
 			batchSize: 1,
 		});
@@ -223,16 +142,14 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 	it("caps in-flight invocations to the configured concurrency", async () => {
 		let inFlight = 0;
 		let observedPeak = 0;
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 10 }),
-			stagePdf: stubStagePdf(),
 			invokePageOcr: async ({ pageIndices }) => {
 				inFlight += 1;
 				observedPeak = Math.max(observedPeak, inFlight);
 				await new Promise((resolve) => setTimeout(resolve, 5));
 				inFlight -= 1;
-				return { ok: true, html: `<p>${pageIndices[0]}</p>` };
+				return { ok: true, html: tesseractParagraph(`${pageIndices[0]}`) };
 			},
 			concurrency: 3,
 			batchSize: 1,
@@ -245,10 +162,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 	});
 
 	it("derives a title from the URL filename when the PDF has no Title metadata", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 1 }),
-			stagePdf: stubStagePdf(),
+		const ocr = makeOcr({
 			invokePageOcr: stubInvokePageOcr(() => "body text"),
 		});
 
@@ -260,11 +174,9 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 	});
 
 	it("escapes HTML-significant characters in the title", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 1, title: '"Risky" & <Funky>' }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: stubInvokePageOcr(() => "<p>safe body</p>"),
+			invokePageOcr: stubInvokePageOcr(() => "safe body"),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
@@ -275,11 +187,8 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 	});
 
 	it("returns 'unsupported-large-file' when the PDF exceeds maxPages", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 11 }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: stubInvokePageOcr(() => "ignored"),
 			maxPages: 10,
 		});
 
@@ -289,13 +198,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 	});
 
 	it("returns 'unsupported-large-file' when the PDF buffer exceeds maxPdfBytes", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 1 }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: stubInvokePageOcr(() => "ignored"),
-			maxPdfBytes: 10,
-		});
+		const ocr = makeOcr({ maxPdfBytes: 10 });
 
 		const result = await ocr({ buffer: Buffer.alloc(11), url: "https://example.com/huge.pdf" });
 
@@ -303,11 +206,9 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 	});
 
 	it("returns kind 'failed' when every page returns empty text", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 3 }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: stubInvokePageOcr(() => "   \n  "),
+			invokePageOcr: async () => ({ ok: true, html: "" }),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/blank.pdf" });
@@ -316,11 +217,8 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 	});
 
 	it("returns kind 'failed' wrapping the underlying error when pdfinfo throws", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: async () => { throw new Error("invalid pdf"); },
-			stagePdf: stubStagePdf(),
-			invokePageOcr: stubInvokePageOcr(() => "ignored"),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("not a pdf"), url: "https://example.com/x.pdf" });
@@ -329,11 +227,8 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 	});
 
 	it("returns kind 'failed' stringifying a non-Error throw from pdfinfo", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: async () => { throw "opaque thrown"; },
-			stagePdf: stubStagePdf(),
-			invokePageOcr: stubInvokePageOcr(() => "ignored"),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("nope"), url: "https://example.com/x.pdf" });
@@ -342,11 +237,8 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 	});
 
 	it("returns kind 'failed' wrapping the underlying error when stagePdf throws", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 1 }),
+		const ocr = makeOcr({
 			stagePdf: async () => { throw new Error("S3 PutObject denied"); },
-			invokePageOcr: stubInvokePageOcr(() => "ignored"),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
@@ -356,16 +248,14 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 	it("calls invokePageOcr exactly once per chunk before marking a failure (PAGE_OCR_MAX_ATTEMPTS=1)", async () => {
 		const callsForFailingChunk: number[] = [];
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 3 }),
-			stagePdf: stubStagePdf(),
 			invokePageOcr: async ({ pageIndices }) => {
 				if (pageIndices[0] === 1) {
 					callsForFailingChunk.push(pageIndices[0]);
 					return { ok: false, error: new Error("Lambda timed out") };
 				}
-				return { ok: true, html: `<p>${pageIndices[0]}</p>` };
+				return { ok: true, html: tesseractParagraph(`${pageIndices[0]}`) };
 			},
 			batchSize: 1,
 		});
@@ -374,23 +264,18 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 		// 2 successes out of 3 chunks = 67%, below the default 80% threshold.
 		expect(result).toEqual({ kind: "failed", reason: "OCR succeeded for 2 of 3 chunks — below 80% threshold" });
-		// 1 attempt total; matches PAGE_OCR_MAX_ATTEMPTS in ocr-pdf.ts. The
-		// per-page Lambda owns the recovery via its text-layer fallback, so
-		// the orchestrator never re-invokes a chunk.
 		expect(callsForFailingChunk).toEqual([1]);
 	});
 
 	it("keeps dispatching sibling chunks after one chunk fails", async () => {
 		const seen: number[] = [];
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 5 }),
-			stagePdf: stubStagePdf(),
 			invokePageOcr: async ({ pageIndices }) => {
 				const pageIndex = pageIndices[0];
 				seen.push(pageIndex);
 				if (pageIndex === 1) return { ok: false, error: new Error("page 2 failed") };
-				return { ok: true, html: `<p>${pageIndex}</p>` };
+				return { ok: true, html: tesseractParagraph(`${pageIndex}`) };
 			},
 			concurrency: 1,
 			batchSize: 1,
@@ -398,20 +283,13 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
-		// concurrency=1, batchSize=1: serial. Page 1 fails once (no retry under
-		// PAGE_OCR_MAX_ATTEMPTS=1) and the captured failure (no throw) lets the
-		// worker carry on with pages 2/3/4. Partial-success aggregation decides
-		// whether the pipeline accepts the result.
 		expect(seen).toEqual([0, 1, 2, 3, 4]);
 	});
 
 	it("calls staged.cleanup() after a successful fan-out", async () => {
 		let cleanupCalls = 0;
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 1 }),
+		const ocr = makeOcr({
 			stagePdf: stubStagePdf({ onCleanup: () => { cleanupCalls += 1; } }),
-			invokePageOcr: stubInvokePageOcr(() => "<p>x</p>"),
 		});
 
 		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
@@ -421,8 +299,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 	it("calls staged.cleanup() even when every page invocation fails", async () => {
 		let cleanupCalls = 0;
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 2 }),
 			stagePdf: stubStagePdf({ onCleanup: () => { cleanupCalls += 1; } }),
 			invokePageOcr: async () => ({ ok: false, error: new Error("invoke failure") }),
@@ -433,13 +310,14 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		expect(cleanupCalls).toBe(1);
 	});
 
-	it("fires onProgress once per chunk completion with 1-based partIndex and total partCount (chunks, not pages)", async () => {
-		const progress: { partIndex: number; partCount: number }[] = [];
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+	it("fires onProgress once per Tesseract chunk completion and once per cleanup chunk completion, plus the stage-change marker at zero", async () => {
+		const progress: { partIndex: number; partCount: number; stage?: string }[] = [];
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 6 }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: stubInvokePageOcr(() => "<p>x</p>"),
+			invokePageOcr: async ({ pageIndices }) => ({
+				ok: true,
+				html: pageIndices.map((i) => tesseractParagraph(`p${i}`)).join(""),
+			}),
 			batchSize: 2,
 		});
 
@@ -449,25 +327,22 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			onProgress: (params) => { progress.push(params); },
 		});
 
-		// 6 pages / batchSize 2 = 3 chunks → 3 onProgress fires.
-		expect(progress).toEqual([
-			{ partIndex: 1, partCount: 3 },
-			{ partIndex: 2, partCount: 3 },
-			{ partIndex: 3, partCount: 3 },
-		]);
+		// 6 pages / batchSize 2 = 3 chunks. 3 Tesseract fires + 1 stage-change
+		// marker (partIndex=0) + 3 cleanup fires = 7 total.
+		expect(progress.length).toBe(7);
+		expect(progress.filter((p) => p.stage === "comprehensive-extracting").length).toBe(3);
+		expect(progress.filter((p) => p.stage === "comprehensive-cleaning").length).toBe(4);
+		expect(progress.find((p) => p.stage === "comprehensive-cleaning" && p.partIndex === 0)).toBeDefined();
 	});
 
 	it("fires partIndex in chunk-completion order (out-of-order chunks still increment partIndex monotonically)", async () => {
-		const progress: { partIndex: number; partCount: number }[] = [];
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const progress: { partIndex: number; partCount: number; stage?: string }[] = [];
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 3 }),
-			stagePdf: stubStagePdf(),
 			invokePageOcr: async ({ pageIndices }) => {
 				const first = pageIndices[0];
-				// Reverse the natural finish order so chunks complete later → earlier.
 				await new Promise((resolve) => setTimeout(resolve, (3 - first) * 5));
-				return { ok: true, html: `<p>${first}</p>` };
+				return { ok: true, html: tesseractParagraph(`${first}`) };
 			},
 			batchSize: 1,
 		});
@@ -478,16 +353,14 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			onProgress: (params) => { progress.push(params); },
 		});
 
-		expect(progress.map((p) => p.partIndex)).toEqual([1, 2, 3]);
-		expect(progress.every((p) => p.partCount === 3)).toBe(true);
+		const tesseractFires = progress.filter((p) => p.stage === "comprehensive-extracting");
+		expect(tesseractFires.map((p) => p.partIndex)).toEqual([1, 2, 3]);
+		expect(tesseractFires.every((p) => p.partCount === 3)).toBe(true);
 	});
 
 	it("treats a zero-page PDF as failed (no fragments to join)", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 0 }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: stubInvokePageOcr(() => "ignored"),
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
@@ -503,30 +376,22 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			warn: (msg) => { warnings.push(String(msg)); },
 			debug: () => {},
 		};
-		const ocr = initOcrPdf({
+		const ocr = makeOcr({
 			logger: capturingLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 1 }),
-			stagePdf: stubStagePdf(),
 			invokePageOcr: async () => ({ ok: false, error: new Error("nope") }),
 		});
 
 		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
-		// MAX_ATTEMPTS=1 means retriable never re-runs the chunk, so beforeRetry
-		// never fires. The 1-chunk-all-failed case falls below the threshold
-		// and returns failed, so no "accepting partial result" warn fires
-		// either — leaving the warnings array empty.
 		expect(warnings.filter((w) => w.includes("retrying"))).toEqual([]);
 	});
 
 	it("accepts a partial result when the success ratio meets the threshold, with placeholders for failed pages", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 10, title: "Mostly OCR-able" }),
-			stagePdf: stubStagePdf(),
 			invokePageOcr: async ({ pageIndices }) => {
 				if (pageIndices[0] === 7) return { ok: false, error: new Error("DeepInfra timed out") };
-				return { ok: true, html: `<p>page-${pageIndices[0]}</p>` };
+				return { ok: true, html: tesseractParagraph(`page-${pageIndices[0]}`) };
 			},
 			batchSize: 1,
 		});
@@ -536,39 +401,34 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
 		expect(result.title).toBe("Mostly OCR-able");
-		expect(result.html).toContain("<p>page-0</p>");
-		expect(result.html).toContain("<p>page-6</p>");
+		expect(result.html).toContain('<p class="ocr-tesseract">page-0</p>');
+		expect(result.html).toContain('<p class="ocr-tesseract">page-6</p>');
 		expect(result.html).toContain('<p class="ocr-failed">[Page 8: OCR unavailable]</p>');
-		expect(result.html).toContain("<p>page-8</p>");
-		expect(result.html).toContain("<p>page-9</p>");
+		expect(result.html).toContain('<p class="ocr-tesseract">page-8</p>');
+		expect(result.html).toContain('<p class="ocr-tesseract">page-9</p>');
 	});
 
 	it("rejects when the success ratio is below the threshold", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 10 }),
-			stagePdf: stubStagePdf(),
 			invokePageOcr: async ({ pageIndices }) => {
 				if (pageIndices[0] < 3) return { ok: false, error: new Error("DeepInfra timed out") };
-				return { ok: true, html: `<p>page-${pageIndices[0]}</p>` };
+				return { ok: true, html: tesseractParagraph(`page-${pageIndices[0]}`) };
 			},
 			batchSize: 1,
 		});
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
-		// 7 ok / 10 = 70%, below the default 80% threshold.
 		expect(result).toEqual({ kind: "failed", reason: "OCR succeeded for 7 of 10 chunks — below 80% threshold" });
 	});
 
 	it("renders one placeholder per page for a multi-page chunk when overall ratio passes the threshold", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 10, title: "Multi-page chunks" }),
-			stagePdf: stubStagePdf(),
 			invokePageOcr: async ({ pageIndices }) => {
 				if (pageIndices.includes(4)) return { ok: false, error: new Error("DeepInfra timed out") };
-				return { ok: true, html: pageIndices.map((i) => `<p>page-${i}</p>`).join("") };
+				return { ok: true, html: pageIndices.map((i) => tesseractParagraph(`page-${i}`)).join("") };
 			},
 			batchSize: 2,
 			partialSuccessThreshold: 0.5,
@@ -578,12 +438,10 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 		expect(result.kind).toBe("fetched");
 		if (result.kind !== "fetched") return;
-		// Chunk pages=[4,5] failed → one placeholder per page in the chunk.
 		expect(result.html).toContain('<p class="ocr-failed">[Page 5: OCR unavailable]</p>');
 		expect(result.html).toContain('<p class="ocr-failed">[Page 6: OCR unavailable]</p>');
-		// Sibling chunks still rendered as normal page text.
-		expect(result.html).toContain("<p>page-0</p>");
-		expect(result.html).toContain("<p>page-9</p>");
+		expect(result.html).toContain('<p class="ocr-tesseract">page-0</p>');
+		expect(result.html).toContain('<p class="ocr-tesseract">page-9</p>');
 	});
 
 	it("logs the failed page list when accepting a partial result", async () => {
@@ -594,13 +452,12 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			warn: (msg) => { warnings.push(String(msg)); },
 			debug: () => {},
 		};
-		const ocr = initOcrPdf({
+		const ocr = makeOcr({
 			logger: capturingLogger,
 			extractPdfMetadata: stubMetadata({ numPages: 10 }),
-			stagePdf: stubStagePdf(),
 			invokePageOcr: async ({ pageIndices }) => {
 				if (pageIndices[0] === 3) return { ok: false, error: new Error("flaky page") };
-				return { ok: true, html: `<p>page-${pageIndices[0]}</p>` };
+				return { ok: true, html: tesseractParagraph(`page-${pageIndices[0]}`) };
 			},
 			batchSize: 1,
 		});
@@ -614,13 +471,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 	});
 
 	it("returns kind 'failed' when invokePageOcr throws an unexpected error rather than returning ok:false", async () => {
-		// The mapper captures `ok:false` results into ChunkOutcome, but a thrown
-		// exception bypasses that path and surfaces through the outer try/catch
-		// in initOcrPdf as a pipeline failure.
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 1 }),
-			stagePdf: stubStagePdf(),
+		const ocr = makeOcr({
 			invokePageOcr: async () => { throw new Error("kaboom"); },
 		});
 
@@ -630,13 +481,11 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 	});
 
 	it("honours an overridden partialSuccessThreshold", async () => {
-		const ocr = initOcrPdf({
-			logger: noopLogger,
+		const ocr = makeOcr({
 			extractPdfMetadata: stubMetadata({ numPages: 4, title: "Strict threshold" }),
-			stagePdf: stubStagePdf(),
 			invokePageOcr: async ({ pageIndices }) => {
 				if (pageIndices[0] === 0) return { ok: false, error: new Error("nope") };
-				return { ok: true, html: `<p>page-${pageIndices[0]}</p>` };
+				return { ok: true, html: tesseractParagraph(`page-${pageIndices[0]}`) };
 			},
 			batchSize: 1,
 			partialSuccessThreshold: 1.0,
@@ -644,9 +493,209 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
-		// 3/4 = 75%, below the bumped 100% threshold. The default 80% would
-		// also have failed this case, but the test still exercises the
-		// override path because partialSuccessThreshold is read from deps.
 		expect(result).toEqual({ kind: "failed", reason: "OCR succeeded for 3 of 4 chunks — below 100% threshold" });
+	});
+});
+
+describe("initOcrPdf — stage 1 LLM cleanup", () => {
+	it("forwards each ok Tesseract chunk's extracted plain text to the cleanup Lambda", async () => {
+		const cleanupCalls: Array<{ pageIndex: number; ocrText: string }> = [];
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 2 }),
+			invokePageOcr: stubInvokePageOcr((i) => `page-${i} text`),
+			invokePageLlmCleanup: async (input) => {
+				cleanupCalls.push({ pageIndex: input.pageIndex, ocrText: input.ocrText });
+				return { ok: true, cleanedText: input.ocrText, applied: false };
+			},
+		});
+
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(cleanupCalls.sort((a, b) => a.pageIndex - b.pageIndex)).toEqual([
+			{ pageIndex: 0, ocrText: "page-0 text" },
+			{ pageIndex: 1, ocrText: "page-1 text" },
+		]);
+	});
+
+	it("uses the cleaned text in the final HTML when cleanup succeeds (applied=true)", async () => {
+		const ocr = makeOcr({
+			invokePageOcr: stubInvokePageOcr(() => "Vepository of records"),
+			invokePageLlmCleanup: async ({ pageIndex }) => ({
+				ok: true,
+				cleanedText: "Repository of records",
+				applied: true,
+				pageIndex,
+			}),
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		expect(result.html).toContain("Repository of records");
+		expect(result.html).not.toContain("Vepository");
+	});
+
+	it("falls back to the Tesseract text when the cleanup Lambda invoke fails", async () => {
+		const warnings: string[] = [];
+		const capturingLogger: HutchLogger = {
+			info: () => {},
+			error: () => {},
+			warn: (msg) => { warnings.push(String(msg)); },
+			debug: () => {},
+		};
+		const ocr = makeOcr({
+			logger: capturingLogger,
+			invokePageOcr: stubInvokePageOcr(() => "original page text"),
+			invokePageLlmCleanup: async () => ({ ok: false, error: new Error("DeepSeek 5xx") }),
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		expect(result.html).toContain("original page text");
+		expect(warnings.some((w) => w.includes("cleanup invoke failed"))).toBe(true);
+	});
+
+	it("does NOT downgrade Tesseract partial-success accounting when cleanup fails on a successful chunk", async () => {
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 5 }),
+			invokePageOcr: stubInvokePageOcr((i) => `tesseract-${i}`),
+			// Every cleanup invocation fails — but Tesseract succeeded on all 5
+			// pages, so the document still completes fetched (cleanup falls back
+			// to the Tesseract text). If cleanup failures counted against the
+			// 80% partial-success threshold, this would fail the entire crawl.
+			invokePageLlmCleanup: async () => ({ ok: false, error: new Error("DeepSeek down") }),
+			batchSize: 1,
+			partialSuccessThreshold: 0.8,
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		// All 5 pages of Tesseract text survive in the final HTML.
+		for (let i = 0; i < 5; i++) {
+			expect(result.html).toContain(`tesseract-${i}`);
+		}
+	});
+
+	it("caps cleanup-fanout concurrency to the configured cleanupConcurrency (lower than OCR's)", async () => {
+		let inFlight = 0;
+		let observedPeak = 0;
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 10 }),
+			invokePageOcr: stubInvokePageOcr((i) => `t-${i}`),
+			invokePageLlmCleanup: async ({ pageIndex, ocrText }) => {
+				inFlight += 1;
+				observedPeak = Math.max(observedPeak, inFlight);
+				await new Promise((resolve) => setTimeout(resolve, 5));
+				inFlight -= 1;
+				return { ok: true, pageIndex, cleanedText: ocrText, applied: false };
+			},
+			cleanupConcurrency: 2,
+			batchSize: 1,
+		});
+
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(observedPeak).toBeLessThanOrEqual(2);
+		expect(observedPeak).toBeGreaterThan(0);
+	});
+});
+
+describe("initOcrPdf — stage 2 document diff review", () => {
+	it("passes every successful page's original + cleaned text to the diff-review Lambda", async () => {
+		const captured: Array<{ pageIndex: number; originalText: string; cleanedText: string }> = [];
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 2 }),
+			invokePageOcr: stubInvokePageOcr((i) => `original-${i}`),
+			invokePageLlmCleanup: async ({ pageIndex, ocrText }) => ({
+				ok: true,
+				pageIndex,
+				cleanedText: ocrText.replace("original", "cleaned"),
+				applied: true,
+			}),
+			invokeDocumentDiffReview: async ({ pages }) => {
+				captured.push(...pages);
+				return {
+					ok: true,
+					applied: true,
+					pages: pages.map((p) => ({ pageIndex: p.pageIndex, finalText: p.cleanedText })),
+				};
+			},
+		});
+
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(captured.sort((a, b) => a.pageIndex - b.pageIndex)).toEqual([
+			{ pageIndex: 0, originalText: "original-0", cleanedText: "cleaned-0" },
+			{ pageIndex: 1, originalText: "original-1", cleanedText: "cleaned-1" },
+		]);
+	});
+
+	it("ships the diff-review final text per page in the assembled HTML", async () => {
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 2 }),
+			invokePageOcr: stubInvokePageOcr((i) => `staged-${i}`),
+			invokeDocumentDiffReview: async ({ pages }) => ({
+				ok: true,
+				applied: true,
+				pages: pages.map((p) => ({ pageIndex: p.pageIndex, finalText: `final-${p.pageIndex}` })),
+			}),
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		expect(result.html).toContain('<p class="ocr-tesseract">final-0</p>');
+		expect(result.html).toContain('<p class="ocr-tesseract">final-1</p>');
+	});
+
+	it("falls back to stage-1 cleaned text when the diff-review Lambda invoke fails", async () => {
+		const warnings: string[] = [];
+		const capturingLogger: HutchLogger = {
+			info: () => {},
+			error: () => {},
+			warn: (msg) => { warnings.push(String(msg)); },
+			debug: () => {},
+		};
+		const ocr = makeOcr({
+			logger: capturingLogger,
+			invokePageOcr: stubInvokePageOcr(() => "tesseract page text"),
+			invokePageLlmCleanup: async ({ pageIndex }) => ({
+				ok: true,
+				pageIndex,
+				cleanedText: "cleaned-by-stage-1",
+				applied: true,
+			}),
+			invokeDocumentDiffReview: async () => ({ ok: false, error: new Error("Lambda timed out") }),
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		expect(result.html).toContain("cleaned-by-stage-1");
+		expect(warnings.some((w) => w.includes("diff-review invoke failed"))).toBe(true);
+	});
+
+	it("skips the diff-review invocation entirely when every Tesseract chunk failed (no pages to review)", async () => {
+		let reviewCalls = 0;
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 5 }),
+			invokePageOcr: async () => ({ ok: false, error: new Error("all failed") }),
+			invokeDocumentDiffReview: async () => {
+				reviewCalls += 1;
+				return { ok: true, applied: false, pages: [] };
+			},
+			partialSuccessThreshold: 0.0,
+		});
+
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(reviewCalls).toBe(0);
 	});
 });

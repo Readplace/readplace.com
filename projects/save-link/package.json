@@ -55,6 +55,7 @@
     "@packages/test-fixtures": "workspace:*",
     "@smithy/node-http-handler": "4.7.3",
     "@types/parse-srcset": "1.0.0",
+    "diff": "9.0.0",
     "linkedom": "0.18.12",
     "openai": "6.33.0",
     "parse-srcset": "1.0.2",

@@ -2,7 +2,21 @@ import assert from "node:assert/strict";
 import { noopLogger } from "@packages/hutch-logger";
 import type { ExtractPdfMetadata } from "@packages/crawl-article";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
+import type { InvokePdfPageLlmCleanup } from "./pdf-page-llm-cleanup-invoker.types";
+import type { InvokePdfDocumentDiffReview } from "./pdf-document-diff-review-invoker.types";
 import { initSaveLinkPdfExtract } from "./init-save-link-pdf-extract";
+
+const stubPageLlmCleanup: InvokePdfPageLlmCleanup = async ({ ocrText }) => ({
+	ok: true,
+	cleanedText: ocrText,
+	applied: false,
+});
+
+const stubDocumentDiffReview: InvokePdfDocumentDiffReview = async ({ pages }) => ({
+	ok: true,
+	pages: pages.map((p) => ({ pageIndex: p.pageIndex, finalText: p.cleanedText })),
+	applied: false,
+});
 
 describe("initSaveLinkPdfExtract", () => {
 	it("wires the fan-out pipeline end-to-end and returns the joined HTML", async () => {
@@ -13,13 +27,15 @@ describe("initSaveLinkPdfExtract", () => {
 		});
 		const invokePageOcr: InvokePdfPageOcr = async ({ pageIndices }) => ({
 			ok: true,
-			html: pageIndices.map((idx) => `<p>page-${idx}</p>`).join(""),
+			html: pageIndices.map((idx) => `<p class="ocr-tesseract">page-${idx}</p>`).join(""),
 		});
 
 		const extractPdf = initSaveLinkPdfExtract({
 			extractPdfMetadata,
 			stagePdf,
 			invokePageOcr,
+			invokePageLlmCleanup: stubPageLlmCleanup,
+			invokeDocumentDiffReview: stubDocumentDiffReview,
 			logger: noopLogger,
 		});
 
@@ -27,7 +43,7 @@ describe("initSaveLinkPdfExtract", () => {
 		assert.equal(result.kind, "fetched");
 		assert(result.kind === "fetched");
 		assert.equal(result.title, "Scanned Doc");
-		assert(result.html.includes("<p>page-0</p>"));
-		assert(result.html.includes("<p>page-1</p>"));
+		assert(result.html.includes("page-0"));
+		assert(result.html.includes("page-1"));
 	});
 });

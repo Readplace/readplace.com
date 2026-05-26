@@ -12,6 +12,8 @@ import { initComprehensiveCrawlHandler } from "./domain/comprehensive-crawl/comp
 import { initSaveLinkPdfExtract } from "./domain/article-parser/init-save-link-pdf-extract";
 import { initStagePdfToS3 } from "./domain/article-parser/init-stage-pdf-to-s3";
 import { initInvokePdfPageOcr } from "./domain/article-parser/init-invoke-pdf-page-ocr";
+import { initInvokePdfPageLlmCleanup } from "./domain/article-parser/init-invoke-pdf-page-llm-cleanup";
+import { initInvokePdfDocumentDiffReview } from "./domain/article-parser/init-invoke-pdf-document-diff-review";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initComprehensiveParserDepBundle } from "./dep-bundles/parser";
 import { initArticleStoreDepBundle } from "./dep-bundles/article-store";
@@ -26,17 +28,22 @@ const eventBusName = requireEnv("EVENT_BUS_NAME");
 const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
 const pdfPageOcrFunctionName = requireEnv("PDF_PAGE_OCR_FUNCTION_NAME");
+const pdfPageLlmCleanupFunctionName = requireEnv("PDF_PAGE_LLM_CLEANUP_FUNCTION_NAME");
+const pdfDocumentDiffReviewFunctionName = requireEnv("PDF_DOCUMENT_DIFF_REVIEW_FUNCTION_NAME");
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
 // The default HTTPS agent caps in-flight requests per host at 50; the
-// orchestrator fans out up to `DEFAULT_CONCURRENCY` (= 150) simultaneous
-// `InvokeCommand` calls to the page Lambda, so the agent's `maxSockets`
-// must exceed that or the SDK silently queues. 200 leaves headroom for
-// transient retries on top of the orchestrator's bounded fan-out.
+// orchestrator fans out up to `DEFAULT_CONCURRENCY` (= MAX_PDF_PAGES = 300)
+// simultaneous `InvokeCommand` calls to the page Lambda plus the
+// `DEFAULT_CLEANUP_CONCURRENCY` (= 32) cleanup invocations that run after
+// Tesseract returns, so the agent's `maxSockets` must exceed the larger of
+// the two or the SDK silently queues. 400 covers the 300-page Tesseract
+// fan-out with headroom for transient retries and the smaller cleanup
+// fan-out that follows.
 const lambdaClient = new LambdaClient({
 	requestHandler: new NodeHttpHandler({
-		httpsAgent: new Agent({ maxSockets: 200 }),
+		httpsAgent: new Agent({ maxSockets: 400 }),
 	}),
 });
 const dynamoClient = createDynamoDocumentClient();
@@ -45,11 +52,15 @@ const now = () => new Date();
 
 const { stagePdf } = initStagePdfToS3({ client: s3Client, bucketName: contentBucketName, logger: consoleLogger });
 const { invokePageOcr } = initInvokePdfPageOcr({ client: lambdaClient, functionName: pdfPageOcrFunctionName, logger: consoleLogger });
+const { invokePageLlmCleanup } = initInvokePdfPageLlmCleanup({ client: lambdaClient, functionName: pdfPageLlmCleanupFunctionName, logger: consoleLogger });
+const { invokeDocumentDiffReview } = initInvokePdfDocumentDiffReview({ client: lambdaClient, functionName: pdfDocumentDiffReviewFunctionName, logger: consoleLogger });
 
 const extractPdf = initSaveLinkPdfExtract({
 	extractPdfMetadata,
 	stagePdf,
 	invokePageOcr,
+	invokePageLlmCleanup,
+	invokeDocumentDiffReview,
 	logger: consoleLogger,
 });
 

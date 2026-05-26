@@ -95,15 +95,20 @@ export function initComprehensiveCrawlHandler(deps: {
 				});
 
 				/*
-				 * Server commits two coarse stages for the comprehensive path —
+				 * Server commits three coarse stages for the comprehensive path —
 				 * `comprehensive-fetching` (written by the dispatcher in save-link-work
-				 * before this Lambda is even invoked) and `comprehensive-extracting`,
-				 * latched once by the first onProgress callback. Per-part progress
+				 * before this Lambda is even invoked), `comprehensive-extracting`
+				 * (Tesseract fan-out), and `comprehensive-cleaning` (LLM cleanup +
+				 * diff review). The extractor signals the active stage on each
+				 * onProgress call; we latch a stage write whenever the value
+				 * changes. Falling back to `comprehensive-extracting` when the
+				 * extractor omits a stage preserves the prior behaviour for any
+				 * provider that hasn't been updated. Per-part progress
 				 * (partCurrent/partTotal) is routed through a throttle so the OCR
 				 * fan-out's chunk-completion firehose collapses to ~1 DDB write per
 				 * `progressIntervalMs`, matching the UI's 3 s poll cadence.
 				 */
-				let stageLatched = false;
+				let latchedStage: "comprehensive-extracting" | "comprehensive-cleaning" | undefined;
 				const progressThrottle = initProgressThrottle({
 					markCrawlProgress,
 					intervalMs: progressIntervalMs,
@@ -112,11 +117,12 @@ export function initComprehensiveCrawlHandler(deps: {
 				});
 				const crawlResult = await comprehensiveCrawl({
 					url,
-					onProgress: ({ partIndex, partCount }) => {
-						if (!stageLatched) {
-							stageLatched = true;
-							markCrawlStage({ url, stage: "comprehensive-extracting" }).catch((error: unknown) => {
-								logger.warn(`${logPrefix} comprehensive-extracting stage write failed`, {
+					onProgress: ({ partIndex, partCount, stage }) => {
+						const effectiveStage = stage ?? "comprehensive-extracting";
+						if (effectiveStage !== latchedStage) {
+							latchedStage = effectiveStage;
+							markCrawlStage({ url, stage: effectiveStage }).catch((error: unknown) => {
+								logger.warn(`${logPrefix} ${effectiveStage} stage write failed`, {
 									url,
 									error: String(error),
 								});

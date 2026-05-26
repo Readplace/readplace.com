@@ -42,9 +42,12 @@ export type SimpleCrawl = CrawlArticle;
  * callback is synchronous-fire-and-forget from the crawler's perspective and
  * any errors it surfaces are swallowed by the crawler.
  */
+import type { PdfExtractStage } from "./pdf-extract.types";
+
 export type ComprehensiveCrawlProgress = (params: {
 	partIndex: number;
 	partCount: number;
+	stage?: PdfExtractStage;
 }) => void;
 
 /**

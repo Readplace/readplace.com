@@ -1,29 +1,55 @@
 import assert from "node:assert";
-import { parseHTML } from "linkedom";
 import type { ExtractPdf, ExtractPdfMetadata, PdfExtractResult } from "@packages/crawl-article";
 import { deriveTitleFromUrl, escapeHtmlText, MAX_PDF_BYTES, MAX_PDF_PAGES } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { retriable } from "@packages/retriable";
 import { normalizeUnknownError } from "./normalize-error";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
+import type { InvokePdfPageLlmCleanup } from "./pdf-page-llm-cleanup-invoker.types";
+import type { InvokePdfDocumentDiffReview } from "./pdf-document-diff-review-invoker.types";
+import {
+	extractTesseractParagraphs,
+	joinParagraphsAsText,
+	rewrapAsTesseractHtml,
+} from "./tesseract-html";
 
 const DEFAULT_BATCH_SIZE = 1;
 
-// In-flight page-Lambda invocations. Sized so the worst-case PDF
-// (`MAX_PDF_PAGES` pages, all in one wave at `DEFAULT_BATCH_SIZE` per chunk)
-// fits without spilling into a second wave — total wall time becomes
-// bounded by the slowest single chunk (~200 s on dense math) instead of
-// scaling with page count. Caps in play:
-//   - DeepInfra account: 200 concurrent requests (this uses ~75%, leaves
-//     room for SDK retries + other workloads sharing the DeepInfra account)
-//   - AWS Lambda account concurrency: 1000 (this uses ~15%)
-//   - AWS Lambda burst quota: 500/region in ap-southeast-2 (this uses ~30%
-//     in the <1 s scale-up event)
-//   - LambdaClient HTTPS agent `maxSockets`: defaults to 50; must be raised
-//     where the client is constructed (see comprehensive-crawl-command.main.ts)
-//     or this many in-flight `InvokeCommand` calls will queue at the SDK
-//     layer and effective concurrency caps at 50.
-const DEFAULT_CONCURRENCY = 150;
+// In-flight page-Lambda invocations. Sized to `MAX_PDF_PAGES` so the worst
+// case PDF fits into a single fan-out wave — total wall time becomes bounded
+// by the slowest single chunk (~45 s on the densest CIA reading-room pages)
+// instead of scaling with page count. Caps in play after the DeepInfra→
+// Tesseract migration:
+//   - AWS Lambda account concurrency: 1000 (this uses 30%, leaves room for
+//     a second concurrent max-PDF crawl plus the ~35 other Lambdas in the
+//     account; three simultaneous max crawls would throttle and the
+//     partial-success threshold would absorb the resulting chunk failures)
+//   - AWS Lambda concurrency scaling rate: 1000/min in ap-southeast-2
+//     (the newer post-burst-quota model), so 300 cold starts in <1 s sits
+//     well under budget
+//   - LambdaClient HTTPS agent `maxSockets`: defaults to 50; must be set
+//     above this value where the client is constructed (see
+//     comprehensive-crawl-command.main.ts) or in-flight `InvokeCommand`
+//     calls queue at the SDK layer and effective concurrency caps at the
+//     socket count.
+const DEFAULT_CONCURRENCY = MAX_PDF_PAGES;
+
+// In-flight LLM cleanup Lambda invocations. Mirrors the Tesseract fan-out
+// at `MAX_PDF_PAGES` so the worst-case PDF clears stage 1 in a single wave.
+// The cleanup stage is sequential with Tesseract (Tesseract completes first,
+// then cleanup starts), so peak Lambda concurrency is bounded by whichever
+// fan-out is in flight — both consume up to 300 concurrent invocations of
+// their respective functions, not 600 simultaneously.
+//
+// DeepSeek does not impose a hard per-account concurrent-request ceiling
+// (https://api-docs.deepseek.com/quick_start/rate_limit); the service
+// throttles latency dynamically and returns 429 only when the upstream is
+// truly overloaded. The cleanup handler treats a 429 the same as any other
+// LLM failure — pass the original Tesseract text through unchanged — so
+// transient throttling degrades quality on the affected pages instead of
+// failing the crawl. The 429 status is logged explicitly when it surfaces
+// so operators can spot sustained rate-limiting in CloudWatch.
+const DEFAULT_CLEANUP_CONCURRENCY = MAX_PDF_PAGES;
 
 /**
  * Page-image render DPI. 300 is the standard sweet spot for printed text and
@@ -66,8 +92,11 @@ export function initOcrPdf(deps: {
 	extractPdfMetadata: ExtractPdfMetadata;
 	stagePdf: StagePdfToS3;
 	invokePageOcr: InvokePdfPageOcr;
+	invokePageLlmCleanup: InvokePdfPageLlmCleanup;
+	invokeDocumentDiffReview: InvokePdfDocumentDiffReview;
 	logger: HutchLogger;
 	concurrency?: number;
+	cleanupConcurrency?: number;
 	batchSize?: number;
 	dpi?: number;
 	maxPages?: number;
@@ -75,12 +104,13 @@ export function initOcrPdf(deps: {
 	partialSuccessThreshold?: number;
 }): ExtractPdf {
 	const concurrency = deps.concurrency ?? DEFAULT_CONCURRENCY;
+	const cleanupConcurrency = deps.cleanupConcurrency ?? DEFAULT_CLEANUP_CONCURRENCY;
 	const batchSize = deps.batchSize ?? DEFAULT_BATCH_SIZE;
 	const dpi = deps.dpi ?? DEFAULT_DPI;
 	const maxPages = deps.maxPages ?? MAX_PDF_PAGES;
 	const maxPdfBytes = deps.maxPdfBytes ?? MAX_PDF_BYTES.bytes;
 	const partialSuccessThreshold = deps.partialSuccessThreshold ?? DEFAULT_PARTIAL_SUCCESS_THRESHOLD;
-	const { logger, extractPdfMetadata, stagePdf, invokePageOcr } = deps;
+	const { logger, extractPdfMetadata, stagePdf, invokePageOcr, invokePageLlmCleanup, invokeDocumentDiffReview } = deps;
 
 	return async ({ buffer, url, onProgress }): Promise<PdfExtractResult> => {
 		const t0 = Date.now();
@@ -134,7 +164,7 @@ export function initOcrPdf(deps: {
 						}
 						logger.info(`[ocr-pdf] chunk pages=[${pageIndices.join(",")}] done dt=${Date.now() - chunkStart}ms chars=${result.html.length} total=${Date.now() - t0}ms`);
 						completedParts += 1;
-						onProgress?.({ partIndex: completedParts, partCount });
+						onProgress?.({ partIndex: completedParts, partCount, stage: "comprehensive-extracting" });
 						return { ok: true, pageIndices, html: result.html };
 					},
 				);
@@ -152,9 +182,77 @@ export function initOcrPdf(deps: {
 					logger.warn(`[ocr-pdf] accepting partial result ${successCount}/${partCount} chunks ratio=${successRatio.toFixed(2)} threshold=${partialSuccessThreshold}; failed pages=[${failedPages.join(",")}]`);
 				}
 
-				const fragments = outcomes.map((outcome) =>
-					outcome.ok ? outcome.html : renderFailedChunkPlaceholder(outcome.pageIndices),
+				// Stage 1 — per-page LLM cleanup. Extract plain text from each
+				// Tesseract HTML chunk, fan out cleanup invocations at the lower
+				// DeepSeek concurrency, and collect cleaned text per chunk. A
+				// cleanup failure on a chunk Tesseract succeeded on falls back
+				// to the original Tesseract text — never counts against the
+				// partial-success threshold above (Tesseract already produced
+				// usable text for this chunk).
+				const originalTexts: Array<string | null> = outcomes.map((outcome) =>
+					outcome.ok ? joinParagraphsAsText(extractTesseractParagraphs(outcome.html)) : null,
 				);
+				const cleanedTexts: Array<string | null> = new Array(outcomes.length).fill(null);
+				let cleanupCompletedParts = 0;
+				// Signal the stage transition before the cleanup fan-out so the
+				// orchestrator's `markCrawlStage` advances past "extracting" the
+				// moment Tesseract finishes, even if cleanup itself takes minutes.
+				onProgress?.({ partIndex: 0, partCount, stage: "comprehensive-cleaning" });
+				await mapWithConcurrency(outcomes, cleanupConcurrency, async (outcome, index) => {
+					if (!outcome.ok) return;
+					const originalText = originalTexts[index];
+					assert(originalText !== null, "ok outcome must produce non-null originalText");
+					const cleanupResult = await invokePageLlmCleanup({
+						pageIndex: outcome.pageIndices[0],
+						ocrText: originalText,
+					});
+					if (cleanupResult.ok) {
+						cleanedTexts[index] = cleanupResult.cleanedText;
+					} else {
+						logger.warn(`[ocr-pdf] cleanup invoke failed for pages=[${outcome.pageIndices.join(",")}] reason=${cleanupResult.error.message} — using original Tesseract text`);
+						cleanedTexts[index] = originalText;
+					}
+					cleanupCompletedParts += 1;
+					onProgress?.({ partIndex: cleanupCompletedParts, partCount, stage: "comprehensive-cleaning" });
+				});
+
+				// Stage 2 — document diff review. Single sync invoke with every
+				// successful page's original + cleaned text. The Lambda computes
+				// diffs internally and returns one final text per page. On any
+				// failure (invoke error, schema mismatch, document-level
+				// guardrail rejection) the page-level cleanedText is shipped as
+				// the final text — same fall-back as if Stage 2 had been disabled.
+				const reviewInputPages = outcomes
+					.map((outcome, index) => ({ outcome, index }))
+					.filter(({ outcome }) => outcome.ok)
+					.map(({ outcome, index }) => {
+						const originalText = originalTexts[index];
+						const cleanedText = cleanedTexts[index];
+						assert(originalText !== null, "ok outcome must have populated originalText");
+						assert(cleanedText !== null, "ok outcome must have populated cleanedText");
+						return { pageIndex: outcome.pageIndices[0], originalText, cleanedText };
+					});
+				const finalByPageIndex = new Map<number, string>();
+				if (reviewInputPages.length > 0) {
+					const reviewResult = await invokeDocumentDiffReview({ pages: reviewInputPages });
+					if (reviewResult.ok) {
+						for (const page of reviewResult.pages) {
+							finalByPageIndex.set(page.pageIndex, page.finalText);
+						}
+					} else {
+						logger.warn(`[ocr-pdf] diff-review invoke failed reason=${reviewResult.error.message} — using stage 1 cleaned text per page`);
+						for (const page of reviewInputPages) {
+							finalByPageIndex.set(page.pageIndex, page.cleanedText);
+						}
+					}
+				}
+
+				const fragments = outcomes.map((outcome) => {
+					if (!outcome.ok) return renderFailedChunkPlaceholder(outcome.pageIndices);
+					const finalText = finalByPageIndex.get(outcome.pageIndices[0]);
+					assert(finalText !== undefined, "ok outcome must have a final text after stage 2");
+					return rewrapAsTesseractHtml(finalText);
+				});
 
 				const combined = fragments.map((t) => t.trim()).filter((t) => t.length > 0).join("\n");
 				if (combined.length === 0) {
@@ -249,44 +347,14 @@ async function mapWithConcurrency<T, R>(
 	return results;
 }
 
+/* Body content is built exclusively from `rewrapAsTesseractHtml` (which
+ * escapes paragraph text via `escape-html`) and `renderFailedChunkPlaceholder`
+ * (a fixed-shape `<p class="ocr-failed">…</p>` literal). Neither can introduce
+ * user-controlled tags or attributes, so the prior `sanitizeFragment` pass
+ * has nothing to sanitise — extraction + escape is the security perimeter.
+ * The title goes through `escapeHtmlText` here so an angle bracket in the
+ * PDF's metadata title does not break the surrounding markup. */
 function buildSyntheticHtml(params: { title: string; body: string }): string {
 	const escapedTitle = escapeHtmlText(params.title);
-	const sanitized = sanitizeFragment(params.body);
-	return `<!DOCTYPE html><html><head><title>${escapedTitle}</title></head><body><article><h1>${escapedTitle}</h1>${sanitized}</article></body></html>`;
-}
-
-const BLOCKED_ELEMENT_TAGS = new Set([
-	"script", "style", "iframe", "object", "embed", "form",
-	"input", "button", "link", "meta", "svg", "math",
-]);
-
-const ALLOWED_ATTRIBUTES_BY_TAG: Record<string, ReadonlySet<string>> = {
-	a: new Set(["href"]),
-	img: new Set(["src", "alt"]),
-	td: new Set(["colspan", "rowspan"]),
-	th: new Set(["colspan", "rowspan"]),
-	p: new Set(["class"]), /** `class="ocr-failed"` from renderFailedChunkPlaceholder must survive sanitisation so the reader UI can style failed pages distinctly. */
-};
-
-const EMPTY_ATTR_SET: ReadonlySet<string> = new Set();
-
-function sanitizeFragment(fragmentHtml: string): string {
-	const { document } = parseHTML(`<!DOCTYPE html><html><body><div id="ocr-root">${fragmentHtml}</div></body></html>`);
-	const wrapper = document.querySelector("div#ocr-root");
-	assert(wrapper, "parseHTML must produce the wrapper div");
-	for (const element of Array.from(wrapper.querySelectorAll("*"))) {
-		const tagName = element.tagName.toLowerCase();
-		if (BLOCKED_ELEMENT_TAGS.has(tagName)) {
-			element.remove();
-			continue;
-		}
-		const allowed = ALLOWED_ATTRIBUTES_BY_TAG[tagName] ?? EMPTY_ATTR_SET;
-		for (const attr of Array.from(element.attributes)) {
-			const name = attr.name.toLowerCase();
-			if (!allowed.has(name) || ((name === "href" || name === "src") && /^\s*(javascript|data):/i.test(attr.value))) {
-				element.removeAttribute(attr.name);
-			}
-		}
-	}
-	return wrapper.innerHTML;
+	return `<!DOCTYPE html><html><head><title>${escapedTitle}</title></head><body><article><h1>${escapedTitle}</h1>${params.body}</article></body></html>`;
 }
