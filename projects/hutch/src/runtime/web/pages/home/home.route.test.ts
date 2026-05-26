@@ -178,7 +178,7 @@ describe("GET /", () => {
 		expect(features?.length).toBe(5);
 	});
 
-	it("should render two demo videos: Desktop and Browsee Extension", async () => {
+	it("should render two demo videos: Desktop and Browser Extension", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
@@ -186,7 +186,7 @@ describe("GET /", () => {
 		const demoSection = doc.querySelector('[data-test-section="demo"]');
 		const videoLabels = demoSection?.querySelectorAll(".home-demo__video-label");
 		const labels = Array.from(videoLabels ?? []).map((el) => el.textContent);
-		expect(labels).toEqual(["Desktop", "Browsee Extension"]);
+		expect(labels).toEqual(["Desktop", "Browser Extension"]);
 	});
 
 	it("should render the backstory section", async () => {
