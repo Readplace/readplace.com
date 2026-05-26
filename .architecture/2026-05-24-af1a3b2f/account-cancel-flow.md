@@ -1,7 +1,7 @@
 # Account Cancel & Subscribe Flow — Event Storming
 
-**Base commit:** `a867e51` &nbsp;•&nbsp; **Commit date:** 2026-05-23 &nbsp;•&nbsp; **Generated:** 2026-05-23 &nbsp;•&nbsp; **Branch:** `claude/affectionate-clarke-VxvJo`
-**Subject:** `feat(hutch): account menu + user-initiated cancellation chain`
+**Base commit:** `af1a3b2f` &nbsp;•&nbsp; **Commit date:** 2026-05-24 &nbsp;•&nbsp; **Generated:** 2026-05-23 &nbsp;•&nbsp; **Branch:** `main`
+**Subject:** `feat(hutch): account menu + user-initiated cancellation chain (#402)`
 
 A point-in-time map of the user-initiated cancel & in-app subscribe flows surfacing through the new `/account` page. Cancellation goes through a **`CancelSubscriptionCommand`** → handler-Lambda → branch (Stripe API for paid users, direct `SubscriptionCancelledEvent` emission for trial users) → unified `SubscriptionCancelledEvent` handler that writes `status='cancelled'`. Subscribe goes through synchronous Stripe checkout creation + existing `/auth/checkout/success` handler with a new `existing-user-subscribe` pending-signup variant.
 
@@ -27,6 +27,10 @@ What is new in this snapshot:
 
 ## Legend
 
+![Legend](diagrams/legend.svg)
+
+<details><summary>Mermaid source</summary>
+
 ```mermaid
 flowchart LR
     classDef command fill:#a6d8ff,stroke:#1e6fb8,color:#000
@@ -48,11 +52,17 @@ flowchart LR
     N[New in this snapshot]:::new
 ```
 
+</details>
+
 ---
 
 ## End-to-end flow — user clicks Cancel on /account
 
 `POST /account/cancel` publishes `CancelSubscriptionCommand` and 303s back to `/account?cancelling=1`. The `cancel-subscription` Lambda picks up the command from SQS, reads the `subscription_providers` row, and branches on `status`. The `active` branch calls Stripe's immediate-cancel API; Stripe sends `customer.subscription.deleted` to the existing webhook chain (which is updated to look up `userId` via the GSI before publishing). The `trialing` and `pending_cancellation` branches publish `SubscriptionCancelledEvent` directly. Either way, the unified `handle-subscription-cancelled` Lambda calls `markCancelledByUserId` to flip the row to `cancelled`.
+
+![Cancel flow](diagrams/cancel-flow.svg)
+
+<details><summary>Mermaid source</summary>
 
 ```mermaid
 flowchart TD
@@ -118,11 +128,17 @@ flowchart TD
     HSCDLQ -.->|SNS alarm| OperatorEmail
 ```
 
+</details>
+
 ---
 
 ## End-to-end flow — user clicks Subscribe on /account
 
 `POST /account/subscribe` looks up the row and branches on `status`. Trial users go through Stripe Checkout with `trial_period_days: 0` to suppress a second free trial; cancelled users use the default 14-day trial. Both write an `existing-user-subscribe` pending-signup row keyed by the Stripe `checkoutSessionId`, then 303 to the Stripe-hosted Checkout URL. On successful payment, Stripe redirects to the existing `/auth/checkout/success` route which consumes the pending signup and `upsertActive`s the existing user's subscription row.
+
+![Subscribe flow](diagrams/subscribe-flow.svg)
+
+<details><summary>Mermaid source</summary>
 
 ```mermaid
 flowchart TD
@@ -151,6 +167,8 @@ flowchart TD
     UpsertActive --> SubRow[(subscription_providers row<br/>status = active)]:::store
     Success -->|303 to /queue| Queue[/User lands on /queue/]:::store
 ```
+
+</details>
 
 ---
 

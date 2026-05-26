@@ -49,6 +49,7 @@ import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.compo
 
 interface ViewDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
+	appOrigin: string;
 	findArticleByUrl: FindArticleByUrl;
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
@@ -204,7 +205,6 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 				href: `/save?${saveParams.toString()}`,
 				variant: "primary",
 				expirySaveLink: counting,
-				...(expiresAt !== null ? { hint: "Never expires" } : {}),
 			},
 			{
 				name: "Paste another link",
@@ -225,6 +225,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			Base(
 				ViewPage({
 					articleUrl,
+					appOrigin: deps.appOrigin,
 					metadata,
 					estimatedReadTime,
 					content: state.content,

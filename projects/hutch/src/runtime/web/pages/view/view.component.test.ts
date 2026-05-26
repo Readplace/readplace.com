@@ -8,6 +8,7 @@ import { sharedUserIdFrom } from "./view-expiry";
 
 const baseInput: ViewPageInput = {
 	articleUrl: "https://example.com/post",
+	appOrigin: "http://localhost:3000",
 	metadata: {
 		title: "Hello World",
 		siteName: "example.com",
@@ -106,43 +107,6 @@ describe("ViewPage", () => {
 		assert(link, "cta action link must be rendered");
 		expect(link.getAttribute("href")).toBe("/queue/abc123/view");
 		expect(link.textContent).toBe("Read in your queue");
-	});
-
-	it("renders an action's hint as a small caption below the button when provided", () => {
-		const doc = render({
-			...baseInput,
-			actions: [
-				{
-					name: "Save to My Queue",
-					href: "/save?url=x",
-					variant: "primary",
-					hint: "Never expires",
-				},
-			],
-		});
-
-		const hint = doc.querySelector("[data-test-view-cta-hint]");
-		assert(hint, "cta hint must be rendered when hint is provided");
-		assert.equal(hint.tagName, "SMALL");
-		assert.equal(hint.textContent, "Never expires");
-	});
-
-	it("omits the hint element when an action has no hint", () => {
-		const doc = render({
-			...baseInput,
-			actions: [
-				{
-					name: "Paste another link",
-					href: "/view",
-					variant: "secondary",
-				},
-			],
-		});
-
-		const action = doc.querySelector("[data-test-view-cta-action]");
-		assert(action, "cta action must be rendered so selector is valid");
-		const hints = doc.querySelectorAll("[data-test-view-cta-hint]");
-		assert.equal(hints.length, 0);
 	});
 
 	it("renders multiple actions when the model has more than one", () => {
@@ -511,6 +475,44 @@ describe("ViewPage", () => {
 			assert(shareBtn, "share button must be rendered");
 			const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
 			assert.equal(shareUrl.searchParams.get("utm_content"), null);
+		});
+
+		it("renders the share-balloon URLs against the supplied appOrigin, not a hardcoded host", () => {
+			const doc = render({
+				...baseInput,
+				appOrigin: "https://staging.readplace.com",
+			});
+
+			const shareBtn = doc.querySelector("[data-test-share-balloon]");
+			assert(shareBtn, "share button must be rendered");
+			const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
+			assert.equal(shareUrl.origin, "https://staging.readplace.com");
+
+			const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
+			assert(copyBtn, "copy button must be rendered");
+			const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
+			assert.equal(copyUrl.origin, "https://staging.readplace.com");
+		});
+
+		it("keeps the SEO canonical URL on https://readplace.com regardless of appOrigin (search indexing must stay on production)", () => {
+			const doc = render({
+				...baseInput,
+				appOrigin: "https://staging.readplace.com",
+			});
+
+			const canonical = `https://readplace.com/view/${encodeURIComponent("https://example.com/post")}`;
+			assert.equal(
+				doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
+				canonical,
+			);
+			assert.equal(
+				doc.querySelector('meta[property="og:url"]')?.getAttribute("content"),
+				canonical,
+			);
+			const script = doc.querySelector('script[type="application/ld+json"]');
+			assert(script, "JSON-LD script must be rendered");
+			const data = JSON.parse(script.textContent ?? "{}");
+			assert.equal(data.url, canonical);
 		});
 	});
 });

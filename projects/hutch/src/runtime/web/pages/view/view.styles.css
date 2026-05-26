@@ -44,13 +44,6 @@
   cursor: pointer;
 }
 
-.view__cta-hint {
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
-  color: var(--color-error);
-  text-align: center;
-}
-
 /* purgecss-ignore-start: modifier suffix is interpolated from ViewAction.variant in view.template.html */
 .view__cta-btn--primary {
   color: #fff;

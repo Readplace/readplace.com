@@ -106,11 +106,15 @@ function toFetchHeaders(incoming: http2.IncomingHttpHeaders): Headers {
 }
 
 /**
- * Wraps a fetch with an HTTP/2 fallback that kicks in on any Cloudflare 403
- * (`server: cloudflare`). Covers both managed challenges (`cf-mitigated:
- * challenge`) and plain "Attention Required!" interstitials (no cf-mitigated
- * header), since both are TLS-fingerprint blocks that real browsers bypass
- * via h2. Non-Cloudflare 403s and non-403 responses pass through unchanged.
+ * Wraps a fetch with an HTTP/2 + curl-impersonate fallback that kicks in on
+ * any 403 response. 403s on the crawl path are almost always TLS-fingerprint
+ * or IP-based edge blocks (Cloudflare managed challenges and "Attention
+ * Required!" interstitials, Reddit's snooserv block on AWS-range IPs, Akamai
+ * BotManager, etc.). Real browsers — and curl-impersonate's Chrome
+ * ClientHello — bypass the typical instance of each. The handful of true
+ * permission-denied 403s the crawler can hit (paywalled subscriber pages,
+ * friends-only Medium drafts) also return 403 from h2/curl; the extra
+ * attempts add ~1-2s of latency but never mask a real failure.
  *
  * If the primary fetch fails with a transient TLS- or connection-level error
  * (timeout, ECONNRESET, "fetch failed", HTTP/2 RST_STREAM from Akamai
@@ -138,7 +142,6 @@ export function withH2Fallback(
 			return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);
 		}
 		if (response.status !== 403) return response;
-		if (response.headers.get("server")?.toLowerCase() !== "cloudflare") return response;
 		await response.text();
 		const url = urlFromInput(input);
 		return h2ThenCurl(url, init, h2FetchImpl, curlFetchImpl);
@@ -164,7 +167,9 @@ async function h2ThenCurl(
 	 * would open a TCP connection only to abort it immediately. */
 	if (!fallbackInit.signal?.aborted) {
 		try {
-			return await h2FetchImpl(url, fallbackInit);
+			const h2Response = await h2FetchImpl(url, fallbackInit);
+			if (h2Response.status !== 403) return h2Response;
+			await h2Response.text();
 		} catch (error) {
 			if (!shouldTryFallback(error, fallbackInit.signal)) throw error;
 		}

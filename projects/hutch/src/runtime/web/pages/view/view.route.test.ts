@@ -202,9 +202,6 @@ describe("View routes", () => {
 			const parsed = new URL(href, "http://localhost");
 			expect(parsed.pathname).toBe("/save");
 			expect(parsed.searchParams.get("url")).toBe(ARTICLE_URL);
-			const hint = doc.querySelector("[data-test-view-cta-hint]");
-			assert(hint, "Save action must surface the 'Never expires' hint");
-			expect(hint.textContent).toBe("Never expires");
 		});
 
 		it("includes utm_* query params in the Save action href", async () => {
@@ -466,7 +463,7 @@ describe("View routes", () => {
 			expect(btn.getAttribute("aria-label")).toBe("Share this article");
 			const shareUrl = new URL(btn.getAttribute("data-share-url") ?? "");
 			expect(`${shareUrl.origin}${shareUrl.pathname}`).toBe(
-				`https://readplace.com/view/${ENCODED}`,
+				`${TEST_APP_ORIGIN}/view/${ENCODED}`,
 			);
 			expect(shareUrl.searchParams.get("utm_source")).toBe("share-balloon");
 			expect(shareUrl.searchParams.get("utm_medium")).toBe("share");
@@ -477,11 +474,53 @@ describe("View routes", () => {
 			assert(copyBtn, "copy button must be rendered");
 			const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
 			expect(`${copyUrl.origin}${copyUrl.pathname}`).toBe(
-				`https://readplace.com/view/${ENCODED}`,
+				`${TEST_APP_ORIGIN}/view/${ENCODED}`,
 			);
 			expect(copyUrl.searchParams.get("utm_source")).toBe("share-balloon");
 			expect(copyUrl.searchParams.get("utm_medium")).toBe("copy");
 			expect(copyUrl.searchParams.get("utm_campaign")).toBe("reader-public");
+		});
+
+		it("renders share URLs against the appOrigin configured at the composition root (not a hardcoded host)", async () => {
+			const parseArticle: ParseArticle = async () => buildParseResult();
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const harness = useApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
+				events: {
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+				},
+				shared: { ...fixture.shared, appOrigin: "https://staging.readplace.com" },
+			});
+
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const btn = doc.querySelector("[data-test-share-balloon]");
+			assert(btn, "share button must be rendered");
+			const shareUrl = new URL(btn.getAttribute("data-share-url") ?? "");
+			expect(shareUrl.origin).toBe("https://staging.readplace.com");
+
+			const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
+			assert(copyBtn, "copy button must be rendered");
+			const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
+			expect(copyUrl.origin).toBe("https://staging.readplace.com");
+
+			expect(
+				doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
+			).toBe(`https://readplace.com/view/${ENCODED}`);
 		});
 
 		it("renders a dismiss button with an accessible label", async () => {
@@ -1335,8 +1374,6 @@ describe("View routes", () => {
 			const parsed = new URL(href, "http://localhost");
 			expect(parsed.searchParams.get("utm_content")).toBe(null);
 			expect(action.hasAttribute("data-expiry-save-link")).toBe(false);
-			const hint = doc.querySelector("[data-test-view-cta-hint]");
-			expect(hint).toBe(null);
 		});
 
 		it("re-saving an article (savedAt bump) resets the counter to the full 3-day window", async () => {
