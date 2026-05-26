@@ -15,8 +15,6 @@ import {
 import { shareUserIdPrefix } from "../../shared/share-balloon/share-user-id-prefix";
 import { READER_STYLES } from "./reader.styles";
 
-const CANONICAL_BASE_URL = "https://readplace.com";
-
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
 const READER_IFRAME_SCRIPT = `<script src="/client-dist/reader-iframe.client.js" defer></script>`;
@@ -42,7 +40,8 @@ export function markReadPostUrl(articleId: string, slot: "top" | "bottom"): stri
 
 export function ReaderPage(
 	article: SavedArticle,
-	options?: {
+	options: {
+		appOrigin: string;
 		summary?: GeneratedSummary;
 		summaryPollUrl?: string;
 		crawl?: ArticleCrawl;
@@ -59,13 +58,13 @@ export function ReaderPage(
 		estimatedReadTime: article.estimatedReadTime,
 		url: article.url,
 		content: article.content,
-		crawl: options?.crawl,
-		readerPollUrl: options?.readerPollUrl,
-		summary: options?.summary,
-		summaryPollUrl: options?.summaryPollUrl,
+		crawl: options.crawl,
+		readerPollUrl: options.readerPollUrl,
+		summary: options.summary,
+		summaryPollUrl: options.summaryPollUrl,
 		summaryOpen: true,
-		progress: options?.progress,
-		audioEnabled: options?.audioEnabled,
+		progress: options.progress,
+		audioEnabled: options.audioEnabled,
 		backLink: {
 			topHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-top",
 			bottomHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-bottom",
@@ -85,10 +84,10 @@ export function ReaderPage(
 				fields: [{ name: "status", value: "read" }],
 			},
 		],
-		extensionInstallUrl: options?.extensionInstallUrl,
+		extensionInstallUrl: options.extensionInstallUrl,
 	});
 	const shareBalloon = renderShareBalloon({
-		shareUrl: `${CANONICAL_BASE_URL}/view/${encodeURIComponent(article.url)}`,
+		shareUrl: `${options.appOrigin}/view/${encodeURIComponent(article.url)}`,
 		shareTitle: article.metadata.title,
 		shareHint: "Click here to share this post!",
 		shareSource: "reader-internal",
@@ -99,7 +98,7 @@ export function ReaderPage(
 	return {
 		seo: {
 			title: formatReaderDocumentTitle(article.metadata.title),
-			description: truncateForSeo(pickExcerpt(options?.summary, article.metadata.excerpt)),
+			description: truncateForSeo(pickExcerpt(options.summary, article.metadata.excerpt)),
 			canonicalUrl: `/queue/${articleId}/view`,
 			robots: "noindex, nofollow",
 		},

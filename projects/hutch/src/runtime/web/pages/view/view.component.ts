@@ -25,6 +25,10 @@ const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" d
 const READER_IFRAME_SCRIPT = `<script src="/client-dist/reader-iframe.client.js" defer></script>`;
 const EXPIRY_COUNTER_SCRIPT = `<script src="/client-dist/expiry-counter.client.js" defer></script>`;
 
+/** SEO-only constant: <link rel="canonical"> and JSON-LD url must always point
+ * at production so search engines index a single host. The share URL uses the
+ * visitor's current origin (input.appOrigin) instead — copying a link on
+ * staging should paste the staging URL, not production. */
 const CANONICAL_BASE_URL = "https://readplace.com";
 const DEFAULT_OG_IMAGE = `${STATIC_BASE_URL}/og-image-1200x630.png`;
 const DEFAULT_TWITTER_IMAGE = `${STATIC_BASE_URL}/twitter-card-1200x600.png`;
@@ -81,6 +85,7 @@ export function buildExpiryFields(
 
 export interface ViewPageInput {
 	articleUrl: string;
+	appOrigin: string;
 	metadata: ArticleMetadata;
 	estimatedReadTime: Minutes;
 	content?: string;
@@ -113,9 +118,10 @@ export function ViewPage(input: ViewPageInput): PageBody {
 	});
 
 	const canonicalViewUrl = `${CANONICAL_BASE_URL}/view/${encodeURIComponent(input.articleUrl)}`;
+	const shareableViewUrl = `${input.appOrigin}/view/${encodeURIComponent(input.articleUrl)}`;
 
 	const shareBalloon = renderShareBalloon({
-		shareUrl: canonicalViewUrl,
+		shareUrl: shareableViewUrl,
 		shareTitle: input.metadata.title,
 		shareHint: "Click here to share this view!",
 		shareSource: "reader-public",

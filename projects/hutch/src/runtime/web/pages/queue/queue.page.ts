@@ -108,6 +108,7 @@ function markExtensionSavedArticle(res: Response): void {
 
 interface QueueDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
+	appOrigin: string;
 	findArticlesByUser: FindArticlesByUser;
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
@@ -246,6 +247,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		sendComponent(
 			req, res,
 			Base(ReaderPage({ ...ownedArticle, content: state.content }, {
+				appOrigin: deps.appOrigin,
 				summary: state.summary,
 				summaryPollUrl: state.summaryPollUrl,
 				crawl: state.crawl,

@@ -35,9 +35,11 @@ function makeArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 	};
 }
 
+const DEFAULT_APP_ORIGIN = "http://localhost:3000";
+
 describe("ReaderPage", () => {
 	it("renders the share balloon wrap so client init can attach to it", () => {
-		const html = Base(ReaderPage(makeArticle()), {
+		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;
@@ -51,7 +53,7 @@ describe("ReaderPage", () => {
 		const article = makeArticle({
 			userId: UserIdSchema.parse("abcdef0123456789abcdef0123456789"),
 		});
-		const html = Base(ReaderPage(article), {
+		const html = Base(ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;
@@ -70,5 +72,23 @@ describe("ReaderPage", () => {
 		assert(copyHref, "copy button must carry a data-share-url");
 		const copyUrl = new URL(copyHref);
 		assert.equal(copyUrl.searchParams.get("utm_content"), "abcdef");
+	});
+
+	it("renders the share-balloon URLs against the supplied appOrigin, not a hardcoded host", () => {
+		const html = Base(
+			ReaderPage(makeArticle(), { appOrigin: "https://staging.readplace.com" }),
+			{ isAuthenticated: true, emailVerified: undefined },
+		).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+
+		const shareBtn = doc.querySelector("[data-test-share-balloon]");
+		assert(shareBtn, "share button must be rendered");
+		const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
+		assert.equal(shareUrl.origin, "https://staging.readplace.com");
+
+		const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
+		assert(copyBtn, "copy button must be rendered");
+		const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
+		assert.equal(copyUrl.origin, "https://staging.readplace.com");
 	});
 });
