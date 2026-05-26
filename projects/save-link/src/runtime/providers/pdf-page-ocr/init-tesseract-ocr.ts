@@ -36,9 +36,13 @@ async function runTesseract(pngBuffer: Buffer): Promise<string> {
 function spawnTesseract(pngPath: string): Promise<string> {
 	return new Promise((resolvePromise, rejectPromise) => {
 		// --psm 1: auto page segmentation with OSD (orientation + script detection).
+		// --oem 1: pin the OCR engine to the LSTM neural net (the default `--oem 3`
+		//   means "best available" and resolves to LSTM in Tesseract 5.x, but pinning
+		//   makes the choice explicit and avoids surprises if the EPEL package ever
+		//   ships without the legacy engine deselected).
 		// -l eng: English language model (tesseract-langpack-eng).
 		// `-` as output base writes recognised text to stdout.
-		const child = spawn("tesseract", [pngPath, "-", "--psm", "1", "-l", "eng"]);
+		const child = spawn("tesseract", [pngPath, "-", "--psm", "1", "--oem", "1", "-l", "eng"]);
 		const stdoutChunks: Buffer[] = [];
 		const stderrChunks: Buffer[] = [];
 		child.stdout.on("data", (chunk: Buffer) => stdoutChunks.push(chunk));

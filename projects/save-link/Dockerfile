@@ -15,7 +15,7 @@
 # with libstdc++/libgomp already present in the AL2023 base.
 FROM rockylinux:9 AS tesseract-stage
 RUN dnf install -y epel-release && \
-    dnf install -y tesseract tesseract-langpack-eng && \
+    dnf install -y tesseract 'tesseract-langpack-*' && \
     dnf clean all && \
     mkdir -p /opt/tesseract-lib && \
     ldd /usr/bin/tesseract \

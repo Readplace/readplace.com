@@ -171,9 +171,9 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
 		expect(captured).toEqual([
-			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndices: [0, 1, 2], dpi: 150 },
-			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndices: [3, 4, 5], dpi: 150 },
-			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndices: [6], dpi: 150 },
+			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndices: [0, 1, 2], dpi: 300 },
+			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndices: [3, 4, 5], dpi: 300 },
+			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndices: [6], dpi: 300 },
 		]);
 	});
 
