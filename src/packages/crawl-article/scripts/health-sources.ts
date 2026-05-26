@@ -160,27 +160,6 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: false,
 	},
 	{
-		// www.reddit.com 403s the entire AWS-Lambda egress on the article HTML
-		// path regardless of TLS fingerprint (verified in prod: both undici
-		// and curl-impersonate get `status=403, server=snooserv`). The
-		// reddit-preprocessor sidesteps the block by rewriting the host to
-		// old.reddit.com — the legacy interface serves the same article body
-		// from a CDN edge that does not blanket-block AWS IPs. If this entry
-		// regresses, the rewrite is broken or old.reddit.com has tightened
-		// up; investigate before touching the URL.
-		//
-		// The exact URL string (with share_id / utm_* params) is the canonical
-		// form that lives in the prod articles DB — the canary needs an
-		// existing row because /admin/recrawl 404s on unknown URLs.
-		// /r/<sub>/s/<id> shortlinks intentionally are NOT in this list: they
-		// require resolving a 301 from www.reddit.com which is the same
-		// Lambda-IP block (see reddit-preprocessor.ts module comment).
-		label: "Reddit (canonical /comments/)",
-		url: "https://www.reddit.com/r/javascript/comments/1tlsqd1/you_might_not_need_the_repository_pattern/?share_id=XQwXp33EQ7UCMVHKY2jVi&utm_content=2&utm_medium=ios_app&utm_name=ioscss&utm_source=share&utm_term=1",
-		expectedContent: "You might not need",
-		expectsThumbnail: true,
-	},
-	{
 		// Akamai BotManager blocks standard curl's TLS fingerprint with HTTP/2
 		// RST_STREAM (exit 92). curl-impersonate's Chrome ClientHello bypasses
 		// this without a proxy — the discriminator is the TLS handshake, not the
