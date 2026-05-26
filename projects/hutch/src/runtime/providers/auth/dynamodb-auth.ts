@@ -243,13 +243,15 @@ export function initDynamoDbAuth(deps: {
 	};
 
 	const existsUserByIdPrefix: ExistsUserByIdPrefix = async (prefix) => {
-		const { items } = await users.query({
+		// Select: COUNT because the GSI is KEYS_ONLY: returned items would lack
+		// `userId` and fail UserRow parsing in defineDynamoTable.query.
+		const { count } = await users.query({
 			IndexName: "userIdPrefix-index",
 			KeyConditionExpression: "userIdPrefix = :prefix",
 			ExpressionAttributeValues: { ":prefix": prefix },
-			Limit: 1,
+			Select: "COUNT",
 		});
-		return items.length > 0;
+		return count > 0;
 	};
 
 	const updatePassword: UpdatePassword = async ({ email, password }) => {

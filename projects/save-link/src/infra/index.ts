@@ -139,7 +139,6 @@ const contentMediaCdn = new HutchS3ContentMediaCDN("content-media", {
 });
 
 const deepseekApiKey = pulumi.secret(requireEnv("DEEPSEEK_API_KEY"));
-const deepInfraApiKey = pulumi.secret(requireEnv("DEEPINFRA_API_KEY"));
 
 const eventBus = HutchEventBus.fromPlatformStack(config);
 
@@ -460,18 +459,17 @@ const pdfPageOcrStagingRead: LambdaPolicy = {
 };
 
 const pdfPageOcrLambda = new HutchLambda("pdf-page-ocr", {
-	// 1769 MB lands one vCPU per Lambda for CPU-bound pdftoppm. 600 s timeout
-	// gives the OpenAI SDK room to retry on DeepInfra 429 / 5xx (configured
-	// in pdf-page-ocr.main.ts as timeout=240s × maxRetries=1, i.e. 2 total attempts) before Lambda
-	// kills the process. Per-Lambda batches of pages share a single
-	// multi-image vision call, so wall time per invocation rises with
-	// batch size — 600 s covers the slowest dense academic page tail.
+	// 1769 MB lands one vCPU per Lambda for CPU-bound pdftoppm + Tesseract.
+	// 900 s timeout is AWS Lambda's hard ceiling — overprovisioned versus
+	// observed per-page wall clocks (Tesseract finishes the heaviest CIA
+	// reading-room pages in ~35 s), but Lambda is billed on actual
+	// execution time so the headroom is free and absorbs any future
+	// regression on dense-text pages.
 	memorySize: 1769,
-	timeout: 600,
+	timeout: 900,
 	containerImage: { imageUri: ocrImageTags["pdf-page-ocr"] },
 	environment: {
 		CONTENT_BUCKET_NAME: contentBucketName,
-		DEEPINFRA_API_KEY: deepInfraApiKey,
 	},
 	// Narrowly-scoped S3 read so the page Lambda can only fetch from the
 	// staging prefix — never tier sources, snapshots, or images.

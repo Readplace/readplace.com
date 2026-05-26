@@ -1,8 +1,12 @@
 import { z } from "zod";
 import type { RenderPdfPageToPng } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { CreateVisionMessage } from "../article-parser/create-deepinfra-vision-message";
-import type { DownloadStagedPdf, PdfPageOcrInput, PdfPageOcrOutput } from "./pdf-page-ocr-handler.types";
+import type {
+	DownloadStagedPdf,
+	PdfPageOcrInput,
+	PdfPageOcrOutput,
+	RunPageOcr,
+} from "./pdf-page-ocr-handler.types";
 
 const InputSchema = z.object({
 	pdfS3Key: z.string().min(1),
@@ -13,10 +17,10 @@ const InputSchema = z.object({
 export function initPdfPageOcrHandler(deps: {
 	downloadStagedPdf: DownloadStagedPdf;
 	renderPdfPageToPng: RenderPdfPageToPng;
-	createVisionMessage: CreateVisionMessage;
+	runPageOcr: RunPageOcr;
 	logger: HutchLogger;
 }): (rawInput: unknown) => Promise<PdfPageOcrOutput> {
-	const { downloadStagedPdf, renderPdfPageToPng, createVisionMessage, logger } = deps;
+	const { downloadStagedPdf, renderPdfPageToPng, runPageOcr, logger } = deps;
 
 	return async (rawInput) => {
 		const input: PdfPageOcrInput = InputSchema.parse(rawInput);
@@ -40,9 +44,8 @@ export function initPdfPageOcrHandler(deps: {
 		}
 
 		const tOcr = Date.now();
-		const html = await createVisionMessage({ images: pngBuffers.map((pngBuffer) => ({ pngBuffer })) });
+		const html = await runPageOcr({ images: pngBuffers.map((pngBuffer) => ({ pngBuffer })) });
 		logger.info(`[pdf-page-ocr] ocr done pages=${input.pageIndices.length} chars=${html.length} dt=${Date.now() - tOcr}ms total=${Date.now() - t0}ms`);
-
 		return { html };
 	};
 }
