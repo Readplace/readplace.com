@@ -294,7 +294,7 @@ describe("View routes", () => {
 			).toMatch(/og-image-1200x630\.png$/);
 		});
 
-		it("sets Cache-Control: public, max-age=60, must-revalidate so poisoned previews refresh quickly", async () => {
+		it("sets Cache-Control: public, max-age=60, must-revalidate with Vary: Cookie so poisoned previews refresh quickly", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
@@ -311,6 +311,7 @@ describe("View routes", () => {
 			expect(response.headers["cache-control"]).toBe(
 				"public, max-age=60, must-revalidate",
 			);
+			expect(response.headers.vary).toBe("Cookie");
 		});
 
 		it("does not call the head extractor on a cache-hit — the cold-path contract", async () => {

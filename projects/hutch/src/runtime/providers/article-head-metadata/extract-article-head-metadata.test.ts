@@ -265,7 +265,8 @@ describe("initExtractArticleHeadMetadata", () => {
 
 			assert.deepEqual(result, {});
 			assert.equal(warnings.length, 1);
-			const warning = warnings[0] as { at: string; error: string };
+			const warning = warnings[0];
+			assert(typeof warning === "object" && warning !== null && "at" in warning && "error" in warning);
 			assert.equal(warning.at, "extractArticleHeadMetadata.error");
 			assert.equal(warning.error, "network failure");
 		});
@@ -285,7 +286,8 @@ describe("initExtractArticleHeadMetadata", () => {
 			});
 
 			assert.deepEqual(result, {});
-			const warning = warnings[0] as { error: string };
+			const warning = warnings[0];
+			assert(typeof warning === "object" && warning !== null && "error" in warning);
 			assert.equal(warning.error, "string failure");
 		});
 
@@ -311,7 +313,8 @@ describe("initExtractArticleHeadMetadata", () => {
 
 			assert.deepEqual(result, {});
 			assert.equal(warnings.length, 1);
-			const warning = warnings[0] as { at: string };
+			const warning = warnings[0];
+			assert(typeof warning === "object" && warning !== null && "at" in warning);
 			assert.equal(warning.at, "extractArticleHeadMetadata.error");
 		});
 
@@ -352,7 +355,8 @@ describe("initExtractArticleHeadMetadata", () => {
 
 			assert.equal(calls.length, 1);
 			assert.equal(calls[0].url, "https://example.com/post");
-			const headers = calls[0].init?.headers as Record<string, string>;
+			const headers = calls[0].init?.headers;
+			assert(typeof headers === "object" && headers !== null && !Array.isArray(headers) && "user-agent" in headers && "accept" in headers);
 			assert.equal(headers["user-agent"], "TestAgent/1.0");
 			assert.equal(headers.accept, "text/html,application/xhtml+xml;q=0.9");
 		});

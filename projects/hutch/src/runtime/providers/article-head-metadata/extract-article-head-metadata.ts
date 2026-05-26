@@ -8,7 +8,7 @@ import type {
 const DEFAULT_TIMEOUT_MS = 3000;
 const DEFAULT_USER_AGENT =
 	"Mozilla/5.0 (compatible; ReadplaceBot/1.0; +https://readplace.com/bot)";
-const MAX_BYTES = 512 * 1024;
+const MAX_BODY_LENGTH = 512 * 1024;
 
 function isHtmlContentType(contentType: string): boolean {
 	const lower = contentType.toLowerCase();
@@ -73,7 +73,7 @@ export function initExtractArticleHeadMetadata(deps: {
 				return {};
 			}
 			let body = await response.text();
-			if (body.length > MAX_BYTES) body = body.slice(0, MAX_BYTES);
+			if (body.length > MAX_BODY_LENGTH) body = body.slice(0, MAX_BODY_LENGTH);
 			const { document } = parseHTML(body);
 			const result: ArticleHeadMetadata = {};
 			// Trim each candidate before the nullish-coalesce so an empty or

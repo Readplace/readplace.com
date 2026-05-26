@@ -227,9 +227,9 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		// see. The stub written here on a cache miss may carry hostname-only
 		// metadata if the synchronous head extraction failed; max-age=60 lets
 		// those crawlers revalidate within a minute once the async pipeline fills
-		// in real metadata. The HTML is intrinsically public — no logged-in state
-		// is leaked into the response — so `public` is safe.
+		// in real metadata.
 		res.setHeader("Cache-Control", "public, max-age=60, must-revalidate");
+		res.setHeader("Vary", "Cookie");
 
 		sendComponent(
 			req, res,
