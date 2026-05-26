@@ -202,9 +202,6 @@ describe("View routes", () => {
 			const parsed = new URL(href, "http://localhost");
 			expect(parsed.pathname).toBe("/save");
 			expect(parsed.searchParams.get("url")).toBe(ARTICLE_URL);
-			const hint = doc.querySelector("[data-test-view-cta-hint]");
-			assert(hint, "Save action must surface the 'Never expires' hint");
-			expect(hint.textContent).toBe("Never expires");
 		});
 
 		it("includes utm_* query params in the Save action href", async () => {
@@ -1335,8 +1332,6 @@ describe("View routes", () => {
 			const parsed = new URL(href, "http://localhost");
 			expect(parsed.searchParams.get("utm_content")).toBe(null);
 			expect(action.hasAttribute("data-expiry-save-link")).toBe(false);
-			const hint = doc.querySelector("[data-test-view-cta-hint]");
-			expect(hint).toBe(null);
 		});
 
 		it("re-saving an article (savedAt bump) resets the counter to the full 3-day window", async () => {

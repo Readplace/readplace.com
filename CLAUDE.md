@@ -407,6 +407,25 @@ Never add exclude patterns to any `enforce-coverage.config.js` or `enforce-cover
 
 ## CI/CD Guidelines
 
+### Always Verify Changes with `pnpm check`
+
+Run `pnpm check` (or `pnpm nx run <project>:check` for a single project) to verify changes. Do NOT run lint, type-check, tests, coverage, knip, or unused-css individually — the `check` target already composes all of them under one nx invocation, mirrors what the pre-commit hook runs, and uses the same nx cache. Reaching into the underlying tooling separately wastes time, gets different cache hits than the hook does, and can mask mismatches between local verification and the pre-commit run.
+
+```bash
+# GOOD - one command, matches the pre-commit hook
+pnpm check
+
+# GOOD - single project
+pnpm nx run hutch:check
+
+# BAD - bypasses the meta-target, drifts from the hook
+pnpm exec tsc --noEmit
+pnpm exec biome lint src
+pnpm nx run hutch:test-with-coverage
+```
+
+Use individual nx targets only when `pnpm check` has already surfaced a specific failure and you're isolating that one task while debugging.
+
 ### Never Bypass Git Commit Hooks
 
 Never use `--no-verify` without explicit human approval. If hooks fail:

@@ -6,14 +6,40 @@
 # handler with esbuild into .lib/<handler>/ and runs `docker buildx build
 # --platform linux/amd64 --build-arg HANDLER_DIR=.lib/<handler> ...`,
 # producing one image per Lambda.
+
+# Tesseract is not in AL2023's default repos and the Lambda base image's
+# stripped-down dnf can't fetch the EPEL release RPM via URL directly. Build
+# tesseract on rockylinux:9 (RHEL 9, same glibc 2.34 as AL2023) where EPEL
+# installs cleanly, then copy the binary + language data + shared libs into
+# the Lambda image. Putting libs under /opt/tesseract-lib avoids any clash
+# with libstdc++/libgomp already present in the AL2023 base.
+FROM rockylinux:9 AS tesseract-stage
+RUN dnf install -y epel-release && \
+    dnf install -y tesseract 'tesseract-langpack-*' && \
+    dnf clean all && \
+    mkdir -p /opt/tesseract-lib && \
+    ldd /usr/bin/tesseract \
+      | awk '{ for (i=1; i<=NF; i++) if ($i ~ /^\/.*\.so/) print $i }' \
+      | grep -v -E '/(libc|libpthread|libdl|libm|libgcc_s|ld-linux)' \
+      | xargs -I {} cp -L --no-clobber {} /opt/tesseract-lib/
+
 FROM public.ecr.aws/lambda/nodejs:22
 
-# poppler-utils provides pdftoppm + pdfinfo; tar + gzip are needed to extract
-# the curl-impersonate tarball below. Cleaning the dnf cache shaves ~30 MB.
-# curl is intentionally not installed — the base image already provides
-# curl-minimal (enough to fetch the tarball), and runtime fetches go through
-# curl-impersonate for TLS-fingerprint bypass.
+# poppler-utils provides pdftoppm + pdfinfo + pdftotext; tar + gzip are needed
+# to extract the curl-impersonate tarball below. Cleaning the dnf cache shaves
+# ~30 MB. curl is intentionally not installed — the base image already
+# provides curl-minimal (enough to fetch the tarball), and runtime fetches go
+# through curl-impersonate for TLS-fingerprint bypass.
 RUN dnf install -y poppler-utils tar gzip && dnf clean all
+
+# Tesseract OCR (staging POC replacement for DeepInfra). Binary at
+# /opt/tesseract/bin/tesseract, language data at /opt/tesseract/tessdata,
+# shared libs at /opt/tesseract-lib (added to LD_LIBRARY_PATH below).
+COPY --from=tesseract-stage /usr/bin/tesseract /opt/tesseract/bin/tesseract
+COPY --from=tesseract-stage /usr/share/tesseract/tessdata /opt/tesseract/tessdata
+COPY --from=tesseract-stage /opt/tesseract-lib /opt/tesseract-lib
+ENV TESSDATA_PREFIX=/opt/tesseract/tessdata
+ENV LD_LIBRARY_PATH=/opt/tesseract-lib:${LD_LIBRARY_PATH}
 
 # curl-impersonate (Chrome variant) for TLS-fingerprint bypass. The layer
 # approach doesn't apply to container-image Lambdas, so we install the binary
@@ -27,7 +53,7 @@ RUN mkdir -p /opt/bin && \
     chmod 755 /opt/bin/curl_chrome116 /opt/bin/curl-impersonate-chrome && \
     rm -rf /tmp/curl_* /tmp/curl-impersonate-chrome
 
-ENV PATH="/opt/bin:${PATH}"
+ENV PATH="/opt/bin:/opt/tesseract/bin:${PATH}"
 
 ARG HANDLER_DIR
 COPY ${HANDLER_DIR}/ ${LAMBDA_TASK_ROOT}/

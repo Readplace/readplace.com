@@ -171,9 +171,9 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
 		expect(captured).toEqual([
-			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndices: [0, 1, 2], dpi: 150 },
-			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndices: [3, 4, 5], dpi: 150 },
-			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndices: [6], dpi: 150 },
+			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndices: [0, 1, 2], dpi: 300 },
+			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndices: [3, 4, 5], dpi: 300 },
+			{ pdfS3Key: "pdf-rasterise-staging/abc/source.pdf", pageIndices: [6], dpi: 300 },
 		]);
 	});
 
@@ -354,7 +354,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: S3 PutObject denied" });
 	});
 
-	it("returns kind 'failed' after exhausting the page-invocation retry budget", async () => {
+	it("calls invokePageOcr exactly once per chunk before marking a failure (PAGE_OCR_MAX_ATTEMPTS=1)", async () => {
 		const callsForFailingChunk: number[] = [];
 		const ocr = initOcrPdf({
 			logger: noopLogger,
@@ -372,12 +372,15 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
-		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: Lambda timed out" });
-		// 3 attempts = first + 2 retries; matches PAGE_OCR_MAX_ATTEMPTS in ocr-pdf.ts.
-		expect(callsForFailingChunk).toEqual([1, 1, 1]);
+		// 2 successes out of 3 chunks = 67%, below the default 80% threshold.
+		expect(result).toEqual({ kind: "failed", reason: "OCR succeeded for 2 of 3 chunks — below 80% threshold" });
+		// 1 attempt total; matches PAGE_OCR_MAX_ATTEMPTS in ocr-pdf.ts. The
+		// per-page Lambda owns the recovery via its text-layer fallback, so
+		// the orchestrator never re-invokes a chunk.
+		expect(callsForFailingChunk).toEqual([1]);
 	});
 
-	it("stops dispatching new work once a sibling invocation has exhausted its retry budget", async () => {
+	it("keeps dispatching sibling chunks after one chunk fails", async () => {
 		const seen: number[] = [];
 		const ocr = initOcrPdf({
 			logger: noopLogger,
@@ -395,9 +398,11 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
-		// concurrency=1, batchSize=1: serial. Page 1 burns all 3 attempts, then
-		// the worker's `failed=true` halts dispatch — pages 2/3/4 never run.
-		expect(seen).toEqual([0, 1, 1, 1]);
+		// concurrency=1, batchSize=1: serial. Page 1 fails once (no retry under
+		// PAGE_OCR_MAX_ATTEMPTS=1) and the captured failure (no throw) lets the
+		// worker carry on with pages 2/3/4. Partial-success aggregation decides
+		// whether the pipeline accepts the result.
+		expect(seen).toEqual([0, 1, 2, 3, 4]);
 	});
 
 	it("calls staged.cleanup() after a successful fan-out", async () => {
@@ -490,49 +495,7 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 		expect(result).toEqual({ kind: "failed", reason: "OCR returned no text across all batches" });
 	});
 
-	it("recovers when a chunk succeeds on the 2nd attempt", async () => {
-		let callCount = 0;
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 1 }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: async ({ pageIndices }) => {
-				callCount += 1;
-				if (callCount === 1) return { ok: false, error: new Error("transient") };
-				return { ok: true, html: `<p>${pageIndices[0]}</p>` };
-			},
-		});
-
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
-
-		expect(result.kind).toBe("fetched");
-		if (result.kind !== "fetched") return;
-		expect(result.html).toContain("<p>0</p>");
-		expect(callCount).toBe(2);
-	});
-
-	it("recovers when a chunk succeeds on the 3rd attempt", async () => {
-		let callCount = 0;
-		const ocr = initOcrPdf({
-			logger: noopLogger,
-			extractPdfMetadata: stubMetadata({ numPages: 1 }),
-			stagePdf: stubStagePdf(),
-			invokePageOcr: async ({ pageIndices }) => {
-				callCount += 1;
-				if (callCount < 3) return { ok: false, error: new Error("transient") };
-				return { ok: true, html: `<p>${pageIndices[0]}</p>` };
-			},
-		});
-
-		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
-
-		expect(result.kind).toBe("fetched");
-		if (result.kind !== "fetched") return;
-		expect(result.html).toContain("<p>0</p>");
-		expect(callCount).toBe(3);
-	});
-
-	it("emits a warning log between attempts via beforeRetry", async () => {
+	it("does not emit a retry warning under PAGE_OCR_MAX_ATTEMPTS=1 (no retries happen)", async () => {
 		const warnings: string[] = [];
 		const capturingLogger: HutchLogger = {
 			info: () => {},
@@ -549,10 +512,141 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 
 		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
-		// 3 attempts ⇒ 2 retries ⇒ 2 beforeRetry callbacks.
-		expect(warnings).toEqual([
-			"[ocr-pdf] retrying chunk pages=[0]",
-			"[ocr-pdf] retrying chunk pages=[0]",
-		]);
+		// MAX_ATTEMPTS=1 means retriable never re-runs the chunk, so beforeRetry
+		// never fires. The 1-chunk-all-failed case falls below the threshold
+		// and returns failed, so no "accepting partial result" warn fires
+		// either — leaving the warnings array empty.
+		expect(warnings.filter((w) => w.includes("retrying"))).toEqual([]);
+	});
+
+	it("accepts a partial result when the success ratio meets the threshold, with placeholders for failed pages", async () => {
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 10, title: "Mostly OCR-able" }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: async ({ pageIndices }) => {
+				if (pageIndices[0] === 7) return { ok: false, error: new Error("DeepInfra timed out") };
+				return { ok: true, html: `<p>page-${pageIndices[0]}</p>` };
+			},
+			batchSize: 1,
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		expect(result.title).toBe("Mostly OCR-able");
+		expect(result.html).toContain("<p>page-0</p>");
+		expect(result.html).toContain("<p>page-6</p>");
+		expect(result.html).toContain('<p class="ocr-failed">[Page 8: OCR unavailable]</p>');
+		expect(result.html).toContain("<p>page-8</p>");
+		expect(result.html).toContain("<p>page-9</p>");
+	});
+
+	it("rejects when the success ratio is below the threshold", async () => {
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 10 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: async ({ pageIndices }) => {
+				if (pageIndices[0] < 3) return { ok: false, error: new Error("DeepInfra timed out") };
+				return { ok: true, html: `<p>page-${pageIndices[0]}</p>` };
+			},
+			batchSize: 1,
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		// 7 ok / 10 = 70%, below the default 80% threshold.
+		expect(result).toEqual({ kind: "failed", reason: "OCR succeeded for 7 of 10 chunks — below 80% threshold" });
+	});
+
+	it("renders one placeholder per page for a multi-page chunk when overall ratio passes the threshold", async () => {
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 10, title: "Multi-page chunks" }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: async ({ pageIndices }) => {
+				if (pageIndices.includes(4)) return { ok: false, error: new Error("DeepInfra timed out") };
+				return { ok: true, html: pageIndices.map((i) => `<p>page-${i}</p>`).join("") };
+			},
+			batchSize: 2,
+			partialSuccessThreshold: 0.5,
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		// Chunk pages=[4,5] failed → one placeholder per page in the chunk.
+		expect(result.html).toContain('<p class="ocr-failed">[Page 5: OCR unavailable]</p>');
+		expect(result.html).toContain('<p class="ocr-failed">[Page 6: OCR unavailable]</p>');
+		// Sibling chunks still rendered as normal page text.
+		expect(result.html).toContain("<p>page-0</p>");
+		expect(result.html).toContain("<p>page-9</p>");
+	});
+
+	it("logs the failed page list when accepting a partial result", async () => {
+		const warnings: string[] = [];
+		const capturingLogger: HutchLogger = {
+			info: () => {},
+			error: () => {},
+			warn: (msg) => { warnings.push(String(msg)); },
+			debug: () => {},
+		};
+		const ocr = initOcrPdf({
+			logger: capturingLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 10 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: async ({ pageIndices }) => {
+				if (pageIndices[0] === 3) return { ok: false, error: new Error("flaky page") };
+				return { ok: true, html: `<p>page-${pageIndices[0]}</p>` };
+			},
+			batchSize: 1,
+		});
+
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		const partialWarn = warnings.find((w) => w.includes("accepting partial result"));
+		expect(partialWarn).toBeDefined();
+		expect(partialWarn).toContain("9/10 chunks");
+		expect(partialWarn).toContain("failed pages=[3]");
+	});
+
+	it("returns kind 'failed' when invokePageOcr throws an unexpected error rather than returning ok:false", async () => {
+		// The mapper captures `ok:false` results into ChunkOutcome, but a thrown
+		// exception bypasses that path and surfaces through the outer try/catch
+		// in initOcrPdf as a pipeline failure.
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 1 }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: async () => { throw new Error("kaboom"); },
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: kaboom" });
+	});
+
+	it("honours an overridden partialSuccessThreshold", async () => {
+		const ocr = initOcrPdf({
+			logger: noopLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 4, title: "Strict threshold" }),
+			stagePdf: stubStagePdf(),
+			invokePageOcr: async ({ pageIndices }) => {
+				if (pageIndices[0] === 0) return { ok: false, error: new Error("nope") };
+				return { ok: true, html: `<p>page-${pageIndices[0]}</p>` };
+			},
+			batchSize: 1,
+			partialSuccessThreshold: 1.0,
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		// 3/4 = 75%, below the bumped 100% threshold. The default 80% would
+		// also have failed this case, but the test still exercises the
+		// override path because partialSuccessThreshold is read from deps.
+		expect(result).toEqual({ kind: "failed", reason: "OCR succeeded for 3 of 4 chunks — below 100% threshold" });
 	});
 });

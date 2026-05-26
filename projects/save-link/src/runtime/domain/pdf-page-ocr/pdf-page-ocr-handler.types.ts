@@ -25,3 +25,13 @@ export interface PdfPageOcrOutput {
  * same key on every page invocation, so warm S3 caching pays off.
  */
 export type DownloadStagedPdf = (params: { key: string }) => Promise<Buffer>;
+
+/**
+ * Runs OCR over a batch of rendered page images and returns a single HTML
+ * fragment. The handler stitches per-chunk fragments via the orchestrator.
+ * In production this is wired to Tesseract (local, deterministic, runs
+ * inside the Lambda container).
+ */
+export type RunPageOcr = (params: {
+	images: ReadonlyArray<{ pngBuffer: Buffer }>;
+}) => Promise<string>;
