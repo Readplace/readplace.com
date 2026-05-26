@@ -1,7 +1,7 @@
 # Trial-End Conversion & One-Click Resubscribe Flow — Event Storming
 
-**Base commit:** `af1a3b2` &nbsp;•&nbsp; **Commit date:** 2026-05-24 &nbsp;•&nbsp; **Generated:** 2026-05-24 &nbsp;•&nbsp; **Branch:** `claude/sweet-ride-xqPZP`
-**Subject:** `feat(hutch): trial-end scheduler, charge chain, one-click resubscribe, final copy`
+**Base commit:** `bf80b57a` &nbsp;•&nbsp; **Commit date:** 2026-05-24 &nbsp;•&nbsp; **Generated:** 2026-05-24 &nbsp;•&nbsp; **Branch:** `main`
+**Subject:** `feat(hutch): trial-end scheduler, charge chain, one-click resubscribe (#407)`
 
 A point-in-time map of the two new conversion flows added in Phase 3:
 
@@ -35,6 +35,10 @@ What is new in this snapshot:
 
 ## Legend
 
+![Legend](diagrams/legend.svg)
+
+<details><summary>Mermaid source</summary>
+
 ```mermaid
 flowchart LR
     classDef command fill:#a6d8ff,stroke:#1e6fb8,color:#000
@@ -56,11 +60,17 @@ flowchart LR
     N[New in this snapshot]:::new
 ```
 
+</details>
+
 ---
 
 ## End-to-end flow — trial-end auto-conversion
 
 At trial signup, the SSR Lambda writes the trialing row and creates a one-shot EventBridge Schedule named `trial-end-<userId>` in the `hutch-trial-end-<stage>` group. The schedule's `ScheduleExpression` is `at(<trialEndsAt>)` with `ActionAfterCompletion: DELETE` so it removes itself after firing. When the schedule fires, it publishes a `SubscriptionStartRequestCommand` envelope onto the hutch event bus (using the dedicated scheduler-execution IAM role). EventBridge routes the command to the `subscription-start-request` Lambda via SQS. The handler reads the row and branches on the typical case: `trialing` without `customerId` → `SubscriptionChargeFailedEvent({ reason: "no_card_on_file" })` → `subscription-charge-failed` handler → `CancelSubscriptionCommand` → Phase 2's chain → row flipped to `cancelled`.
+
+![Trial-end auto-conversion](diagrams/trial-end-auto-conversion.svg)
+
+<details><summary>Mermaid source</summary>
 
 ```mermaid
 flowchart TD
@@ -125,11 +135,17 @@ flowchart TD
     SCFE_DLQ -.->|SNS alarm| OperatorEmail
 ```
 
+</details>
+
 ---
 
 ## End-to-end flow — user-initiated one-click resubscribe
 
 `POST /account/subscribe` on a `cancelled` row with `customerId` skips Stripe Checkout entirely. The SSR Lambda calls Stripe `subscriptions.create` synchronously on the saved customer + `upsertActive` → 303 to `/account`. If Stripe rejects the call (declined card, expired card, removed payment method), the SSR Lambda logs and 303s to `/account?error=payment_method` which renders the friendly error card. The defensive no-`customerId` branch falls back to the Phase 2 Stripe checkout flow.
+
+![One-click resubscribe](diagrams/one-click-resubscribe.svg)
+
+<details><summary>Mermaid source</summary>
 
 ```mermaid
 flowchart TD
@@ -158,11 +174,17 @@ flowchart TD
     ErrorRedirect --> ErrorCard[/Error card renders<br/>support email + export link/]:::store
 ```
 
+</details>
+
 ---
 
 ## End-to-end flow — confirmation step on Cancel
 
 The active card no longer carries a destructive POST. Clicking "Cancel subscription" navigates the browser to `/account?confirm=cancel` via GET. That URL state renders the confirmation card: reassurance copy + a destructive `<form method="POST" action="/account/cancel">` + a "Keep my subscription" link back to `/account`. The destructive POST publishes `CancelSubscriptionCommand` (Phase 2 chain), which now also calls `deleteTrialEndSchedule` defensively at the top of the handler.
+
+![Confirmation step](diagrams/confirmation-step.svg)
+
+<details><summary>Mermaid source</summary>
 
 ```mermaid
 flowchart TD
@@ -185,6 +207,8 @@ flowchart TD
     CSC -.->|Phase 2 cancel-subscription Lambda<br/>now also calls deleteTrialEndSchedule before branching| CancelHandler[Phase 2 + new<br/>deleteTrialEndSchedule + status branch]:::new
     CancelHandler -->|markCancelledByUserId via SubscriptionCancelledEvent| Row[(subscription_providers<br/>status = cancelled)]:::store
 ```
+
+</details>
 
 ---
 
