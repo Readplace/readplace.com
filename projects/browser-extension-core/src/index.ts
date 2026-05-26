@@ -27,6 +27,7 @@ export {
 	initExtension,
 	initSaveArticleUnderstanding,
 	initSaveHtmlUnderstanding,
+	initSavePdfUnderstanding,
 	initDeleteArticleUnderstanding,
 	initListArticlesUnderstanding,
 	groupOf,
