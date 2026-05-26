@@ -34,12 +34,6 @@ const stubFetchH2: typeof fetchH2 = async () => {
 	throw new Error("stub fetchH2: not invoked");
 };
 
-/* Stubs that return 403 instead of throwing — used by tests that verify
- * the crawl code's handling of 403 responses. withH2Fallback now retries
- * any 403 via h2→curl, so these stubs let the fallback chain complete. */
-const stubFetch403H2: typeof fetchH2 = async () => new Response(null, { status: 403 });
-const stubFetch403Curl: typeof fetchCurl = async () => new Response(null, { status: 403 });
-
 // Default stub: PDF extraction is exercised by its own tests via `initCrawl`
 // overrides — the HTML-path tests must not silently invoke a real extractor.
 const stubExtractPdf: ExtractPdf = async () => {
