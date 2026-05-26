@@ -81,6 +81,18 @@ describe("sanitizeFragment", () => {
 		expect(out).toContain('<p class="ocr-failed">[Page 4: OCR unavailable]</p>');
 	});
 
+	it("preserves class on <hr> so the orchestrator's ocr-page-break marker survives", () => {
+		const out = sanitizeFragment('<p>page-0</p><hr class="ocr-page-break"><p>page-1</p>');
+		expect(out).toContain('<hr class="ocr-page-break">');
+	});
+
+	it("strips other attributes from <hr> while keeping class", () => {
+		const out = sanitizeFragment('<hr class="ocr-page-break" id="x" style="border:red">');
+		expect(out).toContain('class="ocr-page-break"');
+		expect(out).not.toContain('id="x"');
+		expect(out).not.toContain('style="border:red"');
+	});
+
 	it("returns the empty string for empty input", () => {
 		expect(sanitizeFragment("")).toBe("");
 	});

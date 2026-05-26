@@ -826,6 +826,51 @@ describe("initOcrPdf — stage 3 semantic HTML conversion", () => {
 		expect(result.html).not.toContain("<script");
 	});
 
+	it("inserts <hr class=\"ocr-page-break\"> between adjacent chunk fragments (no leading or trailing rule)", async () => {
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 3 }),
+			invokePageOcr: stubInvokePageOcr((i) => `page-${i}`),
+			invokePageHtmlConvert: async ({ pageIndex }) => ({
+				ok: true,
+				pageIndex,
+				semanticHtml: `<p>page-${pageIndex}</p>`,
+				applied: true,
+			}),
+			batchSize: 1,
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		// 3 page fragments → 2 page-break rules between them, none before or
+		// after the document body.
+		const matches = result.html.match(/<hr class="ocr-page-break">/g) ?? [];
+		expect(matches).toHaveLength(2);
+		const firstFragment = result.html.indexOf("page-0");
+		const firstBreak = result.html.indexOf('<hr class="ocr-page-break">');
+		expect(firstBreak).toBeGreaterThan(firstFragment);
+	});
+
+	it("emits no page-break rule for a single-page document", async () => {
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 1 }),
+			invokePageOcr: stubInvokePageOcr(() => "only page"),
+			invokePageHtmlConvert: async ({ pageIndex }) => ({
+				ok: true,
+				pageIndex,
+				semanticHtml: "<p>only page</p>",
+				applied: true,
+			}),
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		expect(result.html).not.toContain("ocr-page-break");
+	});
+
 	it("caps html-convert concurrency to the configured htmlConvertConcurrency", async () => {
 		let inFlight = 0;
 		let observedPeak = 0;

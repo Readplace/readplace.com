@@ -140,3 +140,59 @@ body {
   margin-top: 0.5rem;
   text-align: center;
 }
+
+/**
+ * 1. Full-column width is the most useful default for tables in a
+ *    reading surface — narrow tables left-aligned in a wide column look
+ *    orphaned. Authors can still constrain a specific table via inline
+ *    width on the wrapper if they want.
+ * 2. Collapse cell borders so the table reads as a grid rather than as
+ *    a stack of separately-bordered boxes.
+ * 3. Header cells get the surface background (the same colour blockquote
+ *    uses) so the header row is distinguishable without introducing a
+ *    brand-tinted bar that would clash on a reader page.
+ */
+.article-body__content table {
+  width: 100%; /* 1 */
+  border-collapse: collapse; /* 2 */
+  margin: 1.25rem 0;
+  font-size: 0.95rem;
+}
+
+.article-body__content th,
+.article-body__content td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  border: 1px solid var(--color-border);
+}
+
+.article-body__content th {
+  background: var(--color-surface); /* 3 */
+  font-weight: 600;
+}
+
+/**
+ * Generic <hr> default — slim solid line in the border colour. Sources
+ * that emit a plain <hr> (regular crawled articles, blog posts) inherit
+ * this style.
+ */
+.article-body__content hr {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  margin: 1.5rem 0;
+}
+
+/**
+ * Dotted, narrower, centred — emulates a book section break for the PDF
+ * OCR pipeline's between-page separator (orchestrator emits
+ * `<hr class="ocr-page-break">` between chunk fragments). Subtle by
+ * design: the reader should sense the boundary, not be jolted by it.
+ */
+.article-body__content hr.ocr-page-break {
+  border: 0;
+  border-top: 1px dotted var(--color-border);
+  margin: 2.5rem auto;
+  width: 60%;
+  max-width: 400px;
+}

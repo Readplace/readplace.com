@@ -16,8 +16,9 @@ const BLOCKED_ELEMENT_TAGS = new Set([
 /**
  * Per-tag attribute allow-list. Anything not listed for the tag is stripped.
  * `<p class="ocr-tesseract">` / `<p class="ocr-failed">` markers (used by
- * the orchestrator's fallback paragraph wrappers) carry their `class`
- * attribute through so reader CSS can style them distinctly.
+ * the orchestrator's fallback paragraph wrappers) and
+ * `<hr class="ocr-page-break">` (inserted between page fragments) carry
+ * their `class` attribute through so reader CSS can style them distinctly.
  */
 const ALLOWED_ATTRIBUTES_BY_TAG: Record<string, ReadonlySet<string>> = {
 	a: new Set(["href"]),
@@ -25,6 +26,7 @@ const ALLOWED_ATTRIBUTES_BY_TAG: Record<string, ReadonlySet<string>> = {
 	td: new Set(["colspan", "rowspan"]),
 	th: new Set(["colspan", "rowspan"]),
 	p: new Set(["class"]),
+	hr: new Set(["class"]),
 };
 
 const EMPTY_ATTR_SET: ReadonlySet<string> = new Set();
