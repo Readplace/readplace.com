@@ -63,6 +63,27 @@ describe("EXCLUDE_PATTERNS — internal-network hostnames", () => {
 	}
 });
 
+describe("EXCLUDE_PATTERNS — reddit.com entry", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "https://www.reddit.com/r/javascript/comments/abc/title/", excluded: true, label: "www.reddit.com /comments/ URL" },
+		{ url: "https://old.reddit.com/r/javascript/", excluded: true, label: "old.reddit.com subreddit front" },
+		{ url: "https://m.reddit.com/user/jay/", excluded: true, label: "m.reddit.com user page" },
+		{ url: "https://np.reddit.com/r/javascript/s/3GQafG3qjy", excluded: true, label: "np.reddit.com /s/ shortlink" },
+		{ url: "https://reddit.com/r/javascript/comments/abc", excluded: true, label: "apex reddit.com" },
+		{ url: "http://reddit.com/foo", excluded: true, label: "http scheme" },
+		{ url: "https://reddit.com:443/foo", excluded: true, label: "explicit port" },
+		{ url: "https://reddit.com?q=1", excluded: true, label: "query immediately after host" },
+		{ url: "https://notreddit.com/foo", excluded: false, label: "prefixed similar host (should NOT match)" },
+		{ url: "https://reddit.com.evil.com/foo", excluded: false, label: "subdomain trick (should NOT match)" },
+		{ url: "https://other.test/reddit.com/foo", excluded: false, label: "reddit.com inside a path" },
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
+
 describe("EXCLUDE_PATTERNS — browser-internal schemes", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
 		{ url: "chrome://extensions/", excluded: true, label: "chrome:// with path" },

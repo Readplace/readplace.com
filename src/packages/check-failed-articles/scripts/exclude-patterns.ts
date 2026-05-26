@@ -42,6 +42,13 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// rejection. The crawler can never fetch these; intake now blocks them.
 	/^chrome:\/\//i,
 	/^about:/i,
+	// Reddit — any subdomain, any path. The tier-1 Reddit preprocessor
+	// (`reddit-via-json.ts`) has been removed and the generic crawl path
+	// gets blocked by Reddit's `snooserv` 403 from AWS-range IPs across
+	// every persona we have. Surfacing these in the failed-articles canary
+	// produces noise the operator cannot act on without a residential
+	// proxy; exclude them at the canary boundary.
+	/(?:^|\/\/)(?:[a-z0-9-]+\.)*reddit\.com(?:[/:?#]|$)/i,
 	// Operator-curated exact-URL excludes — individual rows the operator has
 	// decided are "known broken / not worth investigating again". Each entry
 	// is anchored with `^…$` so it matches only the exact stored URL, not a
