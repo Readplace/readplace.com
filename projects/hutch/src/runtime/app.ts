@@ -25,8 +25,10 @@ import { initDynamoDbEmailVerification } from "./providers/email-verification/dy
 import { initInMemoryPasswordReset } from "@packages/test-fixtures/providers/password-reset";
 import { initDynamoDbPasswordReset } from "./providers/password-reset/dynamodb-password-reset";
 import { initDynamoDbGeneratedSummary } from "./providers/article-summary/dynamodb-generated-summary";
+import { devSummariseInline } from "./providers/article-summary/dev-summarise-inline";
 import { initDynamoDbArticleCrawl } from "./providers/article-crawl/dynamodb-article-crawl";
 import { initInMemoryArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
+import { initInMemoryGeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
 import { initS3ReadContent } from "./providers/article-store/s3-read-content";
@@ -279,6 +281,7 @@ function initProviders() {
 		}
 		: undefined;
 	const crawlStore = initInMemoryArticleCrawl();
+	const summaryStore = initInMemoryGeneratedSummary();
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
 	const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 	const simpleCrawl = initSimpleCrawl({ crawlFetch, logError });
@@ -289,65 +292,48 @@ function initProviders() {
 		sitePreParsers: [theInformationPreParser, mediumPreParser],
 		logError,
 	});
-	const { publishLinkSaved: logOnlyPublishLinkSaved } = initInMemoryLinkSaved({ logger: consoleLogger });
-	const publishLinkSaved: typeof logOnlyPublishLinkSaved = async (params) => {
-		await logOnlyPublishLinkSaved(params);
-		const crawlResult = await crawlArticle({ url: params.url });
+	const finaliseSummaryFromContent = async (params: { url: string; textContent: string }) => {
+		await summaryStore.markSummaryPending({ url: params.url });
+		const summary = devSummariseInline({ textContent: params.textContent });
+		if (summary.kind === "ready") {
+			await summaryStore.markSummaryReady({ url: params.url, summary: summary.summary, excerpt: summary.excerpt });
+			return;
+		}
+		await summaryStore.markSummarySkipped({ url: params.url, reason: summary.reason });
+	};
+	const runCrawlAndSummariseInline = async (url: string) => {
+		const crawlResult = await crawlArticle({ url });
 		if (crawlResult.status === "unsupported") {
-			await crawlStore.markCrawlUnsupported({ url: params.url, reason: crawlResult.reason });
+			await crawlStore.markCrawlUnsupported({ url, reason: crawlResult.reason });
 			return;
 		}
 		if (crawlResult.status !== "fetched") {
-			await crawlStore.markCrawlFailed({ url: params.url, reason: `crawl-${crawlResult.status}` });
+			await crawlStore.markCrawlFailed({ url, reason: `crawl-${crawlResult.status}` });
 			return;
 		}
-		const result = parseHtml({ url: params.url, html: crawlResult.html });
+		const result = parseHtml({ url, html: crawlResult.html });
 		if (!result.ok) {
-			await crawlStore.markCrawlFailed({ url: params.url, reason: result.reason });
+			await crawlStore.markCrawlFailed({ url, reason: result.reason });
 			return;
 		}
-		await articleStore.writeContent({ url: params.url, content: result.article.content });
-		await crawlStore.markCrawlReady({ url: params.url });
+		await articleStore.writeContent({ url, content: result.article.content });
+		await crawlStore.markCrawlReady({ url });
+		await finaliseSummaryFromContent({ url, textContent: result.article.content });
+	};
+	const { publishLinkSaved: logOnlyPublishLinkSaved } = initInMemoryLinkSaved({ logger: consoleLogger });
+	const publishLinkSaved: typeof logOnlyPublishLinkSaved = async (params) => {
+		await logOnlyPublishLinkSaved(params);
+		await runCrawlAndSummariseInline(params.url);
 	};
 	const { publishSaveAnonymousLink: logOnlyPublishSaveAnonymousLink } = initInMemorySaveAnonymousLink({ logger: consoleLogger });
 	const publishSaveAnonymousLink: typeof logOnlyPublishSaveAnonymousLink = async (params) => {
 		await logOnlyPublishSaveAnonymousLink(params);
-		const crawlResult = await crawlArticle({ url: params.url });
-		if (crawlResult.status === "unsupported") {
-			await crawlStore.markCrawlUnsupported({ url: params.url, reason: crawlResult.reason });
-			return;
-		}
-		if (crawlResult.status !== "fetched") {
-			await crawlStore.markCrawlFailed({ url: params.url, reason: `crawl-${crawlResult.status}` });
-			return;
-		}
-		const result = parseHtml({ url: params.url, html: crawlResult.html });
-		if (!result.ok) {
-			await crawlStore.markCrawlFailed({ url: params.url, reason: result.reason });
-			return;
-		}
-		await articleStore.writeContent({ url: params.url, content: result.article.content });
-		await crawlStore.markCrawlReady({ url: params.url });
+		await runCrawlAndSummariseInline(params.url);
 	};
 	const { publishRecrawlLinkInitiated: logOnlyPublishRecrawlLinkInitiated } = initInMemoryRecrawlLinkInitiated({ logger: consoleLogger });
 	const publishRecrawlLinkInitiated: typeof logOnlyPublishRecrawlLinkInitiated = async (params) => {
 		await logOnlyPublishRecrawlLinkInitiated(params);
-		const crawlResult = await crawlArticle({ url: params.url });
-		if (crawlResult.status === "unsupported") {
-			await crawlStore.markCrawlUnsupported({ url: params.url, reason: crawlResult.reason });
-			return;
-		}
-		if (crawlResult.status !== "fetched") {
-			await crawlStore.markCrawlFailed({ url: params.url, reason: `crawl-${crawlResult.status}` });
-			return;
-		}
-		const result = parseHtml({ url: params.url, html: crawlResult.html });
-		if (!result.ok) {
-			await crawlStore.markCrawlFailed({ url: params.url, reason: result.reason });
-			return;
-		}
-		await articleStore.writeContent({ url: params.url, content: result.article.content });
-		await crawlStore.markCrawlReady({ url: params.url });
+		await runCrawlAndSummariseInline(params.url);
 	};
 	const { publishRefreshArticleContent } = initInMemoryRefreshArticleContent({ logger: consoleLogger });
 	const { publishUpdateFetchTimestamp } = initInMemoryUpdateFetchTimestamp({ logger: consoleLogger });
@@ -355,8 +341,6 @@ function initProviders() {
 	const { publishExportUserDataCommand } = initInMemoryExportUserDataCommand({ logger: consoleLogger });
 	const { publishCancelSubscriptionCommand } = initInMemoryCancelSubscriptionCommand({ logger: consoleLogger });
 	const { putPendingHtml } = initInMemoryPendingHtml();
-	const stubFindGeneratedSummary = async (_url: string) => undefined;
-	const stubMarkSummaryPending = async (_params: { url: string }) => {};
 	const { refreshArticleIfStale } = initRefreshArticleIfStale({
 		findArticleFreshness: articleStore.findArticleFreshness,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
@@ -402,8 +386,8 @@ function initProviders() {
 		publishExportUserDataCommand,
 		publishCancelSubscriptionCommand,
 		putPendingHtml,
-		findGeneratedSummary: stubFindGeneratedSummary,
-		markSummaryPending: stubMarkSummaryPending,
+		findGeneratedSummary: summaryStore.findGeneratedSummary,
+		markSummaryPending: summaryStore.markSummaryPending,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
 		markCrawlPending: crawlStore.markCrawlPending,
 		forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
