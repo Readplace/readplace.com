@@ -100,6 +100,16 @@ export function createAnonymousViewPageActions(
 				// Share balloon: scroll past the threshold, wait for it to animate in,
 				// dismiss it, and confirm localStorage persists the dismiss so the
 				// balloon stays closed across the reload below.
+				//
+				// Summary polls OOB-swap the reader-slot, replacing the iframe.
+				// reader-iframe.client.ts re-sizes it on load, but there is a
+				// window between the swap and the load event where the iframe has
+				// no explicit height. If we scroll during that window, the article
+				// body is short and scrollTo falls short of the 50 % threshold.
+				// Wait for the iframe to be sized before scrolling.
+				await expect(page.locator('iframe[data-reader-iframe]')).toHaveAttribute(
+					'style', /height:\s*\d+px/, { timeout: 5000 },
+				)
 				const shareWrap = page.locator('[data-test-share-balloon-wrap]')
 				await expect(shareWrap).toHaveCount(1)
 				await expect(shareWrap).not.toHaveClass(/share-balloon__wrap--open/)
