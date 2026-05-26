@@ -9,13 +9,8 @@ import {
 
 import { initBlogPosts } from "../blog/blog.posts";
 
-/** Matches the default test fixture's `foundingAllocation.foundingMemberLimit`.
- * Tests own this constant so production changes to `PROD_FOUNDING_MEMBER_LIMIT`
- * cannot ripple through seed loops or assertions. */
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
-/** Re-initialised here with the same limit as the test fixture so the sitemap
- * test can enumerate blog slugs without reaching into the app's internals. */
 const blogPosts = initBlogPosts({ foundingMemberLimit: TEST_FOUNDING_MEMBER_LIMIT });
 
 const useApp = useTestServer();

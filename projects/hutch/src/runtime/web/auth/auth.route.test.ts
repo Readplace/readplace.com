@@ -10,10 +10,6 @@ import {
 } from "@packages/test-fixtures";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
 
-/** Matches the default test fixture's `foundingAllocation.foundingMemberLimit`.
- * Tests use this constant for seed-loop bounds and assertion text so the
- * coupling lives inside the test layer — production code can change
- * `PROD_FOUNDING_MEMBER_LIMIT` without rippling through these specs. */
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
 /** A loadedAt value safely older than the bot-defense minimum submit window

@@ -12,9 +12,6 @@ import { GoogleIdSchema } from "@packages/test-fixtures/providers/google-auth";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
 
-/** Matches the default test fixture's `foundingAllocation.foundingMemberLimit`.
- * Tests own this constant so production changes to `PROD_FOUNDING_MEMBER_LIMIT`
- * cannot ripple through seed loops or assertions. */
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
 const TEST_CLIENT_ID = "test-google-client-id";
