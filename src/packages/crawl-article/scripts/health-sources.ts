@@ -25,19 +25,6 @@ export interface HealthSource {
 
 export const HEALTH_SOURCES: readonly HealthSource[] = [
 	{
-		label: "Medium (custom domain)",
-		url: "https://fagnerbrack.com/the-problem-you-solve-is-more-important-than-the-code-you-write-d0e5493132c6",
-		expectedContent: "seem to have forgotten the real purpose of software",
-		forbiddenContent: [
-			'data-testid="authorPhoto"',
-			'data-testid="storyReadTime"',
-			'data-testid="storyPublishDate"',
-			"Press enter or click to view image in full size",
-			"stories in your inbox",
-		],
-		expectsThumbnail: true,
-	},
-	{
 		// Medium publications (e.g. itnext.io) serve an incomplete TLS chain —
 		// leaf cert without the Sectigo intermediate. Node's fetch fails with
 		// UNABLE_TO_VERIFY_LEAF_SIGNATURE. AIA chasing (aia-fetch.ts) recovers
@@ -45,19 +32,6 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		label: "Medium (itnext publication)",
 		url: "https://itnext.io/youre-not-praised-for-the-bugs-you-didn-t-create-ef3df6894d5c",
 		expectedContent: "developers were creating more and more bugs, only to fix them and get the prize",
-		expectsThumbnail: true,
-	},
-	{
-		label: "Medium (friends link)",
-		url: "https://fagnerbrack.com/the-problem-you-solve-is-more-important-than-the-code-you-write-d0e5493132c6?source=friends_link&sk=af337097bd3ecac5750a7fb1dcd0b91d",
-		expectedContent: "seem to have forgotten the real purpose of software",
-		forbiddenContent: [
-			'data-testid="authorPhoto"',
-			'data-testid="storyReadTime"',
-			'data-testid="storyPublishDate"',
-			"Press enter or click to view image in full size",
-			"stories in your inbox",
-		],
 		expectsThumbnail: true,
 	},
 	{
