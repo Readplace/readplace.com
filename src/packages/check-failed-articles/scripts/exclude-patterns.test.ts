@@ -198,6 +198,26 @@ describe("EXCLUDE_PATTERNS — operator-curated exact-URL entries", () => {
 			excluded: false,
 			label: "PwC same job ID different role slug — should NOT match",
 		},
+		{
+			url: "https://fagnerbracj.com/learn-python-the-hard-way-was-right-about-one-thing-9b6ab0b67526",
+			excluded: true,
+			label: "fagnerbracj.com DNS-dead domain — exact failing URL",
+		},
+		{
+			url: "https://fagnerbracj.com/other-article",
+			excluded: true,
+			label: "fagnerbracj.com DNS-dead domain — different path",
+		},
+		{
+			url: "https://www.fagnerbracj.com/foo",
+			excluded: true,
+			label: "fagnerbracj.com DNS-dead domain — www subdomain",
+		},
+		{
+			url: "https://notfagnerbracj.com/foo",
+			excluded: false,
+			label: "similar hostname should NOT match fagnerbracj.com",
+		},
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {

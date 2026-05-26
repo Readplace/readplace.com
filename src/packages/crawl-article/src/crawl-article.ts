@@ -13,7 +13,7 @@ import { headerOrUndefined } from "./header-utils";
 import { isPdfContentType, isPdfMagicBytes } from "./pdf-detect";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
 import type { ExtractPdf } from "./pdf-extract.types";
-import { initFetchRedditViaJson, isRedditCommentsUrl } from "./reddit-via-json";
+import { initFetchRedditViaJson, isRedditCommentsUrl, isRedditUrl } from "./reddit-via-json";
 import { initFetchTweetViaOembed, isTweetUrl } from "./x-twitter-preprocessor";
 
 const FETCH_TIMEOUT_MS = 10000;
@@ -136,6 +136,9 @@ export function initSimpleCrawl(deps: {
 		if (isRedditCommentsUrl(params.url)) {
 			return fetchRedditViaJson(params);
 		}
+		if (isRedditUrl(params.url)) {
+			return { status: "unsupported", reason: "reddit non-comments url" };
+		}
 
 		try {
 			const outcome = await conditionalFetch(params);
@@ -186,6 +189,9 @@ export function initComprehensiveCrawl(deps: {
 	const { crawlFetch, extractPdf, logError } = deps;
 	const conditionalFetch = initConditionalFetch({ crawlFetch, logError });
 	return async (params) => {
+		if (isRedditUrl(params.url)) {
+			return { status: "unsupported", reason: "reddit non-comments url" };
+		}
 		try {
 			const outcome = await conditionalFetch(params);
 			if (!outcome.ok) return outcome.result;

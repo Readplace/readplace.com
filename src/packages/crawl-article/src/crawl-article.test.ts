@@ -313,6 +313,32 @@ describe("initSimpleCrawl — X/Twitter routing", () => {
 	});
 });
 
+describe("initSimpleCrawl — Reddit non-comments URL handling", () => {
+	it("returns unsupported for Reddit /s/ shortlink", async () => {
+		const simpleCrawl = initSimple();
+
+		const result = await simpleCrawl({ url: "https://www.reddit.com/r/javascript/s/3GQafG3qjy" });
+
+		expect(result).toEqual({ status: "unsupported", reason: "reddit non-comments url" });
+	});
+
+	it("returns unsupported for Reddit subreddit front page", async () => {
+		const simpleCrawl = initSimple();
+
+		const result = await simpleCrawl({ url: "https://www.reddit.com/r/javascript/" });
+
+		expect(result).toEqual({ status: "unsupported", reason: "reddit non-comments url" });
+	});
+
+	it("returns unsupported for Reddit user page", async () => {
+		const simpleCrawl = initSimple();
+
+		const result = await simpleCrawl({ url: "https://www.reddit.com/user/jayfreestone/" });
+
+		expect(result).toEqual({ status: "unsupported", reason: "reddit non-comments url" });
+	});
+});
+
 describe("initSimpleCrawl — failure modes", () => {
 	it("returns status 'failed' and logs HTTP status when response is not ok and not 304", async () => {
 		const fakeFetch: typeof fetch = async () => new Response(null, { status: 403 });
@@ -765,6 +791,18 @@ describe("initSimpleCrawl — non-HTML content bail (no content-type-specific kn
 		const result = await simpleCrawl({ url: "https://example.com/silent" });
 
 		expect(result).toEqual({ status: "unsupported", reason: "non-html content type: " });
+	});
+});
+
+describe("initComprehensiveCrawl — Reddit non-comments URL handling", () => {
+	it("returns unsupported for Reddit /s/ shortlink without fetching", async () => {
+		const fetchSpy = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>();
+		const comprehensiveCrawl = initComprehensive({ fetch: fetchSpy });
+
+		const result = await comprehensiveCrawl({ url: "https://www.reddit.com/r/javascript/s/3GQafG3qjy" });
+
+		expect(result).toEqual({ status: "unsupported", reason: "reddit non-comments url" });
+		expect(fetchSpy).not.toHaveBeenCalled();
 	});
 });
 

@@ -14,6 +14,14 @@ const COMMENTS_PATH = /^\/r\/[^/]+\/comments\/[^/]+(?:\/[^/]*)?\/?$/;
 
 const FETCH_TIMEOUT_MS = 10000;
 
+export function isRedditUrl(url: string): boolean {
+	try {
+		return REDDIT_WEB_HOSTS.has(new URL(url).hostname);
+	} catch {
+		return false;
+	}
+}
+
 export function isRedditCommentsUrl(url: string): boolean {
 	try {
 		const u = new URL(url);

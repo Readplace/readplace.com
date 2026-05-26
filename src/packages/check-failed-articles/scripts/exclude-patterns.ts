@@ -68,6 +68,9 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// PwC HR system returns HTTP 410 Gone on every attempt — job posting was
 	// delisted at origin, so recrawl can never succeed.
 	/^https:\/\/jobs-au\.pwc\.com\/experiencedhires\/au\/en\/job\/597385WD\/Senior-Manager-Finance-Transformation-Global-Business-Services$/i,
+	// Domain does not resolve (DNS failure) — typo'd hostname, not fixable by
+	// the crawler. Operator-confirmed user data error.
+	/(?:^|\/\/)(?:[a-z0-9-]+\.)*fagnerbracj\.com(?:[/:?#]|$)/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

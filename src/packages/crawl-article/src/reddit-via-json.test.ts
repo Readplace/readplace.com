@@ -1,6 +1,29 @@
-import { initFetchRedditViaJson, isRedditCommentsUrl, toRedditJsonUrl } from "./reddit-via-json";
+import { initFetchRedditViaJson, isRedditCommentsUrl, isRedditUrl, toRedditJsonUrl } from "./reddit-via-json";
 
 function noopLogError() {}
+
+describe("isRedditUrl", () => {
+	it.each([
+		"https://www.reddit.com/r/javascript/s/3GQafG3qjy",
+		"https://www.reddit.com/r/javascript/",
+		"https://www.reddit.com/user/jayfreestone/",
+		"https://www.reddit.com/r/javascript/comments/1tlsqd1/title/",
+		"https://old.reddit.com/r/javascript/",
+		"https://m.reddit.com/r/test/",
+		"https://np.reddit.com/r/test/",
+		"https://reddit.com/r/test/",
+	])("matches any reddit.com host (%s)", (url) => {
+		expect(isRedditUrl(url)).toBe(true);
+	});
+
+	it.each([
+		"https://example.com/r/javascript/",
+		"https://noreddit.com/",
+		"not a url",
+	])("does not match non-Reddit URLs (%s)", (url) => {
+		expect(isRedditUrl(url)).toBe(false);
+	});
+});
 
 describe("isRedditCommentsUrl", () => {
 	it.each([
