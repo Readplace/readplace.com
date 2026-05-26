@@ -1,8 +1,9 @@
 import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
-import type { ExtractPdfMetadata } from "@packages/crawl-article";
+import { escapeHtmlText, type ExtractPdfMetadata } from "@packages/crawl-article";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 import type { InvokePdfPageLlmCleanup } from "./pdf-page-llm-cleanup-invoker.types";
 import type { InvokePdfDocumentDiffReview } from "./pdf-document-diff-review-invoker.types";
+import type { InvokePdfPageHtmlConvert } from "./pdf-page-html-convert-invoker.types";
 import { initOcrPdf } from "./ocr-pdf";
 
 function stubMetadata(meta: { numPages: number; title?: string }): ExtractPdfMetadata {
@@ -49,6 +50,21 @@ const stubDiffReviewPassthrough: InvokePdfDocumentDiffReview = async ({ pages })
 	applied: false,
 });
 
+/** HTML-convert pass-through: wraps each paragraph of the page text in a
+ * `<p class="ocr-tesseract">` element the same way Stage 3's own fallback
+ * would. This is the "no semantic structure" baseline, matching the legacy
+ * pre-Stage-3 output so existing assertions about paragraph text continue
+ * to hold. */
+const stubHtmlConvertPassthrough: InvokePdfPageHtmlConvert = async ({ pageIndex, pageText }) => {
+	const semanticHtml = pageText
+		.split(/\n\s*\n/)
+		.map((paragraph) => paragraph.trim())
+		.filter((paragraph) => paragraph.length > 0)
+		.map((paragraph) => `<p class="ocr-tesseract">${escapeHtmlText(paragraph)}</p>`)
+		.join("");
+	return { ok: true, semanticHtml, applied: false, pageIndex };
+};
+
 function makeOcr(overrides: Partial<Parameters<typeof initOcrPdf>[0]> = {}) {
 	return initOcrPdf({
 		logger: noopLogger,
@@ -57,6 +73,7 @@ function makeOcr(overrides: Partial<Parameters<typeof initOcrPdf>[0]> = {}) {
 		invokePageOcr: stubInvokePageOcr(() => "default page text"),
 		invokePageLlmCleanup: stubCleanupPassthrough,
 		invokeDocumentDiffReview: stubDiffReviewPassthrough,
+		invokePageHtmlConvert: stubHtmlConvertPassthrough,
 		...overrides,
 	});
 }
@@ -327,11 +344,16 @@ describe("initOcrPdf — fan-out per page Lambda", () => {
 			onProgress: (params) => { progress.push(params); },
 		});
 
-		// 6 pages / batchSize 2 = 3 chunks. 3 Tesseract fires + 1 stage-change
-		// marker (partIndex=0) + 3 cleanup fires = 7 total.
-		expect(progress.length).toBe(7);
+		// 6 pages / batchSize 2 = 3 chunks. Progress events emitted:
+		//   - 3 Tesseract fires (one per chunk completion)
+		//   - 1 cleanup stage-change marker (partIndex=0)
+		//   - 3 cleanup fires (one per page completion)
+		//   - 3 html-convert fires (one per page completion)
+		// = 10 total. All three cleanup-side fires share the same
+		// `comprehensive-cleaning` stage tag.
+		expect(progress.length).toBe(10);
 		expect(progress.filter((p) => p.stage === "comprehensive-extracting").length).toBe(3);
-		expect(progress.filter((p) => p.stage === "comprehensive-cleaning").length).toBe(4);
+		expect(progress.filter((p) => p.stage === "comprehensive-cleaning").length).toBe(7);
 		expect(progress.find((p) => p.stage === "comprehensive-cleaning" && p.partIndex === 0)).toBeDefined();
 	});
 
@@ -697,5 +719,133 @@ describe("initOcrPdf — stage 2 document diff review", () => {
 		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
 
 		expect(reviewCalls).toBe(0);
+	});
+});
+
+describe("initOcrPdf — stage 3 semantic HTML conversion", () => {
+	it("forwards Stage 2's per-page final text (not Stage 1's cleaned text) to the html-convert Lambda", async () => {
+		const captured: Array<{ pageIndex: number; pageText: string }> = [];
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 2 }),
+			invokePageOcr: stubInvokePageOcr((i) => `tesseract-${i}`),
+			invokePageLlmCleanup: async ({ pageIndex, ocrText }) => ({
+				ok: true,
+				pageIndex,
+				cleanedText: `cleaned-${pageIndex}-from-${ocrText}`,
+				applied: true,
+			}),
+			invokeDocumentDiffReview: async ({ pages }) => ({
+				ok: true,
+				applied: true,
+				pages: pages.map((p) => ({ pageIndex: p.pageIndex, finalText: `final-${p.pageIndex}` })),
+			}),
+			invokePageHtmlConvert: async ({ pageIndex, pageText }) => {
+				captured.push({ pageIndex, pageText });
+				return { ok: true, pageIndex, semanticHtml: `<p>${pageText}</p>`, applied: true };
+			},
+		});
+
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(captured.sort((a, b) => a.pageIndex - b.pageIndex)).toEqual([
+			{ pageIndex: 0, pageText: "final-0" },
+			{ pageIndex: 1, pageText: "final-1" },
+		]);
+	});
+
+	it("ships the html-convert Lambda's semantic HTML in the assembled article body", async () => {
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 2 }),
+			invokePageOcr: stubInvokePageOcr((i) => `page-${i}`),
+			invokePageHtmlConvert: async ({ pageIndex }) => ({
+				ok: true,
+				pageIndex,
+				semanticHtml: `<h2>Page ${pageIndex}</h2><p>Body of page ${pageIndex}.</p>`,
+				applied: true,
+			}),
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		expect(result.html).toContain("<h2>Page 0</h2>");
+		expect(result.html).toContain("<p>Body of page 0.</p>");
+		expect(result.html).toContain("<h2>Page 1</h2>");
+	});
+
+	it("falls back to <p class=\"ocr-tesseract\"> wrap of the Stage 2 final text when the html-convert invoke fails", async () => {
+		const warnings: string[] = [];
+		const capturingLogger: HutchLogger = {
+			info: () => {},
+			error: () => {},
+			warn: (msg) => { warnings.push(String(msg)); },
+			debug: () => {},
+		};
+		const ocr = makeOcr({
+			logger: capturingLogger,
+			extractPdfMetadata: stubMetadata({ numPages: 1 }),
+			invokePageOcr: stubInvokePageOcr(() => "tesseract page text"),
+			invokeDocumentDiffReview: async ({ pages }) => ({
+				ok: true,
+				applied: true,
+				pages: pages.map((p) => ({ pageIndex: p.pageIndex, finalText: "post-stage-2 text" })),
+			}),
+			invokePageHtmlConvert: async () => ({ ok: false, error: new Error("Lambda timed out") }),
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		expect(result.html).toContain('<p class="ocr-tesseract">post-stage-2 text</p>');
+		expect(warnings.some((w) => w.includes("html-convert invoke failed"))).toBe(true);
+	});
+
+	it("strips dangerous tags from the final body via the document-level sanitiser", async () => {
+		// Each per-page Stage 3 Lambda sanitises its own output, but the
+		// orchestrator runs the sanitiser one more time over the stitched
+		// body so any cross-boundary surprise (or a buggy fallback path
+		// emitting a literal `<script>` tag) gets caught.
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 1 }),
+			invokePageOcr: stubInvokePageOcr(() => "page text"),
+			invokePageHtmlConvert: async ({ pageIndex }) => ({
+				ok: true,
+				pageIndex,
+				semanticHtml: '<h2>safe</h2><script>alert(1)</script>',
+				applied: true,
+			}),
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		expect(result.html).toContain("<h2>safe</h2>");
+		expect(result.html).not.toContain("<script");
+	});
+
+	it("caps html-convert concurrency to the configured htmlConvertConcurrency", async () => {
+		let inFlight = 0;
+		let observedPeak = 0;
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 10 }),
+			invokePageOcr: stubInvokePageOcr((i) => `t-${i}`),
+			invokePageHtmlConvert: async ({ pageIndex }) => {
+				inFlight += 1;
+				observedPeak = Math.max(observedPeak, inFlight);
+				await new Promise((resolve) => setTimeout(resolve, 5));
+				inFlight -= 1;
+				return { ok: true, pageIndex, semanticHtml: `<p>${pageIndex}</p>`, applied: true };
+			},
+			htmlConvertConcurrency: 2,
+			batchSize: 1,
+		});
+
+		await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(observedPeak).toBeLessThanOrEqual(2);
+		expect(observedPeak).toBeGreaterThan(0);
 	});
 });

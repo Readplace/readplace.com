@@ -37,6 +37,7 @@ import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/ti
 import { SELECT_CONTENT_TIMEOUTS } from "../runtime/domain/select-content/timeouts";
 import { OCR_LLM_CLEANUP_TIMEOUTS } from "../runtime/domain/pdf-page-llm-cleanup/timeouts";
 import { OCR_DOCUMENT_DIFF_REVIEW_TIMEOUTS } from "../runtime/domain/pdf-document-diff-review/timeouts";
+import { OCR_HTML_CONVERT_TIMEOUTS } from "../runtime/domain/pdf-page-html-convert/timeouts";
 
 /* Pulumi requires unique resource names per stack. Two Lambdas that attach
  * the same shared queue's send-policy would collide on the policy's name,
@@ -501,6 +502,35 @@ const pdfPageLlmCleanupLambda = new HutchLambda("pdf-page-llm-cleanup", {
 	policies: [],
 });
 
+// --- PDF page semantic-HTML convert Lambda (sync-invoked) ---
+// Stage 3 of the LLM-assisted OCR cleanup pipeline. Sync-invoked per page
+// from the comprehensive-crawl orchestrator after Stage 2's diff review
+// completes. Pure network call (DeepSeek chat-completion); no
+// rasterisation, no Tesseract binary, no S3 access. Re-introduces the
+// semantic-HTML emission the pipeline lost when it migrated from
+// DeepInfra vision OCR to local Tesseract — so Readability renders the
+// reader view with headings, lists, code blocks, blockquotes, and tables
+// instead of a wall of paragraphs.
+//
+// No DLQ / no HutchSQSBackedLambda wrapper for the same reason as
+// pdf-page-ocr / pdf-page-llm-cleanup: sync request/response Lambda,
+// the documented exception in .claude/skills/infrastructure-design/SKILL.md.
+// HTML-convert failures fall back to a `<p class="ocr-tesseract">` wrap
+// inside the Stage 3 handler (and again inside the orchestrator if the
+// invoke itself fails), so a Lambda-level failure never strands the
+// article — the reader still gets the Stage 2 text.
+const pdfPageHtmlConvertLambda = new HutchLambda("pdf-page-html-convert", {
+	memorySize: 512,
+	timeout: OCR_HTML_CONVERT_TIMEOUTS.lambdaSeconds,
+	entryPoint: "./src/runtime/pdf-page-html-convert.main.ts",
+	outputDir: ".lib/pdf-page-html-convert",
+	assetDir: "./src",
+	environment: {
+		DEEPSEEK_API_KEY: deepseekApiKey,
+	},
+	policies: [],
+});
+
 // --- PDF document diff-review Lambda (sync-invoked) ---
 // Stage 2 of the LLM-assisted OCR cleanup pipeline. Single invocation per
 // document with every successful page's original + cleaned text; the Lambda
@@ -576,6 +606,14 @@ const comprehensiveCrawlCommandInvokeDocumentDiffReview: LambdaPolicy = {
 	})),
 };
 
+const comprehensiveCrawlCommandInvokePageHtmlConvert: LambdaPolicy = {
+	name: "comprehensive-crawl-command-invoke-page-html-convert",
+	policy: pdfPageHtmlConvertLambda.arn.apply((arn) => JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [{ Effect: "Allow", Action: ["lambda:InvokeFunction"], Resource: arn }],
+	})),
+};
+
 const comprehensiveCrawlCommandStagingDelete: LambdaPolicy = {
 	name: "comprehensive-crawl-command-staging-delete",
 	policy: contentBucket.arn.apply((arn) => JSON.stringify({
@@ -606,6 +644,7 @@ const comprehensiveCrawlCommandLambda = new HutchLambda("comprehensive-crawl-com
 		PDF_PAGE_OCR_FUNCTION_NAME: pdfPageOcrLambda.functionName,
 		PDF_PAGE_LLM_CLEANUP_FUNCTION_NAME: pdfPageLlmCleanupLambda.functionName,
 		PDF_DOCUMENT_DIFF_REVIEW_FUNCTION_NAME: pdfDocumentDiffReviewLambda.functionName,
+		PDF_PAGE_HTML_CONVERT_FUNCTION_NAME: pdfPageHtmlConvertLambda.functionName,
 	},
 	policies: [
 		...comprehensiveCrawlCommandDynamodb.policies,
@@ -616,6 +655,7 @@ const comprehensiveCrawlCommandLambda = new HutchLambda("comprehensive-crawl-com
 		comprehensiveCrawlCommandInvokePageOcr,
 		comprehensiveCrawlCommandInvokePageLlmCleanup,
 		comprehensiveCrawlCommandInvokeDocumentDiffReview,
+		comprehensiveCrawlCommandInvokePageHtmlConvert,
 		...renamePolicies(generateSummaryQueue.policies, "comprehensive-crawl-command"),
 	],
 });

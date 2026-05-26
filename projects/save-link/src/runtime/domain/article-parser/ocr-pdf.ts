@@ -4,9 +4,11 @@ import { deriveTitleFromUrl, escapeHtmlText, MAX_PDF_BYTES, MAX_PDF_PAGES } from
 import type { HutchLogger } from "@packages/hutch-logger";
 import { retriable } from "@packages/retriable";
 import { normalizeUnknownError } from "./normalize-error";
+import { sanitizeFragment } from "./sanitize-fragment";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 import type { InvokePdfPageLlmCleanup } from "./pdf-page-llm-cleanup-invoker.types";
 import type { InvokePdfDocumentDiffReview } from "./pdf-document-diff-review-invoker.types";
+import type { InvokePdfPageHtmlConvert } from "./pdf-page-html-convert-invoker.types";
 import {
 	extractTesseractParagraphs,
 	joinParagraphsAsText,
@@ -94,9 +96,11 @@ export function initOcrPdf(deps: {
 	invokePageOcr: InvokePdfPageOcr;
 	invokePageLlmCleanup: InvokePdfPageLlmCleanup;
 	invokeDocumentDiffReview: InvokePdfDocumentDiffReview;
+	invokePageHtmlConvert: InvokePdfPageHtmlConvert;
 	logger: HutchLogger;
 	concurrency?: number;
 	cleanupConcurrency?: number;
+	htmlConvertConcurrency?: number;
 	batchSize?: number;
 	dpi?: number;
 	maxPages?: number;
@@ -105,12 +109,13 @@ export function initOcrPdf(deps: {
 }): ExtractPdf {
 	const concurrency = deps.concurrency ?? DEFAULT_CONCURRENCY;
 	const cleanupConcurrency = deps.cleanupConcurrency ?? DEFAULT_CLEANUP_CONCURRENCY;
+	const htmlConvertConcurrency = deps.htmlConvertConcurrency ?? DEFAULT_CLEANUP_CONCURRENCY;
 	const batchSize = deps.batchSize ?? DEFAULT_BATCH_SIZE;
 	const dpi = deps.dpi ?? DEFAULT_DPI;
 	const maxPages = deps.maxPages ?? MAX_PDF_PAGES;
 	const maxPdfBytes = deps.maxPdfBytes ?? MAX_PDF_BYTES.bytes;
 	const partialSuccessThreshold = deps.partialSuccessThreshold ?? DEFAULT_PARTIAL_SUCCESS_THRESHOLD;
-	const { logger, extractPdfMetadata, stagePdf, invokePageOcr, invokePageLlmCleanup, invokeDocumentDiffReview } = deps;
+	const { logger, extractPdfMetadata, stagePdf, invokePageOcr, invokePageLlmCleanup, invokeDocumentDiffReview, invokePageHtmlConvert } = deps;
 
 	return async ({ buffer, url, onProgress }): Promise<PdfExtractResult> => {
 		const t0 = Date.now();
@@ -247,11 +252,39 @@ export function initOcrPdf(deps: {
 					}
 				}
 
+				// Stage 3 — per-page semantic HTML conversion. Fan out one Lambda
+				// per ok page with the post-diff-review final text; each Lambda
+				// emits a sanitised HTML5 fragment with semantic structure
+				// (h2/h3, ul/ol, table, pre/code, …) so Readability renders the
+				// reader view with the article's original structure rather than
+				// a wall of paragraphs. Per-Lambda fallback wraps the text in
+				// `<p class="ocr-tesseract">` if the LLM call or guardrails
+				// reject, and the orchestrator falls back to the same wrap if
+				// the invoke itself fails.
+				const htmlByPageIndex = new Map<number, string>();
+				let htmlConvertCompletedParts = 0;
+				await mapWithConcurrency(reviewInputPages, htmlConvertConcurrency, async (page) => {
+					const finalText = finalByPageIndex.get(page.pageIndex);
+					assert(finalText !== undefined, "ok page must have a final text after stage 2");
+					const convertResult = await invokePageHtmlConvert({
+						pageIndex: page.pageIndex,
+						pageText: finalText,
+					});
+					if (convertResult.ok) {
+						htmlByPageIndex.set(page.pageIndex, convertResult.semanticHtml);
+					} else {
+						logger.warn(`[ocr-pdf] html-convert invoke failed for page=${page.pageIndex} reason=${convertResult.error.message} — wrapping final text as <p class="ocr-tesseract"> paragraphs`);
+						htmlByPageIndex.set(page.pageIndex, rewrapAsTesseractHtml(finalText));
+					}
+					htmlConvertCompletedParts += 1;
+					onProgress?.({ partIndex: htmlConvertCompletedParts, partCount, stage: "comprehensive-cleaning" });
+				});
+
 				const fragments = outcomes.map((outcome) => {
 					if (!outcome.ok) return renderFailedChunkPlaceholder(outcome.pageIndices);
-					const finalText = finalByPageIndex.get(outcome.pageIndices[0]);
-					assert(finalText !== undefined, "ok outcome must have a final text after stage 2");
-					return rewrapAsTesseractHtml(finalText);
+					const html = htmlByPageIndex.get(outcome.pageIndices[0]);
+					assert(html !== undefined, "ok outcome must have html after stage 3");
+					return html;
 				});
 
 				const combined = fragments.map((t) => t.trim()).filter((t) => t.length > 0).join("\n");
@@ -261,7 +294,18 @@ export function initOcrPdf(deps: {
 
 				const title = metadata.title ?? deriveTitleFromUrl(url);
 				logger.info(`[ocr-pdf] done t=${Date.now() - t0}ms pages=${metadata.numPages} chars=${combined.length}`);
-				return { kind: "fetched", html: buildSyntheticHtml({ title, body: combined }), title };
+				// Final sanitisation pass across the stitched body. Each per-page
+				// fragment was sanitised inside its Stage 3 Lambda, but stitching
+				// can leave dangling tags spanning page boundaries (e.g. an
+				// unclosed <ul> from page N rejoining an <li> from page N+1) —
+				// this pass closes them via linkedom's parse-then-serialise
+				// round-trip and re-enforces the element / attribute allowlist
+				// on the whole document.
+				return {
+					kind: "fetched",
+					html: buildSyntheticHtml({ title, body: sanitizeFragment(combined) }),
+					title,
+				};
 			} finally {
 				await staged.cleanup();
 			}

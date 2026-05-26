@@ -4,6 +4,7 @@ import type { ExtractPdfMetadata } from "@packages/crawl-article";
 import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.types";
 import type { InvokePdfPageLlmCleanup } from "./pdf-page-llm-cleanup-invoker.types";
 import type { InvokePdfDocumentDiffReview } from "./pdf-document-diff-review-invoker.types";
+import type { InvokePdfPageHtmlConvert } from "./pdf-page-html-convert-invoker.types";
 import { initSaveLinkPdfExtract } from "./init-save-link-pdf-extract";
 
 const stubPageLlmCleanup: InvokePdfPageLlmCleanup = async ({ ocrText }) => ({
@@ -15,6 +16,13 @@ const stubPageLlmCleanup: InvokePdfPageLlmCleanup = async ({ ocrText }) => ({
 const stubDocumentDiffReview: InvokePdfDocumentDiffReview = async ({ pages }) => ({
 	ok: true,
 	pages: pages.map((p) => ({ pageIndex: p.pageIndex, finalText: p.cleanedText })),
+	applied: false,
+});
+
+const stubPageHtmlConvert: InvokePdfPageHtmlConvert = async ({ pageIndex, pageText }) => ({
+	ok: true,
+	pageIndex,
+	semanticHtml: `<p class="ocr-tesseract">${pageText}</p>`,
 	applied: false,
 });
 
@@ -36,6 +44,7 @@ describe("initSaveLinkPdfExtract", () => {
 			invokePageOcr,
 			invokePageLlmCleanup: stubPageLlmCleanup,
 			invokeDocumentDiffReview: stubDocumentDiffReview,
+			invokePageHtmlConvert: stubPageHtmlConvert,
 			logger: noopLogger,
 		});
 
