@@ -8,8 +8,9 @@ import type { InvokePdfPageOcr, StagePdfToS3 } from "./pdf-page-ocr-invoker.type
  * a fan-out: the orchestrator reads page count + title via pdfinfo, stages
  * the PDF to S3 once, and sync-invokes the per-page OCR Lambda for each page.
  * The page Lambda owns both rasterisation (pdftoppm `-f N -l N`) and OCR
- * (DeepInfra vision), so wall-time collapses to the slowest single page
- * instead of summing the sequential rasterisation cost.
+ * (Tesseract running locally inside the container), so wall-time collapses
+ * to the slowest single page instead of summing the sequential rasterisation
+ * cost.
  */
 export function initSaveLinkPdfExtract(deps: {
 	extractPdfMetadata: ExtractPdfMetadata;

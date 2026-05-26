@@ -10,11 +10,15 @@ import { initCrawlFetch } from "./crawl-fetch";
 import type { fetchCurl } from "./curl-fetch";
 import type { fetchH2 } from "./h2-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
+
+jest.mock("./pdf-page-limits", () => ({
+	MAX_PDF_BYTES: { bytes: 25 * 1024 * 1024, label: "25 MB" },
+	MAX_PDF_PAGES: 300,
+}));
+
 const PDF_EXTRACT_FAILURE_REASON = "synthetic extractor failure";
 
 const noopLogError = () => {};
-
-const identityPreprocessUrl = async (url: string) => url;
 
 // Default stub: never reaches real network in unit tests. Tests that want to
 // verify fallback behaviour pass a curl impl explicitly via overrides.fetchCurl.
@@ -51,10 +55,9 @@ function initCrawl(overrides?: {
 		fetchH2: overrides?.fetchH2 ?? stubFetchH2,
 	});
 	const logError = overrides?.logError ?? noopLogError;
-	const simpleCrawl = initSimpleCrawl({ crawlFetch, preprocessUrl: identityPreprocessUrl, logError });
+	const simpleCrawl = initSimpleCrawl({ crawlFetch, logError });
 	const comprehensiveCrawl = initComprehensiveCrawl({
 		crawlFetch,
-		preprocessUrl: identityPreprocessUrl,
 		extractPdf: overrides?.extractPdf ?? stubExtractPdf,
 		logError,
 	});
@@ -80,7 +83,6 @@ function initSimple(overrides?: {
 	});
 	return initSimpleCrawl({
 		crawlFetch,
-		preprocessUrl: identityPreprocessUrl,
 		logError: overrides?.logError ?? noopLogError,
 	});
 }
@@ -105,7 +107,6 @@ function initComprehensive(overrides?: {
 	});
 	return initComprehensiveCrawl({
 		crawlFetch,
-		preprocessUrl: identityPreprocessUrl,
 		extractPdf: overrides?.extractPdf ?? stubExtractPdf,
 		logError: overrides?.logError ?? noopLogError,
 	});
@@ -315,8 +316,10 @@ describe("initSimpleCrawl — X/Twitter routing", () => {
 describe("initSimpleCrawl — failure modes", () => {
 	it("returns status 'failed' and logs HTTP status when response is not ok and not 304", async () => {
 		const fakeFetch: typeof fetch = async () => new Response(null, { status: 403 });
+		const fetchH2Stub: typeof fetchH2 = async () => new Response(null, { status: 403 });
+		const fetchCurlStub: typeof fetchCurl = async () => new Response(null, { status: 403 });
 		const logError = jest.fn();
-		const simpleCrawl = initSimple({ fetch: fakeFetch, logError });
+		const simpleCrawl = initSimple({ fetch: fakeFetch, fetchH2: fetchH2Stub, fetchCurl: fetchCurlStub, logError });
 
 		const result = await simpleCrawl({ url: "https://example.com" });
 
@@ -485,8 +488,10 @@ describe("initSimpleCrawl — thumbnail fetch (fetchThumbnail opt-in)", () => {
 
 	it("logs and returns thumbnailImage undefined when the thumbnail HTTP request fails", async () => {
 		const fakeFetch = articleThenImageFetch(new Response(null, { status: 403 }));
+		const fetchH2Stub: typeof fetchH2 = async () => new Response(null, { status: 403 });
+		const fetchCurlStub: typeof fetchCurl = async () => new Response(null, { status: 403 });
 		const logError = jest.fn();
-		const simpleCrawl = initSimple({ fetch: fakeFetch, logError });
+		const simpleCrawl = initSimple({ fetch: fakeFetch, fetchH2: fetchH2Stub, fetchCurl: fetchCurlStub, logError });
 
 		const result = await simpleCrawl({ url: "https://example.com", fetchThumbnail: true });
 

@@ -25,19 +25,6 @@ export interface HealthSource {
 
 export const HEALTH_SOURCES: readonly HealthSource[] = [
 	{
-		label: "Medium (custom domain)",
-		url: "https://fagnerbrack.com/the-problem-you-solve-is-more-important-than-the-code-you-write-d0e5493132c6",
-		expectedContent: "seem to have forgotten the real purpose of software",
-		forbiddenContent: [
-			'data-testid="authorPhoto"',
-			'data-testid="storyReadTime"',
-			'data-testid="storyPublishDate"',
-			"Press enter or click to view image in full size",
-			"stories in your inbox",
-		],
-		expectsThumbnail: true,
-	},
-	{
 		// Medium publications (e.g. itnext.io) serve an incomplete TLS chain —
 		// leaf cert without the Sectigo intermediate. Node's fetch fails with
 		// UNABLE_TO_VERIFY_LEAF_SIGNATURE. AIA chasing (aia-fetch.ts) recovers
@@ -45,19 +32,6 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		label: "Medium (itnext publication)",
 		url: "https://itnext.io/youre-not-praised-for-the-bugs-you-didn-t-create-ef3df6894d5c",
 		expectedContent: "developers were creating more and more bugs, only to fix them and get the prize",
-		expectsThumbnail: true,
-	},
-	{
-		label: "Medium (friends link)",
-		url: "https://fagnerbrack.com/the-problem-you-solve-is-more-important-than-the-code-you-write-d0e5493132c6?source=friends_link&sk=af337097bd3ecac5750a7fb1dcd0b91d",
-		expectedContent: "seem to have forgotten the real purpose of software",
-		forbiddenContent: [
-			'data-testid="authorPhoto"',
-			'data-testid="storyReadTime"',
-			'data-testid="storyPublishDate"',
-			"Press enter or click to view image in full size",
-			"stories in your inbox",
-		],
 		expectsThumbnail: true,
 	},
 	{
@@ -184,29 +158,6 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		url: "https://arxiv.org/pdf/1706.03762v7",
 		expectedContent: "Attention Is All You Need",
 		expectsThumbnail: false,
-	},
-	{
-		// www.reddit.com serves a JavaScript challenge or 403 to AWS Lambda's
-		// outbound IPs. The reddit-preprocessor rewrites www → old.reddit.com,
-		// which returns the article HTML directly with no challenge. If this
-		// entry fails, the rewrite is missing or old.reddit.com itself is being
-		// blocked — investigate before touching the URL.
-		label: "Reddit (canonical /comments/)",
-		url: "https://www.reddit.com/r/javascript/comments/1tlsqd1/you_might_not_need_the_repository_pattern/",
-		expectedContent: "You might not need",
-		expectsThumbnail: true,
-	},
-	{
-		// /r/<sub>/s/<id> shortlinks resolve only against www.reddit.com (old
-		// 302s them to a submit/login flow). The reddit-preprocessor resolves
-		// the shortlink via redirect:manual against www.reddit.com to extract
-		// the canonical Location, then rewrites to old.reddit.com. If this
-		// entry fails before the canonical entry above does, the shortlink
-		// resolution from Lambda is broken — investigate that path first.
-		label: "Reddit (/s/ shortlink)",
-		url: "https://www.reddit.com/r/javascript/s/3GQafG3qjy",
-		expectedContent: "You might not need",
-		expectsThumbnail: true,
 	},
 	{
 		// Akamai BotManager blocks standard curl's TLS fingerprint with HTTP/2

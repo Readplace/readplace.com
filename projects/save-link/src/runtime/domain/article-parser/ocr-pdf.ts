@@ -26,11 +26,17 @@ const DEFAULT_BATCH_SIZE = 1;
 const DEFAULT_CONCURRENCY = 150;
 
 /**
- * Page-image render DPI. Matches the resolution baked into the rasterizer's
- * own default (DPIs higher than 150 blow up token cost without improving
- * dense-text legibility).
+ * Page-image render DPI. 300 is the standard sweet spot for printed text and
+ * matches the resolution most magazine/book PDFs were originally scanned at,
+ * so re-rasterising at 300 doesn't introduce upscaling artefacts. Tesseract
+ * benefits markedly from the extra detail on degraded scans — visible-but-
+ * smudged characters (digits, punctuation, narrow letters) become legible
+ * where 150 dpi rasters were ambiguous. The previous "150 dpi to keep token
+ * cost down" note dates from the DeepInfra vision era; with Tesseract
+ * running locally there is no token cost, just ~2× more compute per page
+ * and ~4× larger temp PNGs in /tmp (per-chunk, cleaned up immediately).
  */
-const DEFAULT_DPI = 150;
+const DEFAULT_DPI = 300;
 
 
 // One attempt per chunk. The per-page Lambda runs the vision call (400 s
