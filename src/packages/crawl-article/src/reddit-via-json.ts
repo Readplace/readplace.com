@@ -23,6 +23,14 @@ export function isRedditCommentsUrl(url: string): boolean {
 	}
 }
 
+export function isRedditUrl(url: string): boolean {
+	try {
+		return REDDIT_WEB_HOSTS.has(new URL(url).hostname);
+	} catch {
+		return false;
+	}
+}
+
 /**
  * Convert a Reddit /r/<sub>/comments/<id>/<slug>/ URL into its `.json` API
  * sibling. Reddit serves the post + comments tree from `.json` as a flat

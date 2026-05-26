@@ -313,6 +313,38 @@ describe("initSimpleCrawl — X/Twitter routing", () => {
 	});
 });
 
+describe("initSimpleCrawl — Reddit non-comments URL handling", () => {
+	it("returns 'unsupported' for Reddit /s/ shortlink URLs without making a fetch", async () => {
+		const fakeFetch = jest.fn<Promise<Response>, Parameters<typeof fetch>>();
+		const simpleCrawl = initSimple({ fetch: fakeFetch });
+
+		const result = await simpleCrawl({ url: "https://www.reddit.com/r/javascript/s/3GQafG3qjy" });
+
+		expect(result).toEqual({ status: "unsupported", reason: "reddit non-comments url" });
+		expect(fakeFetch).not.toHaveBeenCalled();
+	});
+
+	it("returns 'unsupported' for Reddit subreddit front pages without making a fetch", async () => {
+		const fakeFetch = jest.fn<Promise<Response>, Parameters<typeof fetch>>();
+		const simpleCrawl = initSimple({ fetch: fakeFetch });
+
+		const result = await simpleCrawl({ url: "https://www.reddit.com/r/javascript/" });
+
+		expect(result).toEqual({ status: "unsupported", reason: "reddit non-comments url" });
+		expect(fakeFetch).not.toHaveBeenCalled();
+	});
+
+	it("returns 'unsupported' for Reddit user profile pages without making a fetch", async () => {
+		const fakeFetch = jest.fn<Promise<Response>, Parameters<typeof fetch>>();
+		const simpleCrawl = initSimple({ fetch: fakeFetch });
+
+		const result = await simpleCrawl({ url: "https://www.reddit.com/user/jayfreestone/" });
+
+		expect(result).toEqual({ status: "unsupported", reason: "reddit non-comments url" });
+		expect(fakeFetch).not.toHaveBeenCalled();
+	});
+});
+
 describe("initSimpleCrawl — failure modes", () => {
 	it("returns status 'failed' and logs HTTP status when response is not ok and not 304", async () => {
 		const fakeFetch: typeof fetch = async () => new Response(null, { status: 403 });
@@ -765,6 +797,18 @@ describe("initSimpleCrawl — non-HTML content bail (no content-type-specific kn
 		const result = await simpleCrawl({ url: "https://example.com/silent" });
 
 		expect(result).toEqual({ status: "unsupported", reason: "non-html content type: " });
+	});
+});
+
+describe("initComprehensiveCrawl — Reddit URL handling", () => {
+	it("returns 'unsupported' for Reddit URLs without making a fetch", async () => {
+		const fakeFetch = jest.fn<Promise<Response>, Parameters<typeof fetch>>();
+		const comprehensiveCrawl = initComprehensive({ fetch: fakeFetch });
+
+		const result = await comprehensiveCrawl({ url: "https://www.reddit.com/r/javascript/s/3GQafG3qjy" });
+
+		expect(result).toEqual({ status: "unsupported", reason: "reddit non-comments url" });
+		expect(fakeFetch).not.toHaveBeenCalled();
 	});
 });
 

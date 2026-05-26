@@ -1,4 +1,4 @@
-import { initFetchRedditViaJson, isRedditCommentsUrl, toRedditJsonUrl } from "./reddit-via-json";
+import { initFetchRedditViaJson, isRedditCommentsUrl, isRedditUrl, toRedditJsonUrl } from "./reddit-via-json";
 
 function noopLogError() {}
 
@@ -25,6 +25,29 @@ describe("isRedditCommentsUrl", () => {
 		"not a url",
 	])("does not match non-/comments/ URLs (%s)", (url) => {
 		expect(isRedditCommentsUrl(url)).toBe(false);
+	});
+});
+
+describe("isRedditUrl", () => {
+	it.each([
+		"https://www.reddit.com/r/javascript/s/3GQafG3qjy",
+		"https://www.reddit.com/r/javascript/comments/1tlsqd1/title/",
+		"https://www.reddit.com/r/javascript/",
+		"https://www.reddit.com/user/jayfreestone/",
+		"https://old.reddit.com/r/javascript/",
+		"https://m.reddit.com/r/javascript/",
+		"https://np.reddit.com/r/javascript/",
+		"https://reddit.com/r/javascript/",
+	])("matches Reddit URLs (%s)", (url) => {
+		expect(isRedditUrl(url)).toBe(true);
+	});
+
+	it.each([
+		"https://example.com/r/javascript/comments/1tlsqd1/title/",
+		"https://not-reddit.com/",
+		"not a url",
+	])("does not match non-Reddit URLs (%s)", (url) => {
+		expect(isRedditUrl(url)).toBe(false);
 	});
 });
 
