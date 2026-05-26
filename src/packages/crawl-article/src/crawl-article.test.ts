@@ -20,8 +20,6 @@ const PDF_EXTRACT_FAILURE_REASON = "synthetic extractor failure";
 
 const noopLogError = () => {};
 
-const identityPreprocessUrl = async (url: string) => url;
-
 // Default stub: never reaches real network in unit tests. Tests that want to
 // verify fallback behaviour pass a curl impl explicitly via overrides.fetchCurl.
 const stubFetchCurl: typeof fetchCurl = async () => {
@@ -57,10 +55,9 @@ function initCrawl(overrides?: {
 		fetchH2: overrides?.fetchH2 ?? stubFetchH2,
 	});
 	const logError = overrides?.logError ?? noopLogError;
-	const simpleCrawl = initSimpleCrawl({ crawlFetch, preprocessUrl: identityPreprocessUrl, logError });
+	const simpleCrawl = initSimpleCrawl({ crawlFetch, logError });
 	const comprehensiveCrawl = initComprehensiveCrawl({
 		crawlFetch,
-		preprocessUrl: identityPreprocessUrl,
 		extractPdf: overrides?.extractPdf ?? stubExtractPdf,
 		logError,
 	});
@@ -86,7 +83,6 @@ function initSimple(overrides?: {
 	});
 	return initSimpleCrawl({
 		crawlFetch,
-		preprocessUrl: identityPreprocessUrl,
 		logError: overrides?.logError ?? noopLogError,
 	});
 }
@@ -111,7 +107,6 @@ function initComprehensive(overrides?: {
 	});
 	return initComprehensiveCrawl({
 		crawlFetch,
-		preprocessUrl: identityPreprocessUrl,
 		extractPdf: overrides?.extractPdf ?? stubExtractPdf,
 		logError: overrides?.logError ?? noopLogError,
 	});

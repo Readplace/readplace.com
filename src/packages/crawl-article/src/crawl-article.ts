@@ -13,7 +13,7 @@ import { headerOrUndefined } from "./header-utils";
 import { isPdfContentType, isPdfMagicBytes } from "./pdf-detect";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
 import type { ExtractPdf } from "./pdf-extract.types";
-import type { RedditPreprocessor } from "./reddit-preprocessor";
+import { initFetchRedditViaJson, isRedditCommentsUrl } from "./reddit-via-json";
 import { initFetchTweetViaOembed, isTweetUrl } from "./x-twitter-preprocessor";
 
 const FETCH_TIMEOUT_MS = 10000;
@@ -123,32 +123,34 @@ function initConditionalFetch(deps: {
  */
 export function initSimpleCrawl(deps: {
 	crawlFetch: CrawlFetch;
-	preprocessUrl: RedditPreprocessor;
 	logError: (message: string, error?: Error) => void;
 }): SimpleCrawl {
-	const { crawlFetch, preprocessUrl, logError } = deps;
+	const { crawlFetch, logError } = deps;
 	const conditionalFetch = initConditionalFetch({ crawlFetch, logError });
 	const fetchTweetViaOembed = initFetchTweetViaOembed({ crawlFetch, logError });
+	const fetchRedditViaJson = initFetchRedditViaJson({ crawlFetch, logError });
 	return async (params) => {
 		if (isTweetUrl(params.url)) {
 			return fetchTweetViaOembed(params);
 		}
+		if (isRedditCommentsUrl(params.url)) {
+			return fetchRedditViaJson(params);
+		}
 
 		try {
-			const fetchUrl = await preprocessUrl(params.url);
-			const outcome = await conditionalFetch({ ...params, url: fetchUrl });
+			const outcome = await conditionalFetch(params);
 			if (!outcome.ok) return outcome.result;
 			const { response } = outcome;
 			const contentType = response.headers.get("content-type") ?? "";
 			if (!isHtmlContentType(contentType)) {
-				logError(`[CrawlArticle] Unexpected Content-Type "${contentType}" for ${fetchUrl}`);
+				logError(`[CrawlArticle] Unexpected Content-Type "${contentType}" for ${params.url}`);
 				return { status: "unsupported", reason: `non-html content type: ${contentType}` };
 			}
 			const html = await response.text();
-			const candidates = extractThumbnailCandidates({ html, baseUrl: fetchUrl });
+			const candidates = extractThumbnailCandidates({ html, baseUrl: params.url });
 			const thumbnailUrl = candidates[0];
 			const thumbnailImage = params.fetchThumbnail
-				? await fetchThumbnailImage({ crawlFetch, logError, candidates, referer: fetchUrl })
+				? await fetchThumbnailImage({ crawlFetch, logError, candidates, referer: params.url })
 				: undefined;
 			const result: CrawlArticleResult & { status: "fetched" } = {
 				status: "fetched",
@@ -178,16 +180,14 @@ export function initSimpleCrawl(deps: {
  */
 export function initComprehensiveCrawl(deps: {
 	crawlFetch: CrawlFetch;
-	preprocessUrl: RedditPreprocessor;
 	extractPdf: ExtractPdf;
 	logError: (message: string, error?: Error) => void;
 }): ComprehensiveCrawl {
-	const { crawlFetch, preprocessUrl, extractPdf, logError } = deps;
+	const { crawlFetch, extractPdf, logError } = deps;
 	const conditionalFetch = initConditionalFetch({ crawlFetch, logError });
 	return async (params) => {
 		try {
-			const fetchUrl = await preprocessUrl(params.url);
-			const outcome = await conditionalFetch({ ...params, url: fetchUrl });
+			const outcome = await conditionalFetch(params);
 			if (!outcome.ok) return outcome.result;
 			const { response } = outcome;
 			const arrayBuffer = await response.arrayBuffer();
@@ -203,7 +203,7 @@ export function initComprehensiveCrawl(deps: {
 					onProgress: params.onProgress,
 				});
 			}
-			logError(`[CrawlArticle] Comprehensive crawl invoked on non-pdf "${contentType}" for ${fetchUrl}`);
+			logError(`[CrawlArticle] Comprehensive crawl invoked on non-pdf "${contentType}" for ${params.url}`);
 			return { status: "unsupported", reason: `non-pdf content type: ${contentType}` };
 		} catch (error) {
 			logError(`[CrawlArticle] Network error for ${params.url}`, error instanceof Error ? error : undefined);
