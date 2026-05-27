@@ -1,4 +1,5 @@
 import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
+import { isPDF } from "@packages/crawl-article";
 import { renderReaderFailed } from "./reader-failed.component";
 import { renderReaderPending } from "./reader-pending.component";
 import { renderReaderReady } from "./reader-ready.component";
@@ -32,9 +33,37 @@ export interface ReaderSlotInput {
  * reframe as the failure variants — the user shouldn't sit watching a dead
  * spinner; the URL is recoverable on the source right now.
  */
+/* Tells readers used to "feels-right" LLM output that this pipeline prefers
+ * visible OCR artifacts over confidently-wrong rewrites. Uses the shared
+ * `isPDF` helper from `@packages/crawl-article` — the same predicate the
+ * backend uses with `contentType` + `bodyBytes` signals at fetch time. Here
+ * we only have the URL pre-fetch, so we pass the `pathname` signal alone;
+ * `isPDF` treats `pathname` as the weakest signal and a false negative just
+ * shows the standard pending message. When the article aggregate gains a
+ * persisted `mediaType` field (follow-up), the hint will read that instead
+ * so it stays consistent with the parser branch even for PDF URLs without
+ * a `.pdf` suffix and for future uploaded-PDF flows that have no URL. */
+const PDF_LOADING_HINT =
+	"We optimise for accuracy over slop — low-quality PDFs may produce some gibberish.";
+
+function resolveLoadingHint(url: string): string | undefined {
+	let pathname: string;
+	try {
+		pathname = new URL(url).pathname;
+	} catch {
+		return undefined;
+	}
+	if (isPDF({ pathname })) return PDF_LOADING_HINT;
+	return undefined;
+}
+
 function pollOrSlow(input: ReaderSlotInput, oob: boolean): string {
 	return input.readerPollUrl
-		? renderReaderPending({ pollUrl: input.readerPollUrl, oob })
+		? renderReaderPending({
+				pollUrl: input.readerPollUrl,
+				oob,
+				loadingHint: resolveLoadingHint(input.url),
+			})
 		: renderReaderFailed({
 				url: input.url,
 				variant: "slow",

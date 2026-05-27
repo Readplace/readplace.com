@@ -20,7 +20,8 @@ export type {
 export { initCrawlFetch } from "./crawl-fetch";
 export type { CrawlFetch, CrawlFetchInit } from "./crawl-fetch";
 export type { ExtractPdf, PdfExtractProgress, PdfExtractResult, PdfExtractStage } from "./pdf-extract.types";
-export { isPdfContentType, isPdfMagicBytes } from "./pdf-detect";
+export { isPDF } from "./pdf-detect";
+export type { PdfSignal } from "./pdf-detect";
 export { extractPdfMetadata } from "./extract-pdf-metadata";
 export type { ExtractPdfMetadata, PdfMetadata } from "./extract-pdf-metadata";
 export { MAX_PDF_BYTES, MAX_PDF_PAGES } from "./pdf-page-limits";

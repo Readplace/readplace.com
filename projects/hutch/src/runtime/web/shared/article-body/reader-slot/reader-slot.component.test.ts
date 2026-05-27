@@ -37,6 +37,44 @@ describe("renderReaderSlot", () => {
 		expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
 	});
 
+	it("renders the PDF accuracy-over-slop loading hint when the pending URL is a .pdf", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: { status: "pending" },
+				url: "https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf",
+				readerPollUrl: "/queue/abc/reader?poll=1",
+			}),
+		);
+
+		const subtitle = doc.querySelector(".article-body__reader-loading-subtitle");
+		assert(subtitle, "loading-hint subtitle must render for a pending .pdf URL");
+		expect(subtitle.textContent).toMatch(/accuracy over slop/);
+	});
+
+	it("omits the loading hint when the pending URL is an HTML article", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: { status: "pending" },
+				url: "https://example.com/articles/some-post",
+				readerPollUrl: "/queue/abc/reader?poll=1",
+			}),
+		);
+
+		expect(doc.querySelector(".article-body__reader-loading-subtitle")).toBeNull();
+	});
+
+	it("omits the loading hint when the URL is invalid (URL parse throws)", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: { status: "pending" },
+				url: "not-a-valid-url",
+				readerPollUrl: "/queue/abc/reader?poll=1",
+			}),
+		);
+
+		expect(doc.querySelector(".article-body__reader-loading-subtitle")).toBeNull();
+	});
+
 	it("routes status=pending WITHOUT a poll URL to the 'slow' reframe (poll cap exhausted)", () => {
 		const doc = parse(
 			renderReaderSlot({

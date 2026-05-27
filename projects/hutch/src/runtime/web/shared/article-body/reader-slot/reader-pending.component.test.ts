@@ -23,4 +23,25 @@ describe("renderReaderPending", () => {
 			doc.querySelector(".article-body__reader-loading")?.textContent,
 		).toBe("Generating clean reader view");
 	});
+
+	it("omits the loading-hint subtitle when no hint is provided", () => {
+		const doc = parse(
+			renderReaderPending({ pollUrl: "/queue/abc/reader?poll=1" }),
+		);
+
+		expect(doc.querySelector(".article-body__reader-loading-subtitle")).toBeNull();
+	});
+
+	it("renders the loading-hint subtitle verbatim when a hint string is provided", () => {
+		const doc = parse(
+			renderReaderPending({
+				pollUrl: "/queue/abc/reader?poll=1",
+				loadingHint: "Custom hint copy",
+			}),
+		);
+
+		const subtitle = doc.querySelector(".article-body__reader-loading-subtitle");
+		assert(subtitle, "loading-hint subtitle must render when loadingHint is set");
+		expect(subtitle.textContent).toBe("Custom hint copy");
+	});
 });

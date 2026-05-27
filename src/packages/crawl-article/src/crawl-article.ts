@@ -10,7 +10,7 @@ import type { CrawlFetch } from "./crawl-fetch";
 import { extensionFromContentType } from "./extension-from-content-type";
 import { extractThumbnailCandidates } from "./extract-thumbnail";
 import { headerOrUndefined } from "./header-utils";
-import { isPdfContentType, isPdfMagicBytes } from "./pdf-detect";
+import { isPDF } from "./pdf-detect";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
 import type { ExtractPdf } from "./pdf-extract.types";
 import { initFetchTweetViaOembed, isTweetUrl } from "./x-twitter-preprocessor";
@@ -188,7 +188,7 @@ export function initComprehensiveCrawl(deps: {
 			const arrayBuffer = await response.arrayBuffer();
 			const buffer = Buffer.from(arrayBuffer);
 			const contentType = response.headers.get("content-type") ?? "";
-			if (isPdfContentType(contentType) || isPdfMagicBytes(buffer)) {
+			if (isPDF({ contentType, bodyBytes: buffer })) {
 				return handlePdfBuffer({
 					buffer,
 					response,

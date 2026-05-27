@@ -12,8 +12,16 @@ export interface ReaderPendingInput {
 	 * by the slot dispatcher routing to `renderReaderFailed({ variant: "slow" })`. */
 	pollUrl: string;
 	oob?: boolean;
+	/** Optional secondary line rendered in a smaller, muted style below the
+	 * primary "Generating clean reader view" message. Callers pass the hint
+	 * text directly — this component stays media-type-agnostic. */
+	loadingHint?: string;
 }
 
 export function renderReaderPending(input: ReaderPendingInput): string {
-	return render(TEMPLATE, { pollUrl: input.pollUrl, oob: input.oob === true });
+	return render(TEMPLATE, {
+		pollUrl: input.pollUrl,
+		oob: input.oob === true,
+		loadingHint: input.loadingHint,
+	});
 }

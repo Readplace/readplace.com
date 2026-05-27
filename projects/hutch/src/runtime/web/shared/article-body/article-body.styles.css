@@ -276,6 +276,13 @@
   animation: article-body-summary-dots 1.4s steps(4, end) infinite;
 }
 
+.article-body__reader-loading-subtitle {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  opacity: 0.85;
+}
+
 .article-body__reader-slot--notice {
   text-align: center;
   padding: 3rem 1.5rem;
