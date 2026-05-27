@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import type { Article, ArticleMetadata } from "../article.types";
-import type { CanonicalImageUrl } from "../canonical-image-url";
 import { CanonicalImageUrlSchema } from "../canonical-image-url";
 import { refreshContent } from "./refresh-content";
 
@@ -8,10 +7,9 @@ import { refreshContent } from "./refresh-content";
  * transition input's `Omit<ArticleMetadata, "imageUrl"> & { imageUrl:
  * CanonicalImageUrl }` shape. Production code goes through
  * `resolveCanonicalImageUrl` for the same brand. */
-function canonicalMetadata(
-	metadata: ArticleMetadata,
-): Omit<ArticleMetadata, "imageUrl"> & { imageUrl: CanonicalImageUrl } {
-	return { ...metadata, imageUrl: CanonicalImageUrlSchema.parse(metadata.imageUrl) };
+function canonicalMetadata(metadata: ArticleMetadata) {
+	const { imageUrl, ...rest } = metadata;
+	return { ...rest, imageUrl: CanonicalImageUrlSchema.parse(imageUrl) };
 }
 
 const NOW = "2026-05-13T12:00:00.000Z";
