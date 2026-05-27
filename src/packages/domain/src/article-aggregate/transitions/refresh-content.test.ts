@@ -1,15 +1,22 @@
 import assert from "node:assert/strict";
 import type { Article, ArticleMetadata } from "../article.types";
 import { CanonicalImageUrlSchema } from "../canonical-image-url";
-import { refreshContent } from "./refresh-content";
+import { refreshContent, type RefreshContentInput } from "./refresh-content";
 
 /* Helper that brands the imageUrl on test fixtures so they satisfy the
  * transition input's `Omit<ArticleMetadata, "imageUrl"> & { imageUrl:
  * CanonicalImageUrl }` shape. Production code goes through
- * `resolveCanonicalImageUrl` for the same brand. */
-function canonicalMetadata(metadata: ArticleMetadata) {
-	const { imageUrl, ...rest } = metadata;
-	return { ...rest, imageUrl: CanonicalImageUrlSchema.parse(imageUrl) };
+ * `resolveCanonicalImageUrl` for the same brand. Explicit property
+ * assignment (no spread) avoids TypeScript incremental-build inference
+ * ambiguity for the branded override. */
+function canonicalMetadata(metadata: ArticleMetadata): RefreshContentInput["metadata"] {
+	return {
+		title: metadata.title,
+		siteName: metadata.siteName,
+		excerpt: metadata.excerpt,
+		wordCount: metadata.wordCount,
+		imageUrl: CanonicalImageUrlSchema.parse(metadata.imageUrl),
+	};
 }
 
 const NOW = "2026-05-13T12:00:00.000Z";
