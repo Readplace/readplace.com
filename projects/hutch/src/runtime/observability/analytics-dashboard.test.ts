@@ -123,10 +123,13 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		]);
 	});
 
-	it("queries spanning subscription Lambda log groups use the multi-log-group SOURCE clause — comma-separated quoted names confuse CloudWatch with 'cannot contain a comma'", () => {
+	it("queries spanning subscription Lambda log groups emit one `SOURCE '<name>'` per group joined by `|` — `logGroups(namePrefix: [...])` is a CLI-only form the dashboard renderer rejects", () => {
 		const subscriptionQueries = widgetQueries().filter((q) => q.includes(`"${STREAMS.subscriptions}"`));
 		for (const q of subscriptionQueries) {
-			expect(q).toMatch(/^SOURCE logGroups\(namePrefix: \[/);
+			for (const name of SUBSCRIPTION_DASHBOARD_LOG_GROUPS) {
+				expect(q).toContain(`SOURCE '${name}'`);
+			}
+			expect(q).not.toContain("logGroups(namePrefix");
 		}
 		expect(subscriptionQueries.length).toBeGreaterThan(0);
 	});
