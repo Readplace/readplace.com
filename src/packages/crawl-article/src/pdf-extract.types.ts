@@ -40,8 +40,34 @@ export type PdfExtractProgress = (params: {
 	stage?: PdfExtractStage;
 }) => void;
 
+/**
+ * Optional callback the extractor fires each time the in-order ready-prefix
+ * of completed pages grows, carrying the cumulative reader-facing HTML
+ * snapshot ("page 1 through page N"). The orchestrator routes this to the
+ * partial-content throttle so the SSE / streaming reader can display text
+ * page-by-page as soon as Tesseract emits it.
+ *
+ * Separate from `onProgress` because the metadata path (partIndex/partCount)
+ * is cheap and frequent, while the partial-html path carries the (potentially
+ * large) HTML body and is routed through its own throttle. Splitting keeps
+ * the cost of the metadata path constant regardless of HTML size.
+ *
+ * `html` is the full cumulative reader HTML for the in-order prefix, not a
+ * delta — callers replace the previous value rather than concatenating.
+ * `readyPageCount` is the count of pages currently in the ready prefix
+ * (1-based), exposed so callers can log or surface "n of m pages ready".
+ *
+ * Best-effort and synchronous from the extractor's perspective: errors
+ * thrown from the callback are not surfaced.
+ */
+export type PdfPartialHtml = (params: {
+	html: string;
+	readyPageCount: number;
+}) => void | Promise<void>;
+
 export type ExtractPdf = (params: {
 	buffer: Buffer;
 	url: string;
 	onProgress?: PdfExtractProgress;
+	onPartialHtml?: PdfPartialHtml;
 }) => Promise<PdfExtractResult>;

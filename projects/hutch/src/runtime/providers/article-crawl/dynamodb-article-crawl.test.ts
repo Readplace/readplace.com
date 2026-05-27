@@ -133,6 +133,40 @@ describe("initDynamoDbArticleCrawl", () => {
 			expect(result).toEqual({ status: "ready" });
 		});
 
+		it("returns pending with partial when partialContent + partialContentVersion are recorded", async () => {
+			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
+				client: clientReturning({
+					url: URL,
+					crawlStatus: "pending",
+					partialContent: "<h1>Title</h1><p>preview</p>",
+					partialContentVersion: 3,
+				}),
+				tableName: TABLE,
+			});
+
+			const result = await findArticleCrawlStatus(URL);
+
+			expect(result).toEqual({
+				status: "pending",
+				partial: { content: "<h1>Title</h1><p>preview</p>", version: 3 },
+			});
+		});
+
+		it("omits partial when only one of partialContent / partialContentVersion is present (defensive against half-written rows)", async () => {
+			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
+				client: clientReturning({
+					url: URL,
+					crawlStatus: "pending",
+					partialContent: "<h1>Title</h1>",
+				}),
+				tableName: TABLE,
+			});
+
+			const result = await findArticleCrawlStatus(URL);
+
+			expect(result).toEqual({ status: "pending" });
+		});
+
 		it("returns ready when crawlStatus=ready", async () => {
 			const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
 				client: clientReturning({ url: URL, crawlStatus: "ready" }),

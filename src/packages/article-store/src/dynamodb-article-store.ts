@@ -296,14 +296,24 @@ function appendCrawlClauses(
 		sets.push("crawlFailureReason = :crawlFailureReason");
 		values[":crawlStatus"] = "failed";
 		values[":crawlFailureReason"] = JSON.stringify(article.crawl.reason);
-		removes.push("crawlUnsupportedReason", "crawlPendingSince");
+		removes.push(
+			"crawlUnsupportedReason",
+			"crawlPendingSince",
+			"partialContent",
+			"partialContentVersion",
+		);
 		return;
 	}
 	if (article.crawl.kind === "unsupported") {
 		sets.push("crawlUnsupportedReason = :crawlUnsupportedReason");
 		values[":crawlStatus"] = "unsupported";
 		values[":crawlUnsupportedReason"] = JSON.stringify(article.crawl.reason);
-		removes.push("crawlFailureReason", "crawlPendingSince");
+		removes.push(
+			"crawlFailureReason",
+			"crawlPendingSince",
+			"partialContent",
+			"partialContentVersion",
+		);
 		return;
 	}
 	if (article.crawl.kind === "ready") {
@@ -313,6 +323,8 @@ function appendCrawlClauses(
 			"crawlUnsupportedReason",
 			"crawlFailedAt",
 			"crawlPendingSince",
+			"partialContent",
+			"partialContentVersion",
 		);
 		return;
 	}

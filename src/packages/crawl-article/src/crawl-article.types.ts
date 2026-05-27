@@ -1,4 +1,4 @@
-import type { PdfExtractStage } from "./pdf-extract.types";
+import type { PdfExtractStage, PdfPartialHtml } from "./pdf-extract.types";
 
 export type ThumbnailImage = {
 	body: Buffer;
@@ -40,6 +40,9 @@ export type ComprehensiveCrawlProgress = (params: {
  * opts the HTML path into prefetching the article thumbnail; `onProgress` is
  * forwarded to the PDF extractor (the expensive path that can hold a Lambda
  * concurrency slot for tens of seconds while pdfjs walks every page).
+ * `onPartialHtml` is forwarded so the PDF extractor's Stage 0 (Tesseract)
+ * can stream the in-order ready-prefix HTML to the orchestrator, which
+ * routes it to the streaming reader UI.
  */
 export type CrawlArticle = (params: {
 	url: string;
@@ -47,4 +50,5 @@ export type CrawlArticle = (params: {
 	lastModified?: string;
 	fetchThumbnail?: boolean;
 	onProgress?: ComprehensiveCrawlProgress;
+	onPartialHtml?: PdfPartialHtml;
 }) => Promise<CrawlArticleResult>;

@@ -8,7 +8,7 @@ import { extractThumbnailCandidates, initFetchThumbnailImage } from "./extract-t
 import { headerOrUndefined } from "./header-utils";
 import { isPDF } from "./pdf-detect";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
-import type { ExtractPdf } from "./pdf-extract.types";
+import type { ExtractPdf, PdfPartialHtml } from "./pdf-extract.types";
 import { initFetchTweetViaOembed, isTweetUrl } from "./x-twitter-preprocessor";
 
 const FETCH_TIMEOUT_MS = 10000;
@@ -168,6 +168,7 @@ export async function parsePdfFromBuffer(input: {
 	url: string;
 	extractPdf: ExtractPdf;
 	onProgress?: ComprehensiveCrawlProgress;
+	onPartialHtml?: PdfPartialHtml;
 	logError: (message: string, error?: Error) => void;
 }): Promise<CrawlArticleResult> {
 	if (input.buffer.length > MAX_PDF_BYTES.bytes) {
@@ -178,6 +179,7 @@ export async function parsePdfFromBuffer(input: {
 		buffer: input.buffer,
 		url: input.url,
 		onProgress: input.onProgress,
+		onPartialHtml: input.onPartialHtml,
 	});
 	if (extracted.kind === "failed") {
 		input.logError(`[CrawlArticle] PDF extraction failed for ${input.url}: ${extracted.reason}`);
@@ -237,6 +239,7 @@ export function initCrawlArticle(deps: {
 				url: params.url,
 				extractPdf,
 				onProgress: params.onProgress,
+				onPartialHtml: params.onPartialHtml,
 				logError,
 			});
 		}
