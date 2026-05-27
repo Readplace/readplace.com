@@ -439,8 +439,10 @@ new HutchDLQEventHandler("simple-crawl-unsupported-policy-dlq", {
 // Per-page OCR worker fanned out from comprehensive-crawl-command. The
 // orchestrator stages the source PDF to S3, then sync-invokes this Lambda
 // for each page; each invocation downloads the staged PDF, rasterises its
-// assigned page via pdftoppm `-f N -l N`, sends the PNG to DeepInfra vision,
-// and returns the HTML fragment. Wall-time collapses to ~max(per_page) +
+// assigned page via pdftoppm `-f N -l N`, runs Tesseract locally against
+// the PNG with every installed `script/<Name>` bundle joined into the
+// `-l` flag (Latin / Arabic / HanS / Hangul / Devanagari / …), and
+// returns the HTML fragment. Wall-time collapses to ~max(per_page) +
 // dispatch overhead instead of summing the sequential rasterisation cost.
 //
 // No HutchSQSBackedLambda wrapper / no DLQ on this Lambda: it is a

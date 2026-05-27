@@ -13,10 +13,41 @@
 # installs cleanly, then copy the binary + language data + shared libs into
 # the Lambda image. Putting libs under /opt/tesseract-lib avoids any clash
 # with libstdc++/libgomp already present in the AL2023 base.
+#
+# Install set:
+#   - `tesseract` — the binary + shared libs (EPEL 9).
+#   - `osd.traineddata` — orientation/script detector required by `--psm 1`,
+#     which routes each page region to the matching script model.
+#   - `script/*.traineddata` — only the script bundles, not the 100+
+#     individual-language packs. Each `script/<Name>.traineddata` already
+#     covers every language in that script (`script/Latin` recognises
+#     English, Portuguese, German, French, Vietnamese, etc. from one file).
+#     The individual `<lang>.traineddata` files are redundant when scripts
+#     are installed and only inflate the image.
+#
+# The traineddata files come from upstream tesseract-ocr/tessdata_fast at a
+# pinned tag, fetched via a partial+sparse clone so we only download
+# `osd.traineddata` + `script/*` (~190 MB) instead of the full ~400 MB
+# repository. EPEL 9 removed the `tesseract-langpack-osd` and
+# `tesseract-langpack-script_*` subpackages, so the upstream repo is now
+# the canonical source. `tessdata_fast` is the integer-quantised LSTM
+# variant — same neural recogniser as `tessdata_best`, ~5× smaller — which
+# is the right tradeoff for a Lambda container's cold-start budget.
 FROM rockylinux:9 AS tesseract-stage
+ARG TESSDATA_VERSION=4.1.0
 RUN dnf install -y epel-release && \
-    dnf install -y tesseract 'tesseract-langpack-*' && \
+    dnf install -y tesseract git && \
     dnf clean all && \
+    git clone --no-checkout --depth 1 --filter=blob:none \
+        --branch "${TESSDATA_VERSION}" \
+        https://github.com/tesseract-ocr/tessdata_fast.git /tmp/tessdata && \
+    git -C /tmp/tessdata sparse-checkout init --no-cone && \
+    git -C /tmp/tessdata sparse-checkout set '/osd.traineddata' '/script/**' && \
+    git -C /tmp/tessdata checkout && \
+    mkdir -p /opt/tesseract/tessdata/script && \
+    cp /tmp/tessdata/osd.traineddata /opt/tesseract/tessdata/ && \
+    cp /tmp/tessdata/script/*.traineddata /opt/tesseract/tessdata/script/ && \
+    rm -rf /tmp/tessdata && \
     mkdir -p /opt/tesseract-lib && \
     ldd /usr/bin/tesseract \
       | awk '{ for (i=1; i<=NF; i++) if ($i ~ /^\/.*\.so/) print $i }' \
@@ -32,11 +63,11 @@ FROM public.ecr.aws/lambda/nodejs:22
 # through curl-impersonate for TLS-fingerprint bypass.
 RUN dnf install -y poppler-utils tar gzip && dnf clean all
 
-# Tesseract OCR (staging POC replacement for DeepInfra). Binary at
-# /opt/tesseract/bin/tesseract, language data at /opt/tesseract/tessdata,
-# shared libs at /opt/tesseract-lib (added to LD_LIBRARY_PATH below).
+# Tesseract OCR. Binary at /opt/tesseract/bin/tesseract, tessdata (osd.traineddata
+# + script/*.traineddata) at /opt/tesseract/tessdata, shared libs at
+# /opt/tesseract-lib (added to LD_LIBRARY_PATH below).
 COPY --from=tesseract-stage /usr/bin/tesseract /opt/tesseract/bin/tesseract
-COPY --from=tesseract-stage /usr/share/tesseract/tessdata /opt/tesseract/tessdata
+COPY --from=tesseract-stage /opt/tesseract/tessdata /opt/tesseract/tessdata
 COPY --from=tesseract-stage /opt/tesseract-lib /opt/tesseract-lib
 ENV TESSDATA_PREFIX=/opt/tesseract/tessdata
 ENV LD_LIBRARY_PATH=/opt/tesseract-lib:${LD_LIBRARY_PATH}
