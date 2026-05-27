@@ -1,3 +1,4 @@
+/* c8 ignore start -- tested via Jest unit tests + node:test integration; c8 cannot merge V8 coverage from both runners (bcoe/c8#126) */
 import { spawn } from "node:child_process";
 import assert from "node:assert";
 import { randomUUID } from "node:crypto";
@@ -53,10 +54,6 @@ export function initTesseractOcr(deps: { tessdataDir: string }): RunPageOcr {
 	return createOcrClosure(languageFlag);
 }
 
-/* c8 ignore start -- thin tesseract process wrapper, exercised end-to-end
- * via the tier-1 canary against the staged source PDF. Not a unit-test
- * target — the runtime contract is "spawn /opt/tesseract/bin/tesseract,
- * collect stdout, wrap as HTML paragraphs". */
 function createOcrClosure(languageFlag: string): RunPageOcr {
 	return async ({ images }) => {
 		const fragments: string[] = [];

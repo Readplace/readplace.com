@@ -29,17 +29,15 @@ export interface BuildAnalyticsDashboardDeps {
 }
 
 /**
- * Single log group uses the `SOURCE '<name>'` shorthand. Multiple log groups
- * use the `logGroups(namePrefix: [...])` function — comma-separated quoted
- * names do NOT work, CloudWatch reads the whole string as one log group and
- * rejects with "LogGroupName cannot contain a comma".
- * See https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-Source.html
+ * Dashboard log widgets prepend each log group with its own `SOURCE` keyword
+ * and join them with `|`. The `logGroups(namePrefix: [...])` function exists
+ * only for the start-query CLI/API and the dashboard renderer rejects it with
+ * `Invalid NamePrefix: "namePrefix: ["`.
+ * See https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/CloudWatch-Dashboard-Body-Structure.html#CloudWatch-Dashboard-Properties-Log-Widget-Object
  */
 function sourceClause(logGroupNames: readonly string[]): string {
 	assert(logGroupNames.length > 0, "sourceClause requires at least one log group name");
-	if (logGroupNames.length === 1) return `SOURCE '${logGroupNames[0]}'`;
-	const prefixes = logGroupNames.map((n) => `'${n}'`).join(", ");
-	return `SOURCE logGroups(namePrefix: [${prefixes}])`;
+	return logGroupNames.map((n) => `SOURCE '${n}'`).join(" | ");
 }
 
 function excludeVisitorHashesClause(excludedVisitorHashes: readonly string[]): string[] {
