@@ -1,6 +1,7 @@
 import {
 	ANALYTICS_EVENTS,
 	CONVERSION_EVENTS,
+	LAMBDA_NAMES,
 	LOG_GROUPS,
 	METRICS,
 	STREAMS,
@@ -163,6 +164,13 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		const declared = Object.values(LOG_GROUPS);
 		const unwired = declared.filter((name) => !wired.has(name));
 		expect(unwired).toEqual([]);
+	});
+
+	it("LOG_GROUPS is mechanically derived from LAMBDA_NAMES — hand-editing a LOG_GROUPS value out of sync with its LAMBDA_NAMES entry fails CI", () => {
+		for (const key of Object.keys(LAMBDA_NAMES) as Array<keyof typeof LAMBDA_NAMES>) {
+			expect(LOG_GROUPS[key]).toBe(`/aws/lambda/${LAMBDA_NAMES[key]}-handler`);
+		}
+		expect(Object.keys(LOG_GROUPS).sort()).toEqual(Object.keys(LAMBDA_NAMES).sort());
 	});
 
 	it("omits the visitor_hash exclusion clause from every widget query when no hashes are configured", () => {
