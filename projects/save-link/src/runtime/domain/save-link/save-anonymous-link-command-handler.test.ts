@@ -1,13 +1,9 @@
-import posthtml from "posthtml";
-import urls from "@11ty/posthtml-urls";
 import { noopLogger } from "@packages/hutch-logger";
-import type { SimpleCrawl } from "@packages/crawl-article";
 import { markCrawlFailed } from "@packages/domain/article-aggregate";
 import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initSaveAnonymousLinkCommandHandler } from "./save-anonymous-link-command-handler";
-import { initProcessContentWithLocalMedia } from "./process-content-with-local-media";
-import type { ParseHtml } from "@packages/article-parser";
-import type { DownloadMedia } from "./download-media";
+import type { CrawlAndFinalizeArticle, CrawlAndFinalizeResult } from "./crawl-and-finalize-article";
+import type { FinalizedArticle } from "./finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
@@ -50,49 +46,40 @@ function createSqsEvent(detail: { url: string }): SQSEvent {
 	};
 }
 
-const noopDownloadMedia: DownloadMedia = async () => [];
-
-const processContent = initProcessContentWithLocalMedia({
-	rewriteHtmlUrls: (html, rewriteUrl) => {
-		const plugin = urls({ eachURL: rewriteUrl });
-		return posthtml().use(plugin).process(html).then(result => result.html);
+const stubFinalizedArticle: FinalizedArticle = {
+	html: "<p>Article content</p>",
+	metadata: {
+		title: "Test",
+		siteName: "example.com",
+		excerpt: "test",
+		wordCount: 10,
+		estimatedReadTime: 1,
+		imageUrl: undefined,
 	},
-});
+};
 
-const successfulSimpleCrawl: SimpleCrawl = async () => ({
+const fetchedResult: CrawlAndFinalizeResult = {
 	status: "fetched",
-	html: "<html><body><p>Article content</p></body></html>",
-});
+	article: stubFinalizedArticle,
+};
 
 const rejectingEmitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = async () => {
 	throw new Error("emitSimpleCrawlUnsupported invoked unexpectedly");
 };
 
-const successfulParse: ParseHtml = () => ({
-	ok: true,
-	article: { title: "Test", siteName: "example.com", excerpt: "test", wordCount: 10, content: "<p>Article content</p>" },
-});
-
-const imagesCdnBaseUrl = "https://cdn.example.com";
-
 type HandlerDeps = Parameters<typeof initSaveAnonymousLinkCommandHandler>[0];
 
-const fixedNow = () => new Date("2026-04-18T12:00:00.000Z");
+const fixedNow = () => new Date("2026-04-30T12:00:00.000Z");
 
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	return initSaveAnonymousLinkCommandHandler({
-		simpleCrawl: successfulSimpleCrawl,
+		crawlAndFinalizeArticle: (async () => fetchedResult) as CrawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
-		parseHtml: successfulParse,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
-		putImageObject: jest.fn().mockResolvedValue(undefined),
 		updateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
-		downloadMedia: noopDownloadMedia,
-		processContent,
-		imagesCdnBaseUrl,
 		now: fixedNow,
 		logger: noopLogger,
 		logParseError: jest.fn(),
@@ -121,11 +108,11 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 	});
 
 	it("does not write a tier source or publish anything when the crawl fails (record reported as batch failure)", async () => {
-		const failedSimpleCrawl: SimpleCrawl = async () => ({ status: "failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
-		const handler = createHandler({ simpleCrawl: failedSimpleCrawl, putTierSource, publishEvent });
+		const handler = createHandler({ crawlAndFinalizeArticle, putTierSource, publishEvent });
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/unreachable" }),
@@ -138,64 +125,35 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
-	it("reports crawl failures via logParseError with the crawl status as reason (record routed to batchItemFailures for SQS retry)", async () => {
+	it("reports crawl failures via logParseError so the parse-errors dashboard reflects them", async () => {
 		const logParseError = jest.fn();
-		const failedSimpleCrawl: SimpleCrawl = async () => ({ status: "failed" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
 
-		const handler = createHandler({ simpleCrawl: failedSimpleCrawl, logParseError });
+		const handler = createHandler({ crawlAndFinalizeArticle, logParseError });
 
-		const result = await handler(
-			createSqsEvent({ url: "https://example.com/unreachable" }),
-			stubContext,
-			() => {},
-		);
+		await handler(createSqsEvent({ url: "https://example.com/unreachable" }), stubContext, () => {});
 
-		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(logParseError).toHaveBeenCalledWith({
 			url: "https://example.com/unreachable",
 			reason: "crawl-failed",
 		});
 	});
 
-	it("reports parse failures via logParseError with the parser's reason (record routed to batchItemFailures for SQS retry)", async () => {
-		const logParseError = jest.fn();
-		const failedParse: ParseHtml = () => ({ ok: false, reason: "Invalid URL" });
-
-		const handler = createHandler({ parseHtml: failedParse, logParseError });
-
-		const result = await handler(
-			createSqsEvent({ url: "https://example.com/bad" }),
-			stubContext,
-			() => {},
-		);
-
-		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-		expect(logParseError).toHaveBeenCalledWith({
-			url: "https://example.com/bad",
-			reason: "Invalid URL",
-		});
-	});
-
-	it("routes terminal parse errors through markCrawlFailed via transitionAndPersist so /view + /admin/recrawl polling see failure at t+0", async () => {
+	it("routes terminal parse-error failures through markCrawlFailed via transitionAndPersist so /view + /admin/recrawl polling see failure at t+0", async () => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-		const failedParse: ParseHtml = () => ({ ok: false, reason: "Readability crashed on this DOM" });
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "Readability crashed on this DOM" });
 
-		const handler = createHandler({ parseHtml: failedParse, transitionAndPersist });
+		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist });
 
-		const result = await handler(
-			createSqsEvent({ url: "https://example.com/bad" }),
-			stubContext,
-			() => {},
-		);
+		await handler(createSqsEvent({ url: "https://example.com/bad" }), stubContext, () => {});
 
-		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
 			url: "https://example.com/bad",
 			input: { reason: { kind: "parse-error", detail: "Readability crashed on this DOM" } },
 		});
 	});
 
-	it("emits SimpleCrawlUnsupportedEvent without userId when simpleCrawl returns unsupported (anonymous path)", async () => {
+	it("emits SimpleCrawlUnsupportedEvent without userId when the crawl returns unsupported (anonymous path)", async () => {
 		const emitSimpleCrawlUnsupported = jest.fn<
 			ReturnType<EmitSimpleCrawlUnsupported>,
 			Parameters<EmitSimpleCrawlUnsupported>
@@ -203,13 +161,13 @@ describe("initSaveAnonymousLinkCommandHandler", () => {
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const unsupportedSimpleCrawl: SimpleCrawl = async () => ({
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
 			status: "unsupported",
 			reason: "non-html content type: application/pdf",
 		});
 
 		const handler = createHandler({
-			simpleCrawl: unsupportedSimpleCrawl,
+			crawlAndFinalizeArticle,
 			emitSimpleCrawlUnsupported,
 			transitionAndPersist,
 			publishEvent,

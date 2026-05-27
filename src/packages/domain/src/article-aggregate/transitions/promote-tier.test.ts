@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
-import type { Article } from "../article.types";
+import type { Article, ArticleMetadata } from "../article.types";
+import { CanonicalImageUrlSchema } from "../canonical-image-url";
 import { promoteTier, type PromoteTierInput } from "./promote-tier";
+
+/* Helper that brands the imageUrl on test fixtures so they satisfy the
+ * transition input's `Omit<ArticleMetadata, "imageUrl"> & { imageUrl:
+ * CanonicalImageUrl }` shape. Production code goes through
+ * `resolveCanonicalImageUrl` for the same brand. */
+function canonicalMetadata(metadata: ArticleMetadata) {
+	return { ...metadata, imageUrl: CanonicalImageUrlSchema.parse(metadata.imageUrl) };
+}
 
 const FIXED_PENDING = "2026-01-01T00:00:00.000Z";
 const NOW = "2026-05-13T12:00:00.000Z";
@@ -36,7 +45,7 @@ function buildInput(overrides: Partial<PromoteTierInput> = {}): PromoteTierInput
 			siteName: "New site",
 			excerpt: "New excerpt",
 			wordCount: 250,
-			imageUrl: "https://example.com/image.jpg",
+			imageUrl: CanonicalImageUrlSchema.parse("https://example.com/image.jpg"),
 		},
 		estimatedReadTime: 2,
 		contentFetchedAt: "2026-05-10T12:00:00.000Z",
@@ -67,7 +76,7 @@ describe("promoteTier", () => {
 
 		const { article } = promoteTier(
 			before,
-			buildInput({ metadata: before.metadata, estimatedReadTime: 2 }),
+			buildInput({ metadata: canonicalMetadata(before.metadata), estimatedReadTime: 2 }),
 		);
 
 		assert.equal(article.freshness.contentFetchedAt, "2026-05-10T12:00:00.000Z");
@@ -87,7 +96,7 @@ describe("promoteTier", () => {
 	it("overwrites estimatedReadTime with the supplied value", () => {
 		const { article } = promoteTier(
 			buildArticle(),
-			buildInput({ estimatedReadTime: 7, metadata: buildArticle().metadata }),
+			buildInput({ estimatedReadTime: 7, metadata: canonicalMetadata(buildArticle().metadata) }),
 		);
 
 		assert.equal(article.estimatedReadTime, 7);
@@ -96,7 +105,7 @@ describe("promoteTier", () => {
 	it("flips crawl to ready", () => {
 		const { article } = promoteTier(
 			buildArticle(),
-			buildInput({ metadata: buildArticle().metadata, estimatedReadTime: 1 }),
+			buildInput({ metadata: canonicalMetadata(buildArticle().metadata), estimatedReadTime: 1 }),
 		);
 
 		assert.deepEqual(article.crawl, { kind: "ready" });
@@ -119,7 +128,7 @@ describe("promoteTier", () => {
 		const { article } = promoteTier(
 			before,
 			buildInput({
-				metadata: before.metadata,
+				metadata: canonicalMetadata(before.metadata),
 				estimatedReadTime: 1,
 				canonicalContentHash: HASH_B,
 			}),
@@ -146,7 +155,7 @@ describe("promoteTier", () => {
 		const { article } = promoteTier(
 			before,
 			buildInput({
-				metadata: before.metadata,
+				metadata: canonicalMetadata(before.metadata),
 				estimatedReadTime: 1,
 				canonicalContentHash: HASH_A,
 			}),
@@ -167,7 +176,7 @@ describe("promoteTier", () => {
 		const { article, writes } = promoteTier(
 			before,
 			buildInput({
-				metadata: before.metadata,
+				metadata: canonicalMetadata(before.metadata),
 				estimatedReadTime: 1,
 				canonicalContentHash: HASH_A,
 			}),
@@ -189,7 +198,7 @@ describe("promoteTier", () => {
 		const { article } = promoteTier(
 			before,
 			buildInput({
-				metadata: before.metadata,
+				metadata: canonicalMetadata(before.metadata),
 				estimatedReadTime: 1,
 				canonicalContentHash: HASH_B,
 			}),
@@ -205,7 +214,7 @@ describe("promoteTier", () => {
 		const { effects } = promoteTier(
 			buildArticle({ url: "https://example.com/post" }),
 			buildInput({
-				metadata: buildArticle().metadata,
+				metadata: canonicalMetadata(buildArticle().metadata),
 				estimatedReadTime: 1,
 				canonicalChanged: true,
 				userId: "user-123",
@@ -230,7 +239,7 @@ describe("promoteTier", () => {
 		const { effects } = promoteTier(
 			buildArticle({ url: "https://example.com/post" }),
 			buildInput({
-				metadata: buildArticle().metadata,
+				metadata: canonicalMetadata(buildArticle().metadata),
 				estimatedReadTime: 1,
 				canonicalChanged: true,
 			}),
@@ -253,7 +262,7 @@ describe("promoteTier", () => {
 		const { effects } = promoteTier(
 			buildArticle({ url: "https://example.com/post" }),
 			buildInput({
-				metadata: buildArticle().metadata,
+				metadata: canonicalMetadata(buildArticle().metadata),
 				estimatedReadTime: 1,
 				canonicalChanged: false,
 				userId: "user-123",
@@ -283,7 +292,7 @@ describe("promoteTier", () => {
 		const { effects } = promoteTier(
 			before,
 			buildInput({
-				metadata: before.metadata,
+				metadata: canonicalMetadata(before.metadata),
 				estimatedReadTime: 1,
 				canonicalChanged: false,
 				canonicalContentHash: HASH_A,
@@ -311,7 +320,7 @@ describe("promoteTier", () => {
 		const { writes } = promoteTier(
 			before,
 			buildInput({
-				metadata: before.metadata,
+				metadata: canonicalMetadata(before.metadata),
 				estimatedReadTime: 1,
 				canonicalContentHash: HASH_B,
 			}),
@@ -338,7 +347,7 @@ describe("promoteTier", () => {
 		const { writes } = promoteTier(
 			before,
 			buildInput({
-				metadata: before.metadata,
+				metadata: canonicalMetadata(before.metadata),
 				estimatedReadTime: 1,
 				canonicalContentHash: HASH_A,
 			}),
@@ -355,12 +364,12 @@ describe("promoteTier", () => {
 			before,
 			buildInput({
 				tier: "tier-1",
-				metadata: {
+				metadata: canonicalMetadata({
 					title: "Different",
 					siteName: "Example",
 					excerpt: "Different",
 					wordCount: 200,
-				},
+				}),
 				estimatedReadTime: 3,
 			}),
 		);

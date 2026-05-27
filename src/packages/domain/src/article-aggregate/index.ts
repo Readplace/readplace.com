@@ -7,6 +7,10 @@ export type {
 	SummaryState,
 } from "./article.types";
 export {
+	CanonicalImageUrlSchema,
+	type CanonicalImageUrl,
+} from "./canonical-image-url";
+export {
 	SUMMARY_AUTO_HEAL_MAX_ATTEMPTS,
 	SUMMARY_AUTO_HEAL_TTL_MS,
 } from "./auto-heal-constants";

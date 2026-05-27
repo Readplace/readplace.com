@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
-import type { Article } from "../article.types";
+import type { Article, ArticleMetadata } from "../article.types";
+import { CanonicalImageUrlSchema } from "../canonical-image-url";
 import { refreshContent } from "./refresh-content";
+
+/* Helper that brands the imageUrl on test fixtures so they satisfy the
+ * transition input's `Omit<ArticleMetadata, "imageUrl"> & { imageUrl:
+ * CanonicalImageUrl }` shape. Production code goes through
+ * `resolveCanonicalImageUrl` for the same brand. */
+function canonicalMetadata(metadata: ArticleMetadata) {
+	return { ...metadata, imageUrl: CanonicalImageUrlSchema.parse(metadata.imageUrl) };
+}
 
 const NOW = "2026-05-13T12:00:00.000Z";
 const HASH_A = "a".repeat(64);
@@ -37,13 +46,13 @@ describe("refreshContent", () => {
 		const before = buildArticle();
 
 		const { article } = refreshContent(before, {
-			metadata: {
+			metadata: canonicalMetadata({
 				title: "New title",
 				siteName: "Example",
 				excerpt: "New excerpt",
 				wordCount: 250,
 				imageUrl: "https://example.com/image.jpg",
-			},
+			}),
 			freshness: {
 				etag: '"new-etag"',
 				lastModified: "Sun, 10 May 2026 12:00:00 GMT",
@@ -66,7 +75,7 @@ describe("refreshContent", () => {
 		const before = buildArticle();
 
 		const { article } = refreshContent(before, {
-			metadata: before.metadata,
+			metadata: canonicalMetadata(before.metadata),
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
 			now: NOW,
@@ -94,7 +103,7 @@ describe("refreshContent", () => {
 		});
 
 		const { article } = refreshContent(before, {
-			metadata: before.metadata,
+			metadata: canonicalMetadata(before.metadata),
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
 			now: NOW,
@@ -121,7 +130,7 @@ describe("refreshContent", () => {
 		});
 
 		const { article } = refreshContent(before, {
-			metadata: before.metadata,
+			metadata: canonicalMetadata(before.metadata),
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
 			now: NOW,
@@ -137,7 +146,7 @@ describe("refreshContent", () => {
 		});
 
 		const { article, writes } = refreshContent(before, {
-			metadata: before.metadata,
+			metadata: canonicalMetadata(before.metadata),
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
 			now: NOW,
@@ -159,7 +168,7 @@ describe("refreshContent", () => {
 		});
 
 		const { article } = refreshContent(before, {
-			metadata: before.metadata,
+			metadata: canonicalMetadata(before.metadata),
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
 			now: NOW,
@@ -176,7 +185,7 @@ describe("refreshContent", () => {
 		const before = buildArticle({ crawl: { kind: "ready" } });
 
 		const { article } = refreshContent(before, {
-			metadata: before.metadata,
+			metadata: canonicalMetadata(before.metadata),
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
 			now: NOW,
@@ -198,7 +207,7 @@ describe("refreshContent", () => {
 		});
 
 		const { effects } = refreshContent(before, {
-			metadata: before.metadata,
+			metadata: canonicalMetadata(before.metadata),
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
 			now: NOW,
@@ -223,7 +232,7 @@ describe("refreshContent", () => {
 		});
 
 		const { effects } = refreshContent(before, {
-			metadata: before.metadata,
+			metadata: canonicalMetadata(before.metadata),
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
 			now: NOW,
@@ -244,7 +253,7 @@ describe("refreshContent", () => {
 		});
 
 		const { writes } = refreshContent(before, {
-			metadata: before.metadata,
+			metadata: canonicalMetadata(before.metadata),
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
 			now: NOW,
@@ -267,7 +276,7 @@ describe("refreshContent", () => {
 		});
 
 		const { writes } = refreshContent(before, {
-			metadata: before.metadata,
+			metadata: canonicalMetadata(before.metadata),
 			freshness: before.freshness,
 			estimatedReadTime: before.estimatedReadTime,
 			now: NOW,
@@ -335,12 +344,12 @@ describe("refreshContent", () => {
 		const beforeSnapshot = JSON.parse(JSON.stringify(before));
 
 		refreshContent(before, {
-			metadata: {
+			metadata: canonicalMetadata({
 				title: "Different",
 				siteName: "Example",
 				excerpt: "Different",
 				wordCount: 200,
-			},
+			}),
 			freshness: {
 				etag: '"different"',
 				contentFetchedAt: "2026-05-10T12:00:00.000Z",

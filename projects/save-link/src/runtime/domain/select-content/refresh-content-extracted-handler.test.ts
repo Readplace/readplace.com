@@ -229,6 +229,28 @@ describe("initRefreshContentExtractedHandler", () => {
 		});
 	});
 
+	it("promotes another tier's imageUrl when the winning refresh has none, so the stale-check refresh path also recovers og:image across tiers", async () => {
+		const tier0 = tierSource("tier-0", { metadata: stubMetadata({ imageUrl: undefined }) });
+		const tier1 = tierSource("tier-1", { metadata: stubMetadata({ imageUrl: "https://cdn.example/recovered.png" }) });
+
+		const { handler, deps } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
+			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tier-0", reason: "tier-0 body wins" }),
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-0"),
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(
+			refreshContent,
+			expect.objectContaining({
+				input: expect.objectContaining({
+					metadata: expect.objectContaining({ imageUrl: "https://cdn.example/recovered.png" }),
+				}),
+			}),
+		);
+	});
+
 	it("reports the record as a batch failure when transitionAndPersist throws so SQS replays the whole transition once DDB is healthy again", async () => {
 		const tier1 = tierSource("tier-1");
 		const transitionAndPersist: TransitionAndPersist = jest
