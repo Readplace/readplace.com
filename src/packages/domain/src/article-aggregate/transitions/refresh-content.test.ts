@@ -1,15 +1,7 @@
 import assert from "node:assert/strict";
-import type { Article, ArticleMetadata } from "../article.types";
+import type { Article } from "../article.types";
 import { CanonicalImageUrlSchema } from "../canonical-image-url";
 import { refreshContent, type RefreshContentInput } from "./refresh-content";
-
-/* Helper that brands the imageUrl on test fixtures so they satisfy the
- * transition input's `Omit<ArticleMetadata, "imageUrl"> & { imageUrl:
- * CanonicalImageUrl }` shape. Production code goes through
- * `resolveCanonicalImageUrl` for the same brand. */
-function canonicalMetadata(metadata: ArticleMetadata) {
-	return { ...metadata, imageUrl: CanonicalImageUrlSchema.parse(metadata.imageUrl) };
-}
 
 const NOW = "2026-05-13T12:00:00.000Z";
 const HASH_A = "a".repeat(64);
@@ -41,7 +33,7 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 	};
 }
 
-function buildInput(overrides: Partial<RefreshContentInput> = {}): RefreshContentInput {
+function buildInput(overrides: Omit<Partial<RefreshContentInput>, "metadata"> = {}): RefreshContentInput {
 	return {
 		metadata: {
 			title: "New title",
@@ -65,21 +57,23 @@ describe("refreshContent", () => {
 	it("overwrites metadata, freshness, and estimated read time with the fetched values", () => {
 		const before = buildArticle();
 
-		const { article } = refreshContent(before, buildInput({
-			metadata: canonicalMetadata({
+		const { article } = refreshContent(before, {
+			metadata: {
 				title: "New title",
 				siteName: "Example",
 				excerpt: "New excerpt",
 				wordCount: 250,
-				imageUrl: "https://example.com/image.jpg",
-			}),
+				imageUrl: CanonicalImageUrlSchema.parse("https://example.com/image.jpg"),
+			},
 			freshness: {
 				etag: '"new-etag"',
 				lastModified: "Sun, 10 May 2026 12:00:00 GMT",
 				contentFetchedAt: "2026-05-10T12:00:00.000Z",
 			},
 			estimatedReadTime: 2,
-		}));
+			now: NOW,
+			canonicalContentHash: HASH_A,
+		});
 
 		assert.equal(article.metadata.title, "New title");
 		assert.equal(article.metadata.wordCount, 250);
@@ -92,11 +86,7 @@ describe("refreshContent", () => {
 	it("writes the new canonicalContentHash onto freshness so subsequent runs can compare against it", () => {
 		const before = buildArticle();
 
-		const { article } = refreshContent(before, buildInput({
-			metadata: canonicalMetadata(before.metadata),
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-		}));
+		const { article } = refreshContent(before, buildInput());
 
 		assert.equal(article.freshness.canonicalContentHash, HASH_A);
 	});
@@ -119,9 +109,6 @@ describe("refreshContent", () => {
 		});
 
 		const { article } = refreshContent(before, buildInput({
-			metadata: canonicalMetadata(before.metadata),
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
 			canonicalContentHash: HASH_B,
 		}));
 
@@ -144,11 +131,7 @@ describe("refreshContent", () => {
 			summary: existingSummary,
 		});
 
-		const { article } = refreshContent(before, buildInput({
-			metadata: canonicalMetadata(before.metadata),
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-		}));
+		const { article } = refreshContent(before, buildInput());
 
 		assert.deepEqual(article.summary, existingSummary);
 	});
@@ -158,11 +141,7 @@ describe("refreshContent", () => {
 			summary: { kind: "ready", summary: "stale" },
 		});
 
-		const { article, writes } = refreshContent(before, buildInput({
-			metadata: canonicalMetadata(before.metadata),
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-		}));
+		const { article, writes } = refreshContent(before, buildInput());
 
 		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
 		assert.ok(writes.includes("summary"));
@@ -179,9 +158,6 @@ describe("refreshContent", () => {
 		});
 
 		const { article } = refreshContent(before, buildInput({
-			metadata: canonicalMetadata(before.metadata),
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
 			canonicalContentHash: HASH_B,
 		}));
 
@@ -194,11 +170,7 @@ describe("refreshContent", () => {
 	it("preserves crawl state so a successful refresh does not regress the crawl row", () => {
 		const before = buildArticle({ crawl: { kind: "ready" } });
 
-		const { article } = refreshContent(before, buildInput({
-			metadata: canonicalMetadata(before.metadata),
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-		}));
+		const { article } = refreshContent(before, buildInput());
 
 		assert.deepEqual(article.crawl, { kind: "ready" });
 	});
@@ -215,9 +187,6 @@ describe("refreshContent", () => {
 		});
 
 		const { effects } = refreshContent(before, buildInput({
-			metadata: canonicalMetadata(before.metadata),
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
 			canonicalContentHash: HASH_B,
 		}));
 
@@ -238,11 +207,7 @@ describe("refreshContent", () => {
 			summary: { kind: "ready", summary: "kept" },
 		});
 
-		const { effects } = refreshContent(before, buildInput({
-			metadata: canonicalMetadata(before.metadata),
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-		}));
+		const { effects } = refreshContent(before, buildInput());
 
 		assert.deepEqual(effects, []);
 	});
@@ -258,9 +223,6 @@ describe("refreshContent", () => {
 		});
 
 		const { writes } = refreshContent(before, buildInput({
-			metadata: canonicalMetadata(before.metadata),
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
 			canonicalContentHash: HASH_B,
 		}));
 
@@ -279,11 +241,7 @@ describe("refreshContent", () => {
 			summary: { kind: "ready", summary: "kept" },
 		});
 
-		const { writes } = refreshContent(before, buildInput({
-			metadata: canonicalMetadata(before.metadata),
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-		}));
+		const { writes } = refreshContent(before, buildInput());
 
 		assert.deepEqual([...writes].sort(), ["freshness", "metadata"]);
 		assert.ok(!writes.includes("summary"));
@@ -345,19 +303,22 @@ describe("refreshContent", () => {
 		const before = buildArticle();
 		const beforeSnapshot = JSON.parse(JSON.stringify(before));
 
-		refreshContent(before, buildInput({
-			metadata: canonicalMetadata({
+		refreshContent(before, {
+			metadata: {
 				title: "Different",
 				siteName: "Example",
 				excerpt: "Different",
 				wordCount: 200,
-			}),
+				imageUrl: CanonicalImageUrlSchema.parse(undefined),
+			},
 			freshness: {
 				etag: '"different"',
 				contentFetchedAt: "2026-05-10T12:00:00.000Z",
 			},
 			estimatedReadTime: 3,
-		}));
+			now: NOW,
+			canonicalContentHash: HASH_A,
+		});
 
 		assert.deepEqual(before, beforeSnapshot);
 	});
