@@ -8,9 +8,6 @@ export default {
 	entry: [
 		"**/*.main.ts",
 		"tools/*.mjs",
-		// Integration tests run from dist/ via the `node-test` phase in
-		// run-tests.config.js; knip doesn't see that glob so list it here.
-		"src/**/*.integration.ts",
 	],
 	ignore: [],
 	ignoreDependencies: [

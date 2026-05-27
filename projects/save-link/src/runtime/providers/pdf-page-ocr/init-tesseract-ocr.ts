@@ -8,6 +8,15 @@ import { resolve } from "node:path";
 import { escapeHtmlText } from "@packages/crawl-article";
 import type { RunPageOcr } from "../../domain/pdf-page-ocr/pdf-page-ocr-handler.types";
 
+/* Resolve the tessdata directory the Lambda container ships with. The
+ * Dockerfile copies the langpacks to /opt/tesseract/tessdata and exports
+ * TESSDATA_PREFIX accordingly; falling back to that absolute path keeps
+ * the wrapper usable when the env var is unset (e.g. on a developer
+ * machine running an integration test against a system tesseract). */
+export function resolveTessdataDir(env: NodeJS.ProcessEnv = process.env): string {
+	return env.TESSDATA_PREFIX ?? "/opt/tesseract/tessdata";
+}
+
 /* Tesseract ships per-script models under `<tessdata>/script/` (e.g.
  * `Latin.traineddata`, `Arabic.traineddata`, `HanS.traineddata`). Each
  * script pack already covers every language in that script — `script/Latin`
@@ -47,50 +56,42 @@ export function buildLanguageFlag(installedScripts: readonly string[]): string {
 export function initTesseractOcr(deps: { tessdataDir: string }): RunPageOcr {
 	const installedScripts = discoverInstalledScripts(deps.tessdataDir);
 	const languageFlag = buildLanguageFlag(installedScripts);
-	return createOcrClosure({ tessdataDir: deps.tessdataDir, languageFlag });
-}
-
-interface OcrConfig {
-	readonly tessdataDir: string;
-	readonly languageFlag: string;
+	return createOcrClosure(languageFlag);
 }
 
 /* c8 ignore start -- thin tesseract process wrapper, exercised end-to-end
  * via the tier-1 canary against the staged source PDF. Not a unit-test
  * target — the runtime contract is "spawn /opt/tesseract/bin/tesseract,
  * collect stdout, wrap as HTML paragraphs". */
-function createOcrClosure(config: OcrConfig): RunPageOcr {
+function createOcrClosure(languageFlag: string): RunPageOcr {
 	return async ({ images }) => {
 		const fragments: string[] = [];
 		for (const { pngBuffer } of images) {
-			fragments.push(await ocrOneImage(pngBuffer, config));
+			fragments.push(await ocrOneImage(pngBuffer, languageFlag));
 		}
 		return fragments.join("");
 	};
 }
 
-async function ocrOneImage(pngBuffer: Buffer, config: OcrConfig): Promise<string> {
-	const text = await runTesseract(pngBuffer, config);
+async function ocrOneImage(pngBuffer: Buffer, languageFlag: string): Promise<string> {
+	const text = await runTesseract(pngBuffer, languageFlag);
 	return renderTesseractHtml(text);
 }
 
-async function runTesseract(pngBuffer: Buffer, config: OcrConfig): Promise<string> {
+async function runTesseract(pngBuffer: Buffer, languageFlag: string): Promise<string> {
 	const scratchDir = resolve(tmpdir(), `tesseract-${randomUUID()}`);
 	const pngPath = resolve(scratchDir, "page.png");
 	await mkdir(scratchDir, { recursive: true });
 	await writeFile(pngPath, pngBuffer);
 	try {
-		return await spawnTesseract(pngPath, config);
+		return await spawnTesseract(pngPath, languageFlag);
 	} finally {
 		await rm(scratchDir, { recursive: true, force: true });
 	}
 }
 
-function spawnTesseract(pngPath: string, config: OcrConfig): Promise<string> {
+function spawnTesseract(pngPath: string, languageFlag: string): Promise<string> {
 	return new Promise((resolvePromise, rejectPromise) => {
-		// --tessdata-dir <dir>: authoritative data directory — makes the wrapper
-		//   independent of TESSDATA_PREFIX so dev/integration runs match Lambda
-		//   without relying on the container's environment defaults.
 		// --psm 1: auto page segmentation with OSD (orientation + script detection).
 		// --oem 1: pin the OCR engine to the LSTM neural net (the default `--oem 3`
 		//   means "best available" and resolves to LSTM in Tesseract 5.x, but pinning
@@ -101,14 +102,7 @@ function spawnTesseract(pngPath: string, config: OcrConfig): Promise<string> {
 		//   English/Portuguese/German/etc. — so the flag is short and the recogniser
 		//   only loads the script needed per region (tessdata is mmapped lazily).
 		// `-` as output base writes recognised text to stdout.
-		const child = spawn("tesseract", [
-			pngPath,
-			"-",
-			"--tessdata-dir", config.tessdataDir,
-			"--psm", "1",
-			"--oem", "1",
-			"-l", config.languageFlag,
-		]);
+		const child = spawn("tesseract", [pngPath, "-", "--psm", "1", "--oem", "1", "-l", languageFlag]);
 		const stdoutChunks: Buffer[] = [];
 		const stderrChunks: Buffer[] = [];
 		child.stdout.on("data", (chunk: Buffer) => stdoutChunks.push(chunk));
