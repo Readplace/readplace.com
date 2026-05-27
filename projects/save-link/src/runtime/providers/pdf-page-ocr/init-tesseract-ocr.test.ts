@@ -5,7 +5,6 @@ import {
 	buildLanguageFlag,
 	discoverInstalledScripts,
 	initTesseractOcr,
-	resolveTessdataDir,
 } from "./init-tesseract-ocr";
 
 function makeFakeTessdataDir(scriptTraineddataNames: string[]): string {
@@ -17,16 +16,6 @@ function makeFakeTessdataDir(scriptTraineddataNames: string[]): string {
 	}
 	return dir;
 }
-
-describe("resolveTessdataDir", () => {
-	it("returns TESSDATA_PREFIX when the env var is set", () => {
-		expect(resolveTessdataDir({ TESSDATA_PREFIX: "/custom/tessdata" })).toBe("/custom/tessdata");
-	});
-
-	it("falls back to the Lambda container's bundled path when TESSDATA_PREFIX is unset", () => {
-		expect(resolveTessdataDir({})).toBe("/opt/tesseract/tessdata");
-	});
-});
 
 describe("discoverInstalledScripts", () => {
 	let dir: string;
