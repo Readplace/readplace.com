@@ -147,15 +147,13 @@ describe("GET /", () => {
 		expect(submit?.textContent).toBe("Open in reader view");
 	});
 
-	it("should redirect homepage paste-link submissions to /view/<encoded-url> preserving UTM on the logged pageview", async () => {
+	it("should redirect homepage paste-link submissions to /view/<canonical-url> preserving UTM on the logged pageview", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get(
 			"/view?url=https%3A%2F%2Fexample.com%2Farticle&utm_source=homepage&utm_medium=internal&utm_content=homepage-link-input",
 		);
 		expect(response.status).toBe(302);
-		expect(response.headers.location).toBe(
-			`/view/${encodeURIComponent("https://example.com/article")}`,
-		);
+		expect(response.headers.location).toBe("/view/example.com/article");
 	});
 
 	it("should render the secondary CTA linking to GitHub", async () => {

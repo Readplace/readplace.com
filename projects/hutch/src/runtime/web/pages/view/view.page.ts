@@ -45,6 +45,7 @@ import { SaveErrorPage } from "../save/save-error.component";
 import { ViewLandingPage } from "./view-landing.component";
 import type { ExistsUserByIdPrefix } from "@packages/test-fixtures/providers/auth";
 import { PERMANENT_ARTICLE_DOMAINS, computePublicViewExpiry, formatSaveUtmContent, sharedUserIdFrom, sharedUserIdFromQueryParams, type ExpiryCountdown } from "./view-expiry";
+import { parseViewPath, viewPathFor } from "./view-path";
 import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.component";
 
 interface ViewDependencies {
@@ -106,7 +107,7 @@ function handleViewLanding(deps: ViewDependencies) {
 			await renderError(deps, req, res);
 			return;
 		}
-		res.redirect(302, `/view/${encodeURIComponent(validation.url)}`);
+		res.redirect(302, viewPathFor(validation.url));
 	};
 }
 
@@ -115,12 +116,16 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		req: Request<Record<string, string>>,
 		res: Response,
 	): Promise<void> => {
-		const rawPath = req.params[0];
-		// API Gateway v2 HTTP API decodes %2F to / before invoking Lambda, so
-		// /view/https%3A%2F%2Fexample.com arrives here as /view/https://example.com.
-		// Restore the scheme's second slash if any proxy collapsed it (https:/ → https://).
-		const normalizedUrl = rawPath.replace(/^(https?):\/(?!\/)/i, "$1://");
-		const validation = deps.validateSaveableUrl(normalizedUrl);
+		const queryIndex = req.originalUrl.indexOf("?");
+		const originalPath = queryIndex === -1 ? req.originalUrl : req.originalUrl.slice(0, queryIndex);
+		const encodedPath = originalPath.slice("/view/".length);
+		const parsed = parseViewPath({ rawPath: req.params[0], encodedPath });
+		if (parsed.kind === "redirect") {
+			const queryString = queryIndex === -1 ? "" : req.originalUrl.slice(queryIndex);
+			res.redirect(301, `${parsed.canonicalPath}${queryString}`);
+			return;
+		}
+		const validation = deps.validateSaveableUrl(parsed.articleUrl);
 		if (validation.status === "ERROR") {
 			await renderError(deps, req, res);
 			return;

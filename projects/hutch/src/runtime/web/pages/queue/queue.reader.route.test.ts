@@ -327,7 +327,7 @@ describe("Queue routes", () => {
 
 			expect(response.status).toBe(302);
 			const location = new URL(response.headers.location, TEST_APP_ORIGIN);
-			expect(location.pathname).toBe(`/view/${encodeURIComponent(articleUrl)}`);
+			expect(location.pathname).toBe(`/view/${new URL(articleUrl).host}${new URL(articleUrl).pathname}`);
 			expect(location.searchParams.get("utm_source")).toBe("read");
 			expect(location.searchParams.get("utm_medium")).toBe("share");
 			expect(location.searchParams.get("utm_campaign")).toBe("read-permalink");
@@ -358,7 +358,7 @@ describe("Queue routes", () => {
 
 			expect(response.status).toBe(302);
 			const location = new URL(response.headers.location, TEST_APP_ORIGIN);
-			expect(location.pathname).toBe(`/view/${encodeURIComponent(articleUrl)}`);
+			expect(location.pathname).toBe(`/view/${new URL(articleUrl).host}${new URL(articleUrl).pathname}`);
 			expect(location.searchParams.get("utm_source")).toBe("read");
 			expect(location.searchParams.get("utm_medium")).toBe("share");
 			expect(location.searchParams.get("utm_campaign")).toBe("read-permalink");
@@ -384,7 +384,7 @@ describe("Queue routes", () => {
 
 			expect(response.status).toBe(302);
 			const location = new URL(response.headers.location, TEST_APP_ORIGIN);
-			expect(location.pathname).toBe(`/view/${encodeURIComponent(articleUrl)}`);
+			expect(location.pathname).toBe(`/view/${new URL(articleUrl).host}${new URL(articleUrl).pathname}`);
 			expect(location.searchParams.get("utm_source")).toBe("twitter");
 			expect(location.searchParams.get("utm_medium")).toBe("social");
 			expect([...location.searchParams.keys()].filter((k) => k.startsWith("utm_"))).toHaveLength(2);

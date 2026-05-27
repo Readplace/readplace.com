@@ -135,7 +135,7 @@ describe("ViewPage", () => {
 	it("emits OG metadata using the article title and excerpt", () => {
 		const doc = render();
 
-		const canonical = `https://readplace.com/view/${encodeURIComponent("https://example.com/post")}`;
+		const canonical = `https://readplace.com/view/example.com/post`;
 		expect(
 			doc.querySelector('meta[property="og:title"]')?.getAttribute("content"),
 		).toBe("Hello World | Reader View");
@@ -500,7 +500,7 @@ describe("ViewPage", () => {
 				appOrigin: "https://staging.readplace.com",
 			});
 
-			const canonical = `https://readplace.com/view/${encodeURIComponent("https://example.com/post")}`;
+			const canonical = `https://readplace.com/view/example.com/post`;
 			assert.equal(
 				doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
 				canonical,

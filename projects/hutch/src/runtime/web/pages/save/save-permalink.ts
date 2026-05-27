@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { viewPathFor } from "../view/view-path";
 
 const DEFAULT_BASE_URL = "https://readplace.com";
 
@@ -26,7 +27,7 @@ export function buildSavePermalink(params: {
 		`utm_source=${encodeURIComponent(params.utmSource)}`,
 		`utm_content=${encodeURIComponent(params.utmContent)}`,
 	].join("&");
-	return `${params.baseUrl}/view/${encodeURIComponent(params.url)}?${query}`;
+	return `${params.baseUrl}${viewPathFor(params.url)}?${query}`;
 }
 
 type CliIO = {

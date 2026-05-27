@@ -9,6 +9,7 @@ import type {
 import type { Redirect } from "../../redirect.component";
 import { shareUserIdPrefix } from "../../shared/share-user-id";
 import { collectUtmParams } from "../../shared/utm";
+import { viewPathFor } from "../view/view-path";
 
 export interface ReaderPermalinkDeps {
 	findArticleById: FindArticleById;
@@ -55,7 +56,7 @@ function buildShareRedirectUrl(
 	if (requesterId !== undefined) {
 		params.set("utm_content", shareUserIdPrefix(requesterId));
 	}
-	return `/view/${encodeURIComponent(articleUrl)}?${params.toString()}`;
+	return `${viewPathFor(articleUrl)}?${params.toString()}`;
 }
 
 export function initReaderPermalink(deps: ReaderPermalinkDeps) {
