@@ -79,7 +79,20 @@ function createZip(layerRoot) {
 		rmSync(OUTPUT_ZIP);
 	}
 	console.log(`[build-layer] creating ${OUTPUT_ZIP}`);
-	run("zip", ["--recurse-paths", "--symlinks", OUTPUT_ZIP, "."], { cwd: layerRoot });
+	/* Deterministic build: pin mtimes to a fixed epoch (tar extraction sets
+	 * them to "now"), feed a sorted file list to zip (readdir order varies
+	 * between APFS and ext4), and strip OS-specific extra fields with -X
+	 * (high-precision timestamps, uid/gid). Without this, the zip SHA-256
+	 * changes on every rebuild, Pulumi replaces the LayerVersion, and every
+	 * Lambda that mounts the layer re-configures on every deploy. */
+	const script = [
+		"find . -exec touch -t 200001010000.00 {} +",
+		'find . \\( -type f -o -type l \\) -print | LC_ALL=C sort | zip -X --symlinks -@ "$OUTPUT_ZIP"',
+	].join(" && ");
+	run("sh", ["-c", script], {
+		cwd: layerRoot,
+		env: { ...process.env, OUTPUT_ZIP },
+	});
 }
 
 async function main() {
