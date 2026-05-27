@@ -79,6 +79,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 			STREAMS.parseErrors,
 			STREAMS.crawlOutcomes,
 		]);
+		expect(ignored.size).toBe(2);
 		const missing = [...declared].filter((s) => !referenced.has(s) && !ignored.has(s));
 		expect(missing).toEqual([]);
 	});
