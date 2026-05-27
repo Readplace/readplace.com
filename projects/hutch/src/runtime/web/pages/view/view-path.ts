@@ -29,25 +29,34 @@ export function viewPathFor(articleUrl: string): string {
 /** Parses the wildcard segment of `/view/*` into either the article URL to
  * render or the canonical path to 301-redirect to. */
 export function parseViewPath(input: ParseViewPathInput): ParseViewPathResult {
-	const normalized = input.rawPath.replace(/^(https?):\/(?!\/)/i, "$1://");
+	const rawPath = reEncodePartialPercents(input.rawPath);
+	const normalized = rawPath.replace(/^(https?):\/(?!\/)/i, "$1://");
 	const httpsMatch = /^https:\/\/(.+)$/i.exec(normalized);
 	if (httpsMatch) {
 		return { kind: "redirect", canonicalPath: `/view/${encodeArticlePathInfo(httpsMatch[1])}` };
 	}
 	const httpMatch = /^http:\/\/(.+)$/i.exec(normalized);
 	if (httpMatch) {
-		const wasCollapsed = input.rawPath !== normalized;
+		const wasCollapsed = rawPath !== normalized;
 		const wasSchemeEncoded = /^http%3a/i.test(input.encodedPath);
 		if (wasCollapsed || wasSchemeEncoded) {
 			return { kind: "redirect", canonicalPath: `/view/http://${encodeArticlePathInfo(httpMatch[1])}` };
 		}
 		return { kind: "render", articleUrl: normalized };
 	}
-	return { kind: "render", articleUrl: `https://${input.rawPath}` };
+	return { kind: "render", articleUrl: `https://${rawPath}` };
 }
 
 /** Re-encode `?` and `#` from the decoded article URL so the canonical keeps
  * them inside the path rather than letting Express split them into req.query. */
 function encodeArticlePathInfo(decodedTail: string): string {
 	return decodedTail.replace(/\?/g, "%3F").replace(/#/g, "%23");
+}
+
+/** Express decodes percent-encoding in the wildcard param, so `%25` (literal %)
+ * arrives as bare `%`. When the next two characters aren't hex digits, prepending
+ * `https://` would create an invalid URL. Re-encoding these orphaned `%`
+ * restores round-trip fidelity. */
+function reEncodePartialPercents(s: string): string {
+	return s.replace(/%(?![0-9a-fA-F]{2})/g, "%25");
 }

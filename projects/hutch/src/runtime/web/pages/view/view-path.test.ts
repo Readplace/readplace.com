@@ -47,6 +47,12 @@ describe("viewPathFor", () => {
 	it("renders an empty pathname as a single trailing slash from the URL constructor", () => {
 		expect(viewPathFor("https://example.com")).toBe("/view/example.com/");
 	});
+
+	it("preserves percent-encoded sequences in the pathname", () => {
+		expect(viewPathFor("https://example.com/path%25foo")).toBe(
+			"/view/example.com/path%25foo",
+		);
+	});
 });
 
 describe("parseViewPath", () => {
@@ -134,6 +140,20 @@ describe("parseViewPath", () => {
 		).toEqual({ kind: "render", articleUrl: "http://example.com/post" });
 	});
 
+	it("re-encodes bare % from Express-decoded paths so the article URL stays valid", () => {
+		expect(parse("example.com/path%foo")).toEqual({
+			kind: "render",
+			articleUrl: "https://example.com/path%25foo",
+		});
+	});
+
+	it("redirects https:// paths with bare % and re-encodes them in the redirect target", () => {
+		expect(parse("https://example.com/path%foo")).toEqual({
+			kind: "redirect",
+			canonicalPath: "/view/example.com/path%25foo",
+		});
+	});
+
 	it("is round-trip stable: parseViewPath(viewPathFor(url).slice('/view/'.length)) renders the same url", () => {
 		const url = "https://web.eecs.umich.edu/~weimerw/path";
 		const path = viewPathFor(url);
@@ -145,6 +165,13 @@ describe("parseViewPath", () => {
 		const url = "http://example.com/post";
 		const path = viewPathFor(url);
 		const rawWildcard = path.slice("/view/".length);
+		expect(parse(rawWildcard)).toEqual({ kind: "render", articleUrl: url });
+	});
+
+	it("is round-trip stable for percent-encoded article URLs through Express decode", () => {
+		const url = "https://example.com/path%25foo";
+		const path = viewPathFor(url);
+		const rawWildcard = decodeURIComponent(path.slice("/view/".length));
 		expect(parse(rawWildcard)).toEqual({ kind: "render", articleUrl: url });
 	});
 });
