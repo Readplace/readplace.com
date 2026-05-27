@@ -114,26 +114,18 @@ describe("Base component", () => {
 		expect(doc.querySelector('[data-test-nav-item="import"]')).toBeNull();
 	});
 
-	it("renders the Account nav item when showSubscription is true", () => {
+	it("renders the Account nav item for authenticated full-access users", () => {
 		const page = createTestPageBody();
-		const result = Base(page, { isAuthenticated: true, emailVerified: true, showSubscription: true }).to("text/html");
+		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
 		const button = doc.querySelector('[data-test-nav-item="account"]');
-		assert(button, "Account nav item must be rendered when feature flag is set");
+		assert(button, "Account nav item must be rendered for authenticated users");
 		expect(button.textContent).toBe("Account");
 		const form = button.closest("form");
 		assert(form, "Account nav item must be wrapped in a form");
 		expect(form.getAttribute("method")?.toUpperCase()).toBe("GET");
-		expect(form.getAttribute("action")).toBe("/account?feature=subscription");
-	});
-
-	it("hides the Account nav item when showSubscription is false", () => {
-		const page = createTestPageBody();
-		const result = Base(page, { isAuthenticated: true, emailVerified: true, showSubscription: false }).to("text/html");
-		const doc = new JSDOM(result.body).window.document;
-
-		expect(doc.querySelector('[data-test-nav-item="account"]')).toBeNull();
+		expect(form.getAttribute("action")).toBe("/account");
 	});
 
 	it("hides the Account nav item for unauthenticated requests", () => {
@@ -144,12 +136,11 @@ describe("Base component", () => {
 		expect(doc.querySelector('[data-test-nav-item="account"]')).toBeNull();
 	});
 
-	it("renders the full nav (queue + import + export + account + logout) for an authenticated full-access user with showSubscription", () => {
+	it("renders the full nav (queue + import + export + account + logout) for an authenticated full-access user", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
 			isAuthenticated: true,
 			emailVerified: true,
-			showSubscription: true,
 			accessIsReadOnly: false,
 		}).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
@@ -165,7 +156,6 @@ describe("Base component", () => {
 		const result = Base(page, {
 			isAuthenticated: true,
 			emailVerified: true,
-			showSubscription: true,
 			accessIsReadOnly: true,
 		}).to("text/html");
 		const doc = new JSDOM(result.body).window.document;

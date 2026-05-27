@@ -204,7 +204,6 @@ function renderBaseTemplate(body: PageBody, state: BannerState): string {
 		header: Nav({
 			variant: headerVariant,
 			isAuthenticated: state.isAuthenticated,
-			showSubscription: state.showSubscription ?? false,
 			accessIsReadOnly: state.accessIsReadOnly ?? false,
 			trialCounter: state.trial,
 		}),

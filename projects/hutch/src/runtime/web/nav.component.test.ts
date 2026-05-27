@@ -21,7 +21,6 @@ describe("Nav component", () => {
 			Nav({
 				variant: "default",
 				isAuthenticated: true,
-				showSubscription: false,
 				accessIsReadOnly: false,
 			}),
 		);
@@ -34,7 +33,6 @@ describe("Nav component", () => {
 			Nav({
 				variant: "default",
 				isAuthenticated: true,
-				showSubscription: false,
 				accessIsReadOnly: false,
 				trialCounter: ACTIVE_TRIAL,
 			}),
@@ -55,7 +53,6 @@ describe("Nav component", () => {
 			Nav({
 				variant: "default",
 				isAuthenticated: true,
-				showSubscription: false,
 				accessIsReadOnly: false,
 				trialCounter: { state: "expired" },
 			}),
@@ -70,12 +67,11 @@ describe("Nav component", () => {
 		expect(countdown.getAttribute("data-server-now-iso")).toBe("");
 	});
 
-	it("renders authenticated nav items (queue, import, export, sign out) for an authenticated user", () => {
+	it("renders authenticated nav items (queue, import, export, account, sign out) for an authenticated full-access user", () => {
 		const doc = parse(
 			Nav({
 				variant: "default",
 				isAuthenticated: true,
-				showSubscription: false,
 				accessIsReadOnly: false,
 			}),
 		);
@@ -87,24 +83,11 @@ describe("Nav component", () => {
 		assert(doc.querySelector('[data-test-nav-item="import"]'));
 		assert(doc.querySelector('[data-test-nav-item="export"]'));
 		assert(doc.querySelector('[data-test-nav-item="logout"]'));
-		expect(doc.querySelector('[data-test-nav-item="account"]')).toBeNull();
-	});
-
-	it("renders the account nav item only when showSubscription is true", () => {
-		const doc = parse(
-			Nav({
-				variant: "default",
-				isAuthenticated: true,
-				showSubscription: true,
-				accessIsReadOnly: false,
-			}),
-		);
-
 		const account = doc.querySelector('[data-test-nav-item="account"]');
-		assert(account, "account nav item must render when showSubscription is true");
+		assert(account, "account nav item must render for authenticated full-access users");
 		const form = account.closest("form");
 		assert(form, "account nav item must be inside a form");
-		expect(form.getAttribute("action")).toBe("/account?feature=subscription");
+		expect(form.getAttribute("action")).toBe("/account");
 	});
 
 	it("renders guest nav items (features, signup) for an unauthenticated user", () => {
@@ -112,7 +95,6 @@ describe("Nav component", () => {
 			Nav({
 				variant: "default",
 				isAuthenticated: false,
-				showSubscription: false,
 				accessIsReadOnly: false,
 			}),
 		);
@@ -130,7 +112,6 @@ describe("Nav component", () => {
 			Nav({
 				variant: "transparent",
 				isAuthenticated: false,
-				showSubscription: false,
 				accessIsReadOnly: false,
 			}),
 		);

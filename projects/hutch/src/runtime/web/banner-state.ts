@@ -8,7 +8,6 @@ import { toTrialDisplay, type TrialDisplay } from "./trial-countdown.format";
 export interface BannerStateSource {
 	userId?: UserId;
 	emailVerified?: boolean;
-	query?: Record<string, unknown>;
 }
 
 export type NavItemKey =
@@ -52,11 +51,6 @@ export interface BannerState {
 	 * pending cancellation; "active" for trialing users; "expired" for users
 	 * whose trial has lapsed or whose subscription was cancelled. */
 	trial?: TrialDisplay;
-	/** Single feature toggle (?feature=subscription) gating subscription-aware UI:
-	 * the /account menu entry in the header, and the queue-page banner aside
-	 * that surfaces either the trial countdown or the "subscription not active"
-	 * message. */
-	showSubscription?: boolean;
 	/** True when the user's effective access is read-only (trial-expired or
 	 * subscription-cancelled). Drives nav-item visibility: import (save flow
 	 * is gated server-side) and account (the trial-countdown link in the
@@ -78,7 +72,7 @@ const NAV_EXPORT: NavItem = { key: "export", label: "Export", href: "/export", m
 const NAV_ACCOUNT: NavItem = {
 	key: "account",
 	label: "Account",
-	href: "/account?feature=subscription",
+	href: "/account",
 	method: "GET",
 };
 const NAV_LOGOUT: NavItem = { key: "logout", label: "Sign out", href: "/logout", method: "POST" };
@@ -96,7 +90,6 @@ const NAV_SIGNUP: NavItem = { key: "signup", label: "Sign up", href: "/signup", 
 export function buildNavItems(input: {
 	isAuthenticated: boolean;
 	accessIsReadOnly: boolean;
-	showSubscription: boolean;
 }): NavItem[] {
 	if (!input.isAuthenticated) {
 		return [NAV_FEATURES, NAV_SIGNUP];
@@ -106,7 +99,7 @@ export function buildNavItems(input: {
 		items.push(NAV_IMPORT);
 	}
 	items.push(NAV_EXPORT);
-	if (input.showSubscription && !input.accessIsReadOnly) {
+	if (!input.accessIsReadOnly) {
 		items.push(NAV_ACCOUNT);
 	}
 	items.push(NAV_LOGOUT);
@@ -117,7 +110,6 @@ export function bannerStateFromRequest(source: BannerStateSource): BannerState {
 	return {
 		isAuthenticated: Boolean(source.userId),
 		emailVerified: source.emailVerified,
-		showSubscription: source.query?.feature === "subscription",
 	};
 }
 

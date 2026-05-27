@@ -27,22 +27,6 @@ describe("bannerStateFromRequest", () => {
 		expect(bannerStateFromRequest({ emailVerified: false }).emailVerified).toBe(false);
 		expect(bannerStateFromRequest({}).emailVerified).toBeUndefined();
 	});
-
-	it("sets showSubscription=true when query.feature is 'subscription'", () => {
-		expect(bannerStateFromRequest({ query: { feature: "subscription" } }).showSubscription).toBe(true);
-	});
-
-	it("sets showSubscription=false when query.feature is absent", () => {
-		expect(bannerStateFromRequest({}).showSubscription).toBe(false);
-	});
-
-	it("sets showSubscription=false when query.feature is a different value", () => {
-		expect(bannerStateFromRequest({ query: { feature: "other" } }).showSubscription).toBe(false);
-	});
-
-	it("sets showSubscription=false when query.feature is the legacy 'account' value (renamed to 'subscription')", () => {
-		expect(bannerStateFromRequest({ query: { feature: "account" } }).showSubscription).toBe(false);
-	});
 });
 
 describe("initBuildBannerState", () => {
@@ -55,7 +39,7 @@ describe("initBuildBannerState", () => {
 
 		const result = await buildBannerState({});
 
-		expect(result).toEqual({ isAuthenticated: false, emailVerified: undefined, showSubscription: false });
+		expect(result).toEqual({ isAuthenticated: false, emailVerified: undefined });
 		expect(getEffectiveAccess).not.toHaveBeenCalled();
 	});
 

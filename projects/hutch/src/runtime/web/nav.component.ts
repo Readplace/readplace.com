@@ -9,7 +9,6 @@ const NAV_TEMPLATE = readFileSync(join(__dirname, "nav.template.html"), "utf-8")
 export interface NavProps {
 	variant: "default" | "transparent";
 	isAuthenticated: boolean;
-	showSubscription: boolean;
 	accessIsReadOnly: boolean;
 	/** Absence means the user is not on a trial — no countdown rendered.
 	 * Pre-auth pages (login, signup, forgot-password) build banner state from
@@ -24,7 +23,6 @@ export function Nav(props: NavProps): string {
 	const navItems = buildNavItems({
 		isAuthenticated: props.isAuthenticated,
 		accessIsReadOnly: props.accessIsReadOnly,
-		showSubscription: props.showSubscription,
 	});
 	return render(NAV_TEMPLATE, {
 		transparent: props.variant === "transparent",

@@ -54,7 +54,7 @@ export function formatUnreadLabel(count: number): string {
 	return count > 99 ? "To read (99+)" : `To read (${count})`;
 }
 
-function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: boolean; extensionSavedArticle: boolean; browser: BrowserName; onboardingDismissed: boolean; showSubscriptionBanner: boolean }): QueueDisplayModel {
+function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: boolean; extensionSavedArticle: boolean; browser: BrowserName; onboardingDismissed: boolean }): QueueDisplayModel {
 	const activeTab = vm.filters.tab;
 	const effectiveOrder = vm.filters.order ?? tabQuery(activeTab).defaultOrder;
 	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
@@ -69,13 +69,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 			browser: options.browser,
 		});
 
-	/** The queue-banner aside is gated by the ?feature=subscription toggle.
-	 * When the toggle is off we collapse the banner to state="none" so the
-	 * existing `.queue-banner--none { display: none }` CSS rule hides both
-	 * the trial countdown and the "Subscription not active" message. */
-	const banner: SubscriptionBannerState = options.showSubscriptionBanner
-		? vm.subscriptionBanner
-		: { state: "none" };
+	const banner: SubscriptionBannerState = vm.subscriptionBanner;
 	return {
 		saveError: vm.errors?.[0]?.message,
 		saveErrorCode: vm.saveErrorCode,
@@ -129,9 +123,9 @@ const AUTO_SUBMIT_SCRIPT = `
 </script>
 `;
 
-export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; extensionInstalled?: boolean; extensionSavedArticle?: boolean; browser?: BrowserName; onboardingDismissed?: boolean; showSubscriptionBanner?: boolean; statusCode?: number }): PageBody {
+export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; extensionInstalled?: boolean; extensionSavedArticle?: boolean; browser?: BrowserName; onboardingDismissed?: boolean; statusCode?: number }): PageBody {
 	const saveUrl = options?.saveUrl;
-	const displayModel = toQueueDisplayModel(vm, { extensionInstalled: options?.extensionInstalled ?? false, extensionSavedArticle: options?.extensionSavedArticle ?? false, browser: options?.browser ?? "other", onboardingDismissed: options?.onboardingDismissed ?? false, showSubscriptionBanner: options?.showSubscriptionBanner ?? false });
+	const displayModel = toQueueDisplayModel(vm, { extensionInstalled: options?.extensionInstalled ?? false, extensionSavedArticle: options?.extensionSavedArticle ?? false, browser: options?.browser ?? "other", onboardingDismissed: options?.onboardingDismissed ?? false });
 	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl });
 
 	const scriptParts: string[] = [];
