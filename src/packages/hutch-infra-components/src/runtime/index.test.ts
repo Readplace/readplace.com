@@ -3,6 +3,11 @@ import type {
 	EventBridgeClient,
 	PutEventsCommand,
 } from "@aws-sdk/client-eventbridge";
+import { z } from "zod";
+import {
+	SimpleCrawlUnsupportedEvent,
+	StaleCheckRequestedEvent,
+} from "../events";
 import { initEventBridgePublisher, PayloadTooLargeError } from "./index";
 
 function createFakeClient(sendImpl?: (cmd: PutEventsCommand) => Promise<unknown>): {
@@ -25,17 +30,15 @@ describe("initEventBridgePublisher", () => {
 			eventBusName: "test-bus",
 		});
 
-		await publishEvent({
-			source: "hutch.api",
-			detailType: "SomeCommand",
-			detail: JSON.stringify({ url: "https://example.com/article" }),
+		await publishEvent(StaleCheckRequestedEvent, {
+			url: "https://example.com/article",
 		});
 
 		expect(commands).toHaveLength(1);
 		expect(commands[0].input.Entries).toEqual([
 			{
-				Source: "hutch.api",
-				DetailType: "SomeCommand",
+				Source: StaleCheckRequestedEvent.source,
+				DetailType: StaleCheckRequestedEvent.detailType,
 				Detail: JSON.stringify({ url: "https://example.com/article" }),
 				EventBusName: "test-bus",
 			},
@@ -53,10 +56,8 @@ describe("initEventBridgePublisher", () => {
 		});
 
 		await expect(
-			publishEvent({
-				source: "hutch.api",
-				detailType: "SomeCommand",
-				detail: JSON.stringify({ url: "https://example.com/article" }),
+			publishEvent(StaleCheckRequestedEvent, {
+				url: "https://example.com/article",
 			}),
 		).rejects.toThrow(/EventBridge PutEvents failed/);
 	});
@@ -68,14 +69,12 @@ describe("initEventBridgePublisher", () => {
 			eventBusName: "test-bus",
 		});
 
-		// 241 KB string — pushes the request over the 240 KB cap.
+		// 241 KB URL — pushes the request over the 240 KB cap.
 		const oversize = "x".repeat(241_000);
 
 		await expect(
-			publishEvent({
-				source: "hutch.api",
-				detailType: "BloatedCommand",
-				detail: JSON.stringify({ url: "https://example.com/a", padding: oversize }),
+			publishEvent(StaleCheckRequestedEvent, {
+				url: `https://example.com/${oversize}`,
 			}),
 		).rejects.toBeInstanceOf(PayloadTooLargeError);
 
@@ -91,16 +90,14 @@ describe("initEventBridgePublisher", () => {
 		const oversize = "x".repeat(241_000);
 
 		try {
-			await publishEvent({
-				source: "hutch.api",
-				detailType: "BloatedCommand",
-				detail: JSON.stringify({ url: "https://example.com/a", padding: oversize }),
+			await publishEvent(StaleCheckRequestedEvent, {
+				url: `https://example.com/${oversize}`,
 			});
 			fail("expected publishEvent to throw");
 		} catch (error) {
 			assert(error instanceof PayloadTooLargeError);
-			expect(error.source).toBe("hutch.api");
-			expect(error.detailType).toBe("BloatedCommand");
+			expect(error.source).toBe(StaleCheckRequestedEvent.source);
+			expect(error.detailType).toBe(StaleCheckRequestedEvent.detailType);
 			expect(error.byteLength).toBeGreaterThan(240_000);
 			expect(error.name).toBe("PayloadTooLargeError");
 		}
@@ -113,10 +110,29 @@ describe("initEventBridgePublisher", () => {
 			eventBusName: "test-bus",
 		});
 
-		// 200 KB payload — well under the 240 KB cap once AWS-side envelope fields are accounted for.
-		const detail = JSON.stringify({ url: "https://example.com/a", padding: "x".repeat(200_000) });
-		await publishEvent({ source: "hutch.api", detailType: "ReasonablyLargeCommand", detail });
+		// 200 KB URL — well under the 240 KB cap once AWS-side envelope fields are accounted for.
+		await publishEvent(StaleCheckRequestedEvent, {
+			url: `https://example.com/${"x".repeat(200_000)}`,
+		});
 
 		expect(commands).toHaveLength(1);
+	});
+
+	it("rejects when the detail fails schema validation so refinements (e.g. mutex flags) cannot reach subscribers as malformed payloads", async () => {
+		const { client } = createFakeClient();
+		const { publishEvent } = initEventBridgePublisher({
+			client,
+			eventBusName: "test-bus",
+		});
+
+		await expect(
+			publishEvent(SimpleCrawlUnsupportedEvent, {
+				url: "https://example.com/doc.pdf",
+				recrawl: true,
+				refresh: true,
+			}),
+		).rejects.toBeInstanceOf(z.ZodError);
+
+		expect(client.send).not.toHaveBeenCalled();
 	});
 });

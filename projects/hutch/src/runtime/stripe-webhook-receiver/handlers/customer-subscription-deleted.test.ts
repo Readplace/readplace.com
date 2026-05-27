@@ -30,10 +30,10 @@ describe("initHandleCustomerSubscriptionDeleted", () => {
 		const findSubscriptionBySubscriptionId = await buildSubscriptionLookup([
 			{ userId: "user-cancel-me", subscriptionId: "sub_cancel_me" },
 		]);
-		const published: Array<{ source: string; detailType: string; detail: string }> = [];
+		const published: Array<{ event: { source: string; detailType: string }; detail: unknown }> = [];
 		const handle = initHandleCustomerSubscriptionDeleted({
 			findSubscriptionBySubscriptionId,
-			publishEvent: async (e) => { published.push(e); },
+			publishEvent: async (event, detail) => { published.push({ event, detail }); },
 		});
 
 		await handle({
@@ -42,9 +42,9 @@ describe("initHandleCustomerSubscriptionDeleted", () => {
 		});
 
 		assert.equal(published.length, 1);
-		assert.equal(published[0].source, SubscriptionCancelledEvent.source);
-		assert.equal(published[0].detailType, SubscriptionCancelledEvent.detailType);
-		assert.deepStrictEqual(JSON.parse(published[0].detail), {
+		assert.equal(published[0].event.source, SubscriptionCancelledEvent.source);
+		assert.equal(published[0].event.detailType, SubscriptionCancelledEvent.detailType);
+		assert.deepStrictEqual(published[0].detail, {
 			userId: "user-cancel-me",
 			subscriptionId: "sub_cancel_me",
 			reason: "stripe_webhook",
@@ -55,7 +55,7 @@ describe("initHandleCustomerSubscriptionDeleted", () => {
 		const published: unknown[] = [];
 		const handle = initHandleCustomerSubscriptionDeleted({
 			findSubscriptionBySubscriptionId: async () => undefined,
-			publishEvent: async (e) => { published.push(e); },
+			publishEvent: async (event, detail) => { published.push({ event, detail }); },
 		});
 
 		await handle({

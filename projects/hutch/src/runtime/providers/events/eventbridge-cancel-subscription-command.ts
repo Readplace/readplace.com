@@ -6,20 +6,9 @@ import type { PublishCancelSubscriptionCommand } from "@packages/test-fixtures/p
 export function initEventBridgeCancelSubscriptionCommand(deps: {
 	publishEvent: PublishEvent;
 }): { publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand } {
-	const { publishEvent } = deps;
-
-	const publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand = async (params) => {
-		await publishEvent({
-			source: CancelSubscriptionCommand.source,
-			detailType: CancelSubscriptionCommand.detailType,
-			detail: JSON.stringify(
-				CancelSubscriptionCommand.detailSchema.parse({
-					userId: params.userId,
-				}),
-			),
-		});
+	return {
+		publishCancelSubscriptionCommand: (params) =>
+			deps.publishEvent(CancelSubscriptionCommand, params),
 	};
-
-	return { publishCancelSubscriptionCommand };
 }
 /* c8 ignore stop */

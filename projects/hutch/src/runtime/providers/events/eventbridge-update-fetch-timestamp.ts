@@ -6,19 +6,9 @@ import type { PublishUpdateFetchTimestamp } from "@packages/test-fixtures/provid
 export function initEventBridgeUpdateFetchTimestamp(deps: {
 	publishEvent: PublishEvent;
 }): { publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp } {
-	const { publishEvent } = deps;
-
-	const publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp = async (params) => {
-		await publishEvent({
-			source: UpdateFetchTimestampCommand.source,
-			detailType: UpdateFetchTimestampCommand.detailType,
-			detail: JSON.stringify({
-				url: params.url,
-				contentFetchedAt: params.contentFetchedAt,
-			}),
-		});
+	return {
+		publishUpdateFetchTimestamp: (params) =>
+			deps.publishEvent(UpdateFetchTimestampCommand, params),
 	};
-
-	return { publishUpdateFetchTimestamp };
 }
 /* c8 ignore stop */

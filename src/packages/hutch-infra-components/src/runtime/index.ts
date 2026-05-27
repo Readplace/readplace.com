@@ -1,19 +1,20 @@
 import assert from "node:assert";
+import type { z } from "zod";
 import {
 	EventBridgeClient,
 	PutEventsCommand,
 } from "@aws-sdk/client-eventbridge";
+import type { HutchEvent } from "../events";
 
 export {
 	initSqsCommandDispatcher,
 	type DispatchCommand,
 } from "./sqs-command-dispatcher";
 
-export type PublishEvent = (params: {
-	source: string;
-	detailType: string;
-	detail: string;
-}) => Promise<void>;
+export type PublishEvent = <E extends HutchEvent<z.ZodTypeAny>>(
+	event: E,
+	detail: z.infer<E["detailSchema"]>,
+) => Promise<void>;
 
 /** Defensive cap to keep `PutEventsCommand` requests inside EventBridge's
  * 256 KB per-request limit. 16 KB of headroom covers AWS-side envelope fields
@@ -49,20 +50,21 @@ export function initEventBridgePublisher(deps: {
 }): { publishEvent: PublishEvent } {
 	const { client, eventBusName } = deps;
 
-	const publishEvent: PublishEvent = async (params) => {
+	const publishEvent: PublishEvent = async (event, detail) => {
+		const validated = event.detailSchema.parse(detail);
 		const Entries = [
 			{
-				Source: params.source,
-				DetailType: params.detailType,
-				Detail: params.detail,
+				Source: event.source,
+				DetailType: event.detailType,
+				Detail: JSON.stringify(validated),
 				EventBusName: eventBusName,
 			},
 		];
 		const byteLength = Buffer.byteLength(JSON.stringify(Entries), "utf8");
 		if (byteLength > MAX_PUT_EVENTS_REQUEST_BYTES) {
 			throw new PayloadTooLargeError({
-				source: params.source,
-				detailType: params.detailType,
+				source: event.source,
+				detailType: event.detailType,
 				byteLength,
 			});
 		}

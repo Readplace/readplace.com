@@ -37,75 +37,46 @@ export function initLambdaEffectDispatcher(deps: {
 				 * is wired on every Lambda, so no new queue / env var / IAM grant
 				 * is required at the publisher. The future subscriber Lambda
 				 * lands via eventBus.subscribe(SubmitLinkCommand, …) in infra. */
-				await publishEvent({
-					source: SubmitLinkCommand.source,
-					detailType: SubmitLinkCommand.detailType,
-					detail: JSON.stringify({
-						url: effect.url,
-						...(effect.userId !== undefined ? { userId: effect.userId } : {}),
-						...(effect.rawHtml !== undefined ? { rawHtml: effect.rawHtml } : {}),
-					}),
+				await publishEvent(SubmitLinkCommand, {
+					url: effect.url,
+					...(effect.userId !== undefined ? { userId: effect.userId } : {}),
+					...(effect.rawHtml !== undefined ? { rawHtml: effect.rawHtml } : {}),
 				});
 				return;
 			case "publish-crawl-article-failed":
-				await publishEvent({
-					source: CrawlArticleFailedEvent.source,
-					detailType: CrawlArticleFailedEvent.detailType,
-					detail: JSON.stringify({
-						url: effect.url,
-						reason: effect.reason,
-						receiveCount: effect.receiveCount,
-					}),
+				await publishEvent(CrawlArticleFailedEvent, {
+					url: effect.url,
+					reason: effect.reason,
+					receiveCount: effect.receiveCount,
 				});
 				return;
 			case "publish-recrawl-completed":
-				await publishEvent({
-					source: RecrawlCompletedEvent.source,
-					detailType: RecrawlCompletedEvent.detailType,
-					detail: JSON.stringify({ url: effect.url }),
-				});
+				await publishEvent(RecrawlCompletedEvent, { url: effect.url });
 				return;
 			case "publish-crawl-article-completed":
-				await publishEvent({
-					source: CrawlArticleCompletedEvent.source,
-					detailType: CrawlArticleCompletedEvent.detailType,
-					detail: JSON.stringify({ url: effect.url }),
-				});
+				await publishEvent(CrawlArticleCompletedEvent, { url: effect.url });
 				return;
 			case "publish-link-saved":
-				await publishEvent({
-					source: LinkSavedEvent.source,
-					detailType: LinkSavedEvent.detailType,
-					detail: JSON.stringify({ url: effect.url, userId: effect.userId }),
+				await publishEvent(LinkSavedEvent, {
+					url: effect.url,
+					userId: effect.userId,
 				});
 				return;
 			case "publish-anonymous-link-saved":
-				await publishEvent({
-					source: AnonymousLinkSavedEvent.source,
-					detailType: AnonymousLinkSavedEvent.detailType,
-					detail: JSON.stringify({ url: effect.url }),
-				});
+				await publishEvent(AnonymousLinkSavedEvent, { url: effect.url });
 				return;
 			case "publish-summary-generated":
-				await publishEvent({
-					source: SummaryGeneratedEvent.source,
-					detailType: SummaryGeneratedEvent.detailType,
-					detail: JSON.stringify({
-						url: effect.url,
-						inputTokens: effect.inputTokens,
-						outputTokens: effect.outputTokens,
-					}),
+				await publishEvent(SummaryGeneratedEvent, {
+					url: effect.url,
+					inputTokens: effect.inputTokens,
+					outputTokens: effect.outputTokens,
 				});
 				return;
 			case "publish-summary-generation-failed":
-				await publishEvent({
-					source: SummaryGenerationFailedEvent.source,
-					detailType: SummaryGenerationFailedEvent.detailType,
-					detail: JSON.stringify({
-						url: effect.url,
-						reason: effect.reason,
-						receiveCount: effect.receiveCount,
-					}),
+				await publishEvent(SummaryGenerationFailedEvent, {
+					url: effect.url,
+					reason: effect.reason,
+					receiveCount: effect.receiveCount,
 				});
 				return;
 			default: {

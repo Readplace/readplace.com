@@ -59,11 +59,6 @@ export function initEventsDepBundle(deps: {
 export function initEmitSimpleCrawlUnsupported(deps: {
 	publishEvent: PublishEvent;
 }): EmitSimpleCrawlUnsupported {
-	return async ({ url, userId, recrawl, refresh }) => {
-		await deps.publishEvent({
-			source: SimpleCrawlUnsupportedEvent.source,
-			detailType: SimpleCrawlUnsupportedEvent.detailType,
-			detail: JSON.stringify({ url, userId, recrawl, refresh }),
-		});
-	};
+	return ({ url, userId, recrawl, refresh }) =>
+		deps.publishEvent(SimpleCrawlUnsupportedEvent, { url, userId, recrawl, refresh });
 }

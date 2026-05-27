@@ -27,15 +27,11 @@ export function initSimpleCrawlUnsupportedPolicyHandler(deps: {
 				const envelope = JSON.parse(record.body);
 				const detail = SimpleCrawlUnsupportedEvent.detailSchema.parse(envelope.detail);
 
-				await publishEvent({
-					source: ComprehensiveCrawlCommand.source,
-					detailType: ComprehensiveCrawlCommand.detailType,
-					detail: JSON.stringify({
-						url: detail.url,
-						userId: detail.userId,
-						recrawl: detail.recrawl,
-						refresh: detail.refresh,
-					}),
+				await publishEvent(ComprehensiveCrawlCommand, {
+					url: detail.url,
+					userId: detail.userId,
+					recrawl: detail.recrawl,
+					refresh: detail.refresh,
 				});
 
 				logger.info(`${logPrefix} dispatched ComprehensiveCrawlCommand`, {

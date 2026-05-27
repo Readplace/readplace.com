@@ -3,6 +3,11 @@ import urls from "@11ty/posthtml-urls";
 import { noopLogger } from "@packages/hutch-logger";
 import type { ComprehensiveCrawl } from "@packages/crawl-article";
 import { markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import {
+	RecrawlContentExtractedEvent,
+	RefreshContentExtractedEvent,
+	TierContentExtractedEvent,
+} from "@packages/hutch-infra-components";
 import { initComprehensiveCrawlHandler } from "./comprehensive-crawl-handler";
 import { initProcessContentWithLocalMedia } from "../save-link/process-content-with-local-media";
 import type { ParseHtml } from "@packages/article-parser";
@@ -123,10 +128,10 @@ describe("initComprehensiveCrawlHandler", () => {
 			}),
 		});
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "TierContentExtracted",
-			detail: JSON.stringify({ url: "https://example.com/doc.pdf", tier: "tier-1", userId: "user-1" }),
+		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
+			url: "https://example.com/doc.pdf",
+			tier: "tier-1",
+			userId: "user-1",
 		});
 	});
 
@@ -137,10 +142,10 @@ describe("initComprehensiveCrawlHandler", () => {
 
 		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), stubContext, () => {});
 
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "TierContentExtracted",
-			detail: JSON.stringify({ url: "https://example.com/doc.pdf", tier: "tier-1" }),
+		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
+			url: "https://example.com/doc.pdf",
+			tier: "tier-1",
+			userId: undefined,
 		});
 	});
 
@@ -152,10 +157,8 @@ describe("initComprehensiveCrawlHandler", () => {
 		await handler(createSqsEvent({ url: "https://example.com/doc.pdf", recrawl: true }), stubContext, () => {});
 
 		expect(publishEvent).toHaveBeenCalledTimes(1);
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "RecrawlContentExtracted",
-			detail: JSON.stringify({ url: "https://example.com/doc.pdf" }),
+		expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, {
+			url: "https://example.com/doc.pdf",
 		});
 	});
 
@@ -175,15 +178,11 @@ describe("initComprehensiveCrawlHandler", () => {
 
 		expect(updateFetchTimestamp).not.toHaveBeenCalled();
 		expect(publishEvent).toHaveBeenCalledTimes(1);
-		expect(publishEvent).toHaveBeenCalledWith({
-			source: "hutch.save-link",
-			detailType: "RefreshContentExtracted",
-			detail: JSON.stringify({
-				url: "https://example.com/doc.pdf",
-				etag: '"refreshed-pdf"',
-				lastModified: "Sat, 17 May 2026 00:00:00 GMT",
-				contentFetchedAt: "2026-04-18T12:00:00.000Z",
-			}),
+		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, {
+			url: "https://example.com/doc.pdf",
+			etag: '"refreshed-pdf"',
+			lastModified: "Sat, 17 May 2026 00:00:00 GMT",
+			contentFetchedAt: "2026-04-18T12:00:00.000Z",
 		});
 	});
 

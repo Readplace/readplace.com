@@ -6,22 +6,9 @@ import type { PublishSubscriptionChargeSucceeded } from "@packages/test-fixtures
 export function initEventBridgeSubscriptionChargeSucceeded(deps: {
 	publishEvent: PublishEvent;
 }): { publishSubscriptionChargeSucceeded: PublishSubscriptionChargeSucceeded } {
-	const { publishEvent } = deps;
-
-	const publishSubscriptionChargeSucceeded: PublishSubscriptionChargeSucceeded = async (params) => {
-		await publishEvent({
-			source: SubscriptionChargeSucceededEvent.source,
-			detailType: SubscriptionChargeSucceededEvent.detailType,
-			detail: JSON.stringify(
-				SubscriptionChargeSucceededEvent.detailSchema.parse({
-					userId: params.userId,
-					subscriptionId: params.subscriptionId,
-					customerId: params.customerId,
-				}),
-			),
-		});
+	return {
+		publishSubscriptionChargeSucceeded: (params) =>
+			deps.publishEvent(SubscriptionChargeSucceededEvent, params),
 	};
-
-	return { publishSubscriptionChargeSucceeded };
 }
 /* c8 ignore stop */

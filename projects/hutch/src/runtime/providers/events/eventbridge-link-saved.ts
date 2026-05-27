@@ -6,19 +6,8 @@ import type { PublishLinkSaved } from "@packages/test-fixtures/providers/events"
 export function initEventBridgeLinkSaved(deps: {
 	publishEvent: PublishEvent;
 }): { publishLinkSaved: PublishLinkSaved } {
-	const { publishEvent } = deps;
-
-	const publishLinkSaved: PublishLinkSaved = async (params) => {
-		await publishEvent({
-			source: SaveLinkCommand.source,
-			detailType: SaveLinkCommand.detailType,
-			detail: JSON.stringify({
-				url: params.url,
-				userId: params.userId,
-			}),
-		});
+	return {
+		publishLinkSaved: (params) => deps.publishEvent(SaveLinkCommand, params),
 	};
-
-	return { publishLinkSaved };
 }
 /* c8 ignore stop */

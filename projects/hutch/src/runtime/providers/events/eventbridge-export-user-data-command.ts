@@ -6,20 +6,9 @@ import type { PublishExportUserDataCommand } from "@packages/test-fixtures/provi
 export function initEventBridgeExportUserDataCommand(deps: {
 	publishEvent: PublishEvent;
 }): { publishExportUserDataCommand: PublishExportUserDataCommand } {
-	const { publishEvent } = deps;
-
-	const publishExportUserDataCommand: PublishExportUserDataCommand = async (params) => {
-		await publishEvent({
-			source: ExportUserDataCommand.source,
-			detailType: ExportUserDataCommand.detailType,
-			detail: JSON.stringify({
-				userId: params.userId,
-				email: params.email,
-				requestedAt: params.requestedAt,
-			}),
-		});
+	return {
+		publishExportUserDataCommand: (params) =>
+			deps.publishEvent(ExportUserDataCommand, params),
 	};
-
-	return { publishExportUserDataCommand };
 }
 /* c8 ignore stop */

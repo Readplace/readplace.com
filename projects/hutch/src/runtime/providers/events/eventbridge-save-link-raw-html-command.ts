@@ -6,20 +6,9 @@ import type { PublishSaveLinkRawHtmlCommand } from "@packages/test-fixtures/prov
 export function initEventBridgeSaveLinkRawHtmlCommand(deps: {
 	publishEvent: PublishEvent;
 }): { publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand } {
-	const { publishEvent } = deps;
-
-	const publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand = async (params) => {
-		await publishEvent({
-			source: SaveLinkRawHtmlCommand.source,
-			detailType: SaveLinkRawHtmlCommand.detailType,
-			detail: JSON.stringify({
-				url: params.url,
-				userId: params.userId,
-				title: params.title,
-			}),
-		});
+	return {
+		publishSaveLinkRawHtmlCommand: (params) =>
+			deps.publishEvent(SaveLinkRawHtmlCommand, params),
 	};
-
-	return { publishSaveLinkRawHtmlCommand };
 }
 /* c8 ignore stop */

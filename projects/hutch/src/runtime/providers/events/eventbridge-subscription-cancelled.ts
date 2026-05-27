@@ -6,22 +6,9 @@ import type { PublishSubscriptionCancelled } from "@packages/test-fixtures/provi
 export function initEventBridgeSubscriptionCancelled(deps: {
 	publishEvent: PublishEvent;
 }): { publishSubscriptionCancelled: PublishSubscriptionCancelled } {
-	const { publishEvent } = deps;
-
-	const publishSubscriptionCancelled: PublishSubscriptionCancelled = async (params) => {
-		await publishEvent({
-			source: SubscriptionCancelledEvent.source,
-			detailType: SubscriptionCancelledEvent.detailType,
-			detail: JSON.stringify(
-				SubscriptionCancelledEvent.detailSchema.parse({
-					userId: params.userId,
-					subscriptionId: params.subscriptionId,
-					reason: params.reason,
-				}),
-			),
-		});
+	return {
+		publishSubscriptionCancelled: (params) =>
+			deps.publishEvent(SubscriptionCancelledEvent, params),
 	};
-
-	return { publishSubscriptionCancelled };
 }
 /* c8 ignore stop */

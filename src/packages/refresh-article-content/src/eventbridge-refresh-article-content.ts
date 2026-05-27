@@ -11,17 +11,13 @@ export function initEventBridgeRefreshArticleContent(deps: {
 
 	const publishRefreshArticleContent: PublishRefreshArticleContent = async (params) => {
 		await putRefreshHtml({ url: params.url, html: params.html });
-		await publishEvent({
-			source: RefreshArticleContentCommand.source,
-			detailType: RefreshArticleContentCommand.detailType,
-			detail: JSON.stringify({
-				url: params.url,
-				metadata: params.metadata,
-				estimatedReadTime: params.estimatedReadTime,
-				etag: params.etag,
-				lastModified: params.lastModified,
-				contentFetchedAt: params.contentFetchedAt,
-			}),
+		await publishEvent(RefreshArticleContentCommand, {
+			url: params.url,
+			metadata: params.metadata,
+			estimatedReadTime: params.estimatedReadTime,
+			etag: params.etag,
+			lastModified: params.lastModified,
+			contentFetchedAt: params.contentFetchedAt,
 		});
 	};
 
