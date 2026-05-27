@@ -4,6 +4,7 @@ import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
 import { initSubscriptionChargeSucceededHandler } from "./subscription-charge-succeeded-handler";
+import { initEmitSubscriptionEvent, type SubscriptionLogEvent } from "../observability/subscription-events";
 
 const USER_ID = UserIdSchema.parse("2".repeat(32));
 
@@ -15,15 +16,30 @@ function buildBody(detail: {
 	return JSON.stringify({ detail });
 }
 
+function setup() {
+	const providers = initInMemorySubscriptionProviders({ now: () => new Date("2026-06-06T00:00:00.000Z") });
+	const captured: SubscriptionLogEvent[] = [];
+	const emit = initEmitSubscriptionEvent({
+		logger: {
+			info: (data) => { captured.push(data); },
+			error: () => {},
+			warn: () => {},
+			debug: () => {},
+		},
+		now: () => new Date("2026-06-06T00:00:00.000Z"),
+	});
+	const handler = initSubscriptionChargeSucceededHandler({
+		upsertActive: providers.upsertActive,
+		emit,
+		logger: HutchLogger.from(noopLogger),
+	});
+	return { providers, captured, handler };
+}
+
 describe("subscription-charge-succeeded handler", () => {
-	it("upserts an active row from the event payload", async () => {
-		const providers = initInMemorySubscriptionProviders({ now: () => new Date("2026-06-06T00:00:00.000Z") });
-		// Seed a prior trialing row so the test verifies the transition.
+	it("upserts an active row from the event payload and emits a charge_succeeded log line for the dashboard", async () => {
+		const { providers, captured, handler } = setup();
 		await providers.upsertTrialing({ userId: USER_ID, trialEndsAt: "2026-06-20T00:00:00.000Z" });
-		const handler = initSubscriptionChargeSucceededHandler({
-			upsertActive: providers.upsertActive,
-			logger: HutchLogger.from(noopLogger),
-		});
 
 		const result = await handler(
 			buildSqsEvent([
@@ -47,14 +63,17 @@ describe("subscription-charge-succeeded handler", () => {
 		assert.equal(row.status, "active");
 		assert.equal(row.subscriptionId, "sub_brand_new");
 		assert.equal(row.customerId, "cus_brand_new");
+		assert.deepEqual(captured, [{
+			stream: "subscriptions",
+			event: "charge_succeeded",
+			timestamp: "2026-06-06T00:00:00.000Z",
+			user_id: USER_ID,
+			subscription_id: "sub_brand_new",
+		}]);
 	});
 
-	it("reports a batch item failure for malformed JSON", async () => {
-		const providers = initInMemorySubscriptionProviders({ now: () => new Date("2026-06-06T00:00:00.000Z") });
-		const handler = initSubscriptionChargeSucceededHandler({
-			upsertActive: providers.upsertActive,
-			logger: HutchLogger.from(noopLogger),
-		});
+	it("reports a batch item failure for malformed JSON and emits no subscription event", async () => {
+		const { captured, handler } = setup();
 
 		const result = await handler(
 			buildSqsEvent([{ messageId: "msg-bad", body: "{not-json" }]),
@@ -65,14 +84,11 @@ describe("subscription-charge-succeeded handler", () => {
 		assert(result);
 		assert.equal(result.batchItemFailures.length, 1);
 		assert.equal(result.batchItemFailures[0].itemIdentifier, "msg-bad");
+		assert.deepEqual(captured, []);
 	});
 
 	it("reports a batch item failure when the detail is missing subscriptionId", async () => {
-		const providers = initInMemorySubscriptionProviders({ now: () => new Date("2026-06-06T00:00:00.000Z") });
-		const handler = initSubscriptionChargeSucceededHandler({
-			upsertActive: providers.upsertActive,
-			logger: HutchLogger.from(noopLogger),
-		});
+		const { handler } = setup();
 
 		const result = await handler(
 			buildSqsEvent([

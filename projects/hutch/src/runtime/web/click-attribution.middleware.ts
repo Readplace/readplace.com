@@ -79,11 +79,10 @@ export function createClickAttributionMiddleware(deps: {
 		const utm_content = extractQueryString(req, "utm_content");
 		const referrer_host = extractReferrerHost(req);
 
-		if (!utm_source && !utm_medium && !utm_campaign && !utm_content && !referrer_host) {
-			next();
-			return;
-		}
-
+		/** Set the cookie on first GET regardless of attribution so organic
+		 * landings still carry `landing_path` / `first_seen_at` on the eventual
+		 * conversion event. Optional fields are omitted to keep the
+		 * no-attribution cookie minimal. */
 		const attribution: ClickAttribution = {
 			first_seen_at: deps.now().toISOString(),
 			landing_path: req.path,
