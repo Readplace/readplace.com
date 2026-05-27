@@ -220,6 +220,93 @@ describe("renderReaderSlot", () => {
 		expect(slot.getAttribute("data-reader-status")).toBe("slow");
 	});
 
+	it("renders the streaming variant when the pending row carries partial content and a stream base URL is configured", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: { status: "pending", partial: { content: "<h1>Title</h1><p>preview</p>", version: 2 } },
+				url: URL,
+				readerPollUrl: "/queue/abc/reader?poll=1",
+				streamBaseUrl: "https://stream.readplace.com",
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("streaming");
+		expect(slot.getAttribute("data-article-url")).toBe(URL);
+		expect(slot.getAttribute("data-stream-base-url")).toBe("https://stream.readplace.com");
+		expect(slot.getAttribute("data-prerendered-length")).toBe("28");
+		// HTMX poll stays armed underneath as the fallback path.
+		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/reader?poll=1");
+		expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
+		// The streaming iframe is rendered.
+		const iframe = slot.querySelector("iframe[data-reader-streaming-iframe]");
+		assert(iframe, "streaming iframe must be rendered");
+		const srcdoc = iframe.getAttribute("srcdoc");
+		assert(srcdoc, "srcdoc must be set");
+		expect(srcdoc).toContain("preview");
+	});
+
+	it("falls back to the dots-loader pending variant when partial content is present but no stream base URL is configured (feature flag off)", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: { status: "pending", partial: { content: "<h1>Title</h1>", version: 1 } },
+				url: URL,
+				readerPollUrl: "/queue/abc/reader?poll=1",
+				// streamBaseUrl omitted — streaming is disabled.
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("pending");
+	});
+
+	it("falls back to the 'slow' reframe when partial content + stream-base-url are set but the poll budget has exhausted (no readerPollUrl)", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: { status: "pending", partial: { content: "<h1>x</h1>", version: 1 } },
+				url: URL,
+				streamBaseUrl: "https://stream.readplace.com",
+				// readerPollUrl omitted — poll budget exhausted.
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("slow");
+	});
+
+	it("falls back to the dots-loader pending variant when the partial content is empty (defensive: nothing useful to show yet)", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: { status: "pending", partial: { content: "", version: 1 } },
+				url: URL,
+				readerPollUrl: "/queue/abc/reader?poll=1",
+				streamBaseUrl: "https://stream.readplace.com",
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-slot]");
+		assert(slot, "reader slot must be rendered");
+		expect(slot.getAttribute("data-reader-status")).toBe("pending");
+	});
+
+	it("preserves the PDF loading hint when rendering the streaming variant", () => {
+		const doc = parse(
+			renderReaderSlot({
+				crawl: { status: "pending", partial: { content: "<h1>PDF</h1>", version: 1 } },
+				url: "https://www.cia.gov/readingroom/docs/SOMETHING.pdf",
+				readerPollUrl: "/queue/abc/reader?poll=1",
+				streamBaseUrl: "https://stream.readplace.com",
+			}),
+		);
+
+		const subtitle = doc.querySelector(".article-body__reader-loading-subtitle");
+		assert(subtitle, "PDF loading hint must render under the streaming iframe");
+		expect(subtitle.textContent).toMatch(/accuracy over slop/);
+	});
+
 	it("dispatches every CrawlStatus variant — adding a new variant must break this test (and the renderer's exhaustive switch)", () => {
 		const variants: Array<{
 			input: Parameters<typeof renderReaderSlot>[0];

@@ -24,6 +24,7 @@ import { VIEW_STYLES } from "./view.styles";
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
 const READER_IFRAME_SCRIPT = `<script src="/client-dist/reader-iframe.client.js" defer></script>`;
+const READER_STREAM_SCRIPT = `<script src="/client-dist/reader-stream.client.js" defer></script>`;
 const EXPIRY_COUNTER_SCRIPT = `<script src="/client-dist/expiry-counter.client.js" defer></script>`;
 
 /** SEO-only constant: <link rel="canonical"> and JSON-LD url must always point
@@ -100,6 +101,8 @@ export interface ViewPageInput {
 	expiresAt: Date | null;
 	now: Date;
 	sharerUserIdPrefix?: SharedUserId;
+	/** Base URL for the dedicated SSE streaming Lambda. */
+	streamBaseUrl?: string;
 }
 
 export function ViewPage(input: ViewPageInput): PageBody {
@@ -116,6 +119,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		summaryOpen: true,
 		progress: input.progress,
 		extensionInstallUrl: input.extensionInstallUrl,
+		streamBaseUrl: input.streamBaseUrl,
 	});
 
 	const viewPath = viewPathFor(input.articleUrl);
@@ -178,6 +182,6 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		styles: VIEW_STYLES,
 		bodyClass: "page-view",
 		content: { html: content },
-		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + EXPIRY_COUNTER_SCRIPT,
+		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + READER_STREAM_SCRIPT + EXPIRY_COUNTER_SCRIPT,
 	};
 }

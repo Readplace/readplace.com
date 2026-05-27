@@ -163,6 +163,57 @@ const BUNDLES = [
 			"});",
 		].join("\n"),
 	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
+			"src/runtime/web/shared/article-body/reader-slot/reader-stream.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "reader-stream.client.js"),
+		globalName: "ReaderStream",
+		footer: [
+			// HTMX swaps a reader-slot wrapper when the row transitions
+			// (pending → streaming, streaming → ready/failed). Rescan on every
+			// swap so newly-arrived streaming slots open an EventSource and
+			// removed ones close their existing session.
+			"ReaderStream.initReaderStream({",
+			"  document: window.document,",
+			"  window: window,",
+			"  EventSourceCtor: window.EventSource,",
+			"  now: function () { return Date.now(); },",
+			"  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
+			"  reload: function () { window.location.reload(); },",
+			"  addSwapListener: function (listener) {",
+			"    window.document.body.addEventListener('htmx:afterSwap', function (e) {",
+			"      listener(e.detail.target);",
+			"    });",
+			"  }",
+			"});",
+		].join("\n"),
+	},
+	{
+		// The bootstrap script runs INSIDE the sandboxed reader-streaming
+		// iframe (allow-scripts + allow-same-origin). Inlined into the
+		// iframe's srcdoc by reader-streaming-iframe-srcdoc.ts — never
+		// fetched as a separate file because the iframe's sandboxed origin
+		// has no relative path to fetch from. Built as an IIFE with a
+		// footer that immediately invokes initBootstrap against the
+		// iframe's real globals.
+		entry: path.join(
+			PROJECT_ROOT,
+			"src/runtime/web/shared/article-body/reader-slot/reader-stream-bootstrap.iframe.ts",
+		),
+		outfile: path.join(OUT_DIR, "reader-stream-bootstrap.iframe.js"),
+		globalName: "ReaderStreamBootstrap",
+		footer: [
+			"ReaderStreamBootstrap.initBootstrap({",
+			"  document: document,",
+			"  parent: parent,",
+			"  addEventListener: function (type, listener) { window.addEventListener(type, listener); },",
+			"  performance: performance,",
+			"  requestAnimationFrame: function (cb) { return window.requestAnimationFrame(cb); }",
+			"});",
+		].join("\n"),
+	},
 ];
 
 function buildOptions(bundle) {

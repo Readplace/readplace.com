@@ -39,6 +39,8 @@ export interface AdminRecrawlDependencies {
 	serviceToken: string;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
+	/** Base URL for the dedicated SSE streaming Lambda. */
+	streamBaseUrl?: string;
 }
 
 function pollUrlBuilderFor(articleUrl: string): PollUrlBuilder {
@@ -222,6 +224,7 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 		findArticleByUrl: deps.findArticleByUrl,
 		formatDocumentTitle: formatRecrawlDocumentTitle,
 		now: deps.now,
+		streamBaseUrl: deps.streamBaseUrl,
 	});
 
 	router.use(noStore);

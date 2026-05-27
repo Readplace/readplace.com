@@ -433,6 +433,11 @@ export function createHutchApp(deps?: {
 
 	const appOrigin = deps?.appOrigin ?? requireEnv("APP_ORIGIN", { defaultValue: `http://localhost:${getEnv("PORT") || "3000"}` });
 	const staticBaseUrl = requireEnv("STATIC_BASE_URL");
+	/* Reads the streaming SSE Lambda's Function URL host. When undefined the
+	 * reader-slot's streaming variant is disabled and the dots loader stays
+	 * in place — getEnv (not requireEnv) is intentional so the hutch app can
+	 * deploy before/without the stream Lambda being provisioned. */
+	const streamBaseUrl = getEnv("READER_STREAM_BASE_URL");
 	const expiryCountdown = requireEnv<"enabled" | "disabled">("EXPIRY_COUNTDOWN");
 	const adminEmails = parseAdminEmails(requireEnv("ADMIN_EMAILS"));
 	const recrawlServiceToken = requireEnv("RECRAWL_SERVICE_TOKEN");
@@ -449,6 +454,7 @@ export function createHutchApp(deps?: {
 		validateSaveableUrl,
 		appOrigin,
 		staticBaseUrl,
+		streamBaseUrl,
 		hashPassword,
 		...auth,
 		...articleStore,

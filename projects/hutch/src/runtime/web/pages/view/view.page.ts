@@ -64,6 +64,10 @@ interface ViewDependencies {
 	expiryCountdown: ExpiryCountdown;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
+	/** Base URL for the dedicated SSE streaming Lambda. Undefined disables
+	 * the streaming variant; the slot falls back to the existing dots
+	 * loader. Set at the composition root in `lambda.main.ts`. */
+	streamBaseUrl?: string;
 }
 
 async function renderError(deps: ViewDependencies, req: Request, res: Response): Promise<void> {
@@ -91,6 +95,7 @@ function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
 		findArticleByUrl: deps.findArticleByUrl,
 		formatDocumentTitle: formatViewDocumentTitle,
 		now: deps.now,
+		streamBaseUrl: deps.streamBaseUrl,
 	};
 }
 
@@ -244,6 +249,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 					expiresAt,
 					now,
 					sharerUserIdPrefix,
+					streamBaseUrl: deps.streamBaseUrl,
 				}),
 				{ ...(await deps.buildBannerState(req)), showExtensionSuggestionBanner, extensionInstalled: isExtensionInstalled(req) },
 			),
