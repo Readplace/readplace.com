@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import assert from "node:assert";
 import { randomUUID } from "node:crypto";
-import { readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -17,30 +17,24 @@ export function resolveTessdataDir(env: NodeJS.ProcessEnv = process.env): string
 	return env.TESSDATA_PREFIX ?? "/opt/tesseract/tessdata";
 }
 
-/* Tesseract ships per-script models under `<tessdata>/script/` (e.g.
- * `Latin.traineddata`, `Arabic.traineddata`, `HanS.traineddata`). Each
- * script pack already covers every language in that script — `script/Latin`
- * recognises English, Portuguese, German, French, Spanish, Vietnamese, etc.
- * from a single model file — so passing one entry per installed script
- * gives full multilingual coverage with ~35 `-l` entries instead of 100+.
- *
- * The script subdirectory is the documented location:
- * https://tesseract-ocr.github.io/tessdoc/Command-Line-Usage.html#using-multiple-languages
- *
- * Vertical CJK variants (`HanS_vert`, `Hangul_vert`, `Japanese_vert`,
- * `HanT_vert`) are intentionally included — `--psm 1` runs OSD which
- * picks horizontal vs vertical orientation per page, so leaving them in
- * the `-l` flag lets Tesseract route vertically-typeset pages to the
- * matching model without a separate code path. */
+/* Tesseract loads every script pack passed via `-l` and `--psm 1` then runs
+ * OSD across all of them to decide which model to apply per region. With ~35
+ * packs the OSD step becomes the bottleneck — p50 per-page wall clock on a
+ * dense math/print PDF was 277-313 s, well past the 900 s Lambda ceiling, so
+ * the comprehensive-crawl orchestrator was reliably timing out on born-digital
+ * LaTeX (yellow paper) and scanned multi-column print (CIA reading room).
+ * Narrow to a small explicit allowlist that covers our actual corpus; OSD
+ * with one script is fast and brings per-page back to ~20-30 s. Extending the
+ * allowlist is a one-line edit when a real non-Latin corpus shows up. */
+const RUNTIME_SCRIPTS = ["Latin"] as const;
+
 export function discoverInstalledScripts(tessdataDir: string): readonly string[] {
 	const scriptDir = resolve(tessdataDir, "script");
-	const entries = readdirSync(scriptDir);
-	const scripts = entries
-		.filter((file) => file.endsWith(".traineddata"))
-		.map((file) => file.slice(0, -".traineddata".length))
-		.sort();
-	assert(scripts.length > 0, `No script packs found in script directory: ${scriptDir}`);
-	return scripts;
+	for (const name of RUNTIME_SCRIPTS) {
+		const file = resolve(scriptDir, `${name}.traineddata`);
+		assert(existsSync(file), `Required tessdata script pack missing: ${file}`);
+	}
+	return RUNTIME_SCRIPTS;
 }
 
 /* Build the `-l` flag value Tesseract expects: `+`-separated entries of

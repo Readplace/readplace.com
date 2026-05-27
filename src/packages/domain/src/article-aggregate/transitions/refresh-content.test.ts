@@ -233,7 +233,7 @@ describe("refreshContent", () => {
 		assert.deepEqual(effects, []);
 	});
 
-	it("declares writes for metadata, freshness, and summary when hash changed so crawl is not clobbered by a concurrent inline writer", () => {
+	it("declares writes for metadata, freshness, and summary when hash changed (crawl stays untouched while in ready state)", () => {
 		const before = buildArticle({
 			freshness: {
 				etag: '"old-etag"',
@@ -252,7 +252,7 @@ describe("refreshContent", () => {
 		});
 
 		assert.deepEqual([...writes].sort(), ["freshness", "metadata", "summary"]);
-		assert.ok(!writes.includes("crawl"), "refresh must not declare crawl writes");
+		assert.ok(!writes.includes("crawl"), "refresh must not clobber an in-flight or already-ready crawl");
 	});
 
 	it("declares writes for metadata and freshness only (no summary) when canonical hash is unchanged", () => {
@@ -276,6 +276,57 @@ describe("refreshContent", () => {
 
 		assert.deepEqual([...writes].sort(), ["freshness", "metadata"]);
 		assert.ok(!writes.includes("summary"));
+		assert.ok(!writes.includes("crawl"));
+	});
+
+	it("promotes crawl to ready when the previous state was failed (recovery: refresh delivered fresh content for a previously-stuck row)", () => {
+		const before = buildArticle({
+			crawl: { kind: "failed", reason: { kind: "fetch-failed", httpStatus: 503 } },
+		});
+
+		const { article, writes } = refreshContent(before, {
+			metadata: before.metadata,
+			freshness: before.freshness,
+			estimatedReadTime: before.estimatedReadTime,
+			now: NOW,
+			canonicalContentHash: HASH_A,
+		});
+
+		assert.deepEqual(article.crawl, { kind: "ready" });
+		assert.ok(writes.includes("crawl"), "recovery-from-failed must declare a crawl write");
+	});
+
+	it("does not declare a crawl write when the previous state was pending (avoids racing an in-flight crawl)", () => {
+		const before = buildArticle({
+			crawl: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
+		});
+
+		const { article, writes } = refreshContent(before, {
+			metadata: before.metadata,
+			freshness: before.freshness,
+			estimatedReadTime: before.estimatedReadTime,
+			now: NOW,
+			canonicalContentHash: HASH_A,
+		});
+
+		assert.deepEqual(article.crawl, before.crawl);
+		assert.ok(!writes.includes("crawl"), "refresh must not write crawl when an inline crawl is in flight");
+	});
+
+	it("does not declare a crawl write when the previous state was unsupported (no recovery from policy decisions)", () => {
+		const before = buildArticle({
+			crawl: { kind: "unsupported", reason: { kind: "paywall" } },
+		});
+
+		const { article, writes } = refreshContent(before, {
+			metadata: before.metadata,
+			freshness: before.freshness,
+			estimatedReadTime: before.estimatedReadTime,
+			now: NOW,
+			canonicalContentHash: HASH_A,
+		});
+
+		assert.deepEqual(article.crawl, before.crawl);
 		assert.ok(!writes.includes("crawl"));
 	});
 

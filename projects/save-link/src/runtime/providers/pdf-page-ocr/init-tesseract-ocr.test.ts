@@ -35,7 +35,7 @@ describe("discoverInstalledScripts", () => {
 		if (dir) rmSync(dir, { recursive: true, force: true });
 	});
 
-	it("returns every script name with a `.traineddata` file under <tessdata>/script/", () => {
+	it("returns the runtime script allowlist when the required packs are present", () => {
 		dir = makeFakeTessdataDir([
 			"Latin.traineddata",
 			"Arabic.traineddata",
@@ -44,57 +44,41 @@ describe("discoverInstalledScripts", () => {
 			"Devanagari.traineddata",
 		]);
 
-		expect(discoverInstalledScripts(dir)).toEqual([
-			"Arabic",
-			"Devanagari",
-			"HanS",
-			"Japanese",
-			"Latin",
-		]);
+		expect(discoverInstalledScripts(dir)).toEqual(["Latin"]);
 	});
 
-	it("keeps the vertical CJK variants so OSD can route vertically-typeset pages to them", () => {
+	it("ignores additional script packs that aren't in the allowlist", () => {
 		dir = makeFakeTessdataDir([
+			"Latin.traineddata",
 			"HanS.traineddata",
 			"HanS_vert.traineddata",
 			"Japanese.traineddata",
 			"Japanese_vert.traineddata",
 		]);
 
-		expect(discoverInstalledScripts(dir)).toEqual([
-			"HanS",
-			"HanS_vert",
-			"Japanese",
-			"Japanese_vert",
-		]);
-	});
-
-	it("ignores non-`.traineddata` files (configs, READMEs, lock files alongside the packs)", () => {
-		dir = makeFakeTessdataDir(["Latin.traineddata", "README.md", "configs.txt", "tessdata.lock"]);
-
 		expect(discoverInstalledScripts(dir)).toEqual(["Latin"]);
 	});
 
-	it("returns scripts in deterministic sorted order so the `-l` flag is stable across runs", () => {
-		dir = makeFakeTessdataDir(["Latin.traineddata", "Arabic.traineddata", "HanS.traineddata"]);
+	it("returns the same list across runs so the `-l` flag is stable", () => {
+		dir = makeFakeTessdataDir(["Latin.traineddata"]);
 
 		const first = discoverInstalledScripts(dir);
 		const second = discoverInstalledScripts(dir);
 
-		expect(first).toEqual(["Arabic", "HanS", "Latin"]);
+		expect(first).toEqual(["Latin"]);
 		expect(second).toEqual(first);
 	});
 
-	it("throws when the script directory has no traineddata files so a mis-configured container fails fast at init", () => {
+	it("throws when a required allowlist pack is missing so a mis-configured container fails fast at init", () => {
 		dir = makeFakeTessdataDir([]);
 
-		expect(() => discoverInstalledScripts(dir)).toThrow(/No script packs found/);
+		expect(() => discoverInstalledScripts(dir)).toThrow(/Required tessdata script pack missing/);
 	});
 
 	it("throws when the script subdirectory does not exist (langpack packages not installed)", () => {
 		dir = mkdtempSync(join(tmpdir(), "tessdata-"));
 
-		expect(() => discoverInstalledScripts(dir)).toThrow();
+		expect(() => discoverInstalledScripts(dir)).toThrow(/Required tessdata script pack missing/);
 	});
 });
 
@@ -128,7 +112,7 @@ describe("initTesseractOcr", () => {
 	it("throws at init time when the injected tessdata script directory is empty", () => {
 		dir = makeFakeTessdataDir([]);
 
-		expect(() => initTesseractOcr({ tessdataDir: dir })).toThrow(/No script packs found/);
+		expect(() => initTesseractOcr({ tessdataDir: dir })).toThrow(/Required tessdata script pack missing/);
 	});
 
 	it("returns an empty fragment when invoked with no images (no tesseract spawn)", async () => {

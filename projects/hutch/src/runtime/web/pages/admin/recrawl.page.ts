@@ -102,7 +102,16 @@ function handleRecrawlArticle(
 			await renderNotFound(deps, req, res);
 			return;
 		}
-		const articleUrl = parsed.data;
+		/* API Gateway HTTP API decodes the path segment once before Express
+		 * sees it, so `parsed.data` arrives with literal spaces and brackets
+		 * where the rest of the system (save-anonymous-link, stale-check
+		 * refresh, /view) carries the URL-encoded form (%20, %5B). DynamoDB
+		 * keys articles by URL string — running through `new URL().toString()`
+		 * canonicalises to the encoded form so the recrawl writes land on the
+		 * same row the view reads. Without this, an admin recrawl of a URL
+		 * with spaces creates a parallel "decoded-URL" row that nothing else
+		 * in the system ever reads or updates. */
+		const articleUrl = new URL(parsed.data).toString();
 
 		const existing = await deps.findArticleByUrl(articleUrl);
 		if (!existing) {
@@ -159,7 +168,7 @@ function handleSummaryPoll(reader: ReturnType<typeof initArticleReader>) {
 			res.status(400).type("html").send("");
 			return;
 		}
-		const articleUrl = parsed.data;
+		const articleUrl = new URL(parsed.data).toString();
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleSummaryPoll({
 			articleUrl,
@@ -179,7 +188,7 @@ function handleReaderPoll(reader: ReturnType<typeof initArticleReader>) {
 			res.status(400).type("html").send("");
 			return;
 		}
-		const articleUrl = parsed.data;
+		const articleUrl = new URL(parsed.data).toString();
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleReaderPoll({
 			articleUrl,
