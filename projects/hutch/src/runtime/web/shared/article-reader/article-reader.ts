@@ -58,6 +58,7 @@ interface PollResponseBodyInput {
 	summaryPollUrl: string | undefined;
 	summaryOpen: boolean;
 	extensionInstallUrl: string | undefined;
+	streamBaseUrl: string | undefined;
 	progress: ProgressTick | undefined;
 	metadataOob: string;
 }
@@ -69,6 +70,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		url: input.url,
 		readerPollUrl: input.readerPollUrl,
 		extensionInstallUrl: input.extensionInstallUrl,
+		streamBaseUrl: input.streamBaseUrl,
 		oob: input.primary !== "reader",
 	});
 	const summarySlot = renderSummarySlot({
@@ -270,6 +272,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryPollUrl,
 			summaryOpen: true,
 			extensionInstallUrl,
+			streamBaseUrl: deps.streamBaseUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 			metadataOob: buildMetadataOob(article, articleUrl),
 		}));
@@ -296,6 +299,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			summaryPollUrl,
 			summaryOpen: true,
 			extensionInstallUrl,
+			streamBaseUrl: deps.streamBaseUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 			metadataOob: buildMetadataOob(article, articleUrl),
 		}));

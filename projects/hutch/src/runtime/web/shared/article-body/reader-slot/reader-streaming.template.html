@@ -1,0 +1,6 @@
+<div id="article-body-reader-slot" class="article-body__reader-slot article-body__reader-slot--streaming" data-test-reader-slot data-reader-status="streaming" data-article-url="{{articleUrl}}" data-stream-base-url="{{streamBaseUrl}}" data-prerendered-length="{{prerenderedLength}}"{{#if oob}} hx-swap-oob="outerHTML"{{/if}} hx-get="{{pollUrl}}" hx-trigger="every 3s" hx-swap="outerHTML">
+	<iframe data-test-reader-content data-reader-iframe data-reader-streaming-iframe class="article-body__reader-iframe" sandbox="allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation allow-same-origin allow-scripts" srcdoc="{{srcdoc}}" loading="eager" title="Article content"></iframe>
+	{{#if loadingHint}}
+	<p class="article-body__reader-loading-subtitle">{{loadingHint}}</p>
+	{{/if}}
+</div>

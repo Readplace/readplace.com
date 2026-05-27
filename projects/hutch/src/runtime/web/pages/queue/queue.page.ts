@@ -146,6 +146,8 @@ interface QueueDependencies {
 	salt: string;
 	now: () => Date;
 	featureToggle: QuerystringFeatureToggle;
+	/** Base URL for the dedicated SSE streaming Lambda. */
+	streamBaseUrl?: string;
 }
 
 import type { SavedArticle } from "@packages/domain/article";
@@ -187,6 +189,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			fields: [{ name: "status", value: "read" }],
 		}),
 		now: deps.now,
+		streamBaseUrl: deps.streamBaseUrl,
 	});
 	const resolveReaderPermalink = initReaderPermalink({
 		findArticleById: deps.findArticleById,
