@@ -124,7 +124,7 @@ export function initOcrPdf(deps: {
 	const partialSuccessThreshold = deps.partialSuccessThreshold ?? DEFAULT_PARTIAL_SUCCESS_THRESHOLD;
 	const { logger, extractPdfMetadata, stagePdf, invokePageOcr, invokePageLlmCleanup, invokeDocumentDiffReview, invokePageHtmlConvert } = deps;
 
-	return async ({ buffer, url, onProgress }): Promise<PdfExtractResult> => {
+	return async ({ buffer, url, onProgress, onPartialHtml }): Promise<PdfExtractResult> => {
 		const t0 = Date.now();
 		logger.info(`[ocr-pdf] start url=${url} bytes=${buffer.length}`);
 
@@ -165,21 +165,70 @@ export function initOcrPdf(deps: {
 		try {
 			const staged = await stagePdf(buffer);
 			try {
+				// Per-chunk outcomes parallel-indexed to `chunks`. mapWithConcurrency
+				// resolves in completion order, so we capture each result at its
+				// original index here and use that to advance an in-order ready
+				// prefix for `onPartialHtml` — the user sees pages in document
+				// order even when chunk N+1 finishes before chunk N.
+				const chunkOutcomes: Array<ChunkOutcome | undefined> = new Array(chunks.length);
+				let readyUpToIndex = -1;
+				const emitPartialIfPrefixAdvanced = (): void => {
+					if (!onPartialHtml) return;
+					const prevReady = readyUpToIndex;
+					while (
+						readyUpToIndex + 1 < chunkOutcomes.length &&
+						chunkOutcomes[readyUpToIndex + 1] !== undefined
+					) {
+						readyUpToIndex += 1;
+					}
+					// `prevReady === readyUpToIndex` covers both "no advance happened"
+					// (an out-of-order completion past an incomplete head) and "first
+					// emission with nothing ready yet" (prevReady=-1, readyUpToIndex=-1).
+					if (readyUpToIndex === prevReady) return;
+					const fragments: string[] = [];
+					for (let i = 0; i <= readyUpToIndex; i++) {
+						const outcome = chunkOutcomes[i];
+						assert(outcome, "prefix invariant: outcomes up to readyUpToIndex must be defined");
+						fragments.push(
+							outcome.ok ? outcome.html : renderFailedChunkPlaceholder(outcome.pageIndices),
+						);
+					}
+					const html = fragments
+						.map((f) => f.trim())
+						.filter((f) => f.length > 0)
+						.join(PAGE_BREAK_HTML);
+					try {
+						onPartialHtml({ html, readyPageCount: readyUpToIndex + 1 });
+					} catch (error) {
+						// Best-effort streaming hook — never let it kill the crawl.
+						logger.warn(`[ocr-pdf] onPartialHtml callback threw: ${error}`);
+					}
+				};
+
 				const outcomes = await mapWithConcurrency(
 					chunks,
 					concurrency,
-					async (pageIndices): Promise<ChunkOutcome> => {
+					async (pageIndices, index): Promise<ChunkOutcome> => {
 						const chunkStart = Date.now();
 						const result = await invokePageOcrWithRetry({ pdfS3Key: staged.key, pageIndices, dpi });
 						if (!result.ok) {
-							return { ok: false, pageIndices, error: result.error };
+							const failure: ChunkOutcome = { ok: false, pageIndices, error: result.error };
+							chunkOutcomes[index] = failure;
+							emitPartialIfPrefixAdvanced();
+							return failure;
 						}
 						logger.info(`[ocr-pdf] chunk pages=[${pageIndices.join(",")}] done dt=${Date.now() - chunkStart}ms chars=${result.html.length} total=${Date.now() - t0}ms`);
 						completedParts += 1;
 						onProgress?.({ partIndex: completedParts, partCount, stage: "comprehensive-extracting" });
-						return { ok: true, pageIndices, html: result.html };
+						const success: ChunkOutcome = { ok: true, pageIndices, html: result.html };
+						chunkOutcomes[index] = success;
+						emitPartialIfPrefixAdvanced();
+						return success;
 					},
 				);
+				// Final Stage 0 emission so the last partial state lands even if the
+				// throttle on the downstream side suppressed the in-flight emission.
+				emitPartialIfPrefixAdvanced();
 
 				const successCount = outcomes.filter((o) => o.ok).length;
 				const successRatio = successCount / partCount;

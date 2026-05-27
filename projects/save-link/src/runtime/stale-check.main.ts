@@ -54,7 +54,7 @@ const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
 	logError: observability.logError,
 });
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
-const articleCrawl = initArticleCrawlDepBundle({ dynamoClient, articlesTable });
+const articleCrawl = initArticleCrawlDepBundle({ dynamoClient, articlesTable, logger: consoleLogger });
 const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });
 const emitSimpleCrawlUnsupported = initEmitSimpleCrawlUnsupported({
 	publishEvent: events.publishEvent,

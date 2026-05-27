@@ -34,6 +34,8 @@ const ArticleCrawlRow = z.object({
 	),
 	crawlPartCurrent: dynamoField(z.number()),
 	crawlPartTotal: dynamoField(z.number()),
+	partialContent: dynamoField(z.string()),
+	partialContentVersion: dynamoField(z.number()),
 });
 
 type ArticleCrawlRowShape = z.infer<typeof ArticleCrawlRow>;
@@ -61,9 +63,14 @@ function rowToArticleCrawl(
 			row.crawlPartCurrent !== undefined && row.crawlPartTotal !== undefined
 				? { current: row.crawlPartCurrent, total: row.crawlPartTotal }
 				: undefined;
+		const partial =
+			row.partialContent !== undefined && row.partialContentVersion !== undefined
+				? { content: row.partialContent, version: row.partialContentVersion }
+				: undefined;
 		const pending: ArticleCrawl = { status: "pending" };
 		if (row.crawlStage) pending.stage = row.crawlStage;
 		if (parts) pending.parts = parts;
+		if (partial) pending.partial = partial;
 		return pending;
 	}
 	if (row.crawlStatus === "ready") return { status: "ready" };

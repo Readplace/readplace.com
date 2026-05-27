@@ -7,6 +7,7 @@ import {
 	RecrawlContentExtractedEvent,
 } from "@packages/hutch-infra-components";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
+import type { MarkCrawlPartial } from "../../providers/article-crawl/mark-crawl-partial";
 import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
@@ -22,6 +23,7 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 	updateFetchTimestamp: UpdateFetchTimestamp;
 	transitionAndPersist: TransitionAndPersist;
 	markCrawlStage: MarkCrawlStage;
+	markCrawlPartial: MarkCrawlPartial;
 	publishEvent: PublishEvent;
 	now: () => Date;
 	logger: HutchLogger;
@@ -38,6 +40,7 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 		updateFetchTimestamp: deps.updateFetchTimestamp,
 		transitionAndPersist: deps.transitionAndPersist,
 		markCrawlStage: deps.markCrawlStage,
+		markCrawlPartial: deps.markCrawlPartial,
 		now: deps.now,
 		logger,
 		logParseError: deps.logParseError,

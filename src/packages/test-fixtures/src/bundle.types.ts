@@ -32,6 +32,7 @@ import type {
 } from "./providers/article-crawl/article-crawl.types";
 import type {
 	InMemoryMarkCrawlFailed,
+	InMemoryMarkCrawlPartial,
 	InMemoryMarkCrawlReady,
 	InMemoryMarkCrawlStage,
 	InMemoryMarkCrawlUnsupported,
@@ -219,6 +220,7 @@ export interface ArticleCrawlBundle {
 	markCrawlFailed: InMemoryMarkCrawlFailed;
 	markCrawlUnsupported: InMemoryMarkCrawlUnsupported;
 	markCrawlStage: InMemoryMarkCrawlStage;
+	markCrawlPartial: InMemoryMarkCrawlPartial;
 }
 
 export interface ParserBundle {

@@ -12,7 +12,9 @@ import {
 } from "@packages/hutch-infra-components";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { MarkCrawlProgress } from "../../providers/article-crawl/mark-crawl-progress";
+import type { MarkCrawlPartial } from "../../providers/article-crawl/mark-crawl-partial";
 import { initProgressThrottle } from "../crawl-article-state/init-progress-throttle";
+import { initPartialContentThrottle } from "../crawl-article-state/init-partial-content-throttle";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
@@ -28,6 +30,7 @@ export function initComprehensiveCrawlHandler(deps: {
 	transitionAndPersist: TransitionAndPersist;
 	markCrawlStage: MarkCrawlStage;
 	markCrawlProgress: MarkCrawlProgress;
+	markCrawlPartial: MarkCrawlPartial;
 	publishEvent: PublishEvent;
 	now: () => Date;
 	logger: HutchLogger;
@@ -35,6 +38,7 @@ export function initComprehensiveCrawlHandler(deps: {
 	logCrawlOutcome: LogCrawlOutcome;
 	readTierSnapshot: ReadTierSnapshot;
 	progressIntervalMs?: number;
+	partialIntervalMs?: number;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		crawlArticle,
@@ -44,6 +48,7 @@ export function initComprehensiveCrawlHandler(deps: {
 		transitionAndPersist,
 		markCrawlStage,
 		markCrawlProgress,
+		markCrawlPartial,
 		publishEvent,
 		now,
 		logger,
@@ -51,6 +56,7 @@ export function initComprehensiveCrawlHandler(deps: {
 		logCrawlOutcome,
 		readTierSnapshot,
 		progressIntervalMs = 1500,
+		partialIntervalMs = 1000,
 	} = deps;
 
 	const logPrefix = "[ComprehensiveCrawlCommand]";
@@ -102,6 +108,12 @@ export function initComprehensiveCrawlHandler(deps: {
 					now: () => Date.now(),
 					logger,
 				});
+				const partialThrottle = initPartialContentThrottle({
+					markCrawlPartial,
+					intervalMs: partialIntervalMs,
+					now: () => Date.now(),
+					logger,
+				});
 				const crawlResult = await crawlArticle({
 					url,
 					onProgress: ({ partIndex, partCount, stage }) => {
@@ -117,8 +129,12 @@ export function initComprehensiveCrawlHandler(deps: {
 						}
 						progressThrottle.report({ url, partCurrent: partIndex, partTotal: partCount });
 					},
+					onPartialHtml: ({ html }) => {
+						partialThrottle.report({ url, html });
+					},
 				});
 				await progressThrottle.flush({ url });
+				await partialThrottle.flush({ url });
 
 				if (crawlResult.status === "unsupported") {
 					// Comprehensive saw the body and confirmed it cannot be extracted

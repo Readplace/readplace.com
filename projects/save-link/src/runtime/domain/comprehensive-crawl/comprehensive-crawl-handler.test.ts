@@ -86,6 +86,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
 		markCrawlProgress: jest.fn().mockResolvedValue(undefined),
+		markCrawlPartial: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		now: fixedNow,
 		logger: noopLogger,
@@ -367,8 +368,41 @@ describe("initComprehensiveCrawlHandler", () => {
 		});
 	});
 
+	it("forwards onPartialHtml callbacks through markCrawlPartial so streaming clients see incrementally larger snapshots as Tesseract emits pages", async () => {
+		const crawlArticle: CrawlArticle = async ({ onPartialHtml }) => {
+			if (onPartialHtml) {
+				onPartialHtml({ html: "<p>page 1</p>", readyPageCount: 1 });
+				onPartialHtml({ html: "<p>page 1</p><hr><p>page 2</p>", readyPageCount: 2 });
+			}
+			return { status: "fetched", html: "<html><body><p>x</p></body></html>" };
+		};
+		const markCrawlPartial = jest.fn().mockResolvedValue(undefined);
+
+		const handler = createHandler({
+			crawlArticle,
+			markCrawlPartial,
+			partialIntervalMs: 10_000,
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), stubContext, () => {});
+
+		// Throttle: first write lands immediately, mid-window writes suppress
+		// until the flush fires the terminal value at the end.
+		const calls = markCrawlPartial.mock.calls.map((c) => c[0]);
+		expect(calls[0]).toEqual({
+			url: "https://example.com/doc.pdf",
+			content: "<p>page 1</p>",
+		});
+		expect(calls[calls.length - 1]).toEqual({
+			url: "https://example.com/doc.pdf",
+			content: "<p>page 1</p><hr><p>page 2</p>",
+		});
+	});
+
 	it("flushes the terminal progress value after crawlArticle returns so the final partCurrent === partTotal write always lands", async () => {
 		const crawlArticle: CrawlArticle = async ({ onProgress }) => {
+			// Rapid fan-out of 4 parts — without flush, the throttle would write
+			// only the first part (the rest fall inside the throttle window).
 			if (onProgress) {
 				onProgress({ partIndex: 1, partCount: 4 });
 				onProgress({ partIndex: 2, partCount: 4 });
