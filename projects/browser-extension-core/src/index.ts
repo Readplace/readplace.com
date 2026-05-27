@@ -28,6 +28,7 @@ export {
 	initSaveArticleUnderstanding,
 	initSaveHtmlUnderstanding,
 	initSavePdfUnderstanding,
+	initSaveContentUnderstanding,
 	initDeleteArticleUnderstanding,
 	initListArticlesUnderstanding,
 	groupOf,

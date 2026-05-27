@@ -343,6 +343,88 @@ export function initSavePdfUnderstanding(): Map<string, ActionHandler> {
 	return handlers;
 }
 
+export function initSaveContentUnderstanding(): Map<string, ActionHandler> {
+	const handlers = new Map<string, ActionHandler>();
+	handlers.set("save-content", (sirenAction, context) => {
+		return async (fields) => {
+			assert(fields?.url, "save-content requires a url field");
+			assert(fields?.mediaType, "save-content requires a mediaType field");
+			const formData = new FormData();
+			formData.append("url", fields.url);
+			formData.append("mediaType", fields.mediaType);
+			if (fields.title) formData.append("title", fields.title);
+			if (fields.contentBase64) {
+				const binaryString = atob(fields.contentBase64);
+				const bytes = new Uint8Array(binaryString.length);
+				for (let i = 0; i < binaryString.length; i += 1) {
+					bytes[i] = binaryString.charCodeAt(i);
+				}
+				formData.append(
+					"content",
+					new Blob([bytes], { type: fields.mediaType }),
+					"content",
+				);
+			} else {
+				assert(fields.rawHtml, "save-content requires either contentBase64 or rawHtml");
+				formData.append(
+					"content",
+					new Blob([fields.rawHtml], { type: "text/html" }),
+					"content.html",
+				);
+			}
+			const response = await context.doFetch(
+				`${context.serverUrl}${sirenAction.href}`,
+				{
+					method: sirenAction.method,
+					body: formData,
+				},
+			);
+			if (!response.ok) {
+				const errorJson = await response.json().catch(() => null);
+				const errorParsed = SirenErrorSchema.safeParse(errorJson);
+				if (!errorParsed.success) {
+					throw new Error(`Save failed: ${response.status}`);
+				}
+				const errorActions = errorParsed.data.actions;
+				if (errorActions === undefined) {
+					throw new Error(`Save failed: ${response.status}`);
+				}
+				if (errorActions.length === 0) {
+					throw new Error(`Save failed: ${response.status}`);
+				}
+				const fallbackAction = errorActions[0];
+				console.warn(errorParsed.data.properties.message);
+				const fallbackBody: Record<string, string> = { url: fields.url };
+				if (fields.title) fallbackBody.title = fields.title;
+				const fallbackContentType = fallbackAction.type === undefined
+					? "application/json"
+					: fallbackAction.type;
+				const fallbackResponse = await context.doFetch(
+					`${context.serverUrl}${fallbackAction.href}`,
+					{
+						method: fallbackAction.method,
+						headers: { "Content-Type": fallbackContentType },
+						body: JSON.stringify(fallbackBody),
+					},
+				);
+				assert(
+					fallbackResponse.ok,
+					`Save failed: ${fallbackResponse.status}`,
+				);
+				const fallbackResponseBody = SirenSubEntitySchema.parse(
+					await fallbackResponse.json(),
+				);
+				const fallbackItem = context.resolveItem(fallbackResponseBody);
+				return { items: [fallbackItem], actions: {} };
+			}
+			const responseBody = SirenSubEntitySchema.parse(await response.json());
+			const item = context.resolveItem(responseBody);
+			return { items: [item], actions: {} };
+		};
+	});
+	return handlers;
+}
+
 export function initDeleteArticleUnderstanding(): Map<string, ActionHandler> {
 	const handlers = new Map<string, ActionHandler>();
 	handlers.set("delete", (sirenAction, context) => {
@@ -580,6 +662,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		initSaveArticleUnderstanding(),
 		initSaveHtmlUnderstanding(),
 		initSavePdfUnderstanding(),
+		initSaveContentUnderstanding(),
 		initDeleteArticleUnderstanding(),
 		httpCacheable(initListArticlesUnderstanding()),
 	);
@@ -593,21 +676,45 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		}
 	}
 
+	function arrayBufferToBase64(buffer: ArrayBuffer): string {
+		const view = new Uint8Array(buffer);
+		let binaryString = "";
+		for (let i = 0; i < view.length; i += 1) {
+			binaryString += String.fromCharCode(view[i] as number);
+		}
+		return btoa(binaryString);
+	}
+
 	const saveUrl: SaveUrl = async ({ url, title, rawHtml, pdfBytes }) => {
 		const collection = await start();
 		trackItems(collection.items);
+		const saveContentAction = collection.actions["save-content"];
+		if (saveContentAction) {
+			if (pdfBytes) {
+				const result = await saveContentAction({
+					url,
+					mediaType: "application/pdf",
+					contentBase64: arrayBufferToBase64(pdfBytes),
+				});
+				const item = result.items[0];
+				trackItems(result.items);
+				return { ok: true, item };
+			}
+			if (rawHtml) {
+				const result = await saveContentAction({
+					url,
+					mediaType: "text/html",
+					rawHtml,
+					title,
+				});
+				const item = result.items[0];
+				trackItems(result.items);
+				return { ok: true, item };
+			}
+		}
 		const savePdfAction = collection.actions["save-pdf"];
 		if (pdfBytes && savePdfAction) {
-			/** ArrayBuffer doesn't survive the string-keyed `fields` map, so
-			 * encode it as base64 here and have the save-pdf understanding
-			 * decode it back to bytes when building the FormData. */
-			const view = new Uint8Array(pdfBytes);
-			let binaryString = "";
-			for (let i = 0; i < view.length; i += 1) {
-				binaryString += String.fromCharCode(view[i] as number);
-			}
-			const base64 = btoa(binaryString);
-			const result = await savePdfAction({ url, pdfBytes: base64 });
+			const result = await savePdfAction({ url, pdfBytes: arrayBufferToBase64(pdfBytes) });
 			const item = result.items[0];
 			trackItems(result.items);
 			return { ok: true, item };
