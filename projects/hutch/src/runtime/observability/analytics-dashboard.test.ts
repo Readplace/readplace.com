@@ -138,7 +138,8 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 				const b = body.widgets[j];
 				const overlapX = a.x < b.x + b.width && b.x < a.x + a.width;
 				const overlapY = a.y < b.y + b.height && b.y < a.y + a.height;
-				expect(overlapX && overlapY).toBe(false);
+				expect({ overlap: overlapX && overlapY, widgets: [a.properties.title, b.properties.title] })
+					.toEqual(expect.objectContaining({ overlap: false }));
 			}
 		}
 	});

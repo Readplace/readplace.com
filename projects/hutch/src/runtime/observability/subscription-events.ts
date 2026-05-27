@@ -1,3 +1,4 @@
+import type { UserId } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { STREAMS, SUBSCRIPTION_EVENTS } from "./events";
 
@@ -5,15 +6,15 @@ export interface SubscriptionLogEvent {
 	stream: typeof STREAMS.subscriptions;
 	event: (typeof SUBSCRIPTION_EVENTS)[keyof typeof SUBSCRIPTION_EVENTS];
 	timestamp: string;
-	user_id: string;
+	user_id: UserId;
 	subscription_id?: string;
 	reason?: string;
 }
 
 export interface EmitSubscriptionEvent {
-	chargeSucceeded: (params: { userId: string; subscriptionId: string }) => void;
-	chargeFailed: (params: { userId: string; reason: string }) => void;
-	cancelled: (params: { userId: string; reason: string; subscriptionId?: string }) => void;
+	chargeSucceeded: (params: { userId: UserId; subscriptionId: string }) => void;
+	chargeFailed: (params: { userId: UserId; reason: string }) => void;
+	cancelled: (params: { userId: UserId; reason: string; subscriptionId?: string }) => void;
 }
 
 export function initEmitSubscriptionEvent(deps: {

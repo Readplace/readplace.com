@@ -1,3 +1,4 @@
+import { UserIdSchema } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { initEmitSubscriptionEvent, type SubscriptionLogEvent } from "./subscription-events";
 
@@ -16,19 +17,20 @@ function createCapturingLogger(): {
 }
 
 const NOW = () => new Date("2026-05-25T10:00:00.000Z");
+const USER_ID = UserIdSchema.parse("user-1");
 
 describe("initEmitSubscriptionEvent", () => {
 	it("emits a charge_succeeded event carrying the subscription id so the dashboard can join back to Stripe", () => {
 		const { logger, captured } = createCapturingLogger();
 		const emit = initEmitSubscriptionEvent({ logger, now: NOW });
 
-		emit.chargeSucceeded({ userId: "user-1", subscriptionId: "sub_123" });
+		emit.chargeSucceeded({ userId: USER_ID, subscriptionId: "sub_123" });
 
 		expect(captured).toEqual([{
 			stream: "subscriptions",
 			event: "charge_succeeded",
 			timestamp: "2026-05-25T10:00:00.000Z",
-			user_id: "user-1",
+			user_id: USER_ID,
 			subscription_id: "sub_123",
 		}]);
 	});
@@ -37,13 +39,13 @@ describe("initEmitSubscriptionEvent", () => {
 		const { logger, captured } = createCapturingLogger();
 		const emit = initEmitSubscriptionEvent({ logger, now: NOW });
 
-		emit.chargeFailed({ userId: "user-1", reason: "no_card_on_file" });
+		emit.chargeFailed({ userId: USER_ID, reason: "no_card_on_file" });
 
 		expect(captured).toEqual([{
 			stream: "subscriptions",
 			event: "charge_failed",
 			timestamp: "2026-05-25T10:00:00.000Z",
-			user_id: "user-1",
+			user_id: USER_ID,
 			reason: "no_card_on_file",
 		}]);
 	});
@@ -53,7 +55,7 @@ describe("initEmitSubscriptionEvent", () => {
 		const emit = initEmitSubscriptionEvent({ logger, now: NOW });
 
 		emit.cancelled({
-			userId: "user-1",
+			userId: USER_ID,
 			reason: "user_initiated_paid_confirmed",
 			subscriptionId: "sub_123",
 		});
@@ -62,7 +64,7 @@ describe("initEmitSubscriptionEvent", () => {
 			stream: "subscriptions",
 			event: "cancelled",
 			timestamp: "2026-05-25T10:00:00.000Z",
-			user_id: "user-1",
+			user_id: USER_ID,
 			subscription_id: "sub_123",
 			reason: "user_initiated_paid_confirmed",
 		}]);
@@ -72,13 +74,13 @@ describe("initEmitSubscriptionEvent", () => {
 		const { logger, captured } = createCapturingLogger();
 		const emit = initEmitSubscriptionEvent({ logger, now: NOW });
 
-		emit.cancelled({ userId: "user-1", reason: "user_initiated_trial" });
+		emit.cancelled({ userId: USER_ID, reason: "user_initiated_trial" });
 
 		expect(captured[0]).toEqual({
 			stream: "subscriptions",
 			event: "cancelled",
 			timestamp: "2026-05-25T10:00:00.000Z",
-			user_id: "user-1",
+			user_id: USER_ID,
 			reason: "user_initiated_trial",
 		});
 		expect(JSON.stringify(captured[0])).not.toContain("subscription_id");

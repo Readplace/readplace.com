@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import {
 	ANALYTICS_EVENTS,
 	CONVERSION_EVENTS,
@@ -35,6 +36,7 @@ export interface BuildAnalyticsDashboardDeps {
  * See https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-Source.html
  */
 function sourceClause(logGroupNames: readonly string[]): string {
+	assert(logGroupNames.length > 0, "sourceClause requires at least one log group name");
 	if (logGroupNames.length === 1) return `SOURCE '${logGroupNames[0]}'`;
 	const prefixes = logGroupNames.map((n) => `'${n}'`).join(", ");
 	return `SOURCE logGroups(namePrefix: [${prefixes}])`;
