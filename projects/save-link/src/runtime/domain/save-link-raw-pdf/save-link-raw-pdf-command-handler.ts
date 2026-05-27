@@ -108,7 +108,7 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 					`${logPrefix} unexpected crawl status ${crawlResult.status}`,
 				);
 
-				const parseResult = parseHtml({ url: detail.url, html: crawlResult.html });
+				const parseResult = parseHtml({ url: detail.url, html: crawlResult.html, thumbnailUrl: null });
 				if (!parseResult.ok) {
 					logParseError({ url: detail.url, reason: parseResult.reason });
 					const snapshot = await readTierSnapshot({ url: detail.url });
@@ -164,14 +164,10 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 					pickedTier: snapshot.pickedTier,
 				});
 
-				await publishEvent({
-					source: TierContentExtractedEvent.source,
-					detailType: TierContentExtractedEvent.detailType,
-					detail: JSON.stringify({
-						url: detail.url,
-						tier: TIER,
-						userId: detail.userId,
-					}),
+				await publishEvent(TierContentExtractedEvent, {
+					url: detail.url,
+					tier: TIER,
+					userId: detail.userId,
 				});
 
 				logger.info(`${logPrefix} tier-0 source written`, { url: detail.url });

@@ -29,7 +29,7 @@ import type {
 import type { PublishUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
 import type { PublishSaveLinkRawPdfCommand } from "@packages/test-fixtures/providers/events";
 import type { PutPendingPdf } from "@packages/test-fixtures/providers/pending-pdf";
-import { MAX_PDF_BYTES, isPdfMagicBytes, isPdfContentType } from "@packages/crawl-article";
+import { MAX_PDF_BYTES, isPDF } from "@packages/crawl-article";
 import { initMultipartUpload } from "../import/multipart-upload";
 import { initSavePdfLimitHandler } from "./save-pdf-limit-handler";
 import { initSaveContentLimitHandler } from "./save-content-limit-handler";
@@ -573,7 +573,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				return;
 			}
 
-			if (!isPdfMagicBytes(pdfBytes)) {
+			if (!isPDF({ bodyBytes: pdfBytes })) {
 				res.status(422).type(SIREN_MEDIA_TYPE).json(
 					sirenError({
 						code: "not-a-pdf",
@@ -707,8 +707,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				const articleUrl = validation.url;
 				const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
 
-				if (isPdfContentType(mediaType)) {
-					if (!isPdfMagicBytes(contentBytes)) {
+				if (isPDF({ contentType: mediaType })) {
+					if (!isPDF({ bodyBytes: contentBytes })) {
 						res.status(422).type(SIREN_MEDIA_TYPE).json(
 							sirenError({
 								code: "not-a-pdf",

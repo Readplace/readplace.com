@@ -6,19 +6,9 @@ import type { PublishSaveLinkRawPdfCommand } from "@packages/test-fixtures/provi
 export function initEventBridgeSaveLinkRawPdfCommand(deps: {
 	publishEvent: PublishEvent;
 }): { publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand } {
-	const { publishEvent } = deps;
-
-	const publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand = async (params) => {
-		await publishEvent({
-			source: SaveLinkRawPdfCommand.source,
-			detailType: SaveLinkRawPdfCommand.detailType,
-			detail: JSON.stringify({
-				url: params.url,
-				userId: params.userId,
-			}),
-		});
+	return {
+		publishSaveLinkRawPdfCommand: (params) =>
+			deps.publishEvent(SaveLinkRawPdfCommand, params),
 	};
-
-	return { publishSaveLinkRawPdfCommand };
 }
 /* c8 ignore stop */
