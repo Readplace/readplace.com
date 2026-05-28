@@ -321,4 +321,6 @@ export const SUBSCRIPTION_DASHBOARD_LOG_GROUPS: readonly string[] = [
 	LOG_GROUPS.subscriptionChargeSucceeded,
 	LOG_GROUPS.cancelSubscription,
 	LOG_GROUPS.handleSubscriptionCancelled,
+	LOG_GROUPS.addPaymentMethod,
+	LOG_GROUPS.paymentMethodAdded,
 ];

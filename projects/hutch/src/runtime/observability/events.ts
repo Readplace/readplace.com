@@ -55,6 +55,8 @@ export const LAMBDA_NAMES = {
 	subscriptionChargeSucceeded: "subscription-charge-succeeded",
 	cancelSubscription: "cancel-subscription",
 	handleSubscriptionCancelled: "handle-subscription-cancelled",
+	addPaymentMethod: "add-payment-method",
+	paymentMethodAdded: "payment-method-added",
 } as const;
 
 type LogGroupName<T extends string> = `/aws/lambda/${T}-handler`;
@@ -65,6 +67,8 @@ export const LOG_GROUPS = {
 	subscriptionChargeSucceeded: `/aws/lambda/${LAMBDA_NAMES.subscriptionChargeSucceeded}-handler`,
 	cancelSubscription: `/aws/lambda/${LAMBDA_NAMES.cancelSubscription}-handler`,
 	handleSubscriptionCancelled: `/aws/lambda/${LAMBDA_NAMES.handleSubscriptionCancelled}-handler`,
+	addPaymentMethod: `/aws/lambda/${LAMBDA_NAMES.addPaymentMethod}-handler`,
+	paymentMethodAdded: `/aws/lambda/${LAMBDA_NAMES.paymentMethodAdded}-handler`,
 } as const satisfies {
 	readonly [K in keyof typeof LAMBDA_NAMES]: LogGroupName<(typeof LAMBDA_NAMES)[K]>;
 };

@@ -661,7 +661,7 @@ const addPaymentMethodQueue = new HutchSQS("add-payment-method", {
 	visibilityTimeoutSeconds: 30,
 });
 
-const addPaymentMethodLambda = new HutchLambda("add-payment-method", {
+const addPaymentMethodLambda = new HutchLambda(LAMBDA_NAMES.addPaymentMethod, {
 	entryPoint: "./src/runtime/add-payment-method.main.ts",
 	outputDir: ".lib/add-payment-method",
 	assetDir: "./src/runtime",
@@ -702,7 +702,7 @@ const paymentMethodAddedQueue = new HutchSQS("payment-method-added", {
 	visibilityTimeoutSeconds: 30,
 });
 
-const paymentMethodAddedLambda = new HutchLambda("payment-method-added", {
+const paymentMethodAddedLambda = new HutchLambda(LAMBDA_NAMES.paymentMethodAdded, {
 	entryPoint: "./src/runtime/payment-method-added.main.ts",
 	outputDir: ".lib/payment-method-added",
 	assetDir: "./src/runtime",
@@ -775,6 +775,14 @@ const subscriptionLogGroups = [
 	}),
 	new aws.cloudwatch.LogGroup("handle-subscription-cancelled-log-group", {
 		name: LOG_GROUPS.handleSubscriptionCancelled,
+		retentionInDays: 30,
+	}),
+	new aws.cloudwatch.LogGroup("add-payment-method-log-group", {
+		name: LOG_GROUPS.addPaymentMethod,
+		retentionInDays: 30,
+	}),
+	new aws.cloudwatch.LogGroup("payment-method-added-log-group", {
+		name: LOG_GROUPS.paymentMethodAdded,
 		retentionInDays: 30,
 	}),
 ];
