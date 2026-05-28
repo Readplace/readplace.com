@@ -11,14 +11,8 @@ export function initEventBridgeSubscriptionStartRequestCommand(deps: {
 	const publishSubscriptionStartRequestCommand: PublishSubscriptionStartRequestCommand = async (
 		params,
 	) => {
-		await publishEvent({
-			source: SubscriptionStartRequestCommand.source,
-			detailType: SubscriptionStartRequestCommand.detailType,
-			detail: JSON.stringify(
-				SubscriptionStartRequestCommand.detailSchema.parse({
-					userId: params.userId,
-				}),
-			),
+		await publishEvent(SubscriptionStartRequestCommand, {
+			userId: params.userId,
 		});
 	};
 

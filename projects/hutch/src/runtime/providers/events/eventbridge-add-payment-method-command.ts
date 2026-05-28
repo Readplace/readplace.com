@@ -9,18 +9,12 @@ export function initEventBridgeAddPaymentMethodCommand(deps: {
 	const { publishEvent } = deps;
 
 	const publishAddPaymentMethodCommand: PublishAddPaymentMethodCommand = async (params) => {
-		await publishEvent({
-			source: AddPaymentMethodCommand.source,
-			detailType: AddPaymentMethodCommand.detailType,
-			detail: JSON.stringify(
-				AddPaymentMethodCommand.detailSchema.parse({
-					userId: params.userId,
-					customerId: params.customerId,
-					paymentMethodId: params.paymentMethodId,
-					brand: params.brand,
-					last4: params.last4,
-				}),
-			),
+		await publishEvent(AddPaymentMethodCommand, {
+			userId: params.userId,
+			customerId: params.customerId,
+			paymentMethodId: params.paymentMethodId,
+			brand: params.brand,
+			last4: params.last4,
 		});
 	};
 
