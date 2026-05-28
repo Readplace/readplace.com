@@ -664,38 +664,30 @@ new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 // Lambdas only run after a trial ends — so until the first trial-end charge
 // fires in a stack, none of these log groups exist and the analytics dashboard's
 // Logs Insights queries against them fail with `ResourceNotFoundException`.
-// Manage them explicitly so the dashboard renders an empty result set instead
+// Create them explicitly so the dashboard renders an empty result set instead
 // of erroring. Names are sourced from LOG_GROUPS so a rename in events.ts
 // propagates here without manual edits.
-//
-// Each uses `import:` because every existing stack has had at least one
-// subscription Lambda invocation, so AWS has already auto-created the groups.
-// Pulumi can't `create` over an existing resource — `import:` adopts the
-// existing log group into state on the first deploy, then becomes a no-op on
-// subsequent runs. A brand-new stack with zero subscription Lambda invocations
-// would need each log group pre-created with `aws logs create-log-group`
-// before the first deploy.
 const subscriptionLogGroups = [
 	new aws.cloudwatch.LogGroup("subscription-start-request-log-group", {
 		name: LOG_GROUPS.subscriptionStartRequest,
 		retentionInDays: 30,
-	}, { import: LOG_GROUPS.subscriptionStartRequest }),
+	}),
 	new aws.cloudwatch.LogGroup("subscription-charge-succeeded-log-group", {
 		name: LOG_GROUPS.subscriptionChargeSucceeded,
 		retentionInDays: 30,
-	}, { import: LOG_GROUPS.subscriptionChargeSucceeded }),
+	}),
 	new aws.cloudwatch.LogGroup("subscription-charge-failed-log-group", {
 		name: LOG_GROUPS.subscriptionChargeFailed,
 		retentionInDays: 30,
-	}, { import: LOG_GROUPS.subscriptionChargeFailed }),
+	}),
 	new aws.cloudwatch.LogGroup("cancel-subscription-log-group", {
 		name: LOG_GROUPS.cancelSubscription,
 		retentionInDays: 30,
-	}, { import: LOG_GROUPS.cancelSubscription }),
+	}),
 	new aws.cloudwatch.LogGroup("handle-subscription-cancelled-log-group", {
 		name: LOG_GROUPS.handleSubscriptionCancelled,
 		retentionInDays: 30,
-	}, { import: LOG_GROUPS.handleSubscriptionCancelled }),
+	}),
 ];
 
 new aws.cloudwatch.Dashboard("readplace-analytics", {
