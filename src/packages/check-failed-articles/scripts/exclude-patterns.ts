@@ -75,6 +75,10 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// PwC HR system returns HTTP 410 Gone on every attempt — job posting was
 	// delisted at origin, so recrawl can never succeed.
 	/^https:\/\/jobs-au\.pwc\.com\/experiencedhires\/au\/en\/job\/597385WD\/Senior-Manager-Finance-Transformation-Global-Business-Services$/i,
+	// Typo domain: `fagnerbracj.com` (should be `fagnerbrack.com`, note
+	// `j` vs `k`). DNS returns NXDOMAIN — the domain does not exist and
+	// recrawl can never succeed.
+	/^https:\/\/fagnerbracj\.com\/learn-python-the-hard-way-was-right-about-one-thing-9b6ab0b67526$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {
