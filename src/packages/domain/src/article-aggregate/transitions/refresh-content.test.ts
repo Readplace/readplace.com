@@ -253,13 +253,7 @@ describe("refreshContent", () => {
 			crawl: { kind: "failed", reason: { kind: "fetch-failed", httpStatus: 503 } },
 		});
 
-		const { article, writes } = refreshContent(before, {
-			metadata: before.metadata,
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-			now: NOW,
-			canonicalContentHash: HASH_A,
-		});
+		const { article, writes } = refreshContent(before, buildInput());
 
 		assert.deepEqual(article.crawl, { kind: "ready" });
 		assert.ok(writes.includes("crawl"), "recovery-from-failed must declare a crawl write");
@@ -270,13 +264,7 @@ describe("refreshContent", () => {
 			crawl: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
 		});
 
-		const { article, writes } = refreshContent(before, {
-			metadata: before.metadata,
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-			now: NOW,
-			canonicalContentHash: HASH_A,
-		});
+		const { article, writes } = refreshContent(before, buildInput());
 
 		assert.deepEqual(article.crawl, before.crawl);
 		assert.ok(!writes.includes("crawl"), "refresh must not write crawl when an inline crawl is in flight");
@@ -287,13 +275,7 @@ describe("refreshContent", () => {
 			crawl: { kind: "unsupported", reason: { kind: "paywall" } },
 		});
 
-		const { article, writes } = refreshContent(before, {
-			metadata: before.metadata,
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-			now: NOW,
-			canonicalContentHash: HASH_A,
-		});
+		const { article, writes } = refreshContent(before, buildInput());
 
 		assert.deepEqual(article.crawl, before.crawl);
 		assert.ok(!writes.includes("crawl"));
