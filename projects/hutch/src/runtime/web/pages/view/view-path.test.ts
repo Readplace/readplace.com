@@ -48,9 +48,21 @@ describe("viewPathFor", () => {
 		expect(viewPathFor("https://example.com")).toBe("/view/example.com/");
 	});
 
-	it("preserves percent-encoded sequences in the pathname", () => {
+	it("double-encodes literal percent signs (%25) so they survive Express decode", () => {
 		expect(viewPathFor("https://example.com/path%25foo")).toBe(
-			"/view/example.com/path%25foo",
+			"/view/example.com/path%2525foo",
+		);
+	});
+
+	it("double-encodes %25 followed by two hex digits (previously lossy)", () => {
+		expect(viewPathFor("https://example.com/path%25C3")).toBe(
+			"/view/example.com/path%2525C3",
+		);
+	});
+
+	it("leaves regular percent-encoded bytes untouched (only %25 is double-encoded)", () => {
+		expect(viewPathFor("https://example.com/path%C3%A9")).toBe(
+			"/view/example.com/path%C3%A9",
 		);
 	});
 });
@@ -147,10 +159,10 @@ describe("parseViewPath", () => {
 		});
 	});
 
-	it("redirects https:// paths with bare % and re-encodes them in the redirect target", () => {
+	it("redirects https:// paths with bare % and double-encodes the re-encoded %25 in the redirect target", () => {
 		expect(parse("https://example.com/path%foo")).toEqual({
 			kind: "redirect",
-			canonicalPath: "/view/example.com/path%25foo",
+			canonicalPath: "/view/example.com/path%2525foo",
 		});
 	});
 
@@ -170,6 +182,13 @@ describe("parseViewPath", () => {
 
 	it("is round-trip stable for percent-encoded article URLs through Express decode", () => {
 		const url = "https://example.com/path%25foo";
+		const path = viewPathFor(url);
+		const rawWildcard = decodeURIComponent(path.slice("/view/".length));
+		expect(parse(rawWildcard)).toEqual({ kind: "render", articleUrl: url });
+	});
+
+	it("is round-trip stable for %25 followed by two hex digits through Express decode", () => {
+		const url = "https://example.com/path%25C3";
 		const path = viewPathFor(url);
 		const rawWildcard = decodeURIComponent(path.slice("/view/".length));
 		expect(parse(rawWildcard)).toEqual({ kind: "render", articleUrl: url });

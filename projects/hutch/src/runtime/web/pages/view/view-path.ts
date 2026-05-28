@@ -47,10 +47,14 @@ export function parseViewPath(input: ParseViewPathInput): ParseViewPathResult {
 	return { kind: "render", articleUrl: `https://${rawPath}` };
 }
 
-/** Re-encode `?` and `#` from the decoded article URL so the canonical keeps
- * them inside the path rather than letting Express split them into req.query. */
+/** Re-encode `%25` (literal `%`), `?`, and `#` so the canonical survives
+ * Express's `decodeURIComponent` on the wildcard param. `%25` is the URL
+ * constructor's encoding of a literal percent sign; double-encoding it to
+ * `%2525` ensures Express decode yields `%25` back, preserving round-trip
+ * fidelity. Regular percent-encoded bytes (e.g. `%C3%A9` for é) are left
+ * alone — Express decodes them to the actual character, which is equivalent. */
 function encodeArticlePathInfo(decodedTail: string): string {
-	return decodedTail.replace(/\?/g, "%3F").replace(/#/g, "%23");
+	return decodedTail.replace(/%25/g, "%2525").replace(/\?/g, "%3F").replace(/#/g, "%23");
 }
 
 /** Express decodes percent-encoding in the wildcard param, so `%25` (literal %)
