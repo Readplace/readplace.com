@@ -1,0 +1,66 @@
+/** Canonical `/view/...` paths drop the implicit `https://` scheme and keep
+ * slashes unencoded so the article URL reads naturally in the browser bar.
+ * `http://` is preserved literally because http is the minority case and the
+ * scheme would otherwise be ambiguous. `?` and `#` inside the article URL
+ * are percent-encoded so Express's query parser only sees Readplace tracking
+ * params. */
+
+export type ParseViewPathResult =
+	| { kind: "render"; articleUrl: string }
+	| { kind: "redirect"; canonicalPath: string };
+
+export type ParseViewPathInput = {
+	/** Express-decoded wildcard from `req.params[0]`. */
+	rawPath: string;
+	/** Original URL-encoded wildcard from `req.originalUrl` (path-only, no
+	 * query). Used to detect the legacy `http%3A%2F%2F` form whose decoded
+	 * value collides with the new canonical `http://` form. */
+	encodedPath: string;
+};
+
+/** Builds the canonical `/view/...` path for an article URL. */
+export function viewPathFor(articleUrl: string): string {
+	const u = new URL(articleUrl);
+	const tail = encodeArticlePathInfo(`${u.host}${u.pathname}${u.search}${u.hash}`);
+	const scheme = u.protocol === "http:" ? "http://" : "";
+	return `/view/${scheme}${tail}`;
+}
+
+/** Parses the wildcard segment of `/view/*` into either the article URL to
+ * render or the canonical path to 301-redirect to. */
+export function parseViewPath(input: ParseViewPathInput): ParseViewPathResult {
+	const rawPath = reEncodePartialPercents(input.rawPath);
+	const normalized = rawPath.replace(/^(https?):\/(?!\/)/i, "$1://");
+	const httpsMatch = /^https:\/\/(.+)$/i.exec(normalized);
+	if (httpsMatch) {
+		return { kind: "redirect", canonicalPath: `/view/${encodeArticlePathInfo(httpsMatch[1])}` };
+	}
+	const httpMatch = /^http:\/\/(.+)$/i.exec(normalized);
+	if (httpMatch) {
+		const wasCollapsed = rawPath !== normalized;
+		const wasSchemeEncoded = /^http%3a/i.test(input.encodedPath);
+		if (wasCollapsed || wasSchemeEncoded) {
+			return { kind: "redirect", canonicalPath: `/view/http://${encodeArticlePathInfo(httpMatch[1])}` };
+		}
+		return { kind: "render", articleUrl: normalized };
+	}
+	return { kind: "render", articleUrl: `https://${rawPath}` };
+}
+
+/** Re-encode `%25` (literal `%`), `?`, and `#` so the canonical survives
+ * Express's `decodeURIComponent` on the wildcard param. `%25` is the URL
+ * constructor's encoding of a literal percent sign; double-encoding it to
+ * `%2525` ensures Express decode yields `%25` back, preserving round-trip
+ * fidelity. Regular percent-encoded bytes (e.g. `%C3%A9` for é) are left
+ * alone — Express decodes them to the actual character, which is equivalent. */
+function encodeArticlePathInfo(decodedTail: string): string {
+	return decodedTail.replace(/%25/g, "%2525").replace(/\?/g, "%3F").replace(/#/g, "%23");
+}
+
+/** Express decodes percent-encoding in the wildcard param, so `%25` (literal %)
+ * arrives as bare `%`. When the next two characters aren't hex digits, prepending
+ * `https://` would create an invalid URL. Re-encoding these orphaned `%`
+ * restores round-trip fidelity. */
+function reEncodePartialPercents(s: string): string {
+	return s.replace(/%(?![0-9a-fA-F]{2})/g, "%25");
+}

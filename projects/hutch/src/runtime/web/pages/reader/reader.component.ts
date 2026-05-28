@@ -13,6 +13,7 @@ import {
 	renderShareBalloon,
 } from "../../shared/share-balloon/share-balloon.component";
 import { shareUserIdPrefix } from "../../shared/share-balloon/share-user-id-prefix";
+import { viewPathFor } from "../view/view-path";
 import { READER_STYLES } from "./reader.styles";
 
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
@@ -87,7 +88,7 @@ export function ReaderPage(
 		extensionInstallUrl: options.extensionInstallUrl,
 	});
 	const shareBalloon = renderShareBalloon({
-		shareUrl: `${options.appOrigin}/view/${encodeURIComponent(article.url)}`,
+		shareUrl: `${options.appOrigin}${viewPathFor(article.url)}`,
 		shareTitle: article.metadata.title,
 		shareHint: "Click here to share this post!",
 		shareSource: "reader-internal",

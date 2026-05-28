@@ -582,7 +582,7 @@ describe("Queue routes", () => {
 				assert(btn, "share button must be rendered on /queue/:id/view");
 				const shareUrl = new URL(btn.getAttribute("data-share-url") ?? "");
 				expect(`${shareUrl.origin}${shareUrl.pathname}`).toBe(
-					`${TEST_APP_ORIGIN}/view/${encodeURIComponent(articleUrl)}`,
+					`${TEST_APP_ORIGIN}/view/example.com/shareable-post`,
 				);
 				expect(shareUrl.searchParams.get("utm_source")).toBe("share-balloon");
 				expect(shareUrl.searchParams.get("utm_medium")).toBe("share");
@@ -593,7 +593,7 @@ describe("Queue routes", () => {
 				assert(copyBtn, "copy button must be rendered on /queue/:id/view");
 				const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
 				expect(`${copyUrl.origin}${copyUrl.pathname}`).toBe(
-					`${TEST_APP_ORIGIN}/view/${encodeURIComponent(articleUrl)}`,
+					`${TEST_APP_ORIGIN}/view/example.com/shareable-post`,
 				);
 				expect(copyUrl.searchParams.get("utm_source")).toBe("share-balloon");
 				expect(copyUrl.searchParams.get("utm_medium")).toBe("copy");

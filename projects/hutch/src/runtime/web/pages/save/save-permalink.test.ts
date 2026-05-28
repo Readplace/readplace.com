@@ -1,7 +1,7 @@
 import { buildSavePermalink, runSavePermalinkCli } from "./save-permalink";
 
 describe("buildSavePermalink", () => {
-	it("should build a save URL with utm params and percent-encoded url", () => {
+	it("should build a save URL with utm params and the scheme-less canonical view path", () => {
 		const result = buildSavePermalink({
 			baseUrl: "https://readplace.com",
 			url: "https://fagnerbrack.com/example",
@@ -10,11 +10,11 @@ describe("buildSavePermalink", () => {
 		});
 
 		expect(result).toBe(
-			"https://readplace.com/view/https%3A%2F%2Ffagnerbrack.com%2Fexample?utm_source=fagnerbrack.com&utm_content=top",
+			"https://readplace.com/view/fagnerbrack.com/example?utm_source=fagnerbrack.com&utm_content=top",
 		);
 	});
 
-	it("should encode special characters inside the target url", () => {
+	it("should encode the article URL's query separator inside the path", () => {
 		const result = buildSavePermalink({
 			baseUrl: "https://readplace.com",
 			url: "https://example.com/path?q=hello world&x=1",
@@ -23,7 +23,7 @@ describe("buildSavePermalink", () => {
 		});
 
 		expect(result).toBe(
-			"https://readplace.com/view/https%3A%2F%2Fexample.com%2Fpath%3Fq%3Dhello%20world%26x%3D1?utm_source=src&utm_content=ctx",
+			"https://readplace.com/view/example.com/path%3Fq=hello%20world&x=1?utm_source=src&utm_content=ctx",
 		);
 	});
 });
@@ -52,7 +52,7 @@ describe("runSavePermalinkCli", () => {
 		const { code, out, err } = runCli(["medium-top", "https://fagnerbrack.com/example"]);
 		expect(code).toBe(0);
 		expect(out).toBe(
-			"https://readplace.com/view/https%3A%2F%2Ffagnerbrack.com%2Fexample?utm_source=fagnerbrack.com&utm_content=top\n",
+			"https://readplace.com/view/fagnerbrack.com/example?utm_source=fagnerbrack.com&utm_content=top\n",
 		);
 		expect(err).toBe("");
 	});
@@ -61,7 +61,7 @@ describe("runSavePermalinkCli", () => {
 		const { code, out, err } = runCli(["medium-bottom", "https://fagnerbrack.com/example"]);
 		expect(code).toBe(0);
 		expect(out).toBe(
-			"https://readplace.com/view/https%3A%2F%2Ffagnerbrack.com%2Fexample?utm_source=fagnerbrack.com&utm_content=bottom\n",
+			"https://readplace.com/view/fagnerbrack.com/example?utm_source=fagnerbrack.com&utm_content=bottom\n",
 		);
 		expect(err).toBe("");
 	});
