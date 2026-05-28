@@ -192,9 +192,13 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		// INTERNAL_ERROR). Either a coherent full-Chrome persona or the
 		// `honest-bot` persona pass. If this entry fails, the persona-fallback
 		// chain has lost both — investigate the chain before touching this URL.
+		//
+		// expectedContent anchors on page-1 prose ("four distinct fields")
+		// rather than the bullet-point text ("bookmarks in a PDF file") that
+		// the HTML-conversion LLM can restructure non-deterministically.
 		label: "PDF (Adobe sample)",
 		url: "https://www.adobe.com/support/products/enterprise/knowledgecenter/media/c4611_sample_explain.pdf",
-		expectedContent: "bookmarks in a PDF file",
+		expectedContent: "simple form containing four distinct fields",
 		expectsThumbnail: false,
 	},
 ];

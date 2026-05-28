@@ -721,7 +721,9 @@ const staleCheckRequestedLambda = new HutchLambda("stale-check-requested", {
 	layers: [curlImpersonateLayer.arn],
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
 	},
@@ -731,6 +733,9 @@ const staleCheckRequestedLambda = new HutchLambda("stale-check-requested", {
 		// Stages the refreshed HTML under refresh-html/ before publishing
 		// RefreshArticleContentCommand; consumer reads from the same bucket.
 		...pendingHtmlBucket.writePolicies("stale-check-requested-refresh-html"),
+		// finalizeArticle uploads thumbnail + body images to the content bucket
+		// as part of the unified crawl-and-finalize pipeline.
+		...contentBucket.writePolicies("stale-check-requested-s3"),
 	],
 });
 

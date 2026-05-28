@@ -19,7 +19,7 @@ import {
 } from "@packages/test-fixtures";
 
 const ARTICLE_URL = "https://example.com/post";
-const ENCODED = encodeURIComponent(ARTICLE_URL);
+const CANONICAL_PATH = "example.com/post";
 
 type OkParseResult = Extract<ParseArticleResult, { ok: true }>;
 type ParsedArticle = OkParseResult["article"];
@@ -78,7 +78,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(
@@ -97,7 +97,7 @@ describe("View routes", () => {
 			).toBe("article");
 			expect(
 				doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
-			).toBe(`https://readplace.com/view/${ENCODED}`);
+			).toBe(`https://readplace.com/view/${CANONICAL_PATH}`);
 			expect(
 				doc
 					.querySelector('meta[name="twitter:description"]')
@@ -144,7 +144,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(
@@ -184,7 +184,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
@@ -226,7 +226,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(
@@ -316,7 +316,7 @@ describe("View routes", () => {
 			).toBe("Open in reader view");
 		});
 
-		it("redirects GET /view?url=<valid> to /view/<encoded-url>", async () => {
+		it("redirects GET /view?url=<valid> to /view/<canonical-url>", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			const response = await request(harness.server).get(
@@ -324,7 +324,7 @@ describe("View routes", () => {
 			);
 
 			expect(response.status).toBe(302);
-			expect(response.headers.location).toBe(`/view/${ENCODED}`);
+			expect(response.headers.location).toBe(`/view/${CANONICAL_PATH}`);
 		});
 
 		it("renders the save-error page when GET /view?url=<invalid>", async () => {
@@ -360,7 +360,7 @@ describe("View routes", () => {
 			const { articleStore } = harness;
 
 			const response = await request(harness.server).get(
-				`/view/${encodeURIComponent("http://localhost:3000/queue")}`,
+				"/view/http://localhost:3000/queue",
 			);
 
 			expect(response.status).toBe(200);
@@ -402,7 +402,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -464,7 +464,7 @@ describe("View routes", () => {
 			});
 			await articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			expect(response.status).toBe(200);
 			expect(parseSpy).not.toHaveBeenCalled();
@@ -531,7 +531,7 @@ describe("View routes", () => {
 			});
 			await articleCrawl.markCrawlFailed({ url: ARTICLE_URL, reason: "blocked" });
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			expect(response.status).toBe(200);
 			// /view never re-parses inline; recovery happens in the stale-check Lambda.
@@ -577,7 +577,7 @@ describe("View routes", () => {
 			});
 			const { articleStore } = harness;
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			expect(response.status).toBe(200);
 			expect(publishSaveAnonymousLink).toHaveBeenCalledTimes(1);
@@ -625,7 +625,7 @@ describe("View routes", () => {
 				.type("form")
 				.send({ email: "test@example.com", password: "password123" });
 
-			const response = await agent.get(`/view/${ENCODED}`);
+			const response = await agent.get(`/view/${CANONICAL_PATH}`);
 
 			expect(response.status).toBe(200);
 			expect(publishSaveAnonymousLink).toHaveBeenCalledTimes(1);
@@ -684,7 +684,7 @@ describe("View routes", () => {
 			});
 			await articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 
-			await request(harness.server).get(`/view/${ENCODED}`);
+			await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			expect(publishSaveAnonymousLink).not.toHaveBeenCalled();
 			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: ARTICLE_URL });
@@ -735,7 +735,7 @@ describe("View routes", () => {
 				savedAt: new Date(),
 			});
 
-			await request(harness.server).get(`/view/${ENCODED}`);
+			await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			expect(publishSaveAnonymousLink).not.toHaveBeenCalled();
 			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: ARTICLE_URL });
@@ -787,8 +787,8 @@ describe("View routes", () => {
 			// visit would have re-published SaveAnonymousLinkCommand. Now it must
 			// stay quiet for both — the stale-check Lambda observes a failed row
 			// and short-circuits to action=skip.
-			await request(harness.server).get(`/view/${ENCODED}`);
-			await request(harness.server).get(`/view/${ENCODED}`);
+			await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+			await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			expect(publishSaveAnonymousLink).not.toHaveBeenCalled();
 			expect(publishStaleCheckRequested).toHaveBeenCalledWith({ url: ARTICLE_URL });
@@ -820,7 +820,7 @@ describe("View routes", () => {
 				reason: "non-html content type: application/pdf",
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -858,13 +858,13 @@ describe("View routes", () => {
 				},
 			});
 
-			await request(harness.server).get(`/view/${ENCODED}`);
+			await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: ARTICLE_URL });
 		});
 	});
 
-	describe("GET /view/<encoded-url> with Accept: text/markdown", () => {
+	describe("GET /view/<canonical-url> with Accept: text/markdown", () => {
 		it("returns the article body as markdown without the share/save UI", async () => {
 			const parseArticle: ParseArticle = async () =>
 				buildParseResult({
@@ -898,7 +898,7 @@ describe("View routes", () => {
 			});
 
 			const response = await request(harness.server)
-				.get(`/view/${ENCODED}`)
+				.get(`/view/${CANONICAL_PATH}`)
 				.set("Accept", "text/markdown");
 
 			expect(response.status).toBe(200);
@@ -923,7 +923,7 @@ describe("View routes", () => {
 			});
 
 			const response = await request(harness.server)
-				.get(`/view/${ENCODED}`)
+				.get(`/view/${CANONICAL_PATH}`)
 				.set("Accept", "text/markdown");
 
 			expect(response.status).toBe(200);

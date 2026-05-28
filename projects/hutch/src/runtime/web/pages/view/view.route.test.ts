@@ -21,6 +21,8 @@ import { MAX_POLLS } from "../../shared/article-reader/article-reader";
 
 const ARTICLE_URL = "https://example.com/post";
 const ENCODED = encodeURIComponent(ARTICLE_URL);
+const CANONICAL_PATH = "example.com/post";
+const PERMANENT_CANONICAL_PATH = "fagnerbrack.com/some-article";
 
 type OkParseResult = Extract<ParseArticleResult, { ok: true }>;
 type ParsedArticle = OkParseResult["article"];
@@ -51,7 +53,7 @@ function ctaAction(doc: Document): Element {
 const useApp = useTestServer();
 
 describe("View routes", () => {
-	describe("GET /view/<encoded-url>", () => {
+	describe("GET /view/<canonical-url>", () => {
 		it("renders the article body for an anonymous visitor (200)", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -79,7 +81,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -95,7 +97,49 @@ describe("View routes", () => {
 			expect(iframeDoc.body.innerHTML.trim()).toBe("<p>Body copy.</p>");
 		});
 
-		it("renders the article when the path arrives with decoded slashes (API Gateway shape)", async () => {
+		it("301-redirects the legacy percent-encoded format to the scheme-less canonical", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).get(`/view/${ENCODED}`);
+
+			expect(response.status).toBe(301);
+			expect(response.headers.location).toBe(`/view/${CANONICAL_PATH}`);
+		});
+
+		it("301-redirects the legacy decoded https:// path (API Gateway shape) to the canonical", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).get(`/view/${ARTICLE_URL}`);
+
+			expect(response.status).toBe(301);
+			expect(response.headers.location).toBe(`/view/${CANONICAL_PATH}`);
+		});
+
+		it("301-redirects when the scheme's second slash has been collapsed (https:/)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).get(
+				`/view/${ARTICLE_URL.replace("://", ":/")}`,
+			);
+
+			expect(response.status).toBe(301);
+			expect(response.headers.location).toBe(`/view/${CANONICAL_PATH}`);
+		});
+
+		it("preserves the Readplace tracking query string when redirecting from the legacy format", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).get(
+				`/view/${ENCODED}?utm_source=medium&utm_campaign=x`,
+			);
+
+			expect(response.status).toBe(301);
+			expect(response.headers.location).toBe(
+				`/view/${CANONICAL_PATH}?utm_source=medium&utm_campaign=x`,
+			);
+		});
+
+		it("renders the article at the http:// canonical without redirecting", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
@@ -105,10 +149,7 @@ describe("View routes", () => {
 			});
 			const harness = useApp({
 				...fixture,
-				parser: {
-					parseArticle,
-					crawlArticle: fixture.parser.crawlArticle,
-				},
+				parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
@@ -122,7 +163,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ARTICLE_URL}`);
+			const response = await request(harness.server).get(`/view/http://example.com/post`);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -131,7 +172,43 @@ describe("View routes", () => {
 			);
 		});
 
-		it("renders the article when the scheme's second slash has been collapsed", async () => {
+		it("301-redirects http:/ (collapsed scheme) to the http:// canonical", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).get(`/view/http:/example.com/post`);
+
+			expect(response.status).toBe(301);
+			expect(response.headers.location).toBe(`/view/http://example.com/post`);
+		});
+
+		it("301-redirects the percent-encoded http format to the http:// canonical", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).get(
+				`/view/${encodeURIComponent("http://example.com/post")}`,
+			);
+
+			expect(response.status).toBe(301);
+			expect(response.headers.location).toBe(`/view/http://example.com/post`);
+		});
+
+		it("301-redirects the legacy encoded PDF URL to the human-readable canonical (drops https + URL encoding)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const articleUrl =
+				"https://web.eecs.umich.edu/~weimerw/2018-481/readings/mythical-man-month.pdf";
+
+			const response = await request(harness.server).get(
+				`/view/${encodeURIComponent(articleUrl)}`,
+			);
+
+			expect(response.status).toBe(301);
+			expect(response.headers.location).toBe(
+				"/view/web.eecs.umich.edu/~weimerw/2018-481/readings/mythical-man-month.pdf",
+			);
+		});
+
+		it("renders the article URL with the user-friendly canonical path containing slashes", async () => {
+			const articleUrl = "https://web.eecs.umich.edu/~weimerw/2018-481/readings/mythical-man-month.pdf";
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
@@ -141,10 +218,7 @@ describe("View routes", () => {
 			});
 			const harness = useApp({
 				...fixture,
-				parser: {
-					parseArticle,
-					crawlArticle: fixture.parser.crawlArticle,
-				},
+				parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
 				events: {
 					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
 					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
@@ -159,14 +233,16 @@ describe("View routes", () => {
 			});
 
 			const response = await request(harness.server).get(
-				`/view/${ARTICLE_URL.replace("://", ":/")}`,
+				"/view/web.eecs.umich.edu/~weimerw/2018-481/readings/mythical-man-month.pdf",
 			);
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe(
-				"Hello World",
-			);
+			const action = ctaAction(doc);
+			const href = action.getAttribute("href");
+			assert(href, "save action must have an href");
+			const parsed = new URL(href, "http://localhost");
+			expect(parsed.searchParams.get("url")).toBe(articleUrl);
 		});
 
 		it("renders a Save action pointing to /save with the article URL in the href", async () => {
@@ -196,7 +272,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
@@ -236,7 +312,7 @@ describe("View routes", () => {
 			});
 
 			const response = await request(harness.server).get(
-				`/view/${ENCODED}?utm_source=medium&utm_campaign=x&foo=bar`,
+				`/view/${CANONICAL_PATH}?utm_source=medium&utm_campaign=x&foo=bar`,
 			);
 
 			const doc = new JSDOM(response.text).window.document;
@@ -286,7 +362,7 @@ describe("View routes", () => {
 				.type("form")
 				.send({ email: "reader@example.com", password: "password123" });
 
-			const response = await agent.get(`/view/${ENCODED}`);
+			const response = await agent.get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
@@ -332,7 +408,7 @@ describe("View routes", () => {
 				.send({ email: "reader@example.com", password: "password123" });
 			await agent.post("/queue/save").type("form").send({ url: ARTICLE_URL });
 
-			const response = await agent.get(`/view/${ENCODED}`);
+			const response = await agent.get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
@@ -381,7 +457,7 @@ describe("View routes", () => {
 				.type("form")
 				.send({ url: ARTICLE_URL });
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
@@ -416,7 +492,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const actions = doc.querySelectorAll("[data-test-view-cta-action]");
@@ -462,7 +538,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const wrap = doc.querySelector("[data-test-share-balloon-wrap]");
@@ -473,7 +549,7 @@ describe("View routes", () => {
 			expect(btn.getAttribute("aria-label")).toBe("Share this article");
 			const shareUrl = new URL(btn.getAttribute("data-share-url") ?? "");
 			expect(`${shareUrl.origin}${shareUrl.pathname}`).toBe(
-				`${TEST_APP_ORIGIN}/view/${ENCODED}`,
+				`${TEST_APP_ORIGIN}/view/${CANONICAL_PATH}`,
 			);
 			expect(shareUrl.searchParams.get("utm_source")).toBe("share-balloon");
 			expect(shareUrl.searchParams.get("utm_medium")).toBe("share");
@@ -484,7 +560,7 @@ describe("View routes", () => {
 			assert(copyBtn, "copy button must be rendered");
 			const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
 			expect(`${copyUrl.origin}${copyUrl.pathname}`).toBe(
-				`${TEST_APP_ORIGIN}/view/${ENCODED}`,
+				`${TEST_APP_ORIGIN}/view/${CANONICAL_PATH}`,
 			);
 			expect(copyUrl.searchParams.get("utm_source")).toBe("share-balloon");
 			expect(copyUrl.searchParams.get("utm_medium")).toBe("copy");
@@ -516,7 +592,7 @@ describe("View routes", () => {
 				shared: { ...fixture.shared, appOrigin: "https://staging.readplace.com" },
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const btn = doc.querySelector("[data-test-share-balloon]");
@@ -531,7 +607,7 @@ describe("View routes", () => {
 
 			expect(
 				doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
-			).toBe(`https://readplace.com/view/${ENCODED}`);
+			).toBe(`https://readplace.com/view/${CANONICAL_PATH}`);
 		});
 
 		it("renders a dismiss button with an accessible label", async () => {
@@ -561,7 +637,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const closeBtn = doc.querySelector("[data-test-share-balloon-close]");
@@ -596,7 +672,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const script = doc.querySelector(
@@ -633,7 +709,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const status = doc.querySelector("[data-share-balloon-status]");
@@ -669,7 +745,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const label = doc.querySelector("[data-test-share-balloon-copied]");
@@ -705,7 +781,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const btn = doc.querySelector("[data-test-share-balloon]");
@@ -749,7 +825,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const avatar = doc.querySelector("[data-test-share-balloon-avatar]");
@@ -784,7 +860,7 @@ describe("View routes", () => {
 				},
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(
@@ -836,7 +912,7 @@ describe("View routes", () => {
  },
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-summary]");
@@ -884,7 +960,7 @@ describe("View routes", () => {
  },
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-summary]");
@@ -932,7 +1008,7 @@ describe("View routes", () => {
  },
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-summary]");
@@ -984,7 +1060,7 @@ describe("View routes", () => {
  },
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-summary]");
@@ -1036,7 +1112,7 @@ describe("View routes", () => {
  },
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const slot = doc.querySelector("[data-test-reader-summary]");
@@ -1215,7 +1291,7 @@ describe("View routes", () => {
 
 			// Land on /view first so the row exists; then the reader poll has
 			// something to read back.
-			await request(harness.server).get(`/view/${ENCODED}`);
+			await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const first = await request(harness.server).get(
 				`/view/reader?url=${encodeURIComponent(ARTICLE_URL)}&poll=1`,
@@ -1283,7 +1359,7 @@ describe("View routes", () => {
 				savedAt: new Date("2026-05-03T13:54:27.000Z"),
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const counter = doc.querySelector("[data-test-view-expiry]");
@@ -1295,10 +1371,8 @@ describe("View routes", () => {
 		it("renders state=permanent when the article domain is in PERMANENT_ARTICLE_DOMAINS", async () => {
 			const now = new Date("2026-05-04T00:00:00.000Z");
 			const { harness } = makeHarness(now);
-			const permanentUrl = "https://fagnerbrack.com/some-article";
-			const encoded = encodeURIComponent(permanentUrl);
 
-			const response = await request(harness.server).get(`/view/${encoded}`);
+			const response = await request(harness.server).get(`/view/${PERMANENT_CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const counter = doc.querySelector("[data-test-view-expiry]");
@@ -1315,7 +1389,7 @@ describe("View routes", () => {
 			const prefix = result.userId.slice(0, 6).toLowerCase();
 
 			const response = await request(harness.server).get(
-				`/view/${ENCODED}?utm_content=${prefix}`,
+				`/view/${CANONICAL_PATH}?utm_content=${prefix}`,
 			);
 
 			const doc = new JSDOM(response.text).window.document;
@@ -1335,7 +1409,7 @@ describe("View routes", () => {
 			});
 
 			const response = await request(harness.server).get(
-				`/view/${ENCODED}?utm_content=ffffff`,
+				`/view/${CANONICAL_PATH}?utm_content=ffffff`,
 			);
 
 			const doc = new JSDOM(response.text).window.document;
@@ -1354,7 +1428,7 @@ describe("View routes", () => {
 				savedAt: new Date("2026-05-01T00:00:00.000Z"),
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const counter = doc.querySelector("[data-test-view-expiry]");
@@ -1373,7 +1447,7 @@ describe("View routes", () => {
 				savedAt: new Date("2026-05-03T13:00:00.000Z"),
 			});
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
@@ -1387,10 +1461,8 @@ describe("View routes", () => {
 		it("does not stamp time-left utm_content on a permanent-domain article", async () => {
 			const now = new Date("2026-05-04T00:00:00.000Z");
 			const { harness } = makeHarness(now);
-			const permanentUrl = "https://fagnerbrack.com/some-article";
-			const encoded = encodeURIComponent(permanentUrl);
 
-			const response = await request(harness.server).get(`/view/${encoded}`);
+			const response = await request(harness.server).get(`/view/${PERMANENT_CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const action = ctaAction(doc);
@@ -1411,7 +1483,7 @@ describe("View routes", () => {
 				savedAt: new Date("2026-05-01T00:00:00.000Z"),
 			});
 
-			const expiredResponse = await request(harness.server).get(`/view/${ENCODED}`);
+			const expiredResponse = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 			const expiredCounter = new JSDOM(expiredResponse.text).window.document.querySelector(
 				"[data-test-view-expiry]",
 			);
@@ -1423,7 +1495,7 @@ describe("View routes", () => {
 				savedAt: now,
 			});
 
-			const freshResponse = await request(harness.server).get(`/view/${ENCODED}`);
+			const freshResponse = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 			const freshCounter = new JSDOM(freshResponse.text).window.document.querySelector(
 				"[data-test-view-expiry]",
 			);
@@ -1443,7 +1515,7 @@ describe("View routes", () => {
 				.type("form")
 				.send({ email: "sharer@example.com", password: "password123" });
 
-			const response = await agent.get(`/view/${ENCODED}`);
+			const response = await agent.get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const shareBtn = doc.querySelector("[data-test-share-balloon]");
@@ -1458,7 +1530,7 @@ describe("View routes", () => {
 			const now = new Date("2026-05-04T00:00:00.000Z");
 			const { harness } = makeHarness(now);
 
-			const response = await request(harness.server).get(`/view/${ENCODED}`);
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 			const doc = new JSDOM(response.text).window.document;
 			const shareBtn = doc.querySelector("[data-test-share-balloon]");

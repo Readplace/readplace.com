@@ -74,13 +74,13 @@ describe("GET /queue/:id/view share balloon", () => {
 		assert(btn, "share button must be rendered");
 		const shareUrl = new URL(btn.getAttribute("data-share-url") ?? "");
 		expect(shareUrl.origin).toBe(TEST_APP_ORIGIN);
-		expect(shareUrl.pathname).toBe(`/view/${encodeURIComponent(ARTICLE_URL)}`);
+		expect(shareUrl.pathname).toBe(`/view/example.com/shareable`);
 
 		const copyBtn = doc.querySelector("[data-test-share-balloon-copy]");
 		assert(copyBtn, "copy button must be rendered");
 		const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
 		expect(copyUrl.origin).toBe(TEST_APP_ORIGIN);
-		expect(copyUrl.pathname).toBe(`/view/${encodeURIComponent(ARTICLE_URL)}`);
+		expect(copyUrl.pathname).toBe(`/view/example.com/shareable`);
 	});
 
 	it("renders share URLs against the appOrigin configured at the composition root (not a hardcoded host)", async () => {

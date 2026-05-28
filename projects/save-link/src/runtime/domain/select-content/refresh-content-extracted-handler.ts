@@ -10,6 +10,7 @@ import type { FindContentSourceTier } from "../../providers/article-store/find-c
 import type { ListAvailableTierSources } from "./list-available-tier-sources";
 import type { WriteCanonicalContent } from "../../providers/article-store/promote-tier-to-canonical";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import { resolveCanonicalImageUrl } from "./resolve-canonical-image-url";
 import type { SelectMostCompleteContent } from "./select-content";
 
 /**
@@ -109,7 +110,7 @@ export function initRefreshContentExtractedHandler(deps: {
 							siteName: winnerSource.metadata.siteName,
 							excerpt: winnerSource.metadata.excerpt,
 							wordCount: winnerSource.metadata.wordCount,
-							imageUrl: winnerSource.metadata.imageUrl,
+							imageUrl: resolveCanonicalImageUrl({ winner: winnerSource, candidates: sources }),
 						},
 						freshness: {
 							etag: detail.etag,

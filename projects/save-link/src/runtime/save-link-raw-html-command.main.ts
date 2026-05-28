@@ -10,6 +10,7 @@ import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
 import { initArticleStoreDepBundle } from "./dep-bundles/article-store";
 import { initMediaDepBundle } from "./dep-bundles/media";
+import { initCrawlAndFinalizeDepBundle } from "./dep-bundles/crawl-and-finalize";
 import { initEventsDepBundle } from "./dep-bundles/events";
 import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 
@@ -27,24 +28,31 @@ const eventBridgeClient = new EventBridgeClient({});
 const now = () => new Date();
 
 // This Lambda consumes already-fetched HTML from S3 (pendingHtml bucket) and
-// never re-crawls a URL through crawlArticle — the handler uses parseHtml on
-// the raw body directly. The simple-only parser bundle suffices; no PDF path
-// is exercised here.
+// never re-crawls a URL through crawlArticle. It still goes through the
+// unified `finalizeArticle` pipeline so the og:image is fetched + uploaded to
+// the CDN with the same algorithm every other path uses — no per-trigger
+// drift on what lands in the metadata.
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link-raw-html", now });
 const parser = initParserDepBundle({ logError: observability.logError });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logger: consoleLogger, imagesCdnBaseUrl });
+const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
+	parser,
+	media,
+	articleStore,
+	imagesCdnBaseUrl,
+	logError: observability.logError,
+});
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
 const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });
 
 const { readPendingHtml } = initReadPendingHtml({ client: s3Client, bucketName: pendingHtmlBucketName });
 
 export const handler = initSaveLinkRawHtmlCommandHandler({
-	...parser,
-	...media,
 	...articleStore,
 	...events,
 	...articleAggregate,
 	...observability,
+	finalizeArticle: crawlAndFinalize.finalizeArticle,
 	readPendingHtml,
 });

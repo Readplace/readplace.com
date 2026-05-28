@@ -286,6 +286,26 @@ describe("Admin recrawl routes", () => {
 			);
 		});
 
+		it("treats a schemeless path segment as https:// so admins can paste `host/path` without typing the scheme", async () => {
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: { title: "T", siteName: "example.com", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
+			});
+			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+			// Mirrors the real bug report: /admin/recrawl/example.com/post (no scheme)
+			// previously rendered the "No article URL provided" error page.
+			const response = await agent.get("/admin/recrawl/example.com/post");
+
+			expect(response.status).toBe(200);
+			expect(harness.recrawlPublishedCalls).toEqual([{ url: ARTICLE_URL }]);
+		});
+
 		it("preserves the existing ready summary on the admin recrawl trigger — summary regeneration is decided downstream by the canonicalContentHash gate, not by wiping state up front", async () => {
 			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });

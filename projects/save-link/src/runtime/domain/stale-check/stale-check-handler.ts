@@ -1,7 +1,5 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { SimpleCrawl } from "@packages/crawl-article";
-import { calculateReadTime } from "@packages/domain/article";
 import {
 	decideSummaryAutoHeal,
 	incrementSummaryAutoHealAttempt,
@@ -21,9 +19,9 @@ import type {
 	PublishSaveAnonymousLink,
 	PublishUpdateFetchTimestamp,
 } from "@packages/test-fixtures/providers/events";
-import type { ParseHtml } from "@packages/article-parser";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
+import type { CrawlAndFinalizeArticle } from "../save-link/crawl-and-finalize-article";
 
 /**
  * Stale-check is now a simple-only worker: PDFs flow through the same
@@ -59,8 +57,7 @@ const logPrefix = "[StaleCheckRequested]";
 export function initStaleCheckHandler(deps: {
 	findArticleFreshness: FindArticleFreshness;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
-	simpleCrawl: SimpleCrawl;
-	parseHtml: ParseHtml;
+	crawlAndFinalizeArticle: CrawlAndFinalizeArticle;
 	publishRefreshArticleContent: PublishRefreshArticleContent;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
@@ -75,8 +72,7 @@ export function initStaleCheckHandler(deps: {
 	const {
 		findArticleFreshness,
 		findArticleCrawlStatus,
-		simpleCrawl,
-		parseHtml,
+		crawlAndFinalizeArticle,
 		publishRefreshArticleContent,
 		publishUpdateFetchTimestamp,
 		publishSaveAnonymousLink,
@@ -101,7 +97,7 @@ export function initStaleCheckHandler(deps: {
 			if (now().getTime() - fetchedAt < staleTtlMs) return "skip";
 		}
 
-		const result = await simpleCrawl({
+		const result = await crawlAndFinalizeArticle({
 			url,
 			etag: freshness.etag,
 			lastModified: freshness.lastModified,
@@ -127,24 +123,19 @@ export function initStaleCheckHandler(deps: {
 			return "tier-1-deferred";
 		}
 
-		const parsed = parseHtml({
-			url,
-			html: result.html,
-			thumbnailUrl: result.thumbnailUrl ?? null,
-		});
-		if (!parsed.ok) return "skip";
-
+		/* Fields mapped explicitly: estimatedReadTime is a sibling field in the
+		 * event payload, not inside metadata — spreading would leak it in. */
 		await publishRefreshArticleContent({
 			url,
-			html: result.html,
+			html: result.article.html,
 			metadata: {
-				title: parsed.article.title,
-				siteName: parsed.article.siteName,
-				excerpt: parsed.article.excerpt,
-				wordCount: parsed.article.wordCount,
-				imageUrl: parsed.article.imageUrl,
+				title: result.article.metadata.title,
+				siteName: result.article.metadata.siteName,
+				excerpt: result.article.metadata.excerpt,
+				wordCount: result.article.metadata.wordCount,
+				imageUrl: result.article.metadata.imageUrl,
 			},
-			estimatedReadTime: calculateReadTime(parsed.article.wordCount),
+			estimatedReadTime: result.article.metadata.estimatedReadTime,
 			etag: result.etag,
 			lastModified: result.lastModified,
 			contentFetchedAt: now().toISOString(),

@@ -18,6 +18,7 @@ import {
 	renderShareBalloon,
 } from "../../shared/share-balloon/share-balloon.component";
 import type { SharedUserId } from "./view-expiry";
+import { viewPathFor } from "./view-path";
 import { VIEW_STYLES } from "./view.styles";
 
 const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
@@ -117,8 +118,9 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		extensionInstallUrl: input.extensionInstallUrl,
 	});
 
-	const canonicalViewUrl = `${CANONICAL_BASE_URL}/view/${encodeURIComponent(input.articleUrl)}`;
-	const shareableViewUrl = `${input.appOrigin}/view/${encodeURIComponent(input.articleUrl)}`;
+	const viewPath = viewPathFor(input.articleUrl);
+	const canonicalViewUrl = `${CANONICAL_BASE_URL}${viewPath}`;
+	const shareableViewUrl = `${input.appOrigin}${viewPath}`;
 
 	const shareBalloon = renderShareBalloon({
 		shareUrl: shareableViewUrl,
@@ -165,7 +167,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		seo: {
 			title: formatViewDocumentTitle(input.metadata.title),
 			description,
-			canonicalUrl: `/view/${encodeURIComponent(input.articleUrl)}`,
+			canonicalUrl: viewPath,
 			ogType: "article",
 			ogImage,
 			ogImageAlt,

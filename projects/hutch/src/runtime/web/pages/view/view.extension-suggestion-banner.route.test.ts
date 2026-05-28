@@ -17,8 +17,7 @@ import {
 	createFakePublishSaveAnonymousLink,
 } from "@packages/test-fixtures";
 
-const ARTICLE_URL = "https://example.com/post";
-const ENCODED = encodeURIComponent(ARTICLE_URL);
+const CANONICAL_PATH = "example.com/post";
 
 type OkParseResult = Extract<ParseArticleResult, { ok: true }>;
 type ParsedArticle = OkParseResult["article"];
@@ -62,7 +61,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			summary: { ...fixture.summary, findGeneratedSummary },
 		});
 
-		const response = await request(harness.server).get(`/view/${ENCODED}`);
+		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 		expect(response.status).toBe(200);
 		expect(bannerAttr(response.text)).toBe("true");
@@ -94,7 +93,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			summary: { ...fixture.summary, findGeneratedSummary },
 		});
 
-		const response = await request(harness.server).get(`/view/${ENCODED}`);
+		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 		expect(bannerAttr(response.text)).toBe("false");
 	});
@@ -124,7 +123,7 @@ describe("GET /view/{url} — extension suggestion banner", () => {
 			summary: { ...fixture.summary, findGeneratedSummary },
 		});
 
-		const response = await request(harness.server).get(`/view/${ENCODED}`);
+		const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
 
 		expect(bannerAttr(response.text)).toBe("true");
 	});

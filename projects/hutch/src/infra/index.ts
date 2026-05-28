@@ -13,7 +13,7 @@ import {
 	SubscriptionStartRequestCommand,
 } from "@packages/hutch-infra-components";
 import { EXPORT_DOWNLOAD_TTL_DAYS, EXPORT_S3_KEY_PREFIX } from "../runtime/web/pages/export/export-ttl";
-import { ANALYTICS_EVENTS, METRICS, STREAMS } from "../runtime/observability/events";
+import { ANALYTICS_EVENTS, LAMBDA_NAMES, LOG_GROUPS, METRICS, STREAMS } from "../runtime/observability/events";
 import {
 	buildAnalyticsDashboardBody,
 	SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
@@ -129,9 +129,9 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 });
 
 const logGroup = new aws.cloudwatch.LogGroup("hutch-log-analytics", {
-	name: "/aws/lambda/hutch-handler",
+	name: LOG_GROUPS.hutchHandler,
 	retentionInDays: 30,
-}, { import: "/aws/lambda/hutch-handler" });
+}, { import: LOG_GROUPS.hutchHandler });
 
 const api = new aws.apigatewayv2.Api("hutch-api-gateway", {
 	name: "hutch-api-gateway",
@@ -214,7 +214,7 @@ const trialSchedulerManagePolicy = {
 	policy: trialSchedulerManagePolicyDoc,
 };
 
-const lambda = new HutchLambda("hutch", {
+const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/hutch-api",
 	assetDir: "./src/runtime",
@@ -429,7 +429,7 @@ const handleSubscriptionCancelledQueue = new HutchSQS("handle-subscription-cance
 	visibilityTimeoutSeconds: 30,
 });
 
-const handleSubscriptionCancelledLambda = new HutchLambda("handle-subscription-cancelled", {
+const handleSubscriptionCancelledLambda = new HutchLambda(LAMBDA_NAMES.handleSubscriptionCancelled, {
 	entryPoint: "./src/runtime/handle-subscription-cancelled.main.ts",
 	outputDir: ".lib/handle-subscription-cancelled",
 	assetDir: "./src/runtime",
@@ -473,7 +473,7 @@ const cancelSubscriptionQueue = new HutchSQS("cancel-subscription", {
 	visibilityTimeoutSeconds: 30,
 });
 
-const cancelSubscriptionLambda = new HutchLambda("cancel-subscription", {
+const cancelSubscriptionLambda = new HutchLambda(LAMBDA_NAMES.cancelSubscription, {
 	entryPoint: "./src/runtime/cancel-subscription.main.ts",
 	outputDir: ".lib/cancel-subscription",
 	assetDir: "./src/runtime",
@@ -578,7 +578,7 @@ const subscriptionStartRequestQueue = new HutchSQS("subscription-start-request",
 	visibilityTimeoutSeconds: 30,
 });
 
-const subscriptionStartRequestLambda = new HutchLambda("subscription-start-request", {
+const subscriptionStartRequestLambda = new HutchLambda(LAMBDA_NAMES.subscriptionStartRequest, {
 	entryPoint: "./src/runtime/subscription-start-request.main.ts",
 	outputDir: ".lib/subscription-start-request",
 	assetDir: "./src/runtime",
@@ -618,7 +618,7 @@ const subscriptionChargeSucceededQueue = new HutchSQS("subscription-charge-succe
 	visibilityTimeoutSeconds: 30,
 });
 
-const subscriptionChargeSucceededLambda = new HutchLambda("subscription-charge-succeeded", {
+const subscriptionChargeSucceededLambda = new HutchLambda(LAMBDA_NAMES.subscriptionChargeSucceeded, {
 	entryPoint: "./src/runtime/subscription-charge-succeeded.main.ts",
 	outputDir: ".lib/subscription-charge-succeeded",
 	assetDir: "./src/runtime",
@@ -649,7 +649,7 @@ const subscriptionChargeFailedQueue = new HutchSQS("subscription-charge-failed",
 	visibilityTimeoutSeconds: 30,
 });
 
-const subscriptionChargeFailedLambda = new HutchLambda("subscription-charge-failed", {
+const subscriptionChargeFailedLambda = new HutchLambda(LAMBDA_NAMES.subscriptionChargeFailed, {
 	entryPoint: "./src/runtime/subscription-charge-failed.main.ts",
 	outputDir: ".lib/subscription-charge-failed",
 	assetDir: "./src/runtime",
@@ -699,6 +699,36 @@ new aws.cloudwatch.LogMetricFilter("imports-completed-filter", {
 	},
 });
 
+// AWS auto-creates Lambda log groups on first invocation, but the subscription
+// Lambdas only run after a trial ends — so until the first trial-end charge
+// fires in a stack, none of these log groups exist and the analytics dashboard's
+// Logs Insights queries against them fail with `ResourceNotFoundException`.
+// Create them explicitly so the dashboard renders an empty result set instead
+// of erroring. Names are sourced from LOG_GROUPS so a rename in events.ts
+// propagates here without manual edits.
+const subscriptionLogGroups = [
+	new aws.cloudwatch.LogGroup("subscription-start-request-log-group", {
+		name: LOG_GROUPS.subscriptionStartRequest,
+		retentionInDays: 30,
+	}),
+	new aws.cloudwatch.LogGroup("subscription-charge-succeeded-log-group", {
+		name: LOG_GROUPS.subscriptionChargeSucceeded,
+		retentionInDays: 30,
+	}),
+	new aws.cloudwatch.LogGroup("subscription-charge-failed-log-group", {
+		name: LOG_GROUPS.subscriptionChargeFailed,
+		retentionInDays: 30,
+	}),
+	new aws.cloudwatch.LogGroup("cancel-subscription-log-group", {
+		name: LOG_GROUPS.cancelSubscription,
+		retentionInDays: 30,
+	}),
+	new aws.cloudwatch.LogGroup("handle-subscription-cancelled-log-group", {
+		name: LOG_GROUPS.handleSubscriptionCancelled,
+		retentionInDays: 30,
+	}),
+];
+
 new aws.cloudwatch.Dashboard("readplace-analytics", {
 	dashboardName: "readplace-analytics",
 	dashboardBody: pulumi.output(logGroup.name).apply((hutchLogGroupName) =>
@@ -709,7 +739,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 			excludedVisitorHashes,
 		})),
 	),
-});
+}, { dependsOn: subscriptionLogGroups });
 
 
 // --- Exports ---

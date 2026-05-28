@@ -70,7 +70,7 @@ describe("resolveReaderPermalink", () => {
 			kind: "redirect",
 			redirect: {
 				statusCode: 302,
-				location: `/view/${encodeURIComponent(ARTICLE_URL)}?${DEFAULT_UTM}&utm_content=${STRANGER_ID_PREFIX}`,
+				location: `/view/example.com/shared-article?${DEFAULT_UTM}&utm_content=${STRANGER_ID_PREFIX}`,
 			},
 		});
 	});
@@ -91,7 +91,7 @@ describe("resolveReaderPermalink", () => {
 			kind: "redirect",
 			redirect: {
 				statusCode: 302,
-				location: `/view/${encodeURIComponent(ARTICLE_URL)}?${DEFAULT_UTM}`,
+				location: `/view/example.com/shared-article?${DEFAULT_UTM}`,
 			},
 		});
 		expect(ownerLookupCalls).toBe(0);
@@ -112,7 +112,7 @@ describe("resolveReaderPermalink", () => {
 			kind: "redirect",
 			redirect: {
 				statusCode: 302,
-				location: `/view/${encodeURIComponent(ARTICLE_URL)}?utm_source=newsletter&utm_campaign=weekly`,
+				location: `/view/example.com/shared-article?utm_source=newsletter&utm_campaign=weekly`,
 			},
 		});
 	});
@@ -131,7 +131,7 @@ describe("resolveReaderPermalink", () => {
 		});
 	});
 
-	it("percent-encodes special characters in the article URL when building the /view redirect", async () => {
+	it("keeps slashes unencoded in the /view redirect and encodes only the article URL's ?", async () => {
 		const trickyUrl = "https://example.com/path with spaces?a=b&c=d";
 		const resolve = initReaderPermalink(createDeps({
 			findArticleUrlById: async () => trickyUrl,
@@ -143,7 +143,7 @@ describe("resolveReaderPermalink", () => {
 			kind: "redirect",
 			redirect: {
 				statusCode: 302,
-				location: `/view/${encodeURIComponent(trickyUrl)}?${DEFAULT_UTM}`,
+				location: `/view/example.com/path%20with%20spaces%3Fa=b&c=d?${DEFAULT_UTM}`,
 			},
 		});
 	});
