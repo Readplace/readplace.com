@@ -455,11 +455,16 @@ eventBus.subscribe(SubscriptionCancelledEvent, handleSubscriptionCancelledWithSQ
 
 // --- Cancel Subscription Command ---
 // SQS-backed Lambda that reacts to CancelSubscriptionCommand (user-initiated
-// cancel from POST /account/cancel). Branches on the row's current status:
-//   - active           → calls Stripe subscriptions.cancel (immediate)
-//   - trialing         → publishes SubscriptionCancelledEvent directly
-//   - pending_cancel.  → publishes SubscriptionCancelledEvent (defensive)
-//   - cancelled        → noop
+// cancel from POST /account/cancel, or deferred-cancellation scheduler fallback).
+// Branches on the row's current status:
+//   - active               → Stripe PATCH cancel_at_period_end=true
+//                             + deferred-cancellation schedule (fires at period_end + 1h)
+//                             + SubscriptionCancellationScheduledEvent
+//   - trialing             → deletes trial-end schedule
+//                             + deferred-cancellation schedule (fires at trialEndsAt + 1h)
+//                             + SubscriptionCancellationScheduledEvent
+//   - pending_cancellation → publishes SubscriptionCancelledEvent (final conversion)
+//   - cancelled            → noop
 // Failed messages land in a DLQ with an email alarm so operators can redrive.
 
 const cancelSubscriptionDynamodb = new HutchDynamoDBAccess("cancel-subscription-dynamodb", {
