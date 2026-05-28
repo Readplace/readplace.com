@@ -93,7 +93,7 @@ export function createImportFromUrlActions(
 				await openFromUrlPanel(page, config)
 				await submitUrl(page, `${config.baseUrl}/e2e/fixtures/links-page-empty`)
 				const error = page.locator('[data-test-import-error]')
-				await expect(error).toContainText("couldn't find any links")
+				await expect(error).toContainText("outbound links")
 				await page.goto(`${config.baseUrl}/queue`, { waitUntil: 'domcontentloaded' })
 				importFromUrlProgress.pageWithoutLinksSurfaced = true
 			},

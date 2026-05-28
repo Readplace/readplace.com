@@ -54,4 +54,10 @@ describe("importErrorMessageMapping", () => {
 			"That page is too large to scan for links.",
 		);
 	});
+
+	it("maps import_url_no_links to the from-url no-links message", () => {
+		expect(importErrorMessageMapping({ error_code: "import_url_no_links" })).toBe(
+			"We couldn't find any outbound links on that page.",
+		);
+	});
 });

@@ -6,6 +6,7 @@ const IMPORT_ERROR_MESSAGES: Record<string, string> = {
 	import_url_fetch_failed: "We couldn't fetch that page. It might be down, blocking automated requests, or returned an error. If the page is slow, try saving its HTML and using the upload tab.",
 	import_url_unsupported: "That URL doesn't point at an HTML page. Paste a link to an article index or newsletter web view.",
 	import_url_too_large: "That page is too large to scan for links.",
+	import_url_no_links: "We couldn't find any outbound links on that page.",
 };
 
 export type ImportErrorMessageMapping = (query: Record<string, unknown>) => string | undefined;

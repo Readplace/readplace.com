@@ -53,7 +53,7 @@ const FROM_URL_ERROR_REDIRECT = {
 	fetchFailed: "/import?mode=from-url&error_code=import_url_fetch_failed",
 	unsupported: "/import?mode=from-url&error_code=import_url_unsupported",
 	tooLarge: "/import?mode=from-url&error_code=import_url_too_large",
-	noUrls: "/import?mode=from-url&error_code=import_no_urls",
+	noUrls: "/import?mode=from-url&error_code=import_url_no_links",
 } as const;
 
 export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {

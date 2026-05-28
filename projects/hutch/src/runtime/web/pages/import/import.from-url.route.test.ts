@@ -204,7 +204,7 @@ describe("POST /import/from-url routes", () => {
 			);
 		});
 
-		it("redirects with import_no_urls when the harvested list is empty", async () => {
+		it("redirects with import_url_no_links when the harvested list is empty", async () => {
 			const harness = useApp(
 				withExtractor({
 					status: "OK",
@@ -220,7 +220,7 @@ describe("POST /import/from-url routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe(
-				"/import?mode=from-url&error_code=import_no_urls",
+				"/import?mode=from-url&error_code=import_url_no_links",
 			);
 		});
 
