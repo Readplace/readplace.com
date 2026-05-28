@@ -38,11 +38,35 @@ export const METRICS = {
 	},
 } as const;
 
-export const LOG_GROUPS = {
-	hutchHandler: "/aws/lambda/hutch-handler",
-	subscriptionStartRequest: "/aws/lambda/subscription-start-request-handler",
-	subscriptionChargeSucceeded: "/aws/lambda/subscription-charge-succeeded-handler",
-	subscriptionChargeFailed: "/aws/lambda/subscription-charge-failed-handler",
-	cancelSubscription: "/aws/lambda/cancel-subscription-handler",
-	handleSubscriptionCancelled: "/aws/lambda/handle-subscription-cancelled-handler",
+/**
+ * Names passed to `new HutchLambda(...)` for the Lambdas whose log groups
+ * the analytics dashboard queries. `HutchLambda` appends `-handler` to this
+ * name when it creates the `aws.lambda.Function`, so the matching log group
+ * AWS creates on first invocation is `/aws/lambda/<name>-handler`. Each
+ * entry here is the *single* place that name is written; `LOG_GROUPS` and
+ * the Pulumi explicit `aws.cloudwatch.LogGroup` resources both derive from
+ * it, so a rename here propagates atomically to the dashboard's log-group
+ * references and to the explicit log-group resource. The analytics-dashboard
+ * test then guarantees every entry is wired into a widget.
+ */
+export const LAMBDA_NAMES = {
+	hutchHandler: "hutch",
+	subscriptionStartRequest: "subscription-start-request",
+	subscriptionChargeSucceeded: "subscription-charge-succeeded",
+	subscriptionChargeFailed: "subscription-charge-failed",
+	cancelSubscription: "cancel-subscription",
+	handleSubscriptionCancelled: "handle-subscription-cancelled",
 } as const;
+
+type LogGroupName<T extends string> = `/aws/lambda/${T}-handler`;
+
+export const LOG_GROUPS = {
+	hutchHandler: `/aws/lambda/${LAMBDA_NAMES.hutchHandler}-handler`,
+	subscriptionStartRequest: `/aws/lambda/${LAMBDA_NAMES.subscriptionStartRequest}-handler`,
+	subscriptionChargeSucceeded: `/aws/lambda/${LAMBDA_NAMES.subscriptionChargeSucceeded}-handler`,
+	subscriptionChargeFailed: `/aws/lambda/${LAMBDA_NAMES.subscriptionChargeFailed}-handler`,
+	cancelSubscription: `/aws/lambda/${LAMBDA_NAMES.cancelSubscription}-handler`,
+	handleSubscriptionCancelled: `/aws/lambda/${LAMBDA_NAMES.handleSubscriptionCancelled}-handler`,
+} as const satisfies {
+	readonly [K in keyof typeof LAMBDA_NAMES]: LogGroupName<(typeof LAMBDA_NAMES)[K]>;
+};
