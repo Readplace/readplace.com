@@ -9,6 +9,7 @@ import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
 import { initArticleStoreDepBundle } from "./dep-bundles/article-store";
 import { initMediaDepBundle } from "./dep-bundles/media";
+import { initCrawlAndFinalizeDepBundle } from "./dep-bundles/crawl-and-finalize";
 import { initEmitSimpleCrawlUnsupported, initEventsDepBundle } from "./dep-bundles/events";
 import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initArticleCrawlDepBundle } from "./dep-bundles/article-crawl";
@@ -29,6 +30,13 @@ const observability = initObservabilityDepBundle({ logger: consoleLogger, source
 const parser = initParserDepBundle({ logError: observability.logError });
 const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
 const media = initMediaDepBundle({ parser, articleStore, logger: consoleLogger, imagesCdnBaseUrl });
+const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
+	parser,
+	media,
+	articleStore,
+	imagesCdnBaseUrl,
+	logError: observability.logError,
+});
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
 const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });
 const articleCrawl = initArticleCrawlDepBundle({ dynamoClient, articlesTable });
@@ -37,14 +45,12 @@ const emitSimpleCrawlUnsupported = initEmitSimpleCrawlUnsupported({
 });
 
 export const handler = initSaveAnonymousLinkCommandHandler({
-	...parser,
-	...media,
 	...articleStore,
 	...events,
 	...articleAggregate,
 	...articleCrawl,
 	...observability,
+	crawlAndFinalizeArticle: crawlAndFinalize.crawlAndFinalizeArticle,
 	emitSimpleCrawlUnsupported,
-	imagesCdnBaseUrl,
 	now,
 });

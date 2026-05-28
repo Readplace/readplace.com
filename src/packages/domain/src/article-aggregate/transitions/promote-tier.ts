@@ -1,10 +1,15 @@
 import type { Article, ArticleMetadata } from "../article.types";
+import type { CanonicalImageUrl } from "../canonical-image-url";
 import type { Effect } from "../effects.types";
 import type { AggregateField } from "../storage.types";
 
 export interface PromoteTierInput {
 	tier: "tier-0" | "tier-1";
-	metadata: ArticleMetadata;
+	/** `imageUrl` is branded `CanonicalImageUrl` so the only way to populate it
+	 * is `resolveCanonicalImageUrl` (save-link/select-content), which rescues
+	 * an og:image from a losing tier when the winner has none. Passing
+	 * `winnerSource.metadata.imageUrl` directly is a compile error. */
+	metadata: Omit<ArticleMetadata, "imageUrl"> & { imageUrl: CanonicalImageUrl };
 	estimatedReadTime: number;
 	contentFetchedAt: string;
 	now: string;

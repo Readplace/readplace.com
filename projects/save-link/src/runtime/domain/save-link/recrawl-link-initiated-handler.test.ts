@@ -1,12 +1,8 @@
-import posthtml from "posthtml";
-import urls from "@11ty/posthtml-urls";
 import { noopLogger } from "@packages/hutch-logger";
-import type { SimpleCrawl } from "@packages/crawl-article";
 import { RecrawlContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initRecrawlLinkInitiatedHandler } from "./recrawl-link-initiated-handler";
-import { initProcessContentWithLocalMedia } from "./process-content-with-local-media";
-import type { ParseHtml } from "@packages/article-parser";
-import type { DownloadMedia } from "./download-media";
+import type { CrawlAndFinalizeArticle, CrawlAndFinalizeResult } from "./crawl-and-finalize-article";
+import type { FinalizedArticle } from "./finalize-article";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
 
@@ -48,30 +44,26 @@ function createSqsEvent(detail: { url: string }): SQSEvent {
 	};
 }
 
-const noopDownloadMedia: DownloadMedia = async () => [];
-
-const processContent = initProcessContentWithLocalMedia({
-	rewriteHtmlUrls: (html, rewriteUrl) => {
-		const plugin = urls({ eachURL: rewriteUrl });
-		return posthtml().use(plugin).process(html).then(result => result.html);
+const stubFinalizedArticle: FinalizedArticle = {
+	html: "<p>Article content</p>",
+	metadata: {
+		title: "Test",
+		siteName: "example.com",
+		excerpt: "test",
+		wordCount: 10,
+		estimatedReadTime: 1,
+		imageUrl: undefined,
 	},
-});
+};
 
-const successfulSimpleCrawl: SimpleCrawl = async () => ({
+const fetchedResult: CrawlAndFinalizeResult = {
 	status: "fetched",
-	html: "<html><body><p>Article content</p></body></html>",
-});
+	article: stubFinalizedArticle,
+};
 
 const rejectingEmitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = async () => {
 	throw new Error("emitSimpleCrawlUnsupported invoked unexpectedly");
 };
-
-const successfulParse: ParseHtml = () => ({
-	ok: true,
-	article: { title: "Test", siteName: "example.com", excerpt: "test", wordCount: 10, content: "<p>Article content</p>" },
-});
-
-const imagesCdnBaseUrl = "https://cdn.example.com";
 
 type HandlerDeps = Parameters<typeof initRecrawlLinkInitiatedHandler>[0];
 
@@ -79,18 +71,13 @@ const fixedNow = () => new Date("2026-04-30T12:00:00.000Z");
 
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	return initRecrawlLinkInitiatedHandler({
-		simpleCrawl: successfulSimpleCrawl,
+		crawlAndFinalizeArticle: (async () => fetchedResult) as CrawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported: rejectingEmitSimpleCrawlUnsupported,
-		parseHtml: successfulParse,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
-		putImageObject: jest.fn().mockResolvedValue(undefined),
 		updateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
-		downloadMedia: noopDownloadMedia,
-		processContent,
-		imagesCdnBaseUrl,
 		now: fixedNow,
 		logger: noopLogger,
 		logParseError: jest.fn(),
@@ -113,14 +100,11 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		});
 	});
 
-	it("reports the record as a batch failure when saveLinkWork throws on a failed crawl (so SQS redelivers just that record)", async () => {
-		const failingSimpleCrawl: SimpleCrawl = async () => ({ status: "failed" });
+	it("reports the record as a batch failure when crawl-and-finalize fails (so SQS redelivers just that record)", async () => {
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "failed", reason: "crawl-failed" });
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
-		const handler = createHandler({
-			simpleCrawl: failingSimpleCrawl,
-			publishEvent,
-		});
+		const handler = createHandler({ crawlAndFinalizeArticle, publishEvent });
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/unreachable" }),
@@ -132,20 +116,20 @@ describe("initRecrawlLinkInitiatedHandler", () => {
 		expect(publishEvent).not.toHaveBeenCalled();
 	});
 
-	it("emits SimpleCrawlUnsupportedEvent with recrawl=true when simpleCrawl returns unsupported and does NOT publish RecrawlContentExtractedEvent itself (the policy → comprehensive chain will)", async () => {
+	it("emits SimpleCrawlUnsupportedEvent with recrawl=true when the crawl returns unsupported and does NOT publish RecrawlContentExtractedEvent itself (the policy → comprehensive chain will)", async () => {
 		const emitSimpleCrawlUnsupported = jest.fn<
 			ReturnType<EmitSimpleCrawlUnsupported>,
 			Parameters<EmitSimpleCrawlUnsupported>
 		>().mockResolvedValue(undefined);
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
-		const unsupportedSimpleCrawl: SimpleCrawl = async () => ({
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
 			status: "unsupported",
 			reason: "non-html content type: application/pdf",
 		});
 
 		const handler = createHandler({
-			simpleCrawl: unsupportedSimpleCrawl,
+			crawlAndFinalizeArticle,
 			emitSimpleCrawlUnsupported,
 			transitionAndPersist,
 			publishEvent,

@@ -1,24 +1,24 @@
-import { extractFirstThumbnailUrl, extractThumbnailCandidates } from "./extract-thumbnail";
+import { extractThumbnailCandidates } from "./extract-thumbnail";
 
-describe("extractFirstThumbnailUrl", () => {
-	it("returns the og:image URL when present", () => {
+describe("extractThumbnailCandidates", () => {
+	it("returns the og:image URL first when present", () => {
 		const html = `
 			<html><head>
 				<meta property="og:image" content="https://example.com/og.png">
 				<meta name="twitter:image" content="https://example.com/twitter.png">
 			</head><body><img src="https://example.com/body.png"></body></html>
 		`;
-		expect(extractFirstThumbnailUrl({ html, baseUrl: "https://example.com/article" }))
+		expect(extractThumbnailCandidates({ html, baseUrl: "https://example.com/article" })[0])
 			.toBe("https://example.com/og.png");
 	});
 
-	it("falls back to twitter:image when og:image is missing", () => {
+	it("falls back to twitter:image first when og:image is missing", () => {
 		const html = `
 			<html><head>
 				<meta name="twitter:image" content="https://example.com/twitter.png">
 			</head><body><img src="https://example.com/body.png"></body></html>
 		`;
-		expect(extractFirstThumbnailUrl({ html, baseUrl: "https://example.com/article" }))
+		expect(extractThumbnailCandidates({ html, baseUrl: "https://example.com/article" })[0])
 			.toBe("https://example.com/twitter.png");
 	});
 
@@ -29,7 +29,7 @@ describe("extractFirstThumbnailUrl", () => {
 				<img src="https://example.com/second.png">
 			</body></html>
 		`;
-		expect(extractFirstThumbnailUrl({ html, baseUrl: "https://example.com/article" }))
+		expect(extractThumbnailCandidates({ html, baseUrl: "https://example.com/article" })[0])
 			.toBe("https://example.com/first.png");
 	});
 
@@ -39,14 +39,8 @@ describe("extractFirstThumbnailUrl", () => {
 				<meta property="og:image" content="/images/hero.png">
 			</head><body></body></html>
 		`;
-		expect(extractFirstThumbnailUrl({ html, baseUrl: "https://blog.example.com/post" }))
+		expect(extractThumbnailCandidates({ html, baseUrl: "https://blog.example.com/post" })[0])
 			.toBe("https://blog.example.com/images/hero.png");
-	});
-
-	it("returns null when the document has no usable image", () => {
-		const html = `<html><head><title>No images</title></head><body><p>Text only.</p></body></html>`;
-		expect(extractFirstThumbnailUrl({ html, baseUrl: "https://example.com/article" }))
-			.toBeNull();
 	});
 
 	it("skips non-http(s) URLs (data:, javascript:, mailto:)", () => {
@@ -57,21 +51,19 @@ describe("extractFirstThumbnailUrl", () => {
 				<img src="https://example.com/real.png">
 			</body></html>
 		`;
-		expect(extractFirstThumbnailUrl({ html, baseUrl: "https://example.com/article" }))
+		expect(extractThumbnailCandidates({ html, baseUrl: "https://example.com/article" })[0])
 			.toBe("https://example.com/real.png");
 	});
 
-	it("returns null for relative URLs when baseUrl is omitted and the URL cannot be validated as http(s)", () => {
+	it("returns an empty array for relative URLs when baseUrl is omitted and the URL cannot be validated as http(s)", () => {
 		const html = `
 			<html><head>
 				<meta property="og:image" content="/images/hero.png">
 			</head><body></body></html>
 		`;
-		expect(extractFirstThumbnailUrl({ html })).toBeNull();
+		expect(extractThumbnailCandidates({ html })).toEqual([]);
 	});
-});
 
-describe("extractThumbnailCandidates", () => {
 	it("returns all candidates in og:image → twitter:image → <img> order", () => {
 		const html = `
 			<html><head>

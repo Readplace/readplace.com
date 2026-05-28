@@ -14,6 +14,9 @@ import type {
 import { initStaleCheckHandler } from "./domain/stale-check/stale-check-handler";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";
+import { initArticleStoreDepBundle } from "./dep-bundles/article-store";
+import { initMediaDepBundle } from "./dep-bundles/media";
+import { initCrawlAndFinalizeDepBundle } from "./dep-bundles/crawl-and-finalize";
 import { initArticleCrawlDepBundle } from "./dep-bundles/article-crawl";
 import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initEmitSimpleCrawlUnsupported, initEventsDepBundle } from "./dep-bundles/events";
@@ -27,7 +30,9 @@ import { requireEnv } from "../require-env";
 const STALE_TTL_MS = 86_400_000;
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
+const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
+const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
 const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
 
@@ -39,6 +44,15 @@ const now = () => new Date();
 
 const observability = initObservabilityDepBundle({ logger: consoleLogger, source: "save-link", now });
 const parser = initParserDepBundle({ logError: observability.logError });
+const articleStore = initArticleStoreDepBundle({ s3Client, dynamoClient, contentBucketName, articlesTable });
+const media = initMediaDepBundle({ parser, articleStore, logger: consoleLogger, imagesCdnBaseUrl });
+const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
+	parser,
+	media,
+	articleStore,
+	imagesCdnBaseUrl,
+	logError: observability.logError,
+});
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
 const articleCrawl = initArticleCrawlDepBundle({ dynamoClient, articlesTable });
 const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });
@@ -71,8 +85,7 @@ const { findArticleCrawlStatus } = initFindArticleCrawlStatus({
 export const handler = initStaleCheckHandler({
 	findArticleFreshness,
 	findArticleCrawlStatus,
-	simpleCrawl: parser.simpleCrawl,
-	parseHtml: parser.parseHtml,
+	crawlAndFinalizeArticle: crawlAndFinalize.crawlAndFinalizeArticle,
 	publishRefreshArticleContent,
 	publishUpdateFetchTimestamp,
 	publishSaveAnonymousLink,

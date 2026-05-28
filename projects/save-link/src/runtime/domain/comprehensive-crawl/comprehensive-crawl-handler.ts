@@ -13,31 +13,22 @@ import {
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { MarkCrawlProgress } from "../../providers/article-crawl/mark-crawl-progress";
 import { initProgressThrottle } from "../crawl-article-state/init-progress-throttle";
-import type { ParseHtml } from "@packages/article-parser";
-import type { DownloadMedia } from "../save-link/download-media";
-import type { PutImageObject } from "../../providers/article-store/s3-put-image-object";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
-import { ArticleResourceUniqueId } from "../save-link/article-resource-unique-id";
-import { estimatedReadTimeFromWordCount } from "../save-link/estimated-read-time";
-import { uploadThumbnail, type ProcessContent } from "../save-link/save-link-work";
+import type { FinalizeArticle } from "../save-link/finalize-article";
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initComprehensiveCrawlHandler(deps: {
 	comprehensiveCrawl: ComprehensiveCrawl;
-	parseHtml: ParseHtml;
+	finalizeArticle: FinalizeArticle;
 	putTierSource: PutTierSource;
-	putImageObject: PutImageObject;
 	updateFetchTimestamp: UpdateFetchTimestamp;
 	transitionAndPersist: TransitionAndPersist;
 	markCrawlStage: MarkCrawlStage;
 	markCrawlProgress: MarkCrawlProgress;
 	publishEvent: PublishEvent;
-	downloadMedia: DownloadMedia;
-	processContent: ProcessContent;
-	imagesCdnBaseUrl: string;
 	now: () => Date;
 	logger: HutchLogger;
 	logParseError: LogParseError;
@@ -47,17 +38,13 @@ export function initComprehensiveCrawlHandler(deps: {
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		comprehensiveCrawl,
-		parseHtml,
+		finalizeArticle,
 		putTierSource,
-		putImageObject,
 		updateFetchTimestamp,
 		transitionAndPersist,
 		markCrawlStage,
 		markCrawlProgress,
 		publishEvent,
-		downloadMedia,
-		processContent,
-		imagesCdnBaseUrl,
 		now,
 		logger,
 		logParseError,
@@ -156,57 +143,28 @@ export function initComprehensiveCrawlHandler(deps: {
 					throw new Error(`crawl failed for ${url}: ${reason}`);
 				}
 
-				const parseResult = parseHtml({
+				const finalized = await finalizeArticle({
 					url,
 					html: crawlResult.html,
-					thumbnailUrl: crawlResult.thumbnailUrl ?? null,
+					preFetchedThumbnail: crawlResult.thumbnailImage,
 				});
-				if (!parseResult.ok) {
-					logParseError({ url, reason: parseResult.reason });
+				if (!finalized.ok) {
+					logParseError({ url, reason: finalized.reason });
 					await transitionAndPersist(markCrawlFailed, {
 						url,
 						input: {
-							reason: { kind: "parse-error", detail: parseResult.reason },
+							reason: { kind: "parse-error", detail: finalized.reason },
 						},
 					});
 					await emitTier1Failure(url);
-					throw new Error(`crawl failed for ${url}: ${parseResult.reason}`);
+					throw new Error(`crawl failed for ${url}: ${finalized.reason}`);
 				}
-
-				const { article } = parseResult;
-				await markCrawlStage({ url, stage: "crawl-parsed" });
-				const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
-
-				const media = await downloadMedia({
-					html: article.content,
-					articleUrl: url,
-					articleResourceUniqueId,
-				});
-
-				const html = await processContent({ html: article.content, media });
-
-				const resolvedImageUrl = crawlResult.thumbnailImage
-					? await uploadThumbnail({
-							thumbnailImage: crawlResult.thumbnailImage,
-							articleResourceUniqueId,
-							putImageObject,
-							imagesCdnBaseUrl,
-						})
-					: article.imageUrl;
-				await markCrawlStage({ url, stage: "crawl-metadata-written" });
 
 				await putTierSource({
 					url,
 					tier: "tier-1",
-					html,
-					metadata: {
-						title: article.title,
-						siteName: article.siteName,
-						excerpt: article.excerpt,
-						wordCount: article.wordCount,
-						estimatedReadTime: estimatedReadTimeFromWordCount(article.wordCount),
-						imageUrl: resolvedImageUrl,
-					},
+					html: finalized.article.html,
+					metadata: finalized.article.metadata,
 				});
 				await markCrawlStage({ url, stage: "crawl-content-uploaded" });
 

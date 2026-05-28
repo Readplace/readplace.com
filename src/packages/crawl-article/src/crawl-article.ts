@@ -4,11 +4,9 @@ import type {
 	CrawlArticle,
 	CrawlArticleResult,
 	SimpleCrawl,
-	ThumbnailImage,
 } from "./crawl-article.types";
 import type { CrawlFetch } from "./crawl-fetch";
-import { extensionFromContentType } from "./extension-from-content-type";
-import { extractThumbnailCandidates } from "./extract-thumbnail";
+import { extractThumbnailCandidates, initFetchThumbnailImage } from "./extract-thumbnail";
 import { headerOrUndefined } from "./header-utils";
 import { isPDF } from "./pdf-detect";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
@@ -16,8 +14,6 @@ import type { ExtractPdf } from "./pdf-extract.types";
 import { initFetchTweetViaOembed, isTweetUrl } from "./x-twitter-preprocessor";
 
 const FETCH_TIMEOUT_MS = 10000;
-const THUMBNAIL_FETCH_TIMEOUT_MS = 5000;
-const MAX_THUMBNAIL_BYTES = 5 * 1024 * 1024;
 
 /**
  * Browser-like headers required by Fastly/Cloudflare edge sniffers.
@@ -127,6 +123,7 @@ export function initSimpleCrawl(deps: {
 	const { crawlFetch, logError } = deps;
 	const conditionalFetch = initConditionalFetch({ crawlFetch, logError });
 	const fetchTweetViaOembed = initFetchTweetViaOembed({ crawlFetch, logError });
+	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError });
 	return async (params) => {
 		if (isTweetUrl(params.url)) {
 			return fetchTweetViaOembed(params);
@@ -145,7 +142,7 @@ export function initSimpleCrawl(deps: {
 			const candidates = extractThumbnailCandidates({ html, baseUrl: params.url });
 			const thumbnailUrl = candidates[0];
 			const thumbnailImage = params.fetchThumbnail
-				? await fetchThumbnailImage({ crawlFetch, logError, candidates, referer: params.url })
+				? await fetchThumbnailImage({ candidates, referer: params.url })
 				: undefined;
 			const result: CrawlArticleResult & { status: "fetched" } = {
 				status: "fetched",
@@ -255,62 +252,6 @@ async function handlePdfBuffer(args: {
 		lastModified: headerOrUndefined(args.response.headers, "last-modified"),
 	};
 	return result;
-}
-
-async function fetchThumbnailImage(args: {
-	crawlFetch: CrawlFetch;
-	logError: (message: string, error?: Error) => void;
-	candidates: string[];
-	referer: string;
-}): Promise<ThumbnailImage | undefined> {
-	const { crawlFetch, logError, candidates, referer } = args;
-
-	for (const candidateUrl of candidates) {
-		const result = await tryFetchImage({ crawlFetch, logError, url: candidateUrl, referer });
-		if (result) return result;
-	}
-
-	return undefined;
-}
-
-async function tryFetchImage(args: {
-	crawlFetch: CrawlFetch;
-	logError: (message: string, error?: Error) => void;
-	url: string;
-	referer: string;
-}): Promise<ThumbnailImage | undefined> {
-	const { crawlFetch, logError, url, referer } = args;
-	try {
-		const response = await crawlFetch(url, {
-			signal: AbortSignal.timeout(THUMBNAIL_FETCH_TIMEOUT_MS),
-			headers: { accept: "image/*,*/*;q=0.8" },
-			referer,
-		});
-		if (!response.ok) {
-			logError(`[CrawlArticle] Thumbnail HTTP ${response.status} for ${url}`);
-			return undefined;
-		}
-		const contentType = response.headers.get("content-type") ?? "";
-		if (!contentType.startsWith("image/")) {
-			logError(`[CrawlArticle] Thumbnail unexpected Content-Type "${contentType}" for ${url}`);
-			return undefined;
-		}
-		const contentLength = response.headers.get("content-length");
-		if (contentLength && Number.parseInt(contentLength, 10) > MAX_THUMBNAIL_BYTES) {
-			logError(`[CrawlArticle] Thumbnail too large (${contentLength} bytes) for ${url}`);
-			return undefined;
-		}
-		const arrayBuffer = await response.arrayBuffer();
-		const body = Buffer.from(arrayBuffer);
-		if (body.length > MAX_THUMBNAIL_BYTES) {
-			logError(`[CrawlArticle] Thumbnail too large (${body.length} bytes) for ${url}`);
-			return undefined;
-		}
-		return { body, contentType, url, extension: extensionFromContentType({ contentType, url }) };
-	} catch (error) {
-		logError(`[CrawlArticle] Thumbnail network error for ${url}`, error instanceof Error ? error : undefined);
-		return undefined;
-	}
 }
 
 

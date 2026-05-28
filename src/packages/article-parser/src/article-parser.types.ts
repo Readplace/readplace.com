@@ -17,9 +17,9 @@ export type ParseArticle = (url: string) => Promise<ParseArticleResult>;
  * must make an explicit thumbnail decision so different entry points
  * (server-side crawl, browser-extension raw HTML, stale-check refresh)
  * cannot silently disagree on whether og:image landed in the metadata.
- * Use `extractFirstThumbnailUrl` from `@packages/crawl-article` on the
- * source HTML to derive the value, or pass `null` to deliberately opt
- * out. The parser itself does not parse the HTML for an image. */
+ * Use `extractThumbnailCandidates` from `@packages/crawl-article` on the
+ * source HTML and pick the first entry (or pass `null` to deliberately
+ * opt out). The parser itself does not parse the HTML for an image. */
 export type ParseHtml = (params: { url: string; html: string; thumbnailUrl: string | null }) => ParseArticleResult;
 
 /* Structured content extracted by a site pre-parser. Intentionally
