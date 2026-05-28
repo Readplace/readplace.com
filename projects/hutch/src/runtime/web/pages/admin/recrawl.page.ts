@@ -96,7 +96,13 @@ function handleRecrawlArticle(
 		const rawPath = req.params[0];
 		// API Gateway v2 HTTP API decodes %2F to /, restore https:/ → https://
 		// (same normalisation as /view).
-		const normalizedUrl = rawPath.replace(/^(https?):\/(?!\/)/i, "$1://");
+		const restoredScheme = rawPath.replace(/^(https?):\/(?!\/)/i, "$1://");
+		// Admin pastes the bare article URL (`fagnerbrack.com/post`) without a
+		// scheme. Default to https:// so the path resolves to the same DB row
+		// as the canonical save.
+		const normalizedUrl = /^https?:\/\//i.test(restoredScheme)
+			? restoredScheme
+			: `https://${restoredScheme}`;
 		const parsed = RecrawlUrlSchema.safeParse(normalizedUrl);
 		if (!parsed.success) {
 			await renderNotFound(deps, req, res);
