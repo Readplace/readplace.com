@@ -315,7 +315,7 @@ function initProviders() {
 		imagesCdnBaseUrl: "https://dev-images.invalid",
 	});
 	const crawlAndFinalizeArticle = initCrawlAndFinalizeArticle({
-		simpleCrawl: crawlArticle,
+		simpleCrawl: crawlArticle, // dev: includes comprehensive fallback inline
 		finalizeArticle,
 	});
 	const finaliseSummaryFromContent = async (params: { url: string; textContent: string }) => {

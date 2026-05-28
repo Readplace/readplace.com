@@ -123,6 +123,8 @@ export function initStaleCheckHandler(deps: {
 			return "tier-1-deferred";
 		}
 
+		/* Fields mapped explicitly: estimatedReadTime is a sibling field in the
+		 * event payload, not inside metadata — spreading would leak it in. */
 		await publishRefreshArticleContent({
 			url,
 			html: result.article.html,

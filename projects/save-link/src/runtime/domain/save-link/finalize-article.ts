@@ -68,6 +68,10 @@ export function initFinalizeArticle(deps: {
 	} = deps;
 
 	return async (input) => {
+		/* Two-pass HTML parse is intentional: extractThumbnailCandidates uses
+		 * linkedom for og:image / meta-tag extraction, while parseHtml uses
+		 * Readability for content extraction — different libraries, different
+		 * concerns, negligible overhead on article-sized documents. */
 		const candidates = extractThumbnailCandidates({ html: input.html, baseUrl: input.url });
 		const thumbnailUrl = candidates[0] ?? null;
 
