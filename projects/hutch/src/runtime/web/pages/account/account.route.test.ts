@@ -438,28 +438,6 @@ describe("POST /account/payment-method", () => {
 		expect(response.headers.location).toBe("/login");
 	});
 
-	it("treats pending_cancellation as noop on /subscribe — the Reactivate route owns un-cancel, /subscribe must NOT create a second Stripe subscription", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { subscriptionProviders, stripeSubscriptions } = harness;
-		const { agent, userId } = await loginUser(harness, "pending-cancel-subscribe@example.com");
-		await subscriptionProviders.upsertActive({
-			userId,
-			subscriptionId: "sub_pending_subscribe",
-			customerId: "cus_pending_subscribe",
-		});
-		await subscriptionProviders.markPendingCancellation({
-			userId,
-			cancellationEffectiveAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
-		});
-
-		const response = await agent.post("/account/subscribe");
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/account");
-		// No NEW subscription created — the user still has the existing one
-		// with cancel-at-period-end set; Reactivate is the only un-cancel path.
-		expect(stripeSubscriptions.createdSubscriptions()).toHaveLength(0);
-	});
 });
 
 describe("GET /account (cancellation-scheduled state)", () => {

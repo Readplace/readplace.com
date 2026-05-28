@@ -234,6 +234,8 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		logger: noopLogger,
 	});
 	const { publishSubscriptionReactivated } = initInMemorySubscriptionReactivated({
+		logger: noopLogger,
+	});
 	const { publishAddPaymentMethodCommand } = initInMemoryAddPaymentMethodCommand({
 		logger: noopLogger,
 	});
