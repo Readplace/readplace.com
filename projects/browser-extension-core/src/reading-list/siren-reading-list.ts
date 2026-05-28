@@ -680,7 +680,9 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		const view = new Uint8Array(buffer);
 		let binaryString = "";
 		for (let i = 0; i < view.length; i += 1) {
-			binaryString += String.fromCharCode(view[i] as number);
+			const byte = view[i];
+			assert(byte !== undefined, "loop index within Uint8Array bounds");
+			binaryString += String.fromCharCode(byte);
 		}
 		return btoa(binaryString);
 	}
