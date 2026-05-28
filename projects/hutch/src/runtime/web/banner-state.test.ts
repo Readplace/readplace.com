@@ -141,4 +141,29 @@ describe("initBuildBannerState", () => {
 		expect(result.trial?.state).toBe("active");
 		expect(getEffectiveAccess).not.toHaveBeenCalled();
 	});
+
+	it("populates trial.state='cancellation-scheduled' with the cancellation-effective-at instant for a user inside the cancel window and keeps accessIsReadOnly=false (import + account nav stay visible)", async () => {
+		const cancellationEffectiveAt = new Date(
+			FIXED_NOW.getTime() + 5 * ONE_DAY_MS,
+		).toISOString();
+		const access: EffectiveAccess = {
+			tier: "paid",
+			access: "full",
+			banner: "cancellation-scheduled",
+			cancellationEffectiveAt,
+		};
+		const buildBannerState = initBuildBannerState({
+			getEffectiveAccess: async () => access,
+			now: () => FIXED_NOW,
+		});
+
+		const result = await buildBannerState({ userId: USER_ID });
+
+		expect(result.trial).toEqual({
+			state: "cancellation-scheduled",
+			endsAtIso: cancellationEffectiveAt,
+			serverNowIso: FIXED_NOW.toISOString(),
+		});
+		expect(result.accessIsReadOnly).toBe(false);
+	});
 });

@@ -51,16 +51,34 @@ describe("requireWriteAccess middleware", () => {
 		expect(response.status).toBe(200);
 	});
 
-	it("treats a legacy pending_cancellation row as read-only (no flow in the redesign produces it)", async () => {
+	it("pending_cancellation inside the cancellation window still has write access — the user paid for the rest of the period", async () => {
 		const { app, providers } = buildApp(TEST_USER_ID);
 		await providers.upsertActive({
 			userId: TEST_USER_ID,
-			subscriptionId: "sub_pc",
-			customerId: "cus_pc",
+			subscriptionId: "sub_pc_future",
+			customerId: "cus_pc_future",
 		});
 		await providers.markPendingCancellation({
 			userId: TEST_USER_ID,
 			cancellationEffectiveAt: new Date(NOW.getTime() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await request(app).post("/protected").set("Accept", "text/html");
+
+		expect(response.status).toBe(200);
+		expect(response.text).toBe("ok");
+	});
+
+	it("pending_cancellation after the cancellation-effective-at instant flips to read-only — the user's prepaid window has elapsed", async () => {
+		const { app, providers } = buildApp(TEST_USER_ID);
+		await providers.upsertActive({
+			userId: TEST_USER_ID,
+			subscriptionId: "sub_pc_past",
+			customerId: "cus_pc_past",
+		});
+		await providers.markPendingCancellation({
+			userId: TEST_USER_ID,
+			cancellationEffectiveAt: new Date(NOW.getTime() - ONE_DAY_MS).toISOString(),
 		});
 
 		const response = await request(app).post("/protected").set("Accept", "text/html");

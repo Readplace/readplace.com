@@ -168,4 +168,147 @@ describe("initStripeSubscriptions", () => {
 			);
 		});
 	});
+
+	describe("scheduleCancellationAtPeriodEnd", () => {
+		it("issues POST /v1/subscriptions/<id> with cancel_at_period_end=true and parses current_period_end into an ISO string", async () => {
+			let receivedUrl: string | undefined;
+			let receivedInit: RequestInit | undefined;
+			// 2026-06-22T10:00:00.000Z = 1782122400 seconds since epoch
+			const fakeFetch: typeof globalThis.fetch = async (input, init) => {
+				receivedUrl = typeof input === "string" ? input : input.toString();
+				receivedInit = init;
+				return jsonResponse(200, {
+					id: "sub_paid",
+					current_period_end: 1782122400,
+				});
+			};
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			const result = await stripe.scheduleCancellationAtPeriodEnd({
+				subscriptionId: "sub_paid",
+			});
+
+			assert.equal(result.cancellationEffectiveAt, "2026-06-22T10:00:00.000Z");
+			assert.equal(receivedUrl, "https://api.stripe.com/v1/subscriptions/sub_paid");
+			assert.equal(receivedInit?.method, "POST");
+			const headers = receivedInit?.headers as Record<string, string>;
+			assert.equal(headers?.Authorization, "Bearer sk_test_abc");
+			assert.equal(headers?.["Content-Type"], "application/x-www-form-urlencoded");
+			const body = String(receivedInit?.body ?? "");
+			assert.ok(body.includes("cancel_at_period_end=true"));
+		});
+
+		it("URL-encodes the subscription id so unusual characters reach Stripe intact", async () => {
+			let receivedUrl: string | undefined;
+			const fakeFetch: typeof globalThis.fetch = async (input) => {
+				receivedUrl = typeof input === "string" ? input : input.toString();
+				return jsonResponse(200, { id: "sub_x", current_period_end: 1782208800 });
+			};
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await stripe.scheduleCancellationAtPeriodEnd({ subscriptionId: "sub with/slash" });
+
+			assert.equal(
+				receivedUrl,
+				"https://api.stripe.com/v1/subscriptions/sub%20with%2Fslash",
+			);
+		});
+
+		it("throws with the Stripe error message when the API returns a non-2xx", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(500, { error: { code: "api_error", message: "Stripe is down" } });
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await assert.rejects(
+				() => stripe.scheduleCancellationAtPeriodEnd({ subscriptionId: "sub_kaboom" }),
+				/Stripe scheduleCancellationAtPeriodEnd failed \(500\): Stripe is down/,
+			);
+		});
+
+		it("falls back to a generic error message when the Stripe error shape is unrecognised", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(503, { unexpected: "shape" });
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await assert.rejects(
+				() => stripe.scheduleCancellationAtPeriodEnd({ subscriptionId: "sub_x" }),
+				/Stripe scheduleCancellationAtPeriodEnd failed \(503\): Stripe error/,
+			);
+		});
+	});
+
+	describe("reverseScheduledCancellation", () => {
+		it("issues POST /v1/subscriptions/<id> with cancel_at_period_end=false", async () => {
+			let receivedUrl: string | undefined;
+			let receivedInit: RequestInit | undefined;
+			const fakeFetch: typeof globalThis.fetch = async (input, init) => {
+				receivedUrl = typeof input === "string" ? input : input.toString();
+				receivedInit = init;
+				return jsonResponse(200, { id: "sub_paid", current_period_end: 1782208800 });
+			};
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await stripe.reverseScheduledCancellation({ subscriptionId: "sub_paid" });
+
+			assert.equal(receivedUrl, "https://api.stripe.com/v1/subscriptions/sub_paid");
+			assert.equal(receivedInit?.method, "POST");
+			const body = String(receivedInit?.body ?? "");
+			assert.ok(body.includes("cancel_at_period_end=false"));
+		});
+
+		it("URL-encodes the subscription id so unusual characters reach Stripe intact", async () => {
+			let receivedUrl: string | undefined;
+			const fakeFetch: typeof globalThis.fetch = async (input) => {
+				receivedUrl = typeof input === "string" ? input : input.toString();
+				return jsonResponse(200, { id: "sub_x", current_period_end: 1782208800 });
+			};
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await stripe.reverseScheduledCancellation({ subscriptionId: "sub with/slash" });
+
+			assert.equal(
+				receivedUrl,
+				"https://api.stripe.com/v1/subscriptions/sub%20with%2Fslash",
+			);
+		});
+
+		it("treats 404 as success — the sub is already gone, which is the goal state", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(404, { error: { code: "resource_missing", message: "No such subscription" } });
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await stripe.reverseScheduledCancellation({ subscriptionId: "sub_gone" });
+		});
+
+		it("throws with the Stripe error message when the API returns a non-2xx other than 404", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(500, { error: { code: "api_error", message: "Stripe is down" } });
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await assert.rejects(
+				() => stripe.reverseScheduledCancellation({ subscriptionId: "sub_kaboom" }),
+				/Stripe reverseScheduledCancellation failed \(500\): Stripe is down/,
+			);
+		});
+
+		it("falls back to a generic error message when the Stripe error shape is unrecognised", async () => {
+			const fakeFetch: typeof globalThis.fetch = async () =>
+				jsonResponse(503, { unexpected: "shape" });
+
+			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await assert.rejects(
+				() => stripe.reverseScheduledCancellation({ subscriptionId: "sub_x" }),
+				/Stripe reverseScheduledCancellation failed \(503\): Stripe error/,
+			);
+		});
+	});
 });

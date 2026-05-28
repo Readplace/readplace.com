@@ -18,6 +18,11 @@ export type TrialDisplay =
 			remaining: TrialRemaining;
 			escalation: TrialEscalation;
 		}
+	| {
+			state: "cancellation-scheduled";
+			endsAtIso: string;
+			serverNowIso: string;
+		}
 	| { state: "expired" };
 
 const ONE_SECOND_MS = 1000;
@@ -48,13 +53,27 @@ export function deriveTrialEscalation(
 	return "critical";
 }
 
+function formatEndDate(endsAtIso: string): string {
+	return new Date(endsAtIso).toLocaleDateString("en-AU", {
+		day: "numeric",
+		month: "short",
+		year: "numeric",
+	});
+}
+
 export function formatTrialDisplay(trial: TrialDisplay): string {
-	/** Same copy for trial-expired and post-cancellation: both land users in
-	 * the same read-only state, so a unified "Subscription not active"
-	 * message matches what the account card says and avoids surfacing the
-	 * trial mechanic to users who never had one. */
-	if (trial.state === "expired") return "Subscription not active";
-	return `${formatTrialUnits(trial.remaining)} left in your free trial`;
+	switch (trial.state) {
+		/** Same copy for trial-expired and post-cancellation: both land users in
+		 * the same read-only state, so a unified "Subscription not active"
+		 * message matches what the account card says and avoids surfacing the
+		 * trial mechanic to users who never had one. */
+		case "expired":
+			return "Subscription not active";
+		case "cancellation-scheduled":
+			return `Subscription ends on ${formatEndDate(trial.endsAtIso)}`;
+		case "active":
+			return `${formatTrialUnits(trial.remaining)} left in your free trial`;
+	}
 }
 
 function formatTrialUnits(remaining: TrialRemaining): string {
@@ -80,6 +99,12 @@ export function toTrialDisplay(
 				escalation: deriveTrialEscalation(remaining),
 			};
 		}
+		case "cancellation-scheduled":
+			return {
+				state: "cancellation-scheduled",
+				endsAtIso: access.cancellationEffectiveAt,
+				serverNowIso: now.toISOString(),
+			};
 		case "inactive":
 			return { state: "expired" };
 		case "none":

@@ -14,6 +14,7 @@ import type { EffectiveAccess } from "../../../domain/access/effective-access";
 export type SubscriptionBannerState =
 	| { state: "none" }
 	| { state: "trial-countdown"; daysLeft: number; daysLeftWord: "day" | "days" }
+	| { state: "cancellation-scheduled"; cancellationEffectiveAt: string }
 	| { state: "inactive" };
 
 export interface ArticleActionField {
@@ -103,6 +104,8 @@ function toSubscriptionBannerState(access: EffectiveAccess, now: Date): Subscrip
 			const { daysLeft, daysLeftWord } = formatTrialDaysLeft(access.trialEndsAt, now);
 			return { state: "trial-countdown", daysLeft, daysLeftWord };
 		}
+		case "cancellation-scheduled":
+			return { state: "cancellation-scheduled", cancellationEffectiveAt: access.cancellationEffectiveAt };
 		case "inactive":
 			return { state: "inactive" };
 	}

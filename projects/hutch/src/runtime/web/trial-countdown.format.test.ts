@@ -125,6 +125,22 @@ describe("formatTrialDisplay", () => {
 	it("renders the expired state as the standalone 'Subscription not active' message — unified for trial-expired and post-cancellation", () => {
 		expect(formatTrialDisplay({ state: "expired" })).toBe("Subscription not active");
 	});
+
+	it("renders cancellation-scheduled as 'Subscription ends on <date>' so the user sees the cutoff date in the header", () => {
+		const endsAtIso = "2026-06-22T10:00:00.000Z";
+		const expectedDate = new Date(endsAtIso).toLocaleDateString("en-AU", {
+			day: "numeric",
+			month: "short",
+			year: "numeric",
+		});
+		expect(
+			formatTrialDisplay({
+				state: "cancellation-scheduled",
+				endsAtIso,
+				serverNowIso: "2026-05-23T12:00:00.000Z",
+			}),
+		).toBe(`Subscription ends on ${expectedDate}`);
+	});
 });
 
 describe("toTrialDisplay", () => {
@@ -178,5 +194,28 @@ describe("toTrialDisplay", () => {
 		};
 		expect(toTrialDisplay(founding, now)).toBeUndefined();
 		expect(toTrialDisplay(paid, now)).toBeUndefined();
+	});
+
+	it("maps a cancellation-scheduled access (paid + trial both produce the same banner state) to a state=cancellation-scheduled TrialDisplay carrying the cancellation-effective-at instant", () => {
+		const cancellationEffectiveAt = "2026-06-22T10:00:00.000Z";
+		const paidCancelled: EffectiveAccess = {
+			tier: "paid",
+			access: "full",
+			banner: "cancellation-scheduled",
+			cancellationEffectiveAt,
+		};
+		const trialCancelled: EffectiveAccess = {
+			tier: "trial",
+			access: "full",
+			banner: "cancellation-scheduled",
+			cancellationEffectiveAt,
+		};
+		const expected = {
+			state: "cancellation-scheduled",
+			endsAtIso: cancellationEffectiveAt,
+			serverNowIso: now.toISOString(),
+		};
+		expect(toTrialDisplay(paidCancelled, now)).toEqual(expected);
+		expect(toTrialDisplay(trialCancelled, now)).toEqual(expected);
 	});
 });

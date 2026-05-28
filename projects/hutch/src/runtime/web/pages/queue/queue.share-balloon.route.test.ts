@@ -48,6 +48,7 @@ async function saveAndOpenReader(appOrigin: string): Promise<Document> {
 			publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 			publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 			publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 		},
 		shared: { ...fixture.shared, appOrigin },
 	});

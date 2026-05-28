@@ -1,15 +1,20 @@
 import { decomposeTimeLeft } from "@packages/time-left";
 import type { EffectiveAccess } from "../../../domain/access/effective-access";
-import { ACCOUNT_CANCEL_URL, ACCOUNT_SUBSCRIBE_URL } from "./account.url";
+import {
+	ACCOUNT_CANCEL_URL,
+	ACCOUNT_REACTIVATE_URL,
+	ACCOUNT_SUBSCRIBE_URL,
+} from "./account.url";
 
 export type AccountCardState =
 	| "founding"
 	| "active"
 	| "trial"
+	| "cancellation-scheduled"
 	| "inactive"
 	| "error-payment-method";
 
-export type AccountActionKey = "subscribe" | "cancel-form";
+export type AccountActionKey = "subscribe" | "cancel-form" | "reactivate-form";
 
 export type AccountActionVariant = "primary" | "secondary" | "destructive";
 
@@ -84,6 +89,14 @@ const CANCEL_FORM_ACTION = action({
 	href: ACCOUNT_CANCEL_URL,
 });
 
+const REACTIVATE_FORM_ACTION = action({
+	key: "reactivate-form",
+	name: "Reactivate subscription",
+	variant: "primary",
+	method: "POST",
+	href: ACCOUNT_REACTIVATE_URL,
+});
+
 function baseFor(state: AccountCardState, actions: AccountAction[]): {
 	state: AccountCardState;
 	stateClass: string;
@@ -146,6 +159,11 @@ export function toAccountViewModel(
 				trialDaysLeftWord: daysLeftWord,
 			};
 		}
+		case "cancellation-scheduled":
+			return {
+				...baseFor("cancellation-scheduled", [REACTIVATE_FORM_ACTION]),
+				statusLine: `Your subscription ends on ${formatTrialEndsAt(access.cancellationEffectiveAt)}.`,
+			};
 		case "inactive":
 			return {
 				...baseFor("inactive", [SUBSCRIBE_ACTION]),

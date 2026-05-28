@@ -23,6 +23,7 @@ import { initInMemoryImportSession } from "./providers/import-session/in-memory-
 import { initInMemorySaveLinkRawHtmlCommand } from "./providers/events/in-memory-save-link-raw-html-command";
 import { initInMemoryExportUserDataCommand } from "./providers/events/in-memory-export-user-data-command";
 import { initInMemoryCancelSubscriptionCommand } from "./providers/events/in-memory-cancel-subscription-command";
+import { initInMemorySubscriptionReactivated } from "./providers/events/in-memory-subscription-reactivated";
 import {
 	createOAuthModel,
 	initInMemoryOAuthModel,
@@ -231,6 +232,9 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const { publishCancelSubscriptionCommand } = initInMemoryCancelSubscriptionCommand({
 		logger: noopLogger,
 	});
+	const { publishSubscriptionReactivated } = initInMemorySubscriptionReactivated({
+		logger: noopLogger,
+	});
 	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), { appOrigin });
 	const stripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const pendingSignup = initInMemoryPendingSignup();
@@ -298,6 +302,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			publishUpdateFetchTimestamp: createInMemoryPublishUpdateFetchTimestamp(),
 			publishExportUserDataCommand,
 			publishCancelSubscriptionCommand,
+			publishSubscriptionReactivated,
 		},
 		pendingHtml: {
 			putPendingHtml: pendingHtml.putPendingHtml,

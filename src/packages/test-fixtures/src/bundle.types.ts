@@ -13,6 +13,7 @@ import type {
 	PublishSaveAnonymousLink,
 	PublishSaveLinkRawHtmlCommand,
 	PublishStaleCheckRequested,
+	PublishSubscriptionReactivated,
 	PublishUpdateFetchTimestamp,
 	PublishExportUserDataCommand,
 	PublishCancelSubscriptionCommand,
@@ -72,11 +73,15 @@ import type {
 	UpsertTrialingSubscription,
 } from "./providers/subscription-providers/subscription-providers.types";
 import type {
+	CreateDeferredCancellationSchedule,
 	CreateTrialEndSchedule,
+	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 } from "./providers/trial-scheduler/trial-scheduler.types";
 import type {
 	CreateSubscriptionOnExistingCustomer,
+	ReverseScheduledCancellation,
+	ScheduleCancellationAtPeriodEnd,
 } from "./providers/stripe-subscriptions/stripe-subscriptions.types";
 import type { UserId } from "@packages/domain/user";
 import type {
@@ -164,14 +169,23 @@ export interface SubscriptionProvidersBundle {
 export interface TrialSchedulerBundle {
 	createTrialEndSchedule: CreateTrialEndSchedule;
 	deleteTrialEndSchedule: DeleteTrialEndSchedule;
+	createDeferredCancellationSchedule: CreateDeferredCancellationSchedule;
+	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	getSchedule: (userId: UserId) => string | undefined;
 	allSchedules: () => readonly { userId: UserId; firesAt: string }[];
 	deleteCalls: () => readonly UserId[];
+	getDeferredCancellationSchedule: (userId: UserId) => string | undefined;
+	allDeferredCancellationSchedules: () => readonly { userId: UserId; firesAt: string }[];
+	deferredCancellationDeleteCalls: () => readonly UserId[];
 }
 
 export interface StripeSubscriptionsBundle {
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
+	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
+	reverseScheduledCancellation: ReverseScheduledCancellation;
 	createdSubscriptions: () => readonly { customerId: string; priceId: string; subscriptionId: string }[];
+	scheduledCancellations: () => readonly { subscriptionId: string; cancellationEffectiveAt: string }[];
+	reversedCancellations: () => readonly string[];
 }
 
 export interface ArticleStoreBundle {
@@ -220,6 +234,7 @@ export interface EventsBundle {
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	publishExportUserDataCommand: PublishExportUserDataCommand;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
+	publishSubscriptionReactivated: PublishSubscriptionReactivated;
 }
 
 export interface PendingHtmlBundle {

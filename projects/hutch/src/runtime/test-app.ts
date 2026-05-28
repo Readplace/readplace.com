@@ -50,6 +50,7 @@ import type {
 import type {
 	PublishCancelSubscriptionCommand,
 	PublishExportUserDataCommand,
+	PublishSubscriptionReactivated,
 } from "@packages/test-fixtures/providers/events";
 import type {
 	CheckoutSessionId,
@@ -71,10 +72,16 @@ import type {
 	UpsertTrialingSubscription,
 } from "@packages/test-fixtures/providers/subscription-providers";
 import type {
+	CreateDeferredCancellationSchedule,
 	CreateTrialEndSchedule,
+	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 } from "@packages/test-fixtures/providers/trial-scheduler";
-import type { CreateSubscriptionOnExistingCustomer } from "@packages/test-fixtures/providers/stripe-subscriptions";
+import type {
+	CreateSubscriptionOnExistingCustomer,
+	ReverseScheduledCancellation,
+	ScheduleCancellationAtPeriodEnd,
+} from "@packages/test-fixtures/providers/stripe-subscriptions";
 import type {
 	ArticleMetadata,
 	Minutes,
@@ -171,14 +178,28 @@ export interface SubscriptionProvidersBundle {
 export interface TrialSchedulerBundle {
 	createTrialEndSchedule: CreateTrialEndSchedule;
 	deleteTrialEndSchedule: DeleteTrialEndSchedule;
+	createDeferredCancellationSchedule: CreateDeferredCancellationSchedule;
+	deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	getSchedule: (userId: import("@packages/domain/user").UserId) => string | undefined;
 	allSchedules: () => readonly { userId: import("@packages/domain/user").UserId; firesAt: string }[];
 	deleteCalls: () => readonly import("@packages/domain/user").UserId[];
+	getDeferredCancellationSchedule: (
+		userId: import("@packages/domain/user").UserId,
+	) => string | undefined;
+	allDeferredCancellationSchedules: () => readonly {
+		userId: import("@packages/domain/user").UserId;
+		firesAt: string;
+	}[];
+	deferredCancellationDeleteCalls: () => readonly import("@packages/domain/user").UserId[];
 }
 
 export interface StripeSubscriptionsBundle {
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
+	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
+	reverseScheduledCancellation: ReverseScheduledCancellation;
 	createdSubscriptions: () => readonly { customerId: string; priceId: string; subscriptionId: string }[];
+	scheduledCancellations: () => readonly { subscriptionId: string; cancellationEffectiveAt: string }[];
+	reversedCancellations: () => readonly string[];
 }
 
 export interface ArticleStoreBundle {
@@ -226,6 +247,7 @@ export interface EventsBundle {
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	publishExportUserDataCommand: PublishExportUserDataCommand;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
+	publishSubscriptionReactivated: PublishSubscriptionReactivated;
 }
 
 export interface PendingHtmlBundle {
@@ -407,6 +429,7 @@ function flattenFixtureToAppDependencies(
 		publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 		publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 		publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+		publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 		putPendingHtml: fixture.pendingHtml.putPendingHtml,
 		findGeneratedSummary: fixture.summary.findGeneratedSummary,
 		markSummaryPending: fixture.summary.markSummaryPending,
@@ -431,13 +454,18 @@ function flattenFixtureToAppDependencies(
 			upsertActive: fixture.subscriptionProviders.upsertActive,
 			upsertTrialing: fixture.subscriptionProviders.upsertTrialing,
 			findByUserId: fixture.subscriptionProviders.findByUserId,
+			markActive: fixture.subscriptionProviders.markActive,
 		},
 		trialScheduler: {
 			createTrialEndSchedule: fixture.trialScheduler.createTrialEndSchedule,
 			deleteTrialEndSchedule: fixture.trialScheduler.deleteTrialEndSchedule,
+			deleteDeferredCancellationSchedule:
+				fixture.trialScheduler.deleteDeferredCancellationSchedule,
 		},
 		createSubscriptionOnExistingCustomer:
 			fixture.stripeSubscriptions.createSubscriptionOnExistingCustomer,
+		reverseScheduledCancellation:
+			fixture.stripeSubscriptions.reverseScheduledCancellation,
 		stripePriceId: fixture.stripePriceId,
 		botDefenseLogger: fixture.botDefense.logger,
 		conversionLogger: fixture.conversions.logger,

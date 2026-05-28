@@ -38,14 +38,56 @@ describe("initGetEffectiveAccess", () => {
 		assert.deepEqual(result, { tier: "paid", access: "full", banner: "none" });
 	});
 
-	it("treats a legacy pending_cancellation row as inactive/read-only (no flow in the redesign produces it)", async () => {
+	it("paid pending_cancellation inside the window keeps full access and surfaces a cancellation-scheduled banner with the cancellation-effective-at date", async () => {
 		const { providers, getEffectiveAccess } = buildSubject();
 		await providers.upsertActive({
 			userId: USER_ID,
-			subscriptionId: "sub_test_pc",
-			customerId: "cus_test_pc",
+			subscriptionId: "sub_paid_pc",
+			customerId: "cus_paid_pc",
 		});
 		const cancellationEffectiveAt = new Date(NOW.getTime() + 5 * ONE_DAY_MS).toISOString();
+		await providers.markPendingCancellation({
+			userId: USER_ID,
+			cancellationEffectiveAt,
+		});
+
+		const result = await getEffectiveAccess(USER_ID);
+
+		assert.deepEqual(result, {
+			tier: "paid",
+			access: "full",
+			banner: "cancellation-scheduled",
+			cancellationEffectiveAt,
+		});
+	});
+
+	it("trial pending_cancellation inside the window keeps full access and surfaces a cancellation-scheduled banner (tier=trial because the row has trialEndsAt)", async () => {
+		const { providers, getEffectiveAccess } = buildSubject();
+		const trialEndsAt = new Date(NOW.getTime() + 5 * ONE_DAY_MS).toISOString();
+		await providers.upsertTrialing({ userId: USER_ID, trialEndsAt });
+		await providers.markPendingCancellation({
+			userId: USER_ID,
+			cancellationEffectiveAt: trialEndsAt,
+		});
+
+		const result = await getEffectiveAccess(USER_ID);
+
+		assert.deepEqual(result, {
+			tier: "trial",
+			access: "full",
+			banner: "cancellation-scheduled",
+			cancellationEffectiveAt: trialEndsAt,
+		});
+	});
+
+	it("pending_cancellation after the cancellation-effective-at instant flips to inactive/read-only/subscription-cancelled", async () => {
+		const { providers, getEffectiveAccess } = buildSubject();
+		await providers.upsertActive({
+			userId: USER_ID,
+			subscriptionId: "sub_paid_past",
+			customerId: "cus_paid_past",
+		});
+		const cancellationEffectiveAt = new Date(NOW.getTime() - ONE_DAY_MS).toISOString();
 		await providers.markPendingCancellation({
 			userId: USER_ID,
 			cancellationEffectiveAt,
@@ -114,6 +156,24 @@ describe("initGetEffectiveAccess", () => {
 		const { providers, getEffectiveAccess } = buildSubject();
 		const trialEndsAt = NOW.toISOString();
 		await providers.upsertTrialing({ userId: USER_ID, trialEndsAt });
+
+		const result = await getEffectiveAccess(USER_ID);
+
+		assert.equal(result.tier, "inactive");
+		assert.equal(result.access, "read-only");
+	});
+
+	it("treats cancellationEffectiveAt equal to now as expired so the boundary belongs to inactive", async () => {
+		const { providers, getEffectiveAccess } = buildSubject();
+		await providers.upsertActive({
+			userId: USER_ID,
+			subscriptionId: "sub_boundary",
+			customerId: "cus_boundary",
+		});
+		await providers.markPendingCancellation({
+			userId: USER_ID,
+			cancellationEffectiveAt: NOW.toISOString(),
+		});
 
 		const result = await getEffectiveAccess(USER_ID);
 

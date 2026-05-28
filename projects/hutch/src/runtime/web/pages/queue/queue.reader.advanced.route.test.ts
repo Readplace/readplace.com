@@ -38,6 +38,7 @@ describe("Queue routes", () => {
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 			const { auth } = harness;
@@ -99,6 +100,7 @@ describe("Queue routes", () => {
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 			const { auth } = harness;
@@ -155,6 +157,7 @@ describe("Queue routes", () => {
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 			const { auth } = harness;
@@ -206,6 +209,7 @@ describe("Queue routes", () => {
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
@@ -260,6 +264,7 @@ describe("Queue routes", () => {
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
@@ -311,6 +316,7 @@ describe("Queue routes", () => {
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				articleCrawl:{
  	findArticleCrawlStatus: findArticleCrawlStatus,
@@ -368,6 +374,7 @@ describe("Queue routes", () => {
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 				articleCrawl:{
  	findArticleCrawlStatus: findArticleCrawlStatus,
@@ -559,6 +566,7 @@ describe("Queue routes", () => {
 						publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 						publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 					},
 				});
 				const { auth } = harness;
@@ -629,6 +637,7 @@ describe("Queue routes", () => {
 						publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 						publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 					},
 				});
 				const { auth } = harness;
@@ -679,6 +688,7 @@ describe("Queue routes", () => {
 						publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 						publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 					},
 				});
 				const { auth } = harness;
@@ -724,6 +734,7 @@ describe("Queue routes", () => {
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 			const { auth } = harness;
@@ -759,6 +770,7 @@ describe("Queue routes", () => {
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 			const { auth } = harness;
@@ -795,6 +807,7 @@ describe("Queue routes", () => {
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 			const { auth } = harness;
@@ -839,6 +852,7 @@ describe("Queue routes", () => {
 					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 				},
 			});
 			const { auth } = harness;

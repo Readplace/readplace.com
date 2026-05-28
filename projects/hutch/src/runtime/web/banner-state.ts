@@ -46,10 +46,11 @@ export interface BannerState {
 	 * the article with their already-installed extension; when false (or unset) it
 	 * pitches the install. Sourced from the extension liveness cookie. */
 	extensionInstalled?: boolean;
-	/** Drives the global trial countdown rendered below the brand in the header.
-	 * Undefined for guests, founding members, paid users, and users with a
-	 * pending cancellation; "active" for trialing users; "expired" for users
-	 * whose trial has lapsed or whose subscription was cancelled. */
+	/** Drives the global header pill below the brand. Undefined for guests,
+	 * founding members, and paid users; "active" for trialing users;
+	 * "cancellation-scheduled" for users inside the cancellation window
+	 * (paid + trial); "expired" for users whose trial has lapsed or whose
+	 * subscription has finished cancelling. */
 	trial?: TrialDisplay;
 	/** True when the user's effective access is read-only (trial-expired or
 	 * subscription-cancelled). Drives nav-item visibility: import (save flow

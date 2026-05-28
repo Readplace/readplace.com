@@ -32,15 +32,23 @@ import type {
 } from "@packages/test-fixtures/providers/pending-signup";
 import type {
 	FindSubscriptionByUserId,
+	MarkSubscriptionActive,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "@packages/test-fixtures/providers/subscription-providers";
 import type {
 	CreateTrialEndSchedule,
+	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 } from "@packages/test-fixtures/providers/trial-scheduler";
-import type { PublishCancelSubscriptionCommand } from "@packages/test-fixtures/providers/events";
-import type { CreateSubscriptionOnExistingCustomer } from "@packages/test-fixtures/providers/stripe-subscriptions";
+import type {
+	PublishCancelSubscriptionCommand,
+	PublishSubscriptionReactivated,
+} from "@packages/test-fixtures/providers/events";
+import type {
+	CreateSubscriptionOnExistingCustomer,
+	ReverseScheduledCancellation,
+} from "@packages/test-fixtures/providers/stripe-subscriptions";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
 import type {
 	DeleteArticle,
@@ -198,16 +206,20 @@ interface AppDependencies {
 	consumePendingSignup: ConsumePendingSignup;
 	storePendingSignup: StorePendingSignup;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
+	publishSubscriptionReactivated: PublishSubscriptionReactivated;
 	subscriptionProviders: {
 		upsertActive: UpsertActiveSubscription;
 		upsertTrialing: UpsertTrialingSubscription;
 		findByUserId: FindSubscriptionByUserId;
+		markActive: MarkSubscriptionActive;
 	};
 	trialScheduler: {
 		createTrialEndSchedule: CreateTrialEndSchedule;
 		deleteTrialEndSchedule: DeleteTrialEndSchedule;
+		deleteDeferredCancellationSchedule: DeleteDeferredCancellationSchedule;
 	};
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
+	reverseScheduledCancellation: ReverseScheduledCancellation;
 	stripePriceId: string;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
@@ -649,10 +661,17 @@ export function createApp(dependencies: AppDependencies): Express {
 		getEffectiveAccess,
 		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
 		upsertActiveSubscription: deps.subscriptionProviders.upsertActive,
+		upsertTrialingSubscription: deps.subscriptionProviders.upsertTrialing,
+		markActiveSubscription: deps.subscriptionProviders.markActive,
 		findEmailByUserId: deps.findEmailByUserId,
 		publishCancelSubscriptionCommand: deps.publishCancelSubscriptionCommand,
+		publishSubscriptionReactivated: deps.publishSubscriptionReactivated,
 		createCheckoutSession: deps.createCheckoutSession,
 		createSubscriptionOnExistingCustomer: deps.createSubscriptionOnExistingCustomer,
+		reverseScheduledCancellation: deps.reverseScheduledCancellation,
+		createTrialEndSchedule: deps.trialScheduler.createTrialEndSchedule,
+		deleteDeferredCancellationSchedule:
+			deps.trialScheduler.deleteDeferredCancellationSchedule,
 		storePendingSignup: deps.storePendingSignup,
 		stripePriceId: deps.stripePriceId,
 		buildCheckoutSuccessUrl: (sessionIdPlaceholder) =>
