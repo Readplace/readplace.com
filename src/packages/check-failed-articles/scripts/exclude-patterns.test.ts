@@ -219,6 +219,16 @@ describe("EXCLUDE_PATTERNS — operator-curated exact-URL entries", () => {
 			excluded: false,
 			label: "PwC same job ID different role slug — should NOT match",
 		},
+		{
+			url: "https://fagnerbracj.com/learn-python-the-hard-way-was-right-about-one-thing-9b6ab0b67526",
+			excluded: true,
+			label: "fagnerbracj typo domain exact (NXDOMAIN)",
+		},
+		{
+			url: "https://fagnerbrack.com/learn-python-the-hard-way-was-right-about-one-thing-9b6ab0b67526",
+			excluded: false,
+			label: "fagnerbrack correct domain — should NOT match",
+		},
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
