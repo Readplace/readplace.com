@@ -16,6 +16,7 @@ import { requireEnv } from '../runtime/domain/require-env'
 import { initRefreshArticleIfStale } from '@packages/test-fixtures/providers/article-freshness'
 import type { ExtractPdf } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initCrawlArticle, initCrawlFetch } from '@packages/crawl-article'
+import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
 import { initReadabilityParser, mediumPreParser, theInformationPreParser } from '@packages/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
 import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/providers/events'
@@ -125,6 +126,10 @@ const { app: hutchApp, auth, email } = createTestApp({
   },
   freshness: { refreshArticleIfStale },
   summary,
+  importSession: {
+    importSessionStore: fixture.importSession.importSessionStore,
+    extractLinksFromPageUrl: initExtractLinksFromPageUrl({ crawlFetch, validateUrl: e2eValidateSaveableUrl }),
+  },
   shared: {
     validateSaveableUrl: e2eValidateSaveableUrl,
     appOrigin: fixture.shared.appOrigin,

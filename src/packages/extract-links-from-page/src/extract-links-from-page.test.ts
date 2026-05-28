@@ -1,4 +1,5 @@
 import type { CrawlFetch } from "@packages/crawl-article";
+import { validateSaveableUrl } from "@packages/domain/article";
 import { initExtractLinksFromPageUrl } from "./extract-links-from-page";
 
 function htmlResponse(html: string, opts?: { url?: string }): Response {
@@ -21,6 +22,7 @@ describe("initExtractLinksFromPageUrl", () => {
 		const html =
 			'<html><body><a href="https://other.com/post-1">A</a><a href="https://other.com/post-2">B</a></body></html>';
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () => htmlResponse(html, { url: "https://news.example/issues/42" })),
 		});
 
@@ -37,6 +39,7 @@ describe("initExtractLinksFromPageUrl", () => {
 	it("resolves relative hrefs against response.url after redirects", async () => {
 		const html = '<html><body><a href="/post">A</a></body></html>';
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () =>
 				htmlResponse(html, { url: "https://redirect.example/issues/42" }),
 			),
@@ -52,6 +55,7 @@ describe("initExtractLinksFromPageUrl", () => {
 	it("falls back to the requested URL when response.url is empty", async () => {
 		const html = '<html><body><a href="https://elsewhere.com/post">A</a></body></html>';
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () => {
 				const r = new Response(html, {
 					status: 200,
@@ -76,6 +80,7 @@ describe("initExtractLinksFromPageUrl", () => {
 			<a href="https://outside.com/article">Editorial</a>
 		`;
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () => htmlResponse(html, { url: "https://news.example/issues/42" })),
 		});
 
@@ -90,6 +95,7 @@ describe("initExtractLinksFromPageUrl", () => {
 		const html =
 			'<a href="https://news.example/issues/42">Permalink</a><a href="https://news.example/">Home</a><a href="https://outside.com/a">Article</a>';
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () => htmlResponse(html, { url: "https://news.example/issues/42" })),
 		});
 
@@ -111,6 +117,7 @@ describe("initExtractLinksFromPageUrl", () => {
 			<a href="https://outside.com/keep">Keep</a>
 		`;
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () => htmlResponse(html, { url: "https://news.example/issues/42" })),
 		});
 
@@ -125,6 +132,7 @@ describe("initExtractLinksFromPageUrl", () => {
 		const html =
 			'<a href="https://other.com/post">A</a><a href="https://OTHER.com/post">B</a><a href="https://other.com/post">C</a>';
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () => htmlResponse(html, { url: "https://news.example/issues/42" })),
 		});
 
@@ -138,6 +146,7 @@ describe("initExtractLinksFromPageUrl", () => {
 	it("skips hrefs that fail URL parsing against the base", async () => {
 		const html = '<a href="http://%ZZ"></a><a href="https://outside.com/ok"></a>';
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () => htmlResponse(html, { url: "https://news.example/issues/42" })),
 		});
 
@@ -150,6 +159,7 @@ describe("initExtractLinksFromPageUrl", () => {
 
 	it("returns OK with an empty list when the page has no anchors", async () => {
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () =>
 				htmlResponse("<html><body><p>just text</p></body></html>", {
 					url: "https://news.example/issues/42",
@@ -167,6 +177,7 @@ describe("initExtractLinksFromPageUrl", () => {
 	it("returns INVALID_URL for unsaveable inputs without fetching", async () => {
 		let fetched = false;
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () => {
 				fetched = true;
 				return htmlResponse("");
@@ -181,6 +192,7 @@ describe("initExtractLinksFromPageUrl", () => {
 
 	it("returns INVALID_URL for non-string-like rubbish", async () => {
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () => htmlResponse("")),
 		});
 
@@ -191,6 +203,7 @@ describe("initExtractLinksFromPageUrl", () => {
 
 	it("maps an AbortError from the fetch timeout to FETCH_FAILED { reason: timeout }", async () => {
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async (_url, init) => {
 				return new Promise<Response>((_resolve, reject) => {
 					init?.signal?.addEventListener("abort", () => {
@@ -213,6 +226,7 @@ describe("initExtractLinksFromPageUrl", () => {
 
 	it("maps a network error to FETCH_FAILED { reason: network }", async () => {
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () => {
 				throw new TypeError("dns failure");
 			}),
@@ -225,6 +239,7 @@ describe("initExtractLinksFromPageUrl", () => {
 
 	it("maps a non-Error throw to FETCH_FAILED { reason: network }", async () => {
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () => {
 				throw "boom";
 			}),
@@ -237,6 +252,7 @@ describe("initExtractLinksFromPageUrl", () => {
 
 	it("maps an AbortError that fires before the timeout to FETCH_FAILED { reason: timeout }", async () => {
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () => {
 				const err = new Error("aborted by caller");
 				err.name = "AbortError";
@@ -251,6 +267,7 @@ describe("initExtractLinksFromPageUrl", () => {
 
 	it("maps !response.ok to FETCH_FAILED with the http status", async () => {
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () =>
 				new Response("nope", {
 					status: 404,
@@ -267,6 +284,7 @@ describe("initExtractLinksFromPageUrl", () => {
 	it("rejects responses larger than 5 MiB", async () => {
 		const body = "a".repeat(5 * 1024 * 1024 + 1);
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () => htmlResponse(body, { url: "https://news.example/issues/42" })),
 		});
 
@@ -277,6 +295,7 @@ describe("initExtractLinksFromPageUrl", () => {
 
 	it("returns UNSUPPORTED_CONTENT_TYPE for non-HTML responses", async () => {
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () =>
 				new Response("%PDF-1.4", {
 					status: 200,
@@ -292,6 +311,7 @@ describe("initExtractLinksFromPageUrl", () => {
 
 	it("treats a missing content-type as UNSUPPORTED_CONTENT_TYPE", async () => {
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () => {
 				// Uint8Array body avoids the auto-applied text/plain content-type that
 				// Response('string', …) sets. With no header, headers.get('content-type')
@@ -308,6 +328,7 @@ describe("initExtractLinksFromPageUrl", () => {
 	it("accepts application/xhtml+xml as HTML", async () => {
 		const html = '<a href="https://outside.com/x">X</a>';
 		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
 			crawlFetch: fakeFetch(async () =>
 				new Response(html, {
 					status: 200,

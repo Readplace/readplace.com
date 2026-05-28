@@ -56,8 +56,8 @@ export function createImportFromUrlActions(
 				const summary = page.locator('[data-test-import-summary] .import__summary-count')
 				await expect(summary).toHaveText('3')
 				await commitAndAssertOnQueue(page)
-				const cards = await page.locator('[data-test-article]').count()
-				assert.equal(cards, 3, 'from-url happy path: expected 3 cards on /queue')
+				const flash = page.locator('[data-test-import-flash]')
+				await expect(flash).toContainText('Imported 3')
 				await deleteAllOnQueue(page)
 				importFromUrlProgress.happyPathImported = true
 			},
@@ -76,6 +76,7 @@ export function createImportFromUrlActions(
 				await submitUrl(page, `${config.baseUrl}/e2e/fixtures/links-page-error`)
 				const error = page.locator('[data-test-import-error]')
 				await expect(error).toContainText("couldn't fetch")
+				await page.goto(`${config.baseUrl}/queue`, { waitUntil: 'domcontentloaded' })
 				importFromUrlProgress.pageError500Surfaced = true
 			},
 		},
@@ -93,6 +94,7 @@ export function createImportFromUrlActions(
 				await submitUrl(page, `${config.baseUrl}/e2e/fixtures/links-page-empty`)
 				const error = page.locator('[data-test-import-error]')
 				await expect(error).toContainText("couldn't find any links")
+				await page.goto(`${config.baseUrl}/queue`, { waitUntil: 'domcontentloaded' })
 				importFromUrlProgress.pageWithoutLinksSurfaced = true
 			},
 		},

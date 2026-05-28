@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { parseHTML } from "linkedom";
 import type { CrawlFetch } from "@packages/crawl-article";
-import { validateSaveableUrl } from "@packages/domain/article";
+import type { ValidateSaveableUrl } from "@packages/domain/article";
 import {
 	collectImportLinks,
 	type ImportLinksResult,
@@ -57,9 +57,10 @@ function harvestLinks(html: string, baseUrl: string, sourceUrl: string): ImportL
 
 export function initExtractLinksFromPageUrl(deps: {
 	crawlFetch: CrawlFetch;
+	validateUrl: ValidateSaveableUrl;
 }): ExtractLinksFromPageUrl {
 	return async (pageUrl) => {
-		const validation = validateSaveableUrl(pageUrl);
+		const validation = deps.validateUrl(pageUrl);
 		if (validation.status === "ERROR") return { status: "INVALID_URL" };
 
 		const controller = new AbortController();

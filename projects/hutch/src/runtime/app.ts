@@ -174,7 +174,7 @@ function initProviders() {
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
 		const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 		const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
-		const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch });
+		const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 		const { parseHtml } = initReadabilityParser({
 			crawlArticle,
 			sitePreParsers: [theInformationPreParser, mediumPreParser],
@@ -298,7 +298,7 @@ function initProviders() {
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
 	const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 	const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
-	const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch });
+	const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
 		sitePreParsers: [theInformationPreParser, mediumPreParser],
