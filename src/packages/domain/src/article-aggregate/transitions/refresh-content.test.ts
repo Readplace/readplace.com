@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import type { Article } from "../article.types";
-import { refreshContent } from "./refresh-content";
+import { CanonicalImageUrlSchema } from "../canonical-image-url";
+import { refreshContent, type RefreshContentInput } from "./refresh-content";
 
 const NOW = "2026-05-13T12:00:00.000Z";
 const HASH_A = "a".repeat(64);
@@ -32,6 +33,26 @@ function buildArticle(overrides: Partial<Article> = {}): Article {
 	};
 }
 
+function buildInput(overrides: Omit<Partial<RefreshContentInput>, "metadata"> = {}): RefreshContentInput {
+	return {
+		metadata: {
+			title: "New title",
+			siteName: "Example",
+			excerpt: "New excerpt",
+			wordCount: 250,
+			imageUrl: CanonicalImageUrlSchema.parse("https://example.com/image.jpg"),
+		},
+		freshness: {
+			etag: '"new-etag"',
+			contentFetchedAt: "2026-05-10T12:00:00.000Z",
+		},
+		estimatedReadTime: 2,
+		now: NOW,
+		canonicalContentHash: HASH_A,
+		...overrides,
+	};
+}
+
 describe("refreshContent", () => {
 	it("overwrites metadata, freshness, and estimated read time with the fetched values", () => {
 		const before = buildArticle();
@@ -42,7 +63,7 @@ describe("refreshContent", () => {
 				siteName: "Example",
 				excerpt: "New excerpt",
 				wordCount: 250,
-				imageUrl: "https://example.com/image.jpg",
+				imageUrl: CanonicalImageUrlSchema.parse("https://example.com/image.jpg"),
 			},
 			freshness: {
 				etag: '"new-etag"',
@@ -65,13 +86,7 @@ describe("refreshContent", () => {
 	it("writes the new canonicalContentHash onto freshness so subsequent runs can compare against it", () => {
 		const before = buildArticle();
 
-		const { article } = refreshContent(before, {
-			metadata: before.metadata,
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-			now: NOW,
-			canonicalContentHash: HASH_A,
-		});
+		const { article } = refreshContent(before, buildInput());
 
 		assert.equal(article.freshness.canonicalContentHash, HASH_A);
 	});
@@ -93,13 +108,9 @@ describe("refreshContent", () => {
 			},
 		});
 
-		const { article } = refreshContent(before, {
-			metadata: before.metadata,
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-			now: NOW,
+		const { article } = refreshContent(before, buildInput({
 			canonicalContentHash: HASH_B,
-		});
+		}));
 
 		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
 	});
@@ -120,13 +131,7 @@ describe("refreshContent", () => {
 			summary: existingSummary,
 		});
 
-		const { article } = refreshContent(before, {
-			metadata: before.metadata,
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-			now: NOW,
-			canonicalContentHash: HASH_A,
-		});
+		const { article } = refreshContent(before, buildInput());
 
 		assert.deepEqual(article.summary, existingSummary);
 	});
@@ -136,13 +141,7 @@ describe("refreshContent", () => {
 			summary: { kind: "ready", summary: "stale" },
 		});
 
-		const { article, writes } = refreshContent(before, {
-			metadata: before.metadata,
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-			now: NOW,
-			canonicalContentHash: HASH_A,
-		});
+		const { article, writes } = refreshContent(before, buildInput());
 
 		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
 		assert.ok(writes.includes("summary"));
@@ -158,13 +157,9 @@ describe("refreshContent", () => {
 			},
 		});
 
-		const { article } = refreshContent(before, {
-			metadata: before.metadata,
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-			now: NOW,
+		const { article } = refreshContent(before, buildInput({
 			canonicalContentHash: HASH_B,
-		});
+		}));
 
 		assert.equal(
 			article.summary.kind === "pending" ? article.summary.pendingSince : "",
@@ -175,13 +170,7 @@ describe("refreshContent", () => {
 	it("preserves crawl state so a successful refresh does not regress the crawl row", () => {
 		const before = buildArticle({ crawl: { kind: "ready" } });
 
-		const { article } = refreshContent(before, {
-			metadata: before.metadata,
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-			now: NOW,
-			canonicalContentHash: HASH_A,
-		});
+		const { article } = refreshContent(before, buildInput());
 
 		assert.deepEqual(article.crawl, { kind: "ready" });
 	});
@@ -197,13 +186,9 @@ describe("refreshContent", () => {
 			},
 		});
 
-		const { effects } = refreshContent(before, {
-			metadata: before.metadata,
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-			now: NOW,
+		const { effects } = refreshContent(before, buildInput({
 			canonicalContentHash: HASH_B,
-		});
+		}));
 
 		assert.deepEqual(effects, [
 			{ kind: "generate-summary", url: "https://example.com/post" },
@@ -222,13 +207,7 @@ describe("refreshContent", () => {
 			summary: { kind: "ready", summary: "kept" },
 		});
 
-		const { effects } = refreshContent(before, {
-			metadata: before.metadata,
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-			now: NOW,
-			canonicalContentHash: HASH_A,
-		});
+		const { effects } = refreshContent(before, buildInput());
 
 		assert.deepEqual(effects, []);
 	});
@@ -243,13 +222,9 @@ describe("refreshContent", () => {
 			},
 		});
 
-		const { writes } = refreshContent(before, {
-			metadata: before.metadata,
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-			now: NOW,
+		const { writes } = refreshContent(before, buildInput({
 			canonicalContentHash: HASH_B,
-		});
+		}));
 
 		assert.deepEqual([...writes].sort(), ["freshness", "metadata", "summary"]);
 		assert.ok(!writes.includes("crawl"), "refresh must not clobber an in-flight or already-ready crawl");
@@ -266,13 +241,7 @@ describe("refreshContent", () => {
 			summary: { kind: "ready", summary: "kept" },
 		});
 
-		const { writes } = refreshContent(before, {
-			metadata: before.metadata,
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-			now: NOW,
-			canonicalContentHash: HASH_A,
-		});
+		const { writes } = refreshContent(before, buildInput());
 
 		assert.deepEqual([...writes].sort(), ["freshness", "metadata"]);
 		assert.ok(!writes.includes("summary"));
@@ -284,13 +253,7 @@ describe("refreshContent", () => {
 			crawl: { kind: "failed", reason: { kind: "fetch-failed", httpStatus: 503 } },
 		});
 
-		const { article, writes } = refreshContent(before, {
-			metadata: before.metadata,
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-			now: NOW,
-			canonicalContentHash: HASH_A,
-		});
+		const { article, writes } = refreshContent(before, buildInput());
 
 		assert.deepEqual(article.crawl, { kind: "ready" });
 		assert.ok(writes.includes("crawl"), "recovery-from-failed must declare a crawl write");
@@ -301,13 +264,7 @@ describe("refreshContent", () => {
 			crawl: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
 		});
 
-		const { article, writes } = refreshContent(before, {
-			metadata: before.metadata,
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-			now: NOW,
-			canonicalContentHash: HASH_A,
-		});
+		const { article, writes } = refreshContent(before, buildInput());
 
 		assert.deepEqual(article.crawl, before.crawl);
 		assert.ok(!writes.includes("crawl"), "refresh must not write crawl when an inline crawl is in flight");
@@ -318,13 +275,7 @@ describe("refreshContent", () => {
 			crawl: { kind: "unsupported", reason: { kind: "paywall" } },
 		});
 
-		const { article, writes } = refreshContent(before, {
-			metadata: before.metadata,
-			freshness: before.freshness,
-			estimatedReadTime: before.estimatedReadTime,
-			now: NOW,
-			canonicalContentHash: HASH_A,
-		});
+		const { article, writes } = refreshContent(before, buildInput());
 
 		assert.deepEqual(article.crawl, before.crawl);
 		assert.ok(!writes.includes("crawl"));
@@ -340,6 +291,7 @@ describe("refreshContent", () => {
 				siteName: "Example",
 				excerpt: "Different",
 				wordCount: 200,
+				imageUrl: CanonicalImageUrlSchema.parse(undefined),
 			},
 			freshness: {
 				etag: '"different"',

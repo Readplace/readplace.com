@@ -12,6 +12,14 @@
     "./generate-summary": {
       "types": "./dist/runtime/domain/generate-summary/index.d.ts",
       "default": "./dist/runtime/domain/generate-summary/index.js"
+    },
+    "./finalize-article": {
+      "types": "./dist/runtime/domain/save-link/finalize-article.d.ts",
+      "default": "./dist/runtime/domain/save-link/finalize-article.js"
+    },
+    "./crawl-and-finalize-article": {
+      "types": "./dist/runtime/domain/save-link/crawl-and-finalize-article.d.ts",
+      "default": "./dist/runtime/domain/save-link/crawl-and-finalize-article.js"
     }
   },
   "typesVersions": {
@@ -21,6 +29,12 @@
       ],
       "generate-summary": [
         "./dist/runtime/domain/generate-summary/index.d.ts"
+      ],
+      "finalize-article": [
+        "./dist/runtime/domain/save-link/finalize-article.d.ts"
+      ],
+      "crawl-and-finalize-article": [
+        "./dist/runtime/domain/save-link/crawl-and-finalize-article.d.ts"
       ]
     }
   },

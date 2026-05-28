@@ -11,12 +11,7 @@ import {
 	type LogCrawlOutcome,
 	type LogParseError,
 } from "@packages/hutch-infra-components";
-import { ArticleResourceUniqueId } from "../save-link/article-resource-unique-id";
-import type { ParseHtml } from "@packages/article-parser";
-import { extractFirstThumbnailUrl } from "@packages/crawl-article";
-import type { DownloadMedia } from "../save-link/download-media";
-import type { ProcessContent } from "../save-link/save-link-work";
-import { estimatedReadTimeFromWordCount } from "../save-link/estimated-read-time";
+import type { FinalizeArticle } from "../save-link/finalize-article";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { ReadPendingHtml } from "../../providers/article-store/read-pending-html";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
@@ -26,9 +21,7 @@ const TIER = "tier-0";
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initSaveLinkRawHtmlCommandHandler(deps: {
 	readPendingHtml: ReadPendingHtml;
-	parseHtml: ParseHtml;
-	downloadMedia: DownloadMedia;
-	processContent: ProcessContent;
+	finalizeArticle: FinalizeArticle;
 	putTierSource: PutTierSource;
 	publishEvent: PublishEvent;
 	transitionAndPersist: TransitionAndPersist;
@@ -39,9 +32,7 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
 		readPendingHtml,
-		parseHtml,
-		downloadMedia,
-		processContent,
+		finalizeArticle,
 		putTierSource,
 		publishEvent,
 		transitionAndPersist,
@@ -60,13 +51,12 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 				const detail = SaveLinkRawHtmlCommand.detailSchema.parse(envelope.detail);
 
 				const rawHtml = await readPendingHtml(detail.url);
-				const parseResult = parseHtml({
+				const finalized = await finalizeArticle({
 					url: detail.url,
 					html: rawHtml,
-					thumbnailUrl: extractFirstThumbnailUrl({ html: rawHtml, baseUrl: detail.url }),
 				});
-				if (!parseResult.ok) {
-					logParseError({ url: detail.url, reason: parseResult.reason });
+				if (!finalized.ok) {
+					logParseError({ url: detail.url, reason: finalized.reason });
 					const snapshot = await readTierSnapshot({ url: detail.url });
 					logCrawlOutcome({
 						url: detail.url,
@@ -86,32 +76,17 @@ export function initSaveLinkRawHtmlCommandHandler(deps: {
 					await transitionAndPersist(markCrawlFailed, {
 						url: detail.url,
 						input: {
-							reason: { kind: "parse-error", detail: parseResult.reason },
+							reason: { kind: "parse-error", detail: finalized.reason },
 						},
 					});
-					throw new Error(`save-link-raw-html parse failed for ${detail.url}: ${parseResult.reason}`);
+					throw new Error(`save-link-raw-html parse failed for ${detail.url}: ${finalized.reason}`);
 				}
-
-				const articleResourceUniqueId = ArticleResourceUniqueId.parse(detail.url);
-				const media = await downloadMedia({
-					html: parseResult.article.content,
-					articleUrl: detail.url,
-					articleResourceUniqueId,
-				});
-				const processedHtml = await processContent({ html: parseResult.article.content, media });
 
 				await putTierSource({
 					url: detail.url,
 					tier: TIER,
-					html: processedHtml,
-					metadata: {
-						title: parseResult.article.title,
-						siteName: parseResult.article.siteName,
-						excerpt: parseResult.article.excerpt,
-						wordCount: parseResult.article.wordCount,
-						estimatedReadTime: estimatedReadTimeFromWordCount(parseResult.article.wordCount),
-						imageUrl: parseResult.article.imageUrl,
-					},
+					html: finalized.article.html,
+					metadata: finalized.article.metadata,
 				});
 				logger.info("[SaveLinkRawHtmlCommand] tier-0 source written", {
 					url: detail.url,

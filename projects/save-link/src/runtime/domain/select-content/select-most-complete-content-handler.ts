@@ -16,6 +16,7 @@ import type { SelectMostCompleteContent } from "./select-content";
 import type { WriteCanonicalContent } from "../../providers/article-store/promote-tier-to-canonical";
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import { resolveCanonicalImageUrl } from "./resolve-canonical-image-url";
 import type { TierSource } from "./tier-source.types";
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
@@ -148,7 +149,10 @@ export function initSelectMostCompleteContentHandler(deps: {
 					url: detail.url,
 					input: {
 						tier: winnerTier,
-						metadata: winnerSource.metadata,
+						metadata: {
+							...winnerSource.metadata,
+							imageUrl: resolveCanonicalImageUrl({ winner: winnerSource, candidates: sources }),
+						},
 						estimatedReadTime: winnerSource.metadata.estimatedReadTime,
 						contentFetchedAt: now().toISOString(),
 						now: now().toISOString(),

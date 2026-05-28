@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import type { Article } from "../article.types";
+import { CanonicalImageUrlSchema } from "../canonical-image-url";
 import {
 	recrawlPromoteTier,
 	type RecrawlPromoteTierInput,
@@ -40,7 +41,7 @@ function buildInput(overrides: Partial<RecrawlPromoteTierInput> = {}): RecrawlPr
 			siteName: "New site",
 			excerpt: "New excerpt",
 			wordCount: 250,
-			imageUrl: "https://example.com/image.jpg",
+			imageUrl: CanonicalImageUrlSchema.parse("https://example.com/image.jpg"),
 		},
 		estimatedReadTime: 3,
 		contentFetchedAt: "2026-05-10T12:00:00.000Z",
@@ -66,7 +67,7 @@ describe("recrawlPromoteTier", () => {
 					siteName: "Refreshed site",
 					excerpt: "Refreshed excerpt",
 					wordCount: 999,
-					imageUrl: "https://example.com/refreshed.jpg",
+					imageUrl: CanonicalImageUrlSchema.parse("https://example.com/refreshed.jpg"),
 				},
 			}),
 		);

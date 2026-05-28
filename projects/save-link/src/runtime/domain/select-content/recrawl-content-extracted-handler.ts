@@ -18,6 +18,7 @@ import type { SelectMostCompleteContent } from "./select-content";
 import type { WriteCanonicalContent } from "../../providers/article-store/promote-tier-to-canonical";
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
+import { resolveCanonicalImageUrl } from "./resolve-canonical-image-url";
 import type { TierSource } from "./tier-source.types";
 
 export function initRecrawlContentExtractedHandler(deps: {
@@ -145,7 +146,10 @@ export function initRecrawlContentExtractedHandler(deps: {
 						url: detail.url,
 						input: {
 							winnerTier,
-							metadata: winnerSource.metadata,
+							metadata: {
+								...winnerSource.metadata,
+								imageUrl: resolveCanonicalImageUrl({ winner: winnerSource, candidates: sources }),
+							},
 							estimatedReadTime: winnerSource.metadata.estimatedReadTime,
 							contentFetchedAt: now().toISOString(),
 							now: now().toISOString(),

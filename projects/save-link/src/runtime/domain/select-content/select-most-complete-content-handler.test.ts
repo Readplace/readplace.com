@@ -236,6 +236,29 @@ describe("initSelectMostCompleteContentHandler", () => {
 		});
 	});
 
+	it("promotes the loser's imageUrl when the winner's body wins but the winner has no thumbnail (rescues og:image from a stale tier whose body the LLM rejected)", async () => {
+		const tier0 = tierSource("tier-0", { metadata: stubMetadata({ imageUrl: undefined }) });
+		const tier1 = tierSource("tier-1", { metadata: stubMetadata({ imageUrl: "https://example.com/og.png" }) });
+
+		const { handler, deps } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
+			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tier-0", reason: "tier-0 body wins" }),
+			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), stubContext, () => {});
+
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(
+			promoteTier,
+			expect.objectContaining({
+				input: expect.objectContaining({
+					tier: "tier-0",
+					metadata: expect.objectContaining({ imageUrl: "https://example.com/og.png" }),
+				}),
+			}),
+		);
+	});
+
 	it("computes and passes a canonical content hash derived from the winning source HTML so the aggregate's hash gate can detect content equality", async () => {
 		const tier1 = tierSource("tier-1", { html: "<article><p>Distinctive winner body.</p></article>" });
 

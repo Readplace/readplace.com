@@ -8,7 +8,16 @@ import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
 import type { ExtractPdf } from "@packages/crawl-article";
-import { CRAWL_PERSONAS, initComprehensiveCrawl, initCrawlArticle, initCrawlFetch, initSimpleCrawl } from "@packages/crawl-article";
+import {
+	CRAWL_PERSONAS,
+	initComprehensiveCrawl,
+	initCrawlArticle,
+	initCrawlFetch,
+	initFetchThumbnailImage,
+	initSimpleCrawl,
+} from "@packages/crawl-article";
+import { initFinalizeArticle } from "save-link/finalize-article";
+import { initCrawlAndFinalizeArticle } from "save-link/crawl-and-finalize-article";
 import type { PublishStaleCheckRequested } from "@packages/test-fixtures/providers/events";
 import { initReadabilityParser, mediumPreParser, theInformationPreParser } from "@packages/article-parser";
 import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
@@ -292,6 +301,23 @@ function initProviders() {
 		sitePreParsers: [theInformationPreParser, mediumPreParser],
 		logError,
 	});
+	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError });
+	/* Dev composition: no S3, no CDN. Stub the media + image-upload deps so the
+	 * in-memory app still routes through the same `finalizeArticle` pipeline
+	 * every prod Lambda uses — identical algorithm, identical metadata shape,
+	 * just with no-op upload sinks. */
+	const finalizeArticle = initFinalizeArticle({
+		parseHtml,
+		downloadMedia: async () => [],
+		processContent: async ({ html }) => html,
+		fetchThumbnailImage,
+		putImageObject: async () => {},
+		imagesCdnBaseUrl: "https://dev-images.invalid",
+	});
+	const crawlAndFinalizeArticle = initCrawlAndFinalizeArticle({
+		simpleCrawl: crawlArticle, // dev: includes comprehensive fallback inline
+		finalizeArticle,
+	});
 	const finaliseSummaryFromContent = async (params: { url: string; textContent: string }) => {
 		await summaryStore.markSummaryPending({ url: params.url });
 		const summary = devSummariseInline({ textContent: params.textContent });
@@ -302,27 +328,19 @@ function initProviders() {
 		await summaryStore.markSummarySkipped({ url: params.url, reason: summary.reason });
 	};
 	const runCrawlAndSummariseInline = async (url: string) => {
-		const crawlResult = await crawlArticle({ url });
-		if (crawlResult.status === "unsupported") {
-			await crawlStore.markCrawlUnsupported({ url, reason: crawlResult.reason });
+		const result = await crawlAndFinalizeArticle({ url });
+		if (result.status === "unsupported") {
+			await crawlStore.markCrawlUnsupported({ url, reason: result.reason });
 			return;
 		}
-		if (crawlResult.status !== "fetched") {
-			await crawlStore.markCrawlFailed({ url, reason: `crawl-${crawlResult.status}` });
-			return;
-		}
-		const result = parseHtml({
-			url,
-			html: crawlResult.html,
-			thumbnailUrl: crawlResult.thumbnailUrl ?? null,
-		});
-		if (!result.ok) {
+		if (result.status === "failed") {
 			await crawlStore.markCrawlFailed({ url, reason: result.reason });
 			return;
 		}
-		await articleStore.writeContent({ url, content: result.article.content });
+		if (result.status === "not-modified") return;
+		await articleStore.writeContent({ url, content: result.article.html });
 		await crawlStore.markCrawlReady({ url });
-		await finaliseSummaryFromContent({ url, textContent: result.article.content });
+		await finaliseSummaryFromContent({ url, textContent: result.article.html });
 	};
 	const { publishLinkSaved: logOnlyPublishLinkSaved } = initInMemoryLinkSaved({ logger: consoleLogger });
 	const publishLinkSaved: typeof logOnlyPublishLinkSaved = async (params) => {

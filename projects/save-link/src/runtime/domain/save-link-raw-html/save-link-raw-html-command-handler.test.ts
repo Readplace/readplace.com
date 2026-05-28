@@ -1,12 +1,8 @@
-import posthtml from "posthtml";
-import urls from "@11ty/posthtml-urls";
 import { noopLogger } from "@packages/hutch-logger";
 import { markCrawlFailed } from "@packages/domain/article-aggregate";
 import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initSaveLinkRawHtmlCommandHandler } from "./save-link-raw-html-command-handler";
-import { initProcessContentWithLocalMedia } from "../save-link/process-content-with-local-media";
-import type { ParseHtml } from "@packages/article-parser";
-import type { DownloadMedia } from "../save-link/download-media";
+import type { FinalizeArticle, FinalizedArticle } from "../save-link/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
 
@@ -48,34 +44,26 @@ function createSqsEvent(detail: { url: string; userId: string; title?: string })
 	};
 }
 
-const noopDownloadMedia: DownloadMedia = async () => [];
-
-const processContent = initProcessContentWithLocalMedia({
-	rewriteHtmlUrls: (html, rewriteUrl) => {
-		const plugin = urls({ eachURL: rewriteUrl });
-		return posthtml().use(plugin).process(html).then((result) => result.html);
-	},
-});
-
-const successfulParse: ParseHtml = () => ({
-	ok: true,
-	article: {
+const stubFinalizedArticle: FinalizedArticle = {
+	html: "<p>Article content</p>",
+	metadata: {
 		title: "Test",
 		siteName: "example.com",
 		excerpt: "test",
 		wordCount: 10,
-		content: "<p>Article content</p>",
+		estimatedReadTime: 1,
+		imageUrl: undefined,
 	},
-});
+};
+
+const okFinalize: FinalizeArticle = async () => ({ ok: true, article: stubFinalizedArticle });
 
 type HandlerDeps = Parameters<typeof initSaveLinkRawHtmlCommandHandler>[0];
 
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	const deps: HandlerDeps = {
 		readPendingHtml: jest.fn().mockResolvedValue("<html><body><p>Article content</p></body></html>"),
-		parseHtml: successfulParse,
-		downloadMedia: noopDownloadMedia,
-		processContent,
+		finalizeArticle: okFinalize,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
@@ -93,7 +81,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 }
 
 describe("initSaveLinkRawHtmlCommandHandler", () => {
-	it("reads pending HTML, writes a tier-0 source with metadata, and emits TierContentExtractedEvent carrying userId", async () => {
+	it("reads pending HTML, writes a tier-0 source with the finalizer's metadata, and emits TierContentExtractedEvent carrying userId", async () => {
 		const { handler, deps } = createHandler();
 
 		await handler(
@@ -106,20 +94,34 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		expect(deps.putTierSource).toHaveBeenCalledWith({
 			url: "https://example.com/article",
 			tier: "tier-0",
-			html: "<p>Article content</p>",
-			metadata: {
-				title: "Test",
-				siteName: "example.com",
-				excerpt: "test",
-				wordCount: 10,
-				estimatedReadTime: 1,
-				imageUrl: undefined,
-			},
+			html: stubFinalizedArticle.html,
+			metadata: stubFinalizedArticle.metadata,
 		});
 		expect(deps.publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
 			url: "https://example.com/article",
 			tier: "tier-0",
 			userId: "user-1",
+		});
+	});
+
+	it("threads the captured rawHtml through finalizeArticle without preFetchedThumbnail (the raw-html path has no inline crawler image)", async () => {
+		const rawHtml = "<html><body><article><p>Body</p></article></body></html>";
+		const finalizeArticle = jest.fn(okFinalize);
+
+		const { handler } = createHandler({
+			readPendingHtml: jest.fn().mockResolvedValue(rawHtml),
+			finalizeArticle,
+		});
+
+		await handler(
+			createSqsEvent({ url: "https://example.com/article", userId: "user-1" }),
+			stubContext,
+			() => {},
+		);
+
+		expect(finalizeArticle).toHaveBeenCalledWith({
+			url: "https://example.com/article",
+			html: rawHtml,
 		});
 	});
 
@@ -136,7 +138,7 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 	});
 
 	it("routes terminal parse errors through markCrawlFailed via transitionAndPersist and reports the record as a batch failure so SQS redelivers it", async () => {
-		const failedParse: ParseHtml = () => ({ ok: false, reason: "Readability returned null" });
+		const finalizeArticle: FinalizeArticle = async () => ({ ok: false, reason: "Readability returned null" });
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
@@ -144,7 +146,7 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		const logger = { ...noopLogger, error };
 
 		const { handler } = createHandler({
-			parseHtml: failedParse,
+			finalizeArticle,
 			transitionAndPersist,
 			putTierSource,
 			publishEvent,
@@ -160,14 +162,10 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
 			url: "https://example.com/bad",
-			input: {
-				reason: { kind: "parse-error", detail: "Readability returned null" },
-			},
+			input: { reason: { kind: "parse-error", detail: "Readability returned null" } },
 		});
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
-		// Confirms the throw inside the worker propagated to the per-record catch
-		// with the expected diagnostic, even though it no longer escapes the handler.
 		expect(error).toHaveBeenCalledWith(
 			"[SaveLinkRawHtmlCommand] record failed",
 			expect.objectContaining({
@@ -179,36 +177,9 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		);
 	});
 
-	it("threads downloaded media into processContent so HTML references the CDN URLs", async () => {
-		const parseWithImage: ParseHtml = () => ({
-			ok: true,
-			article: {
-				title: "T",
-				siteName: "s",
-				excerpt: "e",
-				wordCount: 1,
-				content: '<img src="https://example.com/img.png">',
-			},
-		});
-		const downloadMedia: DownloadMedia = jest.fn().mockResolvedValue([
-			{ originalUrl: "https://example.com/img.png", cdnUrl: "https://cdn/images/abc.png" },
-		]);
-		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-
-		const { handler } = createHandler({ parseHtml: parseWithImage, downloadMedia, putTierSource });
-
-		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), stubContext, () => {});
-
-		expect(putTierSource).toHaveBeenCalledWith(
-			expect.objectContaining({
-				html: expect.stringContaining("https://cdn/images/abc.png"),
-			}),
-		);
-	});
-
 	it("emits logParseError before reporting the record as a batch failure, so the failure reaches the parse-errors dashboard", async () => {
-		const failedParse: ParseHtml = () => ({ ok: false, reason: "no-readable-content" });
-		const { handler, deps } = createHandler({ parseHtml: failedParse });
+		const finalizeArticle: FinalizeArticle = async () => ({ ok: false, reason: "no-readable-content" });
+		const { handler, deps } = createHandler({ finalizeArticle });
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }),
@@ -224,13 +195,13 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 	});
 
 	it("emits a tier-0 failure crawl-outcome before reporting the batch failure, reflecting tier-1's snapshot at emission time", async () => {
-		const failedParse: ParseHtml = () => ({ ok: false, reason: "no-readable-content" });
+		const finalizeArticle: FinalizeArticle = async () => ({ ok: false, reason: "no-readable-content" });
 		const readTierSnapshot = jest.fn().mockResolvedValue({
 			tier0Status: "not_attempted",
 			tier1Status: "success",
 			pickedTier: "tier-1",
 		});
-		const { handler, deps } = createHandler({ parseHtml: failedParse, readTierSnapshot });
+		const { handler, deps } = createHandler({ finalizeArticle, readTierSnapshot });
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }),
@@ -249,13 +220,13 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 	});
 
 	it("emits a tier-0 failure crawl-outcome with otherTierStatus=failed when tier-1 has already failed, distinguishing it from a never-attempted tier-1", async () => {
-		const failedParse: ParseHtml = () => ({ ok: false, reason: "no-readable-content" });
+		const finalizeArticle: FinalizeArticle = async () => ({ ok: false, reason: "no-readable-content" });
 		const readTierSnapshot = jest.fn().mockResolvedValue({
 			tier0Status: "not_attempted",
 			tier1Status: "failed",
 			pickedTier: "none",
 		});
-		const { handler, deps } = createHandler({ parseHtml: failedParse, readTierSnapshot });
+		const { handler, deps } = createHandler({ finalizeArticle, readTierSnapshot });
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/bad", userId: "user-1" }),
@@ -328,76 +299,6 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		);
 	});
 
-	it("extracts og:image from the captured rawHtml and threads it as thumbnailUrl into parseHtml so the tier-0 metadata carries imageUrl", async () => {
-		const rawHtml = `<html><head>
-			<meta property="og:image" content="https://example.com/og.png">
-		</head><body><article><p>Body</p></article></body></html>`;
-		const parseHtml = jest.fn(((_params) => ({
-			ok: true as const,
-			article: {
-				title: "T",
-				siteName: "example.com",
-				excerpt: "e",
-				wordCount: 1,
-				content: "<p>x</p>",
-				imageUrl: "https://example.com/og.png",
-			},
-		})) satisfies ParseHtml);
-		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
-		const { handler } = createHandler({
-			readPendingHtml: jest.fn().mockResolvedValue(rawHtml),
-			parseHtml,
-			putTierSource,
-		});
-
-		await handler(
-			createSqsEvent({ url: "https://example.com/article", userId: "user-1" }),
-			stubContext,
-			() => {},
-		);
-
-		expect(parseHtml).toHaveBeenCalledWith({
-			url: "https://example.com/article",
-			html: rawHtml,
-			thumbnailUrl: "https://example.com/og.png",
-		});
-		expect(putTierSource).toHaveBeenCalledWith(
-			expect.objectContaining({
-				metadata: expect.objectContaining({ imageUrl: "https://example.com/og.png" }),
-			}),
-		);
-	});
-
-	it("passes thumbnailUrl=null when the captured rawHtml exposes no image candidates", async () => {
-		const rawHtml = `<html><head><title>No images</title></head><body><article><p>Body</p></article></body></html>`;
-		const parseHtml = jest.fn(((_params) => ({
-			ok: true as const,
-			article: {
-				title: "T",
-				siteName: "example.com",
-				excerpt: "e",
-				wordCount: 1,
-				content: "<p>x</p>",
-			},
-		})) satisfies ParseHtml);
-		const { handler } = createHandler({
-			readPendingHtml: jest.fn().mockResolvedValue(rawHtml),
-			parseHtml,
-		});
-
-		await handler(
-			createSqsEvent({ url: "https://example.com/article", userId: "user-1" }),
-			stubContext,
-			() => {},
-		);
-
-		expect(parseHtml).toHaveBeenCalledWith({
-			url: "https://example.com/article",
-			html: rawHtml,
-			thumbnailUrl: null,
-		});
-	});
-
 	it("reports the record as a batch failure on invalid event detail (Zod failure)", async () => {
 		const { handler } = createHandler();
 
@@ -418,5 +319,4 @@ describe("initSaveLinkRawHtmlCommandHandler", () => {
 		const result = await handler(invalidEvent, stubContext, () => {});
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
-
 });

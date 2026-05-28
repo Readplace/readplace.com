@@ -1,6 +1,5 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { SimpleCrawl } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import {
@@ -8,29 +7,22 @@ import {
 	RecrawlContentExtractedEvent,
 } from "@packages/hutch-infra-components";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
-import type { ParseHtml } from "@packages/article-parser";
-import type { DownloadMedia } from "./download-media";
-import type { PutImageObject } from "../../providers/article-store/s3-put-image-object";
 import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
-import { initSaveLinkWork, type ProcessContent } from "./save-link-work";
+import { initSaveLinkWork } from "./save-link-work";
+import type { CrawlAndFinalizeArticle } from "./crawl-and-finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 
 export function initRecrawlLinkInitiatedHandler(deps: {
-	simpleCrawl: SimpleCrawl;
+	crawlAndFinalizeArticle: CrawlAndFinalizeArticle;
 	emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported;
-	parseHtml: ParseHtml;
 	putTierSource: PutTierSource;
-	putImageObject: PutImageObject;
 	updateFetchTimestamp: UpdateFetchTimestamp;
 	transitionAndPersist: TransitionAndPersist;
 	markCrawlStage: MarkCrawlStage;
 	publishEvent: PublishEvent;
-	downloadMedia: DownloadMedia;
-	processContent: ProcessContent;
-	imagesCdnBaseUrl: string;
 	now: () => Date;
 	logger: HutchLogger;
 	logParseError: LogParseError;
@@ -40,17 +32,12 @@ export function initRecrawlLinkInitiatedHandler(deps: {
 	const { publishEvent, logger } = deps;
 
 	const { saveLinkWork } = initSaveLinkWork({
-		simpleCrawl: deps.simpleCrawl,
+		crawlAndFinalizeArticle: deps.crawlAndFinalizeArticle,
 		emitSimpleCrawlUnsupported: deps.emitSimpleCrawlUnsupported,
-		parseHtml: deps.parseHtml,
 		putTierSource: deps.putTierSource,
-		putImageObject: deps.putImageObject,
 		updateFetchTimestamp: deps.updateFetchTimestamp,
 		transitionAndPersist: deps.transitionAndPersist,
 		markCrawlStage: deps.markCrawlStage,
-		downloadMedia: deps.downloadMedia,
-		processContent: deps.processContent,
-		imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
 		now: deps.now,
 		logger,
 		logParseError: deps.logParseError,

@@ -443,4 +443,26 @@ describe("initRecrawlContentExtractedHandler", () => {
 			},
 		});
 	});
+
+	it("promotes another tier's imageUrl when the winner has none (recovers og:image for articles whose pre-fix tier-0 was selected over a tier-1 carrying a thumbnail)", async () => {
+		const tier0 = tierSource("tier-0", { metadata: stubMetadata({ imageUrl: undefined }) });
+		const tier1 = tierSource("tier-1", { metadata: stubMetadata({ imageUrl: "https://cdn.example/recovered.png" }) });
+
+		const { handler, deps } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
+			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tier-0", reason: "tier-0 body wins" }),
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(
+			recrawlPromoteTier,
+			expect.objectContaining({
+				input: expect.objectContaining({
+					winnerTier: "tier-0",
+					metadata: expect.objectContaining({ imageUrl: "https://cdn.example/recovered.png" }),
+				}),
+			}),
+		);
+	});
 });

@@ -8,7 +8,11 @@ export {
 } from "./crawl-article";
 export type { Persona } from "./persona-fallback";
 export { extensionFromContentType } from "./extension-from-content-type";
-export { extractFirstThumbnailUrl, extractThumbnailCandidates } from "./extract-thumbnail";
+export {
+	extractThumbnailCandidates,
+	initFetchThumbnailImage,
+	type FetchThumbnailImage,
+} from "./extract-thumbnail";
 export type {
 	CrawlArticle,
 	CrawlArticleResult,
