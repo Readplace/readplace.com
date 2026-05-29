@@ -85,7 +85,7 @@ const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesT
 const articleCrawl = initArticleCrawlDepBundle({ dynamoClient, articlesTable });
 
 export const handler = initComprehensiveCrawlHandler({
-	comprehensiveCrawl: parser.comprehensiveCrawl,
+	crawlArticle: parser.crawlArticle,
 	finalizeArticle: crawlAndFinalize.finalizeArticle,
 	...articleStore,
 	...events,

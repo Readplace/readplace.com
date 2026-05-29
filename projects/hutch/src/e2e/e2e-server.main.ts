@@ -15,7 +15,7 @@ import {
 import { requireEnv } from '../runtime/domain/require-env'
 import { initRefreshArticleIfStale } from '@packages/test-fixtures/providers/article-freshness'
 import type { ExtractPdf } from '@packages/crawl-article'
-import { CRAWL_PERSONAS, initComprehensiveCrawl, initCrawlArticle, initCrawlFetch, initSimpleCrawl } from '@packages/crawl-article'
+import { CRAWL_PERSONAS, initCrawlArticle, initCrawlFetch } from '@packages/crawl-article'
 import { initReadabilityParser, mediumPreParser, theInformationPreParser } from '@packages/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
 import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/providers/events'
@@ -37,8 +37,8 @@ const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PER
  * fixture, so the pdf-save-flow e2e test can pin the extension's Siren contract
  * for "save a URL that returns application/pdf" without depending on DeepInfra
  * or the pdftoppm rasterizer. The marker title is what the test polls for to
- * detect that ComprehensiveCrawl ran the PDF branch and the selector promoted
- * the article from `unsupported` (SimpleCrawl) to `ready`.
+ * detect that the crawler took the PDF-extraction branch and the selector
+ * promoted the article to `ready`.
  *
  * The body needs to be long enough that Mozilla Readability classifies it as a
  * real article (the parser falls back to title = "Article from <hostname>" if
@@ -53,9 +53,7 @@ const extractPdf: ExtractPdf = async () => ({
   title: E2E_PDF_TITLE,
   html: `<!DOCTYPE html><html><head><title>${E2E_PDF_TITLE}</title></head><body><article><h1>${E2E_PDF_TITLE}</h1>${E2E_PDF_BODY_PARAGRAPHS}</article></body></html>`,
 })
-const simpleCrawl = initSimpleCrawl({ crawlFetch, logError })
-const comprehensiveCrawl = initComprehensiveCrawl({ crawlFetch, extractPdf, logError })
-const crawlArticle = initCrawlArticle({ simpleCrawl, comprehensiveCrawl })
+const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError })
 const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, sitePreParsers: [theInformationPreParser, mediumPreParser], logError })
 
 /** E2E tests use localhost URLs because the test server IS localhost.
@@ -188,8 +186,8 @@ server.get('/e2e/unfetchable', (_req, res) => {
 /** Minimal valid PDF (single empty page, ~300 bytes). The extractor stub above
  * never parses these bytes — it short-circuits to deterministic HTML. The
  * fixture's only job is to make the upstream HTTP response Content-Type and
- * magic bytes match `application/pdf` so SimpleCrawl reports `unsupported` and
- * ComprehensiveCrawl takes the PDF branch (crawl-article.ts:190). */
+ * magic bytes match `application/pdf` so the crawler dispatches to the PDF
+ * extraction branch. */
 const E2E_SAMPLE_PDF = Buffer.from(
   '%PDF-1.1\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000052 00000 n \n0000000099 00000 n \ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n149\n%%EOF\n',
   'utf-8',
