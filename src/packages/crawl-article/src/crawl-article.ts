@@ -85,7 +85,7 @@ export const CRAWL_PERSONAS = [
  * the caller never has to catch: `not-modified` (304), `failed` (non-2xx or
  * network error, already logged), or `ok` (2xx with the response + bytes).
  */
-export function initConditionalGet(deps: {
+function initConditionalGet(deps: {
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
 }): (params: {
