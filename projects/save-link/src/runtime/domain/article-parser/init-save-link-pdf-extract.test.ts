@@ -40,6 +40,7 @@ describe("initSaveLinkPdfExtract", () => {
 
 		const extractPdf = initSaveLinkPdfExtract({
 			extractPdfMetadata,
+			extractPdfText: async () => "",
 			stagePdf,
 			invokePageOcr,
 			invokePageLlmCleanup: stubPageLlmCleanup,
@@ -54,5 +55,28 @@ describe("initSaveLinkPdfExtract", () => {
 		assert.equal(result.title, "Scanned Doc");
 		assert(result.html.includes("page-0"));
 		assert(result.html.includes("page-1"));
+	});
+
+	it("routes born-digital pages through the text layer instead of OCR", async () => {
+		let ocrCalled = false;
+		const extractPdf = initSaveLinkPdfExtract({
+			extractPdfMetadata: async () => ({ numPages: 1, title: "Digital" }),
+			extractPdfText: async () => "the embedded text layer",
+			stagePdf: async () => ({ key: "unused", cleanup: async () => {} }),
+			invokePageOcr: async () => {
+				ocrCalled = true;
+				return { ok: true, html: "" };
+			},
+			invokePageLlmCleanup: stubPageLlmCleanup,
+			invokeDocumentDiffReview: stubDocumentDiffReview,
+			invokePageHtmlConvert: stubPageHtmlConvert,
+			logger: noopLogger,
+		});
+
+		const result = await extractPdf({ buffer: Buffer.from("%PDF-"), url: "https://example.com/doc.pdf" });
+		assert.equal(result.kind, "fetched");
+		assert(result.kind === "fetched");
+		assert.equal(ocrCalled, false);
+		assert(result.html.includes("the embedded text layer"));
 	});
 });

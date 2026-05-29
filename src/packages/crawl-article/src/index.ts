@@ -28,6 +28,8 @@ export { isPDF } from "./pdf-detect";
 export type { PdfSignal } from "./pdf-detect";
 export { extractPdfMetadata } from "./extract-pdf-metadata";
 export type { ExtractPdfMetadata, PdfMetadata } from "./extract-pdf-metadata";
+export { extractPdfText } from "./extract-pdf-text";
+export type { ExtractPdfText } from "./extract-pdf-text";
 export { MAX_PDF_BYTES, MAX_PDF_PAGES } from "./pdf-page-limits";
 export { renderPdfPageToPng } from "./render-pdf-page";
 export type { RenderPdfPageToPng } from "./render-pdf-page";
