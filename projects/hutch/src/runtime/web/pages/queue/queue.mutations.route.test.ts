@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { MinutesSchema } from "@packages/domain/article";
 import { useTestServer, loginAgent } from "../../../test-app";
+import type { ArticleReadEvent } from "../../middleware/analytics";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -325,6 +326,65 @@ describe("Queue routes", () => {
 
 			expect(statusResponse.status).toBe(303);
 			expect(statusResponse.headers.location).toBe("/queue");
+		});
+
+		describe("article_read analytics emission", () => {
+			it("emits exactly one article_read event with the owner's user_id and a present visitor_hash when status=read on an owned article", async () => {
+				const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+				const { auth } = harness;
+				const agent = await loginAgent(harness.server, auth);
+
+				await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
+				const queueResponse = await agent.get("/queue");
+				const doc = new JSDOM(queueResponse.text).window.document;
+				const articleId = doc
+					.querySelector("[data-test-article-list] .queue-article")
+					?.getAttribute("data-test-article");
+
+				await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "read" });
+
+				const reads = harness.analytics.events.filter(
+					(e): e is ArticleReadEvent => e.event === "article_read",
+				);
+				assert.equal(reads.length, 1, "exactly one article_read event");
+				const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+				assert.ok(userId);
+				assert.equal(reads[0].user_id, userId);
+				assert.ok(reads[0].visitor_hash, "visitor_hash must be present");
+			});
+
+			it("does not emit article_read when the transition is to unread", async () => {
+				const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+				const { auth } = harness;
+				const agent = await loginAgent(harness.server, auth);
+
+				await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
+				const queueResponse = await agent.get("/queue");
+				const doc = new JSDOM(queueResponse.text).window.document;
+				const articleId = doc
+					.querySelector("[data-test-article-list] .queue-article")
+					?.getAttribute("data-test-article");
+
+				await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "unread" });
+
+				const reads = harness.analytics.events.filter((e) => e.event === "article_read");
+				assert.equal(reads.length, 0, "no article_read on unread transition");
+			});
+
+			it("does not emit article_read when updateArticleStatus returns false (article not found or not owned)", async () => {
+				const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+				const { auth } = harness;
+				const agent = await loginAgent(harness.server, auth);
+
+				// Well-formed hash id that won't resolve to any article — updateArticleStatus returns false.
+				await agent
+					.post("/queue/00000000000000000000000000000000/status")
+					.type("form")
+					.send({ status: "read" });
+
+				const reads = harness.analytics.events.filter((e) => e.event === "article_read");
+				assert.equal(reads.length, 0, "no article_read when row update did not happen");
+			});
 		});
 	});
 

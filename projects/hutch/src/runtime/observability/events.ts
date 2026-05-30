@@ -19,6 +19,7 @@ export const ANALYTICS_EVENTS = {
 	pageview: "pageview",
 	importUploaded: "import_uploaded",
 	importCommitted: "import_committed",
+	articleRead: "article_read",
 } as const;
 
 export const CONVERSION_EVENTS = {

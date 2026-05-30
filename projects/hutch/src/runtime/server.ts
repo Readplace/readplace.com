@@ -582,6 +582,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		buildBannerState,
 		logError: deps.logError,
 		logParseError: deps.logParseError,
+		analytics: deps.analytics,
+		salt: deps.salt,
 		now: deps.now,
 		featureToggle,
 	});
