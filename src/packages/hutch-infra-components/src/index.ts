@@ -63,6 +63,12 @@ export {
 	type SubscriptionChargeSucceededDetail,
 	SubscriptionChargeFailedEvent,
 	type SubscriptionChargeFailedDetail,
+	ReaderViewLoadingSucceeded,
+	type ReaderViewLoadingSucceededDetail,
+	NotifyReaderViewReadyCommand,
+	type NotifyReaderViewReadyDetail,
+	ReaderReadyEmailSentEvent,
+	type ReaderReadyEmailSentDetail,
 	type HutchEvent,
 	type HutchCommand,
 } from "./events";

@@ -110,3 +110,57 @@ export type FindArticleFreshness = (
 	url: string,
 ) => Promise<ArticleFreshnessData | null>;
 
+/** Stamp the per-user reader-view presence signal: the owner opened or polled
+ * the reader for this article. Set server-side on every reader open/poll; the
+ * reader-ready notifier emails only when `viewedAt` is set AND `viewedAt <
+ * succeededAt` (viewed while loading, left before ready). */
+export type MarkArticleViewed = (params: {
+	userId: UserId;
+	url: string;
+	at: Date;
+}) => Promise<void>;
+
+/** Set-once stamp of the moment the reader view reached the successful terminal
+ * state, per saver. Written by the reader-ready fan-out for every user who saved
+ * the URL. Set-once so it always reflects the first success, never a later
+ * re-success. */
+export type MarkReaderViewSucceeded = (params: {
+	userId: UserId;
+	url: string;
+	at: Date;
+}) => Promise<void>;
+
+export interface UserArticleByUrl {
+	userId: UserId;
+	viewedAt?: Date;
+}
+
+/** Reverse lookup: every saver of a URL, via the `url-index` GSI (never a Scan).
+ * The reader-ready fan-out uses it to stamp `succeededAt` per saver and decide
+ * which savers had opened the reader. */
+export type FindUserArticlesByUrl = (
+	url: string,
+) => Promise<UserArticleByUrl[]>;
+
+/** Set-once stamp recording that a reader-ready email was sent for this
+ * (user, url). Idempotent: a second call after the stamp exists is a no-op. */
+export type MarkReaderReadyEmailSent = (params: {
+	userId: UserId;
+	url: string;
+	at: Date;
+}) => Promise<void>;
+
+export interface UserArticleNotificationState {
+	savedAt: Date;
+	status: ArticleStatus;
+	succeededAt?: Date;
+	viewedAt?: Date;
+	emailSentAt?: Date;
+}
+
+/** The per-user row fields the reader-ready notify gate re-reads at send time. */
+export type FindUserArticleNotificationState = (params: {
+	userId: UserId;
+	url: string;
+}) => Promise<UserArticleNotificationState | null>;
+

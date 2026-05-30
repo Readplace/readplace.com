@@ -18,3 +18,30 @@ export type CrawlStatus = z.infer<typeof CrawlStatusSchema>;
  */
 export const ReaderStatusSchema = z.union([CrawlStatusSchema, z.literal("unavailable")]);
 export type ReaderStatus = z.infer<typeof ReaderStatusSchema>;
+
+/**
+ * Terminal-or-loading state of the clean reader view (crawled content + AI
+ * summary), derived from the two underlying state machines. The single
+ * source of truth for "is the reader view done?" — the domain effect
+ * emission, the web reader/queue rendering, and the reader-ready notifier all
+ * derive it here so future content-completeness rules extend in one place.
+ */
+export const ReaderViewStatusSchema = z.enum(["loading", "succeeded", "failed"]);
+export type ReaderViewStatus = z.infer<typeof ReaderViewStatusSchema>;
+
+/* `failed` is checked before `succeeded` so a failed summary on a ready crawl
+ * resolves to `failed`, never `succeeded`. A skipped summary is a success: the
+ * reader view is complete, there is just nothing to summarise. */
+export function deriveReaderViewStatus(input: {
+	crawl: CrawlStatus;
+	summary: SummaryStatus;
+}): ReaderViewStatus {
+	const { crawl, summary } = input;
+	if (crawl === "failed" || crawl === "unsupported" || summary === "failed") {
+		return "failed";
+	}
+	if (crawl === "ready" && (summary === "ready" || summary === "skipped")) {
+		return "succeeded";
+	}
+	return "loading";
+}

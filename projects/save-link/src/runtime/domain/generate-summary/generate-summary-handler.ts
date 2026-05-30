@@ -17,12 +17,13 @@ interface GenerateSummaryHandlerDeps {
 	findArticleContent: FindArticleContent;
 	loadArticle: LoadArticle;
 	transitionAndPersist: TransitionAndPersist;
+	now: () => Date;
 	logger: HutchLogger;
 }
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Handler<SQSEvent, SQSBatchResponse> {
-	const { summarizeArticle, findArticleContent, loadArticle, transitionAndPersist, logger } = deps;
+	const { summarizeArticle, findArticleContent, loadArticle, transitionAndPersist, now, logger } = deps;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -69,6 +70,7 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 							inputTokens: result.inputTokens,
 							outputTokens: result.outputTokens,
 							sourceContentHash,
+							now: now().toISOString(),
 						},
 					});
 					logger.info("[GenerateSummary] completed", {
@@ -82,7 +84,7 @@ export function initGenerateSummaryHandler(deps: GenerateSummaryHandlerDeps): Ha
 				if (result.kind === "skipped") {
 					await transitionAndPersist(markSummarySkipped, {
 						url: command.url,
-						input: { reason: result.reason },
+						input: { reason: result.reason, now: now().toISOString() },
 					});
 					logger.info("[GenerateSummary] skipped", {
 						url: command.url,

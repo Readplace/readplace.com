@@ -225,6 +225,9 @@ importers:
       '@aws-sdk/client-scheduler':
         specifier: 3.1057.0
         version: 3.1057.0
+      '@aws-sdk/client-sqs':
+        specifier: 3.1057.0
+        version: 3.1057.0
       '@aws-sdk/s3-request-presigner':
         specifier: 3.1057.0
         version: 3.1057.0

@@ -72,6 +72,13 @@ export class HutchStorage extends pulumi.ComponentResource {
 					rangeKey: "readAt",
 					projectionType: "ALL",
 				},
+				/* Reverse lookup for reader-ready fan-out: every saver of a URL.
+				 * `url` is on every item already, so no backfill. */
+				{
+					name: "url-index",
+					hashKey: "url",
+					projectionType: "ALL",
+				},
 			],
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 

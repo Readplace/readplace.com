@@ -93,5 +93,6 @@ export const handler = initGenerateSummaryHandler({
 	findArticleContent,
 	loadArticle: store.load,
 	transitionAndPersist,
+	now: () => new Date(),
 	logger: consoleLogger,
 });

@@ -543,6 +543,83 @@ describe("initInMemoryArticleStore", () => {
 		});
 	});
 
+	describe("reader-ready notification columns", () => {
+		const URL = "https://example.com/article";
+
+		it("markArticleViewed stamps viewedAt on the user's row", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+			const at = new Date("2026-05-30T10:00:00.000Z");
+
+			await store.markArticleViewed({ userId: USER_A, url: URL, at });
+
+			const state = await store.findUserArticleNotificationState({ userId: USER_A, url: URL });
+			expect(state?.viewedAt).toEqual(at);
+		});
+
+		it("markReaderViewSucceeded is set-once: a later call does not overwrite the first success", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+			const first = new Date("2026-05-30T10:00:00.000Z");
+			const later = new Date("2026-05-30T11:00:00.000Z");
+
+			await store.markReaderViewSucceeded({ userId: USER_A, url: URL, at: first });
+			await store.markReaderViewSucceeded({ userId: USER_A, url: URL, at: later });
+
+			const state = await store.findUserArticleNotificationState({ userId: USER_A, url: URL });
+			expect(state?.succeededAt).toEqual(first);
+		});
+
+		it("findUserArticlesByUrl returns every saver of the URL with their viewedAt, excluding savers of other URLs", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ userId: USER_A }));
+			await store.saveArticle(makeArticleParams({ userId: USER_B }));
+			await store.saveArticle(makeArticleParams({ userId: USER_A, url: "https://example.com/other" }));
+			const viewedAt = new Date("2026-05-30T10:00:00.000Z");
+			await store.markArticleViewed({ userId: USER_A, url: URL, at: viewedAt });
+
+			const savers = await store.findUserArticlesByUrl(URL);
+
+			expect(savers).toHaveLength(2);
+			expect(savers).toContainEqual({ userId: USER_A, viewedAt });
+			expect(savers).toContainEqual({ userId: USER_B, viewedAt: undefined });
+		});
+
+		it("markReaderReadyEmailSent is set-once: a later call does not overwrite the first send", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+			const first = new Date("2026-05-30T10:05:00.000Z");
+			const later = new Date("2026-05-30T11:05:00.000Z");
+
+			await store.markReaderReadyEmailSent({ userId: USER_A, url: URL, at: first });
+			await store.markReaderReadyEmailSent({ userId: USER_A, url: URL, at: later });
+
+			const state = await store.findUserArticleNotificationState({ userId: USER_A, url: URL });
+			expect(state?.emailSentAt).toEqual(first);
+		});
+
+		it("findUserArticleNotificationState returns the gate fields for an existing row", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+
+			const state = await store.findUserArticleNotificationState({ userId: USER_A, url: URL });
+
+			expect(state?.status).toBe("unread");
+			expect(state?.savedAt).toBeInstanceOf(Date);
+			expect(state?.succeededAt).toBeUndefined();
+			expect(state?.viewedAt).toBeUndefined();
+			expect(state?.emailSentAt).toBeUndefined();
+		});
+
+		it("findUserArticleNotificationState returns null when the user never saved the URL", async () => {
+			const store = initInMemoryArticleStore();
+
+			const state = await store.findUserArticleNotificationState({ userId: USER_A, url: URL });
+
+			expect(state).toBeNull();
+		});
+	});
+
 	describe("readContent", () => {
 		it("should return undefined when article does not exist", async () => {
 			const store = initInMemoryArticleStore();

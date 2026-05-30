@@ -557,4 +557,66 @@ export type SubscriptionChargeFailedDetail = z.infer<
 	typeof SubscriptionChargeFailedEvent.detailSchema
 >;
 
+/** Global, per-URL fact: an article's clean reader view reached the successful
+ * terminal state (crawl ready AND summary ready/skipped — see
+ * `deriveReaderViewStatus` in @packages/article-state-types). Published by the
+ * save-link effect dispatcher when `markSummaryReady` / `markSummarySkipped`
+ * fire. `succeededAt` is the domain persist-moment timestamp, captured before
+ * any later reader poll can land, so it is always ≤ a present user's viewedAt.
+ * `hasSummary` is true only for ready summaries; a skipped summary still
+ * succeeds the reader view but carries no summary to announce. The reader-ready
+ * fan-out Lambda subscribes and stamps a per-user `succeededAt` for every saver
+ * of this URL. `contentSourceTier` is reserved for a future
+ * "loaded with a more complete version" notification and is not populated yet. */
+export const ReaderViewLoadingSucceeded = defineEvent({
+	name: "reader-view-loading-succeeded",
+	source: "hutch.save-link",
+	detailType: "ReaderViewLoadingSucceeded",
+	detailSchema: z.object({
+		url: z.string(),
+		succeededAt: z.string(),
+		hasSummary: z.boolean(),
+		contentSourceTier: z.enum(["tier-0", "tier-1"]).optional(),
+	}),
+});
+export type ReaderViewLoadingSucceededDetail = z.infer<
+	typeof ReaderViewLoadingSucceeded.detailSchema
+>;
+
+/** Per-user command to (maybe) email one saver that their reader view is ready.
+ * Dispatched by the reader-ready fan-out Lambda via direct SQS with
+ * `DelaySeconds = 300`, giving a present user's final in-reader poll time to
+ * land (so `viewedAt ≥ succeededAt` ⇒ suppressed). The reader-ready notify
+ * Lambda consumes it, re-checks every gate against the live row, claims the 6h
+ * per-user cooldown, and only then sends. Direct-SQS (not EventBridge) because
+ * the fan-out needs the per-message delay. */
+export const NotifyReaderViewReadyCommand = defineCommand({
+	detailSchema: z.object({
+		userId: z.string(),
+		url: z.string(),
+		succeededAt: z.string(),
+	}),
+});
+export type NotifyReaderViewReadyDetail = z.infer<
+	typeof NotifyReaderViewReadyCommand.detailSchema
+>;
+
+/** Irreversible fact: a reader-ready email was sent to a user for a URL.
+ * Published by the reader-ready notify Lambda after the email send and the
+ * set-once `emailSentAt` stamp. No load-bearing consumer today — wired so
+ * future analytics / digest handlers can subscribe without a schema change. */
+export const ReaderReadyEmailSentEvent = defineEvent({
+	name: "reader-ready-email-sent",
+	source: "hutch.reader-ready",
+	detailType: "ReaderReadyEmailSent",
+	detailSchema: z.object({
+		userId: z.string(),
+		url: z.string(),
+		sentAt: z.string(),
+	}),
+});
+export type ReaderReadyEmailSentDetail = z.infer<
+	typeof ReaderReadyEmailSentEvent.detailSchema
+>;
+
 export type { HutchEvent, HutchCommand };
