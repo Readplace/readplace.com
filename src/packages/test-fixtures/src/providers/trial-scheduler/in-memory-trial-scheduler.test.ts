@@ -102,4 +102,81 @@ describe("initInMemoryTrialScheduler", () => {
 		);
 		assert.equal(scheduler.getDeferredCancellationSchedule(userId), undefined);
 	});
+
+	it("records create + delete trial-feedback-email calls independently of the other schedule kinds", async () => {
+		const userIdA = UserIdSchema.parse("1".repeat(32));
+		const userIdB = UserIdSchema.parse("2".repeat(32));
+		const scheduler = initInMemoryTrialScheduler();
+
+		await scheduler.createTrialFeedbackEmailSchedule({
+			userId: userIdA,
+			firesAt: "2026-06-08T00:00:00.000Z",
+		});
+		await scheduler.createTrialFeedbackEmailSchedule({
+			userId: userIdB,
+			firesAt: "2026-06-09T00:00:00.000Z",
+		});
+
+		assert.equal(
+			scheduler.getTrialFeedbackEmailSchedule(userIdA),
+			"2026-06-08T00:00:00.000Z",
+		);
+		assert.deepEqual(scheduler.allTrialFeedbackEmailSchedules(), [
+			{ userId: userIdA, firesAt: "2026-06-08T00:00:00.000Z" },
+			{ userId: userIdB, firesAt: "2026-06-09T00:00:00.000Z" },
+		]);
+		// The other two schedule kinds remain untouched.
+		assert.deepEqual(scheduler.allSchedules(), []);
+		assert.deepEqual(scheduler.allDeferredCancellationSchedules(), []);
+
+		await scheduler.deleteTrialFeedbackEmailSchedule({ userId: userIdA });
+
+		assert.equal(scheduler.getTrialFeedbackEmailSchedule(userIdA), undefined);
+		assert.deepEqual(scheduler.trialFeedbackEmailDeleteCalls(), [userIdA]);
+	});
+
+	it("createTrialFeedbackEmailSchedule overwrites an existing schedule for the same user (idempotent on duplicate events)", async () => {
+		const userId = UserIdSchema.parse("3".repeat(32));
+		const scheduler = initInMemoryTrialScheduler();
+
+		await scheduler.createTrialFeedbackEmailSchedule({
+			userId,
+			firesAt: "2026-06-08T00:00:00.000Z",
+		});
+		await scheduler.createTrialFeedbackEmailSchedule({
+			userId,
+			firesAt: "2026-06-10T00:00:00.000Z",
+		});
+
+		assert.equal(
+			scheduler.getTrialFeedbackEmailSchedule(userId),
+			"2026-06-10T00:00:00.000Z",
+		);
+		assert.equal(scheduler.allTrialFeedbackEmailSchedules().length, 1);
+	});
+
+	it("deleteTrialFeedbackEmailSchedule is idempotent on a missing schedule", async () => {
+		const userId = UserIdSchema.parse("4".repeat(32));
+		const scheduler = initInMemoryTrialScheduler();
+
+		await assert.doesNotReject(scheduler.deleteTrialFeedbackEmailSchedule({ userId }));
+		assert.deepEqual(scheduler.trialFeedbackEmailDeleteCalls(), [userId]);
+	});
+
+	it("createTrialFeedbackEmailSchedule throws when configured to fail", async () => {
+		const userId = UserIdSchema.parse("5".repeat(32));
+		const scheduler = initInMemoryTrialScheduler({
+			createTrialFeedbackEmailFails: true,
+		});
+
+		await assert.rejects(
+			() =>
+				scheduler.createTrialFeedbackEmailSchedule({
+					userId,
+					firesAt: "2026-06-08T00:00:00.000Z",
+				}),
+			/In-memory trial-feedback-email create failure/,
+		);
+		assert.equal(scheduler.getTrialFeedbackEmailSchedule(userId), undefined);
+	});
 });

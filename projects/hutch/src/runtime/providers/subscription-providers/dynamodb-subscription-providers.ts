@@ -12,6 +12,7 @@ import type {
 	MarkSubscriptionCancelled,
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
+	MarkTrialFeedbackEmailSent,
 	SubscriptionRecord,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
@@ -25,6 +26,7 @@ const SubscriptionProviderRow = z.object({
 	status: z.enum(["trialing", "active", "pending_cancellation", "cancelled"]),
 	trialEndsAt: dynamoField(z.string()),
 	cancellationEffectiveAt: dynamoField(z.string()),
+	trialFeedbackEmailSentAt: dynamoField(z.string()),
 	createdAt: z.string(),
 	updatedAt: z.string(),
 });
@@ -38,6 +40,9 @@ function toRecord(row: z.infer<typeof SubscriptionProviderRow>): SubscriptionRec
 		status: row.status,
 		...(row.trialEndsAt !== undefined ? { trialEndsAt: row.trialEndsAt } : {}),
 		...(row.cancellationEffectiveAt !== undefined ? { cancellationEffectiveAt: row.cancellationEffectiveAt } : {}),
+		...(row.trialFeedbackEmailSentAt !== undefined
+			? { trialFeedbackEmailSentAt: row.trialFeedbackEmailSentAt }
+			: {}),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};
@@ -56,6 +61,7 @@ export function initDynamoDbSubscriptionProviders(deps: {
 	markCancelled: MarkSubscriptionCancelled;
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
+	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -181,6 +187,22 @@ export function initDynamoDbSubscriptionProviders(deps: {
 		});
 	};
 
+	const markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent = async ({
+		userId,
+		sentAt,
+	}) => {
+		await table.update({
+			Key: { userId },
+			UpdateExpression:
+				"SET trialFeedbackEmailSentAt = :sentAt, updatedAt = :now",
+			ConditionExpression: "attribute_exists(userId)",
+			ExpressionAttributeValues: {
+				":sentAt": sentAt,
+				":now": deps.now().toISOString(),
+			},
+		});
+	};
+
 	return {
 		findByUserId,
 		findBySubscriptionId,
@@ -190,5 +212,6 @@ export function initDynamoDbSubscriptionProviders(deps: {
 		markCancelled,
 		markCancelledByUserId,
 		markActive,
+		markTrialFeedbackEmailSent,
 	};
 }
