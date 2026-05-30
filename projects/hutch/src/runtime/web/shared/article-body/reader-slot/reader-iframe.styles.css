@@ -98,6 +98,23 @@ body {
   color: var(--color-text-secondary);
 }
 
+/**
+ * Substitute the article-parser inserts in place of a native <video>
+ * the reader cannot play (the body renders inside a sandboxed iframe
+ * with no allow-scripts, and many publishers lazy-load video via JS so
+ * the stored HTML never has a playable src). Subtle brand-tinted left
+ * border, echoing the blockquote callout.
+ */
+.article-body__content .reader-video-placeholder {
+  margin: 1.5rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-brand);
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+}
+
 .article-body__content pre {
   overflow-x: auto;
   padding: 1rem;
