@@ -9,6 +9,7 @@ import type {
   SavePermalinkActionKey,
   BannerOnReaderActionKey,
   ImportActionKey,
+  ImportFromUrlActionKey,
   QueueFlowActionKey,
 } from './action-catalog'
 import { createAuthActions, type AuthData, type AuthProgress } from './auth-actions'
@@ -25,6 +26,7 @@ export type PreQueueActionFactories = {
   savePermalink: (authProgress: AuthProgress) => Record<SavePermalinkActionKey, PageAction>
   bannerOnReader: (authProgress: AuthProgress) => Record<BannerOnReaderActionKey, PageAction>
   importActions: (authProgress: AuthProgress) => Record<ImportActionKey, PageAction>
+  importFromUrlActions: (authProgress: AuthProgress) => Record<ImportFromUrlActionKey, PageAction>
 }
 
 export interface QueueFlowConfig {
@@ -47,7 +49,7 @@ export async function runQueueFlow(page: Page, config: QueueFlowConfig): Promise
 
   const queueProgress = config.queueProgress
 
-  const { anonymousView, onboarding, seed, cleanup, passwordReset, savePermalink, bannerOnReader, importActions } = config.preQueueActionFactories
+  const { anonymousView, onboarding, seed, cleanup, passwordReset, savePermalink, bannerOnReader, importActions, importFromUrlActions } = config.preQueueActionFactories
 
   const allActions: Record<QueueFlowActionKey, PageAction> = {
     ...anonymousView(authProgress),
@@ -60,6 +62,7 @@ export async function runQueueFlow(page: Page, config: QueueFlowConfig): Promise
     ...createAuthActions(config.authData, authProgress, config.passwordResetProgress),
     ...createQueueActions(authProgress, queueProgress, config.testArticles),
     ...importActions(authProgress),
+    ...importFromUrlActions(authProgress),
   }
 
   const allProgressObjects: Record<string, boolean>[] = [

@@ -14,6 +14,7 @@ import {
 	initCrawlFetch,
 	initFetchThumbnailImage,
 } from "@packages/crawl-article";
+import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initFinalizeArticle } from "save-link/finalize-article";
 import { initCrawlAndFinalizeArticle } from "save-link/crawl-and-finalize-article";
 import type { PublishStaleCheckRequested } from "@packages/test-fixtures/providers/events";
@@ -170,6 +171,7 @@ function initProviders() {
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
 		const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 		const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
+		const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 		const { parseHtml } = initReadabilityParser({
 			crawlArticle,
 			sitePreParsers: [theInformationPreParser, mediumPreParser],
@@ -228,6 +230,7 @@ function initProviders() {
 			articleStore,
 			readArticleContent,
 			importSessionStore,
+			extractLinksFromPageUrl,
 			subscriptionProviders,
 			trialScheduler,
 			createSubscriptionOnExistingCustomer: stripeSubscriptions.createSubscriptionOnExistingCustomer,
@@ -292,6 +295,7 @@ function initProviders() {
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
 	const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 	const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
+	const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
 		sitePreParsers: [theInformationPreParser, mediumPreParser],
@@ -381,6 +385,7 @@ function initProviders() {
 			logError,
 		}),
 		importSessionStore,
+		extractLinksFromPageUrl,
 		subscriptionProviders: devSubscriptionProviders,
 		trialScheduler: devTrialScheduler,
 		createSubscriptionOnExistingCustomer: devStripeSubscriptions.createSubscriptionOnExistingCustomer,

@@ -12,6 +12,7 @@ import {
 } from "@packages/domain/import-session";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { ValidateSaveableUrl, SaveableUrl, SaveableUrlErrorCode } from "@packages/domain/article";
+import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
@@ -24,15 +25,16 @@ import {
 	IMPORT_SKIPPED_COOKIE_NAME,
 	encodeImportSkippedCookie,
 } from "./import-skipped-cookie";
-import { ImportPage, ImportUploadPage } from "./import.component";
+import { ImportAcquirePage, ImportPage } from "./import.component";
 import { importErrorMessageMapping } from "./import.error";
-import { toImportUploadViewModel, toImportViewModel } from "./import.viewmodel";
+import { toImportAcquireViewModel, toImportViewModel } from "./import.viewmodel";
 import { initMultipartUpload } from "./multipart-upload";
 import { parseImportPage } from "./import.url";
 
 interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
 	importSessionStore: ImportSessionStore;
+	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	logError: (message: string, error?: Error) => void;
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
 	salt: string;
@@ -44,6 +46,14 @@ const UPLOAD_ERROR_REDIRECT = {
 	tooLarge: "/import?error_code=import_too_large",
 	noUrls: "/import?error_code=import_no_urls",
 	sessionNotFound: "/import?error_code=import_session_not_found",
+} as const;
+
+const FROM_URL_ERROR_REDIRECT = {
+	invalid: "/import?mode=from-url&feature=import-link-public&error_code=import_url_invalid",
+	fetchFailed: "/import?mode=from-url&feature=import-link-public&error_code=import_url_fetch_failed",
+	unsupported: "/import?mode=from-url&feature=import-link-public&error_code=import_url_unsupported",
+	tooLarge: "/import?mode=from-url&feature=import-link-public&error_code=import_url_too_large",
+	noUrls: "/import?mode=from-url&feature=import-link-public&error_code=import_url_no_links",
 } as const;
 
 export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
@@ -61,10 +71,14 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const errorMessage = importErrorMessageMapping(req.query);
-		const vm = toImportUploadViewModel({
+		const mode = typeof req.query.mode === "string" ? req.query.mode : undefined;
+		const showFromUrl = req.query.feature === "import-link-public";
+		const vm = toImportAcquireViewModel({
+			mode,
 			errors: errorMessage ? [{ message: errorMessage }] : undefined,
+			showFromUrl,
 		});
-		sendComponent(req, res, Base(ImportUploadPage(vm), await deps.buildBannerState(req)));
+		sendComponent(req, res, Base(ImportAcquirePage(vm), await deps.buildBannerState(req)));
 	});
 
 	router.post("/", rawBodyParser, sizeLimitHandler, async (req: Request, res: Response) => {
@@ -75,7 +89,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			return;
 		}
 
-		const { urls, truncated, totalFoundInFile } = extractUrls(parsed.file.content);
+		const { urls, truncated, totalFound } = extractUrls(parsed.file.content);
 		if (urls.length === 0) {
 			res.redirect(303, UPLOAD_ERROR_REDIRECT.noUrls);
 			return;
@@ -85,7 +99,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			userId: req.userId,
 			urls,
 			truncated,
-			totalFoundInFile,
+			totalFound,
 		});
 		deps.analytics.info({
 			stream: STREAMS.analytics,
@@ -95,6 +109,60 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			utm_source: "import-feature",
 			utm_medium: "form",
 			utm_campaign: "file-upload",
+			url_count: urls.length,
+			truncated: truncated ? 1 : 0,
+			visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+			is_authenticated: 1,
+		});
+		res.redirect(303, `/import/${session.id}`);
+	});
+
+	router.post("/from-url", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const rawUrl = typeof req.body?.url === "string" ? req.body.url.trim() : "";
+		if (rawUrl === "") {
+			res.redirect(303, FROM_URL_ERROR_REDIRECT.invalid);
+			return;
+		}
+
+		const result = await deps.extractLinksFromPageUrl(rawUrl);
+		if (result.status === "INVALID_URL") {
+			res.redirect(303, FROM_URL_ERROR_REDIRECT.invalid);
+			return;
+		}
+		if (result.status === "UNSUPPORTED_CONTENT_TYPE") {
+			res.redirect(303, FROM_URL_ERROR_REDIRECT.unsupported);
+			return;
+		}
+		if (result.status === "FETCH_FAILED") {
+			const redirect =
+				result.reason === "too_large"
+					? FROM_URL_ERROR_REDIRECT.tooLarge
+					: FROM_URL_ERROR_REDIRECT.fetchFailed;
+			res.redirect(303, redirect);
+			return;
+		}
+
+		const { urls, truncated, totalFound } = result.links;
+		if (urls.length === 0) {
+			res.redirect(303, FROM_URL_ERROR_REDIRECT.noUrls);
+			return;
+		}
+
+		const session = await deps.importSessionStore.createImportSession({
+			userId: req.userId,
+			urls,
+			truncated,
+			totalFound,
+		});
+		deps.analytics.info({
+			stream: STREAMS.analytics,
+			event: ANALYTICS_EVENTS.importFromUrlAcquired,
+			timestamp: deps.now().toISOString(),
+			path: "/import/from-url",
+			utm_source: "import-feature",
+			utm_medium: "form",
+			utm_campaign: "from-url",
 			url_count: urls.length,
 			truncated: truncated ? 1 : 0,
 			visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),

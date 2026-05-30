@@ -2,15 +2,45 @@ import type { ImportSessionPage } from "@packages/domain/import-session";
 import type { ComponentError } from "../../shared/component-error.types";
 import { buildImportToggleAllUrl, buildImportToggleUrl, buildImportUrl } from "./import.url";
 
-export interface ImportUploadViewModel {
-	readonly errors?: readonly ComponentError[];
-	readonly uploadAction: string;
+export type ImportMode = "upload" | "from-url";
+
+export interface ImportTabViewModel {
+	readonly key: ImportMode;
+	readonly label: string;
+	readonly href: string;
+	readonly isActive: boolean;
 }
 
-export function toImportUploadViewModel(input: { errors?: readonly ComponentError[] }): ImportUploadViewModel {
+export interface ImportAcquireViewModel {
+	readonly mode: ImportMode;
+	readonly showFromUrl: boolean;
+	readonly errors?: readonly ComponentError[];
+	readonly uploadAction: string;
+	readonly fromUrlAction: string;
+	readonly tabs: readonly ImportTabViewModel[];
+}
+
+export function toImportAcquireViewModel(input: {
+	mode?: string;
+	errors?: readonly ComponentError[];
+	showFromUrl?: boolean;
+}): ImportAcquireViewModel {
+	const showFromUrl = input.showFromUrl ?? false;
+	const mode: ImportMode = input.mode === "from-url" && showFromUrl ? "from-url" : "upload";
+	const featureParam = showFromUrl ? "?feature=import-link-public" : "";
+	const tabs: readonly ImportTabViewModel[] = showFromUrl
+		? [
+				{ key: "upload", label: "Upload a file", href: `/import${featureParam}`, isActive: mode === "upload" },
+				{ key: "from-url", label: "Paste a link", href: "/import?mode=from-url&feature=import-link-public", isActive: mode === "from-url" },
+			]
+		: [];
 	return {
+		mode,
+		showFromUrl,
 		errors: input.errors,
 		uploadAction: "/import",
+		fromUrlAction: "/import/from-url",
+		tabs,
 	};
 }
 
@@ -24,7 +54,7 @@ export interface ImportViewModel {
 	readonly sessionId: string;
 	readonly rows: readonly ImportRowViewModel[];
 	readonly totalUrls: number;
-	readonly totalFoundInFile: number;
+	readonly totalFound: number;
 	readonly totalSelected: number;
 	readonly truncated: boolean;
 	readonly currentPage: number;
@@ -60,7 +90,7 @@ export function toImportViewModel(
 			};
 		}),
 		totalUrls: session.totalUrls,
-		totalFoundInFile: session.totalFoundInFile,
+		totalFound: session.totalFound,
 		totalSelected,
 		truncated: session.truncated,
 		currentPage: page,

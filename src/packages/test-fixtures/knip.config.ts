@@ -14,6 +14,7 @@ export default {
 		"@packages/article-resource-unique-id",
 		"@packages/crawl-article",
 		"@packages/domain",
+		"@packages/extract-links-from-page",
 		"@packages/hutch-infra-components",
 		"@packages/hutch-logger",
 	],

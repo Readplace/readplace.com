@@ -1,5 +1,4 @@
 import { extractUrls } from "./extract-urls";
-import { MAX_URLS_PER_IMPORT } from "./import-session.schema";
 
 describe("extractUrls", () => {
 	it("extracts http and https URLs from plain text", () => {
@@ -64,76 +63,18 @@ describe("extractUrls", () => {
 		]);
 	});
 
-	it("dedupes URLs case-insensitively on host and ignores trailing slash on path-only", () => {
-		const text = [
-			"https://EXAMPLE.com/",
-			"https://example.com",
-			"https://example.com/post",
-		].join(" ");
-
-		const result = extractUrls(Buffer.from(text));
-
-		expect(result.urls).toEqual(["https://EXAMPLE.com/", "https://example.com/post"]);
-	});
-
-	it("preserves URLs with query strings and fragments during normalization", () => {
-		const text = [
-			"https://example.com/?q=test",
-			"https://example.com/#section",
-			"https://example.com/page?a=1#top",
-		].join("\n");
-
-		const result = extractUrls(Buffer.from(text));
-
-		expect(result.urls).toEqual([
-			"https://example.com/?q=test",
-			"https://example.com/#section",
-			"https://example.com/page?a=1#top",
-		]);
-	});
-
-	it("caps the result at MAX_URLS_PER_IMPORT and reports truncation with the total found", () => {
-		const urls = Array.from(
-			{ length: MAX_URLS_PER_IMPORT + 5 },
-			(_v, i) => `https://example.com/post-${i}`,
-		);
-
-		const result = extractUrls(Buffer.from(urls.join("\n")));
-
-		expect(result.urls).toHaveLength(MAX_URLS_PER_IMPORT);
-		expect(result.truncated).toBe(true);
-		expect(result.totalFoundInFile).toBe(MAX_URLS_PER_IMPORT + 5);
-	});
-
 	it("returns an empty list when the buffer contains no URLs", () => {
 		const result = extractUrls(Buffer.from("No links here. Just prose."));
 
 		expect(result.urls).toEqual([]);
 		expect(result.truncated).toBe(false);
-		expect(result.totalFoundInFile).toBe(0);
-	});
-
-	it("rejects non-saveable schemes and bare strings", () => {
-		const text = [
-			"mailto:foo@bar.com",
-			"javascript:alert(1)",
-			"chrome://settings",
-			"about:blank",
-			"data:text/html,<h1>x</h1>",
-			"file:///etc/passwd",
-			"/relative/path",
-			"https://example.com/keep",
-		].join("\n");
-
-		const result = extractUrls(Buffer.from(text));
-
-		expect(result.urls).toEqual(["https://example.com/keep"]);
+		expect(result.totalFound).toBe(0);
 	});
 
 	it("skips matches that fail URL parsing after trailing punctuation is stripped", () => {
 		// `http://.` matches the URL_REGEX (it has at least one char after `://`),
 		// but stripping the trailing `.` leaves `http://` which fails `new URL()`.
-		// This forces the !parsed.success branch in extractUrls.
+		// This forces the !parsed.success branch in collectImportLinks.
 		const text = "see http://. for details";
 
 		const result = extractUrls(Buffer.from(text));

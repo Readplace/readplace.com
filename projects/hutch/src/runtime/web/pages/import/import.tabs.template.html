@@ -1,0 +1,8 @@
+      <nav class="import__tabs" aria-label="Import source" data-test-import-tabs>
+        {{#each tabs}}
+        <a class="{{cssClass}}"
+           href="{{href}}"
+           aria-current="{{ariaCurrent}}"
+           data-test-import-tab="{{key}}">{{label}}</a>
+        {{/each}}
+      </nav>

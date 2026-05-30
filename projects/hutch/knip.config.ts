@@ -38,6 +38,7 @@ export default {
 		"@packages/article-state-types",
 		"@packages/crawl-article",
 		"@packages/domain",
+		"@packages/extract-links-from-page",
 		"@packages/onboarding-extension-signal",
 		"@packages/refresh-article-content",
 		"@packages/retriable",

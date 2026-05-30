@@ -114,6 +114,7 @@ import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/googl
 import type { OAuthModel } from "@packages/test-fixtures/providers/oauth";
 import type { ValidateAccessToken } from "./web/dual-auth.middleware";
 import type { ImportSessionStore } from "@packages/domain/import-session";
+import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import request from "supertest";
 import { createApp } from "./server";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
@@ -308,6 +309,7 @@ export interface SharedBundle {
 
 export interface ImportSessionBundle {
 	importSessionStore: ImportSessionStore;
+	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 }
 
 export interface BotDefenseBundle {
@@ -445,6 +447,7 @@ function flattenFixtureToAppDependencies(
 		adminEmails: fixture.admin.adminEmails,
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,
 		importSessionStore: fixture.importSession.importSessionStore,
+		extractLinksFromPageUrl: fixture.importSession.extractLinksFromPageUrl,
 		now: fixture.shared.now,
 		retrieveCheckoutSession: fixture.stripe.retrieveCheckoutSession,
 		createCheckoutSession: fixture.stripe.createCheckoutSession,

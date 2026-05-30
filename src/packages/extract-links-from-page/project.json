@@ -1,0 +1,10 @@
+{
+  "name": "@packages/extract-links-from-page",
+  "targets": {
+    "check": {
+      "command": "pnpm lint && pnpm test-with-coverage",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["compile"]
+    }
+  }
+}

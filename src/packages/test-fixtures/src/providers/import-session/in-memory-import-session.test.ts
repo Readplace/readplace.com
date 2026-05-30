@@ -17,7 +17,7 @@ describe("initInMemoryImportSession", () => {
 			userId: owner,
 			urls: ["https://example.com/a", "https://example.com/b"],
 			truncated: false,
-			totalFoundInFile: 2,
+			totalFound: 2,
 		});
 
 		expect(session.totalUrls).toBe(2);
@@ -31,7 +31,7 @@ describe("initInMemoryImportSession", () => {
 			userId: owner,
 			urls: ["https://example.com/a"],
 			truncated: false,
-			totalFoundInFile: 1,
+			totalFound: 1,
 		});
 
 		const peek = await store.findImportSession({ id: session.id, userId: otherUser });
@@ -53,7 +53,7 @@ describe("initInMemoryImportSession", () => {
 			userId: owner,
 			urls: ["https://example.com/a"],
 			truncated: false,
-			totalFoundInFile: 1,
+			totalFound: 1,
 		});
 
 		// Advance past TTL
@@ -68,7 +68,7 @@ describe("initInMemoryImportSession", () => {
 			userId: owner,
 			urls: ["https://example.com/a", "https://example.com/b"],
 			truncated: false,
-			totalFoundInFile: 2,
+			totalFound: 2,
 		});
 
 		await store.toggleImportSelection({ id: session.id, userId: owner, index: 0, checked: false });
@@ -88,7 +88,7 @@ describe("initInMemoryImportSession", () => {
 			userId: owner,
 			urls: ["https://example.com/a", "https://example.com/b", "https://example.com/c"],
 			truncated: false,
-			totalFoundInFile: 3,
+			totalFound: 3,
 		});
 
 		await store.toggleAllImportSelection({ id: session.id, userId: owner, checked: false });
@@ -104,7 +104,7 @@ describe("initInMemoryImportSession", () => {
 			userId: owner,
 			urls: ["https://example.com/a", "https://example.com/b"],
 			truncated: false,
-			totalFoundInFile: 2,
+			totalFound: 2,
 		});
 		await store.toggleImportSelection({ id: session.id, userId: owner, index: 0, checked: false });
 		await store.toggleImportSelection({ id: session.id, userId: owner, index: 1, checked: false });
@@ -122,7 +122,7 @@ describe("initInMemoryImportSession", () => {
 			userId: owner,
 			urls: ["https://example.com/a", "https://example.com/b", "https://example.com/c"],
 			truncated: false,
-			totalFoundInFile: 3,
+			totalFound: 3,
 		});
 
 		await store.toggleAllImportSelection({ id: session.id, userId: owner, checked: false });
@@ -139,7 +139,7 @@ describe("initInMemoryImportSession", () => {
 			userId: owner,
 			urls: ["https://example.com/a", "https://example.com/b"],
 			truncated: false,
-			totalFoundInFile: 2,
+			totalFound: 2,
 		});
 
 		await store.toggleAllImportSelection({ id: session.id, userId: otherUser, checked: false });
@@ -155,7 +155,7 @@ describe("initInMemoryImportSession", () => {
 			userId: owner,
 			urls: ["https://example.com/a"],
 			truncated: false,
-			totalFoundInFile: 1,
+			totalFound: 1,
 		});
 
 		await store.toggleImportSelection({ id: session.id, userId: otherUser, index: 0, checked: false });
@@ -167,7 +167,7 @@ describe("initInMemoryImportSession", () => {
 	it("returns the page slice for the requested page", async () => {
 		const store = initInMemoryImportSession({ now: () => new Date() });
 		const urls = Array.from({ length: 12 }, (_v, i) => `https://example.com/post-${i}`);
-		const session = await store.createImportSession({ userId: owner, urls, truncated: true, totalFoundInFile: 15 });
+		const session = await store.createImportSession({ userId: owner, urls, truncated: true, totalFound: 15 });
 
 		const page2 = await store.loadImportSessionPage({ id: session.id, userId: owner, page: 2, pageSize: 5 });
 		assert(page2, "page 2 must exist");
@@ -182,7 +182,7 @@ describe("initInMemoryImportSession", () => {
 			userId: owner,
 			urls: ["https://example.com/a"],
 			truncated: false,
-			totalFoundInFile: 1,
+			totalFound: 1,
 		});
 
 		expect(
@@ -200,7 +200,7 @@ describe("initInMemoryImportSession", () => {
 			userId: owner,
 			urls: ["https://example.com/a"],
 			truncated: false,
-			totalFoundInFile: 1,
+			totalFound: 1,
 		});
 
 		await store.deleteImportSession({ id: session.id, userId: owner });
@@ -214,7 +214,7 @@ describe("initInMemoryImportSession", () => {
 			userId: owner,
 			urls: ["https://example.com/a"],
 			truncated: false,
-			totalFoundInFile: 1,
+			totalFound: 1,
 		});
 
 		await store.deleteImportSession({ id: session.id, userId: otherUser });

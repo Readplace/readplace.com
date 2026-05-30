@@ -30,4 +30,34 @@ describe("importErrorMessageMapping", () => {
 			"That import session has expired. Please upload the file again.",
 		);
 	});
+
+	it("maps import_url_invalid to the private-network message", () => {
+		expect(importErrorMessageMapping({ error_code: "import_url_invalid" })).toBe(
+			"That URL can't be crawled — Readplace blocks private-network and non-http(s) addresses.",
+		);
+	});
+
+	it("maps import_url_fetch_failed to the can't-fetch message", () => {
+		expect(importErrorMessageMapping({ error_code: "import_url_fetch_failed" })).toBe(
+			"We couldn't fetch that page. It might be down, blocking automated requests, or returned an error. If the page is slow, try saving its HTML and using the upload tab.",
+		);
+	});
+
+	it("maps import_url_unsupported to the non-HTML message", () => {
+		expect(importErrorMessageMapping({ error_code: "import_url_unsupported" })).toBe(
+			"That URL doesn't point at an HTML page. Paste a link to an article index or newsletter web view.",
+		);
+	});
+
+	it("maps import_url_too_large to the too-large message", () => {
+		expect(importErrorMessageMapping({ error_code: "import_url_too_large" })).toBe(
+			"That page is too large to scan for links.",
+		);
+	});
+
+	it("maps import_url_no_links to the from-url no-links message", () => {
+		expect(importErrorMessageMapping({ error_code: "import_url_no_links" })).toBe(
+			"We couldn't find any outbound links on that page.",
+		);
+	});
 });

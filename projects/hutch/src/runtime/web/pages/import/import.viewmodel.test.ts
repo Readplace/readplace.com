@@ -1,7 +1,7 @@
 import { ImportSessionIdSchema } from "@packages/domain/import-session";
 import type { ImportSession } from "@packages/domain/import-session";
 import { UserIdSchema } from "@packages/domain/user";
-import { toImportUploadViewModel, toImportViewModel } from "./import.viewmodel";
+import { toImportAcquireViewModel, toImportViewModel } from "./import.viewmodel";
 
 function makeSession(overrides: Partial<ImportSession> = {}): ImportSession {
 	return {
@@ -10,7 +10,7 @@ function makeSession(overrides: Partial<ImportSession> = {}): ImportSession {
 		createdAt: "2026-05-01T00:00:00.000Z",
 		expiresAt: 1_780_000_000,
 		totalUrls: 0,
-		totalFoundInFile: 0,
+		totalFound: 0,
 		truncated: false,
 		deselected: new Set<number>(),
 		...overrides,
@@ -148,8 +148,8 @@ describe("toImportViewModel", () => {
 		expect(vm.toggleAllUrl).toBe(`/import/${session.id}/toggle-all?page=3`);
 	});
 
-	it("propagates the truncated flag and totalFoundInFile from the session header", () => {
-		const session = makeSession({ totalUrls: 2_000, totalFoundInFile: 2_345, truncated: true });
+	it("propagates the truncated flag and totalFound from the session header", () => {
+		const session = makeSession({ totalUrls: 2_000, totalFound: 2_345, truncated: true });
 
 		const vm = toImportViewModel(
 			{ session, pageUrls: ["https://example.com/x"], page: 1, pageSize: 50 },
@@ -157,23 +157,65 @@ describe("toImportViewModel", () => {
 		);
 
 		expect(vm.truncated).toBe(true);
-		expect(vm.totalFoundInFile).toBe(2_345);
+		expect(vm.totalFound).toBe(2_345);
 	});
 });
 
-describe("toImportUploadViewModel", () => {
-	it("returns /import as the upload action URL", () => {
-		const vm = toImportUploadViewModel({});
+describe("toImportAcquireViewModel", () => {
+	it("defaults the mode to upload when no mode is provided", () => {
+		const vm = toImportAcquireViewModel({});
+		expect(vm.mode).toBe("upload");
 		expect(vm.uploadAction).toBe("/import");
+		expect(vm.fromUrlAction).toBe("/import/from-url");
+	});
+
+	it("sets mode to from-url when mode=from-url and showFromUrl is true", () => {
+		const vm = toImportAcquireViewModel({ mode: "from-url", showFromUrl: true });
+		expect(vm.mode).toBe("from-url");
+	});
+
+	it("falls back to upload when mode=from-url but showFromUrl is false", () => {
+		const vm = toImportAcquireViewModel({ mode: "from-url", showFromUrl: false });
+		expect(vm.mode).toBe("upload");
+	});
+
+	it("falls back to upload for an unrecognised mode value", () => {
+		const vm = toImportAcquireViewModel({ mode: "garbage" });
+		expect(vm.mode).toBe("upload");
 	});
 
 	it("passes through an error message when provided", () => {
-		const vm = toImportUploadViewModel({ errors: [{ message: "We couldn't find any links in that file." }] });
+		const vm = toImportAcquireViewModel({ errors: [{ message: "We couldn't find any links in that file." }] });
 		expect(vm.errors?.[0]?.message).toBe("We couldn't find any links in that file.");
 	});
 
 	it("leaves errors undefined when no message is provided", () => {
-		const vm = toImportUploadViewModel({});
+		const vm = toImportAcquireViewModel({});
 		expect(vm.errors).toBeUndefined();
+	});
+
+	it("defaults showFromUrl to false", () => {
+		const vm = toImportAcquireViewModel({});
+		expect(vm.showFromUrl).toBe(false);
+	});
+
+	it("emits no tabs when showFromUrl is false", () => {
+		const vm = toImportAcquireViewModel({ showFromUrl: false });
+		expect(vm.tabs).toEqual([]);
+	});
+
+	it("emits both tabs with the upload tab active by default when showFromUrl is true", () => {
+		const vm = toImportAcquireViewModel({ showFromUrl: true });
+		expect(vm.tabs.map((t) => t.key)).toEqual(["upload", "from-url"]);
+		expect(vm.tabs[0].isActive).toBe(true);
+		expect(vm.tabs[0].href).toBe("/import?feature=import-link-public");
+		expect(vm.tabs[1].isActive).toBe(false);
+		expect(vm.tabs[1].href).toBe("/import?mode=from-url&feature=import-link-public");
+	});
+
+	it("marks the from-url tab active when mode=from-url and showFromUrl is true", () => {
+		const vm = toImportAcquireViewModel({ mode: "from-url", showFromUrl: true });
+		expect(vm.tabs[0].isActive).toBe(false);
+		expect(vm.tabs[1].isActive).toBe(true);
 	});
 });

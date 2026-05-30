@@ -43,7 +43,7 @@ describe("Import routes", () => {
 	});
 
 	describe("GET /import (authenticated)", () => {
-		it("renders the upload form", async () => {
+		it("renders the upload form with no tabs (feature flag off by default)", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
@@ -57,6 +57,10 @@ describe("Import routes", () => {
 			const button = form.querySelector('[data-test-action="import-upload"]');
 			assert(button, "Upload button must remain in the DOM as the no-JS fallback");
 			expect(button.textContent).toBe("Upload");
+			const tabKeys = Array.from(doc.querySelectorAll("[data-test-import-tab]")).map(
+				(el) => el.getAttribute("data-test-import-tab"),
+			);
+			expect(tabKeys).toEqual([]);
 		});
 
 		it("renders the upload form in idle state with both idle and uploading regions", async () => {
