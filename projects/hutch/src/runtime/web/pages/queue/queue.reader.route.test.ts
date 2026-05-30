@@ -28,7 +28,7 @@ describe("Queue routes", () => {
 				<p>A second paragraph with more words for the parser to work with properly.</p>
 			</article></body></html>`;
 
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, sitePreParsers: [], logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -92,7 +92,7 @@ describe("Queue routes", () => {
 				<p>Additional paragraph with more text to exceed the minimum threshold.</p>
 			</article></body></html>`;
 
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, sitePreParsers: [], logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -150,7 +150,7 @@ describe("Queue routes", () => {
 				<p>Additional paragraph with more text to exceed the minimum threshold.</p>
 			</article></body></html>`;
 
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, sitePreParsers: [], logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -218,7 +218,7 @@ describe("Queue routes", () => {
 				<p>Additional paragraph with more text to exceed the minimum threshold.</p>
 			</article></body></html>`;
 
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, sitePreParsers: [], logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -284,7 +284,7 @@ describe("Queue routes", () => {
 				<p>Additional paragraph with more text to exceed the minimum threshold.</p>
 			</article></body></html>`;
 
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, sitePreParsers: [], logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -480,7 +480,7 @@ describe("Queue routes", () => {
 				<p>Additional paragraph with more text to exceed the minimum threshold.</p>
 			</article></body></html>`;
 
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, sitePreParsers: [], logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -526,7 +526,7 @@ describe("Queue routes", () => {
 				<p>This is archived content that has been saved for later reading and will be summarized.</p>
 			</article></body></html>`;
 
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const findGeneratedSummary = async () => ({
 				status: "ready" as const,
 				summary: "Key points from the article distilled into a brief summary.",
@@ -594,7 +594,7 @@ describe("Queue routes", () => {
 				<p>Content with pending summary.</p>
 			</article></body></html>`;
 
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, sitePreParsers: [], logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -651,7 +651,7 @@ describe("Queue routes", () => {
 				<p>Content with a failed summary.</p>
 			</article></body></html>`;
 
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const findGeneratedSummary = async () => ({
 				status: "failed" as const,
 				reason: "deepseek timeout",
@@ -721,7 +721,7 @@ describe("Queue routes", () => {
 				<p>Content without a summary generated.</p>
 			</article></body></html>`;
 
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const findGeneratedSummary = async () => ({
 				status: "skipped" as const,
 				reason: "content-too-short",
@@ -793,7 +793,7 @@ describe("Queue routes", () => {
 			// call markCrawlFailed, producing the same state as a production DLQ
 			// delivery.
 			const articleHtml = `<html><body><article><p>Placeholder — parse will report failure below.</p></article></body></html>`;
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const parseArticle = async () => ({ ok: false as const, reason: "blocked" });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
@@ -844,7 +844,7 @@ describe("Queue routes", () => {
 
 		it("GET /queue/:id/summary hides the slot when the crawl has failed (no further polling)", async () => {
 			const articleHtml = `<html><body><article><p>Placeholder.</p></article></body></html>`;
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const parseArticle = async () => ({ ok: false as const, reason: "blocked" });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
@@ -899,7 +899,7 @@ describe("Queue routes", () => {
 				<p>Content with ready summary.</p>
 			</article></body></html>`;
 
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const findGeneratedSummary = async () => ({
 				status: "ready" as const,
 				summary: "Fragment ready summary.",
@@ -960,7 +960,7 @@ describe("Queue routes", () => {
 
 		it("GET /queue/:id/summary increments poll counter when status=pending", async () => {
 			const articleHtml = `<html><body><article><p>Pending content.</p></article></body></html>`;
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, sitePreParsers: [], logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -1007,7 +1007,7 @@ describe("Queue routes", () => {
 
 		it("GET /queue/:id/summary stops polling at the cap", async () => {
 			const articleHtml = `<html><body><article><p>Pending content.</p></article></body></html>`;
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, sitePreParsers: [], logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({

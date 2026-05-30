@@ -131,6 +131,49 @@ describe("initRefreshContentExtractedHandler", () => {
 		);
 	});
 
+	it("persists bodyHash from the event onto the freshness write so the next refresh tick can pre-parse-gate the response", async () => {
+		const tier1 = tierSource("tier-1");
+		const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);
+
+		const { handler } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier1]),
+			transitionAndPersist,
+		});
+
+		const event: SQSEvent = {
+			Records: [{
+				messageId: "msg-1",
+				receiptHandle: "receipt-1",
+				body: JSON.stringify({
+					detail: {
+						url: "https://example.com/a",
+						...FRESHNESS,
+						bodyHash: "deadbeef".repeat(8),
+					},
+				}),
+				attributes: stubAttributes,
+				messageAttributes: {},
+				md5OfBody: "",
+				eventSource: "aws:sqs",
+				eventSourceARN: "arn:aws:sqs:ap-southeast-2:123456789:refresh-content-extracted",
+				awsRegion: "ap-southeast-2",
+			}],
+		};
+
+		await handler(event, stubContext, () => {});
+
+		expect(transitionAndPersist).toHaveBeenCalledWith(
+			refreshContent,
+			expect.objectContaining({
+				input: expect.objectContaining({
+					freshness: expect.objectContaining({
+						bodyHash: "deadbeef".repeat(8),
+					}),
+				}),
+			}),
+		);
+	});
+
 	it("computes a canonical content hash from the winner HTML and threads it through the refresh transition input", async () => {
 		const tier1 = tierSource("tier-1", { html: "<article><p>Refresh body.</p></article>" });
 		const transitionAndPersist: TransitionAndPersist = jest.fn().mockResolvedValue(undefined);

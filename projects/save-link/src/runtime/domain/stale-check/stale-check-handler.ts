@@ -101,12 +101,17 @@ export function initStaleCheckHandler(deps: {
 			url,
 			etag: freshness.etag,
 			lastModified: freshness.lastModified,
+			previousBodyHash: freshness.bodyHash,
 		});
 
 		if (result.status === "not-modified") {
+			/* Carry forward the row's existing bodyHash so a row that previously
+			 * had none (legacy / 304 from origin honouring conditional headers)
+			 * stays consistent with whatever the gate just compared against. */
 			await publishUpdateFetchTimestamp({
 				url,
 				contentFetchedAt: now().toISOString(),
+				bodyHash: freshness.bodyHash,
 			});
 			return "unchanged";
 		}
@@ -117,9 +122,15 @@ export function initStaleCheckHandler(deps: {
 			/* Mirror save-link-work's deferral: write the stage marker so the
 			 * reader's progress bar advances immediately, then emit the event
 			 * with `refresh=true` so the comprehensive Lambda emits
-			 * RefreshContentExtractedEvent at the end. */
+			 * RefreshContentExtractedEvent at the end. The comprehensive Lambda
+			 * re-fetches and can short-circuit on the same hash gate, so the
+			 * previousBodyHash travels with the event. */
 			await markCrawlStage({ url, stage: "comprehensive-fetching" });
-			await emitSimpleCrawlUnsupported({ url, refresh: true });
+			await emitSimpleCrawlUnsupported({
+				url,
+				refresh: true,
+				previousBodyHash: freshness.bodyHash,
+			});
 			return "tier-1-deferred";
 		}
 
@@ -139,6 +150,7 @@ export function initStaleCheckHandler(deps: {
 			etag: result.etag,
 			lastModified: result.lastModified,
 			contentFetchedAt: now().toISOString(),
+			bodyHash: result.bodyHash,
 		});
 		return "refreshed";
 	}

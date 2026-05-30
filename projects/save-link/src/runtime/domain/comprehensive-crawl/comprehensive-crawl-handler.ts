@@ -73,7 +73,7 @@ export function initComprehensiveCrawlHandler(deps: {
 			try {
 				const envelope = JSON.parse(record.body);
 				const detail = ComprehensiveCrawlCommand.detailSchema.parse(envelope.detail);
-				const { url, userId, recrawl, refresh } = detail;
+				const { url, userId, recrawl, refresh, previousBodyHash } = detail;
 
 				logger.info(`${logPrefix} processing`, {
 					url,
@@ -104,6 +104,7 @@ export function initComprehensiveCrawlHandler(deps: {
 				});
 				const crawlResult = await crawlArticle({
 					url,
+					previousBodyHash,
 					onProgress: ({ partIndex, partCount, stage }) => {
 						const effectiveStage = stage ?? "comprehensive-extracting";
 						if (effectiveStage !== latchedStage) {
@@ -133,6 +134,23 @@ export function initComprehensiveCrawlHandler(deps: {
 					});
 					await emitTier1Failure(url);
 					logger.info(`${logPrefix} crawl unsupported — terminal`, { url });
+					continue;
+				}
+
+				if (crawlResult.status === "not-modified") {
+					/* Pre-parse byte gate fired — the origin returned a 200 OK whose
+					 * body hashes to the same value we carry on the row, so the PDF
+					 * extraction step is skipped. Only refresh dispatches with a
+					 * previousBodyHash today, so we mirror the stale-check Lambda's
+					 * `unchanged` action: bump contentFetchedAt + carry forward the
+					 * hash. No tier source is rewritten and no downstream event is
+					 * emitted because the canonical row is already correct. */
+					await updateFetchTimestamp({
+						url,
+						contentFetchedAt: now().toISOString(),
+						bodyHash: previousBodyHash,
+					});
+					logger.info(`${logPrefix} crawl not-modified — pre-parse byte gate fired`, { url });
 					continue;
 				}
 
@@ -183,6 +201,7 @@ export function initComprehensiveCrawlHandler(deps: {
 						contentFetchedAt,
 						etag: crawlResult.etag,
 						lastModified: crawlResult.lastModified,
+						bodyHash: crawlResult.bodyHash,
 					});
 				}
 
@@ -205,6 +224,7 @@ export function initComprehensiveCrawlHandler(deps: {
 						etag: crawlResult.etag,
 						lastModified: crawlResult.lastModified,
 						contentFetchedAt,
+						bodyHash: crawlResult.bodyHash,
 					});
 					logger.info(`${logPrefix} emitted RefreshContentExtractedEvent`, { url });
 				} else if (recrawl) {

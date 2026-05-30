@@ -40,6 +40,7 @@ interface RefreshDetail {
 	etag?: string;
 	lastModified?: string;
 	contentFetchedAt: string;
+	bodyHash?: string;
 }
 
 function createSqsEvent(detail: RefreshDetail): SQSEvent {
@@ -126,6 +127,30 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 			etag: '"new-etag"',
 			lastModified: "Sun, 10 May 2026 12:00:00 GMT",
 			contentFetchedAt: "2026-05-10T12:00:00.000Z",
+			bodyHash: undefined,
+		});
+	});
+
+	it("forwards bodyHash from the command into RefreshContentExtractedEvent so the persister can land it on the freshness row", async () => {
+		const readRefreshHtml: ReadRefreshHtml = jest.fn().mockResolvedValue(HTML);
+		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const handler = initRefreshArticleContentHandler({
+			readRefreshHtml,
+			putTierSource,
+			publishEvent,
+			logger: noopLogger,
+		});
+
+		await handler(createSqsEvent({ ...DETAIL, bodyHash: "deadbeef".repeat(8) }), stubContext, () => {});
+
+		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, {
+			url: URL,
+			etag: '"new-etag"',
+			lastModified: "Sun, 10 May 2026 12:00:00 GMT",
+			contentFetchedAt: "2026-05-10T12:00:00.000Z",
+			bodyHash: "deadbeef".repeat(8),
 		});
 	});
 

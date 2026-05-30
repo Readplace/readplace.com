@@ -23,6 +23,7 @@ describe("Queue routes", () => {
 				status: "fetched" as const,
 				html: `<html><head><meta property="og:image" content="https://example.com/thumb.jpg"></head></html>`,
 				thumbnailUrl: "https://example.com/thumb.jpg",
+				bodyHash: "a".repeat(64),
 			});
 
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -73,7 +74,7 @@ describe("Queue routes", () => {
 				<p>Additional paragraph with more text to exceed the minimum threshold.</p>
 			</article></body></html>`;
 
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, thumbnailUrl: "https://example.com/thumb.jpg" });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, thumbnailUrl: "https://example.com/thumb.jpg", bodyHash: "a".repeat(64) });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const { parseArticle } = initReadabilityParser({ crawlArticle, sitePreParsers: [], logError: createNoopLogError() });
 			const applyParseResult = createFakeApplyParseResult({
@@ -132,6 +133,7 @@ describe("Queue routes", () => {
 				status: "fetched" as const,
 				html: `<html><head><meta property="og:image" content="https://example.com/thumb.jpg"></head></html>`,
 				thumbnailUrl: "https://example.com/thumb.jpg",
+				bodyHash: "a".repeat(64),
 			});
 
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -178,6 +180,7 @@ describe("Queue routes", () => {
 				status: "fetched" as const,
 				html: `<html><head><meta property="og:image" content="https://example.com/thumb.jpg"></head></html>`,
 				thumbnailUrl: "https://example.com/thumb.jpg",
+				bodyHash: "a".repeat(64),
 			});
 
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -234,6 +237,7 @@ describe("Queue routes", () => {
 				status: "fetched" as const,
 				html: `<html><head><meta property="og:image" content="https://example.com/thumb.jpg"></head></html>`,
 				thumbnailUrl: "https://example.com/thumb.jpg",
+				bodyHash: "a".repeat(64),
 			});
 
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -298,7 +302,7 @@ describe("Queue routes", () => {
 
 		function createTerminalPipelineFixture() {
 			const articleHtml = `<html><head><title>Terminal Post</title></head><body><article><h1>Terminal Post</h1><p>Body.</p></article></body></html>`;
-			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const findGeneratedSummary = async () => ({
 				status: "ready" as const,
 				summary: "Ready summary.",

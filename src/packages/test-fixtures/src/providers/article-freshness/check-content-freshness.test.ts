@@ -159,6 +159,7 @@ describe("refreshArticleIfStale", () => {
 				html: "<html>New content</html>",
 				etag: '"def"',
 				lastModified: "Wed, 20 Mar 2026 10:00:00 GMT",
+				bodyHash: "a".repeat(64),
 			}),
 			publishRefreshArticleContent: async () => { publishCalled.push("refresh"); },
 		});
@@ -180,6 +181,7 @@ describe("refreshArticleIfStale", () => {
 				status: "fetched" as const,
 				html: "<html>Fresh</html>",
 				etag: '"new"',
+				bodyHash: "a".repeat(64),
 			}),
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale(deps);
@@ -215,6 +217,7 @@ describe("refreshArticleIfStale", () => {
 				status: "fetched" as const,
 				html: "<html>Bad content</html>",
 				etag: '"def"',
+				bodyHash: "a".repeat(64),
 			}),
 			parseHtml: () => ({ ok: false as const, reason: "could not parse" }),
 		});

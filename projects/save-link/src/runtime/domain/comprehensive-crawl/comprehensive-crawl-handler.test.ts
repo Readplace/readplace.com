@@ -38,6 +38,7 @@ function createSqsEvent(detail: {
 	userId?: string;
 	recrawl?: boolean;
 	refresh?: boolean;
+	previousBodyHash?: string;
 }): SQSEvent {
 	return {
 		Records: [{
@@ -57,6 +58,7 @@ function createSqsEvent(detail: {
 const successfulComprehensiveCrawl: CrawlArticle = async () => ({
 	status: "fetched",
 	html: "<html><body><p>Extracted PDF content</p></body></html>",
+	bodyHash: "a".repeat(64),
 });
 
 const stubFinalizedArticle: FinalizedArticle = {
@@ -129,6 +131,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			status: "fetched",
 			html: "<html><body>X</body></html>",
 			thumbnailImage: preFetchedThumbnail,
+			bodyHash: "a".repeat(64),
 		});
 		const finalizeArticle = jest.fn(okFinalize);
 
@@ -170,6 +173,63 @@ describe("initComprehensiveCrawlHandler", () => {
 		});
 	});
 
+	it("short-circuits to updateFetchTimestamp (carrying forward bodyHash) when crawlArticle returns not-modified — pre-parse byte gate", async () => {
+		const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
+		const crawlArticle: CrawlArticle = async () => ({ status: "not-modified" });
+
+		const handler = createHandler({
+			crawlArticle,
+			updateFetchTimestamp,
+			publishEvent,
+			putTierSource,
+		});
+
+		const result = await handler(
+			createSqsEvent({
+				url: "https://example.com/doc.pdf",
+				refresh: true,
+				previousBodyHash: "h".repeat(64),
+			}),
+			stubContext,
+			() => {},
+		);
+
+		expect(result).toEqual({ batchItemFailures: [] });
+		expect(updateFetchTimestamp).toHaveBeenCalledWith({
+			url: "https://example.com/doc.pdf",
+			contentFetchedAt: "2026-04-18T12:00:00.000Z",
+			bodyHash: "h".repeat(64),
+		});
+		expect(publishEvent).not.toHaveBeenCalled();
+		expect(putTierSource).not.toHaveBeenCalled();
+	});
+
+	it("forwards previousBodyHash from the command into the crawl call so the byte-gate can fire", async () => {
+		const crawlArticle = jest.fn<Promise<{ status: "fetched"; html: string; bodyHash: string }>, Parameters<CrawlArticle>>().mockResolvedValue({
+			status: "fetched",
+			html: "<html><body><p>x</p></body></html>",
+			bodyHash: "a".repeat(64),
+		});
+
+		const handler = createHandler({ crawlArticle: crawlArticle as unknown as CrawlArticle });
+
+		await handler(
+			createSqsEvent({
+				url: "https://example.com/doc.pdf",
+				refresh: true,
+				previousBodyHash: "h".repeat(64),
+			}),
+			stubContext,
+			() => {},
+		);
+
+		expect(crawlArticle).toHaveBeenCalledWith(
+			expect.objectContaining({ previousBodyHash: "h".repeat(64) }),
+		);
+	});
+
 	it("emits RefreshContentExtractedEvent (with re-fetch freshness) and skips updateFetchTimestamp when refresh=true", async () => {
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
@@ -178,6 +238,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			html: "<html><body><p>Refreshed PDF content</p></body></html>",
 			etag: '"refreshed-pdf"',
 			lastModified: "Sat, 17 May 2026 00:00:00 GMT",
+			bodyHash: "deadbeef".repeat(8),
 		});
 
 		const handler = createHandler({ publishEvent, updateFetchTimestamp, crawlArticle });
@@ -191,6 +252,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			etag: '"refreshed-pdf"',
 			lastModified: "Sat, 17 May 2026 00:00:00 GMT",
 			contentFetchedAt: "2026-04-18T12:00:00.000Z",
+			bodyHash: "deadbeef".repeat(8),
 		});
 	});
 
@@ -302,7 +364,7 @@ describe("initComprehensiveCrawlHandler", () => {
 				onProgress({ partIndex: 2, partCount: 3 });
 				onProgress({ partIndex: 3, partCount: 3 });
 			}
-			return { status: "fetched", html: "<html><body><p>x</p></body></html>" };
+			return { status: "fetched", html: "<html><body><p>x</p></body></html>", bodyHash: "a".repeat(64) };
 		};
 		const markCrawlStage = jest.fn().mockResolvedValue(undefined);
 
@@ -324,7 +386,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		const crawlArticle: CrawlArticle = async ({ onProgress }) => {
 			if (onProgress) onProgress({ partIndex: 1, partCount: 1 });
 			await new Promise((resolve) => setImmediate(resolve));
-			return { status: "fetched", html: "<html><body><p>x</p></body></html>" };
+			return { status: "fetched", html: "<html><body><p>x</p></body></html>", bodyHash: "a".repeat(64) };
 		};
 		const markCrawlStage = jest.fn(async ({ stage }: { stage: string }) => {
 			if (stage === "comprehensive-extracting") throw new Error("DynamoDB throttled");
@@ -352,7 +414,7 @@ describe("initComprehensiveCrawlHandler", () => {
 	it("forwards per-part progress through markCrawlProgress (the throttle's first write lands immediately so the bar moves as soon as part 1 completes)", async () => {
 		const crawlArticle: CrawlArticle = async ({ onProgress }) => {
 			if (onProgress) onProgress({ partIndex: 1, partCount: 5 });
-			return { status: "fetched", html: "<html><body><p>x</p></body></html>" };
+			return { status: "fetched", html: "<html><body><p>x</p></body></html>", bodyHash: "a".repeat(64) };
 		};
 		const markCrawlProgress = jest.fn().mockResolvedValue(undefined);
 
@@ -375,7 +437,7 @@ describe("initComprehensiveCrawlHandler", () => {
 				onProgress({ partIndex: 3, partCount: 4 });
 				onProgress({ partIndex: 4, partCount: 4 });
 			}
-			return { status: "fetched", html: "<html><body><p>x</p></body></html>" };
+			return { status: "fetched", html: "<html><body><p>x</p></body></html>", bodyHash: "a".repeat(64) };
 		};
 		const markCrawlProgress = jest.fn().mockResolvedValue(undefined);
 
@@ -402,6 +464,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			html: "<html><body><p>x</p></body></html>",
 			etag: '"pdf-abc123"',
 			lastModified: "Wed, 15 Apr 2026 10:00:00 GMT",
+			bodyHash: "deadbeef".repeat(8),
 		});
 
 		const handler = createHandler({ crawlArticle, updateFetchTimestamp });
@@ -413,6 +476,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			contentFetchedAt: "2026-04-18T12:00:00.000Z",
 			etag: '"pdf-abc123"',
 			lastModified: "Wed, 15 Apr 2026 10:00:00 GMT",
+			bodyHash: "deadbeef".repeat(8),
 		});
 	});
 

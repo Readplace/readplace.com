@@ -1,13 +1,19 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { parsePlainTextFromBuffer } from "./parse-plain-text";
 
 function response(headers: Record<string, string> = {}): Response {
 	return new Response(null, { status: 200, headers });
 }
 
+function hashOf(body: string): string {
+	return createHash("sha256").update(Buffer.from(body, "utf-8")).digest("hex");
+}
+
 function htmlOf(input: { body: string; url: string; headers?: Record<string, string> }): string {
 	const result = parsePlainTextFromBuffer({
 		buffer: Buffer.from(input.body, "utf-8"),
+		bodyHash: hashOf(input.body),
 		response: response(input.headers),
 		url: input.url,
 	});
@@ -17,8 +23,10 @@ function htmlOf(input: { body: string; url: string; headers?: Record<string, str
 
 describe("parsePlainTextFromBuffer", () => {
 	it("wraps blank-line-separated blocks as <p> in a titled <article> and forwards validators", () => {
+		const body = "First paragraph.\n\nSecond paragraph.\n\n   \n";
 		const result = parsePlainTextFromBuffer({
-			buffer: Buffer.from("First paragraph.\n\nSecond paragraph.\n\n   \n", "utf-8"),
+			buffer: Buffer.from(body, "utf-8"),
+			bodyHash: hashOf(body),
 			response: response({ etag: '"abc"', "last-modified": "Wed, 21 Oct 2025 07:28:00 GMT" }),
 			url: "https://example.com/docs/my_notes.txt",
 		});
@@ -31,6 +39,7 @@ describe("parsePlainTextFromBuffer", () => {
 		);
 		assert.equal(result.etag, '"abc"');
 		assert.equal(result.lastModified, "Wed, 21 Oct 2025 07:28:00 GMT");
+		assert.equal(result.bodyHash, hashOf(body));
 	});
 
 	it("titles from a segment that has no extension, slugging separators", () => {
@@ -42,8 +51,10 @@ describe("parsePlainTextFromBuffer", () => {
 	});
 
 	it("escapes HTML-significant characters and omits the title tags when the URL has no usable segment", () => {
+		const body = "a < b & c";
 		const result = parsePlainTextFromBuffer({
-			buffer: Buffer.from("a < b & c", "utf-8"),
+			buffer: Buffer.from(body, "utf-8"),
+			bodyHash: hashOf(body),
 			response: response(),
 			url: "https://example.com/",
 		});

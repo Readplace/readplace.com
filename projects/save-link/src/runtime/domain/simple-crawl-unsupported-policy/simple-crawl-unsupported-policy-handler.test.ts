@@ -30,6 +30,7 @@ function createSqsEvent(detail: {
 	userId?: string;
 	recrawl?: boolean;
 	refresh?: boolean;
+	previousBodyHash?: string;
 }): SQSEvent {
 	return {
 		Records: [{
@@ -67,6 +68,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			userId: "user-1",
 			recrawl: undefined,
 			refresh: undefined,
+			previousBodyHash: undefined,
 		});
 	});
 
@@ -89,6 +91,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			userId: undefined,
 			recrawl: true,
 			refresh: undefined,
+			previousBodyHash: undefined,
 		});
 	});
 
@@ -111,6 +114,34 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			userId: undefined,
 			recrawl: undefined,
 			refresh: true,
+			previousBodyHash: undefined,
+		});
+	});
+
+	it("forwards previousBodyHash so the downstream comprehensive Lambda can fire the byte-gate on PDF re-fetch", async () => {
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const handler = initSimpleCrawlUnsupportedPolicyHandler({
+			publishEvent,
+			logger: noopLogger,
+		});
+
+		await handler(
+			createSqsEvent({
+				url: "https://example.com/doc.pdf",
+				refresh: true,
+				previousBodyHash: "h".repeat(64),
+			}),
+			stubContext,
+			() => {},
+		);
+
+		expect(publishEvent).toHaveBeenCalledWith(ComprehensiveCrawlCommand, {
+			url: "https://example.com/doc.pdf",
+			userId: undefined,
+			recrawl: undefined,
+			refresh: true,
+			previousBodyHash: "h".repeat(64),
 		});
 	});
 
@@ -133,6 +164,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			userId: undefined,
 			recrawl: undefined,
 			refresh: undefined,
+			previousBodyHash: undefined,
 		});
 	});
 

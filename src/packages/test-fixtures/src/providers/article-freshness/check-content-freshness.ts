@@ -53,12 +53,14 @@ export function initRefreshArticleIfStale(deps: {
 			url: params.url,
 			etag: freshness.etag,
 			lastModified: freshness.lastModified,
+			previousBodyHash: freshness.bodyHash,
 		});
 
 		if (result.status === "not-modified") {
 			await deps.publishUpdateFetchTimestamp({
 				url: params.url,
 				contentFetchedAt: deps.now().toISOString(),
+				bodyHash: freshness.bodyHash,
 			});
 			return { action: "unchanged" };
 		}
@@ -95,6 +97,7 @@ export function initRefreshArticleIfStale(deps: {
 			etag: result.etag,
 			lastModified: result.lastModified,
 			contentFetchedAt: deps.now().toISOString(),
+			bodyHash: result.bodyHash,
 		});
 
 		return { action: "refreshed", article: parsed };

@@ -30,6 +30,7 @@ function deriveTitleFromTextUrl(url: string): string {
  */
 export function parsePlainTextFromBuffer(input: {
 	buffer: Buffer;
+	bodyHash: string;
 	response: Response;
 	url: string;
 }): CrawlArticleResult {
@@ -49,5 +50,6 @@ export function parsePlainTextFromBuffer(input: {
 		html,
 		etag: headerOrUndefined(input.response.headers, "etag"),
 		lastModified: headerOrUndefined(input.response.headers, "last-modified"),
+		bodyHash: input.bodyHash,
 	};
 }

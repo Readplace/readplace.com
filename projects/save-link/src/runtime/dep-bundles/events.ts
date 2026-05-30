@@ -28,6 +28,7 @@ export type EmitSimpleCrawlUnsupported = (params: {
 	userId?: string;
 	recrawl?: boolean;
 	refresh?: boolean;
+	previousBodyHash?: string;
 }) => Promise<void>;
 
 export type EventsDepBundle = {
@@ -59,6 +60,12 @@ export function initEventsDepBundle(deps: {
 export function initEmitSimpleCrawlUnsupported(deps: {
 	publishEvent: PublishEvent;
 }): EmitSimpleCrawlUnsupported {
-	return ({ url, userId, recrawl, refresh }) =>
-		deps.publishEvent(SimpleCrawlUnsupportedEvent, { url, userId, recrawl, refresh });
+	return ({ url, userId, recrawl, refresh, previousBodyHash }) =>
+		deps.publishEvent(SimpleCrawlUnsupportedEvent, {
+			url,
+			userId,
+			recrawl,
+			refresh,
+			previousBodyHash,
+		});
 }
