@@ -1,0 +1,13 @@
+    <main class="auth-page">
+      <div class="auth-card">
+        {{#if sent}}
+        <h1 class="auth-card__title">Verification email sent</h1>
+        <p class="auth-card__subtitle">We've sent a fresh verification link to your inbox. Check your inbox or spam folder, then click the link to verify your email.</p>
+        <a class="auth-form__submit" href="/queue">Go to your queue</a>
+        {{else}}
+        <h1 class="auth-card__title">Please wait a moment</h1>
+        <p class="auth-card__subtitle">You've requested a verification email very recently. Please wait a little while before requesting another one.</p>
+        <a class="auth-form__submit" href="/queue">Go to your queue</a>
+        {{/if}}
+      </div>
+    </main>

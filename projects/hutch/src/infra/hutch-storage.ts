@@ -9,6 +9,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly oauthTable: aws.dynamodb.Table;
 	public readonly verificationTokensTable: aws.dynamodb.Table;
 	public readonly passwordResetTokensTable: aws.dynamodb.Table;
+	public readonly resendThrottleTable: aws.dynamodb.Table;
 	public readonly pendingSignupsTable: aws.dynamodb.Table;
 	public readonly importSessionsTable: aws.dynamodb.Table;
 	public readonly subscriptionProvidersTable: aws.dynamodb.Table;
@@ -21,6 +22,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		oauth: string;
 		verificationTokens: string;
 		passwordResetTokens: string;
+		resendThrottle: string;
 		pendingSignups: string;
 		importSessions: string;
 		subscriptionProviders: string;
@@ -149,6 +151,17 @@ export class HutchStorage extends pulumi.ComponentResource {
 			hashKey: "token",
 			attributes: [{ name: "token", type: "S" }]
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+
+		this.resendThrottleTable = new aws.dynamodb.Table(`hutch-resend-verification-throttle`, {
+			name: args.tableNames.resendThrottle,
+			billingMode: "PAY_PER_REQUEST",
+			hashKey: "userId",
+			attributes: [{ name: "userId", type: "S" }],
+			ttl: {
+				attributeName: "expiresAt",
+				enabled: true,
+			},
+		}, { parent: this });
 
 		this.pendingSignupsTable = new aws.dynamodb.Table(`hutch-pending-signups`, {
 			name: args.tableNames.pendingSignups,

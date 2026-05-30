@@ -15,6 +15,7 @@ config:
   hutch:dynamodbOauthTable: hutch-oauth-ecd3db9
   hutch:dynamodbVerificationTokensTable: hutch-verification-tokens-3f85043
   hutch:dynamodbPasswordResetTokensTable: hutch-password-reset-tokens
+  hutch:dynamodbResendThrottleTable: hutch-resend-verification-throttle-staging
   hutch:dynamodbPendingSignupsTable: hutch-pending-signups
   hutch:dynamodbImportSessionsTable: hutch-import-sessions-staging
   hutch:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-staging

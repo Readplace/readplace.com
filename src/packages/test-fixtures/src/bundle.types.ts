@@ -110,6 +110,7 @@ import type {
 	CreatePasswordResetToken,
 	VerifyPasswordResetToken,
 } from "./providers/password-reset/password-reset.types";
+import type { RecordResendAttempt } from "./providers/resend-throttle/resend-throttle.types";
 import type { OAuthModel } from "./providers/oauth/oauth-model";
 import type { ValidateAccessToken } from "./providers/oauth/validate-access-token";
 
@@ -273,6 +274,10 @@ export interface PasswordResetBundle {
 	verifyPasswordResetToken: VerifyPasswordResetToken;
 }
 
+export interface ResendThrottleBundle {
+	recordResendAttempt: RecordResendAttempt;
+}
+
 export interface GoogleAuthBundle {
 	exchangeGoogleCode: ExchangeGoogleCode;
 	clientId: string;
@@ -330,6 +335,7 @@ export interface TestAppFixture {
 	email: EmailBundle;
 	emailVerification: EmailVerificationBundle;
 	passwordReset: PasswordResetBundle;
+	resendThrottle: ResendThrottleBundle;
 	google: GoogleAuthBundle | undefined;
 	admin: AdminBundle;
 	importSession: ImportSessionBundle;

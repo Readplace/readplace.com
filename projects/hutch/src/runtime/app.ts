@@ -32,6 +32,8 @@ import { initInMemoryEmailVerification } from "@packages/test-fixtures/providers
 import { initDynamoDbEmailVerification } from "./providers/email-verification/dynamodb-email-verification";
 import { initInMemoryPasswordReset } from "@packages/test-fixtures/providers/password-reset";
 import { initDynamoDbPasswordReset } from "./providers/password-reset/dynamodb-password-reset";
+import { initInMemoryResendThrottle } from "@packages/test-fixtures/providers/resend-throttle";
+import { initDynamoDbResendThrottle } from "./providers/resend-throttle/dynamodb-resend-throttle";
 import { initDynamoDbGeneratedSummary } from "./providers/article-summary/dynamodb-generated-summary";
 import { devSummariseInline } from "./providers/article-summary/dev-summarise-inline";
 import { initDynamoDbArticleCrawl } from "./providers/article-crawl/dynamodb-article-crawl";
@@ -122,6 +124,7 @@ function initProviders() {
 		const oauthTable = requireEnv("DYNAMODB_OAUTH_TABLE");
 		const verificationTokensTable = requireEnv("DYNAMODB_VERIFICATION_TOKENS_TABLE");
 		const passwordResetTokensTable = requireEnv("DYNAMODB_PASSWORD_RESET_TOKENS_TABLE");
+		const resendThrottleTable = requireEnv("DYNAMODB_RESEND_THROTTLE_TABLE");
 		const pendingSignupsTable = requireEnv("DYNAMODB_PENDING_SIGNUPS_TABLE");
 		const googleClientId = requireEnv("GOOGLE_LOGIN_CLIENT_ID");
 		const googleClientSecret = requireEnv("GOOGLE_LOGIN_CLIENT_SECRET");
@@ -240,6 +243,7 @@ function initProviders() {
 			...initResendEmail(resendApiKey),
 			...initDynamoDbEmailVerification({ client, tableName: verificationTokensTable }),
 			...initDynamoDbPasswordReset({ client, tableName: passwordResetTokensTable }),
+			...initDynamoDbResendThrottle({ client, tableName: resendThrottleTable, now: () => new Date() }),
 			...stripe,
 			...pendingSignup,
 			googleAuth,
@@ -395,6 +399,7 @@ function initProviders() {
 		...initLogEmail(),
 		...initInMemoryEmailVerification(),
 		...initInMemoryPasswordReset(),
+		...initInMemoryResendThrottle({ now: () => new Date() }),
 		createCheckoutSession: devStripe.createCheckoutSession,
 		retrieveCheckoutSession: devStripe.retrieveCheckoutSession,
 		storePendingSignup: devPendingSignup.storePendingSignup,

@@ -89,6 +89,9 @@
     </div>
     <div class="verify-banner {{#if showVerificationBanner}}verify-banner--visible{{else}}verify-banner--hidden{{/if}}" role="alert" data-test-verify-banner>
       Please verify your email. Check your inbox or spam folder.
+      <form method="POST" action="/resend-verification">
+        <button class="verify-banner__resend" type="submit" data-test-verify-banner-resend>Resend email</button>
+      </form>
     </div>
     {{{extensionSuggestionBanner}}}
   </div>

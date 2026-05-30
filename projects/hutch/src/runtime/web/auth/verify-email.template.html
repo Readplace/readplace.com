@@ -7,6 +7,9 @@
         {{else}}
         <h1 class="auth-card__title">Verification failed</h1>
         <p class="auth-card__subtitle">{{error}}</p>
+        <form method="POST" action="/resend-verification" data-test-form="resend-verification">
+          <button class="auth-form__submit" type="submit">Resend verification email</button>
+        </form>
         <a class="auth-form__submit" href="/login">Go to login</a>
         {{/if}}
       </div>

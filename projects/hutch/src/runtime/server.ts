@@ -88,6 +88,7 @@ import type {
 	CreatePasswordResetToken,
 	VerifyPasswordResetToken,
 } from "@packages/test-fixtures/providers/password-reset";
+import type { RecordResendAttempt } from "@packages/test-fixtures/providers/resend-throttle";
 import type { OAuthModel } from "@packages/test-fixtures/providers/oauth";
 import { HutchLogger } from "@packages/hutch-logger";
 import type { AnalyticsEvent } from "./web/middleware/analytics";
@@ -171,6 +172,7 @@ interface AppDependencies {
 	sendEmail: SendEmail;
 	createVerificationToken: CreateVerificationToken;
 	verifyEmailToken: VerifyEmailToken;
+	recordResendAttempt: RecordResendAttempt;
 	createPasswordResetToken: CreatePasswordResetToken;
 	verifyPasswordResetToken: VerifyPasswordResetToken;
 	userExistsByEmail: UserExistsByEmail;
@@ -523,6 +525,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		sendEmail: deps.sendEmail,
 		createVerificationToken: deps.createVerificationToken,
 		verifyEmailToken: deps.verifyEmailToken,
+		findEmailByUserId: deps.findEmailByUserId,
+		recordResendAttempt: deps.recordResendAttempt,
 		retrieveCheckoutSession: deps.retrieveCheckoutSession,
 		consumePendingSignup: deps.consumePendingSignup,
 		subscriptionProviders: {

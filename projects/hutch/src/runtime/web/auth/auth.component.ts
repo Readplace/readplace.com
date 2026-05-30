@@ -11,6 +11,7 @@ import { AUTH_STYLES } from "./auth.styles";
 const LOGIN_TEMPLATE = readFileSync(join(__dirname, "login.template.html"), "utf-8");
 const SIGNUP_TEMPLATE = readFileSync(join(__dirname, "signup.template.html"), "utf-8");
 const VERIFY_EMAIL_TEMPLATE = readFileSync(join(__dirname, "verify-email.template.html"), "utf-8");
+const RESEND_VERIFICATION_TEMPLATE = readFileSync(join(__dirname, "resend-verification.template.html"), "utf-8");
 const FORGOT_PASSWORD_TEMPLATE = readFileSync(join(__dirname, "forgot-password.template.html"), "utf-8");
 const RESET_PASSWORD_TEMPLATE = readFileSync(join(__dirname, "reset-password.template.html"), "utf-8");
 
@@ -81,6 +82,23 @@ export function VerifyEmailPage(data: { success: boolean; error?: string }): Pag
 		bodyClass: "page-verify-email",
 		content: { html: content },
 		statusCode: data.success ? 200 : 400,
+	};
+}
+
+export function ResendVerificationPage(data: { sent: boolean }): PageBody {
+	const content = render(RESEND_VERIFICATION_TEMPLATE, data);
+
+	return {
+		seo: {
+			title: "Resend verification — Readplace",
+			description: "Resend the verification email for your Readplace account.",
+			canonicalUrl: "/resend-verification",
+			robots: "noindex, nofollow",
+		},
+		styles: AUTH_STYLES,
+		bodyClass: "page-resend-verification",
+		content: { html: content },
+		statusCode: 200,
 	};
 }
 
