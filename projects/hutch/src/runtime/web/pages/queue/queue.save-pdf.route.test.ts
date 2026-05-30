@@ -66,6 +66,7 @@ describe("POST /queue/save-pdf", () => {
 				publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 				publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+				publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 			},
 		});
 		return { testApp, publishedSavePdf };
