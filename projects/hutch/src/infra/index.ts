@@ -567,14 +567,15 @@ eventBus.subscribe(
 	handleSubscriptionCancellationScheduledWithSQS,
 );
 
-// --- Subscription Start Request (trial-end / card-add auto-charge) ---
-// SQS-backed Lambda invoked by the EventBridge Scheduler one-shot rule
-// (fires at trialEndsAt) or by the payment-method-added Lambda. Reads the
-// subscription_providers row with ConsistentRead and routes through a state
-// machine: trialing/cancelled + card + charging-time → markChargeRequested →
-// Stripe subscriptions.create → SubscriptionChargeSucceeded on success, or
-// markChargeFailed + throw to DLQ → SNS on rejection. No-card or
-// still-active-trial branches noop or upsertCancelled without emitting.
+// --- Subscription Start Request (trial-end / card-add charge) ---
+// SQS-backed Lambda invoked by both the EventBridge Scheduler one-shot rule
+// (trial end) and the payment-method-added Lambda (card add / update).
+// Reads the subscription_providers row with ConsistentRead, then routes
+// through a state machine: no-card+trial-active noops; no-card+trial-expired
+// upsertCancelled (no event); card-present+trial-active noops (waits for
+// scheduler); card-present+charging-time runs off-session subscriptions.create.
+// On Stripe rejection, persists chargeFailedAt + chargeFailedReason then throws
+// to DLQ → SNS. On success, publishes SubscriptionChargeSucceeded.
 
 const subscriptionStartRequestDynamodb = new HutchDynamoDBAccess("subscription-start-request-dynamodb", {
 	tables: [{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false }],
