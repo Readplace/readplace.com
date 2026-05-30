@@ -65,9 +65,25 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 14 widgets (5 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 15 widgets (6 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(14);
+		expect(body.widgets).toHaveLength(15);
+	});
+
+	it("the readers widget counts distinct user_ids from article_read events (not pageviews) — distinguishes opening the reader from explicitly marking-as-read", () => {
+		const queries = widgetQueries();
+		const readers = queries.find((q) => q.includes("authenticated_unique_readers"));
+		expect(readers).toBeDefined();
+		expect(readers).toContain(`event = "${ANALYTICS_EVENTS.articleRead}"`);
+		expect(readers).toContain("count_distinct(user_id)");
+	});
+
+	it("the opens widget counts distinct authenticated visitors on the reader view path /<id>/view — funnel companion to the readers widget", () => {
+		const queries = widgetQueries();
+		const opens = queries.find((q) => q.includes("reader_opens"));
+		expect(opens).toBeDefined();
+		expect(opens).toContain(`event = "${ANALYTICS_EVENTS.pageview}"`);
+		expect(opens).toContain("\\/view$");
 	});
 
 	it("every stream used by an emitter (STREAMS) is referenced by at least one widget query — adding a new stream without a widget fails CI", () => {

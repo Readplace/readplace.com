@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { isbot } from "isbot";
 import type { HutchLogger } from "@packages/hutch-logger";
+import type { UserId } from "@packages/domain/user";
 import { ANALYTICS_EVENTS, STREAMS } from "../../observability/events";
 
 export interface AnalyticsPageview {
@@ -48,7 +49,19 @@ export interface ImportCommittedEvent {
 	is_authenticated: 1;
 }
 
-export type AnalyticsEvent = AnalyticsPageview | ImportUploadedEvent | ImportCommittedEvent;
+export interface ArticleReadEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.articleRead;
+	timestamp: string;
+	user_id: UserId;
+	visitor_hash: string | null;
+}
+
+export type AnalyticsEvent =
+	| AnalyticsPageview
+	| ImportUploadedEvent
+	| ImportCommittedEvent
+	| ArticleReadEvent;
 
 const SKIP_PATHS = new Set([
 	"/robots.txt",

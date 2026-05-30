@@ -7,9 +7,12 @@ import {
 } from "@packages/onboarding-extension-signal";
 import type { ErrorRequestHandler, Request, RequestHandler, Response, Router } from "express";
 import express from "express";
+import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import { SaveArticleInputSchema, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
+import { hashIp, type AnalyticsEvent } from "../../middleware/analytics";
+import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import {
 	IMPORT_SKIPPED_COOKIE_NAME,
 	decodeImportSkippedCookie,
@@ -139,6 +142,8 @@ interface QueueDependencies {
 	buildBannerState: BuildBannerState;
 	logError: (message: string, error?: Error) => void;
 	logParseError: LogParseError;
+	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	salt: string;
 	now: () => Date;
 	featureToggle: QuerystringFeatureToggle;
 }
@@ -643,7 +648,16 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const parsedStatus = ArticleStatusSchema.safeParse(req.body.status);
 
 		if (parsedId.success && parsedStatus.success) {
-			await deps.updateArticleStatus(parsedId.data, userId, parsedStatus.data);
+			const updated = await deps.updateArticleStatus(parsedId.data, userId, parsedStatus.data);
+			if (updated && parsedStatus.data === "read") {
+				deps.analytics.info({
+					stream: STREAMS.analytics,
+					event: ANALYTICS_EVENTS.articleRead,
+					timestamp: deps.now().toISOString(),
+					user_id: userId,
+					visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+				});
+			}
 		}
 
 		res.redirect(303, buildQueueUrl(parseQueueUrl(req.query), collectUtmParams(req.query)));
