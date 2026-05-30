@@ -45,5 +45,3 @@ Try it on the link your old app refused. Save a dense PDF, a tweet thread, a new
 Readplace is free for the first {{foundingMemberLimit}} founding members. Full access, for as long as you hold the account. After that it costs $3.99/month.
 
 [Install the browser extension](https://readplace.com/install) or [view the source on GitHub](https://github.com/Readplace/readplace.com).
-</content>
-</invoke>
