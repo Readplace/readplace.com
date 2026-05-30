@@ -128,6 +128,34 @@ describe("initSavePdfLimitHandler", () => {
 		expect(logged[0]?.error).toBe(err);
 	});
 
+	it("forwards null errors via next()", () => {
+		const handler = initSavePdfLimitHandler({
+			logError: () => {},
+			maxBytes: 1024,
+		});
+		const { res, calls } = fakeResponse();
+		const next: NextFunction = jest.fn();
+
+		handler(null, fakeRequest({ accept: "application/vnd.siren+json" }), res, next);
+
+		expect(next).toHaveBeenCalledWith(null);
+		expect(calls.status).toBeUndefined();
+	});
+
+	it("forwards non-object errors via next()", () => {
+		const handler = initSavePdfLimitHandler({
+			logError: () => {},
+			maxBytes: 1024,
+		});
+		const { res, calls } = fakeResponse();
+		const next: NextFunction = jest.fn();
+
+		handler("string error", fakeRequest({ accept: "application/vnd.siren+json" }), res, next);
+
+		expect(next).toHaveBeenCalledWith("string error");
+		expect(calls.status).toBeUndefined();
+	});
+
 	it("does not pass an Error to logError when the body-parser hands over a non-Error payload", () => {
 		const logged: { message: string; error?: Error }[] = [];
 		const handler = initSavePdfLimitHandler({

@@ -18,10 +18,13 @@ export function initSavePdfLimitHandler(deps: {
 }): ErrorRequestHandler {
 	const { maxBytes } = deps;
 	return (err, req, res, next) => {
-		const bodyErr = err as { type?: string; limit?: number } | null;
 		if (
-			bodyErr?.type === "entity.too.large" &&
-			bodyErr.limit === maxBytes &&
+			typeof err === "object" &&
+			err !== null &&
+			"type" in err &&
+			err.type === "entity.too.large" &&
+			"limit" in err &&
+			err.limit === maxBytes &&
 			wantsSiren(req)
 		) {
 			deps.logError(

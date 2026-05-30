@@ -15,10 +15,13 @@ export function initSaveContentLimitHandler(deps: {
 	const { maxBytes } = deps;
 	const label = `${Math.round(maxBytes / (1024 * 1024))} MB`;
 	return (err, req, res, next) => {
-		const bodyErr = err as { type?: string; limit?: number } | null;
 		if (
-			bodyErr?.type === "entity.too.large" &&
-			bodyErr.limit === maxBytes &&
+			typeof err === "object" &&
+			err !== null &&
+			"type" in err &&
+			err.type === "entity.too.large" &&
+			"limit" in err &&
+			err.limit === maxBytes &&
 			wantsSiren(req)
 		) {
 			deps.logError(
