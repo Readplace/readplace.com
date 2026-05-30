@@ -392,16 +392,13 @@ type ChunkOutcome =
 	| { ok: false; chunkIndex: number; pageIndices: readonly number[]; error: Error };
 
 /** Split `pdftotext` output into per-page text. pdftotext separates pages with
- * a form-feed (`\f`); a trailing form-feed yields an extra empty segment that
- * is ignored by indexing up to `numPages`. Pages beyond the produced segments
- * (e.g. pdftotext returned "" because it failed or the page is image-only) are
- * empty, i.e. image pages. */
+ * a form-feed (`\f`); a trailing form-feed yields an extra empty segment
+ * trimmed by `slice`. Pages beyond the produced segments default to empty
+ * strings — these are image-only pages routed to OCR. */
 function splitPageTexts(fullText: string, numPages: number): string[] {
 	const segments = fullText.split("\f");
-	const pages: string[] = [];
-	for (let i = 0; i < numPages; i++) {
-		pages.push(segments[i] ?? "");
-	}
+	const pages = segments.slice(0, numPages);
+	while (pages.length < numPages) pages.push("");
 	return pages;
 }
 
