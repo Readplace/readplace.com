@@ -13,6 +13,7 @@ import { initInMemoryAuth } from "./providers/auth/in-memory-auth";
 import { initInMemoryEmail } from "./providers/email/in-memory-email";
 import { initInMemoryEmailVerification } from "./providers/email-verification/in-memory-email-verification";
 import { initInMemoryPasswordReset } from "./providers/password-reset/in-memory-password-reset";
+import { initInMemoryResendThrottle } from "./providers/resend-throttle/in-memory-resend-throttle";
 import { initInMemoryPendingHtml } from "./providers/pending-html/in-memory-pending-html";
 import { initInMemoryPendingSignup } from "./providers/pending-signup/in-memory-pending-signup";
 import { initInMemoryStripeCheckout } from "./providers/stripe-checkout/in-memory-stripe-checkout";
@@ -232,6 +233,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const email = initInMemoryEmail();
 	const emailVerification = initInMemoryEmailVerification();
 	const passwordReset = initInMemoryPasswordReset();
+	const resendThrottle = initInMemoryResendThrottle({ now: () => new Date() });
 	const pendingHtml = initInMemoryPendingHtml();
 	const { publishSaveLinkRawHtmlCommand } = initInMemorySaveLinkRawHtmlCommand({
 		logger: noopLogger,
@@ -327,6 +329,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		email,
 		emailVerification,
 		passwordReset,
+		resendThrottle,
 		google: undefined,
 		admin: {
 			adminEmails: [],

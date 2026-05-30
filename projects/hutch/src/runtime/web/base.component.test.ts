@@ -319,6 +319,36 @@ describe("Base component", () => {
 		expect(banner.classList.contains("verify-banner--hidden")).toBe(true);
 	});
 
+	it("renders a resend control inside the verify banner that POSTs to /resend-verification", () => {
+		const page = createTestPageBody();
+		const result = Base(page, { isAuthenticated: true, emailVerified: false }).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const banner = doc.querySelector("[data-test-verify-banner]");
+		assert(banner, "verify banner must be rendered");
+		expect(banner.classList.contains("verify-banner--visible")).toBe(true);
+
+		const resend = banner.querySelector("[data-test-verify-banner-resend]");
+		assert(resend, "resend control must be rendered inside the verify banner");
+		const form = resend.closest("form");
+		assert(form, "resend control must be wrapped in a form");
+		expect(form.getAttribute("method")?.toUpperCase()).toBe("POST");
+		expect(form.getAttribute("action")).toBe("/resend-verification");
+	});
+
+	it("keeps the resend control in the DOM, hidden via the banner state class, when the email is verified", () => {
+		const page = createTestPageBody();
+		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const banner = doc.querySelector("[data-test-verify-banner]");
+		assert(banner, "verify banner must be rendered");
+		expect(banner.classList.contains("verify-banner--hidden")).toBe(true);
+
+		const resend = banner.querySelector("[data-test-verify-banner-resend]");
+		assert(resend, "resend control stays in the DOM; the banner's state class governs visibility");
+	});
+
 	it("should rewrite relative canonical URLs to absolute readplace.com URLs", () => {
 		const page = createTestPageBody({
 			seo: { title: "T", description: "D", canonicalUrl: "/login" },

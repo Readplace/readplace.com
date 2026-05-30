@@ -108,7 +108,7 @@ describe("Email verification", () => {
 			expect(doc.querySelector("h1")?.textContent).toBe("Email verified");
 		});
 
-		it("should reject an invalid token", async () => {
+		it("should reject an invalid token and offer a self-serve resend form", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
 			const response = await request(harness.server).get("/verify-email?token=invalidtoken");
@@ -116,6 +116,11 @@ describe("Email verification", () => {
 			expect(response.status).toBe(400);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector("h1")?.textContent).toBe("Verification failed");
+
+			const resendForm = doc.querySelector('[data-test-form="resend-verification"]');
+			assert(resendForm, "verification failure page must offer a resend form");
+			expect(resendForm.getAttribute("method")?.toUpperCase()).toBe("POST");
+			expect(resendForm.getAttribute("action")).toBe("/resend-verification");
 		});
 
 		it("should reject when no token is provided", async () => {

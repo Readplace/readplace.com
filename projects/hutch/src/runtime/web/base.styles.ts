@@ -470,6 +470,18 @@ export const VERIFY_BANNER_STYLES = `
 
   .verify-banner--visible { display: block; }
   .verify-banner--hidden { display: none; }
+
+  .verify-banner__resend {
+    margin-top: 4px;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--foreground);
+    font: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+  }
 `;
 
 export const BANNER_AREA_STYLES = `

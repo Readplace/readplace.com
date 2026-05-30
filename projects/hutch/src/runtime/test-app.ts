@@ -110,6 +110,7 @@ import type {
 	CreatePasswordResetToken,
 	VerifyPasswordResetToken,
 } from "@packages/test-fixtures/providers/password-reset";
+import type { RecordResendAttempt } from "@packages/test-fixtures/providers/resend-throttle";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
 import type { OAuthModel } from "@packages/test-fixtures/providers/oauth";
 import type { ValidateAccessToken } from "./web/dual-auth.middleware";
@@ -286,6 +287,10 @@ export interface PasswordResetBundle {
 	verifyPasswordResetToken: VerifyPasswordResetToken;
 }
 
+export interface ResendThrottleBundle {
+	recordResendAttempt: RecordResendAttempt;
+}
+
 export interface GoogleAuthBundle {
 	exchangeGoogleCode: ExchangeGoogleCode;
 	clientId: string;
@@ -343,6 +348,7 @@ export interface TestAppFixture {
 	email: EmailBundle;
 	emailVerification: EmailVerificationBundle;
 	passwordReset: PasswordResetBundle;
+	resendThrottle: ResendThrottleBundle;
 	google: GoogleAuthBundle | undefined;
 	admin: AdminBundle;
 	importSession: ImportSessionBundle;
@@ -441,6 +447,7 @@ function flattenFixtureToAppDependencies(
 		sendEmail: fixture.email.sendEmail,
 		createVerificationToken: fixture.emailVerification.createVerificationToken,
 		verifyEmailToken: fixture.emailVerification.verifyEmailToken,
+		recordResendAttempt: fixture.resendThrottle.recordResendAttempt,
 		createPasswordResetToken: fixture.passwordReset.createPasswordResetToken,
 		verifyPasswordResetToken: fixture.passwordReset.verifyPasswordResetToken,
 		googleAuth: fixture.google,
