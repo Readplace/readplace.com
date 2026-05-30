@@ -87,6 +87,11 @@ export function initExtractLinksFromPageUrl(deps: {
 			return { status: "UNSUPPORTED_CONTENT_TYPE", contentType };
 		}
 
+		const declaredLength = response.headers.get("content-length");
+		if (declaredLength !== null && Number(declaredLength) > MAX_PAGE_BYTES) {
+			return { status: "FETCH_FAILED", reason: "too_large" };
+		}
+
 		const buffer = await response.arrayBuffer();
 		if (buffer.byteLength > MAX_PAGE_BYTES) {
 			return { status: "FETCH_FAILED", reason: "too_large" };

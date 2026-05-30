@@ -281,7 +281,35 @@ describe("initExtractLinksFromPageUrl", () => {
 		expect(result).toEqual({ status: "FETCH_FAILED", reason: "http", httpStatus: 404 });
 	});
 
-	it("rejects responses larger than 5 MiB", async () => {
+	it("rejects via Content-Length header without downloading the body", async () => {
+		let bodyRead = false;
+		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
+			crawlFetch: fakeFetch(async () => {
+				const response = new Response("short", {
+					status: 200,
+					headers: {
+						"content-type": "text/html",
+						"content-length": String(6 * 1024 * 1024),
+					},
+				});
+				Object.defineProperty(response, "url", { value: "https://news.example/issues/42" });
+				const originalArrayBuffer = response.arrayBuffer.bind(response);
+				response.arrayBuffer = async () => {
+					bodyRead = true;
+					return originalArrayBuffer();
+				};
+				return response;
+			}),
+		});
+
+		const result = await extract("https://news.example/issues/42");
+
+		expect(result).toEqual({ status: "FETCH_FAILED", reason: "too_large" });
+		expect(bodyRead).toBe(false);
+	});
+
+	it("rejects responses larger than 5 MiB when Content-Length is absent", async () => {
 		const body = "a".repeat(5 * 1024 * 1024 + 1);
 		const extract = initExtractLinksFromPageUrl({
 			validateUrl: validateSaveableUrl,
