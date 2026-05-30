@@ -5,6 +5,7 @@ import { render } from "../../render";
 import { IMPORT_STYLES } from "./import.styles";
 import type {
 	ImportAcquireViewModel,
+	ImportMode,
 	ImportTabViewModel,
 	ImportViewModel,
 } from "./import.viewmodel";
@@ -36,6 +37,12 @@ const IMPORT_FROM_URL_PANEL_TEMPLATE = readFileSync(
 	"utf-8",
 );
 const IMPORT_CLIENT_SCRIPT = `<script src="/client-dist/import.client.js" defer></script>`;
+
+interface PanelConfig {
+	readonly template: string;
+	readonly canonicalUrl: string;
+	readonly scripts: string;
+}
 
 const UPLOAD_AUTO_SUBMIT_SCRIPT = `
 <script>
@@ -110,25 +117,37 @@ export function ImportPage(vm: ImportViewModel): PageBody {
 	};
 }
 
+const PANEL_CONFIG: Record<ImportMode, PanelConfig> = {
+	upload: {
+		template: IMPORT_UPLOAD_TEMPLATE,
+		canonicalUrl: "/import",
+		scripts: `${IMPORT_CLIENT_SCRIPT}${UPLOAD_AUTO_SUBMIT_SCRIPT}`,
+	},
+	"from-url": {
+		template: IMPORT_FROM_URL_PANEL_TEMPLATE,
+		canonicalUrl: "/import?mode=from-url",
+		scripts: IMPORT_CLIENT_SCRIPT,
+	},
+};
+
 export function ImportAcquirePage(vm: ImportAcquireViewModel): PageBody {
+	const panel = PANEL_CONFIG[vm.mode];
 	const tabs = vm.tabs.map(renderTab);
 	const data = { ...vm, tabs, errorMessage: vm.errors?.[0]?.message };
 	const tabsHtml = vm.showFromUrl ? render(IMPORT_TABS_TEMPLATE, data) : "";
-	const panelHtml = vm.isUpload
-		? render(IMPORT_UPLOAD_TEMPLATE, data)
-		: render(IMPORT_FROM_URL_PANEL_TEMPLATE, data);
+	const panelHtml = render(panel.template, data);
 	const content = render(IMPORT_ACQUIRE_TEMPLATE, { ...data, tabsHtml, panelHtml });
 
 	return {
 		seo: {
 			title: "Import Links — Readplace",
 			description: "Upload an export file or paste a URL to import links into your queue.",
-			canonicalUrl: vm.isUpload ? "/import" : "/import?mode=from-url",
+			canonicalUrl: panel.canonicalUrl,
 			robots: "noindex, nofollow",
 		},
 		styles: IMPORT_STYLES,
 		bodyClass: "page-import",
 		content: { html: content },
-		scripts: vm.isUpload ? `${IMPORT_CLIENT_SCRIPT}${UPLOAD_AUTO_SUBMIT_SCRIPT}` : IMPORT_CLIENT_SCRIPT,
+		scripts: panel.scripts,
 	};
 }

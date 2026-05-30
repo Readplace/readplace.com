@@ -165,30 +165,23 @@ describe("toImportAcquireViewModel", () => {
 	it("defaults the mode to upload when no mode is provided", () => {
 		const vm = toImportAcquireViewModel({});
 		expect(vm.mode).toBe("upload");
-		expect(vm.isUpload).toBe(true);
-		expect(vm.isFromUrl).toBe(false);
 		expect(vm.uploadAction).toBe("/import");
 		expect(vm.fromUrlAction).toBe("/import/from-url");
 	});
 
-	it("sets isFromUrl true when mode=from-url and showFromUrl is true", () => {
+	it("sets mode to from-url when mode=from-url and showFromUrl is true", () => {
 		const vm = toImportAcquireViewModel({ mode: "from-url", showFromUrl: true });
 		expect(vm.mode).toBe("from-url");
-		expect(vm.isUpload).toBe(false);
-		expect(vm.isFromUrl).toBe(true);
 	});
 
 	it("falls back to upload when mode=from-url but showFromUrl is false", () => {
 		const vm = toImportAcquireViewModel({ mode: "from-url", showFromUrl: false });
 		expect(vm.mode).toBe("upload");
-		expect(vm.isUpload).toBe(true);
-		expect(vm.isFromUrl).toBe(false);
 	});
 
 	it("falls back to upload for an unrecognised mode value", () => {
 		const vm = toImportAcquireViewModel({ mode: "garbage" });
 		expect(vm.mode).toBe("upload");
-		expect(vm.isUpload).toBe(true);
 	});
 
 	it("passes through an error message when provided", () => {

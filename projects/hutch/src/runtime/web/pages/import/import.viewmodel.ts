@@ -13,8 +13,6 @@ export interface ImportTabViewModel {
 
 export interface ImportAcquireViewModel {
 	readonly mode: ImportMode;
-	readonly isUpload: boolean;
-	readonly isFromUrl: boolean;
 	readonly showFromUrl: boolean;
 	readonly errors?: readonly ComponentError[];
 	readonly uploadAction: string;
@@ -38,8 +36,6 @@ export function toImportAcquireViewModel(input: {
 		: [];
 	return {
 		mode,
-		isUpload: mode === "upload",
-		isFromUrl: mode === "from-url",
 		showFromUrl,
 		errors: input.errors,
 		uploadAction: "/import",

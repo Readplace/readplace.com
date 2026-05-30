@@ -1,5 +1,5 @@
 const IMPORT_ERROR_MESSAGES: Record<string, string> = {
-	import_too_large: "That file is too large. The limit is 5 MiB — please get in touch at readplace+import@readplace.com to increase the limit.",
+	import_too_large: "That file is too large. The limit is 5 MiB — please get in touch at readplace+migrate@readplace.com to increase the limit.",
 	import_no_urls: "We couldn't find any links in that file.",
 	import_session_not_found: "That import session has expired. Please upload the file again.",
 	import_url_invalid: "That URL can't be crawled — Readplace blocks private-network and non-http(s) addresses.",

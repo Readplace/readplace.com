@@ -118,7 +118,7 @@ describe("Import routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const error = doc.querySelector("[data-test-import-error]");
 			assert(error, "error banner must be rendered");
-			expect(error.textContent).toContain("readplace+import@readplace.com");
+			expect(error.textContent).toContain("readplace+migrate@readplace.com");
 		});
 
 		it("renders the import_session_not_found message when error_code=import_session_not_found", async () => {
