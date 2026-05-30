@@ -929,18 +929,16 @@ describe("initOcrPdf — onPartialHtml streaming tap", () => {
 			.filter((count, idx, arr) => idx === 0 || arr[idx - 1] !== count);
 		expect(distinctSteps).toEqual([1, 3, 5]);
 
-		expect(partials[0].html).toContain("page-0");
-		expect(partials[0].html).not.toContain("page-1");
+		const pageMarkers = (html: string): number[] =>
+			Array.from(html.matchAll(/page-(\d+)/g)).map((m) => Number(m[1])).sort();
+		expect(pageMarkers(partials[0].html)).toEqual([0]);
 
 		const threePagesReady = partials.find((p) => p.readyPageCount === 3);
 		if (!threePagesReady) throw new Error("3-page prefix never emitted");
-		expect(threePagesReady.html).toContain("page-0");
-		expect(threePagesReady.html).toContain("page-1");
-		expect(threePagesReady.html).toContain("page-2");
-		expect(threePagesReady.html).not.toContain("page-3");
+		expect(pageMarkers(threePagesReady.html)).toEqual([0, 1, 2]);
 
 		const allReady = partials[partials.length - 1];
-		for (let i = 0; i < 5; i++) expect(allReady.html).toContain(`page-${i}`);
+		expect(pageMarkers(allReady.html)).toEqual([0, 1, 2, 3, 4]);
 	});
 
 	it("inserts the page-break separator between adjacent fragments in the partial HTML", async () => {

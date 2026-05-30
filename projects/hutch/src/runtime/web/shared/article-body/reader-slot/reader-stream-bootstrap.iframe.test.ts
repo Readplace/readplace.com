@@ -63,8 +63,9 @@ describe("walkAndWrap", () => {
 		expect(collected.length).toBe(3);
 		// <strong> wrapper survives — its child text node was wrapped, the
 		// element itself is untouched.
-		expect(root.querySelector("strong")).not.toBeNull();
-		expect(root.querySelector("strong")?.textContent).toBe("bold");
+		const strong = root.querySelector("strong");
+		if (!strong) throw new Error("strong element must survive walkAndWrap");
+		expect(strong.textContent).toBe("bold");
 	});
 
 	it("does not descend into BLOCKED_TAGS subtrees (defence-in-depth)", () => {
