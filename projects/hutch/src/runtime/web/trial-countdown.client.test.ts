@@ -15,7 +15,7 @@ interface FakeTimer {
 function buildFixture(opts: {
 	endsAtIso: string;
 	serverNowIso: string;
-	state: "active" | "expired";
+	state: "active" | "expired" | "cancellation-scheduled";
 	escalation: string;
 	text: string;
 }): string {
@@ -378,6 +378,78 @@ describe("initTrialCountdown — idempotent state transitions", () => {
 		Object.defineProperty(document, "hidden", { configurable: true, value: false });
 		document.dispatchEvent(new (document.defaultView as Window & typeof globalThis).Event("visibilitychange"));
 
+		expect(clock.timers.size).toBe(0);
+	});
+});
+
+describe("initTrialCountdown — cancellation-scheduled state stays static", () => {
+	it("does not start the interval and does not rewrite the SSR text — the date label is fixed until the period ends", () => {
+		const serverNow = "2026-01-01T00:00:00.000Z";
+		const endsAt = new Date(Date.parse(serverNow) + 5 * ONE_DAY_MS).toISOString();
+		const { document } = createDom(
+			buildFixture({
+				endsAtIso: endsAt,
+				serverNowIso: serverNow,
+				state: "cancellation-scheduled",
+				escalation: "expired",
+				text: "Subscription ends on 6 Jan 2026",
+			}),
+		);
+
+		const clock = createFakeClock(document, Date.parse(serverNow));
+		initTrialCountdown(clock.deps).attach();
+
+		expect(clock.timers.size).toBe(0);
+		const el = getCountdownElement(document);
+		expect(el.textContent).toBe("Subscription ends on 6 Jan 2026");
+		expect(el.getAttribute("data-trial-state")).toBe("cancellation-scheduled");
+	});
+
+	it("ignores swap listener callbacks for cancellation-scheduled (no tick on htmx swap)", () => {
+		const serverNow = "2026-01-01T00:00:00.000Z";
+		const endsAt = new Date(Date.parse(serverNow) + 5 * ONE_DAY_MS).toISOString();
+		const { document } = createDom(
+			buildFixture({
+				endsAtIso: endsAt,
+				serverNowIso: serverNow,
+				state: "cancellation-scheduled",
+				escalation: "expired",
+				text: "Subscription ends on 6 Jan 2026",
+			}),
+		);
+
+		const clock = createFakeClock(document, Date.parse(serverNow));
+		initTrialCountdown(clock.deps).attach();
+		assert(clock.swapListener, "swap listener must be registered");
+
+		const el = getCountdownElement(document);
+		el.textContent = "stale text";
+
+		clock.swapListener();
+
+		// Text stays as the test set it — no tick rewrites it.
+		expect(el.textContent).toBe("stale text");
+	});
+
+	it("ignores visibilitychange while cancellation-scheduled — no interval armed when the tab becomes visible", () => {
+		const serverNow = "2026-01-01T00:00:00.000Z";
+		const endsAt = new Date(Date.parse(serverNow) + 5 * ONE_DAY_MS).toISOString();
+		const { document } = createDom(
+			buildFixture({
+				endsAtIso: endsAt,
+				serverNowIso: serverNow,
+				state: "cancellation-scheduled",
+				escalation: "expired",
+				text: "Subscription ends on 6 Jan 2026",
+			}),
+		);
+
+		const clock = createFakeClock(document, Date.parse(serverNow));
+		initTrialCountdown(clock.deps).attach();
+		expect(clock.timers.size).toBe(0);
+
+		Object.defineProperty(document, "hidden", { configurable: true, value: false });
+		document.dispatchEvent(new (document.defaultView as Window & typeof globalThis).Event("visibilitychange"));
 		expect(clock.timers.size).toBe(0);
 	});
 });

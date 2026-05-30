@@ -8,6 +8,10 @@
         <p class="queue-banner__message"><strong data-test-trial-days-left>{{trialDaysLeft}} {{trialDaysLeftWord}} left</strong> in your free trial.</p>
         <a class="queue-banner__cta" href="/account">Subscribe — $3.99/month</a>
         {{/if}}
+        {{#if subscriptionBannerIsCancellationScheduled}}
+        <p class="queue-banner__message"><strong>Subscription ending {{cancellationEffectiveAt}}.</strong> You still have full access until then.</p>
+        <a class="queue-banner__cta" href="/account">Reactivate</a>
+        {{/if}}
         {{#if subscriptionBannerIsInactive}}
         <p class="queue-banner__message"><strong>Subscription not active.</strong> Your saved articles are still here.</p>
         {{/if}}

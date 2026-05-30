@@ -112,6 +112,48 @@ describe("toAccountViewModel — actions", () => {
 		);
 		assert.deepEqual(vm.actions, []);
 	});
+
+	it("paid cancellation-scheduled state — single Reactivate action (no Cancel — the user already cancelled), status line carries the cutoff date", () => {
+		const cancellationEffectiveAt = "2026-06-22T10:00:00.000Z";
+		const vm = toAccountViewModel(
+			{
+				tier: "paid",
+				access: "full",
+				banner: "cancellation-scheduled",
+				cancellationEffectiveAt,
+			},
+			baseQuery,
+			now,
+		);
+
+		assert.equal(vm.state, "cancellation-scheduled");
+		assert.equal(vm.stateClass, "account-card account-card--cancellation-scheduled");
+		assert.equal(vm.statusLine, `Your subscription ends on ${new Date("2026-06-22T10:00:00.000Z").toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}.`);
+		const keys = vm.actions.map((a) => a.key);
+		assert.deepEqual(keys, ["reactivate-form"]);
+		assert.equal(vm.actions[0].variant, "primary");
+		assert.equal(vm.actions[0].method, "POST");
+		assert.equal(vm.actions[0].href, "/account/reactivate");
+	});
+
+	it("trial cancellation-scheduled state — same shape as paid (reactivate-form, Reactivate label) so the template stays branchless", () => {
+		const cancellationEffectiveAt = "2026-06-05T00:00:00.000Z";
+		const vm = toAccountViewModel(
+			{
+				tier: "trial",
+				access: "full",
+				banner: "cancellation-scheduled",
+				cancellationEffectiveAt,
+			},
+			baseQuery,
+			now,
+		);
+
+		assert.equal(vm.state, "cancellation-scheduled");
+		assert.equal(vm.statusLine, `Your subscription ends on ${new Date("2026-06-05T00:00:00.000Z").toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}.`);
+		const keys = vm.actions.map((a) => a.key);
+		assert.deepEqual(keys, ["reactivate-form"]);
+	});
 });
 
 describe("parseAccountQuery", () => {

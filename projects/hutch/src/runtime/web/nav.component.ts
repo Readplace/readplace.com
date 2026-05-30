@@ -18,6 +18,24 @@ export interface NavProps {
 	trialCounter?: TrialDisplay;
 }
 
+function endsAtIsoFor(trial: TrialDisplay | undefined): string {
+	if (!trial) return "";
+	if (trial.state === "expired") return "";
+	return trial.endsAtIso;
+}
+
+function serverNowIsoFor(trial: TrialDisplay | undefined): string {
+	if (!trial) return "";
+	if (trial.state === "expired") return "";
+	return trial.serverNowIso;
+}
+
+function escalationClassFor(trial: TrialDisplay | undefined): string {
+	if (!trial) return "expired";
+	if (trial.state === "active") return trial.escalation;
+	return "expired";
+}
+
 export function Nav(props: NavProps): string {
 	const trial = props.trialCounter;
 	const navItems = buildNavItems({
@@ -29,10 +47,9 @@ export function Nav(props: NavProps): string {
 		trial: Boolean(trial),
 		trialDisplayText: trial ? formatTrialDisplay(trial) : "",
 		trialState: trial?.state ?? "",
-		trialEscalationClass:
-			trial?.state === "active" ? trial.escalation : "expired",
-		trialEndsAtIso: trial?.state === "active" ? trial.endsAtIso : "",
-		serverNowIso: trial?.state === "active" ? trial.serverNowIso : "",
+		trialEscalationClass: escalationClassFor(trial),
+		trialEndsAtIso: endsAtIsoFor(trial),
+		serverNowIso: serverNowIsoFor(trial),
 		navItems,
 		navVariant: props.isAuthenticated ? "authenticated" : "guest",
 	});

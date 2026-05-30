@@ -79,7 +79,7 @@ describe("Queue page banner state", () => {
 		expect(banner.classList.contains("queue-banner--inactive")).toBe(true);
 	});
 
-	it("treats a legacy pending_cancellation row as inactive (no flow in the redesigned chain produces this state)", async () => {
+	it("shows cancellation-scheduled banner with full access when pending_cancellation is before effectiveAt", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { subscriptionProviders } = harness;
 		const { agent, userId } = await loginUser(harness, "pending-cancel@example.com");
@@ -98,15 +98,35 @@ describe("Queue page banner state", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "queue banner must always be rendered");
+		expect(banner.classList.contains("queue-banner--cancellation-scheduled")).toBe(true);
+		const saveForm = doc.querySelector('[data-test-form="save-article"]');
+		assert(saveForm, "save form must be rendered with full access");
+		expect(saveForm.classList.contains("queue__save-form--disabled")).toBe(false);
+	});
+
+	it("flips banner to inactive and disables save after the cancellation window elapses", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "past-pending-cancel@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_pc_past",
+			customerId: "cus_pc_past",
+		});
+		const effectiveAt = new Date(Date.now() - ONE_DAY_MS).toISOString();
+		await subscriptionProviders.markPendingCancellation({
+			userId,
+			cancellationEffectiveAt: effectiveAt,
+		});
+
+		const response = await agent.get("/queue");
+		const doc = new JSDOM(response.text).window.document;
+		const banner = doc.querySelector("[data-test-subscription-banner]");
+		assert(banner, "queue banner must always be rendered");
 		expect(banner.classList.contains("queue-banner--inactive")).toBe(true);
-		/** Subscribe CTA lives on /account — /queue surfaces only the copy. */
 		expect(banner.textContent?.replace(/\s+/g, " ").trim()).toBe(
 			"Subscription not active. Your saved articles are still here.",
 		);
-		const countdown = doc.querySelector("[data-test-trial-countdown]");
-		assert(countdown, "header countdown must be rendered for inactive users");
-		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
-		expect(countdown.textContent).toBe("Subscription not active");
 	});
 
 	it("flips the header countdown to 'Subscription not active' for a cancelled user too, with the same wording as trial-expired", async () => {

@@ -74,6 +74,7 @@ function buildHarness(options: { adminEmails: readonly string[] }): RecrawlHarne
 			publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 			publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 		},
 		summary,
 		admin:{

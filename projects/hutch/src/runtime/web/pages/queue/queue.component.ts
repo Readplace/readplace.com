@@ -39,9 +39,11 @@ interface QueueDisplayModel {
 	totalPages: number;
 	subscriptionBannerStateClass: string;
 	subscriptionBannerIsTrialCountdown: boolean;
+	subscriptionBannerIsCancellationScheduled: boolean;
 	subscriptionBannerIsInactive: boolean;
 	trialDaysLeft?: number;
 	trialDaysLeftWord?: string;
+	cancellationEffectiveAt?: string;
 	accessIsReadOnly: boolean;
 	saveFormClass: string;
 }
@@ -99,9 +101,11 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		totalPages: vm.totalPages,
 		subscriptionBannerStateClass: `queue-banner--${banner.state}`,
 		subscriptionBannerIsTrialCountdown: banner.state === "trial-countdown",
+		subscriptionBannerIsCancellationScheduled: banner.state === "cancellation-scheduled",
 		subscriptionBannerIsInactive: banner.state === "inactive",
 		trialDaysLeft: banner.state === "trial-countdown" ? banner.daysLeft : undefined,
 		trialDaysLeftWord: banner.state === "trial-countdown" ? banner.daysLeftWord : undefined,
+		cancellationEffectiveAt: banner.state === "cancellation-scheduled" ? banner.cancellationEffectiveAt : undefined,
 		accessIsReadOnly: vm.accessIsReadOnly,
 		saveFormClass: vm.accessIsReadOnly ? "queue__save-form queue__save-form--disabled" : "queue__save-form",
 	};

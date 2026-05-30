@@ -61,6 +61,12 @@ export function initTrialCountdown(
 
 	let intervalId: number | undefined;
 	let expired = el.getAttribute("data-trial-state") === "expired";
+	/** The cancellation-scheduled banner is a static "Subscription ends on <date>"
+	 * label — the user inside their paid period or trial keeps full access until
+	 * the date arrives, after which a fresh server render flips them to
+	 * inactive/expired. No per-second tick is meaningful, so freeze ticking. */
+	const cancellationScheduled =
+		el.getAttribute("data-trial-state") === "cancellation-scheduled";
 
 	function tick(): void {
 		const skewedNow = new Date(deps.now() + skewMs);
@@ -95,6 +101,7 @@ export function initTrialCountdown(
 	function startInterval(): void {
 		if (intervalId !== undefined) return;
 		if (expired) return;
+		if (cancellationScheduled) return;
 		intervalId = deps.setIntervalFn(tick, TICK_INTERVAL_MS);
 	}
 
@@ -109,15 +116,19 @@ export function initTrialCountdown(
 			stopInterval();
 			return;
 		}
+		if (cancellationScheduled) return;
 		tick();
 		startInterval();
 	}
 
 	function attach(): void {
-		tick();
+		if (!cancellationScheduled) {
+			tick();
+		}
 		startInterval();
 		deps.document.addEventListener("visibilitychange", onVisibilityChange);
 		deps.addSwapListener(() => {
+			if (cancellationScheduled) return;
 			tick();
 		});
 	}

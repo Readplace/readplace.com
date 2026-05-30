@@ -6,6 +6,7 @@ import { HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, Hutch
 import {
 	CancelSubscriptionCommand,
 	ExportUserDataCommand,
+	SubscriptionCancellationScheduledEvent,
 	SubscriptionCancelledEvent,
 	SubscriptionChargeFailedEvent,
 	SubscriptionChargeSucceededEvent,
@@ -211,26 +212,6 @@ const trialSchedulerManagePolicyDoc = pulumi
 const trialSchedulerManagePolicy = {
 	name: "hutch-trial-scheduler-manage",
 	policy: trialSchedulerManagePolicyDoc,
-};
-
-const trialSchedulerDeletePolicyDoc = pulumi
-	.all([trialSchedulerGroup.arn])
-	.apply(([groupArn]) =>
-		JSON.stringify({
-			Version: "2012-10-17",
-			Statement: [
-				{
-					Effect: "Allow",
-					Action: ["scheduler:DeleteSchedule"],
-					Resource: `${groupArn.replace(":schedule-group/", ":schedule/")}*`,
-				},
-			],
-		}),
-	);
-
-const trialSchedulerDeletePolicy = {
-	name: "hutch-trial-scheduler-delete",
-	policy: trialSchedulerDeletePolicyDoc,
 };
 
 const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
@@ -474,11 +455,16 @@ eventBus.subscribe(SubscriptionCancelledEvent, handleSubscriptionCancelledWithSQ
 
 // --- Cancel Subscription Command ---
 // SQS-backed Lambda that reacts to CancelSubscriptionCommand (user-initiated
-// cancel from POST /account/cancel). Branches on the row's current status:
-//   - active           → calls Stripe subscriptions.cancel (immediate)
-//   - trialing         → publishes SubscriptionCancelledEvent directly
-//   - pending_cancel.  → publishes SubscriptionCancelledEvent (defensive)
-//   - cancelled        → noop
+// cancel from POST /account/cancel, or deferred-cancellation scheduler fallback).
+// Branches on the row's current status:
+//   - active               → Stripe PATCH cancel_at_period_end=true
+//                             + deferred-cancellation schedule (fires at period_end + 1h)
+//                             + SubscriptionCancellationScheduledEvent
+//   - trialing             → deletes trial-end schedule
+//                             + deferred-cancellation schedule (fires at trialEndsAt + 1h)
+//                             + SubscriptionCancellationScheduledEvent
+//   - pending_cancellation → publishes SubscriptionCancelledEvent (final conversion)
+//   - cancelled            → noop
 // Failed messages land in a DLQ with an email alarm so operators can redrive.
 
 const cancelSubscriptionDynamodb = new HutchDynamoDBAccess("cancel-subscription-dynamodb", {
@@ -503,11 +489,16 @@ const cancelSubscriptionLambda = new HutchLambda(LAMBDA_NAMES.cancelSubscription
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		STRIPE_SECRET_KEY: requireEnv("STRIPE_SECRET_KEY"),
 		EVENT_BUS_NAME: eventBus.eventBusName,
+		EVENT_BUS_ARN: eventBus.eventBusArn,
 		TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
+		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
 	},
 	policies: [
 		...cancelSubscriptionDynamodb.policies,
-		trialSchedulerDeletePolicy,
+		// Manage policy = create + delete. The active and trialing branches
+		// CreateSchedule for the deferred-cancellation timer; the trialing
+		// branch also DeleteSchedule on the trial-end schedule.
+		trialSchedulerManagePolicy,
 	],
 });
 
@@ -521,6 +512,59 @@ const cancelSubscriptionWithSQS = new HutchSQSBackedLambda("cancel-subscription"
 });
 
 eventBus.subscribe(CancelSubscriptionCommand, cancelSubscriptionWithSQS);
+
+// --- Handle Subscription Cancellation Scheduled ---
+// SQS-backed Lambda that reacts to SubscriptionCancellationScheduledEvent by
+// flipping the subscription_providers row to status='pending_cancellation'
+// and recording cancellationEffectiveAt. Failed messages land in a DLQ with
+// an email alarm so operators can redrive.
+
+const handleSubscriptionCancellationScheduledDynamodb = new HutchDynamoDBAccess(
+	"handle-subscription-cancellation-scheduled-dynamodb",
+	{
+		tables: [
+			{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
+		],
+		actions: ["dynamodb:UpdateItem"],
+	},
+);
+
+const handleSubscriptionCancellationScheduledQueue = new HutchSQS(
+	"handle-subscription-cancellation-scheduled",
+	{ visibilityTimeoutSeconds: 30 },
+);
+
+const handleSubscriptionCancellationScheduledLambda = new HutchLambda(
+	"handle-subscription-cancellation-scheduled",
+	{
+		entryPoint:
+			"./src/runtime/handle-subscription-cancellation-scheduled.main.ts",
+		outputDir: ".lib/handle-subscription-cancellation-scheduled",
+		assetDir: "./src/runtime",
+		memorySize: 128,
+		timeout: 30,
+		environment: {
+			PERSISTENCE: "prod",
+			DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
+		},
+		policies: [...handleSubscriptionCancellationScheduledDynamodb.policies],
+	},
+);
+
+const handleSubscriptionCancellationScheduledWithSQS = new HutchSQSBackedLambda(
+	"handle-subscription-cancellation-scheduled",
+	{
+		lambda: handleSubscriptionCancellationScheduledLambda,
+		queue: handleSubscriptionCancellationScheduledQueue,
+		alertEmailDLQEntry: alertEmail,
+		batchSize: 1,
+	},
+);
+
+eventBus.subscribe(
+	SubscriptionCancellationScheduledEvent,
+	handleSubscriptionCancellationScheduledWithSQS,
+);
 
 // --- Subscription Start Request (trial-end auto-charge) ---
 // SQS-backed Lambda invoked by the EventBridge Scheduler one-shot rule created

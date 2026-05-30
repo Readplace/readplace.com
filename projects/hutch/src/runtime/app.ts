@@ -54,9 +54,11 @@ import { initEventBridgeRefreshArticleContent, initPutRefreshHtml } from "@packa
 import { initEventBridgeUpdateFetchTimestamp } from "./providers/events/eventbridge-update-fetch-timestamp";
 import { initEventBridgeExportUserDataCommand } from "./providers/events/eventbridge-export-user-data-command";
 import { initEventBridgeCancelSubscriptionCommand } from "./providers/events/eventbridge-cancel-subscription-command";
+import { initEventBridgeSubscriptionReactivated } from "./providers/events/eventbridge-subscription-reactivated";
 import {
 	initInMemoryCancelSubscriptionCommand,
 	initInMemoryExportUserDataCommand,
+	initInMemorySubscriptionReactivated,
 } from "@packages/test-fixtures/providers/events";
 import { initInMemoryLinkSaved } from "@packages/test-fixtures/providers/events";
 import { initInMemoryRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
@@ -167,6 +169,7 @@ function initProviders() {
 		const { publishUpdateFetchTimestamp } = initEventBridgeUpdateFetchTimestamp({ publishEvent });
 		const { publishExportUserDataCommand } = initEventBridgeExportUserDataCommand({ publishEvent });
 		const { publishCancelSubscriptionCommand } = initEventBridgeCancelSubscriptionCommand({ publishEvent });
+		const { publishSubscriptionReactivated } = initEventBridgeSubscriptionReactivated({ publishEvent });
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
 		const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 		const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
@@ -231,6 +234,7 @@ function initProviders() {
 			subscriptionProviders,
 			trialScheduler,
 			createSubscriptionOnExistingCustomer: stripeSubscriptions.createSubscriptionOnExistingCustomer,
+			reverseScheduledCancellation: stripeSubscriptions.reverseScheduledCancellation,
 			stripePriceId,
 
 			...initResendEmail(resendApiKey),
@@ -249,6 +253,7 @@ function initProviders() {
 			publishUpdateFetchTimestamp,
 			publishExportUserDataCommand,
 			publishCancelSubscriptionCommand,
+			publishSubscriptionReactivated,
 			putPendingHtml,
 			findGeneratedSummary: summaryStore.findGeneratedSummary,
 			markSummaryPending: summaryStore.markSummaryPending,
@@ -356,6 +361,7 @@ function initProviders() {
 	const { publishSaveLinkRawHtmlCommand } = initInMemorySaveLinkRawHtmlCommand({ logger: consoleLogger });
 	const { publishExportUserDataCommand } = initInMemoryExportUserDataCommand({ logger: consoleLogger });
 	const { publishCancelSubscriptionCommand } = initInMemoryCancelSubscriptionCommand({ logger: consoleLogger });
+	const { publishSubscriptionReactivated } = initInMemorySubscriptionReactivated({ logger: consoleLogger });
 	const { putPendingHtml } = initInMemoryPendingHtml();
 	const { refreshArticleIfStale } = initRefreshArticleIfStale({
 		findArticleFreshness: articleStore.findArticleFreshness,
@@ -381,6 +387,7 @@ function initProviders() {
 		subscriptionProviders: devSubscriptionProviders,
 		trialScheduler: devTrialScheduler,
 		createSubscriptionOnExistingCustomer: devStripeSubscriptions.createSubscriptionOnExistingCustomer,
+		reverseScheduledCancellation: devStripeSubscriptions.reverseScheduledCancellation,
 		stripePriceId: "price_dev_default",
 
 		...initLogEmail(),
@@ -401,6 +408,7 @@ function initProviders() {
 		publishUpdateFetchTimestamp,
 		publishExportUserDataCommand,
 		publishCancelSubscriptionCommand,
+		publishSubscriptionReactivated,
 		putPendingHtml,
 		findGeneratedSummary: summaryStore.findGeneratedSummary,
 		markSummaryPending: summaryStore.markSummaryPending,

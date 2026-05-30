@@ -85,4 +85,37 @@ describe("initHandleCustomerSubscriptionDeleted", () => {
 			{ message: "EventBridge down" },
 		);
 	});
+
+	it("emits SubscriptionCancelledEvent for a row already in pending_cancellation — Stripe's customer.subscription.deleted is the happy-path convergence to cancelled", async () => {
+		const providers = initInMemorySubscriptionProviders({ now: () => new Date() });
+		await providers.upsertActive({
+			userId: UserIdSchema.parse("user-converge"),
+			subscriptionId: "sub_converge",
+			customerId: "cus_converge",
+		});
+		await providers.markPendingCancellation({
+			userId: UserIdSchema.parse("user-converge"),
+			cancellationEffectiveAt: "2026-06-22T10:00:00.000Z",
+		});
+		const published: Array<{ event: { source: string; detailType: string }; detail: unknown }> = [];
+		const handle = initHandleCustomerSubscriptionDeleted({
+			findSubscriptionBySubscriptionId: providers.findBySubscriptionId,
+			publishEvent: async (event, detail) => {
+				published.push({ event, detail });
+			},
+		});
+
+		await handle({
+			stripeEvent: buildStripeEvent("sub_converge"),
+			logger: HutchLogger.from(noopLogger),
+		});
+
+		assert.equal(published.length, 1);
+		assert.equal(published[0].event.detailType, SubscriptionCancelledEvent.detailType);
+		assert.deepStrictEqual(published[0].detail, {
+			userId: "user-converge",
+			subscriptionId: "sub_converge",
+			reason: "stripe_webhook",
+		});
+	});
 });

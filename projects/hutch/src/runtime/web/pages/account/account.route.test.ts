@@ -563,4 +563,260 @@ describe("POST /account/subscribe", () => {
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/login");
 	});
+
+	it("treats pending_cancellation as noop on /subscribe — the Reactivate route owns un-cancel, /subscribe must NOT create a second Stripe subscription", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders, stripeSubscriptions } = harness;
+		const { agent, userId } = await loginUser(harness, "pending-cancel-subscribe@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_pending_subscribe",
+			customerId: "cus_pending_subscribe",
+		});
+		await subscriptionProviders.markPendingCancellation({
+			userId,
+			cancellationEffectiveAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.post("/account/subscribe");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		// No NEW subscription created — the user still has the existing one
+		// with cancel-at-period-end set; Reactivate is the only un-cancel path.
+		expect(stripeSubscriptions.createdSubscriptions()).toHaveLength(0);
+	});
+});
+
+describe("GET /account (cancellation-scheduled state)", () => {
+	it("renders the cancellation-scheduled card with a Reactivate button (no Cancel — the user has already cancelled) and a status line that carries the cutoff date", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "scheduled-cancel-render@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_paid_scheduled",
+			customerId: "cus_paid_scheduled",
+		});
+		const cancellationEffectiveAt = new Date(Date.now() + 5 * ONE_DAY_MS).toISOString();
+		await subscriptionProviders.markPendingCancellation({
+			userId,
+			cancellationEffectiveAt,
+		});
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const card = findCard(doc);
+		expect(card.classList.contains("account-card--cancellation-scheduled")).toBe(true);
+		expect(card.getAttribute("data-test-account-state")).toBe("cancellation-scheduled");
+		const status = doc.querySelector("[data-test-account-status]")?.textContent ?? "";
+		expect(status).toContain("Your subscription ends on");
+
+		expect(actionKeys(doc)).toEqual(["reactivate-form"]);
+		const reactivate = findAction(doc, "reactivate-form");
+		expect(reactivate.tagName.toLowerCase()).toBe("form");
+		expect(reactivate.getAttribute("action")).toBe("/account/reactivate");
+	});
+
+	it("renders the cancellation-scheduled pill in the header (paid + trial) so the user sees the cutoff date globally", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "scheduled-cancel-nav@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_nav_scheduled",
+			customerId: "cus_nav_scheduled",
+		});
+		const cancellationEffectiveAt = new Date(Date.now() + 3 * ONE_DAY_MS).toISOString();
+		await subscriptionProviders.markPendingCancellation({
+			userId,
+			cancellationEffectiveAt,
+		});
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "header pill must render for cancellation-scheduled users");
+		expect(countdown.getAttribute("data-trial-state")).toBe("cancellation-scheduled");
+		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe(cancellationEffectiveAt);
+	});
+});
+
+describe("POST /account/reactivate", () => {
+	it("paid happy path — Stripe reverseScheduledCancellation called, deferred-cancellation schedule deleted, row flipped to active, SubscriptionReactivated emitted, 303 /account", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const reactivatedEvents: Array<{ userId: string; subscriptionId?: string }> = [];
+		fixture.events.publishSubscriptionReactivated = async (params) => {
+			reactivatedEvents.push(params);
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders, trialScheduler, stripeSubscriptions } = harness;
+		const { agent, userId } = await loginUser(harness, "reactivate-paid@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_to_reactivate",
+			customerId: "cus_to_reactivate",
+		});
+		await subscriptionProviders.markPendingCancellation({
+			userId,
+			cancellationEffectiveAt: new Date(Date.now() + 5 * ONE_DAY_MS).toISOString(),
+		});
+
+		const response = await agent.post("/account/reactivate");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		// Stripe was told to undo the scheduled cancel.
+		expect(stripeSubscriptions.reversedCancellations()).toEqual(["sub_to_reactivate"]);
+		// Deferred-cancellation schedule deleted so it doesn't fire later.
+		expect(trialScheduler.deferredCancellationDeleteCalls()).toEqual([userId]);
+		// Row back to active.
+		const row = await subscriptionProviders.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.status).toBe("active");
+		expect(row.subscriptionId).toBe("sub_to_reactivate");
+		expect(row.cancellationEffectiveAt).toBeUndefined();
+		// SubscriptionReactivated emitted with subscriptionId.
+		expect(reactivatedEvents).toEqual([
+			{ userId, subscriptionId: "sub_to_reactivate" },
+		]);
+	});
+
+	it("trial happy path — recreates trial-end schedule, deletes deferred-cancellation schedule, row flipped back to trialing with original trialEndsAt, SubscriptionReactivated emitted (no subscriptionId)", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const reactivatedEvents: Array<{ userId: string; subscriptionId?: string }> = [];
+		fixture.events.publishSubscriptionReactivated = async (params) => {
+			reactivatedEvents.push(params);
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders, trialScheduler, stripeSubscriptions } = harness;
+		const { agent, userId } = await loginUser(harness, "reactivate-trial@example.com");
+		const trialEndsAt = new Date(Date.now() + 5 * ONE_DAY_MS).toISOString();
+		await subscriptionProviders.upsertTrialing({ userId, trialEndsAt });
+		await subscriptionProviders.markPendingCancellation({
+			userId,
+			cancellationEffectiveAt: trialEndsAt,
+		});
+
+		const response = await agent.post("/account/reactivate");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		// No Stripe call for the trial path.
+		expect(stripeSubscriptions.reversedCancellations()).toEqual([]);
+		// Deferred-cancellation schedule deleted.
+		expect(trialScheduler.deferredCancellationDeleteCalls()).toEqual([userId]);
+		// Trial-end auto-charge schedule recreated.
+		expect(trialScheduler.getSchedule(userId)).toBe(trialEndsAt);
+		// Row back to trialing with original trialEndsAt.
+		const row = await subscriptionProviders.findByUserId(userId);
+		assert(row, "row must exist");
+		expect(row.status).toBe("trialing");
+		expect(row.trialEndsAt).toBe(trialEndsAt);
+		expect(row.subscriptionId).toBeUndefined();
+		// SubscriptionReactivated emitted without subscriptionId.
+		expect(reactivatedEvents).toEqual([{ userId }]);
+	});
+
+	it("noop for an already-active user (double-click race or stale form) — 303 /account, no Stripe call, no event, no schedule mutation", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const reactivatedEvents: unknown[] = [];
+		fixture.events.publishSubscriptionReactivated = async (params) => {
+			reactivatedEvents.push(params);
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders, trialScheduler, stripeSubscriptions } = harness;
+		const { agent, userId } = await loginUser(harness, "reactivate-already-active@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_already",
+			customerId: "cus_already",
+		});
+
+		const response = await agent.post("/account/reactivate");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		expect(stripeSubscriptions.reversedCancellations()).toEqual([]);
+		expect(trialScheduler.deferredCancellationDeleteCalls()).toEqual([]);
+		expect(reactivatedEvents).toEqual([]);
+	});
+
+	it("noop when no subscription row exists (founding member sending a stale form)", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.post("/account/reactivate");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+	});
+
+	it("Stripe reverseScheduledCancellation failure — 303 /account?error=payment_method, row stays pending_cancellation", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.stripeSubscriptions.reverseScheduledCancellation = async () => {
+			throw new Error("Stripe is down");
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "reactivate-stripe-down@example.com");
+		await subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_kaboom",
+			customerId: "cus_kaboom",
+		});
+		const cancellationEffectiveAt = new Date(Date.now() + 5 * ONE_DAY_MS).toISOString();
+		await subscriptionProviders.markPendingCancellation({
+			userId,
+			cancellationEffectiveAt,
+		});
+
+		const response = await agent.post("/account/reactivate");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=payment_method");
+		// Row stays pending_cancellation so the user can retry.
+		const row = await subscriptionProviders.findByUserId(userId);
+		assert(row, "row must still exist");
+		expect(row.status).toBe("pending_cancellation");
+		expect(row.cancellationEffectiveAt).toBe(cancellationEffectiveAt);
+	});
+
+	it("trial reactivate — schedule-create failure leaves the row pending_cancellation (the user can retry)", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const failingScheduler = fixture.trialScheduler.createTrialEndSchedule;
+		fixture.trialScheduler.createTrialEndSchedule = async () => {
+			void failingScheduler;
+			throw new Error("EventBridge Scheduler down");
+		};
+		const harness = useApp(fixture);
+		const { subscriptionProviders } = harness;
+		const { agent, userId } = await loginUser(harness, "reactivate-trial-scheduler-down@example.com");
+		const trialEndsAt = new Date(Date.now() + 5 * ONE_DAY_MS).toISOString();
+		await subscriptionProviders.upsertTrialing({ userId, trialEndsAt });
+		await subscriptionProviders.markPendingCancellation({
+			userId,
+			cancellationEffectiveAt: trialEndsAt,
+		});
+
+		const response = await agent.post("/account/reactivate");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=payment_method");
+		const row = await subscriptionProviders.findByUserId(userId);
+		assert(row, "row must still exist");
+		expect(row.status).toBe("pending_cancellation");
+		expect(row.trialEndsAt).toBe(trialEndsAt);
+	});
+
+	it("redirects unauthenticated POST /account/reactivate to /login", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).post("/account/reactivate");
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/login");
+	});
 });

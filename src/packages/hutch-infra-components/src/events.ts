@@ -411,12 +411,19 @@ export const SubscriptionCancelledEvent = defineEvent({
 export type SubscriptionCancelledDetail = z.infer<typeof SubscriptionCancelledEvent.detailSchema>;
 
 /** User-initiated cancel request. Published by `POST /account/cancel` and
- * consumed by the `cancel-subscription` Lambda which branches on the row's
- * current status — active paid users get Stripe DELETE plus a direct
- * `SubscriptionCancelledEvent`; trialing users emit
- * `SubscriptionCancelledEvent` directly with no Stripe call;
- * pending_cancellation users emit directly too. The Stripe webhook is
- * belt-and-suspenders, not load-bearing for the row update. */
+ * by the deferred-cancellation EventBridge Scheduler when the
+ * cancellation-effective-at instant arrives. Consumed by the
+ * `cancel-subscription` Lambda which branches on the row's current status:
+ *   - active     → Stripe PATCH cancel_at_period_end=true, create the
+ *                  deferred-cancellation schedule, emit
+ *                  `SubscriptionCancellationScheduledEvent`.
+ *   - trialing   → delete the trial-end charge schedule, create the
+ *                  deferred-cancellation schedule firing after trialEndsAt,
+ *                  emit `SubscriptionCancellationScheduledEvent`.
+ *   - pending_cancellation → final conversion. Emit
+ *                  `SubscriptionCancelledEvent`. Hit either by the deferred
+ *                  scheduler firing (paid + trial) or by a second user cancel.
+ *   - cancelled  → noop. */
 export const CancelSubscriptionCommand = defineEvent({
 	name: "cancel-subscription-command",
 	source: "hutch.subscriptions",
@@ -426,6 +433,49 @@ export const CancelSubscriptionCommand = defineEvent({
 	}),
 });
 export type CancelSubscriptionDetail = z.infer<typeof CancelSubscriptionCommand.detailSchema>;
+
+/** Irreversible fact: a cancel was scheduled for the user's
+ * cancellation-effective-at instant. Published by the `cancel-subscription`
+ * Lambda for the `active` and `trialing` branches; consumed by the
+ * `handle-subscription-cancellation-scheduled` Lambda which writes
+ * `status='pending_cancellation'` and `cancellationEffectiveAt` to the row.
+ *
+ * `subscriptionId` is present for paid (active) cancels and absent for trial
+ * cancels — the same trial-vs-paid discriminator the rest of the chain uses.
+ * `cancellationEffectiveAt` is the instant access flips from full to
+ * read-only: `current_period_end` for paid, `trialEndsAt` for trial. */
+export const SubscriptionCancellationScheduledEvent = defineEvent({
+	name: "subscription-cancellation-scheduled",
+	source: "hutch.subscriptions",
+	detailType: "SubscriptionCancellationScheduled",
+	detailSchema: z.object({
+		userId: z.string(),
+		subscriptionId: z.string().optional(),
+		cancellationEffectiveAt: z.string(),
+	}),
+});
+export type SubscriptionCancellationScheduledDetail = z.infer<
+	typeof SubscriptionCancellationScheduledEvent.detailSchema
+>;
+
+/** Irreversible fact: a user reactivated a scheduled cancellation inside the
+ * cancellation-effective-at window. Published by `POST /account/reactivate`
+ * after the synchronous Stripe PATCH (paid) or upsertTrialing (trial) has
+ * succeeded. No load-bearing handler today — the route does the row write
+ * itself — but the event is wired so future analytics / email-reminder
+ * handlers can subscribe without a schema change. */
+export const SubscriptionReactivatedEvent = defineEvent({
+	name: "subscription-reactivated",
+	source: "hutch.subscriptions",
+	detailType: "SubscriptionReactivated",
+	detailSchema: z.object({
+		userId: z.string(),
+		subscriptionId: z.string().optional(),
+	}),
+});
+export type SubscriptionReactivatedDetail = z.infer<
+	typeof SubscriptionReactivatedEvent.detailSchema
+>;
 
 /** Trial-end auto-conversion request. Published by the EventBridge Scheduler
  * one-shot rule created at trial signup (fires at `trialEndsAt`). Consumed by

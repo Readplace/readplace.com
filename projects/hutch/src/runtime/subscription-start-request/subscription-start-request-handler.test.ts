@@ -112,6 +112,30 @@ describe("subscription-start-request handler", () => {
 		assert.equal(subject.failedEvents.length, 0);
 	});
 
+	it("noops when row status is pending_cancellation — a trial-cancel reactivate that leaves a dangling trial-end schedule must NOT charge the user (status !== 'trialing' guard)", async () => {
+		const subject = buildSubject();
+		await subject.providers.upsertTrialing({
+			userId: USER_ID,
+			trialEndsAt: "2026-06-20T00:00:00.000Z",
+		});
+		await subject.providers.markPendingCancellation({
+			userId: USER_ID,
+			cancellationEffectiveAt: "2026-06-20T00:00:00.000Z",
+		});
+
+		const result = await subject.handler(
+			buildSqsEvent([{ messageId: "msg-pc", body: buildEventBridgeBody(USER_ID) }]),
+			{} as never,
+			() => {},
+		);
+
+		assert(result);
+		assert.equal(result.batchItemFailures.length, 0);
+		assert.equal(subject.succeededEvents.length, 0);
+		assert.equal(subject.failedEvents.length, 0);
+		assert.deepEqual(subject.stripe.createdSubscriptions(), []);
+	});
+
 	it("publishes SubscriptionChargeFailed(no_card_on_file) when trialing row has no customerId", async () => {
 		const subject = buildSubject();
 		await subject.providers.upsertTrialing({

@@ -6,7 +6,13 @@ import type { FindSubscriptionByUserId } from "@packages/test-fixtures/providers
 export type FullAccessTier =
 	| { tier: "founding"; access: "full"; banner: "none" }
 	| { tier: "paid"; access: "full"; banner: "none" }
-	| { tier: "trial"; access: "full"; banner: "trial-countdown"; trialEndsAt: string };
+	| { tier: "trial"; access: "full"; banner: "trial-countdown"; trialEndsAt: string }
+	| {
+			tier: "paid" | "trial";
+			access: "full";
+			banner: "cancellation-scheduled";
+			cancellationEffectiveAt: string;
+		};
 
 /** Read-only: the user can view + export but cannot save or use the extension.
  * The `reason` field is INTERNAL state. It must NOT leak into visible copy —
@@ -36,18 +42,26 @@ export function initGetEffectiveAccess(deps: {
 		switch (row.status) {
 			case "active":
 				return { tier: "paid", access: "full", banner: "none" };
-			/** Defensive branch. The redesigned cancel chain does not produce
-			 * `pending_cancellation` — paid cancels go straight to `cancelled`
-			 * via Stripe's immediate-cancel API. Any row that ends up in this
-			 * state (legacy data, manual seeding) is treated as inactive so
-			 * the user can subscribe back. */
-			case "pending_cancellation":
+			case "pending_cancellation": {
+				assert(
+					row.cancellationEffectiveAt,
+					"pending_cancellation row must have cancellationEffectiveAt",
+				);
+				if (deps.now() < new Date(row.cancellationEffectiveAt)) {
+					return {
+						tier: row.trialEndsAt ? "trial" : "paid",
+						access: "full",
+						banner: "cancellation-scheduled",
+						cancellationEffectiveAt: row.cancellationEffectiveAt,
+					};
+				}
 				return {
 					tier: "inactive",
 					access: "read-only",
 					banner: "inactive",
 					reason: "subscription-cancelled",
 				};
+			}
 			case "trialing": {
 				assert(row.trialEndsAt, "trialing row must have trialEndsAt");
 				if (deps.now() < new Date(row.trialEndsAt)) {

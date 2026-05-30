@@ -5,6 +5,7 @@ import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-inf
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe-subscriptions";
+import { initEventBridgeSubscriptionCancellationScheduled } from "./providers/events/eventbridge-subscription-cancellation-scheduled";
 import { initEventBridgeSubscriptionCancelled } from "./providers/events/eventbridge-subscription-cancelled";
 import { initAwsTrialScheduler } from "./providers/trial-scheduler/aws-trial-scheduler";
 import { initCancelSubscriptionHandler } from "./cancel-subscription/cancel-subscription-handler";
@@ -13,7 +14,9 @@ import { requireEnv } from "./domain/require-env";
 const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
 const stripeApiKey = requireEnv("STRIPE_SECRET_KEY");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
+const eventBusArn = requireEnv("EVENT_BUS_ARN");
 const trialSchedulerGroupName = requireEnv("TRIAL_SCHEDULER_GROUP_NAME");
+const trialSchedulerRoleArn = requireEnv("TRIAL_SCHEDULER_ROLE_ARN");
 
 const subscriptionProviders = initDynamoDbSubscriptionProviders({
 	client: createDynamoDocumentClient(),
@@ -31,18 +34,24 @@ const { publishEvent } = initEventBridgePublisher({
 	eventBusName,
 });
 
+const { publishSubscriptionCancellationScheduled } =
+	initEventBridgeSubscriptionCancellationScheduled({ publishEvent });
 const { publishSubscriptionCancelled } = initEventBridgeSubscriptionCancelled({ publishEvent });
 
 const trialScheduler = initAwsTrialScheduler({
 	client: new SchedulerClient({}),
 	scheduleGroupName: trialSchedulerGroupName,
+	schedulerRoleArn: trialSchedulerRoleArn,
+	eventBusArn,
 });
 
 export const handler = initCancelSubscriptionHandler({
 	findSubscriptionByUserId: subscriptionProviders.findByUserId,
-	cancelStripeSubscriptionImmediately: stripeSubscriptions.cancelImmediately,
-	publishSubscriptionCancelled,
+	scheduleCancellationAtPeriodEnd: stripeSubscriptions.scheduleCancellationAtPeriodEnd,
+	createDeferredCancellationSchedule: trialScheduler.createDeferredCancellationSchedule,
 	deleteTrialEndSchedule: trialScheduler.deleteTrialEndSchedule,
+	publishSubscriptionCancellationScheduled,
+	publishSubscriptionCancelled,
 	logger: HutchLogger.from(consoleLogger),
 });
 /* c8 ignore stop */

@@ -9,4 +9,13 @@ export type CreateTrialEndSchedule = (input: {
 export type DeleteTrialEndSchedule = (input: {
 	userId: UserId;
 }) => Promise<void>;
+
+export type CreateDeferredCancellationSchedule = (input: {
+	userId: UserId;
+	firesAt: string;
+}) => Promise<void>;
+
+export type DeleteDeferredCancellationSchedule = (input: {
+	userId: UserId;
+}) => Promise<void>;
 /* c8 ignore stop */
