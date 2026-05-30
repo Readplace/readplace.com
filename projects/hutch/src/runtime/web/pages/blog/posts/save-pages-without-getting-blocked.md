@@ -26,7 +26,7 @@ That meant two downloads of one page. It put double the load on the website, and
 
 ## Fetch once, then decide
 
-Last week I rebuilt the crawler around one rule. Fetch the page once, then work out what it is. The new crawler sends a single request and reads the whole body into memory one time. After that it checks the content type. HTML goes to the article parser. A PDF goes to the PDF reader. A link to X or Twitter skips the fetch and reads the post through Twitter's public oembed feed, a small endpoint that hands back the text.
+I rebuilt the crawler around one rule. Fetch the page once, then work out what it is. The new crawler sends a single request and reads the whole body into memory one time. After that it checks the content type. HTML goes to the article parser. A PDF goes to the PDF reader. A link to X or Twitter skips the fetch and reads the post through Twitter's public oembed feed, a small endpoint that hands back the text.
 
 One page, one request. That holds for articles, PDFs, and tweets alike.
 
@@ -41,7 +41,5 @@ Saving a page sounds simple. In day-to-day use it is the hard part of the produc
 ## Saving should just work
 
 Try it on the link your old app refused. Save a dense PDF, a tweet thread, a news page behind an edge guard. See if it lands in your reader, clean and readable.
-
-Readplace is free for the first {{foundingMemberLimit}} founding members. Full access, for as long as you hold the account. After that it costs $3.99/month.
 
 [Install the browser extension](https://readplace.com/install) or [view the source on GitHub](https://github.com/Readplace/readplace.com).
