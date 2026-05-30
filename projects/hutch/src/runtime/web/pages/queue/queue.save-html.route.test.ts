@@ -136,7 +136,7 @@ describe("POST /queue/save-html", () => {
 		expect(pendingHtml.readPendingHtml("https://example.com/article")).toBe("<html>captured</html>");
 	});
 
-	it("returns 500 when the underlying article save throws", async () => {
+	it("returns 500 when a downstream save dependency throws", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const errors: Error[] = [];
 
@@ -153,7 +153,10 @@ describe("POST /queue/save-html", () => {
 					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 			},
-			freshness: { refreshArticleIfStale: async () => { throw new Error("boom"); } },
+			pendingHtml: {
+				putPendingHtml: async () => { throw new Error("boom"); },
+				readPendingHtml: fixture.pendingHtml.readPendingHtml,
+			},
 			shared: {
 				validateSaveableUrl: fixture.shared.validateSaveableUrl,
 				appOrigin: fixture.shared.appOrigin,

@@ -277,15 +277,12 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			const batch = saveable.slice(i, i + IMPORT_COMMIT_CONCURRENCY);
 			await Promise.all(
 				batch.map((url) =>
-					deps
-						.refreshArticleIfStale({ url })
-						.then((freshness) => saveArticleFromUrl(deps, { userId, url, freshness }))
-						.catch((error: unknown) => {
-							deps.logError(
-								`Failed to import url=${url}`,
-								error instanceof Error ? error : undefined,
-							);
-						}),
+					saveArticleFromUrl(deps, { userId, url }).catch((error: unknown) => {
+						deps.logError(
+							`Failed to import url=${url}`,
+							error instanceof Error ? error : undefined,
+						);
+					}),
 				),
 			);
 		}

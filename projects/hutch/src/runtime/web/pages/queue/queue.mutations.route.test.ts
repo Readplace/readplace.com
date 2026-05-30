@@ -3,6 +3,7 @@ import { JSDOM } from "jsdom";
 import { MinutesSchema } from "@packages/domain/article";
 import { useTestServer, loginAgent } from "../../../test-app";
 import type { ArticleReadEvent } from "../../middleware/analytics";
+import type { PublishStaleCheckRequested } from "@packages/test-fixtures/providers/events";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -139,9 +140,13 @@ describe("Queue routes", () => {
 		});
 
 		it("should redirect with error code when save throws", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
-				...createDefaultTestAppFixture(TEST_APP_ORIGIN),
-				freshness: { refreshArticleIfStale: async () => { throw new Error("boom"); } },
+				...fixture,
+				articleStore: {
+					...fixture.articleStore,
+					findArticleByUrl: async () => { throw new Error("boom"); },
+				},
 			});
 			const { auth } = harness;
 			const agent = await loginAgent(harness.server, auth);
@@ -167,33 +172,26 @@ describe("Queue routes", () => {
 			expect(doc.querySelector("[data-test-save-error]")?.textContent).toBe("Could not save article. Please try again.");
 		});
 
-		it("does NOT re-prime via /queue/save when refreshArticleIfStale returns 'skip' for a previously-failed crawl (auto-heal removed; operator owns recovery)", async () => {
+		it("re-saving an already-cached article publishes StaleCheckRequested and not LinkSaved (the crawl is delegated to the stale-check Lambda)", async () => {
 			const publishedLinkSaved: { url: string; userId: string }[] = [];
+			const staleChecksRequested: Parameters<PublishStaleCheckRequested>[0][] = [];
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
 				events: {
+					...fixture.events,
 					publishLinkSaved: async (params) => { publishedLinkSaved.push(params); },
-					publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
-					publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
-					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
-					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
-					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
-					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishStaleCheckRequested: async (p) => { staleChecksRequested.push(p); },
 				},
-				freshness: { refreshArticleIfStale: async () => ({ action: "skip" }) },
 			});
-			const { auth, articleStore, articleCrawl } = harness;
+			const { auth, articleStore } = harness;
 			const agent = await loginAgent(harness.server, auth);
 			await articleStore.saveArticleGlobally({
 				url: "https://example.com/article",
-				metadata: { title: "Failed", siteName: "example.com", excerpt: "", wordCount: 0 },
+				metadata: { title: "Cached", siteName: "example.com", excerpt: "", wordCount: 0 },
 				estimatedReadTime: MinutesSchema.parse(0),
 				savedAt: new Date(),
 			});
-			await articleCrawl.markCrawlFailed({ url: "https://example.com/article", reason: "blocked" });
 
 			const response = await agent
 				.post("/queue/save")
@@ -201,6 +199,7 @@ describe("Queue routes", () => {
 				.send({ url: "https://example.com/article" });
 
 			expect(response.status).toBe(303);
+			expect(staleChecksRequested).toEqual([{ url: "https://example.com/article" }]);
 			expect(publishedLinkSaved).toHaveLength(0);
 		});
 

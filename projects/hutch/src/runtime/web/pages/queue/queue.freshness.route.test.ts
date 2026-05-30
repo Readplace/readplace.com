@@ -1,5 +1,4 @@
-import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
-import type { PublishRefreshArticleContent } from "@packages/test-fixtures/providers/events";
+import type { PublishStaleCheckRequested } from "@packages/test-fixtures/providers/events";
 import type { PublishUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
 import { useTestServer, loginAgent } from "../../../test-app";
 import {
@@ -10,54 +9,26 @@ import {
 const useApp = useTestServer();
 
 describe("Queue freshness integration", () => {
-	it("publishes UpdateFetchTimestampCommand on first save, then RefreshArticleContentCommand on re-save", async () => {
+	it("publishes UpdateFetchTimestamp on first save, then delegates a re-save to the stale-check Lambda with no inline crawl", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const refreshPublished: Parameters<PublishRefreshArticleContent>[0][] = [];
 		const timestampPublished: Parameters<PublishUpdateFetchTimestamp>[0][] = [];
-
-		const { refreshArticleIfStale } = initRefreshArticleIfStale({
-			findArticleFreshness: fixture.articleStore.findArticleFreshness,
-			findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
-			crawlArticle: async (params) => {
-				if (!params.etag && !params.lastModified) {
-					return {
-						status: "fetched",
-						html: "<html><head><title>Updated</title></head><body><article><p>New content</p></article></body></html>",
-						etag: '"fresh-etag"',
-					};
-				}
-				return { status: "not-modified" };
-			},
-			parseHtml: () => ({
-				ok: true as const,
-				article: {
-					title: "Updated Article",
-					siteName: "example.com",
-					excerpt: "New content",
-					wordCount: 100,
-					content: "<p>New content</p>",
-				},
-			}),
-			publishRefreshArticleContent: async (p) => { refreshPublished.push(p); },
-			publishUpdateFetchTimestamp: async (p) => { timestampPublished.push(p); },
-			now: () => new Date(),
-			staleTtlMs: 0,
-		});
+		const staleChecksRequested: Parameters<PublishStaleCheckRequested>[0][] = [];
+		let inlineCrawls = 0;
 
 		const harness = useApp({
 			...fixture,
-			events: {
-				publishLinkSaved: fixture.events.publishLinkSaved,
-				publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
-				publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
-				publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-				publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
-				publishUpdateFetchTimestamp: async (p) => { timestampPublished.push(p); },
-				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
-					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+			parser: {
+				parseArticle: fixture.parser.parseArticle,
+				crawlArticle: async (params) => {
+					inlineCrawls += 1;
+					return fixture.parser.crawlArticle(params);
+				},
 			},
-			freshness: { refreshArticleIfStale },
+			events: {
+				...fixture.events,
+				publishUpdateFetchTimestamp: async (p) => { timestampPublished.push(p); },
+				publishStaleCheckRequested: async (p) => { staleChecksRequested.push(p); },
+			},
 		});
 		const { auth } = harness;
 		const agent = await loginAgent(harness.server, auth);
@@ -72,26 +43,15 @@ describe("Queue freshness integration", () => {
 			url: "https://example.com/article",
 			contentFetchedAt: expect.any(String),
 		});
-		expect(refreshPublished).toHaveLength(0);
+		expect(staleChecksRequested).toHaveLength(0);
 
 		await agent
 			.post("/queue/save")
 			.type("form")
 			.send({ url: "https://example.com/article" });
 
-		expect(refreshPublished).toHaveLength(1);
-		expect(refreshPublished[0]).toEqual({
-			url: "https://example.com/article",
-			html: expect.any(String),
-			metadata: expect.objectContaining({
-				title: "Updated Article",
-				siteName: "example.com",
-				wordCount: 100,
-			}),
-			estimatedReadTime: expect.any(Number),
-			etag: '"fresh-etag"',
-			lastModified: undefined,
-			contentFetchedAt: expect.any(String),
-		});
+		expect(staleChecksRequested).toEqual([{ url: "https://example.com/article" }]);
+		expect(timestampPublished).toHaveLength(1);
+		expect(inlineCrawls).toBe(0);
 	});
 });

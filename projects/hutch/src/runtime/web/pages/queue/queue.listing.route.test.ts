@@ -12,8 +12,7 @@ import {
 	createNoopLogError,
 } from "@packages/test-fixtures";
 import { initReadabilityParser } from "@packages/article-parser";
-
-import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
+import { MinutesSchema } from "@packages/domain/article";
 
 const useApp = useTestServer();
 
@@ -183,13 +182,15 @@ describe("Queue routes", () => {
 		});
 
 		it("should not render URL link when siteName is empty", async () => {
-			const skipFreshness: RefreshArticleIfStale = async () => ({ action: "skip" });
-			const harness = useApp({
-				...createDefaultTestAppFixture(TEST_APP_ORIGIN),
-				freshness: { refreshArticleIfStale: skipFreshness },
-			});
-			const { auth } = harness;
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, articleStore } = harness;
 			const agent = await loginAgent(harness.server, auth);
+			await articleStore.saveArticleGlobally({
+				url: "https://example.com/existing",
+				metadata: { title: "", siteName: "", excerpt: "", wordCount: 0 },
+				estimatedReadTime: MinutesSchema.parse(0),
+				savedAt: new Date(),
+			});
 
 			await agent
 				.post("/queue/save")

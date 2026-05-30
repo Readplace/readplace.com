@@ -281,9 +281,10 @@ export function createQueueActions(
       execute: async (page) => {
         const cardsBefore = await page.locator('.queue-article').count()
 
-        // Re-save an already-saved URL so refreshArticleIfStale takes the
-        // handleFullFetch branch and publishes publishRefreshArticleContent.
-        // Pagination URLs point to the local server, so the fetch is deterministic.
+        // Re-save an already-saved URL: it routes through the existing-article
+        // branch, which delegates any content refresh to the stale-check Lambda
+        // rather than blocking the request. The assertion verifies the re-save
+        // does not duplicate the card.
         const input = page.locator('[data-test-form="save-article"] input[name="url"]')
         await input.fill(testData.paginationUrls[0])
         await clickAndWaitForPageReload(
