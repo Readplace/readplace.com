@@ -434,4 +434,69 @@ describe("initDynamoDbSubscriptionProviders", () => {
 			expect(command.input.ExpressionAttributeValues?.[":status"]).toBe("active");
 		});
 	});
+
+	describe("markTrialFeedbackEmailSent", () => {
+		it("issues a guarded Update that records trialFeedbackEmailSentAt and bumps updatedAt", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			await subs.markTrialFeedbackEmailSent({
+				userId: USER_ID,
+				sentAt: "2026-06-04T00:00:00.000Z",
+			});
+
+			const command = received as {
+				input: {
+					Key?: Record<string, unknown>;
+					UpdateExpression?: string;
+					ConditionExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.Key).toEqual({ userId: USER_ID });
+			expect(command.input.UpdateExpression).toContain(
+				"trialFeedbackEmailSentAt = :sentAt",
+			);
+			expect(command.input.UpdateExpression).toContain("updatedAt = :now");
+			expect(command.input.ConditionExpression).toContain("attribute_exists(userId)");
+			expect(command.input.ExpressionAttributeValues?.[":sentAt"]).toBe(
+				"2026-06-04T00:00:00.000Z",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":now"]).toBe(
+				"2026-05-22T10:00:00.000Z",
+			);
+		});
+	});
+
+	describe("findByUserId with trialFeedbackEmailSentAt", () => {
+		it("parses a cancelled trial row that carries trialFeedbackEmailSentAt", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					userId: USER_ID,
+					provider: "stripe",
+					status: "cancelled",
+					trialFeedbackEmailSentAt: "2026-06-04T00:00:00.000Z",
+					createdAt: "2026-05-20T10:00:00.000Z",
+					updatedAt: "2026-06-04T00:00:00.000Z",
+				},
+			}));
+			const subs = initDynamoDbSubscriptionProviders({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: NOW,
+			});
+
+			const row = await subs.findByUserId(USER_ID);
+			assert(row, "row must be returned");
+			expect(row.trialFeedbackEmailSentAt).toBe("2026-06-04T00:00:00.000Z");
+		});
+	});
 });
