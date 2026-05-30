@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Internet Reader</title>
+		<link rel="stylesheet" href="chrome.css" />
+	</head>
+	<body>
+		<header id="toolbar" class="toolbar">
+			<div class="toolbar__group">
+				<button id="back" class="toolbar__btn" type="button" title="Back" disabled>‹</button>
+				<button id="forward" class="toolbar__btn" type="button" title="Forward" disabled>›</button>
+				<button id="reload" class="toolbar__btn" type="button" title="Reload">⟳</button>
+			</div>
+			<form id="address-form" class="toolbar__address" autocomplete="off">
+				<input
+					id="address"
+					class="toolbar__input"
+					type="text"
+					placeholder="Enter a link to read…"
+					spellcheck="false"
+					autocomplete="off"
+					autocapitalize="off"
+				/>
+			</form>
+			<div class="toolbar__group">
+				<button id="toggle" class="toolbar__btn toolbar__toggle" type="button" title="View live page">🌐</button>
+			</div>
+			<div id="progress" class="toolbar__progress"></div>
+		</header>
+		<webview id="content" class="content" src="reader://start" allowpopups></webview>
+		<script src="chrome.client.js"></script>
+	</body>
+</html>

@@ -1,0 +1,33 @@
+{
+  "name": "browser-macos",
+  "version": "1.0.0",
+  "description": "Internet Reader — a macOS desktop browser that renders the open web in Readplace's clean reader view, self-contained and offline (no cloud backend).",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "main": "dist/src/shell/app.main.js",
+  "scripts": {
+    "compile": "rm -rf dist && tsc && node scripts/copy-static-assets.js",
+    "test": "jest --testMatch='**/dist/src/**/*.test.js'",
+    "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
+    "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\"",
+    "check": "pnpm lint && pnpm test-with-coverage",
+    "check-infra": "echo 'No infrastructure — desktop app'",
+    "start": "electron dist/src/shell/app.main.js",
+    "package": "node scripts/build-app-bundle.mjs && electron-packager app 'Internet Reader' --platform=darwin --arch=arm64 --out=dist-app --overwrite --electron-version=38.8.6 --app-bundle-id=com.readplace.internet-reader --app-category-type=public.app-category.news --icon=build/icon.icns"
+  },
+  "dependencies": {
+    "@packages/article-parser": "workspace:*",
+    "@packages/crawl-article": "workspace:*",
+    "@packages/hutch-logger": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/jest": "29.5.14",
+    "c8": "10.1.3",
+    "concurrently": "9.2.1",
+    "@electron/packager": "20.0.0",
+    "electron": "38.8.6",
+    "esbuild": "0.27.3",
+    "jest": "29.7.0",
+    "typescript": "5.9.3"
+  }
+}

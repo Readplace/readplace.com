@@ -1,0 +1,15 @@
+{
+  "name": "browser-macos",
+  "targets": {
+    "compile": { "dependsOn": ["^compile"] },
+    "lint": { "dependsOn": ["compile"] },
+    "test": { "dependsOn": ["compile"] },
+    "test-with-coverage": { "dependsOn": ["compile"] },
+    "check": {
+      "command": "pnpm lint && pnpm test-with-coverage",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["compile"]
+    },
+    "check-infra": {}
+  }
+}
