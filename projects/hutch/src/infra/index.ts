@@ -214,6 +214,11 @@ const trialSchedulerManagePolicy = {
 	policy: trialSchedulerManagePolicyDoc,
 };
 
+const cancelSubscriptionSchedulerManagePolicy = {
+	name: "hutch-cancel-subscription-scheduler-manage",
+	policy: trialSchedulerManagePolicyDoc,
+};
+
 const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/hutch-api",
@@ -498,7 +503,7 @@ const cancelSubscriptionLambda = new HutchLambda(LAMBDA_NAMES.cancelSubscription
 		// Manage policy = create + delete. The active and trialing branches
 		// CreateSchedule for the deferred-cancellation timer; the trialing
 		// branch also DeleteSchedule on the trial-end schedule.
-		trialSchedulerManagePolicy,
+		cancelSubscriptionSchedulerManagePolicy,
 	],
 });
 
