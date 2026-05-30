@@ -45,8 +45,14 @@ export function createSavePermalinkActions(
 			execute: async (page) => {
 				await clickAndWaitForPageReload(page, page.locator('[data-test-action="delete"]').first())
 
-				const empty = page.locator('[data-test-empty-queue]')
-				await expect(empty).toBeVisible()
+				// The delete propagates to the eventually-consistent queue GSI
+				// asynchronously, so the first post-redirect render can still list the
+				// article. Reload a fresh read until the empty-queue marker appears
+				// rather than asserting once against a possibly-stale render.
+				await expect(async () => {
+					await page.reload()
+					await expect(page.locator('[data-test-empty-queue]')).toBeVisible({ timeout: 2000 })
+				}).toPass({ timeout: 30000 })
 
 				progress.deletedPermalinkArticle = true
 			},
