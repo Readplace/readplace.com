@@ -8,9 +8,7 @@ import {
 
 import { initBlogPosts } from "./blog.posts";
 
-/** Initialised with the same limit as the default test fixture so post markdown
- * substitution matches what the running app produces. */
-const blogPosts = initBlogPosts({ foundingMemberLimit: 3 });
+const blogPosts = initBlogPosts();
 const firstPost = blogPosts.getAllPosts()[0];
 
 const useApp = useTestServer();

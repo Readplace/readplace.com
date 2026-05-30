@@ -4,7 +4,6 @@ import { join, basename } from "node:path";
 import { z } from "zod";
 import matter from "gray-matter";
 import MarkdownIt from "markdown-it";
-import { render } from "../../render";
 
 const md = new MarkdownIt({ html: true });
 
@@ -40,7 +39,7 @@ export interface BlogPosts {
 	getAllPostMetadata: () => { slug: string; date: string }[];
 }
 
-export function initBlogPosts(deps: { foundingMemberLimit: number }): BlogPosts {
+export function initBlogPosts(): BlogPosts {
 	const postsDir = join(__dirname, "posts");
 	const files = readdirSync(postsDir).filter((f) => f.endsWith(".md"));
 
@@ -56,13 +55,10 @@ export function initBlogPosts(deps: { foundingMemberLimit: number }): BlogPosts 
 				`Slug "${frontmatter.slug}" in ${file} does not match filename "${expectedSlug}"`,
 			);
 
-			const substituted = render(content, {
-				foundingMemberLimit: deps.foundingMemberLimit,
-			});
 			return {
 				...frontmatter,
-				htmlContent: md.render(substituted),
-				markdownContent: substituted,
+				htmlContent: md.render(content),
+				markdownContent: content,
 				formattedDate: formatDate(frontmatter.date),
 			};
 		})

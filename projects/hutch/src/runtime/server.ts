@@ -245,9 +245,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const { appOrigin, staticBaseUrl, getSessionUserId, countUsers, foundingAllocation, ...deps } = dependencies;
 	const app: Express = express();
 
-	const blogPosts = initBlogPosts({
-		foundingMemberLimit: foundingAllocation.foundingMemberLimit,
-	});
+	const blogPosts = initBlogPosts();
 
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());

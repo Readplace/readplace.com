@@ -87,7 +87,7 @@ $3.99/month. TL;DR summaries are included.
 
 Readwise Reader is a great choice for power users at $12.99/month. Readplace is simpler and cheaper. The product stays focused on saving and reading articles rather than building a full research platform.
 
-The first {{foundingMemberLimit}} founding members get full access free, forever. [Sign up here](https://readplace.com/signup).
+[Sign up here](https://readplace.com/signup).
 
 ## Common questions from Omnivore users
 
@@ -99,7 +99,7 @@ The team moved to ElevenLabs to work on text-to-speech, not reading tools. Omniv
 
 **Is there a free Omnivore alternative?**
 
-Readplace is free for the first {{foundingMemberLimit}} founding members. Full access, forever. After that, it costs $3.99/month. Self-hosted alternatives like Karakeep and Wallabag are free but require you to run your own server. Readwise Reader is the most feature-complete option at $12.99/month.
+Readplace costs $3.99/month. Self-hosted alternatives like Karakeep and Wallabag are free but require you to run your own server. Readwise Reader is the most feature-complete option at $12.99/month.
 
 **Can I import my Omnivore data into Readplace?**
 

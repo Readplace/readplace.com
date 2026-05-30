@@ -1,6 +1,6 @@
 import { initBlogPosts } from "./blog.posts";
 
-const blogPosts = initBlogPosts({ foundingMemberLimit: 3 });
+const blogPosts = initBlogPosts();
 
 describe("blog posts", () => {
 	const posts = blogPosts.getAllPosts();
@@ -54,14 +54,6 @@ describe("blog posts", () => {
 	it("should have unique slugs", () => {
 		const slugs = posts.map((p) => p.slug);
 		expect(new Set(slugs).size).toBe(slugs.length);
-	});
-
-	it("should substitute the injected foundingMemberLimit into markdown placeholders", () => {
-		const customLimit = 17;
-		const customBlogPosts = initBlogPosts({ foundingMemberLimit: customLimit });
-		const omnivore = customBlogPosts.findPostBySlug("omnivore-alternative");
-		expect(omnivore).toBeDefined();
-		expect(omnivore?.markdownContent).toContain(`The first ${customLimit} founding members`);
 	});
 });
 

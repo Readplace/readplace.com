@@ -11,7 +11,7 @@ import { initBlogPosts } from "../blog/blog.posts";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
-const blogPosts = initBlogPosts({ foundingMemberLimit: TEST_FOUNDING_MEMBER_LIMIT });
+const blogPosts = initBlogPosts();
 
 const useApp = useTestServer();
 

@@ -78,7 +78,7 @@ Self-hosting trades money for time and expertise. That's a legitimate choice. Ju
 
 I built Readplace after realising I needed a read-it-later app I could trust to still exist in ten years. The approach is simple. You pay for the product, and the product stays alive.
 
-Readplace is free for the first {{foundingMemberLimit}} founding members. After that, it's $3.99/month.
+Readplace costs $3.99/month.
 
 The price is the business model. There is no venture capital to run out, no acqui-hire that pulls the team onto someone else's priorities, and no ad network that needs your reading data. Subscriptions pay for servers and development. If the product is good enough that people keep paying, it keeps running.
 
@@ -93,6 +93,6 @@ That's not the right choice for every reader. If you want free and you're comfor
 | Karakeep | $0 + server + time | Full control, self-hosted | Your own maintenance burden |
 | Wallabag | $0 + server + time | Full control, self-hosted | Your own maintenance burden |
 | Browser bookmarks | $0 | Zero dependencies | No reader view, no offline, no organisation |
-| Readplace | Free (founding), then $3.99/mo | Hosted, maintained, no ads | Paying money for software |
+| Readplace | $3.99/mo | Hosted, maintained, no ads | Paying money for software |
 
 Pick the tradeoff you're comfortable with. Just make sure you know what it is.
