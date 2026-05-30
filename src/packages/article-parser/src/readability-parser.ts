@@ -8,6 +8,7 @@ import type {
 	SiteArticleContent,
 	SitePreParser,
 } from "./article-parser.types";
+import { replaceVideosWithPlaceholder } from "./replace-videos-with-placeholder";
 import { resolveRelativeUrls } from "./resolve-relative-urls";
 
 export function initReadabilityParser(deps: {
@@ -45,7 +46,19 @@ export function initReadabilityParser(deps: {
 		let parsed: ReturnType<Readability["parse"]>;
 		try {
 			normalizeImplicitBody(document);
-			parsed = new Readability(document).parse();
+			replaceVideosWithPlaceholder({
+				document,
+				originalUrl: params.url,
+				renderPlaceholder: renderVideoPlaceholder,
+			});
+			/* `reader-video-placeholder` joins Readability's default
+			 * `CLASSES_TO_PRESERVE` (concat'd internally) so the CSS hook
+			 * survives `_cleanClasses`; the <p> tag is also exempt from
+			 * `_cleanConditionally`, keeping the link-bearing callout from
+			 * being dropped for link density. */
+			parsed = new Readability(document, {
+				classesToPreserve: ["reader-video-placeholder"],
+			}).parse();
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			return { ok: false, reason: `Readability parse failed: ${message}` };
@@ -175,4 +188,23 @@ function escapeHtmlText(text: string): string {
 		.replace(/</g, "&lt;")
 		.replace(/>/g, "&gt;")
 		.replace(/"/g, "&quot;");
+}
+
+const VIDEO_PLACEHOLDER_LEAD = "Watch this video on ";
+const VIDEO_PLACEHOLDER_TRAILING = " →";
+
+function renderVideoPlaceholder(ctx: {
+	document: Document;
+	originalUrl: string;
+	hostname: string;
+}): Element {
+	const placeholder = ctx.document.createElement("p");
+	placeholder.setAttribute("class", "reader-video-placeholder");
+	placeholder.appendChild(ctx.document.createTextNode(VIDEO_PLACEHOLDER_LEAD));
+	const link = ctx.document.createElement("a");
+	link.setAttribute("href", ctx.originalUrl);
+	link.appendChild(ctx.document.createTextNode(ctx.hostname));
+	placeholder.appendChild(link);
+	placeholder.appendChild(ctx.document.createTextNode(VIDEO_PLACEHOLDER_TRAILING));
+	return placeholder;
 }
