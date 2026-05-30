@@ -220,19 +220,21 @@ const cancelSubscriptionSchedulerManagePolicy = {
 };
 
 // --- Reader Streaming Lambda (SSE Function URL) ---
-// Synchronous request/response Lambda fronted by a Function URL (not API
-// Gateway) because API Gateway HTTP API does NOT support response streaming —
-// `serverless-http` buffers the whole response. We need true SSE so the
-// `/view` page can show partial-content snapshots as the worker crawls.
+// Why: this is a NEW exception to "every Lambda must be backed by a queue
+// with DLQ" beyond the documented API-Gateway-fronted hutch handler. The
+// reason for using a Function URL instead of API Gateway is that
+// API Gateway HTTP API does NOT support response streaming — its
+// `serverless-http` integration buffers the entire response — and we need
+// true SSE so the `/view` page can show partial-content snapshots as the
+// worker crawls.
 //
-// Why: this is the only exception to "every Lambda must be backed by a
-// queue with DLQ" — it's a synchronous request/response Lambda, analogous
-// to the existing main HTTP Lambda fronted by API Gateway. A failure
-// surfaces to the client as a closed EventSource and the parent-side
-// reader-stream.client.ts retries / falls through to the always-armed
-// HTMX poll path. No async work in flight that could be lost; therefore
-// no SQS/DLQ needed. Same allowed-exception spirit the API-Gateway-fronted
-// hutch Lambda exercises a few lines below.
+// This Lambda is still synchronous request/response: a failure surfaces
+// to the client as a closed EventSource, and the parent-side
+// reader-stream.client.ts retries with exponential backoff before falling
+// through to the always-armed HTMX `every 3s` poll path on the reader-slot
+// wrapper. No async work in flight that could be lost — therefore no
+// SQS/DLQ needed. CloudWatch alarms on the Lambda's error metric remain
+// the operator-paging surface.
 //
 // IAM scope: read-only on the articles + sessions tables. No publish, no
 // write, no S3.

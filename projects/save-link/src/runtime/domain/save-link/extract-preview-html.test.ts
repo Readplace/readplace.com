@@ -44,9 +44,9 @@ describe("extractPreviewHtml", () => {
 				</body>
 			</html>
 		`;
-		const result = extractPreviewHtml(html);
-		expect(result).toContain("<p>Three.</p>");
-		expect(result).not.toContain("<p>Four.</p>");
+		expect(extractPreviewHtml(html)).toBe(
+			"<h1>T</h1><p>One.</p><p>Two.</p><p>Three.</p>",
+		);
 	});
 
 	it("stops accumulating paragraphs after ~500 chars to keep the preview small", () => {
@@ -56,13 +56,13 @@ describe("extractPreviewHtml", () => {
 				<head><title>T</title></head>
 				<body>
 					<p>${longParagraph}</p>
-					<p>This second paragraph should not appear in the preview.</p>
+					<p>second paragraph after the cap.</p>
 				</body>
 			</html>
 		`;
-		const result = extractPreviewHtml(html);
-		expect(result).toContain("Lorem ipsum");
-		expect(result).not.toContain("should not appear");
+		expect(extractPreviewHtml(html)).toBe(
+			`<h1>T</h1><p>${longParagraph.trim()}</p>`,
+		);
 	});
 
 	it("skips empty paragraphs", () => {

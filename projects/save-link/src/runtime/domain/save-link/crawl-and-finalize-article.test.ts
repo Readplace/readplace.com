@@ -152,4 +152,97 @@ describe("initCrawlAndFinalizeArticle", () => {
 			lastModified: "Wed, 01 Apr 2026 00:00:00 GMT",
 		});
 	});
+
+	it("forwards onPartialHtml to crawlArticle so the PDF extractor can stream Tesseract pages", async () => {
+		const partials: Array<{ html: string; readyPageCount: number }> = [];
+		const crawlArticle = jest.fn<Promise<CrawlArticleResult>, Parameters<CrawlArticle>>(async ({ onPartialHtml }) => {
+			if (onPartialHtml) onPartialHtml({ html: "<p>page 1</p>", readyPageCount: 1 });
+			return { status: "fetched", html: "<html><head><title>T</title></head><body><p>HTML body</p></body></html>" };
+		});
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle,
+			finalizeArticle: okFinalize,
+		});
+
+		await crawlAndFinalize({
+			url: URL_UNDER_TEST,
+			onPartialHtml: (p) => { partials.push(p); },
+		});
+
+		// PDF Tesseract emission survived the threading.
+		expect(partials.some((p) => p.html === "<p>page 1</p>" && p.readyPageCount === 1)).toBe(true);
+	});
+
+	it("fires onPartialHtml with a preview snapshot (title + first paragraphs) after a successful HTML crawl", async () => {
+		const partials: Array<{ html: string; readyPageCount: number }> = [];
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({
+				status: "fetched",
+				html: "<html><head><title>The Title</title></head><body><p>First paragraph.</p><p>Second paragraph.</p></body></html>",
+			}),
+			finalizeArticle: okFinalize,
+		});
+
+		await crawlAndFinalize({
+			url: URL_UNDER_TEST,
+			onPartialHtml: (p) => { partials.push(p); },
+		});
+
+		expect(partials[0].html).toBe("<h1>The Title</h1><p>First paragraph.</p><p>Second paragraph.</p>");
+		expect(partials[0].readyPageCount).toBe(1);
+	});
+
+	it("fires onPartialHtml a second time with the finalized article html so the streaming reader shows the polished body before the S3 PUT", async () => {
+		const partials: Array<{ html: string; readyPageCount: number }> = [];
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({
+				status: "fetched",
+				html: "<html><body><p>raw</p></body></html>",
+			}),
+			finalizeArticle: okFinalize,
+		});
+
+		await crawlAndFinalize({
+			url: URL_UNDER_TEST,
+			onPartialHtml: (p) => { partials.push(p); },
+		});
+
+		const last = partials[partials.length - 1];
+		expect(last.html).toBe(stubFinalizedArticle.html);
+		expect(last.readyPageCount).toBe(1);
+	});
+
+	it("does not fire onPartialHtml with an empty preview snapshot (no title, no paragraphs)", async () => {
+		const partials: Array<{ html: string; readyPageCount: number }> = [];
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({
+				status: "fetched",
+				html: "<html><body><div>no usable text</div></body></html>",
+			}),
+			finalizeArticle: okFinalize,
+		});
+
+		await crawlAndFinalize({
+			url: URL_UNDER_TEST,
+			onPartialHtml: (p) => { partials.push(p); },
+		});
+
+		// Only the finalized snapshot fires; the empty preview is dropped.
+		expect(partials).toHaveLength(1);
+		expect(partials[0].html).toBe(stubFinalizedArticle.html);
+	});
+
+	it("works when onPartialHtml is omitted (callers that don't want streaming pay no cost)", async () => {
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({
+				status: "fetched",
+				html: "<html><head><title>T</title></head><body><p>body</p></body></html>",
+			}),
+			finalizeArticle: okFinalize,
+		});
+
+		const result = await crawlAndFinalize({ url: URL_UNDER_TEST });
+
+		expect(result.status).toBe("fetched");
+	});
 });
