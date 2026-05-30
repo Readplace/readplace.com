@@ -1,5 +1,3 @@
-export const FOUNDING_MEMBER_LIMIT = 50;
-
 export interface FoundingAllocation {
 	foundingMemberLimit: number;
 	isFoundingAllocationExhausted: (userCount: number) => boolean;

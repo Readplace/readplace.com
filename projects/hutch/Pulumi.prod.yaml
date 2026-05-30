@@ -32,6 +32,7 @@ config:
   hutch:userExportBucketName: hutch-user-exports-prod
   hutch:alertEmail: readplace+devops@readplace.com
   hutch:expiryCountdown: disabled
+  hutch:foundingMemberLimit: '50'
   hutch:excludedVisitorHashes: [
     b4248a499303636a,
     cae1bf1ec4181321,

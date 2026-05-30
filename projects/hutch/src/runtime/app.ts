@@ -86,10 +86,7 @@ import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
 import type { AnalyticsEvent } from "./web/middleware/analytics";
 import { httpErrorMessageMapping } from "./web/pages/queue/queue.error";
-import {
-	FOUNDING_MEMBER_LIMIT,
-	initFoundingAllocation,
-} from "./web/shared/founding-progress/founding-allocation";
+import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { getEnv, requireEnv } from "./domain/require-env";
 
 /**
@@ -434,6 +431,11 @@ export function createHutchApp(deps?: {
 	const appOrigin = deps?.appOrigin ?? requireEnv("APP_ORIGIN", { defaultValue: `http://localhost:${getEnv("PORT") || "3000"}` });
 	const staticBaseUrl = requireEnv("STATIC_BASE_URL");
 	const expiryCountdown = requireEnv<"enabled" | "disabled">("EXPIRY_COUNTDOWN");
+	const foundingMemberLimit = Number.parseInt(requireEnv("FOUNDING_MEMBER_LIMIT"), 10);
+	assert(
+		Number.isInteger(foundingMemberLimit) && foundingMemberLimit > 0,
+		"FOUNDING_MEMBER_LIMIT must be a positive integer",
+	);
 	const adminEmails = parseAdminEmails(requireEnv("ADMIN_EMAILS"));
 	const recrawlServiceToken = requireEnv("RECRAWL_SERVICE_TOKEN");
 	const salt = requireEnv("ANALYTICS_SALT");
@@ -467,9 +469,7 @@ export function createHutchApp(deps?: {
 		conversionLogger: HutchLogger.fromJSON<ConversionEvent>(),
 		analytics: analyticsLogger,
 		salt,
-		foundingAllocation: initFoundingAllocation({
-			foundingMemberLimit: FOUNDING_MEMBER_LIMIT,
-		}),
+		foundingAllocation: initFoundingAllocation({ foundingMemberLimit }),
 		expiryCountdown,
 	});
 
