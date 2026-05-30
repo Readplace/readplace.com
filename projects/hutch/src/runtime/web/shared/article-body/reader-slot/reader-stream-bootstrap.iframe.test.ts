@@ -30,6 +30,22 @@ describe("sanitizeChunkInto", () => {
 		expect(parent.textContent).toContain("safe");
 	});
 
+	it("strips inline on* event-handler attributes from all elements", () => {
+		const document = setupIframeDom();
+		const parent = document.createElement("div");
+		sanitizeChunkInto(
+			parent,
+			'<img src="x" onerror="alert(1)"><p onclick="steal()" onmouseover="track()">safe text</p>',
+		);
+		const allElements = parent.querySelectorAll("*");
+		for (const el of Array.from(allElements)) {
+			const onAttrs = el.getAttributeNames().filter((n) => /^on/i.test(n));
+			expect(onAttrs).toEqual([]);
+		}
+		expect(parent.textContent).toContain("safe text");
+		expect(parent.querySelector("img")).toBeTruthy();
+	});
+
 	it("strips <iframe>, <object>, <embed>, <style> in the same pass", () => {
 		const document = setupIframeDom();
 		const parent = document.createElement("div");

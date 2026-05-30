@@ -17,8 +17,9 @@
  *   - Posts `{ type: "readplace-ready" }` to `window.parent` on load so the
  *     parent only opens its EventSource once the listener is mounted.
  *   - Strips `<script>` / `<style>` / `<iframe>` / `<object>` / `<embed>`
- *     from every incoming chunk before insertion as a defence-in-depth pass
- *     (the partial content has already been sanitised upstream).
+ *     and inline `on*` event-handler attributes from every incoming chunk
+ *     before insertion as a defence-in-depth pass (the partial content has
+ *     already been sanitised upstream).
  */
 
 interface BootstrapWindow {
@@ -91,6 +92,13 @@ export function sanitizeChunkInto(parent: HTMLElement, html: string): void {
 		// just-set innerHTML is always defined (the node lives inside parent).
 		assert(p, "node returned by querySelectorAll must have a parent");
 		p.removeChild(node);
+	}
+	const allElements = parent.querySelectorAll("*");
+	for (let i = 0; i < allElements.length; i++) {
+		const el = allElements[i];
+		for (const name of el.getAttributeNames()) {
+			if (/^on/i.test(name)) el.removeAttribute(name);
+		}
 	}
 }
 
