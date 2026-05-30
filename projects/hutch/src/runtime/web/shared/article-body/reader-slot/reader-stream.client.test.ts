@@ -345,6 +345,55 @@ describe("initReaderStream", () => {
 		expect(harness.eventSources).toHaveLength(1);
 	});
 
+	it("handles a server reconnect event without consuming the retry budget", () => {
+		const harness = setupHarness(STREAMING_SLOT_HTML);
+		initReaderStream(harness.deps);
+		const es1 = harness.eventSources[0];
+
+		es1.dispatch("reconnect", "100");
+
+		expect(es1.closed).toBe(true);
+		expect(harness.eventSources).toHaveLength(2);
+		expect(harness.eventSources[1].url).toContain("from=100");
+
+		// A subsequent real error still has full retry budget.
+		harness.eventSources[1].dispatch("error");
+		expect(harness.setTimeoutFns).toHaveLength(1);
+		harness.setTimeoutFns[0].fn();
+		expect(harness.eventSources).toHaveLength(3);
+	});
+
+	it("survives 5 consecutive reconnects exceeding MAX_RETRIES without surrendering", () => {
+		const harness = setupHarness(STREAMING_SLOT_HTML);
+		initReaderStream(harness.deps);
+
+		for (let i = 0; i < 5; i++) {
+			const es = harness.eventSources[harness.eventSources.length - 1];
+			es.dispatch("reconnect", String(100 + i * 50));
+		}
+
+		expect(harness.eventSources).toHaveLength(6);
+		const lastEs = harness.eventSources[5];
+		expect(lastEs.closed).toBe(false);
+		expect(lastEs.url).toContain("from=300");
+	});
+
+	it("does not double-count when reconnect and error fire on the same EventSource", () => {
+		const harness = setupHarness(STREAMING_SLOT_HTML);
+		initReaderStream(harness.deps);
+		const es1 = harness.eventSources[0];
+
+		es1.dispatch("reconnect", "100");
+		es1.dispatch("error");
+
+		expect(harness.eventSources).toHaveLength(2);
+		expect(harness.setTimeoutFns).toHaveLength(0);
+
+		// Retry budget intact — a real error on the new connection still retries.
+		harness.eventSources[1].dispatch("error");
+		expect(harness.setTimeoutFns).toHaveLength(1);
+	});
+
 	it("ignores readplace-ready messages whose source is not the streaming iframe (cross-frame poisoning defence)", () => {
 		const harness = setupHarness(STREAMING_SLOT_HTML, { autoReadyIframe: false });
 		initReaderStream(harness.deps);

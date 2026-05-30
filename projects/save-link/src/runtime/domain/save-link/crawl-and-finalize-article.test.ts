@@ -192,26 +192,6 @@ describe("initCrawlAndFinalizeArticle", () => {
 		expect(partials[0].readyPageCount).toBe(1);
 	});
 
-	it("fires onPartialHtml a second time with the finalized article html so the streaming reader shows the polished body before the S3 PUT", async () => {
-		const partials: Array<{ html: string; readyPageCount: number }> = [];
-		const crawlAndFinalize = initCrawlAndFinalizeArticle({
-			crawlArticle: async () => ({
-				status: "fetched",
-				html: "<html><body><p>raw</p></body></html>",
-			}),
-			finalizeArticle: okFinalize,
-		});
-
-		await crawlAndFinalize({
-			url: URL_UNDER_TEST,
-			onPartialHtml: (p) => { partials.push(p); },
-		});
-
-		const last = partials[partials.length - 1];
-		expect(last.html).toBe(stubFinalizedArticle.html);
-		expect(last.readyPageCount).toBe(1);
-	});
-
 	it("does not fire onPartialHtml with an empty preview snapshot (no title, no paragraphs)", async () => {
 		const partials: Array<{ html: string; readyPageCount: number }> = [];
 		const crawlAndFinalize = initCrawlAndFinalizeArticle({
@@ -227,9 +207,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 			onPartialHtml: (p) => { partials.push(p); },
 		});
 
-		// Only the finalized snapshot fires; the empty preview is dropped.
-		expect(partials).toHaveLength(1);
-		expect(partials[0].html).toBe(stubFinalizedArticle.html);
+		expect(partials).toHaveLength(0);
 	});
 
 	it("works when onPartialHtml is omitted (callers that don't want streaming pay no cost)", async () => {

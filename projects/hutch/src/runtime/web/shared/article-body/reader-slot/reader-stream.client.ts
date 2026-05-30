@@ -127,20 +127,22 @@ function openSession(deps: ReaderStreamDeps, slot: Element): boolean {
 		es.addEventListener("done", () => {
 			terminated = true;
 			es.close();
-			// Canonical reload swaps the streaming iframe for the reader-ready
-			// canonical iframe in one atomic transition. The page renders the
-			// polished final HTML; the in-progress reveal animation is irrelevant
-			// past this point.
 			deps.reload();
+		});
+		let cleanReconnect = false;
+		es.addEventListener("reconnect", (event) => {
+			cleanReconnect = true;
+			es.close();
+			const cursor = Number((event as MessageEvent).data);
+			if (Number.isFinite(cursor) && cursor > from) from = cursor;
+			open();
 		});
 		es.addEventListener("error", () => {
 			es.close();
 			if (terminated) return;
+			if (cleanReconnect) return;
 			retries += 1;
 			if (retries > MAX_RETRIES) {
-				// Surrender to the HTMX poll path — it stays armed via
-				// `hx-trigger="every 3s"` on the slot wrapper and will
-				// progress to terminal via the standard chain.
 				terminated = true;
 				return;
 			}

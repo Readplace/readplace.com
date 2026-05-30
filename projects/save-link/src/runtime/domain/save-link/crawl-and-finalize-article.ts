@@ -17,9 +17,8 @@ export type CrawlAndFinalizeArticle = (params: {
 	url: string;
 	etag?: string;
 	lastModified?: string;
-	/* Streaming hook. Fired three times on a successful HTML crawl: once with
-	 * the preview HTML (title + first paragraphs) extracted from the raw fetch,
-	 * once with the finalized article HTML after media rewrites, and (PDF only)
+	/* Streaming hook. Fired once on a successful HTML crawl (preview HTML:
+	 * title + first paragraphs extracted from the raw fetch) and (PDF only)
 	 * by the extractor itself each time Tesseract's in-order ready prefix
 	 * advances. The orchestrator routes each invocation to `markCrawlPartial`
 	 * so the reader-slot's streaming variant can display content progressively
@@ -77,13 +76,6 @@ export function initCrawlAndFinalizeArticle(deps: {
 			preFetchedThumbnail: crawlResult.thumbnailImage,
 		});
 		if (!finalized.ok) return { status: "failed", reason: finalized.reason };
-
-		/* Full post-Readability HTML snapshot — shipped before the tier-source
-		 * write so the streaming reader sees the polished body the moment it
-		 * exists, not after the S3 PUT round-trip. */
-		if (params.onPartialHtml) {
-			params.onPartialHtml({ html: finalized.article.html, readyPageCount: 1 });
-		}
 
 		return {
 			status: "fetched",
