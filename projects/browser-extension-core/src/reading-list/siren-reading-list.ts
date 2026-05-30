@@ -343,35 +343,24 @@ export function initSavePdfUnderstanding(): Map<string, ActionHandler> {
 	return handlers;
 }
 
-export function initSaveContentUnderstanding(): Map<string, ActionHandler> {
+export type ContentBodyBuilder = (input: Record<string, string>) => { blob: Blob; filename: string };
+
+export function initSaveContentUnderstanding(deps: {
+	parsers: Record<string, ContentBodyBuilder>;
+}): Map<string, ActionHandler> {
 	const handlers = new Map<string, ActionHandler>();
 	handlers.set("save-content", (sirenAction, context) => {
-		return async (fields) => {
-			assert(fields?.url, "save-content requires a url field");
-			assert(fields?.mediaType, "save-content requires a mediaType field");
+		return async (input) => {
+			assert(input?.url, "save-content requires a url field");
+			assert(input?.mediaType, "save-content requires a mediaType field");
+			const parser = deps.parsers[input.mediaType];
+			assert(parser, `No parser registered for media type: ${input.mediaType}`);
 			const formData = new FormData();
-			formData.append("url", fields.url);
-			formData.append("mediaType", fields.mediaType);
-			if (fields.title) formData.append("title", fields.title);
-			if (fields.contentBase64) {
-				const binaryString = atob(fields.contentBase64);
-				const bytes = new Uint8Array(binaryString.length);
-				for (let i = 0; i < binaryString.length; i += 1) {
-					bytes[i] = binaryString.charCodeAt(i);
-				}
-				formData.append(
-					"content",
-					new Blob([bytes], { type: fields.mediaType }),
-					"content",
-				);
-			} else {
-				assert(fields.rawHtml, "save-content requires either contentBase64 or rawHtml");
-				formData.append(
-					"content",
-					new Blob([fields.rawHtml], { type: "text/html" }),
-					"content.html",
-				);
-			}
+			formData.append("url", input.url);
+			formData.append("mediaType", input.mediaType);
+			if (input.title) formData.append("title", input.title);
+			const { blob, filename } = parser(input);
+			formData.append("content", blob, filename);
 			const response = await context.doFetch(
 				`${context.serverUrl}${sirenAction.href}`,
 				{
@@ -394,8 +383,8 @@ export function initSaveContentUnderstanding(): Map<string, ActionHandler> {
 				}
 				const fallbackAction = errorActions[0];
 				console.warn(errorParsed.data.properties.message);
-				const fallbackBody: Record<string, string> = { url: fields.url };
-				if (fields.title) fallbackBody.title = fields.title;
+				const fallbackBody: Record<string, string> = { url: input.url };
+				if (input.title) fallbackBody.title = input.title;
 				const fallbackContentType = fallbackAction.type === undefined
 					? "application/json"
 					: fallbackAction.type;
@@ -662,7 +651,23 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		initSaveArticleUnderstanding(),
 		initSaveHtmlUnderstanding(),
 		initSavePdfUnderstanding(),
-		initSaveContentUnderstanding(),
+		initSaveContentUnderstanding({
+			parsers: {
+				"application/pdf": (input) => {
+					assert(input.contentBase64, "PDF content requires contentBase64 field");
+					const binaryString = atob(input.contentBase64);
+					const bytes = new Uint8Array(binaryString.length);
+					for (let i = 0; i < binaryString.length; i += 1) {
+						bytes[i] = binaryString.charCodeAt(i);
+					}
+					return { blob: new Blob([bytes], { type: "application/pdf" }), filename: "content" };
+				},
+				"text/html": (input) => {
+					assert(input.rawHtml, "HTML content requires rawHtml field");
+					return { blob: new Blob([input.rawHtml], { type: "text/html" }), filename: "content.html" };
+				},
+			},
+		}),
 		initDeleteArticleUnderstanding(),
 		httpCacheable(initListArticlesUnderstanding()),
 	);

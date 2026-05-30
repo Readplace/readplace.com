@@ -1666,7 +1666,23 @@ describe("save-content action", () => {
 	function createUnderstandingsWithSaveContent() {
 		return groupOf(
 			initSaveArticleUnderstanding(),
-			initSaveContentUnderstanding(),
+			initSaveContentUnderstanding({
+				parsers: {
+					"application/pdf": (input) => {
+						assert(input.contentBase64, "PDF content requires contentBase64 field");
+						const binaryString = atob(input.contentBase64);
+						const bytes = new Uint8Array(binaryString.length);
+						for (let i = 0; i < binaryString.length; i += 1) {
+							bytes[i] = binaryString.charCodeAt(i);
+						}
+						return { blob: new Blob([bytes], { type: "application/pdf" }), filename: "content" };
+					},
+					"text/html": (input) => {
+						assert(input.rawHtml, "HTML content requires rawHtml field");
+						return { blob: new Blob([input.rawHtml], { type: "text/html" }), filename: "content.html" };
+					},
+				},
+			}),
 			initDeleteArticleUnderstanding(),
 			httpCacheable(initListArticlesUnderstanding()),
 		);

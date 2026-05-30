@@ -175,8 +175,42 @@ async function loadCrawls(
 	}));
 }
 
+type SaveContentResult =
+	| { ok: true }
+	| { ok: false; code: string; message: string };
+
+type SaveContentMediaHandler = (params: {
+	url: string;
+	bytes: Buffer;
+	title?: string;
+	userId: string;
+}) => Promise<SaveContentResult>;
+
+function normalizeMediaType(raw: string): string {
+	const base = raw.split(";")[0].trim();
+	if (isPDF({ contentType: base })) return "application/pdf";
+	return base;
+}
+
 export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
+
+	const saveContentHandlers: Record<string, SaveContentMediaHandler> = {
+		"application/pdf": async ({ url, bytes, userId }) => {
+			if (!isPDF({ bodyBytes: bytes })) {
+				return { ok: false, code: "not-a-pdf", message: "Uploaded bytes do not look like a PDF (missing %PDF- magic header)" };
+			}
+			await deps.putPendingPdf({ url, bytes });
+			await deps.publishSaveLinkRawPdfCommand({ url, userId });
+			return { ok: true };
+		},
+		"text/html": async ({ url, bytes, title, userId }) => {
+			const html = bytes.toString("utf8");
+			await deps.putPendingHtml({ url, html });
+			await deps.publishSaveLinkRawHtmlCommand({ url, userId, title });
+			return { ok: true };
+		},
+	};
 	const reader = initArticleReader({
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
 		findGeneratedSummary: deps.findGeneratedSummary,
@@ -705,30 +739,26 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 			try {
 				const articleUrl = validation.url;
-				const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
-
-				if (isPDF({ contentType: mediaType })) {
-					if (!isPDF({ bodyBytes: contentBytes })) {
-						res.status(422).type(SIREN_MEDIA_TYPE).json(
-							sirenError({
-								code: "not-a-pdf",
-								message: "Uploaded bytes do not look like a PDF (missing %PDF- magic header)",
-								actions: [buildFallbackAction()],
-							}),
-						);
-						return;
-					}
-					await deps.putPendingPdf({ url: articleUrl, bytes: contentBytes });
-					await deps.publishSaveLinkRawPdfCommand({ url: articleUrl, userId });
-				} else if (mediaType === "text/html" || mediaType.startsWith("text/html;")) {
-					const html = contentBytes.toString("utf8");
-					await deps.putPendingHtml({ url: articleUrl, html });
-					await deps.publishSaveLinkRawHtmlCommand({ url: articleUrl, userId, title });
-				} else {
+				const normalized = normalizeMediaType(mediaType);
+				const handler = saveContentHandlers[normalized];
+				if (!handler) {
 					res.status(422).type(SIREN_MEDIA_TYPE).json(
 						sirenError({
 							code: "unsupported-media-type",
 							message: `Unsupported media type: ${mediaType}`,
+							actions: [buildFallbackAction()],
+						}),
+					);
+					return;
+				}
+
+				const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
+				const handlerResult = await handler({ url: articleUrl, bytes: contentBytes, title, userId });
+				if (!handlerResult.ok) {
+					res.status(422).type(SIREN_MEDIA_TYPE).json(
+						sirenError({
+							code: handlerResult.code,
+							message: handlerResult.message,
 							actions: [buildFallbackAction()],
 						}),
 					);
