@@ -30,8 +30,8 @@ config:
   hutch:contentBucketName: hutch-article-content-prod
   hutch:pendingHtmlBucketName: hutch-pending-html-prod
   hutch:userExportBucketName: hutch-user-exports-prod
-  hutch:alertEmail: readplace+devops@readplace.com
   hutch:readerStreamCorsOrigin: https://readplace.com
+  hutch:alertEmail: readplace+devops@readplace.com
   hutch:expiryCountdown: disabled
   hutch:excludedVisitorHashes: [
     b4248a499303636a,

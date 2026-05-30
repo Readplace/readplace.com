@@ -36,6 +36,7 @@ const contentBucketName = config.require("contentBucketName");
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
 const userExportBucketName = config.require("userExportBucketName");
 const alertEmail = config.require("alertEmail");
+const readerStreamCorsOrigin = config.get("readerStreamCorsOrigin");
 const tableNames = {
 	articles: config.require("dynamodbArticlesTable"),
 	userArticles: config.require("dynamodbUserArticlesTable"),
@@ -54,7 +55,6 @@ const storage = new HutchStorage("hutch", {
 	tableNames,
 });
 
-const readerStreamCorsOrigin = config.get("readerStreamCorsOrigin");
 const redirectDomains = config.getObject<string[]>("redirectDomains") ?? [];
 
 /**
@@ -220,34 +220,30 @@ const cancelSubscriptionSchedulerManagePolicy = {
 	policy: trialSchedulerManagePolicyDoc,
 };
 
-// --- Reader Streaming Lambda (SSE Function URL) ---
-// Why: this is a NEW exception to "every Lambda must be backed by a queue
-// with DLQ" beyond the documented API-Gateway-fronted hutch handler. The
-// reason for using a Function URL instead of API Gateway is that
-// API Gateway HTTP API does NOT support response streaming — its
-// `serverless-http` integration buffers the entire response — and we need
-// true SSE so the `/view` page can show partial-content snapshots as the
-// worker crawls.
-//
-// This Lambda is still synchronous request/response: a failure surfaces
-// to the client as a closed EventSource, and the parent-side
-// reader-stream.client.ts retries with exponential backoff before falling
-// through to the always-armed HTMX `every 3s` poll path on the reader-slot
-// wrapper. No async work in flight that could be lost — therefore no
-// SQS/DLQ needed. CloudWatch alarms on the Lambda's error metric remain
-// the operator-paging surface.
-//
-// IAM scope: read-only on the articles + sessions tables. No publish, no
-// write, no S3.
-//
-// Gated on `readerStreamCorsOrigin` config. Stacks without it skip
-// provisioning — app.ts treats missing READER_STREAM_BASE_URL as
-// 'streaming disabled' and falls back to the dots loader.
-
 let readerStreamBaseUrl: pulumi.Output<string> | undefined;
-let readerStreamFunctionUrlRaw: pulumi.Output<string> | undefined;
+let readerStreamRawUrl: pulumi.Output<string> | undefined;
 
 if (readerStreamCorsOrigin) {
+	// --- Reader Streaming Lambda (SSE Function URL) ---
+	// Why: this is a NEW exception to "every Lambda must be backed by a queue
+	// with DLQ" beyond the documented API-Gateway-fronted hutch handler. The
+	// reason for using a Function URL instead of API Gateway is that
+	// API Gateway HTTP API does NOT support response streaming — its
+	// `serverless-http` integration buffers the entire response — and we need
+	// true SSE so the `/view` page can show partial-content snapshots as the
+	// worker crawls.
+	//
+	// This Lambda is still synchronous request/response: a failure surfaces
+	// to the client as a closed EventSource, and the parent-side
+	// reader-stream.client.ts retries with exponential backoff before falling
+	// through to the always-armed HTMX `every 3s` poll path on the reader-slot
+	// wrapper. No async work in flight that could be lost — therefore no
+	// SQS/DLQ needed. CloudWatch alarms on the Lambda's error metric remain
+	// the operator-paging surface.
+	//
+	// IAM scope: read-only on the articles + sessions tables. No publish, no
+	// write, no S3.
+
 	const readerStreamDynamodb = new HutchDynamoDBAccess(
 		"reader-stream-dynamodb",
 		{
@@ -301,6 +297,8 @@ if (readerStreamCorsOrigin) {
 	);
 
 	// DNS: `stream.<canonicalDomain>` CNAME → Function URL hostname.
+	// Skipped when no canonical domain is configured. Without a CNAME
+	// the client still works against the raw Function URL host.
 	if (canonicalDomain) {
 		const lastRegistration = allDomainRegistrations[allDomainRegistrations.length - 1];
 		if (lastRegistration.zoneId) {
@@ -316,10 +314,10 @@ if (readerStreamCorsOrigin) {
 		}
 	}
 
+	readerStreamRawUrl = readerStreamFunctionUrl.functionUrl;
 	readerStreamBaseUrl = canonicalDomain
 		? pulumi.interpolate`https://stream.${canonicalDomain}`
 		: readerStreamFunctionUrl.functionUrl.apply((url) => url.replace(/\/$/, ""));
-	readerStreamFunctionUrlRaw = readerStreamFunctionUrl.functionUrl;
 }
 
 const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
@@ -864,6 +862,6 @@ export const staticBaseUrl = staticAssets.baseUrl;
 export const exportUserDataQueueUrl = exportUserDataQueue.queueUrl;
 export const exportUserDataDlqUrl = exportUserDataQueue.dlqUrl;
 export const userExportBucketOutputName = userExportBucket.bucket;
-export { readerStreamFunctionUrlRaw };
-export { readerStreamBaseUrl as readerStreamCanonicalUrl };
+export const readerStreamFunctionUrlRaw = readerStreamRawUrl;
+export const readerStreamCanonicalUrl = readerStreamBaseUrl;
 export const _dependencies = [gateway.defaultRoute];
