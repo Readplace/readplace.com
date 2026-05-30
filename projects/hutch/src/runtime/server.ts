@@ -247,6 +247,14 @@ export function createApp(dependencies: AppDependencies): Express {
 	const { appOrigin, staticBaseUrl, getSessionUserId, countUsers, foundingAllocation, ...deps } = dependencies;
 	const app: Express = express();
 
+	app.use((req: Request, res: Response, next: NextFunction) => {
+		if (req.headers.host === "hutch-app.com") {
+			res.redirect(301, `${appOrigin}${req.originalUrl}`);
+			return;
+		}
+		next();
+	});
+
 	const blogPosts = initBlogPosts();
 
 	app.use(express.urlencoded({ extended: true }));
@@ -499,13 +507,6 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 
 	const blogRouter = initBlogRoutes({ blogPosts, buildBannerState });
-	app.use("/blog", (req: Request, res: Response, next: NextFunction) => {
-		if (req.headers.host === "hutch-app.com") {
-			res.redirect(301, `${appOrigin}${req.originalUrl}`);
-			return;
-		}
-		next();
-	});
 	app.use("/blog", blogRouter);
 	app.use("/embed", initEmbedRoutes({ appOrigin }));
 

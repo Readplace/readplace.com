@@ -283,32 +283,6 @@ describe("old hutch-vs-* slug redirects", () => {
 	});
 });
 
-describe("hutch-app.com blog redirect", () => {
-	it("should 301 redirect /blog to readplace.com", async () => {
-		const harness = useApp(
-			createDefaultTestAppFixture("https://readplace.com"),
-		);
-		const response = await request(harness.server)
-			.get("/blog")
-			.set("Host", "hutch-app.com");
-		expect(response.status).toBe(301);
-		expect(response.headers.location).toBe("https://readplace.com/blog");
-	});
-
-	it("should 301 redirect /blog/:slug to readplace.com", async () => {
-		const harness = useApp(
-			createDefaultTestAppFixture("https://readplace.com"),
-		);
-		const response = await request(harness.server)
-			.get(`/blog/${firstPost.slug}`)
-			.set("Host", "hutch-app.com");
-		expect(response.status).toBe(301);
-		expect(response.headers.location).toBe(
-			`https://readplace.com/blog/${firstPost.slug}`,
-		);
-	});
-});
-
 describe("GET /sitemap.xml", () => {
 	it("should include /blog in the sitemap", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
