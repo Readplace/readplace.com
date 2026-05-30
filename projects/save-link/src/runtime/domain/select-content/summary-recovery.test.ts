@@ -140,6 +140,7 @@ describe("summary recovery on canonical content change", () => {
 			findArticleContent,
 			loadArticle: store.load,
 			transitionAndPersist,
+			now: () => FIXED_NOW,
 			logger: noopLogger,
 		});
 		canonicalContentChangedHandler = initCanonicalContentChangedHandler({

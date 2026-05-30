@@ -5,6 +5,7 @@ import {
 	CrawlArticleCompletedEvent,
 	CrawlArticleFailedEvent,
 	LinkSavedEvent,
+	ReaderViewLoadingSucceeded,
 	RecrawlCompletedEvent,
 	SubmitLinkCommand,
 	SummaryGeneratedEvent,
@@ -328,6 +329,30 @@ describe("initLambdaEffectDispatcher", () => {
 			url: "https://example.com/article",
 			reason: "exceeded SQS maxReceiveCount",
 			receiveCount: 4,
+		});
+		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
+	});
+
+	it("publishes a ReaderViewLoadingSucceeded for a publish-reader-view-loading-succeeded effect, carrying url/succeededAt/hasSummary in detail", async () => {
+		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const { dispatchEffect } = initLambdaEffectDispatcher({
+			dispatchGenerateSummary,
+			publishEvent,
+		});
+
+		await dispatchEffect({
+			kind: "publish-reader-view-loading-succeeded",
+			url: "https://example.com/article",
+			succeededAt: "2026-05-30T12:00:00.000Z",
+			hasSummary: true,
+		});
+
+		expect(publishEvent).toHaveBeenCalledWith(ReaderViewLoadingSucceeded, {
+			url: "https://example.com/article",
+			succeededAt: "2026-05-30T12:00:00.000Z",
+			hasSummary: true,
 		});
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
 	});

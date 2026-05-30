@@ -9,6 +9,7 @@ import {
 import { z } from "zod";
 import { UserIdSchema, userIdPrefixFrom } from "@packages/domain/user";
 import type {
+	ClaimReaderReadyEmailSlot,
 	CountUsers,
 	CreateGoogleUser,
 	CreateSession,
@@ -18,6 +19,7 @@ import type {
 	ExistsUserByIdPrefix,
 	FindEmailByUserId,
 	FindUserByEmail,
+	FindUserContactByUserId,
 	GetSessionUserId,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
@@ -37,6 +39,9 @@ const UserRow = z.object({
 	registeredAt: dynamoField(z.string()),
 	/* Optional so reads of pre-backfill rows don't throw; new writes always set it. */
 	userIdPrefix: dynamoField(z.string()),
+	/* Most-recent reader-ready email instant; absent until the first such email.
+	 * Backs the atomic 6h per-user cooldown claim. */
+	lastReaderReadyEmailAt: dynamoField(z.string()),
 });
 
 const SessionRow = z.object({
@@ -66,6 +71,8 @@ export function initDynamoDbAuth(deps: {
 	existsUserByIdPrefix: ExistsUserByIdPrefix;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
+	findUserContactByUserId: FindUserContactByUserId;
+	claimReaderReadyEmailSlot: ClaimReaderReadyEmailSlot;
 } {
 	const users = defineDynamoTable({
 		client: deps.client,
@@ -246,6 +253,46 @@ export function initDynamoDbAuth(deps: {
 		return row ? row.email : null;
 	};
 
+	const findUserContactByUserId: FindUserContactByUserId = async (userId) => {
+		const { items } = await users.query({
+			IndexName: "userId-index",
+			KeyConditionExpression: "userId = :userId",
+			ExpressionAttributeValues: { ":userId": userId },
+			Limit: 1,
+		});
+		const row = items[0];
+		if (!row) return null;
+		return { email: row.email, emailVerified: row.emailVerified === true };
+	};
+
+	const claimReaderReadyEmailSlot: ClaimReaderReadyEmailSlot = async ({ userId, now, cooldownMs }) => {
+		const { items } = await users.query({
+			IndexName: "userId-index",
+			KeyConditionExpression: "userId = :userId",
+			ExpressionAttributeValues: { ":userId": userId },
+			Limit: 1,
+		});
+		const row = items[0];
+		if (!row) return false;
+		const cutoff = new Date(now.getTime() - cooldownMs).toISOString();
+		try {
+			await users.update({
+				Key: { email: row.email },
+				UpdateExpression: "SET lastReaderReadyEmailAt = :now",
+				ConditionExpression:
+					"attribute_not_exists(lastReaderReadyEmailAt) OR lastReaderReadyEmailAt < :cutoff",
+				ExpressionAttributeValues: {
+					":now": now.toISOString(),
+					":cutoff": cutoff,
+				},
+			});
+			return true;
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return false;
+			throw error;
+		}
+	};
+
 	const existsUserByIdPrefix: ExistsUserByIdPrefix = async (prefix) => {
 		// Select: COUNT because the GSI is KEYS_ONLY: returned items would lack
 		// `userId` and fail UserRow parsing in defineDynamoTable.query.
@@ -285,6 +332,8 @@ export function initDynamoDbAuth(deps: {
 		existsUserByIdPrefix,
 		updatePassword,
 		findEmailByUserId,
+		findUserContactByUserId,
+		claimReaderReadyEmailSlot,
 	};
 }
 /* c8 ignore stop */

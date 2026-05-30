@@ -7,6 +7,11 @@ export interface MarkSummaryReadyInput {
 	excerpt: string;
 	inputTokens: number;
 	outputTokens: number;
+	/** Persist-moment timestamp, threaded from the caller's clock (see the
+	 * submit-link.ts `input.now` precedent), carried as `succeededAt` on the
+	 * reader-view-loading-succeeded effect. Captured here so it is always ≤ any
+	 * later poll's viewedAt. */
+	now: string;
 	/** Optional: hash of the canonical readable text the summary was generated
 	 * against. Recorded on the ready summary so a future caller can detect
 	 * "content unchanged since last summary" and skip regeneration. */
@@ -44,6 +49,12 @@ export function markSummaryReady(
 			url: article.url,
 			inputTokens: input.inputTokens,
 			outputTokens: input.outputTokens,
+		},
+		{
+			kind: "publish-reader-view-loading-succeeded",
+			url: article.url,
+			succeededAt: input.now,
+			hasSummary: true,
 		},
 	];
 	const writes: readonly AggregateField[] = ["summary", "summaryAutoHeal"];

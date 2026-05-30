@@ -6,6 +6,7 @@ import {
 	CrawlArticleFailedEvent,
 	type GenerateSummaryCommand,
 	LinkSavedEvent,
+	ReaderViewLoadingSucceeded,
 	RecrawlCompletedEvent,
 	SubmitLinkCommand,
 	SummaryGeneratedEvent,
@@ -81,6 +82,13 @@ export function initLambdaEffectDispatcher(deps: {
 					url: effect.url,
 					reason: effect.reason,
 					receiveCount: effect.receiveCount,
+				});
+				return;
+			case "publish-reader-view-loading-succeeded":
+				await publishEvent(ReaderViewLoadingSucceeded, {
+					url: effect.url,
+					succeededAt: effect.succeededAt,
+					hasSummary: effect.hasSummary,
 				});
 				return;
 			default: {

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your reader view is ready</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:{{colors.background}};font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:{{colors.background}};padding:40px 20px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background-color:{{colors.surface}};border-radius:8px;padding:40px;">
+            <tr>
+              <td>
+                <h1 style="margin:0 0 16px;font-size:24px;color:{{colors.heading}};">Your reader view is ready</h1>
+                <p style="margin:0 0 8px;font-size:16px;line-height:1.6;color:{{colors.body}};">The clean reader view you opened is done — content extracted and summarised, ready to read in peace:</p>
+                <p style="margin:0 0 24px;font-size:18px;line-height:1.4;color:{{colors.heading}};font-weight:600;">{{title}}</p>
+                <p style="margin:0 0 24px;font-size:14px;line-height:1.6;color:{{colors.muted}};">{{siteName}}</p>
+                <table role="presentation" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="border-radius:6px;background-color:{{colors.brand}};">
+                      <a href="{{readerUrl}}" style="display:inline-block;padding:12px 24px;font-size:16px;color:{{colors.brandText}};text-decoration:none;border-radius:6px;">Read it now</a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:{{colors.muted}};">You're getting this because you opened this article in Readplace before it finished loading.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

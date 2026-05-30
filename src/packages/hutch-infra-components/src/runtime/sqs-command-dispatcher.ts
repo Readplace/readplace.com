@@ -12,8 +12,14 @@ export function initSqsCommandDispatcher<C extends HutchCommand<z.ZodTypeAny>>(d
 	sqsClient: Pick<SQSClient, "send">;
 	queueUrl: string;
 	command: C;
+	/** Optional per-message delivery delay (0–900s, the SQS maximum). Passed
+	 * straight through to `SendMessageCommand.DelaySeconds`; `undefined`
+	 * serialises identically to omitting it, so existing callers are
+	 * unaffected. Used by the reader-ready fan-out (300s) so a present user's
+	 * final in-reader poll lands before the notify gate runs. */
+	delaySeconds?: number;
 }): { dispatch: DispatchCommand<C> } {
-	const { sqsClient, queueUrl, command } = deps;
+	const { sqsClient, queueUrl, command, delaySeconds } = deps;
 
 	const dispatch: DispatchCommand<C> = async (detail) => {
 		const validated = command.detailSchema.parse(detail);
@@ -21,6 +27,7 @@ export function initSqsCommandDispatcher<C extends HutchCommand<z.ZodTypeAny>>(d
 			new SendMessageCommand({
 				QueueUrl: queueUrl,
 				MessageBody: JSON.stringify({ detail: validated }),
+				DelaySeconds: delaySeconds,
 			}),
 		);
 	};
