@@ -27,6 +27,7 @@ describe("initStripeSubscriptions", () => {
 			assert.equal(receivedInit?.method, "DELETE");
 			const headers = receivedInit?.headers as Record<string, string>;
 			assert.equal(headers?.Authorization, "Bearer sk_test_abc");
+			assert.equal(headers?.["Stripe-Version"], "2026-04-22.dahlia");
 		});
 
 		it("URL-encodes the subscription id so unusual characters reach Stripe intact", async () => {
@@ -170,16 +171,20 @@ describe("initStripeSubscriptions", () => {
 	});
 
 	describe("scheduleCancellationAtPeriodEnd", () => {
-		it("issues POST /v1/subscriptions/<id> with cancel_at_period_end=true and parses current_period_end into an ISO string", async () => {
+		it("issues POST /v1/subscriptions/<id> with cancel_at_period_end=true and parses cancel_at into an ISO string", async () => {
 			let receivedUrl: string | undefined;
 			let receivedInit: RequestInit | undefined;
+			// Real post-Basil shape: current_period_end now lives on the line item,
+			// cancel_at carries the effective cancellation instant at the top level.
 			// 2026-06-22T10:00:00.000Z = 1782122400 seconds since epoch
 			const fakeFetch: typeof globalThis.fetch = async (input, init) => {
 				receivedUrl = typeof input === "string" ? input : input.toString();
 				receivedInit = init;
 				return jsonResponse(200, {
 					id: "sub_paid",
-					current_period_end: 1782122400,
+					cancel_at: 1782122400,
+					cancel_at_period_end: true,
+					items: { data: [{ current_period_end: 1782122400 }] },
 				});
 			};
 
@@ -194,6 +199,7 @@ describe("initStripeSubscriptions", () => {
 			assert.equal(receivedInit?.method, "POST");
 			const headers = receivedInit?.headers as Record<string, string>;
 			assert.equal(headers?.Authorization, "Bearer sk_test_abc");
+			assert.equal(headers?.["Stripe-Version"], "2026-04-22.dahlia");
 			assert.equal(headers?.["Content-Type"], "application/x-www-form-urlencoded");
 			const body = String(receivedInit?.body ?? "");
 			assert.ok(body.includes("cancel_at_period_end=true"));
@@ -203,7 +209,7 @@ describe("initStripeSubscriptions", () => {
 			let receivedUrl: string | undefined;
 			const fakeFetch: typeof globalThis.fetch = async (input) => {
 				receivedUrl = typeof input === "string" ? input : input.toString();
-				return jsonResponse(200, { id: "sub_x", current_period_end: 1782208800 });
+				return jsonResponse(200, { id: "sub_x", cancel_at: 1782208800 });
 			};
 
 			const stripe = initStripeSubscriptions({ apiKey: "sk_test_abc", fetch: fakeFetch });

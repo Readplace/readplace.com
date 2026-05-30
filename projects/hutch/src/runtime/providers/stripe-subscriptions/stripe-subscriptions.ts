@@ -8,6 +8,12 @@ import type {
 
 const STRIPE_API = "https://api.stripe.com/v1";
 
+/** Pinned so the response shape cannot shift under us when Stripe advances the
+ * account's default version. Stripe's Basil release (2025-03-31) moved
+ * current_period_end off the Subscription onto its line items; an unpinned
+ * default silently delivered that shape and broke deferred-cancellation. */
+const STRIPE_API_VERSION = "2026-04-22.dahlia";
+
 const StripeErrorResponse = z.object({
 	error: z.object({
 		code: z.string().optional(),
@@ -20,9 +26,13 @@ const StripeSubscriptionResponse = z.object({
 	id: z.string(),
 });
 
-const StripeSubscriptionWithPeriodEnd = z.object({
+/** When cancel_at_period_end is set, Stripe populates the top-level cancel_at
+ * with the exact instant the subscription will cancel (the current period end).
+ * cancel_at is version-stable; current_period_end is not (moved to line items
+ * in Basil), so we read cancel_at directly. */
+const StripeScheduledCancellationResponse = z.object({
 	id: z.string(),
-	current_period_end: z.number(),
+	cancel_at: z.number(),
 });
 
 export function initStripeSubscriptions(deps: {
@@ -34,7 +44,10 @@ export function initStripeSubscriptions(deps: {
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 } {
-	const authHeader = { Authorization: `Bearer ${deps.apiKey}` };
+	const stripeHeaders = {
+		Authorization: `Bearer ${deps.apiKey}`,
+		"Stripe-Version": STRIPE_API_VERSION,
+	};
 
 	async function readStripeErrorMessage(response: Response): Promise<string> {
 		const json = await response.json();
@@ -47,7 +60,7 @@ export function initStripeSubscriptions(deps: {
 			`${STRIPE_API}/subscriptions/${encodeURIComponent(subscriptionId)}`,
 			{
 				method: "DELETE",
-				headers: authHeader,
+				headers: stripeHeaders,
 			},
 		);
 
@@ -78,7 +91,7 @@ export function initStripeSubscriptions(deps: {
 		const response = await deps.fetch(`${STRIPE_API}/subscriptions`, {
 			method: "POST",
 			headers: {
-				...authHeader,
+				...stripeHeaders,
 				"Content-Type": "application/x-www-form-urlencoded",
 			},
 			body: body.toString(),
@@ -107,7 +120,7 @@ export function initStripeSubscriptions(deps: {
 			{
 				method: "POST",
 				headers: {
-					...authHeader,
+					...stripeHeaders,
 					"Content-Type": "application/x-www-form-urlencoded",
 				},
 				body: body.toString(),
@@ -122,9 +135,9 @@ export function initStripeSubscriptions(deps: {
 		}
 
 		const json = await response.json();
-		const subscription = StripeSubscriptionWithPeriodEnd.parse(json);
+		const subscription = StripeScheduledCancellationResponse.parse(json);
 		return {
-			cancellationEffectiveAt: new Date(subscription.current_period_end * 1000).toISOString(),
+			cancellationEffectiveAt: new Date(subscription.cancel_at * 1000).toISOString(),
 		};
 	};
 
@@ -139,7 +152,7 @@ export function initStripeSubscriptions(deps: {
 			{
 				method: "POST",
 				headers: {
-					...authHeader,
+					...stripeHeaders,
 					"Content-Type": "application/x-www-form-urlencoded",
 				},
 				body: body.toString(),

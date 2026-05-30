@@ -8,6 +8,10 @@ import type {
 
 const STRIPE_API = "https://api.stripe.com/v1";
 
+/** Pinned so Stripe advancing the account's default version cannot silently
+ * reshape checkout-session responses under us (see stripe-subscriptions). */
+const STRIPE_API_VERSION = "2026-04-22.dahlia";
+
 const CreateSessionResponse = z.object({
 	id: CheckoutSessionIdSchema,
 	url: z.string().url(),
@@ -39,7 +43,10 @@ export function initStripeCheckout(deps: {
 	createCheckoutSession: CreateCheckoutSession;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 } {
-	const authHeader = { Authorization: `Bearer ${deps.apiKey}` };
+	const authHeader = {
+		Authorization: `Bearer ${deps.apiKey}`,
+		"Stripe-Version": STRIPE_API_VERSION,
+	};
 
 	const createCheckoutSession: CreateCheckoutSession = async ({
 		customerEmail,
