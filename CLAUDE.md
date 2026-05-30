@@ -98,7 +98,12 @@ logger.info("[recovery] Starting…");
 
 ### Comments Document Why, Not What
 
-Do not add comments that explain what code does. Only add comments to explain **why** when the reasoning isn't obvious.
+Prefer code that explains its own why — a clearer name, an assert, a type, or a test (see the assert example at the end of this section) — over any comment. An approved comment explains **why**, never what.
+
+| Action                      | Approval                | Stance                                                            |
+|-----------------------------|-------------------------|-------------------------------------------------------------------|
+| Remove a comment            | None                    | Encouraged — remove freely, and more often than you add           |
+| Add a discretionary comment | Explicit human approval | Last resort — restructure the code to carry the why first         |
 
 ```typescript
 // BAD - Explains what (obvious from code)
