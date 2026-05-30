@@ -90,7 +90,7 @@ async function processNotification(
 	}
 
 	const contact = await deps.findUserContactByUserId(userId);
-	if (!contact || !contact.emailVerified) return skip("no-verified-email");
+	if (!contact?.emailVerified) return skip("no-verified-email");
 
 	const article = await deps.findArticleByUrl(url);
 	if (!article) return skip("article-missing");
