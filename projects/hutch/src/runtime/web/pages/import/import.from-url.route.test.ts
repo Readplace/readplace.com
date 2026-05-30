@@ -31,7 +31,7 @@ describe("POST /import/from-url routes", () => {
 			expect(fromUrlTab.getAttribute("aria-current")).toBe("page");
 			const uploadTab = doc.querySelector('[data-test-import-tab="upload"]');
 			assert(uploadTab, "upload tab anchor must be rendered");
-			expect(uploadTab.getAttribute("aria-current")).toBeNull();
+			expect(uploadTab.getAttribute("aria-current")).toBe("false");
 			const form = doc.querySelector('[data-test-form="import-from-url"]');
 			assert(form, "from-url form must be rendered");
 			expect(form.getAttribute("action")).toBe("/import/from-url");
@@ -41,26 +41,34 @@ describe("POST /import/from-url routes", () => {
 			expect(input.getAttribute("name")).toBe("url");
 		});
 
-		it("does not render the upload form when mode=from-url", async () => {
+		it("renders only the from-url form (no upload form) when mode=from-url", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/import?mode=from-url&feature=import-link-public");
 
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector('[data-test-form="import-file"]')).toBeNull();
+			const formIds = Array.from(doc.querySelectorAll("[data-test-form]")).map(
+				(el) => el.getAttribute("data-test-form"),
+			);
+			expect(formIds).toEqual(["import-from-url"]);
 		});
 
-		it("does not render the from-url tab without the feature flag", async () => {
+		it("renders only the upload form (no tabs) without the feature flag", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get("/import?mode=from-url");
 
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector('[data-test-import-tab="from-url"]')).toBeNull();
-			const form = doc.querySelector('[data-test-form="import-file"]');
-			assert(form, "falls back to upload form without feature flag");
+			const tabKeys = Array.from(doc.querySelectorAll("[data-test-import-tab]")).map(
+				(el) => el.getAttribute("data-test-import-tab"),
+			);
+			expect(tabKeys).toEqual([]);
+			const formIds = Array.from(doc.querySelectorAll("[data-test-form]")).map(
+				(el) => el.getAttribute("data-test-form"),
+			);
+			expect(formIds).toEqual(["import-file"]);
 		});
 	});
 

@@ -3,7 +3,29 @@ import { join } from "node:path";
 import type { PageBody } from "../../page-body.types";
 import { render } from "../../render";
 import { IMPORT_STYLES } from "./import.styles";
-import type { ImportAcquireViewModel, ImportViewModel } from "./import.viewmodel";
+import type {
+	ImportAcquireViewModel,
+	ImportTabViewModel,
+	ImportViewModel,
+} from "./import.viewmodel";
+
+interface RenderedTab {
+	readonly key: ImportTabViewModel["key"];
+	readonly label: string;
+	readonly href: string;
+	readonly cssClass: "import__tab import__tab--active" | "import__tab";
+	readonly ariaCurrent: "page" | "false";
+}
+
+function renderTab(tab: ImportTabViewModel): RenderedTab {
+	return {
+		key: tab.key,
+		label: tab.label,
+		href: tab.href,
+		cssClass: tab.isActive ? "import__tab import__tab--active" : "import__tab",
+		ariaCurrent: tab.isActive ? "page" : "false",
+	};
+}
 
 const IMPORT_TEMPLATE = readFileSync(join(__dirname, "import.template.html"), "utf-8");
 const IMPORT_ACQUIRE_TEMPLATE = readFileSync(join(__dirname, "import.acquire.template.html"), "utf-8");
@@ -89,7 +111,8 @@ export function ImportPage(vm: ImportViewModel): PageBody {
 }
 
 export function ImportAcquirePage(vm: ImportAcquireViewModel): PageBody {
-	const data = { ...vm, errorMessage: vm.errors?.[0]?.message };
+	const tabs = vm.tabs.map(renderTab);
+	const data = { ...vm, tabs, errorMessage: vm.errors?.[0]?.message };
 	const tabsHtml = vm.showFromUrl ? render(IMPORT_TABS_TEMPLATE, data) : "";
 	const panelHtml = vm.isUpload
 		? render(IMPORT_UPLOAD_TEMPLATE, data)

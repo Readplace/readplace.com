@@ -4,6 +4,13 @@ import { buildImportToggleAllUrl, buildImportToggleUrl, buildImportUrl } from ".
 
 export type ImportMode = "upload" | "from-url";
 
+export interface ImportTabViewModel {
+	readonly key: ImportMode;
+	readonly label: string;
+	readonly href: string;
+	readonly isActive: boolean;
+}
+
 export interface ImportAcquireViewModel {
 	readonly mode: ImportMode;
 	readonly isUpload: boolean;
@@ -12,8 +19,7 @@ export interface ImportAcquireViewModel {
 	readonly errors?: readonly ComponentError[];
 	readonly uploadAction: string;
 	readonly fromUrlAction: string;
-	readonly tabUploadHref: string;
-	readonly tabFromUrlHref: string;
+	readonly tabs: readonly ImportTabViewModel[];
 }
 
 export function toImportAcquireViewModel(input: {
@@ -24,6 +30,12 @@ export function toImportAcquireViewModel(input: {
 	const showFromUrl = input.showFromUrl ?? false;
 	const mode: ImportMode = input.mode === "from-url" && showFromUrl ? "from-url" : "upload";
 	const featureParam = showFromUrl ? "?feature=import-link-public" : "";
+	const tabs: readonly ImportTabViewModel[] = showFromUrl
+		? [
+				{ key: "upload", label: "Upload a file", href: `/import${featureParam}`, isActive: mode === "upload" },
+				{ key: "from-url", label: "Paste a link", href: "/import?mode=from-url&feature=import-link-public", isActive: mode === "from-url" },
+			]
+		: [];
 	return {
 		mode,
 		isUpload: mode === "upload",
@@ -32,8 +44,7 @@ export function toImportAcquireViewModel(input: {
 		errors: input.errors,
 		uploadAction: "/import",
 		fromUrlAction: "/import/from-url",
-		tabUploadHref: `/import${featureParam}`,
-		tabFromUrlHref: `/import?mode=from-url${showFromUrl ? "&feature=import-link-public" : ""}`,
+		tabs,
 	};
 }
 

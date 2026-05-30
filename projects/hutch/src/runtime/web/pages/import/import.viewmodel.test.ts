@@ -206,15 +206,23 @@ describe("toImportAcquireViewModel", () => {
 		expect(vm.showFromUrl).toBe(false);
 	});
 
-	it("includes feature param in tab hrefs when showFromUrl is true", () => {
-		const vm = toImportAcquireViewModel({ showFromUrl: true });
-		expect(vm.tabUploadHref).toBe("/import?feature=import-link-public");
-		expect(vm.tabFromUrlHref).toBe("/import?mode=from-url&feature=import-link-public");
+	it("emits no tabs when showFromUrl is false", () => {
+		const vm = toImportAcquireViewModel({ showFromUrl: false });
+		expect(vm.tabs).toEqual([]);
 	});
 
-	it("omits feature param from tab hrefs when showFromUrl is false", () => {
-		const vm = toImportAcquireViewModel({ showFromUrl: false });
-		expect(vm.tabUploadHref).toBe("/import");
-		expect(vm.tabFromUrlHref).toBe("/import?mode=from-url");
+	it("emits both tabs with the upload tab active by default when showFromUrl is true", () => {
+		const vm = toImportAcquireViewModel({ showFromUrl: true });
+		expect(vm.tabs.map((t) => t.key)).toEqual(["upload", "from-url"]);
+		expect(vm.tabs[0].isActive).toBe(true);
+		expect(vm.tabs[0].href).toBe("/import?feature=import-link-public");
+		expect(vm.tabs[1].isActive).toBe(false);
+		expect(vm.tabs[1].href).toBe("/import?mode=from-url&feature=import-link-public");
+	});
+
+	it("marks the from-url tab active when mode=from-url and showFromUrl is true", () => {
+		const vm = toImportAcquireViewModel({ mode: "from-url", showFromUrl: true });
+		expect(vm.tabs[0].isActive).toBe(false);
+		expect(vm.tabs[1].isActive).toBe(true);
 	});
 });
