@@ -91,6 +91,21 @@ describe("refreshContent", () => {
 		assert.equal(article.freshness.canonicalContentHash, HASH_A);
 	});
 
+	it("writes the new bodyHash onto freshness so subsequent refreshes can pre-parse-gate the response body", () => {
+		const before = buildArticle();
+		const FRESH_BODY_HASH = "f".repeat(64);
+
+		const { article } = refreshContent(before, buildInput({
+			freshness: {
+				etag: '"new-etag"',
+				contentFetchedAt: "2026-05-10T12:00:00.000Z",
+				bodyHash: FRESH_BODY_HASH,
+			},
+		}));
+
+		assert.equal(article.freshness.bodyHash, FRESH_BODY_HASH);
+	});
+
 	it("resets summary to pending when the canonical hash changed so the worker regenerates the cached text", () => {
 		const before = buildArticle({
 			freshness: {

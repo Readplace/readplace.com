@@ -24,7 +24,7 @@ const ARTICLE_HTML = `
 const useApp = useTestServer();
 
 async function saveAndOpenReader(appOrigin: string): Promise<Document> {
-	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML });
+	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) });
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({
 		crawlArticle,

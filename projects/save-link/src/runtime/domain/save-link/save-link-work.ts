@@ -131,6 +131,7 @@ export function initSaveLinkWork(deps: {
 			contentFetchedAt: now().toISOString(),
 			etag: result.etag,
 			lastModified: result.lastModified,
+			bodyHash: result.bodyHash,
 		});
 
 		const successSnapshot = await readTierSnapshot({ url });

@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { createHash } from "node:crypto";
 import {
 	DEFAULT_CRAWL_HEADERS,
 	initCrawlArticle,
@@ -141,6 +142,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			html: "<html>Hello</html>",
 			etag: '"abc123"',
 			lastModified: "Wed, 21 Oct 2025 07:28:00 GMT",
+			bodyHash: createHash("sha256").update(Buffer.from("<html>Hello</html>")).digest("hex"),
 		});
 		expect(calls).toBe(1);
 		expect(extractPdf).not.toHaveBeenCalled();
@@ -187,6 +189,7 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 			html: "<html><body><h1>Title</h1><p>Body</p></body></html>",
 			etag: '"pdf-123"',
 			lastModified: "Wed, 21 Oct 2025 07:28:00 GMT",
+			bodyHash: createHash("sha256").update(PDF_MAGIC_BUFFER).digest("hex"),
 		});
 		expect(calls).toBe(1);
 		expect(capturedExtract?.url).toBe("https://example.com/doc.pdf");
@@ -258,6 +261,73 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Network error for https://example.com", networkError);
 	});
 
+	it("returns not-modified without invoking the extractor when previousBodyHash matches the materialised bytes (PDF path)", async () => {
+		const expectedHash = createHash("sha256").update(PDF_MAGIC_BUFFER).digest("hex");
+		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>();
+		const fakeFetch: typeof fetch = async () =>
+			new Response(PDF_MAGIC_BUFFER, { status: 200, headers: { "content-type": "application/pdf" } });
+		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf });
+
+		const result = await crawlArticle({
+			url: "https://example.com/doc.pdf",
+			previousBodyHash: expectedHash,
+		});
+
+		expect(result).toEqual({ status: "not-modified" });
+		expect(extractPdf).not.toHaveBeenCalled();
+	});
+
+	it("returns not-modified without decoding HTML when previousBodyHash matches the materialised bytes (HTML path)", async () => {
+		const html = "<html>Hello</html>";
+		const expectedHash = createHash("sha256").update(Buffer.from(html)).digest("hex");
+		const fakeFetch: typeof fetch = async () =>
+			new Response(html, { status: 200, headers: { "content-type": "text/html" } });
+		const crawlArticle = initCrawl({ fetch: fakeFetch });
+
+		const result = await crawlArticle({
+			url: "https://example.com",
+			previousBodyHash: expectedHash,
+		});
+
+		expect(result).toEqual({ status: "not-modified" });
+	});
+
+	it("falls through to the parser when previousBodyHash differs from the materialised bytes (gate miss)", async () => {
+		const fakeFetch: typeof fetch = async () =>
+			new Response("<html>changed</html>", {
+				status: 200,
+				headers: { "content-type": "text/html" },
+			});
+		const crawlArticle = initCrawl({ fetch: fakeFetch });
+
+		const result = await crawlArticle({
+			url: "https://example.com",
+			previousBodyHash: "0".repeat(64),
+		});
+
+		assertFetched(result);
+		expect(result.html).toBe("<html>changed</html>");
+		expect(result.bodyHash).toBe(
+			createHash("sha256").update(Buffer.from("<html>changed</html>")).digest("hex"),
+		);
+	});
+
+	it("populates bodyHash on the fetched result even when previousBodyHash was not supplied (first-ever fetch)", async () => {
+		const fakeFetch: typeof fetch = async () =>
+			new Response("<html>x</html>", {
+				status: 200,
+				headers: { "content-type": "text/html" },
+			});
+		const crawlArticle = initCrawl({ fetch: fakeFetch });
+
+		const result = await crawlArticle({ url: "https://example.com" });
+
+		assertFetched(result);
+		expect(result.bodyHash).toBe(
+			createHash("sha256").update(Buffer.from("<html>x</html>")).digest("hex"),
+		);
+	});
+
 	it("forwards fetchThumbnail through to the HTML parser so the thumbnail prefetches in the same crawl", async () => {
 		const articleHtml = `<html><head><meta property="og:image" content="https://cdn.example.com/thumb.jpg"></head></html>`;
 		const imageBytes = Buffer.from([0xff, 0xd8, 0xff]);
@@ -291,6 +361,7 @@ describe("parseHtmlFromBuffer — thumbnailUrl extraction", () => {
 	async function parse(html: string, url = "https://example.com"): Promise<CrawlArticleResult> {
 		return parseHtmlFromBuffer({
 			buffer: Buffer.from(html),
+			bodyHash: createHash("sha256").update(Buffer.from(html)).digest("hex"),
 			response: new Response(null, {}),
 			url,
 			crawlFetch: throwingCrawlFetch,
@@ -341,8 +412,10 @@ describe("parseHtmlFromBuffer — thumbnailUrl extraction", () => {
 	});
 
 	it("surfaces etag and last-modified from the response headers", async () => {
+		const bodyHash = createHash("sha256").update(Buffer.from("<html></html>")).digest("hex");
 		const result = await parseHtmlFromBuffer({
 			buffer: Buffer.from("<html></html>"),
+			bodyHash,
 			response: new Response(null, { headers: { etag: '"v1"', "last-modified": "Wed, 21 Oct 2025 07:28:00 GMT" } }),
 			url: "https://example.com",
 			crawlFetch: throwingCrawlFetch,
@@ -353,6 +426,7 @@ describe("parseHtmlFromBuffer — thumbnailUrl extraction", () => {
 			html: "<html></html>",
 			etag: '"v1"',
 			lastModified: "Wed, 21 Oct 2025 07:28:00 GMT",
+			bodyHash,
 		});
 	});
 });
@@ -367,8 +441,10 @@ describe("parseHtmlFromBuffer — thumbnail prefetch (fetchThumbnail opt-in)", (
 		crawlFetch: CrawlFetch;
 		logError?: (message: string, error?: Error) => void;
 	}): Promise<CrawlArticleResult> {
+		const buffer = Buffer.from(input.html ?? articleHtml);
 		return parseHtmlFromBuffer({
-			buffer: Buffer.from(input.html ?? articleHtml),
+			buffer,
+			bodyHash: createHash("sha256").update(buffer).digest("hex"),
 			response: new Response(null, {}),
 			url: "https://example.com/article",
 			fetchThumbnail: input.fetchThumbnail ?? true,
@@ -538,8 +614,10 @@ describe("parsePdfFromBuffer", () => {
 			html: "<html><body><p>PDF body</p></body></html>",
 			title: "doc",
 		});
+		const bodyHash = createHash("sha256").update(PDF_MAGIC_BUFFER).digest("hex");
 		const result = await parsePdfFromBuffer({
 			buffer: PDF_MAGIC_BUFFER,
+			bodyHash,
 			response: htmlResponse({ etag: '"pdf-1"', "last-modified": "Wed, 21 Oct 2025 07:28:00 GMT" }),
 			url: "https://example.com/doc.pdf",
 			extractPdf,
@@ -551,6 +629,7 @@ describe("parsePdfFromBuffer", () => {
 			html: "<html><body><p>PDF body</p></body></html>",
 			etag: '"pdf-1"',
 			lastModified: "Wed, 21 Oct 2025 07:28:00 GMT",
+			bodyHash,
 		});
 	});
 
@@ -562,6 +641,7 @@ describe("parsePdfFromBuffer", () => {
 		};
 		await parsePdfFromBuffer({
 			buffer: PDF_MAGIC_BUFFER,
+			bodyHash: createHash("sha256").update(PDF_MAGIC_BUFFER).digest("hex"),
 			response: htmlResponse(),
 			url: "https://example.com/doc.pdf",
 			extractPdf,
@@ -577,6 +657,7 @@ describe("parsePdfFromBuffer", () => {
 		const logError = jest.fn();
 		const result = await parsePdfFromBuffer({
 			buffer: PDF_MAGIC_BUFFER,
+			bodyHash: createHash("sha256").update(PDF_MAGIC_BUFFER).digest("hex"),
 			response: htmlResponse(),
 			url: "https://example.com/scan.pdf",
 			extractPdf,
@@ -595,6 +676,7 @@ describe("parsePdfFromBuffer", () => {
 		const logError = jest.fn();
 		const result = await parsePdfFromBuffer({
 			buffer: oversize,
+			bodyHash: createHash("sha256").update(oversize).digest("hex"),
 			response: htmlResponse(),
 			url: "https://example.com/huge.pdf",
 			extractPdf,

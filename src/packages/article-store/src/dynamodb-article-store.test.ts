@@ -135,6 +135,45 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(article?.freshness.canonicalContentHash).toBeUndefined();
 		});
 
+		it("maps the row's bodyHash attribute onto the freshness", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+					bodyHash: "b".repeat(64),
+					crawlStatus: "ready",
+					summaryStatus: "ready",
+					summary: "ok",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article?.freshness.bodyHash).toBe("b".repeat(64));
+		});
+
+		it("leaves bodyHash undefined for legacy rows that pre-date the bodyHash column", async () => {
+			const client = createFakeClient(() => ({
+				Item: {
+					contentFetchedAt: "2026-01-01T00:00:00.000Z",
+					crawlStatus: "ready",
+					summaryStatus: "ready",
+					summary: "Old summary",
+				},
+			}));
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			const article = await store.load(URL);
+
+			expect(article?.freshness.bodyHash).toBeUndefined();
+		});
+
 		it("maps a crawl-failed row with JSON-encoded tagged-union reason", async () => {
 			const client = createFakeClient(() => ({
 				Item: {
@@ -501,6 +540,60 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			expect(command.input.ExpressionAttributeValues?.[":summaryStatus"]).toBe(
 				"pending",
 			);
+		});
+
+		it("writes bodyHash on the freshness axis so a future refresh can pre-parse-gate the byte-identical response", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle({
+					freshness: {
+						etag: '"new-etag"',
+						lastModified: "Sun, 10 May 2026 12:00:00 GMT",
+						contentFetchedAt: "2026-05-10T12:00:00.000Z",
+						bodyHash: "c".repeat(64),
+					},
+				}),
+				transitionName: "refreshContent",
+				writes: REFRESH_WRITES,
+			});
+
+			const command = received as {
+				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.UpdateExpression).toContain("bodyHash = :bh");
+			expect(command.input.ExpressionAttributeValues?.[":bh"]).toBe("c".repeat(64));
+		});
+
+		it("writes bodyHash = null on the freshness axis when the article carries no bodyHash (legacy row refresh)", async () => {
+			let received: unknown;
+			const client = createFakeClient((input) => {
+				received = input;
+				return {};
+			});
+			const { store } = initDynamoDbArticleStore({
+				client: client as DynamoDBDocumentClient,
+				tableName: TABLE,
+			});
+
+			await store.save({
+				article: buildArticle(),
+				transitionName: "refreshContent",
+				writes: REFRESH_WRITES,
+			});
+
+			const command = received as {
+				input: { ExpressionAttributeValues?: Record<string, unknown> };
+			};
+			expect(command.input.ExpressionAttributeValues?.[":bh"]).toBeNull();
 		});
 
 		it("stamps summaryPendingSince when the summary axis is pending", async () => {

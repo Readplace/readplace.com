@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { CrawlFetch } from "./crawl-fetch";
 import { initFetchTweetViaOembed, isTweetUrl } from "./x-twitter-preprocessor";
 
@@ -33,9 +34,11 @@ describe("initFetchTweetViaOembed", () => {
 
 		const result = await fetchTweet({ url: "https://x.com/elonmusk/status/1519480761749016577" });
 
+		const expectedHtml = '<html><head><title>Elon Musk</title></head><body><blockquote class="twitter-tweet"><p lang="en" dir="ltr">Test tweet</p></blockquote>\n</body></html>';
 		expect(result).toEqual({
 			status: "fetched",
-			html: '<html><head><title>Elon Musk</title></head><body><blockquote class="twitter-tweet"><p lang="en" dir="ltr">Test tweet</p></blockquote>\n</body></html>',
+			html: expectedHtml,
+			bodyHash: createHash("sha256").update(expectedHtml).digest("hex"),
 		});
 	});
 
@@ -47,9 +50,11 @@ describe("initFetchTweetViaOembed", () => {
 
 		const result = await fetchTweet({ url: "https://twitter.com/user/status/123" });
 
+		const expectedHtml = "<html><head><title></title></head><body></body></html>";
 		expect(result).toEqual({
 			status: "fetched",
-			html: "<html><head><title></title></head><body></body></html>",
+			html: expectedHtml,
+			bodyHash: createHash("sha256").update(expectedHtml).digest("hex"),
 		});
 	});
 

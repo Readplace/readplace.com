@@ -32,6 +32,7 @@ export function initSimpleCrawlUnsupportedPolicyHandler(deps: {
 					userId: detail.userId,
 					recrawl: detail.recrawl,
 					refresh: detail.refresh,
+					previousBodyHash: detail.previousBodyHash,
 				});
 
 				logger.info(`${logPrefix} dispatched ComprehensiveCrawlCommand`, {

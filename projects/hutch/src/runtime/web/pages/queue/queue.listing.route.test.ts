@@ -142,6 +142,7 @@ describe("Queue routes", () => {
 			const crawlArticle = async () => ({
 				status: "fetched" as const,
 				html: `<html><head><meta property="og:site_name" content="Example Blog"></head><body><article><h1>Post</h1><p>Content here.</p></article></body></html>`,
+				bodyHash: "a".repeat(64),
 			});
 
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);

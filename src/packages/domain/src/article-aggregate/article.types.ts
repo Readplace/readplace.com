@@ -16,6 +16,12 @@ export interface ArticleFreshness {
 	 * deploy populates it. Once present, hash equality drives summary regeneration —
 	 * same readable text → no regen, even across re-crawls or refreshes. */
 	canonicalContentHash?: string;
+	/* SHA-256 of the raw response body from the last successful crawl. Compared
+	 * against the freshly-hashed body before parsing; on match the pipeline
+	 * short-circuits to "not-modified" without invoking the parser (mupdf is the
+	 * expensive path this gate protects). Optional for lazy backfill on legacy
+	 * rows. */
+	bodyHash?: string;
 }
 
 export type CrawlState =

@@ -24,6 +24,7 @@ describe("Queue freshness integration", () => {
 						status: "fetched",
 						html: "<html><head><title>Updated</title></head><body><article><p>New content</p></article></body></html>",
 						etag: '"fresh-etag"',
+						bodyHash: "a".repeat(64),
 					};
 				}
 				return { status: "not-modified" };
@@ -92,6 +93,7 @@ describe("Queue freshness integration", () => {
 			etag: '"fresh-etag"',
 			lastModified: undefined,
 			contentFetchedAt: expect.any(String),
+			bodyHash: "a".repeat(64),
 		});
 	});
 });
