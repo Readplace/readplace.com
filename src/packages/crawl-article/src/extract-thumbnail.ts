@@ -70,10 +70,10 @@ export type FetchThumbnailImage = (params: {
 
 /**
  * Walks the candidate list and returns the first image that downloads cleanly
- * within the timeout / size / content-type bounds. Shared between SimpleCrawl
- * (which prefetches inline) and any caller that already has HTML in hand
- * (raw-html save, comprehensive crawl post-extract) — same algorithm, same
- * bounds, no per-path drift.
+ * within the timeout / size / content-type bounds. Shared between the HTML
+ * crawl path (`parseHtmlFromBuffer`, which prefetches inline) and any caller
+ * that already has HTML in hand (raw-html save, comprehensive crawl
+ * post-extract) — same algorithm, same bounds, no per-path drift.
  */
 export function initFetchThumbnailImage(deps: {
 	crawlFetch: CrawlFetch;

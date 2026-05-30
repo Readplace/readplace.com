@@ -1,4 +1,4 @@
-import type { SimpleCrawl } from "@packages/crawl-article";
+import type { CrawlArticle } from "@packages/crawl-article";
 import type { FinalizeArticle, FinalizedArticle } from "./finalize-article";
 
 export type CrawlAndFinalizeResult =
@@ -20,7 +20,7 @@ export type CrawlAndFinalizeArticle = (params: {
 
 /**
  * The ONE entry point for every URL-based article path: initial save, recrawl,
- * stale-check, dev wrappers. Composes SimpleCrawl (always with
+ * stale-check, dev wrappers. Composes `crawlArticle` (always with
  * `fetchThumbnail: true`) with `finalizeArticle`, so no caller has to remember
  * to thread the thumbnail through — the upload happens for every fetch.
  *
@@ -30,12 +30,12 @@ export type CrawlAndFinalizeArticle = (params: {
  * post-processing (publish event, write tier source, etc.).
  */
 export function initCrawlAndFinalizeArticle(deps: {
-	simpleCrawl: SimpleCrawl;
+	crawlArticle: CrawlArticle;
 	finalizeArticle: FinalizeArticle;
 }): CrawlAndFinalizeArticle {
-	const { simpleCrawl, finalizeArticle } = deps;
+	const { crawlArticle, finalizeArticle } = deps;
 	return async (params) => {
-		const crawlResult = await simpleCrawl({
+		const crawlResult = await crawlArticle({
 			url: params.url,
 			etag: params.etag,
 			lastModified: params.lastModified,

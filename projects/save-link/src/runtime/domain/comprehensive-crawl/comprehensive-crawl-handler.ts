@@ -1,6 +1,6 @@
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { ComprehensiveCrawl } from "@packages/crawl-article";
+import type { CrawlArticle } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
@@ -21,7 +21,7 @@ import type { FinalizeArticle } from "../save-link/finalize-article";
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initComprehensiveCrawlHandler(deps: {
-	comprehensiveCrawl: ComprehensiveCrawl;
+	crawlArticle: CrawlArticle;
 	finalizeArticle: FinalizeArticle;
 	putTierSource: PutTierSource;
 	updateFetchTimestamp: UpdateFetchTimestamp;
@@ -37,7 +37,7 @@ export function initComprehensiveCrawlHandler(deps: {
 	progressIntervalMs?: number;
 }): Handler<SQSEvent, SQSBatchResponse> {
 	const {
-		comprehensiveCrawl,
+		crawlArticle,
 		finalizeArticle,
 		putTierSource,
 		updateFetchTimestamp,
@@ -102,7 +102,7 @@ export function initComprehensiveCrawlHandler(deps: {
 					now: () => Date.now(),
 					logger,
 				});
-				const crawlResult = await comprehensiveCrawl({
+				const crawlResult = await crawlArticle({
 					url,
 					onProgress: ({ partIndex, partCount, stage }) => {
 						const effectiveStage = stage ?? "comprehensive-extracting";

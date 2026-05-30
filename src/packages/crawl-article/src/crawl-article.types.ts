@@ -1,3 +1,5 @@
+import type { PdfExtractStage } from "./pdf-extract.types";
+
 export type ThumbnailImage = {
 	body: Buffer;
 	contentType: string;
@@ -18,32 +20,14 @@ export type CrawlArticleResult =
 	| { status: "failed" }
 	| { status: "unsupported"; reason: string };
 
-export type CrawlArticle = (params: {
-	url: string;
-	etag?: string;
-	lastModified?: string;
-	fetchThumbnail?: boolean;
-}) => Promise<CrawlArticleResult>;
-
 /**
- * Same signature as `CrawlArticle`. The alias exists so call sites that need to
- * distinguish the two halves of the split can name the parameter — the simple
- * factory handles HTML + oembed, and bails with `unsupported` for any content
- * type it doesn't handle so the caller can decide whether to fall through to
- * the comprehensive factory.
+ * Provider-shaped progress callback the orchestrator passes through to a PDF
+ * extraction. The provider decides what counts as a "part" — the PDF path
+ * counts completed OCR chunks; future providers (audio transcription, video
+ * frame extraction) count whatever discrete units of work they fan out into.
+ * The callback is synchronous-fire-and-forget from the crawler's perspective
+ * and any errors it surfaces are swallowed by the crawler.
  */
-export type SimpleCrawl = CrawlArticle;
-
-/**
- * Provider-shaped progress callback the orchestrator passes to a comprehensive
- * crawl. The provider decides what counts as a "part" — the PDF path counts
- * completed OCR chunks; future providers (audio transcription, video frame
- * extraction) count whatever discrete units of work they fan out into. The
- * callback is synchronous-fire-and-forget from the crawler's perspective and
- * any errors it surfaces are swallowed by the crawler.
- */
-import type { PdfExtractStage } from "./pdf-extract.types";
-
 export type ComprehensiveCrawlProgress = (params: {
 	partIndex: number;
 	partCount: number;
@@ -51,15 +35,16 @@ export type ComprehensiveCrawlProgress = (params: {
 }) => void;
 
 /**
- * The comprehensive factory handles PDF extraction — the expensive path that
- * can hold a Lambda concurrency slot for tens of seconds while pdfjs walks
- * every page. Accepts an optional `onProgress` callback the orchestrator uses
- * to record per-part progress against the unified bar.
+ * The single crawl entry point. Issues one conditional GET, materialises the
+ * body once, and dispatches to a content-type-specific parser. `fetchThumbnail`
+ * opts the HTML path into prefetching the article thumbnail; `onProgress` is
+ * forwarded to the PDF extractor (the expensive path that can hold a Lambda
+ * concurrency slot for tens of seconds while pdfjs walks every page).
  */
-export type ComprehensiveCrawl = (params: {
+export type CrawlArticle = (params: {
 	url: string;
 	etag?: string;
 	lastModified?: string;
+	fetchThumbnail?: boolean;
 	onProgress?: ComprehensiveCrawlProgress;
 }) => Promise<CrawlArticleResult>;
-

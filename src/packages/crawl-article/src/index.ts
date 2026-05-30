@@ -1,8 +1,6 @@
 export { cachedImport } from "./cached-import";
 export {
 	initCrawlArticle,
-	initSimpleCrawl,
-	initComprehensiveCrawl,
 	DEFAULT_CRAWL_HEADERS,
 	CRAWL_PERSONAS,
 } from "./crawl-article";
@@ -16,8 +14,6 @@ export {
 export type {
 	CrawlArticle,
 	CrawlArticleResult,
-	SimpleCrawl,
-	ComprehensiveCrawl,
 	ComprehensiveCrawlProgress,
 	ThumbnailImage,
 } from "./crawl-article.types";

@@ -1,5 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
-import type { ComprehensiveCrawl } from "@packages/crawl-article";
+import type { CrawlArticle } from "@packages/crawl-article";
 import { markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import {
 	RecrawlContentExtractedEvent,
@@ -54,7 +54,7 @@ function createSqsEvent(detail: {
 	};
 }
 
-const successfulComprehensiveCrawl: ComprehensiveCrawl = async () => ({
+const successfulComprehensiveCrawl: CrawlArticle = async () => ({
 	status: "fetched",
 	html: "<html><body><p>Extracted PDF content</p></body></html>",
 });
@@ -79,7 +79,7 @@ const fixedNow = () => new Date("2026-04-18T12:00:00.000Z");
 
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	return initComprehensiveCrawlHandler({
-		comprehensiveCrawl: successfulComprehensiveCrawl,
+		crawlArticle: successfulComprehensiveCrawl,
 		finalizeArticle: okFinalize,
 		putTierSource: jest.fn().mockResolvedValue(undefined),
 		updateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
@@ -125,14 +125,14 @@ describe("initComprehensiveCrawlHandler", () => {
 			url: "https://example.com/og.jpg",
 			extension: ".jpg",
 		};
-		const comprehensiveCrawl: ComprehensiveCrawl = async () => ({
+		const crawlArticle: CrawlArticle = async () => ({
 			status: "fetched",
 			html: "<html><body>X</body></html>",
 			thumbnailImage: preFetchedThumbnail,
 		});
 		const finalizeArticle = jest.fn(okFinalize);
 
-		const handler = createHandler({ comprehensiveCrawl, finalizeArticle });
+		const handler = createHandler({ crawlArticle, finalizeArticle });
 
 		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), stubContext, () => {});
 
@@ -173,14 +173,14 @@ describe("initComprehensiveCrawlHandler", () => {
 	it("emits RefreshContentExtractedEvent (with re-fetch freshness) and skips updateFetchTimestamp when refresh=true", async () => {
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
-		const comprehensiveCrawl = jest.fn().mockResolvedValue({
+		const crawlArticle = jest.fn().mockResolvedValue({
 			status: "fetched",
 			html: "<html><body><p>Refreshed PDF content</p></body></html>",
 			etag: '"refreshed-pdf"',
 			lastModified: "Sat, 17 May 2026 00:00:00 GMT",
 		});
 
-		const handler = createHandler({ publishEvent, updateFetchTimestamp, comprehensiveCrawl });
+		const handler = createHandler({ publishEvent, updateFetchTimestamp, crawlArticle });
 
 		await handler(createSqsEvent({ url: "https://example.com/doc.pdf", refresh: true }), stubContext, () => {});
 
@@ -194,8 +194,8 @@ describe("initComprehensiveCrawlHandler", () => {
 		});
 	});
 
-	it("flips the row to terminal unsupported when comprehensiveCrawl reports unsupported (e.g. scanned PDF after OCR fallback failed)", async () => {
-		const unsupportedComprehensiveCrawl: ComprehensiveCrawl = async () => ({
+	it("flips the row to terminal unsupported when crawlArticle reports unsupported (e.g. scanned PDF after OCR fallback failed)", async () => {
+		const unsupportedComprehensiveCrawl: CrawlArticle = async () => ({
 			status: "unsupported",
 			reason: "pdf extraction failed: text-layer empty and OCR returned no text",
 		});
@@ -204,7 +204,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		const putTierSource: PutTierSource = jest.fn().mockResolvedValue(undefined);
 
 		const handler = createHandler({
-			comprehensiveCrawl: unsupportedComprehensiveCrawl,
+			crawlArticle: unsupportedComprehensiveCrawl,
 			transitionAndPersist,
 			publishEvent,
 			putTierSource,
@@ -226,7 +226,7 @@ describe("initComprehensiveCrawlHandler", () => {
 	});
 
 	it("emits a tier-1 failure crawl-outcome on terminal unsupported, snapshotting the other tier's state", async () => {
-		const unsupportedComprehensiveCrawl: ComprehensiveCrawl = async () => ({
+		const unsupportedComprehensiveCrawl: CrawlArticle = async () => ({
 			status: "unsupported",
 			reason: "non-pdf body",
 		});
@@ -238,7 +238,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		});
 
 		const handler = createHandler({
-			comprehensiveCrawl: unsupportedComprehensiveCrawl,
+			crawlArticle: unsupportedComprehensiveCrawl,
 			logCrawlOutcome,
 			readTierSnapshot,
 		});
@@ -254,13 +254,13 @@ describe("initComprehensiveCrawlHandler", () => {
 		});
 	});
 
-	it("throws (record routed to batchItemFailures) when comprehensiveCrawl returns 'failed' so SQS retries", async () => {
-		const failingComprehensiveCrawl: ComprehensiveCrawl = async () => ({ status: "failed" });
+	it("throws (record routed to batchItemFailures) when crawlArticle returns 'failed' so SQS retries", async () => {
+		const failingComprehensiveCrawl: CrawlArticle = async () => ({ status: "failed" });
 		const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 
 		const handler = createHandler({
-			comprehensiveCrawl: failingComprehensiveCrawl,
+			crawlArticle: failingComprehensiveCrawl,
 			transitionAndPersist,
 			publishEvent,
 		});
@@ -296,7 +296,7 @@ describe("initComprehensiveCrawlHandler", () => {
 	});
 
 	it("latches comprehensive-extracting on the first onProgress callback so the bar advances inside the extractor but later parts do not re-write the stage", async () => {
-		const comprehensiveCrawl: ComprehensiveCrawl = async ({ onProgress }) => {
+		const crawlArticle: CrawlArticle = async ({ onProgress }) => {
 			if (onProgress) {
 				onProgress({ partIndex: 1, partCount: 3 });
 				onProgress({ partIndex: 2, partCount: 3 });
@@ -307,7 +307,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		const markCrawlStage = jest.fn().mockResolvedValue(undefined);
 
 		const handler = createHandler({
-			comprehensiveCrawl,
+			crawlArticle,
 			markCrawlStage,
 		});
 
@@ -321,7 +321,7 @@ describe("initComprehensiveCrawlHandler", () => {
 	});
 
 	it("logs a warning and continues when the comprehensive-extracting stage write fails (best-effort beacon)", async () => {
-		const comprehensiveCrawl: ComprehensiveCrawl = async ({ onProgress }) => {
+		const crawlArticle: CrawlArticle = async ({ onProgress }) => {
 			if (onProgress) onProgress({ partIndex: 1, partCount: 1 });
 			await new Promise((resolve) => setImmediate(resolve));
 			return { status: "fetched", html: "<html><body><p>x</p></body></html>" };
@@ -333,7 +333,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		const logger = { ...noopLogger, warn };
 
 		const handler = createHandler({
-			comprehensiveCrawl,
+			crawlArticle,
 			markCrawlStage,
 			logger,
 		});
@@ -350,13 +350,13 @@ describe("initComprehensiveCrawlHandler", () => {
 	});
 
 	it("forwards per-part progress through markCrawlProgress (the throttle's first write lands immediately so the bar moves as soon as part 1 completes)", async () => {
-		const comprehensiveCrawl: ComprehensiveCrawl = async ({ onProgress }) => {
+		const crawlArticle: CrawlArticle = async ({ onProgress }) => {
 			if (onProgress) onProgress({ partIndex: 1, partCount: 5 });
 			return { status: "fetched", html: "<html><body><p>x</p></body></html>" };
 		};
 		const markCrawlProgress = jest.fn().mockResolvedValue(undefined);
 
-		const handler = createHandler({ comprehensiveCrawl, markCrawlProgress });
+		const handler = createHandler({ crawlArticle, markCrawlProgress });
 
 		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), stubContext, () => {});
 
@@ -367,8 +367,8 @@ describe("initComprehensiveCrawlHandler", () => {
 		});
 	});
 
-	it("flushes the terminal progress value after comprehensiveCrawl returns so the final partCurrent === partTotal write always lands", async () => {
-		const comprehensiveCrawl: ComprehensiveCrawl = async ({ onProgress }) => {
+	it("flushes the terminal progress value after crawlArticle returns so the final partCurrent === partTotal write always lands", async () => {
+		const crawlArticle: CrawlArticle = async ({ onProgress }) => {
 			if (onProgress) {
 				onProgress({ partIndex: 1, partCount: 4 });
 				onProgress({ partIndex: 2, partCount: 4 });
@@ -380,7 +380,7 @@ describe("initComprehensiveCrawlHandler", () => {
 		const markCrawlProgress = jest.fn().mockResolvedValue(undefined);
 
 		const handler = createHandler({
-			comprehensiveCrawl,
+			crawlArticle,
 			markCrawlProgress,
 			progressIntervalMs: 10_000,
 		});
@@ -397,14 +397,14 @@ describe("initComprehensiveCrawlHandler", () => {
 
 	it("records contentFetchedAt + etag + lastModified after a successful PDF extraction so future saves can short-circuit on TTL", async () => {
 		const updateFetchTimestamp = jest.fn().mockResolvedValue(undefined);
-		const comprehensiveCrawl: ComprehensiveCrawl = async () => ({
+		const crawlArticle: CrawlArticle = async () => ({
 			status: "fetched",
 			html: "<html><body><p>x</p></body></html>",
 			etag: '"pdf-abc123"',
 			lastModified: "Wed, 15 Apr 2026 10:00:00 GMT",
 		});
 
-		const handler = createHandler({ comprehensiveCrawl, updateFetchTimestamp });
+		const handler = createHandler({ crawlArticle, updateFetchTimestamp });
 
 		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), stubContext, () => {});
 

@@ -43,7 +43,7 @@ export function initCrawlAndFinalizeDepBundle(deps: {
 		imagesCdnBaseUrl: deps.imagesCdnBaseUrl,
 	});
 	const crawlAndFinalizeArticle = initCrawlAndFinalizeArticle({
-		simpleCrawl: deps.parser.simpleCrawl,
+		crawlArticle: deps.parser.crawlArticle,
 		finalizeArticle,
 	});
 	return { finalizeArticle, crawlAndFinalizeArticle };

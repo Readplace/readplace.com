@@ -1,9 +1,7 @@
 import type {
-	ComprehensiveCrawl,
 	ComprehensiveCrawlProgress,
 	CrawlArticle,
 	CrawlArticleResult,
-	SimpleCrawl,
 } from "./crawl-article.types";
 import type { CrawlFetch } from "./crawl-fetch";
 import { extractThumbnailCandidates, initFetchThumbnailImage } from "./extract-thumbnail";
@@ -79,7 +77,15 @@ export const CRAWL_PERSONAS = [
 	},
 ] as const;
 
-function initConditionalFetch(deps: {
+/**
+ * One conditional GET against the origin, with the body materialised into a
+ * Buffer so the orchestrator can dispatch on content-type without a second
+ * round-trip. Sends `If-None-Match` / `If-Modified-Since` when the caller has
+ * cached validators. All failure modes collapse to a discriminated result —
+ * the caller never has to catch: `not-modified` (304), `failed` (non-2xx or
+ * network error, already logged), or `ok` (2xx with the response + bytes).
+ */
+function initConditionalGet(deps: {
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
 }): (params: {
@@ -87,173 +93,157 @@ function initConditionalFetch(deps: {
 	etag?: string;
 	lastModified?: string;
 }) => Promise<
-	| { ok: true; response: Response }
-	| { ok: false; result: CrawlArticleResult }
+	| { status: "ok"; response: Response; buffer: Buffer }
+	| { status: "not-modified" }
+	| { status: "failed" }
 > {
 	const { crawlFetch, logError } = deps;
 	return async (params) => {
-		const headers: Record<string, string> = {};
-		if (params.etag) headers["if-none-match"] = params.etag;
-		if (params.lastModified) headers["if-modified-since"] = params.lastModified;
-		const response = await crawlFetch(params.url, {
-			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-			headers,
-		});
-		if (response.status === 304) {
-			return { ok: false, result: { status: "not-modified" } };
+		try {
+			const headers: Record<string, string> = {};
+			if (params.etag) headers["if-none-match"] = params.etag;
+			if (params.lastModified) headers["if-modified-since"] = params.lastModified;
+			const response = await crawlFetch(params.url, {
+				signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+				headers,
+			});
+			if (response.status === 304) {
+				return { status: "not-modified" };
+			}
+			if (!response.ok) {
+				logError(`[CrawlArticle] HTTP ${response.status} for ${params.url}`);
+				return { status: "failed" };
+			}
+			return { status: "ok", response, buffer: Buffer.from(await response.arrayBuffer()) };
+		} catch (error) {
+			logError(`[CrawlArticle] Network error for ${params.url}`, error instanceof Error ? error : undefined);
+			return { status: "failed" };
 		}
-		if (!response.ok) {
-			logError(`[CrawlArticle] HTTP ${response.status} for ${params.url}`);
-			return { ok: false, result: { status: "failed" } };
-		}
-		return { ok: true, response };
 	};
 }
 
 /**
- * Simple-path crawler: HTML body + oembed for X/Twitter, plus thumbnail
- * extraction. Bails early with `{ status: "unsupported" }` on any content type
- * it doesn't handle — the orchestrator decides whether to pass the URL to
- * `initComprehensiveCrawl` for further extraction.
+ * HTML body → article result. Decodes the materialised buffer (UTF-8, matching
+ * `Response.text()`), extracts thumbnail candidates, and — when `fetchThumbnail`
+ * is set — prefetches the first candidate that downloads cleanly so callers
+ * never fire a second image request. `etag` / `last-modified` ride through from
+ * the response so the caller can persist conditional validators.
  */
-export function initSimpleCrawl(deps: {
+export async function parseHtmlFromBuffer(input: {
+	buffer: Buffer;
+	response: Response;
+	url: string;
+	fetchThumbnail?: boolean;
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
-}): SimpleCrawl {
-	const { crawlFetch, logError } = deps;
-	const conditionalFetch = initConditionalFetch({ crawlFetch, logError });
-	const fetchTweetViaOembed = initFetchTweetViaOembed({ crawlFetch, logError });
+}): Promise<CrawlArticleResult> {
+	const { buffer, response, url, fetchThumbnail, crawlFetch, logError } = input;
+	const html = new TextDecoder().decode(buffer);
+	const candidates = extractThumbnailCandidates({ html, baseUrl: url });
+	const thumbnailUrl = candidates[0];
 	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError });
-	return async (params) => {
-		if (isTweetUrl(params.url)) {
-			return fetchTweetViaOembed(params);
-		}
-
-		try {
-			const outcome = await conditionalFetch(params);
-			if (!outcome.ok) return outcome.result;
-			const { response } = outcome;
-			const contentType = response.headers.get("content-type") ?? "";
-			if (!isHtmlContentType(contentType)) {
-				logError(`[CrawlArticle] Unexpected Content-Type "${contentType}" for ${params.url}`);
-				return { status: "unsupported", reason: `non-html content type: ${contentType}` };
-			}
-			const html = await response.text();
-			const candidates = extractThumbnailCandidates({ html, baseUrl: params.url });
-			const thumbnailUrl = candidates[0];
-			const thumbnailImage = params.fetchThumbnail
-				? await fetchThumbnailImage({ candidates, referer: params.url })
-				: undefined;
-			const result: CrawlArticleResult & { status: "fetched" } = {
-				status: "fetched",
-				html,
-				etag: headerOrUndefined(response.headers, "etag"),
-				lastModified: headerOrUndefined(response.headers, "last-modified"),
-			};
-			if (thumbnailUrl) result.thumbnailUrl = thumbnailUrl;
-			if (thumbnailImage) result.thumbnailImage = thumbnailImage;
-			return result;
-		} catch (error) {
-			logError(`[CrawlArticle] Network error for ${params.url}`, error instanceof Error ? error : undefined);
-			return { status: "failed" };
-		}
+	const thumbnailImage = fetchThumbnail
+		? await fetchThumbnailImage({ candidates, referer: url })
+		: undefined;
+	const result: CrawlArticleResult & { status: "fetched" } = {
+		status: "fetched",
+		html,
+		etag: headerOrUndefined(response.headers, "etag"),
+		lastModified: headerOrUndefined(response.headers, "last-modified"),
 	};
+	if (thumbnailUrl) result.thumbnailUrl = thumbnailUrl;
+	if (thumbnailImage) result.thumbnailImage = thumbnailImage;
+	return result;
 }
 
 /**
- * Comprehensive-path crawler: fetches and extracts PDF documents. Each call
- * holds the worker for as long as pdfjs needs to walk the document, so this
- * factory is kept separate from the simple HTML path — the save-link
- * orchestrator only invokes it after the simple factory has identified a PDF.
- *
- * Non-PDF content from this factory is `unsupported` (the simple factory
- * already covers HTML); used standalone it cannot decide what to do with
- * arbitrary bodies and the orchestrator pattern owns that decision.
+ * PDF body → article result. Enforces the byte-size cap before handing the
+ * buffer to the extractor (each extraction can hold a worker for as long as
+ * pdfjs needs to walk the document). Extraction failure and oversize bodies
+ * both surface as `unsupported` so the caller can flip the row terminal.
  */
-export function initComprehensiveCrawl(deps: {
-	crawlFetch: CrawlFetch;
-	extractPdf: ExtractPdf;
-	logError: (message: string, error?: Error) => void;
-}): ComprehensiveCrawl {
-	const { crawlFetch, extractPdf, logError } = deps;
-	const conditionalFetch = initConditionalFetch({ crawlFetch, logError });
-	return async (params) => {
-		try {
-			const outcome = await conditionalFetch(params);
-			if (!outcome.ok) return outcome.result;
-			const { response } = outcome;
-			const arrayBuffer = await response.arrayBuffer();
-			const buffer = Buffer.from(arrayBuffer);
-			const contentType = response.headers.get("content-type") ?? "";
-			if (isPDF({ contentType, bodyBytes: buffer })) {
-				return handlePdfBuffer({
-					buffer,
-					response,
-					url: params.url,
-					extractPdf,
-					logError,
-					onProgress: params.onProgress,
-				});
-			}
-			logError(`[CrawlArticle] Comprehensive crawl invoked on non-pdf "${contentType}" for ${params.url}`);
-			return { status: "unsupported", reason: `non-pdf content type: ${contentType}` };
-		} catch (error) {
-			logError(`[CrawlArticle] Network error for ${params.url}`, error instanceof Error ? error : undefined);
-			return { status: "failed" };
-		}
-	};
-}
-
-/**
- * Composed crawler: runs the simple factory first and falls through to the
- * comprehensive factory when the simple factory reports `unsupported`. Callers
- * that need to observe the boundary between the two halves (e.g. the save-link
- * orchestrator marking a stage) should construct `initSimpleCrawl` and
- * `initComprehensiveCrawl` directly and compose the fall-through themselves.
- */
-export function initCrawlArticle(deps: {
-	simpleCrawl: SimpleCrawl;
-	comprehensiveCrawl: ComprehensiveCrawl;
-}): CrawlArticle {
-	return async (params) => {
-		const simpleResult = await deps.simpleCrawl(params);
-		if (simpleResult.status === "unsupported") {
-			return deps.comprehensiveCrawl(params);
-		}
-		return simpleResult;
-	};
-}
-
-async function handlePdfBuffer(args: {
+export async function parsePdfFromBuffer(input: {
 	buffer: Buffer;
 	response: Response;
 	url: string;
 	extractPdf: ExtractPdf;
-	logError: (message: string, error?: Error) => void;
 	onProgress?: ComprehensiveCrawlProgress;
+	logError: (message: string, error?: Error) => void;
 }): Promise<CrawlArticleResult> {
-	if (args.buffer.length > MAX_PDF_BYTES.bytes) {
-		args.logError(`[CrawlArticle] PDF body too large (${args.buffer.length} bytes) for ${args.url}`);
-		return { status: "unsupported", reason: `pdf body too large: ${args.buffer.length} bytes` };
+	if (input.buffer.length > MAX_PDF_BYTES.bytes) {
+		input.logError(`[CrawlArticle] PDF body too large (${input.buffer.length} bytes) for ${input.url}`);
+		return { status: "unsupported", reason: `pdf body too large: ${input.buffer.length} bytes` };
 	}
-	const extracted = await args.extractPdf({
-		buffer: args.buffer,
-		url: args.url,
-		onProgress: args.onProgress,
+	const extracted = await input.extractPdf({
+		buffer: input.buffer,
+		url: input.url,
+		onProgress: input.onProgress,
 	});
 	if (extracted.kind === "failed") {
-		args.logError(`[CrawlArticle] PDF extraction failed for ${args.url}: ${extracted.reason}`);
+		input.logError(`[CrawlArticle] PDF extraction failed for ${input.url}: ${extracted.reason}`);
 		return { status: "unsupported", reason: `pdf extraction failed: ${extracted.reason}` };
 	}
 	const result: CrawlArticleResult & { status: "fetched" } = {
 		status: "fetched",
 		html: extracted.html,
-		etag: headerOrUndefined(args.response.headers, "etag"),
-		lastModified: headerOrUndefined(args.response.headers, "last-modified"),
+		etag: headerOrUndefined(input.response.headers, "etag"),
+		lastModified: headerOrUndefined(input.response.headers, "last-modified"),
 	};
 	return result;
 }
 
+/**
+ * The single crawl orchestrator. One conditional GET per invocation; the body
+ * is materialised once and dispatched on content-type:
+ *
+ *   - X/Twitter URLs bypass the article fetch entirely (oembed has the text).
+ *   - HTML → `parseHtmlFromBuffer`.
+ *   - PDF (content-type or magic-byte sniff) → `parsePdfFromBuffer`, but only
+ *     when an `extractPdf` was supplied. Lambdas that defer PDF extraction
+ *     construct this without `extractPdf`, so a PDF body returns `unsupported`
+ *     and the save-link orchestrator hands the URL to the comprehensive Lambda.
+ *   - Anything else → `unsupported`.
+ */
+export function initCrawlArticle(deps: {
+	crawlFetch: CrawlFetch;
+	extractPdf?: ExtractPdf;
+	logError: (message: string, error?: Error) => void;
+}): CrawlArticle {
+	const { crawlFetch, extractPdf, logError } = deps;
+	const conditionalGet = initConditionalGet({ crawlFetch, logError });
+	const fetchTweetViaOembed = initFetchTweetViaOembed({ crawlFetch, logError });
+	return async (params) => {
+		if (isTweetUrl(params.url)) {
+			return fetchTweetViaOembed({ url: params.url });
+		}
+		const fetched = await conditionalGet(params);
+		if (fetched.status !== "ok") return fetched;
+		const { response, buffer } = fetched;
+		const contentType = response.headers.get("content-type") ?? "";
+		if (isHtmlContentType(contentType)) {
+			return parseHtmlFromBuffer({
+				buffer,
+				response,
+				url: params.url,
+				fetchThumbnail: params.fetchThumbnail,
+				crawlFetch,
+				logError,
+			});
+		}
+		if (extractPdf && isPDF({ contentType, bodyBytes: buffer })) {
+			return parsePdfFromBuffer({
+				buffer,
+				response,
+				url: params.url,
+				extractPdf,
+				onProgress: params.onProgress,
+				logError,
+			});
+		}
+		logError(`[CrawlArticle] Unsupported content-type "${contentType}" for ${params.url}`);
+		return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
+	};
+}
 
 /** Accept text/html and application/xhtml+xml — both are HTML-parseable by linkedom. */
 function isHtmlContentType(contentType: string): boolean {

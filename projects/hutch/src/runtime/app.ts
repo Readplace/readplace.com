@@ -10,11 +10,9 @@ import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-art
 import type { ExtractPdf } from "@packages/crawl-article";
 import {
 	CRAWL_PERSONAS,
-	initComprehensiveCrawl,
 	initCrawlArticle,
 	initCrawlFetch,
 	initFetchThumbnailImage,
-	initSimpleCrawl,
 } from "@packages/crawl-article";
 import { initFinalizeArticle } from "save-link/finalize-article";
 import { initCrawlAndFinalizeArticle } from "save-link/crawl-and-finalize-article";
@@ -171,9 +169,7 @@ function initProviders() {
 		const { publishCancelSubscriptionCommand } = initEventBridgeCancelSubscriptionCommand({ publishEvent });
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
 		const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
-		const simpleCrawl = initSimpleCrawl({ crawlFetch, logError });
-		const comprehensiveCrawl = initComprehensiveCrawl({ crawlFetch, extractPdf, logError });
-		const crawlArticle = initCrawlArticle({ simpleCrawl, comprehensiveCrawl });
+		const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
 		const { parseHtml } = initReadabilityParser({
 			crawlArticle,
 			sitePreParsers: [theInformationPreParser, mediumPreParser],
@@ -293,9 +289,7 @@ function initProviders() {
 	const summaryStore = initInMemoryGeneratedSummary();
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
 	const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
-	const simpleCrawl = initSimpleCrawl({ crawlFetch, logError });
-	const comprehensiveCrawl = initComprehensiveCrawl({ crawlFetch, extractPdf, logError });
-	const crawlArticle = initCrawlArticle({ simpleCrawl, comprehensiveCrawl });
+	const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
 		sitePreParsers: [theInformationPreParser, mediumPreParser],
@@ -315,7 +309,7 @@ function initProviders() {
 		imagesCdnBaseUrl: "https://dev-images.invalid",
 	});
 	const crawlAndFinalizeArticle = initCrawlAndFinalizeArticle({
-		simpleCrawl: crawlArticle, // dev: includes comprehensive fallback inline
+		crawlArticle, // dev: crawlArticle is built with extractPdf, so PDFs extract inline
 		finalizeArticle,
 	});
 	const finaliseSummaryFromContent = async (params: { url: string; textContent: string }) => {
