@@ -335,13 +335,12 @@ describe("initSaveLinkCommandHandler", () => {
 		const warn = jest.fn();
 		const publishEvent = jest.fn().mockResolvedValue(undefined);
 		// crawlAndFinalizeArticle is the only path that triggers an
-		// onPartialHtml fire — invoke it twice (preview + final, mirroring
-		// the production flow) so the partial-write path runs twice against
-		// the failing markCrawlPartial mock.
+		// onPartialHtml fire — invoke it once (preview, mirroring the
+		// production flow) so the partial-write path runs against the
+		// failing markCrawlPartial mock.
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async ({ onPartialHtml }) => {
 			if (onPartialHtml) {
 				onPartialHtml({ html: "<h1>preview</h1>", readyPageCount: 1 });
-				onPartialHtml({ html: "<p>final</p>", readyPageCount: 1 });
 			}
 			return fetchedResult;
 		};
@@ -367,8 +366,6 @@ describe("initSaveLinkCommandHandler", () => {
 				error: "Error: DynamoDB throttled",
 			}),
 		);
-		// crawlAndFinalize fires onPartialHtml twice (preview + final); both
-		// hit the failing mock, so the warn fires twice too.
-		expect(warn).toHaveBeenCalledTimes(2);
+		expect(warn).toHaveBeenCalledTimes(1);
 	});
 });
