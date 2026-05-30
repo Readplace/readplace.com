@@ -138,6 +138,7 @@ function initProviders() {
 		const eventBusName = requireEnv("EVENT_BUS_NAME");
 		const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 		const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
+		const pendingPdfBucketName = requireEnv("PENDING_PDF_BUCKET_NAME");
 		const importSessionsTable = requireEnv("DYNAMODB_IMPORT_SESSIONS_TABLE");
 		const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
 		const trialSchedulerGroupName = requireEnv("TRIAL_SCHEDULER_GROUP_NAME");
@@ -176,7 +177,7 @@ function initProviders() {
 		const { publishCancelSubscriptionCommand } = initEventBridgeCancelSubscriptionCommand({ publishEvent });
 		const { publishSubscriptionReactivated } = initEventBridgeSubscriptionReactivated({ publishEvent });
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
-		const { putPendingPdf } = initPutPendingPdf({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
+		const { putPendingPdf } = initPutPendingPdf({ client: new S3Client({}), bucketName: pendingPdfBucketName });
 		const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 		const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
 		const { parseHtml } = initReadabilityParser({
