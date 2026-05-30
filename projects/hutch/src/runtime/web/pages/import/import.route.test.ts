@@ -57,12 +57,8 @@ describe("Import routes", () => {
 			const button = form.querySelector('[data-test-action="import-upload"]');
 			assert(button, "Upload button must remain in the DOM as the no-JS fallback");
 			expect(button.textContent).toBe("Upload");
-			const uploadTab = doc.querySelector('[data-test-import-tab="upload"]');
-			assert(uploadTab, "upload tab anchor must be rendered");
-			expect(uploadTab.getAttribute("aria-current")).toBe("page");
-			const fromUrlTab = doc.querySelector('[data-test-import-tab="from-url"]');
-			assert(fromUrlTab, "from-url tab anchor must be rendered");
-			expect(fromUrlTab.getAttribute("aria-current")).toBeNull();
+			expect(doc.querySelector('[data-test-import-tabs]')).toBeNull();
+			expect(doc.querySelector('[data-test-import-tab="from-url"]')).toBeNull();
 		});
 
 		it("renders the upload form in idle state with both idle and uploading regions", async () => {
@@ -120,7 +116,7 @@ describe("Import routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const error = doc.querySelector("[data-test-import-error]");
 			assert(error, "error banner must be rendered");
-			expect(error.textContent).toContain("readplace+migrate@readplace.com");
+			expect(error.textContent).toContain("readplace+import@readplace.com");
 		});
 
 		it("renders the import_session_not_found message when error_code=import_session_not_found", async () => {

@@ -17,12 +17,12 @@ function withExtractor(result: ExtractLinksFromPageResult) {
 const useApp = useTestServer();
 
 describe("POST /import/from-url routes", () => {
-	describe("GET /import?mode=from-url", () => {
+	describe("GET /import?mode=from-url&feature=import-link-public", () => {
 		it("renders the from-url panel with the from-url tab active", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/import?mode=from-url");
+			const response = await agent.get("/import?mode=from-url&feature=import-link-public");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -45,10 +45,22 @@ describe("POST /import/from-url routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/import?mode=from-url");
+			const response = await agent.get("/import?mode=from-url&feature=import-link-public");
 
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('[data-test-form="import-file"]')).toBeNull();
+		});
+
+		it("does not render the from-url tab without the feature flag", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/import?mode=from-url");
+
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector('[data-test-import-tab="from-url"]')).toBeNull();
+			const form = doc.querySelector('[data-test-form="import-file"]');
+			assert(form, "falls back to upload form without feature flag");
 		});
 	});
 
@@ -106,7 +118,7 @@ describe("POST /import/from-url routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe(
-				"/import?mode=from-url&error_code=import_url_invalid",
+				"/import?mode=from-url&feature=import-link-public&error_code=import_url_invalid",
 			);
 		});
 
@@ -121,7 +133,7 @@ describe("POST /import/from-url routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe(
-				"/import?mode=from-url&error_code=import_url_invalid",
+				"/import?mode=from-url&feature=import-link-public&error_code=import_url_invalid",
 			);
 		});
 
@@ -138,7 +150,7 @@ describe("POST /import/from-url routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe(
-				"/import?mode=from-url&error_code=import_url_fetch_failed",
+				"/import?mode=from-url&feature=import-link-public&error_code=import_url_fetch_failed",
 			);
 		});
 
@@ -153,7 +165,7 @@ describe("POST /import/from-url routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe(
-				"/import?mode=from-url&error_code=import_url_fetch_failed",
+				"/import?mode=from-url&feature=import-link-public&error_code=import_url_fetch_failed",
 			);
 		});
 
@@ -168,7 +180,7 @@ describe("POST /import/from-url routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe(
-				"/import?mode=from-url&error_code=import_url_fetch_failed",
+				"/import?mode=from-url&feature=import-link-public&error_code=import_url_fetch_failed",
 			);
 		});
 
@@ -183,7 +195,7 @@ describe("POST /import/from-url routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe(
-				"/import?mode=from-url&error_code=import_url_too_large",
+				"/import?mode=from-url&feature=import-link-public&error_code=import_url_too_large",
 			);
 		});
 
@@ -200,7 +212,7 @@ describe("POST /import/from-url routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe(
-				"/import?mode=from-url&error_code=import_url_unsupported",
+				"/import?mode=from-url&feature=import-link-public&error_code=import_url_unsupported",
 			);
 		});
 
@@ -220,7 +232,7 @@ describe("POST /import/from-url routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe(
-				"/import?mode=from-url&error_code=import_url_no_links",
+				"/import?mode=from-url&feature=import-link-public&error_code=import_url_no_links",
 			);
 		});
 
@@ -247,7 +259,7 @@ describe("POST /import/from-url routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const response = await agent.get(
-				"/import?mode=from-url&error_code=import_url_invalid",
+				"/import?mode=from-url&feature=import-link-public&error_code=import_url_invalid",
 			);
 
 			const doc = new JSDOM(response.text).window.document;

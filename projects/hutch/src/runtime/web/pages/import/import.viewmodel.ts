@@ -8,23 +8,32 @@ export interface ImportAcquireViewModel {
 	readonly mode: ImportMode;
 	readonly isUpload: boolean;
 	readonly isFromUrl: boolean;
+	readonly showFromUrl: boolean;
 	readonly errors?: readonly ComponentError[];
 	readonly uploadAction: string;
 	readonly fromUrlAction: string;
+	readonly tabUploadHref: string;
+	readonly tabFromUrlHref: string;
 }
 
 export function toImportAcquireViewModel(input: {
 	mode?: string;
 	errors?: readonly ComponentError[];
+	showFromUrl?: boolean;
 }): ImportAcquireViewModel {
-	const mode: ImportMode = input.mode === "from-url" ? "from-url" : "upload";
+	const showFromUrl = input.showFromUrl ?? false;
+	const mode: ImportMode = input.mode === "from-url" && showFromUrl ? "from-url" : "upload";
+	const featureParam = showFromUrl ? "?feature=import-link-public" : "";
 	return {
 		mode,
 		isUpload: mode === "upload",
 		isFromUrl: mode === "from-url",
+		showFromUrl,
 		errors: input.errors,
 		uploadAction: "/import",
 		fromUrlAction: "/import/from-url",
+		tabUploadHref: `/import${featureParam}`,
+		tabFromUrlHref: `/import?mode=from-url${showFromUrl ? "&feature=import-link-public" : ""}`,
 	};
 }
 

@@ -90,7 +90,7 @@ export function ImportPage(vm: ImportViewModel): PageBody {
 
 export function ImportAcquirePage(vm: ImportAcquireViewModel): PageBody {
 	const data = { ...vm, errorMessage: vm.errors?.[0]?.message };
-	const tabsHtml = render(IMPORT_TABS_TEMPLATE, data);
+	const tabsHtml = vm.showFromUrl ? render(IMPORT_TABS_TEMPLATE, data) : "";
 	const panelHtml = vm.isUpload
 		? render(IMPORT_UPLOAD_TEMPLATE, data)
 		: render(IMPORT_FROM_URL_PANEL_TEMPLATE, data);
