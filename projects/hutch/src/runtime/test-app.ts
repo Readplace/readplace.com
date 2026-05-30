@@ -447,7 +447,6 @@ function flattenFixtureToAppDependencies(
 		putPendingPdf: fixture.pendingPdf.putPendingPdf,
 		findGeneratedSummary: fixture.summary.findGeneratedSummary,
 		markSummaryPending: fixture.summary.markSummaryPending,
-		refreshArticleIfStale: fixture.freshness.refreshArticleIfStale,
 		oauthModel: fixture.oauth.oauthModel,
 		validateAccessToken: fixture.oauth.validateAccessToken,
 		sendEmail: fixture.email.sendEmail,

@@ -63,7 +63,6 @@ import type {
 } from "@packages/test-fixtures/providers/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
 import type { ReadArticleContent } from "@packages/test-fixtures/providers/article-store";
-import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 import type {
 	FindArticleCrawlStatus,
 	ForceMarkCrawlPending,
@@ -199,7 +198,6 @@ interface AppDependencies {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
-	refreshArticleIfStale: RefreshArticleIfStale;
 	adminEmails: readonly string[];
 	recrawlServiceToken: string;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
@@ -612,7 +610,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		markSummaryPending: deps.markSummaryPending,
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
 		markCrawlPending: deps.markCrawlPending,
-		refreshArticleIfStale: deps.refreshArticleIfStale,
+		publishStaleCheckRequested: deps.publishStaleCheckRequested,
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		readArticleContent: deps.readArticleContent,
 		httpErrorMessageMapping: deps.httpErrorMessageMapping,
@@ -644,7 +642,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		markSummaryPending: deps.markSummaryPending,
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		publishLinkSaved: deps.publishLinkSaved,
-		refreshArticleIfStale: deps.refreshArticleIfStale,
+		findArticleByUrl: deps.findArticleByUrl,
+		publishStaleCheckRequested: deps.publishStaleCheckRequested,
 		logError: deps.logError,
 		analytics: deps.analytics,
 		salt: deps.salt,

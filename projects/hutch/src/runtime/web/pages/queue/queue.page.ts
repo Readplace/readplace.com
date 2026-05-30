@@ -19,7 +19,6 @@ import {
 } from "../import/import-skipped-cookie";
 import type { ImportSkippedViewModel } from "./queue.viewmodel";
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
-import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 import type {
 	DeleteArticle,
 	FindArticleById,
@@ -49,6 +48,7 @@ import type {
 import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.types";
 import type { PublishLinkSaved } from "@packages/test-fixtures/providers/events";
+import type { PublishStaleCheckRequested } from "@packages/test-fixtures/providers/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/test-fixtures/providers/events";
 import type { PutPendingHtml } from "@packages/test-fixtures/providers/pending-html";
 import { saveArticleFromUrl } from "../../shared/save-article/save-article-from-url";
@@ -150,7 +150,7 @@ interface QueueDependencies {
 	markSummaryPending: MarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
-	refreshArticleIfStale: RefreshArticleIfStale;
+	publishStaleCheckRequested: PublishStaleCheckRequested;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
@@ -412,8 +412,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 
 		try {
-			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-			const result = await saveArticleFromUrl(deps, { userId, url: validation.url, freshness });
+			const result = await saveArticleFromUrl(deps, { userId, url: validation.url });
 			markExtensionSavedArticle(res);
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
@@ -492,8 +491,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					deps.logError(
 						`[SaveHtmlOversize] falling back to URL-only url=${urlOnlyValidation.url} userId=${userId} sizeBytes=${sizeBytes}`,
 					);
-					const freshness = await deps.refreshArticleIfStale({ url: urlOnlyValidation.url });
-					const result = await saveArticleFromUrl(deps, { userId, url: urlOnlyValidation.url, freshness });
+					const result = await saveArticleFromUrl(deps, { userId, url: urlOnlyValidation.url });
 					markExtensionSavedArticle(res);
 					res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 					return;
@@ -513,8 +511,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			}
 			const articleUrl = urlValidation.url;
 
-			const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
-
 			await deps.putPendingHtml({ url: articleUrl, html: parsed.data.rawHtml });
 			await deps.publishSaveLinkRawHtmlCommand({
 				url: articleUrl,
@@ -522,7 +518,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				title: parsed.data.title,
 			});
 
-			const result = await saveArticleFromUrl(deps, { userId, url: articleUrl, freshness });
+			const result = await saveArticleFromUrl(deps, { userId, url: articleUrl });
 			markExtensionSavedArticle(res);
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
@@ -639,7 +635,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 			try {
 				const articleUrl = validation.url;
-				const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
 				const normalized = normalizeMediaType(mediaType);
 				const handler = saveContentHandlers[normalized];
 
@@ -666,7 +661,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					return;
 				}
 
-				const result = await saveArticleFromUrl(deps, { userId, url: articleUrl, freshness });
+				const result = await saveArticleFromUrl(deps, { userId, url: articleUrl });
 				markExtensionSavedArticle(res);
 				res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 			} catch (error) {
@@ -704,8 +699,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 
 		try {
-			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-			await saveArticleFromUrl(deps, { userId, url: validation.url, freshness });
+			await saveArticleFromUrl(deps, { userId, url: validation.url });
 			res.redirect(303, "/queue#latest-saved");
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);

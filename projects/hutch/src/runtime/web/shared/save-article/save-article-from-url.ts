@@ -1,21 +1,22 @@
 import { calculateReadTime } from "@packages/domain/article";
-import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 import type { MarkCrawlPending } from "@packages/test-fixtures/providers/article-crawl";
 import type { MarkSummaryPending } from "@packages/test-fixtures/providers/article-summary";
-import type { SaveArticle, UpdateArticleStatus } from "@packages/test-fixtures/providers/article-store";
+import type { FindArticleByUrl, SaveArticle, UpdateArticleStatus } from "@packages/test-fixtures/providers/article-store";
 import type { PublishLinkSaved } from "@packages/test-fixtures/providers/events";
+import type { PublishStaleCheckRequested } from "@packages/test-fixtures/providers/events";
 import type { PublishUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
 import type { UserId } from "@packages/domain/user";
 import type { SaveableUrl, SavedArticle } from "@packages/domain/article";
 
 export interface SaveArticleFromUrlDependencies {
 	saveArticle: SaveArticle;
+	findArticleByUrl: FindArticleByUrl;
 	updateArticleStatus: UpdateArticleStatus;
 	markCrawlPending: MarkCrawlPending;
 	markSummaryPending: MarkSummaryPending;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	publishLinkSaved: PublishLinkSaved;
-	refreshArticleIfStale: RefreshArticleIfStale;
+	publishStaleCheckRequested: PublishStaleCheckRequested;
 }
 
 async function markUnreadIfRead(
@@ -29,13 +30,14 @@ async function markUnreadIfRead(
 	return saved;
 }
 
-async function saveByFreshness(
+export async function saveArticleFromUrl(
 	deps: SaveArticleFromUrlDependencies,
-	params: { userId: UserId; url: string; freshness: ContentFreshnessResult },
+	params: { userId: UserId; url: SaveableUrl },
 ): Promise<{ saved: SavedArticle }> {
-	const { userId, url, freshness } = params;
+	const { userId, url } = params;
+	const existing = await deps.findArticleByUrl(url);
 
-	if (freshness.action === "new") {
+	if (!existing) {
 		const hostname = new URL(url).hostname;
 		const saved = await deps.saveArticle({
 			userId,
@@ -65,17 +67,9 @@ async function saveByFreshness(
 		estimatedReadTime: calculateReadTime(0),
 	});
 
-	if (freshness.action === "refreshed" && freshness.article.article.content) {
-		await deps.markSummaryPending({ url });
-		await deps.publishLinkSaved({ url, userId });
-	}
+	// Re-crawl of an already-cached article is delegated to the stale-check
+	// Lambda so the save request never blocks on a remote fetch (mirrors /view).
+	await deps.publishStaleCheckRequested({ url });
 
 	return { saved: await markUnreadIfRead(deps.updateArticleStatus, saved) };
-}
-
-export function saveArticleFromUrl(
-	deps: SaveArticleFromUrlDependencies,
-	params: { userId: UserId; url: SaveableUrl; freshness: ContentFreshnessResult },
-): Promise<{ saved: SavedArticle }> {
-	return saveByFreshness(deps, params);
 }

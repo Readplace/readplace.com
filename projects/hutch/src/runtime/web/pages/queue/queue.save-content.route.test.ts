@@ -314,7 +314,10 @@ describe("POST /queue/save-content validation", () => {
 
 		const testApp = useApp({
 			...fixture,
-			freshness: { refreshArticleIfStale: async () => { throw new Error("boom"); } },
+			pendingHtml: {
+				putPendingHtml: async () => { throw new Error("boom"); },
+				readPendingHtml: fixture.pendingHtml.readPendingHtml,
+			},
 			shared: {
 				...fixture.shared,
 				logError: (_msg, err) => { if (err) errors.push(err); },
@@ -341,8 +344,11 @@ describe("POST /queue/save-content validation", () => {
 
 		const testApp = useApp({
 			...fixture,
-			// biome-ignore lint/suspicious/noExplicitAny: deliberately throws a non-Error to exercise the instanceof Error ? ... : undefined branch
-			freshness: { refreshArticleIfStale: async () => { throw "raw string" as any; } },
+			pendingHtml: {
+				// biome-ignore lint/suspicious/noExplicitAny: deliberately throws a non-Error to exercise the instanceof Error ? ... : undefined branch
+				putPendingHtml: async () => { throw "raw string" as any; },
+				readPendingHtml: fixture.pendingHtml.readPendingHtml,
+			},
 			shared: {
 				...fixture.shared,
 				logError: (msg, err) => { errorArgs.push([msg, err]); },
