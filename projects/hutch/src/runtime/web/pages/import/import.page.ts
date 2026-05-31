@@ -49,11 +49,11 @@ const UPLOAD_ERROR_REDIRECT = {
 } as const;
 
 const FROM_URL_ERROR_REDIRECT = {
-	invalid: "/import?mode=from-url&feature=import-link-public&error_code=import_url_invalid",
-	fetchFailed: "/import?mode=from-url&feature=import-link-public&error_code=import_url_fetch_failed",
-	unsupported: "/import?mode=from-url&feature=import-link-public&error_code=import_url_unsupported",
-	tooLarge: "/import?mode=from-url&feature=import-link-public&error_code=import_url_too_large",
-	noUrls: "/import?mode=from-url&feature=import-link-public&error_code=import_url_no_links",
+	invalid: "/import?mode=from-url&error_code=import_url_invalid",
+	fetchFailed: "/import?mode=from-url&error_code=import_url_fetch_failed",
+	unsupported: "/import?mode=from-url&error_code=import_url_unsupported",
+	tooLarge: "/import?mode=from-url&error_code=import_url_too_large",
+	noUrls: "/import?mode=from-url&error_code=import_url_no_links",
 } as const;
 
 export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
@@ -72,11 +72,9 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const errorMessage = importErrorMessageMapping(req.query);
 		const mode = typeof req.query.mode === "string" ? req.query.mode : undefined;
-		const showFromUrl = req.query.feature === "import-link-public";
 		const vm = toImportAcquireViewModel({
 			mode,
 			errors: errorMessage ? [{ message: errorMessage }] : undefined,
-			showFromUrl,
 		});
 		sendComponent(req, res, Base(ImportAcquirePage(vm), await deps.buildBannerState(req)));
 	});

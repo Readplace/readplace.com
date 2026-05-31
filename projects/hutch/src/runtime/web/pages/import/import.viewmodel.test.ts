@@ -169,14 +169,9 @@ describe("toImportAcquireViewModel", () => {
 		expect(vm.fromUrlAction).toBe("/import/from-url");
 	});
 
-	it("sets mode to from-url when mode=from-url and showFromUrl is true", () => {
-		const vm = toImportAcquireViewModel({ mode: "from-url", showFromUrl: true });
+	it("sets mode to from-url when mode=from-url", () => {
+		const vm = toImportAcquireViewModel({ mode: "from-url" });
 		expect(vm.mode).toBe("from-url");
-	});
-
-	it("falls back to upload when mode=from-url but showFromUrl is false", () => {
-		const vm = toImportAcquireViewModel({ mode: "from-url", showFromUrl: false });
-		expect(vm.mode).toBe("upload");
 	});
 
 	it("falls back to upload for an unrecognised mode value", () => {
@@ -194,27 +189,17 @@ describe("toImportAcquireViewModel", () => {
 		expect(vm.errors).toBeUndefined();
 	});
 
-	it("defaults showFromUrl to false", () => {
+	it("emits both tabs with the upload tab active by default", () => {
 		const vm = toImportAcquireViewModel({});
-		expect(vm.showFromUrl).toBe(false);
-	});
-
-	it("emits no tabs when showFromUrl is false", () => {
-		const vm = toImportAcquireViewModel({ showFromUrl: false });
-		expect(vm.tabs).toEqual([]);
-	});
-
-	it("emits both tabs with the upload tab active by default when showFromUrl is true", () => {
-		const vm = toImportAcquireViewModel({ showFromUrl: true });
 		expect(vm.tabs.map((t) => t.key)).toEqual(["upload", "from-url"]);
 		expect(vm.tabs[0].isActive).toBe(true);
-		expect(vm.tabs[0].href).toBe("/import?feature=import-link-public");
+		expect(vm.tabs[0].href).toBe("/import");
 		expect(vm.tabs[1].isActive).toBe(false);
-		expect(vm.tabs[1].href).toBe("/import?mode=from-url&feature=import-link-public");
+		expect(vm.tabs[1].href).toBe("/import?mode=from-url");
 	});
 
-	it("marks the from-url tab active when mode=from-url and showFromUrl is true", () => {
-		const vm = toImportAcquireViewModel({ mode: "from-url", showFromUrl: true });
+	it("marks the from-url tab active when mode=from-url", () => {
+		const vm = toImportAcquireViewModel({ mode: "from-url" });
 		expect(vm.tabs[0].isActive).toBe(false);
 		expect(vm.tabs[1].isActive).toBe(true);
 	});

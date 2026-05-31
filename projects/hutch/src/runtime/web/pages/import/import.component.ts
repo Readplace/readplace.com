@@ -134,7 +134,7 @@ export function ImportAcquirePage(vm: ImportAcquireViewModel): PageBody {
 	const panel = PANEL_CONFIG[vm.mode];
 	const tabs = vm.tabs.map(renderTab);
 	const data = { ...vm, tabs, errorMessage: vm.errors?.[0]?.message };
-	const tabsHtml = vm.showFromUrl ? render(IMPORT_TABS_TEMPLATE, data) : "";
+	const tabsHtml = render(IMPORT_TABS_TEMPLATE, data);
 	const panelHtml = render(panel.template, data);
 	const content = render(IMPORT_ACQUIRE_TEMPLATE, { ...data, tabsHtml, panelHtml });
 

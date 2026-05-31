@@ -43,7 +43,7 @@ describe("Import routes", () => {
 	});
 
 	describe("GET /import (authenticated)", () => {
-		it("renders the upload form with no tabs (feature flag off by default)", async () => {
+		it("renders the upload form with both import tabs", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
@@ -60,7 +60,7 @@ describe("Import routes", () => {
 			const tabKeys = Array.from(doc.querySelectorAll("[data-test-import-tab]")).map(
 				(el) => el.getAttribute("data-test-import-tab"),
 			);
-			expect(tabKeys).toEqual([]);
+			expect(tabKeys).toEqual(["upload", "from-url"]);
 		});
 
 		it("renders the upload form in idle state with both idle and uploading regions", async () => {

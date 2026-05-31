@@ -15,7 +15,7 @@ export type ImportFromUrlProgress = {
 export type ImportFromUrlActionsConfig = { baseUrl: string }
 
 async function openFromUrlPanel(page: Page, config: ImportFromUrlActionsConfig): Promise<void> {
-	await page.goto(`${config.baseUrl}/import?mode=from-url&feature=import-link-public`, { waitUntil: 'domcontentloaded' })
+	await page.goto(`${config.baseUrl}/import?mode=from-url`, { waitUntil: 'domcontentloaded' })
 }
 
 async function submitUrl(page: Page, url: string): Promise<void> {
