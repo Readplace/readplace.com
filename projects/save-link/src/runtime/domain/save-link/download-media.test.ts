@@ -228,6 +228,33 @@ describe("initDownloadMedia", () => {
 		expect(media).toHaveLength(20);
 	});
 
+	it("mirrors every rendition of each image even when total renditions exceed the URL cap", async () => {
+		const { downloadMedia } = createDownloadMedia();
+
+		const widths = [640, 750, 828, 1080, 1200, 1920];
+		const figure = (name: string) =>
+			"<figure><picture>" +
+			`<source type="image/webp" srcset="${widths.map((w) => `https://m.test/${name}/${w}.webp ${w}w`).join(", ")}">` +
+			`<source type="image/png" srcset="${widths.map((w) => `https://m.test/${name}/${w}.png ${w}w`).join(", ")}">` +
+			`<img src="https://m.test/${name}/full.png">` +
+			"</picture></figure>";
+
+		// 2 images × (6 webp + 6 png + 1 img) = 26 rendition URLs, over the old 20-URL cap.
+		const media = await downloadMedia({
+			html: figure("cubicles") + figure("loop"),
+			articleUrl: ARTICLE_URL,
+			articleResourceUniqueId,
+		});
+		const originals = media.map((m) => m.originalUrl);
+
+		// The later figure's renditions — which the old per-URL cap dropped — are all mirrored.
+		for (const w of widths) {
+			expect(originals).toContain(`https://m.test/loop/${w}.webp`);
+			expect(originals).toContain(`https://m.test/loop/${w}.png`);
+		}
+		expect(originals).toContain("https://m.test/loop/full.png");
+	});
+
 	it("skips data URLs", async () => {
 		const { downloadMedia, fakeFetch } = createDownloadMedia();
 
