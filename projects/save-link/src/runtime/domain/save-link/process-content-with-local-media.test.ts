@@ -1,3 +1,5 @@
+import assert from "node:assert/strict";
+import { parseHTML } from "linkedom";
 import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import { initProcessContentWithLocalMedia, type RewriteHtmlUrls } from "./process-content-with-local-media";
@@ -89,6 +91,43 @@ describe("processContentWithLocalMedia", () => {
 
 		expect(result).toContain("https://cdn.example.com/images/small.png 300w");
 		expect(result).toContain("https://cdn.example.com/images/abc.png 600w");
+	});
+
+	it("does not leak the previous figure's image into a later figure's <picture> srcset", async () => {
+		const media: DownloadedMedia[] = [
+			{ originalUrl: "https://m.test/cubicles/3584.png", cdnUrl: "https://cdn.test/img/cubicles-3584.png" },
+			{ originalUrl: "https://m.test/loop/1400.png", cdnUrl: "https://cdn.test/img/loop-1400.png" },
+			{ originalUrl: "https://m.test/loop/640.webp", cdnUrl: "https://cdn.test/img/loop-640.webp" },
+		];
+
+		const html =
+			"<figure><picture>" +
+			'<source srcset="https://m.test/cubicles/3584.png 3584w">' +
+			'<img src="https://m.test/cubicles/3584.png">' +
+			"</picture><figcaption>cubicles</figcaption></figure>" +
+			"<figure><picture>" +
+			'<source type="image/webp" srcset="https://m.test/loop/640.webp 640w, https://m.test/loop/1100.png 1100w">' +
+			'<img src="https://m.test/loop/1400.png">' +
+			"</picture><figcaption>loop</figcaption></figure>";
+
+		const result = await processContentWithLocalMedia({ html, media });
+
+		const { document } = parseHTML(result);
+		const loopFigure = [...document.querySelectorAll("figure")].find(
+			(f) => f.querySelector("figcaption")?.textContent === "loop",
+		);
+		assert(loopFigure, "loop figure must be present");
+
+		const urlsInLoopFigure = [
+			...[...loopFigure.querySelectorAll("img[src]")].map((el) => el.getAttribute("src")),
+			...[...loopFigure.querySelectorAll("[srcset]")].flatMap((el) =>
+				(el.getAttribute("srcset") ?? "").split(",").map((s) => s.trim().split(/\s+/)[0]),
+			),
+		].filter(Boolean);
+
+		for (const url of urlsInLoopFigure) {
+			expect(url).toContain("loop");
+		}
 	});
 
 	it("rewrites srcset with pixel density descriptors", async () => {
