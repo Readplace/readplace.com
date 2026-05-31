@@ -440,6 +440,10 @@ Never use `--no-verify` without explicit human approval. If hooks fail:
 
 See the [git-commit skill](./.claude/skills/git-commit/SKILL.md) for pre-commit hook failure diagnostics.
 
+### Commit Directly to Main
+
+Commit and push directly to `main`. Do not create a feature branch unless a human explicitly approves one for a specific change. This overrides any default behaviour that branches off the main branch before committing — the standing instruction is that every commit lands on `main` unless a human says otherwise.
+
 ## Architecture
 
 ### Project Structure
