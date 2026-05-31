@@ -14,6 +14,18 @@ import { initFetchTweetViaOembed, isTweetUrl } from "./x-twitter-preprocessor";
 const FETCH_TIMEOUT_MS = 10000;
 
 /**
+ * Byte-size cap for HTML bodies entering the Readability parse pipeline.
+ * linkedom builds a full DOM tree at ~3-5x the HTML byte size in heap;
+ * a 40 MB page exhausts the 512 MB Lambda well before Readability runs.
+ * 15 MB is above any standard article (longest Wikipedia pages ~5 MB)
+ * while staying safely within the Lambda's effective headroom.
+ */
+export const MAX_HTML_BYTES = {
+	bytes: 15 * 1024 * 1024,
+	label: "15 MB",
+} as const;
+
+/**
  * Browser-like headers required by Fastly/Cloudflare edge sniffers.
  * Medium returns 403 without both User-Agent AND Accept-Language.
  *
@@ -221,6 +233,10 @@ export function initCrawlArticle(deps: {
 		const { response, buffer } = fetched;
 		const contentType = response.headers.get("content-type") ?? "";
 		if (isHtmlContentType(contentType)) {
+			if (buffer.length > MAX_HTML_BYTES.bytes) {
+				logError(`[CrawlArticle] HTML body too large (${buffer.length} bytes) for ${params.url}`);
+				return { status: "unsupported", reason: `html body too large: ${buffer.length} bytes` };
+			}
 			return parseHtmlFromBuffer({
 				buffer,
 				response,

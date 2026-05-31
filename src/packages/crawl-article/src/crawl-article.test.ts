@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import {
 	DEFAULT_CRAWL_HEADERS,
+	MAX_HTML_BYTES,
 	initCrawlArticle,
 	parseHtmlFromBuffer,
 	parsePdfFromBuffer,
@@ -256,6 +257,19 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		expect(result).toEqual({ status: "failed" });
 		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Network error for https://example.com", networkError);
+	});
+
+	it("returns unsupported when the HTML body exceeds MAX_HTML_BYTES", async () => {
+		const oversize = Buffer.alloc(MAX_HTML_BYTES.bytes + 1, 0x20);
+		const fakeFetch: typeof fetch = async () =>
+			new Response(oversize, { status: 200, headers: { "content-type": "text/html" } });
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
+
+		const result = await crawlArticle({ url: "https://example.com/huge-page" });
+
+		expect(result).toEqual({ status: "unsupported", reason: `html body too large: ${oversize.length} bytes` });
+		expect(logError).toHaveBeenCalledWith(`[CrawlArticle] HTML body too large (${oversize.length} bytes) for https://example.com/huge-page`);
 	});
 
 	it("forwards fetchThumbnail through to the HTML parser so the thumbnail prefetches in the same crawl", async () => {
