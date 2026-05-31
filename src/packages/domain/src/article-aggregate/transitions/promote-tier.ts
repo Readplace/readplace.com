@@ -16,19 +16,22 @@ export interface PromoteTierInput {
 	/** True when the canonical tier flipped this run; gates the publish-link-saved / publish-anonymous-link-saved effect so a re-pick of the same tier does not re-fire user-facing notifications. */
 	canonicalChanged: boolean;
 	/** Hash of the new canonical readable text. Compared to the row's existing
-	 * `freshness.canonicalContentHash` to gate summary regeneration — equal
-	 * hashes mean the readable content is unchanged and the cached summary
-	 * stays valid. */
+	 * `freshness.canonicalContentHash` to detect a readable-text change even when
+	 * the tier did not flip — so a same-tier re-pick whose text differs still
+	 * announces CanonicalContentChanged. */
 	canonicalContentHash: string;
 	/** Authenticated save: emits publish-link-saved. Absent: emits publish-anonymous-link-saved. */
 	userId?: string;
 }
 
-/* Selector promotion: writes metadata + freshness + crawl=ready. The summary
- * axis is only written + regenerated when the canonical content hash actually
- * changes (lazy backfill: if the row has no prior hash, treat as changed and
- * record the new one). `canonicalChanged` continues to gate the user-facing
- * notification so a re-pick of the same tier does not re-fire link-saved. */
+/* Selector promotion: writes metadata + freshness + crawl=ready and records the
+ * new canonical hash. It no longer touches the summary axis — instead it
+ * announces `publish-canonical-content-changed` whenever the canonical tier
+ * flipped OR the readable text changed (lazy backfill: a row with no prior hash
+ * counts as changed). The `canonical-content-changed` subscriber owns summary
+ * regeneration, so future derived-artifact consumers attach without editing this
+ * transition (OCP). `canonicalChanged` still gates the user-facing notification
+ * so a re-pick of the same tier does not re-fire link-saved. */
 export function promoteTier(
 	article: Article,
 	input: PromoteTierInput,
@@ -43,8 +46,8 @@ export function promoteTier(
 
 	const writes: AggregateField[] = ["metadata", "freshness", "crawl"];
 	const effects: Effect[] = [];
-	if (contentChanged) {
-		effects.push({ kind: "generate-summary", url: article.url });
+	if (input.canonicalChanged || contentChanged) {
+		effects.push({ kind: "publish-canonical-content-changed", url: article.url });
 	}
 	effects.push({ kind: "publish-crawl-article-completed", url: article.url });
 	if (input.canonicalChanged) {
@@ -61,21 +64,12 @@ export function promoteTier(
 		canonicalContentHash: input.canonicalContentHash,
 	};
 
-	let nextSummary: Article["summary"];
-	if (contentChanged) {
-		nextSummary = { kind: "pending", pendingSince: input.now };
-		writes.push("summary");
-	} else {
-		nextSummary = article.summary;
-	}
-
 	const next: Article = {
 		...article,
 		metadata: input.metadata,
 		freshness: nextFreshness,
 		estimatedReadTime: input.estimatedReadTime,
 		crawl: { kind: "ready" },
-		summary: nextSummary,
 	};
 
 	return { article: next, effects, writes };

@@ -13,18 +13,20 @@ export interface RecrawlPromoteTierInput {
 	estimatedReadTime: number;
 	contentFetchedAt: string;
 	now: string;
-	/** Hash of the new canonical readable text. Compared to the row's existing
-	 * `freshness.canonicalContentHash` to gate summary regeneration — equal
-	 * hashes mean the recrawl produced identical readable content and the cached
-	 * summary remains valid. */
+	/** Hash of the new canonical readable text, recorded on freshness so later
+	 * non-operator paths (refresh) can compare against it. It does not gate
+	 * regeneration here — an operator recrawl regenerates unconditionally. */
 	canonicalContentHash: string;
 }
 
-/* Recrawl promotion: writes metadata + freshness + crawl=ready. The summary
- * axis is regenerated when the canonical content hash changed (lazy backfill:
- * a row without a prior hash is treated as changed), OR when the existing
- * summary is failed(crawl-failed) — that cross-axis pairing from
- * markCrawlExhausted is stale now that the crawl succeeded. */
+/* Recrawl promotion: writes metadata + freshness + crawl=ready and records the
+ * new canonical hash. An operator recrawl is an explicit "rebuild this" action,
+ * so — unlike the automatic save path, which gates on a tier flip or hash
+ * change — it announces `publish-canonical-content-changed` UNCONDITIONALLY on
+ * every promotion. The `canonical-content-changed` subscriber re-primes the
+ * summary, so every operator recrawl regenerates the AI excerpt regardless of
+ * whether the readable text changed. Like promoteTier, this transition no
+ * longer touches the summary axis itself — the subscriber owns it (OCP). */
 export function recrawlPromoteTier(
 	article: Article,
 	input: RecrawlPromoteTierInput,
@@ -33,37 +35,17 @@ export function recrawlPromoteTier(
 	effects: readonly Effect[];
 	writes: readonly AggregateField[];
 } {
-	const previousHash = article.freshness.canonicalContentHash;
-	const contentChanged =
-		previousHash === undefined || previousHash !== input.canonicalContentHash;
-
-	const staleCrawlFailedSummary =
-		!contentChanged &&
-		article.summary.kind === "failed" &&
-		article.summary.reason.kind === "crawl-failed";
-
-	const needsSummaryReset = contentChanged || staleCrawlFailedSummary;
-
-	const writes: AggregateField[] = ["metadata", "freshness", "crawl"];
-	const effects: Effect[] = [];
-	if (needsSummaryReset) {
-		effects.push({ kind: "generate-summary", url: article.url });
-	}
-	effects.push({ kind: "publish-recrawl-completed", url: article.url });
-
 	const nextFreshness: Article["freshness"] = {
 		...article.freshness,
 		contentFetchedAt: input.contentFetchedAt,
 		canonicalContentHash: input.canonicalContentHash,
 	};
 
-	let nextSummary: Article["summary"];
-	if (needsSummaryReset) {
-		nextSummary = { kind: "pending", pendingSince: input.now };
-		writes.push("summary");
-	} else {
-		nextSummary = article.summary;
-	}
+	const effects: readonly Effect[] = [
+		{ kind: "publish-canonical-content-changed", url: article.url },
+		{ kind: "publish-recrawl-completed", url: article.url },
+	];
+	const writes: readonly AggregateField[] = ["metadata", "freshness", "crawl"];
 
 	const next: Article = {
 		...article,
@@ -71,7 +53,6 @@ export function recrawlPromoteTier(
 		freshness: nextFreshness,
 		estimatedReadTime: input.estimatedReadTime,
 		crawl: { kind: "ready" },
-		summary: nextSummary,
 	};
 
 	return { article: next, effects, writes };

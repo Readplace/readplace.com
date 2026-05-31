@@ -47,6 +47,10 @@ export {
 	type MarkSummarySkippedInput,
 } from "./transitions/mark-summary-skipped";
 export {
+	markSummaryPending,
+	type MarkSummaryPendingInput,
+} from "./transitions/mark-summary-pending";
+export {
 	markSummaryReady,
 	type MarkSummaryReadyInput,
 } from "./transitions/mark-summary-ready";

@@ -1,6 +1,7 @@
 import type { Effect } from "@packages/domain/article-aggregate";
 import {
 	AnonymousLinkSavedEvent,
+	CanonicalContentChangedEvent,
 	CrawlArticleCompletedEvent,
 	CrawlArticleFailedEvent,
 	LinkSavedEvent,
@@ -152,6 +153,26 @@ describe("initLambdaEffectDispatcher", () => {
 		});
 
 		expect(publishEvent).toHaveBeenCalledWith(CrawlArticleCompletedEvent, {
+			url: "https://example.com/article",
+		});
+		expect(dispatchGenerateSummary).not.toHaveBeenCalled();
+	});
+
+	it("publishes a CanonicalContentChangedEvent for a publish-canonical-content-changed effect, carrying only the url in detail", async () => {
+		const dispatchGenerateSummary = jest.fn().mockResolvedValue(undefined);
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const { dispatchEffect } = initLambdaEffectDispatcher({
+			dispatchGenerateSummary,
+			publishEvent,
+		});
+
+		await dispatchEffect({
+			kind: "publish-canonical-content-changed",
+			url: "https://example.com/article",
+		});
+
+		expect(publishEvent).toHaveBeenCalledWith(CanonicalContentChangedEvent, {
 			url: "https://example.com/article",
 		});
 		expect(dispatchGenerateSummary).not.toHaveBeenCalled();

@@ -129,11 +129,9 @@ function handleRecrawlArticle(
 
 		// Always recrawl. No cache, no TTL. Force crawl back to pending (even if
 		// currently `ready`) so the reader slot shows the "recrawl in progress"
-		// skeleton. Summary state is owned by the recrawl pipeline — the
-		// canonicalContentHash gate inside recrawlPromoteTier /
-		// recrawlTieKeptCanonical decides whether to regenerate the AI excerpt,
-		// so wiping summary here would mean a guaranteed regen even when the
-		// canonical readable content has not actually changed.
+		// skeleton. Summary state is owned by the recrawl pipeline: a promotion
+		// publishes CanonicalContentChanged, whose subscriber re-primes and
+		// regenerates the summary, so wiping it here would be redundant.
 		await deps.forceMarkCrawlPending({ url: articleUrl });
 		await deps.publishRecrawlLinkInitiated({ url: articleUrl });
 

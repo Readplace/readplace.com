@@ -98,7 +98,7 @@ describe("recrawlPromoteTier", () => {
 		assert.equal(article.freshness.lastModified, "Thu, 01 Jan 2026 00:00:00 GMT");
 	});
 
-	it("writes the new canonicalContentHash onto freshness so subsequent runs can compare against it", () => {
+	it("writes the new canonicalContentHash onto freshness so non-operator paths can compare against it", () => {
 		const { article } = recrawlPromoteTier(
 			buildArticle(),
 			buildInput({ canonicalContentHash: HASH_A }),
@@ -116,214 +116,19 @@ describe("recrawlPromoteTier", () => {
 		assert.equal(article.estimatedReadTime, 7);
 	});
 
-	it("resets summary to pending when the canonical hash changed so the regenerate fires against the new canonical body", () => {
-		const before = buildArticle({
-			freshness: {
-				etag: '"old-etag"',
-				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
-				contentFetchedAt: "2026-01-01T00:00:00.000Z",
-				canonicalContentHash: HASH_A,
-			},
-			summary: {
-				kind: "ready",
-				summary: "stale summary",
-				excerpt: "stale excerpt",
-			},
-		});
-
-		const { article } = recrawlPromoteTier(
-			before,
-			buildInput({ canonicalContentHash: HASH_B }),
-		);
-
-		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
-	});
-
-	it("resets summary to pending when the canonical hash is unchanged but summary is failed(crawl-failed) — the cross-axis pairing from markCrawlExhausted is stale", () => {
-		const before = buildArticle({
-			freshness: {
-				etag: '"old-etag"',
-				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
-				contentFetchedAt: "2026-01-01T00:00:00.000Z",
-				canonicalContentHash: HASH_A,
-			},
-			summary: {
-				kind: "failed",
-				reason: { kind: "crawl-failed" },
-			},
-		});
-
-		const { article } = recrawlPromoteTier(
-			before,
-			buildInput({ canonicalContentHash: HASH_A }),
-		);
-
-		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
-	});
-
-	it("emits generate-summary when canonical hash is unchanged but summary is failed(crawl-failed)", () => {
-		const before = buildArticle({
-			url: "https://example.com/post",
-			freshness: {
-				etag: '"old-etag"',
-				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
-				contentFetchedAt: "2026-01-01T00:00:00.000Z",
-				canonicalContentHash: HASH_A,
-			},
-			summary: {
-				kind: "failed",
-				reason: { kind: "crawl-failed" },
-			},
-		});
-
+	it("emits publish-canonical-content-changed and publish-recrawl-completed in that order", () => {
 		const { effects } = recrawlPromoteTier(
-			before,
-			buildInput({ canonicalContentHash: HASH_A }),
+			buildArticle({ url: "https://example.com/post" }),
+			buildInput(),
 		);
 
 		assert.deepEqual(effects, [
-			{ kind: "generate-summary", url: "https://example.com/post" },
+			{ kind: "publish-canonical-content-changed", url: "https://example.com/post" },
 			{ kind: "publish-recrawl-completed", url: "https://example.com/post" },
 		]);
 	});
 
-	it("includes summary in writes when canonical hash is unchanged but summary is failed(crawl-failed)", () => {
-		const before = buildArticle({
-			freshness: {
-				etag: '"old-etag"',
-				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
-				contentFetchedAt: "2026-01-01T00:00:00.000Z",
-				canonicalContentHash: HASH_A,
-			},
-			summary: {
-				kind: "failed",
-				reason: { kind: "crawl-failed" },
-			},
-		});
-
-		const { writes } = recrawlPromoteTier(
-			before,
-			buildInput({ canonicalContentHash: HASH_A }),
-		);
-
-		assert.deepEqual([...writes].sort(), [
-			"crawl",
-			"freshness",
-			"metadata",
-			"summary",
-		]);
-	});
-
-	it("preserves failed(exhausted-retries) summary when canonical hash is unchanged — only crawl-failed is stale", () => {
-		const existingSummary = {
-			kind: "failed" as const,
-			reason: { kind: "exhausted-retries" as const, receiveCount: 4 },
-		};
-		const before = buildArticle({
-			freshness: {
-				etag: '"old-etag"',
-				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
-				contentFetchedAt: "2026-01-01T00:00:00.000Z",
-				canonicalContentHash: HASH_A,
-			},
-			summary: existingSummary,
-		});
-
-		const { article } = recrawlPromoteTier(
-			before,
-			buildInput({ canonicalContentHash: HASH_A }),
-		);
-
-		assert.deepEqual(article.summary, existingSummary);
-	});
-
-	it("preserves the cached ready summary when the canonical hash is unchanged (cacheability gate)", () => {
-		const existingSummary = {
-			kind: "ready" as const,
-			summary: "cached summary",
-			excerpt: "cached excerpt",
-		};
-		const before = buildArticle({
-			freshness: {
-				etag: '"old-etag"',
-				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
-				contentFetchedAt: "2026-01-01T00:00:00.000Z",
-				canonicalContentHash: HASH_A,
-			},
-			summary: existingSummary,
-		});
-
-		const { article } = recrawlPromoteTier(
-			before,
-			buildInput({ canonicalContentHash: HASH_A }),
-		);
-
-		assert.deepEqual(article.summary, existingSummary);
-	});
-
-	it("treats a missing previous canonicalContentHash as content-changed (lazy backfill on first run after deploy)", () => {
-		const before = buildArticle({
-			freshness: {
-				etag: '"old-etag"',
-				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
-				contentFetchedAt: "2026-01-01T00:00:00.000Z",
-			},
-			summary: { kind: "ready", summary: "stale" },
-		});
-
-		const { article, writes } = recrawlPromoteTier(
-			before,
-			buildInput({ canonicalContentHash: HASH_A }),
-		);
-
-		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
-		assert.ok(writes.includes("summary"));
-	});
-
-	it("stamps pendingSince with the provided now so the canary can age-gate the summary axis", () => {
-		const before = buildArticle({
-			freshness: {
-				etag: '"old-etag"',
-				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
-				contentFetchedAt: "2026-01-01T00:00:00.000Z",
-				canonicalContentHash: HASH_A,
-			},
-		});
-
-		const { article } = recrawlPromoteTier(
-			before,
-			buildInput({ canonicalContentHash: HASH_B }),
-		);
-
-		assert.equal(
-			article.summary.kind === "pending" ? article.summary.pendingSince : "",
-			NOW,
-		);
-	});
-
-	it("emits generate-summary and publish-recrawl-completed effects in that order when content changed", () => {
-		const before = buildArticle({
-			url: "https://example.com/post",
-			freshness: {
-				etag: '"old-etag"',
-				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
-				contentFetchedAt: "2026-01-01T00:00:00.000Z",
-				canonicalContentHash: HASH_A,
-			},
-		});
-
-		const { effects } = recrawlPromoteTier(
-			before,
-			buildInput({ canonicalContentHash: HASH_B }),
-		);
-
-		assert.deepEqual(effects, [
-			{ kind: "generate-summary", url: "https://example.com/post" },
-			{ kind: "publish-recrawl-completed", url: "https://example.com/post" },
-		]);
-	});
-
-	it("omits generate-summary when the canonical hash is unchanged — only emits publish-recrawl-completed to settle the pipeline", () => {
+	it("announces publish-canonical-content-changed even when the canonical hash is unchanged — an operator recrawl always regenerates the summary", () => {
 		const before = buildArticle({
 			url: "https://example.com/post",
 			freshness: {
@@ -341,11 +146,13 @@ describe("recrawlPromoteTier", () => {
 		);
 
 		assert.deepEqual(effects, [
+			{ kind: "publish-canonical-content-changed", url: "https://example.com/post" },
 			{ kind: "publish-recrawl-completed", url: "https://example.com/post" },
 		]);
 	});
 
-	it("declares writes for metadata, freshness, crawl, summary when the hash changed so the aggregate save scopes to the four mutated axes", () => {
+	it("leaves the summary axis untouched — regeneration is driven by the CanonicalContentChanged subscriber, including for a row stuck on skipped(content-too-short)", () => {
+		const stuckSummary = { kind: "skipped" as const, reason: "content-too-short" };
 		const before = buildArticle({
 			freshness: {
 				etag: '"old-etag"',
@@ -353,36 +160,19 @@ describe("recrawlPromoteTier", () => {
 				contentFetchedAt: "2026-01-01T00:00:00.000Z",
 				canonicalContentHash: HASH_A,
 			},
+			summary: stuckSummary,
 		});
 
-		const { writes } = recrawlPromoteTier(
+		const { article } = recrawlPromoteTier(
 			before,
 			buildInput({ canonicalContentHash: HASH_B }),
 		);
 
-		assert.deepEqual([...writes].sort(), [
-			"crawl",
-			"freshness",
-			"metadata",
-			"summary",
-		]);
+		assert.deepEqual(article.summary, stuckSummary);
 	});
 
-	it("declares writes for metadata, freshness, and crawl only (no summary) when the canonical hash is unchanged", () => {
-		const before = buildArticle({
-			freshness: {
-				etag: '"old-etag"',
-				lastModified: "Thu, 01 Jan 2026 00:00:00 GMT",
-				contentFetchedAt: "2026-01-01T00:00:00.000Z",
-				canonicalContentHash: HASH_A,
-			},
-			summary: { kind: "ready", summary: "kept" },
-		});
-
-		const { writes } = recrawlPromoteTier(
-			before,
-			buildInput({ canonicalContentHash: HASH_A }),
-		);
+	it("declares writes for metadata, freshness, and crawl only — never the summary axis", () => {
+		const { writes } = recrawlPromoteTier(buildArticle(), buildInput());
 
 		assert.deepEqual([...writes].sort(), ["crawl", "freshness", "metadata"]);
 	});

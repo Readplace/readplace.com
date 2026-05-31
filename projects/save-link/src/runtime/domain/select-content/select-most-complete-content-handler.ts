@@ -115,8 +115,9 @@ export function initSelectMostCompleteContentHandler(deps: {
 						 * the previous canonical's content was inadequate. In both
 						 * cases, by definition of "tie" both tiers carry equivalent
 						 * content; prefer tier-1 (Readability-parsed) when present,
-						 * else tier-0. promoteTier resets summary to pending and
-						 * re-fires generate-summary against the new canonical. */
+						 * else tier-0. promoteTier announces CanonicalContentChanged,
+						 * and the subscriber re-primes the summary so it regenerates
+						 * against the new canonical. */
 						const fallback =
 							sources.find((source) => source.tier === "tier-1") ??
 							sources.find((source) => source.tier === "tier-0");

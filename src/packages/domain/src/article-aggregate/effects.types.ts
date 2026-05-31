@@ -23,6 +23,7 @@ export type Effect =
 	  }
 	| { kind: "publish-recrawl-completed"; url: string }
 	| { kind: "publish-crawl-article-completed"; url: string }
+	| { kind: "publish-canonical-content-changed"; url: string }
 	| { kind: "publish-link-saved"; url: string; userId: string }
 	| { kind: "publish-anonymous-link-saved"; url: string }
 	| {

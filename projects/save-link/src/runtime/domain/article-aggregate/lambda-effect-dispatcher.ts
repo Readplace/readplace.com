@@ -1,6 +1,7 @@
 import type { DispatchEffect } from "@packages/domain/article-aggregate";
 import {
 	AnonymousLinkSavedEvent,
+	CanonicalContentChangedEvent,
 	CrawlArticleCompletedEvent,
 	CrawlArticleFailedEvent,
 	type GenerateSummaryCommand,
@@ -55,6 +56,9 @@ export function initLambdaEffectDispatcher(deps: {
 				return;
 			case "publish-crawl-article-completed":
 				await publishEvent(CrawlArticleCompletedEvent, { url: effect.url });
+				return;
+			case "publish-canonical-content-changed":
+				await publishEvent(CanonicalContentChangedEvent, { url: effect.url });
 				return;
 			case "publish-link-saved":
 				await publishEvent(LinkSavedEvent, {

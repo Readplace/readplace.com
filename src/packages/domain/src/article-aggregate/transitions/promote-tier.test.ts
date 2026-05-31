@@ -111,18 +111,19 @@ describe("promoteTier", () => {
 		assert.deepEqual(article.crawl, { kind: "ready" });
 	});
 
-	it("resets summary to pending when the canonical hash changed so the worker regenerates against the new canonical", () => {
+	it("leaves the summary axis untouched when the canonical hash changed (regeneration is driven by the CanonicalContentChanged subscriber, not this transition)", () => {
+		const existingSummary = {
+			kind: "ready" as const,
+			summary: "existing summary",
+			excerpt: "existing excerpt",
+		};
 		const before = buildArticle({
 			freshness: {
 				etag: '"old-etag"',
 				contentFetchedAt: "2026-01-01T00:00:00.000Z",
 				canonicalContentHash: HASH_A,
 			},
-			summary: {
-				kind: "ready",
-				summary: "stale summary",
-				excerpt: "stale excerpt",
-			},
+			summary: existingSummary,
 		});
 
 		const { article } = promoteTier(
@@ -134,10 +135,10 @@ describe("promoteTier", () => {
 			}),
 		);
 
-		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
+		assert.deepEqual(article.summary, existingSummary);
 	});
 
-	it("preserves the cached ready summary when the canonical hash is unchanged (cacheability gate)", () => {
+	it("leaves the cached ready summary untouched when the canonical hash is unchanged", () => {
 		const existingSummary = {
 			kind: "ready" as const,
 			summary: "cached summary",
@@ -164,53 +165,7 @@ describe("promoteTier", () => {
 		assert.deepEqual(article.summary, existingSummary);
 	});
 
-	it("treats a missing previous canonicalContentHash as content-changed (lazy backfill on first run after deploy)", () => {
-		const before = buildArticle({
-			freshness: {
-				etag: '"old-etag"',
-				contentFetchedAt: "2026-01-01T00:00:00.000Z",
-			},
-			summary: { kind: "ready", summary: "stale" },
-		});
-
-		const { article, writes } = promoteTier(
-			before,
-			buildInput({
-				metadata: canonicalMetadata(before.metadata),
-				estimatedReadTime: 1,
-				canonicalContentHash: HASH_A,
-			}),
-		);
-
-		assert.deepEqual(article.summary, { kind: "pending", pendingSince: NOW });
-		assert.ok(writes.includes("summary"));
-	});
-
-	it("stamps pendingSince with the provided now so the canary can age-gate the summary axis", () => {
-		const before = buildArticle({
-			freshness: {
-				etag: '"old-etag"',
-				contentFetchedAt: "2026-01-01T00:00:00.000Z",
-				canonicalContentHash: HASH_A,
-			},
-		});
-
-		const { article } = promoteTier(
-			before,
-			buildInput({
-				metadata: canonicalMetadata(before.metadata),
-				estimatedReadTime: 1,
-				canonicalContentHash: HASH_B,
-			}),
-		);
-
-		assert.equal(
-			article.summary.kind === "pending" ? article.summary.pendingSince : "",
-			NOW,
-		);
-	});
-
-	it("emits generate-summary and publish-crawl-article-completed in that order, plus publish-link-saved when canonicalChanged + userId is supplied", () => {
+	it("emits publish-canonical-content-changed and publish-crawl-article-completed in that order, plus publish-link-saved when canonicalChanged + userId is supplied", () => {
 		const { effects } = promoteTier(
 			buildArticle({ url: "https://example.com/post" }),
 			buildInput({
@@ -222,7 +177,10 @@ describe("promoteTier", () => {
 		);
 
 		assert.deepEqual(effects, [
-			{ kind: "generate-summary", url: "https://example.com/post" },
+			{
+				kind: "publish-canonical-content-changed",
+				url: "https://example.com/post",
+			},
 			{
 				kind: "publish-crawl-article-completed",
 				url: "https://example.com/post",
@@ -246,7 +204,10 @@ describe("promoteTier", () => {
 		);
 
 		assert.deepEqual(effects, [
-			{ kind: "generate-summary", url: "https://example.com/post" },
+			{
+				kind: "publish-canonical-content-changed",
+				url: "https://example.com/post",
+			},
 			{
 				kind: "publish-crawl-article-completed",
 				url: "https://example.com/post",
@@ -258,7 +219,49 @@ describe("promoteTier", () => {
 		]);
 	});
 
-	it("omits the user-facing event when canonicalChanged is false (re-pick of the same tier must not re-fire link-saved notifications)", () => {
+	it("emits publish-canonical-content-changed when the canonical tier flipped even though the content hash is unchanged — the incident regression (canonicalChanged=true, contentChanged=false)", () => {
+		const stuckSummary = { kind: "skipped" as const, reason: "content-too-short" };
+		const before = buildArticle({
+			url: "https://example.com/post",
+			freshness: {
+				etag: '"old-etag"',
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+				canonicalContentHash: HASH_A,
+			},
+			summary: stuckSummary,
+		});
+
+		const { effects, article } = promoteTier(
+			before,
+			buildInput({
+				metadata: canonicalMetadata(before.metadata),
+				estimatedReadTime: 1,
+				canonicalChanged: true,
+				canonicalContentHash: HASH_A,
+			}),
+		);
+
+		assert.deepEqual(effects, [
+			{
+				kind: "publish-canonical-content-changed",
+				url: "https://example.com/post",
+			},
+			{
+				kind: "publish-crawl-article-completed",
+				url: "https://example.com/post",
+			},
+			{
+				kind: "publish-anonymous-link-saved",
+				url: "https://example.com/post",
+			},
+		]);
+		/* The transition only announces the change; it must not reset the summary
+		 * itself — the subscriber does that. The stuck skipped state is carried
+		 * forward unchanged here. */
+		assert.deepEqual(article.summary, stuckSummary);
+	});
+
+	it("emits publish-canonical-content-changed but omits the user-facing event when the content changed while canonicalChanged is false (same-tier re-pick with different text)", () => {
 		const { effects } = promoteTier(
 			buildArticle({ url: "https://example.com/post" }),
 			buildInput({
@@ -270,7 +273,10 @@ describe("promoteTier", () => {
 		);
 
 		assert.deepEqual(effects, [
-			{ kind: "generate-summary", url: "https://example.com/post" },
+			{
+				kind: "publish-canonical-content-changed",
+				url: "https://example.com/post",
+			},
 			{
 				kind: "publish-crawl-article-completed",
 				url: "https://example.com/post",
@@ -278,7 +284,7 @@ describe("promoteTier", () => {
 		]);
 	});
 
-	it("omits the generate-summary effect when canonical hash is unchanged (cacheability gate prevents wasted DeepSeek tokens)", () => {
+	it("omits publish-canonical-content-changed when neither the canonical tier nor the content hash changed (re-pick of identical content — no wasted regeneration)", () => {
 		const before = buildArticle({
 			url: "https://example.com/post",
 			freshness: {
@@ -308,7 +314,31 @@ describe("promoteTier", () => {
 		]);
 	});
 
-	it("declares writes for metadata, freshness, crawl, and summary when the hash changed so the aggregate save scopes to the four mutated axes", () => {
+	it("treats a missing previous canonicalContentHash as content-changed and announces it (lazy backfill on first run after deploy)", () => {
+		const before = buildArticle({
+			freshness: {
+				etag: '"old-etag"',
+				contentFetchedAt: "2026-01-01T00:00:00.000Z",
+			},
+			summary: { kind: "ready", summary: "kept" },
+		});
+
+		const { effects } = promoteTier(
+			before,
+			buildInput({
+				metadata: canonicalMetadata(before.metadata),
+				estimatedReadTime: 1,
+				canonicalChanged: false,
+				canonicalContentHash: HASH_A,
+			}),
+		);
+
+		assert.ok(
+			effects.some((e) => e.kind === "publish-canonical-content-changed"),
+		);
+	});
+
+	it("declares writes for metadata, freshness, and crawl only — never the summary axis — when the hash changed", () => {
 		const before = buildArticle({
 			freshness: {
 				etag: '"old-etag"',
@@ -326,15 +356,10 @@ describe("promoteTier", () => {
 			}),
 		);
 
-		assert.deepEqual([...writes].sort(), [
-			"crawl",
-			"freshness",
-			"metadata",
-			"summary",
-		]);
+		assert.deepEqual([...writes].sort(), ["crawl", "freshness", "metadata"]);
 	});
 
-	it("declares writes for metadata, freshness, and crawl only (no summary) when the canonical hash is unchanged", () => {
+	it("declares writes for metadata, freshness, and crawl only when the canonical hash is unchanged", () => {
 		const before = buildArticle({
 			freshness: {
 				etag: '"old-etag"',

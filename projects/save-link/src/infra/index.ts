@@ -22,6 +22,7 @@ import {
 	ComprehensiveCrawlCommand,
 	LinkSavedEvent,
 	AnonymousLinkSavedEvent,
+	CanonicalContentChangedEvent,
 	StaleCheckRequestedEvent,
 	SummaryGeneratedEvent,
 	SummaryGenerationFailedEvent,
@@ -940,6 +941,57 @@ const anonymousLinkSavedLambdaWithSQS = new HutchSQSBackedLambda("anonymous-link
 
 eventBus.subscribe(AnonymousLinkSavedEvent, anonymousLinkSavedLambdaWithSQS);
 
+// --- CanonicalContentChanged handler ---
+// Subscribes to CanonicalContentChangedEvent (published by the tier selector
+// when the canonical tier flips or the readable text changes) and re-primes the
+// summary axis via markSummaryPending so the generate-summary worker regenerates
+// against the new canonical instead of cache-hitting a stale terminal summary.
+// This is the OCP seam: future derived-artifact consumers (transcript,
+// embeddings) attach as new eventBus.subscribe(CanonicalContentChangedEvent, …)
+// without touching the publisher. No dedicated DLQ event handler — the crawl has
+// already succeeded, so there is no terminal row state to flip on the rare
+// read-your-writes lag; the HutchSQSBackedLambda DLQ + email alarm is the
+// operator signal (mirrors link-saved).
+
+const canonicalContentChangedQueue = new HutchSQS("canonical-content-changed", {
+	visibilityTimeoutSeconds: 60,
+});
+
+const canonicalContentChangedDynamodb = new HutchDynamoDBAccess("canonical-content-changed-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+});
+
+const canonicalContentChangedLambda = new HutchLambda("canonical-content-changed", {
+	entryPoint: "./src/runtime/canonical-content-changed.main.ts",
+	outputDir: ".lib/canonical-content-changed",
+	assetDir: "./src",
+	memorySize: 256,
+	timeout: 30,
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		CONTENT_BUCKET_NAME: contentBucketName,
+	},
+	policies: [
+		...canonicalContentChangedDynamodb.policies,
+		...renamePolicies(generateSummaryQueue.policies, "canonical-content-changed"),
+		...contentBucket.readPolicies("canonical-content-changed-s3"),
+	],
+});
+
+eventBus.grantPublish(canonicalContentChangedLambda);
+
+const canonicalContentChangedLambdaWithSQS = new HutchSQSBackedLambda("canonical-content-changed", {
+	lambda: canonicalContentChangedLambda,
+	queue: canonicalContentChangedQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(CanonicalContentChangedEvent, canonicalContentChangedLambdaWithSQS);
+
 // --- RecrawlLinkInitiated handler ---
 
 const recrawlLinkInitiatedDynamodb = new HutchDynamoDBAccess("recrawl-link-initiated-dynamodb", {
@@ -1228,6 +1280,8 @@ export const linkSavedQueueUrl = linkSavedQueue.queueUrl;
 export const linkSavedDlqUrl = linkSavedQueue.dlqUrl;
 export const anonymousLinkSavedQueueUrl = anonymousLinkSavedQueue.queueUrl;
 export const anonymousLinkSavedDlqUrl = anonymousLinkSavedQueue.dlqUrl;
+export const canonicalContentChangedQueueUrl = canonicalContentChangedQueue.queueUrl;
+export const canonicalContentChangedDlqUrl = canonicalContentChangedQueue.dlqUrl;
 export const generateSummaryQueueUrl = generateSummaryQueue.queueUrl;
 export const generateSummaryDlqUrl = generateSummaryQueue.dlqUrl;
 export const summaryGeneratedQueueUrl = summaryGeneratedQueue.queueUrl;

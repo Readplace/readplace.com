@@ -25,6 +25,8 @@ export {
 	type TierContentExtractedDetail,
 	CrawlArticleCompletedEvent,
 	type CrawlArticleCompletedDetail,
+	CanonicalContentChangedEvent,
+	type CanonicalContentChangedDetail,
 	CrawlArticleFailedEvent,
 	type CrawlArticleFailedDetail,
 	RecrawlLinkInitiatedEvent,
