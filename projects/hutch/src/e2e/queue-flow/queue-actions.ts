@@ -469,13 +469,12 @@ export function createQueueActions(
         return isOnPage(page, 'page-queue')
       },
       execute: async (page) => {
-        await clickAndWaitForPageReload(page, page.locator('[data-test-filter="read"]'))
-
-        const count = await getArticleCount(page)
-        expect(count).toBe(1)
-
-        const titles = await getArticleTitles(page)
-        expect(titles).toEqual([TEST_TITLES[0]])
+        await expect
+          .poll(async () => {
+            await page.goto('/queue?tab=done&order=asc', { waitUntil: 'domcontentloaded' })
+            return getArticleTitles(page)
+          }, { timeout: 15000 })
+          .toEqual([TEST_TITLES[0]])
 
         progress.checkedReadTab = true
       },
@@ -488,13 +487,12 @@ export function createQueueActions(
         return isOnPage(page, 'page-queue')
       },
       execute: async (page) => {
-        await clickAndWaitForPageReload(page, page.locator('[data-test-filter="unread"]'))
-
-        const count = await getArticleCount(page)
-        expect(count).toBe(2)
-
-        const titles = await getArticleTitles(page)
-        expect(titles).toEqual([TEST_TITLES[1], TEST_TITLES[2]])
+        await expect
+          .poll(async () => {
+            await page.goto('/queue?order=asc', { waitUntil: 'domcontentloaded' })
+            return getArticleTitles(page)
+          }, { timeout: 15000 })
+          .toEqual([TEST_TITLES[1], TEST_TITLES[2]])
 
         progress.checkedUnreadTab = true
       },
@@ -513,7 +511,7 @@ export function createQueueActions(
           count = await page.locator('[data-test-action="delete"]').count()
         }
 
-        await clickAndWaitForPageReload(page, page.locator('[data-test-filter="read"]'))
+        await page.goto('/queue?tab=done', { waitUntil: 'domcontentloaded' })
         count = await page.locator('[data-test-action="delete"]').count()
         while (count > 0) {
           await clickAndWaitForPageReload(page, page.locator('[data-test-action="delete"]').first())

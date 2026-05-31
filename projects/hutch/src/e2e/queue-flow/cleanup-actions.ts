@@ -22,6 +22,13 @@ async function deleteAllVisibleArticles(page: Page): Promise<void> {
   }
 }
 
+async function clearCurrentTab(page: Page): Promise<void> {
+  await deleteAllVisibleArticles(page)
+  await page.waitForTimeout(GSI_PROPAGATION_SETTLE_MS)
+  await page.reload()
+  await deleteAllVisibleArticles(page)
+}
+
 export function createCleanupActions(
   cleanupProgress: CleanupProgress,
 ): (authProgress: AuthProgress) => Record<CleanupActionKey, PageAction> {
@@ -33,10 +40,11 @@ export function createCleanupActions(
         return isOnPage(page, 'page-queue')
       },
       execute: async (page) => {
-        await deleteAllVisibleArticles(page)
-        await page.waitForTimeout(GSI_PROPAGATION_SETTLE_MS)
-        await page.reload()
-        await deleteAllVisibleArticles(page)
+        await clearCurrentTab(page)
+
+        await page.goto('/queue?tab=done', { waitUntil: 'domcontentloaded' })
+        await clearCurrentTab(page)
+
         cleanupProgress.previousArticlesDeleted = true
       },
     },
