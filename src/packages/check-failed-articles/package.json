@@ -14,10 +14,10 @@
   "dependencies": {
     "@packages/article-state-types": "workspace:*",
     "@packages/hutch-storage-client": "workspace:*",
-    "zod": "4.1.13"
+    "zod": "4.4.3"
   },
   "devDependencies": {
-    "concurrently": "9.2.1",
+    "concurrently": "10.0.0",
     "typescript": "5.9.3"
   }
 }

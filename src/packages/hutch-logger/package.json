@@ -13,7 +13,7 @@
     "check-infra": "echo 'No infrastructure — shared library'"
   },
   "devDependencies": {
-    "concurrently": "9.2.1",
+    "concurrently": "10.0.0",
     "typescript": "5.9.3"
   }
 }

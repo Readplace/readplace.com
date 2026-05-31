@@ -16,8 +16,8 @@
     "@packages/hutch-infra-components": "workspace:*"
   },
   "devDependencies": {
-    "@pulumi/aws": "7.20.0",
-    "@pulumi/pulumi": "3.224.0",
+    "@pulumi/aws": "7.32.0",
+    "@pulumi/pulumi": "3.244.0",
     "typescript": "5.9.3"
   }
 }

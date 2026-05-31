@@ -19,12 +19,12 @@
     "check-infra": "echo 'No infrastructure — shared library'"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "3.1001.0",
-    "@aws-sdk/lib-dynamodb": "3.1001.0",
-    "zod": "4.1.13"
+    "@aws-sdk/client-dynamodb": "3.1057.0",
+    "@aws-sdk/lib-dynamodb": "3.1057.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
-    "concurrently": "9.2.1",
+    "concurrently": "10.0.0",
     "typescript": "5.9.3"
   }
 }

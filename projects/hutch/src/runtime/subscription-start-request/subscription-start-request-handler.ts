@@ -33,7 +33,7 @@ export function initSubscriptionStartRequestHandler(
 		const userId = UserIdSchema.parse(detail.userId);
 		const row = await deps.findSubscriptionByUserId(userId);
 
-		if (!row || row.status !== "trialing") {
+		if (row?.status !== "trialing") {
 			deps.logger.info("[start-request] no trial row — noop", {
 				userId,
 				status: row?.status,

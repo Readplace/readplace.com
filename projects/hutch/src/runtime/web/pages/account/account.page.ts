@@ -82,7 +82,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		const userId = req.userId;
 		try {
 			const row = await deps.findSubscriptionByUserId(userId);
-			if (!row || row.status !== "pending_cancellation") {
+			if (row?.status !== "pending_cancellation") {
 				// Defensive noop: covers double-click + race with the deferred
 				// scheduler. The user lands back on /account and sees whatever
 				// state they're actually in.
