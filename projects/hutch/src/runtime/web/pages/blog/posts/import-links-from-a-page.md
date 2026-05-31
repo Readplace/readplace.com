@@ -2,7 +2,7 @@
 title: "Paste One Link, Save Every Article on the Page"
 description: "Readplace can now import links from a single page. Paste a newsletter issue or a links page, and Readplace lists every outbound link for you to pick from. Save the whole batch in one click."
 slug: "import-links-from-a-page"
-date: "2026-05-30"
+date: "2026-05-31"
 author: "Fayner Brack"
 keywords: "import newsletter links, save all links from a page, bulk save articles, read it later, save newsletter to read later, extract links from web page, blogroll, readplace"
 ---
@@ -34,7 +34,7 @@ The same import screen still takes a file. Got an HTML or JSON export from an ol
 
 ## Built for newsletter readers
 
-Readplace pulls up to 2,000 links from one page. It caps the page download at 5 MiB and stops after 10 seconds if the site stalls, so a slow page won't hang your import. Past those limits, email <a href="mailto:readplace+migrate@readplace.com">readplace+migrate@readplace.com</a> and I'll lift the cap by hand.
+Readplace pulls up to 2,000 links from one page. It caps the page download at 5 MiB and stops after 10 seconds if the site stalls, so a slow page won't hang your import. Past those limits, email [readplace+migrate@readplace.com](mailto:readplace+migrate@readplace.com) and I'll lift the cap by hand.
 
 Newsletter subscribers get the biggest lift here. A weekly roundup of twenty links becomes one paste and a couple of unticks. People who follow link blogs and "further reading" lists save the same way, straight from the page they already trust.
 

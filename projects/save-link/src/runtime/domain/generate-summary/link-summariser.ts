@@ -103,7 +103,7 @@ export function initLinkSummariser(deps: {
 		const textBlock = response.content.find(
 			(block) => block.type === "text",
 		);
-		if (!textBlock || textBlock.type !== "text" || !textBlock.text) {
+		if (textBlock?.type !== "text" || !textBlock.text) {
 			deps.logger.info("[summarize] no text block in response", { url: params.url });
 			return { kind: "no-text-block" };
 		}
