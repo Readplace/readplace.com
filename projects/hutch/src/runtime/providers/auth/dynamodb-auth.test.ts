@@ -41,4 +41,36 @@ describe("initDynamoDbAuth", () => {
 			});
 		});
 	});
+
+	describe("userExistsByEmail", () => {
+		it("returns true when a matching row exists", async () => {
+			const client: Partial<DynamoDBDocumentClient> = {
+				send: (async () => ({ Count: 1 })) as DynamoDBDocumentClient["send"],
+			};
+			const auth = initDynamoDbAuth({
+				client: client as typeof client & DynamoDBDocumentClient,
+				usersTableName: "users",
+				sessionsTableName: "sessions",
+			});
+
+			const exists = await auth.userExistsByEmail("existing@example.com");
+
+			expect(exists).toBe(true);
+		});
+
+		it("returns false when no row matches", async () => {
+			const client: Partial<DynamoDBDocumentClient> = {
+				send: (async () => ({ Count: 0 })) as DynamoDBDocumentClient["send"],
+			};
+			const auth = initDynamoDbAuth({
+				client: client as typeof client & DynamoDBDocumentClient,
+				usersTableName: "users",
+				sessionsTableName: "sessions",
+			});
+
+			const exists = await auth.userExistsByEmail("missing@example.com");
+
+			expect(exists).toBe(false);
+		});
+	});
 });

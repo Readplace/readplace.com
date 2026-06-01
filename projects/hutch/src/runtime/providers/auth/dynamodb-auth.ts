@@ -227,8 +227,12 @@ export function initDynamoDbAuth(deps: {
 
 	const userExistsByEmail: UserExistsByEmail = async (email) => {
 		const normalizedEmail = normalizeEmail(email);
-		const row = await users.get({ email: normalizedEmail }, { projection: ["email"] });
-		return row !== undefined;
+		const { count } = await users.query({
+			KeyConditionExpression: "email = :email",
+			ExpressionAttributeValues: { ":email": normalizedEmail },
+			Select: "COUNT",
+		});
+		return count > 0;
 	};
 
 	const findEmailByUserId: FindEmailByUserId = async (userId) => {
