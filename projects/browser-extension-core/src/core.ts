@@ -33,7 +33,7 @@ export interface Core {
 	logout(): void;
 	save(
 		resource: "current-tab",
-		data: { url: string; title: string; content?: { bytes: ArrayBuffer; mediaType: string } },
+		data: { url: string; title: string; content?: { bytes: ArrayBuffer; mediaType: string }; tabId?: number },
 	): void;
 	remove(resource: "item", data: { id: ReadingListItemId }): void;
 	fetch(resource: "reading-list"): void;
@@ -163,7 +163,14 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 			);
 			emitResult("saved-current-tab", guarded);
 			if (guarded.ok) {
-				guarded.value.then(() => updateActiveTabIcon()).catch(() => {});
+				const { tabId } = data;
+				guarded.value
+					.then((result) =>
+						tabId != null && result.ok
+							? shell.setIcon.showSaved(tabId)
+							: updateActiveTabIcon(),
+					)
+					.catch(() => {});
 			}
 		},
 
