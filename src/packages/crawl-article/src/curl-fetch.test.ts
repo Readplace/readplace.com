@@ -236,6 +236,6 @@ describe("createCurlFetch defaults", () => {
 
 describe("CURL_IMPERSONATE_BIN", () => {
 	it("is the curl-impersonate Chrome variant binary name", () => {
-		expect(CURL_IMPERSONATE_BIN).toBe("curl_chrome116");
+		expect(CURL_IMPERSONATE_BIN).toBe("curl_chrome146");
 	});
 });

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
  * Build script for the curl-impersonate Lambda layer. Downloads the prebuilt
- * curl-impersonate-chrome release for Linux x86_64 and packages the binary
+ * curl-impersonate release for Linux x86_64 and packages the binary
  * pair into a layer zip at .lib/curl-impersonate-layer.zip.
  *
  * Lambda layers mount at /opt/, so the zip layout is:
- *   bin/curl_chrome116            — bash wrapper (Lambda adds /opt/bin to PATH)
- *   bin/curl-impersonate-chrome   — the actual binary the wrapper execs
+ *   bin/curl_chrome146        — bash wrapper (Lambda adds /opt/bin to PATH)
+ *   bin/curl-impersonate      — the actual binary the wrapper execs
  *
  * Runs before `pulumi up` (either in CI or locally). The infra reads the zip
  * path from this script's output location.
@@ -63,13 +63,14 @@ function extractAndPackage(tarPath) {
 	const binDir = resolve(layerRoot, "bin");
 	mkdirSync(binDir, { recursive: true });
 
-	/* curl_chrome116 is a bash wrapper that execs ./curl-impersonate-chrome
+	/* curl_chrome146 is a bash wrapper that execs ./curl-impersonate
 	 * from the same directory, so both files must be co-located in /opt/bin.
-	 * v0.8.0+ ship statically-linked binaries — no .so files to stage. */
-	run("cp", [resolve(extractDir, "curl_chrome116"), binDir]);
-	run("cp", [resolve(extractDir, "curl-impersonate-chrome"), binDir]);
-	chmodSync(resolve(binDir, "curl_chrome116"), 0o755);
-	chmodSync(resolve(binDir, "curl-impersonate-chrome"), 0o755);
+	 * v1.0+ ship a single `curl-impersonate` binary with `--impersonate`
+	 * flag — no .so files to stage. */
+	run("cp", [resolve(extractDir, "curl_chrome146"), binDir]);
+	run("cp", [resolve(extractDir, "curl-impersonate"), binDir]);
+	chmodSync(resolve(binDir, "curl_chrome146"), 0o755);
+	chmodSync(resolve(binDir, "curl-impersonate"), 0o755);
 
 	return layerRoot;
 }

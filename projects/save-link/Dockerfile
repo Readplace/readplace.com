@@ -74,15 +74,15 @@ ENV LD_LIBRARY_PATH=/opt/tesseract-lib:${LD_LIBRARY_PATH}
 
 # curl-impersonate (Chrome variant) for TLS-fingerprint bypass. The layer
 # approach doesn't apply to container-image Lambdas, so we install the binary
-# directly. curl_chrome116 is a bash wrapper that execs ./curl-impersonate-chrome
+# directly. curl_chrome146 is a bash wrapper that execs ./curl-impersonate
 # from the same directory, so both files must be co-located in /opt/bin.
 ARG CURL_IMPERSONATE_VERSION
 RUN mkdir -p /opt/bin && \
     curl -fsSL "https://github.com/lexiforest/curl-impersonate/releases/download/v${CURL_IMPERSONATE_VERSION}/curl-impersonate-v${CURL_IMPERSONATE_VERSION}.x86_64-linux-gnu.tar.gz" \
       | tar --extract --gzip --directory /tmp && \
-    cp /tmp/curl_chrome116 /tmp/curl-impersonate-chrome /opt/bin/ && \
-    chmod 755 /opt/bin/curl_chrome116 /opt/bin/curl-impersonate-chrome && \
-    rm -rf /tmp/curl_* /tmp/curl-impersonate-chrome
+    cp /tmp/curl_chrome146 /tmp/curl-impersonate /opt/bin/ && \
+    chmod 755 /opt/bin/curl_chrome146 /opt/bin/curl-impersonate && \
+    rm -rf /tmp/curl_* /tmp/curl-impersonate
 
 ENV PATH="/opt/bin:/opt/tesseract/bin:${PATH}"
 

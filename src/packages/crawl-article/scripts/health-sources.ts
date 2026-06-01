@@ -172,7 +172,7 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 	{
 		// CIA reading-room 302-loops AWS IPs to /readingroom when the TLS
 		// fingerprint looks non-browser (curl exit 47). curl-impersonate with
-		// Chrome fingerprint returns 200 directly. Exercises --globoff +
+		// a current Chrome fingerprint returns 200 directly. Exercises --globoff +
 		// WHATWG URL re-encoding via the bracketed path segment `[16505689]`.
 		// Pages 22–25 of this 31-page scan are image-heavy and individually
 		// defeat DeepInfra's 360s SDK budget; the OCR pipeline's partial-

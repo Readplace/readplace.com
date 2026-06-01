@@ -23,7 +23,7 @@ const FETCH_TIMEOUT_MS = 10000;
  */
 export const DEFAULT_CRAWL_HEADERS = {
 	"user-agent":
-		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
 	accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 	"accept-language": "en-US,en;q=0.9",
 } as const;
@@ -57,7 +57,7 @@ export const CRAWL_PERSONAS = [
 		headers: {
 			...DEFAULT_CRAWL_HEADERS,
 			"sec-ch-ua":
-				'"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+				'"Chromium";v="146", "Google Chrome";v="146", "Not/A)Brand";v="24"',
 			"sec-ch-ua-mobile": "?0",
 			"sec-ch-ua-platform": '"macOS"',
 			"sec-fetch-dest": "document",
