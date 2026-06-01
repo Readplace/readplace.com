@@ -16,7 +16,6 @@ const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
 const generateSummaryQueueUrl = requireEnv("GENERATE_SUMMARY_QUEUE_URL");
-const imagesCdnBaseUrl = requireEnv("IMAGES_CDN_BASE_URL");
 
 const s3Client = new S3Client({});
 const dynamoClient = createDynamoDocumentClient();
@@ -43,7 +42,6 @@ export const handler = initRecrawlContentExtractedHandler({
 	...selectContent,
 	...articleAggregate,
 	loadArticle: articleAggregate.store.load,
-	imagesCdnBaseUrl,
 	now: () => new Date(),
 	logger: consoleLogger,
 });

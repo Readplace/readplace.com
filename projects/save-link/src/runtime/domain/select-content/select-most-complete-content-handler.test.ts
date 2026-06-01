@@ -305,6 +305,34 @@ describe("initSelectMostCompleteContentHandler", () => {
 		expect(events).toEqual(["CrawlArticleCompleted"]);
 	});
 
+	it("on a prose tie whose candidates differ in media, promotes the freshly-written tier (detail.tier) instead of keeping the healthy canonical", async () => {
+		const tier0 = tierSource("tier-0", { html: '<p>same body</p><img src="https://cdn.example/new.png">' });
+		const tier1 = tierSource("tier-1", { html: '<p>same body</p><img src="https://cdn.example/old.png">' });
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+		const { handler, deps } = createHandler({
+			listAvailableTierSources: jest.fn().mockResolvedValue([tier0, tier1]),
+			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "identical prose, different image" }),
+			findContentSourceTier: jest.fn().mockResolvedValue("tier-1"),
+			publishEvent,
+		});
+
+		// Event raised for the freshly re-saved tier-0 (extension re-save after editing an image upstream).
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-0", userId: "user-1" }), stubContext, () => {});
+
+		expect(publishEvent).not.toHaveBeenCalled();
+		expect(deps.writeCanonicalContent).toHaveBeenCalledWith({
+			url: "https://example.com/a",
+			tier: "tier-0",
+		});
+		expect(deps.transitionAndPersist).toHaveBeenCalledWith(
+			promoteTier,
+			expect.objectContaining({
+				input: expect.objectContaining({ tier: "tier-0" }),
+			}),
+		);
+	});
+
 	it("tie with an existing canonical whose summary is skipped(content-too-short) falls through to the deterministic tiebreaker and promotes so the row exits the stuck skipped state", async () => {
 		const tier0 = tierSource("tier-0");
 		const tier1 = tierSource("tier-1");
