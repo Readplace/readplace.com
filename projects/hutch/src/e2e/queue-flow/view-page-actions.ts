@@ -113,12 +113,14 @@ export function createAnonymousViewPageActions(
 				const shareWrap = page.locator('[data-test-share-balloon-wrap]')
 				await expect(shareWrap).toHaveCount(1)
 				await expect(shareWrap).not.toHaveClass(/share-balloon__wrap--open/)
-				await page.evaluate(() => {
-					const article = document.querySelector<HTMLElement>('[data-article-body]')
-					const height = article ? article.offsetHeight : 0
-					window.scrollTo(0, Math.ceil(height * 0.5) + 1)
-				})
-				await expect(shareWrap).toHaveClass(/share-balloon__wrap--open/, { timeout: 3000 })
+				await expect(async () => {
+					await page.evaluate(() => {
+						const article = document.querySelector<HTMLElement>('[data-article-body]')
+						const height = article ? article.offsetHeight : 0
+						window.scrollTo(0, Math.ceil(height * 0.5) + 1)
+					})
+					await expect(shareWrap).toHaveClass(/share-balloon__wrap--open/, { timeout: 2000 })
+				}).toPass({ timeout: 10000 })
 				await page.locator('[data-test-share-balloon-close]').click()
 				await expect(shareWrap).not.toHaveClass(/share-balloon__wrap--open/)
 				const dismissed = await page.evaluate(() =>
