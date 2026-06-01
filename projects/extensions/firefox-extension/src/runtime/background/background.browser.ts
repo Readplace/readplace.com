@@ -10,6 +10,7 @@ import {
 	type OAuthTokens,
 	type PopupMessage,
 	type ReadingListItem,
+	type SavePhase,
 	type SaveUrlResult,
 	type RemoveUrlResult,
 	type TokenStorage,
@@ -192,6 +193,11 @@ async function captureActiveTabHtml(): Promise<string | undefined> {
 	return undefined;
 }
 
+function broadcastSaveProgress(phase: SavePhase): void {
+	// .catch: the popup is the only receiver and may have closed mid-save.
+	browser.runtime.sendMessage({ type: "save-progress", phase }).catch(() => {});
+}
+
 browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 	if ((raw as { type: string }).type === "shortcut-pressed") {
 		browser.browserAction.openPopup().catch((err) => logger.error(err));
@@ -227,8 +233,10 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 							failure: (err) => resolve({ ok: false, ...err }),
 						});
 					});
+					broadcastSaveProgress("capturing");
 					captureActiveTabHtml()
 						.then((rawHtml) => {
+							broadcastSaveProgress("uploading");
 							core.save("current-tab", {
 								url: message.url,
 								title: message.title,
@@ -236,6 +244,7 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 							});
 						})
 						.catch(() => {
+							broadcastSaveProgress("uploading");
 							core.save("current-tab", {
 								url: message.url,
 								title: message.title,

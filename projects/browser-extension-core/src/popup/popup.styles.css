@@ -218,23 +218,40 @@ body {
 }
 
 /**
- * 1. Asymptotic ease toward 90% over 3s — the bar moves quickly at first then
- *    slows, so the popup feels responsive even when the save is fast and stays
- *    plausible when the save is slow. State classes interrupt the transition.
+ * 1. Width is set inline from popup.browser.ts as each save milestone lands
+ *    (capturing → uploading). The asymptotic ease lets the bar glide to a
+ *    milestone and settle there while that phase runs, rather than snapping.
+ * 2. A settled segment would otherwise look frozen while a slow phase churns
+ *    (e.g. serializing a large page), so a highlight sweeps across the filled
+ *    portion to signal liveness; reduced-motion users get the bar without it.
  */
 .saving-view__progress-fill {
   width: 0%;
   height: 100%;
-  background: var(--popup-brand);
+  background-color: var(--popup-brand);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 100%
+  ); /* 2 */
+  background-size: 40% 100%; /* 2 */
+  background-repeat: no-repeat; /* 2 */
   border-radius: 2px;
   transition: width 3s cubic-bezier(0, 0.7, 0.3, 1); /* 1 */
+  animation: saving-progress-shimmer 1.4s ease-in-out infinite; /* 2 */
 }
 
-/* purgecss-ignore-start: applied dynamically in popup.browser.ts when starting/finishing the save progress bar */
-.saving-view__progress-fill--starting {
-  width: 90%;
+@keyframes saving-progress-shimmer {
+  from { background-position: -50% 0; }
+  to { background-position: 150% 0; }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .saving-view__progress-fill { animation: none; } /* 2 */
+}
+
+/* purgecss-ignore-start: applied dynamically in popup.browser.ts when the save completes */
 .saving-view__progress-fill--complete {
   width: 100%;
   transition: width 0.2s ease-out;
