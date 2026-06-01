@@ -19,7 +19,7 @@ import type { WriteCanonicalContent } from "../../providers/article-store/promot
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { resolveCanonicalImageUrl } from "./resolve-canonical-image-url";
-import { tiersDifferInMedia } from "./tiers-differ-in-media";
+import { resolveTie } from "./resolve-tie";
 import type { TierSource } from "./tier-source.types";
 
 export function initRecrawlContentExtractedHandler(deps: {
@@ -88,43 +88,19 @@ export function initRecrawlContentExtractedHandler(deps: {
 						reason: decision.reason,
 					});
 					if (decision.winner === "tie") {
-						/* The LLM scores a prose tie, but a recrawl after an
-						 * image-pipeline fix (or an upstream image edit) rewrites
-						 * <img>/<source> URLs while the text is unchanged — never a
-						 * wash for the reader. When the candidates' media differs,
-						 * promote the freshly recrawled tier (tier-1) so the new
-						 * media reaches the canonical instead of keeping a stale
-						 * render. A genuine wash (identical media) keeps the existing
-						 * canonical to avoid a redundant summary regeneration. */
-						const mediaChanged = tiersDifferInMedia(sources);
-						const existingTier = mediaChanged ? undefined : await findContentSourceTier(detail.url);
-						const existingArticle = existingTier
-							? await loadArticle(detail.url)
-							: undefined;
-						const summaryStuckOnTooShort =
-							existingArticle?.summary.kind === "skipped" &&
-							existingArticle.summary.reason === "content-too-short";
-						const canonicalIsHealthy = existingTier && !summaryStuckOnTooShort;
-						if (canonicalIsHealthy) {
+						const resolution = await resolveTie({
+							sources,
+							freshTier: "tier-1",
+							url: detail.url,
+							findContentSourceTier,
+							loadArticle,
+						});
+						if (resolution.kind === "keep-canonical") {
 							winnerTier = undefined;
 							reason = decision.reason;
 						} else {
-							/* Media changed, OR a tie with no canonical yet
-							 * (recovering a stuck row), OR canonical exists but its
-							 * summary is skipped("content-too-short"). By definition of
-							 * "tie" both tiers carry equivalent prose; prefer tier-1
-							 * (Readability / the freshly recrawled tier) when present,
-							 * else tier-0. */
-							const fresh =
-								sources.find((source) => source.tier === "tier-1") ??
-								sources.find((source) => source.tier === "tier-0");
-							assert(fresh, "tie with no candidate tiers should be unreachable");
-							winnerTier = fresh.tier;
-							reason = mediaChanged
-								? `media changed on prose tie; promoted ${fresh.tier}`
-								: summaryStuckOnTooShort
-									? `tie + canonical summary skipped on too-short content; promoted ${fresh.tier} to retry`
-									: `tie on recrawl recovery; defaulted to ${fresh.tier}`;
+							winnerTier = resolution.tier;
+							reason = resolution.reason;
 						}
 					} else {
 						winnerTier = decision.winner;

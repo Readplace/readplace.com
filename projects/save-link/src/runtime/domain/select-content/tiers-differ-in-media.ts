@@ -1,3 +1,5 @@
+import assert from "node:assert";
+import { parseHTML } from "linkedom";
 import type { TierSource } from "./tier-source.types";
 
 /**
@@ -13,6 +15,15 @@ export function tiersDifferInMedia(sources: readonly TierSource[]): boolean {
 }
 
 function mediaSignature(html: string): string {
-	const urls = [...html.matchAll(/(?:src|srcset)\s*=\s*"([^"]*)"/gi)].map((match) => match[1]);
+	const { document } = parseHTML(`<div>${html}</div>`);
+	const wrapper = document.querySelector("div");
+	assert(wrapper, "parseHTML('<div>...') must produce a <div>");
+	const urls: string[] = [];
+	for (const el of wrapper.querySelectorAll("img, source")) {
+		const src = el.getAttribute("src");
+		if (src) urls.push(src);
+		const srcset = el.getAttribute("srcset");
+		if (srcset) urls.push(srcset);
+	}
 	return urls.sort().join("\n");
 }
