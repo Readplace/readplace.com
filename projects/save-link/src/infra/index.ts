@@ -221,10 +221,9 @@ const saveLinkCommandLambda = new HutchLambda("save-link-command", {
 	entryPoint: "./src/runtime/save-link-command.main.ts",
 	outputDir: ".lib/save-link-command",
 	assetDir: "./src",
-	// Simple-only crawl: HTML/oembed text fetch + readability parse + media
-	// download. PDFs are dispatched to the comprehensive-crawl-command Lambda
-	// so this Lambda no longer needs the mupdf / OCR headroom.
-	memorySize: 512,
+	// 1769 MB = 1 full vCPU. Large HTML pages (40 MB+ interactive research
+	// papers) expand to 3-5× in linkedom; 512 MB OOM'd on those.
+	memorySize: 1769,
 	timeout: 240,
 	layers: [curlImpersonateLayer.arn],
 	environment: {
@@ -279,9 +278,8 @@ const saveLinkRawHtmlCommandLambda = new HutchLambda("save-link-raw-html-command
 	entryPoint: "./src/runtime/save-link-raw-html-command.main.ts",
 	outputDir: ".lib/save-link-raw-html-command",
 	assetDir: "./src",
-	// Text-only path (readability/linkedom on large XHTML).
-	// No canvas rendering or OCR, so less headroom than the OCR-capable Lambdas.
-	memorySize: 512,
+	// 1769 MB = 1 full vCPU. Mirrors save-link-command headroom.
+	memorySize: 1769,
 	timeout: 240,
 	layers: [curlImpersonateLayer.arn],
 	environment: {
@@ -340,8 +338,8 @@ const saveAnonymousLinkCommandLambda = new HutchLambda("save-anonymous-link-comm
 	entryPoint: "./src/runtime/save-anonymous-link-command.main.ts",
 	outputDir: ".lib/save-anonymous-link-command",
 	assetDir: "./src",
-	// Mirrors save-link-command (simple-only) — PDFs dispatched out.
-	memorySize: 512,
+	// 1769 MB = 1 full vCPU. Mirrors save-link-command headroom.
+	memorySize: 1769,
 	timeout: 240,
 	layers: [curlImpersonateLayer.arn],
 	environment: {
@@ -713,11 +711,8 @@ const staleCheckRequestedLambda = new HutchLambda("stale-check-requested", {
 	entryPoint: "./src/runtime/stale-check.main.ts",
 	outputDir: ".lib/stale-check-requested",
 	assetDir: "./src",
-	// Simple-only crawl: HTML/oembed text fetch + readability parse. PDFs are
-	// deferred through SimpleCrawlUnsupportedEvent → policy →
-	// ComprehensiveCrawlCommand (refresh=true) so this Lambda no longer needs
-	// the mupdf / OCR headroom.
-	memorySize: 512,
+	// 1769 MB = 1 full vCPU. Mirrors save-link-command headroom.
+	memorySize: 1769,
 	timeout: 240,
 	layers: [curlImpersonateLayer.arn],
 	environment: {
@@ -1003,10 +998,8 @@ const recrawlLinkInitiatedLambda = new HutchLambda("recrawl-link-initiated", {
 	entryPoint: "./src/runtime/recrawl-link-initiated.main.ts",
 	outputDir: ".lib/recrawl-link-initiated",
 	assetDir: "./src",
-	// Mirrors save-link-command (simple-only) — PDF recrawls dispatch the
-	// comprehensive-crawl-command with recrawl=true so the comprehensive
-	// Lambda emits RecrawlContentExtractedEvent instead of TierContentExtracted.
-	memorySize: 512,
+	// 1769 MB = 1 full vCPU. Mirrors save-link-command headroom.
+	memorySize: 1769,
 	timeout: 240,
 	layers: [curlImpersonateLayer.arn],
 	environment: {
