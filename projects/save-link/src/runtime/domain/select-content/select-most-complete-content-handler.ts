@@ -17,6 +17,7 @@ import type { WriteCanonicalContent } from "../../providers/article-store/promot
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { resolveCanonicalImageUrl } from "./resolve-canonical-image-url";
+import { tiersDifferInMedia } from "./tiers-differ-in-media";
 import type { TierSource } from "./tier-source.types";
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
@@ -92,7 +93,15 @@ export function initSelectMostCompleteContentHandler(deps: {
 						reason: decision.reason,
 					});
 					if (decision.winner === "tie") {
-						const existingTier = await findContentSourceTier(detail.url);
+						/* A prose tie can still hide a media change — the user
+						 * re-saved after editing media upstream, so the freshly
+						 * written tier carries new <img>/<source> URLs the canonical
+						 * lacks. Treat that as a real change so the new media lands;
+						 * only a genuine wash (identical media) keeps the canonical. */
+						const mediaChanged = tiersDifferInMedia(sources);
+						const existingTier = mediaChanged
+							? undefined
+							: await findContentSourceTier(detail.url);
 						const existingArticle = existingTier
 							? await loadArticle(detail.url)
 							: undefined;
@@ -101,31 +110,41 @@ export function initSelectMostCompleteContentHandler(deps: {
 							existingArticle.summary.reason === "content-too-short";
 						const canonicalIsHealthy = existingTier && !summaryStuckOnTooShort;
 						if (canonicalIsHealthy) {
-							/* Recrawl tie: a canonical already exists. Promoting the
-							 * same content again would be a no-op write but a real
-							 * summary regeneration — wasted Deepseek tokens. Emit
-							 * CrawlArticleCompleted directly to settle the pipeline
-							 * and skip; no aggregate transition because crawl/summary
-							 * state is unchanged. */
+							/* Recrawl tie with identical media: a canonical already
+							 * exists. Promoting the same content again would be a no-op
+							 * write but a real summary regeneration — wasted Deepseek
+							 * tokens. Emit CrawlArticleCompleted directly to settle the
+							 * pipeline and skip; no aggregate transition because
+							 * crawl/summary state is unchanged. */
 							await publishEvent(CrawlArticleCompletedEvent, { url: detail.url });
 							continue;
 						}
-						/* Either first save (no canonical yet) OR canonical exists
-						 * but its summary is skipped("content-too-short") — i.e.
-						 * the previous canonical's content was inadequate. In both
-						 * cases, by definition of "tie" both tiers carry equivalent
-						 * content; prefer tier-1 (Readability-parsed) when present,
-						 * else tier-0. promoteTier announces CanonicalContentChanged,
-						 * and the subscriber re-primes the summary so it regenerates
-						 * against the new canonical. */
-						const fallback =
-							sources.find((source) => source.tier === "tier-1") ??
-							sources.find((source) => source.tier === "tier-0");
-						assert(fallback, "tie with no candidate tiers should be unreachable");
-						winnerTier = fallback.tier;
-						reason = summaryStuckOnTooShort
-							? `tie + canonical summary skipped on too-short content; promoted ${fallback.tier} to retry`
-							: `tie on first save; defaulted to ${fallback.tier}`;
+						if (mediaChanged) {
+							/* Promote the tier this event was raised for — the freshly
+							 * written one — so its new media becomes canonical rather
+							 * than losing to a stale sibling on a prose tie. */
+							const fresh = sources.find((source) => source.tier === detail.tier);
+							assert(fresh, `freshly-written tier ${detail.tier} missing from candidate set`);
+							winnerTier = fresh.tier;
+							reason = `media changed on prose tie; promoted ${fresh.tier}`;
+						} else {
+							/* Either first save (no canonical yet) OR canonical exists
+							 * but its summary is skipped("content-too-short") — i.e.
+							 * the previous canonical's content was inadequate. In both
+							 * cases, by definition of "tie" both tiers carry equivalent
+							 * content; prefer tier-1 (Readability-parsed) when present,
+							 * else tier-0. promoteTier announces CanonicalContentChanged,
+							 * and the subscriber re-primes the summary so it regenerates
+							 * against the new canonical. */
+							const fallback =
+								sources.find((source) => source.tier === "tier-1") ??
+								sources.find((source) => source.tier === "tier-0");
+							assert(fallback, "tie with no candidate tiers should be unreachable");
+							winnerTier = fallback.tier;
+							reason = summaryStuckOnTooShort
+								? `tie + canonical summary skipped on too-short content; promoted ${fallback.tier} to retry`
+								: `tie on first save; defaulted to ${fallback.tier}`;
+						}
 					} else {
 						winnerTier = decision.winner;
 						reason = decision.reason;

@@ -95,7 +95,6 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		findContentSourceTier: jest.fn<ReturnType<FindContentSourceTier>, Parameters<FindContentSourceTier>>().mockResolvedValue(undefined),
 		loadArticle: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist,
-		imagesCdnBaseUrl: "https://cdn.example.cloudfront.net",
 		now: () => FIXED_NOW,
 		logger: noopLogger,
 		...overrides,
@@ -331,13 +330,14 @@ describe("initRecrawlContentExtractedHandler", () => {
 		});
 	});
 
-	it("on a tie, breaks in favour of the candidate with more CDN-host URLs even when canonical exists", async () => {
-		// Regression: pre-Referer-fix canonical (tier-0, raw origin URLs) tied
-		// with post-fix tier-1 (CDN URLs) — LLM said "only image URLs differ",
-		// which left readers stuck on the broken hotlink-protected origin.
+	it("on a prose tie whose candidates differ only in media, promotes the freshly recrawled tier-1 without consulting the existing canonical", async () => {
+		// A prose tie can hide a media change — an image-pipeline fix (or upstream
+		// image edit) rewrites <img> URLs while the text is identical. The fresh
+		// tier-1 must win so the corrected media reaches the canonical instead of
+		// leaving the reader on a stale render.
 		const tier0 = tierSource("tier-0", { html: '<p>same body</p><img src="https://origin.example/a.png">' });
 		const tier1 = tierSource("tier-1", {
-			html: '<p>same body</p><img src="https://cdn.example.cloudfront.net/a.png"><img src="https://cdn.example.cloudfront.net/b.png">',
+			html: '<p>same body</p><img src="https://cdn.example.cloudfront.net/a.png">',
 		});
 		const writeCanonicalContent = jest.fn().mockResolvedValue(undefined);
 		const findContentSourceTier = jest.fn().mockResolvedValue("tier-0");
@@ -347,7 +347,6 @@ describe("initRecrawlContentExtractedHandler", () => {
 			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tie", reason: "only image URLs differ" }),
 			findContentSourceTier,
 			writeCanonicalContent,
-			imagesCdnBaseUrl: "https://cdn.example.cloudfront.net",
 		});
 
 		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});

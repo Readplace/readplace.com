@@ -19,6 +19,7 @@ import type { WriteCanonicalContent } from "../../providers/article-store/promot
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { resolveCanonicalImageUrl } from "./resolve-canonical-image-url";
+import { tiersDifferInMedia } from "./tiers-differ-in-media";
 import type { TierSource } from "./tier-source.types";
 
 export function initRecrawlContentExtractedHandler(deps: {
@@ -28,7 +29,6 @@ export function initRecrawlContentExtractedHandler(deps: {
 	findContentSourceTier: FindContentSourceTier;
 	loadArticle: LoadArticle;
 	transitionAndPersist: TransitionAndPersist;
-	imagesCdnBaseUrl: string;
 	now: () => Date;
 	logger: HutchLogger;
 }): Handler<SQSEvent, SQSBatchResponse> {
@@ -39,11 +39,9 @@ export function initRecrawlContentExtractedHandler(deps: {
 		findContentSourceTier,
 		loadArticle,
 		transitionAndPersist,
-		imagesCdnBaseUrl,
 		now,
 		logger,
 	} = deps;
-	const cdnHost = new URL(imagesCdnBaseUrl).host;
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -90,16 +88,16 @@ export function initRecrawlContentExtractedHandler(deps: {
 						reason: decision.reason,
 					});
 					if (decision.winner === "tie") {
-						/* The LLM treats "only image URLs differ" as a tie, but a
-						 * recrawl after the Referer fix migrates <img src> from the
-						 * origin to our CDN — never a wash. Hotlink-protected
-						 * origins 403 the reader's browser
-						 * without our server-side Referer trick, so any net-positive
-						 * shift toward the CDN host is unambiguously an improvement.
-						 * Override the tie when one candidate has more occurrences
-						 * of the CDN host than the others. */
-						const cdnTie = breakTieByCdnRewriteCount(sources, cdnHost);
-						const existingTier = cdnTie ? undefined : await findContentSourceTier(detail.url);
+						/* The LLM scores a prose tie, but a recrawl after an
+						 * image-pipeline fix (or an upstream image edit) rewrites
+						 * <img>/<source> URLs while the text is unchanged — never a
+						 * wash for the reader. When the candidates' media differs,
+						 * promote the freshly recrawled tier (tier-1) so the new
+						 * media reaches the canonical instead of keeping a stale
+						 * render. A genuine wash (identical media) keeps the existing
+						 * canonical to avoid a redundant summary regeneration. */
+						const mediaChanged = tiersDifferInMedia(sources);
+						const existingTier = mediaChanged ? undefined : await findContentSourceTier(detail.url);
 						const existingArticle = existingTier
 							? await loadArticle(detail.url)
 							: undefined;
@@ -107,27 +105,26 @@ export function initRecrawlContentExtractedHandler(deps: {
 							existingArticle?.summary.kind === "skipped" &&
 							existingArticle.summary.reason === "content-too-short";
 						const canonicalIsHealthy = existingTier && !summaryStuckOnTooShort;
-						if (cdnTie) {
-							winnerTier = cdnTie.tier;
-							reason = cdnTie.reason;
-						} else if (canonicalIsHealthy) {
+						if (canonicalIsHealthy) {
 							winnerTier = undefined;
 							reason = decision.reason;
 						} else {
-							/* Either tie with no canonical yet (recovering a stuck
-							 * row), OR canonical exists but its summary is
-							 * skipped("content-too-short") — the previous canonical's
-							 * content was inadequate. By definition of "tie" both
-							 * tiers carry equivalent content; prefer tier-1
-							 * (Readability) when present, else tier-0. */
-							const fallback =
+							/* Media changed, OR a tie with no canonical yet
+							 * (recovering a stuck row), OR canonical exists but its
+							 * summary is skipped("content-too-short"). By definition of
+							 * "tie" both tiers carry equivalent prose; prefer tier-1
+							 * (Readability / the freshly recrawled tier) when present,
+							 * else tier-0. */
+							const fresh =
 								sources.find((source) => source.tier === "tier-1") ??
 								sources.find((source) => source.tier === "tier-0");
-							assert(fallback, "tie with no candidate tiers should be unreachable");
-							winnerTier = fallback.tier;
-							reason = summaryStuckOnTooShort
-								? `tie + canonical summary skipped on too-short content; promoted ${fallback.tier} to retry`
-								: `tie on recrawl recovery; defaulted to ${fallback.tier}`;
+							assert(fresh, "tie with no candidate tiers should be unreachable");
+							winnerTier = fresh.tier;
+							reason = mediaChanged
+								? `media changed on prose tie; promoted ${fresh.tier}`
+								: summaryStuckOnTooShort
+									? `tie + canonical summary skipped on too-short content; promoted ${fresh.tier} to retry`
+									: `tie on recrawl recovery; defaulted to ${fresh.tier}`;
 						}
 					} else {
 						winnerTier = decision.winner;
@@ -183,23 +180,4 @@ export function initRecrawlContentExtractedHandler(deps: {
 
 		return { batchItemFailures };
 	};
-}
-
-function breakTieByCdnRewriteCount(
-	sources: readonly TierSource[],
-	cdnHost: string,
-): { tier: TierSource["tier"]; reason: string } | undefined {
-	const counts = sources
-		.map((source) => ({ tier: source.tier, count: countOccurrences(source.html, cdnHost) }))
-		.sort((a, b) => b.count - a.count);
-	const [top, second] = counts;
-	if (!top || !second || top.count <= second.count) return undefined;
-	return {
-		tier: top.tier,
-		reason: `tie broken: ${top.tier} has ${top.count} CDN-rewritten URLs vs ${second.count} in next candidate`,
-	};
-}
-
-function countOccurrences(haystack: string, needle: string): number {
-	return haystack.split(needle).length - 1;
 }
