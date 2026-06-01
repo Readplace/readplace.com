@@ -6,46 +6,51 @@ import type { TierSource } from "./tier-source.types";
 
 export type TieResolution =
 	| { kind: "keep-canonical" }
-	| { kind: "promote"; tier: TierSource["tier"]; reason: string };
+	| { kind: "promote"; tier: TierSource["tier"]; reason: string; existingTier: TierSource["tier"] | undefined };
 
-export async function resolveTie(params: {
+export type ResolveTie = (params: {
 	sources: readonly TierSource[];
 	freshTier: TierSource["tier"];
 	url: string;
+}) => Promise<TieResolution>;
+
+export function initResolveTie(deps: {
 	findContentSourceTier: FindContentSourceTier;
 	loadArticle: LoadArticle;
-}): Promise<TieResolution> {
-	const { sources, freshTier, url, findContentSourceTier, loadArticle } = params;
+}): ResolveTie {
+	const { findContentSourceTier, loadArticle } = deps;
 
-	const mediaChanged = tiersDifferInMedia(sources);
+	return async ({ sources, freshTier, url }) => {
+		const mediaChanged = tiersDifferInMedia(sources);
 
-	if (mediaChanged) {
-		assert(
-			sources.some((s) => s.tier === freshTier),
-			`freshly-written tier ${freshTier} missing from candidate set`,
-		);
-		return { kind: "promote", tier: freshTier, reason: `media changed on prose tie; promoted ${freshTier}` };
-	}
+		if (mediaChanged) {
+			assert(
+				sources.some((s) => s.tier === freshTier),
+				`freshly-written tier ${freshTier} missing from candidate set`,
+			);
+			return { kind: "promote", tier: freshTier, reason: `media changed on prose tie; promoted ${freshTier}`, existingTier: undefined };
+		}
 
-	const existingTier = await findContentSourceTier(url);
-	const existingArticle = existingTier
-		? await loadArticle(url)
-		: undefined;
-	const summaryStuckOnTooShort =
-		existingArticle?.summary.kind === "skipped" &&
-		existingArticle.summary.reason === "content-too-short";
-	const canonicalIsHealthy = existingTier && !summaryStuckOnTooShort;
+		const existingTier = await findContentSourceTier(url);
+		const existingArticle = existingTier
+			? await loadArticle(url)
+			: undefined;
+		const summaryStuckOnTooShort =
+			existingArticle?.summary.kind === "skipped" &&
+			existingArticle.summary.reason === "content-too-short";
+		const canonicalIsHealthy = existingTier && !summaryStuckOnTooShort;
 
-	if (canonicalIsHealthy) {
-		return { kind: "keep-canonical" };
-	}
+		if (canonicalIsHealthy) {
+			return { kind: "keep-canonical" };
+		}
 
-	const fallback =
-		sources.find((s) => s.tier === "tier-1") ??
-		sources.find((s) => s.tier === "tier-0");
-	assert(fallback, "tie with no candidate tiers should be unreachable");
-	const reason = summaryStuckOnTooShort
-		? `tie + canonical summary skipped on too-short content; promoted ${fallback.tier} to retry`
-		: `tie with no canonical; defaulted to ${fallback.tier}`;
-	return { kind: "promote", tier: fallback.tier, reason };
+		const fallback =
+			sources.find((s) => s.tier === "tier-1") ??
+			sources.find((s) => s.tier === "tier-0");
+		assert(fallback, "tie with no candidate tiers should be unreachable");
+		const reason = summaryStuckOnTooShort
+			? `tie + canonical summary skipped on too-short content; promoted ${fallback.tier} to retry`
+			: `tie with no canonical; defaulted to ${fallback.tier}`;
+		return { kind: "promote", tier: fallback.tier, reason, existingTier };
+	};
 }

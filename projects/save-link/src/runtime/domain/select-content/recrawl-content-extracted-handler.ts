@@ -19,7 +19,7 @@ import type { WriteCanonicalContent } from "../../providers/article-store/promot
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { resolveCanonicalImageUrl } from "./resolve-canonical-image-url";
-import { resolveTie } from "./resolve-tie";
+import { initResolveTie } from "./resolve-tie";
 import type { TierSource } from "./tier-source.types";
 
 export function initRecrawlContentExtractedHandler(deps: {
@@ -42,6 +42,8 @@ export function initRecrawlContentExtractedHandler(deps: {
 		now,
 		logger,
 	} = deps;
+
+	const resolveTie = initResolveTie({ findContentSourceTier, loadArticle });
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -92,8 +94,6 @@ export function initRecrawlContentExtractedHandler(deps: {
 							sources,
 							freshTier: "tier-1",
 							url: detail.url,
-							findContentSourceTier,
-							loadArticle,
 						});
 						if (resolution.kind === "keep-canonical") {
 							winnerTier = undefined;

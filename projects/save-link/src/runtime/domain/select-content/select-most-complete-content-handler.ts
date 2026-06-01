@@ -17,7 +17,7 @@ import type { WriteCanonicalContent } from "../../providers/article-store/promot
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import { resolveCanonicalImageUrl } from "./resolve-canonical-image-url";
-import { resolveTie } from "./resolve-tie";
+import { initResolveTie } from "./resolve-tie";
 import type { TierSource } from "./tier-source.types";
 
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
@@ -43,6 +43,8 @@ export function initSelectMostCompleteContentHandler(deps: {
 		now,
 		logger,
 	} = deps;
+
+	const resolveTie = initResolveTie({ findContentSourceTier, loadArticle });
 
 	return async (event): Promise<SQSBatchResponse> => {
 		const batchItemFailures: SQSBatchItemFailure[] = [];
@@ -74,6 +76,7 @@ export function initSelectMostCompleteContentHandler(deps: {
 
 				let winnerTier: TierSource["tier"];
 				let reason: string;
+				let resolvedExistingTier: TierSource["tier"] | undefined;
 				if (sources.length === 1) {
 					winnerTier = sources[0].tier;
 					reason = "only available tier";
@@ -97,8 +100,6 @@ export function initSelectMostCompleteContentHandler(deps: {
 							sources,
 							freshTier: detail.tier,
 							url: detail.url,
-							findContentSourceTier,
-							loadArticle,
 						});
 						if (resolution.kind === "keep-canonical") {
 							await publishEvent(CrawlArticleCompletedEvent, { url: detail.url });
@@ -106,6 +107,7 @@ export function initSelectMostCompleteContentHandler(deps: {
 						}
 						winnerTier = resolution.tier;
 						reason = resolution.reason;
+						resolvedExistingTier = resolution.existingTier;
 					} else {
 						winnerTier = decision.winner;
 						reason = decision.reason;
@@ -120,7 +122,7 @@ export function initSelectMostCompleteContentHandler(deps: {
 				 * silently skip so the bug surfaces as a DLQ. */
 				assert(winnerSource, `winner tier ${winnerTier} missing from candidate set`);
 
-				const currentTier = await findContentSourceTier(detail.url);
+				const currentTier = resolvedExistingTier ?? await findContentSourceTier(detail.url);
 				const canonicalChanged = currentTier !== winnerTier;
 				const canonicalContentHash = computeCanonicalContentHash(winnerSource.html);
 
