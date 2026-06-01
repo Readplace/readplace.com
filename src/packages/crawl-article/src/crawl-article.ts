@@ -7,7 +7,7 @@ import type { CrawlFetch } from "./crawl-fetch";
 import { extractThumbnailCandidates, initFetchThumbnailImage } from "./extract-thumbnail";
 import { headerOrUndefined } from "./header-utils";
 import { isPDF } from "./pdf-detect";
-import { MAX_PDF_BYTES } from "./pdf-page-limits";
+import { MAX_HTML_BYTES, MAX_PDF_BYTES } from "./pdf-page-limits";
 import type { ExtractPdf } from "./pdf-extract.types";
 import { initFetchTweetViaOembed, isTweetUrl } from "./x-twitter-preprocessor";
 
@@ -138,6 +138,10 @@ export async function parseHtmlFromBuffer(input: {
 	logError: (message: string, error?: Error) => void;
 }): Promise<CrawlArticleResult> {
 	const { buffer, response, url, fetchThumbnail, crawlFetch, logError } = input;
+	if (buffer.length > MAX_HTML_BYTES.bytes) {
+		logError(`[CrawlArticle] HTML body too large (${buffer.length} bytes) for ${url}`);
+		return { status: "unsupported", reason: `html body too large: ${buffer.length} bytes` };
+	}
 	const html = new TextDecoder().decode(buffer);
 	const candidates = extractThumbnailCandidates({ html, baseUrl: url });
 	const thumbnailUrl = candidates[0];

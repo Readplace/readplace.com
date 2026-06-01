@@ -13,6 +13,7 @@ import type { fetchH2 } from "./h2-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
 
 jest.mock("./pdf-page-limits", () => ({
+	MAX_HTML_BYTES: { bytes: 1024, label: "1 KB" },
 	MAX_PDF_BYTES: { bytes: 25 * 1024 * 1024, label: "25 MB" },
 	MAX_PDF_PAGES: 300,
 }));
@@ -354,6 +355,40 @@ describe("parseHtmlFromBuffer — thumbnailUrl extraction", () => {
 			etag: '"v1"',
 			lastModified: "Wed, 21 Oct 2025 07:28:00 GMT",
 		});
+	});
+});
+
+describe("parseHtmlFromBuffer — body size cap", () => {
+	const throwingCrawlFetch: CrawlFetch = async () => {
+		throw new Error("crawlFetch must not be invoked for oversized HTML");
+	};
+
+	it("returns unsupported when the buffer exceeds MAX_HTML_BYTES", async () => {
+		const oversize = Buffer.alloc(1025, 0x20);
+		const logError = jest.fn();
+		const result = await parseHtmlFromBuffer({
+			buffer: oversize,
+			response: new Response(null, {}),
+			url: "https://example.com/huge.html",
+			crawlFetch: throwingCrawlFetch,
+			logError,
+		});
+
+		expect(result).toEqual({ status: "unsupported", reason: `html body too large: ${oversize.length} bytes` });
+		expect(logError).toHaveBeenCalledWith(`[CrawlArticle] HTML body too large (${oversize.length} bytes) for https://example.com/huge.html`);
+	});
+
+	it("allows HTML at exactly MAX_HTML_BYTES", async () => {
+		const exactLimit = Buffer.alloc(1024, 0x20);
+		const result = await parseHtmlFromBuffer({
+			buffer: exactLimit,
+			response: new Response(null, {}),
+			url: "https://example.com/big.html",
+			crawlFetch: throwingCrawlFetch,
+			logError: noopLogError,
+		});
+
+		assertFetched(result);
 	});
 });
 
