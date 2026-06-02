@@ -271,6 +271,78 @@ describe("Queue routes", () => {
 			).toBe("read");
 		});
 
+		it("flips the reader mark-read affordances to 'Mark as unread' (status=unread) when the article is already read", async () => {
+			const articleHtml = `
+			<html><head><title>Already Read</title></head>
+			<body><article>
+				<h1>Already Read</h1>
+				<p>The reader opens this article after it has been marked as read.</p>
+				<p>Additional paragraph with more text to exceed the minimum threshold.</p>
+			</article></body></html>`;
+
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml });
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const { parseArticle } = initReadabilityParser({ crawlArticle, sitePreParsers: [], logError: createNoopLogError() });
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const harness = useApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle },
+				events: {
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+				},
+			});
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: "https://example.com/already-read" });
+
+			const queueResponse = await agent.get("/queue");
+			const queueDoc = new JSDOM(queueResponse.text).window.document;
+			const articleId = queueDoc
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert.ok(articleId, "saved article must show up in queue");
+
+			await agent
+				.post(`/queue/${articleId}/status`)
+				.type("form")
+				.send({ status: "read" });
+
+			const readerResponse = await agent.get(`/queue/${articleId}/view`);
+			const doc = new JSDOM(readerResponse.text).window.document;
+
+			const topButton = doc.querySelector("[data-test-mark-read-btn]");
+			const bottomButton = doc.querySelector("[data-test-mark-read-bottom-btn]");
+			assert(topButton, "top mark-read button must be rendered");
+			assert(bottomButton, "bottom mark-read button must be rendered");
+			expect(topButton.textContent).toBe("Mark as unread");
+			expect(bottomButton.textContent).toBe("Mark as unread");
+
+			const topForm = doc.querySelector("[data-test-mark-read-form]");
+			const bottomForm = doc.querySelector("[data-test-mark-read-bottom-form]");
+			expect(
+				topForm?.querySelector('input[type="hidden"][name="status"]')?.getAttribute("value"),
+			).toBe("unread");
+			expect(
+				bottomForm?.querySelector('input[type="hidden"][name="status"]')?.getAttribute("value"),
+			).toBe("unread");
+		});
+
 		it("redirects the legacy /queue/:id/read URL to /queue/:id/view with a 301 so old bookmarks, shares and Siren read links keep resolving", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const articleHash = "a".repeat(32);

@@ -53,6 +53,9 @@ export function ReaderPage(
 	},
 ): PageBody {
 	const articleId = article.id.value;
+	const isRead = article.status === "read";
+	const markReadLabel = isRead ? "Mark as unread" : "Mark as read";
+	const markReadStatus = isRead ? "unread" : "read";
 	const innerContent = renderArticleBody({
 		title: article.metadata.title,
 		siteName: article.metadata.siteName,
@@ -75,14 +78,14 @@ export function ReaderPage(
 			{
 				position: "top",
 				postUrl: markReadPostUrl(articleId, "top"),
-				label: "Mark as read",
-				fields: [{ name: "status", value: "read" }],
+				label: markReadLabel,
+				fields: [{ name: "status", value: markReadStatus }],
 			},
 			{
 				position: "bottom",
 				postUrl: markReadPostUrl(articleId, "bottom"),
-				label: "Mark as read",
-				fields: [{ name: "status", value: "read" }],
+				label: markReadLabel,
+				fields: [{ name: "status", value: markReadStatus }],
 			},
 		],
 		extensionInstallUrl: options.extensionInstallUrl,
