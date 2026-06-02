@@ -18,7 +18,7 @@ describe("renderReaderFailed", () => {
 			);
 			assert.equal(
 				doc.querySelector(".article-body__reader-notice-title")?.textContent,
-				"Your link is saved",
+				"Your link is saved ✅",
 				`title for variant=${variant}`,
 			);
 		}
