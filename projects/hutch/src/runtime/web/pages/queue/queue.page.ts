@@ -10,13 +10,20 @@ import express from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
-import { SaveArticleInputSchema, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
+import { SaveArticleInputSchema, SaveHtmlInputSchema, VisibleArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
 import { hashIp, type AnalyticsEvent } from "../../middleware/analytics";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import {
 	IMPORT_SKIPPED_COOKIE_NAME,
 	decodeImportSkippedCookie,
 } from "../import/import-skipped-cookie";
+import {
+	DELETE_UNDO_COOKIE_NAME,
+	DELETE_UNDO_COOKIE_MAX_AGE_MS,
+	decodeDeleteUndoCookie,
+	encodeDeleteUndoCookie,
+	type DeleteUndoFlash,
+} from "./delete-undo-cookie";
 import type { ImportSkippedViewModel } from "./queue.viewmodel";
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
 import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
@@ -98,6 +105,18 @@ function readImportSkippedFlash(
 		})),
 		andMore: decoded.andMore,
 	};
+}
+
+function readDeleteUndoFlash(
+	req: Request,
+	res: Response,
+): DeleteUndoFlash | undefined {
+	const decoded = decodeDeleteUndoCookie(req.cookies?.[DELETE_UNDO_COOKIE_NAME]);
+	if (!decoded) return undefined;
+	/** Read-once: clear it so a refresh of /queue doesn't keep resurfacing the
+	 * "Link deleted" toast for an already-handled delete. */
+	res.clearCookie(DELETE_UNDO_COOKIE_NAME, { path: "/queue" });
+	return decoded;
 }
 
 function markExtensionSavedArticle(res: Response): void {
@@ -310,6 +329,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const importFlash = importFlashMapping(req.query);
 		const statusFlash = statusFlashMapping(req.query);
 		const importSkipped = readImportSkippedFlash(req, res);
+		const deletedToast = readDeleteUndoFlash(req, res);
 		const [summaryByUrl, crawlByUrl, unreadCount, effectiveAccess] = await Promise.all([
 			loadSummaries(deps.findGeneratedSummary, result.articles),
 			loadCrawls(deps.findArticleCrawlStatus, result.articles),
@@ -324,6 +344,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			importFlash,
 			statusFlash,
 			importSkipped,
+			deletedToast,
 			summaryByUrl,
 			crawlByUrl,
 			effectiveAccess,
@@ -647,7 +668,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
-		const parsedStatus = ArticleStatusSchema.safeParse(req.body.status);
+		const parsedStatus = VisibleArticleStatusSchema.safeParse(req.body.status);
 
 		const flashParams: [string, string][] = [];
 		if (parsedId.success && parsedStatus.success) {
@@ -676,7 +697,21 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
 
 		if (parsedId.success) {
-			await deps.deleteArticle(parsedId.data, userId);
+			const previousStatus = await deps.deleteArticle(parsedId.data, userId);
+			/** Only a row that was actually visible (unread/read) yields an undo
+			 * toast; a missing/not-owned/already-deleted row returns null. */
+			if (previousStatus === "unread" || previousStatus === "read") {
+				res.cookie(
+					DELETE_UNDO_COOKIE_NAME,
+					encodeDeleteUndoCookie({ id: parsedId.data.value, previousStatus }),
+					{
+						path: "/queue",
+						maxAge: DELETE_UNDO_COOKIE_MAX_AGE_MS,
+						sameSite: "lax",
+						httpOnly: true,
+					},
+				);
+			}
 		}
 
 		res.redirect(303, buildQueueUrl(parseQueueUrl(req.query)));

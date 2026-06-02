@@ -62,4 +62,13 @@
         {{#if hasNext}}<a class="queue__pagination-link" href="{{nextUrl}}" data-test-pagination-next>Next →</a>{{/if}}
       </nav>
       {{/if}}
+      {{#if hasDeletedToast}}
+      <div class="queue-toast" role="status" data-test-deleted-toast>
+        <span class="queue-toast__message">Link deleted</span>
+        <form class="queue-toast__undo" method="POST" action="{{deletedToastUndoUrl}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+          <input type="hidden" name="status" value="{{deletedToastPreviousStatus}}">
+          <button class="queue-toast__undo-btn" type="submit" data-test-undo>Undo</button>
+        </form>
+      </div>
+      {{/if}}
     </main>

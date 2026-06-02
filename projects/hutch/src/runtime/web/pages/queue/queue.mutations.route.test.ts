@@ -480,5 +480,87 @@ describe("Queue routes", () => {
 			expect(deleteResponse.status).toBe(303);
 			expect(deleteResponse.headers.location).toBe("/queue");
 		});
+
+		it("shows a 'Link deleted' undo toast after deleting and restores the article on undo", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
+			const articleId = new JSDOM((await agent.get("/queue")).text).window.document
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert.ok(articleId);
+
+			await agent.post(`/queue/${articleId}/delete`);
+
+			const afterDelete = new JSDOM((await agent.get("/queue")).text).window.document;
+			const toast = afterDelete.querySelector("[data-test-deleted-toast]");
+			assert.ok(toast, "the deleted toast should render after a delete");
+			expect(toast.querySelector(".queue-toast__message")?.textContent).toBe("Link deleted");
+			const undoForm = afterDelete.querySelector("[data-test-undo]")?.closest("form");
+			assert.ok(undoForm, "the toast should carry an undo form");
+			expect(undoForm.getAttribute("action")).toBe(`/queue/${articleId}/status`);
+			expect(undoForm.querySelector("input[name='status']")?.getAttribute("value")).toBe("unread");
+			expect(afterDelete.querySelector("[data-test-empty-queue]")).not.toBeNull();
+
+			await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "unread" });
+
+			const afterUndo = new JSDOM((await agent.get("/queue")).text).window.document;
+			const restored = afterUndo.querySelectorAll("[data-test-article-list] .queue-article");
+			expect(restored.length).toBe(1);
+			expect(restored[0].getAttribute("data-test-article")).toBe(articleId);
+		});
+
+		it("carries the prior 'read' status in the undo form when a read article is deleted", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
+			const articleId = new JSDOM((await agent.get("/queue")).text).window.document
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert.ok(articleId);
+			await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "read" });
+
+			await agent.post(`/queue/${articleId}/delete`);
+
+			const afterDelete = new JSDOM((await agent.get("/queue")).text).window.document;
+			const undoInput = afterDelete.querySelector("[data-test-deleted-toast] input[name='status']");
+			expect(undoInput?.getAttribute("value")).toBe("read");
+		});
+
+		it("clears the undo toast after one render and the article stays deleted without an undo", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
+			const articleId = new JSDOM((await agent.get("/queue")).text).window.document
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert.ok(articleId);
+
+			await agent.post(`/queue/${articleId}/delete`);
+
+			const firstRender = new JSDOM((await agent.get("/queue")).text).window.document;
+			assert.ok(firstRender.querySelector("[data-test-deleted-toast]"), "toast shows once");
+
+			const secondRender = new JSDOM((await agent.get("/queue")).text).window.document;
+			expect(secondRender.querySelector("[data-test-deleted-toast]")).toBeNull();
+			expect(secondRender.querySelector("[data-test-empty-queue]")).not.toBeNull();
+		});
+
+		it("does not show a toast when the deleted article does not exist", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent.post("/queue/00000000000000000000000000000000/delete");
+
+			const doc = new JSDOM((await agent.get("/queue")).text).window.document;
+			expect(doc.querySelector("[data-test-deleted-toast]")).toBeNull();
+		});
 	});
 });

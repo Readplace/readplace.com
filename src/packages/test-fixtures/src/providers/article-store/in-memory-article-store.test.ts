@@ -447,14 +447,53 @@ describe("initInMemoryArticleStore", () => {
 	});
 
 	describe("deleteArticle", () => {
-		it("should remove user's relationship to the article", async () => {
+		it("should hide the article from the user and report its prior status", async () => {
 			const store = initInMemoryArticleStore();
 			const saved = await store.saveArticle(makeArticleParams());
 
-			const deleted = await store.deleteArticle(saved.id, USER_A);
+			const previousStatus = await store.deleteArticle(saved.id, USER_A);
 
-			expect(deleted).toBe(true);
+			expect(previousStatus).toBe("unread");
 			expect(await store.findArticleById(saved.id, USER_A)).toBeNull();
+		});
+
+		it("should report 'read' as the prior status when deleting a read article", async () => {
+			const store = initInMemoryArticleStore();
+			const saved = await store.saveArticle(makeArticleParams());
+			await store.updateArticleStatus(saved.id, USER_A, "read");
+
+			const previousStatus = await store.deleteArticle(saved.id, USER_A);
+
+			expect(previousStatus).toBe("read");
+		});
+
+		it("soft-deletes so a tombstoned article is gone from every listing yet can be restored", async () => {
+			const store = initInMemoryArticleStore();
+			const saved = await store.saveArticle(makeArticleParams());
+
+			await store.deleteArticle(saved.id, USER_A);
+
+			const all = await store.findArticlesByUser({ userId: USER_A });
+			const unread = await store.findArticlesByUser({ userId: USER_A, status: "unread" });
+			expect(all.articles).toHaveLength(0);
+			expect(all.total).toBe(0);
+			expect(unread.articles).toHaveLength(0);
+
+			// Undo: restoring the prior status brings it back into view.
+			await store.updateArticleStatus(saved.id, USER_A, "unread");
+			const restored = await store.findArticlesByUser({ userId: USER_A });
+			expect(restored.articles).toHaveLength(1);
+			expect(restored.articles[0].id.value).toBe(saved.id.value);
+		});
+
+		it("should return null when deleting an already-deleted article", async () => {
+			const store = initInMemoryArticleStore();
+			const saved = await store.saveArticle(makeArticleParams());
+			await store.deleteArticle(saved.id, USER_A);
+
+			const secondDelete = await store.deleteArticle(saved.id, USER_A);
+
+			expect(secondDelete).toBeNull();
 		});
 
 		it("should not affect another user's relationship to the same article", async () => {
@@ -472,18 +511,18 @@ describe("initInMemoryArticleStore", () => {
 			const store = initInMemoryArticleStore();
 			const saved = await store.saveArticle(makeArticleParams({ userId: USER_A }));
 
-			const deleted = await store.deleteArticle(saved.id, USER_B);
+			const previousStatus = await store.deleteArticle(saved.id, USER_B);
 
-			expect(deleted).toBe(false);
+			expect(previousStatus).toBeNull();
 		});
 
-		it("should return false when deleting a non-existent article", async () => {
+		it("should return null when deleting a non-existent article", async () => {
 			const store = initInMemoryArticleStore();
 			const fakeId = ReaderArticleHashId.fromHash("0".repeat(32));
 
-			const deleted = await store.deleteArticle(fakeId, USER_A);
+			const previousStatus = await store.deleteArticle(fakeId, USER_A);
 
-			expect(deleted).toBe(false);
+			expect(previousStatus).toBeNull();
 		});
 	});
 

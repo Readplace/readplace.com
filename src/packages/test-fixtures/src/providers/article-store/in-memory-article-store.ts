@@ -6,7 +6,7 @@ import type {
 	SavedArticle,
 } from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import { ReaderArticleHashId } from "@packages/domain/article";
+import { ReaderArticleHashId, isVisibleArticleStatus } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
 	BumpArticleSavedAt,
@@ -151,7 +151,7 @@ export function initInMemoryArticleStore(): {
 		if (!article) return null;
 
 		const ua = userArticles.get(userArticleKey(userId, article.url));
-		if (!ua) return null;
+		if (!ua || !isVisibleArticleStatus(ua.status)) return null;
 
 		return toSavedArticle(article, ua);
 	};
@@ -188,9 +188,9 @@ export function initInMemoryArticleStore(): {
 			(ua) => ua.userId === query.userId,
 		);
 
-		if (query.status) {
-			userArts = userArts.filter((ua) => ua.status === query.status);
-		}
+		userArts = query.status
+			? userArts.filter((ua) => ua.status === query.status)
+			: userArts.filter((ua) => isVisibleArticleStatus(ua.status));
 
 		userArts.sort((a, b) => {
 			const aValue = sort === "readAt" ? a.readAt : a.savedAt;
@@ -218,13 +218,16 @@ export function initInMemoryArticleStore(): {
 
 	const deleteArticle: DeleteArticle = async (id, userId) => {
 		const article = findArticleByRouteId(id);
-		if (!article) return false;
+		if (!article) return null;
 
 		const uaKey = userArticleKey(userId, article.url);
-		if (!userArticles.has(uaKey)) return false;
+		const ua = userArticles.get(uaKey);
+		if (!ua || !isVisibleArticleStatus(ua.status)) return null;
 
-		userArticles.delete(uaKey);
-		return true;
+		const previousStatus = ua.status;
+		ua.status = "deleted";
+		userArticles.set(uaKey, ua);
+		return previousStatus;
 	};
 
 	const updateArticleStatus: UpdateArticleStatus = async (id, userId, status) => {

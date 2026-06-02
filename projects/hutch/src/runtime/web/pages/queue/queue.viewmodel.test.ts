@@ -357,6 +357,23 @@ describe("toQueueViewModel", () => {
 		expect(methods).toEqual(["POST", "POST"]);
 	});
 
+	it("builds a deleted-toast undo URL that posts the prior status and preserves the current view", () => {
+		const filters = { order: "asc" as const, page: 1, tab: "done" as const };
+		const vm = toQueueViewModel(makeResult([]), filters, {
+			now: NOW,
+			deletedToast: { id: ARTICLE_ID, previousStatus: "read" },
+		});
+
+		expect(vm.deletedToast?.undoUrl).toBe(`/queue/${ARTICLE_ID}/status?tab=done&order=asc`);
+		expect(vm.deletedToast?.previousStatus).toBe("read");
+	});
+
+	it("leaves deletedToast undefined when no delete just happened", () => {
+		const vm = toQueueViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, { now: NOW });
+
+		expect(vm.deletedToast).toBeUndefined();
+	});
+
 	it("should include unreadCount from options", () => {
 		const vm = toQueueViewModel(makeResult([]), DEFAULT_FILTERS, {
 			now: NOW,

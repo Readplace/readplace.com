@@ -509,6 +509,70 @@
   color: var(--muted-foreground);
 }
 
+/**
+ * 1. Auto-dismisses after 5s without JavaScript. The element is freshly
+ *    inserted on the post-delete render (full page load, or the htmx <main>
+ *    swap), so the animation runs once from the start. animation-fill-mode:
+ *    forwards holds the final hidden frame; visibility: hidden also removes it
+ *    from hit-testing so the now-invisible toast cannot swallow clicks.
+ */
+.queue-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 16px;
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  animation: queue-toast-dismiss 5s forwards; /* 1 */
+}
+
+.queue-toast__message {
+  font-size: 0.875rem;
+  color: var(--foreground);
+}
+
+.queue-toast__undo {
+  display: inline;
+  margin: 0;
+}
+
+.queue-toast__undo-btn {
+  background: transparent;
+  border: none;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-brand);
+  cursor: pointer;
+}
+
+.queue-toast__undo-btn:hover {
+  background: var(--color-brand-light);
+  color: var(--color-brand-dark);
+}
+
+@keyframes queue-toast-dismiss {
+  0%,
+  92% {
+    opacity: 1;
+    visibility: visible;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
 @media (max-width: 600px) {
   .queue-article {
     flex-direction: column;

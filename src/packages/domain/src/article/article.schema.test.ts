@@ -2,6 +2,8 @@ import {
 	SaveArticleInputSchema,
 	SaveHtmlInputSchema,
 	ArticleStatusSchema,
+	VisibleArticleStatusSchema,
+	isVisibleArticleStatus,
 	MinutesSchema,
 } from "./article.schema";
 
@@ -64,8 +66,34 @@ describe("ArticleStatusSchema", () => {
 		expect(ArticleStatusSchema.parse("read")).toBe("read");
 	});
 
+	it("accepts the 'deleted' tombstone so reading a soft-deleted row validates", () => {
+		expect(ArticleStatusSchema.parse("deleted")).toBe("deleted");
+	});
+
 	it("rejects unknown values", () => {
 		expect(ArticleStatusSchema.safeParse("archived").success).toBe(false);
+	});
+});
+
+describe("VisibleArticleStatusSchema", () => {
+	it("accepts 'unread' and 'read'", () => {
+		expect(VisibleArticleStatusSchema.parse("unread")).toBe("unread");
+		expect(VisibleArticleStatusSchema.parse("read")).toBe("read");
+	});
+
+	it("rejects 'deleted' so it can never be set through the status endpoint", () => {
+		expect(VisibleArticleStatusSchema.safeParse("deleted").success).toBe(false);
+	});
+});
+
+describe("isVisibleArticleStatus", () => {
+	it("is true for the reader-visible statuses", () => {
+		expect(isVisibleArticleStatus("unread")).toBe(true);
+		expect(isVisibleArticleStatus("read")).toBe(true);
+	});
+
+	it("is false for the deleted tombstone", () => {
+		expect(isVisibleArticleStatus("deleted")).toBe(false);
 	});
 });
 

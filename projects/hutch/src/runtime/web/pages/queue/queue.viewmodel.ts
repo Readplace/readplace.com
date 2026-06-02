@@ -1,4 +1,4 @@
-import type { SavedArticle, SaveableUrlErrorCode } from "@packages/domain/article";
+import type { SavedArticle, SaveableUrlErrorCode, VisibleArticleStatus } from "@packages/domain/article";
 import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
 import { pickExcerpt } from "../../../providers/article-summary/article-summary.helpers";
 import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
@@ -67,6 +67,12 @@ export interface ImportSkippedViewModel {
 	readonly andMore: number;
 }
 
+interface DeletedToastViewModel {
+	/** POSTs the article back to its pre-delete status (the "undo"). */
+	readonly undoUrl: string;
+	readonly previousStatus: VisibleArticleStatus;
+}
+
 export interface QueueViewModel {
 	articles: QueueArticleViewModel[];
 	filters: QueueUrlState;
@@ -92,6 +98,7 @@ export interface QueueViewModel {
 		undoUrl: string;
 		undoStatus: "read" | "unread";
 	};
+	deletedToast?: DeletedToastViewModel;
 	subscriptionBanner: SubscriptionBannerState;
 	accessIsReadOnly: boolean;
 }
@@ -222,6 +229,7 @@ export function toQueueViewModel(
 		importFlash?: string;
 		importSkipped?: ImportSkippedViewModel;
 		statusFlash?: StatusFlash;
+		deletedToast?: { id: string; previousStatus: VisibleArticleStatus };
 		unreadCount?: number;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
@@ -287,6 +295,12 @@ export function toQueueViewModel(
 				message: options.statusFlash.message,
 				undoUrl: `/queue/${options.statusFlash.undoArticleId}/status${returnQuery}`,
 				undoStatus: options.statusFlash.undoStatus,
+			}
+			: undefined,
+		deletedToast: options?.deletedToast
+			? {
+				undoUrl: `/queue/${options.deletedToast.id}/status${returnQuery}`,
+				previousStatus: options.deletedToast.previousStatus,
 			}
 			: undefined,
 		subscriptionBanner: toSubscriptionBannerState(access, now),

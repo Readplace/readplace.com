@@ -9,7 +9,12 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import type { SavedArticle } from "@packages/domain/article";
-import { MinutesSchema, ArticleStatusSchema } from "@packages/domain/article";
+import {
+	MinutesSchema,
+	ArticleStatusSchema,
+	VISIBLE_ARTICLE_STATUSES,
+	isVisibleArticleStatus,
+} from "@packages/domain/article";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { ReaderArticleHashId, ReaderArticleHashIdSchema } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
@@ -229,7 +234,7 @@ export function initDynamoDbArticleStore(deps: {
 		if (!article) return null;
 
 		const userArticle = await findUserArticle(userId, article.url);
-		if (!userArticle) return null;
+		if (!userArticle || !isVisibleArticleStatus(userArticle.status)) return null;
 
 		return toSavedArticle(article, userArticle);
 	};
@@ -244,13 +249,21 @@ export function initDynamoDbArticleStore(deps: {
 		const expressionValues: Record<string, unknown> = {
 			":userId": query.userId,
 		};
-		let filterExpression: string | undefined;
-		let expressionAttributeNames: Record<string, string> | undefined;
-
+		const expressionAttributeNames = { "#status": "status" };
+		/** A status filter is always applied. With an explicit status we match it
+		 * exactly; without one we still restrict to the visible statuses so a
+		 * tombstoned ("deleted") or otherwise unrecognised row never leaks into a
+		 * listing that "falls back" to no status filter. */
+		let filterExpression: string;
 		if (query.status) {
 			filterExpression = "#status = :status";
 			expressionValues[":status"] = query.status;
-			expressionAttributeNames = { "#status": "status" };
+		} else {
+			const placeholders = VISIBLE_ARTICLE_STATUSES.map((_, i) => `:visibleStatus${i}`);
+			VISIBLE_ARTICLE_STATUSES.forEach((status, i) => {
+				expressionValues[placeholders[i]] = status;
+			});
+			filterExpression = `#status IN (${placeholders.join(", ")})`;
 		}
 
 		let total = 0;
@@ -335,13 +348,20 @@ export function initDynamoDbArticleStore(deps: {
 
 	const deleteArticle: DeleteArticle = async (routeId, userId) => {
 		const article = await findArticleByRouteId(routeId);
-		if (!article) return false;
+		if (!article) return null;
 
 		const ua = await findUserArticle(userId, article.url);
-		if (!ua) return false;
+		if (!ua || !isVisibleArticleStatus(ua.status)) return null;
 
-		await userArticles.delete({ Key: { userId, url: article.url } });
-		return true;
+		/** Tombstone instead of removing the row: readAt/savedAt are preserved so
+		 * an undo can restore the article exactly where it was. */
+		await userArticles.update({
+			Key: { userId, url: article.url },
+			UpdateExpression: "SET #status = :deleted",
+			ExpressionAttributeNames: { "#status": "status" },
+			ExpressionAttributeValues: { ":deleted": "deleted" },
+		});
+		return ua.status;
 	};
 
 	const updateArticleStatus: UpdateArticleStatus = async (routeId, userId, status) => {

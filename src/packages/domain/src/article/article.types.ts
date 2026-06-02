@@ -3,7 +3,7 @@ import type { ReaderArticleHashId } from "./reader-article-hash-id";
 
 export type Minutes = number & { readonly __brand: "Minutes" };
 
-export type ArticleStatus = "unread" | "read";
+export type ArticleStatus = "unread" | "read" | "deleted";
 
 export interface ArticleMetadata {
 	title: string;

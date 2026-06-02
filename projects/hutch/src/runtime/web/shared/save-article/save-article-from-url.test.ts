@@ -165,4 +165,18 @@ describe("saveArticleFromUrl", () => {
 		expect(result.saved.status).toBe("unread");
 		expect(result.saved.readAt).toBeUndefined();
 	});
+
+	it("resurfaces a previously-deleted article as unread after a re-save", async () => {
+		const previouslyDeleted = makeSaved({ status: "deleted" });
+		const tracker = makeTracker(previouslyDeleted);
+
+		const result = await saveArticleFromUrl(tracker.deps, {
+			userId,
+			url: exampleUrl,
+			freshness: { action: "new" },
+		});
+
+		expect(tracker.calls.updateArticleStatusUnread).toBe(1);
+		expect(result.saved.status).toBe("unread");
+	});
 });

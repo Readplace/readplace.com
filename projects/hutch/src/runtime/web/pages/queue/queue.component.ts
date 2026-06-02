@@ -25,6 +25,9 @@ interface QueueDisplayModel {
 	hasImportSkipped: boolean;
 	importSkippedEntries: ReadonlyArray<{ url: string; reasonLabel: string }>;
 	importSkippedAndMore?: number;
+	hasDeletedToast: boolean;
+	deletedToastUndoUrl?: string;
+	deletedToastPreviousStatus?: string;
 	isEmpty: boolean;
 	hasArticles: boolean;
 	onboardingHtml: string;
@@ -99,6 +102,9 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		hasImportSkipped: Boolean(vm.importSkipped && vm.importSkipped.entries.length > 0),
 		importSkippedEntries: vm.importSkipped?.entries ?? [],
 		importSkippedAndMore: vm.importSkipped?.andMore,
+		hasDeletedToast: Boolean(vm.deletedToast),
+		deletedToastUndoUrl: vm.deletedToast?.undoUrl,
+		deletedToastPreviousStatus: vm.deletedToast?.previousStatus,
 		isEmpty: vm.isEmpty,
 		hasArticles: !vm.isEmpty,
 		onboardingHtml,

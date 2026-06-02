@@ -89,10 +89,15 @@ export type FindArticlesByUser = (
 	query: FindArticlesQuery,
 ) => Promise<FindArticlesResult>;
 
+/** Soft-deletes the user's relationship to an article: the row is tombstoned
+ * (status → "deleted") rather than removed, so the delete can be undone.
+ * Returns the status the row held before deletion (so the caller can offer an
+ * "undo" that restores it), or `null` when there was nothing to delete — the
+ * article is unknown, not owned by the user, or already deleted. */
 export type DeleteArticle = (
 	id: ReaderArticleHashId,
 	userId: UserId,
-) => Promise<boolean>;
+) => Promise<ArticleStatus | null>;
 
 export type UpdateArticleStatus = (
 	id: ReaderArticleHashId,

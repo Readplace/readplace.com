@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Minutes } from "./article.types";
+import type { ArticleStatus, Minutes } from "./article.types";
 
 export const SaveArticleInputSchema = z.object({
 	url: z.url({ message: "Please enter a valid URL" }),
@@ -23,4 +23,26 @@ export const RAW_HTML_FIELD = "rawHtml" satisfies keyof z.infer<typeof SaveHtmlI
 
 export const MinutesSchema = z.number().transform((n): Minutes => n as Minutes);
 
-export const ArticleStatusSchema = z.enum(["unread", "read"]);
+/** "deleted" is a soft-delete tombstone: the row stays in storage so a delete
+ * can be undone, but it is hidden from every listing and single-article fetch.
+ * It is part of the persisted enum so reading a tombstoned row validates
+ * instead of throwing; it is NOT part of VisibleArticleStatusSchema, so it can
+ * never be set through the user-facing mark-read/unread path. */
+export const ArticleStatusSchema = z.enum(["unread", "read", "deleted"]);
+
+/** The only statuses a reader ever sees, and the only ones a user may set via
+ * the status endpoint. Anything outside this set (a "deleted" tombstone, or an
+ * unrecognised value) must be excluded from all views. */
+export const VISIBLE_ARTICLE_STATUSES = ["unread", "read"] as const;
+
+export const VisibleArticleStatusSchema = z.enum(VISIBLE_ARTICLE_STATUSES);
+
+export type VisibleArticleStatus = z.infer<typeof VisibleArticleStatusSchema>;
+
+const VISIBLE_ARTICLE_STATUS_SET: ReadonlySet<string> = new Set(VISIBLE_ARTICLE_STATUSES);
+
+export function isVisibleArticleStatus(
+	status: ArticleStatus,
+): status is VisibleArticleStatus {
+	return VISIBLE_ARTICLE_STATUS_SET.has(status);
+}

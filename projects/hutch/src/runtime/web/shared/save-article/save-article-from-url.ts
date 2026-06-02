@@ -18,11 +18,17 @@ export interface SaveArticleFromUrlDependencies {
 	refreshArticleIfStale: RefreshArticleIfStale;
 }
 
-async function markUnreadIfRead(
+/** A save always lands the article back in the unread queue. The existing row
+ * may be "read" (re-saving something already finished) or "deleted" (re-saving
+ * something previously removed) — either way the user is asking to read it
+ * again. saveArticle's `if_not_exists` upsert preserves the prior status, so
+ * without this flip a re-saved read article would stay in Done and a re-saved
+ * deleted article would stay hidden. */
+async function markUnreadOnSave(
 	updateArticleStatus: UpdateArticleStatus,
 	saved: SavedArticle,
 ): Promise<SavedArticle> {
-	if (saved.status === "read") {
+	if (saved.status !== "unread") {
 		await updateArticleStatus(saved.id, saved.userId, "unread");
 		return { ...saved, status: "unread", readAt: undefined };
 	}
@@ -55,7 +61,7 @@ async function saveByFreshness(
 			contentFetchedAt: new Date().toISOString(),
 		});
 		await deps.publishLinkSaved({ url, userId });
-		return { saved: await markUnreadIfRead(deps.updateArticleStatus, saved) };
+		return { saved: await markUnreadOnSave(deps.updateArticleStatus, saved) };
 	}
 
 	const saved = await deps.saveArticle({
@@ -70,7 +76,7 @@ async function saveByFreshness(
 		await deps.publishLinkSaved({ url, userId });
 	}
 
-	return { saved: await markUnreadIfRead(deps.updateArticleStatus, saved) };
+	return { saved: await markUnreadOnSave(deps.updateArticleStatus, saved) };
 }
 
 export function saveArticleFromUrl(
