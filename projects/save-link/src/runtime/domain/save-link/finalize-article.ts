@@ -9,6 +9,7 @@ import type { PutImageObject } from "../../providers/article-store/s3-put-image-
 import { ArticleResourceUniqueId } from "./article-resource-unique-id";
 import type { DownloadMedia, DownloadedMedia } from "./download-media";
 import { estimatedReadTimeFromWordCount } from "./estimated-read-time";
+import { stripOversizedInlineImages } from "./strip-inline-image-data";
 
 export type ProcessContent = (params: { html: string; media: DownloadedMedia[] }) => Promise<string>;
 
@@ -85,12 +86,18 @@ export function initFinalizeArticle(deps: {
 		const { article } = parseResult;
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(input.url);
 
+		/* Drop multi-MB inline base64 images before the body is persisted as the
+		 * tier source; downstream finalize handlers re-load the whole source and
+		 * OOM on pages that inline tens of MB of images (#473). http(s) <img>
+		 * sources are untouched, so downloadMedia still mirrors them to the CDN. */
+		const content = stripOversizedInlineImages(article.content);
+
 		const media = await downloadMedia({
-			html: article.content,
+			html: content,
 			articleUrl: input.url,
 			articleResourceUniqueId,
 		});
-		const html = await processContent({ html: article.content, media });
+		const html = await processContent({ html: content, media });
 
 		const thumbnailImage =
 			input.preFetchedThumbnail

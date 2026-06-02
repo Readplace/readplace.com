@@ -218,4 +218,34 @@ describe("initFinalizeArticle", () => {
 			expect(result.article.metadata.estimatedReadTime).toBeGreaterThan(0);
 		}
 	});
+
+	it("strips multi-MB inline base64 images from the body before it is persisted (#473)", async () => {
+		const oversized = "A".repeat(5000);
+		const parseHtml: ParseHtml = (params) => ({
+			ok: true,
+			article: {
+				title: "T",
+				siteName: "s",
+				excerpt: "e",
+				wordCount: 100,
+				content: `<p>real text</p><img src="data:image/png;base64,${oversized}">`,
+				imageUrl: params.thumbnailUrl ?? undefined,
+			},
+		});
+		let contentSeenByDownloadMedia = "";
+		const downloadMedia: DownloadMedia = async ({ html }) => {
+			contentSeenByDownloadMedia = html;
+			return [];
+		};
+		const finalize = createFinalize({ parseHtml, downloadMedia });
+
+		const result = await finalize({ url: URL_UNDER_TEST, html: "<html></html>" });
+
+		expect(contentSeenByDownloadMedia).not.toContain(oversized);
+		expect(contentSeenByDownloadMedia).toContain("real text");
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.article.html).not.toContain(oversized);
+		}
+	});
 });
