@@ -475,8 +475,8 @@
 }
 
 .queue-article__action-btn--status {
-  background: var(--primary);
-  color: var(--primary-foreground);
+  background: transparent;
+  color: var(--primary);
   border-color: var(--primary);
   font-weight: 600;
 }
