@@ -201,4 +201,14 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectedContent: "simple form containing four distinct fields",
 		expectsThumbnail: false,
 	},
+	{
+		// Plain-text file served with `Content-Type: text/plain;charset=utf-8`.
+		// The crawler wraps the body as minimal Readability-friendly HTML via
+		// `parsePlainTextFromBuffer`. This entry exercises the `text/plain`
+		// media-type branch added in 8dd5dc1f.
+		label: "Plain text (FidoNet history)",
+		url: "https://www.fidonet.org/inet92_Randy_Bush.txt",
+		expectedContent: "store-and-forward email WAN which uses modems on the direct-dial telephone network",
+		expectsThumbnail: false,
+	},
 ];
