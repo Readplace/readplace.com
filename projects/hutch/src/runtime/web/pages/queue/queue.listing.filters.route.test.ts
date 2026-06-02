@@ -1,26 +1,33 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { MinutesSchema } from "@packages/domain/article";
 import { useTestServer, loginAgent } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 
-import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
+import type { PublishStaleCheckRequested } from "@packages/test-fixtures/providers/events";
 
 const useApp = useTestServer();
 
+const cachedRow = {
+	metadata: { title: "Cached", siteName: "example.com", excerpt: "Cached", wordCount: 100 },
+	estimatedReadTime: MinutesSchema.parse(1),
+};
+
 describe("Queue routes", () => {
-	describe("POST /queue/save with existing article (skip freshness)", () => {
-		it("should save user-article relationship without re-fetching", async () => {
-			const skipFreshness: RefreshArticleIfStale = async () => ({ action: "skip" });
-			const harness = useApp({
-				...createDefaultTestAppFixture(TEST_APP_ORIGIN),
-				freshness: { refreshArticleIfStale: skipFreshness },
-			});
-			const { auth } = harness;
+	describe("POST /queue/save with an already-cached article", () => {
+		it("saves the user-article relationship and redirects without re-fetching", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, articleStore } = harness;
 			const agent = await loginAgent(harness.server, auth);
+			await articleStore.saveArticleGlobally({
+				url: "https://example.com/existing",
+				...cachedRow,
+				savedAt: new Date(),
+			});
 
 			const response = await agent
 				.post("/queue/save")
@@ -31,56 +38,25 @@ describe("Queue routes", () => {
 			expect(response.headers.location).toBe("/queue#latest-saved");
 		});
 
-		it("should save for unchanged content (304)", async () => {
-			const unchangedFreshness: RefreshArticleIfStale = async () => ({ action: "unchanged" });
-			const harness = useApp({
-				...createDefaultTestAppFixture(TEST_APP_ORIGIN),
-				freshness: { refreshArticleIfStale: unchangedFreshness },
-			});
-			const { auth } = harness;
-			const agent = await loginAgent(harness.server, auth);
-
-			const response = await agent
-				.post("/queue/save")
-				.type("form")
-				.send({ url: "https://example.com/existing" });
-
-			expect(response.status).toBe(303);
-		});
-
-		it("should publish LinkSaved event for refreshed content", async () => {
+		it("delegates the content refresh to the stale-check Lambda instead of publishing LinkSaved", async () => {
+			const staleChecksRequested: Parameters<PublishStaleCheckRequested>[0][] = [];
 			let linkSavedPublished = false;
-			const refreshedFreshness: RefreshArticleIfStale = async () => ({
-				action: "refreshed",
-				article: {
-					ok: true as const,
-					article: {
-						title: "Refreshed",
-						siteName: "example.com",
-						excerpt: "Refreshed excerpt",
-						wordCount: 100,
-						content: "<p>New content</p>",
-					},
-				},
-			});
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
 				events: {
+					...fixture.events,
 					publishLinkSaved: async () => { linkSavedPublished = true; },
-					publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
-					publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
-					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
-					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
-					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
-					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
-					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+					publishStaleCheckRequested: async (p) => { staleChecksRequested.push(p); },
 				},
-				freshness: { refreshArticleIfStale: refreshedFreshness },
 			});
-			const { auth } = harness;
+			const { auth, articleStore } = harness;
 			const agent = await loginAgent(harness.server, auth);
+			await articleStore.saveArticleGlobally({
+				url: "https://example.com/existing",
+				...cachedRow,
+				savedAt: new Date(),
+			});
 
 			const response = await agent
 				.post("/queue/save")
@@ -88,7 +64,8 @@ describe("Queue routes", () => {
 				.send({ url: "https://example.com/existing" });
 
 			expect(response.status).toBe(303);
-			expect(linkSavedPublished).toBe(true);
+			expect(staleChecksRequested).toEqual([{ url: "https://example.com/existing" }]);
+			expect(linkSavedPublished).toBe(false);
 		});
 	});
 
