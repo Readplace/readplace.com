@@ -540,6 +540,80 @@ describe("initReadabilityParser", () => {
 			}
 		});
 
+		it("replaces a native <video> in the article body with a brand-styled placeholder linking to the original", () => {
+			const htmlWithVideo = `
+			<html><head><title>Performance Post</title></head>
+			<body><article>
+				<h1>Performance Post</h1>
+				<p>Intro paragraph long enough to satisfy readability extraction with several words to score well.</p>
+				<video src="https://cdn.example.com/clip.mp4"></video>
+				<p>Trailing paragraph long enough to keep the article scoreable for readability extraction.</p>
+			</article></body></html>`;
+			const { parseHtml } = initParser();
+
+			const result = parseHtml({
+				url: "https://performance.dev/posts/how-is-linear-so-fast",
+				html: htmlWithVideo,
+				thumbnailUrl: null,
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.article.content).not.toContain("<video");
+				expect(result.article.content).toContain('class="reader-video-placeholder"');
+				expect(result.article.content).toContain(
+					'href="https://performance.dev/posts/how-is-linear-so-fast"',
+				);
+				expect(result.article.content).toContain(">performance.dev<");
+				expect(result.article.content).toContain("Watch this video on ");
+			}
+		});
+
+		it("inserts one placeholder per <video> when the body contains several", () => {
+			const htmlWithVideos = `
+			<html><head><title>Many Videos</title></head>
+			<body><article>
+				<h1>Many Videos</h1>
+				<p>Intro paragraph long enough to satisfy readability extraction with several words to score well.</p>
+				<video src="a.mp4"></video>
+				<p>Middle paragraph long enough to satisfy readability extraction with several words to score well.</p>
+				<video src="b.mp4"></video>
+				<p>Trailing paragraph long enough to satisfy readability extraction with several words to score well.</p>
+			</article></body></html>`;
+			const { parseHtml } = initParser();
+
+			const result = parseHtml({
+				url: "https://example.com/many",
+				html: htmlWithVideos,
+				thumbnailUrl: null,
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.article.content).not.toContain("<video");
+				const matches = result.article.content.match(
+					/class="reader-video-placeholder"/g,
+				);
+				expect(matches?.length).toBe(2);
+			}
+		});
+
+		it("leaves articles without <video> unchanged", () => {
+			const { parseHtml } = initParser();
+
+			const result = parseHtml({
+				url: "https://example.com/article",
+				html: ARTICLE_HTML,
+				thumbnailUrl: null,
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.article.content).not.toContain("reader-video-placeholder");
+				expect(result.article.content).toContain("first paragraph");
+			}
+		});
+
 		it("escapes HTML-significant characters in the extracted title", () => {
 			const preParser: SitePreParser = {
 				matches: () => true,
