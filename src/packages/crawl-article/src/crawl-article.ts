@@ -6,7 +6,8 @@ import type {
 import type { CrawlFetch } from "./crawl-fetch";
 import { extractThumbnailCandidates, initFetchThumbnailImage } from "./extract-thumbnail";
 import { headerOrUndefined } from "./header-utils";
-import { isPDF } from "./pdf-detect";
+import { classifyMediaType } from "./media-type";
+import { parsePlainTextFromBuffer } from "./parse-plain-text";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
 import type { ExtractPdf } from "./pdf-extract.types";
 import { initFetchTweetViaOembed, isTweetUrl } from "./x-twitter-preprocessor";
@@ -194,7 +195,9 @@ export async function parsePdfFromBuffer(input: {
 
 /**
  * The single crawl orchestrator. One conditional GET per invocation; the body
- * is materialised once and dispatched on content-type:
+ * is materialised once, `classifyMediaType` (the single source of truth for
+ * supported media types) maps it to a `SupportedMediaType`, and the exhaustive
+ * switch below dispatches to a parser:
  *
  *   - X/Twitter URLs bypass the article fetch entirely (oembed has the text).
  *   - HTML → `parseHtmlFromBuffer`.
@@ -202,7 +205,11 @@ export async function parsePdfFromBuffer(input: {
  *     when an `extractPdf` was supplied. Lambdas that defer PDF extraction
  *     construct this without `extractPdf`, so a PDF body returns `unsupported`
  *     and the save-link orchestrator hands the URL to the comprehensive Lambda.
- *   - Anything else → `unsupported`.
+ *   - Plain text → `parsePlainTextFromBuffer` (wrapped as minimal HTML).
+ *   - Unrecognised content type → `unsupported`.
+ *
+ * Adding a media type is a one-line edit to `MEDIA_TYPE_MATCHERS`; the new
+ * member then fails to compile in the switch until it is handled here.
  */
 export function initCrawlArticle(deps: {
 	crawlFetch: CrawlFetch;
@@ -220,32 +227,36 @@ export function initCrawlArticle(deps: {
 		if (fetched.status !== "ok") return fetched;
 		const { response, buffer } = fetched;
 		const contentType = response.headers.get("content-type") ?? "";
-		if (isHtmlContentType(contentType)) {
-			return parseHtmlFromBuffer({
-				buffer,
-				response,
-				url: params.url,
-				fetchThumbnail: params.fetchThumbnail,
-				crawlFetch,
-				logError,
-			});
+		const mediaType = classifyMediaType({ contentType, buffer });
+		if (mediaType === undefined) {
+			logError(`[CrawlArticle] Unsupported content-type "${contentType}" for ${params.url}`);
+			return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
 		}
-		if (extractPdf && isPDF({ contentType, bodyBytes: buffer })) {
-			return parsePdfFromBuffer({
-				buffer,
-				response,
-				url: params.url,
-				extractPdf,
-				onProgress: params.onProgress,
-				logError,
-			});
+		switch (mediaType) {
+			case "html":
+				return parseHtmlFromBuffer({
+					buffer,
+					response,
+					url: params.url,
+					fetchThumbnail: params.fetchThumbnail,
+					crawlFetch,
+					logError,
+				});
+			case "pdf":
+				if (!extractPdf) {
+					logError(`[CrawlArticle] Unsupported content-type "${contentType}" for ${params.url}`);
+					return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
+				}
+				return parsePdfFromBuffer({
+					buffer,
+					response,
+					url: params.url,
+					extractPdf,
+					onProgress: params.onProgress,
+					logError,
+				});
+			case "plain-text":
+				return parsePlainTextFromBuffer({ buffer, response, url: params.url });
 		}
-		logError(`[CrawlArticle] Unsupported content-type "${contentType}" for ${params.url}`);
-		return { status: "unsupported", reason: `unsupported content type: ${contentType}` };
 	};
-}
-
-/** Accept text/html and application/xhtml+xml — both are HTML-parseable by linkedom. */
-function isHtmlContentType(contentType: string): boolean {
-	return contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
 }

@@ -235,6 +235,25 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		expect(logError).toHaveBeenCalledWith('[CrawlArticle] Unsupported content-type "video/mp4" for https://example.com/clip.mp4');
 	});
 
+	it("dispatches text/plain to the plain-text path, wrapping the body as article HTML without the extractor", async () => {
+		const fakeFetch: typeof fetch = async () =>
+			new Response("Line one.\n\nLine two.", {
+				status: 200,
+				headers: { "content-type": "text/plain; charset=utf-8", etag: '"txt-1"' },
+			});
+		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf });
+
+		const result = await crawlArticle({ url: "https://example.com/notes/readme.txt" });
+
+		assertFetched(result);
+		expect(result.html).toBe(
+			"<!DOCTYPE html><html><head><title>readme</title></head><body><article><h1>readme</h1><p>Line one.</p><p>Line two.</p></article></body></html>",
+		);
+		expect(result.etag).toBe('"txt-1"');
+		expect(extractPdf).not.toHaveBeenCalled();
+	});
+
 	it("returns failed and logs the HTTP status on a non-ok, non-304 response", async () => {
 		const fakeFetch: typeof fetch = async () => new Response(null, { status: 500 });
 		const logError = jest.fn();
