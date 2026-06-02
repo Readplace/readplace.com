@@ -269,7 +269,7 @@ export function HomePage(params: {
 							name: "What features does Readplace have?",
 							acceptedAnswer: {
 								"@type": "Answer",
-								text: "Readplace offers browser extensions for Firefox and Chrome, a web app for managing saved articles, a distraction-free reader view, TL;DR summaries, dark mode, and secure OAuth with PKCE. Planned features include personalised AI summaries, preference learning, Gmail integration, and highlights and notes.",
+								text: "Readplace offers browser extensions for Firefox and Chrome, a web app for managing saved articles, a distraction-free reader view, TL;DR summaries, dark mode, and secure OAuth with PKCE. Planned features include share-to-save on mobile, a 'what to read next' view that sorts and filters your unread pile, and listening to saved articles as audio.",
 							},
 						},
 						{
@@ -345,19 +345,19 @@ export function HomePage(params: {
 			],
 			plannedFeatures: [
 				{
-					name: "Save from Mobile",
+					name: "Share to Save on Mobile",
 					description:
-						"An iPhone app that allows you to save a link on the go.",
+						"Save to Readplace from any app with one tap from the share sheet — no copy-paste.",
 				},
 				{
-					name: "Preference Learning",
+					name: "What to Read Next",
 					description:
-						"Resurface previously saved articles that match what's interesting to you. You can change your preferences over time.",
+						"Sort and filter your unread pile by recently saved, reading time, and tags, so the time you have goes to what matters most.",
 				},
 				{
-					name: "Highlights & Notes",
+					name: "Listen to Articles",
 					description:
-						"Highlight passages and add notes as you read to help learning usingthe science of Blocked Practice.",
+						"Play any saved article as audio — for the commute, the walk, or doing chores.",
 				},
 			],
 			trustItems: [
