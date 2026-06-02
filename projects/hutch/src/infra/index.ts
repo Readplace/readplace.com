@@ -36,6 +36,7 @@ const contentBucketName = config.require("contentBucketName");
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
 const userExportBucketName = config.require("userExportBucketName");
 const alertEmail = config.require("alertEmail");
+const readerStreamCorsOrigin = config.get("readerStreamCorsOrigin");
 const tableNames = {
 	articles: config.require("dynamodbArticlesTable"),
 	userArticles: config.require("dynamodbUserArticlesTable"),
@@ -219,6 +220,106 @@ const cancelSubscriptionSchedulerManagePolicy = {
 	policy: trialSchedulerManagePolicyDoc,
 };
 
+let readerStreamBaseUrl: pulumi.Output<string> | undefined;
+let readerStreamRawUrl: pulumi.Output<string> | undefined;
+
+if (readerStreamCorsOrigin) {
+	// --- Reader Streaming Lambda (SSE Function URL) ---
+	// Why: this is a NEW exception to "every Lambda must be backed by a queue
+	// with DLQ" beyond the documented API-Gateway-fronted hutch handler. The
+	// reason for using a Function URL instead of API Gateway is that
+	// API Gateway HTTP API does NOT support response streaming — its
+	// `serverless-http` integration buffers the entire response — and we need
+	// true SSE so the `/view` page can show partial-content snapshots as the
+	// worker crawls.
+	//
+	// This Lambda is still synchronous request/response: a failure surfaces
+	// to the client as a closed EventSource, and the parent-side
+	// reader-stream.client.ts retries with exponential backoff before falling
+	// through to the always-armed HTMX `every 3s` poll path on the reader-slot
+	// wrapper. No async work in flight that could be lost — therefore no
+	// SQS/DLQ needed. CloudWatch alarms on the Lambda's error metric remain
+	// the operator-paging surface.
+	//
+	// IAM scope: read-only on the articles + sessions tables. No publish, no
+	// write, no S3.
+
+	const readerStreamDynamodb = new HutchDynamoDBAccess(
+		"reader-stream-dynamodb",
+		{
+			tables: [
+				{ arn: storage.articlesTable.arn, includeIndexes: false },
+				{ arn: storage.sessionsTable.arn, includeIndexes: false },
+			],
+			actions: ["dynamodb:GetItem"],
+		},
+	);
+
+	const readerStreamLambda = new HutchLambda("reader-stream", {
+		entryPoint: "./src/runtime/reader-stream.main.ts",
+		outputDir: ".lib/reader-stream",
+		assetDir: "./src/runtime",
+		// 256 MB is plenty for the polling loop — the working set is one
+		// `GetItem` response per tick (< 400 KB) plus the SSE frame buffer.
+		memorySize: 256,
+		// 65s timeout: connectionMaxMs (60s in the handler) plus 5s slack so
+		// the handler can emit the `reconnect` frame and end the response
+		// cleanly before the Lambda runtime cuts the connection.
+		timeout: 65,
+		environment: {
+			PERSISTENCE: "prod",
+			DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
+			DYNAMODB_USERS_TABLE: storage.usersTable.name,
+			DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
+		},
+		policies: [...readerStreamDynamodb.policies],
+	});
+
+	const readerStreamFunctionUrl = new aws.lambda.FunctionUrl(
+		"reader-stream-url",
+		{
+			functionName: readerStreamLambda.functionName,
+			// `NONE` because cookie-based auth runs inside the handler — the
+			// session cookie travels on the EventSource request and is looked
+			// up via getSessionUserId. AWS IAM auth would require browsers to
+			// sign requests, which EventSource cannot do.
+			authorizationType: "NONE",
+			// Response streaming mode — without this the Function URL buffers
+			// the entire response just like API Gateway does.
+			invokeMode: "RESPONSE_STREAM",
+			cors: {
+				allowOrigins: [readerStreamCorsOrigin],
+				allowMethods: ["GET"],
+				allowHeaders: ["content-type"],
+				allowCredentials: true,
+			},
+		},
+	);
+
+	// DNS: `stream.<canonicalDomain>` CNAME → Function URL hostname.
+	// Skipped when no canonical domain is configured. Without a CNAME
+	// the client still works against the raw Function URL host.
+	if (canonicalDomain) {
+		const lastRegistration = allDomainRegistrations[allDomainRegistrations.length - 1];
+		if (lastRegistration.zoneId) {
+			new aws.route53.Record("reader-stream-dns", {
+				zoneId: lastRegistration.zoneId,
+				name: `stream.${canonicalDomain}`,
+				type: "CNAME",
+				ttl: 300,
+				records: [
+					readerStreamFunctionUrl.functionUrl.apply((url) => new URL(url).hostname),
+				],
+			});
+		}
+	}
+
+	readerStreamRawUrl = readerStreamFunctionUrl.functionUrl;
+	readerStreamBaseUrl = canonicalDomain
+		? pulumi.interpolate`https://stream.${canonicalDomain}`
+		: readerStreamFunctionUrl.functionUrl.apply((url) => url.replace(/\/$/, ""));
+}
+
 const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/hutch-api",
@@ -229,6 +330,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		NODE_ENV: stage === "production" ? "production" : "development",
 		PERSISTENCE: "prod",
 		APP_ORIGIN: appOrigin,
+		...(readerStreamBaseUrl ? { READER_STREAM_BASE_URL: readerStreamBaseUrl } : {}),
 		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
@@ -761,4 +863,6 @@ export const staticBaseUrl = staticAssets.baseUrl;
 export const exportUserDataQueueUrl = exportUserDataQueue.queueUrl;
 export const exportUserDataDlqUrl = exportUserDataQueue.dlqUrl;
 export const userExportBucketOutputName = userExportBucket.bucket;
+export const readerStreamFunctionUrlRaw = readerStreamRawUrl;
+export const readerStreamCanonicalUrl = readerStreamBaseUrl;
 export const _dependencies = [gateway.defaultRoute];

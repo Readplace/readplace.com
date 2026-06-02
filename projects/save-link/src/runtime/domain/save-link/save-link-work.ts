@@ -4,6 +4,7 @@ import {
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
+import type { MarkCrawlPartial } from "../../providers/article-crawl/mark-crawl-partial";
 import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
@@ -41,6 +42,7 @@ export function initSaveLinkWork(deps: {
 	updateFetchTimestamp: UpdateFetchTimestamp;
 	transitionAndPersist: TransitionAndPersist;
 	markCrawlStage: MarkCrawlStage;
+	markCrawlPartial: MarkCrawlPartial;
 	now: () => Date;
 	logger: HutchLogger;
 	logParseError: LogParseError;
@@ -55,6 +57,7 @@ export function initSaveLinkWork(deps: {
 		updateFetchTimestamp,
 		transitionAndPersist,
 		markCrawlStage,
+		markCrawlPartial,
 		now,
 		logger,
 		logParseError,
@@ -62,6 +65,21 @@ export function initSaveLinkWork(deps: {
 		readTierSnapshot,
 		logPrefix,
 	} = deps;
+
+	/* Partial-content writes are a streaming UX nicety, never load-bearing.
+	 * A failure here must not fail the crawl — the canonical write path is
+	 * untouched and the reader's HTMX poll will still drive the slot to
+	 * ready once the worker completes. The empty-content guard lives in
+	 * `crawlAndFinalizeArticle`'s preview emission, so we don't double-check
+	 * here. */
+	const partialWriteFailedMessage = `${logPrefix} partial-content write failed`;
+	const writePartial = (url: string, content: string): Promise<void> =>
+		markCrawlPartial({ url, content }).catch((error: unknown) => {
+			logger.warn(partialWriteFailedMessage, {
+				url,
+				error: String(error),
+			});
+		});
 
 	const emitTier1Failure = async (url: string): Promise<void> => {
 		const snapshot = await readTierSnapshot({ url });
@@ -76,7 +94,10 @@ export function initSaveLinkWork(deps: {
 
 	const saveLinkWork = async (url: string, options?: SaveLinkWorkOptions): Promise<SaveLinkWorkResult> => {
 		await markCrawlStage({ url, stage: "crawl-fetching" });
-		const result = await crawlAndFinalizeArticle({ url });
+		const result = await crawlAndFinalizeArticle({
+			url,
+			onPartialHtml: ({ html }) => { void writePartial(url, html); },
+		});
 
 		if (result.status === "unsupported") {
 			/* The simple crawl bailed because the origin returned a non-html body.

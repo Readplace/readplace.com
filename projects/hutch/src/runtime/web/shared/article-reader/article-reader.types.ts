@@ -48,6 +48,14 @@ export interface ArticleReaderDeps {
 		fields: ReadonlyArray<{ name: string; value: string }>;
 	};
 	now: () => Date;
+	/**
+	 * Base URL for the dedicated SSE streaming Lambda's Function URL (e.g.
+	 * `https://stream.readplace.com`). When set, the reader-slot dispatcher
+	 * renders the streaming variant for `crawl.status === "pending"` rows
+	 * that carry partial content. When undefined (dev / unconfigured),
+	 * the slot falls back to the existing dots-loader pending variant.
+	 */
+	streamBaseUrl?: string;
 }
 
 export interface ArticleSnapshot {

@@ -894,3 +894,118 @@ describe("initOcrPdf — stage 3 semantic HTML conversion", () => {
 		expect(observedPeak).toBeGreaterThan(0);
 	});
 });
+
+
+describe("initOcrPdf — onPartialHtml streaming tap", () => {
+	it("emits the in-order ready prefix as each chunk completes (out-of-order completions do not get surfaced ahead of their predecessors)", async () => {
+		const completionOrder = [2, 0, 1, 4, 3];
+		const completed: number[] = [];
+		const partials: Array<{ html: string; readyPageCount: number }> = [];
+
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 5 }),
+			batchSize: 1,
+			invokePageOcr: async ({ pageIndices }) => {
+				const pageIndex = pageIndices[0];
+				const order = completionOrder.indexOf(pageIndex);
+				await new Promise((resolve) => setTimeout(resolve, (order + 1) * 5));
+				completed.push(pageIndex);
+				return { ok: true, html: tesseractParagraph(`page-${pageIndex}`) };
+			},
+		});
+
+		await ocr({
+			buffer: Buffer.from("%PDF"),
+			url: "https://example.com/x.pdf",
+			onPartialHtml: (p) => { partials.push({ html: p.html, readyPageCount: p.readyPageCount }); },
+		});
+
+		expect(completed).toEqual(completionOrder);
+
+		// Collapse adjacent equal counts before asserting — the explicit
+		// post-fan-out emission can repeat the last in-flight one.
+		const distinctSteps = partials
+			.map((p) => p.readyPageCount)
+			.filter((count, idx, arr) => idx === 0 || arr[idx - 1] !== count);
+		expect(distinctSteps).toEqual([1, 3, 5]);
+
+		const pageMarkers = (html: string): number[] =>
+			Array.from(html.matchAll(/page-(\d+)/g)).map((m) => Number(m[1])).sort();
+		expect(pageMarkers(partials[0].html)).toEqual([0]);
+
+		const threePagesReady = partials.find((p) => p.readyPageCount === 3);
+		if (!threePagesReady) throw new Error("3-page prefix never emitted");
+		expect(pageMarkers(threePagesReady.html)).toEqual([0, 1, 2]);
+
+		const allReady = partials[partials.length - 1];
+		expect(pageMarkers(allReady.html)).toEqual([0, 1, 2, 3, 4]);
+	});
+
+	it("inserts the page-break separator between adjacent fragments in the partial HTML", async () => {
+		const partials: Array<{ html: string; readyPageCount: number }> = [];
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 2 }),
+			invokePageOcr: stubInvokePageOcr((i) => `page-${i}`),
+			batchSize: 1,
+		});
+
+		await ocr({
+			buffer: Buffer.from("%PDF"),
+			url: "https://example.com/x.pdf",
+			onPartialHtml: (p) => { partials.push({ html: p.html, readyPageCount: p.readyPageCount }); },
+		});
+
+		const allReady = partials[partials.length - 1];
+		expect(allReady.html).toContain('<hr class="ocr-page-break">');
+	});
+
+	it("surfaces failed-chunk placeholders in the partial HTML so users see the gap immediately", async () => {
+		const partials: Array<{ html: string; readyPageCount: number }> = [];
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 3 }),
+			batchSize: 1,
+			invokePageOcr: async ({ pageIndices }) => {
+				if (pageIndices[0] === 1) return { ok: false, error: new Error("OCR exploded on page 2") };
+				return { ok: true, html: tesseractParagraph(`page-${pageIndices[0]}`) };
+			},
+		});
+
+		await ocr({
+			buffer: Buffer.from("%PDF"),
+			url: "https://example.com/x.pdf",
+			onPartialHtml: (p) => { partials.push({ html: p.html, readyPageCount: p.readyPageCount }); },
+		});
+
+		const allReady = partials[partials.length - 1];
+		expect(allReady.readyPageCount).toBe(3);
+		expect(allReady.html).toContain("page-0");
+		expect(allReady.html).toContain('<p class="ocr-failed">[Page 2: OCR unavailable]</p>');
+		expect(allReady.html).toContain("page-2");
+	});
+
+	it("does not call onPartialHtml when the callback is omitted (zero behaviour change for non-streaming callers)", async () => {
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 3 }),
+			invokePageOcr: stubInvokePageOcr((i) => `page-${i}`),
+			batchSize: 1,
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+		expect(result.kind).toBe("fetched");
+	});
+
+	it("swallows errors thrown from the onPartialHtml callback so streaming failures never poison the crawl", async () => {
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 2 }),
+			invokePageOcr: stubInvokePageOcr((i) => `page-${i}`),
+			batchSize: 1,
+		});
+
+		const result = await ocr({
+			buffer: Buffer.from("%PDF"),
+			url: "https://example.com/x.pdf",
+			onPartialHtml: () => { throw new Error("downstream throttle blew up"); },
+		});
+		expect(result.kind).toBe("fetched");
+	});
+});

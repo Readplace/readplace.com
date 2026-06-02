@@ -143,6 +143,11 @@ interface AppDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
 	staticBaseUrl: string;
+	/** Base URL for the dedicated SSE streaming Lambda (e.g.
+	 * `https://stream.readplace.com`). When undefined the reader-slot's
+	 * streaming variant is disabled and the dots loader stays in place
+	 * — the streaming Lambda can be deployed in a follow-up step. */
+	streamBaseUrl?: string;
 	hashPassword: (password: string) => Promise<string>;
 	createUser: CreateUser;
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
@@ -244,7 +249,7 @@ const LLMS_FULL_TXT = readFileSync(join(__dirname, "llms-full.txt"), "utf-8");
 const INDEXNOW_KEY = getEnv("INDEXNOW_KEY");
 
 export function createApp(dependencies: AppDependencies): Express {
-	const { appOrigin, staticBaseUrl, getSessionUserId, countUsers, foundingAllocation, ...deps } = dependencies;
+	const { appOrigin, staticBaseUrl, streamBaseUrl, getSessionUserId, countUsers, foundingAllocation, ...deps } = dependencies;
 	const app: Express = express();
 
 	const blogPosts = initBlogPosts();
@@ -616,6 +621,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		salt: deps.salt,
 		now: deps.now,
 		featureToggle,
+		streamBaseUrl,
 	});
 	/** `dualAuthMiddleware` is applied INSIDE the queue router rather than at this
 	 * mount so that `GET /queue/:id/view` (and its legacy `/read` redirect) can
@@ -662,6 +668,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		expiryCountdown: deps.expiryCountdown,
 		now: deps.now,
 		buildBannerState,
+		streamBaseUrl,
 	});
 	app.use("/view", viewRouter);
 
@@ -678,6 +685,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		serviceToken: deps.recrawlServiceToken,
 		now: deps.now,
 		buildBannerState,
+		streamBaseUrl,
 	});
 	app.use("/admin/recrawl", adminRecrawlRouter);
 

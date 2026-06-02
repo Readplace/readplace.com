@@ -47,6 +47,10 @@ export interface ArticleBodyInput {
 	 * initial SSR bar was hidden.
 	 */
 	progress?: ProgressTick;
+	/** Base URL for the dedicated SSE streaming Lambda's Function URL.
+	 * Threaded through to the reader slot so it can switch to the streaming
+	 * variant when partial content is available. */
+	streamBaseUrl?: string;
 }
 
 export function renderArticleBody(input: ArticleBodyInput): string {
@@ -56,6 +60,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		url: input.url,
 		readerPollUrl: input.readerPollUrl,
 		extensionInstallUrl: input.extensionInstallUrl,
+		streamBaseUrl: input.streamBaseUrl,
 	});
 
 	const summarySlotHtml = renderSummarySlot({

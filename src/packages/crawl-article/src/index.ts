@@ -19,7 +19,7 @@ export type {
 } from "./crawl-article.types";
 export { initCrawlFetch } from "./crawl-fetch";
 export type { CrawlFetch, CrawlFetchInit } from "./crawl-fetch";
-export type { ExtractPdf, PdfExtractProgress, PdfExtractResult, PdfExtractStage } from "./pdf-extract.types";
+export type { ExtractPdf, PdfExtractProgress, PdfExtractResult, PdfExtractStage, PdfPartialHtml } from "./pdf-extract.types";
 export { isPDF } from "./pdf-detect";
 export type { PdfSignal } from "./pdf-detect";
 export { extractPdfMetadata } from "./extract-pdf-metadata";

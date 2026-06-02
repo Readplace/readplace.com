@@ -79,6 +79,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		updateFetchTimestamp: jest.fn().mockResolvedValue(undefined),
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
+		markCrawlPartial: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		now: fixedNow,
 		logger: noopLogger,
@@ -327,5 +328,44 @@ describe("initSaveLinkCommandHandler", () => {
 		const result = await handler(invalidEvent, stubContext, () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+	});
+
+	it("logs a warning when markCrawlPartial throws but never fails the crawl — partial writes are a streaming UX nicety", async () => {
+		const markCrawlPartial = jest.fn().mockRejectedValue(new Error("DynamoDB throttled"));
+		const warn = jest.fn();
+		const publishEvent = jest.fn().mockResolvedValue(undefined);
+		// crawlAndFinalizeArticle is the only path that triggers an
+		// onPartialHtml fire — invoke it once (preview, mirroring the
+		// production flow) so the partial-write path runs against the
+		// failing markCrawlPartial mock.
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async ({ onPartialHtml }) => {
+			if (onPartialHtml) {
+				onPartialHtml({ html: "<h1>preview</h1>", readyPageCount: 1 });
+			}
+			return fetchedResult;
+		};
+
+		const handler = createHandler({
+			crawlAndFinalizeArticle,
+			markCrawlPartial,
+			publishEvent,
+			logger: { ...noopLogger, warn },
+		});
+
+		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), stubContext, () => {});
+
+		// Save still succeeded — the canonical event still fires.
+		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, expect.objectContaining({
+			url: "https://example.com/article",
+			tier: "tier-1",
+		}));
+		expect(warn).toHaveBeenCalledWith(
+			"[SaveLinkCommand] partial-content write failed",
+			expect.objectContaining({
+				url: "https://example.com/article",
+				error: "Error: DynamoDB throttled",
+			}),
+		);
+		expect(warn).toHaveBeenCalledTimes(1);
 	});
 });

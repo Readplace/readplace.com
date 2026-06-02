@@ -20,6 +20,10 @@ export type InMemoryMarkCrawlStage = (params: {
 	url: string;
 	stage: CrawlStage;
 }) => Promise<void>;
+export type InMemoryMarkCrawlPartial = (params: {
+	url: string;
+	content: string;
+}) => Promise<void>;
 
 export function initInMemoryArticleCrawl(): {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
@@ -29,6 +33,7 @@ export function initInMemoryArticleCrawl(): {
 	markCrawlFailed: InMemoryMarkCrawlFailed;
 	markCrawlUnsupported: InMemoryMarkCrawlUnsupported;
 	markCrawlStage: InMemoryMarkCrawlStage;
+	markCrawlPartial: InMemoryMarkCrawlPartial;
 } {
 	const states = new Map<string, ArticleCrawl>();
 
@@ -91,7 +96,33 @@ export function initInMemoryArticleCrawl(): {
 			current?.status === "unsupported"
 		)
 			return;
-		states.set(id.value, { status: "pending", stage });
+		const next: ArticleCrawl = { status: "pending", stage };
+		if (current?.status === "pending" && current.partial) next.partial = current.partial;
+		states.set(id.value, next);
+	};
+
+	const markCrawlPartial: InMemoryMarkCrawlPartial = async ({ url, content }) => {
+		const id = ArticleResourceUniqueId.parse(url);
+		const current = states.get(id.value);
+		// Same guard as the DDB ConditionExpression: skip when the row has
+		// transitioned terminal (the writer would lose the race). Pending row
+		// or no row → write the partial.
+		if (
+			current?.status === "ready" ||
+			current?.status === "failed" ||
+			current?.status === "unsupported"
+		)
+			return;
+		const nextVersion = current?.status === "pending" && current.partial
+			? current.partial.version + 1
+			: 1;
+		const next: ArticleCrawl = {
+			status: "pending",
+			partial: { content, version: nextVersion },
+		};
+		if (current?.status === "pending" && current.stage) next.stage = current.stage;
+		if (current?.status === "pending" && current.parts) next.parts = current.parts;
+		states.set(id.value, next);
 	};
 
 	return {
@@ -102,5 +133,6 @@ export function initInMemoryArticleCrawl(): {
 		markCrawlFailed,
 		markCrawlUnsupported,
 		markCrawlStage,
+		markCrawlPartial,
 	};
 }

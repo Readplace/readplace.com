@@ -5,8 +5,19 @@ export interface CrawlParts {
 	total: number;
 }
 
+/** Transient partial-content snapshot written by save-link as it crawls. The
+ * version number is monotonically incremented per write so SSE clients can
+ * cheaply detect a new snapshot without diffing the content body. Lives only
+ * on the `pending` variant — terminal transitions REMOVE both attributes on
+ * the underlying row, making "partial only exists while pending" a
+ * compile-time invariant on the discriminated union. */
+export interface CrawlPartial {
+	content: string;
+	version: number;
+}
+
 export type ArticleCrawl =
-	| { status: "pending"; stage?: CrawlStage; parts?: CrawlParts }
+	| { status: "pending"; stage?: CrawlStage; parts?: CrawlParts; partial?: CrawlPartial }
 	| { status: "ready" }
 	| { status: "failed"; reason: string }
 	| { status: "unsupported"; reason: string };
