@@ -163,13 +163,15 @@ const corePromise = initCore();
 
 const CAPTURE_HTML_TIMEOUT_MS = 5000;
 
-async function captureActiveTabHtml(): Promise<string | undefined> {
-	const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-	const tab = tabs[0];
-	if (tab?.id == null) return undefined;
-	const tabId = tab.id;
+async function captureActiveTabHtml(message: {
+	url: string;
+	tabId?: number;
+}): Promise<string | undefined> {
+	if (message.tabId == null) return undefined;
+	const tab = await browser.tabs.get(message.tabId).catch(() => undefined);
+	if (!tab || tab.url !== message.url) return undefined;
 	const captured = await Promise.race([
-		browser.tabs.sendMessage(tabId, { type: "capture-html" }),
+		browser.tabs.sendMessage(message.tabId, { type: "capture-html" }),
 		new Promise<undefined>((resolve) =>
 			setTimeout(() => resolve(undefined), CAPTURE_HTML_TIMEOUT_MS),
 		),
@@ -220,18 +222,20 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 							failure: (err) => resolve({ ok: false, ...err }),
 						});
 					});
-					captureActiveTabHtml()
+					captureActiveTabHtml(message)
 						.then((rawHtml) => {
 							core.save("current-tab", {
 								url: message.url,
 								title: message.title,
 								rawHtml,
+								tabId: message.tabId,
 							});
 						})
 						.catch(() => {
 							core.save("current-tab", {
 								url: message.url,
 								title: message.title,
+								tabId: message.tabId,
 							});
 						});
 					pending.then(sendResponse);

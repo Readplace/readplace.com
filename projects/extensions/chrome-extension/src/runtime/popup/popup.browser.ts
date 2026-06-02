@@ -275,7 +275,7 @@ async function showListView() {
 	await loadAllItems();
 }
 
-async function getActiveTab(): Promise<{ url: string; title: string } | null> {
+async function getActiveTab(): Promise<{ url: string; title: string; tabId?: number } | null> {
 	const stored = await browser.storage.session.get("pendingTarget");
 	const pending = stored.pendingTarget;
 	if (pending && typeof pending.url === "string") {
@@ -292,7 +292,7 @@ async function getActiveTab(): Promise<{ url: string; title: string } | null> {
 	const tabs = await browser.tabs.query({ active: true, currentWindow: true });
 	const tab = tabs[0];
 	if (!tab?.url) return null;
-	return { url: tab.url, title: tab.title ?? tab.url };
+	return { url: tab.url, title: tab.title ?? tab.url, tabId: tab.id };
 }
 
 async function saveAndShowList() {
@@ -332,6 +332,7 @@ async function saveAndShowList() {
 		type: "save-current-tab",
 		url: activeTab.url,
 		title: activeTab.title,
+		tabId: activeTab.tabId,
 	})) as GuardedResult<SaveUrlResult>;
 
 	if (isNotLoggedIn(saveResult)) {
