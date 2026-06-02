@@ -122,7 +122,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 const TOAST_DISMISS_SCRIPT = `
 <script>
 	(function () {
-		var toast = document.querySelector('[data-test-status-toast]');
+		var toast = document.querySelector('.queue-toast');
 		if (!toast) return;
 		setTimeout(function () { toast.remove(); }, 6000);
 	})();
