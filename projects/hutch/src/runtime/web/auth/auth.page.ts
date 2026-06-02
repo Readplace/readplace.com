@@ -8,6 +8,7 @@ import type {
 	CreateSession,
 	CreateUserWithPasswordHash,
 	DestroySession,
+	FindEmailByUserId,
 	FindUserByEmail,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
@@ -20,6 +21,7 @@ import type {
 	VerifyEmailToken,
 } from "@packages/test-fixtures/providers/email-verification";
 import { VerificationTokenSchema } from "@packages/test-fixtures/providers/email-verification";
+import type { RecordResendAttempt } from "@packages/test-fixtures/providers/resend-throttle";
 import assert from "node:assert";
 import type { ConsumePendingSignup } from "@packages/test-fixtures/providers/pending-signup";
 import type {
@@ -38,7 +40,7 @@ import { bannerStateFromRequest, type BuildBannerState } from "../banner-state";
 import { sendComponent } from "../send-component";
 import type { ComponentError } from "../shared/component-error.types";
 import { LoginSchema } from "./auth.schema";
-import { LoginPage, SignupPage, VerifyEmailPage } from "./auth.component";
+import { LoginPage, ResendVerificationPage, SignupPage, VerifyEmailPage } from "./auth.component";
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS } from "./session-cookie";
 import { buildVerificationEmailHtml } from "./verification-email";
@@ -75,6 +77,8 @@ interface AuthDependencies {
 	sendEmail: SendEmail;
 	createVerificationToken: CreateVerificationToken;
 	verifyEmailToken: VerifyEmailToken;
+	findEmailByUserId: FindEmailByUserId;
+	recordResendAttempt: RecordResendAttempt;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	consumePendingSignup: ConsumePendingSignup;
 	subscriptionProviders: {
@@ -486,6 +490,32 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		}
 
 		sendComponent(req, res, Base(VerifyEmailPage({ success: true }), await deps.buildBannerState(req)));
+	});
+
+	router.post("/resend-verification", async (req: Request, res: Response) => {
+		const userId = req.userId;
+		if (!userId) {
+			res.redirect(303, "/login");
+			return;
+		}
+		if (req.emailVerified === true) {
+			res.redirect(303, "/queue");
+			return;
+		}
+		const email = await deps.findEmailByUserId(userId);
+		if (!email) {
+			res.redirect(303, "/login");
+			return;
+		}
+
+		const result = await deps.recordResendAttempt({ userId });
+		if (result.ok) {
+			sendVerificationEmail(userId, email);
+		}
+		sendComponent(
+			req, res,
+			Base(ResendVerificationPage({ sent: result.ok }), await deps.buildBannerState(req)),
+		);
 	});
 
 	router.post("/logout", async (req: Request, res: Response) => {
