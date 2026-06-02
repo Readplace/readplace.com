@@ -11,7 +11,7 @@ import { MAX_PDF_BYTES } from "./pdf-page-limits";
 import type { ExtractPdf } from "./pdf-extract.types";
 import { initFetchTweetViaOembed, isTweetUrl } from "./x-twitter-preprocessor";
 
-const FETCH_TIMEOUT_MS = 10000;
+const FETCH_TIMEOUT_MS = 30000;
 
 /**
  * Browser-like headers required by Fastly/Cloudflare edge sniffers.
