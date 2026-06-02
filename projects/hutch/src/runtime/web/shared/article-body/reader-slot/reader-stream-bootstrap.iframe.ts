@@ -275,7 +275,7 @@ export function initBootstrap(deps: BootstrapWindow): {
 	deps.addEventListener("message", (event) => {
 		if (event.source !== deps.parent) return;
 		const data = event.data as { type?: string; html?: string } | undefined;
-		if (!data || data.type !== "readplace-chunk") return;
+		if (data?.type !== "readplace-chunk") return;
 		if (typeof data.html !== "string") return;
 		onChunk(data.html);
 	});

@@ -101,7 +101,7 @@ function openSession(deps: ReaderStreamDeps, slot: Element): boolean {
 	function handleReadyMessage(event: MessageEvent): void {
 		if (event.source !== iframe.contentWindow) return;
 		const data = event.data as { type?: string } | undefined;
-		if (!data || data.type !== "readplace-ready") return;
+		if (data?.type !== "readplace-ready") return;
 		iframeReady = true;
 		flushPending();
 	}

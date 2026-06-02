@@ -228,7 +228,7 @@ const BUNDLES = [
 			"  parent: parent,",
 			"  addEventListener: function (type, listener) { window.addEventListener(type, listener); },",
 			"  performance: performance,",
-			"  requestAnimationFrame: function (cb) { return window.requestAnimationFrame(cb); }"
+			"  requestAnimationFrame: function (cb) { return window.requestAnimationFrame(cb); }",
 			"});",
 		].join("\n"),
 	},
