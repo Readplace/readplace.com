@@ -12,8 +12,17 @@ export interface ToastDismissDeps {
 	addSwapListener: (listener: () => void) => void;
 }
 
+/** Matches the transition duration on `.toast` in toast.styles.css: the toast
+ * fades for this long before it is removed from the DOM. */
+const FADE_OUT_MS = 300;
+
 export function initToastDismiss(deps: ToastDismissDeps): void {
 	const scheduled = new WeakSet<Element>();
+
+	function dismiss(toast: Element): void {
+		toast.classList.add("toast--dismissing");
+		deps.setTimeoutFn(() => toast.remove(), FADE_OUT_MS);
+	}
 
 	function scheduleToast(toast: Element): void {
 		if (scheduled.has(toast)) return;
@@ -21,7 +30,7 @@ export function initToastDismiss(deps: ToastDismissDeps): void {
 		if (!Number.isFinite(ms)) return;
 		if (ms <= 0) return;
 		scheduled.add(toast);
-		deps.setTimeoutFn(() => toast.remove(), ms);
+		deps.setTimeoutFn(() => dismiss(toast), ms);
 	}
 
 	function dismissPending(): void {

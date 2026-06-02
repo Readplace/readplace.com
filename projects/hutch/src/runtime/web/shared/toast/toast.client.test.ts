@@ -35,16 +35,24 @@ function initWithDom(bodyHtml: string): {
 }
 
 describe("initToastDismiss", () => {
-	it("removes a toast after the delay declared in its data-dismiss attribute", () => {
+	it("fades a toast out, then removes it, after its data-dismiss delay", () => {
 		const { document, timers } = initWithDom(
-			`<div class="toast" data-dismiss="10000">Saved</div>`,
+			`<div class="toast" data-dismiss="6000">Saved</div>`,
 		);
 		const toast = document.querySelector(".toast");
 		assert(toast, "toast must render");
 		expect(toast.isConnected).toBe(true);
 		expect(timers.length).toBe(1);
-		expect(timers[0].ms).toBe(10000);
+		expect(timers[0].ms).toBe(6000);
+
+		// The dismiss delay elapses: the toast starts fading but is still present.
 		timers[0].callback();
+		expect(toast.classList.contains("toast--dismissing")).toBe(true);
+		expect(toast.isConnected).toBe(true);
+
+		// The fade-out elapses: the toast is removed.
+		expect(timers.length).toBe(2);
+		timers[1].callback();
 		expect(toast.isConnected).toBe(false);
 	});
 
