@@ -55,6 +55,7 @@ const storage = new HutchStorage("hutch", {
 });
 
 const redirectDomains = config.getObject<string[]>("redirectDomains") ?? [];
+const redirectSubdomains = config.getObject<Array<{ host: string; zoneName: string }>>("redirectSubdomains") ?? [];
 
 /**
  * Ordering convention:
@@ -79,10 +80,11 @@ const additionalDomainRegistrations = additionalDomains.map((domain) =>
 
 const allDomainRegistrations = [legacyDomainRegistration, ...additionalDomainRegistrations];
 
-if (redirectDomains.length > 0) {
+if (redirectDomains.length > 0 || redirectSubdomains.length > 0) {
 	assert(canonicalDomain, "redirectDomains requires domains to be configured");
 	new DomainRedirect("hutch-redirect", {
 		redirectDomains,
+		redirectSubdomains,
 		targetDomain: canonicalDomain,
 	});
 }

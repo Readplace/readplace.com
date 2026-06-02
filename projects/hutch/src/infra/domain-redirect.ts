@@ -2,19 +2,27 @@ import * as aws from "@pulumi/aws";
 import { HutchCertificate } from "@packages/hutch-infra-components/infra";
 
 export class DomainRedirect {
-	constructor(name: string, args: { redirectDomains: string[]; targetDomain: string }) {
-		if (args.redirectDomains.length === 0) return;
+	constructor(
+		name: string,
+		args: {
+			redirectDomains: string[];
+			redirectSubdomains?: Array<{ host: string; zoneName: string }>;
+			targetDomain: string;
+		},
+	) {
+		const redirectSubdomains = args.redirectSubdomains ?? [];
+		if (args.redirectDomains.length === 0 && redirectSubdomains.length === 0) return;
 
 		const usEast1 = new aws.Provider(`${name}-us-east-1`, {
 			region: "us-east-1",
 		});
 
-		for (const domain of args.redirectDomains) {
+		const createRedirect = ({
+			domain,
+			zoneId,
+		}: { domain: string; zoneId: Promise<string> }): void => {
 			const safeName = domain.replace(/\./g, "-");
 			const resourcePrefix = `${name}-${safeName}`;
-
-			const zone = aws.route53.getZone({ name: domain });
-			const zoneId = zone.then((z) => z.zoneId);
 
 			const cert = new HutchCertificate(resourcePrefix, {
 				primaryDomain: domain,
@@ -89,6 +97,16 @@ export class DomainRedirect {
 					},
 				],
 			});
+		};
+
+		for (const domain of args.redirectDomains) {
+			const zoneId = aws.route53.getZone({ name: domain }).then((z) => z.zoneId);
+			createRedirect({ domain, zoneId });
+		}
+
+		for (const { host, zoneName } of redirectSubdomains) {
+			const zoneId = aws.route53.getZone({ name: zoneName }).then((z) => z.zoneId);
+			createRedirect({ domain: host, zoneId });
 		}
 	}
 }

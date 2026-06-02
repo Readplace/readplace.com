@@ -11,6 +11,9 @@ config:
     - savearticles.app
     - savearticle.app
     - read.place
+  hutch:redirectSubdomains:
+    - host: www.hutch-app.com
+      zoneName: hutch-app.com
   hutch:deletionProtection: true
   hutch:staticDomains:
     - static.hutch-app.com
