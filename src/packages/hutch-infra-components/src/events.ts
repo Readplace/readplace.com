@@ -557,4 +557,22 @@ export type SubscriptionChargeFailedDetail = z.infer<
 	typeof SubscriptionChargeFailedEvent.detailSchema
 >;
 
+/** Delayed trial-feedback research email request. Published by the EventBridge
+ * Scheduler one-shot created by `schedule-trial-feedback-email` when a
+ * `SubscriptionCancelledEvent` with `reason='user_initiated_trial'` arrives.
+ * Consumed by `send-trial-feedback-email` which re-reads the row to confirm
+ * the user is still cancelled (reactivation guard) before sending Fayner's
+ * "what was missing?" research email. */
+export const SendTrialFeedbackEmailCommand = defineEvent({
+	name: "send-trial-feedback-email-command",
+	source: "hutch.subscriptions",
+	detailType: "SendTrialFeedbackEmailCommand",
+	detailSchema: z.object({
+		userId: z.string(),
+	}),
+});
+export type SendTrialFeedbackEmailDetail = z.infer<
+	typeof SendTrialFeedbackEmailCommand.detailSchema
+>;
+
 export type { HutchEvent, HutchCommand };

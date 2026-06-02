@@ -6,6 +6,7 @@ import { HutchLambda, HutchAPIGateway, HutchDynamoDBAccess, HutchEventBus, Hutch
 import {
 	CancelSubscriptionCommand,
 	ExportUserDataCommand,
+	SendTrialFeedbackEmailCommand,
 	SubscriptionCancellationScheduledEvent,
 	SubscriptionCancelledEvent,
 	SubscriptionChargeFailedEvent,
@@ -216,6 +217,11 @@ const trialSchedulerManagePolicy = {
 
 const cancelSubscriptionSchedulerManagePolicy = {
 	name: "hutch-cancel-subscription-scheduler-manage",
+	policy: trialSchedulerManagePolicyDoc,
+};
+
+const scheduleTrialFeedbackEmailSchedulerManagePolicy = {
+	name: "hutch-schedule-trial-feedback-email-scheduler-manage",
 	policy: trialSchedulerManagePolicyDoc,
 };
 
@@ -684,6 +690,112 @@ const subscriptionChargeFailedWithSQS = new HutchSQSBackedLambda("subscription-c
 
 eventBus.subscribe(SubscriptionChargeFailedEvent, subscriptionChargeFailedWithSQS);
 
+// --- Schedule Trial Feedback Email ---
+// SQS-backed Lambda that subscribes to SubscriptionCancelledEvent. When the
+// cancel comes from a trial (reason='user_initiated_trial'), it creates a
+// one-shot EventBridge Scheduler firing TRIAL_FEEDBACK_EMAIL_DELAY_MS later
+// with SendTrialFeedbackEmailCommand. Paid cancels and stripe-webhook cancels
+// are ignored (paid churn is out of audience scope, and trial cancels never
+// route through the Stripe webhook). The schedule name is deterministic per
+// userId so at-least-once duplicates overwrite rather than stack.
+
+const scheduleTrialFeedbackEmailQueue = new HutchSQS("schedule-trial-feedback-email", {
+	visibilityTimeoutSeconds: 30,
+});
+
+const scheduleTrialFeedbackEmailLambda = new HutchLambda(
+	LAMBDA_NAMES.scheduleTrialFeedbackEmail,
+	{
+		entryPoint: "./src/runtime/schedule-trial-feedback-email.main.ts",
+		outputDir: ".lib/schedule-trial-feedback-email",
+		assetDir: "./src/runtime",
+		memorySize: 128,
+		timeout: 30,
+		environment: {
+			PERSISTENCE: "prod",
+			EVENT_BUS_ARN: eventBus.eventBusArn,
+			TRIAL_SCHEDULER_GROUP_NAME: trialSchedulerGroup.name,
+			TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
+		},
+		policies: [scheduleTrialFeedbackEmailSchedulerManagePolicy],
+	},
+);
+
+const scheduleTrialFeedbackEmailWithSQS = new HutchSQSBackedLambda(
+	"schedule-trial-feedback-email",
+	{
+		lambda: scheduleTrialFeedbackEmailLambda,
+		queue: scheduleTrialFeedbackEmailQueue,
+		alertEmailDLQEntry: alertEmail,
+		batchSize: 1,
+	},
+);
+
+eventBus.subscribe(SubscriptionCancelledEvent, scheduleTrialFeedbackEmailWithSQS);
+
+// --- Send Trial Feedback Email ---
+// SQS-backed Lambda invoked by the EventBridge Scheduler one-shot created
+// above. Re-reads the subscription row to confirm the user is still cancelled
+// (reactivation guard) and hasn't already received the email (sent-flag),
+// then sends Fayner's "what was missing?" research email with a single
+// personalised clause derived from the count of articles the user saved.
+
+const sendTrialFeedbackEmailDynamodb = new HutchDynamoDBAccess(
+	"send-trial-feedback-email-dynamodb",
+	{
+		tables: [
+			{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false },
+			{ arn: storage.usersTable.arn, includeIndexes: true },
+			{ arn: storage.articlesTable.arn, includeIndexes: false },
+			{ arn: storage.userArticlesTable.arn, includeIndexes: true },
+		],
+		actions: [
+			"dynamodb:GetItem",
+			"dynamodb:BatchGetItem",
+			"dynamodb:Query",
+			"dynamodb:UpdateItem",
+		],
+	},
+);
+
+const sendTrialFeedbackEmailQueue = new HutchSQS("send-trial-feedback-email", {
+	visibilityTimeoutSeconds: 60,
+});
+
+const sendTrialFeedbackEmailLambda = new HutchLambda(
+	LAMBDA_NAMES.sendTrialFeedbackEmail,
+	{
+		entryPoint: "./src/runtime/send-trial-feedback-email.main.ts",
+		outputDir: ".lib/send-trial-feedback-email",
+		assetDir: "./src/runtime",
+		memorySize: 256,
+		timeout: 60,
+		environment: {
+			PERSISTENCE: "prod",
+			DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
+			DYNAMODB_USERS_TABLE: storage.usersTable.name,
+			DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
+			DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
+			DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
+			RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
+			STATIC_BASE_URL: staticAssets.baseUrl,
+		},
+		policies: [...sendTrialFeedbackEmailDynamodb.policies],
+	},
+);
+
+const sendTrialFeedbackEmailWithSQS = new HutchSQSBackedLambda(
+	"send-trial-feedback-email",
+	{
+		lambda: sendTrialFeedbackEmailLambda,
+		queue: sendTrialFeedbackEmailQueue,
+		alertEmailDLQEntry: alertEmail,
+		batchSize: 1,
+	},
+);
+
+eventBus.subscribe(SendTrialFeedbackEmailCommand, sendTrialFeedbackEmailWithSQS);
+
 // --- Analytics Dashboard ---
 // The widget builder lives in runtime/observability/analytics-dashboard so the
 // dashboard JSON is constructable and assertable outside the Pulumi runtime —
@@ -736,6 +848,14 @@ const subscriptionLogGroups = [
 	}),
 	new aws.cloudwatch.LogGroup("handle-subscription-cancelled-log-group", {
 		name: LOG_GROUPS.handleSubscriptionCancelled,
+		retentionInDays: 30,
+	}),
+	new aws.cloudwatch.LogGroup("schedule-trial-feedback-email-log-group", {
+		name: LOG_GROUPS.scheduleTrialFeedbackEmail,
+		retentionInDays: 30,
+	}),
+	new aws.cloudwatch.LogGroup("send-trial-feedback-email-log-group", {
+		name: LOG_GROUPS.sendTrialFeedbackEmail,
 		retentionInDays: 30,
 	}),
 ];

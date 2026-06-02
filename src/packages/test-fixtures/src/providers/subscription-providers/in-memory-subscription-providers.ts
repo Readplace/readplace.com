@@ -7,6 +7,7 @@ import type {
 	MarkSubscriptionCancelled,
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
+	MarkTrialFeedbackEmailSent,
 	SubscriptionRecord,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
@@ -23,6 +24,7 @@ export function initInMemorySubscriptionProviders(opts: {
 	markCancelled: MarkSubscriptionCancelled;
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
+	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
 	seedRow: (row: SubscriptionRecord) => void;
 } {
 	const rows = new Map<UserId, SubscriptionRecord>();
@@ -110,6 +112,19 @@ export function initInMemorySubscriptionProviders(opts: {
 		});
 	};
 
+	const markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent = async ({
+		userId,
+		sentAt,
+	}) => {
+		const existing = rows.get(userId);
+		assert(existing, `No subscription row for user ${userId}`);
+		rows.set(userId, {
+			...existing,
+			trialFeedbackEmailSentAt: sentAt,
+			updatedAt: opts.now().toISOString(),
+		});
+	};
+
 	/** Test-only escape hatch for seeding hypothetical row shapes (e.g. a
 	 * trialing row that also has a customerId — production paths never write
 	 * this combination, but the trial-end charge handler must still cover the
@@ -127,6 +142,7 @@ export function initInMemorySubscriptionProviders(opts: {
 		markCancelled,
 		markCancelledByUserId,
 		markActive,
+		markTrialFeedbackEmailSent,
 		seedRow,
 	};
 }
