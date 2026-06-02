@@ -52,6 +52,25 @@ export type FindUserByEmail = (email: string) => Promise<FindUserByEmailResult>;
 
 export type FindEmailByUserId = (userId: UserId) => Promise<string | null>;
 
+export type UserContact = { email: string; emailVerified: boolean };
+
+/** Resolve a user's email + verification status by id (via the userId-index).
+ * The reader-ready notifier needs both: it only emails verified addresses. */
+export type FindUserContactByUserId = (
+	userId: UserId,
+) => Promise<UserContact | null>;
+
+/** Atomically claim the per-user reader-ready email cooldown slot. Succeeds
+ * (returns true) when no email has been sent within `cooldownMs`, writing
+ * `now` as the new slot; returns false when still inside the cooldown window,
+ * so the caller drops-and-logs. The conditional write is the volume cap that
+ * survives concurrent fan-out deliveries. */
+export type ClaimReaderReadyEmailSlot = (params: {
+	userId: UserId;
+	now: Date;
+	cooldownMs: number;
+}) => Promise<boolean>;
+
 export type ExistsUserByIdPrefix = (prefix: UserIdPrefix) => Promise<boolean>;
 
 export type CreateGoogleUser = (user: {

@@ -307,6 +307,107 @@ describe("initInMemoryAuth", () => {
 		});
 	});
 
+	describe("findUserContactByUserId", () => {
+		it("returns email and unverified flag for a known userId", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "contact@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			const contact = await auth.findUserContactByUserId(created.userId);
+
+			expect(contact).toEqual({ email: "contact@example.com", emailVerified: false });
+		});
+
+		it("reports emailVerified=true for Google users", async () => {
+			const auth = makeAuth();
+			const userId = UserIdSchema.parse("google-contact");
+			await auth.createGoogleUser({ email: "g@example.com", userId });
+
+			const contact = await auth.findUserContactByUserId(userId);
+
+			expect(contact).toEqual({ email: "g@example.com", emailVerified: true });
+		});
+
+		it("returns null for an unknown userId", async () => {
+			const auth = makeAuth();
+
+			const contact = await auth.findUserContactByUserId("nobody" as UserId);
+
+			expect(contact).toBeNull();
+		});
+	});
+
+	describe("claimReaderReadyEmailSlot", () => {
+		const COOLDOWN_MS = 6 * 60 * 60 * 1000;
+
+		async function userIdFor(auth: ReturnType<typeof makeAuth>, email: string): Promise<UserId> {
+			const created = await auth.createUser({ email, password: "password123" });
+			assert(created.ok, "User creation failed");
+			return created.userId;
+		}
+
+		it("claims the slot when no reader-ready email has ever been sent", async () => {
+			const auth = makeAuth();
+			const userId = await userIdFor(auth, "claim@example.com");
+
+			const claimed = await auth.claimReaderReadyEmailSlot({
+				userId,
+				now: new Date("2026-05-30T10:00:00.000Z"),
+				cooldownMs: COOLDOWN_MS,
+			});
+
+			expect(claimed).toBe(true);
+		});
+
+		it("rejects a second claim inside the cooldown window", async () => {
+			const auth = makeAuth();
+			const userId = await userIdFor(auth, "claim@example.com");
+			await auth.claimReaderReadyEmailSlot({
+				userId,
+				now: new Date("2026-05-30T10:00:00.000Z"),
+				cooldownMs: COOLDOWN_MS,
+			});
+
+			const second = await auth.claimReaderReadyEmailSlot({
+				userId,
+				now: new Date("2026-05-30T12:00:00.000Z"),
+				cooldownMs: COOLDOWN_MS,
+			});
+
+			expect(second).toBe(false);
+		});
+
+		it("claims again once the cooldown window has elapsed", async () => {
+			const auth = makeAuth();
+			const userId = await userIdFor(auth, "claim@example.com");
+			await auth.claimReaderReadyEmailSlot({
+				userId,
+				now: new Date("2026-05-30T10:00:00.000Z"),
+				cooldownMs: COOLDOWN_MS,
+			});
+
+			const later = await auth.claimReaderReadyEmailSlot({
+				userId,
+				now: new Date("2026-05-30T17:00:00.000Z"),
+				cooldownMs: COOLDOWN_MS,
+			});
+
+			expect(later).toBe(true);
+		});
+
+		it("returns false for an unknown userId", async () => {
+			const auth = makeAuth();
+
+			const claimed = await auth.claimReaderReadyEmailSlot({
+				userId: "nobody" as UserId,
+				now: new Date("2026-05-30T10:00:00.000Z"),
+				cooldownMs: COOLDOWN_MS,
+			});
+
+			expect(claimed).toBe(false);
+		});
+	});
+
 	describe("sessions", () => {
 		it("should create a session and resolve the userId", async () => {
 			const auth = makeAuth();

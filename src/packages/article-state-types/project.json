@@ -2,8 +2,9 @@
   "name": "@packages/article-state-types",
   "targets": {
     "check": {
-      "command": "pnpm lint",
-      "options": { "cwd": "{projectRoot}" }
+      "command": "pnpm lint && pnpm test-with-coverage",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["compile"]
     }
   }
 }

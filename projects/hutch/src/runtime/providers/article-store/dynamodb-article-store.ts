@@ -22,6 +22,11 @@ import type {
 	FindArticleFreshness,
 	FindArticleUrlById,
 	FindArticlesByUser,
+	FindUserArticleNotificationState,
+	FindUserArticlesByUrl,
+	MarkArticleViewed,
+	MarkReaderReadyEmailSent,
+	MarkReaderViewSucceeded,
 	SaveArticle,
 	SaveArticleGlobally,
 	UpdateArticleStatus,
@@ -68,6 +73,11 @@ const UserArticleRow = z.object({
 	status: ArticleStatusSchema,
 	savedAt: z.string(),
 	readAt: dynamoField(z.string()),
+	/* Reader-ready notification columns. All optional via dynamoField: legacy
+	 * rows and never-opened/never-succeeded rows simply lack them. */
+	succeededAt: dynamoField(z.string()),
+	viewedAt: dynamoField(z.string()),
+	emailSentAt: dynamoField(z.string()),
 });
 
 function toSavedArticle(
@@ -108,6 +118,11 @@ export function initDynamoDbArticleStore(deps: {
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	findArticleFreshness: FindArticleFreshness;
+	markArticleViewed: MarkArticleViewed;
+	markReaderViewSucceeded: MarkReaderViewSucceeded;
+	findUserArticlesByUrl: FindUserArticlesByUrl;
+	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
+	findUserArticleNotificationState: FindUserArticleNotificationState;
 	readContent: ContentProvider;
 } {
 	const { client, tableName, userArticlesTableName } = deps;
@@ -387,6 +402,74 @@ export function initDynamoDbArticleStore(deps: {
 		};
 	};
 
+	const markArticleViewed: MarkArticleViewed = async ({ userId, url, at }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		await userArticles.update({
+			Key: { userId, url: articleResourceUniqueId.value },
+			UpdateExpression: "SET viewedAt = :at",
+			ExpressionAttributeValues: { ":at": at.toISOString() },
+		});
+	};
+
+	const markReaderViewSucceeded: MarkReaderViewSucceeded = async ({ userId, url, at }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		await userArticles.update({
+			Key: { userId, url: articleResourceUniqueId.value },
+			UpdateExpression: "SET succeededAt = if_not_exists(succeededAt, :at)",
+			ExpressionAttributeValues: { ":at": at.toISOString() },
+		});
+	};
+
+	const findUserArticlesByUrl: FindUserArticlesByUrl = async (url) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const rows: z.infer<typeof UserArticleRow>[] = [];
+		let exclusiveStartKey: Record<string, unknown> | undefined;
+		do {
+			const { items, lastEvaluatedKey } = await userArticles.query({
+				IndexName: "url-index",
+				KeyConditionExpression: "#url = :url",
+				ExpressionAttributeNames: { "#url": "url" },
+				ExpressionAttributeValues: { ":url": articleResourceUniqueId.value },
+				ExclusiveStartKey: exclusiveStartKey,
+			});
+			rows.push(...items);
+			exclusiveStartKey = lastEvaluatedKey;
+		} while (exclusiveStartKey);
+
+		return rows.map((row) => ({
+			userId: row.userId,
+			viewedAt: row.viewedAt ? new Date(row.viewedAt) : undefined,
+		}));
+	};
+
+	const markReaderReadyEmailSent: MarkReaderReadyEmailSent = async ({ userId, url, at }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		try {
+			await userArticles.update({
+				Key: { userId, url: articleResourceUniqueId.value },
+				UpdateExpression: "SET emailSentAt = :at",
+				ConditionExpression: "attribute_not_exists(emailSentAt)",
+				ExpressionAttributeValues: { ":at": at.toISOString() },
+			});
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return;
+			throw error;
+		}
+	};
+
+	const findUserArticleNotificationState: FindUserArticleNotificationState = async ({ userId, url }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const row = await userArticles.get({ userId, url: articleResourceUniqueId.value });
+		if (!row) return null;
+		return {
+			savedAt: new Date(row.savedAt),
+			status: row.status,
+			succeededAt: row.succeededAt ? new Date(row.succeededAt) : undefined,
+			viewedAt: row.viewedAt ? new Date(row.viewedAt) : undefined,
+			emailSentAt: row.emailSentAt ? new Date(row.emailSentAt) : undefined,
+		};
+	};
+
 	const findArticleUrlById: FindArticleUrlById = async (id) => {
 		const article = await findArticleByRouteId(id);
 		return article ? article.originalUrl : null;
@@ -449,6 +532,11 @@ export function initDynamoDbArticleStore(deps: {
 		deleteArticle,
 		updateArticleStatus,
 		findArticleFreshness,
+		markArticleViewed,
+		markReaderViewSucceeded,
+		findUserArticlesByUrl,
+		markReaderReadyEmailSent,
+		findUserArticleNotificationState,
 		readContent,
 	};
 }

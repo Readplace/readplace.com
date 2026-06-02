@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import type { UserId } from "@packages/domain/user";
 import { UserIdSchema, userIdPrefixFrom } from "@packages/domain/user";
 import type {
+	ClaimReaderReadyEmailSlot,
 	CountUsers,
 	CreateGoogleUser,
 	CreateSession,
@@ -12,6 +13,7 @@ import type {
 	ExistsUserByIdPrefix,
 	FindEmailByUserId,
 	FindUserByEmail,
+	FindUserContactByUserId,
 	GetSessionUserId,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
@@ -27,6 +29,7 @@ interface StoredUser {
 	passwordHash: string | undefined;
 	emailVerified: boolean;
 	registeredAt: string;
+	lastReaderReadyEmailAt?: string;
 }
 
 interface StoredSession {
@@ -53,6 +56,8 @@ export function initInMemoryAuth(opts: {
 	updatePassword: UpdatePassword;
 	existsUserByIdPrefix: ExistsUserByIdPrefix;
 	findEmailByUserId: FindEmailByUserId;
+	findUserContactByUserId: FindUserContactByUserId;
+	claimReaderReadyEmailSlot: ClaimReaderReadyEmailSlot;
 	deleteUser: (email: string) => Promise<void>;
 } {
 	const _hashPassword = opts.hashPassword;
@@ -198,6 +203,32 @@ export function initInMemoryAuth(opts: {
 		return null;
 	};
 
+	const findUserContactByUserId: FindUserContactByUserId = async (userId) => {
+		for (const user of users.values()) {
+			if (user.id === userId) {
+				return { email: user.email, emailVerified: user.emailVerified };
+			}
+		}
+		return null;
+	};
+
+	const claimReaderReadyEmailSlot: ClaimReaderReadyEmailSlot = async ({ userId, now, cooldownMs }) => {
+		for (const user of users.values()) {
+			if (user.id === userId) {
+				const cutoff = new Date(now.getTime() - cooldownMs);
+				if (
+					user.lastReaderReadyEmailAt === undefined ||
+					new Date(user.lastReaderReadyEmailAt) < cutoff
+				) {
+					user.lastReaderReadyEmailAt = now.toISOString();
+					return true;
+				}
+				return false;
+			}
+		}
+		return false;
+	};
+
 	const updatePassword: UpdatePassword = async ({ email, password }) => {
 		const normalizedEmail = normalizeEmail(email);
 		const user = users.get(normalizedEmail);
@@ -225,6 +256,8 @@ export function initInMemoryAuth(opts: {
 		existsUserByIdPrefix,
 		updatePassword,
 		findEmailByUserId,
+		findUserContactByUserId,
+		claimReaderReadyEmailSlot,
 		deleteUser,
 	};
 }

@@ -37,4 +37,10 @@ export type Effect =
 			url: string;
 			reason: string;
 			receiveCount: number;
+	  }
+	| {
+			kind: "publish-reader-view-loading-succeeded";
+			url: string;
+			succeededAt: string;
+			hasSummary: boolean;
 	  };

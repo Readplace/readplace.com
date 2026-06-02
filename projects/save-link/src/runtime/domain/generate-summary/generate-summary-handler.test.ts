@@ -62,12 +62,15 @@ function pendingArticle(url: string): Article {
 
 type HandlerDeps = Parameters<typeof initGenerateSummaryHandler>[0];
 
+const NOW = new Date("2026-05-30T12:00:00.000Z");
+
 function createHandler(overrides: Partial<HandlerDeps> = {}) {
 	const deps: HandlerDeps = {
 		summarizeArticle: jest.fn<ReturnType<SummarizeArticle>, Parameters<SummarizeArticle>>(),
 		findArticleContent: jest.fn<ReturnType<FindArticleContent>, Parameters<FindArticleContent>>().mockResolvedValue({ content: "<p>content</p>" }),
 		loadArticle: jest.fn().mockResolvedValue(pendingArticle("https://example.com/x")),
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
+		now: () => NOW,
 		logger: noopLogger,
 		...overrides,
 	};
@@ -101,6 +104,7 @@ describe("initGenerateSummaryHandler", () => {
 				inputTokens: 100,
 				outputTokens: 50,
 				sourceContentHash: computeCanonicalContentHash(html),
+				now: NOW.toISOString(),
 			},
 		});
 	});
@@ -177,7 +181,7 @@ describe("initGenerateSummaryHandler", () => {
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
 			url: URL,
-			input: { reason: "content-too-short" },
+			input: { reason: "content-too-short", now: NOW.toISOString() },
 		});
 	});
 
@@ -195,7 +199,7 @@ describe("initGenerateSummaryHandler", () => {
 
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
 			url: URL,
-			input: { reason: "ai-unavailable" },
+			input: { reason: "ai-unavailable", now: NOW.toISOString() },
 		});
 	});
 

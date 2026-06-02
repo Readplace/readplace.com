@@ -93,6 +93,11 @@ import type {
 	FindArticleFreshness,
 	FindArticleUrlById,
 	FindArticlesByUser,
+	FindUserArticleNotificationState,
+	FindUserArticlesByUrl,
+	MarkArticleViewed,
+	MarkReaderReadyEmailSent,
+	MarkReaderViewSucceeded,
 	SaveArticle,
 	SaveArticleGlobally,
 	UpdateArticleStatus,
@@ -200,6 +205,11 @@ export interface ArticleStoreBundle {
 	bumpArticleSavedAt: BumpArticleSavedAt;
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
+	markArticleViewed: MarkArticleViewed;
+	markReaderViewSucceeded: MarkReaderViewSucceeded;
+	findUserArticlesByUrl: FindUserArticlesByUrl;
+	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
+	findUserArticleNotificationState: FindUserArticleNotificationState;
 	readArticleContent: ReadArticleContent;
 	readContent: ContentProvider;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
