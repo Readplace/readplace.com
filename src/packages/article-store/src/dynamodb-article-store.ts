@@ -42,6 +42,7 @@ const ArticleAggregateRow = z.object({
 	lastModified: dynamoField(z.string()),
 	contentFetchedAt: dynamoField(z.string()),
 	canonicalContentHash: dynamoField(z.string()),
+	bodyHash: dynamoField(z.string()),
 	crawlStatus: dynamoField(CrawlStatusSchema),
 	crawlFailureReason: dynamoField(z.string()),
 	crawlUnsupportedReason: dynamoField(z.string()),
@@ -177,6 +178,7 @@ function rowToArticle(url: string, row: RowShape): Article {
 			etag: row.etag,
 			lastModified: row.lastModified,
 			canonicalContentHash: row.canonicalContentHash,
+			bodyHash: row.bodyHash,
 		},
 		estimatedReadTime: row.estimatedReadTime ?? 0,
 		crawl: rowToCrawlState(row),
@@ -216,11 +218,13 @@ function appendFreshnessClauses(
 		"etag = :etag",
 		"lastModified = :lm",
 		"canonicalContentHash = :cch",
+		"bodyHash = :bh",
 	);
 	values[":cfa"] = article.freshness.contentFetchedAt;
 	values[":etag"] = article.freshness.etag ?? null;
 	values[":lm"] = article.freshness.lastModified ?? null;
 	values[":cch"] = article.freshness.canonicalContentHash ?? null;
+	values[":bh"] = article.freshness.bodyHash ?? null;
 }
 
 function appendSummaryClauses(

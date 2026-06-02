@@ -28,7 +28,7 @@ function initParser(overrides: {
 } = {}) {
 	return initReadabilityParser({
 		crawlArticle:
-			overrides.crawlArticle ?? (async () => ({ status: "fetched" as const, html: ARTICLE_HTML })),
+			overrides.crawlArticle ?? (async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) })),
 		sitePreParsers: overrides.sitePreParsers ?? [],
 		logError: overrides.logError ?? (() => {}),
 	});
@@ -74,6 +74,7 @@ describe("initReadabilityParser", () => {
 				status: "fetched" as const,
 				html: ARTICLE_HTML,
 				thumbnailUrl: "https://example.com/image.jpg",
+				bodyHash: "a".repeat(64),
 			}),
 		});
 
@@ -124,7 +125,7 @@ describe("initReadabilityParser", () => {
 
 	it("should fall back to hostname when readability cannot parse", async () => {
 		const { parseArticle } = initParser({
-			crawlArticle: async () => ({ status: "fetched" as const, html: "<html><body></body></html>" }),
+			crawlArticle: async () => ({ status: "fetched" as const, html: "<html><body></body></html>", bodyHash: "a".repeat(64) }),
 		});
 
 		const result = await parseArticle("https://example.com/article");
@@ -145,7 +146,7 @@ describe("initReadabilityParser", () => {
 			<p>Another paragraph for good measure with additional text.</p>
 		</article></body></html>`;
 		const { parseArticle } = initParser({
-			crawlArticle: async () => ({ status: "fetched" as const, html: htmlWithoutSiteName }),
+			crawlArticle: async () => ({ status: "fetched" as const, html: htmlWithoutSiteName, bodyHash: "a".repeat(64) }),
 		});
 
 		const result = await parseArticle("https://blog.example.com/post");
@@ -164,7 +165,7 @@ describe("initReadabilityParser", () => {
 			<p>Another paragraph for good measure with additional text to satisfy the parser minimum.</p>
 		</article></body></html>`;
 		const { parseArticle } = initParser({
-			crawlArticle: async () => ({ status: "fetched" as const, html: htmlWithEmptyTitle }),
+			crawlArticle: async () => ({ status: "fetched" as const, html: htmlWithEmptyTitle, bodyHash: "a".repeat(64) }),
 		});
 
 		const result = await parseArticle("https://blog.example.com/post");
