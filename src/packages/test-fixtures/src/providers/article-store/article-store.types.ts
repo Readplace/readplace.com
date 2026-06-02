@@ -1,6 +1,7 @@
 import type {
 	ArticleStatus,
 	SavedArticle,
+	VisibleArticleStatus,
 } from "@packages/domain/article";
 import type { ReaderArticleHashId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
@@ -17,7 +18,7 @@ export type SortOrder = "asc" | "desc";
 
 export interface FindArticlesQuery {
 	userId: UserId;
-	status?: ArticleStatus;
+	status?: VisibleArticleStatus;
 	sort?: SortField;
 	order?: SortOrder;
 	page?: number;
@@ -102,7 +103,7 @@ export type DeleteArticle = (
 export type UpdateArticleStatus = (
 	id: ReaderArticleHashId,
 	userId: UserId,
-	status: ArticleStatus,
+	status: VisibleArticleStatus,
 ) => Promise<boolean>;
 
 export interface ArticleFreshnessData {

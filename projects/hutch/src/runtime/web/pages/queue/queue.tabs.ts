@@ -1,10 +1,10 @@
-import type { ArticleStatus } from "@packages/domain/article";
+import type { VisibleArticleStatus } from "@packages/domain/article";
 import type { SortField, SortOrder } from "@packages/test-fixtures/providers/article-store";
 
 export type TabId = "queue" | "done";
 
 interface TabQuery {
-	status: ArticleStatus;
+	status: VisibleArticleStatus;
 	sort: SortField;
 	defaultOrder: SortOrder;
 }
