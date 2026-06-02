@@ -288,7 +288,43 @@ describe("Queue routes", () => {
 				.type("form")
 				.send({ status: "read" });
 
-			expect(statusResponse.headers.location).toBe("/queue?order=asc");
+			expect(statusResponse.headers.location).toBe(
+				`/queue?order=asc&status_changed=read&status_article=${articleId}`,
+			);
+		});
+
+		it("shows a confirmation toast with a working Undo after marking read", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: "https://example.com/article" });
+
+			const queueResponse = await agent.get("/queue");
+			const articleId = new JSDOM(queueResponse.text).window.document
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+
+			const statusResponse = await agent
+				.post(`/queue/${articleId}/status`)
+				.type("form")
+				.send({ status: "read" });
+
+			const toastResponse = await agent.get(statusResponse.headers.location);
+			const toastDoc = new JSDOM(toastResponse.text).window.document;
+			const toast = toastDoc.querySelector("[data-test-status-toast]");
+			expect(toast?.querySelector("[data-test-status-toast-message]")?.textContent).toBe("Marked as read");
+
+			const undoForm = toast?.querySelector("[data-test-status-toast-undo]")?.closest("form");
+			expect(undoForm?.getAttribute("action")).toBe(`/queue/${articleId}/status`);
+			expect(undoForm?.querySelector("input[name='status']")?.getAttribute("value")).toBe("unread");
+
+			await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "unread" });
+			const restoredResponse = await agent.get("/queue");
+			expect(new JSDOM(restoredResponse.text).window.document.querySelectorAll(".queue-article").length).toBe(1);
 		});
 
 		it("should redirect to queue when status value is invalid", async () => {

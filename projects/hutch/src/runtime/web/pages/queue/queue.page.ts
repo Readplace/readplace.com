@@ -63,7 +63,7 @@ import { parseQueueUrl, buildQueueUrl } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
 import { tabQuery } from "./queue.tabs";
 import type { HttpErrorMessageMapping } from "./queue.error";
-import { importFlashMapping } from "./queue.error";
+import { importFlashMapping, statusFlashMapping } from "./queue.error";
 import { MAX_POLLS } from "../../shared/article-reader/article-reader";
 import { toQueueArticleViewModel, toQueueViewModel } from "./queue.viewmodel";
 import { QueuePage } from "./queue.component";
@@ -308,6 +308,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		const saveError = deps.httpErrorMessageMapping(req.query);
 		const importFlash = importFlashMapping(req.query);
+		const statusFlash = statusFlashMapping(req.query);
 		const importSkipped = readImportSkippedFlash(req, res);
 		const [summaryByUrl, crawlByUrl, unreadCount, effectiveAccess] = await Promise.all([
 			loadSummaries(deps.findGeneratedSummary, result.articles),
@@ -321,6 +322,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			unreadCount,
 			errors: saveError ? [{ message: saveError }] : undefined,
 			importFlash,
+			statusFlash,
 			importSkipped,
 			summaryByUrl,
 			crawlByUrl,
@@ -647,8 +649,13 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
 		const parsedStatus = ArticleStatusSchema.safeParse(req.body.status);
 
+		const flashParams: [string, string][] = [];
 		if (parsedId.success && parsedStatus.success) {
 			const updated = await deps.updateArticleStatus(parsedId.data, userId, parsedStatus.data);
+			if (updated) {
+				flashParams.push(["status_changed", parsedStatus.data]);
+				flashParams.push(["status_article", req.params.id]);
+			}
 			if (updated && parsedStatus.data === "read") {
 				deps.analytics.info({
 					stream: STREAMS.analytics,
@@ -660,7 +667,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			}
 		}
 
-		res.redirect(303, buildQueueUrl(parseQueueUrl(req.query), collectUtmParams(req.query)));
+		res.redirect(303, buildQueueUrl(parseQueueUrl(req.query), [...collectUtmParams(req.query), ...flashParams]));
 	});
 
 	router.post("/:id/delete", async (req: Request, res: Response) => {

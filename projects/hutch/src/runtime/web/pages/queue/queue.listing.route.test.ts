@@ -58,7 +58,7 @@ describe("Queue routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const article = doc.querySelector(".queue-article");
 			expect(article?.classList.contains("queue-article--unread")).toBe(true);
-			expect(article?.querySelector(".queue-article__unread-dot")?.getAttribute("aria-label")).toBe("Unread");
+			expect(article?.querySelector("[data-test-read-status]")?.getAttribute("data-test-read-status")).toBe("unread");
 		});
 
 		it("should remove unread indicator after marking as read", async () => {
@@ -84,7 +84,8 @@ describe("Queue routes", () => {
 			const afterDoc = new JSDOM(afterResponse.text).window.document;
 			const readArticle = afterDoc.querySelector(".queue-article");
 			expect(readArticle?.classList.contains("queue-article--unread")).toBe(false);
-			expect(readArticle?.querySelector(".queue-article__unread-dot")).toBeNull();
+			expect(readArticle?.classList.contains("queue-article--read")).toBe(true);
+			expect(readArticle?.querySelector("[data-test-read-status]")?.getAttribute("data-test-read-status")).toBe("read");
 		});
 
 		it("should restore unread indicator when marking back as unread", async () => {
@@ -115,7 +116,7 @@ describe("Queue routes", () => {
 			const afterDoc = new JSDOM(afterResponse.text).window.document;
 			const unreadArticle = afterDoc.querySelector(".queue-article");
 			expect(unreadArticle?.classList.contains("queue-article--unread")).toBe(true);
-			expect(unreadArticle?.querySelector(".queue-article__unread-dot")?.getAttribute("aria-label")).toBe("Unread");
+			expect(unreadArticle?.querySelector("[data-test-read-status]")?.getAttribute("data-test-read-status")).toBe("unread");
 		});
 
 		it("should not include htmx attributes on article title links", async () => {

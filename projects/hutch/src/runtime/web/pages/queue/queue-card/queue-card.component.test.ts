@@ -46,6 +46,37 @@ describe("renderQueueCard", () => {
 		);
 	});
 
+	it("flags unread articles with a read-status chip and the unread modifier", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(makeViewModel({ status: "unread", isUnread: true }), {
+				isFirst: false,
+			}),
+		);
+		const doc = parse(html);
+		const card = doc.querySelector(".queue-article");
+		assert(card, "card root must be present");
+		expect(card.classList.contains("queue-article--unread")).toBe(true);
+		const status = doc.querySelector("[data-test-read-status]");
+		expect(status?.getAttribute("data-test-read-status")).toBe("unread");
+		expect(status?.textContent).toBe("Unread");
+	});
+
+	it("flags read articles with a read-status chip and the read modifier", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(makeViewModel({ status: "read", isUnread: false }), {
+				isFirst: false,
+			}),
+		);
+		const doc = parse(html);
+		const card = doc.querySelector(".queue-article");
+		assert(card, "card root must be present");
+		expect(card.classList.contains("queue-article--read")).toBe(true);
+		expect(card.classList.contains("queue-article--unread")).toBe(false);
+		const status = doc.querySelector("[data-test-read-status]");
+		expect(status?.getAttribute("data-test-read-status")).toBe("read");
+		expect(status?.textContent).toBe("Read");
+	});
+
 	it("emits the polling htmx attributes when cardPollUrl is set", () => {
 		const html = renderQueueCard(
 			toQueueCardDisplayModel(
@@ -118,5 +149,78 @@ describe("renderQueueCard", () => {
 		);
 		const hint = parse(html).querySelector("[data-test-stale-pending]");
 		assert.equal(hint, null);
+	});
+
+	const MARK_READ_ACTION = {
+		method: "POST",
+		url: "/queue/abc123/status",
+		text: "Mark as read",
+		title: "Mark as read",
+		testAction: "mark-read",
+		fields: [{ name: "status", value: "read" }],
+	};
+	const DELETE_ACTION = {
+		method: "POST",
+		url: "/queue/abc123/delete",
+		text: "×",
+		title: "Delete",
+		testAction: "delete",
+		fields: [],
+	};
+
+	it("styles the mark-read control as a primary status button", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(makeViewModel({ actions: [MARK_READ_ACTION] }), {
+				isFirst: false,
+			}),
+		);
+		const button = parse(html).querySelector("[data-test-action='mark-read']");
+		assert(button, "mark-read button must be present");
+		assert(
+			button.classList.contains("queue-article__action-btn--status"),
+			"mark-read button must use the primary status affordance",
+		);
+	});
+
+	it("shows a processing state and disables the status action while the card is still being fetched", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(
+				makeViewModel({
+					cardPollUrl: "/queue/abc123/card?poll=1",
+					actions: [MARK_READ_ACTION, DELETE_ACTION],
+				}),
+				{ isFirst: false },
+			),
+		);
+		const doc = parse(html);
+		const processing = doc.querySelector("[data-test-processing]");
+		assert(processing, "processing indicator must be rendered while polling");
+		assert.match(processing.textContent ?? "", /Processing/);
+		assert(
+			!processing.classList.contains("queue-article__processing--hidden"),
+			"processing indicator must be visible while polling",
+		);
+		expect(doc.querySelector("[data-test-action='mark-read']")?.hasAttribute("disabled")).toBe(true);
+		expect(doc.querySelector("[data-test-action='delete']")?.hasAttribute("disabled")).toBe(false);
+	});
+
+	it("hides the processing state and enables the status action once the card is terminal", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(
+				makeViewModel({
+					cardPollUrl: undefined,
+					actions: [MARK_READ_ACTION, DELETE_ACTION],
+				}),
+				{ isFirst: false },
+			),
+		);
+		const doc = parse(html);
+		const processing = doc.querySelector("[data-test-processing]");
+		assert(processing, "processing indicator must always be rendered");
+		assert(
+			processing.classList.contains("queue-article__processing--hidden"),
+			"processing indicator must be hidden when card is terminal",
+		);
+		expect(doc.querySelector("[data-test-action='mark-read']")?.hasAttribute("disabled")).toBe(false);
 	});
 });

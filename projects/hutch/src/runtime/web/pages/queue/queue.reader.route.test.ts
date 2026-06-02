@@ -198,7 +198,7 @@ describe("Queue routes", () => {
 
 			expect(statusResponse.status).toBe(303);
 			expect(statusResponse.headers.location).toBe(
-				"/queue?utm_source=reader&utm_medium=internal&utm_content=mark-read-bottom",
+				`/queue?utm_source=reader&utm_medium=internal&utm_content=mark-read-bottom&status_changed=read&status_article=${articleId}`,
 			);
 
 			const afterResponse = await agent.get("/queue");
