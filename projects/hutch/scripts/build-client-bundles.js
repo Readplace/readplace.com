@@ -163,6 +163,24 @@ const BUNDLES = [
 			"});",
 		].join("\n"),
 	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
+			"src/runtime/web/shared/toast/toast.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "toast.client.js"),
+		globalName: "Toast",
+		footer: [
+			// Loaded with `defer`, so the DOM is parsed before this runs and the
+			// initial scan sees any toast already in the document. The swap
+			// listener catches toasts that arrive inside a swapped <main>.
+			"Toast.initToastDismiss({",
+			"  document: window.document,",
+			"  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
+			"  addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); }",
+			"});",
+		].join("\n"),
+	},
 ];
 
 function buildOptions(bundle) {

@@ -6,20 +6,22 @@ import type { PageBody } from "../../page-body.types";
 import { render } from "../../render";
 import { QUEUE_STYLES } from "./queue.styles";
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
+import { renderToast } from "../../shared/toast/toast.component";
 import type { QueueViewModel, SubscriptionBannerState } from "./queue.viewmodel";
 import { buildQueueUrl } from "./queue.url";
 import { tabQuery } from "./queue.tabs";
 
 const QUEUE_TEMPLATE = readFileSync(join(__dirname, "queue.template.html"), "utf-8");
 
+/** Long enough to read the message and reach for Undo, short enough not to
+ * linger; the global toast.client script removes it after this delay. */
+const STATUS_TOAST_DISMISS_MS = 8000;
+
 interface QueueDisplayModel {
 	saveError?: string;
 	saveErrorCode?: string;
 	importFlash?: string;
-	hasStatusFlash: boolean;
-	statusFlashMessage?: string;
-	statusFlashUndoUrl?: string;
-	statusFlashUndoStatus?: string;
+	statusToastHtml: string;
 	hasImportSkipped: boolean;
 	importSkippedEntries: ReadonlyArray<{ url: string; reasonLabel: string }>;
 	importSkippedAndMore?: number;
@@ -80,10 +82,20 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		saveError: vm.errors?.[0]?.message,
 		saveErrorCode: vm.saveErrorCode,
 		importFlash: vm.importFlash,
-		hasStatusFlash: Boolean(vm.statusFlash),
-		statusFlashMessage: vm.statusFlash?.message,
-		statusFlashUndoUrl: vm.statusFlash?.undoUrl,
-		statusFlashUndoStatus: vm.statusFlash?.undoStatus,
+		statusToastHtml: vm.statusFlash
+			? renderToast({
+				message: vm.statusFlash.message,
+				dismissMs: STATUS_TOAST_DISMISS_MS,
+				actions: [
+					{
+						method: "POST",
+						url: vm.statusFlash.undoUrl,
+						label: "Undo",
+						fields: [{ name: "status", value: vm.statusFlash.undoStatus }],
+					},
+				],
+			})
+			: "",
 		hasImportSkipped: Boolean(vm.importSkipped && vm.importSkipped.entries.length > 0),
 		importSkippedEntries: vm.importSkipped?.entries ?? [],
 		importSkippedAndMore: vm.importSkipped?.andMore,
@@ -119,16 +131,6 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 	};
 }
 
-const TOAST_DISMISS_SCRIPT = `
-<script>
-	(function () {
-		var toast = document.querySelector('.queue-toast');
-		if (!toast) return;
-		setTimeout(function () { toast.remove(); }, 6000);
-	})();
-</script>
-`;
-
 const AUTO_SUBMIT_SCRIPT = `
 <script>
 	(function () {
@@ -152,7 +154,6 @@ export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; exte
 
 	const scriptParts: string[] = [];
 	if (saveUrl) scriptParts.push(AUTO_SUBMIT_SCRIPT);
-	if (vm.statusFlash) scriptParts.push(TOAST_DISMISS_SCRIPT);
 
 	return {
 		seo: {

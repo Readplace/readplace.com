@@ -28,6 +28,7 @@ import {
 	renderExtensionSuggestionBanner,
 } from "./shared/extension-suggestion-banner/extension-suggestion-banner.component";
 import { EXTENSION_SUGGESTION_BANNER_STYLES } from "./shared/extension-suggestion-banner/extension-suggestion-banner.styles";
+import { TOAST_STYLES } from "./shared/toast/toast.styles";
 import { getEnv, requireEnv } from "../domain/require-env";
 
 const FOOTER_TEMPLATE = readFileSync(join(__dirname, "footer.template.html"), "utf-8");
@@ -78,6 +79,10 @@ const LIVERELOAD_SCRIPT = getEnv("LIVERELOAD")
 const HTMX_SCRIPTS = `<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js" integrity="sha384-/TgkGk7p307TH7EXJDuUlgG3Ce1UVolAOFopFekQkkXihi5u/6OCvVKyz1W+idaz" crossorigin="anonymous"></script><script>htmx.config.scrollBehavior='smooth';</script>`;
 
 const TRIAL_COUNTDOWN_SCRIPT = `<script src="/client-dist/trial-countdown.client.js" defer></script>`;
+
+/** Global so any page's toast auto-dismisses — including one that arrives
+ * inside an htmx-swapped <main>, which a page-scoped script would never see. */
+const TOAST_SCRIPT = `<script src="/client-dist/toast.client.js" defer></script>`;
 
 const OFFLINE_INDICATOR_SCRIPT = `
 <script>
@@ -192,6 +197,7 @@ function renderBaseTemplate(body: PageBody, state: BannerState): string {
 		navStyles: NAV_STYLES,
 		footerStyles: FOOTER_STYLES,
 		offlineBannerStyles: OFFLINE_BANNER_STYLES,
+		toastStyles: TOAST_STYLES,
 		verifyBannerStyles: VERIFY_BANNER_STYLES,
 		trialCountdownStyles: TRIAL_COUNTDOWN_STYLES,
 		extensionSuggestionBannerStyles: EXTENSION_SUGGESTION_BANNER_STYLES,
@@ -214,6 +220,7 @@ function renderBaseTemplate(body: PageBody, state: BannerState): string {
 		scripts:
 			HTMX_SCRIPTS +
 			EXTENSION_SUGGESTION_BANNER_SCRIPT +
+			TOAST_SCRIPT +
 			(state.trial?.state === "active" ? TRIAL_COUNTDOWN_SCRIPT : "") +
 			(body.scripts ?? "") +
 			LIVERELOAD_SCRIPT,

@@ -315,10 +315,12 @@ describe("Queue routes", () => {
 
 			const toastResponse = await agent.get(statusResponse.headers.location);
 			const toastDoc = new JSDOM(toastResponse.text).window.document;
-			const toast = toastDoc.querySelector("[data-test-status-toast]");
-			expect(toast?.querySelector("[data-test-status-toast-message]")?.textContent).toBe("Marked as read");
+			const toast = toastDoc.querySelector("[data-test-toast]");
+			assert(toast, "status toast must render");
+			expect(toast.getAttribute("data-dismiss")).toBe("8000");
+			expect(toast.querySelector("[data-test-toast-message]")?.textContent).toBe("Marked as read");
 
-			const undoForm = toast?.querySelector("[data-test-status-toast-undo]")?.closest("form");
+			const undoForm = toast.querySelector("[data-test-toast-action]")?.closest("form");
 			expect(undoForm?.getAttribute("action")).toBe(`/queue/${articleId}/status`);
 			expect(undoForm?.querySelector("input[name='status']")?.getAttribute("value")).toBe("unread");
 

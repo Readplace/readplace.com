@@ -1,0 +1,56 @@
+import assert from "node:assert/strict";
+import { JSDOM } from "jsdom";
+import { renderToast } from "./toast.component";
+
+function parse(html: string): Document {
+	return new JSDOM(html).window.document;
+}
+
+describe("renderToast", () => {
+	it("renders the message and exposes the dismiss delay as data-dismiss", () => {
+		const doc = parse(
+			renderToast({ message: "Marked as read", dismissMs: 10000, actions: [] }),
+		);
+		const toast = doc.querySelector("[data-test-toast]");
+		assert(toast, "toast must render");
+		expect(toast.getAttribute("data-dismiss")).toBe("10000");
+		expect(toast.querySelector("[data-test-toast-message]")?.textContent).toBe(
+			"Marked as read",
+		);
+	});
+
+	it("renders each action as a boosted form posting its hidden fields", () => {
+		const doc = parse(
+			renderToast({
+				message: "Marked as read",
+				dismissMs: 10000,
+				actions: [
+					{
+						method: "POST",
+						url: "/queue/abc/status",
+						label: "Undo",
+						fields: [{ name: "status", value: "unread" }],
+					},
+				],
+			}),
+		);
+		const button = doc.querySelector("[data-test-toast-action]");
+		assert(button, "action button must render");
+		expect(button.textContent).toBe("Undo");
+		const form = button.closest("form");
+		assert(form, "action must be wrapped in a form");
+		expect(form.getAttribute("method")).toBe("POST");
+		expect(form.getAttribute("action")).toBe("/queue/abc/status");
+		expect(
+			form.querySelector("input[name='status']")?.getAttribute("value"),
+		).toBe("unread");
+	});
+
+	it("renders no action forms when the toast has no actions", () => {
+		const doc = parse(renderToast({ message: "Saved", dismissMs: 4000, actions: [] }));
+		const toast = doc.querySelector("[data-test-toast]");
+		assert(toast, "toast must render");
+		const actions = Array.from(toast.querySelectorAll("[data-test-toast-action]"));
+		expect(actions.length).toBe(0);
+	});
+});

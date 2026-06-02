@@ -1,0 +1,9 @@
+<div class="toast" role="status" aria-live="polite" data-dismiss="{{dismissMs}}" data-test-toast>
+	<span class="toast__message" data-test-toast-message>{{message}}</span>
+	{{#each actions}}
+	<form class="toast__action-form" method="{{method}}" action="{{url}}" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+		{{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
+		<button class="toast__action" type="submit" data-test-toast-action>{{label}}</button>
+	</form>
+	{{/each}}
+</div>
