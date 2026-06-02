@@ -589,6 +589,28 @@ describe("parsePdfFromBuffer", () => {
 		);
 	});
 
+	it("drops etag and last-modified from the result when the caller has no Response (client-uploaded PDF bytes)", async () => {
+		const extractPdf: ExtractPdf = async () => ({
+			kind: "fetched",
+			html: "<html><body><p>PDF body</p></body></html>",
+			title: "doc",
+		});
+		const result = await parsePdfFromBuffer({
+			buffer: PDF_MAGIC_BUFFER,
+			response: undefined,
+			url: "https://example.com/doc.pdf",
+			extractPdf,
+			logError: noopLogError,
+		});
+
+		expect(result).toEqual({
+			status: "fetched",
+			html: "<html><body><p>PDF body</p></body></html>",
+			etag: undefined,
+			lastModified: undefined,
+		});
+	});
+
 	it("returns unsupported with the byte count when the body exceeds the cap, without invoking the extractor", async () => {
 		const oversize = Buffer.concat([Buffer.from("%PDF-1.4"), Buffer.alloc(25 * 1024 * 1024 + 1, 0x20)]);
 		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>();

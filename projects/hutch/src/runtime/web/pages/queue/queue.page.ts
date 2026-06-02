@@ -30,6 +30,12 @@ import type {
 	UpdateArticleStatus,
 } from "@packages/test-fixtures/providers/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
+import type { PublishSaveLinkRawPdfCommand } from "@packages/test-fixtures/providers/events";
+import type { PutPendingPdf } from "@packages/test-fixtures/providers/pending-pdf";
+import { MAX_PDF_BYTES, isPDF } from "@packages/crawl-article";
+import { initMultipartUpload } from "../import/multipart-upload";
+import { initSavePdfLimitHandler } from "./save-pdf-limit-handler";
+import { initSaveContentLimitHandler } from "./save-content-limit-handler";
 import type { ReadArticleContent } from "@packages/test-fixtures/providers/article-store";
 import type {
 	ArticleCrawl,
@@ -121,7 +127,9 @@ interface QueueDependencies {
 	updateArticleStatus: UpdateArticleStatus;
 	publishLinkSaved: PublishLinkSaved;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
+	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
 	putPendingHtml: PutPendingHtml;
+	putPendingPdf: PutPendingPdf;
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
 	findArticleCrawlStatus: FindArticleCrawlStatus;
@@ -172,8 +180,42 @@ async function loadCrawls(
 	}));
 }
 
+type SaveContentResult =
+	| { ok: true }
+	| { ok: false; code: string; message: string };
+
+type SaveContentMediaHandler = (params: {
+	url: string;
+	bytes: Buffer;
+	title?: string;
+	userId: string;
+}) => Promise<SaveContentResult>;
+
+function normalizeMediaType(raw: string): string {
+	const base = raw.split(";")[0].trim();
+	if (isPDF({ contentType: base })) return "application/pdf";
+	return base;
+}
+
 export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
+
+	const saveContentHandlers: Record<string, SaveContentMediaHandler> = {
+		"application/pdf": async ({ url, bytes, userId }) => {
+			if (!isPDF({ bodyBytes: bytes })) {
+				return { ok: false, code: "not-a-pdf", message: "Uploaded bytes do not look like a PDF (missing %PDF- magic header)" };
+			}
+			await deps.putPendingPdf({ url, bytes });
+			await deps.publishSaveLinkRawPdfCommand({ url, userId });
+			return { ok: true };
+		},
+		"text/html": async ({ url, bytes, title, userId }) => {
+			const html = bytes.toString("utf8");
+			await deps.putPendingHtml({ url, html });
+			await deps.publishSaveLinkRawHtmlCommand({ url, userId, title });
+			return { ok: true };
+		},
+	};
 	const reader = initArticleReader({
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
 		findGeneratedSummary: deps.findGeneratedSummary,
@@ -506,6 +548,239 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			);
 		}
 	});
+
+	/** Tier-0 PDF entry point. The extension uploads PDF bytes from the user's
+	 * browser context (real session cookies, real TLS fingerprint), bypassing
+	 * the bot defenses that block server-side fetches on Cloudflare/Fastly/
+	 * Adobe-class origins. Multipart parts: `url` (text) + `pdf` (binary).
+	 * On any rejection (oversize, non-PDF magic, schema fail) we emit a Siren
+	 * error carrying an embedded `save-article` fallback so the client can
+	 * degrade onto the URL-only path — same pattern as the save-html oversize
+	 * handler above. */
+	const pdfUpload = initMultipartUpload({ maxBytes: MAX_PDF_BYTES.bytes });
+	const savePdfLimitHandler = initSavePdfLimitHandler({
+		logError: deps.logError,
+		maxBytes: MAX_PDF_BYTES.bytes,
+	});
+
+	router.post(
+		"/save-pdf",
+		deps.requireWriteAccess,
+		pdfUpload.rawBodyParser,
+		savePdfLimitHandler,
+		async (req: Request, res: Response) => {
+			if (!wantsSiren(req)) {
+				res.status(406).send("Not Acceptable");
+				return;
+			}
+
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+
+			const buildFallbackAction = () => ({
+				name: "save-article",
+				href: "/queue",
+				method: "POST",
+				type: "application/json",
+				fields: [{ name: "url", type: "url" }],
+			});
+
+			const parsed = pdfUpload.parseAllParts(req);
+			if (!parsed.ok) {
+				res.status(422).type(SIREN_MEDIA_TYPE).json(
+					sirenError({
+						code: "invalid-save-pdf",
+						message: "save-pdf requires a multipart/form-data body",
+						actions: [buildFallbackAction()],
+					}),
+				);
+				return;
+			}
+
+			const urlPart = parsed.parts.find((p) => p.name === "url" && !p.isFile);
+			const pdfPart = parsed.parts.find((p) => p.name === "pdf" && p.isFile);
+			const submittedUrl = urlPart ? urlPart.content.toString("utf8") : "";
+			const pdfBytes = pdfPart?.content;
+			if (!pdfBytes || pdfBytes.length === 0) {
+				res.status(422).type(SIREN_MEDIA_TYPE).json(
+					sirenError({
+						code: "invalid-save-pdf",
+						message: "save-pdf requires a pdf field with content",
+						actions: [buildFallbackAction()],
+					}),
+				);
+				return;
+			}
+
+			if (!isPDF({ bodyBytes: pdfBytes })) {
+				res.status(422).type(SIREN_MEDIA_TYPE).json(
+					sirenError({
+						code: "not-a-pdf",
+						message: "Uploaded bytes do not look like a PDF (missing %PDF- magic header)",
+						actions: [buildFallbackAction()],
+					}),
+				);
+				return;
+			}
+
+			const validation = deps.validateSaveableUrl(submittedUrl);
+			if (validation.status === "ERROR") {
+				res.status(422).type(SIREN_MEDIA_TYPE).json(
+					sirenError({
+						code: "invalid-save-pdf",
+						message: validation.error.message,
+						actions: [buildFallbackAction()],
+					}),
+				);
+				return;
+			}
+
+			try {
+				const articleUrl = validation.url;
+				const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
+
+				await deps.putPendingPdf({ url: articleUrl, bytes: pdfBytes });
+				await deps.publishSaveLinkRawPdfCommand({ url: articleUrl, userId });
+
+				const result = await saveArticleFromUrl(deps, { userId, url: articleUrl, freshness });
+				markExtensionSavedArticle(res);
+				res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
+			} catch (error) {
+				deps.logError("Failed to save article from pdf", error instanceof Error ? error : undefined);
+				res.status(500).type(SIREN_MEDIA_TYPE).json(
+					sirenError({ code: "save-failed", message: "Could not save article" }),
+				);
+			}
+		},
+	);
+
+	/** Unified content entry point. The extension sends captured bytes (HTML or
+	 * PDF) together with a `mediaType` hint; the server validates and dispatches
+	 * to the existing HTML or PDF pipeline. Old extension versions keep using
+	 * `save-html` / `save-pdf` directly — this endpoint is additive. */
+	const contentUpload = initMultipartUpload({ maxBytes: MAX_PDF_BYTES.bytes });
+	const saveContentLimitHandler = initSaveContentLimitHandler({
+		logError: deps.logError,
+		maxBytes: MAX_PDF_BYTES.bytes,
+	});
+
+	router.post(
+		"/save-content",
+		deps.requireWriteAccess,
+		contentUpload.rawBodyParser,
+		saveContentLimitHandler,
+		async (req: Request, res: Response) => {
+			if (!wantsSiren(req)) {
+				res.status(406).send("Not Acceptable");
+				return;
+			}
+
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+
+			const buildFallbackAction = () => ({
+				name: "save-article",
+				href: "/queue",
+				method: "POST",
+				type: "application/json",
+				fields: [{ name: "url", type: "url" }],
+			});
+
+			const parsed = contentUpload.parseAllParts(req);
+			if (!parsed.ok) {
+				res.status(422).type(SIREN_MEDIA_TYPE).json(
+					sirenError({
+						code: "invalid-save-content",
+						message: "save-content requires a multipart/form-data body",
+						actions: [buildFallbackAction()],
+					}),
+				);
+				return;
+			}
+
+			const urlPart = parsed.parts.find((p) => p.name === "url" && !p.isFile);
+			const contentPart = parsed.parts.find((p) => p.name === "content" && p.isFile);
+			const mediaTypePart = parsed.parts.find((p) => p.name === "mediaType" && !p.isFile);
+			const titlePart = parsed.parts.find((p) => p.name === "title" && !p.isFile);
+
+			const submittedUrl = urlPart ? urlPart.content.toString("utf8") : "";
+			const mediaType = mediaTypePart ? mediaTypePart.content.toString("utf8") : "";
+			const contentBytes = contentPart?.content;
+			const title = titlePart ? titlePart.content.toString("utf8") : undefined;
+
+			if (!contentBytes || contentBytes.length === 0) {
+				res.status(422).type(SIREN_MEDIA_TYPE).json(
+					sirenError({
+						code: "invalid-save-content",
+						message: "save-content requires a content field with data",
+						actions: [buildFallbackAction()],
+					}),
+				);
+				return;
+			}
+
+			if (!mediaType) {
+				res.status(422).type(SIREN_MEDIA_TYPE).json(
+					sirenError({
+						code: "invalid-save-content",
+						message: "save-content requires a mediaType field",
+						actions: [buildFallbackAction()],
+					}),
+				);
+				return;
+			}
+
+			const validation = deps.validateSaveableUrl(submittedUrl);
+			if (validation.status === "ERROR") {
+				res.status(422).type(SIREN_MEDIA_TYPE).json(
+					sirenError({
+						code: "invalid-save-content",
+						message: validation.error.message,
+						actions: [buildFallbackAction()],
+					}),
+				);
+				return;
+			}
+
+			try {
+				const articleUrl = validation.url;
+				const normalized = normalizeMediaType(mediaType);
+				const handler = saveContentHandlers[normalized];
+				if (!handler) {
+					res.status(422).type(SIREN_MEDIA_TYPE).json(
+						sirenError({
+							code: "unsupported-media-type",
+							message: `Unsupported media type: ${mediaType}`,
+							actions: [buildFallbackAction()],
+						}),
+					);
+					return;
+				}
+
+				const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
+				const handlerResult = await handler({ url: articleUrl, bytes: contentBytes, title, userId });
+				if (!handlerResult.ok) {
+					res.status(422).type(SIREN_MEDIA_TYPE).json(
+						sirenError({
+							code: handlerResult.code,
+							message: handlerResult.message,
+							actions: [buildFallbackAction()],
+						}),
+					);
+					return;
+				}
+
+				const result = await saveArticleFromUrl(deps, { userId, url: articleUrl, freshness });
+				markExtensionSavedArticle(res);
+				res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
+			} catch (error) {
+				deps.logError("Failed to save article from content", error instanceof Error ? error : undefined);
+				res.status(500).type(SIREN_MEDIA_TYPE).json(
+					sirenError({ code: "save-failed", message: "Could not save article" }),
+				);
+			}
+		},
+	);
 
 	router.post("/save", deps.requireWriteAccess, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");

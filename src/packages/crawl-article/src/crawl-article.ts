@@ -161,10 +161,15 @@ export async function parseHtmlFromBuffer(input: {
  * buffer to the extractor (each extraction can hold a worker for as long as
  * pdfjs needs to walk the document). Extraction failure and oversize bodies
  * both surface as `unsupported` so the caller can flip the row terminal.
+ *
+ * `response` is optional so callers handling client-uploaded PDF bytes (no
+ * HTTP fetch round-trip, e.g. the save-link-raw-pdf Lambda) can pass
+ * `undefined` — the resulting `etag` / `last-modified` validators are simply
+ * dropped from the result.
  */
 export async function parsePdfFromBuffer(input: {
 	buffer: Buffer;
-	response: Response;
+	response: Response | undefined;
 	url: string;
 	extractPdf: ExtractPdf;
 	onProgress?: ComprehensiveCrawlProgress;
@@ -186,8 +191,10 @@ export async function parsePdfFromBuffer(input: {
 	const result: CrawlArticleResult & { status: "fetched" } = {
 		status: "fetched",
 		html: extracted.html,
-		etag: headerOrUndefined(input.response.headers, "etag"),
-		lastModified: headerOrUndefined(input.response.headers, "last-modified"),
+		etag: input.response ? headerOrUndefined(input.response.headers, "etag") : undefined,
+		lastModified: input.response
+			? headerOrUndefined(input.response.headers, "last-modified")
+			: undefined,
 	};
 	return result;
 }

@@ -13,6 +13,7 @@ import type {
 	PublishRecrawlLinkInitiated,
 	PublishSaveAnonymousLink,
 	PublishSaveLinkRawHtmlCommand,
+	PublishSaveLinkRawPdfCommand,
 	PublishStaleCheckRequested,
 	PublishSubscriptionReactivated,
 	PublishUpdateFetchTimestamp,
@@ -20,6 +21,7 @@ import type {
 	PublishCancelSubscriptionCommand,
 } from "./providers/events";
 import type { PutPendingHtml } from "./providers/pending-html/pending-html.types";
+import type { PutPendingPdf } from "./providers/pending-pdf/pending-pdf.types";
 import type {
 	FindGeneratedSummary,
 	ForceMarkSummaryPending,
@@ -231,6 +233,7 @@ export interface EventsBundle {
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
+	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	publishExportUserDataCommand: PublishExportUserDataCommand;
@@ -241,6 +244,11 @@ export interface EventsBundle {
 export interface PendingHtmlBundle {
 	putPendingHtml: PutPendingHtml;
 	readPendingHtml: (url: string) => string | undefined;
+}
+
+export interface PendingPdfBundle {
+	putPendingPdf: PutPendingPdf;
+	readPendingPdfSync: (url: string) => Buffer | undefined;
 }
 
 export interface SummaryBundle {
@@ -324,6 +332,7 @@ export interface TestAppFixture {
 	parser: ParserBundle;
 	events: EventsBundle;
 	pendingHtml: PendingHtmlBundle;
+	pendingPdf: PendingPdfBundle;
 	summary: SummaryBundle;
 	freshness: FreshnessBundle;
 	oauth: OAuthBundle;

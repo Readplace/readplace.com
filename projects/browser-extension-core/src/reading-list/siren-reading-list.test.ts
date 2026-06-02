@@ -6,6 +6,8 @@ import {
 	initExtension,
 	initSaveArticleUnderstanding,
 	initSaveHtmlUnderstanding,
+	initSavePdfUnderstanding,
+	initSaveContentUnderstanding,
 	initDeleteArticleUnderstanding,
 	initListArticlesUnderstanding,
 	groupOf,
@@ -1347,6 +1349,647 @@ describe("save-html action", () => {
 	});
 });
 
+describe("save-pdf action", () => {
+	const COLLECTION_ACTIONS_WITH_SAVE_PDF = [
+		COLLECTION_ACTIONS[0],
+		{
+			name: "save-pdf",
+			href: "/queue/save-pdf",
+			method: "POST",
+			type: "multipart/form-data",
+			fields: [
+				{ name: "url", type: "url" },
+				{ name: "pdf", type: "file" },
+			],
+		},
+		COLLECTION_ACTIONS[1],
+	];
+
+	function collectionWithSavePdfResponse(entities: unknown[] = []) {
+		return JSON.stringify({
+			class: ["collection", "articles"],
+			entities,
+			links: [{ rel: ["self"], href: "/queue" }],
+			actions: COLLECTION_ACTIONS_WITH_SAVE_PDF,
+		});
+	}
+
+	function articleResponse(savedAt: string) {
+		return JSON.stringify({
+			class: ["article"],
+			properties: {
+				id: "article-1",
+				url: "https://example.com/x.pdf",
+				title: "Captured PDF",
+				savedAt,
+			},
+			actions: [
+				{
+					name: "delete",
+					href: "/queue/article-1/delete",
+					method: "POST",
+				},
+			],
+		});
+	}
+
+	function createUnderstandingsWithSavePdf() {
+		return groupOf(
+			initSaveArticleUnderstanding(),
+			initSavePdfUnderstanding(),
+			initDeleteArticleUnderstanding(),
+			httpCacheable(initListArticlesUnderstanding()),
+		);
+	}
+
+	function bytesToBase64(bytes: Uint8Array): string {
+		let binary = "";
+		for (let i = 0; i < bytes.length; i += 1) {
+			binary += String.fromCharCode(bytes[i] as number);
+		}
+		return btoa(binary);
+	}
+
+	it("POSTs to the save-pdf action with multipart/form-data containing url and pdf, returns the saved item", async () => {
+		const savedAt = "2026-01-15T10:00:00.000Z";
+		let capturedBody: FormData | undefined;
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSavePdfResponse(),
+				},
+				"POST http://localhost:3000/queue/save-pdf": (init) => {
+					capturedBody = init?.body instanceof FormData ? init.body : undefined;
+					return { status: 201, body: articleResponse(savedAt) };
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSavePdf(), createDeps(fetchFn));
+		const collection = await start();
+
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]);
+		const result = await collection.actions["save-pdf"]({
+			url: "https://example.com/x.pdf",
+			pdfBytes: bytesToBase64(pdfBytes),
+		});
+
+		expect(result.items[0].url).toBe("https://example.com/x.pdf");
+		expect(result.items[0].id).toBe("article-1");
+		expect(calls).toContain("POST http://localhost:3000/queue/save-pdf");
+		assert(capturedBody, "save-pdf request must carry a FormData body");
+		expect(capturedBody.get("url")).toBe("https://example.com/x.pdf");
+		const pdfPart = capturedBody.get("pdf");
+		assert(pdfPart instanceof Blob, "save-pdf body must include a pdf Blob");
+		expect(pdfPart.type).toBe("application/pdf");
+		const roundTripped = new Uint8Array(await pdfPart.arrayBuffer());
+		expect(Array.from(roundTripped)).toEqual(Array.from(pdfBytes));
+	});
+
+	it("follows the fallback save-article action from the Siren error body when save-pdf errors", async () => {
+		const savedAt = "2026-01-15T10:00:00.000Z";
+		const fallbackBodies: (string | undefined)[] = [];
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSavePdfResponse(),
+				},
+				"POST http://localhost:3000/queue/save-pdf": {
+					status: 422,
+					body: JSON.stringify({
+						class: ["error"],
+						properties: {
+							code: "pdf-too-large",
+							message: "PDF upload exceeded 500 MB",
+						},
+						actions: [
+							{
+								name: "save-article",
+								href: "/queue",
+								method: "POST",
+								type: "application/json",
+								fields: [{ name: "url", type: "url" }],
+							},
+						],
+					}),
+				},
+				"POST http://localhost:3000/queue": (init) => {
+					fallbackBodies.push(typeof init?.body === "string" ? init.body : undefined);
+					return { status: 201, body: articleResponse(savedAt) };
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSavePdf(), createDeps(fetchFn));
+		const collection = await start();
+
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+		const result = await collection.actions["save-pdf"]({
+			url: "https://example.com/x.pdf",
+			pdfBytes: bytesToBase64(pdfBytes),
+		});
+
+		expect(result.items[0].id).toBe("article-1");
+		expect(calls).toContain("POST http://localhost:3000/queue/save-pdf");
+		expect(calls).toContain("POST http://localhost:3000/queue");
+		expect(fallbackBodies).toHaveLength(1);
+		expect(JSON.parse(fallbackBodies[0] ?? "{}")).toEqual({
+			url: "https://example.com/x.pdf",
+		});
+	});
+
+	it("throws when the save-pdf POST fails without a fallback action", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSavePdfResponse(),
+				},
+				"POST http://localhost:3000/queue/save-pdf": { status: 500 },
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSavePdf(), createDeps(fetchFn));
+		const collection = await start();
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+		await expect(
+			collection.actions["save-pdf"]({
+				url: "https://example.com/x.pdf",
+				pdfBytes: bytesToBase64(pdfBytes),
+			}),
+		).rejects.toThrow("Save failed: 500");
+	});
+
+	it("throws when the Siren error body has no actions field", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSavePdfResponse(),
+				},
+				"POST http://localhost:3000/queue/save-pdf": {
+					status: 422,
+					body: JSON.stringify({
+						class: ["error"],
+						properties: { code: "broken", message: "no fallback" },
+					}),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSavePdf(), createDeps(fetchFn));
+		const collection = await start();
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+		await expect(
+			collection.actions["save-pdf"]({
+				url: "https://example.com/x.pdf",
+				pdfBytes: bytesToBase64(pdfBytes),
+			}),
+		).rejects.toThrow("Save failed: 422");
+	});
+
+	it("throws when the Siren error body has an empty actions array", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSavePdfResponse(),
+				},
+				"POST http://localhost:3000/queue/save-pdf": {
+					status: 422,
+					body: JSON.stringify({
+						class: ["error"],
+						properties: { code: "broken", message: "empty actions" },
+						actions: [],
+					}),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSavePdf(), createDeps(fetchFn));
+		const collection = await start();
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+		await expect(
+			collection.actions["save-pdf"]({
+				url: "https://example.com/x.pdf",
+				pdfBytes: bytesToBase64(pdfBytes),
+			}),
+		).rejects.toThrow("Save failed: 422");
+	});
+
+	it("defaults the fallback action Content-Type to application/json when it isn't declared on the Siren action", async () => {
+		const savedAt = "2026-01-15T10:00:00.000Z";
+		let fallbackHeaders: Record<string, string> | undefined;
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSavePdfResponse(),
+				},
+				"POST http://localhost:3000/queue/save-pdf": {
+					status: 422,
+					body: JSON.stringify({
+						class: ["error"],
+						properties: { code: "broken", message: "fallback" },
+						actions: [
+							{
+								name: "save-article",
+								href: "/queue",
+								method: "POST",
+								fields: [{ name: "url", type: "url" }],
+							},
+						],
+					}),
+				},
+				"POST http://localhost:3000/queue": (init) => {
+					fallbackHeaders = (init?.headers as Record<string, string>) ?? undefined;
+					return { status: 201, body: articleResponse(savedAt) };
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSavePdf(), createDeps(fetchFn));
+		const collection = await start();
+
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+		const result = await collection.actions["save-pdf"]({
+			url: "https://example.com/x.pdf",
+			pdfBytes: bytesToBase64(pdfBytes),
+		});
+		expect(result.items[0].id).toBe("article-1");
+		expect(fallbackHeaders?.["Content-Type"]).toBe("application/json");
+	});
+});
+
+describe("save-content action", () => {
+	const COLLECTION_ACTIONS_WITH_SAVE_CONTENT = [
+		COLLECTION_ACTIONS[0],
+		{
+			name: "save-content",
+			href: "/queue/save-content",
+			method: "POST",
+			type: "multipart/form-data",
+			fields: [
+				{ name: "url", type: "url" },
+				{ name: "content", type: "file" },
+				{ name: "mediaType", type: "text" },
+				{ name: "title", type: "text" },
+			],
+		},
+		COLLECTION_ACTIONS[1],
+	];
+
+	function collectionWithSaveContentResponse(entities: unknown[] = []) {
+		return JSON.stringify({
+			class: ["collection", "articles"],
+			entities,
+			links: [{ rel: ["self"], href: "/queue" }],
+			actions: COLLECTION_ACTIONS_WITH_SAVE_CONTENT,
+		});
+	}
+
+	function articleResponse(savedAt: string) {
+		return JSON.stringify({
+			class: ["article"],
+			properties: {
+				id: "article-1",
+				url: "https://example.com/article",
+				title: "Captured Article",
+				savedAt,
+			},
+			actions: [
+				{
+					name: "delete",
+					href: "/queue/article-1/delete",
+					method: "POST",
+				},
+			],
+		});
+	}
+
+	function createUnderstandingsWithSaveContent() {
+		return groupOf(
+			initSaveArticleUnderstanding(),
+			initSaveContentUnderstanding({
+				parsers: {
+					"application/pdf": (input) => {
+						assert(input.contentBase64, "PDF content requires contentBase64 field");
+						const binaryString = atob(input.contentBase64);
+						const bytes = new Uint8Array(binaryString.length);
+						for (let i = 0; i < binaryString.length; i += 1) {
+							bytes[i] = binaryString.charCodeAt(i);
+						}
+						return { blob: new Blob([bytes], { type: "application/pdf" }), filename: "content" };
+					},
+					"text/html": (input) => {
+						assert(input.rawHtml, "HTML content requires rawHtml field");
+						return { blob: new Blob([input.rawHtml], { type: "text/html" }), filename: "content.html" };
+					},
+				},
+			}),
+			initDeleteArticleUnderstanding(),
+			httpCacheable(initListArticlesUnderstanding()),
+		);
+	}
+
+	function bytesToBase64(bytes: Uint8Array): string {
+		let binary = "";
+		for (let i = 0; i < bytes.length; i += 1) {
+			binary += String.fromCharCode(bytes[i] as number);
+		}
+		return btoa(binary);
+	}
+
+	it("POSTs binary content with mediaType as multipart/form-data, returns the saved item", async () => {
+		const savedAt = "2026-01-15T10:00:00.000Z";
+		let capturedBody: FormData | undefined;
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveContentResponse(),
+				},
+				"POST http://localhost:3000/queue/save-content": (init) => {
+					capturedBody = init?.body instanceof FormData ? init.body : undefined;
+					return { status: 201, body: articleResponse(savedAt) };
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
+		const collection = await start();
+
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]);
+		const result = await collection.actions["save-content"]({
+			url: "https://example.com/article",
+			mediaType: "application/pdf",
+			contentBase64: bytesToBase64(pdfBytes),
+		});
+
+		expect(result.items[0].url).toBe("https://example.com/article");
+		expect(result.items[0].id).toBe("article-1");
+		expect(calls).toContain("POST http://localhost:3000/queue/save-content");
+		assert(capturedBody, "save-content request must carry a FormData body");
+		expect(capturedBody.get("url")).toBe("https://example.com/article");
+		expect(capturedBody.get("mediaType")).toBe("application/pdf");
+		const contentPart = capturedBody.get("content");
+		assert(contentPart instanceof Blob, "save-content body must include a content Blob");
+		expect(contentPart.type).toBe("application/pdf");
+		const roundTripped = new Uint8Array(await contentPart.arrayBuffer());
+		expect(Array.from(roundTripped)).toEqual(Array.from(pdfBytes));
+	});
+
+	it("POSTs HTML content as text via rawHtml field, returns the saved item", async () => {
+		const savedAt = "2026-01-15T10:00:00.000Z";
+		let capturedBody: FormData | undefined;
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveContentResponse(),
+				},
+				"POST http://localhost:3000/queue/save-content": (init) => {
+					capturedBody = init?.body instanceof FormData ? init.body : undefined;
+					return { status: 201, body: articleResponse(savedAt) };
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
+		const collection = await start();
+
+		const result = await collection.actions["save-content"]({
+			url: "https://example.com/article",
+			mediaType: "text/html",
+			rawHtml: "<html><body>Hello</body></html>",
+			title: "Hello Page",
+		});
+
+		expect(result.items[0].id).toBe("article-1");
+		expect(calls).toContain("POST http://localhost:3000/queue/save-content");
+		assert(capturedBody, "save-content request must carry a FormData body");
+		expect(capturedBody.get("url")).toBe("https://example.com/article");
+		expect(capturedBody.get("mediaType")).toBe("text/html");
+		expect(capturedBody.get("title")).toBe("Hello Page");
+		const contentPart = capturedBody.get("content");
+		assert(contentPart instanceof Blob, "save-content body must include a content Blob");
+		expect(contentPart.type).toBe("text/html");
+		const text = await contentPart.text();
+		expect(text).toBe("<html><body>Hello</body></html>");
+	});
+
+	it("follows the fallback save-article action from the Siren error body when save-content errors", async () => {
+		const savedAt = "2026-01-15T10:00:00.000Z";
+		const fallbackBodies: (string | undefined)[] = [];
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveContentResponse(),
+				},
+				"POST http://localhost:3000/queue/save-content": {
+					status: 422,
+					body: JSON.stringify({
+						class: ["error"],
+						properties: {
+							code: "content-too-large",
+							message: "Content upload exceeded 500 MB",
+						},
+						actions: [
+							{
+								name: "save-article",
+								href: "/queue",
+								method: "POST",
+								type: "application/json",
+								fields: [{ name: "url", type: "url" }],
+							},
+						],
+					}),
+				},
+				"POST http://localhost:3000/queue": (init) => {
+					fallbackBodies.push(typeof init?.body === "string" ? init.body : undefined);
+					return { status: 201, body: articleResponse(savedAt) };
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
+		const collection = await start();
+
+		const result = await collection.actions["save-content"]({
+			url: "https://example.com/article",
+			mediaType: "text/html",
+			rawHtml: "<html>big content</html>",
+		});
+
+		expect(result.items[0].id).toBe("article-1");
+		expect(calls).toContain("POST http://localhost:3000/queue/save-content");
+		expect(calls).toContain("POST http://localhost:3000/queue");
+		expect(fallbackBodies).toHaveLength(1);
+		expect(JSON.parse(fallbackBodies[0] ?? "{}")).toEqual({
+			url: "https://example.com/article",
+		});
+	});
+
+	it("includes title in the fallback body when available", async () => {
+		const savedAt = "2026-01-15T10:00:00.000Z";
+		const fallbackBodies: (string | undefined)[] = [];
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveContentResponse(),
+				},
+				"POST http://localhost:3000/queue/save-content": {
+					status: 422,
+					body: JSON.stringify({
+						class: ["error"],
+						properties: { code: "broken", message: "fallback" },
+						actions: [
+							{
+								name: "save-article",
+								href: "/queue",
+								method: "POST",
+								type: "application/json",
+								fields: [{ name: "url", type: "url" }],
+							},
+						],
+					}),
+				},
+				"POST http://localhost:3000/queue": (init) => {
+					fallbackBodies.push(typeof init?.body === "string" ? init.body : undefined);
+					return { status: 201, body: articleResponse(savedAt) };
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
+		const collection = await start();
+
+		await collection.actions["save-content"]({
+			url: "https://example.com/article",
+			mediaType: "text/html",
+			rawHtml: "<html>content</html>",
+			title: "My Title",
+		});
+
+		expect(JSON.parse(fallbackBodies[0] ?? "{}")).toEqual({
+			url: "https://example.com/article",
+			title: "My Title",
+		});
+	});
+
+	it("throws when the save-content POST fails without a fallback action", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveContentResponse(),
+				},
+				"POST http://localhost:3000/queue/save-content": { status: 500 },
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
+		const collection = await start();
+		await expect(
+			collection.actions["save-content"]({
+				url: "https://example.com/article",
+				mediaType: "text/html",
+				rawHtml: "<html>x</html>",
+			}),
+		).rejects.toThrow("Save failed: 500");
+	});
+
+	it("throws when the Siren error body has no actions field", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveContentResponse(),
+				},
+				"POST http://localhost:3000/queue/save-content": {
+					status: 422,
+					body: JSON.stringify({
+						class: ["error"],
+						properties: { code: "broken", message: "no fallback" },
+					}),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
+		const collection = await start();
+		await expect(
+			collection.actions["save-content"]({
+				url: "https://example.com/article",
+				mediaType: "text/html",
+				rawHtml: "<html>x</html>",
+			}),
+		).rejects.toThrow("Save failed: 422");
+	});
+
+	it("throws when the Siren error body has an empty actions array", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveContentResponse(),
+				},
+				"POST http://localhost:3000/queue/save-content": {
+					status: 422,
+					body: JSON.stringify({
+						class: ["error"],
+						properties: { code: "broken", message: "empty actions" },
+						actions: [],
+					}),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
+		const collection = await start();
+		await expect(
+			collection.actions["save-content"]({
+				url: "https://example.com/article",
+				mediaType: "text/html",
+				rawHtml: "<html>x</html>",
+			}),
+		).rejects.toThrow("Save failed: 422");
+	});
+
+	it("defaults the fallback action Content-Type to application/json when it isn't declared on the Siren action", async () => {
+		const savedAt = "2026-01-15T10:00:00.000Z";
+		let fallbackHeaders: Record<string, string> | undefined;
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveContentResponse(),
+				},
+				"POST http://localhost:3000/queue/save-content": {
+					status: 422,
+					body: JSON.stringify({
+						class: ["error"],
+						properties: { code: "broken", message: "fallback" },
+						actions: [
+							{
+								name: "save-article",
+								href: "/queue",
+								method: "POST",
+								fields: [{ name: "url", type: "url" }],
+							},
+						],
+					}),
+				},
+				"POST http://localhost:3000/queue": (init) => {
+					fallbackHeaders = (init?.headers as Record<string, string>) ?? undefined;
+					return { status: 201, body: articleResponse(savedAt) };
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
+		const collection = await start();
+
+		const result = await collection.actions["save-content"]({
+			url: "https://example.com/article",
+			mediaType: "text/html",
+			rawHtml: "<html>x</html>",
+		});
+		expect(result.items[0].id).toBe("article-1");
+		expect(fallbackHeaders?.["Content-Type"]).toBe("application/json");
+	});
+});
+
 describe("initSirenReadingList capability negotiation", () => {
 	function createAdapterDeps(
 		fetchFn: SirenReadingListDeps["fetchFn"],
@@ -1449,6 +2092,247 @@ describe("initSirenReadingList capability negotiation", () => {
 		assert.equal(result.ok, true);
 		expect(calls).toContain("POST http://localhost:3000/queue");
 		expect(calls).not.toContain("POST http://localhost:3000/queue/save-html");
+	});
+
+	it("prefers save-pdf when pdfBytes is provided AND the server advertises save-pdf", async () => {
+		const COLLECTION_WITH_PDF = [
+			COLLECTION_ACTIONS[0],
+			{
+				name: "save-pdf",
+				href: "/queue/save-pdf",
+				method: "POST",
+				type: "multipart/form-data",
+				fields: [
+					{ name: "url", type: "url" },
+					{ name: "pdf", type: "file" },
+				],
+			},
+			COLLECTION_ACTIONS[1],
+		];
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: JSON.stringify({
+						class: ["collection", "articles"],
+						entities: [],
+						links: [{ rel: ["self"], href: "/queue" }],
+						actions: COLLECTION_WITH_PDF,
+					}),
+				},
+				"POST http://localhost:3000/queue/save-pdf": {
+					status: 201,
+					body: articleResponseFor("/queue/article-1"),
+				},
+			}),
+		);
+		const list = initSirenReadingList(createAdapterDeps(fetchFn));
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]).buffer;
+		const result = await list.saveUrl({
+			url: "https://example.com/x.pdf",
+			title: "",
+			pdfBytes,
+		});
+		assert.equal(result.ok, true);
+		expect(calls).toContain("POST http://localhost:3000/queue/save-pdf");
+		expect(calls).not.toContain("POST http://localhost:3000/queue");
+	});
+
+	it("prefers save-content with PDF when save-content is advertised and pdfBytes is provided", async () => {
+		const COLLECTION_WITH_CONTENT = [
+			COLLECTION_ACTIONS[0],
+			{
+				name: "save-content",
+				href: "/queue/save-content",
+				method: "POST",
+				type: "multipart/form-data",
+				fields: [
+					{ name: "url", type: "url" },
+					{ name: "content", type: "file" },
+					{ name: "mediaType", type: "text" },
+					{ name: "title", type: "text" },
+				],
+			},
+			{
+				name: "save-pdf",
+				href: "/queue/save-pdf",
+				method: "POST",
+				type: "multipart/form-data",
+				fields: [
+					{ name: "url", type: "url" },
+					{ name: "pdf", type: "file" },
+				],
+			},
+			COLLECTION_ACTIONS[1],
+		];
+		let capturedBody: FormData | undefined;
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: JSON.stringify({
+						class: ["collection", "articles"],
+						entities: [],
+						links: [{ rel: ["self"], href: "/queue" }],
+						actions: COLLECTION_WITH_CONTENT,
+					}),
+				},
+				"POST http://localhost:3000/queue/save-content": (init) => {
+					capturedBody = init?.body instanceof FormData ? init.body : undefined;
+					return { status: 201, body: articleResponseFor("/queue/article-1") };
+				},
+			}),
+		);
+		const list = initSirenReadingList(createAdapterDeps(fetchFn));
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]).buffer;
+		const result = await list.saveUrl({
+			url: "https://example.com/x.pdf",
+			title: "",
+			pdfBytes,
+		});
+		assert.equal(result.ok, true);
+		expect(calls).toContain("POST http://localhost:3000/queue/save-content");
+		expect(calls).not.toContain("POST http://localhost:3000/queue/save-pdf");
+		assert(capturedBody, "save-content request must carry a FormData body");
+		expect(capturedBody.get("mediaType")).toBe("application/pdf");
+	});
+
+	it("prefers save-content with HTML when save-content is advertised and rawHtml is provided", async () => {
+		const COLLECTION_WITH_CONTENT = [
+			COLLECTION_ACTIONS[0],
+			{
+				name: "save-content",
+				href: "/queue/save-content",
+				method: "POST",
+				type: "multipart/form-data",
+				fields: [
+					{ name: "url", type: "url" },
+					{ name: "content", type: "file" },
+					{ name: "mediaType", type: "text" },
+					{ name: "title", type: "text" },
+				],
+			},
+			COLLECTION_ACTIONS_WITH_SAVE_HTML[1],
+			COLLECTION_ACTIONS[1],
+		];
+		let capturedBody: FormData | undefined;
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: JSON.stringify({
+						class: ["collection", "articles"],
+						entities: [],
+						links: [{ rel: ["self"], href: "/queue" }],
+						actions: COLLECTION_WITH_CONTENT,
+					}),
+				},
+				"POST http://localhost:3000/queue/save-content": (init) => {
+					capturedBody = init?.body instanceof FormData ? init.body : undefined;
+					return { status: 201, body: articleResponseFor("/queue/article-1") };
+				},
+			}),
+		);
+		const list = initSirenReadingList(createAdapterDeps(fetchFn));
+		const result = await list.saveUrl({
+			url: "https://example.com/article",
+			title: "Test Title",
+			rawHtml: "<html>captured</html>",
+		});
+		assert.equal(result.ok, true);
+		expect(calls).toContain("POST http://localhost:3000/queue/save-content");
+		expect(calls).not.toContain("POST http://localhost:3000/queue/save-html");
+		assert(capturedBody, "save-content request must carry a FormData body");
+		expect(capturedBody.get("mediaType")).toBe("text/html");
+		expect(capturedBody.get("title")).toBe("Test Title");
+	});
+
+	it("falls back to save-pdf when save-content is not advertised but save-pdf is", async () => {
+		const COLLECTION_WITH_PDF = [
+			COLLECTION_ACTIONS[0],
+			{
+				name: "save-pdf",
+				href: "/queue/save-pdf",
+				method: "POST",
+				type: "multipart/form-data",
+				fields: [
+					{ name: "url", type: "url" },
+					{ name: "pdf", type: "file" },
+				],
+			},
+			COLLECTION_ACTIONS[1],
+		];
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: JSON.stringify({
+						class: ["collection", "articles"],
+						entities: [],
+						links: [{ rel: ["self"], href: "/queue" }],
+						actions: COLLECTION_WITH_PDF,
+					}),
+				},
+				"POST http://localhost:3000/queue/save-pdf": {
+					status: 201,
+					body: articleResponseFor("/queue/article-1"),
+				},
+			}),
+		);
+		const list = initSirenReadingList(createAdapterDeps(fetchFn));
+		const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]).buffer;
+		const result = await list.saveUrl({
+			url: "https://example.com/x.pdf",
+			title: "",
+			pdfBytes,
+		});
+		assert.equal(result.ok, true);
+		expect(calls).toContain("POST http://localhost:3000/queue/save-pdf");
+		expect(calls).not.toContain("POST http://localhost:3000/queue/save-content");
+	});
+
+	it("falls back to save-article when save-content is advertised but neither rawHtml nor pdfBytes is provided", async () => {
+		const COLLECTION_WITH_CONTENT = [
+			COLLECTION_ACTIONS[0],
+			{
+				name: "save-content",
+				href: "/queue/save-content",
+				method: "POST",
+				type: "multipart/form-data",
+				fields: [
+					{ name: "url", type: "url" },
+					{ name: "content", type: "file" },
+					{ name: "mediaType", type: "text" },
+					{ name: "title", type: "text" },
+				],
+			},
+			COLLECTION_ACTIONS[1],
+		];
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: JSON.stringify({
+						class: ["collection", "articles"],
+						entities: [],
+						links: [{ rel: ["self"], href: "/queue" }],
+						actions: COLLECTION_WITH_CONTENT,
+					}),
+				},
+				"POST http://localhost:3000/queue": {
+					status: 201,
+					body: articleResponseFor("/queue/article-1"),
+				},
+			}),
+		);
+		const list = initSirenReadingList(createAdapterDeps(fetchFn));
+		const result = await list.saveUrl({
+			url: "https://example.com/article",
+			title: "Test",
+		});
+		assert.equal(result.ok, true);
+		expect(calls).toContain("POST http://localhost:3000/queue");
+		expect(calls).not.toContain("POST http://localhost:3000/queue/save-content");
 	});
 });
 

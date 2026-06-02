@@ -85,6 +85,28 @@ export function toArticleCollectionEntity(
 				],
 			},
 			{
+				name: "save-pdf",
+				href: "/queue/save-pdf",
+				method: "POST",
+				type: "multipart/form-data",
+				fields: [
+					{ name: "url", type: "url" },
+					{ name: "pdf", type: "file" },
+				],
+			},
+			{
+				name: "save-content",
+				href: "/queue/save-content",
+				method: "POST",
+				type: "multipart/form-data",
+				fields: [
+					{ name: "url", type: "url" },
+					{ name: "content", type: "file" },
+					{ name: "mediaType", type: "text" },
+					{ name: "title", type: "text" },
+				],
+			},
+			{
 				name: "search",
 				href: "/queue",
 				method: "GET",

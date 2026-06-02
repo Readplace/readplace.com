@@ -3,6 +3,8 @@ export {
 	type SaveLinkDetail,
 	SaveLinkRawHtmlCommand,
 	type SaveLinkRawHtmlDetail,
+	SaveLinkRawPdfCommand,
+	type SaveLinkRawPdfDetail,
 	SaveAnonymousLinkCommand,
 	type SaveAnonymousLinkDetail,
 	SimpleCrawlUnsupportedEvent,
