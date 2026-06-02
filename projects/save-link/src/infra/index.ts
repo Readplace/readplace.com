@@ -768,10 +768,12 @@ const selectMostCompleteContentLambda = new HutchLambda("select-most-complete-co
 	entryPoint: "./src/runtime/select-most-complete-content.main.ts",
 	outputDir: ".lib/select-most-complete-content",
 	assetDir: "./src",
-	// 10240 MB (Lambda platform max): this finalize handler loads the full
-	// tier-source HTML from S3, so a page carrying many MB of inline base64
-	// images OOM'd at 256 MB (#473, transformer-circuits.pub).
-	memorySize: 10240,
+	// 3008 MB (this AWS account's Lambda memory ceiling — the 10240 MB
+	// platform max needs a quota increase AWS rejected with a 3008 cap):
+	// this finalize handler loads the full tier-source HTML from S3, so a
+	// page carrying many MB of inline base64 images OOM'd at 256 MB
+	// (#473, transformer-circuits.pub).
+	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
@@ -1059,10 +1061,12 @@ const recrawlContentExtractedLambda = new HutchLambda("recrawl-content-extracted
 	entryPoint: "./src/runtime/recrawl-content-extracted.main.ts",
 	outputDir: ".lib/recrawl-content-extracted",
 	assetDir: "./src",
-	// 10240 MB (Lambda platform max): this finalize handler loads the full
-	// tier-source HTML from S3, so a page carrying many MB of inline base64
-	// images OOM'd at 256 MB (#473, transformer-circuits.pub).
-	memorySize: 10240,
+	// 3008 MB (this AWS account's Lambda memory ceiling — the 10240 MB
+	// platform max needs a quota increase AWS rejected with a 3008 cap):
+	// this finalize handler loads the full tier-source HTML from S3, so a
+	// page carrying many MB of inline base64 images OOM'd at 256 MB
+	// (#473, transformer-circuits.pub).
+	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
@@ -1201,10 +1205,12 @@ const refreshContentExtractedLambda = new HutchLambda("refresh-content-extracted
 	entryPoint: "./src/runtime/refresh-content-extracted.main.ts",
 	outputDir: ".lib/refresh-content-extracted",
 	assetDir: "./src",
-	// 10240 MB (Lambda platform max): this finalize handler loads the full
-	// tier-source HTML from S3, so a page carrying many MB of inline base64
-	// images OOM'd at 256 MB (#473, transformer-circuits.pub).
-	memorySize: 10240,
+	// 3008 MB (this AWS account's Lambda memory ceiling — the 10240 MB
+	// platform max needs a quota increase AWS rejected with a 3008 cap):
+	// this finalize handler loads the full tier-source HTML from S3, so a
+	// page carrying many MB of inline base64 images OOM'd at 256 MB
+	// (#473, transformer-circuits.pub).
+	memorySize: 3008,
 	timeout: SELECT_CONTENT_TIMEOUTS.lambdaSeconds,
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
