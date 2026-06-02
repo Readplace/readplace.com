@@ -392,6 +392,10 @@
   margin-top: 8px;
 }
 
+.queue-article__processing--hidden {
+  display: none;
+}
+
 .queue-article__processing::before {
   content: "";
   width: 8px;

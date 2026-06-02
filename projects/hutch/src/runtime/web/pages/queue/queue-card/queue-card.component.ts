@@ -19,6 +19,7 @@ export interface QueueCardDisplayModel extends QueueArticleViewModel {
 	isFirst: boolean;
 	cardStatus: "pending" | "terminal";
 	isProcessing: boolean;
+	processingHiddenClass: string;
 	actions: ActionDisplayModel[];
 }
 
@@ -49,6 +50,7 @@ export function toQueueCardDisplayModel(
 		isFirst: options.isFirst,
 		cardStatus: isProcessing ? "pending" : "terminal",
 		isProcessing,
+		processingHiddenClass: isProcessing ? "" : " queue-article__processing--hidden",
 		actions: article.actions.map((action) =>
 			toActionDisplayModel(action, { isProcessing }),
 		),

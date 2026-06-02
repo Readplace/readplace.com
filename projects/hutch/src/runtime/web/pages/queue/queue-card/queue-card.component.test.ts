@@ -165,11 +165,15 @@ describe("renderQueueCard", () => {
 		const processing = doc.querySelector("[data-test-processing]");
 		assert(processing, "processing indicator must be rendered while polling");
 		assert.match(processing.textContent ?? "", /Processing/);
+		assert(
+			!processing.classList.contains("queue-article__processing--hidden"),
+			"processing indicator must be visible while polling",
+		);
 		expect(doc.querySelector("[data-test-action='mark-read']")?.hasAttribute("disabled")).toBe(true);
 		expect(doc.querySelector("[data-test-action='delete']")?.hasAttribute("disabled")).toBe(false);
 	});
 
-	it("enables the status action and omits the processing state once the card is terminal", () => {
+	it("hides the processing state and enables the status action once the card is terminal", () => {
 		const html = renderQueueCard(
 			toQueueCardDisplayModel(
 				makeViewModel({
@@ -180,7 +184,12 @@ describe("renderQueueCard", () => {
 			),
 		);
 		const doc = parse(html);
-		assert.equal(doc.querySelector("[data-test-processing]"), null);
+		const processing = doc.querySelector("[data-test-processing]");
+		assert(processing, "processing indicator must always be rendered");
+		assert(
+			processing.classList.contains("queue-article__processing--hidden"),
+			"processing indicator must be hidden when card is terminal",
+		);
 		expect(doc.querySelector("[data-test-action='mark-read']")?.hasAttribute("disabled")).toBe(false);
 	});
 });
