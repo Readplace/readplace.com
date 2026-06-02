@@ -59,6 +59,28 @@
   opacity: 0.9;
 }
 
+.queue-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  font-size: 0.875rem;
+}
+
+.queue-toast__message {
+  font-weight: 500;
+}
+
+.queue-toast__undo-form {
+  display: inline;
+  margin: 0;
+}
 .queue__save-form {
   display: flex;
   gap: 8px;
@@ -516,36 +538,16 @@
  *    forwards holds the final hidden frame; visibility: hidden also removes it
  *    from hit-testing so the now-invisible toast cannot swallow clicks.
  */
-.queue-toast {
-  position: fixed;
-  left: 50%;
-  bottom: 24px;
-  transform: translateX(-50%);
+.queue-toast--deleted {
   z-index: 50;
-  display: flex;
-  align-items: center;
-  gap: 16px;
   max-width: min(420px, calc(100vw - 32px));
-  padding: 12px 16px;
   background: var(--card);
   color: var(--foreground);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-md);
   animation: queue-toast-dismiss 5s forwards; /* 1 */
 }
 
-.queue-toast__message {
-  font-size: 0.875rem;
-  color: var(--foreground);
-}
-
-.queue-toast__undo {
-  display: inline;
-  margin: 0;
-}
-
-.queue-toast__undo-btn {
+.queue-toast--deleted .queue-toast__undo-btn {
   background: transparent;
   border: none;
   padding: 4px 8px;
@@ -556,7 +558,7 @@
   cursor: pointer;
 }
 
-.queue-toast__undo-btn:hover {
+.queue-toast--deleted .queue-toast__undo-btn:hover {
   background: var(--color-brand-light);
   color: var(--color-brand-dark);
 }
