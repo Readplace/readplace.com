@@ -16,6 +16,15 @@
         <p class="queue-banner__message"><strong>Subscription not active.</strong> Your saved articles are still here.</p>
         {{/if}}
       </aside>
+      {{#if hasStatusFlash}}
+      <div class="queue-toast" role="status" aria-live="polite" data-test-status-toast>
+        <span class="queue-toast__message" data-test-status-toast-message>{{statusFlashMessage}}</span>
+        <form method="POST" action="{{statusFlashUndoUrl}}" class="queue-toast__undo-form" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
+          <input type="hidden" name="status" value="{{statusFlashUndoStatus}}">
+          <button class="queue-toast__undo" type="submit" data-test-status-toast-undo>Undo</button>
+        </form>
+      </div>
+      {{/if}}
       <form class="{{saveFormClass}}" method="POST" action="/queue/save" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:#latest-saved:top" hx-disabled-elt=".queue__save-btn" data-test-form="save-article"{{#if saveUrl}} data-auto-submit{{/if}}>
         <input class="queue__save-input" type="url" name="url" placeholder="Paste a URL to save an article…" required value="{{saveUrl}}"{{#if accessIsReadOnly}} disabled{{/if}}>
         <button class="queue__save-btn" type="submit"{{#if accessIsReadOnly}} disabled{{/if}}><span class="queue__save-btn-label">Save</span><span class="queue__save-btn-saving">Saving…</span></button>
@@ -38,7 +47,7 @@
       {{/if}}
       <nav class="queue__filters" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-filters>
         <a class="{{filterUnreadClass}}" href="{{filterUnreadUrl}}" data-test-filter="unread">{{filterUnreadLabel}}</a>
-        <a class="{{filterReadClass}}" href="{{filterReadUrl}}" data-test-filter="read">Done</a>
+        <a class="{{filterReadClass}}" href="{{filterReadUrl}}" data-test-filter="read">Read</a>
       </nav>
       <div class="queue__sort" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
         <a class="queue__sort-link" href="{{sortUrl}}" data-test-sort>{{sortLabel}}</a>

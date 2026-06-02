@@ -10,6 +10,7 @@ const TEMPLATE = readFileSync(join(__dirname, "queue-card.template.html"), "utf-
 
 export interface ActionDisplayModel extends ArticleAction {
 	buttonClass: string;
+	disabled: boolean;
 }
 
 export interface QueueCardDisplayModel extends QueueArticleViewModel {
@@ -17,16 +18,22 @@ export interface QueueCardDisplayModel extends QueueArticleViewModel {
 	unreadClass: string;
 	isFirst: boolean;
 	cardStatus: "pending" | "terminal";
+	isProcessing: boolean;
 	actions: ActionDisplayModel[];
 }
 
-export function toActionDisplayModel(action: ArticleAction): ActionDisplayModel {
+export function toActionDisplayModel(
+	action: ArticleAction,
+	options: { isProcessing: boolean },
+): ActionDisplayModel {
+	const isStatusAction = action.testAction !== "delete";
+	const buttonClass = isStatusAction
+		? "queue-article__action-btn queue-article__action-btn--status"
+		: "queue-article__action-btn queue-article__action-btn--delete";
 	return {
 		...action,
-		buttonClass:
-			action.testAction === "delete"
-				? "queue-article__action-btn queue-article__action-btn--delete"
-				: "queue-article__action-btn",
+		buttonClass,
+		disabled: options.isProcessing && isStatusAction,
 	};
 }
 
@@ -34,13 +41,17 @@ export function toQueueCardDisplayModel(
 	article: QueueArticleViewModel,
 	options: { isFirst: boolean },
 ): QueueCardDisplayModel {
+	const isProcessing = Boolean(article.cardPollUrl);
 	return {
 		...article,
 		linkUrl: `/queue/${article.id}/view`,
 		unreadClass: article.isUnread ? " queue-article--unread" : "",
 		isFirst: options.isFirst,
-		cardStatus: article.cardPollUrl ? "pending" : "terminal",
-		actions: article.actions.map(toActionDisplayModel),
+		cardStatus: isProcessing ? "pending" : "terminal",
+		isProcessing,
+		actions: article.actions.map((action) =>
+			toActionDisplayModel(action, { isProcessing }),
+		),
 	};
 }
 

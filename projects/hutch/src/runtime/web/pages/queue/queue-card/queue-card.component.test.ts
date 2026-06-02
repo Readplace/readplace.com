@@ -119,4 +119,68 @@ describe("renderQueueCard", () => {
 		const hint = parse(html).querySelector("[data-test-stale-pending]");
 		assert.equal(hint, null);
 	});
+
+	const MARK_READ_ACTION = {
+		method: "POST",
+		url: "/queue/abc123/status",
+		text: "Mark as read",
+		title: "Mark as read",
+		testAction: "mark-read",
+		fields: [{ name: "status", value: "read" }],
+	};
+	const DELETE_ACTION = {
+		method: "POST",
+		url: "/queue/abc123/delete",
+		text: "×",
+		title: "Delete",
+		testAction: "delete",
+		fields: [],
+	};
+
+	it("styles the mark-read control as a primary status button", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(makeViewModel({ actions: [MARK_READ_ACTION] }), {
+				isFirst: false,
+			}),
+		);
+		const button = parse(html).querySelector("[data-test-action='mark-read']");
+		assert(button, "mark-read button must be present");
+		assert(
+			button.classList.contains("queue-article__action-btn--status"),
+			"mark-read button must use the primary status affordance",
+		);
+	});
+
+	it("shows a processing state and disables the status action while the card is still being fetched", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(
+				makeViewModel({
+					cardPollUrl: "/queue/abc123/card?poll=1",
+					actions: [MARK_READ_ACTION, DELETE_ACTION],
+				}),
+				{ isFirst: false },
+			),
+		);
+		const doc = parse(html);
+		const processing = doc.querySelector("[data-test-processing]");
+		assert(processing, "processing indicator must be rendered while polling");
+		assert.match(processing.textContent ?? "", /Processing/);
+		expect(doc.querySelector("[data-test-action='mark-read']")?.hasAttribute("disabled")).toBe(true);
+		expect(doc.querySelector("[data-test-action='delete']")?.hasAttribute("disabled")).toBe(false);
+	});
+
+	it("enables the status action and omits the processing state once the card is terminal", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(
+				makeViewModel({
+					cardPollUrl: undefined,
+					actions: [MARK_READ_ACTION, DELETE_ACTION],
+				}),
+				{ isFirst: false },
+			),
+		);
+		const doc = parse(html);
+		assert.equal(doc.querySelector("[data-test-processing]"), null);
+		expect(doc.querySelector("[data-test-action='mark-read']")?.hasAttribute("disabled")).toBe(false);
+	});
 });

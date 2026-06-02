@@ -109,6 +109,35 @@ describe("toQueueViewModel", () => {
 		expect(vm.filterUrls.read).toBe("/queue?tab=done");
 	});
 
+	it("should leave statusFlash undefined when not provided", () => {
+		const vm = toQueueViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, { now: NOW });
+
+		expect(vm.statusFlash).toBeUndefined();
+	});
+
+	it("should build a statusFlash undo URL that posts back to the article status route", () => {
+		const vm = toQueueViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
+			now: NOW,
+			statusFlash: { message: "Marked as read", undoArticleId: ARTICLE_ID, undoStatus: "unread" },
+		});
+
+		expect(vm.statusFlash).toEqual({
+			message: "Marked as read",
+			undoUrl: `/queue/${ARTICLE_ID}/status`,
+			undoStatus: "unread",
+		});
+	});
+
+	it("should preserve the filter context in the statusFlash undo URL", () => {
+		const filters = { tab: "done" as const, order: "asc" as const, page: 1 };
+		const vm = toQueueViewModel(makeResult([makeArticle({ status: "read" })]), filters, {
+			now: NOW,
+			statusFlash: { message: "Marked as unread", undoArticleId: ARTICLE_ID, undoStatus: "read" },
+		});
+
+		expect(vm.statusFlash?.undoUrl).toBe(`/queue/${ARTICLE_ID}/status?tab=done&order=asc`);
+	});
+
 	it("should set isUnread to true for unread articles", () => {
 		const article = makeArticle({ status: "unread" });
 		const vm = toQueueViewModel(makeResult([article]), DEFAULT_FILTERS, {
