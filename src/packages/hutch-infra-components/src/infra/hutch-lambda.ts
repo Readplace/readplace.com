@@ -229,11 +229,17 @@ export class HutchLambda extends pulumi.ComponentResource {
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 
 		for (const p of args.policies) {
-			new aws.iam.RolePolicy(p.name, {
+			new aws.iam.RolePolicy(`${name}-${p.name}-rp`, {
 				name: p.name,
 				role: this.role.name,
 				policy: p.policy,
-			}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+			}, {
+				parent: this,
+				aliases: [
+					{ name: p.name, parent: this },
+					{ name: p.name, parent: pulumi.rootStackResource },
+				],
+			});
 		}
 
 		const hasEnvironment = Object.keys(args.environment).length > 0;
