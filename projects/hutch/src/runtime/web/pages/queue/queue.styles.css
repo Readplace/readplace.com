@@ -247,13 +247,14 @@
 }
 
 .queue__filter-link--active {
-  background: var(--primary);
-  color: var(--primary-foreground);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  font-weight: 600;
 }
 
 .queue__filter-link--active:hover {
-  background: var(--primary);
-  color: var(--primary-foreground);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
 }
 
 .queue__sort {
@@ -323,12 +324,28 @@
   margin-bottom: 4px;
 }
 
-.queue-article__unread-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--primary);
-  flex-shrink: 0;
+.queue-article__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.queue-article__status--unread {
+  color: var(--primary);
+}
+
+.queue-article__status--read {
+  color: var(--success);
+}
+
+.queue-article__status--unread::before {
+  content: "●";
+}
+
+.queue-article__status--read::before {
+  content: "✓";
+  font-weight: 700;
 }
 
 .queue-article__title {
@@ -340,6 +357,14 @@
 }
 
 .queue-article__title:hover {
+  color: var(--primary);
+}
+
+.queue-article--read .queue-article__title {
+  color: var(--muted-foreground);
+}
+
+.queue-article--read .queue-article__title:hover {
   color: var(--primary);
 }
 
@@ -472,9 +497,14 @@
   opacity: 0.5;
 }
 
-.queue-article__action-btn--delete:hover {
-  background: var(--error-bg);
+.queue-article__action-btn--delete {
   color: var(--error);
+  border-color: var(--error);
+}
+
+.queue-article__action-btn--delete:hover {
+  background: var(--error);
+  color: var(--error-foreground);
   border-color: var(--error);
 }
 

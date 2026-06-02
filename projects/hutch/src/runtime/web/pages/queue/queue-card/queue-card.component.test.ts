@@ -46,6 +46,37 @@ describe("renderQueueCard", () => {
 		);
 	});
 
+	it("flags unread articles with a read-status chip and the unread modifier", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(makeViewModel({ status: "unread", isUnread: true }), {
+				isFirst: false,
+			}),
+		);
+		const doc = parse(html);
+		const card = doc.querySelector(".queue-article");
+		assert(card, "card root must be present");
+		expect(card.classList.contains("queue-article--unread")).toBe(true);
+		const status = doc.querySelector("[data-test-read-status]");
+		expect(status?.getAttribute("data-test-read-status")).toBe("unread");
+		expect(status?.textContent).toBe("Unread");
+	});
+
+	it("flags read articles with a read-status chip and the read modifier", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(makeViewModel({ status: "read", isUnread: false }), {
+				isFirst: false,
+			}),
+		);
+		const doc = parse(html);
+		const card = doc.querySelector(".queue-article");
+		assert(card, "card root must be present");
+		expect(card.classList.contains("queue-article--read")).toBe(true);
+		expect(card.classList.contains("queue-article--unread")).toBe(false);
+		const status = doc.querySelector("[data-test-read-status]");
+		expect(status?.getAttribute("data-test-read-status")).toBe("read");
+		expect(status?.textContent).toBe("Read");
+	});
+
 	it("emits the polling htmx attributes when cardPollUrl is set", () => {
 		const html = renderQueueCard(
 			toQueueCardDisplayModel(
