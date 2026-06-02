@@ -6,7 +6,7 @@ import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { extractPdfMetadata } from "@packages/crawl-article";
+import { extractPdfMetadata, extractPdfText } from "@packages/crawl-article";
 import { requireEnv } from "../require-env";
 import { initComprehensiveCrawlHandler } from "./domain/comprehensive-crawl/comprehensive-crawl-handler";
 import { initSaveLinkPdfExtract } from "./domain/article-parser/init-save-link-pdf-extract";
@@ -61,6 +61,7 @@ const { invokePageHtmlConvert } = initInvokePdfPageHtmlConvert({ client: lambdaC
 
 const extractPdf = initSaveLinkPdfExtract({
 	extractPdfMetadata,
+	extractPdfText,
 	stagePdf,
 	invokePageOcr,
 	invokePageLlmCleanup,
