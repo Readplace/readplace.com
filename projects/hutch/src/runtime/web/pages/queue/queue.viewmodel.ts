@@ -9,6 +9,7 @@ import { buildCardPollUrl } from "./queue-card/queue-card-poll-url";
 import { isCardTerminal } from "./queue-card/is-card-terminal";
 import type { QueueUrlState } from "./queue.url";
 import { buildQueueUrl } from "./queue.url";
+import type { StatusFlash } from "./queue.error";
 import type { EffectiveAccess } from "../../../domain/access/effective-access";
 
 export type SubscriptionBannerState =
@@ -86,6 +87,11 @@ export interface QueueViewModel {
 	saveErrorCode?: SaveableUrlErrorCode;
 	importFlash?: string;
 	importSkipped?: ImportSkippedViewModel;
+	statusFlash?: {
+		message: string;
+		undoUrl: string;
+		undoStatus: "read" | "unread";
+	};
 	subscriptionBanner: SubscriptionBannerState;
 	accessIsReadOnly: boolean;
 }
@@ -149,7 +155,7 @@ function toArticleActions(
 		actions.push({
 			method: "POST",
 			url: `/queue/${article.id}/status${returnQuery}`,
-			text: "Unread",
+			text: "Mark as unread",
 			title: "Mark as unread",
 			testAction: "mark-unread",
 			fields: [{ name: "status", value: "unread" }],
@@ -215,6 +221,7 @@ export function toQueueViewModel(
 		saveErrorCode?: SaveableUrlErrorCode;
 		importFlash?: string;
 		importSkipped?: ImportSkippedViewModel;
+		statusFlash?: StatusFlash;
 		unreadCount?: number;
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
@@ -275,6 +282,13 @@ export function toQueueViewModel(
 		saveErrorCode: options?.saveErrorCode,
 		importFlash: options?.importFlash,
 		importSkipped: options?.importSkipped,
+		statusFlash: options?.statusFlash
+			? {
+				message: options.statusFlash.message,
+				undoUrl: `/queue/${options.statusFlash.undoArticleId}/status${returnQuery}`,
+				undoStatus: options.statusFlash.undoStatus,
+			}
+			: undefined,
 		subscriptionBanner: toSubscriptionBannerState(access, now),
 		accessIsReadOnly: access.access === "read-only",
 	};

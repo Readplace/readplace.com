@@ -16,6 +16,10 @@ interface QueueDisplayModel {
 	saveError?: string;
 	saveErrorCode?: string;
 	importFlash?: string;
+	hasStatusFlash: boolean;
+	statusFlashMessage?: string;
+	statusFlashUndoUrl?: string;
+	statusFlashUndoStatus?: string;
 	hasImportSkipped: boolean;
 	importSkippedEntries: ReadonlyArray<{ url: string; reasonLabel: string }>;
 	importSkippedAndMore?: number;
@@ -53,7 +57,7 @@ function filterLinkClass(isActive: boolean): string {
 }
 
 export function formatUnreadLabel(count: number): string {
-	return count > 99 ? "To read (99+)" : `To read (${count})`;
+	return count > 99 ? "To Read (99+)" : `To Read (${count})`;
 }
 
 function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: boolean; extensionSavedArticle: boolean; browser: BrowserName; onboardingDismissed: boolean }): QueueDisplayModel {
@@ -76,6 +80,10 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		saveError: vm.errors?.[0]?.message,
 		saveErrorCode: vm.saveErrorCode,
 		importFlash: vm.importFlash,
+		hasStatusFlash: Boolean(vm.statusFlash),
+		statusFlashMessage: vm.statusFlash?.message,
+		statusFlashUndoUrl: vm.statusFlash?.undoUrl,
+		statusFlashUndoStatus: vm.statusFlash?.undoStatus,
 		hasImportSkipped: Boolean(vm.importSkipped && vm.importSkipped.entries.length > 0),
 		importSkippedEntries: vm.importSkipped?.entries ?? [],
 		importSkippedAndMore: vm.importSkipped?.andMore,
@@ -111,6 +119,16 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 	};
 }
 
+const TOAST_DISMISS_SCRIPT = `
+<script>
+	(function () {
+		var toast = document.querySelector('[data-test-status-toast]');
+		if (!toast) return;
+		setTimeout(function () { toast.remove(); }, 6000);
+	})();
+</script>
+`;
+
 const AUTO_SUBMIT_SCRIPT = `
 <script>
 	(function () {
@@ -134,6 +152,7 @@ export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; exte
 
 	const scriptParts: string[] = [];
 	if (saveUrl) scriptParts.push(AUTO_SUBMIT_SCRIPT);
+	if (vm.statusFlash) scriptParts.push(TOAST_DISMISS_SCRIPT);
 
 	return {
 		seo: {

@@ -12,13 +12,14 @@
 			<span>{{savedAgo}}</span>
 		</div>
 		<p class="queue-article__excerpt">{{excerpt}}</p>
+		{{#if isProcessing}}<p class="queue-article__processing" data-test-processing>Processing…</p>{{/if}}
 		{{#if isStalePending}}<p class="queue-article__stale-pending" data-test-stale-pending>Taking a while — <a href="{{url}}" target="_blank" rel="noopener">open on {{#if siteName}}{{siteName}}{{else}}the source{{/if}}</a></p>{{/if}}
 	</div>
 	<div class="queue-article__actions">
 		{{#each actions}}
 		<form method="{{method}}" action="{{url}}" class="queue-article__action-form" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
 			{{#each fields}}<input type="hidden" name="{{name}}" value="{{value}}">{{/each}}
-			<button class="{{buttonClass}}" type="submit" title="{{title}}" data-test-action="{{testAction}}">{{text}}</button>
+			<button class="{{buttonClass}}" type="submit" title="{{title}}" data-test-action="{{testAction}}"{{#if disabled}} disabled{{/if}}>{{text}}</button>
 		</form>
 		{{/each}}
 	</div>
