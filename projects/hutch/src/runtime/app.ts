@@ -318,9 +318,9 @@ function initProviders() {
 		crawlArticle, // dev: crawlArticle is built with extractPdf, so PDFs extract inline
 		finalizeArticle,
 	});
-	const finaliseSummaryFromContent = async (params: { url: string; textContent: string }) => {
+	const finaliseSummaryFromContent = async (params: { url: string; html: string }) => {
 		await summaryStore.markSummaryPending({ url: params.url });
-		const summary = devSummariseInline({ textContent: params.textContent });
+		const summary = devSummariseInline({ html: params.html });
 		if (summary.kind === "ready") {
 			await summaryStore.markSummaryReady({ url: params.url, summary: summary.summary, excerpt: summary.excerpt });
 			return;
@@ -340,7 +340,7 @@ function initProviders() {
 		if (result.status === "not-modified") return;
 		await articleStore.writeContent({ url, content: result.article.html });
 		await crawlStore.markCrawlReady({ url });
-		await finaliseSummaryFromContent({ url, textContent: result.article.html });
+		await finaliseSummaryFromContent({ url, html: result.article.html });
 	};
 	const { publishLinkSaved: logOnlyPublishLinkSaved } = initInMemoryLinkSaved({ logger: consoleLogger });
 	const publishLinkSaved: typeof logOnlyPublishLinkSaved = async (params) => {
