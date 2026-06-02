@@ -15,7 +15,7 @@ const QUEUE_TEMPLATE = readFileSync(join(__dirname, "queue.template.html"), "utf
 
 /** Long enough to read the message and reach for Undo, short enough not to
  * linger; the global toast.client script removes it after this delay. */
-const STATUS_TOAST_DISMISS_MS = 8000;
+const STATUS_TOAST_DISMISS_MS = 6000;
 
 interface QueueDisplayModel {
 	saveError?: string;

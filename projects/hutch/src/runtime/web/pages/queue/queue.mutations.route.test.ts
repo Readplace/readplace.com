@@ -317,7 +317,7 @@ describe("Queue routes", () => {
 			const toastDoc = new JSDOM(toastResponse.text).window.document;
 			const toast = toastDoc.querySelector("[data-test-toast]");
 			assert(toast, "status toast must render");
-			expect(toast.getAttribute("data-dismiss")).toBe("8000");
+			expect(toast.getAttribute("data-dismiss")).toBe("6000");
 			expect(toast.querySelector("[data-test-toast-message]")?.textContent).toBe("Marked as read");
 
 			const undoForm = toast.querySelector("[data-test-toast-action]")?.closest("form");
