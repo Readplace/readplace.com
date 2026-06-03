@@ -28,6 +28,15 @@ function counterHtml(expiresAt: string): string {
 	</aside>`;
 }
 
+function paywallHtml(): string {
+	return `<div class="view__paywall view__paywall--inactive" data-view-paywall data-test-view-paywall data-paywall-active="false">
+		<div class="view__paywall-fade"></div>
+		<div class="view__paywall-modal">
+			<a class="view__paywall-save" href="/save?url=https%3A%2F%2Fexample.com%2Fpost" data-test-view-paywall-save>Save to My Queue</a>
+		</div>
+	</div>`;
+}
+
 interface FakeTimers {
 	now: number;
 	advance(ms: number): void;
@@ -240,6 +249,27 @@ describe("initExpiryCounter", () => {
 		assert.equal(counter.classList.contains("view__expiry--expired"), true);
 		assert.equal(counter.classList.contains("view__expiry--counting"), false);
 		assert.equal(state.pending().length, 0);
+	});
+
+	it("reveals the inactive paywall overlay when the deadline passes", () => {
+		const startMs = Date.parse("2026-05-01T00:00:00.000Z");
+		const expiresAt = "2026-05-01T00:00:05.000Z";
+		const doc = makeDoc(counterHtml(expiresAt) + paywallHtml());
+		const { state, setIntervalFn, clearIntervalFn } = createFakeTimers(startMs);
+		initExpiryCounter({
+			document: doc,
+			now: () => state.now,
+			setIntervalFn,
+			clearIntervalFn,
+		});
+
+		state.advance(6 * 1000);
+
+		const paywall = doc.querySelector("[data-view-paywall]");
+		assert(paywall, "paywall overlay must remain in the DOM");
+		assert.equal(paywall.getAttribute("data-paywall-active"), "true");
+		assert.equal(paywall.classList.contains("view__paywall--active"), true);
+		assert.equal(paywall.classList.contains("view__paywall--inactive"), false);
 	});
 
 	it("stop() is idempotent — calling it twice does not throw", () => {

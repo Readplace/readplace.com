@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type {
@@ -49,6 +50,24 @@ const VIEW_TEMPLATE = readFileSync(
 	join(__dirname, "view.template.html"),
 	"utf-8",
 );
+
+const VIEW_PAYWALL_TEMPLATE = readFileSync(
+	join(__dirname, "view-paywall.template.html"),
+	"utf-8",
+);
+
+/** The "Public access expired" paywall fades the bottom 40% of the reader
+ * region to background and urges the visitor to save the link to their own
+ * queue. `active` ships the visible (expired) state; an inactive overlay rides
+ * along on a still-counting page so expiry-counter.client.ts can reveal it the
+ * instant the deadline passes, without a reload. */
+function renderViewPaywall(input: { active: boolean; saveHref: string }): string {
+	return render(VIEW_PAYWALL_TEMPLATE, {
+		paywallStateClass: input.active ? "active" : "inactive",
+		paywallActive: input.active,
+		saveHref: input.saveHref,
+	});
+}
 
 export interface ViewAction {
 	name: string;
@@ -132,11 +151,29 @@ export function ViewPage(input: ViewPageInput): PageBody {
 
 	const expiry = buildExpiryFields(input.expiresAt, input.now);
 
+	const primarySaveAction = input.actions.find(
+		(action) => action.variant === "primary",
+	);
+	assert(primarySaveAction, "view must render a primary Save action");
+
+	/* The paywall only exists for a non-permanent, fully-rendered reader: a
+	 * permanent page (prod, authenticated, founder syndication, valid sharer)
+	 * emits nothing new, and a pending/failed crawl already shows its own
+	 * "Your link is saved" reframe that must not be blurred. */
+	const paywall =
+		expiry.state !== "permanent" && input.crawl?.status === "ready"
+			? renderViewPaywall({
+					active: expiry.state === "expired",
+					saveHref: primarySaveAction.href,
+				})
+			: "";
+
 	const content = render(VIEW_TEMPLATE, {
 		innerContent,
 		articleUrl: input.articleUrl,
 		actions: input.actions,
 		shareBalloon,
+		paywall,
 		expiryState: expiry.state,
 		expiryMessage: expiry.message,
 		expiresAtIso: expiry.expiresAtIso,

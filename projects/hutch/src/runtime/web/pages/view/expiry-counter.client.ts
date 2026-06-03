@@ -58,6 +58,18 @@ export function withSaveUtmContent(href: string, stamp: string): string {
 	return url.toString();
 }
 
+/** Flip the SSR-inactive paywall overlay to its visible state when a counting
+ * page crosses its deadline while the tab is open. The SSR-already-expired case
+ * ships `--active` and needs no JS; pages without an overlay (authenticated,
+ * permanent, prod, not-ready) have no element and no-op. */
+function revealPaywall(document: Document): void {
+	const paywall = document.querySelector("[data-view-paywall]");
+	if (paywall === null) return;
+	paywall.classList.remove("view__paywall--inactive");
+	paywall.classList.add("view__paywall--active");
+	paywall.setAttribute("data-paywall-active", "true");
+}
+
 const NOOP_CONTROLLER: ExpiryCounterController = { stop() {} };
 
 export function initExpiryCounter(deps: ExpiryCounterDeps): ExpiryCounterController {
@@ -97,6 +109,7 @@ export function initExpiryCounter(deps: ExpiryCounterDeps): ExpiryCounterControl
 			counter.setAttribute("data-expiry-state", "expired");
 			counter.classList.remove("view__expiry--counting");
 			counter.classList.add("view__expiry--expired");
+			revealPaywall(deps.document);
 			stop();
 			return;
 		}

@@ -187,7 +187,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		const now = deps.now();
 
 		let expiresAt: Date | null = null;
-		if (deps.expiryCountdown === "enabled") {
+		if (deps.expiryCountdown === "enabled" && req.userId === undefined) {
 			const sharerPrefix = sharedUserIdFromQueryParams(utmContent);
 			const isValidSharer = sharerPrefix !== null && await deps.existsUserByIdPrefix(sharerPrefix);
 			const articleDomain = new URL(articleUrl).hostname;
