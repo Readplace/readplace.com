@@ -1538,5 +1538,107 @@ describe("View routes", () => {
 			const shareUrl = new URL(shareBtn.getAttribute("data-share-url") ?? "");
 			expect(shareUrl.searchParams.get("utm_content")).toBe(null);
 		});
+
+		async function seedReadyArticle(
+			fixture: ReturnType<typeof createDefaultTestAppFixture>,
+			savedAt: Date,
+		): Promise<void> {
+			await fixture.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: {
+					title: "Hello World",
+					siteName: "example.com",
+					excerpt: "A lovely article.",
+					wordCount: 500,
+				},
+				estimatedReadTime: calculateReadTime(500),
+				savedAt,
+			});
+			await fixture.articleStore.writeContent({
+				url: ARTICLE_URL,
+				content: "<p>Body copy.</p>",
+			});
+			await fixture.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+		}
+
+		it("blurs an expired anonymous reader behind the active paywall overlay", async () => {
+			const now = new Date("2026-05-10T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			await seedReadyArticle(fixture, new Date("2026-05-01T00:00:00.000Z"));
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			expect(counter.getAttribute("data-expiry-state")).toBe("expired");
+
+			const paywall = doc.querySelector("[data-test-view-paywall]");
+			assert(paywall, "paywall must be rendered for an expired anonymous reader");
+			expect(paywall.getAttribute("data-paywall-active")).toBe("true");
+			expect(paywall.classList.contains("view__paywall--active")).toBe(true);
+		});
+
+		it("ships the paywall inactive for an anonymous reader still counting down", async () => {
+			const now = new Date("2026-05-04T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			await seedReadyArticle(fixture, new Date("2026-05-03T13:54:27.000Z"));
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			expect(counter.getAttribute("data-expiry-state")).toBe("counting");
+
+			const paywall = doc.querySelector("[data-test-view-paywall]");
+			assert(paywall, "paywall element must be present while counting");
+			expect(paywall.getAttribute("data-paywall-active")).toBe("false");
+			expect(paywall.classList.contains("view__paywall--inactive")).toBe(true);
+		});
+
+		it("never blurs or counts down for an authenticated reader (full article, permanent state)", async () => {
+			const now = new Date("2026-05-10T00:00:00.000Z");
+			const { fixture, harness } = makeHarness(now);
+			await harness.auth.createUser({
+				email: "reader@example.com",
+				password: "password123",
+			});
+			await seedReadyArticle(fixture, new Date("2026-05-01T00:00:00.000Z"));
+
+			const agent = request.agent(harness.server);
+			await agent
+				.post("/login")
+				.type("form")
+				.send({ email: "reader@example.com", password: "password123" });
+
+			const response = await agent.get(`/view/${CANONICAL_PATH}`);
+
+			const doc = new JSDOM(response.text).window.document;
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			expect(counter.getAttribute("data-expiry-state")).toBe("permanent");
+
+			expect(doc.querySelectorAll("[data-test-view-paywall]").length).toBe(0);
+
+			const iframe = doc.querySelector("iframe[data-reader-iframe]");
+			assert(iframe, "authenticated reader must see the full article iframe");
+		});
+
+		it("never blurs a permanent-domain article", async () => {
+			const now = new Date("2026-05-04T00:00:00.000Z");
+			const { harness } = makeHarness(now);
+
+			const response = await request(harness.server).get(
+				`/view/${PERMANENT_CANONICAL_PATH}`,
+			);
+
+			const doc = new JSDOM(response.text).window.document;
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			expect(counter.getAttribute("data-expiry-state")).toBe("permanent");
+
+			expect(doc.querySelectorAll("[data-test-view-paywall]").length).toBe(0);
+		});
 	});
 });

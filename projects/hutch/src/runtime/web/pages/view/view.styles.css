@@ -102,3 +102,112 @@
   color: var(--color-error);
 }
 /* purgecss-ignore-end */
+
+.view__body {
+  position: relative;
+}
+
+/**
+ * 1. Covers the bottom 40% of the reader region. reader-iframe.client.ts sizes
+ *    the srcdoc iframe to the full article height, so 40% of .view__body maps
+ *    to the last 40% of the article.
+ * 2. Sits above the iframe content but below the sticky CTA (z 10) and share
+ *    row (z 11) so the footer Save button and share balloon stay clickable.
+ * 3. The overlay itself is inert so the top 60% scrolls/selects; only the modal
+ *    re-enables pointer events.
+ */
+.view__paywall {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 40%; /* 1 */
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 5; /* 2 */
+  pointer-events: none; /* 3 */
+}
+
+/**
+ * 1. The gradient to var(--color-background) is the guaranteed obscuring layer
+ *    across the srcdoc iframe boundary; backdrop blur is enhancement only —
+ *    pure backdrop-filter is unreliable over an iframe.
+ */
+.view__paywall-fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--color-background) 55%,
+    var(--color-background) 100%
+  ); /* 1 */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.view__paywall-modal {
+  position: relative;
+  pointer-events: auto;
+  margin-bottom: 1.5rem;
+  max-width: var(--reader-max-width);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.view__paywall-heading {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.view__paywall-body {
+  margin: 0 0 1.25rem;
+  font-size: 0.9375rem;
+  color: var(--color-text-secondary);
+}
+
+.view__paywall-save {
+  display: inline-block;
+  box-sizing: border-box;
+  padding: 0.875rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+  border: 1px solid var(--color-brand);
+  border-radius: 8px;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: filter 150ms ease;
+}
+
+.view__paywall-save:hover {
+  filter: brightness(1.05);
+}
+
+.view__paywall-save:active {
+  filter: brightness(0.95);
+}
+
+/* purgecss-ignore-start: modifier suffix is interpolated from paywallStateClass in view-paywall.template.html and toggled in expiry-counter.client.ts */
+.view__paywall--inactive {
+  display: none;
+}
+
+.view__paywall--active {
+  display: flex;
+}
+/* purgecss-ignore-end */
+
+@media (prefers-reduced-motion: reduce) {
+  .view__paywall-save {
+    transition: none;
+  }
+}

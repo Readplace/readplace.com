@@ -515,6 +515,88 @@ describe("ViewPage", () => {
 			assert.equal(data.url, canonical);
 		});
 	});
+
+	describe("public access paywall", () => {
+		const now = new Date("2026-05-01T00:00:00.000Z");
+		const readyInput: ViewPageInput = {
+			...baseInput,
+			crawl: { status: "ready" },
+		};
+
+		it("renders the active paywall overlay for an anonymous, expired, ready article", () => {
+			const expiresAt = new Date("2026-04-30T23:59:59.000Z");
+			const doc = render({ ...readyInput, expiresAt, now });
+
+			const paywall = doc.querySelector("[data-test-view-paywall]");
+			assert(paywall, "paywall must be rendered for an expired ready article");
+			assert.equal(paywall.getAttribute("data-paywall-active"), "true");
+			assert(
+				paywall.classList.contains("view__paywall--active"),
+				"expired paywall must apply the active modifier",
+			);
+
+			const heading = paywall.querySelector("#view-paywall-heading");
+			assert(heading, "paywall heading must be rendered");
+			assert.equal(heading.textContent, "Public access expired");
+
+			const body = paywall.querySelector(".view__paywall-body");
+			assert(body, "paywall body must be rendered");
+			assert.equal(
+				body.textContent,
+				"Save this link to your readplace queue to see the full content.",
+			);
+
+			const save = paywall.querySelector("[data-test-view-paywall-save]");
+			assert(save, "paywall save button must be rendered");
+			assert.equal(
+				save.getAttribute("href"),
+				"/save?url=https%3A%2F%2Fexample.com%2Fpost",
+			);
+			assert.equal(save.textContent, "Save to My Queue");
+		});
+
+		it("renders the paywall inactive while the article is still counting down", () => {
+			const expiresAt = new Date("2026-05-03T10:05:33.000Z");
+			const doc = render({ ...readyInput, expiresAt, now });
+
+			const paywall = doc.querySelector("[data-test-view-paywall]");
+			assert(
+				paywall,
+				"paywall element must be present while counting so the client can reveal it live",
+			);
+			assert.equal(paywall.getAttribute("data-paywall-active"), "false");
+			assert(
+				paywall.classList.contains("view__paywall--inactive"),
+				"counting paywall must apply the inactive modifier",
+			);
+		});
+
+		it("omits the paywall when the crawl is not ready, even after access expires", () => {
+			const expiresAt = new Date("2026-04-30T23:59:59.000Z");
+			const doc = render({
+				...baseInput,
+				crawl: { status: "failed", reason: "blocked" },
+				expiresAt,
+				now,
+			});
+
+			const slot = doc.querySelector("[data-test-reader-slot]");
+			assert(slot, "reader slot must be rendered");
+			assert.equal(slot.getAttribute("data-reader-status"), "failed");
+
+			assert.equal(doc.querySelectorAll("[data-test-view-paywall]").length, 0);
+		});
+
+		it("omits the paywall for a permanent (non-expiring) article", () => {
+			const doc = render({ ...readyInput, expiresAt: null, now });
+
+			const counter = doc.querySelector("[data-test-view-expiry]");
+			assert(counter, "expiry element must be rendered");
+			assert.equal(counter.getAttribute("data-expiry-state"), "permanent");
+
+			assert.equal(doc.querySelectorAll("[data-test-view-paywall]").length, 0);
+		});
+	});
 });
 
 describe("buildExpiryFields", () => {
