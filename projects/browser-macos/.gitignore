@@ -1,6 +1,0 @@
-dist/
-dist-app/
-app/
-coverage/
-node_modules/
-*.tsbuildinfo
