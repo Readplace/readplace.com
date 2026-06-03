@@ -269,6 +269,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					method: "email",
 					tier: "free",
 					attribution: readClickAttribution(req),
+					visitorId: req.visitorId,
 				},
 			);
 			res.redirect(303, parseReturnUrl({ return: returnUrl }));
@@ -311,6 +312,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				method: "email",
 				tier: "trial",
 				attribution: readClickAttribution(req),
+				visitorId: req.visitorId,
 			},
 		);
 		res.redirect(303, parseReturnUrl({ return: returnUrl }));
@@ -392,6 +394,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					tier: "paid",
 					stripeCheckoutSessionId: checkoutSessionId,
 					attribution: readClickAttribution(req),
+					visitorId: req.visitorId,
 				},
 			);
 			res.redirect(303, returnPath);
@@ -444,6 +447,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				tier: "paid",
 				stripeCheckoutSessionId: checkoutSessionId,
 				attribution: readClickAttribution(req),
+				visitorId: req.visitorId,
 			},
 		);
 		res.redirect(303, returnPath);

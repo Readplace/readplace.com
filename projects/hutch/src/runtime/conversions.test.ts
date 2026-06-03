@@ -93,6 +93,26 @@ describe("emitUserCreated", () => {
 		});
 	});
 
+	it("includes visitor_id so the conversion joins to the pageview / view_opened stream for the same device", () => {
+		const { logger, captured } = createCapturingLogger();
+
+		emitUserCreated(
+			{ logger, now: TEST_NOW },
+			{
+				userId: TEST_USER_ID,
+				email: "e@example.com",
+				method: "email",
+				tier: "free",
+				attribution: undefined,
+				visitorId: "550e8400-e29b-41d4-a716-446655440000",
+			},
+		);
+
+		expect(captured[0]).toMatchObject({
+			visitor_id: "550e8400-e29b-41d4-a716-446655440000",
+		});
+	});
+
 	it("flattens click attribution into the event so downstream queries can group by utm_* without a join", () => {
 		const { logger, captured } = createCapturingLogger();
 		const attribution: ClickAttribution = {
@@ -174,5 +194,6 @@ describe("emitUserCreated", () => {
 		expect(serialized).not.toContain("referrer_host");
 		expect(serialized).not.toContain("first_seen_at");
 		expect(serialized).not.toContain("landing_path");
+		expect(serialized).not.toContain("visitor_id");
 	});
 });

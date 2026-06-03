@@ -2,11 +2,20 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer, loginAgent } from "../../../test-app";
+import type { ViewSaveIntentEvent } from "../../middleware/analytics";
 
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+
+const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
+
+function saveIntents(harness: { analytics: { events: Array<{ event: string }> } }): ViewSaveIntentEvent[] {
+	return harness.analytics.events.filter(
+		(e): e is ViewSaveIntentEvent => e.event === "view_save_intent",
+	);
+}
 
 const useApp = useTestServer();
 
@@ -201,6 +210,48 @@ describe("Save routes", () => {
 			expect(location.startsWith("/login")).toBe(true);
 			const returnParam = new URL(`http://localhost${location}`).searchParams.get("return");
 			expect(returnParam).toBe("/save?url=https://example.com/article&utm_source=medium");
+		});
+	});
+
+	describe("view_save_intent analytics emission", () => {
+		it("emits one view_save_intent for an anonymous save click before redirecting to /login — the warmest funnel moment that otherwise vanishes into the sign-in page", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).get("/save?url=https://example.com/article");
+
+			expect(response.status).toBe(303);
+			const intents = saveIntents(harness);
+			assert.equal(intents.length, 1, "exactly one view_save_intent");
+			expect(intents[0]).toMatchObject({
+				stream: "analytics",
+				event: "view_save_intent",
+				path: "/save",
+				article_host: "example.com",
+				is_authenticated: 0,
+			});
+			expect(typeof intents[0].visitor_id).toBe("string");
+			expect(typeof intents[0].visitor_hash).toBe("string");
+		});
+
+		it("does not emit view_save_intent for a bot user-agent (keeps the funnel free of crawler-followed Save links)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.get("/save?url=https://example.com/article")
+				.set("User-Agent", GOOGLEBOT);
+
+			expect(response.status).toBe(303);
+			assert.equal(saveIntents(harness).length, 0, "no view_save_intent for a bot");
+		});
+
+		it("does not emit view_save_intent for an authenticated save (that path goes straight to the queue, not the funnel)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/save?url=https://example.com/article");
+
+			expect(response.status).toBe(303);
+			assert.equal(saveIntents(harness).length, 0, "no view_save_intent when already authenticated");
 		});
 	});
 });

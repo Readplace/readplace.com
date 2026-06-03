@@ -18,6 +18,9 @@ import {
 } from "@packages/test-fixtures";
 import { calculateReadTime } from "@packages/domain/article";
 import { MAX_POLLS } from "../../shared/article-reader/article-reader";
+import type { ViewOpenedEvent } from "../../middleware/analytics";
+
+const GOOGLEBOT = "Googlebot/2.1 (+http://www.google.com/bot.html)";
 
 const ARTICLE_URL = "https://example.com/post";
 const ENCODED = encodeURIComponent(ARTICLE_URL);
@@ -51,6 +54,31 @@ function ctaAction(doc: Document): Element {
 }
 
 const useApp = useTestServer();
+
+function buildReaderHarness() {
+	const parseArticle: ParseArticle = async () => buildParseResult();
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	const applyParseResult = createFakeApplyParseResult({
+		articleStore: fixture.articleStore,
+		articleCrawl: fixture.articleCrawl,
+		parseArticle,
+	});
+	return useApp({
+		...fixture,
+		parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
+		events: {
+			publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+			publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+			publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+			publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+			publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+			publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+			publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+		},
+	});
+}
 
 describe("View routes", () => {
 	describe("GET /view/<canonical-url>", () => {
@@ -507,6 +535,57 @@ describe("View routes", () => {
 			expect(parsed.searchParams.get("utm_source")).toBe("view-article");
 			expect(parsed.searchParams.get("utm_medium")).toBe("internal");
 			expect(parsed.searchParams.get("utm_content")).toBe("paste-another-link");
+		});
+	});
+
+	describe("view_opened analytics emission", () => {
+		it("emits one view_opened with the article host and a joinable visitor_id when an anonymous visitor opens the reader", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+
+			expect(response.status).toBe(200);
+			const events = harness.analytics.events.filter(
+				(e): e is ViewOpenedEvent => e.event === "view_opened",
+			);
+			assert.equal(events.length, 1, "exactly one view_opened");
+			expect(events[0]).toMatchObject({
+				stream: "analytics",
+				event: "view_opened",
+				path: `/view/${CANONICAL_PATH}`,
+				article_host: "example.com",
+				is_authenticated: 0,
+			});
+			expect(typeof events[0].visitor_id).toBe("string");
+			expect(typeof events[0].visitor_hash).toBe("string");
+		});
+
+		it("marks view_opened is_authenticated=1 when a logged-in viewer opens a public reader", async () => {
+			const harness = buildReaderHarness();
+			await harness.auth.createUser({ email: "reader@example.com", password: "password123" });
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({ email: "reader@example.com", password: "password123" });
+
+			const response = await agent.get(`/view/${CANONICAL_PATH}`);
+
+			expect(response.status).toBe(200);
+			const events = harness.analytics.events.filter(
+				(e): e is ViewOpenedEvent => e.event === "view_opened",
+			);
+			assert.equal(events.length, 1, "exactly one view_opened");
+			expect(events[0].is_authenticated).toBe(1);
+		});
+
+		it("does not emit view_opened for a bot user-agent so the try funnel is not inflated by crawlers", async () => {
+			const harness = buildReaderHarness();
+
+			const response = await request(harness.server)
+				.get(`/view/${CANONICAL_PATH}`)
+				.set("User-Agent", GOOGLEBOT);
+
+			expect(response.status).toBe(200);
+			const events = harness.analytics.events.filter((e) => e.event === "view_opened");
+			assert.equal(events.length, 0, "no view_opened for a bot");
 		});
 	});
 

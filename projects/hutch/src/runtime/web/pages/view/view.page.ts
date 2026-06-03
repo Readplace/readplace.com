@@ -24,7 +24,11 @@ import type {
 	PublishSaveAnonymousLink,
 	PublishStaleCheckRequested,
 } from "@packages/test-fixtures/providers/events";
+import { isbot } from "isbot";
 import { decomposeTimeLeft } from "@packages/time-left";
+import type { HutchLogger } from "@packages/hutch-logger";
+import { hashIp, type AnalyticsEvent } from "../../middleware/analytics";
+import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import { wantsMarkdown } from "../../content-negotiation";
 import { CacheableComponent } from "../../conditional-get";
 import { htmlToMarkdown } from "../../html-to-markdown";
@@ -64,6 +68,8 @@ interface ViewDependencies {
 	expiryCountdown: ExpiryCountdown;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
+	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	salt: string;
 }
 
 async function renderError(deps: ViewDependencies, req: Request, res: Response): Promise<void> {
@@ -180,6 +186,20 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 			const articleMarkdown = state.content ? htmlToMarkdown(state.content) : "";
 			sendComponent(req, res, MarkdownPage(`${frontmatter}\n\n${articleMarkdown}`));
 			return;
+		}
+
+		if (!isbot(req.get("user-agent"))) {
+			assert(req.visitorId, "visitor-id middleware must run before the /view router");
+			deps.analytics.info({
+				stream: STREAMS.analytics,
+				event: ANALYTICS_EVENTS.viewOpened,
+				timestamp: deps.now().toISOString(),
+				path: originalPath,
+				article_host: hostnameFrom(articleUrl),
+				visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+				visitor_id: req.visitorId,
+				is_authenticated: req.userId ? 1 : 0,
+			});
 		}
 
 		const utmParams = collectUtmParams(req.query);

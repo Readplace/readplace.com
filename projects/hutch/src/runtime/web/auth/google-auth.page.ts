@@ -214,6 +214,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 					method: "google",
 					tier: "free",
 					attribution: readClickAttribution(req),
+					visitorId: req.visitorId,
 				},
 			);
 			res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
@@ -266,6 +267,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 				method: "google",
 				tier: "trial",
 				attribution: readClickAttribution(req),
+				visitorId: req.visitorId,
 			},
 		);
 		res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));

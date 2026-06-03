@@ -23,6 +23,7 @@ interface MockReqOverrides {
 	ip?: string;
 	query?: Record<string, unknown>;
 	headers?: Record<string, string | undefined>;
+	visitorId?: string;
 }
 
 function createReq(overrides: MockReqOverrides = {}): Request {
@@ -36,6 +37,7 @@ function createReq(overrides: MockReqOverrides = {}): Request {
 		ip: overrides.ip ?? "1.2.3.4",
 		query: overrides.query ?? {},
 		headers,
+		visitorId: overrides.visitorId,
 		get(name: string): string | undefined { return headers[name.toLowerCase()]; },
 	};
 	return base as unknown as Request;
@@ -76,8 +78,15 @@ describe("createAnalyticsMiddleware", () => {
 			timestamp: "2026-04-21T10:00:00.000Z",
 			path: "/queue",
 			visitor_hash: expect.any(String),
+			visitor_id: null,
 			is_authenticated: 0,
 		});
+	});
+
+	it("carries the first-party visitor_id when the visitor-id middleware has set req.visitorId, so the pageview joins to the conversion stream", () => {
+		const req = createReq({ visitorId: "550e8400-e29b-41d4-a716-446655440000" });
+		const [event] = runMiddleware(req, createRes(200));
+		expect(event.visitor_id).toBe("550e8400-e29b-41d4-a716-446655440000");
 	});
 
 	it("includes utm_* keys only for provided params (JSON wire shape, not in-memory object — {utm_campaign: undefined} drops from the JSON but still appears as a key in JS)", () => {

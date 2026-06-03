@@ -1,10 +1,15 @@
+import assert from "node:assert";
 import type { Router } from "express";
 import express from "express";
 import { z } from "zod";
+import { isbot } from "isbot";
+import type { HutchLogger } from "@packages/hutch-logger";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "../../send-component";
 import { collectUtmParams } from "../../shared/utm";
+import { hashIp, type AnalyticsEvent } from "../../middleware/analytics";
+import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import { SaveErrorPage } from "./save-error.component";
 
 const SaveUrlSchema = z.url();
@@ -15,7 +20,12 @@ function parseUrl(raw: unknown): string | undefined {
 	return parsed.success ? parsed.data : undefined;
 }
 
-export function initSaveRoutes(deps: { buildBannerState: BuildBannerState }): Router {
+export function initSaveRoutes(deps: {
+	buildBannerState: BuildBannerState;
+	analytics: HutchLogger.Typed<AnalyticsEvent>;
+	salt: string;
+	now: () => Date;
+}): Router {
 	const router = express.Router();
 
 	router.get("/", async (req, res) => {
@@ -29,6 +39,19 @@ export function initSaveRoutes(deps: { buildBannerState: BuildBannerState }): Ro
 		}
 
 		if (!req.userId) {
+			if (!isbot(req.get("user-agent"))) {
+				assert(req.visitorId, "visitor-id middleware must run before /save");
+				deps.analytics.info({
+					stream: STREAMS.analytics,
+					event: ANALYTICS_EVENTS.viewSaveIntent,
+					timestamp: deps.now().toISOString(),
+					path: req.baseUrl,
+					article_host: new URL(url).hostname,
+					visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+					visitor_id: req.visitorId,
+					is_authenticated: 0,
+				});
+			}
 			res.redirect(303, `/login?return=${encodeURIComponent(req.originalUrl)}`);
 			return;
 		}

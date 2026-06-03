@@ -16,4 +16,5 @@ export interface ConversionEvent {
 	first_seen_at?: string;
 	landing_path?: string;
 	stripe_checkout_session_id?: string;
+	visitor_id?: string;
 }

@@ -28,6 +28,7 @@ export function emitUserCreated(
 		tier: "free" | "paid" | "trial";
 		stripeCheckoutSessionId?: string;
 		attribution: ClickAttribution | undefined;
+		visitorId?: string;
 	},
 ): void {
 	const event: ConversionEvent = {
@@ -42,6 +43,7 @@ export function emitUserCreated(
 			? { stripe_checkout_session_id: params.stripeCheckoutSessionId }
 			: {}),
 		...(params.attribution ?? {}),
+		...(params.visitorId ? { visitor_id: params.visitorId } : {}),
 	};
 	deps.logger.info(event);
 }
