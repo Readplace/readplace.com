@@ -49,5 +49,3 @@ Plenty of reading apps promise privacy on the marketing page, then load Google A
 You do not have to take my word for any of this. Open your browser's developer tools, load readplace.com, and read the network and cookie tabs. Count what loads. Count what gets set.
 
 Then start a queue and watch how little it costs you. Save your first article at [readplace.com](/).
-</content>
-</invoke>
