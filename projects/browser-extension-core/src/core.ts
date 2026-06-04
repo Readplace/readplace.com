@@ -33,7 +33,7 @@ export interface Core {
 	logout(): void;
 	save(
 		resource: "current-tab",
-		data: { url: string; title: string; rawHtml?: string; pdfBytes?: ArrayBuffer },
+		data: { url: string; title: string; content?: { bytes: ArrayBuffer; mediaType: string } },
 	): void;
 	remove(resource: "item", data: { id: ReadingListItemId }): void;
 	fetch(resource: "reading-list"): void;
@@ -158,8 +158,7 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 				saveCurrentTab({
 					url: data.url,
 					title: data.title,
-					rawHtml: data.rawHtml,
-					pdfBytes: data.pdfBytes,
+					content: data.content,
 				}),
 			);
 			emitResult("saved-current-tab", guarded);

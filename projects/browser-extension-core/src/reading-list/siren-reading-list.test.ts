@@ -1404,10 +1404,14 @@ describe("save-content action", () => {
 				}
 				return { blob: new Blob([bytes], { type: input.mediaType }), filename: "content" };
 			},
-			"text/html": (input: Record<string, string>) => ({
-				blob: new Blob([input.rawHtml], { type: "text/html" }),
-				filename: "content.html",
-			}),
+			"text/html": (input: Record<string, string>) => {
+				const binaryString = atob(input.contentBase64);
+				const bytes = new Uint8Array(binaryString.length);
+				for (let i = 0; i < binaryString.length; i += 1) {
+					bytes[i] = binaryString.charCodeAt(i);
+				}
+				return { blob: new Blob([bytes], { type: "text/html" }), filename: "content.html" };
+			},
 		};
 	}
 
@@ -1466,7 +1470,7 @@ describe("save-content action", () => {
 		expect(Array.from(roundTripped)).toEqual(Array.from(pdfBytes));
 	});
 
-	it("POSTs HTML content as text via rawHtml field, returns the saved item", async () => {
+	it("POSTs HTML content as bytes via contentBase64 field, returns the saved item", async () => {
 		const savedAt = "2026-01-15T10:00:00.000Z";
 		let capturedBody: FormData | undefined;
 		const { fetchFn, calls } = createRoutingFetch(
@@ -1484,10 +1488,11 @@ describe("save-content action", () => {
 		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
 		const collection = await start();
 
+		const htmlBytes = new TextEncoder().encode("<html><body>Hello</body></html>");
 		const result = await collection.actions["save-content"]({
 			url: "https://example.com/article",
 			mediaType: "text/html",
-			rawHtml: "<html><body>Hello</body></html>",
+			contentBase64: bytesToBase64(htmlBytes),
 			title: "Hello Page",
 		});
 
@@ -1544,7 +1549,7 @@ describe("save-content action", () => {
 		const result = await collection.actions["save-content"]({
 			url: "https://example.com/article",
 			mediaType: "text/html",
-			rawHtml: "<html>big content</html>",
+			contentBase64: bytesToBase64(new TextEncoder().encode("<html>big content</html>")),
 		});
 
 		expect(result.items[0].id).toBe("article-1");
@@ -1593,7 +1598,7 @@ describe("save-content action", () => {
 		await collection.actions["save-content"]({
 			url: "https://example.com/article",
 			mediaType: "text/html",
-			rawHtml: "<html>content</html>",
+			contentBase64: bytesToBase64(new TextEncoder().encode("<html>content</html>")),
 			title: "My Title",
 		});
 
@@ -1619,7 +1624,7 @@ describe("save-content action", () => {
 			collection.actions["save-content"]({
 				url: "https://example.com/article",
 				mediaType: "text/html",
-				rawHtml: "<html>x</html>",
+				contentBase64: bytesToBase64(new TextEncoder().encode("<html>x</html>")),
 			}),
 		).rejects.toThrow("Save failed: 500");
 	});
@@ -1646,7 +1651,7 @@ describe("save-content action", () => {
 			collection.actions["save-content"]({
 				url: "https://example.com/article",
 				mediaType: "text/html",
-				rawHtml: "<html>x</html>",
+				contentBase64: bytesToBase64(new TextEncoder().encode("<html>x</html>")),
 			}),
 		).rejects.toThrow("Save failed: 422");
 	});
@@ -1674,7 +1679,7 @@ describe("save-content action", () => {
 			collection.actions["save-content"]({
 				url: "https://example.com/article",
 				mediaType: "text/html",
-				rawHtml: "<html>x</html>",
+				contentBase64: bytesToBase64(new TextEncoder().encode("<html>x</html>")),
 			}),
 		).rejects.toThrow("Save failed: 422");
 	});
@@ -1715,7 +1720,7 @@ describe("save-content action", () => {
 		const result = await collection.actions["save-content"]({
 			url: "https://example.com/article",
 			mediaType: "text/html",
-			rawHtml: "<html>x</html>",
+			contentBase64: bytesToBase64(new TextEncoder().encode("<html>x</html>")),
 		});
 		expect(result.items[0].id).toBe("article-1");
 		expect(fallbackHeaders?.["Content-Type"]).toBe("application/json");
@@ -1755,7 +1760,7 @@ describe("initSirenReadingList capability negotiation", () => {
 		});
 	}
 
-	it("prefers save-html when rawHtml is provided AND the server advertises save-html", async () => {
+	it("prefers save-html when content is text/html AND the server advertises save-html", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
 			withEntryPoint({
 				"GET http://localhost:3000/queue": {
@@ -1772,14 +1777,14 @@ describe("initSirenReadingList capability negotiation", () => {
 		const result = await list.saveUrl({
 			url: "https://example.com/article",
 			title: "Captured Article",
-			rawHtml: "<html>captured</html>",
+			content: { bytes: new TextEncoder().encode("<html>captured</html>").buffer, mediaType: "text/html" },
 		});
 		assert.equal(result.ok, true);
 		expect(calls).toContain("POST http://localhost:3000/queue/save-html");
 		expect(calls).not.toContain("POST http://localhost:3000/queue");
 	});
 
-	it("falls back to save-article when rawHtml is provided but save-html is not advertised", async () => {
+	it("falls back to save-article when content is text/html but save-html is not advertised", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
 			withEntryPoint({
 				"GET http://localhost:3000/queue": {
@@ -1796,14 +1801,14 @@ describe("initSirenReadingList capability negotiation", () => {
 		const result = await list.saveUrl({
 			url: "https://example.com/article",
 			title: "Captured Article",
-			rawHtml: "<html>captured</html>",
+			content: { bytes: new TextEncoder().encode("<html>captured</html>").buffer, mediaType: "text/html" },
 		});
 		assert.equal(result.ok, true);
 		expect(calls).toContain("POST http://localhost:3000/queue");
 		expect(calls).not.toContain("POST http://localhost:3000/queue/save-html");
 	});
 
-	it("uses save-article when rawHtml is missing even if save-html is advertised", async () => {
+	it("uses save-article when content is missing even if save-html is advertised", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
 			withEntryPoint({
 				"GET http://localhost:3000/queue": {
@@ -1826,7 +1831,7 @@ describe("initSirenReadingList capability negotiation", () => {
 		expect(calls).not.toContain("POST http://localhost:3000/queue/save-html");
 	});
 
-	it("prefers save-content with PDF when save-content is advertised and pdfBytes is provided", async () => {
+	it("prefers save-content when save-content is advertised and content is provided (PDF)", async () => {
 		const COLLECTION_WITH_CONTENT = [
 			COLLECTION_ACTIONS[0],
 			{
@@ -1866,7 +1871,7 @@ describe("initSirenReadingList capability negotiation", () => {
 		const result = await list.saveUrl({
 			url: "https://example.com/x.pdf",
 			title: "",
-			pdfBytes,
+			content: { bytes: pdfBytes, mediaType: "application/pdf" },
 		});
 		assert.equal(result.ok, true);
 		expect(calls).toContain("POST http://localhost:3000/queue/save-content");
@@ -1874,7 +1879,7 @@ describe("initSirenReadingList capability negotiation", () => {
 		expect(capturedBody.get("mediaType")).toBe("application/pdf");
 	});
 
-	it("prefers save-content with HTML when save-content is advertised and rawHtml is provided", async () => {
+	it("prefers save-content when save-content is advertised and content is provided (HTML)", async () => {
 		const COLLECTION_WITH_CONTENT = [
 			COLLECTION_ACTIONS[0],
 			{
@@ -1914,7 +1919,7 @@ describe("initSirenReadingList capability negotiation", () => {
 		const result = await list.saveUrl({
 			url: "https://example.com/article",
 			title: "Test Title",
-			rawHtml: "<html>captured</html>",
+			content: { bytes: new TextEncoder().encode("<html>captured</html>").buffer, mediaType: "text/html" },
 		});
 		assert.equal(result.ok, true);
 		expect(calls).toContain("POST http://localhost:3000/queue/save-content");
@@ -1924,7 +1929,7 @@ describe("initSirenReadingList capability negotiation", () => {
 		expect(capturedBody.get("title")).toBe("Test Title");
 	});
 
-	it("falls back to save-article when save-content is advertised but neither rawHtml nor pdfBytes is provided", async () => {
+	it("falls back to save-article when save-content is advertised but content is not provided", async () => {
 		const COLLECTION_WITH_CONTENT = [
 			COLLECTION_ACTIONS[0],
 			{

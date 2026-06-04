@@ -1,4 +1,4 @@
-import { captureActiveTabPdf } from "./capture-active-tab-pdf";
+import { captureActiveTabBytes } from "./capture-active-tab-bytes";
 
 function fakeFetch(body: ArrayBuffer, headers: Record<string, string> = {}, ok = true): typeof fetch {
 	return async (_url, _init) =>
@@ -11,37 +11,37 @@ function fakeFetch(body: ArrayBuffer, headers: Record<string, string> = {}, ok =
 
 const PDF_HEADER = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]);
 
-describe("captureActiveTabPdf", () => {
-	it("returns PDF bytes when content-type is application/pdf", async () => {
+describe("captureActiveTabBytes", () => {
+	it("returns bytes and mediaType for application/pdf", async () => {
 		const body = PDF_HEADER.buffer;
-		const result = await captureActiveTabPdf(
+		const result = await captureActiveTabBytes(
 			"https://example.com/doc.pdf",
 			fakeFetch(body, { "content-type": "application/pdf" }),
 		);
-		expect(result).toBe(body);
+		expect(result).toEqual({ bytes: body, mediaType: "application/pdf" });
 	});
 
-	it("returns PDF bytes when content-type is application/x-pdf", async () => {
-		const body = PDF_HEADER.buffer;
-		const result = await captureActiveTabPdf(
-			"https://example.com/doc.pdf",
-			fakeFetch(body, { "content-type": "application/x-pdf" }),
+	it("returns bytes and mediaType for text/plain", async () => {
+		const body = new TextEncoder().encode("hello").buffer;
+		const result = await captureActiveTabBytes(
+			"https://example.com/file.txt",
+			fakeFetch(body, { "content-type": "text/plain" }),
 		);
-		expect(result).toBe(body);
+		expect(result).toEqual({ bytes: body, mediaType: "text/plain" });
 	});
 
-	it("returns undefined when content-type is not PDF", async () => {
-		const body = PDF_HEADER.buffer;
-		const result = await captureActiveTabPdf(
-			"https://example.com/doc",
-			fakeFetch(body, { "content-type": "application/octet-stream" }),
+	it("strips charset params from content-type", async () => {
+		const body = new TextEncoder().encode("<html></html>").buffer;
+		const result = await captureActiveTabBytes(
+			"https://example.com/page",
+			fakeFetch(body, { "content-type": "text/html; charset=utf-8" }),
 		);
-		expect(result).toBeUndefined();
+		expect(result?.mediaType).toBe("text/html");
 	});
 
 	it("returns undefined when response is not ok", async () => {
 		const body = PDF_HEADER.buffer;
-		const result = await captureActiveTabPdf(
+		const result = await captureActiveTabBytes(
 			"https://example.com/doc.pdf",
 			fakeFetch(body, { "content-type": "application/pdf" }, false),
 		);
@@ -49,7 +49,7 @@ describe("captureActiveTabPdf", () => {
 	});
 
 	it("returns undefined when buffer is empty", async () => {
-		const result = await captureActiveTabPdf(
+		const result = await captureActiveTabBytes(
 			"https://example.com/doc.pdf",
 			fakeFetch(new ArrayBuffer(0), { "content-type": "application/pdf" }),
 		);
@@ -58,7 +58,7 @@ describe("captureActiveTabPdf", () => {
 
 	it("returns undefined when buffer exceeds 500 MiB", async () => {
 		const oversizeBuffer = { byteLength: 500 * 1024 * 1024 + 1 } as ArrayBuffer;
-		const result = await captureActiveTabPdf(
+		const result = await captureActiveTabBytes(
 			"https://example.com/doc.pdf",
 			async () =>
 				({
@@ -72,7 +72,7 @@ describe("captureActiveTabPdf", () => {
 
 	it("returns undefined when content-type header is missing", async () => {
 		const body = PDF_HEADER.buffer;
-		const result = await captureActiveTabPdf(
+		const result = await captureActiveTabBytes(
 			"https://example.com/doc",
 			fakeFetch(body),
 		);
@@ -80,7 +80,7 @@ describe("captureActiveTabPdf", () => {
 	});
 
 	it("returns undefined on network error", async () => {
-		const result = await captureActiveTabPdf(
+		const result = await captureActiveTabBytes(
 			"https://example.com/doc.pdf",
 			async () => { throw new Error("network error"); },
 		);
@@ -90,7 +90,7 @@ describe("captureActiveTabPdf", () => {
 	it("passes credentials include to fetch", async () => {
 		const calls: RequestInit[] = [];
 		const body = PDF_HEADER.buffer;
-		await captureActiveTabPdf(
+		await captureActiveTabBytes(
 			"https://example.com/doc.pdf",
 			async (_url, init) => {
 				calls.push(init ?? {});
@@ -107,7 +107,7 @@ describe("captureActiveTabPdf", () => {
 	it("passes abort signal to fetch", async () => {
 		const calls: RequestInit[] = [];
 		const body = PDF_HEADER.buffer;
-		await captureActiveTabPdf(
+		await captureActiveTabBytes(
 			"https://example.com/doc.pdf",
 			async (_url, init) => {
 				calls.push(init ?? {});

@@ -54,5 +54,7 @@ export {
 } from "./get-context-menu-target";
 export { installShortcuts, isCmdD } from "./keydown-shortcuts";
 export type { Shortcut } from "./keydown-shortcuts";
-export { captureActiveTabPdf } from "./capture-active-tab-pdf";
+export { captureActiveTabBytes } from "./capture-active-tab-bytes";
+export type { CapturedContent } from "./capture-active-tab-bytes";
+export type { TabContent } from "./reading-list/reading-list.types";
 

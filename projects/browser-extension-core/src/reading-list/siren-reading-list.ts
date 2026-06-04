@@ -579,8 +579,13 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 					return { blob: new Blob([bytes], { type: input.mediaType }), filename: "content" };
 				},
 				"text/html": (input) => {
-					assert(input.rawHtml, "HTML parser requires rawHtml");
-					return { blob: new Blob([input.rawHtml], { type: "text/html" }), filename: "content.html" };
+					assert(input.contentBase64, "HTML parser requires contentBase64");
+					const binaryString = atob(input.contentBase64);
+					const bytes = new Uint8Array(binaryString.length);
+					for (let i = 0; i < binaryString.length; i += 1) {
+						bytes[i] = binaryString.charCodeAt(i);
+					}
+					return { blob: new Blob([bytes], { type: "text/html" }), filename: "content.html" };
 				},
 			},
 		}),
@@ -608,35 +613,25 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		return btoa(binaryString);
 	}
 
-	const saveUrl: SaveUrl = async ({ url, title, rawHtml, pdfBytes }) => {
+	const saveUrl: SaveUrl = async ({ url, title, content }) => {
 		const collection = await start();
 		trackItems(collection.items);
 		const saveContentAction = collection.actions["save-content"];
-		if (saveContentAction) {
-			if (pdfBytes) {
-				const result = await saveContentAction({
-					url,
-					mediaType: "application/pdf",
-					contentBase64: arrayBufferToBase64(pdfBytes),
-				});
-				const item = result.items[0];
-				trackItems(result.items);
-				return { ok: true, item };
-			}
-			if (rawHtml) {
-				const result = await saveContentAction({
-					url,
-					mediaType: "text/html",
-					rawHtml,
-					title,
-				});
-				const item = result.items[0];
-				trackItems(result.items);
-				return { ok: true, item };
-			}
+		if (saveContentAction && content) {
+			const fields: Record<string, string> = {
+				url,
+				mediaType: content.mediaType,
+				contentBase64: arrayBufferToBase64(content.bytes),
+			};
+			if (title) fields.title = title;
+			const result = await saveContentAction(fields);
+			const item = result.items[0];
+			trackItems(result.items);
+			return { ok: true, item };
 		}
 		const saveHtmlAction = collection.actions["save-html"];
-		if (rawHtml && saveHtmlAction) {
+		if (content?.mediaType === "text/html" && saveHtmlAction) {
+			const rawHtml = new TextDecoder().decode(content.bytes);
 			const result = await saveHtmlAction({ url, rawHtml, title });
 			const item = result.items[0];
 			trackItems(result.items);
