@@ -24,9 +24,6 @@ export interface ReaderStreamRequest {
 	/** Raw query string from the Function URL invocation
 	 * (`?url=https%3A%2F%2F...&from=42`). The handler parses + validates. */
 	queryString: string;
-	/** The Cookie header from the request, used to extract the session
-	 * cookie for authentication. May be undefined for anonymous requests. */
-	cookieHeader: string | undefined;
 }
 
 export interface ReaderStreamResponse {
@@ -41,15 +38,6 @@ export interface ReaderStreamResponse {
 
 export interface ReaderStreamHandlerDeps {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
-	/** Used to authenticate the request via the session cookie. Returns
-	 * `null` for anonymous (no session, expired session, malformed
-	 * cookie). Anonymous requests are still allowed — `/view` is a public
-	 * page and the streaming reader should work for non-logged-in users
-	 * the same way the HTML poll does. Shape matches the production
-	 * provider so the composition root can pass it directly. */
-	getSessionUserId: (
-		sessionId: string,
-	) => Promise<{ userId: string; emailVerified: boolean } | null>;
 	logger: HutchLogger;
 	now: () => number;
 	sleep: (ms: number) => Promise<void>;
@@ -61,8 +49,6 @@ export interface ReaderStreamHandlerDeps {
 	 * against stuck connections that consume Lambda concurrency. */
 	connectionMaxMs: number;
 }
-
-const SESSION_COOKIE_NAME = "hutch_sid";
 
 export function initReaderStreamHandler(deps: ReaderStreamHandlerDeps) {
 	return async (
@@ -78,21 +64,6 @@ export function initReaderStreamHandler(deps: ReaderStreamHandlerDeps) {
 			response.write(`bad request: ${parsed.reason}`);
 			response.end();
 			return;
-		}
-
-		// Authenticate. Anonymous is allowed for public /view pages, so a
-		// missing or invalid cookie isn't a 401 — we just don't carry a user
-		// identity into the loop. The findArticleCrawlStatus provider doesn't
-		// need it today; this surface stays here so per-user gating can be
-		// added later without re-plumbing.
-		const sessionId = extractSessionCookie(request.cookieHeader);
-		if (sessionId) {
-			await deps.getSessionUserId(sessionId).catch((error) => {
-				deps.logger.debug("[reader-stream] session lookup failed", {
-					error: String(error),
-				});
-				return null;
-			});
 		}
 
 		response.setHeaders({
@@ -176,20 +147,6 @@ export function parseRequest(request: ReaderStreamRequest): ValidRequest | Inval
 		return { kind: "invalid", reason: "'from' must be a non-negative integer" };
 	}
 	return { kind: "valid", url, fromLength };
-}
-
-export function extractSessionCookie(cookieHeader: string | undefined): string | undefined {
-	if (!cookieHeader) return undefined;
-	const pairs = cookieHeader.split(/;\s*/);
-	for (const pair of pairs) {
-		const eq = pair.indexOf("=");
-		if (eq < 0) continue;
-		const name = pair.slice(0, eq).trim();
-		if (name !== SESSION_COOKIE_NAME) continue;
-		const value = pair.slice(eq + 1).trim();
-		return value.length > 0 ? value : undefined;
-	}
-	return undefined;
 }
 
 function isTerminal(crawl: ArticleCrawl | undefined): string | undefined {

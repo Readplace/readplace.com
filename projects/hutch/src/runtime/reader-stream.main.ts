@@ -2,7 +2,6 @@
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbArticleCrawl } from "./providers/article-crawl/dynamodb-article-crawl";
-import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import {
 	initReaderStreamHandler,
 	type ReaderStreamRequest,
@@ -11,8 +10,6 @@ import {
 import { requireEnv } from "./domain/require-env";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
-const usersTable = requireEnv("DYNAMODB_USERS_TABLE");
-const sessionsTable = requireEnv("DYNAMODB_SESSIONS_TABLE");
 
 const dynamoClient = createDynamoDocumentClient();
 
@@ -21,15 +18,8 @@ const { findArticleCrawlStatus } = initDynamoDbArticleCrawl({
 	tableName: articlesTable,
 });
 
-const { getSessionUserId } = initDynamoDbAuth({
-	client: dynamoClient,
-	usersTableName: usersTable,
-	sessionsTableName: sessionsTable,
-});
-
 const handlerFn = initReaderStreamHandler({
 	findArticleCrawlStatus,
-	getSessionUserId,
 	logger: HutchLogger.from(consoleLogger),
 	now: () => Date.now(),
 	sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -70,18 +60,12 @@ interface AwsLambdaGlobal {
 
 interface LambdaFunctionUrlEvent {
 	rawQueryString?: string;
-	cookies?: string[];
-	headers?: Record<string, string | undefined>;
 }
 
 declare const awslambda: AwsLambdaGlobal | undefined;
 
 function buildRequest(event: LambdaFunctionUrlEvent): ReaderStreamRequest {
-	const queryString = event.rawQueryString ?? "";
-	const cookieHeader = event.cookies && event.cookies.length > 0
-		? event.cookies.join("; ")
-		: event.headers?.cookie;
-	return { queryString, cookieHeader };
+	return { queryString: event.rawQueryString ?? "" };
 }
 
 function buildResponse(stream: LambdaResponseStream): ReaderStreamResponse {
