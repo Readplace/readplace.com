@@ -87,6 +87,13 @@ describe("captureActiveTabBytes", () => {
 		expect(result).toBeUndefined();
 	});
 
+	it("returns undefined for non-HTTP URLs", async () => {
+		const body = new TextEncoder().encode("<html></html>").buffer;
+		const fetchSpy = fakeFetch(body, { "content-type": "text/html" });
+		const result = await captureActiveTabBytes("chrome-extension://abc/popup.html", fetchSpy);
+		expect(result).toBeUndefined();
+	});
+
 	it("passes credentials include to fetch", async () => {
 		const calls: RequestInit[] = [];
 		const body = PDF_HEADER.buffer;

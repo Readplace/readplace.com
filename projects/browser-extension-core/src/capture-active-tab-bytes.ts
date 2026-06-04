@@ -19,6 +19,7 @@ export async function captureActiveTabBytes(
 	fetchFn: typeof fetch,
 ): Promise<CapturedContent | undefined> {
 	try {
+		if (!tabUrl.startsWith("http://") && !tabUrl.startsWith("https://")) return undefined;
 		const response = await fetchFn(tabUrl, {
 			credentials: "include",
 			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
