@@ -63,6 +63,8 @@ export function createApp(deps: AppDependencies) { ... }
 
 For real examples, see `projects/hutch/src/server.ts` which composes all dependencies at startup.
 
+**Swift:** inject the seam, don't swizzle — pass a stub via `URLSessionConfiguration.protocolClasses` (a `URLProtocol` subclass) and an ephemeral `UserDefaults(suiteName:)`, rather than method swizzling or global replacement.
+
 ### Partial Application for Domain Functions
 
 Domain functions with dependencies must use partial application. Use an `init*` prefix for the initialization function.
@@ -248,6 +250,8 @@ expect(subtitleText).not.toContain('–');
 // ✅ GOOD - Test the actual expected value
 expect(subtitleText).toBe('SYD to MEL');
 ```
+
+**Swift:** `XCTAssertNotNil(...)` and `XCTAssertFalse(x.contains(...))` are the XCTest analogs of `.not.toBeNull()` / `.not.toContain()`. Assert the exact value with `XCTAssertEqual` instead (e.g. assert a parsed `Date` equals a known instant, not merely that it is non-nil).
 
 ### Prefer Self-Contained Test Data
 
