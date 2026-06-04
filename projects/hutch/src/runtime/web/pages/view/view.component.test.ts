@@ -523,16 +523,25 @@ describe("ViewPage", () => {
 			crawl: { status: "ready" },
 		};
 
-		it("renders the active paywall overlay for an anonymous, expired, ready article", () => {
+		it("ships the paywall hidden on load carrying the expiry deadline for an expired, ready article", () => {
 			const expiresAt = new Date("2026-04-30T23:59:59.000Z");
 			const doc = render({ ...readyInput, expiresAt, now });
 
 			const paywall = doc.querySelector("[data-test-view-paywall]");
 			assert(paywall, "paywall must be rendered for an expired ready article");
-			assert.equal(paywall.getAttribute("data-paywall-active"), "true");
+			assert.equal(paywall.getAttribute("data-paywall-active"), "false");
 			assert(
+				paywall.classList.contains("view__paywall--inactive"),
+				"the paywall always ships hidden — the client owns the scroll-gated reveal",
+			);
+			assert.equal(
 				paywall.classList.contains("view__paywall--active"),
-				"expired paywall must apply the active modifier",
+				false,
+				"the SSR paywall must not be pre-revealed",
+			);
+			assert.equal(
+				paywall.getAttribute("data-expires-at"),
+				"2026-04-30T23:59:59.000Z",
 			);
 
 			const heading = paywall.querySelector("#view-paywall-heading");
@@ -555,7 +564,7 @@ describe("ViewPage", () => {
 			assert.equal(save.textContent, "Save to My Queue");
 		});
 
-		it("renders the paywall inactive while the article is still counting down", () => {
+		it("ships the paywall hidden carrying the deadline while the article is still counting down", () => {
 			const expiresAt = new Date("2026-05-03T10:05:33.000Z");
 			const doc = render({ ...readyInput, expiresAt, now });
 
@@ -569,6 +578,21 @@ describe("ViewPage", () => {
 				paywall.classList.contains("view__paywall--inactive"),
 				"counting paywall must apply the inactive modifier",
 			);
+			assert.equal(
+				paywall.getAttribute("data-expires-at"),
+				"2026-05-03T10:05:33.000Z",
+			);
+		});
+
+		it("boots the view-paywall client via the external script bundle", () => {
+			const expiresAt = new Date("2026-04-30T23:59:59.000Z");
+			const doc = render({ ...readyInput, expiresAt, now });
+
+			const script = doc.querySelector(
+				'script[src$="/client-dist/view-paywall.client.js"]',
+			);
+			assert(script, "view-paywall client script must be rendered");
+			assert(script.hasAttribute("defer"));
 		});
 
 		it("omits the paywall when the crawl is not ready, even after access expires", () => {

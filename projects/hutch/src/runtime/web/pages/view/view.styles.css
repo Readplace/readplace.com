@@ -103,28 +103,20 @@
 }
 /* purgecss-ignore-end */
 
-.view__body {
-  position: relative;
-}
-
 /**
- * 1. Covers the bottom 40% of the reader region. reader-iframe.client.ts sizes
- *    the srcdoc iframe to the full article height, so 40% of .view__body maps
- *    to the last 40% of the article.
+ * 1. A fixed, full-viewport curtain so the centred popup pins to the middle of
+ *    the screen the moment the blur engages — not at the end of the article.
  * 2. Sits above the iframe content but below the sticky CTA (z 10) and share
  *    row (z 11) so the footer Save button and share balloon stay clickable.
- * 3. The overlay itself is inert so the top 60% scrolls/selects; only the modal
- *    re-enables pointer events.
+ * 3. The curtain itself is inert so the visible content still scrolls/selects;
+ *    only the centred modal re-enables pointer events.
  */
 .view__paywall {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 40%; /* 1 */
+  position: fixed;
+  inset: 0;
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  align-items: center; /* 1 */
+  justify-content: center; /* 1 */
   z-index: 5; /* 2 */
   pointer-events: none; /* 3 */
 }
@@ -132,7 +124,9 @@
 /**
  * 1. The gradient to var(--color-background) is the guaranteed obscuring layer
  *    across the srcdoc iframe boundary; backdrop blur is enhancement only —
- *    pure backdrop-filter is unreliable over an iframe.
+ *    pure backdrop-filter is unreliable over an iframe. Transparent at the top
+ *    keeps the reader's current line legible; it ramps to opaque background so
+ *    the content below the fold blurs out.
  */
 .view__paywall-fade {
   position: absolute;
@@ -140,7 +134,7 @@
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    var(--color-background) 55%,
+    var(--color-background) 45%,
     var(--color-background) 100%
   ); /* 1 */
   backdrop-filter: blur(8px);
@@ -150,7 +144,6 @@
 .view__paywall-modal {
   position: relative;
   pointer-events: auto;
-  margin-bottom: 1.5rem;
   max-width: var(--reader-max-width);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -196,7 +189,7 @@
   filter: brightness(0.95);
 }
 
-/* purgecss-ignore-start: modifier suffix is interpolated from paywallStateClass in view-paywall.template.html and toggled in expiry-counter.client.ts */
+/* purgecss-ignore-start: --inactive ships hidden in view-paywall.template.html; --active is toggled in view-paywall.client.ts and appears in no template literally */
 .view__paywall--inactive {
   display: none;
 }

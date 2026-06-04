@@ -1640,7 +1640,7 @@ describe("View routes", () => {
 			await fixture.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
 		}
 
-		it("blurs an expired anonymous reader behind the active paywall overlay", async () => {
+		it("ships an expired anonymous reader the hidden, scroll-gated paywall carrying the deadline", async () => {
 			const now = new Date("2026-05-10T00:00:00.000Z");
 			const { fixture, harness } = makeHarness(now);
 			await seedReadyArticle(fixture, new Date("2026-05-01T00:00:00.000Z"));
@@ -1654,11 +1654,25 @@ describe("View routes", () => {
 
 			const paywall = doc.querySelector("[data-test-view-paywall]");
 			assert(paywall, "paywall must be rendered for an expired anonymous reader");
-			expect(paywall.getAttribute("data-paywall-active")).toBe("true");
-			expect(paywall.classList.contains("view__paywall--active")).toBe(true);
+			expect(paywall.getAttribute("data-paywall-active")).toBe("false");
+			expect(paywall.classList.contains("view__paywall--inactive")).toBe(true);
+			expect(paywall.classList.contains("view__paywall--active")).toBe(false);
+
+			const deadline = paywall.getAttribute("data-expires-at");
+			assert(deadline, "paywall must carry the expiry deadline for the client");
+			expect(deadline).toBe(counter.getAttribute("data-expires-at"));
+
+			const modal = paywall.querySelector(".view__paywall-modal");
+			assert(modal, "the centred popup markup must be present");
+
+			const script = doc.querySelector(
+				'script[src$="/client-dist/view-paywall.client.js"]',
+			);
+			assert(script, "the view-paywall client bundle must be wired up");
+			expect(script.hasAttribute("defer")).toBe(true);
 		});
 
-		it("ships the paywall inactive for an anonymous reader still counting down", async () => {
+		it("ships the paywall hidden carrying the deadline for an anonymous reader still counting down", async () => {
 			const now = new Date("2026-05-04T00:00:00.000Z");
 			const { fixture, harness } = makeHarness(now);
 			await seedReadyArticle(fixture, new Date("2026-05-03T13:54:27.000Z"));
@@ -1674,6 +1688,10 @@ describe("View routes", () => {
 			assert(paywall, "paywall element must be present while counting");
 			expect(paywall.getAttribute("data-paywall-active")).toBe("false");
 			expect(paywall.classList.contains("view__paywall--inactive")).toBe(true);
+
+			const deadline = paywall.getAttribute("data-expires-at");
+			assert(deadline, "paywall must carry the expiry deadline for the client");
+			expect(deadline).toBe(counter.getAttribute("data-expires-at"));
 		});
 
 		it("never blurs or counts down for an authenticated reader (full article, permanent state)", async () => {
