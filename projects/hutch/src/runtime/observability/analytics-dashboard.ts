@@ -171,6 +171,22 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			x: 12, y: 16, width: 12, height: 8,
 			view: "timeSeries",
 		}),
+		logWidget({
+			region,
+			title: "Pageviews — UTM detail (all params)",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				"fields coalesce(utm_source, \"(none)\") as source, coalesce(utm_medium, \"(none)\") as medium, coalesce(utm_campaign, \"(none)\") as campaign, coalesce(utm_content, \"(none)\") as content",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.pageview}"`,
+				...exclude,
+				"| filter ispresent(utm_source) or ispresent(utm_medium) or ispresent(utm_campaign) or ispresent(utm_content)",
+				"| stats count(*) as visits by source, medium, campaign, content",
+				"| sort visits desc",
+				"| limit 50",
+			].join(" "),
+			x: 0, y: 24, width: 24, height: 8,
+			view: "table",
+		}),
 	);
 
 	// --- Conversions ---
@@ -188,7 +204,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort unique_users desc",
 				"| limit 20",
 			].join(" "),
-			x: 0, y: 24, width: 12, height: 8,
+			x: 0, y: 32, width: 12, height: 8,
 			view: "pie",
 		}),
 		logWidget({
@@ -202,7 +218,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort unique_users desc",
 				"| limit 30",
 			].join(" "),
-			x: 12, y: 24, width: 12, height: 8,
+			x: 12, y: 32, width: 12, height: 8,
 			view: "table",
 		}),
 		logWidget({
@@ -215,7 +231,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort @timestamp desc",
 				"| limit 50",
 			].join(" "),
-			x: 0, y: 32, width: 24, height: 8,
+			x: 0, y: 40, width: 24, height: 8,
 			view: "table",
 		}),
 	);
@@ -224,7 +240,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 
 	widgets.push({
 		type: "metric",
-		x: 0, y: 40, width: 6, height: 4,
+		x: 0, y: 48, width: 6, height: 4,
 		properties: {
 			region,
 			title: "Imports completed (lifetime)",
@@ -257,7 +273,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort clicks desc",
 				"| limit 10",
 			].join(" "),
-			x: 6, y: 40, width: 12, height: 4,
+			x: 6, y: 48, width: 12, height: 4,
 			view: "pie",
 		}),
 		/** Stacked counts of acquire events vs import_committed surface
@@ -272,7 +288,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				`| filter event in ["${ANALYTICS_EVENTS.importUploaded}", "${ANALYTICS_EVENTS.importFromUrlAcquired}", "${ANALYTICS_EVENTS.importCommitted}"]`,
 				"| stats count(*) as imports by bin(1d), event",
 			].join(" "),
-			x: 0, y: 44, width: 24, height: 6,
+			x: 0, y: 52, width: 24, height: 6,
 			view: "timeSeries",
 		}),
 	);
@@ -290,7 +306,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				`| filter event in ["${SUBSCRIPTION_EVENTS.chargeSucceeded}", "${SUBSCRIPTION_EVENTS.chargeFailed}"]`,
 				"| stats count(*) as charges by bin(1d), event",
 			].join(" "),
-			x: 0, y: 50, width: 12, height: 8,
+			x: 0, y: 58, width: 12, height: 8,
 			view: "timeSeries",
 		}),
 		logWidget({
@@ -303,7 +319,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count(*) as cancels by reason",
 				"| sort cancels desc",
 			].join(" "),
-			x: 12, y: 50, width: 12, height: 8,
+			x: 12, y: 58, width: 12, height: 8,
 			view: "pie",
 		}),
 		logWidget({
@@ -316,7 +332,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| sort @timestamp desc",
 				"| limit 50",
 			].join(" "),
-			x: 0, y: 58, width: 24, height: 8,
+			x: 0, y: 66, width: 24, height: 8,
 			view: "table",
 		}),
 	);
@@ -339,7 +355,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				...exclude,
 				"| stats count_distinct(visitor_id) as reader_tries by bin(1d)",
 			].join(" "),
-			x: 0, y: 66, width: 12, height: 8,
+			x: 0, y: 74, width: 12, height: 8,
 			view: "timeSeries",
 		}),
 		logWidget({
@@ -354,7 +370,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 				"| stats count_distinct(visitor_id) as visitors by event",
 				"| sort visitors desc",
 			].join(" "),
-			x: 12, y: 66, width: 12, height: 8,
+			x: 12, y: 74, width: 12, height: 8,
 			view: "bar",
 		}),
 	);
