@@ -27,6 +27,7 @@ export {
 	initExtension,
 	initSaveArticleUnderstanding,
 	initSaveHtmlUnderstanding,
+	initSaveContentUnderstanding,
 	initDeleteArticleUnderstanding,
 	initListArticlesUnderstanding,
 	groupOf,
@@ -38,6 +39,7 @@ export type {
 	NavigationResult,
 	ArticleItem,
 	BoundAction,
+	ContentBodyBuilder,
 } from "./reading-list/siren-reading-list";
 export type { SaveUrl, RemoveUrl, FindByUrl, GetAllItems } from "./reading-list/reading-list.types";
 export type { PopupMessage } from "./popup-message.types";
@@ -52,4 +54,5 @@ export {
 } from "./get-context-menu-target";
 export { installShortcuts, isCmdD } from "./keydown-shortcuts";
 export type { Shortcut } from "./keydown-shortcuts";
+export { captureActiveTabPdf } from "./capture-active-tab-pdf";
 

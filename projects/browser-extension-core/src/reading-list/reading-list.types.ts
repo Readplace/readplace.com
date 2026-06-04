@@ -26,6 +26,7 @@ export type SaveUrl = (params: {
 	url: string;
 	title: string;
 	rawHtml?: string;
+	pdfBytes?: ArrayBuffer;
 }) => Promise<SaveUrlResult>;
 
 export type RemoveUrl = (

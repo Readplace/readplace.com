@@ -10,6 +10,7 @@ import {
 	type OAuthTokens,
 	type PopupMessage,
 	type ReadingListItem,
+	captureActiveTabPdf,
 	type SaveUrlResult,
 	type RemoveUrlResult,
 	type TokenStorage,
@@ -228,11 +229,20 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 						});
 					});
 					captureActiveTabHtml()
-						.then((rawHtml) => {
+						.then(async (rawHtml) => {
+							/** Empty HTML capture is the browser's signal that the
+							 * tab isn't a DOM page — typically a native PDF viewer.
+							 * Try fetching the bytes from the user's session before
+							 * falling back to the URL-only save path. Any failure
+							 * (network, non-PDF, oversize) short-circuits below. */
+							const pdfBytes = rawHtml
+								? undefined
+								: await captureActiveTabPdf(message.url, fetch);
 							core.save("current-tab", {
 								url: message.url,
 								title: message.title,
 								rawHtml,
+								pdfBytes,
 							});
 						})
 						.catch(() => {

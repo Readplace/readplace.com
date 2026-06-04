@@ -51,6 +51,7 @@ describe("Queue freshness integration", () => {
 				publishRecrawlLinkInitiated: fixture.events.publishRecrawlLinkInitiated,
 				publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
 				publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+				publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 				publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 				publishUpdateFetchTimestamp: async (p) => { timestampPublished.push(p); },
 				publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
