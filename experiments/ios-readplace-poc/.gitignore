@@ -1,0 +1,10 @@
+# Xcode user state / build artifacts
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+*.xcscmblueprint
+.DS_Store
+
+# The .xcodeproj is generated from project.yml by XcodeGen. It is committed here
+# for convenience (open-and-run); regenerate any time with `make generate`.

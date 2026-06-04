@@ -1,0 +1,70 @@
+name: ReadplacePOC
+options:
+  bundleIdPrefix: com.fagnerbrack.readplacepoc
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.9"
+    # Pin the permissive (default) concurrency checking so the POC compiles
+    # cleanly regardless of the Xcode version's default.
+    SWIFT_STRICT_CONCURRENCY: minimal
+    CODE_SIGN_STYLE: Automatic
+    # Leave the team empty so it builds for the Simulator out of the box.
+    # To run on a device, select your team in Signing & Capabilities (both targets).
+    DEVELOPMENT_TEAM: ""
+    TARGETED_DEVICE_FAMILY: "1"
+
+targets:
+  ReadplacePOC:
+    type: application
+    platform: iOS
+    sources:
+      - App
+      - Shared
+    settings:
+      base:
+        # Product/.app stays "ReadplacePOC" (keeps TEST_HOST consistent); the
+        # home-screen name is "Readplace" via CFBundleDisplayName. The module is
+        # named "Readplace" purely for a clean `@testable import Readplace`.
+        PRODUCT_MODULE_NAME: Readplace
+        PRODUCT_BUNDLE_IDENTIFIER: com.fagnerbrack.readplacepoc
+        INFOPLIST_FILE: App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/App.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+    dependencies:
+      - target: ShareExtension
+    scheme:
+      testTargets:
+        - ReadplacePOCTests
+
+  ShareExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - ShareExtension
+      - Shared
+    settings:
+      base:
+        PRODUCT_NAME: ShareExtension
+        PRODUCT_BUNDLE_IDENTIFIER: com.fagnerbrack.readplacepoc.ShareExtension
+        INFOPLIST_FILE: ShareExtension/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ShareExtension/ShareExtension.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+
+  ReadplacePOCTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests
+    dependencies:
+      - target: ReadplacePOC
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fagnerbrack.readplacepoc.Tests
+        GENERATE_INFOPLIST_FILE: YES
