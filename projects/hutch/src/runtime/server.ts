@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import type { Express, NextFunction, Request, Response } from "express";
@@ -95,6 +96,7 @@ import { initAuthRoutes } from "./web/auth/auth.page";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
 import { createClickAttributionMiddleware } from "./web/click-attribution.middleware";
+import { createVisitorIdMiddleware } from "./web/visitor-id.middleware";
 import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { SESSION_COOKIE_NAME } from "./web/auth/session-cookie";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
@@ -259,6 +261,7 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());
+	app.use(createVisitorIdMiddleware({ generateVisitorId: randomUUID }));
 	app.use(createClickAttributionMiddleware({ now: dependencies.now }));
 
 	// Same-origin client bundles — the Lambda packaging step copies
@@ -644,7 +647,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	app.use("/import", requireAuth, requireWriteAccess, importRouter);
 
-	const saveRouter = initSaveRoutes({ buildBannerState });
+	const saveRouter = initSaveRoutes({ buildBannerState, analytics: deps.analytics, salt: deps.salt, now: deps.now });
 	app.use("/save", saveRouter);
 
 	const viewRouter = initViewRoutes({
@@ -663,6 +666,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		expiryCountdown: deps.expiryCountdown,
 		now: deps.now,
 		buildBannerState,
+		analytics: deps.analytics,
+		salt: deps.salt,
 	});
 	app.use("/view", viewRouter);
 

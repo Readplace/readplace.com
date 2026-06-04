@@ -321,6 +321,44 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
+	// --- View ("try the reader") funnel ---
+	// The pageview middleware cannot see /view (hx-request + redirect chain), so
+	// these widgets are driven by the explicit view_opened / view_save_intent
+	// events. Counting distinct visitor_id makes the funnel joinable to
+	// user_created, which now also carries visitor_id.
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Reader Tries per Day (anonymous, distinct visitors)",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				"fields @timestamp, visitor_id",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewOpened}"`,
+				"| filter is_authenticated = 0 and ispresent(visitor_id)",
+				...exclude,
+				"| stats count_distinct(visitor_id) as reader_tries by bin(1d)",
+			].join(" "),
+			x: 0, y: 66, width: 12, height: 8,
+			view: "timeSeries",
+		}),
+		logWidget({
+			region,
+			title: "Try → Save-intent → Signup (unique visitors by event)",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				"fields visitor_id",
+				`| filter (stream = "${STREAMS.analytics}" and event in ["${ANALYTICS_EVENTS.viewOpened}", "${ANALYTICS_EVENTS.viewSaveIntent}"]) or (stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}")`,
+				"| filter ispresent(visitor_id)",
+				...exclude,
+				"| stats count_distinct(visitor_id) as visitors by event",
+				"| sort visitors desc",
+			].join(" "),
+			x: 12, y: 66, width: 12, height: 8,
+			view: "bar",
+		}),
+	);
+
 	return { widgets };
 }
 

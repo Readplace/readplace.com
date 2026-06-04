@@ -65,9 +65,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 15 widgets (6 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 17 widgets (6 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(15);
+		expect(body.widgets).toHaveLength(17);
 	});
 
 	it("the readers widget counts distinct user_ids from article_read events (not pageviews) — distinguishes opening the reader from explicitly marking-as-read", () => {

@@ -17,6 +17,7 @@ export interface AnalyticsPageview {
 	referrer_host?: string;
 	medium_post_id?: string;
 	visitor_hash: string | null;
+	visitor_id: string | null;
 	is_authenticated: 0 | 1;
 }
 
@@ -71,12 +72,46 @@ export interface ArticleReadEvent {
 	visitor_hash: string | null;
 }
 
+/**
+ * Anonymous "try the reader" opens are invisible to the pageview middleware —
+ * the homepage form GET /view 302→/view/<url> and the reader's htmx polls carry
+ * `hx-request`, all dropped by `shouldLog`. This event is emitted directly from
+ * the /view handler so the activation step is countable, and carries
+ * `visitor_id` so it joins to the `user_created` conversion per device.
+ */
+export interface ViewOpenedEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.viewOpened;
+	timestamp: string;
+	path: string;
+	article_host: string;
+	visitor_hash: string | null;
+	visitor_id: string | null;
+	is_authenticated: 0 | 1;
+}
+
+/** Emitted when a visitor clicks "Save to My Queue" on the public reader — the
+ * warmest moment in the funnel. Anonymous clicks redirect to /login (a separate
+ * surface), so this event is the only record that the intent occurred. */
+export interface ViewSaveIntentEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.viewSaveIntent;
+	timestamp: string;
+	path: string;
+	article_host: string;
+	visitor_hash: string | null;
+	visitor_id: string | null;
+	is_authenticated: 0 | 1;
+}
+
 export type AnalyticsEvent =
 	| AnalyticsPageview
 	| ImportUploadedEvent
 	| ImportCommittedEvent
 	| ImportFromUrlAcquiredEvent
-	| ArticleReadEvent;
+	| ArticleReadEvent
+	| ViewOpenedEvent
+	| ViewSaveIntentEvent;
 
 const SKIP_PATHS = new Set([
 	"/robots.txt",
@@ -156,6 +191,7 @@ export function createAnalyticsMiddleware(deps: {
 				referrer_host: extractReferrerHost(req),
 				medium_post_id: extractMediumPostId(req),
 				visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+				visitor_id: req.visitorId ?? null,
 				is_authenticated: req.userId ? 1 : 0,
 			});
 		});
