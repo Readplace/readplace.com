@@ -249,15 +249,13 @@ if (readerStreamCorsOrigin) {
 	// SQS/DLQ needed. CloudWatch alarms on the Lambda's error metric remain
 	// the operator-paging surface.
 	//
-	// IAM scope: read-only on the articles + sessions tables. No publish, no
-	// write, no S3.
+	// IAM scope: read-only on the articles table. No publish, no write, no S3.
 
 	const readerStreamDynamodb = new HutchDynamoDBAccess(
 		"reader-stream-dynamodb",
 		{
 			tables: [
 				{ arn: storage.articlesTable.arn, includeIndexes: false },
-				{ arn: storage.sessionsTable.arn, includeIndexes: false },
 			],
 			actions: ["dynamodb:GetItem"],
 		},
@@ -277,8 +275,6 @@ if (readerStreamCorsOrigin) {
 		environment: {
 			PERSISTENCE: "prod",
 			DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
-			DYNAMODB_USERS_TABLE: storage.usersTable.name,
-			DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		},
 		policies: [...readerStreamDynamodb.policies],
 	});
@@ -287,10 +283,8 @@ if (readerStreamCorsOrigin) {
 		"reader-stream-url",
 		{
 			functionName: readerStreamLambda.functionName,
-			// `NONE` because cookie-based auth runs inside the handler — the
-			// session cookie travels on the EventSource request and is looked
-			// up via getSessionUserId. AWS IAM auth would require browsers to
-			// sign requests, which EventSource cannot do.
+			// `NONE` because the endpoint is intentionally public — AWS IAM auth
+			// would require browsers to sign requests, which EventSource cannot do.
 			authorizationType: "NONE",
 			// Response streaming mode — without this the Function URL buffers
 			// the entire response just like API Gateway does.
