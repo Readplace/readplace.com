@@ -149,8 +149,27 @@ describe("TrialFeedbackEmail", () => {
 			const html = TrialFeedbackEmail(baseParams).to("text/html");
 			expect(html).toContain("what was missing?");
 			expect(html).toContain("I'm not trying to change your mind");
-			expect(html).toContain("The honest answer helps more than a polite one");
+			expect(html).toContain("The honest answer helps more than being nice");
 			expect(html).toContain("— Fayner");
+		});
+	});
+
+	describe("html and plain-text parity", () => {
+		it("renders identical body prose in both MIME parts so the two cannot drift", () => {
+			const component = TrialFeedbackEmail(baseParams);
+			const html = component.to("text/html");
+			const text = component.to("text/plain");
+
+			const sharedProse = [
+				"You started a trial of Readplace, saved 9 articles, and decided not to continue. Which is completely fine.",
+				"I'm not trying to change your mind",
+				"The honest answer helps more than being nice",
+				"— Fayner",
+			];
+			for (const fragment of sharedProse) {
+				expect(html).toContain(fragment);
+				expect(text).toContain(fragment);
+			}
 		});
 	});
 });

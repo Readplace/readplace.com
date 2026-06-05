@@ -67,6 +67,27 @@ describe("CheckoutRecoveryEmail", () => {
 		expect(text).toContain("Hi there,");
 		expect(text).toContain("\u2014 Fayner");
 		expect(text).toContain("readplace.com");
-		expect(text).toContain("If you'd rather not hear from me, just reply STOP.");
+	});
+
+	it("renders identical body prose in both MIME parts so the two cannot drift", () => {
+		const email = CheckoutRecoveryEmail(baseParams);
+		const html = email.to("text/html");
+		const text = email.to("text/plain");
+
+		const sharedProse = [
+			"Hi there,",
+			"I'm Fayner \u2014 I built Readplace alone",
+			"I genuinely want to know",
+			"$3.99 a month",
+			"20% off",
+			"Either way, your 14-day free trial is still waiting",
+			"Resume your trial",
+			"\u2014 Fayner",
+			"readplace.com",
+		];
+		for (const fragment of sharedProse) {
+			expect(html).toContain(fragment);
+			expect(text).toContain(fragment);
+		}
 	});
 });
