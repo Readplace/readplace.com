@@ -15,11 +15,9 @@ import type {
 	SynthesizeSpeech,
 } from "../tts.ts";
 
-const OUTPUT_FORMAT: Readonly<Record<AudioFormat, string>> = {
+const OUTPUT_FORMAT: Readonly<Partial<Record<AudioFormat, string>>> = {
 	mp3: "mp3_44100_128",
 	opus: "opus_48000_128",
-	aac: "mp3_44100_128",
-	wav: "pcm_44100",
 };
 
 export const initElevenLabsSynthesizer = ({
@@ -37,8 +35,13 @@ export const initElevenLabsSynthesizer = ({
 		text,
 		format,
 	}: SynthesisRequest): Promise<SynthesizedAudio> => {
+		const outputFormat = OUTPUT_FORMAT[format];
+		assert(
+			outputFormat,
+			`ElevenLabs does not support format "${format}"; supported: ${Object.keys(OUTPUT_FORMAT).join(", ")}`,
+		);
 		const response = await fetch(
-			`${baseUrl}/text-to-speech/${voiceId}?output_format=${OUTPUT_FORMAT[format]}`,
+			`${baseUrl}/text-to-speech/${voiceId}?output_format=${outputFormat}`,
 			{
 				method: "POST",
 				headers: { "xi-api-key": apiKey, "content-type": "application/json" },
