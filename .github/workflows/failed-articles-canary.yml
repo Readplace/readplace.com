@@ -8,8 +8,8 @@ name: Failed articles canary
 # failed first, etc. — and is intentionally NOT surfaced.)
 #
 # This canary is a debug worklist, not a pass/fail health check. The script
-# always exits 0 even when failed rows are present — the workflow opens an
-# @claude tracking issue with the URL list so the operator can re-save and
+# always exits 0 even when failed rows are present — the workflow opens a
+# tracking issue with the URL list so the operator can re-save and
 # investigate each one. If a tracking issue is already open, the workflow
 # skips the scan entirely so a single backlog isn't re-posted day after day;
 # the next scan runs after the operator closes that issue.
@@ -24,10 +24,8 @@ on:
 
 permissions:
   contents: read
-  # `issues: write` is needed for the open-issue check (read via search API
-  # but `repo` scope is required) and for opening the tracking issue when the
-  # report is non-empty. The actual API call uses `secrets.PAT_TOKEN` so the
-  # comment author_association is OWNER and the claude-listener's gate clears.
+  # `issues: write` covers the open-issue dedup check (search API) and opening
+  # the tracking issue when the report is non-empty.
   issues: write
 
 jobs:
@@ -63,7 +61,7 @@ jobs:
         id: existing-issue
         uses: actions/github-script@v8
         with:
-          github-token: ${{ secrets.PAT_TOKEN }}
+          github-token: ${{ github.token }}
           script: |
             const { owner, repo } = context.repo;
             const marker = '<!-- CLAUDE_FAILED_ARTICLES_FIX -->';
@@ -118,20 +116,18 @@ jobs:
           retention-days: 30
 
       # ┌──────────────────────────────────────────────────────────────────┐
-      # │ Open an @claude tracking issue when the report has any rows.     │
+      # │ Open a tracking issue when the report has any rows.              │
       # │ The script always exits 0 — a non-empty report is a worklist,    │
       # │ not a CI failure — so this step gates on the report file count   │
       # │ instead of `failure()`. The body caps row entries to fit         │
       # │ GitHub's 65 KiB issue-body limit; the full list is in the        │
       # │ workflow artifact uploaded above.                                │
       # └──────────────────────────────────────────────────────────────────┘
-      - name: Open @claude issue if report has failed rows
+      - name: Open tracking issue if report has failed rows
         if: steps.existing-issue.outputs.skip != 'true' && success()
         uses: actions/github-script@v8
         with:
-          # PAT_TOKEN ensures the issue author_association is OWNER, which is
-          # the gate claude-listener.yml checks before running.
-          github-token: ${{ secrets.PAT_TOKEN }}
+          github-token: ${{ github.token }}
           script: |
             const fs = require('fs');
             const { owner, repo } = context.repo;
@@ -193,7 +189,7 @@ jobs:
             const body = [
               marker,
               '',
-              '@claude The failed-articles canary surfaced rows whose state machines reached a terminal unsuccessful outcome. Use your Read tool to read `.github/workflows/failed-articles-canary.md` for instructions.',
+              'The failed-articles canary surfaced rows whose state machines reached a terminal unsuccessful outcome. This is a debug worklist: investigate each cluster below, then close this issue once the backlog is processed (the canary skips its scan while this issue stays open).',
               '',
               '## Context',
               `- **Run**: ${runUrl}`,

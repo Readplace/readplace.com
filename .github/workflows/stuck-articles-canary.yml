@@ -19,11 +19,8 @@ on:
 
 permissions:
   contents: read
-  # `issues: write` is needed so the on-failure step can open or comment on
-  # the @claude tracking issue when the scheduled run goes red. The actual
-  # API call uses `secrets.PAT_TOKEN` (so the comment author_association is
-  # OWNER and the listener's gate clears), but GitHub still requires the
-  # workflow-level scope to be declared.
+  # `issues: write` lets the on-failure step open or comment on the tracking
+  # issue when the scheduled run goes red.
   issues: write
 
 jobs:
@@ -62,20 +59,18 @@ jobs:
         run: pnpm nx run @packages/check-stuck-articles:check-stuck-articles
 
       # ┌──────────────────────────────────────────────────────────────────┐
-      # │ ON FAILURE: open or update an @claude tracking issue             │
-      # │ Fires on any canary failure regardless of event source — the    │
+      # │ ON FAILURE: open or update a tracking issue                      │
+      # │ Fires on any canary failure regardless of event source — the     │
       # │ workflow only triggers on `schedule` and `workflow_dispatch`     │
-      # │ anyway, and the operator should be able to exercise the full    │
-      # │ Claude-handoff flow on demand (validate the wiring without      │
-      # │ waiting 24h, replay a fix after an inconclusive cron, etc.).    │
+      # │ anyway, so an operator can replay the detection on demand        │
+      # │ (validate the wiring without waiting 24h, re-scan after an       │
+      # │ inconclusive cron, etc.).                                        │
       # └──────────────────────────────────────────────────────────────────┘
-      - name: Open or update @claude issue on canary failure
+      - name: Open or update tracking issue on canary failure
         if: failure()
         uses: actions/github-script@v8
         with:
-          # PAT_TOKEN ensures the comment/issue author_association is OWNER,
-          # which is the gate claude-listener.yml checks before running.
-          github-token: ${{ secrets.PAT_TOKEN }}
+          github-token: ${{ github.token }}
           script: |
             const fs = require('fs');
             const { owner, repo } = context.repo;
@@ -104,7 +99,7 @@ jobs:
             const body = [
               marker,
               '',
-              '@claude The stuck-articles canary failed on its scheduled run. Use your Read tool to read `.github/workflows/stuck-articles-canary.md` for instructions.',
+              'The stuck-articles canary failed on its scheduled run. The rows below never reached a terminal-good state and their URLs still resolve. Investigate the root cause, then close this issue once resolved.',
               '',
               '## Context',
               `- **Run**: ${runUrl}`,

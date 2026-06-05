@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository uses a centralized Claude automation architecture where only `claude-listener.yml` executes Claude directly. All other workflows post `@claude` comments to PRs, which the listener picks up and processes.
+This repository uses a centralized Claude automation architecture where only `claude-listener.yml` executes Claude directly. The PR automation workflows post `@claude` comments to PRs, which the listener picks up and processes. The crawl-health canaries are detection-only: they open a tracking issue describing the failure for an operator to debug and close manually — they do not hand off to Claude.
 
 ## Design Principles
 
@@ -27,15 +27,16 @@ Inspect the `.yml` files in this directory for implementation details. Summary:
 | `claude-PR-code-reviewer.yml` | Automated code review | CI succeeds on PR |
 | `claude-PR-code-review-auto-apply.yml` | Fix HIGH/MEDIUM priority issues | Claude review comment |
 | `claude-PR-conflict-fixer.yml` | Resolve merge conflicts | CI succeeds + conflicts detected |
-| `tier-1-plus-crawl-pipeline-health.yml` | Tier 1+ crawl pipeline canary; opens `@claude` issue on failure | Schedule (06:00 AEST daily) / manual |
-| `failed-articles-canary.yml` | Surfaces articles whose state machines reached a terminal unsuccessful outcome; opens `@claude` debug-worklist issue when non-empty; skips while a prior issue is open | Schedule (07:00 AEST daily) / manual |
+| `tier-1-plus-crawl-pipeline-health.yml` | Tier 1+ crawl pipeline canary; opens a tracking issue on failure for an operator to debug and close manually | Schedule (06:00 AEST daily) / manual |
+| `stuck-articles-canary.yml` | Surfaces articles stuck non-terminal whose URLs still resolve; opens or comments on a tracking issue on failure for an operator to debug and close manually | Schedule (06:30 AEST daily) / manual |
+| `failed-articles-canary.yml` | Surfaces articles whose state machines reached a terminal unsuccessful outcome; opens a debug-worklist tracking issue when non-empty for an operator to debug and close manually; skips while a prior issue is open | Schedule (07:00 AEST daily) / manual |
 | `submit-ff-extension-for-signing.yml` | Submit Firefox extension to AMO for signing | Called by `ci.yml` |
 | `sync-signed-extension.yml` | Sync signed Firefox extension from AMO to S3 | Schedule (every 12h) / manual |
 | `publish-ios-testflight.yml` | Build + upload the iOS app (app + share extension) to TestFlight on a macOS/Xcode-26 runner; tag-versioned, gated on iOS shipping-code changes | Called by `ci.yml` when `ios-affected` / manual |
 
 ## Prompt Files
 
-Each workflow has a corresponding `.md` file containing detailed instructions for Claude. This separation prevents cascade issues where example markers in instructions trigger other workflows.
+Each PR automation workflow has a corresponding `.md` file containing detailed instructions for Claude. This separation prevents cascade issues where example markers in instructions trigger other workflows.
 
 | Workflow | Prompt File |
 |----------|-------------|
@@ -43,8 +44,6 @@ Each workflow has a corresponding `.md` file containing detailed instructions fo
 | `claude-PR-code-reviewer.yml` | `claude-PR-code-reviewer.md` |
 | `claude-PR-code-review-auto-apply.yml` | `claude-PR-code-review-auto-apply.md` |
 | `claude-PR-conflict-fixer.yml` | `claude-PR-conflict-fixer.md` |
-| `tier-1-plus-crawl-pipeline-health.yml` | `tier-1-plus-crawl-pipeline-health.md` |
-| `failed-articles-canary.yml` | `failed-articles-canary.md` |
 
 ## Labels and Markers
 
@@ -59,5 +58,5 @@ Each workflow has a corresponding `.md` file containing detailed instructions fo
 | `<!-- CLAUDE_REVIEW_START/END -->` | Review content boundaries |
 | `<!-- HIGH/MEDIUM_PRIORITY_COUNT: N -->` | Issue counts |
 | `<!-- CLAUDE_CONFLICT_FIX -->` | Conflict fix request |
-| `<!-- CLAUDE_TIER_1_PLUS_FIX -->` | Tier 1+ canary failure tracking issue |
-| `<!-- CLAUDE_FAILED_ARTICLES_FIX -->` | Failed-articles canary debug-worklist tracking issue (one open at a time; canary skips while present) |
+| `<!-- CLAUDE_TIER_1_PLUS_FIX -->` | Tier 1+ canary tracking-issue dedup marker (detection only; no Claude handoff) |
+| `<!-- CLAUDE_FAILED_ARTICLES_FIX -->` | Failed-articles canary debug-worklist dedup marker (one open at a time; canary skips while present; detection only) |
