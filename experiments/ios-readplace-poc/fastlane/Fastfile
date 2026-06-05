@@ -1,0 +1,142 @@
+default_platform(:ios)
+
+PROJECT     = "ReadplacePOC.xcodeproj"
+SCHEME      = "ReadplacePOC"
+APP_ID      = "com.readplace"
+EXT_ID      = "com.readplace.ShareExtension"
+OUTPUT_NAME = "Readplace.ipa"
+
+# fastlane runs with its working directory set to the fastlane/ folder, so raw
+# file paths must be anchored to the project root (the dir holding the
+# .xcodeproj), not the current directory. Walk up to find it.
+PROJECT_ROOT = begin
+  dir = Dir.pwd
+  dir = File.dirname(dir) until File.exist?(File.join(dir, PROJECT)) || dir == File.dirname(dir)
+  dir
+end
+PROJECT_PATH = File.join(PROJECT_ROOT, PROJECT)
+OUTPUT_DIR   = File.join(PROJECT_ROOT, "build", "output")
+
+# Targets that ship in the App Store build and therefore need distribution
+# signing. The test target is intentionally excluded.
+SIGNED_TARGETS = [
+  { target: "ReadplacePOC",   bundle_id: APP_ID },
+  { target: "ShareExtension", bundle_id: EXT_ID },
+].freeze
+
+# Resolve the .p8 path from .env against the project root (env value is written
+# relative to it), and fail early with a clear message if it is missing.
+def asc_key_filepath
+  raw = ENV.fetch("ASC_KEY_PATH")
+  path = raw.start_with?("/") ? raw : File.expand_path(raw, PROJECT_ROOT)
+  UI.user_error!("ASC_KEY_PATH points to a missing file: #{path}") unless File.file?(path)
+  path
+end
+
+platform :ios do
+  desc "Build an App Store-signed .ipa and upload it to TestFlight (INTERNAL testers only)."
+  desc "Re-runnable end to end. Requires the one-time portal/repo setup in TESTFLIGHT.md."
+  lane :beta do
+    team_id = ENV.fetch("TEAM_ID")
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_filepath: asc_key_filepath,
+      duration: 1200,
+      in_house: false,
+    )
+
+    # Regenerate the project from the XcodeGen spec (the source of truth) so a
+    # stale committed .xcodeproj can never drive signing or the build. The script
+    # also downshifts the project format so the installed Xcode can open it.
+    sh("bash", File.join(PROJECT_ROOT, "scripts", "generate-project.sh"))
+
+    # iOS Distribution certificate + an App Store profile for BOTH bundle ids,
+    # stored encrypted in the match git repo. Both App IDs must already exist in
+    # the Developer portal with the App Groups capability enabled and the group
+    # assigned, or the generated profiles will not carry the app-group
+    # entitlement (see TESTFLIGHT.md).
+    match(
+      type: "appstore",
+      app_identifier: SIGNED_TARGETS.map { |t| t[:bundle_id] },
+      api_key: api_key,
+      readonly: false,
+    )
+
+    profiles = SIGNED_TARGETS.map { |t|
+      [t[:bundle_id], ENV.fetch("sigh_#{t[:bundle_id]}_appstore_profile-name")]
+    }.to_h
+
+    # Point each target at its match profile with MANUAL signing. Done from the
+    # CLI because the Signing & Capabilities GUI is unavailable on this machine.
+    SIGNED_TARGETS.each do |t|
+      update_code_signing_settings(
+        use_automatic_signing: false,
+        path: PROJECT_PATH,
+        team_id: team_id,
+        targets: [t[:target]],
+        code_sign_identity: "Apple Distribution",
+        profile_name: profiles.fetch(t[:bundle_id]),
+        build_configurations: ["Release"],
+      )
+    end
+
+    build_app(
+      project: PROJECT_PATH,
+      scheme: SCHEME,
+      configuration: "Release",
+      clean: true,
+      output_directory: OUTPUT_DIR,
+      output_name: OUTPUT_NAME,
+      export_method: "app-store",
+      skip_profile_detection: true,
+      export_options: {
+        method: "app-store",
+        signingStyle: "manual",
+        teamID: team_id,
+        provisioningProfiles: profiles,
+      },
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: APP_ID,
+      distribute_external: false,
+      skip_waiting_for_build_processing: true,
+    )
+  end
+
+  desc "Read-only preflight: verify API-key auth and the one-time portal prerequisites"
+  desc "(both bundle ids registered with App Groups, and the App Store Connect app record)."
+  lane :preflight do
+    Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.create(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      filepath: asc_key_filepath,
+    )
+    Spaceship::ConnectAPI::App.all(limit: 1)
+    UI.success("API key authenticates")
+
+    all = Spaceship::ConnectAPI::BundleId.all
+    SIGNED_TARGETS.each do |t|
+      b = all.find { |x| x.identifier == t[:bundle_id] }
+      next UI.error("Bundle ID #{t[:bundle_id]} is NOT registered") if b.nil?
+
+      UI.success("Bundle ID #{t[:bundle_id]} registered")
+      caps = (b.get_capabilities rescue [])
+      if caps.any? { |c| (c.capability_type rescue nil) == "APP_GROUPS" }
+        UI.success("  App Groups capability ON")
+      else
+        UI.error("  App Groups capability OFF — the share extension needs it")
+      end
+    end
+
+    app = (Spaceship::ConnectAPI::App.find(APP_ID) rescue nil)
+    if app
+      UI.success("App Store Connect app record exists: #{app.name}")
+    else
+      UI.error("No App Store Connect app record for #{APP_ID} (My Apps → +)")
+    end
+  end
+end

@@ -1,4 +1,9 @@
 {
+  "permissions": {
+    "deny": [
+      "Edit(~/.claude/projects/**/memory/**)"
+    ]
+  },
   "enabledPlugins": {
     "context7@claude-plugins-official": true,
     "playwright@claude-plugins-official": true,
@@ -11,10 +16,5 @@
         "repo": "nrwl/nx-ai-agents-config"
       }
     }
-  },
-  "permissions": {
-    "deny": [
-      "Edit(~/.claude/projects/**/memory/**)"
-    ]
   }
 }

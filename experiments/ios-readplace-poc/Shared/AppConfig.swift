@@ -23,11 +23,10 @@ enum AppConfig {
 	/// Shared container so the app (which signs in) and the share extension
 	/// (which saves) can both read the OAuth tokens and the base URL.
 	///
-	/// This must match the App Groups entitlement on BOTH targets. App Groups
-	/// work with a free personal Apple ID team — if Xcode shows a provisioning
-	/// error, confirm both targets declare this exact group and let Xcode
-	/// register it.
-	static let appGroupId = "group.com.fagnerbrack.readplacepoc"
+	/// This must match the App Groups entitlement on BOTH targets and the App
+	/// Group identifier registered in the Apple Developer portal, otherwise the
+	/// extension cannot read the token the app stores.
+	static let appGroupId = "group.com.readplace"
 
 	/// Path appended to the base URL to form the registered redirect URI.
 	static let callbackPath = "/oauth/callback"

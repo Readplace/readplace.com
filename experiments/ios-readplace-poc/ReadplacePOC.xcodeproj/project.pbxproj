@@ -18,7 +18,6 @@
 		43372CC285261A399463DF50 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B5274BEEB18679FD4A703BB7 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4DE99E8ED090387EEAE25D95 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AD5E2DE62D0BC3BCCFA946F /* AppConfig.swift */; };
 		4F11932A401E5368EE9491E5 /* ReadingListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED935A16F558FB2CA3C0C3F1 /* ReadingListView.swift */; };
-		516CFD36FFDFF826D6E5CB02 /* AppIcon60x60@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 056907BDA1EA1D30B6B363D4 /* AppIcon60x60@2x.png */; };
 		58C69179436F98951C583999 /* StubURLProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4448E492BCC6E5DCCB88721D /* StubURLProtocol.swift */; };
 		5D13BA9AE04F798988DAD3BA /* PKCE.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B6BE609DB3E22040454AA0 /* PKCE.swift */; };
 		5F5984823A5229020F6D46D0 /* TokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F8F7438DAFCB74B3672A839 /* TokenStore.swift */; };
@@ -27,13 +26,13 @@
 		6D3CD30D238425577995A3D6 /* ReadplaceAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4FE63036F51C79D2C425923 /* ReadplaceAPI.swift */; };
 		6FCEFD1EDE55E6276B8AAE1F /* URLDetection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D659BA5462FB5843C7BE42DA /* URLDetection.swift */; };
 		7216B282D27C2F67B6E47861 /* OAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9946DC25E20608AA7E6E0E12 /* OAuthService.swift */; };
-		738CE5A7452DEBB07C2D1342 /* AppIcon60x60@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = 782B76D79A388480B639905F /* AppIcon60x60@3x.png */; };
 		76E2F1985FA6538870D2814E /* ShareURLExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B27086EA2D67F8B41EC2336 /* ShareURLExtractor.swift */; };
 		818ADB8A9B7F9EA382B0ECD7 /* AuthFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CD54031AB4B6D33D9AF2C6D /* AuthFlowView.swift */; };
 		A186A12C1307FE0F6832CA67 /* SirenDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3C6EC80EB4F90817473939 /* SirenDecodingTests.swift */; };
 		A3F23DFCEBFB678FC9EB88C3 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AD5E2DE62D0BC3BCCFA946F /* AppConfig.swift */; };
 		B1B29898D802100EFE879BEB /* TokenStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5E05F19DD96E34CFA85C0D /* TokenStoreTests.swift */; };
 		B869B2757548A9FEB1D1578D /* AppSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 044907C3D1853B401BAE1FF7 /* AppSession.swift */; };
+		C030070075200CAFFADCCB6C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DD0EA98A7C96DB943C05F073 /* Assets.xcassets */; };
 		C5A45D3C79250E17BA98D918 /* HTMLCaptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31B06FB0D6DFD0C356DF60FC /* HTMLCaptor.swift */; };
 		C6939A08217F5E7823F6B131 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB31779D02D83C28440FFD46 /* ShareViewController.swift */; };
 		D05168458D9B20861D32296C /* SafariView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 457229710A8D320FC2722A6D /* SafariView.swift */; };
@@ -80,7 +79,6 @@
 /* Begin PBXFileReference section */
 		02BECAB6FCA9ED9AFF7322FA /* ReadingListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingListViewModel.swift; sourceTree = "<group>"; };
 		044907C3D1853B401BAE1FF7 /* AppSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSession.swift; sourceTree = "<group>"; };
-		056907BDA1EA1D30B6B363D4 /* AppIcon60x60@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIcon60x60@2x.png"; sourceTree = "<group>"; };
 		0A5E05F19DD96E34CFA85C0D /* TokenStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenStoreTests.swift; sourceTree = "<group>"; };
 		142A3C349BEA4342C5666851 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		20B6BE609DB3E22040454AA0 /* PKCE.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PKCE.swift; sourceTree = "<group>"; };
@@ -97,7 +95,6 @@
 		6B27086EA2D67F8B41EC2336 /* ShareURLExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareURLExtractor.swift; sourceTree = "<group>"; };
 		6F8D92100C19E5A7280F5EF6 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 		6F8F7438DAFCB74B3672A839 /* TokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenStore.swift; sourceTree = "<group>"; };
-		782B76D79A388480B639905F /* AppIcon60x60@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIcon60x60@3x.png"; sourceTree = "<group>"; };
 		89D9C9CF6D7EA1AB9E8190CC /* PKCETests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PKCETests.swift; sourceTree = "<group>"; };
 		93BBAB53A8D51AA37DD50987 /* SirenModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SirenModels.swift; sourceTree = "<group>"; };
 		9946DC25E20608AA7E6E0E12 /* OAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthService.swift; sourceTree = "<group>"; };
@@ -108,6 +105,7 @@
 		CDD18612A36478093F9D908B /* ReadplacePOCTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ReadplacePOCTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D4FE63036F51C79D2C425923 /* ReadplaceAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadplaceAPI.swift; sourceTree = "<group>"; };
 		D659BA5462FB5843C7BE42DA /* URLDetection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLDetection.swift; sourceTree = "<group>"; };
+		DD0EA98A7C96DB943C05F073 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		EB31779D02D83C28440FFD46 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		ED935A16F558FB2CA3C0C3F1 /* ReadingListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingListView.swift; sourceTree = "<group>"; };
 		F3967852210BA8151D76936C /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
@@ -134,8 +132,7 @@
 		3562591AEBBE5F0CCDC63DF8 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				056907BDA1EA1D30B6B363D4 /* AppIcon60x60@2x.png */,
-				782B76D79A388480B639905F /* AppIcon60x60@3x.png */,
+				DD0EA98A7C96DB943C05F073 /* Assets.xcassets */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -222,8 +219,6 @@
 				F36F5135DFC63A0DA27C065A /* PBXTargetDependency */,
 			);
 			name = ReadplacePOC;
-			packageProductDependencies = (
-			);
 			productName = ReadplacePOC;
 			productReference = 62BBF1D2529732948E942988 /* ReadplacePOC.app */;
 			productType = "com.apple.product-type.application";
@@ -239,8 +234,6 @@
 			dependencies = (
 			);
 			name = ShareExtension;
-			packageProductDependencies = (
-			);
 			productName = ShareExtension;
 			productReference = B5274BEEB18679FD4A703BB7 /* ShareExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
@@ -257,8 +250,6 @@
 				1EF22E459CAD6AC3A0BE52B3 /* PBXTargetDependency */,
 			);
 			name = ReadplacePOCTests;
-			packageProductDependencies = (
-			);
 			productName = ReadplacePOCTests;
 			productReference = CDD18612A36478093F9D908B /* ReadplacePOCTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -274,15 +265,15 @@
 				TargetAttributes = {
 					52D4622F1329C073C5E3A1BF = {
 						DevelopmentTeam = "";
-						ProvisioningStyle = Automatic;
+						ProvisioningStyle = Manual;
 					};
 					B6EAC7C77E04192635BA7B32 = {
 						DevelopmentTeam = "";
-						ProvisioningStyle = Automatic;
+						ProvisioningStyle = Manual;
 					};
 					FA69A4E28171CE6BBC6EE219 = {
 						DevelopmentTeam = "";
-						ProvisioningStyle = Automatic;
+						ProvisioningStyle = Manual;
 					};
 				};
 			};
@@ -312,8 +303,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				516CFD36FFDFF826D6E5CB02 /* AppIcon60x60@2x.png in Resources */,
-				738CE5A7452DEBB07C2D1342 /* AppIcon60x60@3x.png in Resources */,
+				C030070075200CAFFADCCB6C /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -401,7 +391,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.fagnerbrack.readplacepoc.Tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.readplace.Tests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ReadplacePOC.app/ReadplacePOC";
@@ -419,7 +409,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.fagnerbrack.readplacepoc.ShareExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.readplace.ShareExtension;
 				PRODUCT_NAME = ShareExtension;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -430,6 +420,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				DEVELOPMENT_TEAM = RNG8M2ZMY8;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -437,8 +430,9 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.fagnerbrack.readplacepoc.ShareExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.readplace.ShareExtension;
 				PRODUCT_NAME = ShareExtension;
+				PROVISIONING_PROFILE_SPECIFIER = "match AppStore com.readplace.ShareExtension 1780670327";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -449,15 +443,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				DEVELOPMENT_TEAM = RNG8M2ZMY8;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.fagnerbrack.readplacepoc;
+				PRODUCT_BUNDLE_IDENTIFIER = com.readplace;
 				PRODUCT_MODULE_NAME = Readplace;
+				PROVISIONING_PROFILE_SPECIFIER = "match AppStore com.readplace 1780670325";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -496,7 +493,7 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
@@ -544,7 +541,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.fagnerbrack.readplacepoc;
+				PRODUCT_BUNDLE_IDENTIFIER = com.readplace;
 				PRODUCT_MODULE_NAME = Readplace;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -584,7 +581,7 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
@@ -623,7 +620,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.fagnerbrack.readplacepoc.Tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.readplace.Tests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ReadplacePOC.app/ReadplacePOC";

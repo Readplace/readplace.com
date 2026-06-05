@@ -206,10 +206,13 @@ cases:
 
 ## Notes & caveats
 
-- **Default app icon.** The POC ships without a custom icon/accent color. (The
-  asset catalog is intentionally omitted so `actool` doesn't require an iOS
-  Simulator runtime to be installed — which lets `make ipa` work on a minimal /
-  partial Xcode that only has the device SDK.)
+- **App icon.** The app ships a brand icon — a navy serif ampersand with the
+  warm-amber marker dot (see [BRAND_GUIDELINES.md](../../BRAND_GUIDELINES.md)) — in
+  an `Assets.xcassets` catalog, regenerated from the brand geometry by
+  `scripts/make-appicon.sh`. Compiling the catalog (`actool`) needs the iOS
+  **platform/simulator runtime** installed (`xcodebuild -downloadPlatform iOS`),
+  the same prerequisite as device archiving; on a partial Xcode with only the
+  device SDK the build fails at `actool` until the platform is installed.
 - **Builds from the repo's devbox shell.** `build-unsigned-ipa.sh` scrubs the
   nix toolchain env (`CC`/`CXX`/`LD`/`SDKROOT`/…) and points at the real Xcode,
   and builds the app target with `-target` (not `-scheme`) so it links against

@@ -1,6 +1,6 @@
 name: ReadplacePOC
 options:
-  bundleIdPrefix: com.fagnerbrack.readplacepoc
+  bundleIdPrefix: com.readplace
   deploymentTarget:
     iOS: "16.0"
   createIntermediateGroups: true
@@ -14,9 +14,12 @@ settings:
     # Pin the permissive (default) concurrency checking so the POC compiles
     # cleanly regardless of the Xcode version's default.
     SWIFT_STRICT_CONCURRENCY: minimal
-    CODE_SIGN_STYLE: Automatic
-    # Leave the team empty so it builds for the Simulator out of the box.
-    # To run on a device, select your team in Signing & Capabilities (both targets).
+    # Manual signing: the GUI Signing & Capabilities tab is unavailable on this
+    # machine, so fastlane injects DEVELOPMENT_TEAM and the per-target
+    # PROVISIONING_PROFILE_SPECIFIER at build time (update_code_signing_settings)
+    # from env/match. Nothing identifying is committed here, and unsigned
+    # `make ipa` still works because it forces CODE_SIGNING_ALLOWED=NO.
+    CODE_SIGN_STYLE: Manual
     DEVELOPMENT_TEAM: ""
     TARGETED_DEVICE_FAMILY: "1"
 
@@ -33,10 +36,11 @@ targets:
         # home-screen name is "Readplace" via CFBundleDisplayName. The module is
         # named "Readplace" purely for a clean `@testable import Readplace`.
         PRODUCT_MODULE_NAME: Readplace
-        PRODUCT_BUNDLE_IDENTIFIER: com.fagnerbrack.readplacepoc
+        PRODUCT_BUNDLE_IDENTIFIER: com.readplace
         INFOPLIST_FILE: App/Info.plist
         CODE_SIGN_ENTITLEMENTS: App/App.entitlements
         GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
       - target: ShareExtension
     scheme:
@@ -52,7 +56,7 @@ targets:
     settings:
       base:
         PRODUCT_NAME: ShareExtension
-        PRODUCT_BUNDLE_IDENTIFIER: com.fagnerbrack.readplacepoc.ShareExtension
+        PRODUCT_BUNDLE_IDENTIFIER: com.readplace.ShareExtension
         INFOPLIST_FILE: ShareExtension/Info.plist
         CODE_SIGN_ENTITLEMENTS: ShareExtension/ShareExtension.entitlements
         GENERATE_INFOPLIST_FILE: NO
@@ -66,5 +70,5 @@ targets:
       - target: ReadplacePOC
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.fagnerbrack.readplacepoc.Tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.readplace.Tests
         GENERATE_INFOPLIST_FILE: YES

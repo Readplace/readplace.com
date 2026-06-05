@@ -8,3 +8,21 @@ build/
 
 # The .xcodeproj is generated from project.yml by XcodeGen. It is committed here
 # for convenience (open-and-run); regenerate any time with `make generate`.
+
+# --- Secrets (NEVER commit) ---
+fastlane/.env
+fastlane/secrets/
+*.p8
+*.p12
+*.cer
+*.certSigningRequest
+*.mobileprovision
+*.provisionprofile
+
+# --- Bundler / fastlane generated ---
+vendor/
+.bundle/
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/test_output/
+fastlane/README.md
