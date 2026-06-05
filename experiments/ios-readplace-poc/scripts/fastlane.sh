@@ -11,10 +11,17 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Locate the real Xcode (not the nix DEVELOPER_DIR).
-XCODE_DEV_DIR=""
+# Locate the real Xcode (not the nix DEVELOPER_DIR), preferring the NEWEST one
+# installed: App Store Connect requires building with the current iOS SDK
+# (Xcode 26+) to upload, so once that is installed — even side by side — the
+# build uses it automatically with no path juggling.
+XCODE_DEV_DIR=""; newest_ver=""
 for app in /Applications/Xcode.app /Applications/Xcode-*.app; do
-	if [ -d "$app/Contents/Developer" ]; then XCODE_DEV_DIR="$app/Contents/Developer"; break; fi
+	[ -d "$app/Contents/Developer" ] || continue
+	ver="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist" 2>/dev/null)" || continue
+	if [ -z "$newest_ver" ] || [ "$(printf '%s\n%s\n' "$newest_ver" "$ver" | sort -V | tail -1)" = "$ver" ]; then
+		newest_ver="$ver"; XCODE_DEV_DIR="$app/Contents/Developer"
+	fi
 done
 if [ -z "$XCODE_DEV_DIR" ]; then
 	XCODE_DEV_DIR="$(env -u DEVELOPER_DIR /usr/bin/xcode-select -p)"
