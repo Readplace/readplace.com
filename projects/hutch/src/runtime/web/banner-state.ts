@@ -76,7 +76,7 @@ export interface BannerState {
 	 * is gated server-side) and account (the trial-countdown link in the
 	 * header already routes there) are hidden for read-only users. Undefined
 	 * for guests and for pages that build the banner state synchronously
-	 * (without an access lookup); `buildNavItems` treats undefined as full
+	 * (without an access lookup); `buildNavGroups` treats undefined as full
 	 * access. */
 	accessIsReadOnly?: boolean;
 }
