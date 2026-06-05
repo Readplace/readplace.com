@@ -19,6 +19,13 @@ export type NavItemKey =
 	| "features"
 	| "signup";
 
+/** Logical section a nav item belongs to. The header renders one section per
+ * group so related destinations sit together and new destinations slot into an
+ * existing group rather than lengthening one flat list. "library" holds the
+ * reading queue and its data tools; "account" holds identity/session actions;
+ * "explore" is the guest pre-auth section. */
+export type NavGroupKey = "library" | "account" | "explore";
+
 /** Data-driven header nav item. Rendered uniformly as
  * `<form method="{method}" action="{href}"><button>{label}</button></form>`
  * regardless of method — the template never branches on link-vs-form. A
@@ -26,12 +33,24 @@ export type NavItemKey =
  * (the browser appends `?` and follows), so it behaves exactly like a
  * link; using forms everywhere keeps a single template shape and a single
  * styling target (`.nav__link` already styles `button.nav__link`).
- * Excessive markup is not a performance concern at this scale. */
+ * Excessive markup is not a performance concern at this scale. The `icon` is a
+ * Font Awesome class pair (e.g. "fa-solid fa-inbox") rendered into an empty,
+ * `aria-hidden` `<i>` so the glyph reinforces the label without adding text. */
 export interface NavItem {
 	key: NavItemKey;
 	label: string;
 	href: string;
 	method: "GET" | "POST";
+	icon: string;
+}
+
+/** A labelled section of the header nav. The template iterates groups, then the
+ * items within each — no inline conditionals. Adding or moving a destination is
+ * an edit to `buildNavGroups`, not to the template. */
+export interface NavGroup {
+	key: NavGroupKey;
+	label: string;
+	items: NavItem[];
 }
 
 export interface BannerState {
@@ -62,49 +81,82 @@ export interface BannerState {
 	accessIsReadOnly?: boolean;
 }
 
-const NAV_QUEUE: NavItem = { key: "queue", label: "Queue", href: "/queue", method: "GET" };
+const NAV_QUEUE: NavItem = {
+	key: "queue",
+	label: "Queue",
+	href: "/queue",
+	method: "GET",
+	icon: "fa-solid fa-inbox",
+};
 const NAV_IMPORT: NavItem = {
 	key: "import",
 	label: "Import Links",
 	href: "/import?utm_source=header-nav&utm_medium=internal&utm_content=import-link",
 	method: "GET",
+	icon: "fa-solid fa-file-import",
 };
-const NAV_EXPORT: NavItem = { key: "export", label: "Export", href: "/export", method: "GET" };
+const NAV_EXPORT: NavItem = {
+	key: "export",
+	label: "Export",
+	href: "/export",
+	method: "GET",
+	icon: "fa-solid fa-file-export",
+};
 const NAV_ACCOUNT: NavItem = {
 	key: "account",
 	label: "Account",
 	href: "/account",
 	method: "GET",
+	icon: "fa-solid fa-user",
 };
-const NAV_LOGOUT: NavItem = { key: "logout", label: "Sign out", href: "/logout", method: "POST" };
+const NAV_LOGOUT: NavItem = {
+	key: "logout",
+	label: "Sign out",
+	href: "/logout",
+	method: "POST",
+	icon: "fa-solid fa-right-from-bracket",
+};
 const NAV_FEATURES: NavItem = {
 	key: "features",
 	label: "Features",
 	href: "/#what-works",
 	method: "GET",
+	icon: "fa-solid fa-wand-magic-sparkles",
 };
-const NAV_SIGNUP: NavItem = { key: "signup", label: "Sign up", href: "/signup", method: "GET" };
+const NAV_SIGNUP: NavItem = {
+	key: "signup",
+	label: "Sign up",
+	href: "/signup",
+	method: "GET",
+	icon: "fa-solid fa-user-plus",
+};
 
-/** Builds the header nav-items array from the per-request boolean flags.
- * The template iterates this list — no inline conditionals. Adding a new
- * nav item means editing this function, not editing the template. */
-export function buildNavItems(input: {
+/** Builds the grouped header nav from the per-request boolean flags. The
+ * template iterates the returned groups (then their items) — no inline
+ * conditionals. Adding a destination means pushing a NavItem into the right
+ * group here, not editing the template. Item order within a group is preserved
+ * so the flat rendered order stays queue → import → export → account → logout. */
+export function buildNavGroups(input: {
 	isAuthenticated: boolean;
 	accessIsReadOnly: boolean;
-}): NavItem[] {
+}): NavGroup[] {
 	if (!input.isAuthenticated) {
-		return [NAV_FEATURES, NAV_SIGNUP];
+		return [{ key: "explore", label: "Explore", items: [NAV_FEATURES, NAV_SIGNUP] }];
 	}
-	const items: NavItem[] = [NAV_QUEUE];
+	const library: NavItem[] = [NAV_QUEUE];
 	if (!input.accessIsReadOnly) {
-		items.push(NAV_IMPORT);
+		library.push(NAV_IMPORT);
 	}
-	items.push(NAV_EXPORT);
+	library.push(NAV_EXPORT);
+	const account: NavItem[] = [];
 	if (!input.accessIsReadOnly) {
-		items.push(NAV_ACCOUNT);
+		account.push(NAV_ACCOUNT);
 	}
-	items.push(NAV_LOGOUT);
-	return items;
+	account.push(NAV_LOGOUT);
+	return [
+		{ key: "library", label: "Library", items: library },
+		{ key: "account", label: "Account", items: account },
+	];
 }
 
 export function bannerStateFromRequest(source: BannerStateSource): BannerState {

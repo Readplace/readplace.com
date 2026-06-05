@@ -18,16 +18,21 @@
           <span class="nav__toggle-bar"></span>
           <span class="nav__toggle-bar"></span>
         </button>
-        <div id="nav-menu" class="nav__menu">
-          <ul class="nav__list" data-test-nav-variant="{{navVariant}}">
-            {{#each navItems}}
-            <li>
-              <form method="{{method}}" action="{{href}}">
-                <button type="submit" class="nav__link" data-test-nav-item="{{key}}">{{label}}</button>
-              </form>
-            </li>
-            {{/each}}
-          </ul>
+        <div id="nav-menu" class="nav__menu" data-test-nav-variant="{{navVariant}}">
+          {{#each navGroups}}
+          <div class="nav__group" data-test-nav-group="{{key}}">
+            <span class="nav__group-label">{{label}}</span>
+            <ul class="nav__list">
+              {{#each items}}
+              <li>
+                <form method="{{method}}" action="{{href}}">
+                  <button type="submit" class="nav__link" data-test-nav-item="{{key}}"><i class="nav__icon {{icon}}" aria-hidden="true"></i><span class="nav__label">{{label}}</span></button>
+                </form>
+              </li>
+              {{/each}}
+            </ul>
+          </div>
+          {{/each}}
         </div>
       </nav>
     </div>

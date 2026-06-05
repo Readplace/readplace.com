@@ -1,6 +1,7 @@
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	bannerStateFromRequest,
+	buildNavGroups,
 	initBuildBannerState,
 } from "./banner-state";
 import type { EffectiveAccess } from "../domain/access/effective-access";
@@ -26,6 +27,41 @@ describe("bannerStateFromRequest", () => {
 		expect(bannerStateFromRequest({ emailVerified: true }).emailVerified).toBe(true);
 		expect(bannerStateFromRequest({ emailVerified: false }).emailVerified).toBe(false);
 		expect(bannerStateFromRequest({}).emailVerified).toBeUndefined();
+	});
+});
+
+describe("buildNavGroups", () => {
+	it("returns a single Explore group for guests", () => {
+		const groups = buildNavGroups({ isAuthenticated: false, accessIsReadOnly: false });
+		expect(groups.map((g) => g.key)).toEqual(["explore"]);
+		expect(groups[0]?.items.map((i) => i.key)).toEqual(["features", "signup"]);
+	});
+
+	it("groups full-access items into Library (queue, import, export) and Account (account, sign out)", () => {
+		const groups = buildNavGroups({ isAuthenticated: true, accessIsReadOnly: false });
+		expect(groups.map((g) => g.key)).toEqual(["library", "account"]);
+		const [library, account] = groups;
+		expect(library?.label).toBe("Library");
+		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "export"]);
+		expect(account?.label).toBe("Account");
+		expect(account?.items.map((i) => i.key)).toEqual(["account", "logout"]);
+	});
+
+	it("omits import and account for a read-only user, leaving Library (queue, export) and Account (sign out)", () => {
+		const groups = buildNavGroups({ isAuthenticated: true, accessIsReadOnly: true });
+		const [library, account] = groups;
+		expect(library?.items.map((i) => i.key)).toEqual(["queue", "export"]);
+		expect(account?.items.map((i) => i.key)).toEqual(["logout"]);
+	});
+
+	it("assigns a Font Awesome solid icon to every nav item", () => {
+		const items = [
+			...buildNavGroups({ isAuthenticated: true, accessIsReadOnly: false }),
+			...buildNavGroups({ isAuthenticated: false, accessIsReadOnly: false }),
+		].flatMap((g) => g.items);
+		for (const item of items) {
+			expect(item.icon).toMatch(/^fa-solid fa-[a-z-]+$/);
+		}
 	});
 });
 
