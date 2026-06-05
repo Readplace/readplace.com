@@ -3,6 +3,10 @@ package com.readplace.poc.core
 import com.readplace.poc.core.http.HttpClient
 import com.readplace.poc.core.http.HttpRequest
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.net.URLEncoder
 
 /** Why an OAuth step failed, with a user-facing message. */
@@ -104,7 +108,7 @@ class OAuthService(
 						url = revokeEndpoint,
 						method = "POST",
 						headers = mapOf("Content-Type" to "application/json"),
-						body = """{"token":"$refresh"}""".toByteArray(),
+						body = Json.encodeToString(JsonObject.serializer(), buildJsonObject { put("token", refresh) }).toByteArray(),
 					),
 				)
 			}
