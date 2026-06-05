@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Brand palette — see ../../../../../../../BRAND_GUIDELINES.md -->
+<resources>
+	<color name="navy">#2B3A55</color>
+	<color name="amber">#C8923C</color>
+	<color name="brand">#C8702A</color>
+	<color name="paper">#FFFFFF</color>
+	<color name="surface">#F7F8FA</color>
+	<color name="ink">#1A202C</color>
+</resources>

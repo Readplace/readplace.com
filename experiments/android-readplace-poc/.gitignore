@@ -1,0 +1,22 @@
+# Gradle / build output
+.gradle/
+build/
+**/build/
+
+# The Android SDK location is per-machine; never commit it.
+local.properties
+
+# Android build artifacts
+*.apk
+*.aab
+*.ap_
+*.dex
+captures/
+.cxx/
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# The Gradle wrapper jar IS committed (open-and-run); do not ignore gradle/wrapper.

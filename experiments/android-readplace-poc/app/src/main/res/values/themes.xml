@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<!-- Base theme; Compose sets the real Material 3 colours at runtime (see ui/Theme.kt). -->
+	<style name="Theme.Readplace" parent="Theme.Material3.DayNight.NoActionBar">
+		<item name="android:statusBarColor">@color/navy</item>
+		<item name="android:windowBackground">@color/paper</item>
+	</style>
+
+	<!-- ShareActivity floats a status card over the sharing app, like the iOS share sheet. -->
+	<style name="Theme.Readplace.Translucent" parent="Theme.Material3.DayNight.NoActionBar">
+		<item name="android:windowIsTranslucent">true</item>
+		<item name="android:windowBackground">@android:color/transparent</item>
+		<item name="android:windowContentOverlay">@null</item>
+		<item name="android:backgroundDimEnabled">true</item>
+	</style>
+</resources>
