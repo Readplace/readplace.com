@@ -1,0 +1,57 @@
+{
+  "manifest_version": 2,
+  "name": "Readplace — Save Articles & Read Later",
+  "version": "0.0.0",
+  "description": "Save articles with one click. A privacy-first read-it-later app and Pocket alternative.",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "contextMenus",
+    "storage",
+    "https://readplace.com/*"
+  ],
+  "icons": {
+    "16": "icons/light/icon-16.png",
+    "32": "icons/light/icon-32.png",
+    "48": "icons/light/icon-48.png",
+    "64": "icons/light/icon-64.png",
+    "96": "icons/light/icon-96.png",
+    "128": "icons/light/icon-128.png"
+  },
+  "browser_action": {
+    "default_popup": "popup/popup.template.html",
+    "default_title": "Readplace",
+    "default_icon": {
+      "16": "icons/dark/icon-16.png",
+      "32": "icons/dark/icon-32.png",
+      "48": "icons/dark/icon-48.png",
+      "64": "icons/dark/icon-64.png"
+    }
+  },
+  "background": {
+    "persistent": false,
+    "scripts": [
+      "background/background.browser.js"
+    ]
+  },
+  "commands": {
+    "_execute_browser_action": {
+      "suggested_key": {
+        "default": "Ctrl+D",
+        "mac": "Command+D"
+      },
+      "description": "Activate the extension"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content/shortcut.browser.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.styles.css">
+</head>
+<body>
+  <div id="login-view" class="view" hidden>
+    <div class="login">
+      <div class="login__brand">
+        <a href="https://readplace.com/?utm=safari-ext" class="login__logo-link" aria-label="Visit Readplace website" target="_blank" rel="noopener">
+          <div class="login__icon" aria-hidden="true">H</div>
+        </a>
+      </div>
+      <button id="login-button" class="login__submit" type="button">Log in to Readplace</button>
+      <p id="login-error" class="login__error" hidden></p>
+    </div>
+  </div>
+
+  <div id="saved-view" class="view saved-view" hidden>
+    <div class="saved-view__icon" aria-hidden="true">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+    </div>
+    <p class="saved-view__title">Article saved</p>
+    <p class="saved-view__subtitle">Saved to your reading list</p>
+    <button id="view-queue-button" class="saved-view__action">View Queue</button>
+    <p class="shortcut-hint">Tip: Use <kbd>Ctrl</kbd>+<kbd>D</kbd> to save from any page</p>
+  </div>
+
+  <div id="already-saved-view" class="view view--status" hidden>
+    <p>Already in your list</p>
+  </div>
+
+  <div id="removed-view" class="view view--status" hidden>
+    <p>Removed</p>
+  </div>
+
+  <div id="list-view" class="view" hidden>
+    <div class="list-view__header">
+      <a href="https://readplace.com/queue?utm=safari-ext" class="list-view__brand" aria-label="Open Readplace queue" target="_blank" rel="noopener">
+        <div class="list-view__brand-icon" aria-hidden="true">H</div>
+        <span class="list-view__brand-name">Readplace</span>
+      </a>
+      <div class="list-view__actions">
+        <button id="logout-button" class="list-view__logout" title="Log out">Log out</button>
+      </div>
+    </div>
+    <div class="list-view__search">
+      <input
+        type="text"
+        id="filter-input"
+        class="list-view__filter"
+        placeholder="Search articles..."
+      >
+    </div>
+    <p id="list-warning" class="list-view__warning" role="status" hidden></p>
+    <div id="link-list" class="list-view__links"></div>
+    <div id="pagination" class="pagination" hidden></div>
+    <p id="empty-list" class="list-view__empty" hidden>No unread links</p>
+    <p id="no-matches" class="list-view__empty" hidden>No matching links</p>
+    <p id="list-error" class="list-view__error" hidden>Failed to load links</p>
+  </div>
+
+  <div id="saving-view" class="view saving-view">
+    <p class="saving-view__title">Loading&hellip;</p>
+    <div
+      class="saving-view__progress"
+      role="progressbar"
+      aria-busy="true"
+      aria-label="Loading"
+      aria-valuemin="0"
+      aria-valuemax="100"
+    >
+      <div class="saving-view__progress-fill"></div>
+    </div>
+  </div>
+
+  <div id="spinner-overlay" class="spinner-overlay" hidden>
+    <div class="spinner-overlay__dot"></div>
+  </div>
+
+  <script src="popup.browser.js"></script>
+</body>
+</html>

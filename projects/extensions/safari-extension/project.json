@@ -1,0 +1,12 @@
+{
+  "name": "safari-extension",
+  "targets": {
+    "compile": {
+      "outputs": ["{projectRoot}/dist-extension-compiled", "{projectRoot}/dist-extension-files"]
+    },
+    "check": {
+      "command": "pnpm lint && pnpm test-with-coverage",
+      "options": { "cwd": "{projectRoot}" }
+    }
+  }
+}
