@@ -1,0 +1,15 @@
+{
+	"name": "article-tts-poc",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Proof of concept: natural text-to-speech narration for Readplace articles, with a June 2026 cost estimate.",
+	"scripts": {
+		"demo": "node --experimental-strip-types src/demo.ts",
+		"test": "node --experimental-strip-types --test test/*.test.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"engines": {
+		"node": ">=22.0.0"
+	}
+}
