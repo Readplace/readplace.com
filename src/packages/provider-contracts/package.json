@@ -77,6 +77,10 @@
       "types": "./dist/refresh-html.d.ts",
       "default": "./dist/refresh-html.js"
     },
+    "./resurface": {
+      "types": "./dist/resurface.d.ts",
+      "default": "./dist/resurface.js"
+    },
     "./stripe-checkout": {
       "types": "./dist/stripe-checkout.d.ts",
       "default": "./dist/stripe-checkout.js"
@@ -113,6 +117,7 @@
       "rate-limit": ["./dist/rate-limit.d.ts"],
       "reader-ready-state": ["./dist/reader-ready-state.d.ts"],
       "refresh-html": ["./dist/refresh-html.d.ts"],
+      "resurface": ["./dist/resurface.d.ts"],
       "stripe-checkout": ["./dist/stripe-checkout.d.ts"],
       "stripe-subscriptions": ["./dist/stripe-subscriptions.d.ts"],
       "subscription-providers": ["./dist/subscription-providers.d.ts"],

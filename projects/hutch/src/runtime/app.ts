@@ -97,6 +97,9 @@ import type { AnalyticsEvent } from "./web/middleware/analytics";
 import { httpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { getEnv, requireEnv } from "./domain/require-env";
+import { initMatchArticlesByInterest } from "./domain/resurface/match-articles-by-interest";
+import { initDeepseekChatCompletion } from "./providers/resurface/deepseek-chat-completion";
+import { createKeywordMatchArticlesByInterest } from "@packages/test-fixtures/providers/resurface";
 
 /**
  * Hutch SSR does not run PDF extraction in-process — the
@@ -135,6 +138,7 @@ function initProviders() {
 		const googleClientSecret = requireEnv("GOOGLE_LOGIN_CLIENT_SECRET");
 		const appOriginForRedirect = requireEnv("APP_ORIGIN");
 		const resendApiKey = requireEnv("RESEND_API_KEY");
+		const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
 		const stripeApiKey = requireEnv("STRIPE_SECRET_KEY");
 		const stripePriceId = requireEnv("STRIPE_PRICE_ID");
 		const eventBusName = requireEnv("EVENT_BUS_NAME");
@@ -291,6 +295,12 @@ function initProviders() {
 			refreshArticleIfStale,
 			consumeRateLimit,
 			rateLimitRules,
+			matchArticlesByInterest: initMatchArticlesByInterest({
+				createChatCompletion: initDeepseekChatCompletion({
+					apiKey: deepseekApiKey,
+					fetch: globalThis.fetch,
+				}),
+			}),
 		};
 	}
 
@@ -465,6 +475,7 @@ function initProviders() {
 		refreshArticleIfStale,
 		consumeRateLimit,
 		rateLimitRules,
+		matchArticlesByInterest: createKeywordMatchArticlesByInterest(),
 	};
 }
 

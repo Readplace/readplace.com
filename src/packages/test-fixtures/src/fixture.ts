@@ -36,6 +36,7 @@ import {
 	initInMemoryOAuthModel,
 } from "./providers/oauth/oauth-model";
 import { createValidateAccessToken } from "./providers/oauth/validate-access-token";
+import { createKeywordMatchArticlesByInterest } from "./providers/resurface/in-memory-match-articles-by-interest";
 import type {
 	FindGeneratedSummary,
 	ForceMarkSummaryPending,
@@ -379,6 +380,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			appOrigin,
 			staticBaseUrl: "https://static.test",
 			httpErrorMessageMapping,
+			matchArticlesByInterest: createKeywordMatchArticlesByInterest(),
 			logError: createNoopLogError(),
 			logParseError: () => {},
 			now: () => new Date(),

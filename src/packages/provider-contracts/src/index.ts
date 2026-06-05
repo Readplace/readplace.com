@@ -15,6 +15,7 @@ export type * from "./pending-signup";
 export type * from "./rate-limit";
 export type * from "./reader-ready-state";
 export type * from "./refresh-html";
+export type * from "./resurface";
 export type * from "./stripe-checkout";
 export type * from "./stripe-subscriptions";
 export type * from "./subscription-providers";

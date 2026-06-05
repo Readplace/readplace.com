@@ -20,12 +20,14 @@ export function buildCardPollUrl(params: {
 	search.set("poll", String(params.pollCount));
 	const tab = params.filters.tab ?? "queue";
 	if (tab !== "queue") search.set("tab", tab);
-	const { defaultOrder } = tabQuery(tab);
-	if (params.filters.order && params.filters.order !== defaultOrder) {
-		search.set("order", params.filters.order);
-	}
-	if (params.filters.page && params.filters.page > 1) {
-		search.set("page", String(params.filters.page));
+	if (tab !== "resurfaced") {
+		const { defaultOrder } = tabQuery(tab);
+		if (params.filters.order && params.filters.order !== defaultOrder) {
+			search.set("order", params.filters.order);
+		}
+		if (params.filters.page && params.filters.page > 1) {
+			search.set("page", String(params.filters.page));
+		}
 	}
 	return `/queue/${params.articleId}/card?${search.toString()}`;
 }

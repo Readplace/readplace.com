@@ -78,6 +78,14 @@ export interface QueueViewModel {
 	filterUrls: {
 		unread: string;
 		read: string;
+		resurfaced: string;
+	};
+	/** Drives the "Resurfaced" tab: `showTab` is true once a resurface result
+	 * exists (or while viewing the tab); `prompt` is the interest that produced
+	 * the current result, surfaced in the tab's banner. */
+	resurface: {
+		showTab: boolean;
+		prompt: string;
 	};
 	paginationUrls: {
 		prev?: string;
@@ -226,6 +234,7 @@ export function toQueueViewModel(
 		summaryByUrl?: ReadonlyMap<string, GeneratedSummary | undefined>;
 		crawlByUrl?: ReadonlyMap<string, ArticleCrawl | undefined>;
 		effectiveAccess?: EffectiveAccess;
+		resurface?: { showTab: boolean; prompt: string };
 	},
 ): QueueViewModel {
 	const now = options?.now ?? new Date();
@@ -267,7 +276,9 @@ export function toQueueViewModel(
 		filterUrls: {
 			unread: buildQueueUrl({ ...baseFilters, tab: "queue" }),
 			read: buildQueueUrl({ ...baseFilters, tab: "done" }),
+			resurfaced: buildQueueUrl({ tab: "resurfaced" }),
 		},
+		resurface: options?.resurface ?? { showTab: false, prompt: "" },
 		paginationUrls: {
 			prev:
 				result.page > 1

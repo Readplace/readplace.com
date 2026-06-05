@@ -142,6 +142,7 @@ const { app: hutchApp, auth, email } = createTestApp({
     appOrigin: fixture.shared.appOrigin,
     staticBaseUrl: fixture.shared.staticBaseUrl,
     httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,
+    matchArticlesByInterest: fixture.shared.matchArticlesByInterest,
     logError,
     logParseError: fixture.shared.logParseError,
     now: fixture.shared.now,

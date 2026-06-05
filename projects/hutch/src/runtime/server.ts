@@ -66,6 +66,7 @@ import type {
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type { MatchArticlesByInterest } from "@packages/provider-contracts/resurface";
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	FindArticleCrawlStatus,
@@ -189,6 +190,7 @@ interface AppDependencies {
 	findArticleUrlById: FindArticleUrlById;
 	findArticlesByUser: FindArticlesByUser;
 	countArticlesByUser: CountArticlesByUser;
+	matchArticlesByInterest: MatchArticlesByInterest;
 	saveArticle: SaveArticle;
 	saveArticleGlobally: SaveArticleGlobally;
 	deleteArticle: DeleteArticle;
@@ -763,6 +765,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		appOrigin,
 		findArticlesByUser: deps.findArticlesByUser,
 		countArticlesByUser: deps.countArticlesByUser,
+		matchArticlesByInterest: deps.matchArticlesByInterest,
 		findArticleById: deps.findArticleById,
 		findArticleByUrl: deps.findArticleByUrl,
 		findArticleUrlById: deps.findArticleUrlById,

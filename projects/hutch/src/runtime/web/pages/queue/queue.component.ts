@@ -10,7 +10,8 @@ import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-car
 import { renderToast } from "../../shared/toast/toast.component";
 import type { QueueViewModel, SubscriptionBannerState } from "./queue.viewmodel";
 import { buildQueueUrl } from "./queue.url";
-import { tabQuery, type TabId } from "./queue.tabs";
+import { tabQuery, type DbTabId } from "./queue.tabs";
+import type { SortOrder } from "@packages/test-fixtures/providers/article-store";
 
 const QUEUE_TEMPLATE = readFileSync(join(__dirname, "queue.template.html"), "utf-8");
 
@@ -26,7 +27,7 @@ interface QueueDisplayModel {
 	hasImportSkipped: boolean;
 	importSkippedEntries: ReadonlyArray<{ url: string; reasonLabel: string }>;
 	importSkippedAndMore?: number;
-	isEmpty: boolean;
+	showGenericEmpty: boolean;
 	emptyTitle: string;
 	hasArticles: boolean;
 	onboardingHtml: string;
@@ -36,6 +37,11 @@ interface QueueDisplayModel {
 	filterReadClass: string;
 	filterUnreadUrl: string;
 	filterReadUrl: string;
+	showResurfacedTab: boolean;
+	filterResurfacedClass: string;
+	filterResurfacedUrl: string;
+	resurfaceBannerText?: string;
+	showSort: boolean;
 	sortUrl: string;
 	sortLabel: string;
 	showPagination: boolean;
@@ -64,24 +70,34 @@ export function formatUnreadLabel(count: number): string {
 	return count > 99 ? "To Read (99+)" : `To Read (${count})`;
 }
 
-const EMPTY_STATE_TITLES: Record<TabId, string> = {
+const EMPTY_STATE_TITLES: Record<DbTabId, string> = {
 	queue: "There are no more articles to read",
 	done: "Your queue is empty",
 };
 
-export function emptyStateTitle(tab: TabId): string {
+export function emptyStateTitle(tab: DbTabId): string {
 	return EMPTY_STATE_TITLES[tab];
+}
+
+function buildSortLink(tab: DbTabId, order: SortOrder | undefined): { url: string; label: string } {
+	const effectiveOrder = order ?? tabQuery(tab).defaultOrder;
+	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
+	return {
+		url: withInternalTracking(buildQueueUrl({ tab, order: nextOrder }), { source: "queue-sort", content: "sort" }),
+		label: effectiveOrder === "desc" ? "Newest first ↓" : "Oldest first ↑",
+	};
+}
+
+function formatResurfaceBanner(prompt: string, count: number): string {
+	if (!prompt) return "Use Resurface above to find saved articles that match an interest.";
+	if (count === 0) return `No saved articles matched “${prompt}”.`;
+	return `Showing ${count} saved article${count === 1 ? "" : "s"} matching “${prompt}”.`;
 }
 
 function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: boolean; extensionSavedArticle: boolean; browser: BrowserName; onboardingDismissed: boolean }): QueueDisplayModel {
 	const activeTab = vm.filters.tab;
-	const effectiveOrder = vm.filters.order ?? tabQuery(activeTab).defaultOrder;
-	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
-	const sortLabel = effectiveOrder === "desc" ? "Newest first ↓" : "Oldest first ↑";
-	const sortUrl = withInternalTracking(buildQueueUrl({ tab: activeTab, order: nextOrder }), {
-		source: "queue-sort",
-		content: "sort",
-	});
+	const isResurfacedTab = activeTab === "resurfaced";
+	const sort = isResurfacedTab ? undefined : buildSortLink(activeTab, vm.filters.order);
 
 	const onboardingHtml = options.onboardingDismissed
 		? ""
@@ -113,8 +129,8 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		hasImportSkipped: Boolean(vm.importSkipped && vm.importSkipped.entries.length > 0),
 		importSkippedEntries: vm.importSkipped?.entries ?? [],
 		importSkippedAndMore: vm.importSkipped?.andMore,
-		isEmpty: vm.isEmpty,
-		emptyTitle: emptyStateTitle(activeTab),
+		showGenericEmpty: vm.isEmpty && !isResurfacedTab,
+		emptyTitle: isResurfacedTab ? "" : emptyStateTitle(activeTab),
 		hasArticles: !vm.isEmpty,
 		onboardingHtml,
 		articleHtmls: vm.articles.map((article, index) =>
@@ -125,8 +141,15 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		filterReadClass: filterLinkClass(activeTab === "done"),
 		filterUnreadUrl: withInternalTracking(vm.filterUrls.unread, { source: "queue-filters", content: "filter-unread" }),
 		filterReadUrl: withInternalTracking(vm.filterUrls.read, { source: "queue-filters", content: "filter-read" }),
-		sortUrl,
-		sortLabel,
+		showResurfacedTab: vm.resurface.showTab,
+		filterResurfacedClass: filterLinkClass(isResurfacedTab),
+		filterResurfacedUrl: vm.filterUrls.resurfaced,
+		resurfaceBannerText: isResurfacedTab
+			? formatResurfaceBanner(vm.resurface.prompt, vm.articles.length)
+			: undefined,
+		showSort: sort !== undefined,
+		sortUrl: sort?.url ?? "",
+		sortLabel: sort?.label ?? "",
 		showPagination: vm.totalPages > 1,
 		hasPrev: Boolean(vm.paginationUrls.prev),
 		hasNext: Boolean(vm.paginationUrls.next),

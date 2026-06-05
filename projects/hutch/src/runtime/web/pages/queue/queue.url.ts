@@ -15,7 +15,7 @@ export interface QueueUrlState {
 }
 
 const QueueQuerySchema = z.object({
-	tab: z.enum(["queue", "done"]).optional().catch(undefined),
+	tab: z.enum(["queue", "done", "resurfaced"]).optional().catch(undefined),
 	status: z.enum(["unread", "read"]).optional().catch(undefined),
 	order: z.enum(["asc", "desc"]).optional().catch(undefined),
 	page: z.coerce.number().int().min(1).optional().catch(undefined),
@@ -37,16 +37,20 @@ export function buildQueueUrl(
 ): string {
 	const params = new URLSearchParams();
 	const tab = state.tab ?? "queue";
-	const { defaultOrder } = tabQuery(tab);
 
 	if (tab !== "queue") {
 		params.set("tab", tab);
 	}
-	if (state.order && state.order !== defaultOrder) {
-		params.set("order", state.order);
-	}
-	if (state.page && state.page > 1) {
-		params.set("page", String(state.page));
+	/** The resurfaced tab is relevance-ordered and single-page, so it carries
+	 * neither an order nor a page parameter. */
+	if (tab !== "resurfaced") {
+		const { defaultOrder } = tabQuery(tab);
+		if (state.order && state.order !== defaultOrder) {
+			params.set("order", state.order);
+		}
+		if (state.page && state.page > 1) {
+			params.set("page", String(state.page));
+		}
 	}
 	for (const [key, value] of extraParams) {
 		params.append(key, value);

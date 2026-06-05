@@ -177,6 +177,7 @@ describe("Google auth routes", () => {
 					appOrigin: fixture.shared.appOrigin,
 					staticBaseUrl: fixture.shared.staticBaseUrl,
 					httpErrorMessageMapping: fixture.shared.httpErrorMessageMapping,
+					matchArticlesByInterest: fixture.shared.matchArticlesByInterest,
 					logError: (msg) => { errors.push(msg); },
 					logParseError: fixture.shared.logParseError,
 					now: fixture.shared.now,

@@ -124,6 +124,77 @@
   margin-bottom: 16px;
 }
 
+.queue__resurface {
+  margin-top: -8px;
+  margin-bottom: 24px;
+}
+
+.queue__resurface-toggle {
+  display: inline-block;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  user-select: none;
+}
+
+.queue__resurface-toggle:hover {
+  color: var(--foreground);
+}
+
+.queue__resurface-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.queue__resurface-input {
+  flex: 1;
+  height: var(--input-height);
+  padding: var(--input-padding);
+  font-size: var(--input-font-size);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.queue__resurface-input:focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--ring-shadow);
+}
+
+.queue__resurface-btn {
+  height: var(--input-height);
+  padding: 0 24px;
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.queue__resurface-btn:hover {
+  opacity: 0.9;
+}
+
+.queue__resurface-input:disabled,
+.queue__resurface-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.queue__resurface-banner {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  margin-top: -4px;
+  margin-bottom: 16px;
+}
+
 .queue__import-flash {
   color: var(--muted-foreground);
   font-size: 0.875rem;

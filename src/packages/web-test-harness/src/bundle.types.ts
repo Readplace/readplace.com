@@ -64,6 +64,7 @@ import type {
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
 	MarkSummaryPending,
+	MatchArticlesByInterest,
 	OAuthModel,
 	PublishCancelSubscriptionCommand,
 	PublishExportUserDataCommand,
@@ -290,6 +291,7 @@ export interface SharedBundle {
 	appOrigin: string;
 	staticBaseUrl: string;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
+	matchArticlesByInterest: MatchArticlesByInterest;
 	logError: (message: string, error?: Error) => void;
 	logParseError: LogParseError;
 	now: () => Date;

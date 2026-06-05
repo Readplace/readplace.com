@@ -21,6 +21,13 @@
         <input class="queue__save-input" type="url" name="url" placeholder="Paste a URL to save an article…" required value="{{saveUrl}}"{{#if accessIsReadOnly}} disabled{{/if}}>
         <button class="queue__save-btn" type="submit"{{#if accessIsReadOnly}} disabled{{/if}}><span class="queue__save-btn-label">Save</span><span class="queue__save-btn-saving">Saving…</span></button>
       </form>
+      <details class="queue__resurface" data-test-resurface>
+        <summary class="queue__resurface-toggle">Resurface</summary>
+        <form class="queue__resurface-form" method="POST" action="/queue/resurface" data-test-form="resurface">
+          <input class="queue__resurface-input" type="text" name="prompt" maxlength="500" placeholder="Describe what you're in the mood to read…" required{{#if accessIsReadOnly}} disabled{{/if}}>
+          <button class="queue__resurface-btn" type="submit"{{#if accessIsReadOnly}} disabled{{/if}}>Resurface</button>
+        </form>
+      </details>
       {{#if saveError}}<p class="queue__save-error" data-test-save-error{{#if saveErrorCode}} data-test-saveable-url-code="{{saveErrorCode}}"{{/if}}>{{saveError}}</p>{{/if}}
       {{#if importFlash}}<p class="queue__import-flash" data-test-import-flash>{{importFlash}}</p>{{/if}}
       {{#if hasImportSkipped}}
@@ -40,11 +47,15 @@
       <nav class="queue__filters" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-filters>
         <a class="{{filterUnreadClass}}" href="{{filterUnreadUrl}}" data-test-filter="unread">{{filterUnreadLabel}}</a>
         <a class="{{filterReadClass}}" href="{{filterReadUrl}}" data-test-filter="read">Read</a>
+        {{#if showResurfacedTab}}<a class="{{filterResurfacedClass}}" href="{{filterResurfacedUrl}}" data-test-filter="resurfaced">Resurfaced</a>{{/if}}
       </nav>
+      {{#if showSort}}
       <div class="queue__sort" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
         <a class="queue__sort-link" href="{{sortUrl}}" data-test-sort>{{sortLabel}}</a>
       </div>
-      {{#if isEmpty}}
+      {{/if}}
+      {{#if resurfaceBannerText}}<p class="queue__resurface-banner" data-test-resurface-banner>{{resurfaceBannerText}}</p>{{/if}}
+      {{#if showGenericEmpty}}
       <div class="queue__empty" data-test-empty-queue>
         <h2 class="queue__empty-title">{{emptyTitle}}</h2>
         <p class="queue__empty-text">Paste a URL above to save a link. Install a browser extension for the complete experience.</p>

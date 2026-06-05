@@ -27,10 +27,13 @@ import type {
 	FindArticleByUrl,
 	FindArticleUrlById,
 	FindArticlesByUser,
+	FindArticlesResult,
 	MarkArticleViewed,
 	SaveArticle,
 	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
+import type { MatchArticlesByInterest } from "@packages/provider-contracts/resurface";
+import type { UserId } from "@packages/domain/user";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawPdfCommand } from "@packages/provider-contracts/events";
 import type { PutPendingPdf } from "@packages/provider-contracts/pending-pdf";
@@ -70,6 +73,13 @@ import { toArticleEntity } from "../../api/article-siren";
 import { parseQueueUrl, buildQueueUrl, QUEUE_PATH } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
 import { tabQuery } from "./queue.tabs";
+import {
+	RESURFACE_COOKIE_NAME,
+	decodeResurfaceCookie,
+	encodeResurfaceCookie,
+	type ResurfaceResult,
+} from "./resurface-cookie";
+import { resurfaceCandidateText } from "../../../domain/resurface/resurface-candidate-text";
 import type { HttpErrorMessageMapping } from "./queue.error";
 import { importFlashMapping, statusFlashMapping } from "./queue.error";
 import { MAX_POLLS } from "../../shared/article-reader/article-reader";
@@ -139,6 +149,7 @@ interface QueueDependencies {
 	appOrigin: string;
 	findArticlesByUser: FindArticlesByUser;
 	countArticlesByUser: CountArticlesByUser;
+	matchArticlesByInterest: MatchArticlesByInterest;
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
@@ -222,6 +233,32 @@ const SAVE_INTENT_PATH = {
 	saveHtml: saveIntentPath(SAVE_ROUTE.saveHtml),
 	saveContent: saveIntentPath(SAVE_ROUTE.saveContent),
 } as const;
+
+/** Caps how many saved articles a single resurface considers — both the slice
+ * fed to the matcher and the slice scanned when rendering the tab. */
+const RESURFACE_ARTICLE_LIMIT = 200;
+const RESURFACE_COOKIE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Builds the resurfaced "tab" result: the user's saved articles filtered to
+ * the ids the last resurface matched, re-ordered by relevance. Ids that no
+ * longer resolve (the article was deleted since the resurface ran) are
+ * dropped. */
+async function loadResurfacedArticles(
+	findArticlesByUser: FindArticlesByUser,
+	userId: UserId,
+	resurfaceResult: ResurfaceResult | undefined,
+): Promise<FindArticlesResult> {
+	const { articles } = await findArticlesByUser({
+		userId,
+		page: 1,
+		pageSize: RESURFACE_ARTICLE_LIMIT,
+	});
+	const byId = new Map(articles.map((article) => [article.id.value, article]));
+	const ordered = (resurfaceResult?.ids ?? [])
+		.map((id) => byId.get(id))
+		.filter((article): article is SavedArticle => article !== undefined);
+	return { articles: ordered, total: ordered.length, page: 1, pageSize: RESURFACE_ARTICLE_LIMIT };
+}
 
 export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
@@ -350,9 +387,63 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const urlState = parseQueueUrl(req.query);
-		const tab = tabQuery(urlState.tab);
 		const filterUrl = typeof req.query.url === "string" ? req.query.url : undefined;
+		const resurfaceResult = decodeResurfaceCookie(req.cookies?.[RESURFACE_COOKIE_NAME]);
+		const showResurfaceTab = Boolean(resurfaceResult) || urlState.tab === "resurfaced";
 
+		const renderHtml = async (result: FindArticlesResult): Promise<void> => {
+			const saveError = deps.httpErrorMessageMapping(req.query);
+			const importFlash = importFlashMapping(req.query);
+			const statusFlash = statusFlashMapping(req.query);
+			const importSkipped = readImportSkippedFlash(req, res);
+			const [summaryByUrl, crawlByUrl, unreadCount, effectiveAccess] = await Promise.all([
+				loadSummaries(deps.findGeneratedSummary, result.articles),
+				loadCrawls(deps.findArticleCrawlStatus, result.articles),
+				urlState.tab === "queue"
+					? Promise.resolve(result.total)
+					: deps.countArticlesByUser({ userId, status: "unread" }),
+				deps.getEffectiveAccess(userId),
+			]);
+			const vm = toQueueViewModel(result, urlState, {
+				unreadCount,
+				errors: saveError ? [{ message: saveError }] : undefined,
+				importFlash,
+				statusFlash,
+				importSkipped,
+				summaryByUrl,
+				crawlByUrl,
+				effectiveAccess,
+				now: deps.now(),
+				resurface: { showTab: showResurfaceTab, prompt: resurfaceResult?.prompt ?? "" },
+			});
+			const extensionInstalled = isExtensionInstalled(req);
+			const extensionSavedArticle = isExtensionSavedArticle(req);
+			/** Dismissal only counts when the extension is also installed in *this* browser.
+			 * The dismiss button only appears once every step (including install-extension)
+			 * is complete, so a dismiss without the install cookie means the user is in a
+			 * different browser context (or has lost the install cookie) — show the popup
+			 * again so they can install the extension here. */
+			const onboardingDismissed = extensionInstalled && req.cookies?.[DISMISS_COOKIE_NAME] === ONBOARDING_VERSION;
+			const browser = detectBrowser(req);
+			sendComponent(
+				req, res,
+				Base(
+					QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, extensionSavedArticle, browser, onboardingDismissed }),
+					await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
+				),
+			);
+		};
+
+		/** The resurfaced tab is web-only (the extension never requests it) and
+		 * has no DynamoDB status of its own — it intersects the resurface cookie
+		 * with the user's saved articles, so it bypasses both the Siren branch
+		 * and the status-filtered query below. */
+		if (urlState.tab === "resurfaced") {
+			await renderHtml(await loadResurfacedArticles(deps.findArticlesByUser, userId, resurfaceResult));
+			return;
+		}
+
+		const tab = tabQuery(urlState.tab);
 		const order = urlState.order ?? tab.defaultOrder;
 		const result = await deps.findArticlesByUser({
 			userId,
@@ -382,45 +473,49 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			return;
 		}
 
-		const saveError = deps.httpErrorMessageMapping(req.query);
-		const importFlash = importFlashMapping(req.query);
-		const statusFlash = statusFlashMapping(req.query);
-		const importSkipped = readImportSkippedFlash(req, res);
-		const [summaryByUrl, crawlByUrl, unreadCount, effectiveAccess] = await Promise.all([
-			loadSummaries(deps.findGeneratedSummary, result.articles),
-			loadCrawls(deps.findArticleCrawlStatus, result.articles),
-			urlState.tab === "queue"
-				? Promise.resolve(result.total)
-				: deps.countArticlesByUser({ userId, status: "unread" }),
-			deps.getEffectiveAccess(userId),
-		]);
-		const vm = toQueueViewModel(result, urlState, {
-			unreadCount,
-			errors: saveError ? [{ message: saveError }] : undefined,
-			importFlash,
-			statusFlash,
-			importSkipped,
-			summaryByUrl,
-			crawlByUrl,
-			effectiveAccess,
-			now: deps.now(),
-		});
-		const extensionInstalled = isExtensionInstalled(req);
-		const extensionSavedArticle = isExtensionSavedArticle(req);
-		/** Dismissal only counts when the extension is also installed in *this* browser.
-		 * The dismiss button only appears once every step (including install-extension)
-		 * is complete, so a dismiss without the install cookie means the user is in a
-		 * different browser context (or has lost the install cookie) — show the popup
-		 * again so they can install the extension here. */
-		const onboardingDismissed = extensionInstalled && req.cookies?.[DISMISS_COOKIE_NAME] === ONBOARDING_VERSION;
-		const browser = detectBrowser(req);
-		sendComponent(
-			req, res,
-			Base(
-				QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, extensionSavedArticle, browser, onboardingDismissed }),
-				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
-			),
-		);
+		await renderHtml(result);
+	});
+
+	router.post("/resurface", deps.requireWriteAccess, async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
+
+		if (prompt.length === 0) {
+			res.redirect(303, "/queue");
+			return;
+		}
+
+		try {
+			const { articles } = await deps.findArticlesByUser({
+				userId,
+				sort: "savedAt",
+				order: "desc",
+				page: 1,
+				pageSize: RESURFACE_ARTICLE_LIMIT,
+				excludeContent: true,
+			});
+			const summaryByUrl = await loadSummaries(deps.findGeneratedSummary, articles);
+			const candidates = articles.map((article) => ({
+				id: article.id.value,
+				title: article.metadata.title,
+				text: resurfaceCandidateText({
+					excerpt: article.metadata.excerpt,
+					summary: summaryByUrl.get(article.url),
+				}),
+			}));
+			const { matchedIds } = await deps.matchArticlesByInterest({ prompt, candidates });
+			res.cookie(RESURFACE_COOKIE_NAME, encodeResurfaceCookie({ prompt, ids: matchedIds }), {
+				path: "/queue",
+				maxAge: RESURFACE_COOKIE_TTL_MS,
+				sameSite: "lax",
+				httpOnly: true,
+			});
+			res.redirect(303, buildQueueUrl({ tab: "resurfaced" }));
+		} catch (error) {
+			deps.logError("Failed to resurface articles", error instanceof Error ? error : undefined);
+			res.redirect(303, "/queue");
+		}
 	});
 
 	router.post("/dismiss-onboarding", (_req: Request, res: Response) => {
