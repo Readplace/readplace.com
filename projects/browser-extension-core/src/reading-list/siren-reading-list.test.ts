@@ -14,6 +14,7 @@ import {
 	type ExtensionDeps,
 	type SirenReadingListDeps,
 } from "./siren-reading-list";
+import { pdfContentBody, htmlContentBody } from "./content-body-parsers";
 
 const COLLECTION_ACTIONS = [
 	{
@@ -1394,31 +1395,10 @@ describe("save-content action", () => {
 		});
 	}
 
-	function createContentParsers() {
-		return {
-			"application/pdf": (input: Record<string, string>) => {
-				const binaryString = atob(input.contentBase64);
-				const bytes = new Uint8Array(binaryString.length);
-				for (let i = 0; i < binaryString.length; i += 1) {
-					bytes[i] = binaryString.charCodeAt(i);
-				}
-				return { blob: new Blob([bytes], { type: input.mediaType }), filename: "content" };
-			},
-			"text/html": (input: Record<string, string>) => {
-				const binaryString = atob(input.contentBase64);
-				const bytes = new Uint8Array(binaryString.length);
-				for (let i = 0; i < binaryString.length; i += 1) {
-					bytes[i] = binaryString.charCodeAt(i);
-				}
-				return { blob: new Blob([bytes], { type: "text/html" }), filename: "content.html" };
-			},
-		};
-	}
-
 	function createUnderstandingsWithSaveContent() {
 		return groupOf(
 			initSaveArticleUnderstanding(),
-			initSaveContentUnderstanding({ parsers: createContentParsers() }),
+			initSaveContentUnderstanding({ parsers: { "application/pdf": pdfContentBody, "text/html": htmlContentBody } }),
 			initDeleteArticleUnderstanding(),
 			httpCacheable(initListArticlesUnderstanding()),
 		);

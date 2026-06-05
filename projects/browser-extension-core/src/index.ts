@@ -39,8 +39,9 @@ export type {
 	NavigationResult,
 	ArticleItem,
 	BoundAction,
-	ContentBodyBuilder,
 } from "./reading-list/siren-reading-list";
+export type { ContentBodyBuilder } from "./reading-list/content-body-parsers";
+export { pdfContentBody, htmlContentBody } from "./reading-list/content-body-parsers";
 export type { SaveUrl, RemoveUrl, FindByUrl, GetAllItems } from "./reading-list/reading-list.types";
 export type { PopupMessage } from "./popup-message.types";
 export { filterByUrl } from "./popup/filter-by-url";

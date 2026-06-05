@@ -12,6 +12,7 @@ import type {
 	SaveUrl,
 	SaveWarning,
 } from "./reading-list.types";
+import { pdfContentBody, htmlContentBody, type ContentBodyBuilder } from "./content-body-parsers";
 
 const SIREN_MEDIA_TYPE = "application/vnd.siren+json";
 
@@ -259,8 +260,6 @@ export function initSaveHtmlUnderstanding(): Map<string, ActionHandler> {
 	});
 	return handlers;
 }
-
-export type ContentBodyBuilder = (input: Record<string, string>) => { blob: Blob; filename: string };
 
 export function initSaveContentUnderstanding(deps: {
 	parsers: Record<string, ContentBodyBuilder>;
@@ -569,24 +568,8 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		initSaveHtmlUnderstanding(),
 		initSaveContentUnderstanding({
 			parsers: {
-				"application/pdf": (input) => {
-					assert(input.contentBase64, "PDF parser requires contentBase64");
-					const binaryString = atob(input.contentBase64);
-					const bytes = new Uint8Array(binaryString.length);
-					for (let i = 0; i < binaryString.length; i += 1) {
-						bytes[i] = binaryString.charCodeAt(i);
-					}
-					return { blob: new Blob([bytes], { type: input.mediaType }), filename: "content" };
-				},
-				"text/html": (input) => {
-					assert(input.contentBase64, "HTML parser requires contentBase64");
-					const binaryString = atob(input.contentBase64);
-					const bytes = new Uint8Array(binaryString.length);
-					for (let i = 0; i < binaryString.length; i += 1) {
-						bytes[i] = binaryString.charCodeAt(i);
-					}
-					return { blob: new Blob([bytes], { type: "text/html" }), filename: "content.html" };
-				},
+				"application/pdf": pdfContentBody,
+				"text/html": htmlContentBody,
 			},
 		}),
 		initDeleteArticleUnderstanding(),
