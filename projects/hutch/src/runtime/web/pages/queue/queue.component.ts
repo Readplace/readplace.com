@@ -27,7 +27,7 @@ interface QueueDisplayModel {
 	hasImportSkipped: boolean;
 	importSkippedEntries: ReadonlyArray<{ url: string; reasonLabel: string }>;
 	importSkippedAndMore?: number;
-	showGenericEmpty: boolean;
+	emptyQueueClass: string;
 	emptyTitle: string;
 	hasArticles: boolean;
 	onboardingHtml: string;
@@ -37,7 +37,6 @@ interface QueueDisplayModel {
 	filterReadClass: string;
 	filterUnreadUrl: string;
 	filterReadUrl: string;
-	showResurfacedTab: boolean;
 	filterResurfacedClass: string;
 	filterResurfacedUrl: string;
 	resurfaceBannerText?: string;
@@ -129,7 +128,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		hasImportSkipped: Boolean(vm.importSkipped && vm.importSkipped.entries.length > 0),
 		importSkippedEntries: vm.importSkipped?.entries ?? [],
 		importSkippedAndMore: vm.importSkipped?.andMore,
-		showGenericEmpty: vm.isEmpty && !isResurfacedTab,
+		emptyQueueClass: vm.isEmpty && !isResurfacedTab ? "" : "queue__empty--hidden",
 		emptyTitle: isResurfacedTab ? "" : emptyStateTitle(activeTab),
 		hasArticles: !vm.isEmpty,
 		onboardingHtml,
@@ -141,8 +140,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		filterReadClass: filterLinkClass(activeTab === "done"),
 		filterUnreadUrl: withInternalTracking(vm.filterUrls.unread, { source: "queue-filters", content: "filter-unread" }),
 		filterReadUrl: withInternalTracking(vm.filterUrls.read, { source: "queue-filters", content: "filter-read" }),
-		showResurfacedTab: vm.resurface.showTab,
-		filterResurfacedClass: filterLinkClass(isResurfacedTab),
+		filterResurfacedClass: `${filterLinkClass(isResurfacedTab)}${vm.resurface.showTab ? "" : " queue__filter-link--hidden"}`,
 		filterResurfacedUrl: vm.filterUrls.resurfaced,
 		resurfaceBannerText: isResurfacedTab
 			? formatResurfaceBanner(vm.resurface.prompt, vm.articles.length)

@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer, loginAgent } from "../../../test-app";
@@ -21,8 +22,9 @@ describe("Queue resurface", () => {
 		const doc = parse((await agent.get("/queue")).text);
 
 		expect(doc.querySelector('[data-test-form="resurface"]')?.getAttribute("action")).toBe("/queue/resurface");
-		// No resurface has run yet, so the Resurfaced tab stays hidden.
-		expect(doc.querySelector('[data-test-filter="resurfaced"]')).toBeNull();
+		const resurfacedTab = doc.querySelector('[data-test-filter="resurfaced"]');
+		assert(resurfacedTab, "resurfaced filter tab must be rendered");
+		expect(resurfacedTab.classList.contains("queue__filter-link--hidden")).toBe(true);
 	});
 
 	it("matches saved articles to the prompt and shows them under the Resurfaced tab", async () => {
@@ -42,11 +44,14 @@ describe("Queue resurface", () => {
 		expect(cards.length).toBe(1);
 		expect(cards[0]?.querySelector("[data-test-article-title]")?.textContent).toContain("coffee.example.com");
 		expect(doc.querySelector("[data-test-resurface-banner]")?.textContent).toContain("Showing 1 saved article matching");
-		expect(doc.querySelector('[data-test-filter="resurfaced"]')).not.toBeNull();
+		const resurfacedTab = doc.querySelector('[data-test-filter="resurfaced"]');
+		assert(resurfacedTab, "resurfaced filter tab must be rendered");
+		expect(resurfacedTab.classList.contains("queue__filter-link--hidden")).toBe(false);
 
-		// The Resurfaced tab also appears on the default tab once a result exists.
 		const queueDoc = parse((await agent.get("/queue")).text);
-		expect(queueDoc.querySelector('[data-test-filter="resurfaced"]')).not.toBeNull();
+		const queueResurfacedTab = queueDoc.querySelector('[data-test-filter="resurfaced"]');
+		assert(queueResurfacedTab, "resurfaced filter tab must be rendered");
+		expect(queueResurfacedTab.classList.contains("queue__filter-link--hidden")).toBe(false);
 	});
 
 	it("opens an inviting, empty Resurfaced tab before any resurface has run", async () => {
@@ -57,8 +62,12 @@ describe("Queue resurface", () => {
 
 		expect(doc.querySelectorAll("[data-test-article-list] .queue-article").length).toBe(0);
 		expect(doc.querySelector("[data-test-resurface-banner]")?.textContent).toContain("Use Resurface above");
-		expect(doc.querySelector('[data-test-filter="resurfaced"]')).not.toBeNull();
-		expect(doc.querySelector("[data-test-empty-queue]")).toBeNull();
+		const resurfacedTab = doc.querySelector('[data-test-filter="resurfaced"]');
+		assert(resurfacedTab, "resurfaced filter tab must be rendered");
+		expect(resurfacedTab.classList.contains("queue__filter-link--hidden")).toBe(false);
+		const emptyQueue = doc.querySelector("[data-test-empty-queue]");
+		assert(emptyQueue, "empty queue element must be rendered");
+		expect(emptyQueue.classList.contains("queue__empty--hidden")).toBe(true);
 	});
 
 	it("drops resurfaced articles that were deleted after the resurface ran", async () => {
@@ -106,7 +115,9 @@ describe("Queue resurface", () => {
 		const doc = parse((await agent.get("/queue?tab=resurfaced")).text);
 		expect(doc.querySelectorAll("[data-test-article-list] .queue-article").length).toBe(0);
 		expect(doc.querySelector("[data-test-resurface-banner]")?.textContent).toContain("No saved articles matched");
-		expect(doc.querySelector("[data-test-empty-queue]")).toBeNull();
+		const emptyQueue = doc.querySelector("[data-test-empty-queue]");
+		assert(emptyQueue, "empty queue element must be rendered");
+		expect(emptyQueue.classList.contains("queue__empty--hidden")).toBe(true);
 	});
 
 	it("ignores an empty prompt without recording a resurface", async () => {
@@ -118,7 +129,9 @@ describe("Queue resurface", () => {
 		expect(post.status).toBe(303);
 		expect(post.headers.location).toBe("/queue");
 		const doc = parse((await agent.get("/queue")).text);
-		expect(doc.querySelector('[data-test-filter="resurfaced"]')).toBeNull();
+		const resurfacedTab = doc.querySelector('[data-test-filter="resurfaced"]');
+		assert(resurfacedTab, "resurfaced filter tab must be rendered");
+		expect(resurfacedTab.classList.contains("queue__filter-link--hidden")).toBe(true);
 	});
 
 	it("redirects back to the queue when the matcher fails", async () => {

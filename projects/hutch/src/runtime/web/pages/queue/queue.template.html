@@ -47,7 +47,7 @@
       <nav class="queue__filters" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none" data-test-filters>
         <a class="{{filterUnreadClass}}" href="{{filterUnreadUrl}}" data-test-filter="unread">{{filterUnreadLabel}}</a>
         <a class="{{filterReadClass}}" href="{{filterReadUrl}}" data-test-filter="read">Read</a>
-        {{#if showResurfacedTab}}<a class="{{filterResurfacedClass}}" href="{{filterResurfacedUrl}}" data-test-filter="resurfaced">Resurfaced</a>{{/if}}
+        <a class="{{filterResurfacedClass}}" href="{{filterResurfacedUrl}}" data-test-filter="resurfaced">Resurfaced</a>
       </nav>
       {{#if showSort}}
       <div class="queue__sort" hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none">
@@ -55,12 +55,10 @@
       </div>
       {{/if}}
       {{#if resurfaceBannerText}}<p class="queue__resurface-banner" data-test-resurface-banner>{{resurfaceBannerText}}</p>{{/if}}
-      {{#if showGenericEmpty}}
-      <div class="queue__empty" data-test-empty-queue>
+      <div class="queue__empty {{emptyQueueClass}}" data-test-empty-queue>
         <h2 class="queue__empty-title">{{emptyTitle}}</h2>
         <p class="queue__empty-text">Paste a URL above to save a link. Install a browser extension for the complete experience.</p>
       </div>
-      {{/if}}
       {{#if hasArticles}}
       <div class="queue__list" data-test-article-list>
         {{#each articleHtmls}}{{{this}}}{{/each}}

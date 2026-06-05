@@ -285,6 +285,12 @@
   color: var(--secondary-foreground);
 }
 
+/* purgecss-ignore-start: modifier is interpolated from QueueDisplayModel.filterResurfacedClass in queue.template.html */
+.queue__filter-link--hidden {
+  display: none;
+}
+/* purgecss-ignore-end */
+
 .queue__sort {
   display: flex;
   justify-content: flex-end;
@@ -540,6 +546,12 @@
   text-align: center;
   padding: 60px 20px;
 }
+
+/* purgecss-ignore-start: modifier is interpolated from QueueDisplayModel.emptyQueueClass in queue.template.html */
+.queue__empty--hidden {
+  display: none;
+}
+/* purgecss-ignore-end */
 
 .queue__empty-title {
   font-size: 1.25rem;
