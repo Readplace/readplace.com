@@ -213,3 +213,12 @@ body {
   width: 60%;
   max-width: 400px;
 }
+
+/* purgecss-ignore: injected into the iframe by highlights.client.ts, invisible to the parent-side scanner */
+mark.rp-highlight {
+  background-color: rgba(200, 112, 42, 0.28);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+  cursor: pointer;
+}

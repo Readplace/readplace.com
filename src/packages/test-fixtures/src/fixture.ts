@@ -25,6 +25,7 @@ import { initInMemoryStripeSubscriptions } from "./providers/stripe-subscription
 import { initInMemorySubscriptionProviders } from "./providers/subscription-providers/in-memory-subscription-providers";
 import { initInMemoryTrialScheduler } from "./providers/trial-scheduler/in-memory-trial-scheduler";
 import { initInMemoryImportSession } from "./providers/import-session/in-memory-import-session";
+import { initInMemoryHighlight } from "./providers/highlight/in-memory-highlight";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initInMemorySaveLinkRawHtmlCommand } from "./providers/events/in-memory-save-link-raw-html-command";
 import { initInMemorySaveLinkRawPdfCommand } from "./providers/events/in-memory-save-link-raw-pdf-command";
@@ -373,6 +374,9 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		importSession: {
 			importSessionStore: initInMemoryImportSession({ now: () => new Date() }),
 			extractLinksFromPageUrl: stubExtractLinksFromPageUrl,
+		},
+		highlight: {
+			highlightStore: initInMemoryHighlight({ now: () => new Date() }),
 		},
 		shared: {
 			validateSaveableUrl,

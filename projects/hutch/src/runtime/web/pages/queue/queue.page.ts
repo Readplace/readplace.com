@@ -19,6 +19,12 @@ import {
 } from "../import/import-skipped-cookie";
 import type { ImportSkippedViewModel } from "./queue.viewmodel";
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
+import {
+	CreateHighlightInputSchema,
+	HighlightIdSchema,
+	UpdateHighlightNoteSchema,
+} from "@packages/domain/highlight";
+import type { HighlightStore } from "@packages/domain/highlight";
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	CountArticlesByUser,
@@ -159,6 +165,7 @@ interface QueueDependencies {
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
+	highlightStore: HighlightStore;
 	/** Auth middleware applied to every queue route except the public
 	 * `GET /:id/read` permalink. Owned by the composition root so the same
 	 * middleware applies to all other authenticated mounts. */
@@ -306,6 +313,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			summaryStatus: state.summary?.status,
 		});
 
+		const highlights = await deps.highlightStore.findHighlightsByArticle({
+			userId: ownedArticle.userId,
+			articleId: ownedArticle.id.value,
+		});
+
 		sendComponent(
 			req, res,
 			Base(ReaderPage({ ...ownedArticle, content: state.content }, {
@@ -316,6 +328,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				readerPollUrl: state.readerPollUrl,
 				progress: state.progress,
 				audioEnabled,
+				highlights,
 				extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			}), {
 				...(await deps.buildBannerState(req)),
@@ -902,6 +915,68 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 
 		res.redirect(303, buildQueueUrl(parseQueueUrl(req.query)));
+	});
+
+	function readerViewPath(rawId: string): string {
+		return `/queue/${encodeURIComponent(rawId)}/view`;
+	}
+
+	router.post("/:id/highlights", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const parsedInput = CreateHighlightInputSchema.safeParse(req.body);
+
+		if (parsedId.success && parsedInput.success) {
+			await deps.highlightStore.saveHighlight({
+				userId,
+				articleId: parsedId.data.value,
+				anchor: {
+					start: parsedInput.data.start,
+					end: parsedInput.data.end,
+					quote: parsedInput.data.quote,
+				},
+				note: parsedInput.data.note,
+			});
+		}
+
+		res.redirect(303, readerViewPath(req.params.id));
+	});
+
+	router.post("/:id/highlights/:highlightId/note", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const parsedHighlightId = HighlightIdSchema.safeParse(req.params.highlightId);
+		const parsedBody = UpdateHighlightNoteSchema.safeParse(req.body);
+
+		if (parsedId.success && parsedHighlightId.success && parsedBody.success) {
+			await deps.highlightStore.updateHighlightNote({
+				id: parsedHighlightId.data,
+				userId,
+				articleId: parsedId.data.value,
+				note: parsedBody.data.note,
+			});
+		}
+
+		res.redirect(303, readerViewPath(req.params.id));
+	});
+
+	router.post("/:id/highlights/:highlightId/delete", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const parsedHighlightId = HighlightIdSchema.safeParse(req.params.highlightId);
+
+		if (parsedId.success && parsedHighlightId.success) {
+			await deps.highlightStore.deleteHighlight({
+				id: parsedHighlightId.data,
+				userId,
+				articleId: parsedId.data.value,
+			});
+		}
+
+		res.redirect(303, readerViewPath(req.params.id));
 	});
 
 	return router;

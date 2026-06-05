@@ -31,6 +31,7 @@ config:
   hutch:dynamodbPasswordResetTokensTable: hutch-password-reset-tokens
   hutch:dynamodbPendingSignupsTable: hutch-pending-signups
   hutch:dynamodbImportSessionsTable: hutch-import-sessions-prod
+  hutch:dynamodbHighlightsTable: hutch-highlights-prod
   hutch:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-prod
   hutch:dynamodbRateLimitsTable: hutch-rate-limits-prod
   hutch:rateLimitViewCrawl: 100/3600

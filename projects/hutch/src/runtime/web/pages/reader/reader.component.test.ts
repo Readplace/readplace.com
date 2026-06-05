@@ -7,8 +7,18 @@ import {
 } from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
+import { HighlightIdSchema } from "@packages/domain/highlight";
+import type { Highlight } from "@packages/domain/highlight";
 import { Base } from "../../base.component";
 import { ReaderPage } from "./reader.component";
+
+function renderReaderDoc(article: SavedArticle, options: Parameters<typeof ReaderPage>[1]) {
+	const html = Base(ReaderPage(article, options), {
+		isAuthenticated: true,
+		emailVerified: undefined,
+	}).to("text/html").body;
+	return new JSDOM(html).window.document;
+}
 
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const articleId = ReaderArticleHashIdSchema.parse(
@@ -121,5 +131,38 @@ describe("ReaderPage", () => {
 		assert(copyBtn, "copy button must be rendered");
 		const copyUrl = new URL(copyBtn.getAttribute("data-share-url") ?? "");
 		assert.equal(copyUrl.origin, "https://staging.readplace.com");
+	});
+
+	it("renders the highlights panel wired to the article's create route", () => {
+		const doc = renderReaderDoc(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN });
+		const panel = doc.querySelector("[data-highlights-panel]");
+		assert(panel, "highlights panel must render");
+		assert.equal(
+			panel.getAttribute("data-highlights-create-url"),
+			`/queue/${articleId.value}/highlights`,
+		);
+	});
+
+	it("loads the highlights client script", () => {
+		const doc = renderReaderDoc(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN });
+		assert(
+			doc.querySelector('script[src="/client-dist/highlights.client.js"]'),
+			"highlights client script must be included",
+		);
+	});
+
+	it("renders one side-menu entry per supplied highlight", () => {
+		const highlights: Highlight[] = [
+			{
+				id: HighlightIdSchema.parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+				userId,
+				articleId: articleId.value,
+				anchor: { start: 0, end: 5, quote: "Hello" },
+				createdAt: "2026-06-05T00:00:01.000Z",
+			},
+		];
+		const doc = renderReaderDoc(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, highlights });
+		assert.equal(doc.querySelectorAll("[data-highlights-item]").length, 1);
+		assert.equal(doc.querySelector("[data-test-highlights-empty]"), null);
 	});
 });

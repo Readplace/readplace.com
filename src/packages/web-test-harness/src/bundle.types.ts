@@ -3,6 +3,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type { ArticleMetadata, Minutes, ValidateSaveableUrl } from "@packages/domain/article";
 import type { ImportSessionStore } from "@packages/domain/import-session";
+import type { HighlightStore } from "@packages/domain/highlight";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { ParseArticle } from "@packages/article-parser";
 import type {
@@ -300,6 +301,10 @@ export interface ImportSessionBundle {
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 }
 
+export interface HighlightBundle {
+	highlightStore: HighlightStore;
+}
+
 export interface BotDefenseBundle {
 	logger: HutchLogger.Typed<BotDefenseEvent>;
 	events: BotDefenseEvent[];
@@ -337,6 +342,7 @@ export interface TestAppFixture {
 	google: GoogleAuthBundle | undefined;
 	admin: AdminBundle;
 	importSession: ImportSessionBundle;
+	highlight: HighlightBundle;
 	shared: SharedBundle;
 	stripe: StripeCheckoutBundle;
 	pendingSignup: PendingSignupBundle;

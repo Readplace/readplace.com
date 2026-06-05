@@ -12,6 +12,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly passwordResetTokensTable: aws.dynamodb.Table;
 	public readonly pendingSignupsTable: aws.dynamodb.Table;
 	public readonly importSessionsTable: aws.dynamodb.Table;
+	public readonly highlightsTable: aws.dynamodb.Table;
 	public readonly subscriptionProvidersTable: aws.dynamodb.Table;
 	public readonly rateLimitsTable: aws.dynamodb.Table;
 
@@ -26,6 +27,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		passwordResetTokens: string;
 		pendingSignups: string;
 		importSessions: string;
+		highlights: string;
 		subscriptionProviders: string;
 		rateLimits: string;
 	} }, opts?: pulumi.ComponentResourceOptions) {
@@ -191,6 +193,19 @@ export class HutchStorage extends pulumi.ComponentResource {
 				enabled: true,
 			},
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+
+		this.highlightsTable = new aws.dynamodb.Table(`hutch-highlights`, {
+			name: args.tableNames.highlights,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "pk",
+			rangeKey: "highlightId",
+			attributes: [
+				{ name: "pk", type: "S" },
+				{ name: "highlightId", type: "S" },
+			],
+		}, { parent: this });
 
 		/* Fixed-window throttle counters (per-IP buckets + the global paid-crawl
 		 * budget), each row one window. Ephemeral by definition — no deletion

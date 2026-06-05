@@ -202,6 +202,25 @@ const BUNDLES = [
 	{
 		entry: path.join(
 			PROJECT_ROOT,
+			"src/runtime/web/pages/reader/highlights/highlights.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "highlights.client.js"),
+		globalName: "Highlights",
+		footer: [
+			// Re-scans on htmx:afterSwap because a reader poll can replace the
+			// sandboxed iframe element; the rescan re-applies highlights and
+			// re-binds the selection listener to the new contentDocument.
+			"Highlights.initHighlights({",
+			"  document: window.document,",
+			"  getSelection: function (doc) { return doc.getSelection(); },",
+			"  submitForm: function (form) { form.submit(); },",
+			"  addSwapListener: function (cb) { window.document.body.addEventListener('htmx:afterSwap', cb); }",
+			"});",
+		].join("\n"),
+	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
 			"src/runtime/web/shared/toast/toast.client.ts",
 		),
 		outfile: path.join(OUT_DIR, "toast.client.js"),

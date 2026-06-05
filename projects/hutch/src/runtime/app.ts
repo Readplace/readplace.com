@@ -79,6 +79,8 @@ import { initInMemoryPendingHtml } from "@packages/test-fixtures/providers/pendi
 import { initInMemoryPendingPdf } from "@packages/test-fixtures/providers/pending-pdf";
 import { initInMemoryImportSession } from "@packages/test-fixtures/providers/import-session";
 import { initDynamoDbImportSession } from "./providers/import-session/dynamodb-import-session";
+import { initInMemoryHighlight } from "@packages/test-fixtures/providers/highlight";
+import { initDynamoDbHighlight } from "./providers/highlight/dynamodb-highlight";
 import { initExchangeGoogleCode } from "./providers/google-auth/google-token";
 import { initInMemoryStripeCheckout } from "@packages/test-fixtures/providers/stripe-checkout";
 import { initStripeCheckout } from "./providers/stripe-checkout/stripe-checkout";
@@ -142,6 +144,7 @@ function initProviders() {
 		const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
 		const pendingPdfBucketName = requireEnv("PENDING_PDF_BUCKET_NAME");
 		const importSessionsTable = requireEnv("DYNAMODB_IMPORT_SESSIONS_TABLE");
+		const highlightsTable = requireEnv("DYNAMODB_HIGHLIGHTS_TABLE");
 		const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
 		const rateLimitsTable = requireEnv("DYNAMODB_RATE_LIMITS_TABLE");
 		const trialSchedulerGroupName = requireEnv("TRIAL_SCHEDULER_GROUP_NAME");
@@ -236,6 +239,11 @@ function initProviders() {
 			tableName: importSessionsTable,
 			now: () => new Date(),
 		});
+		const highlightStore = initDynamoDbHighlight({
+			client,
+			tableName: highlightsTable,
+			now: () => new Date(),
+		});
 		const { consumeRateLimit } = initDynamoDbRateLimit({
 			client,
 			tableName: rateLimitsTable,
@@ -256,6 +264,7 @@ function initProviders() {
 			articleStore,
 			readArticleContent,
 			importSessionStore,
+			highlightStore,
 			extractLinksFromPageUrl,
 			subscriptionProviders,
 			trialScheduler,
@@ -408,6 +417,7 @@ function initProviders() {
 	});
 
 	const importSessionStore = initInMemoryImportSession({ now: () => new Date() });
+	const highlightStore = initInMemoryHighlight({ now: () => new Date() });
 
 	// In-process counters are valid here because dev runs a single long-lived
 	// server. Defaults are liberal — every local/e2e request shares 127.0.0.1,
@@ -428,6 +438,7 @@ function initProviders() {
 			logError,
 		}),
 		importSessionStore,
+		highlightStore,
 		extractLinksFromPageUrl,
 		subscriptionProviders: devSubscriptionProviders,
 		trialScheduler: devTrialScheduler,

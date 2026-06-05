@@ -64,6 +64,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 			},
 			admin: fixture.admin,
 			importSession: fixture.importSession,
+			highlight: fixture.highlight,
 			shared: fixture.shared,
 			stripe: fixture.stripe,
 			pendingSignup: fixture.pendingSignup,

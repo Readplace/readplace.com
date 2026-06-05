@@ -1,0 +1,25 @@
+<aside class="highlights-panel" data-highlights-panel data-highlights-create-url="{{createAction}}" aria-label="Highlights and notes">
+  <header class="highlights-panel__header">
+    <h2 class="highlights-panel__title">Notes</h2>
+    <p class="highlights-panel__hint" data-test-highlights-hint>Select text in the article to add a highlight.</p>
+  </header>
+  {{#if hasHighlights}}
+  <ul class="highlights-panel__list" data-test-highlights-list>
+    {{#each highlights}}
+    <li class="highlights-panel__item" data-highlights-item data-rp-highlight-id="{{id}}" data-rp-start="{{start}}" data-rp-end="{{end}}">
+      <blockquote class="highlights-panel__quote" data-test-highlights-quote>{{quote}}</blockquote>
+      <form class="highlights-panel__note-form" method="POST" action="{{noteAction}}">
+        <label class="highlights-panel__note-label" for="rp-note-{{id}}">Note</label>
+        <textarea class="highlights-panel__note-input" id="rp-note-{{id}}" name="note" rows="2" maxlength="{{noteMaxLength}}" placeholder="Add a note…">{{note}}</textarea>
+        <button class="highlights-panel__save" type="submit">Save note</button>
+      </form>
+      <form class="highlights-panel__delete-form" method="POST" action="{{deleteAction}}">
+        <button class="highlights-panel__delete" type="submit">Delete highlight</button>
+      </form>
+    </li>
+    {{/each}}
+  </ul>
+  {{else}}
+  <p class="highlights-panel__empty" data-test-highlights-empty>No highlights yet.</p>
+  {{/if}}
+</aside>

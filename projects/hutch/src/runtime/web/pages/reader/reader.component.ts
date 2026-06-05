@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SavedArticle } from "@packages/domain/article";
+import type { Highlight } from "@packages/domain/highlight";
+import { renderHighlightsPanel } from "./highlights/highlights-panel.component";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
@@ -20,6 +22,7 @@ import { READER_STYLES } from "./reader.styles";
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
 const READER_IFRAME_SCRIPT = `<script src="/client-dist/reader-iframe.client.js" defer></script>`;
+const HIGHLIGHTS_SCRIPT = `<script src="/client-dist/highlights.client.js" defer></script>`;
 
 /**
  * Both the initial SSR <title> and the OOB <title> swap emitted by reader
@@ -50,6 +53,7 @@ export function ReaderPage(
 		readerPollUrl?: string;
 		progress?: ProgressTick;
 		audioEnabled?: boolean;
+		highlights?: readonly Highlight[];
 		extensionInstallUrl?: string;
 	},
 ): PageBody {
@@ -99,7 +103,11 @@ export function ReaderPage(
 		shareSource: "reader-internal",
 		sharerUserIdPrefix: shareUserIdPrefix(article.userId),
 	});
-	const content = render(READER_TEMPLATE, { innerContent, shareBalloon });
+	const highlightsPanel = renderHighlightsPanel({
+		articleId,
+		highlights: options.highlights ?? [],
+	});
+	const content = render(READER_TEMPLATE, { innerContent, shareBalloon, highlightsPanel });
 
 	return {
 		seo: {
@@ -111,6 +119,6 @@ export function ReaderPage(
 		styles: READER_STYLES,
 		bodyClass: "page-reader",
 		content: { html: content },
-		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT,
+		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + HIGHLIGHTS_SCRIPT,
 	};
 }

@@ -113,6 +113,7 @@ import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initQueueRoutes } from "./web/pages/queue/queue.page";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
+import type { HighlightStore } from "@packages/domain/highlight";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { initSaveRoutes } from "./web/pages/save/save.page";
@@ -228,6 +229,7 @@ interface AppDependencies {
 	httpErrorMessageMapping: HttpErrorMessageMapping;
 	logParseError: LogParseError;
 	importSessionStore: ImportSessionStore;
+	highlightStore: HighlightStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	getChangelogBanner: GetChangelogBanner;
 	now: () => Date;
@@ -782,6 +784,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		readArticleContent: deps.readArticleContent,
 		httpErrorMessageMapping: deps.httpErrorMessageMapping,
+		highlightStore: deps.highlightStore,
 		dualAuth: dualAuthMiddleware,
 		resolveVerificationStatus,
 		requireWriteAccess,

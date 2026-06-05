@@ -1,0 +1,158 @@
+.highlights-panel {
+  box-sizing: border-box;
+  margin: 2rem auto 0;
+  max-width: var(--reader-max-width);
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.highlights-panel__header {
+  margin-bottom: 0.75rem;
+}
+
+.highlights-panel__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.highlights-panel__hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+}
+
+.highlights-panel__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.highlights-panel__item {
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-background);
+}
+
+.highlights-panel__quote {
+  margin: 0 0 0.5rem;
+  padding-left: 0.625rem;
+  border-left: 3px solid var(--color-brand);
+  font-size: 0.875rem;
+  color: var(--color-text-primary);
+}
+
+.highlights-panel__note-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.highlights-panel__note-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.highlights-panel__note-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.5rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--color-text-primary);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  resize: vertical;
+}
+
+.highlights-panel__save {
+  align-self: flex-start;
+  padding: 0.375rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--color-brand);
+  border: 1px solid var(--color-brand);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.highlights-panel__save:hover {
+  filter: brightness(1.05);
+}
+
+.highlights-panel__delete-form {
+  margin-top: 0.5rem;
+}
+
+.highlights-panel__delete {
+  padding: 0.25rem 0;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.highlights-panel__delete:hover {
+  color: var(--color-error);
+}
+
+.highlights-panel__empty {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+/**
+ * 1. On wide viewports the panel floats in the right gutter beside the centered
+ *    reader column instead of stacking under it, so notes stay visible while
+ *    reading. The reader column is capped at --reader-max-width and centered, so
+ *    a fixed right rail does not overlap it on screens this wide.
+ */
+@media (min-width: 1180px) {
+  .highlights-panel {
+    position: fixed; /* 1 */
+    top: 5.5rem;
+    right: 1.5rem;
+    width: 320px;
+    margin: 0;
+    max-height: calc(100vh - 8rem);
+    overflow-y: auto;
+    z-index: 9;
+  }
+}
+
+/**
+ * The floating control the reader client shows next to a fresh text selection.
+ * Created in highlights.client.ts and positioned in the parent document over
+ * the reader iframe; submitting it POSTs the selection to /queue/<id>/highlights.
+ */
+.rp-highlight-button {
+  position: absolute;
+  z-index: 20;
+  margin: 0;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--color-brand);
+  border: 1px solid var(--color-brand-dark);
+  border-radius: 6px;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+}
+
+.rp-highlight-button:hover {
+  filter: brightness(1.05);
+}
