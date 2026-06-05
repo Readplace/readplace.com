@@ -60,11 +60,12 @@ export class HutchEventBus {
 	subscribe(
 		event: { name: string; source: string; detailType: string },
 		target: HutchSQSBackedLambda,
+		opts?: { name?: string },
 	): void {
-		const { name } = event;
+		const base = opts?.name ?? event.name;
 
-		const rule = new aws.cloudwatch.EventRule(`${name}-rule`, {
-			name: `${name}-rule`,
+		const rule = new aws.cloudwatch.EventRule(`${base}-rule`, {
+			name: `${base}-rule`,
 			eventBusName: this.eventBusName,
 			eventPattern: JSON.stringify({
 				source: [event.source],
@@ -72,14 +73,14 @@ export class HutchEventBus {
 			}),
 		});
 
-		new aws.cloudwatch.EventTarget(`${name}-target`, {
-			targetId: `${name}-target`,
+		new aws.cloudwatch.EventTarget(`${base}-target`, {
+			targetId: `${base}-target`,
 			rule: rule.name,
 			eventBusName: this.eventBusName,
 			arn: target.queueArn,
 		});
 
-		new aws.sqs.QueuePolicy(`${name}-queue-policy`, {
+		new aws.sqs.QueuePolicy(`${base}-queue-policy`, {
 			queueUrl: target.queueUrl,
 			policy: pulumi
 				.all([target.queueArn, rule.arn])

@@ -733,7 +733,9 @@ const scheduleTrialFeedbackEmailWithSQS = new HutchSQSBackedLambda(
 	},
 );
 
-eventBus.subscribe(SubscriptionCancelledEvent, scheduleTrialFeedbackEmailWithSQS);
+eventBus.subscribe(SubscriptionCancelledEvent, scheduleTrialFeedbackEmailWithSQS, {
+	name: "schedule-trial-feedback-email",
+});
 
 // --- Send Trial Feedback Email ---
 // SQS-backed Lambda invoked by the EventBridge Scheduler one-shot created
