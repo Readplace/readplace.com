@@ -373,4 +373,6 @@ export const SUBSCRIPTION_DASHBOARD_LOG_GROUPS: readonly string[] = [
 	LOG_GROUPS.subscriptionChargeFailed,
 	LOG_GROUPS.cancelSubscription,
 	LOG_GROUPS.handleSubscriptionCancelled,
+	LOG_GROUPS.scheduleTrialFeedbackEmail,
+	LOG_GROUPS.sendTrialFeedbackEmail,
 ];
