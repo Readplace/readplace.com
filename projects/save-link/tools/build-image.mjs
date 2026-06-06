@@ -40,6 +40,10 @@ const HANDLERS = [
 		name: "pdf-page-ocr",
 		entryPoint: "src/runtime/pdf-page-ocr.main.ts",
 	},
+	{
+		name: "save-link-raw-pdf-command",
+		entryPoint: "src/runtime/save-link-raw-pdf-command.main.ts",
+	},
 ];
 
 function run(command, args, options = {}) {

@@ -35,6 +35,7 @@ assert(staticDomains.length > 0, "staticDomains must have at least one entry");
 const staticBucketName = config.require("staticBucketName");
 const contentBucketName = config.require("contentBucketName");
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
+const pendingPdfBucketName = config.require("pendingPdfBucketName");
 const userExportBucketName = config.require("userExportBucketName");
 const alertEmail = config.require("alertEmail");
 const tableNames = {
@@ -257,6 +258,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		EVENT_BUS_ARN: eventBus.eventBusArn,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		PENDING_HTML_BUCKET_NAME: pendingHtmlBucketName,
+		PENDING_PDF_BUCKET_NAME: pendingPdfBucketName,
 		ANALYTICS_SALT: requireEnv("ANALYTICS_SALT"),
 		ADMIN_EMAILS: requireEnv("ADMIN_EMAILS"),
 		RECRAWL_SERVICE_TOKEN: requireEnv("RECRAWL_SERVICE_TOKEN"),
@@ -269,6 +271,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		...dynamodb.policies,
 		...HutchS3ReadWrite.readPoliciesForBucket("hutch-content-s3", contentBucketName),
 		...HutchS3ReadWrite.writePoliciesForBucket("hutch-pending-html", pendingHtmlBucketName),
+		...HutchS3ReadWrite.writePoliciesForBucket("hutch-pending-pdf", pendingPdfBucketName),
 		trialSchedulerManagePolicy,
 	],
 });

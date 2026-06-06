@@ -21,6 +21,7 @@ config:
   hutch:trialSchedulerGroupName: hutch-trial-end-staging
   hutch:contentBucketName: hutch-article-content-staging
   hutch:pendingHtmlBucketName: hutch-pending-html-staging
+  hutch:pendingPdfBucketName: hutch-pending-pdf-staging
   hutch:userExportBucketName: hutch-user-exports-staging
   hutch:alertEmail: readplace+staging@readplace.com
   hutch:expiryCountdown: enabled

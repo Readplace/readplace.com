@@ -18,6 +18,7 @@ import {
 	SaveLinkCommand,
 	SaveAnonymousLinkCommand,
 	SaveLinkRawHtmlCommand,
+	SaveLinkRawPdfCommand,
 	SimpleCrawlUnsupportedEvent,
 	ComprehensiveCrawlCommand,
 	LinkSavedEvent,
@@ -56,6 +57,7 @@ const articlesTableName = config.require("articlesTableName");
 const articlesTableArn = config.require("articlesTableArn");
 const contentBucketName = config.require("contentBucketName");
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
+const pendingPdfBucketName = config.require("pendingPdfBucketName");
 const contentMediaCdnDomain = config.get("contentMediaCdnDomain");
 
 /**
@@ -68,6 +70,7 @@ const ocrImageTags = z
 	.object({
 		"comprehensive-crawl-command": z.string(),
 		"pdf-page-ocr": z.string(),
+		"save-link-raw-pdf-command": z.string(),
 	})
 	.parse(JSON.parse(readFileSync(".lib/ocr-image-tags.json", "utf-8")));
 
@@ -121,6 +124,22 @@ const pendingHtmlBucket = new HutchS3ReadWrite("pending-html-bucket", {
 			id: "stage-html-expiry",
 			expirationDays: 1,
 			prefixes: ["pending-html/", "refresh-html/"],
+		},
+	],
+});
+
+// --- Pending-PDF S3 Bucket ---
+// Holds browser-uploaded raw PDF bytes (tier-0 client upload) between the web
+// Lambda's PutObject and the save-link-raw-pdf-command worker's GetObject
+// (pending-pdf/ prefix). Same 1-day expiration as pending-html so staged
+// uploads never linger.
+const pendingPdfBucket = new HutchS3ReadWrite("pending-pdf-bucket", {
+	bucketName: pendingPdfBucketName,
+	expirationRules: [
+		{
+			id: "stage-pdf-expiry",
+			expirationDays: 1,
+			prefixes: ["pending-pdf/"],
 		},
 	],
 });
@@ -181,6 +200,14 @@ const saveAnonymousLinkCommandQueue = new HutchSQS("save-anonymous-link-command"
 
 const saveLinkRawHtmlCommandQueue = new HutchSQS("save-link-raw-html-command", {
 	visibilityTimeoutSeconds: 480,
+});
+
+// OCR path: mirror comprehensive-crawl-command — 1800s visibility = 2x the
+// 900s Lambda timeout; dlqMaxReceiveCount=1 because a retry re-OCRs every page
+// from scratch, so an automatic redrive is expensive and rarely succeeds.
+const saveLinkRawPdfCommandQueue = new HutchSQS("save-link-raw-pdf-command", {
+	visibilityTimeoutSeconds: 1800,
+	dlqMaxReceiveCount: 1,
 });
 
 const anonymousLinkSavedQueue = new HutchSQS("anonymous-link-saved", {
@@ -688,6 +715,121 @@ new HutchDLQEventHandler("comprehensive-crawl-dlq", {
 		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
 	},
 	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "comprehensive-crawl-dlq"),
+});
+
+// --- SaveLinkRawPdfCommand handler ---
+// Client-uploaded PDFs (tier-0) arrive already in the browser, so there is no
+// HTTP crawl: this worker reads the staged PDF from pending-pdf and runs the
+// same OCR orchestration as comprehensive-crawl-command (pdfinfo metadata, S3
+// staging, per-page OCR fan-out, LLM cleanup, diff review, semantic-HTML
+// convert), writes the tier-0 source, and emits the downstream event. Wiring
+// mirrors comprehensive-crawl-command; the only difference is the input bucket.
+
+const saveLinkRawPdfCommandDynamodb = new HutchDynamoDBAccess("save-link-raw-pdf-command-dynamodb", {
+	tables: [{ arn: articlesTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+});
+
+const saveLinkRawPdfCommandInvokePageOcr: LambdaPolicy = {
+	name: "save-link-raw-pdf-command-invoke-page-ocr",
+	policy: pdfPageOcrLambda.arn.apply((arn) => JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [{ Effect: "Allow", Action: ["lambda:InvokeFunction"], Resource: arn }],
+	})),
+};
+
+const saveLinkRawPdfCommandInvokePageLlmCleanup: LambdaPolicy = {
+	name: "save-link-raw-pdf-command-invoke-page-llm-cleanup",
+	policy: pdfPageLlmCleanupLambda.arn.apply((arn) => JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [{ Effect: "Allow", Action: ["lambda:InvokeFunction"], Resource: arn }],
+	})),
+};
+
+const saveLinkRawPdfCommandInvokeDocumentDiffReview: LambdaPolicy = {
+	name: "save-link-raw-pdf-command-invoke-document-diff-review",
+	policy: pdfDocumentDiffReviewLambda.arn.apply((arn) => JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [{ Effect: "Allow", Action: ["lambda:InvokeFunction"], Resource: arn }],
+	})),
+};
+
+const saveLinkRawPdfCommandInvokePageHtmlConvert: LambdaPolicy = {
+	name: "save-link-raw-pdf-command-invoke-page-html-convert",
+	policy: pdfPageHtmlConvertLambda.arn.apply((arn) => JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [{ Effect: "Allow", Action: ["lambda:InvokeFunction"], Resource: arn }],
+	})),
+};
+
+const saveLinkRawPdfCommandStagingDelete: LambdaPolicy = {
+	name: "save-link-raw-pdf-command-staging-delete",
+	policy: contentBucket.arn.apply((arn) => JSON.stringify({
+		Version: "2012-10-17",
+		Statement: [{
+			Effect: "Allow",
+			Action: ["s3:DeleteObject"],
+			Resource: `${arn}/${PDF_STAGING_PREFIX}*`,
+		}],
+	})),
+};
+
+const saveLinkRawPdfCommandLambda = new HutchLambda("save-link-raw-pdf-command", {
+	// Mirrors comprehensive-crawl-command: pdfinfo + one S3 PutObject + fan-out
+	// JSON Lambda invokes + HTML join + tier-write. 900s is the Lambda ceiling for
+	// a worst-case many-page document.
+	memorySize: 512,
+	timeout: 900,
+	containerImage: { imageUri: ocrImageTags["save-link-raw-pdf-command"] },
+	environment: {
+		DYNAMODB_ARTICLES_TABLE: articlesTableName,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		PENDING_PDF_BUCKET_NAME: pendingPdfBucketName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+		PDF_PAGE_OCR_FUNCTION_NAME: pdfPageOcrLambda.functionName,
+		PDF_PAGE_LLM_CLEANUP_FUNCTION_NAME: pdfPageLlmCleanupLambda.functionName,
+		PDF_DOCUMENT_DIFF_REVIEW_FUNCTION_NAME: pdfDocumentDiffReviewLambda.functionName,
+		PDF_PAGE_HTML_CONVERT_FUNCTION_NAME: pdfPageHtmlConvertLambda.functionName,
+	},
+	policies: [
+		...saveLinkRawPdfCommandDynamodb.policies,
+		...pendingPdfBucket.readPolicies("save-link-raw-pdf-command-pending-pdf"),
+		...contentBucket.readPolicies("save-link-raw-pdf-command-content-read"),
+		...contentBucket.writePolicies("save-link-raw-pdf-command-s3"),
+		saveLinkRawPdfCommandStagingDelete,
+		saveLinkRawPdfCommandInvokePageOcr,
+		saveLinkRawPdfCommandInvokePageLlmCleanup,
+		saveLinkRawPdfCommandInvokeDocumentDiffReview,
+		saveLinkRawPdfCommandInvokePageHtmlConvert,
+		...renamePolicies(generateSummaryQueue.policies, "save-link-raw-pdf-command"),
+	],
+});
+
+eventBus.grantPublish(saveLinkRawPdfCommandLambda);
+
+const saveLinkRawPdfCommandLambdaWithSQS = new HutchSQSBackedLambda("save-link-raw-pdf-command", {
+	lambda: saveLinkRawPdfCommandLambda,
+	queue: saveLinkRawPdfCommandQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(SaveLinkRawPdfCommand, saveLinkRawPdfCommandLambdaWithSQS);
+
+// --- SaveLinkRawPdfCommand DLQ consumer ---
+new HutchDLQEventHandler("save-link-raw-pdf-dlq", {
+	sourceQueue: saveLinkRawPdfCommandQueue,
+	tableArn: articlesTableArn,
+	tableName: articlesTableName,
+	eventBus,
+	batchSize: 1,
+	additionalDynamoActions: ["dynamodb:GetItem"],
+	additionalEnvironment: {
+		GENERATE_SUMMARY_QUEUE_URL: generateSummaryQueue.queueUrl,
+	},
+	additionalPolicies: renamePolicies(generateSummaryQueue.policies, "save-link-raw-pdf-dlq"),
 });
 
 // --- StaleCheckRequested handler ---
@@ -1280,6 +1422,8 @@ export const saveAnonymousLinkCommandQueueUrl = saveAnonymousLinkCommandQueue.qu
 export const saveAnonymousLinkCommandDlqUrl = saveAnonymousLinkCommandQueue.dlqUrl;
 export const saveLinkRawHtmlCommandQueueUrl = saveLinkRawHtmlCommandQueue.queueUrl;
 export const saveLinkRawHtmlCommandDlqUrl = saveLinkRawHtmlCommandQueue.dlqUrl;
+export const saveLinkRawPdfCommandQueueUrl = saveLinkRawPdfCommandQueue.queueUrl;
+export const saveLinkRawPdfCommandDlqUrl = saveLinkRawPdfCommandQueue.dlqUrl;
 export const simpleCrawlUnsupportedPolicyQueueUrl = simpleCrawlUnsupportedPolicyQueue.queueUrl;
 export const simpleCrawlUnsupportedPolicyDlqUrl = simpleCrawlUnsupportedPolicyQueue.dlqUrl;
 export const comprehensiveCrawlCommandQueueUrl = comprehensiveCrawlCommandQueue.queueUrl;
