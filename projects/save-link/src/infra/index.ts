@@ -179,8 +179,20 @@ const linkSavedQueue = new HutchSQS("link-saved", {
 // dedicated comprehensive-crawl-command Lambda. 240s timeout covers the
 // worst HTML fetch + readability parse; 480s SQS visibility = 2× the
 // Lambda timeout per AWS guidance.
+//
+// dlqMaxReceiveCount=1: no SQS retries for the tier-1 server crawl. Its
+// dominant failure is a deterministic origin edge-block (e.g. Cloudflare 403
+// on the Lambda egress IP), which reproduces identically on every retry from
+// the same IP — so retrying only delays the terminal state by
+// visibility×maxReceiveCount (~24 min) while the reader sits on a "fetching"
+// placeholder. Fail on the first attempt so the row resolves fast and the
+// browser-captured tier-0 source (which is not subject to the origin IP block)
+// can become canonical instead. Trade-off: a genuinely transient tier-1 blip
+// (503/timeout) no longer self-heals at the SQS layer; the user re-saving (or
+// /admin/recrawl) is the retry.
 const saveLinkCommandQueue = new HutchSQS("save-link-command", {
 	visibilityTimeoutSeconds: 480,
+	dlqMaxReceiveCount: 1,
 });
 
 // maxReceiveCount=1: SQS retries are removed for the anonymous save path.
@@ -223,8 +235,15 @@ const summaryGenerationFailedQueue = new HutchSQS("summary-generation-failed", {
 });
 
 // Simple-only — PDF recrawls dispatch to the comprehensive Lambda.
+//
+// dlqMaxReceiveCount=1: same tier-1 fail-fast rationale as save-link-command —
+// a recrawl's tier-1 crawl hits the same deterministic origin block, so retries
+// only delay giving up. Fail once so the row stops sitting in "fetching" for
+// ~24 min and a tier-0 (extension) save can be picked up instead of the doomed
+// server crawl.
 const recrawlLinkInitiatedQueue = new HutchSQS("recrawl-link-initiated", {
 	visibilityTimeoutSeconds: 480,
+	dlqMaxReceiveCount: 1,
 });
 
 // Simple-only — PDF refreshes dispatch the comprehensive-crawl-command with
