@@ -1,4 +1,5 @@
 /* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
+import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import {
 	type DynamoDBDocumentClient,
@@ -47,7 +48,19 @@ export function initDynamoDbNewsletterInbox(deps: {
 			const token = NewsletterInboxTokenSchema.parse(
 				randomBytes(NEWSLETTER_INBOX_TOKEN_BYTES).toString("hex"),
 			);
-			await table.put({ Item: { pk: userKey(userId), token } });
+			try {
+				await table.put({
+					Item: { pk: userKey(userId), token },
+					ConditionExpression: "attribute_not_exists(pk)",
+				});
+			} catch (err: unknown) {
+				if (err instanceof Error && err.name === "ConditionalCheckFailedException") {
+					const row = await table.get({ pk: userKey(userId) });
+					assert(row?.token, "inbox must exist after concurrent create");
+					return { userId, token: row.token };
+				}
+				throw err;
+			}
 			await table.put({ Item: { pk: tokenKey(token), userId } });
 			return { userId, token };
 		},
