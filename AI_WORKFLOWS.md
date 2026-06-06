@@ -33,7 +33,7 @@ You can also talk to Claude directly in any issue or PR comment. It will respond
 | `submit-ff-extension-for-signing.yml` | Submits Firefox extension to AMO for signing. |
 | `sync-signed-extension.yml` | Syncs signed Firefox extension from AMO to S3. |
 
-Each PR automation workflow has a companion `.md` file (e.g. `claude-PR-CI-failure-fixer.md`) — that's the prompt file. Separating prompts from workflow orchestration keeps things maintainable and makes prompt iteration fast without touching the YAML.
+Each workflow has a companion `.md` file (e.g. `claude-PR-CI-failure-fixer.md`) — that's the prompt file. Separating prompts from workflow orchestration keeps things maintainable and makes prompt iteration fast without touching the YAML.
 
 ## Design principles
 

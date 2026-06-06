@@ -36,7 +36,7 @@ Inspect the `.yml` files in this directory for implementation details. Summary:
 
 ## Prompt Files
 
-Each PR automation workflow has a corresponding `.md` file containing detailed instructions for Claude. This separation prevents cascade issues where example markers in instructions trigger other workflows.
+Each workflow has a corresponding `.md` file containing detailed instructions for Claude. This separation prevents cascade issues where example markers in instructions trigger other workflows.
 
 | Workflow | Prompt File |
 |----------|-------------|
@@ -44,6 +44,9 @@ Each PR automation workflow has a corresponding `.md` file containing detailed i
 | `claude-PR-code-reviewer.yml` | `claude-PR-code-reviewer.md` |
 | `claude-PR-code-review-auto-apply.yml` | `claude-PR-code-review-auto-apply.md` |
 | `claude-PR-conflict-fixer.yml` | `claude-PR-conflict-fixer.md` |
+| `tier-1-plus-crawl-pipeline-health.yml` | `tier-1-plus-crawl-pipeline-health.md` |
+| `stuck-articles-canary.yml` | `stuck-articles-canary.md` |
+| `failed-articles-canary.yml` | `failed-articles-canary.md` |
 
 ## Labels and Markers
 
