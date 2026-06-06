@@ -133,7 +133,7 @@ import { PrivacyPage } from "./web/pages/privacy";
 import { TermsPage } from "./web/pages/terms";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
-import { InstallPage, fetchFirefoxDownloadUrl, fetchChromeDownloadUrl } from "./web/pages/install";
+import { initInstallRoutes } from "./web/pages/install";
 import { NotFoundPage } from "./web/pages/not-found";
 import { initGetEffectiveAccess } from "./domain/access/effective-access";
 import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
@@ -506,14 +506,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		});
 	}
 
-	app.get("/install", async (req: Request, res: Response) => {
-		const browser = req.query.browser === "firefox" ? "firefox" : "chrome";
-		const [firefox, chrome] = await Promise.all([
-			fetchFirefoxDownloadUrl(),
-			fetchChromeDownloadUrl(),
-		]);
-		sendComponent(req, res, Base(InstallPage({ firefox, chrome, browser }), await buildBannerState(req)));
-	});
+	app.use(initInstallRoutes({ buildBannerState }));
 
 	const blogRouter = initBlogRoutes({ blogPosts, buildBannerState });
 	app.use("/blog", blogRouter);

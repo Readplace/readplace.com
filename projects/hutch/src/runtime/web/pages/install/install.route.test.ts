@@ -220,6 +220,75 @@ describe("GET /install", () => {
 		expect(chromeTab?.getAttribute("href")).toBe("/install?browser=chrome");
 	});
 
+	it("should render an iPhone tab linking to the iPhone panel on every view", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install");
+		const doc = new JSDOM(response.text).window.document;
+
+		const iphoneTab = doc.querySelector('[data-test-tab="iphone"]');
+		expect(iphoneTab?.getAttribute("href")).toBe("/install?browser=iphone");
+		expect(iphoneTab?.textContent).toBe("iPhone");
+		expect(iphoneTab?.classList.contains("install-page__tab--active")).toBe(false);
+	});
+
+	it("should select the iPhone tab when browser=iphone", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?browser=iphone");
+		const doc = new JSDOM(response.text).window.document;
+
+		const iphoneTab = doc.querySelector('[data-test-tab="iphone"]');
+		expect(iphoneTab?.classList.contains("install-page__tab--active")).toBe(true);
+		expect(iphoneTab?.getAttribute("aria-current")).toBe("page");
+
+		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
+		expect(chromeTab?.classList.contains("install-page__tab--active")).toBe(false);
+	});
+
+	it("should render the iPhone panel explaining the share-sheet save when browser=iphone", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?browser=iphone");
+		const doc = new JSDOM(response.text).window.document;
+
+		const iphonePanel = doc.querySelector('[data-test-section="iphone"]');
+		expect(iphonePanel?.textContent).toContain("share");
+		expect(doc.querySelector('[data-test-section="chrome"]')).toBeNull();
+		expect(doc.querySelector('[data-test-section="firefox"]')).toBeNull();
+	});
+
+	it("should show the beta notice on the iPhone tab", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?browser=iphone");
+		const doc = new JSDOM(response.text).window.document;
+
+		const notice = doc.querySelector('[data-test-section="ios-beta-notice"]');
+		expect(notice?.textContent).toContain("beta");
+		expect(notice?.textContent).toContain("TestFlight");
+	});
+
+	it("should link the Join the beta button to TestFlight", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?browser=iphone");
+		const doc = new JSDOM(response.text).window.document;
+
+		const cta = doc.querySelector('[data-test-cta="join-ios-beta"]');
+		expect(cta?.getAttribute("href")).toBe("https://testflight.apple.com/join/5eng821W");
+		expect(cta?.textContent).toBe("Join the beta on TestFlight");
+	});
+
+	it("should list the beta setup steps on the iPhone tab", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?browser=iphone");
+		const doc = new JSDOM(response.text).window.document;
+
+		const steps = doc.querySelectorAll("[data-test-beta-step]");
+		expect(steps).toHaveLength(6);
+
+		const stepsText = doc.querySelector('[data-test-section="ios-beta-steps"]')?.textContent ?? "";
+		expect(stepsText).toContain("TestFlight");
+		expect(stepsText).toContain("Share");
+		expect(stepsText).toContain("readplace.com");
+	});
+
 	it("returns markdown when Accept: text/markdown is sent", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server)

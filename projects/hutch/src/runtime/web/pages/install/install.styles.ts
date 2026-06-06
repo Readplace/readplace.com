@@ -83,4 +83,77 @@ export const INSTALL_PAGE_STYLES = `
   font-size: 1rem;
   line-height: 1.6;
 }
+
+.install-page__lead {
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--foreground);
+  margin: 0 0 28px;
+  max-width: 600px;
+}
+
+.install-page__beta {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px 20px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 32px;
+}
+
+.install-page__beta-badge {
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-warning);
+  color: var(--foreground);
+}
+
+.install-page__beta-copy {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--foreground);
+}
+
+.install-page__steps {
+  max-width: 600px;
+  margin: 0 0 28px;
+  padding-left: 24px;
+  list-style: decimal;
+  color: var(--foreground);
+}
+
+.install-page__step {
+  margin-bottom: 20px;
+  padding-left: 6px;
+  line-height: 1.6;
+}
+
+.install-page__step-title {
+  display: block;
+  font-size: 1rem;
+}
+
+.install-page__step-note {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+.install-page__steps-outro {
+  max-width: 600px;
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
 `;
