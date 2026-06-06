@@ -21,7 +21,7 @@ const logger = HutchLogger.from(consoleLogger);
 const STORAGE_KEY = "hutch_oauth_tokens";
 declare const __SERVER_URL__: string;
 const SERVER_URL = __SERVER_URL__;
-const CLIENT_ID = "hutch-chrome-extension";
+const CLIENT_ID = "hutch-chrome-extension"; // all extensions share Chrome's registered OAuth client and redirect URI
 
 const tokenStorage: TokenStorage = {
 	async getTokens(): Promise<OAuthTokens | null> {
