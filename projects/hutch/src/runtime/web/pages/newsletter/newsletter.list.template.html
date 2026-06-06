@@ -2,9 +2,15 @@
   <header class="newsletter__header">
     <h1 class="newsletter__title">Newsletter inbox</h1>
     <p class="newsletter__intro">Subscribe any newsletter to your private address below. Every issue that arrives has its links saved to your reading queue automatically.</p>
+    {{#if hasInbox}}
     <p class="newsletter__address" data-test-inbox-address>
       <span class="newsletter__address-value">{{address}}</span>
     </p>
+    {{else}}
+    <form method="POST" action="/newsletter" data-test-create-inbox>
+      <button type="submit" class="newsletter__create-btn">Generate my address</button>
+    </form>
+    {{/if}}
   </header>
 
   {{#if hasMessages}}

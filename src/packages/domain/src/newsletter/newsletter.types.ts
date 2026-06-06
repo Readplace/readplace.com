@@ -42,6 +42,8 @@ export interface NewsletterMessageSummary {
 	readonly savedCount: number;
 }
 
+export type FindInbox = (userId: UserId) => Promise<NewsletterInbox | undefined>;
+
 export type GetOrCreateNewsletterInbox = (
 	userId: UserId,
 ) => Promise<NewsletterInbox>;
@@ -51,6 +53,7 @@ export type FindUserIdByInboxToken = (
 ) => Promise<UserId | undefined>;
 
 export interface NewsletterInboxStore {
+	findInbox: FindInbox;
 	getOrCreateInbox: GetOrCreateNewsletterInbox;
 	findUserIdByInboxToken: FindUserIdByInboxToken;
 }

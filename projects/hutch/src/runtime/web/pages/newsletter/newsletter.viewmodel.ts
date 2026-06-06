@@ -35,16 +35,18 @@ export interface NewsletterListItemViewModel {
 
 export interface NewsletterListViewModel {
 	readonly address: string;
+	readonly hasInbox: boolean;
 	readonly messages: readonly NewsletterListItemViewModel[];
 	readonly hasMessages: boolean;
 }
 
 export function toNewsletterListViewModel(input: {
-	address: string;
+	address: string | undefined;
 	messages: readonly NewsletterMessageSummary[];
 }): NewsletterListViewModel {
 	return {
-		address: input.address,
+		address: input.address ?? "",
+		hasInbox: input.address !== undefined,
 		hasMessages: input.messages.length > 0,
 		messages: input.messages.map((message) => ({
 			id: message.id,

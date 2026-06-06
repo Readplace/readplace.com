@@ -12,6 +12,10 @@ export function initInMemoryNewsletterInbox(): NewsletterInboxStore {
 	const userByToken = new Map<string, UserId>();
 
 	return {
+		findInbox: async (userId) => {
+			const token = tokenByUser.get(userId);
+			return token ? { userId, token } : undefined;
+		},
 		getOrCreateInbox: async (userId) => {
 			const existing = tokenByUser.get(userId);
 			if (existing) return { userId, token: existing };

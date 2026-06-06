@@ -28,11 +28,42 @@ describe("Newsletter routes", () => {
 		});
 	});
 
-	describe("GET /newsletter (authenticated)", () => {
-		it("renders the per-user inbox address and an empty state with no messages", async () => {
+	describe("GET /newsletter (authenticated, no inbox)", () => {
+		it("renders a create-inbox form when no inbox exists", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
 			const { agent } = await loginAndUserId(harness, fixture);
+
+			const response = await agent.get("/newsletter");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			assert(doc.querySelector("[data-test-create-inbox]"), "create-inbox form must render");
+			expect(doc.querySelector("[data-test-inbox-address]")).toBeNull();
+		});
+	});
+
+	describe("POST /newsletter (create inbox)", () => {
+		it("creates the inbox and redirects to GET /newsletter", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const { agent, userId } = await loginAndUserId(harness, fixture);
+
+			const response = await agent.post("/newsletter");
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/newsletter");
+			const inbox = await fixture.newsletter.inboxStore.findInbox(userId);
+			assert(inbox, "inbox must exist after POST");
+		});
+	});
+
+	describe("GET /newsletter (authenticated, with inbox)", () => {
+		it("renders the per-user inbox address and an empty state with no messages", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const { agent, userId } = await loginAndUserId(harness, fixture);
+			await fixture.newsletter.inboxStore.getOrCreateInbox(userId);
 
 			const response = await agent.get("/newsletter");
 
@@ -48,6 +79,7 @@ describe("Newsletter routes", () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp(fixture);
 			const { agent, userId } = await loginAndUserId(harness, fixture);
+			await fixture.newsletter.inboxStore.getOrCreateInbox(userId);
 
 			await fixture.newsletter.messageStore.recordMessage({
 				id: NewsletterMessageIdSchema.parse("older"),

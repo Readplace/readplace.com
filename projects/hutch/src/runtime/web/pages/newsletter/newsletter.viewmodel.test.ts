@@ -29,6 +29,7 @@ describe("toNewsletterListViewModel", () => {
 		});
 
 		expect(vm.address).toBe("abc@inbox.test");
+		expect(vm.hasInbox).toBe(true);
 		expect(vm.hasMessages).toBe(true);
 		expect(vm.messages[0]).toMatchObject({ id: "m1", subject: "Hello", savedCount: 2, href: "/newsletter/m1" });
 		expect(vm.messages[1].subject).toBe("(no subject)");
@@ -36,8 +37,15 @@ describe("toNewsletterListViewModel", () => {
 
 	it("flags hasMessages=false for an empty inbox", () => {
 		const vm = toNewsletterListViewModel({ address: "a@b", messages: [] });
+		expect(vm.hasInbox).toBe(true);
 		expect(vm.hasMessages).toBe(false);
 		expect(vm.messages).toEqual([]);
+	});
+
+	it("flags hasInbox=false when address is undefined", () => {
+		const vm = toNewsletterListViewModel({ address: undefined, messages: [] });
+		expect(vm.hasInbox).toBe(false);
+		expect(vm.address).toBe("");
 	});
 });
 

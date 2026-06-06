@@ -42,6 +42,24 @@
   word-break: break-all;
 }
 
+.newsletter__create-btn {
+  height: 44px;
+  padding: 0 20px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.newsletter__create-btn:hover {
+  background: var(--accent);
+  opacity: 0.9;
+}
+
 .newsletter__list {
   list-style: none;
   margin: 0;

@@ -27,11 +27,17 @@ export function initNewsletterRoutes(deps: NewsletterRouteDeps): Router {
 
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
-		const inbox = await deps.newsletterInboxStore.getOrCreateInbox(req.userId);
-		const address = buildInboxAddress({ token: inbox.token, domain: deps.inboxDomain });
+		const inbox = await deps.newsletterInboxStore.findInbox(req.userId);
+		const address = inbox ? buildInboxAddress({ token: inbox.token, domain: deps.inboxDomain }) : undefined;
 		const messages = await deps.newsletterMessageStore.listMessages(req.userId);
 		const vm = toNewsletterListViewModel({ address, messages });
 		sendComponent(req, res, Base(NewsletterListPage(vm), await deps.buildBannerState(req)));
+	});
+
+	router.post("/", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		await deps.newsletterInboxStore.getOrCreateInbox(req.userId);
+		res.redirect(303, "/newsletter");
 	});
 
 	router.get("/:id", async (req: Request, res: Response) => {

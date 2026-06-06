@@ -11,6 +11,7 @@ export type {
 	NewsletterMessageLink,
 	NewsletterMessage,
 	NewsletterMessageSummary,
+	FindInbox,
 	GetOrCreateNewsletterInbox,
 	FindUserIdByInboxToken,
 	NewsletterInboxStore,

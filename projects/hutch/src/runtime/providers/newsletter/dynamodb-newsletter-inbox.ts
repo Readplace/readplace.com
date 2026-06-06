@@ -37,6 +37,10 @@ export function initDynamoDbNewsletterInbox(deps: {
 	});
 
 	return {
+		findInbox: async (userId) => {
+			const row = await table.get({ pk: userKey(userId) });
+			return row?.token ? { userId, token: row.token } : undefined;
+		},
 		getOrCreateInbox: async (userId) => {
 			const existing = await table.get({ pk: userKey(userId) });
 			if (existing?.token) return { userId, token: existing.token };
