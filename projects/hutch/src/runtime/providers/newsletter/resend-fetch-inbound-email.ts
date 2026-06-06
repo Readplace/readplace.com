@@ -11,6 +11,10 @@ const InboundEmailResponse = z.object({
 	text: z.string().nullish(),
 });
 
+function escapeHtml(text: string): string {
+	return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 export function initResendFetchInboundEmail(deps: {
 	apiKey: string;
 	fetch: typeof globalThis.fetch;
@@ -23,7 +27,7 @@ export function initResendFetchInboundEmail(deps: {
 		if (!response.ok) return undefined;
 		const parsed = InboundEmailResponse.safeParse(await response.json());
 		if (!parsed.success) return undefined;
-		const html = parsed.data.html ?? (parsed.data.text ? `<pre>${parsed.data.text}</pre>` : "");
+		const html = parsed.data.html ?? (parsed.data.text ? `<pre>${escapeHtml(parsed.data.text)}</pre>` : "");
 		return { html };
 	};
 

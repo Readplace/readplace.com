@@ -25,6 +25,8 @@
     {{/each}}
   </ul>
   {{else}}
+  {{#if hasInbox}}
   <p class="newsletter__empty" data-test-empty>No newsletters yet. Send one to the address above and it will show up here.</p>
+  {{/if}}
   {{/if}}
 </main>

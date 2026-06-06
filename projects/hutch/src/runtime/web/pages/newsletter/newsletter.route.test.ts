@@ -39,7 +39,7 @@ describe("Newsletter routes", () => {
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			assert(doc.querySelector("[data-test-create-inbox]"), "create-inbox form must render");
-			expect(doc.querySelector("[data-test-inbox-address]")).toBeNull();
+			assert.equal(doc.querySelector("[data-test-inbox-address]"), null, "inbox address must not render without inbox");
 		});
 	});
 
