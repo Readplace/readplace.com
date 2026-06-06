@@ -38,8 +38,7 @@ export function initReaderReadyFanoutHandler(
 				const succeededAt = new Date(detail.succeededAt);
 
 				const savers = await findUserArticlesByUrl(detail.url);
-				let dispatched = 0;
-				for (const saver of savers) {
+				const results = await Promise.all(savers.map(async (saver) => {
 					await markReaderViewSucceeded({ userId: saver.userId, url: detail.url, at: succeededAt });
 					/* Only savers who actually opened the reader while it was loading
 					 * can qualify — never-viewed rows get the succeededAt stamp but no
@@ -51,15 +50,16 @@ export function initReaderReadyFanoutHandler(
 							url: detail.url,
 							succeededAt: detail.succeededAt,
 						});
-						dispatched++;
+						return true;
 					}
-				}
+					return false;
+				}));
 
 				logger.info("[ReaderReadyFanout] fanned out reader-view success", {
 					url: detail.url,
 					hasSummary: detail.hasSummary,
 					savers: savers.length,
-					dispatched,
+					dispatched: results.filter(Boolean).length,
 				});
 			} catch (error) {
 				logger.error("[ReaderReadyFanout] record failed", {

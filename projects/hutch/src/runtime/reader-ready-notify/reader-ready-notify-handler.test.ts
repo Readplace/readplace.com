@@ -12,7 +12,20 @@ const SUCCEEDED_AT = "2026-05-30T12:02:00.000Z"; // 2 min after save -> generati
 const NOW = new Date("2026-05-30T12:07:00.000Z");
 const COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
-const stubContext = {} as Context;
+const stubContext: Context = {
+	callbackWaitsForEmptyEventLoop: true,
+	functionName: "test",
+	functionVersion: "1",
+	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
+	memoryLimitInMB: "128",
+	awsRequestId: "test-request-id",
+	logGroupName: "/aws/lambda/test",
+	logStreamName: "test-stream",
+	getRemainingTimeInMillis: () => 30000,
+	done: () => {},
+	fail: () => {},
+	succeed: () => {},
+};
 
 function sqsEvent(detail: unknown, messageId = "msg-1"): SQSEvent {
 	return {

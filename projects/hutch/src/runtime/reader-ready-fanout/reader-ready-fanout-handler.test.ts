@@ -6,7 +6,20 @@ import { initReaderReadyFanoutHandler, type ReaderReadyFanoutDeps } from "./read
 const URL = "https://example.com/article";
 const SUCCEEDED_AT = "2026-05-30T12:00:00.000Z";
 
-const stubContext = {} as Context;
+const stubContext: Context = {
+	callbackWaitsForEmptyEventLoop: true,
+	functionName: "test",
+	functionVersion: "1",
+	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
+	memoryLimitInMB: "128",
+	awsRequestId: "test-request-id",
+	logGroupName: "/aws/lambda/test",
+	logStreamName: "test-stream",
+	getRemainingTimeInMillis: () => 30000,
+	done: () => {},
+	fail: () => {},
+	succeed: () => {},
+};
 
 function sqsEvent(detail: unknown, messageId = "msg-1"): SQSEvent {
 	return {
