@@ -40,6 +40,7 @@ function buildHarness() {
 			publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
 			publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
 			publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+			publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 			publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 			publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 			publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
