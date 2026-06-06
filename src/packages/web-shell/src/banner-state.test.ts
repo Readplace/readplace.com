@@ -71,27 +71,27 @@ describe("buildGuestNavItems", () => {
 });
 
 describe("buildNavGroups", () => {
-	it("groups full-access items into Library (queue, import, export) and Account (account, sign out)", () => {
+	it("groups full-access items into Library (queue, import, newsletter, export) and Account (account, sign out)", () => {
 		const groups = buildNavGroups({ accessIsReadOnly: false, emailFeatureEnabled: false });
 		expect(groups.map((g) => g.key)).toEqual(["library", "account"]);
 		const [library, account] = groups;
 		expect(library?.label).toBe("Library");
-		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "export"]);
+		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "newsletter", "export"]);
 		expect(account?.label).toBe("Account");
 		expect(account?.items.map((i) => i.key)).toEqual(["account", "logout"]);
 	});
 
-	it("omits import and account for a read-only user, leaving Library (queue, export) and Account (sign out)", () => {
+	it("omits import and account for a read-only user, leaving Library (queue, newsletter, export) and Account (sign out)", () => {
 		const groups = buildNavGroups({ accessIsReadOnly: true, emailFeatureEnabled: false });
 		const [library, account] = groups;
-		expect(library?.items.map((i) => i.key)).toEqual(["queue", "export"]);
+		expect(library?.items.map((i) => i.key)).toEqual(["queue", "newsletter", "export"]);
 		expect(account?.items.map((i) => i.key)).toEqual(["logout"]);
 	});
 
 	it("appends the Inbox entry to Library when the email feature is enabled", () => {
 		const groups = buildNavGroups({ accessIsReadOnly: false, emailFeatureEnabled: true });
 		const [library] = groups;
-		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "export", "inbox"]);
+		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "newsletter", "export", "inbox"]);
 	});
 
 	it("assigns a Font Awesome solid icon to every nav item", () => {

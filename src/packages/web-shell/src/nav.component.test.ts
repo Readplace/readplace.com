@@ -75,7 +75,7 @@ describe("Nav component", () => {
 		expect(countdown.getAttribute("data-server-now-iso")).toBe("");
 	});
 
-	it("renders authenticated nav items (queue, import, export, account, sign out) for an authenticated full-access user", () => {
+	it("renders authenticated nav items (queue, import, newsletter, export, account, sign out) for an authenticated full-access user", () => {
 		const doc = parse(
 			Nav({
 				variant: "default",
@@ -90,6 +90,7 @@ describe("Nav component", () => {
 		expect(nav.getAttribute("data-test-nav-variant")).toBe("authenticated");
 		assert(doc.querySelector('[data-test-nav-item="queue"]'));
 		assert(doc.querySelector('[data-test-nav-item="import"]'));
+		assert(doc.querySelector('[data-test-nav-item="newsletter"]'));
 		assert(doc.querySelector('[data-test-nav-item="export"]'));
 		assert(doc.querySelector('[data-test-nav-item="logout"]'));
 		const account = doc.querySelector('[data-test-nav-item="account"]');
@@ -99,7 +100,7 @@ describe("Nav component", () => {
 		expect(form.getAttribute("action")).toBe("/account?utm_source=header-nav&utm_medium=internal&utm_content=account");
 	});
 
-	it("splits the authenticated nav into a Library section (queue, import, export) and an Account section (account, sign out)", () => {
+	it("splits the authenticated nav into a Library section (queue, import, newsletter, export) and an Account section (account, sign out)", () => {
 		const doc = parse(
 			Nav({
 				variant: "default",
@@ -120,7 +121,7 @@ describe("Nav component", () => {
 		const libraryItems = Array.from(
 			library.querySelectorAll("[data-test-nav-item]"),
 		).map((el) => el.getAttribute("data-test-nav-item"));
-		expect(libraryItems).toEqual(["queue", "import", "export"]);
+		expect(libraryItems).toEqual(["queue", "import", "newsletter", "export"]);
 
 		const account = doc.querySelector('[data-test-nav-group="account"]');
 		assert(account, "account group must render");
@@ -147,7 +148,7 @@ describe("Nav component", () => {
 				.querySelector('[data-test-nav-group="library"]')
 				?.querySelectorAll("[data-test-nav-item]") ?? [],
 		).map((el) => el.getAttribute("data-test-nav-item"));
-		expect(libraryItems).toEqual(["queue", "import", "export", "inbox"]);
+		expect(libraryItems).toEqual(["queue", "import", "newsletter", "export", "inbox"]);
 	});
 
 	it("carries feature=email as a hidden input on the Inbox entry so its GET form keeps the gate flag", () => {
