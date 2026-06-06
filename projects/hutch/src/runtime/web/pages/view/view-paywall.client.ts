@@ -69,5 +69,5 @@ export function initViewPaywall(deps: ViewPaywallDeps): void {
 	if (msUntilDeadline > 0) {
 		timerId = deps.setTimeoutFn(reveal, msUntilDeadline);
 	}
-	onScroll();
+	onScroll(); // page may have loaded mid-scroll
 }
