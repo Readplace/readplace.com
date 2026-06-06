@@ -392,11 +392,20 @@ export const NAV_STYLES = `
     }
 
     /**
-     * 1. On the horizontal bar the per-group heading would clutter the row, so
-     *    the grouping reads from the divider + spacing instead.
+     * 1. Visually hidden on the horizontal bar (the grouping reads from the
+     *    divider + spacing), but kept in the accessibility tree so screen
+     *    readers still announce the section heading.
      */
     .nav__group-label {
-      display: none; /* 1 */
+      position: absolute; /* 1 */
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     .nav__group + .nav__group {
