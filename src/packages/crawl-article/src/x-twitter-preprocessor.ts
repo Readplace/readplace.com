@@ -40,11 +40,12 @@ export function initFetchTweetViaOembed(deps: {
 				logError(`[CrawlArticle] oembed HTTP ${response.status} for ${params.url}`);
 				return { status: "failed" };
 			}
-			const data = await response.json() as Record<string, unknown>;
+			const text = await response.text();
+			const bodyHash = createHash("sha256").update(text).digest("hex");
+			const data = JSON.parse(text) as Record<string, unknown>;
 			const authorName = typeof data.author_name === "string" ? data.author_name : "";
 			const embed = typeof data.html === "string" ? data.html : "";
 			const html = `<html><head><title>${authorName}</title></head><body>${embed}</body></html>`;
-			const bodyHash = createHash("sha256").update(html).digest("hex");
 			return { status: "fetched", html, bodyHash };
 		} catch (error) {
 			logError(`[CrawlArticle] oembed error for ${params.url}`, error instanceof Error ? error : undefined);

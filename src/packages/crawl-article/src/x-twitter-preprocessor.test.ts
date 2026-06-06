@@ -24,11 +24,12 @@ describe("isTweetUrl", () => {
 
 describe("initFetchTweetViaOembed", () => {
 	it("returns synthesised HTML wrapping author name and embed for a 200 oembed response", async () => {
+		const oembedPayload = JSON.stringify({
+			author_name: "Elon Musk",
+			html: '<blockquote class="twitter-tweet"><p lang="en" dir="ltr">Test tweet</p></blockquote>\n',
+		});
 		const crawlFetch = stubCrawlFetch(async () =>
-			new Response(JSON.stringify({
-				author_name: "Elon Musk",
-				html: '<blockquote class="twitter-tweet"><p lang="en" dir="ltr">Test tweet</p></blockquote>\n',
-			}), { status: 200, headers: { "content-type": "application/json" } }),
+			new Response(oembedPayload, { status: 200, headers: { "content-type": "application/json" } }),
 		);
 		const fetchTweet = initFetchTweetViaOembed({ crawlFetch, logError: noopLogError });
 
@@ -38,13 +39,14 @@ describe("initFetchTweetViaOembed", () => {
 		expect(result).toEqual({
 			status: "fetched",
 			html: expectedHtml,
-			bodyHash: createHash("sha256").update(expectedHtml).digest("hex"),
+			bodyHash: createHash("sha256").update(oembedPayload).digest("hex"),
 		});
 	});
 
 	it("uses empty strings when the oembed payload omits author_name and html", async () => {
+		const oembedPayload = JSON.stringify({});
 		const crawlFetch = stubCrawlFetch(async () =>
-			new Response(JSON.stringify({}), { status: 200, headers: { "content-type": "application/json" } }),
+			new Response(oembedPayload, { status: 200, headers: { "content-type": "application/json" } }),
 		);
 		const fetchTweet = initFetchTweetViaOembed({ crawlFetch, logError: noopLogError });
 
@@ -54,7 +56,7 @@ describe("initFetchTweetViaOembed", () => {
 		expect(result).toEqual({
 			status: "fetched",
 			html: expectedHtml,
-			bodyHash: createHash("sha256").update(expectedHtml).digest("hex"),
+			bodyHash: createHash("sha256").update(oembedPayload).digest("hex"),
 		});
 	});
 
