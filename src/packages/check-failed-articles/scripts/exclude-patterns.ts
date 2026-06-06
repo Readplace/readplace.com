@@ -49,6 +49,14 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// produces noise the operator cannot act on without a residential
 	// proxy; exclude them at the canary boundary.
 	/(?:^|\/\/)(?:[a-z0-9-]+\.)*reddit\.com(?:[/:?#]|$)/i,
+	// Bloomberg — PerimeterX (HUMAN Security) JS challenge returns 403
+	// with a "Are you a robot?" interstitial on every automated request.
+	// Unlike Cloudflare managed challenges, PerimeterX requires full
+	// browser JS execution — not solvable via TLS fingerprint variation
+	// (h2 fallback, curl-impersonate). All three fetch paths (undici,
+	// Node http2, curl-impersonate) and both personas (default-browser,
+	// honest-bot) receive the same 403. Same class of block as Reddit.
+	/(?:^|\/\/)(?:[a-z0-9-]+\.)*bloomberg\.com(?:[/:?#]|$)/i,
 	// Operator-curated exact-URL excludes — individual rows the operator has
 	// decided are "known broken / not worth investigating again". Each entry
 	// is anchored with `^…$` so it matches only the exact stored URL, not a

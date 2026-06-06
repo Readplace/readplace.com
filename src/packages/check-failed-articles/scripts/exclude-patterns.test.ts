@@ -84,6 +84,25 @@ describe("EXCLUDE_PATTERNS — reddit.com entry", () => {
 	}
 });
 
+describe("EXCLUDE_PATTERNS — bloomberg.com entry", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{ url: "https://www.bloomberg.com/news/articles/2026-06-02/uber-caps-usage-of-ai-tools-like-claude-code-to-cut-costs?embedded-checkout=true", excluded: true, label: "www.bloomberg.com article URL (canary trigger)" },
+		{ url: "https://bloomberg.com/news/articles/foo", excluded: true, label: "apex bloomberg.com" },
+		{ url: "https://www.bloomberg.com/opinion/article/bar", excluded: true, label: "bloomberg.com opinion article" },
+		{ url: "http://bloomberg.com/foo", excluded: true, label: "http scheme" },
+		{ url: "https://bloomberg.com:443/foo", excluded: true, label: "explicit port" },
+		{ url: "https://bloomberg.com?q=1", excluded: true, label: "query immediately after host" },
+		{ url: "https://notbloomberg.com/foo", excluded: false, label: "prefixed similar host (should NOT match)" },
+		{ url: "https://bloomberg.com.evil.com/foo", excluded: false, label: "subdomain trick (should NOT match)" },
+		{ url: "https://other.test/bloomberg.com/foo", excluded: false, label: "bloomberg.com inside a path" },
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
+
 describe("EXCLUDE_PATTERNS — browser-internal schemes", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
 		{ url: "chrome://extensions/", excluded: true, label: "chrome:// with path" },
