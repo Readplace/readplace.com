@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "./render";
-import { buildNavItems } from "./banner-state";
+import { buildNavGroups, buildGuestNavItems } from "./banner-state";
 import { formatTrialDisplay, type TrialDisplay } from "./trial-countdown.format";
 
 const NAV_TEMPLATE = readFileSync(join(__dirname, "nav.template.html"), "utf-8");
@@ -38,10 +38,6 @@ function escalationClassFor(trial: TrialDisplay | undefined): string {
 
 export function Nav(props: NavProps): string {
 	const trial = props.trialCounter;
-	const navItems = buildNavItems({
-		isAuthenticated: props.isAuthenticated,
-		accessIsReadOnly: props.accessIsReadOnly,
-	});
 	return render(NAV_TEMPLATE, {
 		transparent: props.variant === "transparent",
 		trial: Boolean(trial),
@@ -50,7 +46,10 @@ export function Nav(props: NavProps): string {
 		trialEscalationClass: escalationClassFor(trial),
 		trialEndsAtIso: endsAtIsoFor(trial),
 		serverNowIso: serverNowIsoFor(trial),
-		navItems,
+		navGroups: props.isAuthenticated
+			? buildNavGroups({ accessIsReadOnly: props.accessIsReadOnly })
+			: undefined,
+		navItems: props.isAuthenticated ? undefined : buildGuestNavItems(),
 		navVariant: props.isAuthenticated ? "authenticated" : "guest",
 	});
 }

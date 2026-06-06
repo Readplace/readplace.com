@@ -90,7 +90,56 @@ describe("Nav component", () => {
 		expect(form.getAttribute("action")).toBe("/account");
 	});
 
-	it("renders guest nav items (features, signup) for an unauthenticated user", () => {
+	it("splits the authenticated nav into a Library section (queue, import, export) and an Account section (account, sign out)", () => {
+		const doc = parse(
+			Nav({
+				variant: "default",
+				isAuthenticated: true,
+				accessIsReadOnly: false,
+			}),
+		);
+
+		const groups = Array.from(doc.querySelectorAll("[data-test-nav-group]")).map(
+			(el) => el.getAttribute("data-test-nav-group"),
+		);
+		expect(groups).toEqual(["library", "account"]);
+
+		const library = doc.querySelector('[data-test-nav-group="library"]');
+		assert(library, "library group must render");
+		expect(library.querySelector(".nav__group-label")?.textContent).toBe("Library");
+		const libraryItems = Array.from(
+			library.querySelectorAll("[data-test-nav-item]"),
+		).map((el) => el.getAttribute("data-test-nav-item"));
+		expect(libraryItems).toEqual(["queue", "import", "export"]);
+
+		const account = doc.querySelector('[data-test-nav-group="account"]');
+		assert(account, "account group must render");
+		expect(account.querySelector(".nav__group-label")?.textContent).toBe("Account");
+		const accountItems = Array.from(
+			account.querySelectorAll("[data-test-nav-item]"),
+		).map((el) => el.getAttribute("data-test-nav-item"));
+		expect(accountItems).toEqual(["account", "logout"]);
+	});
+
+	it("renders an aria-hidden Font Awesome icon alongside each label without polluting the accessible name", () => {
+		const doc = parse(
+			Nav({
+				variant: "default",
+				isAuthenticated: true,
+				accessIsReadOnly: false,
+			}),
+		);
+
+		const queue = doc.querySelector('[data-test-nav-item="queue"]');
+		assert(queue, "queue nav item must render");
+		const icon = queue.querySelector(".nav__icon");
+		assert(icon, "queue nav item must render an icon");
+		expect(icon.getAttribute("aria-hidden")).toBe("true");
+		expect(icon.classList.contains("fa-inbox")).toBe(true);
+		expect(queue.textContent).toBe("Queue");
+	});
+
+	it("renders guest nav items (features, signup) as a flat list without group structure", () => {
 		const doc = parse(
 			Nav({
 				variant: "default",
@@ -105,6 +154,7 @@ describe("Nav component", () => {
 		assert(doc.querySelector('[data-test-nav-item="features"]'));
 		assert(doc.querySelector('[data-test-nav-item="signup"]'));
 		expect(doc.querySelector('[data-test-nav-item="queue"]')).toBeNull();
+		expect(doc.querySelectorAll("[data-test-nav-group]")).toHaveLength(0);
 	});
 
 	it("applies the transparent header modifier when variant is 'transparent'", () => {

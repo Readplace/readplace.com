@@ -293,24 +293,53 @@ export const NAV_STYLES = `
     display: block;
   }
 
-  .nav__list {
-    list-style: none;
-    margin: 0;
+  /**
+   * 1. Sibling groups are split by a hairline so the sections read as distinct
+   *    without a heading on every one (the heading is the .nav__group-label).
+   */
+  .nav__group {
     padding: 8px 0;
+  }
+
+  .nav__group + .nav__group {
+    border-top: 1px solid var(--border); /* 1 */
+  }
+
+  .nav__group-label {
+    display: block;
+    padding: 4px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
   }
 
   /**
    * 1. Ensure font-size of nav-list is consistent to avoid different sizes when wrapped by a form, like the logout
    */
   .nav__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
     font-size: 14px; /* 1 */
   }
 
   .nav__link {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     padding: 12px 16px;
     color: var(--foreground);
     text-decoration: none;
+  }
+
+  .nav__icon {
+    flex-shrink: 0;
+    width: 1.1em;
+    text-align: center;
+    font-size: 0.95em;
+    color: var(--muted-foreground);
   }
 
   .nav__link:hover {
@@ -334,6 +363,9 @@ export const NAV_STYLES = `
     .header--transparent .nav__link {
       color: var(--foreground);
     }
+    .header--transparent .nav__icon {
+      color: var(--muted-foreground);
+    }
   }
 
   @media (min-width: 768px) {
@@ -342,7 +374,9 @@ export const NAV_STYLES = `
     }
 
     .nav__menu {
-      display: block;
+      display: flex;
+      align-items: center;
+      gap: 8px;
       position: static;
       background: transparent;
       border: none;
@@ -351,10 +385,39 @@ export const NAV_STYLES = `
       margin-top: 0;
     }
 
+    .nav__group {
+      display: flex;
+      align-items: center;
+      padding: 0;
+    }
+
+    /**
+     * 1. Visually hidden on the horizontal bar (the grouping reads from the
+     *    divider + spacing), but kept in the accessibility tree so screen
+     *    readers still announce the section heading.
+     */
+    .nav__group-label {
+      position: absolute; /* 1 */
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .nav__group + .nav__group {
+      border-top: none;
+      border-left: 1px solid var(--border);
+      margin-left: 8px;
+      padding-left: 8px;
+    }
+
     .nav__list {
       display: flex;
       gap: 8px;
-      padding: 0;
     }
 
     .nav__link {
@@ -362,7 +425,12 @@ export const NAV_STYLES = `
       border-radius: var(--radius);
     }
 
-    .header--transparent .nav__link {
+    .header--transparent .nav__group + .nav__group {
+      border-left-color: rgba(255, 255, 255, 0.25);
+    }
+
+    .header--transparent .nav__link,
+    .header--transparent .nav__icon {
       color: var(--color-on-brand);
     }
 
