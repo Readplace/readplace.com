@@ -14,10 +14,12 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly importSessionsTable: aws.dynamodb.Table;
 	public readonly subscriptionProvidersTable: aws.dynamodb.Table;
 	public readonly rateLimitsTable: aws.dynamodb.Table;
+	public readonly highlightsTable: aws.dynamodb.Table;
 
 	constructor(name: string, args: { deletionProtection: boolean; tableNames: {
 		articles: string;
 		userArticles: string;
+		highlights: string;
 		users: string;
 		readerReadyNotifications: string;
 		sessions: string;
@@ -222,6 +224,19 @@ export class HutchStorage extends pulumi.ComponentResource {
 					hashKey: "subscriptionId",
 					projectionType: "ALL",
 				},
+			],
+		}, { parent: this });
+
+		this.highlightsTable = new aws.dynamodb.Table(`hutch-highlights`, {
+			name: args.tableNames.highlights,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "pk",
+			rangeKey: "id",
+			attributes: [
+				{ name: "pk", type: "S" },
+				{ name: "id", type: "S" },
 			],
 		}, { parent: this });
 

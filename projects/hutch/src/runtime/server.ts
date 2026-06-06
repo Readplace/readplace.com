@@ -66,6 +66,11 @@ import type {
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type {
+	CreateHighlight,
+	DeleteHighlight,
+	FindHighlightsByArticle,
+} from "@packages/provider-contracts/highlights-store";
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	FindArticleCrawlStatus,
@@ -194,6 +199,9 @@ interface AppDependencies {
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
+	createHighlight: CreateHighlight;
+	findHighlightsByArticle: FindHighlightsByArticle;
+	deleteHighlight: DeleteHighlight;
 	sendEmail: SendEmail;
 	createVerificationToken: CreateVerificationToken;
 	verifyEmailToken: VerifyEmailToken;
@@ -770,6 +778,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		deleteArticle: deps.deleteArticle,
 		updateArticleStatus: deps.updateArticleStatus,
 		markArticleViewed: deps.markArticleViewed,
+		createHighlight: deps.createHighlight,
+		findHighlightsByArticle: deps.findHighlightsByArticle,
+		deleteHighlight: deps.deleteHighlight,
 		publishLinkSaved: deps.publishLinkSaved,
 		publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand: deps.publishSaveLinkRawPdfCommand,

@@ -53,6 +53,7 @@ const tableNames = {
 	importSessions: config.require("dynamodbImportSessionsTable"),
 	subscriptionProviders: config.require("dynamodbSubscriptionProvidersTable"),
 	rateLimits: config.require("dynamodbRateLimitsTable"),
+	highlights: config.require("dynamodbHighlightsTable"),
 };
 
 /* Per-stack "<limit>/<windowSeconds>" rules so staging e2e (one CI egress IP
@@ -160,6 +161,7 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.importSessionsTable.arn, includeIndexes: false },
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
 		{ arn: storage.rateLimitsTable.arn, includeIndexes: false },
+		{ arn: storage.highlightsTable.arn, includeIndexes: false },
 	],
 	actions: [
 		"dynamodb:GetItem",
@@ -284,6 +286,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		CHANGELOG_BANNER_URL: pulumi.interpolate`${appOrigin}/blog/changelog-banner`,
 		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
+		DYNAMODB_HIGHLIGHTS_TABLE: storage.highlightsTable.name,
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 		DYNAMODB_OAUTH_TABLE: storage.oauthTable.name,
@@ -436,6 +439,7 @@ const exportUserDataLambda = new HutchLambda("export-user-data", {
 		PERSISTENCE: "prod",
 		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
+		DYNAMODB_HIGHLIGHTS_TABLE: storage.highlightsTable.name,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		USER_EXPORT_BUCKET_NAME: userExportBucket.bucket,
 		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
@@ -932,6 +936,7 @@ const sendTrialFeedbackEmailLambda = new HutchLambda(
 			DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
 			DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 			DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
+		DYNAMODB_HIGHLIGHTS_TABLE: storage.highlightsTable.name,
 			RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
 			STATIC_BASE_URL: staticAssets.baseUrl,
 		},

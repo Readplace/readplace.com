@@ -26,6 +26,7 @@ config:
   hutch:rateLimitForgotPassword: 5000/3600
   hutch:apiThrottleBurstLimit: 5000
   hutch:apiThrottleRateLimit: 2000
+  hutch:dynamodbHighlightsTable: hutch-highlights-staging
   hutch:trialSchedulerGroupName: hutch-trial-end-staging
   hutch:contentBucketName: hutch-article-content-staging
   hutch:pendingHtmlBucketName: hutch-pending-html-staging

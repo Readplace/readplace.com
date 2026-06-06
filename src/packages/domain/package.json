@@ -17,6 +17,10 @@
       "types": "./dist/article-aggregate/index.d.ts",
       "default": "./dist/article-aggregate/index.js"
     },
+    "./highlight": {
+      "types": "./dist/highlight/index.d.ts",
+      "default": "./dist/highlight/index.js"
+    },
     "./user": {
       "types": "./dist/user/index.d.ts",
       "default": "./dist/user/index.js"
@@ -38,6 +42,7 @@
     "*": {
       "article": ["./dist/article/index.d.ts"],
       "article-aggregate": ["./dist/article-aggregate/index.d.ts"],
+      "highlight": ["./dist/highlight/index.d.ts"],
       "user": ["./dist/user/index.d.ts"],
       "oauth": ["./dist/oauth/index.d.ts"],
       "import-session": ["./dist/import-session/index.d.ts"],

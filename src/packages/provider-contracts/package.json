@@ -45,6 +45,10 @@
       "types": "./dist/google-auth.d.ts",
       "default": "./dist/google-auth.js"
     },
+    "./highlights-store": {
+      "types": "./dist/highlights-store.d.ts",
+      "default": "./dist/highlights-store.js"
+    },
     "./oauth": {
       "types": "./dist/oauth.d.ts",
       "default": "./dist/oauth.js"
@@ -105,6 +109,7 @@
       "email-verification": ["./dist/email-verification.d.ts"],
       "events": ["./dist/events.d.ts"],
       "google-auth": ["./dist/google-auth.d.ts"],
+      "highlights-store": ["./dist/highlights-store.d.ts"],
       "oauth": ["./dist/oauth.d.ts"],
       "password-reset": ["./dist/password-reset.d.ts"],
       "pending-html": ["./dist/pending-html.d.ts"],

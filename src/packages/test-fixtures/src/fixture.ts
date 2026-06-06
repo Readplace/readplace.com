@@ -12,6 +12,7 @@ import type { ParseArticle } from "@packages/article-parser";
 import { initReadabilityParser } from "@packages/article-parser";
 import { initInMemoryArticleCrawl } from "./providers/article-crawl/in-memory-article-crawl";
 import { initInMemoryArticleStore } from "./providers/article-store/in-memory-article-store";
+import { initInMemoryHighlightsStore } from "./providers/highlights-store/in-memory-highlights-store";
 import { initInMemoryAuth } from "./providers/auth/in-memory-auth";
 import { initInMemoryEmail } from "./providers/email/in-memory-email";
 import { initInMemoryEmailVerification } from "./providers/email-verification/in-memory-email-verification";
@@ -226,6 +227,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const fastVerifyPassword = async (p: string, stored: string | undefined) => stored === `plain:${p}`;
 	const auth = initInMemoryAuth({ hashPassword: fastHashPassword, verifyPassword: fastVerifyPassword });
 	const articleStoreMemory = initInMemoryArticleStore();
+	const highlightsStore = initInMemoryHighlightsStore({ now: () => new Date() });
 	const articleCrawl = initInMemoryArticleCrawl();
 	const crawlArticle = stubCrawlArticle;
 	const { parseArticle } = initReadabilityParser({
@@ -324,6 +326,11 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			writeContent: articleStoreMemory.writeContent,
 			writeMetadata: articleStoreMemory.writeMetadata,
 			setContentSourceTier: articleStoreMemory.setContentSourceTier,
+		},
+		highlightsStore: {
+			createHighlight: highlightsStore.createHighlight,
+			findHighlightsByArticle: highlightsStore.findHighlightsByArticle,
+			deleteHighlight: highlightsStore.deleteHighlight,
 		},
 		articleCrawl: {
 			findArticleCrawlStatus: articleCrawl.findArticleCrawlStatus,

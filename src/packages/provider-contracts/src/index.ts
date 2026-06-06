@@ -7,6 +7,7 @@ export type * from "./email";
 export type * from "./email-verification";
 export type * from "./events";
 export type * from "./google-auth";
+export type * from "./highlights-store";
 export type * from "./oauth";
 export type * from "./password-reset";
 export type * from "./pending-html";

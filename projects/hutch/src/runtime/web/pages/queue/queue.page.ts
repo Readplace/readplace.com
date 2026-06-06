@@ -19,6 +19,19 @@ import {
 } from "../import/import-skipped-cookie";
 import type { ImportSkippedViewModel } from "./queue.viewmodel";
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
+import type { ReaderArticleHashId } from "@packages/domain/article";
+import type { UserId } from "@packages/domain/user";
+import { z } from "zod";
+import type {
+	CreateHighlight,
+	DeleteHighlight,
+	FindHighlightsByArticle,
+} from "@packages/provider-contracts/highlights-store";
+import { HighlightIdSchema } from "@packages/domain/highlight";
+import {
+	renderHighlightsList,
+	toHighlightViews,
+} from "../../shared/highlights/highlights.component";
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	CountArticlesByUser,
@@ -134,6 +147,19 @@ function normalizeMediaType(mediaType: string): string {
 	return base;
 }
 
+const CreateHighlightInputSchema = z.object({
+	quote: z.string().trim().min(1).max(2000),
+	note: z.string().max(2000).optional().default(""),
+});
+
+function highlightsCreateUrl(articleId: string): string {
+	return `/queue/${articleId}/highlights`;
+}
+
+function highlightDeleteUrl(articleId: string, id: string): string {
+	return `/queue/${articleId}/highlights/${id}/delete`;
+}
+
 interface QueueDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
@@ -146,6 +172,9 @@ interface QueueDependencies {
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
+	createHighlight: CreateHighlight;
+	findHighlightsByArticle: FindHighlightsByArticle;
+	deleteHighlight: DeleteHighlight;
 	publishLinkSaved: PublishLinkSaved;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
@@ -223,6 +252,16 @@ const SAVE_INTENT_PATH = {
 	saveContent: saveIntentPath(SAVE_ROUTE.saveContent),
 } as const;
 
+async function loadHighlightViews(
+	findHighlightsByArticle: FindHighlightsByArticle,
+	params: { userId: UserId; articleId: ReaderArticleHashId },
+) {
+	const highlights = await findHighlightsByArticle(params);
+	return toHighlightViews(highlights, {
+		deleteUrlFor: (id) => highlightDeleteUrl(params.articleId.value, id),
+	});
+}
+
 export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
 
@@ -299,6 +338,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 
 		const ownedArticle = result.article;
+		assert(req.userId, "owned article implies an authenticated owner");
+		const highlightViews = await loadHighlightViews(deps.findHighlightsByArticle, {
+			userId: req.userId,
+			articleId: ownedArticle.id,
+		});
 
 		/* Server-side reader-view presence: stamp every owner open so the
 		 * reader-ready notifier can tell "viewed while loading, then left" from
@@ -335,6 +379,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				progress: state.progress,
 				audioEnabled,
 				extensionInstallUrl: extensionInstallUrlIfMissing(req),
+				highlights: highlightViews,
+				highlightsCreateUrl: highlightsCreateUrl(ownedArticle.id.value),
 			}), {
 				...(await deps.buildBannerState(req)),
 				showExtensionSuggestionBanner,
@@ -920,6 +966,65 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 
 		res.redirect(303, buildQueueUrl(parseQueueUrl(req.query)));
+	});
+
+	router.post("/:id/highlights", express.json(), async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const article = parsedId.success
+			? await deps.findArticleById(parsedId.data, userId)
+			: null;
+
+		if (!article) {
+			res.status(404).type("html").send("");
+			return;
+		}
+
+		const parsed = CreateHighlightInputSchema.safeParse(req.body);
+		if (!parsed.success) {
+			res.status(422).type("html").send("");
+			return;
+		}
+
+		await deps.createHighlight({
+			userId,
+			articleId: article.id,
+			quote: parsed.data.quote,
+			note: parsed.data.note,
+		});
+
+		const views = await loadHighlightViews(deps.findHighlightsByArticle, {
+			userId,
+			articleId: article.id,
+		});
+		res.status(201).type("html").send(renderHighlightsList(views));
+	});
+
+	router.post("/:id/highlights/:hid/delete", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const article = parsedId.success
+			? await deps.findArticleById(parsedId.data, userId)
+			: null;
+
+		if (!article) {
+			res.status(404).type("html").send("");
+			return;
+		}
+
+		await deps.deleteHighlight({
+			userId,
+			articleId: article.id,
+			id: HighlightIdSchema.parse(req.params.hid),
+		});
+
+		const views = await loadHighlightViews(deps.findHighlightsByArticle, {
+			userId,
+			articleId: article.id,
+		});
+		res.status(200).type("html").send(renderHighlightsList(views));
 	});
 
 	return router;

@@ -1,7 +1,27 @@
 .reader {
-  max-width: var(--reader-max-width);
+  max-width: min(76rem, 100%);
   margin: 0 auto;
   padding: 2rem 1rem 4rem;
+}
+
+.reader__layout {
+  display: grid;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (min-width: 64rem) {
+  .reader__layout {
+    grid-template-columns: var(--reader-max-width) 20rem;
+    justify-content: center;
+  }
+
+  .reader__layout .highlights {
+    position: sticky;
+    top: 1.5rem;
+    max-height: calc(100vh - 3rem);
+    overflow-y: auto;
+  }
 }
 
 .reader__share-row {

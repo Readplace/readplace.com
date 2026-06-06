@@ -7,6 +7,8 @@ import { initInMemoryAuth, hashPassword, verifyPassword } from "@packages/test-f
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
+import { initInMemoryHighlightsStore } from "@packages/test-fixtures/providers/highlights-store";
+import { initDynamoDbHighlightsStore } from "./providers/highlights-store/dynamodb-highlights-store";
 import type { ExtractPdf } from "@packages/crawl-article";
 import {
 	CRAWL_PERSONAS,
@@ -153,6 +155,8 @@ function initProviders() {
 
 		const auth = initDynamoDbAuth({ client, usersTableName: usersTable, sessionsTableName: sessionsTable });
 		const articleStore = initDynamoDbArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable });
+		const highlightsTable = requireEnv("DYNAMODB_HIGHLIGHTS_TABLE");
+		const highlightsStore = initDynamoDbHighlightsStore({ client, tableName: highlightsTable, now: () => new Date() });
 		const readArticleContent = initReadArticleContent({
 			storageProviderQueryOrder: [
 				initS3ReadContent({ send: (cmd) => s3Client.send(cmd), bucketName: contentBucketName }),
@@ -254,6 +258,9 @@ function initProviders() {
 		return {
 			auth,
 			articleStore,
+			createHighlight: highlightsStore.createHighlight,
+			findHighlightsByArticle: highlightsStore.findHighlightsByArticle,
+			deleteHighlight: highlightsStore.deleteHighlight,
 			readArticleContent,
 			importSessionStore,
 			extractLinksFromPageUrl,
@@ -296,6 +303,7 @@ function initProviders() {
 
 	const auth = initInMemoryAuth({ hashPassword, verifyPassword });
 	const articleStore = initInMemoryArticleStore();
+	const highlightsStore = initInMemoryHighlightsStore({ now: () => new Date() });
 	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), { findUserById: auth.findUserById });
 	const devStripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const devStripeSubscriptions = initInMemoryStripeSubscriptions();
@@ -423,6 +431,9 @@ function initProviders() {
 	return {
 		auth,
 		articleStore,
+		createHighlight: highlightsStore.createHighlight,
+		findHighlightsByArticle: highlightsStore.findHighlightsByArticle,
+		deleteHighlight: highlightsStore.deleteHighlight,
 		readArticleContent: initReadArticleContent({
 			storageProviderQueryOrder: [articleStore.readContent],
 			logError,

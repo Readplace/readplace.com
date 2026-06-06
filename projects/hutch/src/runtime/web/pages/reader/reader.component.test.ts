@@ -36,10 +36,14 @@ function makeArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 }
 
 const DEFAULT_APP_ORIGIN = "http://localhost:3000";
+const HIGHLIGHTS_OPTS = {
+	highlights: [],
+	highlightsCreateUrl: "/queue/0123456789abcdef0123456789abcdef/highlights",
+} as const;
 
 describe("ReaderPage", () => {
 	it("renders the share balloon wrap so client init can attach to it", () => {
-		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN }), {
+		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, ...HIGHLIGHTS_OPTS }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;
@@ -49,11 +53,58 @@ describe("ReaderPage", () => {
 		assert(wrap, "share balloon wrap must be rendered");
 	});
 
+	it("renders the highlights side panel with an empty state and the create URL the client posts to", () => {
+		const html = Base(
+			ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, ...HIGHLIGHTS_OPTS }),
+			{ isAuthenticated: true, emailVerified: undefined },
+		).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+
+		const panel = doc.querySelector("[data-highlights]");
+		assert(panel, "highlights panel must be rendered");
+		assert.equal(
+			panel.getAttribute("data-highlights-create-url"),
+			"/queue/0123456789abcdef0123456789abcdef/highlights",
+		);
+		assert(
+			doc.querySelector("[data-test-highlights-empty]"),
+			"empty state must show when there are no highlights",
+		);
+	});
+
+	it("renders saved highlights with their notes and a delete affordance", () => {
+		const html = Base(
+			ReaderPage(makeArticle(), {
+				appOrigin: DEFAULT_APP_ORIGIN,
+				highlightsCreateUrl: "/queue/0123456789abcdef0123456789abcdef/highlights",
+				highlights: [
+					{
+						id: "h1",
+						quote: "a memorable line",
+						note: "why it matters",
+						deleteUrl: "/queue/0123456789abcdef0123456789abcdef/highlights/h1/delete",
+					},
+				],
+			}),
+			{ isAuthenticated: true, emailVerified: undefined },
+		).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+
+		const item = doc.querySelector("[data-test-highlight]");
+		assert(item, "highlight item must be rendered");
+		assert.equal(item.getAttribute("data-highlight-quote"), "a memorable line");
+		assert.equal(doc.querySelector("[data-test-highlight-note]")?.textContent, "why it matters");
+		assert.equal(
+			doc.querySelector("[data-test-highlight-delete]")?.getAttribute("action"),
+			"/queue/0123456789abcdef0123456789abcdef/highlights/h1/delete",
+		);
+	});
+
 	it("stamps utm_content on the share balloon URLs with the first 6 chars of the article owner's user id", () => {
 		const article = makeArticle({
 			userId: UserIdSchema.parse("abcdef0123456789abcdef0123456789"),
 		});
-		const html = Base(ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN }), {
+		const html = Base(ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN, ...HIGHLIGHTS_OPTS }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;
@@ -107,7 +158,7 @@ describe("ReaderPage", () => {
 
 	it("renders the share-balloon URLs against the supplied appOrigin, not a hardcoded host", () => {
 		const html = Base(
-			ReaderPage(makeArticle(), { appOrigin: "https://staging.readplace.com" }),
+			ReaderPage(makeArticle(), { appOrigin: "https://staging.readplace.com", ...HIGHLIGHTS_OPTS }),
 			{ isAuthenticated: true, emailVerified: undefined },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;

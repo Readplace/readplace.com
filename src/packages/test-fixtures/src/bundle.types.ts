@@ -11,6 +11,7 @@ export type {
 	FoundingAllocationBundle,
 	FreshnessBundle,
 	GoogleAuthBundle,
+	HighlightsStoreBundle,
 	HttpErrorMessageMapping,
 	ImportSessionBundle,
 	OAuthBundle,

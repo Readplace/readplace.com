@@ -14,12 +14,17 @@ import {
 	renderShareBalloon,
 } from "../../shared/share-balloon/share-balloon.component";
 import { shareUserIdPrefix } from "../../shared/share-balloon/share-user-id-prefix";
+import {
+	type HighlightView,
+	renderHighlightsPanel,
+} from "../../shared/highlights/highlights.component";
 import { viewPathFor } from "../view/view-path";
 import { READER_STYLES } from "./reader.styles";
 
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
 const READER_IFRAME_SCRIPT = `<script src="/client-dist/reader-iframe.client.js" defer></script>`;
+const HIGHLIGHTS_SCRIPT = `<script src="/client-dist/highlights.client.js" defer></script>`;
 
 /**
  * Both the initial SSR <title> and the OOB <title> swap emitted by reader
@@ -51,6 +56,8 @@ export function ReaderPage(
 		progress?: ProgressTick;
 		audioEnabled?: boolean;
 		extensionInstallUrl?: string;
+		highlights: readonly HighlightView[];
+		highlightsCreateUrl: string;
 	},
 ): PageBody {
 	const articleId = article.id.value;
@@ -99,7 +106,11 @@ export function ReaderPage(
 		shareSource: "reader-internal",
 		sharerUserIdPrefix: shareUserIdPrefix(article.userId),
 	});
-	const content = render(READER_TEMPLATE, { innerContent, shareBalloon });
+	const highlightsPanel = renderHighlightsPanel({
+		createUrl: options.highlightsCreateUrl,
+		items: options.highlights,
+	});
+	const content = render(READER_TEMPLATE, { innerContent, shareBalloon, highlightsPanel });
 
 	return {
 		seo: {
@@ -111,6 +122,6 @@ export function ReaderPage(
 		styles: READER_STYLES,
 		bodyClass: "page-reader",
 		content: { html: content },
-		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT,
+		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + HIGHLIGHTS_SCRIPT,
 	};
 }

@@ -213,3 +213,11 @@ body {
   width: 60%;
   max-width: 400px;
 }
+
+/* purgecss-ignore: painted by highlights.client.ts inside this srcdoc, invisible to the parent-side scanner */
+mark.rp-highlight {
+  background: rgba(200, 112, 42, 0.28);
+  border-radius: 2px;
+  padding: 0 0.05em;
+  color: inherit;
+}

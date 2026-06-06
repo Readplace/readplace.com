@@ -18,6 +18,7 @@ import type {
 	CreateCheckoutSession,
 	CreateDeferredCancellationSchedule,
 	CreateGoogleUser,
+	CreateHighlight,
 	CreatePasswordResetToken,
 	CreateSession,
 	CreateSubscriptionOnExistingCustomer,
@@ -27,6 +28,7 @@ import type {
 	CreateVerificationToken,
 	DeleteArticle,
 	DeleteDeferredCancellationSchedule,
+	DeleteHighlight,
 	DeleteTrialEndSchedule,
 	DestroySession,
 	EmailMessage,
@@ -40,6 +42,7 @@ import type {
 	FindArticlesByUser,
 	FindEmailByUserId,
 	FindGeneratedSummary,
+	FindHighlightsByArticle,
 	FindSubscriptionBySubscriptionId,
 	FindSubscriptionByUserId,
 	FindUserArticleNotificationState,
@@ -201,6 +204,12 @@ export interface ArticleStoreBundle {
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
 }
 
+export interface HighlightsStoreBundle {
+	createHighlight: CreateHighlight;
+	findHighlightsByArticle: FindHighlightsByArticle;
+	deleteHighlight: DeleteHighlight;
+}
+
 export interface ArticleCrawlBundle {
 	findArticleCrawlStatus: FindArticleCrawlStatus;
 	markCrawlPending: MarkCrawlPending;
@@ -322,6 +331,7 @@ export interface FoundingAllocationBundle {
 export interface TestAppFixture {
 	auth: AuthBundle;
 	articleStore: ArticleStoreBundle;
+	highlightsStore: HighlightsStoreBundle;
 	articleCrawl: ArticleCrawlBundle;
 	parser: ParserBundle;
 	events: EventsBundle;

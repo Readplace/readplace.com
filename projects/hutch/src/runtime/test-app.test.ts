@@ -41,6 +41,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 		const result = createTestApp({
 			auth: fixture.auth,
 			articleStore: fixture.articleStore,
+			highlightsStore: fixture.highlightsStore,
 			articleCrawl: fixture.articleCrawl,
 			parser: fixture.parser,
 			events: fixture.events,
