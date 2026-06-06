@@ -155,4 +155,24 @@ describe("markCrawlExhausted", () => {
 	it("exposes its function name so transitionAndPersist can tag the row for the Phase 2 canary measurement", () => {
 		assert.equal(markCrawlExhausted.name, "markCrawlExhausted");
 	});
+
+	it("no-ops (empty writes and effects) when crawl is already ready, so a stale dead-lettered retry cannot clobber a row another path healed", () => {
+		const healed = buildArticle({
+			crawl: { kind: "ready" },
+			summary: { kind: "ready", summary: "already generated" },
+		});
+
+		const { article, effects, writes } = markCrawlExhausted(healed, {
+			reason: { kind: "exhausted-retries", receiveCount: 4 },
+			receiveCount: 4,
+		});
+
+		assert.deepEqual(writes, []);
+		assert.deepEqual(effects, []);
+		assert.deepEqual(article.crawl, { kind: "ready" });
+		assert.deepEqual(article.summary, {
+			kind: "ready",
+			summary: "already generated",
+		});
+	});
 });

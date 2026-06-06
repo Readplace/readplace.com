@@ -32,6 +32,16 @@ export function markCrawlExhausted(
 	effects: readonly Effect[];
 	writes: readonly AggregateField[];
 } {
+	/* A dead-lettered crawl retry can be stale: by the time it exhausts, another
+	 * path (e.g. a tier-0 extension save) may have already driven the row to
+	 * crawl=ready. Demoting that healthy row back to failed — and clobbering its
+	 * summary to crawl-failed — is a lost update that strands the reader on "We
+	 * couldn't generate a summary". Single writer per terminal state:
+	 * markCrawlExhausted only asserts crawl=failed over a not-yet-ready row. */
+	if (article.crawl.kind === "ready") {
+		return { article, effects: [], writes: [] };
+	}
+
 	const next: Article = {
 		...article,
 		crawl: { kind: "failed", reason: input.reason },
