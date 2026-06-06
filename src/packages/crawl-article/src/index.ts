@@ -1,7 +1,6 @@
 export { cachedImport } from "./cached-import";
 export {
 	initCrawlArticle,
-	parsePdfFromBuffer,
 	DEFAULT_CRAWL_HEADERS,
 	CRAWL_PERSONAS,
 } from "./crawl-article";

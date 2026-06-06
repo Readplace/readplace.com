@@ -1,5 +1,3 @@
-import type { ReadingListItemId } from "./domain/reading-list-item.types";
-import type { TabContent } from "./reading-list/reading-list.types";
 import { initInMemoryAuth } from "./auth/in-memory-auth";
 import { initInMemoryReadingList } from "./reading-list/in-memory-reading-list";
 import { initSaveCurrentTab } from "./save-current-tab";
@@ -53,36 +51,5 @@ describe("initSaveCurrentTab", () => {
 		});
 
 		expect(result).toEqual({ ok: false, reason: "already-saved" });
-	});
-
-	it("forwards content to saveUrl so the underlying reading list can pick the content-specific save path", async () => {
-		const captured: Parameters<typeof saveUrl>[0][] = [];
-		const saveUrl = async (params: {
-			url: string;
-			title: string;
-			content?: TabContent;
-		}) => {
-			captured.push(params);
-			return { ok: true as const, item: {
-				id: "x" as ReadingListItemId,
-				url: params.url,
-				title: params.title,
-				savedAt: new Date(),
-			} };
-		};
-		const saveCurrentTab = initSaveCurrentTab({ saveUrl });
-
-		const content: TabContent = {
-			bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]).buffer,
-			mediaType: "application/pdf",
-		};
-		await saveCurrentTab({
-			url: "https://example.com/x.pdf",
-			title: "",
-			content,
-		});
-
-		expect(captured).toHaveLength(1);
-		expect(captured[0]?.content).toBe(content);
 	});
 });

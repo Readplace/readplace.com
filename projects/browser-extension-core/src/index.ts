@@ -27,7 +27,6 @@ export {
 	initExtension,
 	initSaveArticleUnderstanding,
 	initSaveHtmlUnderstanding,
-	initSaveContentUnderstanding,
 	initDeleteArticleUnderstanding,
 	initListArticlesUnderstanding,
 	groupOf,
@@ -40,8 +39,6 @@ export type {
 	ArticleItem,
 	BoundAction,
 } from "./reading-list/siren-reading-list";
-export type { ContentBodyBuilder } from "./reading-list/content-body-parsers";
-export { pdfContentBody, htmlContentBody } from "./reading-list/content-body-parsers";
 export type { SaveUrl, RemoveUrl, FindByUrl, GetAllItems } from "./reading-list/reading-list.types";
 export type { PopupMessage } from "./popup-message.types";
 export { filterByUrl } from "./popup/filter-by-url";
@@ -55,7 +52,4 @@ export {
 } from "./get-context-menu-target";
 export { installShortcuts, isCmdD } from "./keydown-shortcuts";
 export type { Shortcut } from "./keydown-shortcuts";
-export { captureActiveTabBytes } from "./capture-active-tab-bytes";
-export type { CapturedContent } from "./capture-active-tab-bytes";
-export type { TabContent } from "./reading-list/reading-list.types";
 

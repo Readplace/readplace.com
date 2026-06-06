@@ -9,7 +9,6 @@ import {
 	type OAuthTokens,
 	type PopupMessage,
 	type ReadingListItem,
-	captureActiveTabBytes,
 	type SaveUrlResult,
 	type RemoveUrlResult,
 	type TokenStorage,
@@ -222,14 +221,11 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 						});
 					});
 					captureActiveTabHtml()
-						.then(async (rawHtml) => {
-							const content = rawHtml
-								? { bytes: new TextEncoder().encode(rawHtml).buffer, mediaType: "text/html" }
-								: await captureActiveTabBytes(message.url, fetch);
+						.then((rawHtml) => {
 							core.save("current-tab", {
 								url: message.url,
 								title: message.title,
-								content,
+								rawHtml,
 							});
 						})
 						.catch(() => {

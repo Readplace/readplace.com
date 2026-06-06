@@ -8,8 +8,6 @@ export interface SaveWarning {
 	readonly message: string;
 }
 
-export type TabContent = { bytes: ArrayBuffer; mediaType: string };
-
 export type SaveUrlResult =
 	| { ok: true; item: ReadingListItem }
 	| { ok: false; reason: "already-saved" }
@@ -27,7 +25,7 @@ export type RemoveUrlResult =
 export type SaveUrl = (params: {
 	url: string;
 	title: string;
-	content?: TabContent;
+	rawHtml?: string;
 }) => Promise<SaveUrlResult>;
 
 export type RemoveUrl = (

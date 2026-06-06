@@ -11,10 +11,8 @@ import type { PublishRecrawlLinkInitiated } from "@packages/test-fixtures/provid
 import type { PublishSaveAnonymousLink } from "@packages/test-fixtures/providers/events";
 import type { PublishStaleCheckRequested } from "@packages/test-fixtures/providers/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/test-fixtures/providers/events";
-import type { PublishSaveLinkRawPdfCommand } from "@packages/test-fixtures/providers/events";
 import type { PublishUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
 import type { PutPendingHtml } from "@packages/test-fixtures/providers/pending-html";
-import type { PutPendingPdf } from "@packages/test-fixtures/providers/pending-pdf";
 import type {
 	FindGeneratedSummary,
 	ForceMarkSummaryPending,
@@ -247,7 +245,6 @@ export interface EventsBundle {
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
-	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	publishExportUserDataCommand: PublishExportUserDataCommand;
 	publishCancelSubscriptionCommand: PublishCancelSubscriptionCommand;
@@ -257,11 +254,6 @@ export interface EventsBundle {
 export interface PendingHtmlBundle {
 	putPendingHtml: PutPendingHtml;
 	readPendingHtml: (url: string) => string | undefined;
-}
-
-export interface PendingPdfBundle {
-	putPendingPdf: PutPendingPdf;
-	readPendingPdfSync: (url: string) => Buffer | undefined;
 }
 
 export interface SummaryBundle {
@@ -345,7 +337,6 @@ export interface TestAppFixture {
 	parser: ParserBundle;
 	events: EventsBundle;
 	pendingHtml: PendingHtmlBundle;
-	pendingPdf: PendingPdfBundle;
 	summary: SummaryBundle;
 	freshness: FreshnessBundle;
 	oauth: OAuthBundle;
@@ -378,7 +369,6 @@ export interface TestAppResult {
 	articleStore: ArticleStoreBundle;
 	articleCrawl: ArticleCrawlBundle;
 	pendingHtml: PendingHtmlBundle;
-	pendingPdf: PendingPdfBundle;
 	oauthModel: OAuthModel;
 	email: EmailBundle;
 	emailVerification: EmailVerificationBundle;
@@ -438,13 +428,11 @@ function flattenFixtureToAppDependencies(
 		publishSaveAnonymousLink: fixture.events.publishSaveAnonymousLink,
 		publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
 		publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
-		publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
 		publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
 		publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
 		publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
 		publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 		putPendingHtml: fixture.pendingHtml.putPendingHtml,
-		putPendingPdf: fixture.pendingPdf.putPendingPdf,
 		findGeneratedSummary: fixture.summary.findGeneratedSummary,
 		markSummaryPending: fixture.summary.markSummaryPending,
 		refreshArticleIfStale: fixture.freshness.refreshArticleIfStale,
@@ -507,7 +495,6 @@ export function createTestApp(fixture: TestAppFixture): TestAppResult {
 		articleStore: fixture.articleStore,
 		articleCrawl: fixture.articleCrawl,
 		pendingHtml: fixture.pendingHtml,
-		pendingPdf: fixture.pendingPdf,
 		oauthModel: fixture.oauth.oauthModel,
 		email: fixture.email,
 		emailVerification: fixture.emailVerification,

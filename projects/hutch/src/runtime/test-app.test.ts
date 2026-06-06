@@ -45,7 +45,6 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 			parser: fixture.parser,
 			events: fixture.events,
 			pendingHtml: fixture.pendingHtml,
-			pendingPdf: fixture.pendingPdf,
 			summary: fixture.summary,
 			freshness: fixture.freshness,
 			oauth: fixture.oauth,
