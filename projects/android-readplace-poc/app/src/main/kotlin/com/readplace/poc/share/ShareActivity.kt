@@ -64,11 +64,13 @@ class ShareActivity : ComponentActivity() {
 
 			when {
 				html != null && withinLimit && page.saveHtmlAction != null -> {
-					withContext(Dispatchers.IO) { api.saveHtml(page.saveHtmlAction!!, shared.url, html, title) }
+					val action = page.saveHtmlAction
+					withContext(Dispatchers.IO) { api.saveHtml(action, shared.url, html, title) }
 					finishWith("Saved with content", success = true)
 				}
 				page.saveArticleAction != null -> {
-					withContext(Dispatchers.IO) { api.saveArticle(page.saveArticleAction!!, shared.url) }
+					val action = page.saveArticleAction
+					withContext(Dispatchers.IO) { api.saveArticle(action, shared.url) }
 					finishWith("Saved (link only)", success = true)
 				}
 				else -> finishWith("The server offered no save action.", success = false)

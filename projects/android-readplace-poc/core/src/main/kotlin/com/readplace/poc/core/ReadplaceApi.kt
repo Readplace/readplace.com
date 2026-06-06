@@ -166,7 +166,7 @@ class ReadplaceApi(
 		)
 
 	private fun absolute(href: String): String = when {
-		href.startsWith("http") -> href
+		href.startsWith("http://") || href.startsWith("https://") -> href
 		href.startsWith("/") -> "$baseUrl$href"
 		else -> "$baseUrl/$href"
 	}
