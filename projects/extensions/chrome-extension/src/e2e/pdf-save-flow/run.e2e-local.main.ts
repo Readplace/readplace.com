@@ -34,7 +34,9 @@ async function startTestServer(): Promise<ChildProcess> {
 			NODE_ENV: "test",
 			NX_DAEMON: "false",
 		},
-		stdio: "inherit",
+		// Keep the server off fd 1: it carries node --test's serialized reporter
+		// protocol, which a grandchild's raw writes corrupt. fd 2 is safe diagnostics.
+		stdio: ["ignore", 2, 2],
 		detached: true,
 	});
 	child.on("error", () => {}); // waitForServer will throw on its own timeout

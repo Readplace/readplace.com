@@ -62,7 +62,11 @@ async function startTestServer(): Promise<ChildProcess> {
 			NODE_ENV: "test",
 			NX_DAEMON: "false",
 		},
-		stdio: "inherit",
+		// fd 1 carries node --test's serialized reporter protocol back to the runner;
+		// a grandchild writing raw bytes there corrupts the stream ("Unable to
+		// deserialize cloned data"). Route the server's output to fd 2, which the
+		// runner treats as plain diagnostics, so its logs stay visible safely.
+		stdio: ["ignore", 2, 2],
 		detached: true,
 	});
 	child.on("error", () => {}); // waitForServer will throw on its own timeout
