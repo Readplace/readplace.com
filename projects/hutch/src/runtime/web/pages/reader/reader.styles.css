@@ -16,7 +16,7 @@
     justify-content: center;
   }
 
-  .reader__layout .highlights {
+  .reader__highlights {
     position: sticky;
     top: 1.5rem;
     max-height: calc(100vh - 3rem);

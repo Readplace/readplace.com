@@ -131,7 +131,7 @@ describe("ReaderPage", () => {
 				'<a href="https://readplace.com/queue" target="_blank">my queue</a>' +
 				'<a href="https://example.com/other" target="_blank">elsewhere</a>',
 		});
-		const html = Base(ReaderPage(article, { appOrigin: "https://readplace.com" }), {
+		const html = Base(ReaderPage(article, { appOrigin: "https://readplace.com", ...HIGHLIGHTS_OPTS }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;

@@ -68,7 +68,7 @@ describe("Queue highlights routes", () => {
 		const deleteResponse = await agent.post(deleteUrl);
 		expect(deleteResponse.status).toBe(200);
 		const doc = new JSDOM(deleteResponse.text).window.document;
-		expect(doc.querySelector("[data-test-highlight]")).toBeNull();
+		expect(doc.querySelectorAll("[data-test-highlight]")).toHaveLength(0);
 		assert(
 			doc.querySelector("[data-test-highlights-empty]"),
 			"empty state must show once the last highlight is removed",

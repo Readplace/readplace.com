@@ -161,8 +161,8 @@ describe("initHighlights", () => {
 
 		expect(env.postCalls).toEqual([{ quote: "hello", note: "my note" }]);
 		expect(env.button()?.hidden).toBe(true);
-		expect(env.listEl()?.querySelector("[data-highlight-id='h2']")).not.toBeNull();
-		// "absent" is not in the iframe body and the old "findme" mark was unwrapped.
+		const newItem = env.listEl()?.querySelector("[data-highlight-id='h2']");
+		assert(newItem, "new highlight must appear in the list after posting");
 		expect(env.marks()).toEqual([]);
 	});
 
@@ -175,7 +175,8 @@ describe("initHighlights", () => {
 		await env.controller.addHighlight();
 
 		expect(env.postCalls).toHaveLength(1);
-		expect(env.listEl()?.querySelector("[data-highlight-id='h1']")).not.toBeNull();
+		const originalItem = env.listEl()?.querySelector("[data-highlight-id='h1']");
+		assert(originalItem, "original highlight must remain in the list after rejection");
 	});
 
 	it("reacts to a mouseup inside the iframe", () => {
