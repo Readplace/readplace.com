@@ -212,7 +212,12 @@ describe("Queue routes", () => {
 				.send({ url: "https://example.com/article" });
 
 			const response = await agent.get("/queue");
-			const dom = new JSDOM(response.text, { runScripts: "dangerously" });
+			const dom = new JSDOM(response.text, {
+				runScripts: "dangerously",
+				beforeParse(window) {
+					Object.assign(window, { htmx: { config: {} } });
+				},
+			});
 			const thumbnail = dom.window.document.querySelector<HTMLImageElement>(".queue-article__thumbnail");
 			const link = thumbnail?.closest("a");
 			expect(link?.classList.contains("queue-article__thumbnail-link--loaded")).toBe(false);
@@ -220,6 +225,8 @@ describe("Queue routes", () => {
 			thumbnail?.dispatchEvent(new dom.window.Event("load"));
 
 			expect(link?.classList.contains("queue-article__thumbnail-link--loaded")).toBe(true);
+
+			dom.window.close();
 		});
 
 		it("should remove thumbnail wrapper when image error event fires", async () => {
@@ -261,13 +268,20 @@ describe("Queue routes", () => {
 				.send({ url: "https://example.com/article" });
 
 			const response = await agent.get("/queue");
-			const dom = new JSDOM(response.text, { runScripts: "dangerously" });
+			const dom = new JSDOM(response.text, {
+				runScripts: "dangerously",
+				beforeParse(window) {
+					Object.assign(window, { htmx: { config: {} } });
+				},
+			});
 			const thumbnail = dom.window.document.querySelector<HTMLImageElement>(".queue-article__thumbnail");
 			expect(thumbnail?.closest("a")).not.toBeNull();
 
 			thumbnail?.dispatchEvent(new dom.window.Event("error"));
 
 			expect(dom.window.document.querySelector(".queue-article__thumbnail-link")).toBeNull();
+
+			dom.window.close();
 		});
 	});
 
