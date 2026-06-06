@@ -47,6 +47,9 @@ export interface ArticleBodyInput {
 	 * initial SSR bar was hidden.
 	 */
 	progress?: ProgressTick;
+	/** Deployment origin, used to keep same-host in-article links in the reader
+	 * tab rather than opening a new one. */
+	appOrigin?: string;
 }
 
 export function renderArticleBody(input: ArticleBodyInput): string {
@@ -56,6 +59,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		url: input.url,
 		readerPollUrl: input.readerPollUrl,
 		extensionInstallUrl: input.extensionInstallUrl,
+		appOrigin: input.appOrigin,
 	});
 
 	const summarySlotHtml = renderSummarySlot({

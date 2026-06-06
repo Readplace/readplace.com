@@ -10,6 +10,9 @@ export interface ReaderSlotInput {
 	url: string;
 	readerPollUrl?: string;
 	extensionInstallUrl?: string;
+	/** Deployment origin, used to keep same-host in-article links in the reader
+	 * tab. Threaded down to the iframe builder. */
+	appOrigin?: string;
 	/* When true, the rendered slot carries `hx-swap-oob="outerHTML"` so HTMX
 	 * splices it into a sibling poll response and replaces the live slot. The
 	 * stable `id="article-body-reader-slot"` on every variant gives HTMX a
@@ -75,7 +78,7 @@ function pollOrSlow(input: ReaderSlotInput, oob: boolean): string {
 export function renderReaderSlot(input: ReaderSlotInput): string {
 	const oob = input.oob === true;
 	if (input.crawl === undefined) {
-		if (input.content) return renderReaderReady({ content: input.content, oob });
+		if (input.content) return renderReaderReady({ content: input.content, oob, appOrigin: input.appOrigin });
 		return pollOrSlow(input, oob);
 	}
 
@@ -84,7 +87,7 @@ export function renderReaderSlot(input: ReaderSlotInput): string {
 			/* Worker-bug catch-all: a ready row with no content is a writer
 			 * inconsistency picked up by stuck-articles-canary; render pending
 			 * so the slot retries instead of erroring. */
-			if (input.content) return renderReaderReady({ content: input.content, oob });
+			if (input.content) return renderReaderReady({ content: input.content, oob, appOrigin: input.appOrigin });
 			return pollOrSlow(input, oob);
 		case "pending":
 			return pollOrSlow(input, oob);

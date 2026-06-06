@@ -203,6 +203,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		findGeneratedSummary: deps.findGeneratedSummary,
 		readArticleContent: deps.readArticleContent,
 		findArticleByUrl: deps.findArticleByUrl,
+		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatReaderDocumentTitle,
 		backLink: { href: "/queue", label: "← Back to queue" },
 		markReadAction: (articleId) => ({

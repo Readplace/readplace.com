@@ -136,6 +136,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		summaryOpen: true,
 		progress: input.progress,
 		extensionInstallUrl: input.extensionInstallUrl,
+		appOrigin: input.appOrigin,
 	});
 
 	const viewPath = viewPathFor(input.articleUrl);

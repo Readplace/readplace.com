@@ -21,6 +21,12 @@ export interface ArticleReaderDeps {
 	findGeneratedSummary: FindGeneratedSummary;
 	readArticleContent: ReadArticleContent;
 	/**
+	 * Deployment origin. Poll responses re-render the reader iframe when a crawl
+	 * finishes while the page is open, so the same-host link rewrite must run
+	 * here too — not just on the initial SSR render.
+	 */
+	appOrigin?: string;
+	/**
 	 * Used by the poll handlers to read the latest metadata on every tick so
 	 * the header (title, siteName, readTime) and document <title> can settle
 	 * in place once the crawl writes the real title over the hostname stub.

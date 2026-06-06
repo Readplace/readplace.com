@@ -34,6 +34,7 @@ export interface AdminRecrawlPageInput {
 	progress?: ProgressTick;
 	contentSourceTier?: "tier-0" | "tier-1";
 	extensionInstallUrl?: string;
+	appOrigin?: string;
 }
 
 /**
@@ -63,6 +64,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		summaryOpen: true,
 		progress: input.progress,
 		extensionInstallUrl: input.extensionInstallUrl,
+		appOrigin: input.appOrigin,
 	});
 
 	const tierBadge = renderTierBadge(input.contentSourceTier);

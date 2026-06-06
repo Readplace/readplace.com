@@ -65,6 +65,34 @@ describe("buildReaderIframeSrcdoc", () => {
 		expect(css).toMatch(/html,\s*body\s*{[^}]*overflow-y:\s*clip/);
 	});
 
+	it("rewrites same-host in-article links to target=_top when appOrigin is given, leaving external links alone", () => {
+		const srcdoc = buildReaderIframeSrcdoc({
+			content:
+				'<a href="https://readplace.com/queue" target="_blank">internal</a>' +
+				'<a href="https://example.com/post" target="_blank">external</a>',
+			appOrigin: "https://readplace.com",
+		});
+		const doc = new JSDOM(srcdoc).window.document;
+
+		const internal = doc.querySelector('a[href="https://readplace.com/queue"]');
+		const external = doc.querySelector('a[href="https://example.com/post"]');
+		assert(internal, "internal link must be present");
+		assert(external, "external link must be present");
+		expect(internal.getAttribute("target")).toBe("_top");
+		expect(external.getAttribute("target")).toBe("_blank");
+	});
+
+	it("classifies same-host against the staging host when appOrigin is the staging origin", () => {
+		const srcdoc = buildReaderIframeSrcdoc({
+			content:
+				'<a href="https://staging.readplace.com/x" target="_blank">staging</a>',
+			appOrigin: "https://staging.readplace.com",
+		});
+		const link = new JSDOM(srcdoc).window.document.querySelector("a");
+		assert(link, "link must be present");
+		expect(link.getAttribute("target")).toBe("_top");
+	});
+
 	it("does not strip the article content's own tags (the sandbox is responsible for isolation)", () => {
 		const dangerous =
 			'<p>safe</p><style>html{display:none}</style><img onerror="x">';
