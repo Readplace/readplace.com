@@ -6,10 +6,10 @@ URL to it** from any app. When you share a link, the app renders the page in a
 hidden `WKWebView` first and uploads the **rendered HTML** (not just the URL) via
 the server's `save-html` Siren action — exactly what the extension does.
 
-This is a proof of concept. It is **not** part of the monorepo build (no nx, no
-pnpm, no CI). It lives under `experiments/` and touches no other project. It
-requires **no server-side changes**: it reuses the existing public OAuth client
-and Siren API.
+This is a proof of concept that lives under `projects/` as an nx project
+(`ios-readplace-poc`). It builds with its own Swift/fastlane toolchain rather
+than pnpm, and its code touches no other project. It requires **no server-side
+changes**: it reuses the existing public OAuth client and Siren API.
 
 ---
 
@@ -30,7 +30,7 @@ way around installing it once). One-time setup, then one command, then install.
 **The command — build the app (run in this folder):**
 
 ```sh
-cd experiments/ios-readplace-poc
+cd projects/ios-readplace-poc
 make ipa
 ```
 
@@ -85,7 +85,7 @@ extension uses. See [`../../.claude/skills/extension-api-design/SKILL.md`](../..
 ## Layout
 
 ```
-experiments/ios-readplace-poc/
+projects/ios-readplace-poc/
 ├── project.yml                  # XcodeGen spec (source of truth for the project)
 ├── Makefile                     # make ipa / generate / open / test / clean
 ├── scripts/build-unsigned-ipa.sh  # one command → installable unsigned .ipa
@@ -114,7 +114,7 @@ convenience; regenerate anytime with `make generate` (`brew install xcodegen`).
 From a Mac with Xcode's command-line tools and `brew install xcodegen`:
 
 ```sh
-cd experiments/ios-readplace-poc
+cd projects/ios-readplace-poc
 make ipa
 ```
 
@@ -143,7 +143,7 @@ You need a Mac with **Xcode 15+** and an Apple ID (a free personal team is fine)
 
 1. **Open the project**
    ```sh
-   cd experiments/ios-readplace-poc
+   cd projects/ios-readplace-poc
    make open          # or: open ReadplacePOC.xcodeproj
    ```
 

@@ -7,7 +7,7 @@ TestFlight for **internal** testers, entirely from the terminal. fastlane drives
 ## The command
 
 ```sh
-cd experiments/ios-readplace-poc
+cd projects/ios-readplace-poc
 ./scripts/fastlane.sh beta
 ```
 
@@ -65,7 +65,7 @@ The first `beta` run populates it with the encrypted cert + profiles.
 # and fails ("couldn't set additional authenticated data"), so use the Homebrew
 # Ruby (OpenSSL 3) — scripts/fastlane.sh expects it at /opt/homebrew/opt/ruby.
 brew install ruby
-cd experiments/ios-readplace-poc
+cd projects/ios-readplace-poc
 /opt/homebrew/opt/ruby/bin/bundle config set --local path vendor/bundle
 /opt/homebrew/opt/ruby/bin/bundle install
 
