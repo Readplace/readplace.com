@@ -96,6 +96,8 @@ const logger = HutchLogger.from(consoleLogger);
 logger.info("[recovery] Starting…");
 ```
 
+**Swift:** route logging through `os.Logger` (with a subsystem/category) and mark sensitive interpolations `privacy: .private`; raw `NSLog`/`print` is the equivalent of raw `console.log`. Never log credentials, tokens, or user PII (e.g. saved URLs / reading history).
+
 ### Comments Document Why, Not What
 
 Prefer code that explains its own why — a clearer name, an assert, a type, or a test (see the assert example at the end of this section) — over any comment. An approved comment explains **why**, never what.
@@ -163,6 +165,8 @@ Use [zod](https://zod.dev/) for validating external input at system boundaries (
 | `.parse()` | Invalid data indicates a bug |
 | `z.infer<>` | Derive TypeScript type from schema |
 
+**Swift:** the analog is `Codable`/`Decodable` decoded at the boundary with `JSONDecoder().decode` — return `nil`/throw on malformed input rather than force-decoding. Model evolving wire fields as optionals so one bad entity doesn't fail the whole decode.
+
 ### Prefer Wrappers Over Global Modifications
 
 When extending functionality (e.g., adding proxy support to fetch), create a wrapper module that exports a decorated version as the default export.
@@ -189,6 +193,8 @@ class ArticleService { ... }
 type SaveArticle = (article: Article) => Promise<void>;
 type FindArticleById = (id: ArticleId) => Promise<Article | undefined>;
 ```
+
+**Swift:** SwiftUI/UIKit platform vocabulary — `View`, `ViewModel`, `ViewController` (a `UIViewController` subclass is framework-mandated) — is an allowed exception. The rule still applies to discretionary domain types: prefer a domain name or free functions over `…Service`/`…Manager`/`…Factory`/`…Repository`.
 
 ### Named Parameters Over Positional When Types Repeat
 
@@ -239,6 +245,8 @@ function createWidget(deps: { logger: HutchLogger }) {
 const widget = createWidget({ logger: HutchLogger.from(noopLogger) });
 ```
 
+**Swift:** same rule — require the caller to pass the logger (e.g. `os.Logger`) rather than defaulting one internally; a silenced logger hides failures identically in any language.
+
 ### Use `assert` for Runtime Invariants
 
 Use `assert` from `node:assert` for runtime invariant checks instead of `if`/`throw`. Assert is more concise, communicates intent clearly, and integrates with coverage tooling (no uncovered branches for the truthy path).
@@ -260,6 +268,8 @@ assert.equal(actual, expected, "Values should match");
 
 Use `assert` from `node:assert` in production code (non-strict, allows falsy checking). Use `assert` from `node:assert/strict` in test code for strict equality semantics.
 
+**Swift:** use `assert` (debug-only) or `precondition` (also fatal in release) for invariants instead of ignoring an impossible-failure path; prefer `precondition` when the check must hold in shipped/sideloaded builds (e.g. the `SecRandomCopyBytes` status, a required `UserDefaults(suiteName:)`). `guard … else { throw }` remains correct for recoverable / external-input failures.
+
 ### No Default In-Memory Implementations
 
 Never default a dependency to an in-memory implementation in production code. All dependencies MUST be mandatory and the in-memory or production implementations are explicitly set at the entry point (composition root). In-memory implementations are for tests only.
@@ -276,6 +286,8 @@ function createWidget(deps: { store: Store }) {
 }
 ```
 
+**Swift:** inject the real store at the composition root; do not silently fall back to a degraded one (`UserDefaults(suiteName:) ?? .standard`, an internally-constructed `URLSession.shared`, or a `TokenStore()` newed up at the use site). An injectable `init(...)` seam is for tests only.
+
 ### Branded Types for Domain IDs
 
 Use branded types to prevent mixing up identifiers.
@@ -284,6 +296,8 @@ Use branded types to prevent mixing up identifiers.
 type ArticleId = string & { readonly __brand: 'ArticleId' };
 type UserId = string & { readonly __brand: 'UserId' };
 ```
+
+**Swift:** the analog is a single-field wrapper struct — `struct ArticleId: Hashable { let raw: String }` — instead of a raw `String`. Especially valuable for two same-typed fields that are easy to transpose (e.g. an access token vs a refresh token).
 
 ### Avoid TypeScript Type Assertions (`as`)
 
@@ -326,6 +340,8 @@ function createFakeResponse(): Partial<Response> {
 |-----------|--------|
 | `as const` | Not a type assertion — narrows literal types |
 | Isolated Node.js API wrappers (e.g., `promisify(scrypt)` returning `Buffer`, `requireEnv` generic) | The `as` is already contained in a single wrapper function with no better alternative from the type definitions |
+
+**Swift:** the analog of `as` is force-cast `as!`, force-try `try!`, force-unwrap `!`, and `fatalError` — all bypass the compiler. Use `guard let … else { throw }` / `as?` for anything from external input (user-typed URLs, network bodies). Allowed, mirroring `as const` / isolated-wrapper above: force-unwrapping a compile-time-constant literal, and Apple's implicitly-unwrapped delegate parameters (e.g. `WKNavigation!`), which are framework-defined, not your assertions.
 
 ## CLI Commands
 
