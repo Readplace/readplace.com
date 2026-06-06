@@ -12,6 +12,7 @@ import type {
 	SaveUrl,
 	SaveWarning,
 } from "./reading-list.types";
+import { pdfContentBody, htmlContentBody, type ContentBodyBuilder } from "./content-body-parsers";
 
 const SIREN_MEDIA_TYPE = "application/vnd.siren+json";
 
@@ -231,6 +232,75 @@ export function initSaveHtmlUnderstanding(): Map<string, ActionHandler> {
 				console.warn(errorParsed.data.properties.message);
 				const fallbackBody: Record<string, string> = { url: fields.url };
 				if (fields.title) fallbackBody.title = fields.title;
+				const fallbackContentType = fallbackAction.type === undefined
+					? "application/json"
+					: fallbackAction.type;
+				const fallbackResponse = await context.doFetch(
+					`${context.serverUrl}${fallbackAction.href}`,
+					{
+						method: fallbackAction.method,
+						headers: { "Content-Type": fallbackContentType },
+						body: JSON.stringify(fallbackBody),
+					},
+				);
+				assert(
+					fallbackResponse.ok,
+					`Save failed: ${fallbackResponse.status}`,
+				);
+				const fallbackResponseBody = SirenSubEntitySchema.parse(
+					await fallbackResponse.json(),
+				);
+				const fallbackItem = context.resolveItem(fallbackResponseBody);
+				return { items: [fallbackItem], actions: {} };
+			}
+			const responseBody = SirenSubEntitySchema.parse(await response.json());
+			const item = context.resolveItem(responseBody);
+			return { items: [item], actions: {} };
+		};
+	});
+	return handlers;
+}
+
+export function initSaveContentUnderstanding(deps: {
+	parsers: Record<string, ContentBodyBuilder>;
+}): Map<string, ActionHandler> {
+	const handlers = new Map<string, ActionHandler>();
+	handlers.set("save-content", (sirenAction, context) => {
+		return async (input) => {
+			assert(input?.url, "save-content requires a url field");
+			assert(input?.mediaType, "save-content requires a mediaType field");
+			const parser = deps.parsers[input.mediaType];
+			assert(parser, `No content parser registered for media type: ${input.mediaType}`);
+			const { blob, filename } = parser(input);
+			const formData = new FormData();
+			formData.append("url", input.url);
+			formData.append("mediaType", input.mediaType);
+			if (input.title) formData.append("title", input.title);
+			formData.append("content", blob, filename);
+			const response = await context.doFetch(
+				`${context.serverUrl}${sirenAction.href}`,
+				{
+					method: sirenAction.method,
+					body: formData,
+				},
+			);
+			if (!response.ok) {
+				const errorJson = await response.json().catch(() => null);
+				const errorParsed = SirenErrorSchema.safeParse(errorJson);
+				if (!errorParsed.success) {
+					throw new Error(`Save failed: ${response.status}`);
+				}
+				const errorActions = errorParsed.data.actions;
+				if (errorActions === undefined) {
+					throw new Error(`Save failed: ${response.status}`);
+				}
+				if (errorActions.length === 0) {
+					throw new Error(`Save failed: ${response.status}`);
+				}
+				const fallbackAction = errorActions[0];
+				console.warn(errorParsed.data.properties.message);
+				const fallbackBody: Record<string, string> = { url: input.url };
+				if (input.title) fallbackBody.title = input.title;
 				const fallbackContentType = fallbackAction.type === undefined
 					? "application/json"
 					: fallbackAction.type;
@@ -496,6 +566,12 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	const understandings = groupOf(
 		initSaveArticleUnderstanding(),
 		initSaveHtmlUnderstanding(),
+		initSaveContentUnderstanding({
+			parsers: {
+				"application/pdf": pdfContentBody,
+				"text/html": htmlContentBody,
+			},
+		}),
 		initDeleteArticleUnderstanding(),
 		httpCacheable(initListArticlesUnderstanding()),
 	);
@@ -509,11 +585,36 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		}
 	}
 
-	const saveUrl: SaveUrl = async ({ url, title, rawHtml }) => {
+	function arrayBufferToBase64(buffer: ArrayBuffer): string {
+		const view = new Uint8Array(buffer);
+		let binaryString = "";
+		for (let i = 0; i < view.length; i += 1) {
+			const byte = view[i];
+			assert(byte !== undefined, "loop index within Uint8Array bounds");
+			binaryString += String.fromCharCode(byte);
+		}
+		return btoa(binaryString);
+	}
+
+	const saveUrl: SaveUrl = async ({ url, title, content }) => {
 		const collection = await start();
 		trackItems(collection.items);
+		const saveContentAction = collection.actions["save-content"];
+		if (saveContentAction && content) {
+			const fields: Record<string, string> = {
+				url,
+				mediaType: content.mediaType,
+				contentBase64: arrayBufferToBase64(content.bytes),
+			};
+			if (title) fields.title = title;
+			const result = await saveContentAction(fields);
+			const item = result.items[0];
+			trackItems(result.items);
+			return { ok: true, item };
+		}
 		const saveHtmlAction = collection.actions["save-html"];
-		if (rawHtml && saveHtmlAction) {
+		if (content?.mediaType === "text/html" && saveHtmlAction) {
+			const rawHtml = new TextDecoder().decode(content.bytes);
 			const result = await saveHtmlAction({ url, rawHtml, title });
 			const item = result.items[0];
 			trackItems(result.items);

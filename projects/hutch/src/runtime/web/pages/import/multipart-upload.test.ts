@@ -1,7 +1,7 @@
 import type { Request } from "express";
 import { initMultipartUpload } from "./multipart-upload";
 
-const { parseRequest } = initMultipartUpload({ maxBytes: 1024 * 1024 });
+const { parseRequest, parseAllParts } = initMultipartUpload({ maxBytes: 1024 * 1024 });
 
 function fakeRequest(headers: Record<string, string | undefined>, body: unknown): Request {
 	return { headers, body } as unknown as Request;
@@ -146,5 +146,55 @@ describe("multipart-upload parseRequest", () => {
 		);
 
 		expect(result).toEqual({ ok: false, reason: "no-file" });
+	});
+});
+
+describe("multipart-upload parseAllParts", () => {
+	it("returns invalid-multipart when Content-Type is missing", () => {
+		const result = parseAllParts(fakeRequest({}, Buffer.from("")));
+
+		expect(result).toEqual({ ok: false, reason: "invalid-multipart" });
+	});
+
+	it("returns all text and file parts indexed by name", () => {
+		const boundary = "B";
+		const body = buildBody(
+			[
+				{ name: "url", content: "https://example.com/x.pdf" },
+				{ name: "pdf", filename: "x.pdf", content: "%PDF-1.4 bytes" },
+			],
+			boundary,
+		);
+
+		const result = parseAllParts(
+			fakeRequest({ "content-type": `multipart/form-data; boundary=${boundary}` }, body),
+		);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.parts).toHaveLength(2);
+			expect(result.parts[0]).toEqual({
+				name: "url",
+				filename: undefined,
+				isFile: false,
+				content: expect.any(Buffer),
+			});
+			expect(result.parts[0]?.content.toString()).toBe("https://example.com/x.pdf");
+			expect(result.parts[1]).toEqual({
+				name: "pdf",
+				filename: "x.pdf",
+				isFile: true,
+				content: expect.any(Buffer),
+			});
+			expect(result.parts[1]?.content.toString()).toBe("%PDF-1.4 bytes");
+		}
+	});
+
+	it("returns an empty parts array when the body has no boundary occurrence", () => {
+		const result = parseAllParts(
+			fakeRequest({ "content-type": "multipart/form-data; boundary=B" }, Buffer.from("nope")),
+		);
+
+		expect(result).toEqual({ ok: true, parts: [] });
 	});
 });

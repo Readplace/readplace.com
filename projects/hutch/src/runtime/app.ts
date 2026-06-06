@@ -51,6 +51,7 @@ import { initEventBridgeRecrawlLinkInitiated } from "./providers/events/eventbri
 import { initEventBridgeSaveAnonymousLink } from "./providers/events/eventbridge-save-anonymous-link";
 import { initEventBridgeStaleCheckRequested } from "./providers/events/eventbridge-stale-check-requested";
 import { initEventBridgeSaveLinkRawHtmlCommand } from "./providers/events/eventbridge-save-link-raw-html-command";
+import { initEventBridgeSaveLinkRawPdfCommand } from "./providers/events/eventbridge-save-link-raw-pdf-command";
 import { initEventBridgeRefreshArticleContent, initPutRefreshHtml } from "@packages/refresh-article-content";
 import { initEventBridgeUpdateFetchTimestamp } from "./providers/events/eventbridge-update-fetch-timestamp";
 import { initEventBridgeExportUserDataCommand } from "./providers/events/eventbridge-export-user-data-command";
@@ -66,10 +67,13 @@ import { initInMemoryRecrawlLinkInitiated } from "@packages/test-fixtures/provid
 import { initInMemorySaveAnonymousLink } from "@packages/test-fixtures/providers/events";
 import { initInMemoryStaleCheckRequested } from "@packages/test-fixtures/providers/events";
 import { initInMemorySaveLinkRawHtmlCommand } from "@packages/test-fixtures/providers/events";
+import { initInMemorySaveLinkRawPdfCommand } from "@packages/test-fixtures/providers/events";
 import { initInMemoryRefreshArticleContent } from "@packages/test-fixtures/providers/events";
 import { initInMemoryUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
 import { initPutPendingHtml } from "./providers/pending-html/put-pending-html";
+import { initPutPendingPdf } from "./providers/pending-pdf/put-pending-pdf";
 import { initInMemoryPendingHtml } from "@packages/test-fixtures/providers/pending-html";
+import { initInMemoryPendingPdf } from "@packages/test-fixtures/providers/pending-pdf";
 import { initInMemoryImportSession } from "@packages/test-fixtures/providers/import-session";
 import { initDynamoDbImportSession } from "./providers/import-session/dynamodb-import-session";
 import { initExchangeGoogleCode } from "./providers/google-auth/google-token";
@@ -132,6 +136,7 @@ function initProviders() {
 		const eventBusName = requireEnv("EVENT_BUS_NAME");
 		const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");
 		const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
+		const pendingPdfBucketName = requireEnv("PENDING_PDF_BUCKET_NAME");
 		const importSessionsTable = requireEnv("DYNAMODB_IMPORT_SESSIONS_TABLE");
 		const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
 		const trialSchedulerGroupName = requireEnv("TRIAL_SCHEDULER_GROUP_NAME");
@@ -162,6 +167,7 @@ function initProviders() {
 		const { publishSaveAnonymousLink } = initEventBridgeSaveAnonymousLink({ publishEvent });
 		const { publishStaleCheckRequested } = initEventBridgeStaleCheckRequested({ publishEvent });
 		const { publishSaveLinkRawHtmlCommand } = initEventBridgeSaveLinkRawHtmlCommand({ publishEvent });
+		const { publishSaveLinkRawPdfCommand } = initEventBridgeSaveLinkRawPdfCommand({ publishEvent });
 		const { putRefreshHtml } = initPutRefreshHtml({ client: s3Client, bucketName: pendingHtmlBucketName });
 		const { publishRefreshArticleContent } = initEventBridgeRefreshArticleContent({ publishEvent, putRefreshHtml });
 		const { publishUpdateFetchTimestamp } = initEventBridgeUpdateFetchTimestamp({ publishEvent });
@@ -169,6 +175,7 @@ function initProviders() {
 		const { publishCancelSubscriptionCommand } = initEventBridgeCancelSubscriptionCommand({ publishEvent });
 		const { publishSubscriptionReactivated } = initEventBridgeSubscriptionReactivated({ publishEvent });
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
+		const { putPendingPdf } = initPutPendingPdf({ client: new S3Client({}), bucketName: pendingPdfBucketName });
 		const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
 		const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
 		const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
@@ -250,11 +257,13 @@ function initProviders() {
 			publishSaveAnonymousLink,
 			publishStaleCheckRequested,
 			publishSaveLinkRawHtmlCommand,
+			publishSaveLinkRawPdfCommand,
 			publishUpdateFetchTimestamp,
 			publishExportUserDataCommand,
 			publishCancelSubscriptionCommand,
 			publishSubscriptionReactivated,
 			putPendingHtml,
+			putPendingPdf,
 			findGeneratedSummary: summaryStore.findGeneratedSummary,
 			markSummaryPending: summaryStore.markSummaryPending,
 			findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
@@ -360,10 +369,12 @@ function initProviders() {
 	const { publishRefreshArticleContent } = initInMemoryRefreshArticleContent({ logger: consoleLogger });
 	const { publishUpdateFetchTimestamp } = initInMemoryUpdateFetchTimestamp({ logger: consoleLogger });
 	const { publishSaveLinkRawHtmlCommand } = initInMemorySaveLinkRawHtmlCommand({ logger: consoleLogger });
+	const { publishSaveLinkRawPdfCommand } = initInMemorySaveLinkRawPdfCommand({ logger: consoleLogger });
 	const { publishExportUserDataCommand } = initInMemoryExportUserDataCommand({ logger: consoleLogger });
 	const { publishCancelSubscriptionCommand } = initInMemoryCancelSubscriptionCommand({ logger: consoleLogger });
 	const { publishSubscriptionReactivated } = initInMemorySubscriptionReactivated({ logger: consoleLogger });
 	const { putPendingHtml } = initInMemoryPendingHtml();
+	const { putPendingPdf } = initInMemoryPendingPdf();
 	const { refreshArticleIfStale } = initRefreshArticleIfStale({
 		findArticleFreshness: articleStore.findArticleFreshness,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,
@@ -407,11 +418,13 @@ function initProviders() {
 		publishSaveAnonymousLink,
 		publishStaleCheckRequested,
 		publishSaveLinkRawHtmlCommand,
+		publishSaveLinkRawPdfCommand,
 		publishUpdateFetchTimestamp,
 		publishExportUserDataCommand,
 		publishCancelSubscriptionCommand,
 		publishSubscriptionReactivated,
 		putPendingHtml,
+		putPendingPdf,
 		findGeneratedSummary: summaryStore.findGeneratedSummary,
 		markSummaryPending: summaryStore.markSummaryPending,
 		findArticleCrawlStatus: crawlStore.findArticleCrawlStatus,

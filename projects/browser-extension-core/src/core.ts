@@ -31,7 +31,10 @@ export interface Core {
 
 	login(): void;
 	logout(): void;
-	save(resource: "current-tab", data: { url: string; title: string; rawHtml?: string }): void;
+	save(
+		resource: "current-tab",
+		data: { url: string; title: string; content?: { bytes: ArrayBuffer; mediaType: string } },
+	): void;
 	remove(resource: "item", data: { id: ReadingListItemId }): void;
 	fetch(resource: "reading-list"): void;
 	check(resource: "url", data: { url: string }): void;
@@ -152,7 +155,11 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 
 		save(_resource, data) {
 			const guarded = auth.whenLoggedIn(() =>
-				saveCurrentTab({ url: data.url, title: data.title, rawHtml: data.rawHtml }),
+				saveCurrentTab({
+					url: data.url,
+					title: data.title,
+					content: data.content,
+				}),
 			);
 			emitResult("saved-current-tab", guarded);
 			if (guarded.ok) {
