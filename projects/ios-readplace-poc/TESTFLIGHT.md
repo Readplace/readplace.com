@@ -148,3 +148,37 @@ Create the external group under **TestFlight**, add the build, invite by email.
 redeem the link) → **Install** Readplace → **open it once** (iOS won't register the
 Share Extension until the host app has launched) → in Safari, **Share → Readplace**
 saves the page. Builds expire **90 days** after upload; push a fresh build to renew.
+
+## Publishing from CI (GitHub Actions)
+
+`.github/workflows/publish-ios-testflight.yml` runs the same `beta` lane on a
+**macOS runner with Xcode 26**, so you can ship without upgrading your Mac. Like
+the chrome/firefox publish workflows it's a reusable workflow invoked by
+`ci.yml`, and it **only runs when the app's shipping code changed** —
+`ci.yml` sets `ios-affected` from a path diff over
+`App/`, `Shared/`, `ShareExtension/`, and `project.yml` (so test/doc/CI/fastlane
+changes never ship a build). It's also runnable manually from the **Actions** tab
+(`Publish iOS to TestFlight` → *Run workflow*) for the first publish.
+
+Each run derives the next **build number** from the latest `ios-readplace-poc@v*`
+git tag (TestFlight needs a unique, increasing `CFBundleVersion`), **tags the
+commit `ios-readplace-poc@v<n>` to reserve that number before the irreversible
+upload**, then builds and uploads. Runs are serialized (a `concurrency` group) so
+two runs can't claim the same number.
+
+### Required repository/`prod`-environment secrets
+
+| Secret | Value |
+|--------|-------|
+| `ASC_KEY_ID` | App Store Connect API key id |
+| `ASC_ISSUER_ID` | Issuer id (UUID) |
+| `ASC_KEY_P8_BASE64` | The `.p8`, base64-encoded: `base64 -i AuthKey.p8 \| pbcopy` |
+| `ASC_TEAM_ID` | 10-char Developer Team id |
+| `MATCH_GIT_URL` | match repo URL — use the **HTTPS** form for CI |
+| `MATCH_PASSWORD` | match encryption passphrase |
+| `MATCH_GIT_BASIC_AUTHORIZATION` | base64 of `<user>:<PAT>` granting read access to the match repo |
+| `TAG_PUSH_TOKEN` | fine-grained PAT (`Contents: read/write`) to push the version tag |
+
+Until these are set the workflow **skips cleanly** (no red run). Once set, every
+push that changes the app's shipping code builds and uploads a new internal
+TestFlight build automatically.

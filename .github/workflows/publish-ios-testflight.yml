@@ -1,0 +1,114 @@
+name: Publish iOS to TestFlight
+
+# Reusable: called by ci.yml only when the iOS app's shipping code changed (so a
+# test/doc/CI-only change never ships a build). Also manually runnable to push
+# the first build once the secrets below are configured.
+on:
+  workflow_call: {}
+  workflow_dispatch: {}
+
+# Serialize every run (push-triggered and manual) so two runs can't read the same
+# latest tag and compute a duplicate build number.
+concurrency:
+  group: ios-testflight-publish
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    # macOS with Xcode 26 — App Store Connect rejects uploads built with an SDK
+    # older than iOS 26. Bump the runner/Xcode if uploads fail the SDK gate.
+    runs-on: macos-15
+    environment: prod
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: projects/ios-readplace-poc
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history + tags: the next build number is derived from the latest
+          # ios-readplace-poc@v* tag, and the published commit is tagged back.
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ secrets.TAG_PUSH_TOKEN }}
+
+      # If the publishing secrets aren't set yet (e.g. the very first push that
+      # moves these files in), skip cleanly instead of red-failing the run.
+      - id: preflight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        run: |
+          if [ -n "$ASC_KEY_ID" ] && [ -n "$MATCH_PASSWORD" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::iOS TestFlight secrets not configured — skipping publish."
+          fi
+
+      - name: Select the newest stable Xcode (needs the iOS 26 SDK to upload)
+        if: steps.preflight.outputs.configured == 'true'
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen
+        if: steps.preflight.outputs.configured == 'true'
+        run: brew install xcodegen
+
+      - uses: ruby/setup-ruby@v1
+        if: steps.preflight.outputs.configured == 'true'
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: projects/ios-readplace-poc
+
+      - name: Compute next build number from the latest tag
+        id: version
+        if: steps.preflight.outputs.configured == 'true'
+        run: |
+          LATEST=$(git tag --list 'ios-readplace-poc@v*' --sort=-v:refname | head -n1 | sed 's/^ios-readplace-poc@v//')
+          [ -z "$LATEST" ] && LATEST=0
+          echo "build=$((LATEST + 1))" >> "$GITHUB_OUTPUT"
+          echo "Next TestFlight build number: $((LATEST + 1))"
+
+      # Reserve the build number by tagging the commit BEFORE the irreversible
+      # upload. A failed tag push aborts before any TestFlight side effect; a
+      # later upload failure only skips a number (CFBundleVersion just has to
+      # increase, not be gapless) — so a tag/upload split can never wedge the
+      # sequence on a duplicate build number.
+      - name: Reserve the build number (tag the commit)
+        if: steps.preflight.outputs.configured == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG="ios-readplace-poc@v${{ steps.version.outputs.build }}"
+          git tag "$TAG"
+          for i in 1 2 3 4 5; do
+            if git push origin "$TAG"; then exit 0; fi
+            echo "Tag push attempt $i failed, retrying..."; sleep 2
+          done
+          echo "ERROR: All 5 tag push attempts failed — aborting before upload"; exit 1
+
+      - name: Write the App Store Connect API key
+        if: steps.preflight.outputs.configured == 'true'
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p fastlane/secrets
+          printf '%s' "$ASC_KEY_P8_BASE64" | base64 --decode > fastlane/secrets/AuthKey.p8
+
+      - name: Build & upload to TestFlight (internal testers)
+        if: steps.preflight.outputs.configured == 'true'
+        run: bundle exec fastlane beta
+        env:
+          CI: "true"
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_PATH: ./fastlane/secrets/AuthKey.p8
+          TEAM_ID: ${{ secrets.ASC_TEAM_ID }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          APP_BUILD_NUMBER: ${{ steps.version.outputs.build }}

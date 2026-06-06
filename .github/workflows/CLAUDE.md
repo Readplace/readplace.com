@@ -31,6 +31,7 @@ Inspect the `.yml` files in this directory for implementation details. Summary:
 | `failed-articles-canary.yml` | Surfaces articles whose state machines reached a terminal unsuccessful outcome; opens `@claude` debug-worklist issue when non-empty; skips while a prior issue is open | Schedule (07:00 AEST daily) / manual |
 | `submit-ff-extension-for-signing.yml` | Submit Firefox extension to AMO for signing | Called by `ci.yml` |
 | `sync-signed-extension.yml` | Sync signed Firefox extension from AMO to S3 | Schedule (every 12h) / manual |
+| `publish-ios-testflight.yml` | Build + upload the iOS app (app + share extension) to TestFlight on a macOS/Xcode-26 runner; tag-versioned, gated on iOS shipping-code changes | Called by `ci.yml` when `ios-affected` / manual |
 
 ## Prompt Files
 

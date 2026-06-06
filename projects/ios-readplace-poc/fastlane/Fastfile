@@ -39,6 +39,10 @@ platform :ios do
   lane :beta do
     team_id = ENV.fetch("TEAM_ID")
 
+    # On CI, create a temporary keychain for match to import the distribution
+    # certificate into (the runner has no unlocked login keychain). No-op locally.
+    setup_ci if ENV["CI"]
+
     api_key = app_store_connect_api_key(
       key_id: ENV.fetch("ASC_KEY_ID"),
       issuer_id: ENV.fetch("ASC_ISSUER_ID"),
@@ -57,11 +61,14 @@ platform :ios do
     # the Developer portal with the App Groups capability enabled and the group
     # assigned, or the generated profiles will not carry the app-group
     # entitlement (see TESTFLIGHT.md).
+    # CI fetches the already-seeded cert/profiles (readonly) and authenticates to
+    # the match repo over HTTPS via MATCH_GIT_BASIC_AUTHORIZATION; a local first
+    # run may create them, using your own git/SSH credentials.
     match(
       type: "appstore",
       app_identifier: SIGNED_TARGETS.map { |t| t[:bundle_id] },
       api_key: api_key,
-      readonly: false,
+      readonly: ENV["CI"] == "true",
     )
 
     profiles = SIGNED_TARGETS.map { |t|
@@ -82,6 +89,10 @@ platform :ios do
       )
     end
 
+    # CI passes an incrementing build number — TestFlight requires CFBundleVersion
+    # to increase on every upload. Locally the project.yml default is used.
+    build_number = ENV["APP_BUILD_NUMBER"]
+
     build_app(
       project: PROJECT_PATH,
       scheme: SCHEME,
@@ -91,6 +102,7 @@ platform :ios do
       output_name: OUTPUT_NAME,
       export_method: "app-store",
       skip_profile_detection: true,
+      xcargs: build_number ? "CURRENT_PROJECT_VERSION=#{build_number}" : nil,
       export_options: {
         method: "app-store",
         signingStyle: "manual",
