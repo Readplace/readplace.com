@@ -49,7 +49,7 @@ const DEFAULT_APP_ORIGIN = "http://localhost:3000";
 
 describe("ReaderPage", () => {
 	it("renders the share balloon wrap so client init can attach to it", () => {
-		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN }), {
+		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, highlights: [] }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;
@@ -63,7 +63,7 @@ describe("ReaderPage", () => {
 		const article = makeArticle({
 			userId: UserIdSchema.parse("abcdef0123456789abcdef0123456789"),
 		});
-		const html = Base(ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN }), {
+		const html = Base(ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN, highlights: [] }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;
@@ -90,7 +90,7 @@ describe("ReaderPage", () => {
 				'<a href="https://readplace.com/queue" target="_blank">my queue</a>' +
 				'<a href="https://example.com/other" target="_blank">elsewhere</a>',
 		});
-		const html = Base(ReaderPage(article, { appOrigin: "https://readplace.com" }), {
+		const html = Base(ReaderPage(article, { appOrigin: "https://readplace.com", highlights: [] }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;
@@ -117,7 +117,7 @@ describe("ReaderPage", () => {
 
 	it("renders the share-balloon URLs against the supplied appOrigin, not a hardcoded host", () => {
 		const html = Base(
-			ReaderPage(makeArticle(), { appOrigin: "https://staging.readplace.com" }),
+			ReaderPage(makeArticle(), { appOrigin: "https://staging.readplace.com", highlights: [] }),
 			{ isAuthenticated: true, emailVerified: undefined },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;
@@ -134,7 +134,7 @@ describe("ReaderPage", () => {
 	});
 
 	it("renders the highlights panel wired to the article's create route", () => {
-		const doc = renderReaderDoc(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN });
+		const doc = renderReaderDoc(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, highlights: [] });
 		const panel = doc.querySelector("[data-highlights-panel]");
 		assert(panel, "highlights panel must render");
 		assert.equal(
@@ -144,7 +144,7 @@ describe("ReaderPage", () => {
 	});
 
 	it("loads the highlights client script", () => {
-		const doc = renderReaderDoc(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN });
+		const doc = renderReaderDoc(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, highlights: [] });
 		assert(
 			doc.querySelector('script[src="/client-dist/highlights.client.js"]'),
 			"highlights client script must be included",

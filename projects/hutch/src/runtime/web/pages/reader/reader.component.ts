@@ -53,7 +53,7 @@ export function ReaderPage(
 		readerPollUrl?: string;
 		progress?: ProgressTick;
 		audioEnabled?: boolean;
-		highlights?: readonly Highlight[];
+		highlights: readonly Highlight[];
 		extensionInstallUrl?: string;
 	},
 ): PageBody {
@@ -105,7 +105,7 @@ export function ReaderPage(
 	});
 	const highlightsPanel = renderHighlightsPanel({
 		articleId,
-		highlights: options.highlights ?? [],
+		highlights: options.highlights,
 	});
 	const content = render(READER_TEMPLATE, { innerContent, shareBalloon, highlightsPanel });
 
