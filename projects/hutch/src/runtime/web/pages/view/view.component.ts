@@ -26,6 +26,7 @@ const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
 const READER_IFRAME_SCRIPT = `<script src="/client-dist/reader-iframe.client.js" defer></script>`;
 const EXPIRY_COUNTER_SCRIPT = `<script src="/client-dist/expiry-counter.client.js" defer></script>`;
+const VIEW_PAYWALL_SCRIPT = `<script src="/client-dist/view-paywall.client.js" defer></script>`;
 
 /** SEO-only constant: <link rel="canonical"> and JSON-LD url must always point
  * at production so search engines index a single host. The share URL uses the
@@ -56,16 +57,16 @@ const VIEW_PAYWALL_TEMPLATE = readFileSync(
 	"utf-8",
 );
 
-/** The "Public access expired" paywall fades the bottom 40% of the reader
- * region to background and urges the visitor to save the link to their own
- * queue. `active` ships the visible (expired) state; an inactive overlay rides
- * along on a still-counting page so expiry-counter.client.ts can reveal it the
- * instant the deadline passes, without a reload. */
-function renderViewPaywall(input: { active: boolean; saveHref: string }): string {
+/** The "Public access expired" paywall blurs the article below the reader's
+ * scroll position and urges the visitor to save the link to their own queue. It
+ * always ships hidden (`--inactive`) carrying the expiry deadline in
+ * data-expires-at; view-paywall.client.ts reveals it once the reader scrolls
+ * past 10% of the article AND access has expired, so the blur is a soft,
+ * scroll-gated paywall rather than an on-load curtain. */
+function renderViewPaywall(input: { saveHref: string; expiresAtIso: string }): string {
 	return render(VIEW_PAYWALL_TEMPLATE, {
-		paywallStateClass: input.active ? "active" : "inactive",
-		paywallActive: input.active,
 		saveHref: input.saveHref,
+		expiresAtIso: input.expiresAtIso,
 	});
 }
 
@@ -160,13 +161,14 @@ export function ViewPage(input: ViewPageInput): PageBody {
 	 * permanent page (prod, authenticated, founder syndication, valid sharer)
 	 * emits nothing new, and a pending/failed crawl already shows its own
 	 * "Your link is saved" reframe that must not be blurred. */
-	const paywall =
-		expiry.state !== "permanent" && input.crawl?.status === "ready"
-			? renderViewPaywall({
-					active: expiry.state === "expired",
-					saveHref: primarySaveAction.href,
-				})
-			: "";
+	let paywall = "";
+	if (expiry.state !== "permanent" && input.crawl?.status === "ready") {
+		assert(expiry.expiresAtIso, "a non-permanent expiry must carry an ISO deadline");
+		paywall = renderViewPaywall({
+			saveHref: primarySaveAction.href,
+			expiresAtIso: expiry.expiresAtIso,
+		});
+	}
 
 	const content = render(VIEW_TEMPLATE, {
 		innerContent,
@@ -215,6 +217,6 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		styles: VIEW_STYLES,
 		bodyClass: "page-view",
 		content: { html: content },
-		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + EXPIRY_COUNTER_SCRIPT,
+		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + EXPIRY_COUNTER_SCRIPT + VIEW_PAYWALL_SCRIPT,
 	};
 }

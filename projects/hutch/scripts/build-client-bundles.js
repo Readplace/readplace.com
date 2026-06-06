@@ -166,6 +166,25 @@ const BUNDLES = [
 	{
 		entry: path.join(
 			PROJECT_ROOT,
+			"src/runtime/web/pages/view/view-paywall.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "view-paywall.client.js"),
+		globalName: "ViewPaywall",
+		footer: [
+			"document.addEventListener('DOMContentLoaded', function () {",
+			"  ViewPaywall.initViewPaywall({",
+			"    document: window.document,",
+			"    window: window,",
+			"    now: function () { return Date.now(); },",
+			"    setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); },",
+			"    clearTimeoutFn: function (id) { window.clearTimeout(id); }",
+			"  });",
+			"});",
+		].join("\n"),
+	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
 			"src/runtime/web/shared/toast/toast.client.ts",
 		),
 		outfile: path.join(OUT_DIR, "toast.client.js"),
