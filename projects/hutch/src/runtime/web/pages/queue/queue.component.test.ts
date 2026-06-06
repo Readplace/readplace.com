@@ -1,4 +1,4 @@
-import { formatUnreadLabel } from "./queue.component";
+import { emptyStateTitle, formatUnreadLabel } from "./queue.component";
 
 describe("formatUnreadLabel", () => {
 	it("should format zero count", () => {
@@ -15,5 +15,15 @@ describe("formatUnreadLabel", () => {
 
 	it("should cap at 99+ when count exceeds 99", () => {
 		expect(formatUnreadLabel(100)).toBe("To Read (99+)");
+	});
+});
+
+describe("emptyStateTitle", () => {
+	it("should invite the reader to save more on the To Read tab", () => {
+		expect(emptyStateTitle("queue")).toBe("There's no more articles to read");
+	});
+
+	it("should describe an empty Read tab", () => {
+		expect(emptyStateTitle("done")).toBe("Your queue is empty");
 	});
 });
