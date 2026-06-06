@@ -7,7 +7,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-// Brand palette — see ../../../../../../../../BRAND_GUIDELINES.md
+// Brand palette — see BRAND_GUIDELINES.md at the repo root.
 private val Navy = Color(0xFF2B3A55)
 private val Amber = Color(0xFFC8923C)
 private val Brand = Color(0xFFC8702A)

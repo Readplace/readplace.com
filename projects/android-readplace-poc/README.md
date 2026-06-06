@@ -1,17 +1,16 @@
 # Readplace Android POC
 
 A throwaway, dev-only Android app that behaves like the Readplace **browser
-extension** (and mirrors the [iOS POC](../ios-readplace-poc)): it lists your saved
-links and lets you save new ones by **sharing a URL to it** from any app. When you
-share a link, a **share-target Activity** renders the page in a hidden `WebView`
-first and uploads the **rendered HTML** (not just the URL) via the server's
-`save-html` Siren action — exactly what the extension and the iOS share extension
-do.
+extension** (and mirrors the [iOS POC](../../experiments/ios-readplace-poc)): it
+lists your saved links and lets you save new ones by **sharing a URL to it** from any
+app. When you share a link, a **share-target Activity** renders the page in a hidden
+`WebView` first and uploads the **rendered HTML** (not just the URL) via the server's
+`save-html` Siren action — exactly what the extension and the iOS share extension do.
 
-This is a proof of concept. It is **not** part of the monorepo build (no nx, no
-pnpm, no CI). It lives under `experiments/` and touches no other project. It
-requires **no server-side changes**: it reuses the existing public OAuth client and
-Siren API.
+This is a proof of concept. It is a standalone Gradle project that is **not** wired
+into the nx/pnpm workspace (it has no `package.json`/`project.json`), so it has no nx
+targets and no CI. It touches no other project, and requires **no server-side
+changes**: it reuses the existing public OAuth client and Siren API.
 
 > **On Android, the "extension" is a share target.** Android has no separate
 > share-extension binary like iOS. A share target is just an `Activity` with an
@@ -52,7 +51,7 @@ The logic is split so the interesting part is testable on a plain JDK, with no
 Android SDK or emulator:
 
 ```
-experiments/android-readplace-poc/
+projects/android-readplace-poc/
 ├── settings.gradle.kts          # includeBuild("core") + include(":app")
 ├── build.gradle.kts             # AGP + Kotlin plugins (apply false)
 ├── gradlew, gradle/wrapper/…    # Gradle wrapper (8.11.1)
@@ -95,7 +94,7 @@ The Android `app` consumes the core through Gradle dependency substitution
 The shared core is a plain Kotlin/JVM build, so its tests run on any JDK 17+:
 
 ```sh
-cd experiments/android-readplace-poc/core
+cd projects/android-readplace-poc/core
 ./gradlew test
 ```
 
@@ -109,7 +108,7 @@ fallback, delete) — against a fake HTTP transport, the analogue of the iOS POC
 Like the iOS POC needs a Mac with Xcode, the app module needs the Android SDK. The
 easiest path is **Android Studio**:
 
-1. **Open** `experiments/android-readplace-poc/` in Android Studio (Koala / 2024.1+).
+1. **Open** `projects/android-readplace-poc/` in Android Studio (Koala / 2024.1+).
    It writes `local.properties` with your `sdk.dir` on first sync.
 2. **Run** the `app` configuration on a device or emulator (API 26+).
 3. **Sign in** (default server `https://readplace.com`).
@@ -120,7 +119,7 @@ easiest path is **Android Studio**:
 Command line (with `ANDROID_HOME`/`local.properties` pointing at an SDK):
 
 ```sh
-cd experiments/android-readplace-poc
+cd projects/android-readplace-poc
 ./gradlew :app:assembleDebug      # build the APK
 ./gradlew :app:installDebug       # install on a connected device/emulator
 ```

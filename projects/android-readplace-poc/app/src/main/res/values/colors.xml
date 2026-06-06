@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Brand palette — see ../../../../../../../BRAND_GUIDELINES.md -->
+<!-- Brand palette — see BRAND_GUIDELINES.md at the repo root -->
 <resources>
 	<color name="navy">#2B3A55</color>
 	<color name="amber">#C8923C</color>
