@@ -13,6 +13,19 @@
       ],
       "cache": false,
       "dependsOn": []
+    },
+    "test": {
+      "command": "make test",
+      "options": { "cwd": "{projectRoot}" },
+      "inputs": [
+        "{projectRoot}/App/**/*",
+        "{projectRoot}/Shared/**/*",
+        "{projectRoot}/ShareExtension/**/*",
+        "{projectRoot}/Tests/**/*",
+        "{projectRoot}/project.yml"
+      ],
+      "cache": false,
+      "dependsOn": []
     }
   }
 }

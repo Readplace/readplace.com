@@ -5,10 +5,6 @@ import UIKit
 /// URL-only save if the token is missing, capture fails, or the HTML is too big.
 @MainActor
 final class ShareViewController: UIViewController {
-	/// Mirrors the server's `MAX_RAW_HTML_BYTES` (10 MiB). Above this the server
-	/// would reject the payload, so we skip straight to the URL-only path.
-	private static let maxRawHTMLBytes = 10 * 1024 * 1024
-
 	private let store = TokenStore()
 	private var captor: HTMLCaptor?
 
@@ -25,44 +21,31 @@ final class ShareViewController: UIViewController {
 
 	private func run() async {
 		NSLog("[ReadplacePOC] ShareExt start: group=\(TokenStore.resolvedAppGroupId) loggedIn=\(store.isLoggedIn) baseURL=\(store.baseURL)")
-		guard store.isLoggedIn else {
-			NSLog("[ReadplacePOC] ShareExt: no token visible in the App Group — not logged in")
-			finish(message: "Open Readplace and sign in first.",
-				symbol: "person.crop.circle.badge.exclamationmark", success: false)
-			return
-		}
-		guard let shared = await ShareURLExtractor.extract(from: extensionContext) else {
-			finish(message: "No link found to save.", symbol: "link", success: false)
-			return
-		}
-		NSLog("[ReadplacePOC] ShareExt: extracted url=\(shared.url.absoluteString)")
 
-		setStatus("Rendering page…")
 		let captor = HTMLCaptor()
 		self.captor = captor
 		attachHidden(captor.webView)
-		let captured = await captor.capture(url: shared.url)
-		let title = (captured.title?.isEmpty == false) ? captured.title : shared.title
 
 		setStatus("Saving…")
-		let api = ReadplaceAPI(baseURL: store.baseURL, store: store)
-		do {
-			let page = try await api.loadQueue()
-			let urlString = shared.url.absoluteString
+		let shared = await ShareURLExtractor.extract(from: extensionContext)
+		if let shared { NSLog("[ReadplacePOC] ShareExt: extracted url=\(shared.url.absoluteString)") }
 
-			if let html = captured.rawHtml, html.utf8.count <= Self.maxRawHTMLBytes,
-				let action = page.saveHtmlAction {
-				_ = try await api.saveHTML(action: action, url: urlString, rawHtml: html, title: title)
-				finish(message: "Saved with content", symbol: "checkmark.circle.fill", success: true)
-			} else if let action = page.saveArticleAction {
-				_ = try await api.saveArticle(action: action, url: urlString)
-				finish(message: "Saved (link only)", symbol: "checkmark.circle.fill", success: true)
-			} else {
-				finish(message: "The server offered no save action.",
-					symbol: "exclamationmark.triangle.fill", success: false)
-			}
-		} catch {
-			let message = (error as? LocalizedError)?.errorDescription ?? "Save failed."
+		let saver = SaveSharedPage(store: store, api: ReadplaceAPI(baseURL: store.baseURL, store: store), captor: captor)
+		switch await saver.run(url: shared?.url, fallbackTitle: shared?.title) {
+		case .savedWithContent:
+			finish(message: "Saved with content", symbol: "checkmark.circle.fill", success: true)
+		case .savedLinkOnly:
+			finish(message: "Saved (link only)", symbol: "checkmark.circle.fill", success: true)
+		case .notLoggedIn:
+			NSLog("[ReadplacePOC] ShareExt: no token visible in the App Group — not logged in")
+			finish(message: "Open Readplace and sign in first.",
+				symbol: "person.crop.circle.badge.exclamationmark", success: false)
+		case .noLink:
+			finish(message: "No link found to save.", symbol: "link", success: false)
+		case .noSaveAction:
+			finish(message: "The server offered no save action.",
+				symbol: "exclamationmark.triangle.fill", success: false)
+		case .failed(let message):
 			finish(message: message, symbol: "exclamationmark.triangle.fill", success: false)
 		}
 	}

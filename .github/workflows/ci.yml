@@ -68,6 +68,7 @@ jobs:
       ff-affected: ${{ steps.detect.outputs.ff-affected }}
       chrome-affected: ${{ steps.detect.outputs.chrome-affected }}
       ios-affected: ${{ steps.detect.outputs.ios-affected }}
+      ios-test-affected: ${{ steps.detect.outputs.ios-test-affected }}
     steps:
       # check-infra runs `pulumi preview` against each project's Pulumi program,
       # which evaluates top-level `requireEnv` calls (e.g. DEEPSEEK_API_KEY,
@@ -190,6 +191,18 @@ jobs:
             projects/ios-readplace-poc/project.yml)
           echo "ios-affected=$([ -n "$IOS_CHANGED" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
+          # iOS test gate: a superset of ios-affected that also fires on test
+          # changes. The macOS test job (below) runs whenever code OR tests
+          # change and gates the publish; publish itself stays scoped to
+          # shipping code via ios-affected, so a test-only change never ships.
+          IOS_TEST_CHANGED=$(git diff --name-only "$NX_BASE" "$NX_HEAD" -- \
+            projects/ios-readplace-poc/App \
+            projects/ios-readplace-poc/Shared \
+            projects/ios-readplace-poc/ShareExtension \
+            projects/ios-readplace-poc/Tests \
+            projects/ios-readplace-poc/project.yml)
+          echo "ios-test-affected=$([ -n "$IOS_TEST_CHANGED" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
   # Platform (EventBridge bus, shared infra) must deploy before any other project
   # because other projects depend on platform resources (e.g. event bus ARN)
   deploy-platform:
@@ -248,16 +261,50 @@ jobs:
     uses: ./.github/workflows/publish-chrome-extension.yml
     secrets: inherit
 
+  # Run the iOS unit/integration test bundle on a macOS runner. Gates the
+  # TestFlight publish below, so a red test blocks the build. Mirrors the publish
+  # job's toolchain (macos-15 + latest-stable Xcode + xcodegen). Fires whenever
+  # iOS code OR tests change; publish stays scoped to shipping code via
+  # ios-affected (⊆ ios-test-affected), so this always runs when publish would.
+  ios-tests:
+    if: needs.detect-projects.outputs.ios-test-affected == 'true'
+    needs: [detect-projects]
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: projects/ios-readplace-poc
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Select the newest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Run the tests on a discovered iPhone simulator
+        run: |
+          DEVICE=$(xcrun simctl list devices available \
+            | grep -E '^[[:space:]]+iPhone' | head -n1 \
+            | sed -E 's/^[[:space:]]+//; s/ \([^)]+\) \([^)]+\)$//')
+          test -n "$DEVICE" || { echo "::error::No iPhone simulator available on the runner"; exit 1; }
+          echo "Using simulator: $DEVICE"
+          make test SIM="platform=iOS Simulator,name=$DEVICE"
+
   # Build + upload the iOS app (and its embedded share extension, in one build)
-  # to TestFlight. Independent of the infra deploy pipeline — gated only on the
-  # base test suite passing and the iOS shipping code having changed.
+  # to TestFlight. Independent of the infra deploy pipeline — gated on the base
+  # test suite passing, the iOS test bundle passing, and the iOS shipping code
+  # having changed.
   ios-testflight-publish:
     if: >-
       always()
       && needs.all-tests.result == 'success'
       && needs.detect-projects.result == 'success'
+      && needs.ios-tests.result == 'success'
       && needs.detect-projects.outputs.ios-affected == 'true'
-    needs: [all-tests, detect-projects]
+    needs: [all-tests, detect-projects, ios-tests]
     permissions:
       contents: write
     uses: ./.github/workflows/publish-ios-testflight.yml

@@ -13,8 +13,10 @@ generate:
 open: generate
 	open ReadplacePOC.xcodeproj
 
-# Run the unit tests on a simulator (override SIM as needed).
-SIM ?= platform=iOS Simulator,name=iPhone 15
+# Run the unit tests on a simulator. The runner image's device set varies, so
+# default to the first available numbered iPhone; override for a specific one,
+# e.g. `make test SIM='platform=iOS Simulator,name=iPhone 16 Pro'`.
+SIM ?= platform=iOS Simulator,name=$(shell xcrun simctl list devices available | grep -m1 -oE 'iPhone [0-9]+')
 test: generate
 	xcodebuild test -project ReadplacePOC.xcodeproj -scheme ReadplacePOC -destination '$(SIM)'
 

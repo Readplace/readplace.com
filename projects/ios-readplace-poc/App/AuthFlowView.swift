@@ -60,36 +60,10 @@ struct AuthFlowView: View {
 
 	private func handleCallback(_ url: URL, verifier: String, expectedState: String) {
 		guard !exchanging else { return }
-		let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-		func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
-
-		if let error = value("error") {
-			finish(.failure(AuthFlowError.denied(error)))
-			return
-		}
-		guard let code = value("code") else {
-			finish(.failure(AuthFlowError.missingCode))
-			return
-		}
-		guard value("state") == expectedState else {
-			finish(.failure(AuthFlowError.stateMismatch))
-			return
-		}
-
 		exchanging = true
 		Task {
-			do {
-				try await session.makeOAuth().exchangeCode(code, verifier: verifier)
-				await MainActor.run {
-					session.refreshLoginState()
-					finish(.success(()))
-				}
-			} catch {
-				await MainActor.run {
-					exchanging = false
-					finish(.failure(error))
-				}
-			}
+			let result = await session.completeSignIn(callbackURL: url, verifier: verifier, expectedState: expectedState)
+			finish(result)
 		}
 	}
 
