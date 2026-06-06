@@ -229,6 +229,36 @@ describe("EXCLUDE_PATTERNS — operator-curated exact-URL entries", () => {
 			excluded: false,
 			label: "fagnerbrack correct domain — should NOT match",
 		},
+		{
+			url: "https://www.heise.de/news/Orts-und-Buerozeiterfassung-in-Microsoft-Teams-kommt-11318714.html",
+			excluded: true,
+			label: "heise.de paywalled article exact (Tollbit 402)",
+		},
+		{
+			url: "https://www.heise.de/news/other-article-12345.html",
+			excluded: false,
+			label: "heise.de different article — should NOT match",
+		},
+		{
+			url: "https://www.bloomberg.com/news/articles/2026-06-02/uber-caps-usage-of-ai-tools-like-claude-code-to-cut-costs?embedded-checkout=true",
+			excluded: true,
+			label: "bloomberg paywalled article exact (HTTP 403)",
+		},
+		{
+			url: "https://www.bloomberg.com/news/articles/2026-06-02/uber-caps-usage-of-ai-tools-like-claude-code-to-cut-costs",
+			excluded: false,
+			label: "bloomberg same article without query param — should NOT match",
+		},
+		{
+			url: "https://www.wsj.com/finance/investing/investors-seek-to-pull-10-from-blackstones-giant-private-credit-fund-7cbca527",
+			excluded: true,
+			label: "wsj paywalled article exact (HTTP 401)",
+		},
+		{
+			url: "https://www.wsj.com/finance/investing/other-article-abc123",
+			excluded: false,
+			label: "wsj different article — should NOT match",
+		},
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {

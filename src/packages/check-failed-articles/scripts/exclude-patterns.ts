@@ -79,6 +79,12 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// `j` vs `k`). DNS returns NXDOMAIN — the domain does not exist and
 	// recrawl can never succeed.
 	/^https:\/\/fagnerbracj\.com\/learn-python-the-hard-way-was-right-about-one-thing-9b6ab0b67526$/i,
+	// Paywalled: heise.de redirects to Tollbit paywall (HTTP 402).
+	/^https:\/\/www\.heise\.de\/news\/Orts-und-Buerozeiterfassung-in-Microsoft-Teams-kommt-11318714\.html$/i,
+	// Paywalled: Bloomberg returns HTTP 403 for non-subscribers.
+	/^https:\/\/www\.bloomberg\.com\/news\/articles\/2026-06-02\/uber-caps-usage-of-ai-tools-like-claude-code-to-cut-costs\?embedded-checkout=true$/i,
+	// Paywalled: WSJ returns HTTP 401 for non-subscribers.
+	/^https:\/\/www\.wsj\.com\/finance\/investing\/investors-seek-to-pull-10-from-blackstones-giant-private-credit-fund-7cbca527$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

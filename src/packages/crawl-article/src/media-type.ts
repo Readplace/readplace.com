@@ -15,6 +15,22 @@ interface MediaTypeMatcher {
 }
 
 /**
+ * WHATWG MIME Sniffing–inspired HTML byte signature check. When a server
+ * omits the Content-Type header entirely the classifier falls through to
+ * this sniff: strip leading ASCII whitespace, then test for the tag
+ * prefixes that every conformant HTML document opens with.
+ *
+ * https://mimesniff.spec.whatwg.org/#sniffing-a-mislabeled-binary-resource
+ */
+const HTML_TAG_PREFIXES = ["<!doctype", "<html", "<head", "<body", "<!--"];
+
+function bodyBytesLookLikeHtml(buffer: Buffer): boolean {
+	if (buffer.length === 0) return false;
+	const head = buffer.subarray(0, 256).toString("ascii").trimStart().toLowerCase();
+	return HTML_TAG_PREFIXES.some((prefix) => head.startsWith(prefix));
+}
+
+/**
  * The closed set of media types the crawler can turn into article HTML, each
  * paired with how to recognise it from a {@link MediaTypeSignal}.
  *
@@ -33,8 +49,10 @@ const MEDIA_TYPE_MATCHERS = [
 	{ kind: "pdf", matches: ({ contentType, buffer }) => isPDF({ contentType, bodyBytes: buffer }) },
 	{
 		kind: "html",
-		matches: ({ contentType }) =>
-			contentType.includes("text/html") || contentType.includes("application/xhtml+xml"),
+		matches: ({ contentType, buffer }) =>
+			contentType.includes("text/html") ||
+			contentType.includes("application/xhtml+xml") ||
+			(contentType === "" && bodyBytesLookLikeHtml(buffer)),
 	},
 	{ kind: "plain-text", matches: ({ contentType }) => contentType.includes("text/plain") },
 ] as const satisfies readonly MediaTypeMatcher[];
