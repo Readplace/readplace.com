@@ -24,7 +24,7 @@ export type NavItemKey =
  * existing group rather than lengthening one flat list. "library" holds the
  * reading queue and its data tools; "account" holds identity/session actions;
  * "explore" is the guest pre-auth section. */
-export type NavGroupKey = "library" | "account" | "explore";
+export type NavGroupKey = "library" | "account";
 
 /** Data-driven header nav item. Rendered uniformly as
  * `<form method="{method}" action="{href}"><button>{label}</button></form>`
@@ -131,18 +131,19 @@ const NAV_SIGNUP: NavItem = {
 	icon: "fa-solid fa-user-plus",
 };
 
-/** Builds the grouped header nav from the per-request boolean flags. The
- * template iterates the returned groups (then their items) — no inline
- * conditionals. Adding a destination means pushing a NavItem into the right
- * group here, not editing the template. Item order within a group is preserved
- * so the flat rendered order stays queue → import → export → account → logout. */
+/** Guest nav items rendered as a flat list without group structure. */
+export function buildGuestNavItems(): NavItem[] {
+	return [NAV_FEATURES, NAV_SIGNUP];
+}
+
+/** Builds the grouped header nav for authenticated users. The template
+ * iterates the returned groups (then their items) — no inline conditionals.
+ * Adding a destination means pushing a NavItem into the right group here, not
+ * editing the template. Item order within a group is preserved so the flat
+ * rendered order stays queue → import → export → account → logout. */
 export function buildNavGroups(input: {
-	isAuthenticated: boolean;
 	accessIsReadOnly: boolean;
 }): NavGroup[] {
-	if (!input.isAuthenticated) {
-		return [{ key: "explore", label: "Explore", items: [NAV_FEATURES, NAV_SIGNUP] }];
-	}
 	const library: NavItem[] = [NAV_QUEUE];
 	if (!input.accessIsReadOnly) {
 		library.push(NAV_IMPORT);

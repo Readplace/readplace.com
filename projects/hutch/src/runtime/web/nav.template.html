@@ -33,6 +33,15 @@
             </ul>
           </div>
           {{/each}}
+          {{#each navItems}}
+          {{#if @first}}<ul class="nav__list">{{/if}}
+          <li>
+            <form method="{{method}}" action="{{href}}">
+              <button type="submit" class="nav__link" data-test-nav-item="{{key}}"><i class="nav__icon {{icon}}" aria-hidden="true"></i><span class="nav__label">{{label}}</span></button>
+            </form>
+          </li>
+          {{#if @last}}</ul>{{/if}}
+          {{/each}}
         </div>
       </nav>
     </div>

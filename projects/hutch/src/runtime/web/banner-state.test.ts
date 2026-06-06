@@ -1,6 +1,7 @@
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	bannerStateFromRequest,
+	buildGuestNavItems,
 	buildNavGroups,
 	initBuildBannerState,
 } from "./banner-state";
@@ -30,15 +31,22 @@ describe("bannerStateFromRequest", () => {
 	});
 });
 
-describe("buildNavGroups", () => {
-	it("returns a single Explore group for guests", () => {
-		const groups = buildNavGroups({ isAuthenticated: false, accessIsReadOnly: false });
-		expect(groups.map((g) => g.key)).toEqual(["explore"]);
-		expect(groups[0]?.items.map((i) => i.key)).toEqual(["features", "signup"]);
+describe("buildGuestNavItems", () => {
+	it("returns features and signup as a flat list", () => {
+		const items = buildGuestNavItems();
+		expect(items.map((i) => i.key)).toEqual(["features", "signup"]);
 	});
 
+	it("assigns a Font Awesome solid icon to every guest item", () => {
+		for (const item of buildGuestNavItems()) {
+			expect(item.icon).toMatch(/^fa-solid fa-[a-z-]+$/);
+		}
+	});
+});
+
+describe("buildNavGroups", () => {
 	it("groups full-access items into Library (queue, import, export) and Account (account, sign out)", () => {
-		const groups = buildNavGroups({ isAuthenticated: true, accessIsReadOnly: false });
+		const groups = buildNavGroups({ accessIsReadOnly: false });
 		expect(groups.map((g) => g.key)).toEqual(["library", "account"]);
 		const [library, account] = groups;
 		expect(library?.label).toBe("Library");
@@ -48,17 +56,14 @@ describe("buildNavGroups", () => {
 	});
 
 	it("omits import and account for a read-only user, leaving Library (queue, export) and Account (sign out)", () => {
-		const groups = buildNavGroups({ isAuthenticated: true, accessIsReadOnly: true });
+		const groups = buildNavGroups({ accessIsReadOnly: true });
 		const [library, account] = groups;
 		expect(library?.items.map((i) => i.key)).toEqual(["queue", "export"]);
 		expect(account?.items.map((i) => i.key)).toEqual(["logout"]);
 	});
 
 	it("assigns a Font Awesome solid icon to every nav item", () => {
-		const items = [
-			...buildNavGroups({ isAuthenticated: true, accessIsReadOnly: false }),
-			...buildNavGroups({ isAuthenticated: false, accessIsReadOnly: false }),
-		].flatMap((g) => g.items);
+		const items = buildNavGroups({ accessIsReadOnly: false }).flatMap((g) => g.items);
 		for (const item of items) {
 			expect(item.icon).toMatch(/^fa-solid fa-[a-z-]+$/);
 		}

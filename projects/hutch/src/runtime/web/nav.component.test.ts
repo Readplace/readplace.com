@@ -139,7 +139,7 @@ describe("Nav component", () => {
 		expect(queue.textContent).toBe("Queue");
 	});
 
-	it("renders guest nav items (features, signup) for an unauthenticated user", () => {
+	it("renders guest nav items (features, signup) as a flat list without group structure", () => {
 		const doc = parse(
 			Nav({
 				variant: "default",
@@ -154,6 +154,7 @@ describe("Nav component", () => {
 		assert(doc.querySelector('[data-test-nav-item="features"]'));
 		assert(doc.querySelector('[data-test-nav-item="signup"]'));
 		expect(doc.querySelector('[data-test-nav-item="queue"]')).toBeNull();
+		expect(doc.querySelectorAll("[data-test-nav-group]")).toHaveLength(0);
 	});
 
 	it("applies the transparent header modifier when variant is 'transparent'", () => {
