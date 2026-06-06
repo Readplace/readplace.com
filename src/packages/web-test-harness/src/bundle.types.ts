@@ -4,6 +4,12 @@ import type { LogParseError } from "@packages/hutch-infra-components";
 import type { ArticleMetadata, Minutes, ValidateSaveableUrl } from "@packages/domain/article";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { InboxAddressStore } from "@packages/domain/inbox";
+import type {
+	FetchInboundEmail,
+	InboundEmailContent,
+	NewsletterInboxStore,
+	NewsletterMessageStore,
+} from "@packages/domain/newsletter";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { ParseArticle } from "@packages/article-parser";
 import type {
@@ -313,6 +319,15 @@ export interface InboxAddressBundle {
 	inboxAddressDomain: string;
 }
 
+export interface NewsletterBundle {
+	inboxStore: NewsletterInboxStore;
+	messageStore: NewsletterMessageStore;
+	fetchInboundEmail: FetchInboundEmail;
+	seedInboundEmail: (emailId: string, content: InboundEmailContent) => void;
+	inboxDomain: string;
+	inboundSigningSecret: string;
+}
+
 export interface BotDefenseBundle {
 	logger: HutchLogger.Typed<BotDefenseEvent>;
 	events: BotDefenseEvent[];
@@ -351,6 +366,7 @@ export interface TestAppFixture {
 	admin: AdminBundle;
 	importSession: ImportSessionBundle;
 	inboxAddress: InboxAddressBundle;
+	newsletter: NewsletterBundle;
 	shared: SharedBundle;
 	stripe: StripeCheckoutBundle;
 	pendingSignup: PendingSignupBundle;

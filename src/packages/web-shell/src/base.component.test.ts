@@ -185,10 +185,10 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["queue", "import", "export", "account", "logout"]);
+		expect(navItems).toEqual(["queue", "import", "newsletter", "export", "account", "logout"]);
 	});
 
-	it("hides import + account from the nav for a read-only user (trial-expired / subscription-cancelled) — only queue, export, logout remain", () => {
+	it("hides import + account from the nav for a read-only user (trial-expired / subscription-cancelled) — only queue, newsletter, export, logout remain", () => {
 		const page = createTestPageBody();
 		const result = Base(page, {
 			isAuthenticated: true,
@@ -200,7 +200,7 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["queue", "export", "logout"]);
+		expect(navItems).toEqual(["queue", "newsletter", "export", "logout"]);
 	});
 
 	it("should include the footer with copyright", () => {

@@ -45,6 +45,7 @@ export interface BannerStateSource {
 export type NavItemKey =
 	| "queue"
 	| "import"
+	| "newsletter"
 	| "export"
 	| "inbox"
 	| "account"
@@ -185,6 +186,7 @@ export interface BannerState {
 
 const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method: "GET", icon: "fa-solid fa-inbox" });
 const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/import", method: "GET", icon: "fa-solid fa-file-import" });
+const NAV_NEWSLETTER = navItem({ key: "newsletter", label: "Newsletter", path: "/newsletter", method: "GET", icon: "fa-solid fa-envelope-open-text" });
 const NAV_EXPORT = navItem({ key: "export", label: "Export", path: "/export", method: "GET", icon: "fa-solid fa-file-export" });
 const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", icon: "fa-solid fa-envelope", hiddenParams: { feature: EMAIL_FEATURE } });
 const NAV_ACCOUNT = navItem({ key: "account", label: "Account", path: "/account", method: "GET", icon: "fa-solid fa-user" });
@@ -213,6 +215,7 @@ export function buildNavGroups(input: {
 	if (!input.accessIsReadOnly) {
 		library.push(NAV_IMPORT);
 	}
+	library.push(NAV_NEWSLETTER);
 	library.push(NAV_EXPORT);
 	if (input.emailFeatureEnabled) {
 		library.push(NAV_INBOX);

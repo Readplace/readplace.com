@@ -15,6 +15,8 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly inboxAddressesTable: aws.dynamodb.Table;
 	public readonly subscriptionProvidersTable: aws.dynamodb.Table;
 	public readonly rateLimitsTable: aws.dynamodb.Table;
+	public readonly newsletterInboxTable: aws.dynamodb.Table;
+	public readonly newsletterMessagesTable: aws.dynamodb.Table;
 
 	constructor(name: string, args: { deletionProtection: boolean; tableNames: {
 		articles: string;
@@ -30,6 +32,8 @@ export class HutchStorage extends pulumi.ComponentResource {
 		inboxAddresses: string;
 		subscriptionProviders: string;
 		rateLimits: string;
+		newsletterInbox: string;
+		newsletterMessages: string;
 	} }, opts?: pulumi.ComponentResourceOptions) {
 		super("hutch:infra:HutchStorage", name, {}, opts);
 
@@ -249,6 +253,28 @@ export class HutchStorage extends pulumi.ComponentResource {
 					hashKey: "subscriptionId",
 					projectionType: "ALL",
 				},
+			],
+		}, { parent: this });
+
+		this.newsletterInboxTable = new aws.dynamodb.Table(`hutch-newsletter-inbox`, {
+			name: args.tableNames.newsletterInbox,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "pk",
+			attributes: [{ name: "pk", type: "S" }],
+		}, { parent: this });
+
+		this.newsletterMessagesTable = new aws.dynamodb.Table(`hutch-newsletter-messages`, {
+			name: args.tableNames.newsletterMessages,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "userId",
+			rangeKey: "messageId",
+			attributes: [
+				{ name: "userId", type: "S" },
+				{ name: "messageId", type: "S" },
 			],
 		}, { parent: this });
 

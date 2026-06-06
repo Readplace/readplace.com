@@ -122,6 +122,13 @@ import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { InboxAddressStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
+import { initNewsletterRoutes } from "./web/pages/newsletter/newsletter.page";
+import { initNewsletterInboundRoutes } from "./web/pages/newsletter/newsletter-inbound.page";
+import type {
+	FetchInboundEmail,
+	NewsletterInboxStore,
+	NewsletterMessageStore,
+} from "@packages/domain/newsletter";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { initSaveRoutes } from "./web/pages/save/save.page";
@@ -247,6 +254,11 @@ interface AppDependencies {
 	inboxAddressStore: InboxAddressStore;
 	inboxAddressDomain: string;
 	getChangelogBanner: GetChangelogBanner;
+	newsletterInboxStore: NewsletterInboxStore;
+	newsletterMessageStore: NewsletterMessageStore;
+	fetchInboundEmail: FetchInboundEmail;
+	newsletterInboxDomain: string;
+	resendInboundSigningSecret: string;
 	now: () => Date;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	createCheckoutSession: CreateCheckoutSession;
@@ -875,6 +887,35 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * (the sole content-creating route), where `redirectAnonymousToSignup` and the
 	 * `requireNotLocked`/`requireWriteAccess` gates run as route middleware. */
 	app.use("/import", importRouter);
+
+	const newsletterRouter = initNewsletterRoutes({
+		newsletterInboxStore: deps.newsletterInboxStore,
+		newsletterMessageStore: deps.newsletterMessageStore,
+		inboxDomain: deps.newsletterInboxDomain,
+		buildBannerState,
+	});
+	app.use("/newsletter", requireAuth, newsletterRouter);
+
+	/** Resend posts inbound `email.received` events here. Unauthenticated by
+	 * design — the request is authenticated by its Svix signature, verified
+	 * inside the router against the shared signing secret. */
+	const newsletterInboundRouter = initNewsletterInboundRoutes({
+		validateSaveableUrl: deps.validateSaveableUrl,
+		newsletterInboxStore: deps.newsletterInboxStore,
+		newsletterMessageStore: deps.newsletterMessageStore,
+		fetchInboundEmail: deps.fetchInboundEmail,
+		inboxDomain: deps.newsletterInboxDomain,
+		inboundSigningSecret: deps.resendInboundSigningSecret,
+		saveArticle: deps.saveArticle,
+		updateArticleStatus: deps.updateArticleStatus,
+		markCrawlPending: deps.markCrawlPending,
+		markSummaryPending: deps.markSummaryPending,
+		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
+		publishLinkSaved: deps.publishLinkSaved,
+		refreshArticleIfStale: deps.refreshArticleIfStale,
+		now: deps.now,
+	});
+	app.use("/webhooks/resend-inbound", newsletterInboundRouter);
 
 	const saveRouter = initSaveRoutes({ buildBannerState, analytics: deps.analytics, salt: deps.salt, now: deps.now, secureCookies, generatePendingSaveId: randomUUID });
 	app.use("/save", saveRouter);

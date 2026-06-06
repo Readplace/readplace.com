@@ -85,6 +85,14 @@ import { initInMemoryImportSession } from "@packages/test-fixtures/providers/imp
 import { initDynamoDbImportSession } from "./providers/import-session/dynamodb-import-session";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
 import { initDynamoDbInboxAddress } from "./providers/inbox-address/dynamodb-inbox-address";
+import {
+	initInMemoryNewsletterInbox,
+	initInMemoryNewsletterMessages,
+	initInMemoryFetchInboundEmail,
+} from "@packages/test-fixtures/providers/newsletter";
+import { initDynamoDbNewsletterInbox } from "./providers/newsletter/dynamodb-newsletter-inbox";
+import { initDynamoDbNewsletterMessages } from "./providers/newsletter/dynamodb-newsletter-messages";
+import { initResendFetchInboundEmail } from "./providers/newsletter/resend-fetch-inbound-email";
 import { initExchangeGoogleCode } from "./providers/google-auth/google-token";
 import { initInMemoryStripeCheckout } from "@packages/test-fixtures/providers/stripe-checkout";
 import { initStripeCheckout } from "./providers/stripe-checkout/stripe-checkout";
@@ -152,6 +160,8 @@ function initProviders() {
 		const importSessionsTable = requireEnv("DYNAMODB_IMPORT_SESSIONS_TABLE");
 		const inboxAddressesTable = requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE");
 		const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
+		const newsletterInboxTable = requireEnv("DYNAMODB_NEWSLETTER_INBOX_TABLE");
+		const newsletterMessagesTable = requireEnv("DYNAMODB_NEWSLETTER_MESSAGES_TABLE");
 		const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
 		const rateLimitsTable = requireEnv("DYNAMODB_RATE_LIMITS_TABLE");
 		const trialSchedulerGroupName = requireEnv("TRIAL_SCHEDULER_GROUP_NAME");
@@ -277,12 +287,18 @@ function initProviders() {
 			forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
 			oauthRegister: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_REGISTER")),
 		};
+		const newsletterInboxStore = initDynamoDbNewsletterInbox({ client, tableName: newsletterInboxTable });
+		const newsletterMessageStore = initDynamoDbNewsletterMessages({ client, tableName: newsletterMessagesTable });
+		const { fetchInboundEmail } = initResendFetchInboundEmail({ apiKey: resendApiKey, fetch: globalThis.fetch });
 
 		return {
 			auth,
 			articleStore,
 			readArticleContent,
 			importSessionStore,
+			newsletterInboxStore,
+			newsletterMessageStore,
+			fetchInboundEmail,
 			extractLinksFromPageUrl,
 			inboxAddressStore,
 			inboxAddressDomain,
@@ -448,6 +464,9 @@ function initProviders() {
 	const importSessionStore = initInMemoryImportSession({ now: () => new Date() });
 	const inboxAddressStore = initInMemoryInboxAddress({ now: () => new Date() });
 	const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
+	const newsletterInboxStore = initInMemoryNewsletterInbox();
+	const newsletterMessageStore = initInMemoryNewsletterMessages();
+	const { fetchInboundEmail } = initInMemoryFetchInboundEmail();
 
 	// In-process counters are valid here because dev runs a single long-lived
 	// server. Defaults are liberal — every local/e2e request shares 127.0.0.1,
@@ -469,6 +488,9 @@ function initProviders() {
 			logError,
 		}),
 		importSessionStore,
+		newsletterInboxStore,
+		newsletterMessageStore,
+		fetchInboundEmail,
 		extractLinksFromPageUrl,
 		inboxAddressStore,
 		inboxAddressDomain,
@@ -537,6 +559,8 @@ export function createHutchApp(deps?: {
 	const adminEmails = parseAdminEmails(requireEnv("ADMIN_EMAILS"));
 	const recrawlServiceToken = requireEnv("RECRAWL_SERVICE_TOKEN");
 	const salt = requireEnv("ANALYTICS_SALT");
+	const newsletterInboxDomain = requireEnv("NEWSLETTER_INBOX_DOMAIN");
+	const resendInboundSigningSecret = requireEnv("RESEND_INBOUND_SIGNING_SECRET");
 	const analyticsLogger = HutchLogger.fromJSON<AnalyticsEvent>();
 
 	// Decorative, cached, fail-open source for the site-wide changelog banner.
@@ -575,6 +599,8 @@ export function createHutchApp(deps?: {
 		logParseError,
 		importSessionStore,
 		getChangelogBanner,
+		newsletterInboxDomain,
+		resendInboundSigningSecret,
 		now: () => new Date(),
 		botDefenseLogger: HutchLogger.fromJSON<BotDefenseEvent>(),
 		conversionLogger: HutchLogger.fromJSON<ConversionEvent>(),

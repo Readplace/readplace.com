@@ -26,6 +26,9 @@ import { initInMemorySubscriptionProviders } from "./providers/subscription-prov
 import { initInMemoryTrialScheduler } from "./providers/trial-scheduler/in-memory-trial-scheduler";
 import { initInMemoryImportSession } from "./providers/import-session/in-memory-import-session";
 import { initInMemoryInboxAddress } from "./providers/inbox-address/in-memory-inbox-address";
+import { initInMemoryNewsletterInbox } from "./providers/newsletter/in-memory-newsletter-inbox";
+import { initInMemoryNewsletterMessages } from "./providers/newsletter/in-memory-newsletter-messages";
+import { initInMemoryFetchInboundEmail } from "./providers/newsletter/in-memory-fetch-inbound-email";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initInMemorySaveLinkRawHtmlCommand } from "./providers/events/in-memory-save-link-raw-html-command";
 import { initInMemorySaveLinkRawPdfCommand } from "./providers/events/in-memory-save-link-raw-pdf-command";
@@ -216,6 +219,15 @@ export const stubExtractLinksFromPageUrl: ExtractLinksFromPageUrl = async () => 
 
 export const TEST_APP_ORIGIN = "http://localhost:3000";
 
+/** Domain the default fixture mounts the inbound newsletter mailbox on. Route
+ * tests build a recipient address as `${token}@${TEST_INBOX_DOMAIN}`. */
+export const TEST_INBOX_DOMAIN = "inbox.localhost.test";
+
+/** Svix-style signing secret the inbound webhook route verifies against. Route
+ * tests sign their payloads with the same value. */
+export const TEST_INBOUND_SIGNING_SECRET =
+	"whsec_dGVzdC1uZXdzbGV0dGVyLWluYm91bmQtc2lnbmluZy1zZWNyZXQ=";
+
 export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 
 	const fastHashPassword = async (p: string) => `plain:${p}`;
@@ -384,6 +396,13 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		inboxAddress: {
 			inboxAddressStore: initInMemoryInboxAddress({ now: () => new Date() }),
 			inboxAddressDomain: "read.place",
+		},
+		newsletter: {
+			inboxStore: initInMemoryNewsletterInbox(),
+			messageStore: initInMemoryNewsletterMessages(),
+			...initInMemoryFetchInboundEmail(),
+			inboxDomain: TEST_INBOX_DOMAIN,
+			inboundSigningSecret: TEST_INBOUND_SIGNING_SECRET,
 		},
 		shared: {
 			validateSaveableUrl,

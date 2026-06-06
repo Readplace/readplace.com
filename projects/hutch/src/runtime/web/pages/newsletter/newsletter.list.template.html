@@ -1,0 +1,24 @@
+<main class="newsletter" data-test-page="newsletter">
+  <header class="newsletter__header">
+    <h1 class="newsletter__title">Newsletter inbox</h1>
+    <p class="newsletter__intro">Subscribe any newsletter to your private address below. Every issue that arrives has its links saved to your reading queue automatically.</p>
+    <p class="newsletter__address" data-test-inbox-address>
+      <span class="newsletter__address-value">{{address}}</span>
+    </p>
+  </header>
+
+  {{#if hasMessages}}
+  <ul class="newsletter__list" data-test-message-list>
+    {{#each messages}}
+    <li class="newsletter__item">
+      <a class="newsletter__item-link" href="{{href}}" data-test-message-item="{{id}}">
+        <span class="newsletter__item-subject">{{subject}}</span>
+        <span class="newsletter__item-meta">{{receivedAt}} &middot; {{savedCount}} saved</span>
+      </a>
+    </li>
+    {{/each}}
+  </ul>
+  {{else}}
+  <p class="newsletter__empty" data-test-empty>No newsletters yet. Send one to the address above and it will show up here.</p>
+  {{/if}}
+</main>

@@ -1,0 +1,31 @@
+<main class="newsletter newsletter--detail" data-test-page="newsletter-detail">
+  <a class="newsletter__back" href="/newsletter" data-test-back>&larr; All messages</a>
+
+  <header class="newsletter__header">
+    <h1 class="newsletter__title" data-test-detail-subject>{{subject}}</h1>
+    <p class="newsletter__detail-meta">From {{fromAddress}} &middot; received {{receivedAt}}</p>
+  </header>
+
+  <section class="newsletter__links-section">
+    <h2 class="newsletter__section-title">Links added to your queue ({{savedCount}})</h2>
+    {{#if hasLinks}}
+    <ul class="newsletter__links" data-test-saved-links>
+      {{#each links}}
+      <li class="newsletter__link-item">
+        <a class="newsletter__link" href="{{href}}" data-test-saved-link>{{displayUrl}}</a>
+      </li>
+      {{/each}}
+    </ul>
+    {{else}}
+    <p class="newsletter__empty" data-test-no-links>No saveable links were found in this message.</p>
+    {{/if}}
+    {{#if hasSkipped}}
+    <p class="newsletter__skipped" data-test-skipped>{{skippedCount}} link(s) were skipped because they couldn't be saved.</p>
+    {{/if}}
+  </section>
+
+  <section class="newsletter__email-section">
+    <h2 class="newsletter__section-title">Original email</h2>
+    <iframe class="newsletter__email-frame" data-test-email-frame sandbox="allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation" srcdoc="{{srcdoc}}" loading="lazy" title="Original email"></iframe>
+  </section>
+</main>

@@ -55,6 +55,8 @@ const tableNames = {
 	inboxAddresses: config.require("dynamodbInboxAddressesTable"),
 	subscriptionProviders: config.require("dynamodbSubscriptionProvidersTable"),
 	rateLimits: config.require("dynamodbRateLimitsTable"),
+	newsletterInbox: config.require("dynamodbNewsletterInboxTable"),
+	newsletterMessages: config.require("dynamodbNewsletterMessagesTable"),
 };
 
 /* Per-stack "<limit>/<windowSeconds>" rules so staging e2e (one CI egress IP
@@ -164,6 +166,8 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.inboxAddressesTable.arn, includeIndexes: true },
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
 		{ arn: storage.rateLimitsTable.arn, includeIndexes: false },
+		{ arn: storage.newsletterInboxTable.arn, includeIndexes: false },
+		{ arn: storage.newsletterMessagesTable.arn, includeIndexes: false },
 	],
 	actions: [
 		"dynamodb:GetItem",
@@ -308,6 +312,10 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		RATE_LIMIT_SIGNUP: rateLimitRules.signup,
 		RATE_LIMIT_FORGOT_PASSWORD: rateLimitRules.forgotPassword,
 		RATE_LIMIT_OAUTH_REGISTER: rateLimitRules.oauthRegister,
+		DYNAMODB_NEWSLETTER_INBOX_TABLE: storage.newsletterInboxTable.name,
+		DYNAMODB_NEWSLETTER_MESSAGES_TABLE: storage.newsletterMessagesTable.name,
+		NEWSLETTER_INBOX_DOMAIN: config.require("newsletterInboxDomain"),
+		RESEND_INBOUND_SIGNING_SECRET: requireEnv("RESEND_INBOUND_SIGNING_SECRET"),
 		GOOGLE_LOGIN_CLIENT_ID: requireEnv("GOOGLE_LOGIN_CLIENT_ID"),
 		GOOGLE_LOGIN_CLIENT_SECRET: requireEnv("GOOGLE_LOGIN_CLIENT_SECRET"),
 		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),

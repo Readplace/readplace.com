@@ -5,3 +5,4 @@ export * from "./oauth";
 export * from "./import-session";
 export * from "./inbox";
 export * from "./rate-limit";
+export * from "./newsletter";
