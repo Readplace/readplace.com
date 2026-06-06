@@ -47,9 +47,10 @@ export const initOpenAiSynthesizer = ({
 				response_format: format,
 			}),
 		});
+		const body = response.ok ? "" : await response.text();
 		assert(
 			response.ok,
-			`OpenAI TTS request failed: ${response.status} ${response.statusText}`,
+			`OpenAI TTS request failed: ${response.status} ${response.statusText}\n${body}`,
 		);
 		return {
 			audio: new Uint8Array(await response.arrayBuffer()),

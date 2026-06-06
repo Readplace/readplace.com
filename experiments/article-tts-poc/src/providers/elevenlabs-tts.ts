@@ -41,16 +41,17 @@ export const initElevenLabsSynthesizer = ({
 			`ElevenLabs does not support format "${format}"; supported: ${Object.keys(OUTPUT_FORMAT).join(", ")}`,
 		);
 		const response = await fetch(
-			`${baseUrl}/text-to-speech/${voiceId}?output_format=${outputFormat}`,
+			`${baseUrl}/text-to-speech/${encodeURIComponent(voiceId)}?output_format=${outputFormat}`,
 			{
 				method: "POST",
 				headers: { "xi-api-key": apiKey, "content-type": "application/json" },
 				body: JSON.stringify({ text, model_id: modelId }),
 			},
 		);
+		const body = response.ok ? "" : await response.text();
 		assert(
 			response.ok,
-			`ElevenLabs TTS request failed: ${response.status} ${response.statusText}`,
+			`ElevenLabs TTS request failed: ${response.status} ${response.statusText}\n${body}`,
 		);
 		return {
 			audio: new Uint8Array(await response.arrayBuffer()),
