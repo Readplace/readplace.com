@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_end_to_end_flow" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_end_to_end_flow" name="end-to-end-flow" isExecutable="false">
+    <bpmn:task id="n_click_button" name="User clicks 'Email Me My Data' on /export">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_post_start" name="POST /export/start (web Lambda)">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_find_email" name="findEmailByUserId (users table, userId-index GSI)"></bpmn:dataStoreReference>
+    <bpmn:sendTask id="n_cmd" name="ExportUserDataCommand {userId, email, requestedAt}">
+      <bpmn:incoming>f_2</bpmn:incoming>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_redirect" name="303 -&gt; /export?status=preparing">
+      <bpmn:incoming>f_3</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_rule" name="EventBridge rule: source=hutch.api, detailType=ExportUserDataCommand"></bpmn:dataStoreReference>
+    <bpmn:intermediateCatchEvent id="n_queue" name="export-user-data SQS queue (visibilityTimeout=900s)">
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="n_dlq" name="export-user-data DLQ + CloudWatch alarm + SNS email">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_worker" name="export-user-data Lambda (900s, 1024MB)">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_query" name="DynamoDB Query userArticles + articles (paginated, pageSize=500)"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_s3_put" name="S3 PutObject hutch-user-exports-{stage} key=exports/{userId}/{timestamp}.json"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_presign" name="getSignedUrl(GetObject) expiresIn = 7 days"></bpmn:dataStoreReference>
+    <bpmn:dataStoreReference id="n_resend" name="Resend email 'Your Readplace export is ready' (button -&gt; presigned URL)"></bpmn:dataStoreReference>
+    <bpmn:endEvent id="n_exported" name="UserDataExportedEvent {userId, articleCount, s3Key, exportedAt}">
+      <bpmn:incoming>f_13</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:dataStoreReference id="n_lifecycle" name="S3 lifecycle rule prefix=exports/ expire after 7 days"></bpmn:dataStoreReference>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_click_button" targetRef="n_post_start" />
+    <bpmn:sequenceFlow id="f_2" name="publishEvent" sourceRef="n_post_start" targetRef="n_cmd" />
+    <bpmn:sequenceFlow id="f_3" name="" sourceRef="n_post_start" targetRef="n_redirect" />
+    <bpmn:sequenceFlow id="f_6" name="maxReceiveCount exhausted" sourceRef="n_queue" targetRef="n_dlq" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_queue" targetRef="n_worker" />
+    <bpmn:sequenceFlow id="f_13" name="publishEvent" sourceRef="n_worker" targetRef="n_exported" />
+    <bpmn:association id="f_1" sourceRef="n_post_start" targetRef="n_find_email" associationDirection="One" />
+    <bpmn:association id="f_4" sourceRef="n_cmd" targetRef="n_rule" associationDirection="One" />
+    <bpmn:association id="f_5" sourceRef="n_rule" targetRef="n_queue" associationDirection="One" />
+    <bpmn:association id="f_8" sourceRef="n_worker" targetRef="n_query" associationDirection="One" />
+    <bpmn:association id="f_9" sourceRef="n_query" targetRef="n_worker" associationDirection="One" />
+    <bpmn:association id="f_10" sourceRef="n_worker" targetRef="n_s3_put" associationDirection="One" />
+    <bpmn:association id="f_11" sourceRef="n_s3_put" targetRef="n_presign" associationDirection="One" />
+    <bpmn:association id="f_12" sourceRef="n_presign" targetRef="n_resend" associationDirection="One" />
+    <bpmn:association id="f_14" sourceRef="n_s3_put" targetRef="n_lifecycle" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_end_to_end_flow">
+    <bpmndi:BPMNPlane id="Plane_end_to_end_flow" bpmnElement="Process_end_to_end_flow">
+      <bpmndi:BPMNShape id="n_click_button_di" bpmnElement="n_click_button">
+        <dc:Bounds x="246.44" y="28" width="185.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_post_start_di" bpmnElement="n_post_start">
+        <dc:Bounds x="243.32" y="138" width="192" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_find_email_di" bpmnElement="n_find_email">
+        <dc:Bounds x="28" y="248" width="171.38" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_cmd_di" bpmnElement="n_cmd">
+        <dc:Bounds x="235.38" y="260.25" width="188" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_redirect_di" bpmnElement="n_redirect">
+        <dc:Bounds x="459.38" y="268.25" width="191.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_rule_di" bpmnElement="n_rule">
+        <dc:Bounds x="244.32" y="398.5" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_queue_di" bpmnElement="n_queue">
+        <dc:Bounds x="319.31" y="562.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_dlq_di" bpmnElement="n_dlq">
+        <dc:Bounds x="206.19" y="706" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_worker_di" bpmnElement="n_worker">
+        <dc:Bounds x="335.45" y="722.75" width="190.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_query_di" bpmnElement="n_query">
+        <dc:Bounds x="55.2" y="856.25" width="171.6" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_s3_put_di" bpmnElement="n_s3_put">
+        <dc:Bounds x="262.79" y="849.5" width="190" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_presign_di" bpmnElement="n_presign">
+        <dc:Bounds x="175.13" y="1020.25" width="161.7" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_resend_di" bpmnElement="n_resend">
+        <dc:Bounds x="254.18" y="1164" width="170.28" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_exported_di" bpmnElement="n_exported">
+        <dc:Bounds x="536.11" y="859.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_lifecycle_di" bpmnElement="n_lifecycle">
+        <dc:Bounds x="372.83" y="1013.5" width="130.68" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="339.32" y="80" />
+        <di:waypoint x="339.32" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="339.32" y="190" />
+        <di:waypoint x="339.32" y="225.13" />
+        <di:waypoint x="329.38" y="225.13" />
+        <di:waypoint x="329.38" y="260.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="339.32" y="190" />
+        <di:waypoint x="339.32" y="229.13" />
+        <di:waypoint x="555.01" y="229.13" />
+        <di:waypoint x="555.01" y="268.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="339.31" y="602.5" />
+        <di:waypoint x="339.31" y="654.25" />
+        <di:waypoint x="226.19" y="654.25" />
+        <di:waypoint x="226.19" y="706" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="339.31" y="602.5" />
+        <di:waypoint x="339.31" y="662.63" />
+        <di:waypoint x="430.57" y="662.63" />
+        <di:waypoint x="430.57" y="722.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="430.57" y="774.75" />
+        <di:waypoint x="430.57" y="817.25" />
+        <di:waypoint x="556.11" y="817.25" />
+        <di:waypoint x="556.11" y="859.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="339.32" y="190" />
+        <di:waypoint x="339.32" y="219" />
+        <di:waypoint x="113.69" y="219" />
+        <di:waypoint x="113.69" y="248" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="329.38" y="328.25" />
+        <di:waypoint x="329.38" y="363.38" />
+        <di:waypoint x="339.32" y="363.38" />
+        <di:waypoint x="339.32" y="398.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="339.32" y="446.5" />
+        <di:waypoint x="339.31" y="562.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="430.57" y="774.75" />
+        <di:waypoint x="430.57" y="815.5" />
+        <di:waypoint x="141" y="815.5" />
+        <di:waypoint x="141" y="856.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="193.85" y="856.25" />
+        <di:waypoint x="373.32" y="774.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="430.57" y="774.75" />
+        <di:waypoint x="430.57" y="812.13" />
+        <di:waypoint x="357.79" y="812.13" />
+        <di:waypoint x="357.79" y="849.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="357.79" y="897.5" />
+        <di:waypoint x="357.79" y="958.88" />
+        <di:waypoint x="255.98" y="958.88" />
+        <di:waypoint x="255.98" y="1020.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="255.98" y="1068.25" />
+        <di:waypoint x="255.98" y="1116.13" />
+        <di:waypoint x="339.32" y="1116.13" />
+        <di:waypoint x="339.32" y="1164" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="357.79" y="897.5" />
+        <di:waypoint x="357.79" y="955.5" />
+        <di:waypoint x="438.17" y="955.5" />
+        <di:waypoint x="438.17" y="1013.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

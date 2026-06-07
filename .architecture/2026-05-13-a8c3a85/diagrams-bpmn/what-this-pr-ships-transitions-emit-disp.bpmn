@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_what_this_pr_ships_transitions_emit_disp" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_what_this_pr_ships_transitions_emit_disp" name="what-this-pr-ships-transitions-emit-disp" isExecutable="false">
+    <bpmn:task id="n_Agg" name="Article aggregate initTransitionAndPersist + upsertAndPersist">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="n_SubLink" name="submitLink transition upsert: synthesise stub on first save, no-op writes on subsequent save">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_ReqRec" name="requestRecrawl transition contentFetchedAt = epoch, pending reset, clear summaryAutoHeal">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_Eff" name="Effect: dispatch-submit-link { url, userId?, rawHtml? }">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_Disp" name="lambda-effect-dispatcher case dispatch-submit-link">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="n_Pub" name="publishEvent source: hutch.api detailType: SubmitLinkCommand">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sendTask id="n_Cmd" name="SubmitLinkCommand { url, userId?, rawHtml? }">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_Bus" name="EventBridge default-bus EVENT_BUS_NAME — already wired">
+      <bpmn:incoming>f_7</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_Articles" name="DynamoDB articles crawl, summary, metadata, freshness"></bpmn:dataStoreReference>
+    <bpmn:endEvent id="n_Note" name="upsertAndPersist persists first, then dispatches empty writes scope skips the save but still dispatches">
+      <bpmn:incoming>f_9</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_Agg" targetRef="n_SubLink" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_Agg" targetRef="n_ReqRec" />
+    <bpmn:sequenceFlow id="f_2" name="effect" sourceRef="n_SubLink" targetRef="n_Eff" />
+    <bpmn:sequenceFlow id="f_3" name="effect" sourceRef="n_ReqRec" targetRef="n_Eff" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_Eff" targetRef="n_Disp" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_Disp" targetRef="n_Pub" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_Pub" targetRef="n_Cmd" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_Cmd" targetRef="n_Bus" />
+    <bpmn:sequenceFlow id="f_9" name="ordering" sourceRef="n_Agg" targetRef="n_Note" />
+    <bpmn:association id="f_8" sourceRef="n_Agg" targetRef="n_Articles" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_what_this_pr_ships_transitions_emit_disp">
+    <bpmndi:BPMNPlane id="Plane_what_this_pr_ships_transitions_emit_disp" bpmnElement="Process_what_this_pr_ships_transitions_emit_disp">
+      <bpmndi:BPMNShape id="n_Agg_di" bpmnElement="n_Agg">
+        <dc:Bounds x="351.73" y="28" width="184.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SubLink_di" bpmnElement="n_SubLink">
+        <dc:Bounds x="28" y="160.25" width="201.5" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ReqRec_di" bpmnElement="n_ReqRec">
+        <dc:Bounds x="265.5" y="168.25" width="196" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Eff_di" bpmnElement="n_Eff">
+        <dc:Bounds x="345.1" y="324.5" width="198" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Disp_di" bpmnElement="n_Disp">
+        <dc:Bounds x="347.6" y="450.5" width="193" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Pub_di" bpmnElement="n_Pub">
+        <dc:Bounds x="365.35" y="560.5" width="157.5" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Cmd_di" bpmnElement="n_Cmd">
+        <dc:Bounds x="345.1" y="702.5" width="198" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Bus_di" bpmnElement="n_Bus">
+        <dc:Bounds x="353.23" y="812.5" width="181.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Articles_di" bpmnElement="n_Articles">
+        <dc:Bounds x="497.5" y="164" width="177.32" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Note_di" bpmnElement="n_Note">
+        <dc:Bounds x="765.51" y="154" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="444.1" y="96" />
+        <di:waypoint x="444.1" y="128.13" />
+        <di:waypoint x="128.75" y="128.13" />
+        <di:waypoint x="128.75" y="160.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="444.1" y="96" />
+        <di:waypoint x="444.1" y="132.13" />
+        <di:waypoint x="363.5" y="132.13" />
+        <di:waypoint x="363.5" y="168.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="128.75" y="260.25" />
+        <di:waypoint x="128.75" y="292.38" />
+        <di:waypoint x="444.1" y="292.38" />
+        <di:waypoint x="444.1" y="324.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="363.5" y="252.25" />
+        <di:waypoint x="363.5" y="288.38" />
+        <di:waypoint x="444.1" y="288.38" />
+        <di:waypoint x="444.1" y="324.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="444.1" y="392.5" />
+        <di:waypoint x="444.1" y="450.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="444.1" y="502.5" />
+        <di:waypoint x="444.1" y="560.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="444.1" y="644.5" />
+        <di:waypoint x="444.1" y="702.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="444.1" y="754.5" />
+        <di:waypoint x="444.1" y="812.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="444.1" y="96" />
+        <di:waypoint x="444.1" y="125" />
+        <di:waypoint x="785.51" y="125" />
+        <di:waypoint x="785.51" y="154" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="444.1" y="96" />
+        <di:waypoint x="444.1" y="130" />
+        <di:waypoint x="586.16" y="130" />
+        <di:waypoint x="586.16" y="164" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_presence_server_side_only" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_presence_server_side_only" name="presence-server-side-only" isExecutable="false">
+    <bpmn:serviceTask id="n_VIEW" name="GET /queue/:id/view owner branch"></bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_UA" name="user-articles row viewedAt"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_SUMMARY" name="GET /queue/:id/summary in-reader poll"></bpmn:serviceTask>
+    <bpmn:serviceTask id="n_READER" name="GET /queue/:id/reader in-reader poll"></bpmn:serviceTask>
+    <bpmn:serviceTask id="n_CARD" name="GET /queue/:id/card queue-list glance"></bpmn:serviceTask>
+    <bpmn:association id="f_0" sourceRef="n_VIEW" targetRef="n_UA" associationDirection="One" />
+    <bpmn:association id="f_1" sourceRef="n_SUMMARY" targetRef="n_UA" associationDirection="One" />
+    <bpmn:association id="f_2" sourceRef="n_READER" targetRef="n_UA" associationDirection="One" />
+    <bpmn:association id="f_3" sourceRef="n_CARD" targetRef="n_UA" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_presence_server_side_only">
+    <bpmndi:BPMNPlane id="Plane_presence_server_side_only" bpmnElement="Process_presence_server_side_only">
+      <bpmndi:BPMNShape id="n_VIEW_di" bpmnElement="n_VIEW">
+        <dc:Bounds x="42.13" y="28" width="157" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_UA_di" bpmnElement="n_UA">
+        <dc:Bounds x="271.25" y="146.5" width="123.42" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SUMMARY_di" bpmnElement="n_SUMMARY">
+        <dc:Bounds x="28" y="116" width="185.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_READER_di" bpmnElement="n_READER">
+        <dc:Bounds x="36" y="204" width="169.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CARD_di" bpmnElement="n_CARD">
+        <dc:Bounds x="43" y="292" width="155.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="199.13" y="54" />
+        <di:waypoint x="235.19" y="54" />
+        <di:waypoint x="235.19" y="170.5" />
+        <di:waypoint x="271.25" y="170.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="213.25" y="142" />
+        <di:waypoint x="242.25" y="142" />
+        <di:waypoint x="242.25" y="170.5" />
+        <di:waypoint x="271.25" y="170.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="205.25" y="230" />
+        <di:waypoint x="238.25" y="230" />
+        <di:waypoint x="238.25" y="170.5" />
+        <di:waypoint x="271.25" y="170.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="198.25" y="318" />
+        <di:waypoint x="234.75" y="318" />
+        <di:waypoint x="234.75" y="170.5" />
+        <di:waypoint x="271.25" y="170.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

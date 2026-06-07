@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_diagram_4_access_gate_pending_cancellati" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_diagram_4_access_gate_pending_cancellati" name="diagram-4-access-gate-pending-cancellati" isExecutable="false">
+    <bpmn:sendTask id="n_REQ" name="HTTP request (any authenticated route)">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_GATE" name="initGetEffectiveAccess">
+      <bpmn:incoming>f_0</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_DB_READ" name="subscription_providers (DynamoDB GetItem)"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_CHECK" name="status = pending_cancellation?">
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:businessRuleTask id="n_BEFORE" name="now() &lt; cancellationEffectiveAt">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:businessRuleTask id="n_AFTER" name="now() &gt;= cancellationEffectiveAt">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:endEvent id="n_FULL" name="access: full banner: cancellation-scheduled + Reactivate CTA">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="n_READONLY" name="access: read-only banner: inactive">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_REQ" targetRef="n_GATE" />
+    <bpmn:sequenceFlow id="f_3" name="yes" sourceRef="n_CHECK" targetRef="n_BEFORE" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_BEFORE" targetRef="n_FULL" />
+    <bpmn:sequenceFlow id="f_5" name="yes" sourceRef="n_CHECK" targetRef="n_AFTER" />
+    <bpmn:sequenceFlow id="f_6" name="" sourceRef="n_AFTER" targetRef="n_READONLY" />
+    <bpmn:association id="f_1" sourceRef="n_GATE" targetRef="n_DB_READ" associationDirection="One" />
+    <bpmn:association id="f_2" sourceRef="n_DB_READ" targetRef="n_CHECK" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_diagram_4_access_gate_pending_cancellati">
+    <bpmndi:BPMNPlane id="Plane_diagram_4_access_gate_pending_cancellati" bpmnElement="Process_diagram_4_access_gate_pending_cancellati">
+      <bpmndi:BPMNShape id="n_REQ_di" bpmnElement="n_REQ">
+        <dc:Bounds x="128.63" y="28" width="192.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_GATE_di" bpmnElement="n_GATE">
+        <dc:Bounds x="136.88" y="138" width="176.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DB_READ_di" bpmnElement="n_DB_READ">
+        <dc:Bounds x="149.87" y="244" width="150.26" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CHECK_di" bpmnElement="n_CHECK">
+        <dc:Bounds x="144" y="381" width="162" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_BEFORE_di" bpmnElement="n_BEFORE">
+        <dc:Bounds x="28" y="491" width="179" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_AFTER_di" bpmnElement="n_AFTER">
+        <dc:Bounds x="243" y="491" width="179" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_FULL_di" bpmnElement="n_FULL">
+        <dc:Bounds x="138.27" y="601" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_READONLY_di" bpmnElement="n_READONLY">
+        <dc:Bounds x="285.92" y="614.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="225" y="80" />
+        <di:waypoint x="225" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="225" y="433" />
+        <di:waypoint x="225" y="462" />
+        <di:waypoint x="117.5" y="462" />
+        <di:waypoint x="117.5" y="491" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="117.5" y="543" />
+        <di:waypoint x="117.5" y="572" />
+        <di:waypoint x="158.27" y="572" />
+        <di:waypoint x="158.27" y="601" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="225" y="433" />
+        <di:waypoint x="225" y="462" />
+        <di:waypoint x="332.5" y="462" />
+        <di:waypoint x="332.5" y="491" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="332.5" y="543" />
+        <di:waypoint x="332.5" y="578.75" />
+        <di:waypoint x="305.92" y="578.75" />
+        <di:waypoint x="305.92" y="614.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="225" y="186" />
+        <di:waypoint x="225" y="244" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="225" y="292" />
+        <di:waypoint x="225" y="381" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -8,6 +8,15 @@ A snapshot reflects the code as it existed at that commit. It does not auto-upda
 
 ---
 
+## BPMN renderings
+
+Every snapshot's Mermaid diagrams are also rendered in **BPMN** notation under
+its `diagrams-bpmn/` folder (`<name>.png` plus an editable, valid-BPMN-2.0
+`<name>.bpmn`). See [`tools/bpmn/README.md`](./tools/bpmn/) for the
+event-storming → BPMN element mapping and how to regenerate.
+
+---
+
 ## Snapshots
 
 | Commit | Date (commit) | Generated | Branch | Subject | Contents |
