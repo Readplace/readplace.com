@@ -44,7 +44,7 @@ export interface ReaderSlotInput {
  * so it stays consistent with the parser branch even for PDF URLs without
  * a `.pdf` suffix and for future uploaded-PDF flows that have no URL. */
 const PDF_LOADING_HINT =
-	"We optimise for accuracy over slop — low-quality PDFs may produce some gibberish.";
+	"We optimise for accuracy over slop — low-quality PDFs may produce some optical scan gibberish.";
 
 function resolveLoadingHint(url: string): string | undefined {
 	let pathname: string;
