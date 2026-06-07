@@ -433,6 +433,73 @@ describe("runAllPhases execution", () => {
 	});
 });
 
+describe("e2e command phase retry", () => {
+	it("retries an e2e command phase once when it fails then succeeds", async () => {
+		let calls = 0;
+		const { deps } = createInMemoryDeps({
+			execSync: () => {
+				calls += 1;
+				if (calls === 1) throw new Error("flaky e2e failure");
+				return Buffer.from("");
+			},
+		});
+		const runner = createRunner(deps);
+		const plan = runner.createTestPlan({
+			config: {
+				projectName: "My Project",
+				phases: [{ type: "node-test", name: "E2E tests", files: ["test.e2e.js"], e2e: true }],
+			},
+			projectRoot: "/projects/test",
+		});
+
+		await plan.runAllPhases();
+
+		expect(calls).toBe(2);
+	});
+
+	it("re-throws when an e2e command phase fails on both attempts", async () => {
+		let calls = 0;
+		const { deps } = createInMemoryDeps({
+			execSync: () => {
+				calls += 1;
+				throw new Error("persistent e2e failure");
+			},
+		});
+		const runner = createRunner(deps);
+		const plan = runner.createTestPlan({
+			config: {
+				projectName: "My Project",
+				phases: [{ type: "node-test", name: "E2E tests", files: ["test.e2e.js"], e2e: true }],
+			},
+			projectRoot: "/projects/test",
+		});
+
+		await expect(plan.runAllPhases()).rejects.toThrow("persistent e2e failure");
+		expect(calls).toBe(2);
+	});
+
+	it("does not retry a non-e2e command phase failure", async () => {
+		let calls = 0;
+		const { deps } = createInMemoryDeps({
+			execSync: () => {
+				calls += 1;
+				throw new Error("unit failure");
+			},
+		});
+		const runner = createRunner(deps);
+		const plan = runner.createTestPlan({
+			config: {
+				projectName: "My Project",
+				phases: [{ type: "jest", name: "unit tests", testMatch: "**/*.test.js", timeout: 10000 }],
+			},
+			projectRoot: "/projects/test",
+		});
+
+		await expect(plan.runAllPhases()).rejects.toThrow("unit failure");
+		expect(calls).toBe(1);
+	});
+});
+
 describe("e2e phase skipping", () => {
 	it("skips phases marked e2e when shouldSkipE2E returns true", async () => {
 		const { deps, executedCommands } = createInMemoryDeps({ shouldSkipE2E: () => true });

@@ -167,6 +167,24 @@ export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
 		});
 	}
 
+	function runCommandPhase(
+		displayName: string,
+		command: string,
+		options: { cwd: string; extraEnv?: Record<string, string>; e2e: boolean },
+	) {
+		try {
+			runCommand(displayName, command, options);
+		} catch (error) {
+			// Browser-extension E2E phases drive selenium/geckodriver, which
+			// intermittently fails on transient navigation stalls. One clean retry
+			// extends the `retries: 1` policy the Playwright phases already have to
+			// these node-test phases, which otherwise have no flakiness cushion.
+			if (!options.e2e) throw error;
+			deps.log(`\n=== ${displayName} - retrying once after failure (e2e) ===\n`);
+			runCommand(displayName, command, options);
+		}
+	}
+
 	function runPlaywrightPhase(displayName: string, phase: ResolvedPlaywrightPhase, projectRoot: string) {
 		deps.log(`\n=== ${displayName} ===\n`);
 
@@ -230,9 +248,10 @@ export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
 							continue;
 						}
 
-						runCommand(displayName, phase.command, {
+						runCommandPhase(displayName, phase.command, {
 							cwd: input.projectRoot,
 							extraEnv: "env" in phase ? phase.env : undefined,
+							e2e: phase.e2e,
 						});
 					}
 

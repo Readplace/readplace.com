@@ -34,7 +34,15 @@ export function createLoginActions(config: {
 			const newTab = handles.find((h) => h !== config.popupWindowHandle);
 			if (!newTab) throw new Error("No new tab found for login");
 			await driver.switchTo().window(newTab);
-			await driver.wait(until.elementLocated(By.id(ELEMENT_IDS.emailInput)), 30000);
+			// The freshly-opened OAuth tab occasionally never paints #email under CI
+			// load because its initial navigation stalls. Reload once before the full
+			// wait so a transient stalled load self-heals instead of failing the flow.
+			try {
+				await driver.wait(until.elementLocated(By.id(ELEMENT_IDS.emailInput)), 20000);
+			} catch {
+				await driver.navigate().refresh();
+				await driver.wait(until.elementLocated(By.id(ELEMENT_IDS.emailInput)), 30000);
+			}
 		},
 	});
 
