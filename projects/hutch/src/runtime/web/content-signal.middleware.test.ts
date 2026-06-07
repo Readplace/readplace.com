@@ -57,7 +57,16 @@ describe("contentSignalMiddleware", () => {
 		expect(next).toHaveBeenCalled();
 	});
 
-	it.each(["/robots.txt", "/llms.txt", "/llms-full.txt", "/sitemap.xml", "/health"])(
+	it.each([
+		"/robots.txt",
+		"/llms.txt",
+		"/llms-full.txt",
+		"/sitemap.xml",
+		"/health",
+		"/.well-known/api-catalog",
+		"/.well-known/oauth-authorization-server",
+		"/.well-known/oauth-protected-resource",
+	])(
 		"skips Content-Signal and Vary on non-page GET %s",
 		(path) => {
 			const { headers, varied, res } = createFakeRes();
