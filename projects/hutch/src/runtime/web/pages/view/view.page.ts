@@ -95,6 +95,7 @@ function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
 		findGeneratedSummary: deps.findGeneratedSummary,
 		readArticleContent: deps.readArticleContent,
 		findArticleByUrl: deps.findArticleByUrl,
+		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatViewDocumentTitle,
 		now: deps.now,
 	};

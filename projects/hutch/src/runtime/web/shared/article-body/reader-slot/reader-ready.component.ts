@@ -11,9 +11,13 @@ const TEMPLATE = readFileSync(
 export interface ReaderReadyInput {
 	content: string;
 	oob?: boolean;
+	appOrigin: string;
 }
 
 export function renderReaderReady(input: ReaderReadyInput): string {
-	const srcdoc = buildReaderIframeSrcdoc({ content: input.content });
+	const srcdoc = buildReaderIframeSrcdoc({
+		content: input.content,
+		appOrigin: input.appOrigin,
+	});
 	return render(TEMPLATE, { srcdoc, oob: input.oob === true });
 }

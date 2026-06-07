@@ -69,6 +69,7 @@ export function ReaderPage(
 		summaryOpen: true,
 		progress: options.progress,
 		audioEnabled: options.audioEnabled,
+		appOrigin: options.appOrigin,
 		backLink: {
 			topHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-top",
 			bottomHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-bottom",

@@ -8,6 +8,7 @@ function parse(html: string) {
 }
 
 const URL = "https://example.com/article";
+const APP_ORIGIN = "https://readplace.com";
 
 describe("renderReaderSlot", () => {
 	it("returns only the slot HTML (no outer page)", () => {
@@ -15,6 +16,7 @@ describe("renderReaderSlot", () => {
 			crawl: { status: "ready" },
 			content: "<p>Body</p>",
 			url: URL,
+			appOrigin: APP_ORIGIN,
 		});
 
 		expect(html.startsWith("<div")).toBe(true);
@@ -27,6 +29,7 @@ describe("renderReaderSlot", () => {
 				crawl: { status: "pending" },
 				url: URL,
 				readerPollUrl: "/queue/abc/reader?poll=1",
+				appOrigin: APP_ORIGIN,
 			}),
 		);
 
@@ -43,6 +46,7 @@ describe("renderReaderSlot", () => {
 				crawl: { status: "pending" },
 				url: "https://www.cia.gov/readingroom/docs/COMPUTERS%20AND%20AUTOMATION%20[16505689].pdf",
 				readerPollUrl: "/queue/abc/reader?poll=1",
+				appOrigin: APP_ORIGIN,
 			}),
 		);
 
@@ -57,6 +61,7 @@ describe("renderReaderSlot", () => {
 				crawl: { status: "pending" },
 				url: "https://example.com/articles/some-post",
 				readerPollUrl: "/queue/abc/reader?poll=1",
+				appOrigin: APP_ORIGIN,
 			}),
 		);
 
@@ -69,6 +74,7 @@ describe("renderReaderSlot", () => {
 				crawl: { status: "pending" },
 				url: "not-a-valid-url",
 				readerPollUrl: "/queue/abc/reader?poll=1",
+				appOrigin: APP_ORIGIN,
 			}),
 		);
 
@@ -80,6 +86,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: { status: "pending" },
 				url: URL,
+				appOrigin: APP_ORIGIN,
 			}),
 		);
 
@@ -98,6 +105,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: { status: "failed", reason: "exceeded SQS maxReceiveCount" },
 				url: URL,
+				appOrigin: APP_ORIGIN,
 			}),
 		);
 
@@ -124,6 +132,7 @@ describe("renderReaderSlot", () => {
 					reason: "non-html content type: application/pdf",
 				},
 				url: URL,
+				appOrigin: APP_ORIGIN,
 			}),
 		);
 
@@ -143,6 +152,7 @@ describe("renderReaderSlot", () => {
 				crawl: { status: "ready" },
 				content: "<p>Body copy</p>",
 				url: URL,
+				appOrigin: APP_ORIGIN,
 			}),
 		);
 
@@ -163,6 +173,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				url: URL,
 				readerPollUrl: "/queue/abc/reader?poll=1",
+				appOrigin: APP_ORIGIN,
 			}),
 		);
 
@@ -173,7 +184,7 @@ describe("renderReaderSlot", () => {
 	});
 
 	it("renders the 'slow' reframe when crawl status is missing and there is no poll URL left", () => {
-		const doc = parse(renderReaderSlot({ url: URL }));
+		const doc = parse(renderReaderSlot({ url: URL, appOrigin: APP_ORIGIN }));
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
@@ -185,6 +196,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				content: "<p>Legacy body</p>",
 				url: URL,
+				appOrigin: APP_ORIGIN,
 			}),
 		);
 
@@ -199,6 +211,7 @@ describe("renderReaderSlot", () => {
 				crawl: { status: "ready" },
 				url: URL,
 				readerPollUrl: "/queue/abc/reader?poll=1",
+				appOrigin: APP_ORIGIN,
 			}),
 		);
 
@@ -212,6 +225,7 @@ describe("renderReaderSlot", () => {
 			renderReaderSlot({
 				crawl: { status: "ready" },
 				url: URL,
+				appOrigin: APP_ORIGIN,
 			}),
 		);
 
@@ -225,10 +239,10 @@ describe("renderReaderSlot", () => {
 			input: Parameters<typeof renderReaderSlot>[0];
 			expected: string;
 		}> = [
-			{ input: { crawl: { status: "ready" }, content: "<p>x</p>", url: URL }, expected: "ready" },
-			{ input: { crawl: { status: "pending" }, url: URL, readerPollUrl: "/p" }, expected: "pending" },
-			{ input: { crawl: { status: "failed", reason: "x" }, url: URL }, expected: "failed" },
-			{ input: { crawl: { status: "unsupported", reason: "x" }, url: URL }, expected: "unsupported" },
+			{ input: { crawl: { status: "ready" }, content: "<p>x</p>", url: URL, appOrigin: APP_ORIGIN }, expected: "ready" },
+			{ input: { crawl: { status: "pending" }, url: URL, readerPollUrl: "/p", appOrigin: APP_ORIGIN }, expected: "pending" },
+			{ input: { crawl: { status: "failed", reason: "x" }, url: URL, appOrigin: APP_ORIGIN }, expected: "failed" },
+			{ input: { crawl: { status: "unsupported", reason: "x" }, url: URL, appOrigin: APP_ORIGIN }, expected: "unsupported" },
 		];
 
 		for (const { input, expected } of variants) {

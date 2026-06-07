@@ -60,6 +60,7 @@ interface PollResponseBodyInput {
 	extensionInstallUrl: string | undefined;
 	progress: ProgressTick | undefined;
 	metadataOob: string;
+	appOrigin: string;
 }
 
 function renderPollResponseBody(input: PollResponseBodyInput): string {
@@ -70,6 +71,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		readerPollUrl: input.readerPollUrl,
 		extensionInstallUrl: input.extensionInstallUrl,
 		oob: input.primary !== "reader",
+		appOrigin: input.appOrigin,
 	});
 	const summarySlot = renderSummarySlot({
 		crawl: input.crawl,
@@ -272,6 +274,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 			metadataOob: buildMetadataOob(article, articleUrl),
+			appOrigin: deps.appOrigin,
 		}));
 	}
 
@@ -298,6 +301,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 			metadataOob: buildMetadataOob(article, articleUrl),
+			appOrigin: deps.appOrigin,
 		}));
 	}
 

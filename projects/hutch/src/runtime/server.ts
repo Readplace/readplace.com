@@ -681,6 +681,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.use("/view", viewRouter);
 
 	const adminRecrawlRouter = initAdminRecrawlRoutes({
+		appOrigin,
 		findArticleByUrl: deps.findArticleByUrl,
 		readArticleContent: deps.readArticleContent,
 		findGeneratedSummary: deps.findGeneratedSummary,

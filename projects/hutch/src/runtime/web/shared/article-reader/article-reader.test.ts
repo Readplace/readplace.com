@@ -86,6 +86,7 @@ function initFakeDeps(initial: {
 		readArticleContent: async () => state.content,
 		findArticleByUrl: async () => state.article,
 		formatDocumentTitle: (title) => `${title} — TestReader`,
+		appOrigin: "https://readplace.com",
 		now: () => FIXED_NOW,
 	};
 	return { state, deps };

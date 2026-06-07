@@ -27,6 +27,7 @@ import { initRequireAdmin } from "./require-admin.middleware";
 const RecrawlUrlSchema = z.url();
 
 export interface AdminRecrawlDependencies {
+	appOrigin: string;
 	findArticleByUrl: FindArticleByUrl;
 	readArticleContent: ReadArticleContent;
 	findGeneratedSummary: FindGeneratedSummary;
@@ -146,6 +147,7 @@ function handleRecrawlArticle(
 
 		const html = Base(AdminRecrawlPage({
 			articleUrl,
+			appOrigin: deps.appOrigin,
 			metadata: existing.metadata,
 			estimatedReadTime: existing.estimatedReadTime,
 			content: state.content,
@@ -218,6 +220,7 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 		findGeneratedSummary: deps.findGeneratedSummary,
 		readArticleContent: deps.readArticleContent,
 		findArticleByUrl: deps.findArticleByUrl,
+		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatRecrawlDocumentTitle,
 		now: deps.now,
 	});

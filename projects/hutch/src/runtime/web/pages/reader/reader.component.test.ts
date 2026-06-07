@@ -74,6 +74,37 @@ describe("ReaderPage", () => {
 		assert.equal(copyUrl.searchParams.get("utm_content"), "abcdef");
 	});
 
+	it("keeps same-host in-article links in the reader tab while leaving external links alone", () => {
+		const article = makeArticle({
+			content:
+				'<a href="https://readplace.com/queue" target="_blank">my queue</a>' +
+				'<a href="https://example.com/other" target="_blank">elsewhere</a>',
+		});
+		const html = Base(ReaderPage(article, { appOrigin: "https://readplace.com" }), {
+			isAuthenticated: true,
+			emailVerified: undefined,
+		}).to("text/html").body;
+
+		const iframe = new JSDOM(html).window.document.querySelector(
+			"iframe[data-reader-iframe]",
+		);
+		assert(iframe, "reader iframe must be rendered");
+		const srcdoc = iframe.getAttribute("srcdoc");
+		assert(srcdoc, "reader iframe must carry a srcdoc");
+		const iframeDoc = new JSDOM(srcdoc).window.document;
+
+		const internal = iframeDoc.querySelector(
+			'a[href="https://readplace.com/queue"]',
+		);
+		const external = iframeDoc.querySelector(
+			'a[href="https://example.com/other"]',
+		);
+		assert(internal, "internal link must be present");
+		assert(external, "external link must be present");
+		assert.equal(internal.getAttribute("target"), "_top");
+		assert.equal(external.getAttribute("target"), "_blank");
+	});
+
 	it("renders the share-balloon URLs against the supplied appOrigin, not a hardcoded host", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), { appOrigin: "https://staging.readplace.com" }),

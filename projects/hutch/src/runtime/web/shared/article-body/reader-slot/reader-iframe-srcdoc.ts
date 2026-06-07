@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { keepSameHostLinksInSamePage } from "./same-host-links";
 
 const READER_IFRAME_CSS = readFileSync(
 	join(__dirname, "reader-iframe.styles.css"),
@@ -8,6 +9,12 @@ const READER_IFRAME_CSS = readFileSync(
 
 export interface ReaderIframeSrcdocInput {
 	content: string;
+	/**
+	 * The deployment's own origin (e.g. https://readplace.com). In-article links
+	 * back to this host are rewritten to navigate the reader's own tab rather
+	 * than open a new one.
+	 */
+	appOrigin: string;
 }
 
 /**
@@ -25,5 +32,9 @@ export interface ReaderIframeSrcdocInput {
 export function buildReaderIframeSrcdoc(
 	input: ReaderIframeSrcdocInput,
 ): string {
-	return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base target="_top"><style>${READER_IFRAME_CSS}</style></head><body class="article-body__content">${input.content}</body></html>`;
+	const content = keepSameHostLinksInSamePage({
+		html: input.content,
+		appHost: new URL(input.appOrigin).host,
+	});
+	return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base target="_top"><style>${READER_IFRAME_CSS}</style></head><body class="article-body__content">${content}</body></html>`;
 }
