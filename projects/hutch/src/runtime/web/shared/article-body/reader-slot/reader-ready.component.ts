@@ -11,7 +11,7 @@ const TEMPLATE = readFileSync(
 export interface ReaderReadyInput {
 	content: string;
 	oob?: boolean;
-	appOrigin?: string;
+	appOrigin: string;
 }
 
 export function renderReaderReady(input: ReaderReadyInput): string {

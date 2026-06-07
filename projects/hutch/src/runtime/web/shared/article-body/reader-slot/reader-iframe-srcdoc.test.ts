@@ -4,7 +4,7 @@ import { buildReaderIframeSrcdoc } from "./reader-iframe-srcdoc";
 
 describe("buildReaderIframeSrcdoc", () => {
 	it("returns a full HTML document containing the article content inside the body", () => {
-		const srcdoc = buildReaderIframeSrcdoc({ content: "<p>Body copy</p>" });
+		const srcdoc = buildReaderIframeSrcdoc({ content: "<p>Body copy</p>", appOrigin: "https://readplace.com" });
 		const doc = new JSDOM(srcdoc).window.document;
 
 		assert(doc.body, "iframe document must have a body");
@@ -13,7 +13,7 @@ describe("buildReaderIframeSrcdoc", () => {
 	});
 
 	it("injects a <base target=\"_top\"> so links navigate the parent tab", () => {
-		const srcdoc = buildReaderIframeSrcdoc({ content: "" });
+		const srcdoc = buildReaderIframeSrcdoc({ content: "", appOrigin: "https://readplace.com" });
 		const doc = new JSDOM(srcdoc).window.document;
 
 		const base = doc.querySelector("base");
@@ -22,7 +22,7 @@ describe("buildReaderIframeSrcdoc", () => {
 	});
 
 	it("declares utf-8 and a viewport so reader typography renders correctly across devices", () => {
-		const srcdoc = buildReaderIframeSrcdoc({ content: "" });
+		const srcdoc = buildReaderIframeSrcdoc({ content: "", appOrigin: "https://readplace.com" });
 		const doc = new JSDOM(srcdoc).window.document;
 
 		expect(doc.querySelector("meta[charset]")?.getAttribute("charset")).toBe(
@@ -34,7 +34,7 @@ describe("buildReaderIframeSrcdoc", () => {
 	});
 
 	it("embeds reader CSS scoped to .article-body__content typography rules", () => {
-		const srcdoc = buildReaderIframeSrcdoc({ content: "<p>x</p>" });
+		const srcdoc = buildReaderIframeSrcdoc({ content: "<p>x</p>", appOrigin: "https://readplace.com" });
 		const doc = new JSDOM(srcdoc).window.document;
 
 		const style = doc.querySelector("style");
@@ -46,7 +46,7 @@ describe("buildReaderIframeSrcdoc", () => {
 	});
 
 	it("keeps the iframe body and html backgrounds transparent so the parent surface shows through", () => {
-		const srcdoc = buildReaderIframeSrcdoc({ content: "" });
+		const srcdoc = buildReaderIframeSrcdoc({ content: "", appOrigin: "https://readplace.com" });
 		const doc = new JSDOM(srcdoc).window.document;
 		const style = doc.querySelector("style");
 		assert(style, "style block must exist");
@@ -56,7 +56,7 @@ describe("buildReaderIframeSrcdoc", () => {
 	});
 
 	it("clips vertical overflow at the iframe root so long content cannot trigger a stray vertical scrollbar on the iframe", () => {
-		const srcdoc = buildReaderIframeSrcdoc({ content: "" });
+		const srcdoc = buildReaderIframeSrcdoc({ content: "", appOrigin: "https://readplace.com" });
 		const doc = new JSDOM(srcdoc).window.document;
 		const style = doc.querySelector("style");
 		assert(style, "style block must exist");
@@ -96,7 +96,7 @@ describe("buildReaderIframeSrcdoc", () => {
 	it("does not strip the article content's own tags (the sandbox is responsible for isolation)", () => {
 		const dangerous =
 			'<p>safe</p><style>html{display:none}</style><img onerror="x">';
-		const srcdoc = buildReaderIframeSrcdoc({ content: dangerous });
+		const srcdoc = buildReaderIframeSrcdoc({ content: dangerous, appOrigin: "https://readplace.com" });
 		const doc = new JSDOM(srcdoc).window.document;
 		assert(doc.body, "body must be present");
 

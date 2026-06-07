@@ -10,12 +10,11 @@ const READER_IFRAME_CSS = readFileSync(
 export interface ReaderIframeSrcdocInput {
 	content: string;
 	/**
-	 * The deployment's own origin (e.g. https://readplace.com). When provided,
-	 * in-article links back to this host are rewritten to navigate the reader's
-	 * own tab rather than open a new one. Omitted by unit tests that only assert
-	 * the document shell.
+	 * The deployment's own origin (e.g. https://readplace.com). In-article links
+	 * back to this host are rewritten to navigate the reader's own tab rather
+	 * than open a new one.
 	 */
-	appOrigin?: string;
+	appOrigin: string;
 }
 
 /**
@@ -33,11 +32,9 @@ export interface ReaderIframeSrcdocInput {
 export function buildReaderIframeSrcdoc(
 	input: ReaderIframeSrcdocInput,
 ): string {
-	const content = input.appOrigin
-		? keepSameHostLinksInSamePage({
-				html: input.content,
-				appHost: new URL(input.appOrigin).host,
-			})
-		: input.content;
+	const content = keepSameHostLinksInSamePage({
+		html: input.content,
+		appHost: new URL(input.appOrigin).host,
+	});
 	return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><base target="_top"><style>${READER_IFRAME_CSS}</style></head><body class="article-body__content">${content}</body></html>`;
 }

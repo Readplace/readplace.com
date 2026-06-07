@@ -49,7 +49,7 @@ export interface ArticleBodyInput {
 	progress?: ProgressTick;
 	/** Deployment origin, used to keep same-host in-article links in the reader
 	 * tab rather than opening a new one. */
-	appOrigin?: string;
+	appOrigin: string;
 }
 
 export function renderArticleBody(input: ArticleBodyInput): string {

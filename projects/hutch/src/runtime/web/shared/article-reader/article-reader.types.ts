@@ -25,7 +25,7 @@ export interface ArticleReaderDeps {
 	 * finishes while the page is open, so the same-host link rewrite must run
 	 * here too — not just on the initial SSR render.
 	 */
-	appOrigin?: string;
+	appOrigin: string;
 	/**
 	 * Used by the poll handlers to read the latest metadata on every tick so
 	 * the header (title, siteName, readTime) and document <title> can settle

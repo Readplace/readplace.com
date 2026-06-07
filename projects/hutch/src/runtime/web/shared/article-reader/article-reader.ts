@@ -60,7 +60,7 @@ interface PollResponseBodyInput {
 	extensionInstallUrl: string | undefined;
 	progress: ProgressTick | undefined;
 	metadataOob: string;
-	appOrigin: string | undefined;
+	appOrigin: string;
 }
 
 function renderPollResponseBody(input: PollResponseBodyInput): string {

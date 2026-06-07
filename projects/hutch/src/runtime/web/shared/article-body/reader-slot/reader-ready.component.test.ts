@@ -17,7 +17,7 @@ function readSrcdoc(doc: Document): Document {
 
 describe("renderReaderReady", () => {
 	it("renders the article content inside a sandboxed iframe", () => {
-		const doc = parse(renderReaderReady({ content: "<p>Body copy</p>" }));
+		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: "<p>Body copy</p>" }));
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");
@@ -29,7 +29,7 @@ describe("renderReaderReady", () => {
 	});
 
 	it("preserves the legacy data-test-reader-content attribute on the iframe so existing tests can target the body", () => {
-		const doc = parse(renderReaderReady({ content: "<p>x</p>" }));
+		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: "<p>x</p>" }));
 
 		const legacyTarget = doc.querySelector("[data-test-reader-content]");
 		assert(legacyTarget, "legacy data-test-reader-content must be present");
@@ -37,7 +37,7 @@ describe("renderReaderReady", () => {
 	});
 
 	it("declares a sandbox attribute that blocks scripts and permits parent-tab navigation", () => {
-		const doc = parse(renderReaderReady({ content: "<p>x</p>" }));
+		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: "<p>x</p>" }));
 
 		const iframe = doc.querySelector("iframe[data-reader-iframe]");
 		assert(iframe, "reader iframe must be rendered");
@@ -60,6 +60,7 @@ describe("renderReaderReady", () => {
 		const doc = parse(
 			renderReaderReady({
 				content: '<p>safe</p><img src="x" onerror="alert(1)">',
+				appOrigin: "https://readplace.com",
 			}),
 		);
 
@@ -77,7 +78,7 @@ describe("renderReaderReady", () => {
 	});
 
 	it("matches parent theme via prefers-color-scheme so the iframe never flashes the wrong mode", () => {
-		const doc = parse(renderReaderReady({ content: "<p>x</p>" }));
+		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: "<p>x</p>" }));
 		const iframeDoc = readSrcdoc(doc);
 		const style = iframeDoc.querySelector("style");
 		assert(style, "iframe document must embed reader CSS");
@@ -88,7 +89,7 @@ describe("renderReaderReady", () => {
 
 	it("flags the iframe with hx-swap-oob when oob is true so HTMX swaps replace the live slot", () => {
 		const doc = parse(
-			renderReaderReady({ content: "<p>x</p>", oob: true }),
+			renderReaderReady({ content: "<p>x</p>", oob: true, appOrigin: "https://readplace.com" }),
 		);
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
@@ -97,7 +98,7 @@ describe("renderReaderReady", () => {
 	});
 
 	it("omits hx-swap-oob when oob is absent (initial SSR render)", () => {
-		const doc = parse(renderReaderReady({ content: "<p>x</p>" }));
+		const doc = parse(renderReaderReady({ appOrigin: "https://readplace.com", content: "<p>x</p>" }));
 
 		const slot = doc.querySelector("[data-test-reader-slot]");
 		assert(slot, "reader slot must be rendered");

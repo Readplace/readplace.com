@@ -34,7 +34,7 @@ export interface AdminRecrawlPageInput {
 	progress?: ProgressTick;
 	contentSourceTier?: "tier-0" | "tier-1";
 	extensionInstallUrl?: string;
-	appOrigin?: string;
+	appOrigin: string;
 }
 
 /**

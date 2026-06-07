@@ -12,7 +12,7 @@ export interface ReaderSlotInput {
 	extensionInstallUrl?: string;
 	/** Deployment origin, used to keep same-host in-article links in the reader
 	 * tab. Threaded down to the iframe builder. */
-	appOrigin?: string;
+	appOrigin: string;
 	/* When true, the rendered slot carries `hx-swap-oob="outerHTML"` so HTMX
 	 * splices it into a sibling poll response and replaces the live slot. The
 	 * stable `id="article-body-reader-slot"` on every variant gives HTMX a

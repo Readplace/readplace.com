@@ -8,6 +8,7 @@ const baseInput = {
 	siteName: "example.com",
 	estimatedReadTime: 3 as Minutes,
 	url: "https://example.com/post",
+	appOrigin: "https://readplace.com",
 };
 
 function parse(html: string) {
