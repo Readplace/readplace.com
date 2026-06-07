@@ -69,6 +69,7 @@ function makeOcr(overrides: Partial<Parameters<typeof initOcrPdf>[0]> = {}) {
 	return initOcrPdf({
 		logger: noopLogger,
 		extractPdfMetadata: stubMetadata({ numPages: 1 }),
+		extractPdfText: async () => "",
 		stagePdf: stubStagePdf(),
 		invokePageOcr: stubInvokePageOcr(() => "default page text"),
 		invokePageLlmCleanup: stubCleanupPassthrough,
@@ -892,5 +893,149 @@ describe("initOcrPdf — stage 3 semantic HTML conversion", () => {
 
 		expect(observedPeak).toBeLessThanOrEqual(2);
 		expect(observedPeak).toBeGreaterThan(0);
+	});
+});
+
+describe("initOcrPdf — text-layer fast path", () => {
+	it("reads born-digital pages from the text layer, skipping staging/OCR/cleanup/diff-review", async () => {
+		let stageCalled = false;
+		let ocrCalled = false;
+		let cleanupCalled = false;
+		let diffReviewCalled = false;
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 2, title: "Born Digital" }),
+			extractPdfText: async () => "alpha text\fbeta text",
+			stagePdf: async () => {
+				stageCalled = true;
+				return { key: "unused", cleanup: async () => {} };
+			},
+			invokePageOcr: async () => {
+				ocrCalled = true;
+				return { ok: true, html: "" };
+			},
+			invokePageLlmCleanup: async ({ ocrText }) => {
+				cleanupCalled = true;
+				return { ok: true, cleanedText: ocrText, applied: false };
+			},
+			invokeDocumentDiffReview: async ({ pages }) => {
+				diffReviewCalled = true;
+				return { ok: true, applied: false, pages: pages.map((p) => ({ pageIndex: p.pageIndex, finalText: p.cleanedText })) };
+			},
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF-1.7"), url: "https://example.com/paper.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		expect(stageCalled).toBe(false);
+		expect(ocrCalled).toBe(false);
+		expect(cleanupCalled).toBe(false);
+		expect(diffReviewCalled).toBe(false);
+		expect(result.title).toBe("Born Digital");
+		expect(result.html).toContain('<p class="ocr-tesseract">alpha text</p>');
+		expect(result.html).toContain('<p class="ocr-tesseract">beta text</p>');
+	});
+
+	it("still sends each text-layer page through the html-convert stage", async () => {
+		const converted: Array<{ pageIndex: number; pageText: string }> = [];
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 2 }),
+			extractPdfText: async () => "first page\fsecond page",
+			invokePageHtmlConvert: async ({ pageIndex, pageText }) => {
+				converted.push({ pageIndex, pageText });
+				return { ok: true, pageIndex, semanticHtml: `<h2>Page ${pageIndex}</h2>`, applied: true };
+			},
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		expect(converted.sort((a, b) => a.pageIndex - b.pageIndex)).toEqual([
+			{ pageIndex: 0, pageText: "first page" },
+			{ pageIndex: 1, pageText: "second page" },
+		]);
+		expect(result.html).toContain("<h2>Page 0</h2>");
+		expect(result.html).toContain("<h2>Page 1</h2>");
+	});
+
+	it("OCRs only the image pages of a mixed text/scanned PDF", async () => {
+		const ocrCalls: number[][] = [];
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 3, title: "Mixed" }),
+			// page 0 has a text layer, pages 1 and 2 are image-only (empty segments)
+			extractPdfText: async () => "page zero text\f\f",
+			invokePageOcr: async ({ pageIndices }) => {
+				ocrCalls.push([...pageIndices]);
+				return { ok: true, html: tesseractParagraph(`ocr-page-${pageIndices[0]}`) };
+			},
+			batchSize: 1,
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/mixed.pdf" });
+
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		expect(ocrCalls.sort((a, b) => a[0] - b[0])).toEqual([[1], [2]]);
+		expect(result.html).toContain('<p class="ocr-tesseract">page zero text</p>');
+		expect(result.html).toContain('<p class="ocr-tesseract">ocr-page-1</p>');
+		expect(result.html).toContain('<p class="ocr-tesseract">ocr-page-2</p>');
+	});
+
+	it("counts text-layer pages as successes so a mostly-digital PDF survives a failed image page", async () => {
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 5, title: "Mostly digital" }),
+			// 4 text pages + 1 image page (the trailing empty segment)
+			extractPdfText: async () => "p0\fp1\fp2\fp3\f",
+			invokePageOcr: async () => ({ ok: false, error: new Error("image page defeated OCR") }),
+			batchSize: 1,
+			partialSuccessThreshold: 0.8,
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		// 4/5 pages succeed via the text layer = 80%, meeting the threshold; the
+		// single failed image page renders a placeholder.
+		expect(result.kind).toBe("fetched");
+		if (result.kind !== "fetched") return;
+		expect(result.html).toContain('<p class="ocr-tesseract">p0</p>');
+		expect(result.html).toContain('<p class="ocr-failed">[Page 5: OCR unavailable]</p>');
+	});
+
+	it("reports text-layer pages as completed extraction progress without an OCR fan-out", async () => {
+		const progress: { partIndex: number; partCount: number; stage?: string }[] = [];
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 2 }),
+			extractPdfText: async () => "alpha\fbeta",
+		});
+
+		await ocr({
+			buffer: Buffer.from("%PDF"),
+			url: "https://example.com/x.pdf",
+			onProgress: (params) => { progress.push(params); },
+		});
+
+		// 2 text pages → 2 extracting fires, 1 cleaning stage-change marker, 2
+		// html-convert fires = 5 total.
+		expect(progress.filter((p) => p.stage === "comprehensive-extracting").length).toBe(2);
+		expect(progress.filter((p) => p.stage === "comprehensive-cleaning").length).toBe(3);
+		expect(progress.find((p) => p.stage === "comprehensive-cleaning" && p.partIndex === 0)).toBeDefined();
+	});
+
+	it("returns 'failed' when pdftotext throws — no silent OCR fallback", async () => {
+		let ocrCalled = false;
+		const ocr = makeOcr({
+			extractPdfMetadata: stubMetadata({ numPages: 2 }),
+			extractPdfText: async () => { throw new Error("pdftotext not found"); },
+			invokePageOcr: async ({ pageIndices }) => {
+				ocrCalled = true;
+				return { ok: true, html: tesseractParagraph(`ocr-${pageIndices[0]}`) };
+			},
+		});
+
+		const result = await ocr({ buffer: Buffer.from("%PDF"), url: "https://example.com/x.pdf" });
+
+		expect(result).toEqual({ kind: "failed", reason: "OCR pipeline failed: pdftotext not found" });
+		expect(ocrCalled).toBe(false);
 	});
 });

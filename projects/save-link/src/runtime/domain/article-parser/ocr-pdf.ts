@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { ExtractPdf, ExtractPdfMetadata, PdfExtractResult } from "@packages/crawl-article";
+import type { ExtractPdf, ExtractPdfMetadata, ExtractPdfText, PdfExtractResult } from "@packages/crawl-article";
 import { deriveTitleFromUrl, escapeHtmlText, MAX_PDF_BYTES, MAX_PDF_PAGES } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { retriable } from "@packages/retriable";
@@ -95,10 +95,13 @@ const PAGE_BREAK_HTML = '<hr class="ocr-page-break">';
 // link. Failed chunks render as `<p class="ocr-failed">` placeholders so the
 // document still reads as a whole and CSS can style the gaps. Below the
 // threshold the result is rejected the same way a total fan-out failure is.
+// Text-layer chunks (read straight from `pdftotext`) always count as
+// successes — only image chunks that fail OCR count against the ratio.
 const DEFAULT_PARTIAL_SUCCESS_THRESHOLD = 0.8;
 
 export function initOcrPdf(deps: {
 	extractPdfMetadata: ExtractPdfMetadata;
+	extractPdfText: ExtractPdfText;
 	stagePdf: StagePdfToS3;
 	invokePageOcr: InvokePdfPageOcr;
 	invokePageLlmCleanup: InvokePdfPageLlmCleanup;
@@ -122,7 +125,7 @@ export function initOcrPdf(deps: {
 	const maxPages = deps.maxPages ?? MAX_PDF_PAGES;
 	const maxPdfBytes = deps.maxPdfBytes ?? MAX_PDF_BYTES.bytes;
 	const partialSuccessThreshold = deps.partialSuccessThreshold ?? DEFAULT_PARTIAL_SUCCESS_THRESHOLD;
-	const { logger, extractPdfMetadata, stagePdf, invokePageOcr, invokePageLlmCleanup, invokeDocumentDiffReview, invokePageHtmlConvert } = deps;
+	const { logger, extractPdfMetadata, extractPdfText, stagePdf, invokePageOcr, invokePageLlmCleanup, invokeDocumentDiffReview, invokePageHtmlConvert } = deps;
 
 	return async ({ buffer, url, onProgress }): Promise<PdfExtractResult> => {
 		const t0 = Date.now();
@@ -154,7 +157,35 @@ export function initOcrPdf(deps: {
 		if (partCount === 0) {
 			return { kind: "failed", reason: "OCR returned no text across all batches" };
 		}
-		let completedParts = 0;
+
+		// Text-layer routing. `pdftotext` separates pages with a form-feed; a
+		// chunk whose every page carries non-empty text is read straight from
+		// the embedded text layer — skipping rasterise/OCR and the cleanup +
+		// diff-review passes that exist only to repair OCR error. A chunk with
+		// any empty page is OCR'd. A `pdftotext` failure fails the crawl the
+		// same way a pdfinfo failure does (surfacing on the DLQ) rather than
+		// silently masking a broken binary by falling back to OCR.
+		let fullText: string;
+		try {
+			fullText = await extractPdfText(buffer);
+		} catch (error) {
+			const message = normalizeUnknownError(error).message;
+			logger.error(`[ocr-pdf] pdftotext failed t=${Date.now() - t0}ms reason=${message}`);
+			return { kind: "failed", reason: `OCR pipeline failed: ${message}` };
+		}
+		const pageTexts = splitPageTexts(fullText, metadata.numPages);
+		const textChunkIndices = new Set<number>();
+		for (let i = 0; i < chunks.length; i++) {
+			if (chunks[i].every((pageIndex) => pageTexts[pageIndex].trim().length > 0)) {
+				textChunkIndices.add(i);
+			}
+		}
+		const imageChunks = chunks
+			.map((pageIndices, chunkIndex) => ({ pageIndices, chunkIndex }))
+			.filter(({ chunkIndex }) => !textChunkIndices.has(chunkIndex));
+		logger.info(`[ocr-pdf] routing pages=${metadata.numPages} textChunks=${textChunkIndices.size} imageChunks=${imageChunks.length} t=${Date.now() - t0}ms`);
+
+		const title = metadata.title ?? deriveTitleFromUrl(url);
 
 		const invokePageOcrWithRetry = retriable(invokePageOcr, {
 			maxAttempts: PAGE_OCR_MAX_ATTEMPTS,
@@ -162,167 +193,184 @@ export function initOcrPdf(deps: {
 			shouldRetry: (result) => !result.ok,
 		});
 
+		// Pre-HTML final text per chunk index. Text chunks resolve immediately;
+		// image chunks resolve after OCR + cleanup + diff-review. Chunks absent
+		// from this map are failed OCR chunks and render as placeholders.
+		const finalTextByChunkIndex = new Map<number, string>();
+		let completedParts = 0;
+
+		// Text chunks resolve with zero network work; report them as completed
+		// extraction parts so the progress bar advances for born-digital PDFs.
+		for (const chunkIndex of [...textChunkIndices].sort((a, b) => a - b)) {
+			finalTextByChunkIndex.set(
+				chunkIndex,
+				chunks[chunkIndex].map((pageIndex) => pageTexts[pageIndex]).join("\n\n"),
+			);
+			completedParts += 1;
+			onProgress?.({ partIndex: completedParts, partCount, stage: "comprehensive-extracting" });
+		}
+
 		try {
-			const staged = await stagePdf(buffer);
-			try {
-				const outcomes = await mapWithConcurrency(
-					chunks,
-					concurrency,
-					async (pageIndices): Promise<ChunkOutcome> => {
-						const chunkStart = Date.now();
-						const result = await invokePageOcrWithRetry({ pdfS3Key: staged.key, pageIndices, dpi });
-						if (!result.ok) {
-							return { ok: false, pageIndices, error: result.error };
+			if (imageChunks.length > 0) {
+				const staged = await stagePdf(buffer);
+				try {
+					const outcomes = await mapWithConcurrency(
+						imageChunks,
+						concurrency,
+						async ({ pageIndices, chunkIndex }): Promise<ChunkOutcome> => {
+							const chunkStart = Date.now();
+							const result = await invokePageOcrWithRetry({ pdfS3Key: staged.key, pageIndices, dpi });
+							if (!result.ok) {
+								return { ok: false, chunkIndex, pageIndices, error: result.error };
+							}
+							logger.info(`[ocr-pdf] chunk pages=[${pageIndices.join(",")}] done dt=${Date.now() - chunkStart}ms chars=${result.html.length} total=${Date.now() - t0}ms`);
+							completedParts += 1;
+							onProgress?.({ partIndex: completedParts, partCount, stage: "comprehensive-extracting" });
+							return { ok: true, chunkIndex, pageIndices, html: result.html };
+						},
+					);
+
+					const okOutcomes = outcomes.filter((o): o is OkChunkOutcome => o.ok);
+					const successCount = textChunkIndices.size + okOutcomes.length;
+					const successRatio = successCount / partCount;
+					if (successRatio < partialSuccessThreshold) {
+						const failedPages = collectFailedPages(outcomes);
+						logger.error(`[ocr-pdf] succeeded ${successCount}/${partCount} chunks ratio=${successRatio.toFixed(2)} threshold=${partialSuccessThreshold} — below threshold; failed pages=[${failedPages.join(",")}]`);
+						return { kind: "failed", reason: `OCR succeeded for ${successCount} of ${partCount} chunks — below ${Math.round(partialSuccessThreshold * 100)}% threshold` };
+					}
+
+					if (successCount < partCount) {
+						const failedPages = collectFailedPages(outcomes);
+						logger.warn(`[ocr-pdf] accepting partial result ${successCount}/${partCount} chunks ratio=${successRatio.toFixed(2)} threshold=${partialSuccessThreshold}; failed pages=[${failedPages.join(",")}]`);
+					}
+
+					// Stage 1 — per-page LLM cleanup for image chunks only. Extract
+					// plain text from each Tesseract HTML chunk, fan out cleanup
+					// invocations at the lower DeepSeek concurrency, and collect
+					// cleaned text per chunk. A cleanup failure on a chunk Tesseract
+					// succeeded on falls back to the original Tesseract text — never
+					// counts against the partial-success threshold above.
+					const originalTextByChunkIndex = new Map<number, string>();
+					const cleanedTextByChunkIndex = new Map<number, string>();
+					let cleanupCompletedParts = 0;
+					// Signal the stage transition before the cleanup fan-out so the
+					// orchestrator's `markCrawlStage` advances past "extracting" the
+					// moment Tesseract finishes, even if cleanup itself takes minutes.
+					onProgress?.({ partIndex: 0, partCount, stage: "comprehensive-cleaning" });
+					await mapWithConcurrency(okOutcomes, cleanupConcurrency, async (outcome) => {
+						const originalText = joinParagraphsAsText(extractTesseractParagraphs(outcome.html));
+						originalTextByChunkIndex.set(outcome.chunkIndex, originalText);
+						const cleanupResult = await invokePageLlmCleanup({
+							pageIndex: outcome.pageIndices[0],
+							ocrText: originalText,
+						});
+						if (cleanupResult.ok) {
+							cleanedTextByChunkIndex.set(outcome.chunkIndex, cleanupResult.cleanedText);
+						} else {
+							logger.warn(`[ocr-pdf] cleanup invoke failed for pages=[${outcome.pageIndices.join(",")}] reason=${cleanupResult.error.message} — using original Tesseract text`);
+							cleanedTextByChunkIndex.set(outcome.chunkIndex, originalText);
 						}
-						logger.info(`[ocr-pdf] chunk pages=[${pageIndices.join(",")}] done dt=${Date.now() - chunkStart}ms chars=${result.html.length} total=${Date.now() - t0}ms`);
-						completedParts += 1;
-						onProgress?.({ partIndex: completedParts, partCount, stage: "comprehensive-extracting" });
-						return { ok: true, pageIndices, html: result.html };
-					},
-				);
+						cleanupCompletedParts += 1;
+						onProgress?.({ partIndex: cleanupCompletedParts, partCount, stage: "comprehensive-cleaning" });
+					});
 
-				const successCount = outcomes.filter((o) => o.ok).length;
-				const successRatio = successCount / partCount;
-				if (successRatio < partialSuccessThreshold) {
-					const failedPages = collectFailedPages(outcomes);
-					logger.error(`[ocr-pdf] succeeded ${successCount}/${partCount} chunks ratio=${successRatio.toFixed(2)} threshold=${partialSuccessThreshold} — below threshold; failed pages=[${failedPages.join(",")}]`);
-					return { kind: "failed", reason: `OCR succeeded for ${successCount} of ${partCount} chunks — below ${Math.round(partialSuccessThreshold * 100)}% threshold` };
+					// Stage 2 — document diff review. Single sync invoke with every
+					// successful image page's original + cleaned text. The Lambda
+					// computes diffs internally and returns one final text per page.
+					// On any failure the page-level cleanedText is shipped as the
+					// final text — same fall-back as if Stage 2 had been disabled.
+					const reviewInputPages = okOutcomes.map((outcome) => {
+						const originalText = originalTextByChunkIndex.get(outcome.chunkIndex);
+						const cleanedText = cleanedTextByChunkIndex.get(outcome.chunkIndex);
+						assert(originalText !== undefined, "ok outcome must have populated originalText");
+						assert(cleanedText !== undefined, "ok outcome must have populated cleanedText");
+						return { chunkIndex: outcome.chunkIndex, pageIndex: outcome.pageIndices[0], originalText, cleanedText };
+					});
+					if (reviewInputPages.length > 0) {
+						const reviewResult = await invokeDocumentDiffReview({
+							pages: reviewInputPages.map(({ pageIndex, originalText, cleanedText }) => ({ pageIndex, originalText, cleanedText })),
+						});
+						if (reviewResult.ok) {
+							const finalByPageIndex = new Map(reviewResult.pages.map((page) => [page.pageIndex, page.finalText]));
+							for (const page of reviewInputPages) {
+								const finalText = finalByPageIndex.get(page.pageIndex);
+								assert(finalText !== undefined, "diff-review must return a final text for every reviewed page");
+								finalTextByChunkIndex.set(page.chunkIndex, finalText);
+							}
+						} else {
+							logger.warn(`[ocr-pdf] diff-review invoke failed reason=${reviewResult.error.message} — using stage 1 cleaned text per page`);
+							for (const page of reviewInputPages) {
+								finalTextByChunkIndex.set(page.chunkIndex, page.cleanedText);
+							}
+						}
+					}
+				} finally {
+					await staged.cleanup();
 				}
-
-				if (successCount < partCount) {
-					const failedPages = collectFailedPages(outcomes);
-					logger.warn(`[ocr-pdf] accepting partial result ${successCount}/${partCount} chunks ratio=${successRatio.toFixed(2)} threshold=${partialSuccessThreshold}; failed pages=[${failedPages.join(",")}]`);
-				}
-
-				// Stage 1 — per-page LLM cleanup. Extract plain text from each
-				// Tesseract HTML chunk, fan out cleanup invocations at the lower
-				// DeepSeek concurrency, and collect cleaned text per chunk. A
-				// cleanup failure on a chunk Tesseract succeeded on falls back
-				// to the original Tesseract text — never counts against the
-				// partial-success threshold above (Tesseract already produced
-				// usable text for this chunk).
-				const originalTexts: Array<string | null> = outcomes.map((outcome) =>
-					outcome.ok ? joinParagraphsAsText(extractTesseractParagraphs(outcome.html)) : null,
-				);
-				const cleanedTexts: Array<string | null> = new Array(outcomes.length).fill(null);
-				let cleanupCompletedParts = 0;
-				// Signal the stage transition before the cleanup fan-out so the
-				// orchestrator's `markCrawlStage` advances past "extracting" the
-				// moment Tesseract finishes, even if cleanup itself takes minutes.
+			} else {
+				// No OCR phase ran, so the stage marker above never fired. Advance
+				// the progress bar past "extracting" before the html-convert wave.
 				onProgress?.({ partIndex: 0, partCount, stage: "comprehensive-cleaning" });
-				await mapWithConcurrency(outcomes, cleanupConcurrency, async (outcome, index) => {
-					if (!outcome.ok) return;
-					const originalText = originalTexts[index];
-					assert(originalText !== null, "ok outcome must produce non-null originalText");
-					const cleanupResult = await invokePageLlmCleanup({
-						pageIndex: outcome.pageIndices[0],
-						ocrText: originalText,
-					});
-					if (cleanupResult.ok) {
-						cleanedTexts[index] = cleanupResult.cleanedText;
-					} else {
-						logger.warn(`[ocr-pdf] cleanup invoke failed for pages=[${outcome.pageIndices.join(",")}] reason=${cleanupResult.error.message} — using original Tesseract text`);
-						cleanedTexts[index] = originalText;
-					}
-					cleanupCompletedParts += 1;
-					onProgress?.({ partIndex: cleanupCompletedParts, partCount, stage: "comprehensive-cleaning" });
-				});
-
-				// Stage 2 — document diff review. Single sync invoke with every
-				// successful page's original + cleaned text. The Lambda computes
-				// diffs internally and returns one final text per page. On any
-				// failure (invoke error, schema mismatch, document-level
-				// guardrail rejection) the page-level cleanedText is shipped as
-				// the final text — same fall-back as if Stage 2 had been disabled.
-				const reviewInputPages = outcomes
-					.map((outcome, index) => ({ outcome, index }))
-					.filter(({ outcome }) => outcome.ok)
-					.map(({ outcome, index }) => {
-						const originalText = originalTexts[index];
-						const cleanedText = cleanedTexts[index];
-						assert(originalText !== null, "ok outcome must have populated originalText");
-						assert(cleanedText !== null, "ok outcome must have populated cleanedText");
-						return { pageIndex: outcome.pageIndices[0], originalText, cleanedText };
-					});
-				const finalByPageIndex = new Map<number, string>();
-				if (reviewInputPages.length > 0) {
-					const reviewResult = await invokeDocumentDiffReview({ pages: reviewInputPages });
-					if (reviewResult.ok) {
-						for (const page of reviewResult.pages) {
-							finalByPageIndex.set(page.pageIndex, page.finalText);
-						}
-					} else {
-						logger.warn(`[ocr-pdf] diff-review invoke failed reason=${reviewResult.error.message} — using stage 1 cleaned text per page`);
-						for (const page of reviewInputPages) {
-							finalByPageIndex.set(page.pageIndex, page.cleanedText);
-						}
-					}
-				}
-
-				// Stage 3 — per-page semantic HTML conversion. Fan out one Lambda
-				// per ok page with the post-diff-review final text; each Lambda
-				// emits a sanitised HTML5 fragment with semantic structure
-				// (h2/h3, ul/ol, table, pre/code, …) so Readability renders the
-				// reader view with the article's original structure rather than
-				// a wall of paragraphs. Per-Lambda fallback wraps the text in
-				// `<p class="ocr-tesseract">` if the LLM call or guardrails
-				// reject, and the orchestrator falls back to the same wrap if
-				// the invoke itself fails.
-				const htmlByPageIndex = new Map<number, string>();
-				let htmlConvertCompletedParts = 0;
-				await mapWithConcurrency(reviewInputPages, htmlConvertConcurrency, async (page) => {
-					const finalText = finalByPageIndex.get(page.pageIndex);
-					assert(finalText !== undefined, "ok page must have a final text after stage 2");
-					const convertResult = await invokePageHtmlConvert({
-						pageIndex: page.pageIndex,
-						pageText: finalText,
-					});
-					if (convertResult.ok) {
-						htmlByPageIndex.set(page.pageIndex, convertResult.semanticHtml);
-					} else {
-						logger.warn(`[ocr-pdf] html-convert invoke failed for page=${page.pageIndex} reason=${convertResult.error.message} — wrapping final text as <p class="ocr-tesseract"> paragraphs`);
-						htmlByPageIndex.set(page.pageIndex, rewrapAsTesseractHtml(finalText));
-					}
-					htmlConvertCompletedParts += 1;
-					onProgress?.({ partIndex: htmlConvertCompletedParts, partCount, stage: "comprehensive-cleaning" });
-				});
-
-				const fragments = outcomes.map((outcome) => {
-					if (!outcome.ok) return renderFailedChunkPlaceholder(outcome.pageIndices);
-					const html = htmlByPageIndex.get(outcome.pageIndices[0]);
-					assert(html !== undefined, "ok outcome must have html after stage 3");
-					return html;
-				});
-
-				// Insert a class-tagged <hr> between adjacent chunk fragments so
-				// the reader-iframe stylesheet can render a subtle dotted
-				// page-break in book-section style. Joining with the marker
-				// (rather than appending after each fragment) keeps the break
-				// strictly *between* pages — no leading/trailing rule. The
-				// document-level sanitiser allows `class` on <hr>, so the
-				// marker survives the final defensive pass.
-				const combined = fragments.map((t) => t.trim()).filter((t) => t.length > 0).join(PAGE_BREAK_HTML);
-				if (combined.length === 0) {
-					return { kind: "failed", reason: "OCR returned no text across all batches" };
-				}
-
-				const title = metadata.title ?? deriveTitleFromUrl(url);
-				logger.info(`[ocr-pdf] done t=${Date.now() - t0}ms pages=${metadata.numPages} chars=${combined.length}`);
-				// Final sanitisation pass across the stitched body. Each per-page
-				// fragment was sanitised inside its Stage 3 Lambda, but stitching
-				// can leave dangling tags spanning page boundaries (e.g. an
-				// unclosed <ul> from page N rejoining an <li> from page N+1) —
-				// this pass closes them via linkedom's parse-then-serialise
-				// round-trip and re-enforces the element / attribute allowlist
-				// on the whole document.
-				return {
-					kind: "fetched",
-					html: buildSyntheticHtml({ title, body: sanitizeFragment(combined) }),
-					title,
-				};
-			} finally {
-				await staged.cleanup();
 			}
+
+			// Stage 3 — per-page semantic HTML conversion for every resolved
+			// chunk, text-layer and OCR'd alike. Each Lambda emits a sanitised
+			// HTML5 fragment with semantic structure (h2/h3, ul/ol, table,
+			// pre/code, …) so Readability renders the reader view with the
+			// article's original structure rather than a wall of paragraphs.
+			// Per-Lambda fallback wraps the text in `<p class="ocr-tesseract">`
+			// if the LLM call or guardrails reject.
+			const resolvedChunkIndices = [...finalTextByChunkIndex.keys()].sort((a, b) => a - b);
+			const htmlByChunkIndex = new Map<number, string>();
+			let htmlConvertCompletedParts = 0;
+			await mapWithConcurrency(resolvedChunkIndices, htmlConvertConcurrency, async (chunkIndex) => {
+				const finalText = finalTextByChunkIndex.get(chunkIndex);
+				assert(finalText !== undefined, "resolved chunk must have a final text before stage 3");
+				const convertResult = await invokePageHtmlConvert({
+					pageIndex: chunks[chunkIndex][0],
+					pageText: finalText,
+				});
+				if (convertResult.ok) {
+					htmlByChunkIndex.set(chunkIndex, convertResult.semanticHtml);
+				} else {
+					logger.warn(`[ocr-pdf] html-convert invoke failed for page=${chunks[chunkIndex][0]} reason=${convertResult.error.message} — wrapping final text as <p class="ocr-tesseract"> paragraphs`);
+					htmlByChunkIndex.set(chunkIndex, rewrapAsTesseractHtml(finalText));
+				}
+				htmlConvertCompletedParts += 1;
+				onProgress?.({ partIndex: htmlConvertCompletedParts, partCount, stage: "comprehensive-cleaning" });
+			});
+
+			const fragments = chunks.map((pageIndices, chunkIndex) => {
+				const html = htmlByChunkIndex.get(chunkIndex);
+				if (html === undefined) return renderFailedChunkPlaceholder(pageIndices);
+				return html;
+			});
+
+			// Insert a class-tagged <hr> between adjacent chunk fragments so
+			// the reader-iframe stylesheet can render a subtle dotted
+			// page-break in book-section style. Joining with the marker
+			// (rather than appending after each fragment) keeps the break
+			// strictly *between* pages — no leading/trailing rule. The
+			// document-level sanitiser allows `class` on <hr>, so the
+			// marker survives the final defensive pass.
+			const combined = fragments.map((t) => t.trim()).filter((t) => t.length > 0).join(PAGE_BREAK_HTML);
+			if (combined.length === 0) {
+				return { kind: "failed", reason: "OCR returned no text across all batches" };
+			}
+
+			logger.info(`[ocr-pdf] done t=${Date.now() - t0}ms pages=${metadata.numPages} chars=${combined.length}`);
+			// Final sanitisation pass across the stitched body. Each per-page
+			// fragment was sanitised inside its Stage 3 Lambda, but stitching
+			// can leave dangling tags spanning page boundaries (e.g. an
+			// unclosed <ul> from page N rejoining an <li> from page N+1) —
+			// this pass closes them via linkedom's parse-then-serialise
+			// round-trip and re-enforces the element / attribute allowlist
+			// on the whole document.
+			return {
+				kind: "fetched",
+				html: buildSyntheticHtml({ title, body: sanitizeFragment(combined) }),
+				title,
+			};
 		} catch (error) {
 			// Chunk failures are captured into ChunkOutcome and surface via the
 			// partial-success threshold above, not via throw. This catch covers
@@ -338,9 +386,21 @@ export function initOcrPdf(deps: {
 	};
 }
 
+type OkChunkOutcome = { ok: true; chunkIndex: number; pageIndices: readonly number[]; html: string };
 type ChunkOutcome =
-	| { ok: true; pageIndices: readonly number[]; html: string }
-	| { ok: false; pageIndices: readonly number[]; error: Error };
+	| OkChunkOutcome
+	| { ok: false; chunkIndex: number; pageIndices: readonly number[]; error: Error };
+
+/** Split `pdftotext` output into per-page text. pdftotext separates pages with
+ * a form-feed (`\f`); a trailing form-feed yields an extra empty segment
+ * trimmed by `slice`. Pages beyond the produced segments default to empty
+ * strings — these are image-only pages routed to OCR. */
+function splitPageTexts(fullText: string, numPages: number): string[] {
+	const segments = fullText.split("\f");
+	const pages = segments.slice(0, numPages);
+	while (pages.length < numPages) pages.push("");
+	return pages;
+}
 
 function collectFailedPages(outcomes: readonly ChunkOutcome[]): number[] {
 	const failed: number[] = [];
