@@ -6,7 +6,7 @@ import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { extractPdfMetadata, extractPdfText } from "@packages/crawl-article";
+import { extractPdfMetadata } from "@packages/crawl-article";
 import { requireEnv } from "../require-env";
 import { initReadPendingPdf } from "./providers/article-store/read-pending-pdf";
 import { initSaveLinkRawPdfCommandHandler } from "./domain/save-link-raw-pdf/save-link-raw-pdf-command-handler";
@@ -53,7 +53,6 @@ const { invokePageHtmlConvert } = initInvokePdfPageHtmlConvert({ client: lambdaC
 
 const extractPdf = initSaveLinkPdfExtract({
 	extractPdfMetadata,
-	extractPdfText,
 	stagePdf,
 	invokePageOcr,
 	invokePageLlmCleanup,
