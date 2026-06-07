@@ -10,6 +10,7 @@ import { ReaderArticleHashId } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type {
 	BumpArticleSavedAt,
+	CountArticlesByUser,
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
@@ -70,6 +71,7 @@ export function initInMemoryArticleStore(): {
 	findArticleUrlById: FindArticleUrlById;
 	findArticleFreshness: FindArticleFreshness;
 	findArticlesByUser: FindArticlesByUser;
+	countArticlesByUser: CountArticlesByUser;
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	readContent: ContentProvider;
@@ -216,6 +218,16 @@ export function initInMemoryArticleStore(): {
 		return { articles: result, total, page, pageSize };
 	};
 
+	const countArticlesByUser: CountArticlesByUser = async (query) => {
+		let userArts = Array.from(userArticles.values()).filter(
+			(ua) => ua.userId === query.userId,
+		);
+		if (query.status) {
+			userArts = userArts.filter((ua) => ua.status === query.status);
+		}
+		return userArts.length;
+	};
+
 	const deleteArticle: DeleteArticle = async (id, userId) => {
 		const article = findArticleByRouteId(id);
 		if (!article) return false;
@@ -293,6 +305,7 @@ export function initInMemoryArticleStore(): {
 		findArticleUrlById,
 		findArticleFreshness,
 		findArticlesByUser,
+		countArticlesByUser,
 		deleteArticle,
 		updateArticleStatus,
 		readContent,

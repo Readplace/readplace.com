@@ -287,6 +287,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			findArticleUrlById: articleStoreMemory.findArticleUrlById,
 			findArticleFreshness: articleStoreMemory.findArticleFreshness,
 			findArticlesByUser: articleStoreMemory.findArticlesByUser,
+			countArticlesByUser: articleStoreMemory.countArticlesByUser,
 			saveArticle: articleStoreMemory.saveArticle,
 			saveArticleGlobally: articleStoreMemory.saveArticleGlobally,
 			bumpArticleSavedAt: articleStoreMemory.bumpArticleSavedAt,

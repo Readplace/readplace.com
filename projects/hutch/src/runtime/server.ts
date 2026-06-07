@@ -52,6 +52,7 @@ import type {
 } from "@packages/test-fixtures/providers/stripe-subscriptions";
 import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
 import type {
+	CountArticlesByUser,
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
@@ -168,6 +169,7 @@ interface AppDependencies {
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
 	findArticlesByUser: FindArticlesByUser;
+	countArticlesByUser: CountArticlesByUser;
 	saveArticle: SaveArticle;
 	saveArticleGlobally: SaveArticleGlobally;
 	deleteArticle: DeleteArticle;
@@ -597,6 +599,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		validateSaveableUrl: deps.validateSaveableUrl,
 		appOrigin,
 		findArticlesByUser: deps.findArticlesByUser,
+		countArticlesByUser: deps.countArticlesByUser,
 		findArticleById: deps.findArticleById,
 		findArticleByUrl: deps.findArticleByUrl,
 		findArticleUrlById: deps.findArticleUrlById,

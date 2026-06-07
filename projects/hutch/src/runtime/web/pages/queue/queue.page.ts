@@ -21,6 +21,7 @@ import type { ImportSkippedViewModel } from "./queue.viewmodel";
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
 import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 import type {
+	CountArticlesByUser,
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
@@ -135,6 +136,7 @@ interface QueueDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
 	findArticlesByUser: FindArticlesByUser;
+	countArticlesByUser: CountArticlesByUser;
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
@@ -339,7 +341,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			loadCrawls(deps.findArticleCrawlStatus, result.articles),
 			urlState.tab === "queue"
 				? Promise.resolve(result.total)
-				: deps.findArticlesByUser({ userId, status: "unread", page: 1, pageSize: 1 }).then(r => r.total),
+				: deps.countArticlesByUser({ userId, status: "unread" }),
 			deps.getEffectiveAccess(userId),
 		]);
 		const vm = toQueueViewModel(result, urlState, {
@@ -687,7 +689,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		if (validation.status === "ERROR") {
 			const urlState = parseQueueUrl({});
 			const result = await deps.findArticlesByUser({ userId });
-			const unreadCount = (await deps.findArticlesByUser({ userId, status: "unread", page: 1, pageSize: 1 })).total;
+			const unreadCount = await deps.countArticlesByUser({ userId, status: "unread" });
 			const [summaryByUrl, crawlByUrl] = await Promise.all([
 				loadSummaries(deps.findGeneratedSummary, result.articles),
 				loadCrawls(deps.findArticleCrawlStatus, result.articles),

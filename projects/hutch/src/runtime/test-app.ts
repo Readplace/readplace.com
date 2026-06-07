@@ -89,6 +89,7 @@ import type {
 	Minutes,
 } from "@packages/domain/article";
 import type {
+	CountArticlesByUser,
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
@@ -211,6 +212,7 @@ export interface ArticleStoreBundle {
 	findArticleUrlById: FindArticleUrlById;
 	findArticleFreshness: FindArticleFreshness;
 	findArticlesByUser: FindArticlesByUser;
+	countArticlesByUser: CountArticlesByUser;
 	saveArticle: SaveArticle;
 	saveArticleGlobally: SaveArticleGlobally;
 	deleteArticle: DeleteArticle;
@@ -425,6 +427,7 @@ function flattenFixtureToAppDependencies(
 		findArticleByUrl: fixture.articleStore.findArticleByUrl,
 		findArticleUrlById: fixture.articleStore.findArticleUrlById,
 		findArticlesByUser: fixture.articleStore.findArticlesByUser,
+		countArticlesByUser: fixture.articleStore.countArticlesByUser,
 		saveArticle: fixture.articleStore.saveArticle,
 		saveArticleGlobally: fixture.articleStore.saveArticleGlobally,
 		deleteArticle: fixture.articleStore.deleteArticle,

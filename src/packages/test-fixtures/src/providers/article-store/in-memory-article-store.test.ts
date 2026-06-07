@@ -446,6 +446,38 @@ describe("initInMemoryArticleStore", () => {
 		});
 	});
 
+	describe("countArticlesByUser", () => {
+		it("counts all of a user's articles when no status filter is given", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/1" }));
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/2" }));
+
+			expect(await store.countArticlesByUser({ userId: USER_A })).toBe(2);
+		});
+
+		it("counts only articles matching the status filter", async () => {
+			const store = initInMemoryArticleStore();
+			const a1 = await store.saveArticle(
+				makeArticleParams({ url: "https://example.com/1" }),
+			);
+			await store.saveArticle(makeArticleParams({ url: "https://example.com/2" }));
+			await store.updateArticleStatus(a1.id, USER_A, "read");
+
+			expect(await store.countArticlesByUser({ userId: USER_A, status: "unread" })).toBe(1);
+			expect(await store.countArticlesByUser({ userId: USER_A, status: "read" })).toBe(1);
+		});
+
+		it("counts only the requesting user's articles", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams({ userId: USER_A }));
+			await store.saveArticle(
+				makeArticleParams({ userId: USER_B, url: "https://other.com/page" }),
+			);
+
+			expect(await store.countArticlesByUser({ userId: USER_A })).toBe(1);
+		});
+	});
+
 	describe("deleteArticle", () => {
 		it("should remove user's relationship to the article", async () => {
 			const store = initInMemoryArticleStore();

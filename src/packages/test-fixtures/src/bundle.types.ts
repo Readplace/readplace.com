@@ -89,6 +89,7 @@ import type {
 import type { UserId } from "@packages/domain/user";
 import type {
 	BumpArticleSavedAt,
+	CountArticlesByUser,
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
@@ -197,6 +198,7 @@ export interface ArticleStoreBundle {
 	findArticleUrlById: FindArticleUrlById;
 	findArticleFreshness: FindArticleFreshness;
 	findArticlesByUser: FindArticlesByUser;
+	countArticlesByUser: CountArticlesByUser;
 	saveArticle: SaveArticle;
 	saveArticleGlobally: SaveArticleGlobally;
 	bumpArticleSavedAt: BumpArticleSavedAt;

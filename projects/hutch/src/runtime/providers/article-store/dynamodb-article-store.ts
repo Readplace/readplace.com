@@ -16,6 +16,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import type { UserId } from "@packages/domain/user";
 import type {
 	BumpArticleSavedAt,
+	CountArticlesByUser,
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
@@ -105,6 +106,7 @@ export function initDynamoDbArticleStore(deps: {
 	findArticleByUrl: FindArticleByUrl;
 	findArticleUrlById: FindArticleUrlById;
 	findArticlesByUser: FindArticlesByUser;
+	countArticlesByUser: CountArticlesByUser;
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	findArticleFreshness: FindArticleFreshness;
@@ -333,6 +335,34 @@ export function initDynamoDbArticleStore(deps: {
 		return { articles: result, total, page, pageSize };
 	};
 
+	const countArticlesByUser: CountArticlesByUser = async (query) => {
+		const expressionValues: Record<string, unknown> = { ":userId": query.userId };
+		let filterExpression: string | undefined;
+		let expressionAttributeNames: Record<string, string> | undefined;
+		if (query.status) {
+			filterExpression = "#status = :status";
+			expressionValues[":status"] = query.status;
+			expressionAttributeNames = { "#status": "status" };
+		}
+
+		let total = 0;
+		let startKey: Record<string, unknown> | undefined;
+		do {
+			const { count, lastEvaluatedKey } = await userArticles.query({
+				IndexName: "userId-savedAt-index",
+				KeyConditionExpression: "userId = :userId",
+				FilterExpression: filterExpression,
+				ExpressionAttributeValues: expressionValues,
+				ExpressionAttributeNames: expressionAttributeNames,
+				Select: "COUNT",
+				ExclusiveStartKey: startKey,
+			});
+			total += count;
+			startKey = lastEvaluatedKey;
+		} while (startKey);
+		return total;
+	};
+
 	const deleteArticle: DeleteArticle = async (routeId, userId) => {
 		const article = await findArticleByRouteId(routeId);
 		if (!article) return false;
@@ -446,6 +476,7 @@ export function initDynamoDbArticleStore(deps: {
 		findArticleByUrl,
 		findArticleUrlById,
 		findArticlesByUser,
+		countArticlesByUser,
 		deleteArticle,
 		updateArticleStatus,
 		findArticleFreshness,
