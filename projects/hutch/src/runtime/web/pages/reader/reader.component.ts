@@ -19,6 +19,7 @@ import { READER_STYLES } from "./reader.styles";
 const READER_TEMPLATE = readFileSync(join(__dirname, "reader.template.html"), "utf-8");
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
 const READER_IFRAME_SCRIPT = `<script src="/client-dist/reader-iframe.client.js" defer></script>`;
+const ARTICLE_TTS_SCRIPT = `<script src="/client-dist/article-tts.client.js" defer></script>`;
 
 /**
  * Both the initial SSR <title> and the OOB <title> swap emitted by reader
@@ -110,6 +111,10 @@ export function ReaderPage(
 		styles: READER_STYLES,
 		bodyClass: "page-reader",
 		content: { html: content },
-		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT,
+		scripts:
+			SHARE_BALLOON_SCRIPT +
+			PROGRESS_BAR_SCRIPT +
+			READER_IFRAME_SCRIPT +
+			(options.audioEnabled ? ARTICLE_TTS_SCRIPT : ""),
 	};
 }

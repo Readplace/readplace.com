@@ -113,6 +113,33 @@ const BUNDLES = [
 	{
 		entry: path.join(
 			PROJECT_ROOT,
+			"src/runtime/web/shared/article-body/article-tts.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "article-tts.client.js"),
+		globalName: "ArticleTts",
+		footer: [
+			// The article body lives inside the sandboxed reader iframe; read its
+			// same-origin contentDocument here so the module stays frame-agnostic.
+			// window.speechSynthesis is undefined on browsers without Web Speech,
+			// which the module surfaces as the unsupported state.
+			"ArticleTts.initArticleTts({",
+			"  document: window.document,",
+			"  synth: window.speechSynthesis,",
+			"  createUtterance: function (text) { return new window.SpeechSynthesisUtterance(text); },",
+			"  getArticleText: function () {",
+			"    var iframe = window.document.querySelector('iframe[data-reader-iframe]');",
+			"    if (!iframe || !iframe.contentDocument) return undefined;",
+			"    return ArticleTts.extractArticleText(iframe.contentDocument);",
+			"  },",
+			"  addSwapListener: function (listener) {",
+			"    window.document.body.addEventListener('htmx:afterSwap', listener);",
+			"  }",
+			"});",
+		].join("\n"),
+	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
 			"src/runtime/web/shared/extension-suggestion-banner/extension-suggestion-banner.client.ts",
 		),
 		outfile: path.join(OUT_DIR, "extension-suggestion-banner.client.js"),

@@ -3,15 +3,12 @@ import { join } from "node:path";
 import type { Minutes } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
-import { requireEnv } from "../../../domain/require-env";
 import { render } from "../../render";
 import { renderArticleHeader } from "./article-header/article-header.component";
 import { renderProgressBar } from "./progress-bar.component";
 import type { ProgressTick } from "@packages/domain/article";
 import { renderReaderSlot } from "./reader-slot/reader-slot.component";
 import { renderSummarySlot } from "./summary-slot/summary-slot.component";
-
-const STATIC_BASE_URL = requireEnv("STATIC_BASE_URL");
 
 const ARTICLE_BODY_TEMPLATE = readFileSync(
 	join(__dirname, "article-body.template.html"),
@@ -93,7 +90,6 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		summarySlotHtml,
 		progressBarHtml,
 		audioEnabled: input.audioEnabled,
-		staticBaseUrl: STATIC_BASE_URL,
 		backLink: input.backLink,
 		bottomMarkReadAction: bottomMarkRead,
 	});

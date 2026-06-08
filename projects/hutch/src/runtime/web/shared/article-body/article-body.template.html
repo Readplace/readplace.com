@@ -1,8 +1,14 @@
     {{{headerHtml}}}
     {{{progressBarHtml}}}
     {{{summarySlotHtml}}}
-    {{#if audioEnabled}}<div class="article-body__audio-slot article-body__audio-slot--visible" data-test-audio-player><div class="article-body__audio-player">
-      <audio controls preload="metadata" src="{{staticBaseUrl}}/sample-audio.opus" data-audio-element></audio>
+    {{#if audioEnabled}}<div class="article-body__audio-slot article-body__audio-slot--visible" data-test-audio-player><div class="article-body__tts" data-article-tts hidden>
+      <div class="article-body__tts-bar">
+        <button type="button" class="article-body__tts-btn article-body__tts-btn--toggle" data-tts-toggle><span class="article-body__tts-btn-label" data-tts-toggle-label>Listen</span></button>
+        <button type="button" class="article-body__tts-btn article-body__tts-btn--stop" data-tts-stop>Stop</button>
+        <label class="article-body__tts-field"><span class="article-body__tts-field-label">Voice</span><select class="article-body__tts-select" data-tts-voice></select></label>
+        <label class="article-body__tts-field"><span class="article-body__tts-field-label">Speed</span><select class="article-body__tts-select" data-tts-rate><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option></select></label>
+      </div>
+      <p class="article-body__tts-status" data-tts-status role="status" aria-live="polite"></p>
     </div></div>{{else}}<div class="article-body__audio-slot article-body__audio-slot--hidden" data-test-audio-player></div>{{/if}}
     {{{readerSlotHtml}}}
     <div class="article-body__actions article-body__actions--bottom">

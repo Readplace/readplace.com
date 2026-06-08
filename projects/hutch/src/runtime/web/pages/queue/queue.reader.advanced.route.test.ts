@@ -72,7 +72,7 @@ describe("Queue routes", () => {
 			expect(primary.getAttribute("href")).toBe("https://example.com/empty-page");
 		});
 
-		it("should render audio player when feature=audio query param is present", async () => {
+		it("should render the read-aloud control when feature=audio query param is present", async () => {
 			const articleHtml = `
 			<html><head><title>Audio Article</title></head>
 			<body><article>
@@ -126,11 +126,15 @@ describe("Queue routes", () => {
 			expect(
 				audioSlot.classList.contains("article-body__audio-slot--visible"),
 			).toBe(true);
-			const audioEl = doc.querySelector("[data-audio-element]");
-			assert(audioEl, "audio element must be rendered when audio enabled");
+			const ttsControl = doc.querySelector("[data-article-tts]");
+			assert(ttsControl, "text-to-speech control must be rendered when audio enabled");
+			assert(
+				ttsControl.querySelector("[data-tts-toggle]"),
+				"the control must expose a Listen toggle",
+			);
 		});
 
-		it("should not render audio player without feature=audio query param", async () => {
+		it("should not render the read-aloud control without feature=audio query param", async () => {
 			const articleHtml = `
 			<html><head><title>No Audio Article</title></head>
 			<body><article>

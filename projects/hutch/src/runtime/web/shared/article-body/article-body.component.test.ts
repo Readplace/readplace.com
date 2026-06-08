@@ -254,8 +254,12 @@ describe("renderArticleBody", () => {
 		expect(slot.classList.contains("article-body__audio-slot--visible")).toBe(
 			true,
 		);
-		const audio = slot.querySelector("[data-audio-element]");
-		assert(audio, "audio element must be rendered when audioEnabled");
+		const tts = slot.querySelector("[data-article-tts]");
+		assert(tts, "text-to-speech control must be rendered when audioEnabled");
+		assert(
+			tts.querySelector("[data-tts-toggle]"),
+			"the control must expose a Listen toggle",
+		);
 	});
 
 	it("marks the audio slot as hidden when audioEnabled is absent", () => {
