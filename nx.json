@@ -22,6 +22,11 @@
       "inputs": ["default", "^production"],
       "cache": true
     },
+    "test-with-coverage": {
+      "inputs": ["default", "^production"],
+      "outputs": ["{projectRoot}/coverage"],
+      "cache": true
+    },
     "compile": {
       "inputs": ["default", "^production"],
       "outputs": ["{projectRoot}/dist"],
