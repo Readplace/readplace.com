@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { By, until } from "selenium-webdriver";
 import type { WebDriver } from "selenium-webdriver";
 import { CSS_SELECTORS, type FlowAction } from "../e2e";
+import { initSaveProgress } from "../popup/save-progress";
 
 export interface SaveLinkProgress {
 	linkSaved: boolean;
@@ -36,6 +37,24 @@ export function createSaveLinkActions(config: {
 		async execute(driver: WebDriver): Promise<void> {
 			const saveUrl = `${config.popupUrl}?url=${encodeURIComponent(config.testUrl)}&title=${encodeURIComponent(config.testTitle)}`;
 			await driver.get(saveUrl);
+			// The capture milestone is held on screen by the min-dwell sequencer,
+			// so a sub-frame capturing→uploading transition still paints
+			// "Reading page…" long enough for the poll below to observe it.
+			const capturingLabel = initSaveProgress().labelFor("capturing");
+			await driver.wait(
+				async () => {
+					try {
+						const title = await driver.findElement(
+							By.css(CSS_SELECTORS.savingTitle),
+						);
+						return (await title.getText()).includes(capturingLabel);
+					} catch {
+						return false;
+					}
+				},
+				10000,
+				`saving-view should show "${capturingLabel}" while the save is in progress`,
+			);
 			await driver.wait(async () => {
 				try {
 					const savedView = await driver.findElement(By.id("saved-view"));
