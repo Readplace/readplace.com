@@ -7,7 +7,7 @@ import type {
 	SaveUrlResult,
 	RemoveUrlResult,
 } from "browser-extension-core";
-import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, installShortcuts, isCmdD, initSaveProgress } from "browser-extension-core";
+import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, installShortcuts, isCmdD, initSaveProgress, initSaveProgressSequencer } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 declare const __APP_DOMAINS__: string[];
@@ -28,17 +28,31 @@ function showView(id: string) {
 
 const saveProgress = initSaveProgress();
 
+const sequencer = initSaveProgressSequencer({
+	minDwellMs: 450,
+	scheduler: {
+		setTimer: (callback, delayMs) => {
+			setTimeout(callback, delayMs);
+		},
+		now: () => performance.now(),
+	},
+	apply: (phase) => {
+		const fill = document.querySelector<HTMLElement>(".saving-view__progress-fill");
+		if (fill) fill.style.width = saveProgress.widthFor(phase);
+		const title = document.querySelector(".saving-view__title");
+		if (title) title.textContent = saveProgress.labelFor(phase);
+	},
+});
+
 browser.runtime.onMessage.addListener((raw) => {
 	const message = raw as PopupMessage;
 	if (message.type !== "save-progress") return undefined;
-	const fill = document.querySelector<HTMLElement>(".saving-view__progress-fill");
-	if (fill) fill.style.width = saveProgress.widthFor(message.phase);
-	const title = document.querySelector(".saving-view__title");
-	if (title) title.textContent = saveProgress.labelFor(message.phase);
+	sequencer.enqueue(message.phase);
 	return undefined;
 });
 
-function finishSavingProgress(): Promise<void> {
+async function finishSavingProgress(): Promise<void> {
+	await sequencer.finish();
 	return new Promise((resolve) => {
 		const fill = document.querySelector<HTMLElement>(".saving-view__progress-fill");
 		if (!fill) {
@@ -323,11 +337,6 @@ async function saveAndShowList() {
 		await showListView();
 		return;
 	}
-
-	const savingTitle = document.querySelector(".saving-view__title");
-	if (savingTitle) savingTitle.textContent = "Saving\u2026";
-	const progressBar = document.querySelector(".saving-view__progress");
-	if (progressBar) progressBar.setAttribute("aria-label", "Saving article");
 
 	const saveResult = (await send({
 		type: "save-current-tab",
