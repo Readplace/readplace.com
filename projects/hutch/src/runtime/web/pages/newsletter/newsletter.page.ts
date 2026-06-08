@@ -19,6 +19,7 @@ interface NewsletterRouteDeps {
 	newsletterInboxStore: NewsletterInboxStore;
 	newsletterMessageStore: NewsletterMessageStore;
 	inboxDomain: string;
+	appOrigin: string;
 	buildBannerState: BuildBannerState;
 }
 
@@ -58,7 +59,10 @@ export function initNewsletterRoutes(deps: NewsletterRouteDeps): Router {
 		sendComponent(
 			req,
 			res,
-			Base(NewsletterDetailPage(toNewsletterDetailViewModel(message)), await deps.buildBannerState(req)),
+			Base(
+				NewsletterDetailPage(toNewsletterDetailViewModel(message, deps.appOrigin)),
+				await deps.buildBannerState(req),
+			),
 		);
 	});
 

@@ -64,7 +64,7 @@ describe("toNewsletterDetailViewModel", () => {
 	};
 
 	it("maps links to reader hrefs, renders the body into a srcdoc, and surfaces skipped count", () => {
-		const vm = toNewsletterDetailViewModel(base);
+		const vm = toNewsletterDetailViewModel(base, "http://localhost:3000");
 
 		expect(vm.subject).toBe("Weekly");
 		expect(vm.hasLinks).toBe(true);
@@ -79,7 +79,10 @@ describe("toNewsletterDetailViewModel", () => {
 	});
 
 	it("uses the no-subject placeholder and clears the link/skip flags when empty", () => {
-		const vm = toNewsletterDetailViewModel({ ...base, subject: "", savedLinks: [], skippedCount: 0 });
+		const vm = toNewsletterDetailViewModel(
+			{ ...base, subject: "", savedLinks: [], skippedCount: 0 },
+			"http://localhost:3000",
+		);
 		expect(vm.subject).toBe("(no subject)");
 		expect(vm.hasLinks).toBe(false);
 		expect(vm.hasSkipped).toBe(false);

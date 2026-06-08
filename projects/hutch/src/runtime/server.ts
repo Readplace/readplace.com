@@ -892,6 +892,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		newsletterInboxStore: deps.newsletterInboxStore,
 		newsletterMessageStore: deps.newsletterMessageStore,
 		inboxDomain: deps.newsletterInboxDomain,
+		appOrigin,
 		buildBannerState,
 	});
 	app.use("/newsletter", requireAuth, newsletterRouter);

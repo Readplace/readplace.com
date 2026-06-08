@@ -77,12 +77,13 @@ export interface NewsletterDetailViewModel {
 
 export function toNewsletterDetailViewModel(
 	message: NewsletterMessage,
+	appOrigin: string,
 ): NewsletterDetailViewModel {
 	return {
 		subject: displaySubject(message.subject),
 		fromAddress: message.fromAddress,
 		receivedAt: formatReceivedAt(message.receivedAt),
-		srcdoc: buildReaderIframeSrcdoc({ content: message.html }),
+		srcdoc: buildReaderIframeSrcdoc({ content: message.html, appOrigin }),
 		links: message.savedLinks.map((link) => ({
 			displayUrl: link.url,
 			href: `/queue/${link.articleId}/view`,
