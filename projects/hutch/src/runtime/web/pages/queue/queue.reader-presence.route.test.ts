@@ -24,7 +24,7 @@ const ARTICLE_HTML = `
 </article></body></html>`;
 
 function buildHarness() {
-	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML });
+	const crawlArticle = async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "sha256-stub" });
 	const fixture: TestAppFixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({ crawlArticle, sitePreParsers: [], logError: createNoopLogError() });
 	const applyParseResult = createFakeApplyParseResult({
