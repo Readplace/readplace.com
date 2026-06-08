@@ -12,8 +12,11 @@ import type {
 	VerifyEmailToken,
 } from "@packages/provider-contracts/email-verification";
 import { VerificationTokenSchema } from "@packages/test-fixtures/providers/email-verification";
+import { VERIFICATION_WINDOW_MS } from "../../domain/access/verification-deadline";
 
-const TOKEN_TTL_SECONDS = 24 * 60 * 60; // 24 hours
+// Keep the single mailed link valid for the whole lockout window, so it never
+// expires before the account does.
+const TOKEN_TTL_SECONDS = VERIFICATION_WINDOW_MS / 1000;
 
 const VerificationRow = z.object({
 	token: z.string(),

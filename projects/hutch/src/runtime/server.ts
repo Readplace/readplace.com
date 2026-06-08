@@ -14,6 +14,7 @@ import type {
 	CreateUserWithPasswordHash,
 	DestroySession,
 	FindEmailByUserId,
+	FindUserById,
 	FindUserByEmail,
 	GetSessionUserId,
 	MarkEmailVerified,
@@ -145,6 +146,8 @@ import { initInstallRoutes } from "./web/pages/install";
 import { NotFoundPage } from "./web/pages/not-found";
 import { initGetEffectiveAccess } from "./domain/access/effective-access";
 import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
+import { initResolveVerificationStatus } from "./web/middleware/resolve-verification-status.middleware";
+import { requireNotLocked } from "./web/middleware/require-not-locked.middleware";
 import { requireEnv, getEnv } from "./domain/require-env";
 import "./web/session.types";
 
@@ -168,6 +171,7 @@ interface AppDependencies {
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
+	findUserById: FindUserById;
 	googleAuth?: {
 		exchangeGoogleCode: ExchangeGoogleCode;
 		clientId: string;
@@ -308,6 +312,10 @@ export function createApp(dependencies: AppDependencies): Express {
 		}
 		next();
 	});
+
+	app.use(
+		initResolveVerificationStatus({ findUserById: deps.findUserById, now: deps.now }),
+	);
 
 	const markExtensionInstalled = initMarkExtensionInstalled();
 	app.use(markExtensionInstalled);
@@ -732,7 +740,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 		buildBannerState,
 	});
-	app.use("/import", requireAuth, requireWriteAccess, importRouter);
+	app.use("/import", requireAuth, requireNotLocked, requireWriteAccess, importRouter);
 
 	const saveRouter = initSaveRoutes({ buildBannerState, analytics: deps.analytics, salt: deps.salt, now: deps.now });
 	app.use("/save", saveRouter);
@@ -784,7 +792,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: () => new Date(),
 		buildBannerState,
 	});
-	app.use("/export", requireAuth, exportRouter);
+	app.use("/export", requireAuth, requireNotLocked, exportRouter);
 
 	const accountRouter = initAccountRoutes({
 		getEffectiveAccess,
@@ -817,7 +825,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 		buildBannerState,
 	});
-	app.use("/account", requireAuth, accountRouter);
+	app.use("/account", requireAuth, requireNotLocked, accountRouter);
 
 	const oauthRouter = initOAuthRoutes({
 		model: deps.oauthModel,

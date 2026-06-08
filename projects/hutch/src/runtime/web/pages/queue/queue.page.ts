@@ -57,6 +57,7 @@ import { saveArticleFromUrl } from "../../shared/save-article/save-article-from-
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "@packages/web-shell";
+import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
 import { RedirectComponent } from "../../redirect.component";
 import { CacheableComponent } from "../../conditional-get";
 import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
@@ -307,6 +308,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	});
 
 	router.use(deps.dualAuth);
+	router.use(requireNotLocked);
 
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");

@@ -248,6 +248,41 @@ describe("initInMemoryAuth", () => {
 		});
 	});
 
+	describe("findUserById", () => {
+		it("should return null for an unknown userId", async () => {
+			const auth = makeAuth();
+
+			const result = await auth.findUserById(UserIdSchema.parse("nobody"));
+
+			expect(result).toBeNull();
+		});
+
+		it("should return the verification flag and registeredAt for an unverified user", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "test@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			const result = await auth.findUserById(created.userId);
+
+			expect(result).toEqual({
+				userId: created.userId,
+				emailVerified: false,
+				registeredAt: expect.any(String),
+			});
+		});
+
+		it("should reflect markEmailVerified", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "test@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+			await auth.markEmailVerified("test@example.com");
+
+			const result = await auth.findUserById(created.userId);
+
+			expect(result?.emailVerified).toBe(true);
+		});
+	});
+
 	describe("createGoogleUser", () => {
 		it("should create a user without a password and verified email", async () => {
 			const auth = makeAuth();
