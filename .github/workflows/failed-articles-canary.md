@@ -19,17 +19,7 @@ This canary is a **debug worklist**, not a pass/fail health check. The script al
    - By **host/domain** (`medium.com`, `substack.com`, `nytimes.com`).
    - By **axis** (crawl vs summary).
 
-3. **For each cluster, propose a fix.** Distinguish:
-   - **Crawler fix** — the most common case. The crawler couldn't handle a URL class. Check `src/packages/crawl-article/` and the [crawler health canary sources](../../src/packages/crawl-article/scripts/health-sources.ts) — a new failure pattern may warrant a new canary source entry.
-   - **Summary fix** — `summaryStatus=failed` on a row whose `crawlStatus=ready` means the summary worker (`projects/hutch/src/runtime/providers/article-summary/`) couldn't process valid content. Check token caps, DeepSeek availability, prompt size.
-   - **Operator exclude** — if a URL class is genuinely unsupported by design (e.g., authenticated content, video-only pages), the right action is to add an entry to `src/packages/check-failed-articles/scripts/exclude-patterns.ts` AND to ensure intake (`SaveableUrlSchema` in the domain package) rejects new ones if applicable. **Never** add a fixable URL to the exclude list to make the canary quiet.
-   - **Data fix** — recrawl individual rows via the recrawl URL in the issue body. The operator does this manually; do not bulk-recrawl from a PR.
-
-4. **Open a draft PR** if a code fix is the right path, with:
-   - The fix.
-   - A report covering the failed rows you addressed, the root cause cluster, why the fix resolves it, and whether the operator should recrawl the existing rows.
-
-5. **Do not edit the issue.** This canary's workflow skips its scheduled scan while an open tracking issue exists — the operator closes the issue manually once they have worked through the backlog. Closing is the operator's signal that the worklist is processed.
+3. **Do not edit the issue.** This canary's workflow skips its scheduled scan while an open tracking issue exists — the operator closes the issue manually once they have worked through the backlog. Closing is the operator's signal that the worklist is processed.
 
 ## Important Guidelines
 
