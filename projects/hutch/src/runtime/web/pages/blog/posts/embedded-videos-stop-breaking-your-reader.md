@@ -11,7 +11,7 @@ keywords: "reader view, remove autoplay video, read article without video, distr
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readplace's reader used to leave a dead video box in the middle of some articles. Now each embedded video becomes a short line of text with a link to the original page. You read the article clean, and if you want the video, one tap takes you to it on the source site. The change works for articles in your queue and for any link you open at readplace.com/view.
+Readplace's reader used to leave a dead box where a native video tag sat in an article. Now each one becomes a short line of text with a link to the original page. This applies to video tags in the HTML, not to YouTube or Vimeo embeds. You read the article clean, and if you want the video, one tap takes you to it on the source site. The change works for articles in your queue and for any link you open at readplace.com/view.
 
 </div>
 </details>
@@ -22,13 +22,13 @@ Readplace fixes that in the reader. Embedded videos no longer leave a dead box i
 
 ## The video could not play in the reader anyway
 
-The reader shows your article inside a sandboxed frame. Scripts stay off, so the page loads fast and stays clean. Most video players need those scripts to start. Many sites also load their videos late, through JavaScript, so the saved copy holds no playable file at all.
+The reader shows your article inside a sandboxed frame. Scripts stay off, so the page loads fast and stays clean. This matters for native video tags, the ones a site writes directly into its HTML. YouTube and Vimeo embeds work differently — they load inside their own iframe, and the reader already strips those. Native video tags need scripts to start or fetch the file late through JavaScript, so the saved copy has nothing to play.
 
-So a raw video tag in the reader had nothing to show. It took up space and gave you nothing to watch. Worse, an empty player can shove the next paragraph down the page and break your place mid-read.
+So a native video tag in the reader had nothing to show. It took up space and gave you nothing to watch. Worse, an empty player can shove the next paragraph down the page and break your place mid-read.
 
 ## What you see now
 
-Each video in a saved article turns into a small callout, framed with a thin border and a brand-colour edge. It reads something like "Watch this video on youtube.com →", and the site name is a link. Tap it, and the original page opens with the video ready to play.
+Each video in a saved article turns into a small callout, framed with a thin border and a brand-colour edge. It reads something like "Watch this video on web.dev →", and the site name is a link. Tap it, and the original page opens with the video ready to play.
 
 The text around the callout stays put. You read the paragraph before the video, then the paragraph after, with no broken player between them. The article keeps its shape, and your eyes keep their line.
 
@@ -46,4 +46,4 @@ That matters for the articles people actually save. Recipe posts, product review
 
 ## Try it
 
-Find an article you saved that had a video in it, or paste a fresh link at [readplace.com/view](/view). Read it clean, and tap through to the video only if you want it. Start at [readplace.com](/).
+Find an article you saved that had a video in it, or paste a fresh link at [readplace.com/view](/view). For a quick example, try [web.dev's guide to video and source tags](/view/web.dev/articles/video-and-source-tags). Read it clean, and tap through to the video only if you want it. Start at [readplace.com](/).
