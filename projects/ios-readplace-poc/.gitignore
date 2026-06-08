@@ -6,8 +6,10 @@ build/
 *.xcscmblueprint
 .DS_Store
 
-# The .xcodeproj is generated from project.yml by XcodeGen. It is committed here
-# for convenience (open-and-run); regenerate any time with `make generate`.
+# The .xcodeproj is generated from project.yml by XcodeGen, so it is not
+# committed (it churns on every `compile`/`make generate` and CI-injected
+# signing leaks into the diff). Regenerate it any time with `make generate`.
+ReadplacePOC.xcodeproj/
 
 # --- Secrets (NEVER commit) ---
 fastlane/.env
