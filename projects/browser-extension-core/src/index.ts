@@ -61,5 +61,6 @@ export { installShortcuts, isCmdD } from "./keydown-shortcuts";
 export type { Shortcut } from "./keydown-shortcuts";
 export { captureActiveTabBytes } from "./capture-active-tab-bytes";
 export type { CapturedContent } from "./capture-active-tab-bytes";
+export { isPdfViewerDocument } from "./is-pdf-viewer-document";
 export type { TabContent } from "./reading-list/reading-list.types";
 

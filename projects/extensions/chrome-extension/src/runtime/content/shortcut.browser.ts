@@ -1,6 +1,7 @@
 /* c8 ignore start -- content script, runs in browser page context only */
 import browser from "webextension-polyfill";
-import { installShortcuts, isCmdD } from "browser-extension-core";
+import { installShortcuts, isCmdD, isPdfViewerDocument } from "browser-extension-core";
+import { isChromePdfViewerShell } from "./is-chrome-pdf-viewer-shell";
 
 installShortcuts(document, [
 	{
@@ -14,7 +15,7 @@ installShortcuts(document, [
 browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 	if ((raw as { type: string }).type === "capture-html") {
 		sendResponse({
-			rawHtml: document.documentElement.outerHTML,
+			rawHtml: isPdfViewerDocument(document) || isChromePdfViewerShell(document) ? "" : document.documentElement.outerHTML,
 			title: document.title,
 		});
 		return true;
