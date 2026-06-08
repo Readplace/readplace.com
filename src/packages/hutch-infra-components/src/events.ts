@@ -337,9 +337,9 @@ export const RefreshContentExtractedEvent = defineEvent({
 		/* SHA-256 of the freshly-fetched body. The refresh-content-extracted
 		 * persister writes this onto the freshness row so the next refresh
 		 * tick can pass it back into the crawl library as `previousBodyHash`
-		 * and gate the parse. Optional for backward compatibility with
-		 * in-flight events at deploy time. */
-		bodyHash: z.string().optional(),
+		 * and gate the parse. Required: every producer of this internal event
+		 * must carry it (all consumers live in this repo). */
+		bodyHash: z.string(),
 	}),
 });
 export type RefreshContentExtractedDetail = z.infer<
@@ -387,10 +387,11 @@ export const RefreshArticleContentCommand = defineEvent({
 		lastModified: z.string().optional(),
 		contentFetchedAt: z.string(),
 		/* SHA-256 of the freshly-fetched body — forwarded to the downstream
-		 * RefreshContentExtractedEvent so the persister can land it on the
-		 * row alongside etag / lastModified. Optional for backward
-		 * compatibility with in-flight commands at deploy time. */
-		bodyHash: z.string().optional(),
+		 * RefreshContentExtractedEvent so the persister lands it on the
+		 * freshness row, where the next refresh reads it back as the pre-parse
+		 * gate's `previousBodyHash`. Required: every producer of this internal
+		 * command must thread the hash through (all callers live in this repo). */
+		bodyHash: z.string(),
 	}),
 });
 export type RefreshArticleContentDetail = z.infer<

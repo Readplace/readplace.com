@@ -19,6 +19,17 @@ import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-compo
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { FinalizeArticle } from "../save-link/finalize-article";
 
+/* Every comprehensive-crawl record must account for the row's crawl axis being
+ * in a terminal state: committed in-process here (unsupported), deferred to a
+ * downstream *-ContentExtracted event whose handler runs the terminal
+ * transition (fetched), or already terminal and left as-is (not-modified).
+ * Returning this disposition forces each crawlResult branch to declare which;
+ * a branch that does none fails to type-check. */
+type CrawlTermination =
+	| { via: "committed-in-process" }
+	| { via: "deferred-to-event" }
+	| { via: "already-terminal" };
+
 /* c8 ignore next -- V8 block coverage phantom on typed-parameter destructuring, see bcoe/c8#319 */
 export function initComprehensiveCrawlHandler(deps: {
 	crawlArticle: CrawlArticle;
@@ -66,101 +77,55 @@ export function initComprehensiveCrawlHandler(deps: {
 		});
 	};
 
-	return async (event): Promise<SQSBatchResponse> => {
-		const batchItemFailures: SQSBatchItemFailure[] = [];
-
-		for (const record of event.Records) {
-			try {
-				const envelope = JSON.parse(record.body);
-				const detail = ComprehensiveCrawlCommand.detailSchema.parse(envelope.detail);
-				const { url, userId, recrawl, refresh, previousBodyHash } = detail;
-
-				logger.info(`${logPrefix} processing`, {
+	const resolveCrawlResult = async (
+		crawlResult: Awaited<ReturnType<CrawlArticle>>,
+		ctx: {
+			url: string;
+			refresh?: boolean;
+			recrawl?: boolean;
+			userId?: string;
+			previousBodyHash?: string;
+		},
+	): Promise<CrawlTermination> => {
+		const { url, refresh, recrawl, userId, previousBodyHash } = ctx;
+		switch (crawlResult.status) {
+			case "unsupported": {
+				// Comprehensive saw the body and confirmed it cannot be extracted
+				// (non-PDF body, PDF too large, OCR returned nothing, …). Flip the
+				// row terminal here — no further dispatch.
+				logParseError({ url, reason: `crawl-unsupported: ${crawlResult.reason}` });
+				await transitionAndPersist(markCrawlUnsupported, {
 					url,
-					recrawl: recrawl ? 1 : 0,
-					refresh: refresh ? 1 : 0,
-				});
-
-				/*
-				 * Server commits three coarse stages for the comprehensive path —
-				 * `comprehensive-fetching` (written by the dispatcher in save-link-work
-				 * before this Lambda is even invoked), `comprehensive-extracting`
-				 * (Tesseract fan-out), and `comprehensive-cleaning` (LLM cleanup +
-				 * diff review). The extractor signals the active stage on each
-				 * onProgress call; we latch a stage write whenever the value
-				 * changes. Falling back to `comprehensive-extracting` when the
-				 * extractor omits a stage preserves the prior behaviour for any
-				 * provider that hasn't been updated. Per-part progress
-				 * (partCurrent/partTotal) is routed through a throttle so the OCR
-				 * fan-out's chunk-completion firehose collapses to ~1 DDB write per
-				 * `progressIntervalMs`, matching the UI's 3 s poll cadence.
-				 */
-				let latchedStage: "comprehensive-extracting" | "comprehensive-cleaning" | undefined;
-				const progressThrottle = initProgressThrottle({
-					markCrawlProgress,
-					intervalMs: progressIntervalMs,
-					now: () => Date.now(),
-					logger,
-				});
-				const crawlResult = await crawlArticle({
-					url,
-					previousBodyHash,
-					onProgress: ({ partIndex, partCount, stage }) => {
-						const effectiveStage = stage ?? "comprehensive-extracting";
-						if (effectiveStage !== latchedStage) {
-							latchedStage = effectiveStage;
-							markCrawlStage({ url, stage: effectiveStage }).catch((error: unknown) => {
-								logger.warn(`${logPrefix} ${effectiveStage} stage write failed`, {
-									url,
-									error: String(error),
-								});
-							});
-						}
-						progressThrottle.report({ url, partCurrent: partIndex, partTotal: partCount });
+					input: {
+						reason: { kind: "non-html-content", contentType: crawlResult.reason },
 					},
 				});
-				await progressThrottle.flush({ url });
-
-				if (crawlResult.status === "unsupported") {
-					// Comprehensive saw the body and confirmed it cannot be extracted
-					// (non-PDF body, PDF too large, OCR returned nothing, …). Flip the
-					// row terminal here — no further dispatch.
-					logParseError({ url, reason: `crawl-unsupported: ${crawlResult.reason}` });
-					await transitionAndPersist(markCrawlUnsupported, {
-						url,
-						input: {
-							reason: { kind: "non-html-content", contentType: crawlResult.reason },
-						},
-					});
-					await emitTier1Failure(url);
-					logger.info(`${logPrefix} crawl unsupported — terminal`, { url });
-					continue;
-				}
-
-				if (crawlResult.status === "not-modified") {
-					/* Pre-parse byte gate fired — the origin returned a 200 OK whose
-					 * body hashes to the same value we carry on the row, so the PDF
-					 * extraction step is skipped. Only refresh dispatches with a
-					 * previousBodyHash today, so we mirror the stale-check Lambda's
-					 * `unchanged` action: bump contentFetchedAt + carry forward the
-					 * hash. No tier source is rewritten and no downstream event is
-					 * emitted because the canonical row is already correct. */
-					await updateFetchTimestamp({
-						url,
-						contentFetchedAt: now().toISOString(),
-						bodyHash: previousBodyHash,
-					});
-					logger.info(`${logPrefix} crawl not-modified — pre-parse byte gate fired`, { url });
-					continue;
-				}
-
-				if (crawlResult.status !== "fetched") {
-					const reason = `crawl-${crawlResult.status}`;
-					logParseError({ url, reason });
-					await emitTier1Failure(url);
-					throw new Error(`crawl failed for ${url}: ${reason}`);
-				}
-
+				await emitTier1Failure(url);
+				logger.info(`${logPrefix} crawl unsupported — terminal`, { url });
+				return { via: "committed-in-process" };
+			}
+			case "not-modified": {
+				/* Pre-parse byte gate fired — the body is byte-identical to the
+				 * stored hash, so the canonical row (content + terminal crawl
+				 * status) from the prior successful crawl still holds; only the
+				 * freshness timestamp needs bumping. A non-terminal status here is
+				 * owned by a concurrent save / recrawl that terminalises it
+				 * independently. */
+				await updateFetchTimestamp({
+					url,
+					contentFetchedAt: now().toISOString(),
+					bodyHash: previousBodyHash,
+				});
+				logger.info(`${logPrefix} crawl not-modified — pre-parse byte gate fired`, { url });
+				return { via: "already-terminal" };
+			}
+			case "failed": {
+				const reason = `crawl-${crawlResult.status}`;
+				logParseError({ url, reason });
+				await emitTier1Failure(url);
+				throw new Error(`crawl failed for ${url}: ${reason}`);
+			}
+			case "fetched": {
 				const finalized = await finalizeArticle({
 					url,
 					html: crawlResult.html,
@@ -237,6 +202,73 @@ export function initComprehensiveCrawlHandler(deps: {
 					await publishEvent(TierContentExtractedEvent, { url, tier: "tier-1", userId });
 					logger.info(`${logPrefix} emitted TierContentExtractedEvent`, { url, tier: "tier-1" });
 				}
+				return { via: "deferred-to-event" };
+			}
+		}
+	};
+
+	return async (event): Promise<SQSBatchResponse> => {
+		const batchItemFailures: SQSBatchItemFailure[] = [];
+
+		for (const record of event.Records) {
+			try {
+				const envelope = JSON.parse(record.body);
+				const detail = ComprehensiveCrawlCommand.detailSchema.parse(envelope.detail);
+				const { url, userId, recrawl, refresh, previousBodyHash } = detail;
+
+				logger.info(`${logPrefix} processing`, {
+					url,
+					recrawl: recrawl ? 1 : 0,
+					refresh: refresh ? 1 : 0,
+				});
+
+				/*
+				 * Server commits three coarse stages for the comprehensive path —
+				 * `comprehensive-fetching` (written by the dispatcher in save-link-work
+				 * before this Lambda is even invoked), `comprehensive-extracting`
+				 * (Tesseract fan-out), and `comprehensive-cleaning` (LLM cleanup +
+				 * diff review). The extractor signals the active stage on each
+				 * onProgress call; we latch a stage write whenever the value
+				 * changes. Falling back to `comprehensive-extracting` when the
+				 * extractor omits a stage preserves the prior behaviour for any
+				 * provider that hasn't been updated. Per-part progress
+				 * (partCurrent/partTotal) is routed through a throttle so the OCR
+				 * fan-out's chunk-completion firehose collapses to ~1 DDB write per
+				 * `progressIntervalMs`, matching the UI's 3 s poll cadence.
+				 */
+				let latchedStage: "comprehensive-extracting" | "comprehensive-cleaning" | undefined;
+				const progressThrottle = initProgressThrottle({
+					markCrawlProgress,
+					intervalMs: progressIntervalMs,
+					now: () => Date.now(),
+					logger,
+				});
+				const crawlResult = await crawlArticle({
+					url,
+					previousBodyHash,
+					onProgress: ({ partIndex, partCount, stage }) => {
+						const effectiveStage = stage ?? "comprehensive-extracting";
+						if (effectiveStage !== latchedStage) {
+							latchedStage = effectiveStage;
+							markCrawlStage({ url, stage: effectiveStage }).catch((error: unknown) => {
+								logger.warn(`${logPrefix} ${effectiveStage} stage write failed`, {
+									url,
+									error: String(error),
+								});
+							});
+						}
+						progressThrottle.report({ url, partCurrent: partIndex, partTotal: partCount });
+					},
+				});
+				await progressThrottle.flush({ url });
+
+				await resolveCrawlResult(crawlResult, {
+					url,
+					refresh,
+					recrawl,
+					userId,
+					previousBodyHash,
+				});
 			} catch (error) {
 				logger.error(`${logPrefix} record failed`, {
 					messageId: record.messageId,

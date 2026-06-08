@@ -12,5 +12,5 @@ export type PublishRefreshArticleContent = (params: {
 	etag?: string;
 	lastModified?: string;
 	contentFetchedAt: string;
-	bodyHash?: string;
+	bodyHash: string;
 }) => Promise<void>;

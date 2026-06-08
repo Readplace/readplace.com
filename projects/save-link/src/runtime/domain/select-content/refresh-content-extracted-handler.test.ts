@@ -35,6 +35,7 @@ const FRESHNESS = {
 	etag: '"new-etag"',
 	lastModified: "Sun, 10 May 2026 12:00:00 GMT",
 	contentFetchedAt: "2026-05-10T12:00:00.000Z",
+	bodyHash: "a".repeat(64),
 };
 
 const stubMetadata = (overrides: Partial<TierSourceMetadata> = {}): TierSourceMetadata => ({

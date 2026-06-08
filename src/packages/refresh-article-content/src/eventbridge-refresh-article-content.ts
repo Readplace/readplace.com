@@ -18,6 +18,7 @@ export function initEventBridgeRefreshArticleContent(deps: {
 			etag: params.etag,
 			lastModified: params.lastModified,
 			contentFetchedAt: params.contentFetchedAt,
+			bodyHash: params.bodyHash,
 		});
 	};
 

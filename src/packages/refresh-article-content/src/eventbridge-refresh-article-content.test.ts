@@ -14,6 +14,7 @@ const PARAMS = {
 	etag: '"new-etag"',
 	lastModified: "Sun, 10 May 2026 12:00:00 GMT",
 	contentFetchedAt: "2026-05-10T12:00:00.000Z",
+	bodyHash: "deadbeef".repeat(8),
 };
 
 describe("initEventBridgeRefreshArticleContent (put HTML to S3 then publish event without HTML)", () => {
@@ -56,6 +57,7 @@ describe("initEventBridgeRefreshArticleContent (put HTML to S3 then publish even
 			etag: PARAMS.etag,
 			lastModified: PARAMS.lastModified,
 			contentFetchedAt: PARAMS.contentFetchedAt,
+			bodyHash: PARAMS.bodyHash,
 		});
 		const [, detail] = publishEvent.mock.calls[0];
 		expect(detail).not.toHaveProperty("html");

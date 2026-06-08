@@ -75,6 +75,7 @@ const DETAIL: RefreshDetail = {
 	etag: '"new-etag"',
 	lastModified: "Sun, 10 May 2026 12:00:00 GMT",
 	contentFetchedAt: "2026-05-10T12:00:00.000Z",
+	bodyHash: "a".repeat(64),
 };
 
 describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", () => {
@@ -127,7 +128,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 			etag: '"new-etag"',
 			lastModified: "Sun, 10 May 2026 12:00:00 GMT",
 			contentFetchedAt: "2026-05-10T12:00:00.000Z",
-			bodyHash: undefined,
+			bodyHash: "a".repeat(64),
 		});
 	});
 
