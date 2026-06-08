@@ -48,5 +48,13 @@ module.exports = {
       env: { E2E_PORT: port },
       e2e: true,
     },
+    {
+      type: 'node-test',
+      name: 'Running tab-switch E2E (local)',
+      files: ['dist/e2e/tab-switch-flow/run.e2e-local.main.js'],
+      timeout: 90000,
+      env: { HEADLESS: 'true', E2E_PORT: port },
+      e2e: true,
+    },
   ],
 };
