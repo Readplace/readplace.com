@@ -47,15 +47,7 @@ Each workflow has a companion `.md` file (e.g. `claude-PR-CI-failure-fixer.md`) 
 
 ## Setup
 
-You need one secret: `ANTHROPIC_API_KEY`.
-
-Add it to your repo's Actions secrets and the workflows work as-is. The Claude integration uses [`claude-code-action`](https://github.com/anthropics/claude-code-action).
-
-```
-Settings → Secrets and variables → Actions → New repository secret
-Name: ANTHROPIC_API_KEY
-Value: sk-ant-...
-```
+The Claude integration uses [`claude-code-action`](https://github.com/anthropics/claude-code-action), authenticated from a single repository secret added under Settings → Secrets and variables → Actions. With the secret absent the `Claude Code` workflow fails fast with an authentication error — wire up the secret and the workflows work as-is.
 
 ## What it looks like in practice
 
