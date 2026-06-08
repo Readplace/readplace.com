@@ -12,6 +12,7 @@ const FreshnessRow = z.object({
 	etag: dynamoField(z.string()),
 	lastModified: dynamoField(z.string()),
 	contentFetchedAt: dynamoField(z.string()),
+	bodyHash: dynamoField(z.string()),
 });
 
 export function initFindArticleFreshness(deps: {
@@ -28,13 +29,14 @@ export function initFindArticleFreshness(deps: {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const row = await table.get(
 			{ url: articleResourceUniqueId.value },
-			{ projection: ["etag", "lastModified", "contentFetchedAt"] },
+			{ projection: ["etag", "lastModified", "contentFetchedAt", "bodyHash"] },
 		);
 		if (!row) return null;
 		return {
 			etag: row.etag,
 			lastModified: row.lastModified,
 			contentFetchedAt: row.contentFetchedAt,
+			bodyHash: row.bodyHash,
 		};
 	};
 

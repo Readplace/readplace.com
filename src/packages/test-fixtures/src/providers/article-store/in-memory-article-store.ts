@@ -36,6 +36,7 @@ interface GlobalArticle {
 	etag?: string;
 	lastModified?: string;
 	contentFetchedAt?: string;
+	bodyHash?: string;
 	contentSourceTier?: "tier-0" | "tier-1";
 }
 
@@ -265,6 +266,7 @@ export function initInMemoryArticleStore(): {
 			etag: article.etag,
 			lastModified: article.lastModified,
 			contentFetchedAt: article.contentFetchedAt,
+			bodyHash: article.bodyHash,
 		};
 	};
 

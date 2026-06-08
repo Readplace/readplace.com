@@ -7,6 +7,7 @@ export type CrawlAndFinalizeResult =
 			article: FinalizedArticle;
 			etag?: string;
 			lastModified?: string;
+			bodyHash: string;
 		}
 	| { status: "not-modified" }
 	| { status: "failed"; reason: string }
@@ -16,6 +17,7 @@ export type CrawlAndFinalizeArticle = (params: {
 	url: string;
 	etag?: string;
 	lastModified?: string;
+	previousBodyHash?: string;
 }) => Promise<CrawlAndFinalizeResult>;
 
 /**
@@ -39,6 +41,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 			url: params.url,
 			etag: params.etag,
 			lastModified: params.lastModified,
+			previousBodyHash: params.previousBodyHash,
 			fetchThumbnail: true,
 		});
 
@@ -62,6 +65,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 			article: finalized.article,
 			etag: crawlResult.etag,
 			lastModified: crawlResult.lastModified,
+			bodyHash: crawlResult.bodyHash,
 		};
 	};
 }

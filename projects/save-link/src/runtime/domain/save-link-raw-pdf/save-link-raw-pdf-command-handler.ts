@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { createHash } from "node:crypto";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { ExtractPdf } from "@packages/crawl-article";
@@ -67,8 +68,10 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 				const detail = SaveLinkRawPdfCommand.detailSchema.parse(envelope.detail);
 
 				const bytes = await readPendingPdf(detail.url);
+				const bodyHash = createHash("sha256").update(bytes).digest("hex");
 				const crawlResult = await parsePdfFromBuffer({
 					buffer: bytes,
+					bodyHash,
 					/* The buffer came from the user's browser, not from a server fetch —
 					 * there is no Response object and therefore no ETag/Last-Modified
 					 * headers to forward. parsePdfFromBuffer accepts `undefined` and drops

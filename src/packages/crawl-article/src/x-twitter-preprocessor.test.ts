@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { CrawlFetch } from "./crawl-fetch";
 import { initFetchTweetViaOembed, isTweetUrl } from "./x-twitter-preprocessor";
 
@@ -23,33 +24,39 @@ describe("isTweetUrl", () => {
 
 describe("initFetchTweetViaOembed", () => {
 	it("returns synthesised HTML wrapping author name and embed for a 200 oembed response", async () => {
+		const oembedPayload = JSON.stringify({
+			author_name: "Elon Musk",
+			html: '<blockquote class="twitter-tweet"><p lang="en" dir="ltr">Test tweet</p></blockquote>\n',
+		});
 		const crawlFetch = stubCrawlFetch(async () =>
-			new Response(JSON.stringify({
-				author_name: "Elon Musk",
-				html: '<blockquote class="twitter-tweet"><p lang="en" dir="ltr">Test tweet</p></blockquote>\n',
-			}), { status: 200, headers: { "content-type": "application/json" } }),
+			new Response(oembedPayload, { status: 200, headers: { "content-type": "application/json" } }),
 		);
 		const fetchTweet = initFetchTweetViaOembed({ crawlFetch, logError: noopLogError });
 
 		const result = await fetchTweet({ url: "https://x.com/elonmusk/status/1519480761749016577" });
 
+		const expectedHtml = '<html><head><title>Elon Musk</title></head><body><blockquote class="twitter-tweet"><p lang="en" dir="ltr">Test tweet</p></blockquote>\n</body></html>';
 		expect(result).toEqual({
 			status: "fetched",
-			html: '<html><head><title>Elon Musk</title></head><body><blockquote class="twitter-tweet"><p lang="en" dir="ltr">Test tweet</p></blockquote>\n</body></html>',
+			html: expectedHtml,
+			bodyHash: createHash("sha256").update(oembedPayload).digest("hex"),
 		});
 	});
 
 	it("uses empty strings when the oembed payload omits author_name and html", async () => {
+		const oembedPayload = JSON.stringify({});
 		const crawlFetch = stubCrawlFetch(async () =>
-			new Response(JSON.stringify({}), { status: 200, headers: { "content-type": "application/json" } }),
+			new Response(oembedPayload, { status: 200, headers: { "content-type": "application/json" } }),
 		);
 		const fetchTweet = initFetchTweetViaOembed({ crawlFetch, logError: noopLogError });
 
 		const result = await fetchTweet({ url: "https://twitter.com/user/status/123" });
 
+		const expectedHtml = "<html><head><title></title></head><body></body></html>";
 		expect(result).toEqual({
 			status: "fetched",
-			html: "<html><head><title></title></head><body></body></html>",
+			html: expectedHtml,
+			bodyHash: createHash("sha256").update(oembedPayload).digest("hex"),
 		});
 	});
 

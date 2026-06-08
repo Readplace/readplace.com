@@ -125,6 +125,12 @@ export const SimpleCrawlUnsupportedEvent = defineEvent({
 		userId: z.string().optional(),
 		recrawl: z.boolean().optional(),
 		refresh: z.boolean().optional(),
+		/* SHA-256 of the previously-fetched body — only set on the refresh
+		 * chain. Threaded through to the comprehensive Lambda so it can
+		 * short-circuit a re-fetch of an unchanged PDF without paying the
+		 * mupdf walk. Save / recrawl chains never carry it (no prior body to
+		 * compare against). */
+		previousBodyHash: z.string().optional(),
 	}).refine(
 		(d) => !(d.recrawl && d.refresh),
 		{ message: "recrawl and refresh are mutually exclusive" },
@@ -159,6 +165,11 @@ export const ComprehensiveCrawlCommand = defineEvent({
 		userId: z.string().optional(),
 		recrawl: z.boolean().optional(),
 		refresh: z.boolean().optional(),
+		/* SHA-256 of the previously-fetched body — only set on the refresh
+		 * chain. Forwarded from the upstream SimpleCrawlUnsupportedEvent so
+		 * the crawl library can short-circuit a 200 OK whose body matches the
+		 * previously-stored bytes, skipping the PDF extraction step. */
+		previousBodyHash: z.string().optional(),
 	}).refine(
 		(d) => !(d.recrawl && d.refresh),
 		{ message: "recrawl and refresh are mutually exclusive" },
@@ -323,6 +334,12 @@ export const RefreshContentExtractedEvent = defineEvent({
 		etag: z.string().optional(),
 		lastModified: z.string().optional(),
 		contentFetchedAt: z.string(),
+		/* SHA-256 of the freshly-fetched body. The refresh-content-extracted
+		 * persister writes this onto the freshness row so the next refresh
+		 * tick can pass it back into the crawl library as `previousBodyHash`
+		 * and gate the parse. Required: every producer of this internal event
+		 * must carry it (all consumers live in this repo). */
+		bodyHash: z.string(),
 	}),
 });
 export type RefreshContentExtractedDetail = z.infer<
@@ -369,6 +386,12 @@ export const RefreshArticleContentCommand = defineEvent({
 		etag: z.string().optional(),
 		lastModified: z.string().optional(),
 		contentFetchedAt: z.string(),
+		/* SHA-256 of the freshly-fetched body — forwarded to the downstream
+		 * RefreshContentExtractedEvent so the persister lands it on the
+		 * freshness row, where the next refresh reads it back as the pre-parse
+		 * gate's `previousBodyHash`. Required: every producer of this internal
+		 * command must thread the hash through (all callers live in this repo). */
+		bodyHash: z.string(),
 	}),
 });
 export type RefreshArticleContentDetail = z.infer<
@@ -419,6 +442,11 @@ export const UpdateFetchTimestampCommand = defineEvent({
 	detailSchema: z.object({
 		url: z.string(),
 		contentFetchedAt: z.string(),
+		/* SHA-256 of the body that proved unchanged. Carried forward so a
+		 * row that previously had no `bodyHash` (legacy / first refresh) lands
+		 * one on the first 200-OK-with-matching-bytes hit. Optional because
+		 * the 304 Not Modified branch never computes a hash. */
+		bodyHash: z.string().optional(),
 	}),
 });
 export type UpdateFetchTimestampDetail = z.infer<

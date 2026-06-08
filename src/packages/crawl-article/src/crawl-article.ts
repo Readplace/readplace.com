@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type {
 	ComprehensiveCrawlProgress,
 	CrawlArticle,
@@ -132,13 +133,14 @@ function initConditionalGet(deps: {
  */
 export async function parseHtmlFromBuffer(input: {
 	buffer: Buffer;
+	bodyHash: string;
 	response: Response;
 	url: string;
 	fetchThumbnail?: boolean;
 	crawlFetch: CrawlFetch;
 	logError: (message: string, error?: Error) => void;
 }): Promise<CrawlArticleResult> {
-	const { buffer, response, url, fetchThumbnail, crawlFetch, logError } = input;
+	const { buffer, bodyHash, response, url, fetchThumbnail, crawlFetch, logError } = input;
 	const html = new TextDecoder().decode(buffer);
 	const candidates = extractThumbnailCandidates({ html, baseUrl: url });
 	const thumbnailUrl = candidates[0];
@@ -151,6 +153,7 @@ export async function parseHtmlFromBuffer(input: {
 		html,
 		etag: headerOrUndefined(response.headers, "etag"),
 		lastModified: headerOrUndefined(response.headers, "last-modified"),
+		bodyHash,
 	};
 	if (thumbnailUrl) result.thumbnailUrl = thumbnailUrl;
 	if (thumbnailImage) result.thumbnailImage = thumbnailImage;
@@ -170,6 +173,7 @@ export async function parseHtmlFromBuffer(input: {
  */
 export async function parsePdfFromBuffer(input: {
 	buffer: Buffer;
+	bodyHash: string;
 	response: Response | undefined;
 	url: string;
 	extractPdf: ExtractPdf;
@@ -196,6 +200,7 @@ export async function parsePdfFromBuffer(input: {
 		lastModified: input.response
 			? headerOrUndefined(input.response.headers, "last-modified")
 			: undefined,
+		bodyHash: input.bodyHash,
 	};
 	return result;
 }
@@ -233,6 +238,16 @@ export function initCrawlArticle(deps: {
 		const fetched = await conditionalGet(params);
 		if (fetched.status !== "ok") return fetched;
 		const { response, buffer } = fetched;
+		/* Pre-parse byte gate: many origins ignore conditional headers and
+		 * return 200 OK even when the body is byte-identical to the previous
+		 * fetch (static-file hosts, asset CDNs that strip validators,
+		 * dynamic-print services). Hashing the body before dispatch lets the
+		 * caller short-circuit without paying the parse cost — for PDFs that
+		 * means saving tens of seconds of mupdf walking the document. */
+		const bodyHash = createHash("sha256").update(buffer).digest("hex");
+		if (params.previousBodyHash && params.previousBodyHash === bodyHash) {
+			return { status: "not-modified" };
+		}
 		const contentType = response.headers.get("content-type") ?? "";
 		const mediaType = classifyMediaType({ contentType, buffer });
 		if (mediaType === undefined) {
@@ -243,6 +258,7 @@ export function initCrawlArticle(deps: {
 			case "html":
 				return parseHtmlFromBuffer({
 					buffer,
+					bodyHash,
 					response,
 					url: params.url,
 					fetchThumbnail: params.fetchThumbnail,
@@ -256,6 +272,7 @@ export function initCrawlArticle(deps: {
 				}
 				return parsePdfFromBuffer({
 					buffer,
+					bodyHash,
 					response,
 					url: params.url,
 					extractPdf,
@@ -263,7 +280,7 @@ export function initCrawlArticle(deps: {
 					logError,
 				});
 			case "plain-text":
-				return parsePlainTextFromBuffer({ buffer, response, url: params.url });
+				return parsePlainTextFromBuffer({ buffer, bodyHash, response, url: params.url });
 		}
 	};
 }

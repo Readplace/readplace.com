@@ -15,6 +15,11 @@ export type CrawlArticleResult =
 			thumbnailImage?: ThumbnailImage;
 			etag?: string;
 			lastModified?: string;
+			/* SHA-256 of the raw response body. Always populated on `fetched`.
+			 * Callers persist this on the freshness row so a subsequent refresh
+			 * can pass it back as `previousBodyHash` and short-circuit when the
+			 * origin returns the same bytes under a 200 OK. */
+			bodyHash: string;
 	  }
 	| { status: "not-modified" }
 	| { status: "failed" }
@@ -45,6 +50,12 @@ export type CrawlArticle = (params: {
 	url: string;
 	etag?: string;
 	lastModified?: string;
+	/* Hash of the body bytes from the previous successful fetch. When the
+	 * conditional GET returns 200 OK (origin doesn't honour etag /
+	 * last-modified), the crawler hashes the new body and compares: an exact
+	 * match short-circuits to `not-modified` without invoking the parser
+	 * (mupdf is the expensive path this gate protects). */
+	previousBodyHash?: string;
 	fetchThumbnail?: boolean;
 	onProgress?: ComprehensiveCrawlProgress;
 }) => Promise<CrawlArticleResult>;

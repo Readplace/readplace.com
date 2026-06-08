@@ -7,6 +7,7 @@ export type UpdateFetchTimestamp = (params: {
 	contentFetchedAt: string;
 	etag?: string;
 	lastModified?: string;
+	bodyHash?: string;
 }) => Promise<void>;
 
 export function initUpdateFetchTimestampHandler(deps: {

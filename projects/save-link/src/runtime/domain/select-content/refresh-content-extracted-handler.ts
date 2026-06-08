@@ -116,6 +116,7 @@ export function initRefreshContentExtractedHandler(deps: {
 							etag: detail.etag,
 							lastModified: detail.lastModified,
 							contentFetchedAt: detail.contentFetchedAt,
+							bodyHash: detail.bodyHash,
 						},
 						estimatedReadTime: winnerSource.metadata.estimatedReadTime,
 						now: now().toISOString(),

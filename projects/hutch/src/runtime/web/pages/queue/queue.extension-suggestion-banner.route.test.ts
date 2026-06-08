@@ -106,6 +106,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const crawlArticle = async () => ({
 			status: "fetched" as const,
 			html: articleHtml,
+			bodyHash: "a".repeat(64),
 		});
 		const findGeneratedSummary: FindGeneratedSummary = async () => ({
 			status: "ready",
@@ -148,6 +149,7 @@ describe("GET /queue/:id/view — extension suggestion banner", () => {
 		const crawlArticle = async () => ({
 			status: "fetched" as const,
 			html: articleHtml,
+			bodyHash: "a".repeat(64),
 		});
 		const findGeneratedSummary: FindGeneratedSummary = async () => ({
 			status: "failed",
