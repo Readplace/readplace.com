@@ -1,5 +1,6 @@
 import { decomposeTimeLeft } from "@packages/time-left";
 import type { EffectiveAccess } from "../../../domain/access/effective-access";
+import { withInternalTracking } from "../../internal-link-tracking";
 import {
 	ACCOUNT_CANCEL_URL,
 	ACCOUNT_REACTIVATE_URL,
@@ -70,7 +71,11 @@ export function parseAccountQuery(query: Record<string, unknown> | undefined): A
 }
 
 function action(input: Omit<AccountAction, "isLink">): AccountAction {
-	return { ...input, isLink: input.method === "GET" };
+	return {
+		...input,
+		href: withInternalTracking(input.href, { medium: "account", content: input.key }),
+		isLink: input.method === "GET",
+	};
 }
 
 const SUBSCRIBE_ACTION = action({

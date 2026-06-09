@@ -65,7 +65,7 @@ describe("toAccountViewModel — actions", () => {
 		assert.equal(vm.actions[0].key, "cancel-form");
 		assert.equal(vm.actions[0].variant, "destructive");
 		assert.equal(vm.actions[0].method, "POST");
-		assert.equal(vm.actions[0].href, "/account/cancel");
+		assert.equal(vm.actions[0].href, "/account/cancel?utm_source=internal&utm_medium=account&utm_content=cancel-form");
 		assert.equal(vm.actions[0].isLink, false);
 	});
 
@@ -90,7 +90,7 @@ describe("toAccountViewModel — actions", () => {
 		assert.deepEqual(keys, ["subscribe"]);
 		assert.equal(vm.actions[0].variant, "primary");
 		assert.equal(vm.actions[0].method, "POST");
-		assert.equal(vm.actions[0].href, "/account/subscribe");
+		assert.equal(vm.actions[0].href, "/account/subscribe?utm_source=internal&utm_medium=account&utm_content=subscribe");
 	});
 
 	it("inactive users get a primary subscribe action only (export lives in the nav menu)", () => {
@@ -133,7 +133,7 @@ describe("toAccountViewModel — actions", () => {
 		assert.deepEqual(keys, ["reactivate-form"]);
 		assert.equal(vm.actions[0].variant, "primary");
 		assert.equal(vm.actions[0].method, "POST");
-		assert.equal(vm.actions[0].href, "/account/reactivate");
+		assert.equal(vm.actions[0].href, "/account/reactivate?utm_source=internal&utm_medium=account&utm_content=reactivate-form");
 	});
 
 	it("trial cancellation-scheduled state — same shape as paid (reactivate-form, Reactivate label) so the template stays branchless", () => {

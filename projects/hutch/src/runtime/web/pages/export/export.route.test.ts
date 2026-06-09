@@ -35,7 +35,7 @@ describe("Export routes", () => {
 			const button = doc.querySelector("[data-test-export-start]");
 			expect(button?.tagName.toLowerCase()).toBe("button");
 			const form = button?.closest("form");
-			expect(form?.getAttribute("action")).toBe("/export/start");
+			expect(form?.getAttribute("action")).toBe("/export/start?utm_source=internal&utm_medium=export&utm_content=start");
 			expect(form?.getAttribute("method")?.toUpperCase()).toBe("POST");
 		});
 
