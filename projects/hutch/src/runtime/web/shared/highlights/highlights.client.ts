@@ -130,30 +130,46 @@ export function initHighlights(deps: HighlightsDeps): HighlightsController {
 		void addHighlight();
 	};
 
+	const boundIframes = new Set<HTMLIFrameElement>();
+
 	function bindSelection(target: HTMLIFrameElement): void {
 		const doc = target.contentDocument;
 		assert(doc, "reader iframe must be same-origin to observe selection");
 		doc.addEventListener("mouseup", onMouseUp);
 	}
 
-	const iframe = findIframe();
-	if (iframe) {
-		/** The srcdoc document may still be the initial about:blank when this
-		 * deferred script runs, and HTMX reader-polls swap in a fresh iframe
-		 * later. Re-bind selection and re-paint on every load so highlights
-		 * survive both the initial render race and subsequent swaps. */
-		iframe.addEventListener("load", () => {
-			bindSelection(iframe);
+	/** The reader streams its body in via HTMX polls: a still-crawling article
+	 * first renders a pending fragment with *no* iframe, and the iframe is
+	 * swapped in only once the crawl finishes — after this deferred script has
+	 * already run. Selection must therefore be (re-)bound every time we first
+	 * see an iframe element, not once at init; otherwise the "Add highlight"
+	 * button never appears on the common save-then-watch-it-load path. The
+	 * `Set` keeps the bind idempotent across the repeated `htmx:afterSwap`
+	 * events, mirroring reader-iframe.client.ts. The srcdoc document may still
+	 * be the initial about:blank when the element first appears, so also bind
+	 * (and re-paint) on its `load`. */
+	function bindIframe(target: HTMLIFrameElement): void {
+		if (boundIframes.has(target)) return;
+		boundIframes.add(target);
+		target.addEventListener("load", () => {
+			bindSelection(target);
 			reapply();
 		});
-		if (iframe.contentDocument?.readyState === "complete") {
-			bindSelection(iframe);
+		if (target.contentDocument?.readyState === "complete") {
+			bindSelection(target);
 		}
 	}
 
+	function scan(): void {
+		if (stopped) return;
+		const iframe = findIframe();
+		if (iframe) bindIframe(iframe);
+		reapply();
+	}
+
 	button.addEventListener("click", onClick);
-	deps.addSwapListener(reapply);
-	reapply();
+	deps.addSwapListener(scan);
+	scan();
 
 	return {
 		handleSelection,

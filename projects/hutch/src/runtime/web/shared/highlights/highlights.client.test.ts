@@ -9,6 +9,7 @@ interface SetupOptions {
 	withPanel?: boolean;
 	withList?: boolean;
 	withButton?: boolean;
+	withIframe?: boolean;
 }
 
 const DEFAULT_ITEM = `<li data-highlight-id="h1" data-highlight-quote="findme">findme</li>`;
@@ -21,6 +22,7 @@ function setup(options: SetupOptions = {}) {
 		withPanel = true,
 		withList = true,
 		withButton = true,
+		withIframe = true,
 	} = options;
 
 	const panelHtml = withPanel
@@ -30,22 +32,33 @@ function setup(options: SetupOptions = {}) {
 			</div>`
 		: "";
 
-	const dom = new JSDOM(
-		`<!doctype html><html><body>${panelHtml}<iframe data-reader-iframe></iframe></body></html>`,
-	);
+	const dom = new JSDOM(`<!doctype html><html><body>${panelHtml}</body></html>`);
 	const doc = dom.window.document;
-	const iframe = doc.querySelector("iframe");
-	assert(iframe, "iframe fixture must exist");
-	const inner = new JSDOM(innerHtml);
-	Object.defineProperty(iframe, "contentDocument", {
-		value: inner.window.document,
-		writable: true,
-		configurable: true,
-	});
-	Object.defineProperty(inner.window.document, "readyState", {
-		value: ready ? "complete" : "loading",
-		configurable: true,
-	});
+
+	let currentIframe: HTMLIFrameElement | null = null;
+	let currentInner: Document | null = null;
+
+	/** Mirror an HTMX reader-poll inserting a fresh `<iframe srcdoc>`: a new
+	 * element each time, with its own same-origin document and readyState. */
+	function mountIframe(): void {
+		const iframe = doc.createElement("iframe");
+		iframe.setAttribute("data-reader-iframe", "");
+		const inner = new JSDOM(innerHtml);
+		Object.defineProperty(iframe, "contentDocument", {
+			value: inner.window.document,
+			writable: true,
+			configurable: true,
+		});
+		Object.defineProperty(inner.window.document, "readyState", {
+			value: ready ? "complete" : "loading",
+			configurable: true,
+		});
+		doc.body.appendChild(iframe);
+		currentIframe = iframe;
+		currentInner = inner.window.document;
+	}
+
+	if (withIframe) mountIframe();
 
 	let selectionText = "";
 	let promptResult: string | null = "a note";
@@ -67,12 +80,15 @@ function setup(options: SetupOptions = {}) {
 	return {
 		dom,
 		doc,
-		iframe,
 		controller,
 		postCalls,
+		iframe: () => currentIframe,
 		button: () => doc.querySelector<HTMLElement>("[data-highlights-add]"),
 		listEl: () => doc.querySelector("[data-highlights-list]"),
-		marks: () => Array.from(inner.window.document.querySelectorAll("mark.rp-highlight")),
+		marks: () => {
+			assert(currentInner, "iframe must be mounted before querying marks");
+			return Array.from(currentInner.querySelectorAll("mark.rp-highlight"));
+		},
 		setSelection: (text: string) => {
 			selectionText = text;
 		},
@@ -85,11 +101,19 @@ function setup(options: SetupOptions = {}) {
 		fireSwap: () => {
 			for (const l of swapListeners) l();
 		},
+		/** Reader poll completes: a new iframe element is swapped in, then HTMX
+		 * fires `htmx:afterSwap`. */
+		swapInIframe: () => {
+			mountIframe();
+			for (const l of swapListeners) l();
+		},
 		fireMouseUp: () => {
-			inner.window.document.dispatchEvent(new dom.window.Event("mouseup"));
+			assert(currentInner, "iframe must be mounted before firing mouseup");
+			currentInner.dispatchEvent(new dom.window.Event("mouseup"));
 		},
 		fireLoad: () => {
-			iframe.dispatchEvent(new dom.window.Event("load"));
+			assert(currentIframe, "iframe must be mounted before firing load");
+			currentIframe.dispatchEvent(new dom.window.Event("load"));
 		},
 	};
 }
@@ -216,10 +240,23 @@ describe("initHighlights", () => {
 		expect(env.button()?.hidden).toBe(false);
 	});
 
+	it("binds selection (and paints) on an iframe swapped in after init", () => {
+		const env = setup({ withIframe: false });
+
+		env.swapInIframe();
+
+		expect(env.marks()).toHaveLength(1);
+		env.setSelection("picked after the poll completed");
+		env.fireMouseUp();
+		expect(env.button()?.hidden).toBe(false);
+	});
+
 	it("repaints safely when the reader iframe is no longer in the DOM", () => {
 		const env = setup();
 		expect(env.marks()).toHaveLength(1);
-		env.iframe.remove();
+		const frame = env.iframe();
+		assert(frame, "iframe fixture must exist");
+		frame.remove();
 		expect(() => env.controller.reapply()).not.toThrow();
 	});
 
