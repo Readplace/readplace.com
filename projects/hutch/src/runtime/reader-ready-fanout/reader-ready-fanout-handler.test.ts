@@ -1,7 +1,7 @@
 import type { Context, SQSEvent } from "aws-lambda";
 import { noopLogger } from "@packages/hutch-logger";
 import type { UserId } from "@packages/domain/user";
-import { initReaderReadyFanoutHandler, type ReaderReadyFanoutDeps } from "./reader-ready-fanout-handler";
+import { initReaderReadyUsersNotificationFanoutHandler, type ReaderReadyUsersNotificationFanoutDeps } from "./reader-ready-fanout-handler";
 
 const URL = "https://example.com/article";
 const SUCCEEDED_AT = "2026-05-30T12:00:00.000Z";
@@ -42,18 +42,18 @@ function sqsEvent(detail: unknown, messageId = "msg-1"): SQSEvent {
 	};
 }
 
-function createHandler(overrides: Partial<ReaderReadyFanoutDeps> = {}) {
-	const deps: ReaderReadyFanoutDeps = {
+function createHandler(overrides: Partial<ReaderReadyUsersNotificationFanoutDeps> = {}) {
+	const deps: ReaderReadyUsersNotificationFanoutDeps = {
 		findUserArticlesByUrl: jest.fn().mockResolvedValue([]),
 		markReaderViewSucceeded: jest.fn().mockResolvedValue(undefined),
 		dispatchNotifyReaderViewReady: jest.fn().mockResolvedValue(undefined),
 		logger: noopLogger,
 		...overrides,
 	};
-	return { handler: initReaderReadyFanoutHandler(deps), deps };
+	return { handler: initReaderReadyUsersNotificationFanoutHandler(deps), deps };
 }
 
-describe("initReaderReadyFanoutHandler", () => {
+describe("initReaderReadyUsersNotificationFanoutHandler", () => {
 	it("stamps succeededAt for every saver and dispatches a notify command only for savers who viewed while loading (hasSummary=true)", async () => {
 		const viewedSaver = { userId: "viewer" as UserId, viewedAt: new Date("2026-05-30T11:50:00.000Z") };
 		const neverViewedSaver = { userId: "never" as UserId, viewedAt: undefined };

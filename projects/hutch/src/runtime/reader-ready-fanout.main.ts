@@ -5,7 +5,7 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { NotifyReaderViewReadyCommand } from "@packages/hutch-infra-components";
 import { initSqsCommandDispatcher } from "@packages/hutch-infra-components/runtime";
 import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
-import { initReaderReadyFanoutHandler } from "./reader-ready-fanout/reader-ready-fanout-handler";
+import { initReaderReadyUsersNotificationFanoutHandler } from "./reader-ready-fanout/reader-ready-fanout-handler";
 import { requireEnv } from "./domain/require-env";
 
 /** ~5 min so a present user's final in-reader poll lands before the notify gate
@@ -32,7 +32,7 @@ const { dispatch: dispatchNotifyReaderViewReady } = initSqsCommandDispatcher({
 	delaySeconds: NOTIFY_DELAY_SECONDS,
 });
 
-export const handler = initReaderReadyFanoutHandler({
+export const handler = initReaderReadyUsersNotificationFanoutHandler({
 	findUserArticlesByUrl: articleStore.findUserArticlesByUrl,
 	markReaderViewSucceeded: articleStore.markReaderViewSucceeded,
 	dispatchNotifyReaderViewReady,

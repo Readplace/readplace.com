@@ -16,15 +16,15 @@ import type {
 	MarkReaderViewSucceeded,
 } from "@packages/test-fixtures/providers/article-store";
 
-export interface ReaderReadyFanoutDeps {
+export interface ReaderReadyUsersNotificationFanoutDeps {
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderViewSucceeded: MarkReaderViewSucceeded;
 	dispatchNotifyReaderViewReady: DispatchCommand<typeof NotifyReaderViewReadyCommand>;
 	logger: HutchLogger;
 }
 
-export function initReaderReadyFanoutHandler(
-	deps: ReaderReadyFanoutDeps,
+export function initReaderReadyUsersNotificationFanoutHandler(
+	deps: ReaderReadyUsersNotificationFanoutDeps,
 ): Handler<SQSEvent, SQSBatchResponse> {
 	const { findUserArticlesByUrl, markReaderViewSucceeded, dispatchNotifyReaderViewReady, logger } = deps;
 
@@ -55,14 +55,14 @@ export function initReaderReadyFanoutHandler(
 					return false;
 				}));
 
-				logger.info("[ReaderReadyFanout] fanned out reader-view success", {
+				logger.info("[ReaderReadyUsersNotificationFanout] fanned out reader-view success", {
 					url: detail.url,
 					hasSummary: detail.hasSummary,
 					savers: savers.length,
 					dispatched: results.filter(Boolean).length,
 				});
 			} catch (error) {
-				logger.error("[ReaderReadyFanout] record failed", {
+				logger.error("[ReaderReadyUsersNotificationFanout] record failed", {
 					messageId: record.messageId,
 					error,
 				});
