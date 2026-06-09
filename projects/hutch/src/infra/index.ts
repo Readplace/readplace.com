@@ -7,6 +7,7 @@ import {
 	CancelSubscriptionCommand,
 	ExportUserDataCommand,
 	SendTrialFeedbackEmailCommand,
+	ReaderViewLoadingSucceeded,
 	SubscriptionCancellationScheduledEvent,
 	SubscriptionCancelledEvent,
 	SubscriptionChargeFailedEvent,
@@ -42,6 +43,7 @@ const tableNames = {
 	articles: config.require("dynamodbArticlesTable"),
 	userArticles: config.require("dynamodbUserArticlesTable"),
 	users: config.require("dynamodbUsersTable"),
+	readerReadyNotifications: config.require("dynamodbReaderReadyNotificationsTable"),
 	sessions: config.require("dynamodbSessionsTable"),
 	oauth: config.require("dynamodbOauthTable"),
 	verificationTokens: config.require("dynamodbVerificationTokensTable"),
@@ -407,6 +409,104 @@ const exportUserDataLambdaWithSQS = new HutchSQSBackedLambda("export-user-data",
 });
 
 eventBus.subscribe(ExportUserDataCommand, exportUserDataLambdaWithSQS);
+
+// --- Reader-ready notification (fan-out + notify) ---
+// When an article's clean reader view reaches the successful terminal state,
+// save-link publishes ReaderViewLoadingSucceeded (per-URL, global). The fan-out
+// Lambda reverse-looks-up every saver via the user-articles url-index, stamps a
+// per-user succeededAt, and — for savers who opened the reader while it was
+// loading — dispatches NotifyReaderViewReadyCommand to the notify queue with a
+// ~5 min delay. The notify Lambda re-checks every per-user gate against the live
+// row, atomically claims the 6h cooldown, and emails the saver a link.
+
+// Notify queue is created first so the fan-out can address it for dispatch.
+const readerReadyNotifyQueue = new HutchSQS("reader-ready-notify", {
+	visibilityTimeoutSeconds: 120,
+});
+
+const readerReadyNotifyDynamodb = new HutchDynamoDBAccess("reader-ready-notify-dynamodb", {
+	tables: [
+		{ arn: storage.articlesTable.arn, includeIndexes: false },
+		{ arn: storage.userArticlesTable.arn, includeIndexes: false },
+		// users table is read-only here: Query the userId-index to resolve the
+		// saver's verified contact email.
+		{ arn: storage.usersTable.arn, includeIndexes: true },
+		// reader-ready-notifications carries the per-user 6h email cooldown,
+		// claimed by a direct PK conditional UpdateItem.
+		{ arn: storage.readerReadyNotificationsTable.arn, includeIndexes: false },
+	],
+	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem"],
+});
+
+const readerReadyNotifyLambda = new HutchLambda("reader-ready-notify", {
+	entryPoint: "./src/runtime/reader-ready-notify.main.ts",
+	outputDir: ".lib/reader-ready-notify",
+	assetDir: "./src/runtime",
+	memorySize: 512,
+	timeout: 60,
+	environment: {
+		PERSISTENCE: "prod",
+		APP_ORIGIN: appOrigin,
+		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
+		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
+		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
+		DYNAMODB_USERS_TABLE: storage.usersTable.name,
+		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
+		DYNAMODB_READER_READY_NOTIFICATIONS_TABLE: storage.readerReadyNotificationsTable.name,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+	},
+	policies: [...readerReadyNotifyDynamodb.policies],
+});
+
+eventBus.grantPublish(readerReadyNotifyLambda);
+
+// Direct-SQS source (the fan-out dispatches to this queue with DelaySeconds) —
+// no eventBus.subscribe, unlike the fan-out below. Constructed as a bare
+// statement for its EventSourceMapping + DLQ alarm side effects.
+new HutchSQSBackedLambda("reader-ready-notify", {
+	lambda: readerReadyNotifyLambda,
+	queue: readerReadyNotifyQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+const readerReadyFanoutQueue = new HutchSQS("reader-ready-fanout", {
+	visibilityTimeoutSeconds: 120,
+});
+
+const readerReadyFanoutDynamodb = new HutchDynamoDBAccess("reader-ready-fanout-dynamodb", {
+	// Query the url-index (includeIndexes) and stamp succeededAt per saver.
+	tables: [{ arn: storage.userArticlesTable.arn, includeIndexes: true }],
+	actions: ["dynamodb:Query", "dynamodb:UpdateItem"],
+});
+
+const readerReadyFanoutLambda = new HutchLambda("reader-ready-fanout", {
+	entryPoint: "./src/runtime/reader-ready-fanout.main.ts",
+	outputDir: ".lib/reader-ready-fanout",
+	assetDir: "./src/runtime",
+	memorySize: 512,
+	timeout: 60,
+	environment: {
+		PERSISTENCE: "prod",
+		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
+		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
+		READER_READY_NOTIFY_QUEUE_URL: readerReadyNotifyQueue.queueUrl,
+	},
+	policies: [
+		...readerReadyFanoutDynamodb.policies,
+		// SendMessage on the notify queue for the delayed dispatch.
+		...readerReadyNotifyQueue.policies,
+	],
+});
+
+const readerReadyFanoutWithSQS = new HutchSQSBackedLambda("reader-ready-fanout", {
+	lambda: readerReadyFanoutLambda,
+	queue: readerReadyFanoutQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+eventBus.subscribe(ReaderViewLoadingSucceeded, readerReadyFanoutWithSQS);
 
 // --- Stripe Webhook Receiver ---
 // Receives HTTP POST from Stripe via API Gateway, verifies the HMAC signature,

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import type { Article } from "../article.types";
 import { markSummarySkipped } from "./mark-summary-skipped";
 
+const NOW = "2026-05-30T12:00:00.000Z";
+
 function buildArticle(overrides: Partial<Article> = {}): Article {
 	return {
 		url: "https://example.com/article",
@@ -24,6 +26,7 @@ describe("markSummarySkipped", () => {
 	it("flips summary to skipped with the supplied SummarySkipReason", () => {
 		const { article } = markSummarySkipped(buildArticle(), {
 			reason: "content-too-short",
+			now: NOW,
 		});
 
 		assert.deepEqual(article.summary, {
@@ -32,10 +35,27 @@ describe("markSummarySkipped", () => {
 		});
 	});
 
-	it("emits no effects (terminal status write only)", () => {
-		const { effects } = markSummarySkipped(buildArticle(), {
-			reason: "ai-unavailable",
-		});
+	it("emits a publish-reader-view-loading-succeeded effect with hasSummary=false (skip still reaches the successful reader-view state)", () => {
+		const { effects } = markSummarySkipped(
+			buildArticle({ url: "https://example.com/post" }),
+			{ reason: "ai-unavailable", now: NOW },
+		);
+
+		assert.deepEqual(effects, [
+			{
+				kind: "publish-reader-view-loading-succeeded",
+				url: "https://example.com/post",
+				succeededAt: NOW,
+				hasSummary: false,
+			},
+		]);
+	});
+
+	it("emits no reader-view-loading-succeeded effect when the crawl is not yet ready (reader view is still loading, not succeeded)", () => {
+		const { effects } = markSummarySkipped(
+			buildArticle({ crawl: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" } }),
+			{ reason: "content-too-short", now: NOW },
+		);
 
 		assert.deepEqual(effects, []);
 	});
@@ -43,6 +63,7 @@ describe("markSummarySkipped", () => {
 	it("declares writes for summary only so a concurrent inline crawl writer is not clobbered", () => {
 		const { writes } = markSummarySkipped(buildArticle(), {
 			reason: "content-too-short",
+			now: NOW,
 		});
 
 		assert.deepEqual([...writes].sort(), ["summary"]);
@@ -53,6 +74,7 @@ describe("markSummarySkipped", () => {
 
 		const { article } = markSummarySkipped(before, {
 			reason: "content-too-short",
+			now: NOW,
 		});
 
 		assert.deepEqual(article.crawl, { kind: "ready" });
@@ -75,6 +97,7 @@ describe("markSummarySkipped", () => {
 
 		const { article } = markSummarySkipped(before, {
 			reason: "content-too-short",
+			now: NOW,
 		});
 
 		assert.equal(article.metadata.title, "kept title");
@@ -86,7 +109,7 @@ describe("markSummarySkipped", () => {
 		const before = buildArticle();
 		const snapshot = JSON.parse(JSON.stringify(before));
 
-		markSummarySkipped(before, { reason: "content-too-short" });
+		markSummarySkipped(before, { reason: "content-too-short", now: NOW });
 
 		assert.deepEqual(before, snapshot);
 	});

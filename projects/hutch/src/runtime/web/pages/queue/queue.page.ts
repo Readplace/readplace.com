@@ -27,6 +27,7 @@ import type {
 	FindArticleByUrl,
 	FindArticleUrlById,
 	FindArticlesByUser,
+	MarkArticleViewed,
 	SaveArticle,
 	UpdateArticleStatus,
 } from "@packages/test-fixtures/providers/article-store";
@@ -143,6 +144,7 @@ interface QueueDependencies {
 	saveArticle: SaveArticle;
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
+	markArticleViewed: MarkArticleViewed;
 	publishLinkSaved: PublishLinkSaved;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
@@ -260,6 +262,15 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 
 		const ownedArticle = result.article;
+
+		/* Server-side reader-view presence: stamp every owner open so the
+		 * reader-ready notifier can tell "viewed while loading, then left" from
+		 * "never opened". No client JS — this request is the only signal. */
+		await deps.markArticleViewed({
+			userId: ownedArticle.userId,
+			url: ownedArticle.url,
+			at: deps.now(),
+		});
 
 		const audioEnabled = deps.featureToggle.isEnabled(req, "audio");
 		const state = await reader.resolveReaderState({
@@ -729,6 +740,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			return;
 		}
 
+		await deps.markArticleViewed({ userId, url: article.url, at: deps.now() });
+
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleSummaryPoll({
 			articleUrl: article.url,
@@ -751,6 +764,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			res.status(404).type("html").send("");
 			return;
 		}
+
+		await deps.markArticleViewed({ userId, url: article.url, at: deps.now() });
 
 		const pollCount = Number(req.query.poll ?? "0");
 		const component = await reader.handleReaderPoll({

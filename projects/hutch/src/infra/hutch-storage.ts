@@ -5,6 +5,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly articlesTable: aws.dynamodb.Table;
 	public readonly userArticlesTable: aws.dynamodb.Table;
 	public readonly usersTable: aws.dynamodb.Table;
+	public readonly readerReadyNotificationsTable: aws.dynamodb.Table;
 	public readonly sessionsTable: aws.dynamodb.Table;
 	public readonly oauthTable: aws.dynamodb.Table;
 	public readonly verificationTokensTable: aws.dynamodb.Table;
@@ -17,6 +18,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		articles: string;
 		userArticles: string;
 		users: string;
+		readerReadyNotifications: string;
 		sessions: string;
 		oauth: string;
 		verificationTokens: string;
@@ -72,6 +74,13 @@ export class HutchStorage extends pulumi.ComponentResource {
 					rangeKey: "readAt",
 					projectionType: "ALL",
 				},
+				/* Reverse lookup for reader-ready fan-out: every saver of a URL.
+				 * `url` is on every item already, so no backfill. */
+				{
+					name: "url-index",
+					hashKey: "url",
+					projectionType: "ALL",
+				},
 			],
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 
@@ -99,6 +108,19 @@ export class HutchStorage extends pulumi.ComponentResource {
 				},
 			],
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+
+		/* Per-user reader-ready notification state (the 6h email cooldown),
+		 * keyed by userId. Kept off the users row so notification bookkeeping
+		 * doesn't couple to the auth aggregate; the claim is a direct PK
+		 * conditional write. */
+		this.readerReadyNotificationsTable = new aws.dynamodb.Table(`hutch-reader-ready-notifications`, {
+			name: args.tableNames.readerReadyNotifications,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "userId",
+			attributes: [{ name: "userId", type: "S" }],
+		}, { parent: this });
 
 		this.sessionsTable = new aws.dynamodb.Table(`hutch-sessions`, {
 			name: args.tableNames.sessions,

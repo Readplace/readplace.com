@@ -307,6 +307,36 @@ describe("initInMemoryAuth", () => {
 		});
 	});
 
+	describe("findUserContactByUserId", () => {
+		it("returns email and unverified flag for a known userId", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "contact@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			const contact = await auth.findUserContactByUserId(created.userId);
+
+			expect(contact).toEqual({ email: "contact@example.com", emailVerified: false });
+		});
+
+		it("reports emailVerified=true for Google users", async () => {
+			const auth = makeAuth();
+			const userId = UserIdSchema.parse("google-contact");
+			await auth.createGoogleUser({ email: "g@example.com", userId });
+
+			const contact = await auth.findUserContactByUserId(userId);
+
+			expect(contact).toEqual({ email: "g@example.com", emailVerified: true });
+		});
+
+		it("returns null for an unknown userId", async () => {
+			const auth = makeAuth();
+
+			const contact = await auth.findUserContactByUserId("nobody" as UserId);
+
+			expect(contact).toBeNull();
+		});
+	});
+
 	describe("sessions", () => {
 		it("should create a session and resolve the userId", async () => {
 			const auth = makeAuth();

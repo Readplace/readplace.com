@@ -96,6 +96,11 @@ import type {
 	FindArticleFreshness,
 	FindArticleUrlById,
 	FindArticlesByUser,
+	FindUserArticleNotificationState,
+	FindUserArticlesByUrl,
+	MarkArticleViewed,
+	MarkReaderReadyEmailSent,
+	MarkReaderViewSucceeded,
 	SaveArticle,
 	SaveArticleGlobally,
 	UpdateArticleStatus,
@@ -217,6 +222,11 @@ export interface ArticleStoreBundle {
 	saveArticleGlobally: SaveArticleGlobally;
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
+	markArticleViewed: MarkArticleViewed;
+	markReaderViewSucceeded: MarkReaderViewSucceeded;
+	findUserArticlesByUrl: FindUserArticlesByUrl;
+	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
+	findUserArticleNotificationState: FindUserArticleNotificationState;
 	readArticleContent: ReadArticleContent;
 	readContent: ContentProvider;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
@@ -432,6 +442,7 @@ function flattenFixtureToAppDependencies(
 		saveArticleGlobally: fixture.articleStore.saveArticleGlobally,
 		deleteArticle: fixture.articleStore.deleteArticle,
 		updateArticleStatus: fixture.articleStore.updateArticleStatus,
+		markArticleViewed: fixture.articleStore.markArticleViewed,
 		readArticleContent: fixture.articleStore.readArticleContent,
 		findArticleCrawlStatus: fixture.articleCrawl.findArticleCrawlStatus,
 		markCrawlPending: fixture.articleCrawl.markCrawlPending,
