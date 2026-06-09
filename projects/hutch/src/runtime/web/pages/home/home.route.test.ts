@@ -55,7 +55,7 @@ describe("GET /", () => {
 		const doc = new JSDOM(response.text).window.document;
 
 		const cta = doc.querySelector('[data-test-cta="install-extension"]');
-		expect(cta?.getAttribute("href")).toBe("/install");
+		expect(cta?.getAttribute("href")).toBe("/install?utm_source=internal&utm_medium=home-hero&utm_content=install");
 		expect(cta?.textContent).toBe("Install Browser Extension");
 	});
 
@@ -68,7 +68,7 @@ describe("GET /", () => {
 
 		const cta = doc.querySelector('[data-test-cta="install-extension"]');
 		expect(cta?.textContent).toBe("Install Firefox Extension");
-		expect(cta?.getAttribute("href")).toBe("/install?client=firefox");
+		expect(cta?.getAttribute("href")).toBe("/install?client=firefox&utm_source=internal&utm_medium=home-hero&utm_content=install");
 
 		const trust = doc.querySelector(".home-hero__trust");
 		expect(trust?.textContent).toBe("Also available for Chrome");
@@ -83,7 +83,7 @@ describe("GET /", () => {
 
 		const cta = doc.querySelector('[data-test-cta="install-extension"]');
 		expect(cta?.textContent).toBe("Install Chrome Extension");
-		expect(cta?.getAttribute("href")).toBe("/install?client=chrome");
+		expect(cta?.getAttribute("href")).toBe("/install?client=chrome&utm_source=internal&utm_medium=home-hero&utm_content=install");
 
 		const trust = doc.querySelector(".home-hero__trust");
 		expect(trust?.textContent).toBe("Also available for Firefox");
@@ -118,7 +118,7 @@ describe("GET /", () => {
 
 		const bottomCta = doc.querySelector('[data-test-cta="bottom-install"]');
 		expect(bottomCta?.textContent).toBe("Install Firefox Extension");
-		expect(bottomCta?.getAttribute("href")).toBe("/install?client=firefox");
+		expect(bottomCta?.getAttribute("href")).toBe("/install?client=firefox&utm_source=internal&utm_medium=home-cta&utm_content=install");
 	});
 
 	it("should render the public reader-view paste-link form with UTM hidden inputs", async () => {
