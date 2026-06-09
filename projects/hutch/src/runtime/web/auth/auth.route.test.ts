@@ -10,6 +10,7 @@ import {
 } from "@packages/test-fixtures";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
+import { RESURFACE_COOKIE_NAME } from "../pages/queue/resurface-cookie";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
@@ -1000,6 +1001,29 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/");
+		});
+
+		it("should clear the resurface cookie so the next user on a shared browser cannot see the previous prompt", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			await auth.createUser({ email: "test@example.com", password: "password123" });
+
+			const agent = request.agent(harness.server);
+			await agent
+				.post("/login")
+				.type("form")
+				.send({ email: "test@example.com", password: "password123" });
+
+			const response = await agent.post("/logout");
+
+			const cookies = response.headers["set-cookie"];
+			const cookieList = Array.isArray(cookies) ? cookies : [cookies];
+			const resurfaceClear = cookieList.find((cookie) =>
+				cookie.startsWith(`${RESURFACE_COOKIE_NAME}=`),
+			);
+			assert(resurfaceClear, "logout must clear the resurface cookie");
+			expect(resurfaceClear.startsWith(`${RESURFACE_COOKIE_NAME}=;`)).toBe(true);
+			expect(resurfaceClear).toContain("Path=/queue");
 		});
 	});
 

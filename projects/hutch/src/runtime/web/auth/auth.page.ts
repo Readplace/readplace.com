@@ -48,6 +48,7 @@ import { LoginPage, SignupPage, VerifyEmailPage } from "./auth.component";
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { baseCookieOptions } from "../cookie-options";
 import { SESSION_COOKIE_NAME } from "./session-cookie";
+import { RESURFACE_COOKIE_NAME } from "../pages/queue/resurface-cookie";
 import { buildVerificationEmailHtml } from "./verification-email";
 import { flattenZodErrors } from "./flatten-zod-errors";
 import { initFetchUserCount } from "./fetch-user-count";
@@ -524,6 +525,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			await deps.destroySession(sessionId);
 		}
 		res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
+		res.clearCookie(RESURFACE_COOKIE_NAME, { path: "/queue" });
 		res.redirect(303, "/");
 	});
 
