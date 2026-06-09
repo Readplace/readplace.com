@@ -3,7 +3,6 @@ import {
 	CrawlStatusSchema,
 	deriveReaderViewStatus,
 	ReaderStatusSchema,
-	ReaderViewStatusSchema,
 	SummaryStatusSchema,
 } from "./article-state";
 
@@ -36,18 +35,6 @@ describe("ReaderStatusSchema", () => {
 	it("rejects unknown values, including summary-only states", () => {
 		expect(ReaderStatusSchema.safeParse("skipped").success).toBe(false);
 		expect(ReaderStatusSchema.safeParse("absent").success).toBe(false);
-	});
-});
-
-describe("ReaderViewStatusSchema", () => {
-	it.each(["loading", "succeeded", "failed"])("accepts %s", (value) => {
-		expect(ReaderViewStatusSchema.parse(value)).toBe(value);
-	});
-
-	it("rejects unknown values, including underlying-state-machine values", () => {
-		expect(ReaderViewStatusSchema.safeParse("pending").success).toBe(false);
-		expect(ReaderViewStatusSchema.safeParse("ready").success).toBe(false);
-		expect(ReaderViewStatusSchema.safeParse("skipped").success).toBe(false);
 	});
 });
 
