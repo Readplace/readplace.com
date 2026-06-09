@@ -91,11 +91,31 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Override the action's bundled CLI (v2.1.76) with a newer native binary. The action
+      # stays pinned at v1.0.72 because its newer agent-SDK glue breaks Max-plan OAuth
+      # (#1126/#1281); that auth resolves in the child CLI, so upgrading only the binary
+      # picks up CLI fixes without reintroducing the auth bug.
+      - name: Install pinned Claude Code CLI
+        id: install-claude-cli
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash -s -- 2.1.161
+          claude_bin="$(command -v claude || true)"
+          for c in "$claude_bin" "$HOME/.local/bin/claude" "$HOME/.claude/local/claude" "$HOME/.claude/bin/claude"; do
+            if [ -n "$c" ] && [ -x "$c" ]; then claude_bin="$c"; break; fi
+          done
+          if [ -z "$claude_bin" ] || [ ! -x "$claude_bin" ]; then
+            claude_bin="$(find "$HOME" -maxdepth 5 -type f -name claude -perm -u+x 2>/dev/null | head -1)"
+          fi
+          test -x "$claude_bin"
+          "$claude_bin" --version
+          echo "claude_bin=$claude_bin" >> "$GITHUB_OUTPUT"
+
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c # v1.0.72 — pinned due to bun/SDK browser-detection bug (anthropics/claude-code-action#1126)
+        uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c # v1.0.72 — pinned: newer agent-SDK glue breaks Max-plan OAuth (anthropics/claude-code-action#1126, #1281); the CLI is upgraded separately via path_to_claude_code_executable
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          path_to_claude_code_executable: ${{ steps.install-claude-cli.outputs.claude_bin }}
           show_full_output: true
 
           additional_permissions: |
