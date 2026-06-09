@@ -97,6 +97,7 @@ describe("initReaderReadyNotifyHandler", () => {
 			expect(deps.claimReaderReadyEmailSlot).toHaveBeenCalledWith({ userId: USER_ID, now: NOW, cooldownMs: COOLDOWN_MS });
 			expect(deps.sendEmail).toHaveBeenCalledTimes(1);
 			const sent = (deps.sendEmail as jest.Mock).mock.calls[0][0];
+			expect(sent.from).toBe("Fayner from Readplace <readplace@readplace.com>");
 			expect(sent.to).toBe("reader@example.com");
 			expect(sent.bcc).toBe("readplace+reader_ready@readplace.com");
 			expect(sent.subject).toBe("An article you saved now has a reader view!");

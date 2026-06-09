@@ -22,7 +22,7 @@ import type { ClaimReaderReadyEmailSlot } from "@packages/test-fixtures/provider
 import type { SendEmail } from "@packages/test-fixtures/providers/email";
 import { buildReaderReadyEmailHtml } from "../web/reader-ready-email";
 
-const EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";
+const EMAIL_FROM = "Fayner from Readplace <readplace@readplace.com>";
 const READER_READY_BCC = "readplace+reader_ready@readplace.com";
 const SUBJECT = "An article you saved now has a reader view!";
 /** The reader view must have taken longer than a minute to qualify — a fast
