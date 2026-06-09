@@ -39,4 +39,9 @@ describe("withInternalTracking", () => {
 		const external = "https://github.com/Readplace/readplace.com";
 		expect(withInternalTracking(external, { medium: "home_hero", content: "github" })).toBe(external);
 	});
+
+	it("leaves a protocol-relative URL untouched — it resolves to another origin, so stamping it would both leak our params and strip the host", () => {
+		const external = "//cdn.example.com/x?a=1";
+		expect(withInternalTracking(external, { medium: "home_hero", content: "cdn" })).toBe(external);
+	});
 });

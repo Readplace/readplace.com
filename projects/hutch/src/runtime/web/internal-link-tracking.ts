@@ -28,7 +28,7 @@ const PARSE_ORIGIN = "https://internal.invalid";
  * correct whether or not the href already has a query string.
  */
 export function withInternalTracking(href: string, tracking: InternalTracking): string {
-	if (!href.startsWith("/")) return href;
+	if (!href.startsWith("/") || href.startsWith("//")) return href;
 	const url = new URL(href, PARSE_ORIGIN);
 	url.searchParams.set("utm_source", INTERNAL_CLICK_SOURCE);
 	url.searchParams.set("utm_medium", tracking.medium);
