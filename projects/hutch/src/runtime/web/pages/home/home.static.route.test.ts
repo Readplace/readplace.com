@@ -113,6 +113,12 @@ describe("GET /robots.txt", () => {
 		expect(response.text).toContain("Disallow: /queue");
 		expect(response.text).toContain("Sitemap:");
 	});
+
+	it("declares the same Content-Signal policy as the HTTP header", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/robots.txt");
+		expect(response.text).toContain("Content-Signal: search=yes, ai-input=yes, ai-train=no");
+	});
 });
 
 describe("GET /llms.txt", () => {
@@ -207,6 +213,76 @@ describe("GET /sitemap.xml", () => {
 			"http://localhost:3000/llms-full.txt",
 			...blogPostUrls,
 		]);
+	});
+});
+
+describe("GET / Link header (RFC 9727 api-catalog discovery)", () => {
+	it("advertises the api-catalog so agents can find the well-known entry point", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		expect(response.headers.link).toBe('</.well-known/api-catalog>; rel="api-catalog"');
+	});
+});
+
+describe("GET /health", () => {
+	it("returns an ok status as JSON", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/health");
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toMatch(/application\/json/);
+		expect(response.body).toEqual({ status: "ok" });
+	});
+});
+
+describe("GET /.well-known/oauth-authorization-server", () => {
+	it("publishes RFC 8414 metadata for the OAuth 2.0 authorization server", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/.well-known/oauth-authorization-server");
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toMatch(/application\/json/);
+		expect(response.body).toEqual({
+			issuer: "http://localhost:3000",
+			authorization_endpoint: "http://localhost:3000/oauth/authorize",
+			token_endpoint: "http://localhost:3000/oauth/token",
+			revocation_endpoint: "http://localhost:3000/oauth/revoke",
+			response_types_supported: ["code"],
+			grant_types_supported: ["authorization_code", "refresh_token"],
+			token_endpoint_auth_methods_supported: ["none"],
+			code_challenge_methods_supported: ["S256"],
+		});
+	});
+});
+
+describe("GET /.well-known/oauth-protected-resource", () => {
+	it("publishes RFC 9728 metadata pointing at the authorization server", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/.well-known/oauth-protected-resource");
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toMatch(/application\/json/);
+		expect(response.body).toEqual({
+			resource: "http://localhost:3000",
+			authorization_servers: ["http://localhost:3000"],
+			bearer_methods_supported: ["header"],
+		});
+	});
+});
+
+describe("GET /.well-known/api-catalog", () => {
+	it("publishes an RFC 9727 linkset pointing at real, fetchable resources", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/.well-known/api-catalog");
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toMatch(/application\/linkset\+json/);
+
+		const catalog = JSON.parse(response.text);
+		expect(catalog.linkset).toHaveLength(1);
+		const entry = catalog.linkset[0];
+		expect(entry.anchor).toBe("http://localhost:3000");
+		expect(entry["service-doc"][0].href).toBe("http://localhost:3000/llms-full.txt");
+		expect(entry["service-meta"][0].href).toBe(
+			"http://localhost:3000/.well-known/oauth-protected-resource",
+		);
+		expect(entry.status[0].href).toBe("http://localhost:3000/health");
 	});
 });
 
