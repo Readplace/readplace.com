@@ -1,20 +1,23 @@
 import assert from "node:assert/strict";
+import { UserIdSchema } from "@packages/domain/user";
 import {
 	decodeResurfaceCookie,
 	encodeResurfaceCookie,
 } from "./resurface-cookie";
 
-describe("resurface cookie", () => {
-	it("round-trips a prompt and ids", () => {
-		const encoded = encodeResurfaceCookie({ prompt: "coffee", ids: ["a", "b"] });
+const USER_ID = UserIdSchema.parse("user-123");
 
-		assert.deepEqual(decodeResurfaceCookie(encoded), { prompt: "coffee", ids: ["a", "b"] });
+describe("resurface cookie", () => {
+	it("round-trips a userId, prompt and ids", () => {
+		const encoded = encodeResurfaceCookie({ userId: USER_ID, prompt: "coffee", ids: ["a", "b"] });
+
+		assert.deepEqual(decodeResurfaceCookie(encoded), { userId: USER_ID, prompt: "coffee", ids: ["a", "b"] });
 	});
 
 	it("caps the stored ids at 50", () => {
 		const ids = Array.from({ length: 60 }, (_, i) => `id-${i}`);
 
-		const decoded = decodeResurfaceCookie(encodeResurfaceCookie({ prompt: "p", ids }));
+		const decoded = decodeResurfaceCookie(encodeResurfaceCookie({ userId: USER_ID, prompt: "p", ids }));
 
 		assert.equal(decoded?.ids.length, 50);
 	});
@@ -22,7 +25,7 @@ describe("resurface cookie", () => {
 	it("truncates an over-long prompt", () => {
 		const prompt = "x".repeat(600);
 
-		const decoded = decodeResurfaceCookie(encodeResurfaceCookie({ prompt, ids: [] }));
+		const decoded = decodeResurfaceCookie(encodeResurfaceCookie({ userId: USER_ID, prompt, ids: [] }));
 
 		assert.equal(decoded?.prompt.length, 500);
 	});
@@ -37,8 +40,14 @@ describe("resurface cookie", () => {
 	});
 
 	it("returns undefined when the payload fails validation", () => {
-		const badShape = encodeURIComponent(JSON.stringify({ prompt: "", ids: ["a"] }));
+		const badShape = encodeURIComponent(JSON.stringify({ userId: USER_ID, prompt: "", ids: ["a"] }));
 
 		assert.equal(decodeResurfaceCookie(badShape), undefined);
+	});
+
+	it("returns undefined when the userId is missing", () => {
+		const noUser = encodeURIComponent(JSON.stringify({ prompt: "coffee", ids: ["a"] }));
+
+		assert.equal(decodeResurfaceCookie(noUser), undefined);
 	});
 });

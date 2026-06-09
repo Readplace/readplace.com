@@ -3,6 +3,8 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer, loginAgent } from "../../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import { SESSION_COOKIE_NAME } from "../../auth/session-cookie";
+import { RESURFACE_COOKIE_NAME } from "./resurface-cookie";
 
 const useApp = useTestServer();
 
@@ -12,6 +14,15 @@ async function saveArticle(agent: ReturnType<typeof request.agent>, url: string)
 
 function parse(html: string): Document {
 	return new JSDOM(html).window.document;
+}
+
+/** Pulls a single `name=value` pair out of a response's Set-Cookie header so it
+ * can be replayed on a later request's Cookie header. */
+function cookiePair(setCookie: string | string[] | undefined, name: string): string {
+	const cookies = Array.isArray(setCookie) ? setCookie : [];
+	const match = cookies.find((cookie) => cookie.startsWith(`${name}=`));
+	assert(match, `expected a ${name} cookie`);
+	return match.split(";")[0];
 }
 
 describe("Queue resurface", () => {
@@ -147,6 +158,35 @@ describe("Queue resurface", () => {
 
 		expect(post.status).toBe(303);
 		expect(post.headers.location).toBe("/queue");
+	});
+
+	it("ignores a resurface cookie that belongs to a different user", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const owner = await loginAgent(harness.server, harness.auth);
+		await saveArticle(owner, "https://coffee.example.com/beans");
+		const resurfacePost = await owner.post("/queue/resurface").type("form").send({ prompt: "coffee" });
+		const resurfaceCookie = cookiePair(resurfacePost.headers["set-cookie"], RESURFACE_COOKIE_NAME);
+
+		/* The resurface cookie outlives the session that wrote it (longer TTL,
+		 * survives anything short of an explicit logout), so a different user on
+		 * the same browser can present it. Their queue must not honour it. */
+		await harness.auth.createUser({ email: "other@example.com", password: "password123" });
+		const otherLogin = await request(harness.server)
+			.post("/login")
+			.type("form")
+			.send({ email: "other@example.com", password: "password123" });
+		const otherSession = cookiePair(otherLogin.headers["set-cookie"], SESSION_COOKIE_NAME);
+		const otherCookies = `${otherSession}; ${resurfaceCookie}`;
+
+		const doc = parse((await request(harness.server).get("/queue").set("Cookie", otherCookies)).text);
+		const resurfacedTab = doc.querySelector('[data-test-filter="resurfaced"]');
+		assert(resurfacedTab, "resurfaced filter tab must be rendered");
+		expect(resurfacedTab.classList.contains("queue__filter-link--hidden")).toBe(true);
+
+		const resurfacedDoc = parse((await request(harness.server).get("/queue?tab=resurfaced").set("Cookie", otherCookies)).text);
+		expect(resurfacedDoc.querySelectorAll("[data-test-article-list] .queue-article").length).toBe(0);
+		expect(resurfacedDoc.querySelector("[data-test-resurface-banner]")?.textContent).not.toContain("coffee");
 	});
 
 	it("requires authentication", async () => {

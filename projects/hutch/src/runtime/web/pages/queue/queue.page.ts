@@ -388,7 +388,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const userId = req.userId;
 		const urlState = parseQueueUrl(req.query);
 		const filterUrl = typeof req.query.url === "string" ? req.query.url : undefined;
-		const resurfaceResult = decodeResurfaceCookie(req.cookies?.[RESURFACE_COOKIE_NAME]);
+		const decodedResurface = decodeResurfaceCookie(req.cookies?.[RESURFACE_COOKIE_NAME]);
+		/** The resurface cookie is per-browser and outlives a logout, so honour it
+		 * only for the user it was written for — otherwise a different user on a
+		 * shared browser would see the previous user's prompt and resurfaced set. */
+		const resurfaceResult = decodedResurface?.userId === userId ? decodedResurface : undefined;
 		const showResurfaceTab = Boolean(resurfaceResult) || urlState.tab === "resurfaced";
 
 		const renderHtml = async (result: FindArticlesResult): Promise<void> => {
@@ -505,7 +509,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				}),
 			}));
 			const { matchedIds } = await deps.matchArticlesByInterest({ prompt, candidates });
-			res.cookie(RESURFACE_COOKIE_NAME, encodeResurfaceCookie({ prompt, ids: matchedIds }), {
+			res.cookie(RESURFACE_COOKIE_NAME, encodeResurfaceCookie({ userId, prompt, ids: matchedIds }), {
 				path: "/queue",
 				maxAge: RESURFACE_COOKIE_TTL_MS,
 				sameSite: "lax",
