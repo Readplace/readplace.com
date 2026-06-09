@@ -101,4 +101,4 @@ jobs:
           additional_permissions: |
             actions: read
 
-          claude_args: '--model claude-opus-4-8 --effort max --dangerously-skip-permissions'
+          claude_args: '--model claude-opus-4-8 --effort max --dangerously-skip-permissions --allowedTools Task,TaskOutput,TaskStop,WebSearch,WebFetch --append-system-prompt "For substantive, multi-part, or repo-wide tasks: state the full plan up front, then fan out — delegate independent workstreams (multiple files to read, multiple hypotheses, a fix plus its adversarial verification) to subagents via the Task tool instead of working serially. For minor reversible choices, pick a reasonable option and note it rather than asking; only ask for scope changes or destructive actions. Prefer the most thorough, correct outcome over the fastest."'
