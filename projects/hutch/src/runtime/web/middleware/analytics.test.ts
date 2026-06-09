@@ -220,6 +220,16 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 		expect(serialized).not.toContain("utm_content");
 		expect(runMiddlewareClicks(req, createRes(200))).toHaveLength(1);
 	});
+
+	it("strips a real-looking acquisition source (utm_source=homepage) from the pageview when the link carries utm_medium=internal — a pre-existing conversion CTA (homepage Signup → GET /signup) is in-site navigation, not an external source like hackernews, so its pageview must stay out of the acquisition widgets while the click still records section=homepage; conversion attribution is unaffected because it reads first-touch UTM from the hutch_click cookie, not this pageview", () => {
+		const conversionLink = { utm_source: "homepage", utm_medium: "internal", utm_content: "founding-card" };
+		const [pageview] = runMiddleware(createReq({ path: "/signup", query: conversionLink }), createRes(200));
+		const serialized = JSON.stringify(pageview);
+		expect(serialized).not.toContain("utm_source");
+		expect(serialized).not.toContain("homepage");
+		const [click] = runMiddlewareClicks(createReq({ path: "/signup", query: conversionLink }), createRes(200));
+		expect(click).toMatchObject({ utm_source: "homepage", utm_content: "founding-card" });
+	});
 });
 
 describe("hashIp", () => {

@@ -377,7 +377,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 
 	// --- Internal clicks ("where do readers click most") ---
 	// Driven by the `click` event the analytics middleware emits for any request
-	// carrying utm_source=internal — including HTMX-boosted links and POST
+	// carrying utm_medium=internal — including HTMX-boosted links and POST
 	// actions that never appear as pageviews. utm_source is the section and
 	// utm_content the element.
 
