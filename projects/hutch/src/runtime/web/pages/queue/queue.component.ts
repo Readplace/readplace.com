@@ -9,7 +9,7 @@ import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-car
 import { renderToast } from "../../shared/toast/toast.component";
 import type { QueueViewModel, SubscriptionBannerState } from "./queue.viewmodel";
 import { buildQueueUrl } from "./queue.url";
-import { tabQuery } from "./queue.tabs";
+import { tabQuery, type TabId } from "./queue.tabs";
 
 const QUEUE_TEMPLATE = readFileSync(join(__dirname, "queue.template.html"), "utf-8");
 
@@ -26,6 +26,7 @@ interface QueueDisplayModel {
 	importSkippedEntries: ReadonlyArray<{ url: string; reasonLabel: string }>;
 	importSkippedAndMore?: number;
 	isEmpty: boolean;
+	emptyTitle: string;
 	hasArticles: boolean;
 	onboardingHtml: string;
 	articleHtmls: string[];
@@ -60,6 +61,15 @@ function filterLinkClass(isActive: boolean): string {
 
 export function formatUnreadLabel(count: number): string {
 	return count > 99 ? "To Read (99+)" : `To Read (${count})`;
+}
+
+const EMPTY_STATE_TITLES: Record<TabId, string> = {
+	queue: "There are no more articles to read",
+	done: "Your queue is empty",
+};
+
+export function emptyStateTitle(tab: TabId): string {
+	return EMPTY_STATE_TITLES[tab];
 }
 
 function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: boolean; extensionSavedArticle: boolean; browser: BrowserName; onboardingDismissed: boolean }): QueueDisplayModel {
@@ -100,6 +110,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		importSkippedEntries: vm.importSkipped?.entries ?? [],
 		importSkippedAndMore: vm.importSkipped?.andMore,
 		isEmpty: vm.isEmpty,
+		emptyTitle: emptyStateTitle(activeTab),
 		hasArticles: !vm.isEmpty,
 		onboardingHtml,
 		articleHtmls: vm.articles.map((article, index) =>

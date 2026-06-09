@@ -449,7 +449,7 @@ describe("Queue routes", () => {
 
 			const afterDeleteResponse = await agent.get("/queue");
 			const afterDoc = new JSDOM(afterDeleteResponse.text).window.document;
-			expect(afterDoc.querySelector("[data-test-empty-queue]")?.textContent).toContain("empty");
+			expect(afterDoc.querySelector("[data-test-empty-queue]")?.textContent).toContain("There are no more articles to read");
 		});
 
 		it("should redirect preserving queue view state from query params", async () => {
