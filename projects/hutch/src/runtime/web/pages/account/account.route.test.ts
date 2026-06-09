@@ -89,7 +89,7 @@ describe("GET /account (active paid subscription)", () => {
 		expect(actionKeys(doc)).toEqual(["cancel-form"]);
 		const cancelForm = findAction(doc, "cancel-form");
 		expect(cancelForm.tagName.toLowerCase()).toBe("form");
-		expect(cancelForm.getAttribute("action")).toBe("/account/cancel?utm_source=internal&utm_medium=account&utm_content=cancel-form");
+		expect(cancelForm.getAttribute("action")).toBe("/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form");
 		expect(cancelForm.getAttribute("method")?.toUpperCase()).toBe("POST");
 		expect(doc.querySelector("[data-test-trial-countdown]")).toBeNull();
 	});
@@ -148,7 +148,7 @@ describe("GET /account (trialing inside trial window)", () => {
 		expect(actionKeys(doc)).toEqual(["subscribe"]);
 		const subscribe = findAction(doc, "subscribe");
 		expect(subscribe.tagName.toLowerCase()).toBe("form");
-		expect(subscribe.getAttribute("action")).toBe("/account/subscribe?utm_source=internal&utm_medium=account&utm_content=subscribe");
+		expect(subscribe.getAttribute("action")).toBe("/account/subscribe?utm_source=account&utm_medium=internal&utm_content=subscribe");
 	});
 
 	it("renders the global trial countdown in the nav for a trialing user (regression: /account previously dropped it)", async () => {
@@ -617,7 +617,7 @@ describe("GET /account (cancellation-scheduled state)", () => {
 		expect(actionKeys(doc)).toEqual(["reactivate-form"]);
 		const reactivate = findAction(doc, "reactivate-form");
 		expect(reactivate.tagName.toLowerCase()).toBe("form");
-		expect(reactivate.getAttribute("action")).toBe("/account/reactivate?utm_source=internal&utm_medium=account&utm_content=reactivate-form");
+		expect(reactivate.getAttribute("action")).toBe("/account/reactivate?utm_source=account&utm_medium=internal&utm_content=reactivate-form");
 	});
 
 	it("renders the cancellation-scheduled pill in the header (paid + trial) so the user sees the cutoff date globally", async () => {

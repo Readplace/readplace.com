@@ -3,7 +3,7 @@ import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { isbot } from "isbot";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { UserId } from "@packages/domain/user";
-import { ANALYTICS_EVENTS, INTERNAL_CLICK_SOURCE, STREAMS } from "../../observability/events";
+import { ANALYTICS_EVENTS, INTERNAL_CLICK_MEDIUM, STREAMS } from "../../observability/events";
 
 export interface AnalyticsPageview {
 	stream: typeof STREAMS.analytics;
@@ -23,10 +23,10 @@ export interface AnalyticsPageview {
 
 /**
  * A click on an in-site link or action button. Every internal href/form action
- * carries `utm_source=internal`; this event is emitted for any request bearing
+ * carries `utm_medium=internal`; this event is emitted for any request bearing
  * it — including HTMX-boosted navigations and POST actions (Save / Delete /
  * Mark-read / Logout) that the pageview path drops — so click volume is
- * countable across all surfaces. `utm_medium` is the section and `utm_content`
+ * countable across all surfaces. `utm_source` is the section and `utm_content`
  * the element; `utm_campaign` is intentionally absent.
  */
 export interface AnalyticsClick {
@@ -34,8 +34,8 @@ export interface AnalyticsClick {
 	event: typeof ANALYTICS_EVENTS.click;
 	timestamp: string;
 	path: string;
-	utm_source: typeof INTERNAL_CLICK_SOURCE;
-	utm_medium?: string;
+	utm_source?: string;
+	utm_medium: typeof INTERNAL_CLICK_MEDIUM;
 	utm_content?: string;
 	visitor_hash: string | null;
 	visitor_id: string | null;
@@ -186,13 +186,13 @@ function extractMediumPostId(req: Request): string | undefined {
 }
 
 function isInternalClick(req: Request): boolean {
-	return extractQueryString(req, "utm_source") === INTERNAL_CLICK_SOURCE;
+	return extractQueryString(req, "utm_medium") === INTERNAL_CLICK_MEDIUM;
 }
 
 /**
  * Clicks are counted regardless of method or `hx-request` (HTMX-boosted links
  * and POST actions are clicks too); only bots and error responses are dropped.
- * The precise `utm_source=internal` marker already excludes background polls,
+ * The precise `utm_medium=internal` marker already excludes background polls,
  * which never carry it.
  */
 function shouldCountClick(req: Request, statusCode: number): boolean {
@@ -202,7 +202,7 @@ function shouldCountClick(req: Request, statusCode: number): boolean {
 }
 
 /**
- * Internal navigation is recorded as a `click`; keeping its `utm_source=internal`
+ * Internal navigation is recorded as a `click`; keeping its `utm_medium=internal`
  * out of the pageview preserves the meaning of the acquisition dashboards, which
  * group pageviews by the real campaign source.
  */
@@ -239,8 +239,8 @@ export function createAnalyticsMiddleware(deps: {
 					event: ANALYTICS_EVENTS.click,
 					timestamp: deps.now().toISOString(),
 					path: req.path,
-					utm_source: INTERNAL_CLICK_SOURCE,
-					utm_medium: extractQueryString(req, "utm_medium"),
+					utm_source: extractQueryString(req, "utm_source"),
+					utm_medium: INTERNAL_CLICK_MEDIUM,
 					utm_content: extractQueryString(req, "utm_content"),
 					visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
 					visitor_id: req.visitorId ?? null,

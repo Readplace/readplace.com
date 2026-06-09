@@ -79,7 +79,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
 	const sortLabel = effectiveOrder === "desc" ? "Newest first ↓" : "Oldest first ↑";
 	const sortUrl = withInternalTracking(buildQueueUrl({ tab: activeTab, order: nextOrder }), {
-		medium: "queue-sort",
+		source: "queue-sort",
 		content: "sort",
 	});
 
@@ -103,7 +103,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 				actions: [
 					{
 						method: "POST",
-						url: withInternalTracking(vm.statusFlash.undoUrl, { medium: "queue-toast", content: "undo" }),
+						url: withInternalTracking(vm.statusFlash.undoUrl, { source: "queue-toast", content: "undo" }),
 						label: "Undo",
 						fields: [{ name: "status", value: vm.statusFlash.undoStatus }],
 					},
@@ -123,18 +123,18 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		filterUnreadClass: filterLinkClass(activeTab === "queue"),
 		filterUnreadLabel: formatUnreadLabel(vm.unreadCount),
 		filterReadClass: filterLinkClass(activeTab === "done"),
-		filterUnreadUrl: withInternalTracking(vm.filterUrls.unread, { medium: "queue-filters", content: "filter-unread" }),
-		filterReadUrl: withInternalTracking(vm.filterUrls.read, { medium: "queue-filters", content: "filter-read" }),
+		filterUnreadUrl: withInternalTracking(vm.filterUrls.unread, { source: "queue-filters", content: "filter-unread" }),
+		filterReadUrl: withInternalTracking(vm.filterUrls.read, { source: "queue-filters", content: "filter-read" }),
 		sortUrl,
 		sortLabel,
 		showPagination: vm.totalPages > 1,
 		hasPrev: Boolean(vm.paginationUrls.prev),
 		hasNext: Boolean(vm.paginationUrls.next),
 		prevUrl: vm.paginationUrls.prev
-			? withInternalTracking(vm.paginationUrls.prev, { medium: "queue-pagination", content: "prev" })
+			? withInternalTracking(vm.paginationUrls.prev, { source: "queue-pagination", content: "prev" })
 			: undefined,
 		nextUrl: vm.paginationUrls.next
-			? withInternalTracking(vm.paginationUrls.next, { medium: "queue-pagination", content: "next" })
+			? withInternalTracking(vm.paginationUrls.next, { source: "queue-pagination", content: "next" })
 			: undefined,
 		currentPage: vm.currentPage,
 		totalPages: vm.totalPages,

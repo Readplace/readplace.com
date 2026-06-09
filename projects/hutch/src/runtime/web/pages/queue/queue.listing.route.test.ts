@@ -39,7 +39,7 @@ describe("Queue routes", () => {
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector("[data-test-empty-queue]")?.textContent).toContain("There are no more articles to read");
-			expect(doc.querySelector('[data-test-form="save-article"]')?.getAttribute("action")).toBe("/queue/save?utm_source=internal&utm_medium=queue&utm_content=save");
+			expect(doc.querySelector('[data-test-form="save-article"]')?.getAttribute("action")).toBe("/queue/save?utm_source=queue&utm_medium=internal&utm_content=save");
 		});
 	});
 
@@ -349,7 +349,7 @@ describe("Queue routes", () => {
 			const response = await agent.get("/queue?order=asc");
 			const doc = new JSDOM(response.text).window.document;
 			const sortLink = doc.querySelector("[data-test-sort]");
-			expect(sortLink?.getAttribute("href")).toBe("/queue?utm_source=internal&utm_medium=queue-sort&utm_content=sort");
+			expect(sortLink?.getAttribute("href")).toBe("/queue?utm_source=queue-sort&utm_medium=internal&utm_content=sort");
 			expect(sortLink?.textContent).toContain("Oldest first");
 		});
 

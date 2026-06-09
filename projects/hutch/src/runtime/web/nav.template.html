@@ -1,9 +1,9 @@
   <header class="header{{#if transparent}} header--transparent{{/if}}">
     <div class="header__content">
-      <a href="{{track '/' medium='header' content='brand'}}" class="header__brand">Read<span class="header__brand-mark">place</span></a>
+      <a href="{{track '/' source='header' content='brand'}}" class="header__brand">Read<span class="header__brand-mark">place</span></a>
       {{#if trial}}
       <a class="trial-countdown trial-countdown--{{trialEscalationClass}}"
-         href="{{track '/account' medium='header' content='trial-countdown'}}"
+         href="{{track '/account' source='header' content='trial-countdown'}}"
          data-trial-ends-at-iso="{{trialEndsAtIso}}"
          data-server-now-iso="{{serverNowIso}}"
          data-trial-state="{{trialState}}"
@@ -26,8 +26,8 @@
               {{#each items}}
               <li>
                 <form method="{{method}}" action="{{href}}">
-                  <input type="hidden" name="utm_source" value="internal">
-                  <input type="hidden" name="utm_medium" value="{{trackMedium}}">
+                  <input type="hidden" name="utm_source" value="{{trackSource}}">
+                  <input type="hidden" name="utm_medium" value="internal">
                   <input type="hidden" name="utm_content" value="{{trackContent}}">
                   <button type="submit" class="nav__link" data-test-nav-item="{{key}}"><i class="nav__icon {{icon}}" aria-hidden="true"></i><span class="nav__label">{{label}}</span></button>
                 </form>
@@ -40,8 +40,8 @@
           {{#if @first}}<ul class="nav__list">{{/if}}
           <li>
             <form method="{{method}}" action="{{href}}">
-              <input type="hidden" name="utm_source" value="internal">
-              <input type="hidden" name="utm_medium" value="{{trackMedium}}">
+              <input type="hidden" name="utm_source" value="{{trackSource}}">
+              <input type="hidden" name="utm_medium" value="internal">
               <input type="hidden" name="utm_content" value="{{trackContent}}">
               <button type="submit" class="nav__link" data-test-nav-item="{{key}}"><i class="nav__icon {{icon}}" aria-hidden="true"></i><span class="nav__label">{{label}}</span></button>
             </form>

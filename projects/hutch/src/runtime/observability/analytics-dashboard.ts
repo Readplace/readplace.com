@@ -378,7 +378,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	// --- Internal clicks ("where do readers click most") ---
 	// Driven by the `click` event the analytics middleware emits for any request
 	// carrying utm_source=internal — including HTMX-boosted links and POST
-	// actions that never appear as pageviews. utm_medium is the section and
+	// actions that never appear as pageviews. utm_source is the section and
 	// utm_content the element.
 
 	widgets.push(
@@ -387,7 +387,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			title: "Internal clicks by section / element",
 			logGroupNames: [hutchLogGroupName],
 			query: [
-				"fields @timestamp, coalesce(utm_medium, \"-\") as section, coalesce(utm_content, \"-\") as element",
+				"fields @timestamp, coalesce(utm_source, \"-\") as section, coalesce(utm_content, \"-\") as element",
 				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.click}"`,
 				...exclude,
 				"| stats count(*) as clicks by section, element",

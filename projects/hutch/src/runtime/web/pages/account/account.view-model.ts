@@ -73,7 +73,7 @@ export function parseAccountQuery(query: Record<string, unknown> | undefined): A
 function action(input: Omit<AccountAction, "isLink">): AccountAction {
 	return {
 		...input,
-		href: withInternalTracking(input.href, { medium: "account", content: input.key }),
+		href: withInternalTracking(input.href, { source: "account", content: input.key }),
 		isLink: input.method === "GET",
 	};
 }

@@ -166,9 +166,9 @@ describe("createAnalyticsMiddleware", () => {
 });
 
 describe("createAnalyticsMiddleware — internal click events", () => {
-	const internalQuery = { utm_source: "internal", utm_medium: "queue", utm_content: "subscribe_cta" };
+	const internalQuery = { utm_source: "queue", utm_medium: "internal", utm_content: "subscribe_cta" };
 
-	it("emits a click event carrying the section (utm_medium) and element (utm_content) for a request stamped utm_source=internal", () => {
+	it("emits a click event carrying the section (utm_source) and element (utm_content) for a request stamped utm_medium=internal", () => {
 		const req = createReq({ path: "/account", query: internalQuery, visitorId: "550e8400-e29b-41d4-a716-446655440000" });
 		const [click] = runMiddlewareClicks(req, createRes(200));
 		expect(click).toEqual({
@@ -176,8 +176,8 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 			event: "click",
 			timestamp: "2026-04-21T10:00:00.000Z",
 			path: "/account",
-			utm_source: "internal",
-			utm_medium: "queue",
+			utm_source: "queue",
+			utm_medium: "internal",
 			utm_content: "subscribe_cta",
 			visitor_hash: expect.any(String),
 			visitor_id: "550e8400-e29b-41d4-a716-446655440000",
@@ -211,7 +211,7 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 		expect(runMiddlewareClicks(req, createRes(200))).toEqual([]);
 	});
 
-	it("keeps utm_source=internal out of the pageview so acquisition dashboards are not diluted by in-site navigation, while still emitting the click", () => {
+	it("keeps utm_medium=internal out of the pageview so acquisition dashboards are not diluted by in-site navigation, while still emitting the click", () => {
 		const req = createReq({ path: "/account", query: internalQuery });
 		const [pageview] = runMiddleware(req, createRes(200));
 		const serialized = JSON.stringify(pageview);

@@ -56,7 +56,7 @@ function buildInstallTabs(active: InstallClient): InstallTab[] {
 		return {
 			key,
 			label,
-			href: withInternalTracking(`/install?client=${key}`, { medium: "install-tabs", content: key }),
+			href: withInternalTracking(`/install?client=${key}`, { source: "install-tabs", content: key }),
 			activeClass: isActive ? " install-page__tab--active" : "",
 			ariaCurrent: isActive ? "page" : undefined,
 		};

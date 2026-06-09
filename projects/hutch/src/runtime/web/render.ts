@@ -3,7 +3,7 @@ import Handlebars from 'handlebars';
 import { withInternalTracking } from './internal-link-tracking';
 
 /**
- * `{{track '/account' medium='queue' content='subscribe_cta'}}` stamps the
+ * `{{track '/account' source='queue' content='subscribe_cta'}}` stamps the
  * internal-click UTM params onto a literal href in a template; URLs built in
  * component TS call withInternalTracking directly. Registered once on the
  * shared Handlebars instance so every template can use it without threading a
@@ -12,10 +12,10 @@ import { withInternalTracking } from './internal-link-tracking';
  */
 Handlebars.registerHelper('track', (href: unknown, options: Handlebars.HelperOptions): string => {
   assert(typeof href === 'string', '{{track}} requires a string href');
-  const { medium, content } = options.hash;
-  assert(typeof medium === 'string', "{{track}} requires a medium= named arg");
+  const { source, content } = options.hash;
+  assert(typeof source === 'string', "{{track}} requires a source= named arg");
   assert(typeof content === 'string', "{{track}} requires a content= named arg");
-  return withInternalTracking(href, { medium, content });
+  return withInternalTracking(href, { source, content });
 });
 
 const compiledTemplates = new Map<string, HandlebarsTemplateDelegate>();

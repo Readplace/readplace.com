@@ -24,7 +24,7 @@
         <p class="export__text">We'll prepare your export in the background and email you a download link when it's ready. The link is valid for <strong>{{ttlDays}} days</strong>.</p>
       </section>
 
-      <form action="{{track '/export/start' medium='export' content='start'}}" method="POST" class="export__action">
+      <form action="{{track '/export/start' source='export' content='start'}}" method="POST" class="export__action">
         <button type="submit" class="export__action-btn" data-test-export-start>Email Me My Data</button>
       </form>
     </main>

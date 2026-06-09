@@ -27,7 +27,7 @@ export const ANALYTICS_EVENTS = {
 } as const;
 
 /**
- * `utm_source` value stamped on every in-site link and action button so a click
+ * `utm_medium` value stamped on every in-site link and action button so a click
  * can be counted without an extra request or a client-side beacon. The analytics
  * middleware emits a `click` event for any request carrying it (GET, HTMX-boosted,
  * or POST) and keeps it out of `pageview` so acquisition dashboards — which group
@@ -35,7 +35,7 @@ export const ANALYTICS_EVENTS = {
  * internal navigation. Imported by both the link-tagging helper (producer) and
  * the analytics middleware (consumer) so the two never drift.
  */
-export const INTERNAL_CLICK_SOURCE = "internal";
+export const INTERNAL_CLICK_MEDIUM = "internal";
 
 export const CONVERSION_EVENTS = {
 	userCreated: "user_created",

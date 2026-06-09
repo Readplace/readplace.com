@@ -38,7 +38,7 @@ export type NavGroupKey = "library" | "account";
  * rendered into an empty, `aria-hidden` `<i>` so the glyph reinforces the
  * label without adding text.
  *
- * `trackMedium`/`trackContent` carry the internal-click UTM dimensions. The
+ * `trackSource`/`trackContent` carry the internal-click UTM dimensions. The
  * template renders them as hidden inputs AND `href` is pre-tagged via
  * withInternalTracking, because the two form methods transmit query params
  * differently: a GET submit replaces the action's query with the serialized
@@ -51,11 +51,11 @@ export interface NavItem {
 	href: string;
 	method: "GET" | "POST";
 	icon: string;
-	trackMedium: string;
+	trackSource: string;
 	trackContent: string;
 }
 
-const NAV_MEDIUM = "header-nav";
+const NAV_SOURCE = "header-nav";
 
 /** Builds a nav item with its href pre-tagged for internal-click tracking and
  * the matching UTM dimensions exposed for the template's hidden inputs. The
@@ -70,10 +70,10 @@ function navItem(input: {
 	return {
 		key: input.key,
 		label: input.label,
-		href: withInternalTracking(input.path, { medium: NAV_MEDIUM, content: input.key }),
+		href: withInternalTracking(input.path, { source: NAV_SOURCE, content: input.key }),
 		method: input.method,
 		icon: input.icon,
-		trackMedium: NAV_MEDIUM,
+		trackSource: NAV_SOURCE,
 		trackContent: input.key,
 	};
 }

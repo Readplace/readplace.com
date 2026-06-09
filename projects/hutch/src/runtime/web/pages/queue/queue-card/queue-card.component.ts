@@ -34,7 +34,7 @@ export function toActionDisplayModel(
 		: "queue-article__action-btn queue-article__action-btn--delete";
 	return {
 		...action,
-		url: withInternalTracking(action.url, { medium: "queue-card", content: action.testAction }),
+		url: withInternalTracking(action.url, { source: "queue-card", content: action.testAction }),
 		buttonClass,
 		disabled: options.isProcessing && isStatusAction,
 	};
@@ -47,7 +47,7 @@ export function toQueueCardDisplayModel(
 	const isProcessing = Boolean(article.cardPollUrl);
 	return {
 		...article,
-		linkUrl: withInternalTracking(`/queue/${article.id}/view`, { medium: "queue-card", content: "open-article" }),
+		linkUrl: withInternalTracking(`/queue/${article.id}/view`, { source: "queue-card", content: "open-article" }),
 		unreadClass: article.isUnread ? " queue-article--unread" : " queue-article--read",
 		isFirst: options.isFirst,
 		cardStatus: isProcessing ? "pending" : "terminal",

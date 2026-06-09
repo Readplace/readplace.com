@@ -1,15 +1,15 @@
-import { INTERNAL_CLICK_SOURCE } from "../observability/events";
+import { INTERNAL_CLICK_MEDIUM } from "../observability/events";
 
 /**
- * `utm_medium` is the section a clickable element lives in (`nav`, `footer`,
+ * `utm_source` is the section a clickable element lives in (`nav`, `footer`,
  * `queue`, `home_hero`, …) and `utm_content` is the element itself (`save`,
- * `subscribe_cta`, `mark_read`, …). `utm_source` is fixed to
- * INTERNAL_CLICK_SOURCE for every in-site link, and `utm_campaign` is
+ * `subscribe_cta`, `mark_read`, …). `utm_medium` is fixed to
+ * INTERNAL_CLICK_MEDIUM for every in-site link, and `utm_campaign` is
  * deliberately unused — two dimensions are enough to answer "which button do
  * readers click most, and where".
  */
 interface InternalTracking {
-	medium: string;
+	source: string;
 	content: string;
 }
 
@@ -30,8 +30,8 @@ const PARSE_ORIGIN = "https://internal.invalid";
 export function withInternalTracking(href: string, tracking: InternalTracking): string {
 	if (!href.startsWith("/") || href.startsWith("//")) return href;
 	const url = new URL(href, PARSE_ORIGIN);
-	url.searchParams.set("utm_source", INTERNAL_CLICK_SOURCE);
-	url.searchParams.set("utm_medium", tracking.medium);
+	url.searchParams.set("utm_source", tracking.source);
+	url.searchParams.set("utm_medium", INTERNAL_CLICK_MEDIUM);
 	url.searchParams.set("utm_content", tracking.content);
 	return `${url.pathname}${url.search}${url.hash}`;
 }
