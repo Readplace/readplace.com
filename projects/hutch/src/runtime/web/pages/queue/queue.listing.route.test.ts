@@ -38,7 +38,7 @@ describe("Queue routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-empty-queue]")?.textContent).toContain("There's no more articles to read");
+			expect(doc.querySelector("[data-test-empty-queue]")?.textContent).toContain("There are no more articles to read");
 			expect(doc.querySelector('[data-test-form="save-article"]')?.getAttribute("action")).toBe("/queue/save");
 		});
 	});

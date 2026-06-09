@@ -63,8 +63,13 @@ export function formatUnreadLabel(count: number): string {
 	return count > 99 ? "To Read (99+)" : `To Read (${count})`;
 }
 
+const EMPTY_STATE_TITLES: Record<TabId, string> = {
+	queue: "There are no more articles to read",
+	done: "Your queue is empty",
+};
+
 export function emptyStateTitle(tab: TabId): string {
-	return tab === "queue" ? "There's no more articles to read" : "Your queue is empty";
+	return EMPTY_STATE_TITLES[tab];
 }
 
 function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: boolean; extensionSavedArticle: boolean; browser: BrowserName; onboardingDismissed: boolean }): QueueDisplayModel {
