@@ -1,4 +1,3 @@
-/* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
@@ -7,7 +6,10 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
-import type { ClaimReaderReadyEmailSlot } from "@packages/test-fixtures/providers/reader-ready-state";
+import type {
+	ClaimReaderReadyEmailSlot,
+	ReleaseReaderReadyEmailSlot,
+} from "@packages/test-fixtures/providers/reader-ready-state";
 
 const ReaderReadyNotificationRow = z.object({
 	userId: UserIdSchema,
@@ -21,6 +23,7 @@ export function initDynamoDbReaderReadyState(deps: {
 	tableName: string;
 }): {
 	claimReaderReadyEmailSlot: ClaimReaderReadyEmailSlot;
+	releaseReaderReadyEmailSlot: ReleaseReaderReadyEmailSlot;
 } {
 	const table = defineDynamoTable({
 		client: deps.client,
@@ -48,6 +51,19 @@ export function initDynamoDbReaderReadyState(deps: {
 		}
 	};
 
-	return { claimReaderReadyEmailSlot };
+	const releaseReaderReadyEmailSlot: ReleaseReaderReadyEmailSlot = async ({ userId, claimedAt }) => {
+		try {
+			await table.update({
+				Key: { userId },
+				UpdateExpression: "REMOVE lastReaderReadyEmailAt",
+				ConditionExpression: "lastReaderReadyEmailAt = :claimedAt",
+				ExpressionAttributeValues: { ":claimedAt": claimedAt.toISOString() },
+			});
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) return;
+			throw error;
+		}
+	};
+
+	return { claimReaderReadyEmailSlot, releaseReaderReadyEmailSlot };
 }
-/* c8 ignore stop */

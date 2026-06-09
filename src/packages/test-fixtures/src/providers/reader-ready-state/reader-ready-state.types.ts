@@ -10,3 +10,12 @@ export type ClaimReaderReadyEmailSlot = (params: {
 	now: Date;
 	cooldownMs: number;
 }) => Promise<boolean>;
+
+/** Roll back a slot claimed by `claimReaderReadyEmailSlot` when the email send
+ * fails, so the SQS redrive can re-claim and retry instead of burning the
+ * user's cooldown window on a transient failure. Conditional on the stored
+ * instant still equalling `claimedAt`, so a concurrent claim is never undone. */
+export type ReleaseReaderReadyEmailSlot = (params: {
+	userId: UserId;
+	claimedAt: Date;
+}) => Promise<void>;

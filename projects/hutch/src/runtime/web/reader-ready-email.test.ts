@@ -16,6 +16,17 @@ describe("buildReaderReadyEmailHtml", () => {
 		expect(html).toContain("example.com");
 	});
 
+	it("renders an in-body headline consistent with the reader-ready email subject", () => {
+		const html = buildReaderReadyEmailHtml({
+			readerUrl: "https://readplace.com/queue/abc123/view",
+			title: "How distributed systems fail",
+			siteName: "example.com",
+		});
+
+		const doc = new JSDOM(html).window.document;
+		expect(doc.querySelector("h1")?.textContent).toBe("An article you saved now has a reader view!");
+	});
+
 	it("HTML-escapes the article title so a crafted title cannot inject markup", () => {
 		const html = buildReaderReadyEmailHtml({
 			readerUrl: "https://readplace.com/queue/abc123/view",

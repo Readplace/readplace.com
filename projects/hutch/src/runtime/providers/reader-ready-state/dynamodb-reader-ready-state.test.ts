@@ -85,4 +85,47 @@ describe("initDynamoDbReaderReadyState", () => {
 			).rejects.toThrow("throttled");
 		});
 	});
+
+	describe("releaseReaderReadyEmailSlot", () => {
+		it("removes the slot conditionally on the claimed timestamp so a concurrent claim is never undone", async () => {
+			const { client, commands } = createFakeClient({});
+
+			await initStore(client).releaseReaderReadyEmailSlot({
+				userId: USER,
+				claimedAt: new Date("2026-05-30T10:00:00.000Z"),
+			});
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input.Key).toEqual({ userId: USER });
+			expect(update?.input.UpdateExpression).toBe("REMOVE lastReaderReadyEmailAt");
+			expect(update?.input.ConditionExpression).toBe("lastReaderReadyEmailAt = :claimedAt");
+			expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":claimedAt"]).toBe(
+				"2026-05-30T10:00:00.000Z",
+			);
+		});
+
+		it("is a no-op when a concurrent claim already overwrote the slot (condition fails)", async () => {
+			const { client } = createFakeClient({
+				updateError: new ConditionalCheckFailedException({ $metadata: {}, message: "moved on" }),
+			});
+
+			await expect(
+				initStore(client).releaseReaderReadyEmailSlot({
+					userId: USER,
+					claimedAt: new Date("2026-05-30T10:00:00.000Z"),
+				}),
+			).resolves.toBeUndefined();
+		});
+
+		it("rethrows non-conditional update errors", async () => {
+			const { client } = createFakeClient({ updateError: new Error("throttled") });
+
+			await expect(
+				initStore(client).releaseReaderReadyEmailSlot({
+					userId: USER,
+					claimedAt: new Date("2026-05-30T10:00:00.000Z"),
+				}),
+			).rejects.toThrow("throttled");
+		});
+	});
 });

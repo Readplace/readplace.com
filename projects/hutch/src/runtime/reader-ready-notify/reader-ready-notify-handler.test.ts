@@ -70,6 +70,7 @@ function createHandler(overrides: Partial<ReaderReadyNotifyDeps> = {}) {
 		}),
 		findUserContactByUserId: jest.fn().mockResolvedValue({ email: "reader@example.com", emailVerified: true }),
 		claimReaderReadyEmailSlot: jest.fn().mockResolvedValue(true),
+		releaseReaderReadyEmailSlot: jest.fn().mockResolvedValue(undefined),
 		markReaderReadyEmailSent: jest.fn().mockResolvedValue(undefined),
 		sendEmail: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
@@ -220,14 +221,16 @@ describe("initReaderReadyNotifyHandler", () => {
 	});
 
 	describe("failures", () => {
-		it("reports a batch item failure when sending throws so SQS redrives the record", async () => {
-			const { handler } = createHandler({
+		it("releases the claimed cooldown slot and reports a batch item failure when sending throws, so the redrive re-attempts instead of dropping the email as rate-limited", async () => {
+			const { handler, deps } = createHandler({
 				sendEmail: jest.fn().mockRejectedValue(new Error("resend down")),
 			});
 
 			const result = await handler(command(), stubContext, () => {});
 
 			expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+			expect(deps.releaseReaderReadyEmailSlot).toHaveBeenCalledWith({ userId: USER_ID, claimedAt: NOW });
+			expect(deps.markReaderReadyEmailSent).not.toHaveBeenCalled();
 		});
 
 		it("reports a batch item failure on an invalid command detail", async () => {

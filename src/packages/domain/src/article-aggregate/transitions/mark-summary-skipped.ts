@@ -1,4 +1,4 @@
-import type { SummarySkipReason } from "@packages/article-state-types";
+import { type SummarySkipReason, deriveReaderViewStatus } from "@packages/article-state-types";
 import type { Article } from "../article.types";
 import type { Effect } from "../effects.types";
 import type { AggregateField } from "../storage.types";
@@ -25,14 +25,15 @@ export function markSummarySkipped(
 		...article,
 		summary: { kind: "skipped", reason: input.reason },
 	};
-	const effects: readonly Effect[] = [
-		{
+	const effects: Effect[] = [];
+	if (deriveReaderViewStatus({ crawl: next.crawl.kind, summary: next.summary.kind }) === "succeeded") {
+		effects.push({
 			kind: "publish-reader-view-loading-succeeded",
 			url: article.url,
 			succeededAt: input.now,
 			hasSummary: false,
-		},
-	];
+		});
+	}
 	const writes: readonly AggregateField[] = ["summary"];
 	return { article: next, effects, writes };
 }

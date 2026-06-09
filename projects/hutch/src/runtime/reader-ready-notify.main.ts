@@ -57,6 +57,7 @@ export const handler = initReaderReadyNotifyHandler({
 	findArticleByUrl: articleStore.findArticleByUrl,
 	findUserContactByUserId: auth.findUserContactByUserId,
 	claimReaderReadyEmailSlot: readerReadyState.claimReaderReadyEmailSlot,
+	releaseReaderReadyEmailSlot: readerReadyState.releaseReaderReadyEmailSlot,
 	markReaderReadyEmailSent: articleStore.markReaderReadyEmailSent,
 	sendEmail,
 	publishEvent,

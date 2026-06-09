@@ -1,8 +1,12 @@
 import type { UserId } from "@packages/domain/user";
-import type { ClaimReaderReadyEmailSlot } from "./reader-ready-state.types";
+import type {
+	ClaimReaderReadyEmailSlot,
+	ReleaseReaderReadyEmailSlot,
+} from "./reader-ready-state.types";
 
 export function initInMemoryReaderReadyState(): {
 	claimReaderReadyEmailSlot: ClaimReaderReadyEmailSlot;
+	releaseReaderReadyEmailSlot: ReleaseReaderReadyEmailSlot;
 } {
 	const lastSentByUser = new Map<UserId, string>();
 
@@ -16,5 +20,11 @@ export function initInMemoryReaderReadyState(): {
 		return false;
 	};
 
-	return { claimReaderReadyEmailSlot };
+	const releaseReaderReadyEmailSlot: ReleaseReaderReadyEmailSlot = async ({ userId, claimedAt }) => {
+		if (lastSentByUser.get(userId) === claimedAt.toISOString()) {
+			lastSentByUser.delete(userId);
+		}
+	};
+
+	return { claimReaderReadyEmailSlot, releaseReaderReadyEmailSlot };
 }

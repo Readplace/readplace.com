@@ -1,3 +1,4 @@
+import { deriveReaderViewStatus } from "@packages/article-state-types";
 import type { Article } from "../article.types";
 import type { Effect } from "../effects.types";
 import type { AggregateField } from "../storage.types";
@@ -43,20 +44,22 @@ export function markSummaryReady(
 		summary,
 		summaryAutoHeal: { attempts: 0 },
 	};
-	const effects: readonly Effect[] = [
+	const effects: Effect[] = [
 		{
 			kind: "publish-summary-generated",
 			url: article.url,
 			inputTokens: input.inputTokens,
 			outputTokens: input.outputTokens,
 		},
-		{
+	];
+	if (deriveReaderViewStatus({ crawl: next.crawl.kind, summary: next.summary.kind }) === "succeeded") {
+		effects.push({
 			kind: "publish-reader-view-loading-succeeded",
 			url: article.url,
 			succeededAt: input.now,
 			hasSummary: true,
-		},
-	];
+		});
+	}
 	const writes: readonly AggregateField[] = ["summary", "summaryAutoHeal"];
 	return { article: next, effects, writes };
 }

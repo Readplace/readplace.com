@@ -51,6 +51,15 @@ describe("markSummarySkipped", () => {
 		]);
 	});
 
+	it("emits no reader-view-loading-succeeded effect when the crawl is not yet ready (reader view is still loading, not succeeded)", () => {
+		const { effects } = markSummarySkipped(
+			buildArticle({ crawl: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" } }),
+			{ reason: "content-too-short", now: NOW },
+		);
+
+		assert.deepEqual(effects, []);
+	});
+
 	it("declares writes for summary only so a concurrent inline crawl writer is not clobbered", () => {
 		const { writes } = markSummarySkipped(buildArticle(), {
 			reason: "content-too-short",

@@ -106,6 +106,31 @@ describe("markSummaryReady", () => {
 		]);
 	});
 
+	it("omits the reader-view-loading-succeeded effect when the crawl is not yet ready (reader view is still loading, not succeeded)", () => {
+		const { effects } = markSummaryReady(
+			buildArticle({
+				url: "https://example.com/post",
+				crawl: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
+			}),
+			{
+				summary: "summary",
+				excerpt: "excerpt",
+				inputTokens: 1234,
+				outputTokens: 567,
+				now: NOW,
+			},
+		);
+
+		assert.deepEqual(effects, [
+			{
+				kind: "publish-summary-generated",
+				url: "https://example.com/post",
+				inputTokens: 1234,
+				outputTokens: 567,
+			},
+		]);
+	});
+
 	it("declares writes for summary + summaryAutoHeal so a concurrent inline crawl writer is not clobbered", () => {
 		const { writes } = markSummaryReady(buildArticle(), {
 			summary: "summary",

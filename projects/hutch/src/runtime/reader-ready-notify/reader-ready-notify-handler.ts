@@ -18,7 +18,10 @@ import type {
 	MarkReaderReadyEmailSent,
 } from "@packages/test-fixtures/providers/article-store";
 import type { FindUserContactByUserId } from "@packages/test-fixtures/providers/auth";
-import type { ClaimReaderReadyEmailSlot } from "@packages/test-fixtures/providers/reader-ready-state";
+import type {
+	ClaimReaderReadyEmailSlot,
+	ReleaseReaderReadyEmailSlot,
+} from "@packages/test-fixtures/providers/reader-ready-state";
 import type { SendEmail } from "@packages/test-fixtures/providers/email";
 import { buildReaderReadyEmailHtml } from "../web/reader-ready-email";
 
@@ -34,6 +37,7 @@ export interface ReaderReadyNotifyDeps {
 	findArticleByUrl: FindArticleByUrl;
 	findUserContactByUserId: FindUserContactByUserId;
 	claimReaderReadyEmailSlot: ClaimReaderReadyEmailSlot;
+	releaseReaderReadyEmailSlot: ReleaseReaderReadyEmailSlot;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
 	sendEmail: SendEmail;
 	publishEvent: PublishEvent;
@@ -98,17 +102,26 @@ async function processNotification(
 	if (!claimed) return skip("rate-limited");
 
 	const readerUrl = `${deps.appOrigin}/queue/${article.id.value}/view`;
-	await deps.sendEmail({
-		from: EMAIL_FROM,
-		to: contact.email,
-		bcc: READER_READY_BCC,
-		subject: SUBJECT,
-		html: buildReaderReadyEmailHtml({
-			readerUrl,
-			title: article.metadata.title,
-			siteName: article.metadata.siteName,
-		}),
-	});
+	try {
+		await deps.sendEmail({
+			from: EMAIL_FROM,
+			to: contact.email,
+			bcc: READER_READY_BCC,
+			subject: SUBJECT,
+			html: buildReaderReadyEmailHtml({
+				readerUrl,
+				title: article.metadata.title,
+				siteName: article.metadata.siteName,
+			}),
+		});
+	} catch (error) {
+		/* A transient send failure must not burn the user's cooldown slot: release
+		 * the claim so the SQS redrive (and, if it keeps failing, the DLQ alarm)
+		 * re-attempts, instead of the next delivery silently dropping the email as
+		 * rate-limited. */
+		await deps.releaseReaderReadyEmailSlot({ userId, claimedAt: now });
+		throw error;
+	}
 	await deps.markReaderReadyEmailSent({ userId, url, at: now });
 	await deps.publishEvent(ReaderReadyEmailSentEvent, {
 		userId: detail.userId,
