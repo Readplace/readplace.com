@@ -70,6 +70,13 @@ describe("GET /install", () => {
 		expect(firefoxTab?.classList.contains("install-page__tab--active")).toBe(false);
 	});
 
+	it("should respond 400 when the client query param is not a known client", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=netscape");
+
+		expect(response.status).toBe(400);
+	});
+
 	it("should select Firefox tab when client=firefox", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=firefox");

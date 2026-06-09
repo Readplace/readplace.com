@@ -6,27 +6,24 @@ import { sendComponent } from "../../send-component";
 import {
 	InstallPage,
 	type InstallClient,
+	parseClient,
 	fetchFirefoxDownloadUrl,
-	fetchChromeDownloadUrl,
 } from "./install.component";
-
-function parseClient(value: unknown): InstallClient {
-	if (value === "firefox") return "firefox";
-	if (value === "iphone") return "iphone";
-	return "chrome";
-}
 
 export function initInstallRoutes(deps: { buildBannerState: BuildBannerState }): Router {
 	const router = express.Router();
 	const { buildBannerState } = deps;
 
 	router.get("/install", async (req: Request, res: Response) => {
-		const client = parseClient(req.query.client);
-		const [firefox, chrome] = await Promise.all([
-			fetchFirefoxDownloadUrl(),
-			fetchChromeDownloadUrl(),
-		]);
-		sendComponent(req, res, Base(InstallPage({ firefox, chrome, client }), await buildBannerState(req)));
+		let client: InstallClient;
+		try {
+			client = parseClient(req.query.client);
+		} catch {
+			res.status(400).type("html").send("");
+			return;
+		}
+		const firefox = await fetchFirefoxDownloadUrl();
+		sendComponent(req, res, Base(InstallPage({ firefox, client }), await buildBannerState(req)));
 	});
 
 	return router;

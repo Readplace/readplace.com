@@ -46,11 +46,7 @@
 
       {{#default}}
       <section class="install-page__panel" data-test-panel="chrome">
-        {{#if chromeDownloadUrl}}
         <a href="{{chromeDownloadUrl}}" class="install-page__download" data-test-cta="download-chrome">Install Readplace for Chrome</a>
-        {{else}}
-        <p class="install-page__unavailable" data-test-section="chrome-unavailable">The Chrome extension is not available for download yet. Please check back soon.</p>
-        {{/if}}
       </section>
       {{/default}}
       {{/switch}}

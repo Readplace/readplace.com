@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import assert from "node:assert";
 import type { PageBody } from "../../page-body.types";
 import { render } from "../../render";
 import { switchHelpers } from "../../handlebars-switch";
@@ -11,7 +12,20 @@ const FIREFOX_LATEST_POINTER_URL = firefoxS3Config.getLatestPointerUrl("prod");
 const CHROME_WEB_STORE_URL = "https://chromewebstore.google.com/detail/hutch/klblengmhlfnmjoagchagfcdbpbocgbf";
 const TESTFLIGHT_URL = "https://testflight.apple.com/join/5eng821W";
 
-export type InstallClient = "firefox" | "chrome" | "iphone";
+const TAB_DEFINITIONS = [
+	{ key: "firefox", label: "Firefox" },
+	{ key: "chrome", label: "Chrome" },
+	{ key: "iphone", label: "iPhone" },
+] as const;
+
+export type InstallClient = (typeof TAB_DEFINITIONS)[number]["key"];
+
+export function parseClient(value: unknown): InstallClient {
+	if (value === undefined) return "chrome";
+	const tab = TAB_DEFINITIONS.find((definition) => definition.key === value);
+	assert(tab, `Unknown install client: ${String(value)}`);
+	return tab.key;
+}
 
 async function fetchDownloadUrl(latestPointerUrl: string, buildDownloadUrl: (filename: string) => string): Promise<string | null> {
 	const response = await fetch(latestPointerUrl);
@@ -27,10 +41,6 @@ export async function fetchFirefoxDownloadUrl(): Promise<string | null> {
 	);
 }
 
-export async function fetchChromeDownloadUrl(): Promise<string | null> {
-	return CHROME_WEB_STORE_URL;
-}
-
 interface InstallTab {
 	key: InstallClient;
 	label: string;
@@ -38,12 +48,6 @@ interface InstallTab {
 	activeClass: string;
 	ariaCurrent?: "page";
 }
-
-const TAB_DEFINITIONS: { key: InstallClient; label: string }[] = [
-	{ key: "firefox", label: "Firefox" },
-	{ key: "chrome", label: "Chrome" },
-	{ key: "iphone", label: "iPhone" },
-];
 
 function buildInstallTabs(active: InstallClient): InstallTab[] {
 	return TAB_DEFINITIONS.map(({ key, label }) => {
@@ -93,7 +97,7 @@ const BETA_SETUP_STEPS: BetaSetupStep[] = [
 const BETA_OUTRO =
 	"Use it for a few days or weeks: save the articles you want to read later, then open readplace.com when you have time to read them. I'll check in soon to see how it's going, and any feedback is welcome.";
 
-export function InstallPage(params: { firefox: string | null; chrome: string | null; client: InstallClient }): PageBody {
+export function InstallPage(params: { firefox: string | null; client: InstallClient }): PageBody {
 	return {
 		seo: {
 			title: "Install Readplace Browser Extension",
@@ -148,7 +152,7 @@ export function InstallPage(params: { firefox: string | null; chrome: string | n
 			tabs: buildInstallTabs(params.client),
 			client: params.client,
 			firefoxDownloadUrl: params.firefox,
-			chromeDownloadUrl: params.chrome,
+			chromeDownloadUrl: CHROME_WEB_STORE_URL,
 			testflightUrl: TESTFLIGHT_URL,
 			betaSteps: BETA_SETUP_STEPS,
 			betaOutro: BETA_OUTRO,
