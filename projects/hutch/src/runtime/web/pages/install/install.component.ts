@@ -5,6 +5,7 @@ import type { PageBody } from "../../page-body.types";
 import { render } from "../../render";
 import { switchHelpers } from "../../handlebars-switch";
 import { INSTALL_PAGE_STYLES } from "./install.styles";
+import { withInternalTracking } from "../../internal-link-tracking";
 import { firefoxS3Config } from "browser-extension-core/s3-config";
 
 const INSTALL_TEMPLATE = readFileSync(join(__dirname, "install.template.html"), "utf-8");
@@ -55,7 +56,7 @@ function buildInstallTabs(active: InstallClient): InstallTab[] {
 		return {
 			key,
 			label,
-			href: `/install?client=${key}`,
+			href: withInternalTracking(`/install?client=${key}`, { source: "install-tabs", content: key }),
 			activeClass: isActive ? " install-page__tab--active" : "",
 			ariaCurrent: isActive ? "page" : undefined,
 		};

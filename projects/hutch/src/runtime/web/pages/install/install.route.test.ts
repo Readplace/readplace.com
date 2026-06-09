@@ -241,10 +241,10 @@ describe("GET /install", () => {
 		const doc = new JSDOM(response.text).window.document;
 
 		const firefoxTab = doc.querySelector('[data-test-tab="firefox"]');
-		expect(firefoxTab?.getAttribute("href")).toBe("/install?client=firefox");
+		expect(firefoxTab?.getAttribute("href")).toBe("/install?client=firefox&utm_source=install-tabs&utm_medium=internal&utm_content=firefox");
 
 		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
-		expect(chromeTab?.getAttribute("href")).toBe("/install?client=chrome");
+		expect(chromeTab?.getAttribute("href")).toBe("/install?client=chrome&utm_source=install-tabs&utm_medium=internal&utm_content=chrome");
 	});
 
 	it("should render an iPhone tab linking to the iPhone panel on every view", async () => {
@@ -253,7 +253,7 @@ describe("GET /install", () => {
 		const doc = new JSDOM(response.text).window.document;
 
 		const iphoneTab = doc.querySelector('[data-test-tab="iphone"]');
-		expect(iphoneTab?.getAttribute("href")).toBe("/install?client=iphone");
+		expect(iphoneTab?.getAttribute("href")).toBe("/install?client=iphone&utm_source=install-tabs&utm_medium=internal&utm_content=iphone");
 		expect(iphoneTab?.textContent).toBe("iPhone");
 		expect(iphoneTab?.classList.contains("install-page__tab--active")).toBe(false);
 	});

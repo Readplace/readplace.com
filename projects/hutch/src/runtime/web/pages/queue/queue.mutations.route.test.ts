@@ -322,7 +322,7 @@ describe("Queue routes", () => {
 			expect(toast.querySelector("[data-test-toast-message]")?.textContent).toBe("Marked as read");
 
 			const undoForm = toast.querySelector("[data-test-toast-action]")?.closest("form");
-			expect(undoForm?.getAttribute("action")).toBe(`/queue/${articleId}/status`);
+			expect(undoForm?.getAttribute("action")).toBe(`/queue/${articleId}/status?utm_source=queue-toast&utm_medium=internal&utm_content=undo`);
 			expect(undoForm?.querySelector("input[name='status']")?.getAttribute("value")).toBe("unread");
 
 			await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "unread" });

@@ -267,7 +267,7 @@ describe("Forgot password", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			const forgotLink = doc.querySelector('a[href="/forgot-password"]');
+			const forgotLink = doc.querySelector('a[href^="/forgot-password"]');
 			expect(forgotLink?.textContent).toContain("Forgot your password?");
 		});
 	});

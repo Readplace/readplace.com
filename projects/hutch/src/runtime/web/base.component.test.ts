@@ -36,7 +36,7 @@ describe("Base component", () => {
 
 		const brand = doc.querySelector(".header__brand") as HTMLAnchorElement;
 		expect(brand.textContent).toBe("Readplace");
-		expect(brand.getAttribute("href")).toBe("/");
+		expect(brand.getAttribute("href")).toBe("/?utm_source=header&utm_medium=internal&utm_content=brand");
 	});
 
 	it("should include page content in the body", () => {
@@ -103,7 +103,7 @@ describe("Base component", () => {
 		expect(url.pathname).toBe("/import");
 		expect(url.searchParams.get("utm_source")).toBe("header-nav");
 		expect(url.searchParams.get("utm_medium")).toBe("internal");
-		expect(url.searchParams.get("utm_content")).toBe("import-link");
+		expect(url.searchParams.get("utm_content")).toBe("import");
 	});
 
 	it("hides the Import Links nav item for unauthenticated requests", () => {
@@ -125,7 +125,7 @@ describe("Base component", () => {
 		const form = button.closest("form");
 		assert(form, "Account nav item must be wrapped in a form");
 		expect(form.getAttribute("method")?.toUpperCase()).toBe("GET");
-		expect(form.getAttribute("action")).toBe("/account");
+		expect(form.getAttribute("action")).toBe("/account?utm_source=header-nav&utm_medium=internal&utm_content=account");
 	});
 
 	it("hides the Account nav item for unauthenticated requests", () => {
@@ -449,7 +449,7 @@ describe("Base component", () => {
 		const countdown = doc.querySelector("[data-test-trial-countdown]");
 		assert(countdown, "trial countdown must be rendered");
 		expect(countdown.tagName.toLowerCase()).toBe("a");
-		expect(countdown.getAttribute("href")).toBe("/account");
+		expect(countdown.getAttribute("href")).toBe("/account?utm_source=header&utm_medium=internal&utm_content=trial-countdown");
 	});
 
 	it("places the trial countdown directly after the header brand inside .header__content", () => {
