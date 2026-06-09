@@ -4,6 +4,7 @@ import { OnboardingChecklist, ONBOARDING_STYLES } from "../../onboarding/onboard
 import type { BrowserName } from "../../onboarding/onboarding.types";
 import type { PageBody } from "../../page-body.types";
 import { render } from "../../render";
+import { withInternalTracking } from "../../internal-link-tracking";
 import { QUEUE_STYLES } from "./queue.styles";
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
 import { renderToast } from "../../shared/toast/toast.component";
@@ -77,7 +78,10 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 	const effectiveOrder = vm.filters.order ?? tabQuery(activeTab).defaultOrder;
 	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
 	const sortLabel = effectiveOrder === "desc" ? "Newest first ↓" : "Oldest first ↑";
-	const sortUrl = buildQueueUrl({ tab: activeTab, order: nextOrder });
+	const sortUrl = withInternalTracking(buildQueueUrl({ tab: activeTab, order: nextOrder }), {
+		medium: "queue-sort",
+		content: "sort",
+	});
 
 	const onboardingHtml = options.onboardingDismissed
 		? ""
@@ -99,7 +103,7 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 				actions: [
 					{
 						method: "POST",
-						url: vm.statusFlash.undoUrl,
+						url: withInternalTracking(vm.statusFlash.undoUrl, { medium: "queue-toast", content: "undo" }),
 						label: "Undo",
 						fields: [{ name: "status", value: vm.statusFlash.undoStatus }],
 					},
@@ -119,15 +123,19 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		filterUnreadClass: filterLinkClass(activeTab === "queue"),
 		filterUnreadLabel: formatUnreadLabel(vm.unreadCount),
 		filterReadClass: filterLinkClass(activeTab === "done"),
-		filterUnreadUrl: vm.filterUrls.unread,
-		filterReadUrl: vm.filterUrls.read,
+		filterUnreadUrl: withInternalTracking(vm.filterUrls.unread, { medium: "queue-filters", content: "filter-unread" }),
+		filterReadUrl: withInternalTracking(vm.filterUrls.read, { medium: "queue-filters", content: "filter-read" }),
 		sortUrl,
 		sortLabel,
 		showPagination: vm.totalPages > 1,
 		hasPrev: Boolean(vm.paginationUrls.prev),
 		hasNext: Boolean(vm.paginationUrls.next),
-		prevUrl: vm.paginationUrls.prev,
-		nextUrl: vm.paginationUrls.next,
+		prevUrl: vm.paginationUrls.prev
+			? withInternalTracking(vm.paginationUrls.prev, { medium: "queue-pagination", content: "prev" })
+			: undefined,
+		nextUrl: vm.paginationUrls.next
+			? withInternalTracking(vm.paginationUrls.next, { medium: "queue-pagination", content: "next" })
+			: undefined,
 		currentPage: vm.currentPage,
 		totalPages: vm.totalPages,
 		subscriptionBannerStateClass: `queue-banner--${banner.state}`,

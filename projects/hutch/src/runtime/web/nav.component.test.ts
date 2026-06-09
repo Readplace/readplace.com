@@ -87,7 +87,7 @@ describe("Nav component", () => {
 		assert(account, "account nav item must render for authenticated full-access users");
 		const form = account.closest("form");
 		assert(form, "account nav item must be inside a form");
-		expect(form.getAttribute("action")).toBe("/account");
+		expect(form.getAttribute("action")).toBe("/account?utm_source=internal&utm_medium=header-nav&utm_content=account");
 	});
 
 	it("splits the authenticated nav into a Library section (queue, import, export) and an Account section (account, sign out)", () => {

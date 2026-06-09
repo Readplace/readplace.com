@@ -3,6 +3,7 @@ import type {
 	EffectiveAccess,
 	GetEffectiveAccess,
 } from "../domain/access/effective-access";
+import { withInternalTracking } from "./internal-link-tracking";
 import { toTrialDisplay, type TrialDisplay } from "./trial-countdown.format";
 
 export interface BannerStateSource {
@@ -29,19 +30,52 @@ export type NavGroupKey = "library" | "account";
 /** Data-driven header nav item. Rendered uniformly as
  * `<form method="{method}" action="{href}"><button>{label}</button></form>`
  * regardless of method — the template never branches on link-vs-form. A
- * `method="GET"` form with no inputs navigates to the action URL on submit
- * (the browser appends `?` and follows), so it behaves exactly like a
- * link; using forms everywhere keeps a single template shape and a single
- * styling target (`.nav__link` already styles `button.nav__link`).
- * Excessive markup is not a performance concern at this scale. The `icon` is a
- * Font Awesome class pair (e.g. "fa-solid fa-inbox") rendered into an empty,
- * `aria-hidden` `<i>` so the glyph reinforces the label without adding text. */
+ * `method="GET"` form with no inputs navigates to the action URL on submit,
+ * so it behaves exactly like a link; using forms everywhere keeps a single
+ * template shape and a single styling target (`.nav__link` already styles
+ * `button.nav__link`). Excessive markup is not a performance concern at this
+ * scale. The `icon` is a Font Awesome class pair (e.g. "fa-solid fa-inbox")
+ * rendered into an empty, `aria-hidden` `<i>` so the glyph reinforces the
+ * label without adding text.
+ *
+ * `trackMedium`/`trackContent` carry the internal-click UTM dimensions. The
+ * template renders them as hidden inputs AND `href` is pre-tagged via
+ * withInternalTracking, because the two form methods transmit query params
+ * differently: a GET submit replaces the action's query with the serialized
+ * fields (so the hidden inputs carry the UTM), while a POST keeps the action's
+ * query (so the tagged `href` carries it). Rendering both keeps every item
+ * tracked under one uniform form shape. */
 export interface NavItem {
 	key: NavItemKey;
 	label: string;
 	href: string;
 	method: "GET" | "POST";
 	icon: string;
+	trackMedium: string;
+	trackContent: string;
+}
+
+const NAV_MEDIUM = "header-nav";
+
+/** Builds a nav item with its href pre-tagged for internal-click tracking and
+ * the matching UTM dimensions exposed for the template's hidden inputs. The
+ * item `key` doubles as `utm_content` so each destination is distinct. */
+function navItem(input: {
+	key: NavItemKey;
+	label: string;
+	path: string;
+	method: "GET" | "POST";
+	icon: string;
+}): NavItem {
+	return {
+		key: input.key,
+		label: input.label,
+		href: withInternalTracking(input.path, { medium: NAV_MEDIUM, content: input.key }),
+		method: input.method,
+		icon: input.icon,
+		trackMedium: NAV_MEDIUM,
+		trackContent: input.key,
+	};
 }
 
 /** A labelled section of the header nav. The template iterates groups, then the
@@ -81,55 +115,13 @@ export interface BannerState {
 	accessIsReadOnly?: boolean;
 }
 
-const NAV_QUEUE: NavItem = {
-	key: "queue",
-	label: "Queue",
-	href: "/queue",
-	method: "GET",
-	icon: "fa-solid fa-inbox",
-};
-const NAV_IMPORT: NavItem = {
-	key: "import",
-	label: "Import Links",
-	href: "/import?utm_source=header-nav&utm_medium=internal&utm_content=import-link",
-	method: "GET",
-	icon: "fa-solid fa-file-import",
-};
-const NAV_EXPORT: NavItem = {
-	key: "export",
-	label: "Export",
-	href: "/export",
-	method: "GET",
-	icon: "fa-solid fa-file-export",
-};
-const NAV_ACCOUNT: NavItem = {
-	key: "account",
-	label: "Account",
-	href: "/account",
-	method: "GET",
-	icon: "fa-solid fa-user",
-};
-const NAV_LOGOUT: NavItem = {
-	key: "logout",
-	label: "Sign out",
-	href: "/logout",
-	method: "POST",
-	icon: "fa-solid fa-right-from-bracket",
-};
-const NAV_FEATURES: NavItem = {
-	key: "features",
-	label: "Features",
-	href: "/#what-works",
-	method: "GET",
-	icon: "fa-solid fa-wand-magic-sparkles",
-};
-const NAV_SIGNUP: NavItem = {
-	key: "signup",
-	label: "Sign up",
-	href: "/signup",
-	method: "GET",
-	icon: "fa-solid fa-user-plus",
-};
+const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method: "GET", icon: "fa-solid fa-inbox" });
+const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/import", method: "GET", icon: "fa-solid fa-file-import" });
+const NAV_EXPORT = navItem({ key: "export", label: "Export", path: "/export", method: "GET", icon: "fa-solid fa-file-export" });
+const NAV_ACCOUNT = navItem({ key: "account", label: "Account", path: "/account", method: "GET", icon: "fa-solid fa-user" });
+const NAV_LOGOUT = navItem({ key: "logout", label: "Sign out", path: "/logout", method: "POST", icon: "fa-solid fa-right-from-bracket" });
+const NAV_FEATURES = navItem({ key: "features", label: "Features", path: "/#what-works", method: "GET", icon: "fa-solid fa-wand-magic-sparkles" });
+const NAV_SIGNUP = navItem({ key: "signup", label: "Sign up", path: "/signup", method: "GET", icon: "fa-solid fa-user-plus" });
 
 /** Guest nav items rendered as a flat list without group structure. */
 export function buildGuestNavItems(): NavItem[] {

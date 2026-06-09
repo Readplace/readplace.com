@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "../../../render";
+import { withInternalTracking } from "../../../internal-link-tracking";
 import type {
 	ArticleAction,
 	QueueArticleViewModel,
@@ -33,6 +34,7 @@ export function toActionDisplayModel(
 		: "queue-article__action-btn queue-article__action-btn--delete";
 	return {
 		...action,
+		url: withInternalTracking(action.url, { medium: "queue-card", content: action.testAction }),
 		buttonClass,
 		disabled: options.isProcessing && isStatusAction,
 	};
@@ -45,7 +47,7 @@ export function toQueueCardDisplayModel(
 	const isProcessing = Boolean(article.cardPollUrl);
 	return {
 		...article,
-		linkUrl: `/queue/${article.id}/view`,
+		linkUrl: withInternalTracking(`/queue/${article.id}/view`, { medium: "queue-card", content: "open-article" }),
 		unreadClass: article.isUnread ? " queue-article--unread" : " queue-article--read",
 		isFirst: options.isFirst,
 		cardStatus: isProcessing ? "pending" : "terminal",
