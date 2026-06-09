@@ -1,9 +1,9 @@
 import { INTERNAL_CLICK_MEDIUM } from "../observability/events";
 
 /**
- * `utm_source` is the section a clickable element lives in (`nav`, `footer`,
- * `queue`, `home_hero`, …) and `utm_content` is the element itself (`save`,
- * `subscribe_cta`, `mark_read`, …). `utm_medium` is fixed to
+ * `utm_source` is the section a clickable element lives in (`header-nav`,
+ * `footer`, `queue`, `home-hero`, …) and `utm_content` is the element itself
+ * (`save`, `subscribe`, `mark-read`, …). `utm_medium` is fixed to
  * INTERNAL_CLICK_MEDIUM for every in-site link, and `utm_campaign` is
  * deliberately unused — two dimensions are enough to answer "which button do
  * readers click most, and where".

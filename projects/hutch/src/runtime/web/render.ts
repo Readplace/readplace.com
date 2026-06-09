@@ -3,7 +3,7 @@ import Handlebars from 'handlebars';
 import { withInternalTracking } from './internal-link-tracking';
 
 /**
- * `{{track '/account' source='queue' content='subscribe_cta'}}` stamps the
+ * `{{track '/account' source='queue' content='subscribe'}}` stamps the
  * internal-click UTM params onto a literal href in a template; URLs built in
  * component TS call withInternalTracking directly. Registered once on the
  * shared Handlebars instance so every template can use it without threading a

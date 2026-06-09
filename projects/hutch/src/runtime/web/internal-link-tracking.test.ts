@@ -1,21 +1,21 @@
 import { withInternalTracking } from "./internal-link-tracking";
 
 describe("withInternalTracking", () => {
-	it("stamps a root-relative href with utm_source=internal plus the section and element so the click middleware can count it", () => {
-		const href = withInternalTracking("/account", { source: "queue", content: "subscribe_cta" });
+	it("stamps a root-relative href with the section (utm_source), the element (utm_content), and utm_medium=internal so the click middleware can count it", () => {
+		const href = withInternalTracking("/account", { source: "queue", content: "subscribe" });
 		const params = new URL(href, "https://internal.invalid").searchParams;
 		expect(params.get("utm_source")).toBe("queue");
 		expect(params.get("utm_medium")).toBe("internal");
-		expect(params.get("utm_content")).toBe("subscribe_cta");
+		expect(params.get("utm_content")).toBe("subscribe");
 	});
 
 	it("never emits utm_campaign — two dimensions (section, element) answer the click-volume question", () => {
-		const href = withInternalTracking("/account", { source: "queue", content: "subscribe_cta" });
+		const href = withInternalTracking("/account", { source: "queue", content: "subscribe" });
 		expect(href).not.toContain("utm_campaign");
 	});
 
 	it("appends to an href that already has a query string instead of replacing it (filter URLs carry tab/order)", () => {
-		const href = withInternalTracking("/queue?tab=read&order=asc", { source: "queue", content: "filter_read" });
+		const href = withInternalTracking("/queue?tab=read&order=asc", { source: "queue", content: "filter-read" });
 		const url = new URL(href, "https://internal.invalid");
 		expect(url.searchParams.get("tab")).toBe("read");
 		expect(url.searchParams.get("order")).toBe("asc");
@@ -37,11 +37,11 @@ describe("withInternalTracking", () => {
 
 	it("leaves an absolute external URL untouched — tagging it would leak our analytics params to another site and the click is not ours to count", () => {
 		const external = "https://github.com/Readplace/readplace.com";
-		expect(withInternalTracking(external, { source: "home_hero", content: "github" })).toBe(external);
+		expect(withInternalTracking(external, { source: "home-hero", content: "github" })).toBe(external);
 	});
 
 	it("leaves a protocol-relative URL untouched — it resolves to another origin, so stamping it would both leak our params and strip the host", () => {
 		const external = "//cdn.example.com/x?a=1";
-		expect(withInternalTracking(external, { source: "home_hero", content: "cdn" })).toBe(external);
+		expect(withInternalTracking(external, { source: "home-hero", content: "cdn" })).toBe(external);
 	});
 });

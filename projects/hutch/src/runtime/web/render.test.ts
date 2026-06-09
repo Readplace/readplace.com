@@ -35,14 +35,14 @@ describe("render", () => {
 	});
 
 	it("{{track}} stamps internal-click UTM params onto a literal href; Handlebars HTML-escapes the attribute (& → &amp;, = → &#x3D;), which the browser decodes back to a normal query string", () => {
-		const result = render("<a href=\"{{track '/account' source='queue' content='subscribe_cta'}}\">Subscribe</a>", {});
+		const result = render("<a href=\"{{track '/account' source='queue' content='subscribe'}}\">Subscribe</a>", {});
 		expect(result).toBe(
-			'<a href="/account?utm_source&#x3D;queue&amp;utm_medium&#x3D;internal&amp;utm_content&#x3D;subscribe_cta">Subscribe</a>',
+			'<a href="/account?utm_source&#x3D;queue&amp;utm_medium&#x3D;internal&amp;utm_content&#x3D;subscribe">Subscribe</a>',
 		);
 	});
 
 	it("{{track}} leaves an absolute external href untouched so analytics params never leak off-site", () => {
-		const result = render("<a href=\"{{track 'https://github.com/Readplace/readplace.com' source='home_hero' content='github'}}\">GitHub</a>", {});
+		const result = render("<a href=\"{{track 'https://github.com/Readplace/readplace.com' source='home-hero' content='github'}}\">GitHub</a>", {});
 		expect(result).toBe('<a href="https://github.com/Readplace/readplace.com">GitHub</a>');
 	});
 });

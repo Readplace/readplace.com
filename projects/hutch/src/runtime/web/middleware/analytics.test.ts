@@ -166,7 +166,7 @@ describe("createAnalyticsMiddleware", () => {
 });
 
 describe("createAnalyticsMiddleware — internal click events", () => {
-	const internalQuery = { utm_source: "queue", utm_medium: "internal", utm_content: "subscribe_cta" };
+	const internalQuery = { utm_source: "queue", utm_medium: "internal", utm_content: "subscribe" };
 
 	it("emits a click event carrying the section (utm_source) and element (utm_content) for a request stamped utm_medium=internal", () => {
 		const req = createReq({ path: "/account", query: internalQuery, visitorId: "550e8400-e29b-41d4-a716-446655440000" });
@@ -178,7 +178,7 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 			path: "/account",
 			utm_source: "queue",
 			utm_medium: "internal",
-			utm_content: "subscribe_cta",
+			utm_content: "subscribe",
 			visitor_hash: expect.any(String),
 			visitor_id: "550e8400-e29b-41d4-a716-446655440000",
 			is_authenticated: 0,
@@ -221,12 +221,18 @@ describe("createAnalyticsMiddleware — internal click events", () => {
 		expect(runMiddlewareClicks(req, createRes(200))).toHaveLength(1);
 	});
 
-	it("strips a real-looking acquisition source (utm_source=homepage) from the pageview when the link carries utm_medium=internal — a pre-existing conversion CTA (homepage Signup → GET /signup) is in-site navigation, not an external source like hackernews, so its pageview must stay out of the acquisition widgets while the click still records section=homepage; conversion attribution is unaffected because it reads first-touch UTM from the hutch_click cookie, not this pageview", () => {
+	it("strips a real-looking acquisition source (utm_source=homepage) from the pageview when the link carries utm_medium=internal, while the click still records section=homepage — a homepage Signup CTA (GET /signup) is in-site navigation, not an external source like hackernews, so it must stay out of the acquisition pageview widgets", () => {
 		const conversionLink = { utm_source: "homepage", utm_medium: "internal", utm_content: "founding-card" };
 		const [pageview] = runMiddleware(createReq({ path: "/signup", query: conversionLink }), createRes(200));
-		const serialized = JSON.stringify(pageview);
-		expect(serialized).not.toContain("utm_source");
-		expect(serialized).not.toContain("homepage");
+		expect(pageview).toEqual({
+			stream: "analytics",
+			event: "pageview",
+			timestamp: "2026-04-21T10:00:00.000Z",
+			path: "/signup",
+			visitor_hash: expect.any(String),
+			visitor_id: null,
+			is_authenticated: 0,
+		});
 		const [click] = runMiddlewareClicks(createReq({ path: "/signup", query: conversionLink }), createRes(200));
 		expect(click).toMatchObject({ utm_source: "homepage", utm_content: "founding-card" });
 	});
