@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_diagram_3_reactivation_flow" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_diagram_3_reactivation_flow" name="diagram-3-reactivation-flow" isExecutable="false">
+    <bpmn:sendTask id="n_REACT" name="POST /account/reactivate (SSR Lambda)">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_READ_ROW" name="Read row (must be pending_cancellation)">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:businessRuleTask id="n_DEL_SCHED" name="Delete deferred-cancellation EventBridge Scheduler">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:businessRuleTask id="n_STRIPE_REV" name="Stripe PATCH cancel_at_period_end=false">
+      <bpmn:incoming>f_2</bpmn:incoming>
+    </bpmn:businessRuleTask>
+    <bpmn:dataStoreReference id="n_MARK_ACTIVE" name="markActiveSubscription"></bpmn:dataStoreReference>
+    <bpmn:businessRuleTask id="n_CREATE_TRIAL" name="Create trial-end charge schedule">
+      <bpmn:incoming>f_5</bpmn:incoming>
+    </bpmn:businessRuleTask>
+    <bpmn:dataStoreReference id="n_UPSERT_TRIAL" name="upsertTrialingSubscription"></bpmn:dataStoreReference>
+    <bpmn:endEvent id="n_EVT_REACT" name="SubscriptionReactivatedEvent">
+
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_REACT" targetRef="n_READ_ROW" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_READ_ROW" targetRef="n_DEL_SCHED" />
+    <bpmn:sequenceFlow id="f_2" name="subscriptionId" sourceRef="n_DEL_SCHED" targetRef="n_STRIPE_REV" />
+    <bpmn:sequenceFlow id="f_5" name="no subscriptionId" sourceRef="n_DEL_SCHED" targetRef="n_CREATE_TRIAL" />
+    <bpmn:association id="f_3" sourceRef="n_STRIPE_REV" targetRef="n_MARK_ACTIVE" associationDirection="One" />
+    <bpmn:association id="f_4" sourceRef="n_MARK_ACTIVE" targetRef="n_EVT_REACT" associationDirection="One" />
+    <bpmn:association id="f_6" sourceRef="n_CREATE_TRIAL" targetRef="n_UPSERT_TRIAL" associationDirection="One" />
+    <bpmn:association id="f_7" sourceRef="n_UPSERT_TRIAL" targetRef="n_EVT_REACT" associationDirection="One" />
+    <bpmn:group id="grp_0" />
+    <bpmn:group id="grp_1" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_diagram_3_reactivation_flow">
+    <bpmndi:BPMNPlane id="Plane_diagram_3_reactivation_flow" bpmnElement="Process_diagram_3_reactivation_flow">
+      <bpmndi:BPMNShape id="n_REACT_di" bpmnElement="n_REACT">
+        <dc:Bounds x="114.25" y="28" width="194.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_READ_ROW_di" bpmnElement="n_READ_ROW">
+        <dc:Bounds x="130.5" y="138" width="162" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DEL_SCHED_di" bpmnElement="n_DEL_SCHED">
+        <dc:Bounds x="126.88" y="264" width="169.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_STRIPE_REV_di" bpmnElement="n_STRIPE_REV">
+        <dc:Bounds x="28" y="390" width="199.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_MARK_ACTIVE_di" bpmnElement="n_MARK_ACTIVE">
+        <dc:Bounds x="28.72" y="500" width="156.86" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CREATE_TRIAL_di" bpmnElement="n_CREATE_TRIAL">
+        <dc:Bounds x="263.75" y="390" width="131.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_UPSERT_TRIAL_di" bpmnElement="n_UPSERT_TRIAL">
+        <dc:Bounds x="221.58" y="500" width="172.7" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_EVT_REACT_di" bpmnElement="n_EVT_REACT">
+        <dc:Bounds x="191.5" y="623.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="grp_0_di" bpmnElement="grp_0">
+        <dc:Bounds x="16" y="378" width="223.75" height="199.5" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="grp_1_di" bpmnElement="grp_1">
+        <dc:Bounds x="209.58" y="378" width="197.42" height="199.5" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="211.5" y="80" />
+        <di:waypoint x="211.5" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="211.5" y="206" />
+        <di:waypoint x="211.5" y="264" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="211.5" y="332" />
+        <di:waypoint x="211.5" y="361" />
+        <di:waypoint x="127.88" y="361" />
+        <di:waypoint x="127.88" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="211.5" y="332" />
+        <di:waypoint x="211.5" y="361" />
+        <di:waypoint x="329.38" y="361" />
+        <di:waypoint x="329.38" y="390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="127.88" y="442" />
+        <di:waypoint x="127.88" y="471" />
+        <di:waypoint x="107.15" y="471" />
+        <di:waypoint x="107.15" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="107.15" y="548" />
+        <di:waypoint x="107.15" y="585.75" />
+        <di:waypoint x="211.5" y="585.75" />
+        <di:waypoint x="211.5" y="623.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="329.38" y="442" />
+        <di:waypoint x="329.38" y="471" />
+        <di:waypoint x="307.93" y="471" />
+        <di:waypoint x="307.93" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="307.93" y="548" />
+        <di:waypoint x="307.93" y="585.75" />
+        <di:waypoint x="211.5" y="585.75" />
+        <di:waypoint x="211.5" y="623.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
