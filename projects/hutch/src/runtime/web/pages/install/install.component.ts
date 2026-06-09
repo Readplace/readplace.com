@@ -11,7 +11,7 @@ const FIREFOX_LATEST_POINTER_URL = firefoxS3Config.getLatestPointerUrl("prod");
 const CHROME_WEB_STORE_URL = "https://chromewebstore.google.com/detail/hutch/klblengmhlfnmjoagchagfcdbpbocgbf";
 const TESTFLIGHT_URL = "https://testflight.apple.com/join/5eng821W";
 
-export type InstallPlatform = "firefox" | "chrome" | "iphone";
+export type InstallClient = "firefox" | "chrome" | "iphone";
 
 async function fetchDownloadUrl(latestPointerUrl: string, buildDownloadUrl: (filename: string) => string): Promise<string | null> {
 	const response = await fetch(latestPointerUrl);
@@ -32,26 +32,26 @@ export async function fetchChromeDownloadUrl(): Promise<string | null> {
 }
 
 interface InstallTab {
-	key: InstallPlatform;
+	key: InstallClient;
 	label: string;
 	href: string;
 	activeClass: string;
 	ariaCurrent?: "page";
 }
 
-const TAB_DEFINITIONS: { key: InstallPlatform; label: string }[] = [
+const TAB_DEFINITIONS: { key: InstallClient; label: string }[] = [
 	{ key: "firefox", label: "Firefox" },
 	{ key: "chrome", label: "Chrome" },
 	{ key: "iphone", label: "iPhone" },
 ];
 
-function buildInstallTabs(active: InstallPlatform): InstallTab[] {
+function buildInstallTabs(active: InstallClient): InstallTab[] {
 	return TAB_DEFINITIONS.map(({ key, label }) => {
 		const isActive = key === active;
 		return {
 			key,
 			label,
-			href: `/install?browser=${key}`,
+			href: `/install?client=${key}`,
 			activeClass: isActive ? " install-page__tab--active" : "",
 			ariaCurrent: isActive ? "page" : undefined,
 		};
@@ -93,7 +93,7 @@ const BETA_SETUP_STEPS: BetaSetupStep[] = [
 const BETA_OUTRO =
 	"Use it for a few days or weeks: save the articles you want to read later, then open readplace.com when you have time to read them. I'll check in soon to see how it's going, and any feedback is welcome.";
 
-export function InstallPage(params: { firefox: string | null; chrome: string | null; browser: InstallPlatform }): PageBody {
+export function InstallPage(params: { firefox: string | null; chrome: string | null; client: InstallClient }): PageBody {
 	return {
 		seo: {
 			title: "Install Readplace Browser Extension",
@@ -145,8 +145,8 @@ export function InstallPage(params: { firefox: string | null; chrome: string | n
 		styles: INSTALL_PAGE_STYLES,
 		bodyClass: "page-install",
 		content: { html: render(INSTALL_TEMPLATE, {
-			tabs: buildInstallTabs(params.browser),
-			browser: params.browser,
+			tabs: buildInstallTabs(params.client),
+			client: params.client,
 			firefoxDownloadUrl: params.firefox,
 			chromeDownloadUrl: params.chrome,
 			testflightUrl: TESTFLIGHT_URL,

@@ -481,7 +481,7 @@ describe("Base component", () => {
 			seo: {
 				title: "T",
 				description: "D",
-				canonicalUrl: "/install?browser=firefox",
+				canonicalUrl: "/install?client=firefox",
 			},
 		});
 		const result = Base(page, GUEST_STATE).to("text/html");
@@ -489,6 +489,6 @@ describe("Base component", () => {
 
 		expect(
 			doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
-		).toBe("https://readplace.com/install?browser=firefox");
+		).toBe("https://readplace.com/install?client=firefox");
 	});
 });

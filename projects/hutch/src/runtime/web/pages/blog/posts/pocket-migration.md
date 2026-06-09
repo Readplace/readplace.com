@@ -52,7 +52,7 @@ If your file is over 5 MiB, has more than 2,000 links, or the picker fails for a
 
 Open your [reading list](/queue) and spot-check a few entries to make sure titles and URLs match. Something look wrong? Send a follow-up to readplace+migrate@readplace.com.
 
-If you do not have the export file, you can still rebuild your reading list. Install the Readplace browser extension for [Chrome](/install?browser=chrome) or [Firefox](/install?browser=firefox) and save articles one at a time from the URLs you recovered.
+If you do not have the export file, you can still rebuild your reading list. Install the Readplace browser extension for [Chrome](/install?client=chrome) or [Firefox](/install?client=firefox) and save articles one at a time from the URLs you recovered.
 
 ## What you had in Pocket vs. what you get in Readplace
 

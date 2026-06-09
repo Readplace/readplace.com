@@ -121,20 +121,20 @@ describe("OnboardingChecklist", () => {
 		assert.equal(title.textContent, "Install a browser extension");
 	});
 
-	it("shows an 'Install' action linking to /install?browser=chrome for Chrome users", () => {
+	it("shows an 'Install' action linking to /install?client=chrome for Chrome users", () => {
 		const doc = parse(OnboardingChecklist(contextWith({ browser: "chrome" })));
 		const action = doc.querySelector('[data-test-onboarding-step="install-extension"] [data-test-onboarding-action]');
 		assert(action, "action link must be rendered");
 		assert.equal(action.textContent, "Install");
-		assert.equal(action.getAttribute("href"), "/install?browser=chrome");
+		assert.equal(action.getAttribute("href"), "/install?client=chrome");
 	});
 
-	it("shows an 'Install' action linking to /install?browser=firefox for Firefox users", () => {
+	it("shows an 'Install' action linking to /install?client=firefox for Firefox users", () => {
 		const doc = parse(OnboardingChecklist(contextWith({ browser: "firefox" })));
 		const action = doc.querySelector('[data-test-onboarding-step="install-extension"] [data-test-onboarding-action]');
 		assert(action, "action link must be rendered");
 		assert.equal(action.textContent, "Install");
-		assert.equal(action.getAttribute("href"), "/install?browser=firefox");
+		assert.equal(action.getAttribute("href"), "/install?client=firefox");
 	});
 
 	it("shows a 'Choose browser' action linking to /install for unrecognised browsers", () => {

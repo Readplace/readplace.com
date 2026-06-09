@@ -216,7 +216,7 @@ Readwise Reader has the most polished mobile apps with full offline support. Ins
 Pocket shut down on July 8, 2025. To migrate to Readplace:
 
 1. If you exported your Pocket data (HTML file), keep that file.
-2. Install the Readplace browser extension for [Chrome](https://readplace.com/install?browser=chrome) or [Firefox](https://readplace.com/install?browser=firefox).
+2. Install the Readplace browser extension for [Chrome](https://readplace.com/install?client=chrome) or [Firefox](https://readplace.com/install?client=firefox).
 3. Send your Pocket export file to readplace+migrate@readplace.com for manual migration, or save articles one at a time using the extension.
 4. AI summaries are generated automatically after import.
 

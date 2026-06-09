@@ -5,12 +5,12 @@ import { Base } from "../../base.component";
 import { sendComponent } from "../../send-component";
 import {
 	InstallPage,
-	type InstallPlatform,
+	type InstallClient,
 	fetchFirefoxDownloadUrl,
 	fetchChromeDownloadUrl,
 } from "./install.component";
 
-function parsePlatform(value: unknown): InstallPlatform {
+function parseClient(value: unknown): InstallClient {
 	if (value === "firefox") return "firefox";
 	if (value === "iphone") return "iphone";
 	return "chrome";
@@ -21,12 +21,12 @@ export function initInstallRoutes(deps: { buildBannerState: BuildBannerState }):
 	const { buildBannerState } = deps;
 
 	router.get("/install", async (req: Request, res: Response) => {
-		const browser = parsePlatform(req.query.browser);
+		const client = parseClient(req.query.client);
 		const [firefox, chrome] = await Promise.all([
 			fetchFirefoxDownloadUrl(),
 			fetchChromeDownloadUrl(),
 		]);
-		sendComponent(req, res, Base(InstallPage({ firefox, chrome, browser }), await buildBannerState(req)));
+		sendComponent(req, res, Base(InstallPage({ firefox, chrome, client }), await buildBannerState(req)));
 	});
 
 	return router;

@@ -9,9 +9,9 @@
         {{/each}}
       </nav>
 
-      {{#switch browser}}
+      {{#switch client}}
       {{#case "firefox"}}
-      <section class="install-page__panel" data-test-section="firefox">
+      <section class="install-page__panel" data-test-panel="firefox">
         {{#if firefoxDownloadUrl}}
         <a href="{{firefoxDownloadUrl}}" class="install-page__download" data-test-cta="download-firefox">Install Readplace for Firefox</a>
         {{else}}
@@ -21,7 +21,7 @@
       {{/case}}
 
       {{#case "iphone"}}
-      <section class="install-page__panel" data-test-section="iphone">
+      <section class="install-page__panel" data-test-panel="iphone">
         <p class="install-page__lead">Save links from any browser on your iPhone. Open the page in Safari, Chrome, or anywhere else, tap the share button, and choose Readplace — the link drops straight into your reading queue. No copy-paste, no opening the app first.</p>
 
         <div class="install-page__beta" data-test-section="ios-beta-notice">
@@ -45,7 +45,7 @@
       {{/case}}
 
       {{#default}}
-      <section class="install-page__panel" data-test-section="chrome">
+      <section class="install-page__panel" data-test-panel="chrome">
         {{#if chromeDownloadUrl}}
         <a href="{{chromeDownloadUrl}}" class="install-page__download" data-test-cta="download-chrome">Install Readplace for Chrome</a>
         {{else}}

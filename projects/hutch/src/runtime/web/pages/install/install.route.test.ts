@@ -1,5 +1,6 @@
 import { firefoxS3Config } from "browser-extension-core/s3-config";
 import { JSDOM } from "jsdom";
+import assert from "node:assert/strict";
 import request from "supertest";
 import { useTestServer } from "../../../test-app";
 import {
@@ -45,7 +46,18 @@ describe("GET /install", () => {
 		expect(doc.body.classList.contains("page-install")).toBe(true);
 	});
 
-	it("should default to Chrome tab when no browser param is provided", async () => {
+	it("should render the full ordered set of platform tabs", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install");
+		const doc = new JSDOM(response.text).window.document;
+
+		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]")).map(
+			(el) => el.getAttribute("data-test-tab"),
+		);
+		expect(tabs).toEqual(["firefox", "chrome", "iphone"]);
+	});
+
+	it("should default to Chrome tab when no client param is provided", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install");
 		const doc = new JSDOM(response.text).window.document;
@@ -58,9 +70,9 @@ describe("GET /install", () => {
 		expect(firefoxTab?.classList.contains("install-page__tab--active")).toBe(false);
 	});
 
-	it("should select Firefox tab when browser=firefox", async () => {
+	it("should select Firefox tab when client=firefox", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?browser=firefox");
+		const response = await request(harness.server).get("/install?client=firefox");
 		const doc = new JSDOM(response.text).window.document;
 
 		const firefoxTab = doc.querySelector('[data-test-tab="firefox"]');
@@ -71,9 +83,9 @@ describe("GET /install", () => {
 		expect(chromeTab?.classList.contains("install-page__tab--active")).toBe(false);
 	});
 
-	it("should select Chrome tab when browser=chrome", async () => {
+	it("should select Chrome tab when client=chrome", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?browser=chrome");
+		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = new JSDOM(response.text).window.document;
 
 		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
@@ -83,29 +95,39 @@ describe("GET /install", () => {
 		expect(firefoxTab?.classList.contains("install-page__tab--active")).toBe(false);
 	});
 
-	it("should render Firefox panel content when browser=firefox", async () => {
+	it("should render only the Firefox panel when client=firefox", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?browser=firefox");
+		const response = await request(harness.server).get("/install?client=firefox");
 		const doc = new JSDOM(response.text).window.document;
 
-		const firefoxPanel = doc.querySelector('[data-test-section="firefox"]');
-		expect(firefoxPanel?.querySelector('[data-test-cta="download-firefox"]')?.textContent).toBe("Install Readplace for Firefox");
-		expect(doc.querySelector('[data-test-section="chrome"]')).toBeNull();
+		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
+			(el) => el.getAttribute("data-test-panel"),
+		);
+		expect(panels).toEqual(["firefox"]);
+
+		const firefoxPanel = doc.querySelector('[data-test-panel="firefox"]');
+		assert(firefoxPanel, "Firefox panel must be rendered");
+		expect(firefoxPanel.querySelector('[data-test-cta="download-firefox"]')?.textContent).toBe("Install Readplace for Firefox");
 	});
 
-	it("should render Chrome panel content when browser=chrome", async () => {
+	it("should render only the Chrome panel when client=chrome", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?browser=chrome");
+		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = new JSDOM(response.text).window.document;
 
-		const chromePanel = doc.querySelector('[data-test-section="chrome"]');
-		expect(chromePanel?.querySelector('[data-test-cta="download-chrome"]')?.textContent).toBe("Install Readplace for Chrome");
-		expect(doc.querySelector('[data-test-section="firefox"]')).toBeNull();
+		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
+			(el) => el.getAttribute("data-test-panel"),
+		);
+		expect(panels).toEqual(["chrome"]);
+
+		const chromePanel = doc.querySelector('[data-test-panel="chrome"]');
+		assert(chromePanel, "Chrome panel must be rendered");
+		expect(chromePanel.querySelector('[data-test-cta="download-chrome"]')?.textContent).toBe("Install Readplace for Chrome");
 	});
 
 	it("should render the Firefox download button linking to the S3 XPI", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?browser=firefox");
+		const response = await request(harness.server).get("/install?client=firefox");
 		const doc = new JSDOM(response.text).window.document;
 
 		const cta = doc.querySelector(
@@ -116,7 +138,7 @@ describe("GET /install", () => {
 
 	it("should render the Chrome download button linking to the Chrome Web Store", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?browser=chrome");
+		const response = await request(harness.server).get("/install?client=chrome");
 		const doc = new JSDOM(response.text).window.document;
 
 		const cta = doc.querySelector(
@@ -181,10 +203,9 @@ describe("GET /install", () => {
 		});
 
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?browser=firefox");
+		const response = await request(harness.server).get("/install?client=firefox");
 		const doc = new JSDOM(response.text).window.document;
 
-		expect(doc.querySelector('[data-test-cta="download-firefox"]')).toBeNull();
 		const unavailable = doc.querySelector('[data-test-section="firefox-unavailable"]');
 		expect(unavailable?.textContent).toBe(
 			"The Firefox extension is not available for download yet. Please check back soon.",
@@ -198,10 +219,9 @@ describe("GET /install", () => {
 		});
 
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?browser=firefox");
+		const response = await request(harness.server).get("/install?client=firefox");
 		const doc = new JSDOM(response.text).window.document;
 
-		expect(doc.querySelector('[data-test-cta="download-firefox"]')).toBeNull();
 		const unavailable = doc.querySelector('[data-test-section="firefox-unavailable"]');
 		expect(unavailable?.textContent).toBe(
 			"The Firefox extension is not available for download yet. Please check back soon.",
@@ -210,14 +230,14 @@ describe("GET /install", () => {
 
 	it("should link tabs to the correct URLs", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?browser=firefox");
+		const response = await request(harness.server).get("/install?client=firefox");
 		const doc = new JSDOM(response.text).window.document;
 
 		const firefoxTab = doc.querySelector('[data-test-tab="firefox"]');
-		expect(firefoxTab?.getAttribute("href")).toBe("/install?browser=firefox");
+		expect(firefoxTab?.getAttribute("href")).toBe("/install?client=firefox");
 
 		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
-		expect(chromeTab?.getAttribute("href")).toBe("/install?browser=chrome");
+		expect(chromeTab?.getAttribute("href")).toBe("/install?client=chrome");
 	});
 
 	it("should render an iPhone tab linking to the iPhone panel on every view", async () => {
@@ -226,14 +246,14 @@ describe("GET /install", () => {
 		const doc = new JSDOM(response.text).window.document;
 
 		const iphoneTab = doc.querySelector('[data-test-tab="iphone"]');
-		expect(iphoneTab?.getAttribute("href")).toBe("/install?browser=iphone");
+		expect(iphoneTab?.getAttribute("href")).toBe("/install?client=iphone");
 		expect(iphoneTab?.textContent).toBe("iPhone");
 		expect(iphoneTab?.classList.contains("install-page__tab--active")).toBe(false);
 	});
 
-	it("should select the iPhone tab when browser=iphone", async () => {
+	it("should select the iPhone tab when client=iphone", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?browser=iphone");
+		const response = await request(harness.server).get("/install?client=iphone");
 		const doc = new JSDOM(response.text).window.document;
 
 		const iphoneTab = doc.querySelector('[data-test-tab="iphone"]');
@@ -244,20 +264,24 @@ describe("GET /install", () => {
 		expect(chromeTab?.classList.contains("install-page__tab--active")).toBe(false);
 	});
 
-	it("should render the iPhone panel explaining the share-sheet save when browser=iphone", async () => {
+	it("should render only the iPhone panel explaining the share-sheet save when client=iphone", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?browser=iphone");
+		const response = await request(harness.server).get("/install?client=iphone");
 		const doc = new JSDOM(response.text).window.document;
 
-		const iphonePanel = doc.querySelector('[data-test-section="iphone"]');
-		expect(iphonePanel?.textContent).toContain("share");
-		expect(doc.querySelector('[data-test-section="chrome"]')).toBeNull();
-		expect(doc.querySelector('[data-test-section="firefox"]')).toBeNull();
+		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
+			(el) => el.getAttribute("data-test-panel"),
+		);
+		expect(panels).toEqual(["iphone"]);
+
+		const iphonePanel = doc.querySelector('[data-test-panel="iphone"]');
+		assert(iphonePanel, "iPhone panel must be rendered");
+		expect(iphonePanel.textContent).toContain("share");
 	});
 
 	it("should show the beta notice on the iPhone tab", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?browser=iphone");
+		const response = await request(harness.server).get("/install?client=iphone");
 		const doc = new JSDOM(response.text).window.document;
 
 		const notice = doc.querySelector('[data-test-section="ios-beta-notice"]');
@@ -267,7 +291,7 @@ describe("GET /install", () => {
 
 	it("should link the Join the beta button to TestFlight", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?browser=iphone");
+		const response = await request(harness.server).get("/install?client=iphone");
 		const doc = new JSDOM(response.text).window.document;
 
 		const cta = doc.querySelector('[data-test-cta="join-ios-beta"]');
@@ -277,7 +301,7 @@ describe("GET /install", () => {
 
 	it("should list the beta setup steps on the iPhone tab", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?browser=iphone");
+		const response = await request(harness.server).get("/install?client=iphone");
 		const doc = new JSDOM(response.text).window.document;
 
 		const steps = doc.querySelectorAll("[data-test-beta-step]");

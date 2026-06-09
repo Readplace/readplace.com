@@ -68,7 +68,7 @@ describe("GET /", () => {
 
 		const cta = doc.querySelector('[data-test-cta="install-extension"]');
 		expect(cta?.textContent).toBe("Install Firefox Extension");
-		expect(cta?.getAttribute("href")).toBe("/install?browser=firefox");
+		expect(cta?.getAttribute("href")).toBe("/install?client=firefox");
 
 		const trust = doc.querySelector(".home-hero__trust");
 		expect(trust?.textContent).toBe("Also available for Chrome");
@@ -83,7 +83,7 @@ describe("GET /", () => {
 
 		const cta = doc.querySelector('[data-test-cta="install-extension"]');
 		expect(cta?.textContent).toBe("Install Chrome Extension");
-		expect(cta?.getAttribute("href")).toBe("/install?browser=chrome");
+		expect(cta?.getAttribute("href")).toBe("/install?client=chrome");
 
 		const trust = doc.querySelector(".home-hero__trust");
 		expect(trust?.textContent).toBe("Also available for Firefox");
@@ -118,7 +118,7 @@ describe("GET /", () => {
 
 		const bottomCta = doc.querySelector('[data-test-cta="bottom-install"]');
 		expect(bottomCta?.textContent).toBe("Install Firefox Extension");
-		expect(bottomCta?.getAttribute("href")).toBe("/install?browser=firefox");
+		expect(bottomCta?.getAttribute("href")).toBe("/install?client=firefox");
 	});
 
 	it("should render the public reader-view paste-link form with UTM hidden inputs", async () => {
