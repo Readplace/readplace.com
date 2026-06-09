@@ -52,8 +52,8 @@ flowchart TD
 	NRVR --> NOTIFY[reader-ready-notify Lambda]:::new
 	NOTIFY --> GATE{{per-user gates<br/>row exists · not read · not re-saved ·<br/>not already emailed · gen &gt; 60s ·<br/>viewedAt &lt; succeededAt · email verified}}:::policy
 	GATE -.->|any miss → skip + log| DROP[/dropped + logged/]:::policy
-	GATE -->|all pass| CLAIM{{claimReaderReadyEmailSlot<br/>atomic 6h cooldown on users row}}:::policy
-	CLAIM -->|attribute_not_exists OR < now-6h| USERS[(users row<br/>lastReaderReadyEmailAt)]:::new
+	GATE -->|all pass| CLAIM{{claimReaderReadyEmailSlot<br/>atomic 6h cooldown on reader-ready-notifications row}}:::policy
+	CLAIM -->|attribute_not_exists OR < now-6h| USERS[(reader-ready-notifications row<br/>userId PK · lastReaderReadyEmailAt)]:::new
 	CLAIM -.->|rejected: within cooldown| DROP
 	CLAIM -->|claimed| SEND[send Resend email<br/>APP_ORIGIN/queue/&lt;id&gt;/view]:::system
 	SEND -->|set-once emailSentAt| UA
@@ -102,7 +102,7 @@ it is always ≤ any later poll's `viewedAt`.
 5. `succeededAt − savedAt > 60s` (generation took over a minute)
 6. `viewedAt` is set AND `viewedAt < succeededAt` (viewed while loading, left before ready)
 7. user email exists AND `emailVerified`
-8. atomic claim of the 6h per-user cooldown on the users row
+8. atomic claim of the 6h per-user cooldown on the reader-ready-notifications row (keyed by `userId`)
 
 Only after all gates pass and the cooldown is claimed does the Lambda send the
 email, set `emailSentAt` (set-once), and publish `ReaderReadyEmailSentEvent`.

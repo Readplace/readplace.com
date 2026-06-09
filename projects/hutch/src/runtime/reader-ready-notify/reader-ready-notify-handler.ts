@@ -17,10 +17,8 @@ import type {
 	FindUserArticleNotificationState,
 	MarkReaderReadyEmailSent,
 } from "@packages/test-fixtures/providers/article-store";
-import type {
-	ClaimReaderReadyEmailSlot,
-	FindUserContactByUserId,
-} from "@packages/test-fixtures/providers/auth";
+import type { FindUserContactByUserId } from "@packages/test-fixtures/providers/auth";
+import type { ClaimReaderReadyEmailSlot } from "@packages/test-fixtures/providers/reader-ready-state";
 import type { SendEmail } from "@packages/test-fixtures/providers/email";
 import { buildReaderReadyEmailHtml } from "../web/reader-ready-email";
 

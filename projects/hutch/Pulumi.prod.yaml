@@ -22,6 +22,7 @@ config:
   hutch:dynamodbArticlesTable: hutch-articles-cda0a08
   hutch:dynamodbUserArticlesTable: hutch-user-articles-8226beb
   hutch:dynamodbUsersTable: hutch-users-f90c09e
+  hutch:dynamodbReaderReadyNotificationsTable: hutch-reader-ready-notifications-prod
   hutch:dynamodbSessionsTable: hutch-sessions-d17dbb3
   hutch:dynamodbOauthTable: hutch-oauth-ecd3db9
   hutch:dynamodbVerificationTokensTable: hutch-verification-tokens-3f85043

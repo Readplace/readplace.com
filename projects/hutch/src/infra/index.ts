@@ -43,6 +43,7 @@ const tableNames = {
 	articles: config.require("dynamodbArticlesTable"),
 	userArticles: config.require("dynamodbUserArticlesTable"),
 	users: config.require("dynamodbUsersTable"),
+	readerReadyNotifications: config.require("dynamodbReaderReadyNotificationsTable"),
 	sessions: config.require("dynamodbSessionsTable"),
 	oauth: config.require("dynamodbOauthTable"),
 	verificationTokens: config.require("dynamodbVerificationTokensTable"),
@@ -427,8 +428,12 @@ const readerReadyNotifyDynamodb = new HutchDynamoDBAccess("reader-ready-notify-d
 	tables: [
 		{ arn: storage.articlesTable.arn, includeIndexes: false },
 		{ arn: storage.userArticlesTable.arn, includeIndexes: false },
-		// users table read+write needs the userId-index to resolve the row by id.
+		// users table is read-only here: Query the userId-index to resolve the
+		// saver's verified contact email.
 		{ arn: storage.usersTable.arn, includeIndexes: true },
+		// reader-ready-notifications carries the per-user 6h email cooldown,
+		// claimed by a direct PK conditional UpdateItem.
+		{ arn: storage.readerReadyNotificationsTable.arn, includeIndexes: false },
 	],
 	actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:UpdateItem"],
 });
@@ -447,6 +452,7 @@ const readerReadyNotifyLambda = new HutchLambda("reader-ready-notify", {
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,
 		DYNAMODB_SESSIONS_TABLE: storage.sessionsTable.name,
+		DYNAMODB_READER_READY_NOTIFICATIONS_TABLE: storage.readerReadyNotificationsTable.name,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 	},
 	policies: [...readerReadyNotifyDynamodb.policies],
