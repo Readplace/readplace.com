@@ -99,7 +99,7 @@ describe("initReaderReadyNotifyHandler", () => {
 			const sent = (deps.sendEmail as jest.Mock).mock.calls[0][0];
 			expect(sent.to).toBe("reader@example.com");
 			expect(sent.bcc).toBe("readplace+reader_ready@readplace.com");
-			expect(sent.subject).toBe("Your reader view is ready");
+			expect(sent.subject).toBe("An article you saved now has a reader view!");
 			expect(sent.html).toContain(`https://readplace.com/queue/${ReaderArticleHashId.from(URL).value}/view`);
 			expect(sent.html).toContain("Distributed systems");
 			expect(deps.markReaderReadyEmailSent).toHaveBeenCalledWith({ userId: USER_ID, url: URL, at: NOW });
