@@ -186,7 +186,9 @@ describe("Queue resurface", () => {
 
 		const resurfacedDoc = parse((await request(harness.server).get("/queue?tab=resurfaced").set("Cookie", otherCookies)).text);
 		expect(resurfacedDoc.querySelectorAll("[data-test-article-list] .queue-article").length).toBe(0);
-		expect(resurfacedDoc.querySelector("[data-test-resurface-banner]")?.textContent).not.toContain("coffee");
+		const banner = resurfacedDoc.querySelector("[data-test-resurface-banner]");
+		assert(banner, "resurface banner must be rendered");
+		expect(banner.textContent).toContain("Use Resurface above");
 	});
 
 	it("requires authentication", async () => {
