@@ -17,30 +17,30 @@
       <bpmn:outgoing>f_3</bpmn:outgoing>
       <bpmn:messageEventDefinition />
     </bpmn:intermediateCatchEvent>
-    <bpmn:endEvent id="n_DLQ1" name="save-link-command-dlq">
+    <bpmn:intermediateCatchEvent id="n_DLQ1" name="save-link-command-dlq">
       <bpmn:incoming>f_0</bpmn:incoming>
       <bpmn:outgoing>f_4</bpmn:outgoing>
       <bpmn:outgoing>f_18</bpmn:outgoing>
-      <bpmn:errorEventDefinition />
-    </bpmn:endEvent>
-    <bpmn:endEvent id="n_DLQ2" name="save-link-raw-html-command-dlq">
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="n_DLQ2" name="save-link-raw-html-command-dlq">
       <bpmn:incoming>f_1</bpmn:incoming>
       <bpmn:outgoing>f_5</bpmn:outgoing>
       <bpmn:outgoing>f_19</bpmn:outgoing>
-      <bpmn:errorEventDefinition />
-    </bpmn:endEvent>
-    <bpmn:endEvent id="n_DLQ3" name="save-anonymous-link-command-dlq">
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="n_DLQ3" name="save-anonymous-link-command-dlq">
       <bpmn:incoming>f_2</bpmn:incoming>
       <bpmn:outgoing>f_6</bpmn:outgoing>
       <bpmn:outgoing>f_20</bpmn:outgoing>
-      <bpmn:errorEventDefinition />
-    </bpmn:endEvent>
-    <bpmn:endEvent id="n_DLQ4" name="select-most-complete-content-dlq">
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="n_DLQ4" name="select-most-complete-content-dlq">
       <bpmn:incoming>f_3</bpmn:incoming>
       <bpmn:outgoing>f_7</bpmn:outgoing>
       <bpmn:outgoing>f_21</bpmn:outgoing>
-      <bpmn:errorEventDefinition />
-    </bpmn:endEvent>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
     <bpmn:serviceTask id="n_DH1" name="save-link-dlq Lambda">
       <bpmn:incoming>f_4</bpmn:incoming>
       <bpmn:outgoing>f_8</bpmn:outgoing>

@@ -39,11 +39,11 @@
       <bpmn:messageEventDefinition />
     </bpmn:intermediateThrowEvent>
     <bpmn:dataStoreReference id="n_SubRow" name="subscription_providers row status = cancelled"></bpmn:dataStoreReference>
-    <bpmn:endEvent id="n_HSCDLQ" name="handle-subscription-cancelled DLQ">
+    <bpmn:intermediateCatchEvent id="n_HSCDLQ" name="handle-subscription-cancelled DLQ">
       <bpmn:incoming>f_10</bpmn:incoming>
       <bpmn:outgoing>f_11</bpmn:outgoing>
-      <bpmn:errorEventDefinition />
-    </bpmn:endEvent>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
     <bpmn:endEvent id="n_OperatorEmail" name="Operator email notification">
       <bpmn:incoming>f_11</bpmn:incoming>
     </bpmn:endEvent>

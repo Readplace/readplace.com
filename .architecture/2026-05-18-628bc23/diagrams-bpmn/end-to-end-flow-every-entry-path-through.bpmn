@@ -157,11 +157,11 @@
       <bpmn:messageEventDefinition />
     </bpmn:intermediateThrowEvent>
     <bpmn:dataStoreReference id="n_Terminal" name="article row crawlStatus=unsupported"></bpmn:dataStoreReference>
-    <bpmn:endEvent id="n_CCDLQ" name="comprehensive-crawl-command DLQ">
+    <bpmn:intermediateCatchEvent id="n_CCDLQ" name="comprehensive-crawl-command DLQ">
       <bpmn:incoming>f_33</bpmn:incoming>
       <bpmn:outgoing>f_34</bpmn:outgoing>
-      <bpmn:errorEventDefinition />
-    </bpmn:endEvent>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
     <bpmn:serviceTask id="n_CCDLQLambda" name="comprehensive-crawl-dlq Lambda markCrawlExhausted">
       <bpmn:incoming>f_34</bpmn:incoming>
       <bpmn:outgoing>f_35</bpmn:outgoing>

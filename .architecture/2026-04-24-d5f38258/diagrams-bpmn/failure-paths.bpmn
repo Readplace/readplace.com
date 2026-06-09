@@ -46,11 +46,11 @@
       <bpmn:incoming>f_11</bpmn:incoming>
       <bpmn:outgoing>f_12</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:endEvent id="n_DLQ" name="save-link-command-dlq save-anonymous-link-dlq save-link-raw-html-command-dlq">
+    <bpmn:intermediateCatchEvent id="n_DLQ" name="save-link-command-dlq save-anonymous-link-dlq save-link-raw-html-command-dlq">
       <bpmn:incoming>f_12</bpmn:incoming>
       <bpmn:outgoing>f_13</bpmn:outgoing>
-      <bpmn:errorEventDefinition />
-    </bpmn:endEvent>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
     <bpmn:businessRuleTask id="n_DLQHandler" name="HutchDLQEventHandler SaveLink/SaveAnonymousLink DLQ consumer">
       <bpmn:incoming>f_13</bpmn:incoming>
       <bpmn:outgoing>f_14</bpmn:outgoing>

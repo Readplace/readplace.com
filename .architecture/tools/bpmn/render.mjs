@@ -75,7 +75,7 @@ function bpmnKind(role, node, hasOut, hasIn){
     }
     case 'store':   return { kind:'datastore' };
     case 'queue':   return { kind:'event', sub:'catch' };
-    case 'dlq':     return { kind:'event', sub:'endError' };
+    case 'dlq':     return hasOut ? { kind:'event', sub:'catch' } : { kind:'event', sub:'endError' };
     case 'ui':      return hasIn ? { kind:'task', marker:'user' } : { kind:'event', sub:'start' };
     case 'gateway': return { kind:'gateway' };
     default:        return { kind:'task', marker:null };

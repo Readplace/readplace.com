@@ -96,21 +96,21 @@
     <bpmn:serviceTask id="n_Phase2" name="Phase 2: cancel-subscription Lambda then handle-subscription-cancelled markCancelledByUserId">
       <bpmn:incoming>f_25</bpmn:incoming>
     </bpmn:serviceTask>
-    <bpmn:endEvent id="n_SSR_DLQ" name="subscription-start-request DLQ">
+    <bpmn:intermediateCatchEvent id="n_SSR_DLQ" name="subscription-start-request DLQ">
       <bpmn:incoming>f_27</bpmn:incoming>
       <bpmn:outgoing>f_30</bpmn:outgoing>
-      <bpmn:errorEventDefinition />
-    </bpmn:endEvent>
-    <bpmn:endEvent id="n_SCSE_DLQ" name="subscription-charge-succeeded DLQ">
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="n_SCSE_DLQ" name="subscription-charge-succeeded DLQ">
       <bpmn:incoming>f_28</bpmn:incoming>
       <bpmn:outgoing>f_31</bpmn:outgoing>
-      <bpmn:errorEventDefinition />
-    </bpmn:endEvent>
-    <bpmn:endEvent id="n_SCFE_DLQ" name="subscription-charge-failed DLQ">
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="n_SCFE_DLQ" name="subscription-charge-failed DLQ">
       <bpmn:incoming>f_29</bpmn:incoming>
       <bpmn:outgoing>f_32</bpmn:outgoing>
-      <bpmn:errorEventDefinition />
-    </bpmn:endEvent>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
     <bpmn:endEvent id="n_OperatorEmail" name="Operator email notification">
       <bpmn:incoming>f_30</bpmn:incoming>
       <bpmn:incoming>f_31</bpmn:incoming>

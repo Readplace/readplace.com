@@ -67,16 +67,16 @@
     <bpmn:serviceTask id="n_HSCLambda" name="handle-subscription-cancelled Lambda markCancelledByUserId 128 MB / 30 s">
       <bpmn:incoming>f_17</bpmn:incoming>
     </bpmn:serviceTask>
-    <bpmn:endEvent id="n_CSDLQ" name="cancel-subscription DLQ">
+    <bpmn:intermediateCatchEvent id="n_CSDLQ" name="cancel-subscription DLQ">
       <bpmn:incoming>f_19</bpmn:incoming>
       <bpmn:outgoing>f_21</bpmn:outgoing>
-      <bpmn:errorEventDefinition />
-    </bpmn:endEvent>
-    <bpmn:endEvent id="n_HSCDLQ" name="handle-subscription-cancelled DLQ">
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="n_HSCDLQ" name="handle-subscription-cancelled DLQ">
       <bpmn:incoming>f_20</bpmn:incoming>
       <bpmn:outgoing>f_22</bpmn:outgoing>
-      <bpmn:errorEventDefinition />
-    </bpmn:endEvent>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
     <bpmn:endEvent id="n_OperatorEmail" name="Operator email notification">
       <bpmn:incoming>f_21</bpmn:incoming>
       <bpmn:incoming>f_22</bpmn:incoming>

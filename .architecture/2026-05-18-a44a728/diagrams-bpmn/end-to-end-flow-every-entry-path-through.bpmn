@@ -98,11 +98,11 @@
       <bpmn:incoming>f_19</bpmn:incoming>
       <bpmn:outgoing>f_22</bpmn:outgoing>
     </bpmn:sendTask>
-    <bpmn:endEvent id="n_PolicyDLQ" name="simple-crawl-unsupported-policy DLQ">
+    <bpmn:intermediateCatchEvent id="n_PolicyDLQ" name="simple-crawl-unsupported-policy DLQ">
       <bpmn:incoming>f_20</bpmn:incoming>
       <bpmn:outgoing>f_21</bpmn:outgoing>
-      <bpmn:errorEventDefinition />
-    </bpmn:endEvent>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
     <bpmn:serviceTask id="n_PolicyDLQLambda" name="simple-crawl-unsupported-policy-dlq Lambda markCrawlExhausted">
       <bpmn:incoming>f_21</bpmn:incoming>
     </bpmn:serviceTask>
@@ -128,11 +128,11 @@
       <bpmn:messageEventDefinition />
     </bpmn:intermediateThrowEvent>
     <bpmn:dataStoreReference id="n_Terminal" name="article row crawlStatus=unsupported"></bpmn:dataStoreReference>
-    <bpmn:endEvent id="n_CCDLQ" name="comprehensive-crawl-command DLQ">
+    <bpmn:intermediateCatchEvent id="n_CCDLQ" name="comprehensive-crawl-command DLQ">
       <bpmn:incoming>f_27</bpmn:incoming>
       <bpmn:outgoing>f_28</bpmn:outgoing>
-      <bpmn:errorEventDefinition />
-    </bpmn:endEvent>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
     <bpmn:serviceTask id="n_CCDLQLambda" name="comprehensive-crawl-dlq Lambda markCrawlExhausted">
       <bpmn:incoming>f_28</bpmn:incoming>
       <bpmn:outgoing>f_29</bpmn:outgoing>
