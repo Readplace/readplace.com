@@ -37,7 +37,7 @@ export function createPasswordResetActions(
         await page.locator('[data-test-action="sign-in"]').click()
         await page.waitForSelector('body.page-login')
 
-        await page.locator('a[href="/forgot-password"]').click()
+        await page.locator('a[href^="/forgot-password"]').click()
         await page.waitForSelector('body.page-forgot-password')
         resetProgress.navigatedToForgotPassword = true
       },
