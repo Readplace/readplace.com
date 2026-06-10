@@ -8,6 +8,7 @@ import {
 	type PopupMessage,
 	type ReadingListItem,
 	captureActiveTabBytes,
+	type SavePhase,
 	type SaveUrlResult,
 	type RemoveUrlResult,
 	type TokenStorage,
@@ -162,13 +163,15 @@ const corePromise = initCore();
 
 const CAPTURE_HTML_TIMEOUT_MS = 5000;
 
-async function captureActiveTabHtml(): Promise<string | undefined> {
-	const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-	const tab = tabs[0];
-	if (tab?.id == null) return undefined;
-	const tabId = tab.id;
+async function captureActiveTabHtml(message: {
+	url: string;
+	tabId?: number;
+}): Promise<string | undefined> {
+	if (message.tabId == null) return undefined;
+	const tab = await browser.tabs.get(message.tabId).catch(() => undefined);
+	if (!tab || tab.url !== message.url) return undefined;
 	const captured = await Promise.race([
-		browser.tabs.sendMessage(tabId, { type: "capture-html" }),
+		browser.tabs.sendMessage(message.tabId, { type: "capture-html" }),
 		new Promise<undefined>((resolve) =>
 			setTimeout(() => resolve(undefined), CAPTURE_HTML_TIMEOUT_MS),
 		),
@@ -178,6 +181,11 @@ async function captureActiveTabHtml(): Promise<string | undefined> {
 		if (typeof rawHtml === "string" && rawHtml.length > 0) return rawHtml;
 	}
 	return undefined;
+}
+
+function broadcastSaveProgress(phase: SavePhase): void {
+	// .catch: the popup is the only receiver and may have closed mid-save.
+	browser.runtime.sendMessage({ type: "save-progress", phase }).catch(() => {});
 }
 
 browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
@@ -215,8 +223,10 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 							failure: (err) => resolve({ ok: false, ...err }),
 						});
 					});
-					captureActiveTabHtml()
+					broadcastSaveProgress("capturing");
+					captureActiveTabHtml(message)
 						.then(async (rawHtml) => {
+							broadcastSaveProgress("uploading");
 							const content = rawHtml
 								? { bytes: new TextEncoder().encode(rawHtml).buffer, mediaType: "text/html" }
 								: await captureActiveTabBytes(message.url, fetch);
@@ -224,12 +234,15 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 								url: message.url,
 								title: message.title,
 								content,
+								tabId: message.tabId,
 							});
 						})
 						.catch(() => {
+							broadcastSaveProgress("uploading");
 							core.save("current-tab", {
 								url: message.url,
 								title: message.title,
+								tabId: message.tabId,
 							});
 						});
 					pending.then(sendResponse);

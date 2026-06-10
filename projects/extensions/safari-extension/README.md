@@ -17,8 +17,11 @@ Same one-click save flow as the other extensions:
 
 - **Sign in** with OAuth 2.0 + PKCE (`initOAuthAuth` from core).
 - **Save the current tab** from the toolbar popup or the right-click menu —
-  capturing the rendered HTML via a content script and falling back to a
-  URL-only save, through the shared `BrowserExtensionCore` pipeline.
+  capturing the rendered HTML via a content script (uploading the PDF binary
+  instead on native PDF tabs), falling back to fetching the URL's bytes,
+  through the shared `BrowserExtensionCore` pipeline. The popup's progress bar
+  shows the real save milestones (`initSaveProgress` /
+  `initSaveProgressSequencer` from core).
 - **List / filter / paginate / delete** your reading list by walking the Siren
   API (`initSirenReadingList` from core).
 - **Cmd+D** on any page opens the popup and saves (shared `installShortcuts`).
