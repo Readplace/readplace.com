@@ -178,7 +178,9 @@ function renderBaseTemplate(body: PageBody, state: BannerState): string {
 		staticBaseUrl: STATIC_BASE_URL,
 		title: seo.title,
 		description: seo.description,
-		canonicalUrl: normalizeCanonicalUrl(seo.canonicalUrl),
+		canonicalUrl: seo.canonicalIsExternal
+			? new URL(seo.canonicalUrl).href
+			: normalizeCanonicalUrl(seo.canonicalUrl),
 		ogType,
 		ogImage: seo.ogImage,
 		ogImageAlt: seo.ogImageAlt,

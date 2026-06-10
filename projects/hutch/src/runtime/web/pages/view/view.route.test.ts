@@ -698,7 +698,7 @@ describe("View routes", () => {
 
 			expect(
 				doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
-			).toBe(`https://readplace.com/view/${CANONICAL_PATH}`);
+			).toBe(ARTICLE_URL);
 		});
 
 		it("renders a dismiss button with an accessible label", async () => {

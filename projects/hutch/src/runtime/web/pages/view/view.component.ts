@@ -28,11 +28,6 @@ const READER_IFRAME_SCRIPT = `<script src="/client-dist/reader-iframe.client.js"
 const EXPIRY_COUNTER_SCRIPT = `<script src="/client-dist/expiry-counter.client.js" defer></script>`;
 const VIEW_PAYWALL_SCRIPT = `<script src="/client-dist/view-paywall.client.js" defer></script>`;
 
-/** SEO-only constant: <link rel="canonical"> and JSON-LD url must always point
- * at production so search engines index a single host. The share URL uses the
- * visitor's current origin (input.appOrigin) instead — copying a link on
- * staging should paste the staging URL, not production. */
-const CANONICAL_BASE_URL = "https://readplace.com";
 const DEFAULT_OG_IMAGE = `${STATIC_BASE_URL}/og-image-1200x630.png`;
 const DEFAULT_TWITTER_IMAGE = `${STATIC_BASE_URL}/twitter-card-1200x600.png`;
 const DEFAULT_OG_ALT = "Readplace — A read-it-later app";
@@ -140,7 +135,6 @@ export function ViewPage(input: ViewPageInput): PageBody {
 	});
 
 	const viewPath = viewPathFor(input.articleUrl);
-	const canonicalViewUrl = `${CANONICAL_BASE_URL}${viewPath}`;
 	const shareableViewUrl = `${input.appOrigin}${viewPath}`;
 
 	const shareBalloon = renderShareBalloon({
@@ -196,8 +190,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		"@type": "Article",
 		headline: input.metadata.title,
 		description: description,
-		url: canonicalViewUrl,
-		isBasedOn: { "@type": "Article", url: input.articleUrl },
+		url: input.articleUrl,
 	};
 	if (input.metadata.imageUrl) {
 		structuredData.image = input.metadata.imageUrl;
@@ -207,12 +200,13 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		seo: {
 			title: formatViewDocumentTitle(input.metadata.title),
 			description,
-			canonicalUrl: viewPath,
+			canonicalUrl: input.articleUrl,
+			canonicalIsExternal: true,
 			ogType: "article",
 			ogImage,
 			ogImageAlt,
 			twitterImage,
-			robots: "index, follow",
+			robots: "noindex, follow",
 			structuredData: [structuredData],
 		},
 		styles: VIEW_STYLES,

@@ -132,10 +132,10 @@ describe("ViewPage", () => {
 		expect(links[1]?.getAttribute("href")).toBe("/save?url=x");
 	});
 
-	it("emits OG metadata using the article title and excerpt", () => {
+	it("emits OG metadata using the article title and excerpt, with canonical + og:url pointing at the original source", () => {
 		const doc = render();
 
-		const canonical = `https://readplace.com/view/example.com/post`;
+		const canonical = `https://example.com/post`;
 		expect(
 			doc.querySelector('meta[property="og:title"]')?.getAttribute("content"),
 		).toBe("Hello World | Reader View");
@@ -260,15 +260,15 @@ describe("ViewPage", () => {
 		).toBe("View on Readplace.");
 	});
 
-	it("emits index,follow robots meta", () => {
+	it("emits noindex robots meta so the wrapper is not indexed as a scraper proxy", () => {
 		const doc = render();
 
 		expect(
 			doc.querySelector('meta[name="robots"]')?.getAttribute("content"),
-		).toBe("index, follow");
+		).toBe("noindex, follow");
 	});
 
-	it("emits JSON-LD Article with isBasedOn attributed to the source URL", () => {
+	it("emits JSON-LD Article whose url is the original source (not the /view wrapper)", () => {
 		const doc = render();
 
 		const script = doc.querySelector('script[type="application/ld+json"]');
@@ -276,10 +276,8 @@ describe("ViewPage", () => {
 		const data = JSON.parse(script.textContent ?? "{}");
 		expect(data["@type"]).toBe("Article");
 		expect(data.headline).toBe("Hello World");
-		expect(data.isBasedOn).toEqual({
-			"@type": "Article",
-			url: "https://example.com/post",
-		});
+		expect(data.url).toBe("https://example.com/post");
+		expect(data.isBasedOn).toBeUndefined();
 		expect(data.image).toBe("https://cdn.example.com/hero.jpg");
 	});
 
@@ -494,13 +492,13 @@ describe("ViewPage", () => {
 			assert.equal(copyUrl.origin, "https://staging.readplace.com");
 		});
 
-		it("keeps the SEO canonical URL on https://readplace.com regardless of appOrigin (search indexing must stay on production)", () => {
+		it("pegs the SEO canonical to the original source regardless of appOrigin (we disclaim the wrapper; the publisher is canonical)", () => {
 			const doc = render({
 				...baseInput,
 				appOrigin: "https://staging.readplace.com",
 			});
 
-			const canonical = `https://readplace.com/view/example.com/post`;
+			const canonical = `https://example.com/post`;
 			assert.equal(
 				doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
 				canonical,

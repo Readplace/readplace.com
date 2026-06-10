@@ -98,7 +98,7 @@ describe("View routes", () => {
 			).toBe("article");
 			expect(
 				doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
-			).toBe(`https://readplace.com/view/${CANONICAL_PATH}`);
+			).toBe(ARTICLE_URL);
 			expect(
 				doc
 					.querySelector('meta[name="twitter:description"]')
@@ -159,7 +159,7 @@ describe("View routes", () => {
 			).toMatch(/twitter-card-1200x600\.png$/);
 		});
 
-		it("emits JSON-LD Article with isBasedOn attributed to the source URL", async () => {
+		it("emits JSON-LD Article whose url is the original source URL", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
@@ -198,11 +198,12 @@ describe("View routes", () => {
 				(s: { "@type": string }) => s["@type"] === "Article",
 			);
 			assert(article, "Article schema must be present");
-			expect(article.isBasedOn).toEqual({ "@type": "Article", url: ARTICLE_URL });
+			expect(article.url).toBe(ARTICLE_URL);
+			expect(article.isBasedOn).toBeUndefined();
 			expect(article.headline).toBe("Hello World");
 		});
 
-		it("emits robots: index, follow", async () => {
+		it("emits robots: noindex, follow", async () => {
 			const parseArticle: ParseArticle = async () => buildParseResult();
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const applyParseResult = createFakeApplyParseResult({
@@ -235,7 +236,7 @@ describe("View routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			expect(
 				doc.querySelector('meta[name="robots"]')?.getAttribute("content"),
-			).toBe("index, follow");
+			).toBe("noindex, follow");
 		});
 	});
 

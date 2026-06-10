@@ -2,6 +2,11 @@ export interface SeoMetadata {
 	title: string;
 	description: string;
 	canonicalUrl: string;
+	/** When true, `canonicalUrl` is kept as a cross-origin URL instead of being
+	 * forced onto readplace.com — `/view` points its canonical at the original
+	 * publisher so search/answer engines attribute the text to the source rather
+	 * than reading readplace.com as a scraper proxy. */
+	canonicalIsExternal?: boolean;
 	ogImage?: string;
 	ogImageAlt?: string;
 	ogImageType?: string;
