@@ -40,7 +40,7 @@ final class SaveSharedPageTests: XCTestCase {
 
 		let saveHtmlRecords = StubURLProtocol.records(path: "/queue/save-html")
 		XCTAssertEqual(saveHtmlRecords.count, 1)
-		let body = TestSupport.jsonObject(saveHtmlRecords.first!.body)
+		let body = TestSupport.jsonObject(try XCTUnwrap(saveHtmlRecords.first).body)
 		XCTAssertEqual(body["url"] as? String, "https://example.com/post")
 		XCTAssertEqual(body["rawHtml"] as? String, "<html><body>hi</body></html>")
 		XCTAssertEqual(body["title"] as? String, "Captured")
@@ -49,9 +49,9 @@ final class SaveSharedPageTests: XCTestCase {
 		XCTAssertTrue(queuePosts.isEmpty, "must not also POST the URL-only save when save-html succeeds")
 	}
 
-	func testDegradesToLinkOnlyAndGuardsWhenLoggedOut() async throws {
-		// Degrade: the capture produced no HTML, so the orchestrator saves URL-only.
-		let loggedIn = TestSupport.loggedInStore()
+	func testDegradesToLinkOnlyWhenCaptureEmpty() async throws {
+		// The capture produced no HTML, so the orchestrator saves URL-only.
+		let store = TestSupport.loggedInStore()
 		let emptyCaptor = FakeHTMLCaptor(page: CapturedPage(rawHtml: nil, title: nil))
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
@@ -66,29 +66,69 @@ final class SaveSharedPageTests: XCTestCase {
 			}
 		}
 
-		let degrade = SaveSharedPage(store: loggedIn, api: makeAPI(store: loggedIn), captor: emptyCaptor)
-		let outcome = await degrade.run(url: URL(string: "https://example.com/post")!, fallbackTitle: "Shared title")
+		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: emptyCaptor)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: "Shared title")
 
 		XCTAssertEqual(outcome, .savedLinkOnly)
 		let queuePosts = StubURLProtocol.records(path: "/queue").filter { $0.request.httpMethod == "POST" }
 		XCTAssertEqual(queuePosts.count, 1)
-		let body = TestSupport.jsonObject(queuePosts.first!.body)
+		let body = TestSupport.jsonObject(try XCTUnwrap(queuePosts.first).body)
 		XCTAssertEqual(body["url"] as? String, "https://example.com/post")
 		XCTAssertNil(body["rawHtml"], "the URL-only save must not carry rawHtml")
 		XCTAssertTrue(StubURLProtocol.records(path: "/queue/save-html").isEmpty)
+	}
 
-		// Guard: a logged-out store must short-circuit before any network call.
-		StubURLProtocol.reset()
+	func testGuardsWhenLoggedOut() async throws {
+		// A logged-out store must short-circuit before any network call.
 		let loggedOut = TokenStore(defaults: TestSupport.ephemeralDefaults())
 		loggedOut.baseURL = "https://readplace.com"
-		let guarded = SaveSharedPage(
+		let saver = SaveSharedPage(
 			store: loggedOut,
 			api: makeAPI(store: loggedOut),
 			captor: FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x"))
 		)
-		let guardOutcome = await guarded.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil)
 
-		XCTAssertEqual(guardOutcome, .notLoggedIn)
+		XCTAssertEqual(outcome, .notLoggedIn)
 		XCTAssertTrue(StubURLProtocol.records.isEmpty, "no network must be attempted when logged out")
+	}
+
+	func testReturnsNoLinkWhenURLMissing() async throws {
+		// A share with no extractable URL must neither capture nor hit the network.
+		let store = TestSupport.loggedInStore()
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html></html>", title: "x"))
+		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
+
+		let outcome = await saver.run(url: nil, fallbackTitle: "Shared title")
+
+		XCTAssertEqual(outcome, .noLink)
+		XCTAssertEqual(captor.capturedURLs, [], "must not capture a page when there is no link")
+		XCTAssertTrue(StubURLProtocol.records.isEmpty, "no network must be attempted when there is no link")
+	}
+
+	func testReturnsNoSaveActionWhenServerOffersNeither() async throws {
+		// The queue loaded but advertised neither save action, so there is nothing to do.
+		let store = TestSupport.loggedInStore()
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured"))
+		let searchOnly = """
+		{ "name": "search", "href": "/queue", "method": "GET" }
+		"""
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")], actionsJSON: searchOnly))
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil)
+
+		XCTAssertEqual(outcome, .noSaveAction)
+		let posts = StubURLProtocol.records.filter { $0.request.httpMethod == "POST" }
+		XCTAssertTrue(posts.isEmpty, "no save must be attempted when the server offers no save action")
 	}
 }

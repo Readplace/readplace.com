@@ -34,7 +34,16 @@ final class AppSession: ObservableObject {
 	/// callback URL: validate the callback, exchange the code for tokens, flip
 	/// the session to logged-in. The deterministic half of the OAuth flow — the
 	/// preceding WKWebView redirect is the OS boundary, exercised by hand.
-	func completeSignIn(callbackURL: URL, verifier: String, expectedState: String) async -> Result<Void, Error> {
+	///
+	/// `onExchangeStarted` fires once, only after the callback validates and the
+	/// network code exchange begins — never for a rejected callback — so the
+	/// caller's "Signing in…" overlay appears only when sign-in is under way.
+	func completeSignIn(
+		callbackURL: URL,
+		verifier: String,
+		expectedState: String,
+		onExchangeStarted: () -> Void
+	) async -> Result<Void, Error> {
 		let items = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?.queryItems ?? []
 		func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
 
@@ -43,6 +52,7 @@ final class AppSession: ObservableObject {
 		guard value("state") == expectedState else { return .failure(AuthFlowError.stateMismatch) }
 
 		do {
+			onExchangeStarted()
 			try await makeOAuth().exchangeCode(code, verifier: verifier)
 			refreshLoginState()
 			return .success(())

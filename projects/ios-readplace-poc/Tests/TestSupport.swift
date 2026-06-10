@@ -93,7 +93,22 @@ enum Fixtures {
 		"""
 	}
 
-	static func collection(entitiesJSON: [String], extraLinks: String = "", page: Int = 1, total: Int = 1) -> String {
+	/// The collection-level actions a healthy `/queue` advertises (URL-only save,
+	/// HTML save, search). Overridable so a test can model a server that offers
+	/// neither save action.
+	static let collectionActions = """
+		{ "name": "save-article", "href": "/queue", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] },
+		{ "name": "save-html", "href": "/queue/save-html", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }, { "name": "rawHtml", "type": "text" }, { "name": "title", "type": "text" }] },
+		{ "name": "search", "href": "/queue", "method": "GET" }
+		"""
+
+	static func collection(
+		entitiesJSON: [String],
+		extraLinks: String = "",
+		page: Int = 1,
+		total: Int = 1,
+		actionsJSON: String = collectionActions
+	) -> String {
 		"""
 		{
 		  "class": ["collection", "articles"],
@@ -103,11 +118,7 @@ enum Fixtures {
 		    { "rel": ["self"], "href": "/queue?page=\(page)" },
 		    { "rel": ["root"], "href": "/queue" }\(extraLinks)
 		  ],
-		  "actions": [
-		    { "name": "save-article", "href": "/queue", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] },
-		    { "name": "save-html", "href": "/queue/save-html", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }, { "name": "rawHtml", "type": "text" }, { "name": "title", "type": "text" }] },
-		    { "name": "search", "href": "/queue", "method": "GET" }
-		  ]
+		  "actions": [\(actionsJSON)]
 		}
 		"""
 	}

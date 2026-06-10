@@ -60,9 +60,13 @@ struct AuthFlowView: View {
 
 	private func handleCallback(_ url: URL, verifier: String, expectedState: String) {
 		guard !exchanging else { return }
-		exchanging = true
 		Task {
-			let result = await session.completeSignIn(callbackURL: url, verifier: verifier, expectedState: expectedState)
+			let result = await session.completeSignIn(
+				callbackURL: url,
+				verifier: verifier,
+				expectedState: expectedState,
+				onExchangeStarted: { exchanging = true }
+			)
 			finish(result)
 		}
 	}

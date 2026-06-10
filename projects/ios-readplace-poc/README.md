@@ -206,10 +206,13 @@ cases:
   http(s)-only link extraction that ignores `mailto:`/`tel:`.
 - **Login & share-save journeys**: the two orchestration seams end-to-end through
   the real session/API types. Sign-in — `completeSignIn` exchanging the code and
-  flipping the session to logged-in, then a reading-list load preserving the
-  bearer token across the entry-point `303`. Share-save — `SaveSharedPage` saving
-  rendered HTML when it's under the cap, degrading to URL-only when the capture is
-  empty, and refusing to touch the network when logged out.
+  flipping the session to logged-in (and rejecting a state-mismatched callback
+  without exchanging the code or raising the "Signing in…" overlay), then a
+  reading-list load preserving the bearer token across the entry-point `303`.
+  Share-save — `SaveSharedPage` saving rendered HTML when it's under the cap,
+  degrading to URL-only when the capture is empty, short-circuiting before any
+  network call when logged out or when there's no link, and reporting no-op when
+  the server advertises no save action.
 
 ## Notes & caveats
 
