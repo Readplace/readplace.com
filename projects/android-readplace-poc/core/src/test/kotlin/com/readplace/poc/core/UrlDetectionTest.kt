@@ -22,6 +22,22 @@ class UrlDetectionTest {
 	}
 
 	@Test
+	fun `keeps balanced parentheses that are part of the path`() {
+		assertEquals(
+			"https://en.wikipedia.org/wiki/Foo_(bar)",
+			UrlDetection.firstWebUrl("Read https://en.wikipedia.org/wiki/Foo_(bar) today"),
+		)
+	}
+
+	@Test
+	fun `strips only the unmatched paren when a paren-path url is itself parenthesised`() {
+		assertEquals(
+			"https://en.wikipedia.org/wiki/Foo_(bar)",
+			UrlDetection.firstWebUrl("(see https://en.wikipedia.org/wiki/Foo_(bar))"),
+		)
+	}
+
+	@Test
 	fun `returns null when there is no web url`() {
 		assertNull(UrlDetection.firstWebUrl("no links here"))
 	}

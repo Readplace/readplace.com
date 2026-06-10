@@ -14,10 +14,14 @@ data class HttpRequest(
 	override fun equals(other: Any?): Boolean {
 		if (this === other) return true
 		if (other !is HttpRequest) return false
-		return url == other.url &&
-			method == other.method &&
-			headers == other.headers &&
-			(body?.contentEquals(other.body ?: ByteArray(0)) ?: (other.body == null))
+		if (url != other.url || method != other.method || headers != other.headers) return false
+		val mine = body
+		val theirs = other.body
+		return when {
+			mine == null && theirs == null -> true
+			mine == null || theirs == null -> false
+			else -> mine.contentEquals(theirs)
+		}
 	}
 
 	override fun hashCode(): Int {

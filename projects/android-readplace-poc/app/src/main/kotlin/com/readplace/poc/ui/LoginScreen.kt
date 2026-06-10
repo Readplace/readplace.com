@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.text.KeyboardOptions
@@ -28,6 +29,7 @@ import com.readplace.poc.R
 @Composable
 fun LoginScreen(
 	baseUrl: String,
+	errorText: String?,
 	onBaseUrlChange: (String) -> Unit,
 	onSignIn: () -> Unit,
 ) {
@@ -75,6 +77,16 @@ fun LoginScreen(
 					.fillMaxWidth(),
 			) {
 				Text("Sign in")
+			}
+
+			errorText?.let {
+				Text(
+					text = it,
+					color = MaterialTheme.colorScheme.error,
+					style = MaterialTheme.typography.bodySmall,
+					textAlign = TextAlign.Center,
+					modifier = Modifier.padding(top = 16.dp),
+				)
 			}
 		}
 	}

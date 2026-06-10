@@ -8,11 +8,22 @@ package com.readplace.poc.core
 object UrlDetection {
 	private val webUrl = Regex("""https?://[^\s<>"']+""", RegexOption.IGNORE_CASE)
 
-	/** Characters commonly trailing a URL in prose that are not part of it. */
-	private val trailingNoise = ".,;:!?)]}'\"".toCharArray()
+	/** Punctuation that commonly trails a URL in prose without being part of it. */
+	private const val TRAILING_NOISE = ".,;:!?]}'\""
 
 	fun firstWebUrl(text: String): String? {
-		val match = webUrl.find(text)?.value ?: return null
-		return match.trimEnd(*trailingNoise).ifEmpty { null }
+		var candidate = webUrl.find(text)?.value ?: return null
+		while (candidate.isNotEmpty()) {
+			val last = candidate.last()
+			candidate = when {
+				last in TRAILING_NOISE -> candidate.dropLast(1)
+				// A closing paren is part of the URL when balanced (Wikipedia-style
+				// paths like /wiki/Foo_(bar)); only an unmatched one is prose.
+				last == ')' && candidate.count { it == '(' } < candidate.count { it == ')' } ->
+					candidate.dropLast(1)
+				else -> return candidate
+			}
+		}
+		return null
 	}
 }

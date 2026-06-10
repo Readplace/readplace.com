@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.readplace.poc.AppGraph
+import com.readplace.poc.core.AuthRedirect
 import com.readplace.poc.core.AuthorizationRequest
 import com.readplace.poc.ui.AuthWebView
 import com.readplace.poc.ui.LoginScreen
@@ -40,6 +41,7 @@ class MainActivity : ComponentActivity() {
 			ReadplaceTheme {
 				val scope = rememberCoroutineScope()
 				var baseUrl by remember { mutableStateOf(graph.tokenStore.baseUrl) }
+				var loginError by remember { mutableStateOf<String?>(null) }
 				var screen by remember {
 					mutableStateOf<Screen>(if (graph.tokenStore.isLoggedIn) Screen.ReadingList else Screen.Login)
 				}
@@ -47,11 +49,13 @@ class MainActivity : ComponentActivity() {
 				when (val current = screen) {
 					is Screen.Login -> LoginScreen(
 						baseUrl = baseUrl,
+						errorText = loginError,
 						onBaseUrlChange = { baseUrl = it },
 						onSignIn = {
 							val normalized = normalizeBaseUrl(baseUrl, fallback = graph.tokenStore.baseUrl)
 							baseUrl = normalized
 							graph.tokenStore.baseUrl = normalized
+							loginError = null
 							screen = Screen.Auth(graph.oauth(normalized).makeAuthorizationRequest())
 						},
 					)
@@ -59,14 +63,26 @@ class MainActivity : ComponentActivity() {
 					is Screen.Auth -> AuthWebView(
 						request = current.request,
 						onCancel = { screen = Screen.Login },
-						onCode = { code ->
-							scope.launch {
-								val signedIn = withContext(Dispatchers.IO) {
-									runCatching {
-										graph.oauth(baseUrl).exchangeCode(code, current.request.codeVerifier)
-									}.isSuccess
+						onResult = { result ->
+							when (result) {
+								is AuthRedirect.Failed -> {
+									loginError = result.message
+									screen = Screen.Login
 								}
-								screen = if (signedIn) Screen.ReadingList else Screen.Login
+								is AuthRedirect.Granted -> scope.launch {
+									val outcome = withContext(Dispatchers.IO) {
+										runCatching {
+											graph.oauth(baseUrl).exchangeCode(result.code, current.request.codeVerifier)
+										}
+									}
+									screen = outcome.fold(
+										onSuccess = { Screen.ReadingList },
+										onFailure = { error ->
+											loginError = error.message
+											Screen.Login
+										},
+									)
+								}
 							}
 						},
 					)
