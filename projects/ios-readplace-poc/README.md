@@ -210,9 +210,9 @@ cases:
   without exchanging the code or raising the "Signing in…" overlay), then a
   reading-list load preserving the bearer token across the entry-point `303`.
   Share-save — `SaveSharedPage` saving rendered HTML when it's under the cap,
-  degrading to URL-only when the capture is empty, short-circuiting before any
-  network call when logged out or when there's no link, and reporting no-op when
-  the server advertises no save action.
+  degrading to URL-only when the capture is empty or the HTML is over the cap,
+  short-circuiting before any network call when logged out or when there's no
+  link, and reporting no-op when the server advertises no save action.
 
 ## Notes & caveats
 

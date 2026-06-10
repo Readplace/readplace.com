@@ -78,6 +78,39 @@ final class SaveSharedPageTests: XCTestCase {
 		XCTAssertTrue(StubURLProtocol.records(path: "/queue/save-html").isEmpty)
 	}
 
+	func testDegradesToLinkOnlyWhenHTMLOverCap() async throws {
+		// The capture produced HTML, but it exceeds the server's byte cap, so the
+		// orchestrator skips save-html and saves URL-only instead.
+		let store = TestSupport.loggedInStore()
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured"))
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return request.httpMethod == "POST"
+					? .json(201, Fixtures.article(id: "url-saved"))
+					: .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor, maxRawHTMLBytes: 4)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil)
+
+		XCTAssertEqual(outcome, .savedLinkOnly)
+		let queuePosts = StubURLProtocol.records(path: "/queue").filter { $0.request.httpMethod == "POST" }
+		XCTAssertEqual(queuePosts.count, 1)
+		let body = TestSupport.jsonObject(try XCTUnwrap(queuePosts.first).body)
+		XCTAssertEqual(body["url"] as? String, "https://example.com/post")
+		XCTAssertNil(body["rawHtml"], "the over-cap save must fall back to URL-only without rawHtml")
+		XCTAssertTrue(
+			StubURLProtocol.records(path: "/queue/save-html").isEmpty,
+			"must not POST save-html when the captured HTML is over the cap"
+		)
+	}
+
 	func testGuardsWhenLoggedOut() async throws {
 		// A logged-out store must short-circuit before any network call.
 		let loggedOut = TokenStore(defaults: TestSupport.ephemeralDefaults())
