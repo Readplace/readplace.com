@@ -12,11 +12,11 @@ final class ReadplaceAPITests: XCTestCase {
 	}
 
 	private func saveHtmlAction() -> SirenAction {
-		SirenAction(name: "save-html", title: nil, href: "/queue/save-html", method: "POST", type: "application/json", fields: nil)
+		SirenAction(name: "save-html", href: "/queue/save-html", method: "POST", type: "application/json", fields: nil)
 	}
 
 	private func saveArticleAction() -> SirenAction {
-		SirenAction(name: "save-article", title: nil, href: "/queue", method: "POST", type: "application/json", fields: nil)
+		SirenAction(name: "save-article", href: "/queue", method: "POST", type: "application/json", fields: nil)
 	}
 
 	// MARK: - Listing
@@ -219,23 +219,21 @@ final class ReadplaceAPITests: XCTestCase {
 		do {
 			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x")
 			XCTFail("Expected an account-locked refusal")
-		} catch let APIError.accountLocked(message, action) {
+		} catch let APIError.accountLocked(message) {
 			XCTAssertTrue(message.contains("readplace+verification@readplace.com"))
-			XCTAssertEqual(action.href, "mailto:readplace+verification@readplace.com")
-			XCTAssertEqual(action.title, "Email support to unlock")
 		} catch {
 			XCTFail("Expected APIError.accountLocked, got \(error)")
 		}
 	}
 
-	func testSaveHTMLSurfacesAccountLockedWithoutFollowingUnlockAction() async {
+	func testSaveHTMLSurfacesAccountLockedAndAttemptsNoFallbackSave() async {
 		let store = TestSupport.loggedInStore()
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
 			case "/queue/save-html":
 				return .json(403, Fixtures.accountLockedError())
 			default:
-				// Following the unlock action as a save fallback would be a bug.
+				// A locked refusal must never trigger a fallback save.
 				return .json(201, Fixtures.article(id: "should-not-happen"))
 			}
 		}
@@ -244,13 +242,13 @@ final class ReadplaceAPITests: XCTestCase {
 				action: saveHtmlAction(), url: "https://example.com/x", rawHtml: "<html></html>", title: nil
 			)
 			XCTFail("Expected an account-locked refusal")
-		} catch let APIError.accountLocked(_, action) {
-			XCTAssertEqual(action.href, "mailto:readplace+verification@readplace.com")
+		} catch let APIError.accountLocked(message) {
+			XCTAssertTrue(message.contains("readplace+verification@readplace.com"))
 		} catch {
 			XCTFail("Expected APIError.accountLocked, got \(error)")
 		}
-		// The unlock action must never be followed as a URL-only fallback save.
-		XCTAssertEqual(StubURLProtocol.records(path: "/queue").count, 0, "must not follow the unlock action as a fallback")
+		// The locked refusal carries no action, so no URL-only fallback save fires.
+		XCTAssertEqual(StubURLProtocol.records(path: "/queue").count, 0, "must not attempt a fallback save")
 	}
 
 	// MARK: - Deleting

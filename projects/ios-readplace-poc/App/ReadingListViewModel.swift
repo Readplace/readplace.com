@@ -1,10 +1,9 @@
 import Foundation
 
-/// A locked-account refusal surfaced to the UI: the server's message plus the
-/// unlock destination to offer as a button.
+/// A locked-account refusal surfaced to the UI: the server's message, which
+/// itself names the address to email. The refusal models no action.
 struct AccountLockout: Equatable {
 	let message: String
-	let action: UnlockAction
 }
 
 @MainActor
@@ -109,8 +108,8 @@ final class ReadingListViewModel: ObservableObject {
 		switch error {
 		case APIError.unauthorized, APIError.noToken:
 			onSessionExpired()
-		case let APIError.accountLocked(message, action):
-			lockout = AccountLockout(message: message, action: action)
+		case let APIError.accountLocked(message):
+			lockout = AccountLockout(message: message)
 		default:
 			errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
 		}

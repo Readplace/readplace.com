@@ -75,7 +75,7 @@ struct ReadingListView: View {
 		}
 		.overlay(alignment: .bottom) {
 			if let lockout = viewModel.lockout {
-				lockoutBanner(lockout) { viewModel.lockout = nil }
+				banner(lockout.message, color: .red) { viewModel.lockout = nil }
 			} else if let errorText = viewModel.errorText {
 				banner(errorText, color: .red) { viewModel.errorText = nil }
 			} else if let warningText = viewModel.warningText {
@@ -137,26 +137,6 @@ struct ReadingListView: View {
 		}
 		.padding(12)
 		.background(color, in: RoundedRectangle(cornerRadius: 10))
-		.padding()
-	}
-
-	// Server-driven lockout: the message plus a single button pointing at the
-	// unlock destination the server chose. The save was refused.
-	private func lockoutBanner(_ lockout: AccountLockout, onDismiss: @escaping () -> Void) -> some View {
-		VStack(alignment: .leading, spacing: 8) {
-			HStack(alignment: .top) {
-				Text(lockout.message).font(.footnote).foregroundStyle(.white)
-				Spacer()
-				Button(action: onDismiss) { Image(systemName: "xmark.circle.fill").foregroundStyle(.white) }
-			}
-			if let url = URL(string: lockout.action.href) {
-				Link(lockout.action.title, destination: url)
-					.font(.footnote.weight(.semibold))
-					.foregroundStyle(.white)
-			}
-		}
-		.padding(12)
-		.background(.red, in: RoundedRectangle(cornerRadius: 10))
 		.padding()
 	}
 }

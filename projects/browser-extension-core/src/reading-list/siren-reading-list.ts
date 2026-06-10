@@ -11,7 +11,6 @@ import type {
 	RemoveUrl,
 	SaveUrl,
 	SaveWarning,
-	UnlockAction,
 } from "./reading-list.types";
 import { pdfContentBody, htmlContentBody, type ContentBodyBuilder } from "./content-body-parsers";
 
@@ -51,7 +50,6 @@ const SirenLinkSchema = z.object({
 
 const SirenActionSchema = z.object({
 	name: z.string(),
-	title: z.string().optional(),
 	href: z.string(),
 	method: z.string(),
 	type: z.string().optional(),
@@ -81,32 +79,21 @@ type SirenSubEntity = z.infer<typeof SirenSubEntitySchema>;
 const ACCOUNT_LOCKED_CODE = "account-locked";
 
 /** Thrown when the server refuses a save because the account is locked (its
- * email was never verified within the window). Carries the server's message and
- * the unlock destination so the popup can show a button instead of a generic
- * "save failed". */
+ * email was never verified within the window). Carries only the server's
+ * message — the refusal models no action, so the popup shows the message (which
+ * itself names the address to email) rather than a button. */
 class AccountLockedError extends Error {
-	constructor(
-		public readonly lockMessage: string,
-		public readonly action: UnlockAction,
-	) {
+	constructor(public readonly lockMessage: string) {
 		super("Account locked");
 	}
 }
 
-/** A locked-account refusal is a Siren error whose `code` is account-locked,
- * carrying the unlock action. Detect it BEFORE the save-html/save-content
- * fallback logic so the unlock action is never mistaken for a save fallback and
- * followed as a fetch. */
+/** A locked-account refusal is a Siren error whose `code` is account-locked.
+ * Detect it BEFORE the save-html/save-content fallback logic so the refusal
+ * surfaces as its own structured result rather than a generic "save failed". */
 function throwIfAccountLocked(error: z.infer<typeof SirenErrorSchema>): void {
 	if (error.properties.code !== ACCOUNT_LOCKED_CODE) return;
-	assert(error.actions, "account-locked error must carry an unlock action");
-	const action = error.actions[0];
-	assert(action, "account-locked error must carry an unlock action");
-	assert(action.title, "account-locked unlock action must carry a title");
-	throw new AccountLockedError(error.properties.message, {
-		href: action.href,
-		title: action.title,
-	});
+	throw new AccountLockedError(error.properties.message);
 }
 
 const SirenWarningSchema = z.object({
@@ -668,13 +655,12 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 			return { ok: true, item: result.items[0] };
 		} catch (err) {
 			/** A locked account is refused every save path — surface the server's
-			 * message + unlock action so the popup shows a button, not a failure. */
+			 * message so the popup shows it, not a generic failure. */
 			if (err instanceof AccountLockedError) {
 				return {
 					ok: false,
 					reason: "account-locked",
 					message: err.lockMessage,
-					action: err.action,
 				};
 			}
 			if (err instanceof NotSaveableError) {

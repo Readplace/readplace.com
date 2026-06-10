@@ -72,21 +72,12 @@ function collectionResponse(entities: unknown[] = []) {
 const LOCK_MESSAGE =
 	"Your account is locked because your email was never verified. Email readplace+verification@readplace.com to restore access.";
 
-/** The Siren error the server returns when a locked account attempts a write.
- * The single action is the unlock destination — it must never be followed as a
- * save fallback. */
+/** The Siren error the server returns when a locked account attempts a write:
+ * a `code` plus a human-readable `message`, and deliberately no action. */
 function accountLockedErrorBody() {
 	return JSON.stringify({
 		class: ["error"],
 		properties: { code: "account-locked", message: LOCK_MESSAGE },
-		actions: [
-			{
-				name: "unlock-account",
-				title: "Email support to unlock",
-				href: "mailto:readplace+verification@readplace.com",
-				method: "GET",
-			},
-		],
 	});
 }
 
@@ -1171,7 +1162,7 @@ describe("save-html action", () => {
 		);
 	});
 
-	it("surfaces an account-locked refusal without following the unlock action as a fallback", async () => {
+	it("surfaces an account-locked refusal and attempts no fallback save", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
 			withEntryPoint({
 				"GET http://localhost:3000/queue": {
@@ -1189,7 +1180,7 @@ describe("save-html action", () => {
 		await expect(
 			collection.actions["save-html"]({ url: "https://example.com/article", rawHtml: "<html>x</html>" }),
 		).rejects.toThrow("Account locked");
-		// The unlock action (mailto:) must never be followed as a save fallback.
+		// The locked refusal carries no action, so no second (fallback) save fires.
 		expect(calls.filter((c) => c.startsWith("POST"))).toEqual([
 			"POST http://localhost:3000/queue/save-html",
 		]);
@@ -1633,7 +1624,7 @@ describe("save-content action", () => {
 		});
 	});
 
-	it("surfaces an account-locked refusal without following the unlock action as a fallback", async () => {
+	it("surfaces an account-locked refusal and attempts no fallback save", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
 			withEntryPoint({
 				"GET http://localhost:3000/queue": {
@@ -2301,7 +2292,7 @@ describe("initSirenReadingList", () => {
 			).rejects.toThrow("Save failed: 422");
 		});
 
-		it("returns an account-locked result carrying the server message and unlock action", async () => {
+		it("returns an account-locked result carrying the server message (no action)", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({
 					"GET http://localhost:3000/queue": {
@@ -2323,8 +2314,6 @@ describe("initSirenReadingList", () => {
 			expect(result.reason).toBe("account-locked");
 			const locked = result as Extract<typeof result, { reason: "account-locked" }>;
 			expect(locked.message).toContain("readplace+verification@readplace.com");
-			expect(locked.action.href).toBe("mailto:readplace+verification@readplace.com");
-			expect(locked.action.title).toBe("Email support to unlock");
 		});
 
 		it("returns a not-saveable result with collection items when server rejects with a collection body", async () => {

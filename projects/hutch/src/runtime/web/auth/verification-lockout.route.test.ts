@@ -7,7 +7,7 @@ import { loginAgent, useTestServer } from "../../test-app";
 import type { TestAppHarness } from "../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { SIREN_MEDIA_TYPE } from "../api/siren";
-import { ACCOUNT_LOCKED_CODE, UNLOCK_ACTION_NAME } from "../api/account-locked-siren";
+import { ACCOUNT_LOCKED_CODE } from "../api/account-locked-siren";
 
 const useApp = useTestServer();
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -142,7 +142,7 @@ describe("Email verification lockout", () => {
 });
 
 describe("Email verification lockout (Siren API)", () => {
-	it("refuses a locked account's Siren save with the unlock action", async () => {
+	it("refuses a locked account's Siren save with a message-only error (no action)", async () => {
 		const harness = useApp(fixtureClockedDaysAhead(8));
 		const userId = await createUnverifiedUser(harness, "locked-api@example.com");
 		const token = await mintAccessToken(harness, userId);
@@ -161,14 +161,7 @@ describe("Email verification lockout (Siren API)", () => {
 		expect(response.body.properties.message).toContain(
 			"readplace+verification@readplace.com",
 		);
-
-		const action = response.body.actions?.find(
-			(a: { name: string }) => a.name === UNLOCK_ACTION_NAME,
-		);
-		assert(action, "locked error must carry an unlock action");
-		expect(action.href).toBe("mailto:readplace+verification@readplace.com");
-		expect(typeof action.title).toBe("string");
-		expect(action.title.length).toBeGreaterThan(0);
+		expect(response.body.actions).toBeUndefined();
 	});
 
 	it("refuses a locked account's Siren save-html write too", async () => {

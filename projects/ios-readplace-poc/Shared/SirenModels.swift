@@ -18,9 +18,6 @@ struct SirenField: Decodable {
 /// hard-code them. e.g. `save-html` → `POST /queue/save-html`.
 struct SirenAction: Decodable {
 	let name: String
-	/// Human-readable label a client may render (e.g. a button caption). `name`
-	/// stays the machine contract; `title` is presentation only.
-	let title: String?
 	let href: String
 	let method: String
 	let type: String?

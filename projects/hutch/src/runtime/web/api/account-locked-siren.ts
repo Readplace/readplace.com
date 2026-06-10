@@ -7,16 +7,13 @@ import { type SirenEntity, sirenError } from "./siren";
  * skill; renaming it is a breaking change for those clients. */
 export const ACCOUNT_LOCKED_CODE = "account-locked";
 
-/** Capability name of the unlock action carried on the locked-account error.
- * Clients key off it to find the destination the user must follow. */
-export const UNLOCK_ACTION_NAME = "unlock-account";
-
 /**
- * Refusal returned to API clients when a locked account attempts a write. The
- * message is the user-facing copy; the single action is the destination the
- * client renders as a button — following it opens the concierge inbox that
- * restores access (the same address the web locked screen advertises). Public
- * reads stay open, so only a save (or other write) ever produces this.
+ * Refusal returned to API clients when a locked account attempts a write. It
+ * carries only the `code` (for the client to recognise the refusal) and a
+ * human-readable `message` that itself names the address to email — restoring
+ * access is something the user reads and acts on, not a transition the client
+ * can invoke, so the refusal models no action. Public reads stay open, so only
+ * a save (or other write) ever produces this.
  */
 export function accountLockedSirenError(): SirenEntity {
 	return sirenError({
@@ -24,13 +21,5 @@ export function accountLockedSirenError(): SirenEntity {
 		message:
 			"Your account is locked because your email was never verified. " +
 			`Email ${VERIFICATION_CONTACT_EMAIL} to restore access.`,
-		actions: [
-			{
-				name: UNLOCK_ACTION_NAME,
-				title: "Email support to unlock",
-				href: `mailto:${VERIFICATION_CONTACT_EMAIL}`,
-				method: "GET",
-			},
-		],
 	});
 }
