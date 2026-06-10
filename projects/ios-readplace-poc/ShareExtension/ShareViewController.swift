@@ -6,7 +6,6 @@ import UIKit
 @MainActor
 final class ShareViewController: UIViewController {
 	private let store = TokenStore()
-	private var captor: HTMLCaptor?
 
 	private let card = UIView()
 	private let iconView = UIImageView()
@@ -22,14 +21,11 @@ final class ShareViewController: UIViewController {
 	private func run() async {
 		NSLog("[ReadplacePOC] ShareExt start: group=\(TokenStore.resolvedAppGroupId) loggedIn=\(store.isLoggedIn) baseURL=\(store.baseURL)")
 
-		let captor = HTMLCaptor()
-		self.captor = captor
-		attachHidden(captor.webView)
-
 		setStatus("Saving…")
 		let shared = await ShareURLExtractor.extract(from: extensionContext)
 		if let shared { NSLog("[ReadplacePOC] ShareExt: extracted url=\(shared.url.absoluteString)") }
 
+		let captor = LazyHTMLCaptor { [weak self] webView in self?.attachHidden(webView) }
 		let saver = SaveSharedPage(store: store, api: ReadplaceAPI(baseURL: store.baseURL, store: store), captor: captor)
 		switch await saver.run(url: shared?.url, fallbackTitle: shared?.title) {
 		case .savedWithContent:
@@ -122,5 +118,26 @@ final class ShareViewController: UIViewController {
 		DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
 			self?.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
 		}
+	}
+}
+
+/// Builds the capture web view only when a capture is actually requested. A share
+/// extension runs under a tight memory budget, so the logged-out / no-link guards
+/// in `SaveSharedPage.run` must short-circuit before any WKWebView is allocated.
+@MainActor
+private final class LazyHTMLCaptor: HTMLCapturing {
+	private let attach: (UIView) -> Void
+	private var captor: HTMLCaptor?
+
+	init(attach: @escaping (UIView) -> Void) {
+		self.attach = attach
+	}
+
+	func capture(url: URL) async -> CapturedPage {
+		let captor = HTMLCaptor()
+		self.captor = captor
+		attach(captor.webView)
+		let capturing: HTMLCapturing = captor
+		return await capturing.capture(url: url)
 	}
 }
