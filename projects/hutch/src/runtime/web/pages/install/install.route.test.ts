@@ -57,6 +57,27 @@ describe("GET /install", () => {
 		expect(tabs).toEqual(["firefox", "chrome", "iphone"]);
 	});
 
+	it("should render the platform brand logo as an aria-hidden icon on each tab", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install");
+		const doc = new JSDOM(response.text).window.document;
+
+		const expectedIcons: Record<string, string> = {
+			firefox: "fa-firefox-browser",
+			chrome: "fa-chrome",
+			iphone: "fa-apple",
+		};
+		for (const [client, iconClass] of Object.entries(expectedIcons)) {
+			const icon = doc.querySelector(
+				`[data-test-tab="${client}"] .install-page__tab-icon`,
+			);
+			assert(icon, `${client} tab must render a brand icon`);
+			expect(icon.classList.contains("fa-brands")).toBe(true);
+			expect(icon.classList.contains(iconClass)).toBe(true);
+			expect(icon.getAttribute("aria-hidden")).toBe("true");
+		}
+	});
+
 	it("should default to Chrome tab when no client param is provided", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install");
@@ -254,7 +275,7 @@ describe("GET /install", () => {
 
 		const iphoneTab = doc.querySelector('[data-test-tab="iphone"]');
 		expect(iphoneTab?.getAttribute("href")).toBe("/install?client=iphone&utm_source=install-tabs&utm_medium=internal&utm_content=iphone");
-		expect(iphoneTab?.textContent).toBe("iPhone");
+		expect(iphoneTab?.textContent).toBe("iPhone (beta)");
 		expect(iphoneTab?.classList.contains("install-page__tab--active")).toBe(false);
 	});
 
@@ -318,6 +339,17 @@ describe("GET /install", () => {
 		expect(stepsText).toContain("TestFlight");
 		expect(stepsText).toContain("Share");
 		expect(stepsText).toContain("readplace.com");
+	});
+
+	it("should tell beta testers check-ins come by email and feedback is welcome in-app", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=iphone");
+		const doc = new JSDOM(response.text).window.document;
+
+		const outro = doc.querySelector('[data-test-section="ios-beta-outro"]');
+		assert(outro, "iPhone beta outro must be rendered");
+		expect(outro.textContent).toContain("I'll check in soon by email");
+		expect(outro.textContent).toContain("feedback is welcome in-app");
 	});
 
 	it("returns markdown when Accept: text/markdown is sent", async () => {

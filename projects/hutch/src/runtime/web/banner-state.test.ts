@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	bannerStateFromRequest,
@@ -32,9 +33,15 @@ describe("bannerStateFromRequest", () => {
 });
 
 describe("buildGuestNavItems", () => {
-	it("returns features and signup as a flat list", () => {
+	it("returns install, features, and signup as a flat list with install left of features", () => {
 		const items = buildGuestNavItems();
-		expect(items.map((i) => i.key)).toEqual(["features", "signup"]);
+		expect(items.map((i) => i.key)).toEqual(["install", "features", "signup"]);
+	});
+
+	it("points the install item at the install page", () => {
+		const install = buildGuestNavItems().find((i) => i.key === "install");
+		assert(install, "guest nav must include an install item");
+		expect(install.href).toBe("/install?utm_source=header-nav&utm_medium=internal&utm_content=install");
 	});
 
 	it("assigns a Font Awesome solid icon to every guest item", () => {

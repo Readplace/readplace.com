@@ -5,7 +5,7 @@
 
       <nav class="install-page__tabs" aria-label="Platform" data-test-section="tabs">
         {{#each tabs}}
-        <a href="{{href}}" class="install-page__tab{{activeClass}}"{{#if ariaCurrent}} aria-current="{{ariaCurrent}}"{{/if}} data-test-tab="{{key}}">{{label}}</a>
+        <a href="{{href}}" class="install-page__tab{{activeClass}}"{{#if ariaCurrent}} aria-current="{{ariaCurrent}}"{{/if}} data-test-tab="{{key}}"><i class="install-page__tab-icon {{icon}}" aria-hidden="true"></i>{{label}}</a>
         {{/each}}
       </nav>
 
@@ -40,7 +40,7 @@
           {{/each}}
         </ol>
 
-        <p class="install-page__steps-outro">{{betaOutro}}</p>
+        <p class="install-page__steps-outro" data-test-section="ios-beta-outro">{{betaOutro}}</p>
       </section>
       {{/case}}
 
