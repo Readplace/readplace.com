@@ -63,8 +63,13 @@ test("the provider table is internally consistent", () => {
 test("buildCostComparison is ordered most-natural-first and covers every provider", () => {
 	const comparison = buildCostComparison({ workload: DEFAULT_WORKLOAD });
 	assert.equal(comparison.length, TTS_PROVIDERS.length);
-	assert.equal(comparison[0].provider.naturalnessRank, 1);
-	assert.equal(comparison[0].provider.id, "gemini-3.1-flash-tts");
+
+	const ranks = comparison.map((row) => row.provider.naturalnessRank);
+	assert.deepEqual(
+		ranks,
+		[...ranks].sort((a, b) => a - b),
+		"rows are ordered by ascending naturalnessRank",
+	);
 
 	for (const candidate of comparison) {
 		close(
@@ -75,7 +80,7 @@ test("buildCostComparison is ordered most-natural-first and covers every provide
 });
 
 test("estimateWorkloadCostUsd multiplies per-article cost by article count", () => {
-	const provider = getProvider("elevenlabs-flash-v3"); // $100 / 1M chars
+	const provider = getProvider("elevenlabs-v3"); // $100 / 1M chars
 	const workload = { articlesPerMonth: 10_000, avgCharsPerArticle: 6_600 };
 	close(
 		estimateWorkloadCostUsd({ workload, provider }),

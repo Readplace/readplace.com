@@ -17,7 +17,7 @@ import assert from "node:assert";
 export type TtsProviderId =
 	| "gemini-3.1-flash-tts"
 	| "inworld-tts-1.5-max"
-	| "elevenlabs-flash-v3"
+	| "elevenlabs-v3"
 	| "openai-gpt-4o-mini-tts"
 	| "amazon-polly-generative"
 	| "amazon-polly-neural";
@@ -54,13 +54,13 @@ export const TTS_PROVIDERS: readonly TtsProvider[] = [
 		pricingBasis: "~$10/1M chars at enterprise tier.",
 	},
 	{
-		id: "elevenlabs-flash-v3",
-		label: "ElevenLabs Flash v3",
+		id: "elevenlabs-v3",
+		label: "ElevenLabs v3",
 		usdPerMillionChars: 100,
 		naturalnessRank: 3,
 		awsNative: false,
 		pricingBasis:
-			"Flash/Turbo bill 0.5 credit/char; ~$60–$300/1M chars by plan, ~$100 representative.",
+			"Premium tier; ~$0.06–$0.30/1K chars by plan (~$60–$300/1M), ~$100 representative.",
 	},
 	{
 		id: "openai-gpt-4o-mini-tts",

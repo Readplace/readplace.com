@@ -25,6 +25,19 @@ import { dryRunSynthesizer, type SynthesizeSpeech } from "./tts.ts";
 /** Cap the live synthesis so a demo run costs a fraction of a cent. */
 const LIVE_SYNTHESIS_CHAR_CAP = 1_500;
 
+/** process.env values can be the empty string when a var is exported but blank. */
+const configuredEnv = (name: string): string | undefined => {
+	const value = getEnv(name);
+	return value !== undefined && value.trim() !== "" ? value : undefined;
+};
+
+/** Slice by code units but never leave a trailing lone surrogate (half a code point). */
+const sliceForSynthesis = (text: string, maxChars: number): string => {
+	const sliced = text.slice(0, maxChars);
+	const last = sliced.charCodeAt(sliced.length - 1);
+	return last >= 0xd800 && last <= 0xdbff ? sliced.slice(0, -1) : sliced;
+};
+
 const usd = (value: number, fractionDigits: number): string =>
 	value.toLocaleString("en-US", {
 		style: "currency",
@@ -83,27 +96,32 @@ const pickLiveSynthesizer = (): {
 	synthesizer: SynthesizeSpeech;
 	providerLabel: string;
 } => {
-	const openAiKey = getEnv("OPENAI_API_KEY");
+	const openAiKey = configuredEnv("OPENAI_API_KEY");
 	if (openAiKey !== undefined) {
 		return {
 			synthesizer: initOpenAiSynthesizer({ apiKey: openAiKey }),
 			providerLabel: "OpenAI gpt-4o-mini-tts",
 		};
 	}
-	const elevenKey = getEnv("ELEVENLABS_API_KEY");
-	const elevenVoice = getEnv("ELEVENLABS_VOICE_ID");
+	const elevenKey = configuredEnv("ELEVENLABS_API_KEY");
+	const elevenVoice = configuredEnv("ELEVENLABS_VOICE_ID");
 	if (elevenKey !== undefined && elevenVoice !== undefined) {
 		return {
 			synthesizer: initElevenLabsSynthesizer({
 				apiKey: elevenKey,
 				voiceId: elevenVoice,
 			}),
-			providerLabel: "ElevenLabs Flash v3",
+			providerLabel: "ElevenLabs v3",
 		};
+	}
+	if (elevenKey !== undefined) {
+		console.log(
+			"  (ELEVENLABS_API_KEY is set but ELEVENLABS_VOICE_ID is missing — set both to use ElevenLabs)",
+		);
 	}
 	return {
 		synthesizer: dryRunSynthesizer({ providerId: "openai-gpt-4o-mini-tts" }),
-		providerLabel: "dry run (no key set)",
+		providerLabel: "dry run (no API key set)",
 	};
 };
 
@@ -131,7 +149,7 @@ const main = async (): Promise<void> => {
 	printCostTable({ avgCharsPerArticle: DEFAULT_WORKLOAD.avgCharsPerArticle });
 
 	const { synthesizer, providerLabel } = pickLiveSynthesizer();
-	const input = narration.text.slice(0, LIVE_SYNTHESIS_CHAR_CAP);
+	const input = sliceForSynthesis(narration.text, LIVE_SYNTHESIS_CHAR_CAP);
 	console.log(
 		`\nSynthesizing first ${input.length} chars via: ${providerLabel}`,
 	);

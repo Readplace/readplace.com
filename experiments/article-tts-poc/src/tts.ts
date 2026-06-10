@@ -1,8 +1,9 @@
 /**
  * Provider-agnostic text-to-speech contract. A `SynthesizeSpeech` is the seam every
  * provider plugs into — swap OpenAI for ElevenLabs for Polly without touching the
- * pipeline. Voices are expressed in domain terms and each adapter maps them to its
- * own catalogue.
+ * pipeline. Voices are expressed in domain terms; an adapter maps them onto a provider
+ * voice where the provider has one (ElevenLabs selects the speaker by voiceId, so it
+ * ignores the domain voice).
  */
 
 import type { TtsProviderId } from "./cost.ts";

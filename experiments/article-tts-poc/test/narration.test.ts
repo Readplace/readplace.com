@@ -45,3 +45,21 @@ test("empty input yields an empty, zero-cost narration", () => {
 	assert.equal(narration.characters, 0);
 	assert.equal(narration.estimatedAudioMinutes, 0);
 });
+
+test("leaves out-of-range numeric entities intact instead of crashing", () => {
+	const narration = htmlToNarration({
+		html: "<p>edge &#1114112; &#x110000; case</p>",
+	});
+	assert.ok(narration.text.includes("edge"));
+	assert.ok(narration.text.includes("case"));
+	// Undecodable code points are preserved verbatim rather than throwing RangeError.
+	assert.ok(narration.text.includes("&#1114112;"));
+});
+
+test("never speaks the contents of an unclosed script block", () => {
+	const narration = htmlToNarration({
+		html: "<p>Before</p><script>var secret = 1;",
+	});
+	assert.ok(narration.text.includes("Before"));
+	assert.ok(!narration.text.includes("secret"));
+});

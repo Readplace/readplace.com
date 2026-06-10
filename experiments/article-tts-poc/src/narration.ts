@@ -16,9 +16,13 @@ export type Narration = {
 	readonly estimatedAudioMinutes: number;
 };
 
-/** Elements whose contents must never be spoken. */
+/**
+ * Elements whose contents must never be spoken. The `(?:<\/\1>|$)` tail removes the
+ * block even when its closing tag is missing — otherwise an unterminated <script>
+ * would survive the tag strip below and its source would be read aloud.
+ */
 const REMOVABLE_BLOCK =
-	/<(script|style|noscript|head|svg|template)\b[^>]*>[\s\S]*?<\/\1>/gi;
+	/<(script|style|noscript|head|svg|template)\b[^>]*>[\s\S]*?(?:<\/\1>|$)/gi;
 /** Block-level tags become line breaks so words don't run together. */
 const BLOCK_TAG =
 	/<\/?(p|div|section|article|header|footer|main|h[1-6]|li|ul|ol|br|hr|blockquote|figure|figcaption|tr|table|pre)\b[^>]*>/gi;
@@ -40,13 +44,20 @@ const NAMED_ENTITIES: Readonly<Record<string, string>> = {
 	"&rdquo;": "”",
 };
 
+/** The largest valid Unicode code point; String.fromCodePoint throws above it. */
+const MAX_CODE_POINT = 0x10ffff;
+
+/** Decode a numeric entity, leaving malformed/out-of-range ones untouched. */
+const codePointToString = (codePoint: number, original: string): string =>
+	codePoint <= MAX_CODE_POINT ? String.fromCodePoint(codePoint) : original;
+
 const decodeEntities = (input: string): string =>
 	input
-		.replace(/&#x([0-9a-f]+);/gi, (_match, hex: string) =>
-			String.fromCodePoint(Number.parseInt(hex, 16)),
+		.replace(/&#x([0-9a-f]+);/gi, (match, hex: string) =>
+			codePointToString(Number.parseInt(hex, 16), match),
 		)
-		.replace(/&#(\d+);/g, (_match, code: string) =>
-			String.fromCodePoint(Number(code)),
+		.replace(/&#(\d+);/g, (match, code: string) =>
+			codePointToString(Number(code), match),
 		)
 		.replace(
 			/&[a-z]+;/gi,
@@ -63,7 +74,6 @@ export const htmlToNarration = ({ html }: { html: string }): Narration => {
 	const text = decoded
 		.replace(/[^\S\n]+/g, " ")
 		.replace(/ *\n+ */g, "\n")
-		.replace(/\n{3,}/g, "\n\n")
 		.trim();
 	const words = text.split(/\s+/).filter((token) => token.length > 0).length;
 	const characters = text.length;

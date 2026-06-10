@@ -20,6 +20,9 @@ const OPENAI_VOICE: Readonly<Record<TtsVoice, string>> = {
 	"narrator-bright": "shimmer",
 };
 
+/** /v1/audio/speech rejects input longer than this; chunk articles before calling. */
+const OPENAI_MAX_INPUT_CHARS = 4096;
+
 export const initOpenAiSynthesizer = ({
 	apiKey,
 	model = "gpt-4o-mini-tts",
@@ -34,6 +37,10 @@ export const initOpenAiSynthesizer = ({
 		voice,
 		format,
 	}: SynthesisRequest): Promise<SynthesizedAudio> => {
+		assert(
+			text.length <= OPENAI_MAX_INPUT_CHARS,
+			`OpenAI TTS input is ${text.length} chars; the API limit is ${OPENAI_MAX_INPUT_CHARS}. Chunk long articles first (see README productionising checklist).`,
+		);
 		const response = await fetch(`${baseUrl}/audio/speech`, {
 			method: "POST",
 			headers: {

@@ -23,7 +23,7 @@ const OUTPUT_FORMAT: Readonly<Partial<Record<AudioFormat, string>>> = {
 export const initElevenLabsSynthesizer = ({
 	apiKey,
 	voiceId,
-	modelId = "eleven_flash_v3",
+	modelId = "eleven_v3",
 	baseUrl = "https://api.elevenlabs.io/v1",
 }: {
 	apiKey: string;
@@ -57,7 +57,7 @@ export const initElevenLabsSynthesizer = ({
 			audio: new Uint8Array(await response.arrayBuffer()),
 			format,
 			characters: text.length,
-			providerId: "elevenlabs-flash-v3",
+			providerId: "elevenlabs-v3",
 		};
 	};
 };

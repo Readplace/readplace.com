@@ -57,14 +57,14 @@ Offline `pnpm demo` output (abridged):
 
 ```
 Article: "Why We Still Read Long Things"
-Extracted 316 words / 1762 characters → ~2.0 min of audio
+Extracted 316 words / 1763 characters → ~2.0 min of audio
 
 Cost for a TYPICAL article (≈1,100 words) and a 10k-article month:
 Provider                         Rank     $/article         $/mo @10k    AWS
 ────────────────────────────────────────────────────────────────────────────
 Google Gemini 3.1 Flash TTS         1       $0.1452         $1,452.00     no
 Inworld TTS-1.5 Max                 2       $0.0660           $660.00     no
-ElevenLabs Flash v3                 3       $0.6600         $6,600.00     no
+ElevenLabs v3                       3       $0.6600         $6,600.00     no
 OpenAI gpt-4o-mini-tts              4       $0.0990           $990.00     no
 Amazon Polly (Generative)           5       $0.1980         $1,980.00    yes
 Amazon Polly (Neural)               6       $0.1056         $1,056.00    yes
@@ -80,7 +80,7 @@ Naturalness is judged by blind A/B listening tests (the [Artificial Analysis "Sp
 |---|---|---|---|---|
 | Google Gemini 3.1 Flash TTS | #1 (Speech Arena ELO ~1,214) | $1 /1M text-in + $20 /1M audio-out tokens | ~$22 | no |
 | Inworld TTS-1.5 Max | top tier (ELO ~1,195–1,236) | ~$10 /1M chars (enterprise) | ~$10 | no |
-| ElevenLabs Flash v3 | top tier (MOS ~4.3) | 0.5 credit/char; ~$0.06–$0.30 /1K chars by plan | ~$60–$300 | no |
+| ElevenLabs v3 | top tier (MOS ~4.3) | ~$0.06–$0.30 /1K chars by plan | ~$60–$300 | no |
 | OpenAI gpt-4o-mini-tts | strong (MOS ~3.9) | ~$0.015/min audio | ~$15 | no |
 | Amazon Polly (Generative) | high | $30 /1M chars | $30 | **yes** |
 | Amazon Polly (Neural) | good | $16 /1M chars | $16 | **yes** |
@@ -106,7 +106,7 @@ Naturalness is judged by blind A/B listening tests (the [Artificial Analysis "Sp
 | Amazon Polly Neural | **$0.106** |
 | Google Gemini 3.1 Flash TTS | **$0.145** |
 | Amazon Polly Generative | **$0.198** |
-| ElevenLabs Flash v3 | **$0.660** |
+| ElevenLabs v3 | **$0.660** |
 
 **At scale — 10,000 newly-saved articles in a month** (one-time, not recurring):
 
@@ -117,7 +117,7 @@ Naturalness is judged by blind A/B listening tests (the [Artificial Analysis "Sp
 | Amazon Polly Neural | **$1,056** |
 | Google Gemini 3.1 Flash TTS | **$1,452** |
 | Amazon Polly Generative | **$1,980** |
-| ElevenLabs Flash v3 | **$6,600** |
+| ElevenLabs v3 | **$6,600** |
 
 **The headline:** narrating *every* article in the best-on-leaderboard voice (Gemini) costs ~**$1,450 per 10k articles, once**. The premium-brand option (ElevenLabs) is ~4.5× that for no quality lead. Cost scales with *new* articles, not with listens, so the steady-state bill tracks save volume, not engagement.
 
@@ -163,7 +163,7 @@ A new `src/packages/article-audio/` package would hold the shared types (`AudioS
 - [ ] `generate-audio` Lambda + DLQ, subscribed to `CanonicalContentChangedEvent` (mirror `generate-summary`).
 - [ ] Polly adapter (`@aws-sdk/client-polly`) as the default `SynthesizeSpeech`; keep OpenAI/ElevenLabs adapters behind the same seam.
 - [ ] S3 `audio/` prefix + CloudFront behaviour + lifecycle policy.
-- [ ] Chunk long articles to the provider's per-request limit and concatenate (Polly Generative caps at ~3,000 chars/request; others vary).
+- [ ] Chunk long articles to the provider's per-request limit and concatenate (OpenAI caps input at 4,096 chars — the adapter already rejects longer input as a guard; Polly Generative caps at ~3,000 chars/request; others vary).
 - [ ] Reader UI audio slot + HTMX status polling (mirror `summary-slot`).
 - [ ] **Decide generation timing**: eager on save vs. lazy on first "Listen". Lazy is materially cheaper and the recommended default.
 - [ ] Add the chosen provider's real per-request limits and SSML handling to `cost.ts` / the adapter.
