@@ -286,12 +286,16 @@ jobs:
 
       - name: Run the tests on a discovered iPhone simulator
         run: |
-          DEVICE=$(xcrun simctl list devices available \
+          # Match by UDID, not name: simctl ends each device line with trailing
+          # whitespace after the state column, so EOL-anchored name parsing
+          # silently keeps the "(UDID) (State)" suffix and xcodebuild matches
+          # no device. The UDID is the only stable token on the line.
+          UDID=$(xcrun simctl list devices available \
             | grep -E '^[[:space:]]+iPhone' | head -n1 \
-            | sed -E 's/^[[:space:]]+//; s/ \([^)]+\) \([^)]+\)$//')
-          test -n "$DEVICE" || { echo "::error::No iPhone simulator available on the runner"; exit 1; }
-          echo "Using simulator: $DEVICE"
-          make test SIM="platform=iOS Simulator,name=$DEVICE"
+            | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' || true)
+          test -n "$UDID" || { echo "::error::No iPhone simulator available on the runner"; exit 1; }
+          xcrun simctl list devices | grep -F -- "$UDID" || true
+          make test SIM="platform=iOS Simulator,id=$UDID"
 
   # Build + upload the iOS app (and its embedded share extension, in one build)
   # to TestFlight. Independent of the infra deploy pipeline — gated on the base
