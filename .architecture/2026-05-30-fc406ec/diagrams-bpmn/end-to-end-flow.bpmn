@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_end_to_end_flow" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_end_to_end_flow" name="end-to-end-flow" isExecutable="false">
+    <bpmn:sendTask id="n_GSC" name="GenerateSummaryCommand">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_GS" name="generate-summary worker markSummaryReady / markSummarySkipped">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_SGE" name="SummaryGeneratedEvent">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:intermediateThrowEvent id="n_RVLS" name="ReaderViewLoadingSucceeded url, succeededAt, hasSummary">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:task id="n_FQ" name="reader-ready-fanout queue">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+      <bpmn:outgoing>f_19</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_FAN" name="reader-ready-fanout Lambda">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_UA" name="user-articles rows succeededAt / viewedAt / emailSentAt"></bpmn:dataStoreReference>
+    <bpmn:task id="n_NQ" name="reader-ready-notify queue">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+      <bpmn:outgoing>f_20</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sendTask id="n_NRVR" name="NotifyReaderViewReadyCommand userId, url, succeededAt">
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_NOTIFY" name="reader-ready-notify Lambda">
+      <bpmn:incoming>f_10</bpmn:incoming>
+      <bpmn:outgoing>f_11</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:businessRuleTask id="n_GATE" name="per-user gates row exists · not read · not re-saved · not already emailed · gen &gt; 60s · viewedAt &lt; succeededAt · email verified">
+      <bpmn:incoming>f_11</bpmn:incoming>
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:endEvent id="n_DROP" name="dropped + logged">
+      <bpmn:incoming>f_12</bpmn:incoming>
+      <bpmn:incoming>f_15</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:businessRuleTask id="n_CLAIM" name="claimReaderReadyEmailSlot atomic 6h cooldown on reader-ready-notifications row">
+      <bpmn:incoming>f_13</bpmn:incoming>
+      <bpmn:outgoing>f_15</bpmn:outgoing>
+      <bpmn:outgoing>f_16</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:dataStoreReference id="n_USERS" name="reader-ready-notifications row userId PK · lastReaderReadyEmailAt"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_SEND" name="send Resend email APP_ORIGIN/queue/&lt;id&gt;/view">
+      <bpmn:incoming>f_16</bpmn:incoming>
+      <bpmn:outgoing>f_18</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_RRES" name="ReaderReadyEmailSentEvent userId, url, sentAt">
+      <bpmn:incoming>f_18</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="n_FDLQ" name="fanout DLQ → alarm">
+      <bpmn:incoming>f_19</bpmn:incoming>
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="n_NDLQ" name="notify DLQ → alarm">
+      <bpmn:incoming>f_20</bpmn:incoming>
+      <bpmn:errorEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_GSC" targetRef="n_GS" />
+    <bpmn:sequenceFlow id="f_1" name="publish-summary-generated" sourceRef="n_GS" targetRef="n_SGE" />
+    <bpmn:sequenceFlow id="f_2" name="publish-reader-view-loading-succeeded succeededAt = persist moment" sourceRef="n_GS" targetRef="n_RVLS" />
+    <bpmn:sequenceFlow id="f_3" name="EventBridge → SQS" sourceRef="n_RVLS" targetRef="n_FQ" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_FQ" targetRef="n_FAN" />
+    <bpmn:sequenceFlow id="f_7" name="hasSummary AND viewedAt set DelaySeconds = 300" sourceRef="n_FAN" targetRef="n_NQ" />
+    <bpmn:sequenceFlow id="f_9" name="" sourceRef="n_NQ" targetRef="n_NRVR" />
+    <bpmn:sequenceFlow id="f_10" name="" sourceRef="n_NRVR" targetRef="n_NOTIFY" />
+    <bpmn:sequenceFlow id="f_11" name="" sourceRef="n_NOTIFY" targetRef="n_GATE" />
+    <bpmn:sequenceFlow id="f_12" name="any miss → skip + log" sourceRef="n_GATE" targetRef="n_DROP" />
+    <bpmn:sequenceFlow id="f_13" name="all pass" sourceRef="n_GATE" targetRef="n_CLAIM" />
+    <bpmn:sequenceFlow id="f_15" name="rejected: within cooldown" sourceRef="n_CLAIM" targetRef="n_DROP" />
+    <bpmn:sequenceFlow id="f_16" name="claimed" sourceRef="n_CLAIM" targetRef="n_SEND" />
+    <bpmn:sequenceFlow id="f_18" name="" sourceRef="n_SEND" targetRef="n_RRES" />
+    <bpmn:sequenceFlow id="f_19" name="" sourceRef="n_FQ" targetRef="n_FDLQ" />
+    <bpmn:sequenceFlow id="f_20" name="" sourceRef="n_NQ" targetRef="n_NDLQ" />
+    <bpmn:association id="f_5" sourceRef="n_FAN" targetRef="n_UA" associationDirection="One" />
+    <bpmn:association id="f_6" sourceRef="n_FAN" targetRef="n_UA" associationDirection="One" />
+    <bpmn:association id="f_8" sourceRef="n_FAN" targetRef="n_UA" associationDirection="One" />
+    <bpmn:association id="f_14" sourceRef="n_CLAIM" targetRef="n_USERS" associationDirection="One" />
+    <bpmn:association id="f_17" sourceRef="n_SEND" targetRef="n_UA" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_end_to_end_flow">
+    <bpmndi:BPMNPlane id="Plane_end_to_end_flow" bpmnElement="Process_end_to_end_flow">
+      <bpmndi:BPMNShape id="n_GSC_di" bpmnElement="n_GSC">
+        <dc:Bounds x="196.85" y="28" width="202.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_GS_di" bpmnElement="n_GS">
+        <dc:Bounds x="199.22" y="134" width="197.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SGE_di" bpmnElement="n_SGE">
+        <dc:Bounds x="187.06" y="280.25" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RVLS_di" bpmnElement="n_RVLS">
+        <dc:Bounds x="366.72" y="260" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_FQ_di" bpmnElement="n_FQ">
+        <dc:Bounds x="198.97" y="417" width="198.25" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_FAN_di" bpmnElement="n_FAN">
+        <dc:Bounds x="146.04" y="526.25" width="159" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_UA_di" bpmnElement="n_UA">
+        <dc:Bounds x="123.02" y="1477.5" width="166.76" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_NQ_di" bpmnElement="n_NQ">
+        <dc:Bounds x="200.35" y="639.5" width="195.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_NRVR_di" bpmnElement="n_NRVR">
+        <dc:Bounds x="130" y="745.5" width="193.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_NOTIFY_di" bpmnElement="n_NOTIFY">
+        <dc:Bounds x="219.97" y="871.5" width="156.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_GATE_di" bpmnElement="n_GATE">
+        <dc:Bounds x="197.97" y="981.5" width="200.25" height="132" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_DROP_di" bpmnElement="n_DROP">
+        <dc:Bounds x="53.65" y="1337.25" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CLAIM_di" bpmnElement="n_CLAIM">
+        <dc:Bounds x="196.97" y="1171.5" width="202.25" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_USERS_di" bpmnElement="n_USERS">
+        <dc:Bounds x="393.3" y="1313.5" width="174.9" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_SEND_di" bpmnElement="n_SEND">
+        <dc:Bounds x="155.3" y="1332.5" width="202" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_RRES_di" bpmnElement="n_RRES">
+        <dc:Bounds x="379.48" y="1481" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_FDLQ_di" bpmnElement="n_FDLQ">
+        <dc:Bounds x="375.6" y="523" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_NDLQ_di" bpmnElement="n_NDLQ">
+        <dc:Bounds x="392.85" y="750.25" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="298.1" y="76" />
+        <di:waypoint x="298.1" y="134" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="298.1" y="202" />
+        <di:waypoint x="298.1" y="241.13" />
+        <di:waypoint x="207.06" y="241.13" />
+        <di:waypoint x="207.06" y="280.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="298.1" y="202" />
+        <di:waypoint x="298.1" y="231" />
+        <di:waypoint x="386.72" y="231" />
+        <di:waypoint x="386.72" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="386.72" y="300" />
+        <di:waypoint x="386.72" y="358.5" />
+        <di:waypoint x="298.1" y="358.5" />
+        <di:waypoint x="298.1" y="417" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="298.1" y="465" />
+        <di:waypoint x="298.1" y="495.63" />
+        <di:waypoint x="225.54" y="495.63" />
+        <di:waypoint x="225.54" y="526.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="225.54" y="578.25" />
+        <di:waypoint x="225.54" y="608.88" />
+        <di:waypoint x="298.1" y="608.88" />
+        <di:waypoint x="298.1" y="639.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="298.1" y="687.5" />
+        <di:waypoint x="298.1" y="716.5" />
+        <di:waypoint x="226.75" y="716.5" />
+        <di:waypoint x="226.75" y="745.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="226.75" y="813.5" />
+        <di:waypoint x="226.75" y="842.5" />
+        <di:waypoint x="298.1" y="842.5" />
+        <di:waypoint x="298.1" y="871.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="298.1" y="923.5" />
+        <di:waypoint x="298.1" y="981.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="298.1" y="1113.5" />
+        <di:waypoint x="298.1" y="1225.38" />
+        <di:waypoint x="73.65" y="1225.38" />
+        <di:waypoint x="73.65" y="1337.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="298.1" y="1113.5" />
+        <di:waypoint x="298.1" y="1171.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="298.1" y="1255.5" />
+        <di:waypoint x="298.1" y="1296.38" />
+        <di:waypoint x="73.65" y="1296.38" />
+        <di:waypoint x="73.65" y="1337.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_16_di" bpmnElement="f_16">
+        <di:waypoint x="298.1" y="1255.5" />
+        <di:waypoint x="298.1" y="1294" />
+        <di:waypoint x="256.3" y="1294" />
+        <di:waypoint x="256.3" y="1332.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_18_di" bpmnElement="f_18">
+        <di:waypoint x="256.3" y="1400.5" />
+        <di:waypoint x="256.3" y="1440.75" />
+        <di:waypoint x="399.48" y="1440.75" />
+        <di:waypoint x="399.48" y="1481" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_19_di" bpmnElement="f_19">
+        <di:waypoint x="298.1" y="465" />
+        <di:waypoint x="298.1" y="494" />
+        <di:waypoint x="395.6" y="494" />
+        <di:waypoint x="395.6" y="523" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_20_di" bpmnElement="f_20">
+        <di:waypoint x="298.1" y="687.5" />
+        <di:waypoint x="298.1" y="718.88" />
+        <di:waypoint x="412.85" y="718.88" />
+        <di:waypoint x="412.85" y="750.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="225.54" y="578.25" />
+        <di:waypoint x="225.54" y="1027.88" />
+        <di:waypoint x="206.4" y="1027.88" />
+        <di:waypoint x="206.4" y="1477.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="225.54" y="578.25" />
+        <di:waypoint x="225.54" y="1027.88" />
+        <di:waypoint x="206.4" y="1027.88" />
+        <di:waypoint x="206.4" y="1477.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="225.54" y="578.25" />
+        <di:waypoint x="225.54" y="1027.88" />
+        <di:waypoint x="206.4" y="1027.88" />
+        <di:waypoint x="206.4" y="1477.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="298.1" y="1255.5" />
+        <di:waypoint x="298.1" y="1284.5" />
+        <di:waypoint x="480.75" y="1284.5" />
+        <di:waypoint x="480.75" y="1313.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_17_di" bpmnElement="f_17">
+        <di:waypoint x="256.3" y="1400.5" />
+        <di:waypoint x="256.3" y="1439" />
+        <di:waypoint x="206.4" y="1439" />
+        <di:waypoint x="206.4" y="1477.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

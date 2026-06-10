@@ -35,6 +35,10 @@ export function initUpdateFetchTimestamp(deps: {
 			sets.push("lastModified = :lm");
 			values[":lm"] = params.lastModified;
 		}
+		if (params.bodyHash !== undefined) {
+			sets.push("bodyHash = :bh");
+			values[":bh"] = params.bodyHash;
+		}
 		await table.update({
 			Key: { url: articleResourceUniqueId.value },
 			UpdateExpression: `SET ${sets.join(", ")}`,

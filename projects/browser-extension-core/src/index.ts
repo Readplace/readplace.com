@@ -49,6 +49,10 @@ export { paginateItems } from "./popup/paginate-items";
 export { avatarColor } from "./popup/avatar-color";
 export { relativeTime } from "./popup/relative-time";
 export { isAppUrl } from "./popup/is-app-url";
+export { initSaveProgress } from "./popup/save-progress";
+export type { SavePhase, SaveProgress } from "./popup/save-progress";
+export { initSaveProgressSequencer } from "./popup/save-progress-sequencer";
+export type { SaveProgressSequencer, Scheduler } from "./popup/save-progress-sequencer";
 export {
 	MENU_ITEM_SAVE_PAGE,
 	MENU_ITEM_SAVE_LINK,
@@ -57,5 +61,6 @@ export { installShortcuts, isCmdD } from "./keydown-shortcuts";
 export type { Shortcut } from "./keydown-shortcuts";
 export { captureActiveTabBytes } from "./capture-active-tab-bytes";
 export type { CapturedContent } from "./capture-active-tab-bytes";
+export { isPdfViewerDocument } from "./is-pdf-viewer-document";
 export type { TabContent } from "./reading-list/reading-list.types";
 

@@ -42,4 +42,5 @@ export const CSS_SELECTORS = {
 	listItem: "#link-list .list-view__item",
 	listItemTitle: "#link-list .list-view__item-title",
 	deleteButton: "#link-list .list-view__delete",
+	savingTitle: "#saving-view .saving-view__title",
 } as const;

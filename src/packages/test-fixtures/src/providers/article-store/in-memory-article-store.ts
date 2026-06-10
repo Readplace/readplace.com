@@ -17,6 +17,11 @@ import type {
 	FindArticleFreshness,
 	FindArticleUrlById,
 	FindArticlesByUser,
+	FindUserArticleNotificationState,
+	FindUserArticlesByUrl,
+	MarkArticleViewed,
+	MarkReaderReadyEmailSent,
+	MarkReaderViewSucceeded,
 	SaveArticle,
 	SaveArticleGlobally,
 	UpdateArticleStatus,
@@ -36,6 +41,7 @@ interface GlobalArticle {
 	etag?: string;
 	lastModified?: string;
 	contentFetchedAt?: string;
+	bodyHash?: string;
 	contentSourceTier?: "tier-0" | "tier-1";
 }
 
@@ -45,6 +51,9 @@ interface UserArticle {
 	status: ArticleStatus;
 	savedAt: Date;
 	readAt?: Date;
+	succeededAt?: Date;
+	viewedAt?: Date;
+	emailSentAt?: Date;
 }
 
 function toSavedArticle(article: GlobalArticle, userArticle: UserArticle): SavedArticle {
@@ -74,6 +83,11 @@ export function initInMemoryArticleStore(): {
 	countArticlesByUser: CountArticlesByUser;
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
+	markArticleViewed: MarkArticleViewed;
+	markReaderViewSucceeded: MarkReaderViewSucceeded;
+	findUserArticlesByUrl: FindUserArticlesByUrl;
+	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
+	findUserArticleNotificationState: FindUserArticleNotificationState;
 	readContent: ContentProvider;
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
 	writeMetadata: (params: { url: string; metadata: ArticleMetadata; estimatedReadTime: Minutes }) => Promise<void>;
@@ -257,6 +271,51 @@ export function initInMemoryArticleStore(): {
 		return true;
 	};
 
+	const markArticleViewed: MarkArticleViewed = async ({ userId, url, at }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
+		assert(ua, `User article must exist to mark viewed: ${articleResourceUniqueId.value}`);
+		ua.viewedAt = at;
+	};
+
+	const markReaderViewSucceeded: MarkReaderViewSucceeded = async ({ userId, url, at }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
+		assert(ua, `User article must exist to mark reader-view succeeded: ${articleResourceUniqueId.value}`);
+		if (ua.succeededAt === undefined) ua.succeededAt = at;
+	};
+
+	const findUserArticlesByUrl: FindUserArticlesByUrl = async (url) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const result: { userId: UserId; viewedAt?: Date }[] = [];
+		for (const ua of userArticles.values()) {
+			if (ua.url === articleResourceUniqueId.value) {
+				result.push({ userId: ua.userId, viewedAt: ua.viewedAt });
+			}
+		}
+		return result;
+	};
+
+	const markReaderReadyEmailSent: MarkReaderReadyEmailSent = async ({ userId, url, at }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
+		assert(ua, `User article must exist to mark email sent: ${articleResourceUniqueId.value}`);
+		if (ua.emailSentAt === undefined) ua.emailSentAt = at;
+	};
+
+	const findUserArticleNotificationState: FindUserArticleNotificationState = async ({ userId, url }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const ua = userArticles.get(userArticleKey(userId, articleResourceUniqueId.value));
+		if (!ua) return null;
+		return {
+			savedAt: ua.savedAt,
+			status: ua.status,
+			succeededAt: ua.succeededAt,
+			viewedAt: ua.viewedAt,
+			emailSentAt: ua.emailSentAt,
+		};
+	};
+
 	const findArticleFreshness: FindArticleFreshness = async (url) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		const article = articles.get(articleResourceUniqueId.value);
@@ -265,6 +324,7 @@ export function initInMemoryArticleStore(): {
 			etag: article.etag,
 			lastModified: article.lastModified,
 			contentFetchedAt: article.contentFetchedAt,
+			bodyHash: article.bodyHash,
 		};
 	};
 
@@ -308,6 +368,11 @@ export function initInMemoryArticleStore(): {
 		countArticlesByUser,
 		deleteArticle,
 		updateArticleStatus,
+		markArticleViewed,
+		markReaderViewSucceeded,
+		findUserArticlesByUrl,
+		markReaderReadyEmailSent,
+		findUserArticleNotificationState,
 		readContent,
 		writeContent,
 		writeMetadata,

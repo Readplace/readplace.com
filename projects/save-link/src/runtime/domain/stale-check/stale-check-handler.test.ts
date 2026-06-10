@@ -149,11 +149,12 @@ describe("initStaleCheckHandler", () => {
 		expect(crawlAndFinalizeArticle).not.toHaveBeenCalled();
 	});
 
-	it("publishes UpdateFetchTimestamp on 304 Not Modified", async () => {
+	it("publishes UpdateFetchTimestamp on 304 Not Modified, carrying forward the row's existing bodyHash", async () => {
 		const findArticleFreshness: FindArticleFreshness = async () => ({
 			etag: '"abc"',
 			lastModified: "Wed, 01 Apr 2026 00:00:00 GMT",
 			contentFetchedAt: "2026-04-01T00:00:00.000Z",
+			bodyHash: "h".repeat(64),
 		});
 		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({ status: "not-modified" });
 		const publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp = jest
@@ -172,6 +173,64 @@ describe("initStaleCheckHandler", () => {
 		expect(publishUpdateFetchTimestamp).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
 			contentFetchedAt: fixedNow().toISOString(),
+			bodyHash: "h".repeat(64),
+		});
+	});
+
+	it("forwards the row's bodyHash as previousBodyHash so the crawl library can short-circuit the byte gate", async () => {
+		const findArticleFreshness: FindArticleFreshness = async () => ({
+			etag: undefined,
+			lastModified: undefined,
+			contentFetchedAt: "2026-04-01T00:00:00.000Z",
+			bodyHash: "h".repeat(64),
+		});
+		const crawlAndFinalizeArticle = jest.fn<
+			Promise<CrawlAndFinalizeResult>,
+			Parameters<CrawlAndFinalizeArticle>
+		>().mockResolvedValue({ status: "not-modified" });
+
+		const handler = createHandler({
+			findArticleFreshness,
+			crawlAndFinalizeArticle,
+		});
+
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), stubContext, () => {});
+
+		expect(crawlAndFinalizeArticle).toHaveBeenCalledWith({
+			url: URL_UNDER_TEST,
+			etag: undefined,
+			lastModified: undefined,
+			previousBodyHash: "h".repeat(64),
+		});
+	});
+
+	it("emits SimpleCrawlUnsupportedEvent with previousBodyHash so the comprehensive Lambda can re-fire the byte gate on PDF re-fetch", async () => {
+		const findArticleFreshness: FindArticleFreshness = async () => ({
+			etag: undefined,
+			lastModified: undefined,
+			contentFetchedAt: "2026-04-01T00:00:00.000Z",
+			bodyHash: "h".repeat(64),
+		});
+		const crawlAndFinalizeArticle: CrawlAndFinalizeArticle = async () => ({
+			status: "unsupported",
+			reason: "non-html content type: application/pdf",
+		});
+		const emitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = jest
+			.fn()
+			.mockResolvedValue(undefined);
+
+		const handler = createHandler({
+			findArticleFreshness,
+			crawlAndFinalizeArticle,
+			emitSimpleCrawlUnsupported,
+		});
+
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), stubContext, () => {});
+
+		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
+			url: URL_UNDER_TEST,
+			refresh: true,
+			previousBodyHash: "h".repeat(64),
 		});
 	});
 
@@ -293,6 +352,7 @@ describe("initStaleCheckHandler", () => {
 			article: finalizedArticle,
 			etag: '"new"',
 			lastModified: "Sat, 17 May 2026 00:00:00 GMT",
+			bodyHash: "deadbeef".repeat(8),
 		});
 		const publishRefreshArticleContent: PublishRefreshArticleContent = jest
 			.fn()
@@ -320,6 +380,7 @@ describe("initStaleCheckHandler", () => {
 			etag: '"new"',
 			lastModified: "Sat, 17 May 2026 00:00:00 GMT",
 			contentFetchedAt: fixedNow().toISOString(),
+			bodyHash: "deadbeef".repeat(8),
 		});
 	});
 

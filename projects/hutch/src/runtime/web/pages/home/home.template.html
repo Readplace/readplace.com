@@ -33,13 +33,13 @@
         <div class="home-hero__actions">
           {{#switch browserName}}
           {{#case "firefox"}}
-          <a href="/install?browser=firefox" class="btn btn--primary" data-test-cta="install-extension">Install Firefox Extension</a>
+          <a href="{{track '/install?client=firefox' source='home-hero' content='install'}}" class="btn btn--primary" data-test-cta="install-extension">Install Firefox Extension</a>
           {{/case}}
           {{#case "chrome"}}
-          <a href="/install?browser=chrome" class="btn btn--primary" data-test-cta="install-extension">Install Chrome Extension</a>
+          <a href="{{track '/install?client=chrome' source='home-hero' content='install'}}" class="btn btn--primary" data-test-cta="install-extension">Install Chrome Extension</a>
           {{/case}}
           {{#default}}
-          <a href="/install" class="btn btn--primary" data-test-cta="install-extension">Install Browser Extension</a>
+          <a href="{{track '/install' source='home-hero' content='install'}}" class="btn btn--primary" data-test-cta="install-extension">Install Browser Extension</a>
           {{/default}}
           {{/switch}}
           <a href="https://github.com/Readplace/readplace.com" class="btn btn--secondary" data-test-cta="view-github">View on GitHub</a>
@@ -360,13 +360,13 @@
         <div class="home-cta__actions">
           {{#switch browserName}}
           {{#case "firefox"}}
-          <a href="/install?browser=firefox" class="btn btn--brand" data-test-cta="bottom-install">Install Firefox Extension</a>
+          <a href="{{track '/install?client=firefox' source='home-cta' content='install'}}" class="btn btn--brand" data-test-cta="bottom-install">Install Firefox Extension</a>
           {{/case}}
           {{#case "chrome"}}
-          <a href="/install?browser=chrome" class="btn btn--brand" data-test-cta="bottom-install">Install Chrome Extension</a>
+          <a href="{{track '/install?client=chrome' source='home-cta' content='install'}}" class="btn btn--brand" data-test-cta="bottom-install">Install Chrome Extension</a>
           {{/case}}
           {{#default}}
-          <a href="/install" class="btn btn--brand" data-test-cta="bottom-install">Install Browser Extension</a>
+          <a href="{{track '/install' source='home-cta' content='install'}}" class="btn btn--brand" data-test-cta="bottom-install">Install Browser Extension</a>
           {{/default}}
           {{/switch}}
           <a href="https://github.com/Readplace/readplace.com" class="home-cta__github-link" data-test-cta="bottom-github">View on GitHub</a>

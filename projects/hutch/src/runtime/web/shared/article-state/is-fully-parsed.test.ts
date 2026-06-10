@@ -18,10 +18,12 @@ const SUMMARY_STATUSES: ReadonlyArray<SummaryStatus | undefined> = [
 ];
 
 describe("isFullyParsed", () => {
-	it("returns true only when both crawl and summary statuses are ready", () => {
+	it("returns true when the crawl is ready and the summary is ready or skipped (the reader view succeeded)", () => {
 		for (const crawlStatus of CRAWL_STATUSES) {
 			for (const summaryStatus of SUMMARY_STATUSES) {
-				const expected = crawlStatus === "ready" && summaryStatus === "ready";
+				const expected =
+					crawlStatus === "ready" &&
+					(summaryStatus === "ready" || summaryStatus === "skipped");
 				expect(isFullyParsed({ crawlStatus, summaryStatus })).toBe(expected);
 			}
 		}

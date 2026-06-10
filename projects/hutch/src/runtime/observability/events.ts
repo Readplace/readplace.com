@@ -17,6 +17,7 @@ export const STREAMS = {
 
 export const ANALYTICS_EVENTS = {
 	pageview: "pageview",
+	click: "click",
 	importUploaded: "import_uploaded",
 	importFromUrlAcquired: "import_from_url_acquired",
 	importCommitted: "import_committed",
@@ -24,6 +25,17 @@ export const ANALYTICS_EVENTS = {
 	viewOpened: "view_opened",
 	viewSaveIntent: "view_save_intent",
 } as const;
+
+/**
+ * `utm_medium` value stamped on every in-site link and action button so a click
+ * can be counted without an extra request or a client-side beacon. The analytics
+ * middleware emits a `click` event for any request carrying it (GET, HTMX-boosted,
+ * or POST) and keeps it out of `pageview` so acquisition dashboards — which group
+ * by the real `utm_source` (hackernews, newsletter, …) — are not diluted by
+ * internal navigation. Imported by both the link-tagging helper (producer) and
+ * the analytics middleware (consumer) so the two never drift.
+ */
+export const INTERNAL_CLICK_MEDIUM = "internal";
 
 export const CONVERSION_EVENTS = {
 	userCreated: "user_created",

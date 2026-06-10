@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
@@ -78,9 +79,11 @@ const httpErrorMessageMapping: HttpErrorMessageMapping = (query) => {
    https://v8.dev/blog/javascript-code-coverage. */
 export const stubCrawlArticle: CrawlArticle = async ({ url }) => {
 	const hostname = new URL(url).hostname;
+	const html = `<html><head><title>Article from ${hostname}</title></head><body><article><p>Content saved from ${hostname}.</p></article></body></html>`;
 	return {
 		status: "fetched",
-		html: `<html><head><title>Article from ${hostname}</title></head><body><article><p>Content saved from ${hostname}.</p></article></body></html>`,
+		html,
+		bodyHash: createHash("sha256").update(html).digest("hex"),
 	};
 };
 
@@ -293,6 +296,11 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			bumpArticleSavedAt: articleStoreMemory.bumpArticleSavedAt,
 			deleteArticle: articleStoreMemory.deleteArticle,
 			updateArticleStatus: articleStoreMemory.updateArticleStatus,
+			markArticleViewed: articleStoreMemory.markArticleViewed,
+			markReaderViewSucceeded: articleStoreMemory.markReaderViewSucceeded,
+			findUserArticlesByUrl: articleStoreMemory.findUserArticlesByUrl,
+			markReaderReadyEmailSent: articleStoreMemory.markReaderReadyEmailSent,
+			findUserArticleNotificationState: articleStoreMemory.findUserArticleNotificationState,
 			readArticleContent: (url) =>
 				articleStoreMemory.readContent(ArticleResourceUniqueId.parse(url)),
 			readContent: articleStoreMemory.readContent,

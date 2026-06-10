@@ -1,24 +1,17 @@
   <main class="install-page">
     <div class="install-page__container">
       <h1 class="install-page__title">Install Readplace</h1>
-      <p class="install-page__subtitle">Save articles with a single click or keyboard shortcut.</p>
+      <p class="install-page__subtitle">Save articles with a single click, keyboard shortcut, or the iPhone share sheet.</p>
 
-      <nav class="install-page__tabs" aria-label="Browser" data-test-section="tabs">
-        {{#switch browser}}
-        {{#case "firefox"}}
-        <a href="/install?browser=firefox" class="install-page__tab install-page__tab--active" aria-current="page" data-test-tab="firefox">Firefox</a>
-        <a href="/install?browser=chrome" class="install-page__tab" data-test-tab="chrome">Chrome</a>
-        {{/case}}
-        {{#default}}
-        <a href="/install?browser=firefox" class="install-page__tab" data-test-tab="firefox">Firefox</a>
-        <a href="/install?browser=chrome" class="install-page__tab install-page__tab--active" aria-current="page" data-test-tab="chrome">Chrome</a>
-        {{/default}}
-        {{/switch}}
+      <nav class="install-page__tabs" aria-label="Platform" data-test-section="tabs">
+        {{#each tabs}}
+        <a href="{{href}}" class="install-page__tab{{activeClass}}"{{#if ariaCurrent}} aria-current="{{ariaCurrent}}"{{/if}} data-test-tab="{{key}}">{{label}}</a>
+        {{/each}}
       </nav>
 
-      {{#switch browser}}
+      {{#switch client}}
       {{#case "firefox"}}
-      <section class="install-page__panel" data-test-section="firefox">
+      <section class="install-page__panel" data-test-panel="firefox">
         {{#if firefoxDownloadUrl}}
         <a href="{{firefoxDownloadUrl}}" class="install-page__download" data-test-cta="download-firefox">Install Readplace for Firefox</a>
         {{else}}
@@ -27,13 +20,33 @@
       </section>
       {{/case}}
 
+      {{#case "iphone"}}
+      <section class="install-page__panel" data-test-panel="iphone">
+        <p class="install-page__lead">Save links from any browser on your iPhone. Open the page in Safari, Chrome, or anywhere else, tap the share button, and choose Readplace — the link drops straight into your reading queue. No copy-paste, no opening the app first.</p>
+
+        <div class="install-page__beta" data-test-section="ios-beta-notice">
+          <span class="install-page__beta-badge">Beta</span>
+          <p class="install-page__beta-copy">The iPhone app is still in beta. You can join it yourself through TestFlight, Apple's app for trying out betas — it takes a couple of minutes to set up.</p>
+        </div>
+
+        <a href="{{testflightUrl}}" class="install-page__download" data-test-cta="join-ios-beta">Join the beta on TestFlight</a>
+
+        <ol class="install-page__steps" data-test-section="ios-beta-steps">
+          {{#each betaSteps}}
+          <li class="install-page__step" data-test-beta-step>
+            <span class="install-page__step-title">{{title}}</span>
+            {{#if note}}<span class="install-page__step-note">{{note}}</span>{{/if}}
+          </li>
+          {{/each}}
+        </ol>
+
+        <p class="install-page__steps-outro">{{betaOutro}}</p>
+      </section>
+      {{/case}}
+
       {{#default}}
-      <section class="install-page__panel" data-test-section="chrome">
-        {{#if chromeDownloadUrl}}
+      <section class="install-page__panel" data-test-panel="chrome">
         <a href="{{chromeDownloadUrl}}" class="install-page__download" data-test-cta="download-chrome">Install Readplace for Chrome</a>
-        {{else}}
-        <p class="install-page__unavailable" data-test-section="chrome-unavailable">The Chrome extension is not available for download yet. Please check back soon.</p>
-        {{/if}}
       </section>
       {{/default}}
       {{/switch}}

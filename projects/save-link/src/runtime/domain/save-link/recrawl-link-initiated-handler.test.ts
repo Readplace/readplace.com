@@ -59,6 +59,7 @@ const stubFinalizedArticle: FinalizedArticle = {
 const fetchedResult: CrawlAndFinalizeResult = {
 	status: "fetched",
 	article: stubFinalizedArticle,
+	bodyHash: "a".repeat(64),
 };
 
 const rejectingEmitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = async () => {

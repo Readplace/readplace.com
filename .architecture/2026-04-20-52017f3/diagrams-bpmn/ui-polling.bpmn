@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_ui_polling" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_ui_polling" name="ui-polling" isExecutable="false">
+    <bpmn:serviceTask id="n_readerRoutes" name="Hutch reader routes GET /queue/:id/read GET /view/:encodedUrl">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_markPending" name="markSummaryPending status: undefined or pending only">
+      <bpmn:incoming>f_0</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:dataStoreReference id="n_articlesTable" name="DynamoDB: articles"></bpmn:dataStoreReference>
+    <bpmn:serviceTask id="n_readerPage" name="ReaderPage / ViewPage renderSummarySlot">
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_summarySlotVisible" name="summary-slot HTML data-summary-status=pending hx-get=pollUrl poll=1">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:businessRuleTask id="n_browser" name="Browser · htmx hx-trigger: every 3s hx-swap: outerHTML">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:incoming>f_13</bpmn:incoming>
+      <bpmn:incoming>f_14</bpmn:incoming>
+      <bpmn:incoming>f_15</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:serviceTask id="n_pollEndpointView" name="GET /view/summary url, poll">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_pollEndpointQueue" name="GET /queue/:id/summary poll">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:businessRuleTask id="n_resolveStatus" name="status still pending? AND poll &lt; 40?">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+      <bpmn:outgoing>f_11</bpmn:outgoing>
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:serviceTask id="n_nextPoll" name="return slot with hx-get=pollUrl poll=n+1 hx-trigger=every 3s">
+      <bpmn:incoming>f_10</bpmn:incoming>
+      <bpmn:outgoing>f_13</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_terminal" name="return final slot ready · failed · skipped no hx-get">
+      <bpmn:incoming>f_11</bpmn:incoming>
+      <bpmn:outgoing>f_14</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_cap" name="return pending slot no hx-get Still generating — refresh to check again">
+      <bpmn:incoming>f_12</bpmn:incoming>
+      <bpmn:outgoing>f_15</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f_0" name="on first render" sourceRef="n_readerRoutes" targetRef="n_markPending" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_readerPage" targetRef="n_summarySlotVisible" />
+    <bpmn:sequenceFlow id="f_5" name="" sourceRef="n_summarySlotVisible" targetRef="n_browser" />
+    <bpmn:sequenceFlow id="f_6" name="public view" sourceRef="n_browser" targetRef="n_pollEndpointView" />
+    <bpmn:sequenceFlow id="f_7" name="private queue" sourceRef="n_browser" targetRef="n_pollEndpointQueue" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_pollEndpointView" targetRef="n_resolveStatus" />
+    <bpmn:sequenceFlow id="f_9" name="" sourceRef="n_pollEndpointQueue" targetRef="n_resolveStatus" />
+    <bpmn:sequenceFlow id="f_10" name="yes" sourceRef="n_resolveStatus" targetRef="n_nextPoll" />
+    <bpmn:sequenceFlow id="f_11" name="no · status resolved" sourceRef="n_resolveStatus" targetRef="n_terminal" />
+    <bpmn:sequenceFlow id="f_12" name="no · cap reached" sourceRef="n_resolveStatus" targetRef="n_cap" />
+    <bpmn:sequenceFlow id="f_13" name="" sourceRef="n_nextPoll" targetRef="n_browser" />
+    <bpmn:sequenceFlow id="f_14" name="" sourceRef="n_terminal" targetRef="n_browser" />
+    <bpmn:sequenceFlow id="f_15" name="" sourceRef="n_cap" targetRef="n_browser" />
+    <bpmn:association id="f_1" sourceRef="n_markPending" targetRef="n_articlesTable" associationDirection="One" />
+    <bpmn:association id="f_2" sourceRef="n_readerRoutes" targetRef="n_articlesTable" associationDirection="One" />
+    <bpmn:association id="f_3" sourceRef="n_articlesTable" targetRef="n_readerPage" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_ui_polling">
+    <bpmndi:BPMNPlane id="Plane_ui_polling" bpmnElement="Process_ui_polling">
+      <bpmndi:BPMNShape id="n_readerRoutes_di" bpmnElement="n_readerRoutes">
+        <dc:Bounds x="247" y="28" width="172.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_markPending_di" bpmnElement="n_markPending">
+        <dc:Bounds x="250.38" y="154" width="165.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_articlesTable_di" bpmnElement="n_articlesTable">
+        <dc:Bounds x="267.69" y="280" width="131.12" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_readerPage_di" bpmnElement="n_readerPage">
+        <dc:Bounds x="245.63" y="403.5" width="175.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_summarySlotVisible_di" bpmnElement="n_summarySlotVisible">
+        <dc:Bounds x="231.75" y="513.5" width="203" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_browser_di" bpmnElement="n_browser">
+        <dc:Bounds x="253.25" y="655.5" width="160" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_pollEndpointView_di" bpmnElement="n_pollEndpointView">
+        <dc:Bounds x="143.88" y="781.5" width="157.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_pollEndpointQueue_di" bpmnElement="n_pollEndpointQueue">
+        <dc:Bounds x="337.38" y="781.5" width="185.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_resolveStatus_di" bpmnElement="n_resolveStatus">
+        <dc:Bounds x="255" y="891.5" width="156.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_nextPoll_di" bpmnElement="n_nextPoll">
+        <dc:Bounds x="28" y="1009.5" width="173.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_terminal_di" bpmnElement="n_terminal">
+        <dc:Bounds x="237.5" y="1009.5" width="174.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_cap_di" bpmnElement="n_cap">
+        <dc:Bounds x="448.25" y="1001.5" width="190.25" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="333.25" y="96" />
+        <di:waypoint x="333.25" y="154" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="333.25" y="455.5" />
+        <di:waypoint x="333.25" y="513.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="333.25" y="597.5" />
+        <di:waypoint x="333.25" y="655.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="333.25" y="723.5" />
+        <di:waypoint x="333.25" y="752.5" />
+        <di:waypoint x="222.63" y="752.5" />
+        <di:waypoint x="222.63" y="781.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="333.25" y="723.5" />
+        <di:waypoint x="333.25" y="752.5" />
+        <di:waypoint x="430" y="752.5" />
+        <di:waypoint x="430" y="781.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="222.63" y="833.5" />
+        <di:waypoint x="222.63" y="862.5" />
+        <di:waypoint x="333.25" y="862.5" />
+        <di:waypoint x="333.25" y="891.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="430" y="833.5" />
+        <di:waypoint x="430" y="862.5" />
+        <di:waypoint x="333.25" y="862.5" />
+        <di:waypoint x="333.25" y="891.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="333.25" y="943.5" />
+        <di:waypoint x="333.25" y="976.5" />
+        <di:waypoint x="114.75" y="976.5" />
+        <di:waypoint x="114.75" y="1009.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="333.25" y="943.5" />
+        <di:waypoint x="333.25" y="976.5" />
+        <di:waypoint x="324.88" y="976.5" />
+        <di:waypoint x="324.88" y="1009.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="333.25" y="943.5" />
+        <di:waypoint x="333.25" y="972.5" />
+        <di:waypoint x="543.38" y="972.5" />
+        <di:waypoint x="543.38" y="1001.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_13_di" bpmnElement="f_13">
+        <di:waypoint x="135.74" y="1009.5" />
+        <di:waypoint x="312.26" y="723.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_14_di" bpmnElement="f_14">
+        <di:waypoint x="325.68" y="1009.5" />
+        <di:waypoint x="332.45" y="723.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_15_di" bpmnElement="f_15">
+        <di:waypoint x="518.44" y="1001.5" />
+        <di:waypoint x="353.43" y="723.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="333.25" y="222" />
+        <di:waypoint x="333.25" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="333.25" y="96" />
+        <di:waypoint x="333.25" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="333.25" y="328" />
+        <di:waypoint x="333.25" y="403.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

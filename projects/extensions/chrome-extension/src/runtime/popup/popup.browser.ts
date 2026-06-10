@@ -7,7 +7,7 @@ import type {
 	SaveUrlResult,
 	RemoveUrlResult,
 } from "browser-extension-core";
-import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, installShortcuts, isCmdD } from "browser-extension-core";
+import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, installShortcuts, isCmdD, initSaveProgress, initSaveProgressSequencer } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 declare const __APP_DOMAINS__: string[];
@@ -26,27 +26,42 @@ function showView(id: string) {
 	if (target) target.hidden = false;
 }
 
-/**
- * 1. Defer one frame so the browser has committed the initial 0% width
- *    before we set the target. Without this the transition collapses into a
- *    single computed-style read and the bar jumps to 90% with no animation.
- */
-function startSavingProgress() {
-	const fill = document.querySelector(".saving-view__progress-fill");
-	if (!fill) return;
-	requestAnimationFrame(() => {
-		fill.classList.add("saving-view__progress-fill--starting");
-	});
-}
+const saveProgress = initSaveProgress();
 
-function finishSavingProgress(): Promise<void> {
+const sequencer = initSaveProgressSequencer({
+	minDwellMs: 450,
+	scheduler: {
+		setTimer: (callback, delayMs) => {
+			setTimeout(callback, delayMs);
+		},
+		now: () => performance.now(),
+	},
+	apply: (phase) => {
+		const fill = document.querySelector<HTMLElement>(".saving-view__progress-fill");
+		if (fill) fill.style.width = saveProgress.widthFor(phase);
+		const title = document.querySelector(".saving-view__title");
+		if (title) title.textContent = saveProgress.labelFor(phase);
+	},
+});
+
+browser.runtime.onMessage.addListener((raw) => {
+	const message = raw as PopupMessage;
+	if (message.type !== "save-progress") return undefined;
+	sequencer.enqueue(message.phase);
+	return undefined;
+});
+
+async function finishSavingProgress(): Promise<void> {
+	await sequencer.finish();
 	return new Promise((resolve) => {
-		const fill = document.querySelector(".saving-view__progress-fill");
+		const fill = document.querySelector<HTMLElement>(".saving-view__progress-fill");
 		if (!fill) {
 			resolve();
 			return;
 		}
-		fill.classList.remove("saving-view__progress-fill--starting");
+		// Inline width beats the prior milestone's inline width; --complete swaps
+		// the long milestone ease for the 0.2s snap to the terminal 100%.
+		fill.style.width = "100%";
 		fill.classList.add("saving-view__progress-fill--complete");
 		setTimeout(resolve, 350); // 200ms snap to 100% + 150ms hold
 	});
@@ -323,11 +338,6 @@ async function saveAndShowList() {
 		return;
 	}
 
-	const savingTitle = document.querySelector(".saving-view__title");
-	if (savingTitle) savingTitle.textContent = "Saving\u2026";
-	const progressBar = document.querySelector(".saving-view__progress");
-	if (progressBar) progressBar.setAttribute("aria-label", "Saving article");
-
 	const saveResult = (await send({
 		type: "save-current-tab",
 		url: activeTab.url,
@@ -380,7 +390,6 @@ document.getElementById("login-button")?.addEventListener("click", async () => {
 	}
 
 	showView("saving-view");
-	startSavingProgress();
 	await saveAndShowList();
 });
 
@@ -420,7 +429,6 @@ if (shortcutHint) {
 	}
 }
 
-startSavingProgress();
 saveAndShowList().catch((error) => {
 	logger.error("Failed to initialize popup:", error);
 	showView("list-view");

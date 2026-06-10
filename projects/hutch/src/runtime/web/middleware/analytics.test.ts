@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { type AnalyticsEvent, type AnalyticsPageview, createAnalyticsMiddleware, hashIp } from "./analytics";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, createAnalyticsMiddleware, hashIp } from "./analytics";
 
 function createCapturingLogger(): {
 	logger: HutchLogger.Typed<AnalyticsEvent>;
@@ -49,7 +49,7 @@ function createRes(statusCode = 200): Response & EventEmitter {
 	return emitter;
 }
 
-function runMiddleware(req: Request, res: Response & EventEmitter): AnalyticsPageview[] {
+function captureEvents(req: Request, res: Response & EventEmitter): AnalyticsEvent[] {
 	const { captured, logger } = createCapturingLogger();
 	const middleware = createAnalyticsMiddleware({
 		logger,
@@ -59,7 +59,15 @@ function runMiddleware(req: Request, res: Response & EventEmitter): AnalyticsPag
 	const next: NextFunction = () => {};
 	middleware(req, res, next);
 	res.emit("finish");
-	return captured.filter((e): e is AnalyticsPageview => e.event === "pageview");
+	return captured;
+}
+
+function runMiddleware(req: Request, res: Response & EventEmitter): AnalyticsPageview[] {
+	return captureEvents(req, res).filter((e): e is AnalyticsPageview => e.event === "pageview");
+}
+
+function runMiddlewareClicks(req: Request, res: Response & EventEmitter): AnalyticsClick[] {
+	return captureEvents(req, res).filter((e): e is AnalyticsClick => e.event === "click");
 }
 
 describe("createAnalyticsMiddleware", () => {
@@ -154,6 +162,79 @@ describe("createAnalyticsMiddleware", () => {
 	it("omits medium_post_id from the emitted JSON when the source param is absent", () => {
 		const [event] = runMiddleware(createReq({ query: {} }), createRes(200));
 		expect(JSON.stringify(event)).not.toContain("medium_post_id");
+	});
+});
+
+describe("createAnalyticsMiddleware — internal click events", () => {
+	const internalQuery = { utm_source: "queue", utm_medium: "internal", utm_content: "subscribe" };
+
+	it("emits a click event carrying the section (utm_source) and element (utm_content) for a request stamped utm_medium=internal", () => {
+		const req = createReq({ path: "/account", query: internalQuery, visitorId: "550e8400-e29b-41d4-a716-446655440000" });
+		const [click] = runMiddlewareClicks(req, createRes(200));
+		expect(click).toEqual({
+			stream: "analytics",
+			event: "click",
+			timestamp: "2026-04-21T10:00:00.000Z",
+			path: "/account",
+			utm_source: "queue",
+			utm_medium: "internal",
+			utm_content: "subscribe",
+			visitor_hash: expect.any(String),
+			visitor_id: "550e8400-e29b-41d4-a716-446655440000",
+			is_authenticated: 0,
+		});
+	});
+
+	it("never carries utm_campaign on a click — only the section and element dimensions are tracked", () => {
+		const [click] = runMiddlewareClicks(createReq({ query: internalQuery }), createRes(200));
+		expect(JSON.stringify(click)).not.toContain("utm_campaign");
+	});
+
+	it("counts an HTMX-boosted navigation as a click even though the pageview path drops hx-request — boosted links are still clicks", () => {
+		const req = createReq({ query: internalQuery, headers: { "hx-request": "true" } });
+		expect(runMiddlewareClicks(req, createRes(200))).toHaveLength(1);
+		expect(runMiddleware(req, createRes(200))).toEqual([]);
+	});
+
+	it("counts a POST action (Save / Delete / Mark-read / Logout) as a click even though POST is never a pageview", () => {
+		const req = createReq({ method: "POST", path: "/queue/save", query: internalQuery });
+		expect(runMiddlewareClicks(req, createRes(200))).toHaveLength(1);
+		expect(runMiddleware(req, createRes(200))).toEqual([]);
+	});
+
+	it("does not count a click when the response is a 4xx/5xx error", () => {
+		expect(runMiddlewareClicks(createReq({ query: internalQuery }), createRes(404))).toEqual([]);
+	});
+
+	it("does not count a click when isbot flags the user-agent", () => {
+		const req = createReq({ query: internalQuery, headers: { "user-agent": "Googlebot/2.1 (+http://www.google.com/bot.html)" } });
+		expect(runMiddlewareClicks(req, createRes(200))).toEqual([]);
+	});
+
+	it("keeps utm_medium=internal out of the pageview so acquisition dashboards are not diluted by in-site navigation, while still emitting the click", () => {
+		const req = createReq({ path: "/account", query: internalQuery });
+		const [pageview] = runMiddleware(req, createRes(200));
+		const serialized = JSON.stringify(pageview);
+		expect(serialized).not.toContain("utm_source");
+		expect(serialized).not.toContain("utm_medium");
+		expect(serialized).not.toContain("utm_content");
+		expect(runMiddlewareClicks(req, createRes(200))).toHaveLength(1);
+	});
+
+	it("strips a real-looking acquisition source (utm_source=homepage) from the pageview when the link carries utm_medium=internal, while the click still records section=homepage — a homepage Signup CTA (GET /signup) is in-site navigation, not an external source like hackernews, so it must stay out of the acquisition pageview widgets", () => {
+		const conversionLink = { utm_source: "homepage", utm_medium: "internal", utm_content: "founding-card" };
+		const [pageview] = runMiddleware(createReq({ path: "/signup", query: conversionLink }), createRes(200));
+		expect(pageview).toEqual({
+			stream: "analytics",
+			event: "pageview",
+			timestamp: "2026-04-21T10:00:00.000Z",
+			path: "/signup",
+			visitor_hash: expect.any(String),
+			visitor_id: null,
+			is_authenticated: 0,
+		});
+		const [click] = runMiddlewareClicks(createReq({ path: "/signup", query: conversionLink }), createRes(200));
+		expect(click).toMatchObject({ utm_source: "homepage", utm_content: "founding-card" });
 	});
 });
 

@@ -1,1 +1,1 @@
-export { InstallPage, fetchFirefoxDownloadUrl, fetchChromeDownloadUrl } from "./install.component";
+export { initInstallRoutes } from "./install.routes";

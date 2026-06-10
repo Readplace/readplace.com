@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_confirmation_step" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_confirmation_step" name="confirmation-step" isExecutable="false">
+    <bpmn:dataStoreReference id="n_Active" name="Active or trial user on /account"></bpmn:dataStoreReference>
+    <bpmn:userTask id="n_Confirm" name="Browser navigates to /account?confirm=cancel GET — no side effects">
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:task id="n_Card" name="Confirmation card reassurance copy + destructive form">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:serviceTask id="n_CancelPost" name="POST /account/cancel SSR Lambda">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="n_CSC" name="CancelSubscriptionCommand Phase 2 chain">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:dataStoreReference id="n_Cancelling" name="User sees &quot;Cancellation in progress"></bpmn:dataStoreReference>
+    <bpmn:task id="n_CancelHandler" name="Phase 2 + new deleteTrialEndSchedule + status branch">
+      <bpmn:incoming>f_6</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:dataStoreReference id="n_Row" name="subscription_providers status = cancelled"></bpmn:dataStoreReference>
+    <bpmn:sequenceFlow id="f_1" name="Renders confirmation card" sourceRef="n_Confirm" targetRef="n_Card" />
+    <bpmn:sequenceFlow id="f_2" name="Click Cancel subscription" sourceRef="n_Card" targetRef="n_CancelPost" />
+    <bpmn:sequenceFlow id="f_4" name="publishCancelSubscriptionCommand" sourceRef="n_CancelPost" targetRef="n_CSC" />
+    <bpmn:sequenceFlow id="f_6" name="Phase 2 cancel-subscription Lambda now also calls deleteTrialEndSchedule before branching" sourceRef="n_CSC" targetRef="n_CancelHandler" />
+    <bpmn:association id="f_0" sourceRef="n_Active" targetRef="n_Confirm" associationDirection="One" />
+    <bpmn:association id="f_3" sourceRef="n_Card" targetRef="n_Active" associationDirection="One" />
+    <bpmn:association id="f_5" sourceRef="n_CancelPost" targetRef="n_Cancelling" associationDirection="One" />
+    <bpmn:association id="f_7" sourceRef="n_CancelHandler" targetRef="n_Row" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_confirmation_step">
+    <bpmndi:BPMNPlane id="Plane_confirmation_step" bpmnElement="Process_confirmation_step">
+      <bpmndi:BPMNShape id="n_Active_di" bpmnElement="n_Active">
+        <dc:Bounds x="154.32" y="28" width="148.06" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Confirm_di" bpmnElement="n_Confirm">
+        <dc:Bounds x="135.34" y="165" width="186" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Card_di" bpmnElement="n_Card">
+        <dc:Bounds x="155.09" y="291" width="146.5" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CancelPost_di" bpmnElement="n_CancelPost">
+        <dc:Bounds x="145.09" y="417" width="166.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CSC_di" bpmnElement="n_CSC">
+        <dc:Bounds x="28" y="532.5" width="199.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Cancelling_di" bpmnElement="n_Cancelling">
+        <dc:Bounds x="263.25" y="527" width="165.44" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_CancelHandler_di" bpmnElement="n_CancelHandler">
+        <dc:Bounds x="135.97" y="664" width="184.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Row_di" bpmnElement="n_Row">
+        <dc:Bounds x="153.21" y="790" width="150.26" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="228.34" y="233" />
+        <di:waypoint x="228.34" y="291" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="228.34" y="359" />
+        <di:waypoint x="228.34" y="417" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="228.34" y="469" />
+        <di:waypoint x="228.34" y="500.75" />
+        <di:waypoint x="127.63" y="500.75" />
+        <di:waypoint x="127.63" y="532.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="127.63" y="600.5" />
+        <di:waypoint x="127.63" y="632.25" />
+        <di:waypoint x="228.34" y="632.25" />
+        <di:waypoint x="228.34" y="664" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="228.34" y="76" />
+        <di:waypoint x="228.34" y="165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="228.34" y="291" />
+        <di:waypoint x="228.34" y="76" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="228.34" y="469" />
+        <di:waypoint x="228.34" y="498" />
+        <di:waypoint x="345.97" y="498" />
+        <di:waypoint x="345.97" y="527" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="228.34" y="732" />
+        <di:waypoint x="228.34" y="790" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

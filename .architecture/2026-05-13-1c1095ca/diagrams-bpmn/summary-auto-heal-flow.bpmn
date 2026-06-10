@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_summary_auto_heal_flow" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_summary_auto_heal_flow" name="summary-auto-heal-flow" isExecutable="false">
+    <bpmn:serviceTask id="n_SCWorker" name="stale-check-requested Lambda after refreshArticleIfStale">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:task id="n_Load" name="loadArticle full article aggregate">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:dataStoreReference id="n_Articles" name="DynamoDB articles summaryStatus, summaryAutoHeal"></bpmn:dataStoreReference>
+    <bpmn:exclusiveGateway id="n_Decide" name="decideSummaryAutoHeal">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="n_NoHeal" name="no-op">
+      <bpmn:incoming>f_3</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_Heal" name="incrementSummaryAutoHealAttempt flips summaryStatus=pending bumps attempts + lastAttemptAt">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sendTask id="n_GSC" name="GenerateSummaryCommand dispatched via effect dispatcher direct SQS send">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:intermediateCatchEvent id="n_QGS" name="generate-summary shared queue">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="n_GSWorker" name="generate-summary Lambda Deepseek json_schema call">
+      <bpmn:incoming>f_8</bpmn:incoming>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_Budget" name="Budget: 3 attempts then 24h cool-off before next attempt allowed">
+      <bpmn:incoming>f_10</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_SCWorker" targetRef="n_Load" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_Load" targetRef="n_Decide" />
+    <bpmn:sequenceFlow id="f_3" name="skip not failed, or budget exhausted and cooloff not elapsed" sourceRef="n_Decide" targetRef="n_NoHeal" />
+    <bpmn:sequenceFlow id="f_4" name="reprime summary=failed AND attempts &lt; 3 OR 24h elapsed" sourceRef="n_Decide" targetRef="n_Heal" />
+    <bpmn:sequenceFlow id="f_6" name="effect: DispatchGenerateSummary" sourceRef="n_Heal" targetRef="n_GSC" />
+    <bpmn:sequenceFlow id="f_7" name="" sourceRef="n_GSC" targetRef="n_QGS" />
+    <bpmn:sequenceFlow id="f_8" name="" sourceRef="n_QGS" targetRef="n_GSWorker" />
+    <bpmn:sequenceFlow id="f_10" name="constraint" sourceRef="n_Decide" targetRef="n_Budget" />
+    <bpmn:association id="f_1" sourceRef="n_Load" targetRef="n_Articles" associationDirection="Both" />
+    <bpmn:association id="f_5" sourceRef="n_Heal" targetRef="n_Articles" associationDirection="One" />
+    <bpmn:association id="f_9" sourceRef="n_GSWorker" targetRef="n_Articles" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_summary_auto_heal_flow">
+    <bpmndi:BPMNPlane id="Plane_summary_auto_heal_flow" bpmnElement="Process_summary_auto_heal_flow">
+      <bpmndi:BPMNShape id="n_SCWorker_di" bpmnElement="n_SCWorker">
+        <dc:Bounds x="170.4" y="28" width="170.25" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Load_di" bpmnElement="n_Load">
+        <dc:Bounds x="173.77" y="170" width="163.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Articles_di" bpmnElement="n_Articles">
+        <dc:Bounds x="191.83" y="998" width="127.38" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Decide_di" bpmnElement="n_Decide">
+        <dc:Bounds x="212.52" y="280" width="86" height="86" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_NoHeal_di" bpmnElement="n_NoHeal">
+        <dc:Bounds x="28" y="470.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Heal_di" bpmnElement="n_Heal">
+        <dc:Bounds x="104" y="442" width="202.25" height="116" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_GSC_di" bpmnElement="n_GSC">
+        <dc:Bounds x="154.27" y="616" width="202.5" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_QGS_di" bpmnElement="n_QGS">
+        <dc:Bounds x="235.52" y="758" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_GSWorker_di" bpmnElement="n_GSWorker">
+        <dc:Bounds x="155.9" y="888" width="199.25" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Budget_di" bpmnElement="n_Budget">
+        <dc:Bounds x="392.65" y="457.25" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="255.52" y="112" />
+        <di:waypoint x="255.52" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="255.52" y="222" />
+        <di:waypoint x="255.52" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="255.52" y="366" />
+        <di:waypoint x="255.52" y="418.38" />
+        <di:waypoint x="48" y="418.38" />
+        <di:waypoint x="48" y="470.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="255.52" y="366" />
+        <di:waypoint x="255.52" y="404" />
+        <di:waypoint x="205.13" y="404" />
+        <di:waypoint x="205.13" y="442" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="205.13" y="558" />
+        <di:waypoint x="205.13" y="587" />
+        <di:waypoint x="255.52" y="587" />
+        <di:waypoint x="255.52" y="616" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="255.52" y="700" />
+        <di:waypoint x="255.52" y="758" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="255.52" y="798" />
+        <di:waypoint x="255.52" y="888" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="255.52" y="366" />
+        <di:waypoint x="255.52" y="411.63" />
+        <di:waypoint x="412.65" y="411.63" />
+        <di:waypoint x="412.65" y="457.25" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="255.52" y="222" />
+        <di:waypoint x="255.52" y="998" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="205.13" y="558" />
+        <di:waypoint x="205.13" y="778" />
+        <di:waypoint x="255.52" y="778" />
+        <di:waypoint x="255.52" y="998" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="255.52" y="940" />
+        <di:waypoint x="255.52" y="998" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

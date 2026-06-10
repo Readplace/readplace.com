@@ -375,6 +375,30 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
+	// --- Internal clicks ("where do readers click most") ---
+	// Driven by the `click` event the analytics middleware emits for any request
+	// carrying utm_medium=internal — including HTMX-boosted links and POST
+	// actions that never appear as pageviews. utm_source is the section and
+	// utm_content the element.
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Internal clicks by section / element",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				"fields @timestamp, coalesce(utm_source, \"-\") as section, coalesce(utm_content, \"-\") as element",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.click}"`,
+				...exclude,
+				"| stats count(*) as clicks by section, element",
+				"| sort clicks desc",
+				"| limit 50",
+			].join(" "),
+			x: 0, y: 82, width: 24, height: 8,
+			view: "table",
+		}),
+	);
+
 	return { widgets };
 }
 

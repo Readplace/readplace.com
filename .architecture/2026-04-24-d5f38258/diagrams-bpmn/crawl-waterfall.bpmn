@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_crawl_waterfall" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_crawl_waterfall" name="crawl-waterfall" isExecutable="false">
+    <bpmn:sendTask id="n_In" name="crawlArticle: url, etag?, lastModified?, fetchThumbnail?">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_Twitter" name="Host is x.com / twitter.com?">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+      <bpmn:outgoing>f_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_Oembed" name="Twitter oembed publish.twitter.com/oembed">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_OembedFetched" name="status: fetched html = synthetic wrapper">
+      <bpmn:incoming>f_2</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_Headers" name="Add browser-like headers UA, Accept, Accept-Language + If-None-Match + If-Modified-Since">
+      <bpmn:incoming>f_3</bpmn:incoming>
+      <bpmn:outgoing>f_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_H2" name="fetchWithFallback = withH2Fallback of withAiaChasing of fetch">
+      <bpmn:incoming>f_4</bpmn:incoming>
+      <bpmn:outgoing>f_5</bpmn:outgoing>
+      <bpmn:outgoing>f_6</bpmn:outgoing>
+      <bpmn:outgoing>f_7</bpmn:outgoing>
+      <bpmn:outgoing>f_8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_NotMod" name="status: not-modified 304 short-circuit">
+      <bpmn:incoming>f_5</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="n_Failed1" name="status: failed non-2xx or non-HTML content-type">
+      <bpmn:incoming>f_6</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="n_Failed2" name="status: failed network error / timeout 10s">
+      <bpmn:incoming>f_7</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="n_Ok" name="Response 2xx + text/html">
+      <bpmn:incoming>f_8</bpmn:incoming>
+      <bpmn:outgoing>f_9</bpmn:outgoing>
+      <bpmn:outgoing>f_12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_Thumb" name="extractThumbnailCandidates og:image → twitter:image → img src">
+      <bpmn:incoming>f_9</bpmn:incoming>
+      <bpmn:outgoing>f_10</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="n_ThumbFetch" name="fetchThumbnailImage timeout 5s, max 5MB">
+      <bpmn:incoming>f_10</bpmn:incoming>
+      <bpmn:outgoing>f_11</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="n_Fetched" name="status: fetched html, etag, lastModified thumbnailUrl?, thumbnailImage?">
+      <bpmn:incoming>f_11</bpmn:incoming>
+      <bpmn:incoming>f_12</bpmn:incoming>
+      <bpmn:messageEventDefinition />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_In" targetRef="n_Twitter" />
+    <bpmn:sequenceFlow id="f_1" name="yes" sourceRef="n_Twitter" targetRef="n_Oembed" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_Oembed" targetRef="n_OembedFetched" />
+    <bpmn:sequenceFlow id="f_3" name="no" sourceRef="n_Twitter" targetRef="n_Headers" />
+    <bpmn:sequenceFlow id="f_4" name="" sourceRef="n_Headers" targetRef="n_H2" />
+    <bpmn:sequenceFlow id="f_5" name="response.status=304" sourceRef="n_H2" targetRef="n_NotMod" />
+    <bpmn:sequenceFlow id="f_6" name="!ok or not text/html" sourceRef="n_H2" targetRef="n_Failed1" />
+    <bpmn:sequenceFlow id="f_7" name="throws" sourceRef="n_H2" targetRef="n_Failed2" />
+    <bpmn:sequenceFlow id="f_8" name="ok" sourceRef="n_H2" targetRef="n_Ok" />
+    <bpmn:sequenceFlow id="f_9" name="" sourceRef="n_Ok" targetRef="n_Thumb" />
+    <bpmn:sequenceFlow id="f_10" name="" sourceRef="n_Thumb" targetRef="n_ThumbFetch" />
+    <bpmn:sequenceFlow id="f_11" name="" sourceRef="n_ThumbFetch" targetRef="n_Fetched" />
+    <bpmn:sequenceFlow id="f_12" name="" sourceRef="n_Ok" targetRef="n_Fetched" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_crawl_waterfall">
+    <bpmndi:BPMNPlane id="Plane_crawl_waterfall" bpmnElement="Process_crawl_waterfall">
+      <bpmndi:BPMNShape id="n_In_di" bpmnElement="n_In">
+        <dc:Bounds x="251.34" y="28" width="182.25" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Twitter_di" bpmnElement="n_Twitter">
+        <dc:Bounds x="259.59" y="154" width="165.75" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Oembed_di" bpmnElement="n_Oembed">
+        <dc:Bounds x="129.59" y="280" width="200.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_OembedFetched_di" bpmnElement="n_OembedFetched">
+        <dc:Bounds x="214.09" y="422" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Headers_di" bpmnElement="n_Headers">
+        <dc:Bounds x="366.35" y="264" width="189" height="100" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_H2_di" bpmnElement="n_H2">
+        <dc:Bounds x="341.92" y="424" width="180.75" height="68" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_NotMod_di" bpmnElement="n_NotMod">
+        <dc:Bounds x="66.74" y="558.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Failed1_di" bpmnElement="n_Failed1">
+        <dc:Bounds x="448.7" y="552" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Failed2_di" bpmnElement="n_Failed2">
+        <dc:Bounds x="591.18" y="552" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Ok_di" bpmnElement="n_Ok">
+        <dc:Bounds x="181.48" y="570.75" width="190.5" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Thumb_di" bpmnElement="n_Thumb">
+        <dc:Bounds x="242.34" y="695.5" width="200.25" height="84" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_ThumbFetch_di" bpmnElement="n_ThumbFetch">
+        <dc:Bounds x="259.72" y="837.5" width="165.5" height="52" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_Fetched_di" bpmnElement="n_Fetched">
+        <dc:Bounds x="322.47" y="947.5" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="342.47" y="96" />
+        <di:waypoint x="342.47" y="154" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="342.47" y="206" />
+        <di:waypoint x="342.47" y="243" />
+        <di:waypoint x="229.97" y="243" />
+        <di:waypoint x="229.97" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="229.97" y="348" />
+        <di:waypoint x="229.97" y="385" />
+        <di:waypoint x="234.09" y="385" />
+        <di:waypoint x="234.09" y="422" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="342.47" y="206" />
+        <di:waypoint x="342.47" y="235" />
+        <di:waypoint x="460.85" y="235" />
+        <di:waypoint x="460.85" y="264" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_4_di" bpmnElement="f_4">
+        <di:waypoint x="460.85" y="364" />
+        <di:waypoint x="460.85" y="394" />
+        <di:waypoint x="432.3" y="394" />
+        <di:waypoint x="432.3" y="424" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_5_di" bpmnElement="f_5">
+        <di:waypoint x="432.3" y="492" />
+        <di:waypoint x="432.3" y="525.38" />
+        <di:waypoint x="86.74" y="525.38" />
+        <di:waypoint x="86.74" y="558.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_6_di" bpmnElement="f_6">
+        <di:waypoint x="432.3" y="492" />
+        <di:waypoint x="432.3" y="522" />
+        <di:waypoint x="468.7" y="522" />
+        <di:waypoint x="468.7" y="552" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_7_di" bpmnElement="f_7">
+        <di:waypoint x="432.3" y="492" />
+        <di:waypoint x="432.3" y="522" />
+        <di:waypoint x="611.18" y="522" />
+        <di:waypoint x="611.18" y="552" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_8_di" bpmnElement="f_8">
+        <di:waypoint x="432.3" y="492" />
+        <di:waypoint x="432.3" y="531.38" />
+        <di:waypoint x="276.73" y="531.38" />
+        <di:waypoint x="276.73" y="570.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_9_di" bpmnElement="f_9">
+        <di:waypoint x="276.73" y="618.75" />
+        <di:waypoint x="276.73" y="657.13" />
+        <di:waypoint x="342.47" y="657.13" />
+        <di:waypoint x="342.47" y="695.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_10_di" bpmnElement="f_10">
+        <di:waypoint x="342.47" y="779.5" />
+        <di:waypoint x="342.47" y="837.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_11_di" bpmnElement="f_11">
+        <di:waypoint x="342.47" y="889.5" />
+        <di:waypoint x="342.47" y="947.5" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_12_di" bpmnElement="f_12">
+        <di:waypoint x="276.73" y="618.75" />
+        <di:waypoint x="276.73" y="783.13" />
+        <di:waypoint x="342.47" y="783.13" />
+        <di:waypoint x="342.47" y="947.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

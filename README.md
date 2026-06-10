@@ -32,7 +32,7 @@ The codebase has strong opinions on testing, typing, branded IDs, and comments t
 
 ## AI in the loop
 
-Claude reviews every PR, fixes CI failures, resolves merge conflicts, and applies high-priority review comments — all from GitHub Actions, on every push. You can also `@claude` in any issue or PR comment to get a response that's allowed to commit. One secret (`ANTHROPIC_API_KEY`) bootstraps the pipeline.
+Claude reviews every PR, fixes CI failures, resolves merge conflicts, and applies high-priority review comments — all from GitHub Actions, on every push. You can also `@claude` in any issue or PR comment to get a response that's allowed to commit. A single repository secret bootstraps the pipeline.
 
 The full setup — pipeline diagram, workflow inventory, design principles — lives in [AI_WORKFLOWS.md](./AI_WORKFLOWS.md).
 

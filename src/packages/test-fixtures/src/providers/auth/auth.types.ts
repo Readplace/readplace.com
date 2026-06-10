@@ -52,6 +52,14 @@ export type FindUserByEmail = (email: string) => Promise<FindUserByEmailResult>;
 
 export type FindEmailByUserId = (userId: UserId) => Promise<string | null>;
 
+export type UserContact = { email: string; emailVerified: boolean };
+
+/** Resolve a user's email + verification status by id (via the userId-index).
+ * The reader-ready notifier needs both: it only emails verified addresses. */
+export type FindUserContactByUserId = (
+	userId: UserId,
+) => Promise<UserContact | null>;
+
 export type ExistsUserByIdPrefix = (prefix: UserIdPrefix) => Promise<boolean>;
 
 export type CreateGoogleUser = (user: {

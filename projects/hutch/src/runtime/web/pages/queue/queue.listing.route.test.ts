@@ -38,8 +38,8 @@ describe("Queue routes", () => {
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-empty-queue]")?.textContent).toContain("empty");
-			expect(doc.querySelector('[data-test-form="save-article"]')?.getAttribute("action")).toBe("/queue/save");
+			expect(doc.querySelector("[data-test-empty-queue]")?.textContent).toContain("There are no more articles to read");
+			expect(doc.querySelector('[data-test-form="save-article"]')?.getAttribute("action")).toBe("/queue/save?utm_source=queue&utm_medium=internal&utm_content=save");
 		});
 	});
 
@@ -143,6 +143,7 @@ describe("Queue routes", () => {
 			const crawlArticle = async () => ({
 				status: "fetched" as const,
 				html: `<html><head><meta property="og:site_name" content="Example Blog"></head><body><article><h1>Post</h1><p>Content here.</p></article></body></html>`,
+				bodyHash: "a".repeat(64),
 			});
 
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
@@ -348,7 +349,7 @@ describe("Queue routes", () => {
 			const response = await agent.get("/queue?order=asc");
 			const doc = new JSDOM(response.text).window.document;
 			const sortLink = doc.querySelector("[data-test-sort]");
-			expect(sortLink?.getAttribute("href")).toBe("/queue");
+			expect(sortLink?.getAttribute("href")).toBe("/queue?utm_source=queue-sort&utm_medium=internal&utm_content=sort");
 			expect(sortLink?.textContent).toContain("Oldest first");
 		});
 

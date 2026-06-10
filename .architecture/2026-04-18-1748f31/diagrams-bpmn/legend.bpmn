@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_legend" targetNamespace="http://readplace.com/architecture/bpmn">
+  <bpmn:process id="Process_legend" name="legend" isExecutable="false">
+    <bpmn:sendTask id="n_C" name="Command">
+      <bpmn:outgoing>f_0</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:serviceTask id="n_S" name="System / Aggregate">
+      <bpmn:incoming>f_0</bpmn:incoming>
+      <bpmn:outgoing>f_1</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="n_E" name="Event">
+      <bpmn:incoming>f_1</bpmn:incoming>
+      <bpmn:outgoing>f_2</bpmn:outgoing>
+      <bpmn:messageEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="n_P" name="Policy">
+      <bpmn:incoming>f_2</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:dataStoreReference id="n_R" name="Read Model / Store"></bpmn:dataStoreReference>
+    <bpmn:sequenceFlow id="f_0" name="" sourceRef="n_C" targetRef="n_S" />
+    <bpmn:sequenceFlow id="f_1" name="" sourceRef="n_S" targetRef="n_E" />
+    <bpmn:sequenceFlow id="f_2" name="" sourceRef="n_E" targetRef="n_P" />
+    <bpmn:association id="f_3" sourceRef="n_S" targetRef="n_R" associationDirection="One" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_legend">
+    <bpmndi:BPMNPlane id="Plane_legend" bpmnElement="Process_legend">
+      <bpmndi:BPMNShape id="n_C_di" bpmnElement="n_C">
+        <dc:Bounds x="28" y="84" width="104" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_S_di" bpmnElement="n_S">
+        <dc:Bounds x="190" y="84" width="154" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_E_di" bpmnElement="n_E">
+        <dc:Bounds x="446.9" y="28" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_P_di" bpmnElement="n_P">
+        <dc:Bounds x="589.8" y="78.75" width="40" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="n_R_di" bpmnElement="n_R">
+        <dc:Bounds x="402" y="122.5" width="129.8" height="48" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f_0_di" bpmnElement="f_0">
+        <di:waypoint x="132" y="108" />
+        <di:waypoint x="190" y="108" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_1_di" bpmnElement="f_1">
+        <di:waypoint x="344" y="108" />
+        <di:waypoint x="395.45" y="108" />
+        <di:waypoint x="395.45" y="48" />
+        <di:waypoint x="446.9" y="48" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_2_di" bpmnElement="f_2">
+        <di:waypoint x="486.9" y="48" />
+        <di:waypoint x="538.35" y="48" />
+        <di:waypoint x="538.35" y="98.75" />
+        <di:waypoint x="589.8" y="98.75" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f_3_di" bpmnElement="f_3">
+        <di:waypoint x="344" y="108" />
+        <di:waypoint x="373" y="108" />
+        <di:waypoint x="373" y="146.5" />
+        <di:waypoint x="402" y="146.5" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

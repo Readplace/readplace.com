@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import type { Article } from "../article.types";
 import { markSummaryReady } from "./mark-summary-ready";
 
+const NOW = "2026-05-30T12:00:00.000Z";
+
 function buildArticle(overrides: Partial<Article> = {}): Article {
 	return {
 		url: "https://example.com/article",
@@ -27,6 +29,7 @@ describe("markSummaryReady", () => {
 			excerpt: "AI-generated excerpt",
 			inputTokens: 1234,
 			outputTokens: 567,
+			now: NOW,
 		});
 
 		assert.deepEqual(article.summary, {
@@ -46,6 +49,7 @@ describe("markSummaryReady", () => {
 			excerpt: "AI-generated excerpt",
 			inputTokens: 1,
 			outputTokens: 1,
+			now: NOW,
 			sourceContentHash: hash,
 		});
 
@@ -65,6 +69,7 @@ describe("markSummaryReady", () => {
 			excerpt: "AI-generated excerpt",
 			inputTokens: 1,
 			outputTokens: 1,
+			now: NOW,
 		});
 
 		assert.equal(
@@ -73,7 +78,7 @@ describe("markSummaryReady", () => {
 		);
 	});
 
-	it("emits a publish-summary-generated effect carrying url and token counts", () => {
+	it("emits publish-summary-generated then publish-reader-view-loading-succeeded carrying url, token counts, succeededAt and hasSummary=true", () => {
 		const { effects } = markSummaryReady(
 			buildArticle({ url: "https://example.com/post" }),
 			{
@@ -81,6 +86,38 @@ describe("markSummaryReady", () => {
 				excerpt: "excerpt",
 				inputTokens: 1234,
 				outputTokens: 567,
+				now: NOW,
+			},
+		);
+
+		assert.deepEqual(effects, [
+			{
+				kind: "publish-summary-generated",
+				url: "https://example.com/post",
+				inputTokens: 1234,
+				outputTokens: 567,
+			},
+			{
+				kind: "publish-reader-view-loading-succeeded",
+				url: "https://example.com/post",
+				succeededAt: NOW,
+				hasSummary: true,
+			},
+		]);
+	});
+
+	it("omits the reader-view-loading-succeeded effect when the crawl is not yet ready (reader view is still loading, not succeeded)", () => {
+		const { effects } = markSummaryReady(
+			buildArticle({
+				url: "https://example.com/post",
+				crawl: { kind: "pending", pendingSince: "2026-01-01T00:00:00.000Z" },
+			}),
+			{
+				summary: "summary",
+				excerpt: "excerpt",
+				inputTokens: 1234,
+				outputTokens: 567,
+				now: NOW,
 			},
 		);
 
@@ -100,6 +137,7 @@ describe("markSummaryReady", () => {
 			excerpt: "excerpt",
 			inputTokens: 1,
 			outputTokens: 1,
+			now: NOW,
 		});
 
 		assert.deepEqual([...writes].sort(), ["summary", "summaryAutoHeal"]);
@@ -118,6 +156,7 @@ describe("markSummaryReady", () => {
 			excerpt: "excerpt",
 			inputTokens: 1,
 			outputTokens: 1,
+			now: NOW,
 		});
 
 		assert.deepEqual(article.summaryAutoHeal, { attempts: 0 });
@@ -131,6 +170,7 @@ describe("markSummaryReady", () => {
 			excerpt: "excerpt",
 			inputTokens: 1,
 			outputTokens: 1,
+			now: NOW,
 		});
 
 		assert.deepEqual(article.crawl, { kind: "ready" });
@@ -156,6 +196,7 @@ describe("markSummaryReady", () => {
 			excerpt: "excerpt",
 			inputTokens: 1,
 			outputTokens: 1,
+			now: NOW,
 		});
 
 		assert.equal(article.metadata.title, "kept title");
@@ -172,6 +213,7 @@ describe("markSummaryReady", () => {
 			excerpt: "excerpt",
 			inputTokens: 1,
 			outputTokens: 1,
+			now: NOW,
 		});
 
 		assert.deepEqual(before, snapshot);

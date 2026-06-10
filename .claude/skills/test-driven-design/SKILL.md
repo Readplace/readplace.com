@@ -136,6 +136,41 @@ Use TypeScript's type system to prevent invalid states at compile time.
 type SupportedLocale = 'en-AU';
 ```
 
+### Internal Contracts Are Not Versioned — Prefer Required Fields
+
+Contracts consumed only inside this monorepo — EventBridge / SQS event and command schemas, function and provider types, DynamoDB row schemas — carry **no** backward-compatibility obligation. Every producer and consumer lives in this repo and deploys together, so make new fields **required** and update all callers in the same change. The compiler then guarantees no producer can drop the field: an omission is a build error, not a silent runtime gap.
+
+Do not weaken an internal contract "for backward compatibility" — an optional field or a tolerant parse lets a producer silently omit the value and defers the failure to runtime.
+
+```typescript
+// ❌ BAD - Optional "for backward compatibility" on an internal event whose
+//          every producer lives in this repo — a producer can silently drop it.
+bodyHash: z.string().optional(),
+
+// ✅ GOOD - Required: the compiler forces every in-repo producer to supply it.
+bodyHash: z.string(),
+```
+
+Backward-compatibility practices — optional/additive fields, tolerant decoding, dual-read, lazy backfill — apply **only** to contracts an externally-published client consumes, because such a client cannot be deployed atomically with the server:
+
+- iOS app (waits on App Store review)
+- macOS / desktop apps (user-driven updates)
+- browser extensions (wait on AMO / Chrome Web Store review)
+- any third-party or otherwise published API consumer
+
+For those, evolve additively and never require a field an older shipped client won't send.
+
+```typescript
+// ✅ GOOD - Optional IS correct here: a published extension / iOS build still in
+//          store review won't send this field yet.
+newClientCapability: z.string().optional(),
+```
+
+Two clarifications:
+
+- A **semantically optional** field — genuinely absent in some valid case, e.g. a hash the 304-Not-Modified path never computes, or a `previousBodyHash` a first-ever save has no value for — stays optional regardless. That is modelling reality, not back-compat.
+- Making an internal EventBridge / SQS field required can reject messages already enqueued at deploy time. That is a brief, self-healing drain (DLQ + retry, or the next tick re-emits) — accept it rather than permanently weakening the schema.
+
 ### No Silent Fallbacks for Missing Values
 
 Do not use conditionals to provide empty defaults when a dependency may be null. This allows the system to continue in an invalid state.

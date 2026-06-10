@@ -61,6 +61,7 @@ const stubFinalizedArticle: FinalizedArticle = {
 const fetchedResult: CrawlAndFinalizeResult = {
 	status: "fetched",
 	article: stubFinalizedArticle,
+	bodyHash: "a".repeat(64),
 };
 
 const rejectingEmitSimpleCrawlUnsupported: EmitSimpleCrawlUnsupported = async () => {
@@ -130,6 +131,7 @@ describe("initSaveLinkCommandHandler", () => {
 			article: stubFinalizedArticle,
 			etag: '"v1"',
 			lastModified: "Wed, 01 Apr 2026 00:00:00 GMT",
+			bodyHash: "deadbeef".repeat(8),
 		});
 		const handler = createHandler({ crawlAndFinalizeArticle, updateFetchTimestamp });
 
@@ -140,6 +142,7 @@ describe("initSaveLinkCommandHandler", () => {
 			contentFetchedAt: fixedNow().toISOString(),
 			etag: '"v1"',
 			lastModified: "Wed, 01 Apr 2026 00:00:00 GMT",
+			bodyHash: "deadbeef".repeat(8),
 		});
 	});
 

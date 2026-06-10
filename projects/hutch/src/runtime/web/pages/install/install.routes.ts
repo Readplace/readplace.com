@@ -1,0 +1,30 @@
+import type { Request, Response, Router } from "express";
+import express from "express";
+import type { BuildBannerState } from "../../banner-state";
+import { Base } from "../../base.component";
+import { sendComponent } from "../../send-component";
+import {
+	InstallPage,
+	type InstallClient,
+	parseClient,
+	fetchFirefoxDownloadUrl,
+} from "./install.component";
+
+export function initInstallRoutes(deps: { buildBannerState: BuildBannerState }): Router {
+	const router = express.Router();
+	const { buildBannerState } = deps;
+
+	router.get("/install", async (req: Request, res: Response) => {
+		let client: InstallClient;
+		try {
+			client = parseClient(req.query.client);
+		} catch {
+			res.status(400).type("html").send("");
+			return;
+		}
+		const firefox = await fetchFirefoxDownloadUrl();
+		sendComponent(req, res, Base(InstallPage({ firefox, client }), await buildBannerState(req)));
+	});
+
+	return router;
+}

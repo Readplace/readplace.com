@@ -60,6 +60,7 @@ export function initRefreshArticleContentHandler(deps: {
 					etag: detail.etag,
 					lastModified: detail.lastModified,
 					contentFetchedAt: detail.contentFetchedAt,
+					bodyHash: detail.bodyHash,
 				});
 
 				logger.info("[RefreshArticleContent] tier-1 source written + event published", {

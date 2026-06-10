@@ -26,9 +26,9 @@ You can also talk to Claude directly in any issue or PR comment. It will respond
 | `claude-PR-CI-failure-fixer.yml` | When CI fails, Claude reads the logs, diagnoses the failure, and pushes a fix commit. |
 | `claude-PR-code-review-auto-apply.yml` | Takes high and medium-priority review comments and applies them automatically — no manual intervention needed. |
 | `claude-PR-conflict-fixer.yml` | Detects merge conflicts on PRs and resolves them. |
-| `tier-1-plus-crawl-pipeline-health.yml` | End-to-end crawl pipeline canary against prod; opens a `@claude` issue on failure. |
-| `failed-articles-canary.yml` | Surfaces articles whose crawl/summary pipelines reached a terminal failure; opens a debug-worklist issue. |
-| `stuck-articles-canary.yml` | Detects articles stuck in non-terminal pipeline states; fails if actionable stuck rows exist. |
+| `tier-1-plus-crawl-pipeline-health.yml` | End-to-end crawl pipeline canary against prod; opens a tracking issue on failure for an operator to debug and close manually. |
+| `failed-articles-canary.yml` | Surfaces articles whose crawl/summary pipelines reached a terminal failure; opens a debug-worklist tracking issue for an operator to debug and close manually. |
+| `stuck-articles-canary.yml` | Detects articles stuck in non-terminal pipeline states; opens or comments on a tracking issue on failure for an operator to debug and close manually. |
 | `publish-chrome-extension.yml` | Publishes Chrome extension to the Chrome Web Store. |
 | `submit-ff-extension-for-signing.yml` | Submits Firefox extension to AMO for signing. |
 | `sync-signed-extension.yml` | Syncs signed Firefox extension from AMO to S3. |
@@ -47,15 +47,7 @@ Each workflow has a companion `.md` file (e.g. `claude-PR-CI-failure-fixer.md`) 
 
 ## Setup
 
-You need one secret: `ANTHROPIC_API_KEY`.
-
-Add it to your repo's Actions secrets and the workflows work as-is. The Claude integration uses [`claude-code-action`](https://github.com/anthropics/claude-code-action).
-
-```
-Settings → Secrets and variables → Actions → New repository secret
-Name: ANTHROPIC_API_KEY
-Value: sk-ant-...
-```
+The Claude integration uses [`claude-code-action`](https://github.com/anthropics/claude-code-action), authenticated from a single repository secret added under Settings → Secrets and variables → Actions. With the secret absent the `Claude Code` workflow fails fast with an authentication error — wire up the secret and the workflows work as-is.
 
 ## What it looks like in practice
 

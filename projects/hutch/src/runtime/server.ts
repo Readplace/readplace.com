@@ -58,6 +58,7 @@ import type {
 	FindArticleByUrl,
 	FindArticleUrlById,
 	FindArticlesByUser,
+	MarkArticleViewed,
 	SaveArticle,
 	SaveArticleGlobally,
 	UpdateArticleStatus,
@@ -126,14 +127,15 @@ import { Base } from "./web/base.component";
 import { initBuildBannerState } from "./web/banner-state";
 import { sendComponent } from "./web/send-component";
 import { wantsMarkdown, wantsSiren } from "./web/content-negotiation";
-import { contentSignalMiddleware } from "./web/content-signal.middleware";
+import { CONTENT_SIGNAL_VALUE, contentSignalMiddleware } from "./web/content-signal.middleware";
+import { linkHeaderMiddleware } from "./web/link-header.middleware";
 import { QuerystringFeatureToggle } from "./web/feature-toggle";
 import { HomePage } from "./web/pages/home";
 import { PrivacyPage } from "./web/pages/privacy";
 import { TermsPage } from "./web/pages/terms";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
-import { InstallPage, fetchFirefoxDownloadUrl, fetchChromeDownloadUrl } from "./web/pages/install";
+import { initInstallRoutes } from "./web/pages/install";
 import { NotFoundPage } from "./web/pages/not-found";
 import { initGetEffectiveAccess } from "./domain/access/effective-access";
 import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
@@ -174,6 +176,7 @@ interface AppDependencies {
 	saveArticleGlobally: SaveArticleGlobally;
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
+	markArticleViewed: MarkArticleViewed;
 	sendEmail: SendEmail;
 	createVerificationToken: CreateVerificationToken;
 	verifyEmailToken: VerifyEmailToken;
@@ -282,6 +285,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	);
 
 	app.use(contentSignalMiddleware);
+	app.use(linkHeaderMiddleware);
 
 	app.use(async (req: Request, _res: Response, next: NextFunction) => {
 		const sessionId = req.cookies?.[SESSION_COOKIE_NAME];
@@ -321,6 +325,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		res.type("text/plain").send(
 			[
 				"User-agent: *",
+				`Content-Signal: ${CONTENT_SIGNAL_VALUE}`,
 				"Allow: /",
 				"Disallow: /queue",
 				"Disallow: /export",
@@ -398,6 +403,57 @@ export function createApp(dependencies: AppDependencies): Express {
 		res.type("application/xml").send(
 			`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`,
 		);
+	});
+
+	app.get("/health", (_req: Request, res: Response) => {
+		res.json({ status: "ok" });
+	});
+
+	app.get("/.well-known/oauth-authorization-server", (_req: Request, res: Response) => {
+		res.json({
+			issuer: dependencies.baseUrl,
+			authorization_endpoint: `${dependencies.baseUrl}/oauth/authorize`,
+			token_endpoint: `${dependencies.baseUrl}/oauth/token`,
+			revocation_endpoint: `${dependencies.baseUrl}/oauth/revoke`,
+			response_types_supported: ["code"],
+			grant_types_supported: ["authorization_code", "refresh_token"],
+			token_endpoint_auth_methods_supported: ["none"],
+			code_challenge_methods_supported: ["S256"],
+		});
+	});
+
+	app.get("/.well-known/oauth-protected-resource", (_req: Request, res: Response) => {
+		res.json({
+			resource: dependencies.baseUrl,
+			authorization_servers: [dependencies.baseUrl],
+			bearer_methods_supported: ["header"],
+		});
+	});
+
+	app.get("/.well-known/api-catalog", (_req: Request, res: Response) => {
+		res
+			.set("Content-Type", 'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"')
+			.send(
+				JSON.stringify(
+					{
+						linkset: [
+							{
+								anchor: dependencies.baseUrl,
+								"service-doc": [{ href: `${dependencies.baseUrl}/llms-full.txt`, type: "text/plain" }],
+								"service-meta": [
+									{
+										href: `${dependencies.baseUrl}/.well-known/oauth-protected-resource`,
+										type: "application/json",
+									},
+								],
+								status: [{ href: `${dependencies.baseUrl}/health`, type: "application/json" }],
+							},
+						],
+					},
+					null,
+					2,
+				),
+			);
 	});
 
 	const extensionCors = cors({
@@ -506,14 +562,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		});
 	}
 
-	app.get("/install", async (req: Request, res: Response) => {
-		const browser = req.query.browser === "firefox" ? "firefox" : "chrome";
-		const [firefox, chrome] = await Promise.all([
-			fetchFirefoxDownloadUrl(),
-			fetchChromeDownloadUrl(),
-		]);
-		sendComponent(req, res, Base(InstallPage({ firefox, chrome, browser }), await buildBannerState(req)));
-	});
+	app.use(initInstallRoutes({ buildBannerState }));
 
 	const blogRouter = initBlogRoutes({ blogPosts, buildBannerState });
 	app.use("/blog", blogRouter);
@@ -606,6 +655,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		saveArticle: deps.saveArticle,
 		deleteArticle: deps.deleteArticle,
 		updateArticleStatus: deps.updateArticleStatus,
+		markArticleViewed: deps.markArticleViewed,
 		publishLinkSaved: deps.publishLinkSaved,
 		publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand: deps.publishSaveLinkRawPdfCommand,

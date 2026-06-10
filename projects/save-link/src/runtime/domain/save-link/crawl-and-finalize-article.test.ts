@@ -23,6 +23,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 		const crawlArticle = jest.fn<Promise<CrawlArticleResult>, Parameters<CrawlArticle>>(async () => ({
 			status: "fetched",
 			html: "<html></html>",
+			bodyHash: "a".repeat(64),
 		}));
 		const crawlAndFinalize = initCrawlAndFinalizeArticle({
 			crawlArticle,
@@ -34,6 +35,22 @@ describe("initCrawlAndFinalizeArticle", () => {
 		expect(crawlArticle).toHaveBeenCalledWith(expect.objectContaining({
 			url: URL_UNDER_TEST,
 			fetchThumbnail: true,
+		}));
+	});
+
+	it("forwards previousBodyHash through to the crawler so the byte-gate fires when the origin returns the same body under 200 OK", async () => {
+		const crawlArticle = jest.fn<Promise<CrawlArticleResult>, Parameters<CrawlArticle>>(async () => ({
+			status: "not-modified",
+		}));
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle,
+			finalizeArticle: okFinalize,
+		});
+
+		await crawlAndFinalize({ url: URL_UNDER_TEST, previousBodyHash: "h".repeat(64) });
+
+		expect(crawlArticle).toHaveBeenCalledWith(expect.objectContaining({
+			previousBodyHash: "h".repeat(64),
 		}));
 	});
 
@@ -108,6 +125,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 				html: "<html></html>",
 				thumbnailUrl: "https://example.com/og.jpg",
 				thumbnailImage: preFetched,
+				bodyHash: "a".repeat(64),
 			}),
 			finalizeArticle,
 		});
@@ -123,7 +141,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 
 	it("returns the finalizer's parse failure verbatim so callers can drive the markCrawlFailed transition", async () => {
 		const crawlAndFinalize = initCrawlAndFinalizeArticle({
-			crawlArticle: async () => ({ status: "fetched", html: "<html></html>" }),
+			crawlArticle: async () => ({ status: "fetched", html: "<html></html>", bodyHash: "a".repeat(64) }),
 			finalizeArticle: async () => ({ ok: false, reason: "readability crashed" }),
 		});
 
@@ -132,13 +150,14 @@ describe("initCrawlAndFinalizeArticle", () => {
 		expect(result).toEqual({ status: "failed", reason: "readability crashed" });
 	});
 
-	it("returns the finalized article + freshness headers on success so callers persist etag/lastModified", async () => {
+	it("returns the finalized article + freshness headers and bodyHash on success so callers persist them", async () => {
 		const crawlAndFinalize = initCrawlAndFinalizeArticle({
 			crawlArticle: async () => ({
 				status: "fetched",
 				html: "<html></html>",
 				etag: '"v1"',
 				lastModified: "Wed, 01 Apr 2026 00:00:00 GMT",
+				bodyHash: "deadbeef".repeat(8),
 			}),
 			finalizeArticle: okFinalize,
 		});
@@ -150,6 +169,7 @@ describe("initCrawlAndFinalizeArticle", () => {
 			article: stubFinalizedArticle,
 			etag: '"v1"',
 			lastModified: "Wed, 01 Apr 2026 00:00:00 GMT",
+			bodyHash: "deadbeef".repeat(8),
 		});
 	});
 });

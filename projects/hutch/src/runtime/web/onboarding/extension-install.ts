@@ -3,8 +3,8 @@ import { ALIVE_COOKIE_NAME, ALIVE_COOKIE_VALUE, SAVE_COOKIE_NAME, SAVE_COOKIE_VA
 import type { BrowserName } from "./onboarding.types";
 
 const INSTALL_URLS: Record<BrowserName, string> = {
-	firefox: "/install?browser=firefox",
-	chrome: "/install?browser=chrome",
+	firefox: "/install?client=firefox",
+	chrome: "/install?client=chrome",
 	other: "/install",
 };
 

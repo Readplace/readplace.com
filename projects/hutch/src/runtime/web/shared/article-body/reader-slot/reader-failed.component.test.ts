@@ -75,13 +75,13 @@ describe("renderReaderFailed", () => {
 				renderReaderFailed({
 					url: "https://example.com/post",
 					variant,
-					extensionInstallUrl: "/install?browser=chrome",
+					extensionInstallUrl: "/install?client=chrome",
 				}),
 			);
 
 			const installCta = doc.querySelector("[data-test-reader-failed-install]");
 			assert(installCta, `install CTA must be rendered for variant=${variant}`);
-			assert.equal(installCta.getAttribute("href"), "/install?browser=chrome");
+			assert.equal(installCta.getAttribute("href"), "/install?client=chrome");
 		}
 	});
 
