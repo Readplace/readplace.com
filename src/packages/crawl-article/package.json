@@ -17,7 +17,8 @@
     "@packages/article-state-types": "workspace:*",
     "@packages/hutch-logger": "workspace:*",
     "escape-html": "1.0.3",
-    "linkedom": "0.18.12"
+    "linkedom": "0.18.12",
+    "undici": "6.21.0"
   },
   "devDependencies": {
     "@types/escape-html": "1.0.4",

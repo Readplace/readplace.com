@@ -2,7 +2,7 @@ import assert from 'node:assert'
 import express from 'express'
 import { z } from 'zod'
 import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
-import { validateSaveableUrl, type ValidateSaveableUrl } from '@packages/domain/article'
+import { isBlockedIpAddress, validateSaveableUrl, type ValidateSaveableUrl } from '@packages/domain/article'
 import { createTestApp } from '../runtime/test-app'
 import {
   createDefaultTestAppFixture,
@@ -32,7 +32,7 @@ const origin = `http://127.0.0.1:${PORT}`
 const logger = HutchLogger.from(consoleLogger)
 
 const logError = (message: string, error?: Error) => console.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }))
-const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS })
+const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: isBlockedIpAddress })
 /** Deterministic PDF extractor for the e2e harness: emits the same synthetic
  * HTML the prod vision pipeline would produce for the bundled /e2e/fixtures/sample.pdf
  * fixture, so the pdf-save-flow e2e test can pin the extension's Siren contract

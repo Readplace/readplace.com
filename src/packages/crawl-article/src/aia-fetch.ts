@@ -2,6 +2,7 @@ import assert from "node:assert";
 import http from "node:http";
 import https from "node:https";
 import tls from "node:tls";
+import type { SocketLookup } from "./blocked-address-lookup";
 
 const MAX_REDIRECTS = 5;
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
@@ -136,103 +137,121 @@ export function derOrPemToPem(bytes: Buffer): string {
 	return `-----BEGIN CERTIFICATE-----\n${wrapped.join("\n")}\n-----END CERTIFICATE-----\n`;
 }
 
-async function fetchPeerCertificate(params: { hostname: string; port: number; signal?: AbortSignal }): Promise<tls.PeerCertificate | null> {
-	return new Promise((resolve, reject) => {
-		const socket = tls.connect({
-			host: params.hostname,
-			port: params.port,
-			servername: params.hostname,
-			rejectUnauthorized: false,
-		}, () => {
-			const cert = socket.getPeerCertificate(true);
-			socket.destroy();
-			resolve(cert && Object.keys(cert).length > 0 ? cert : null);
-		});
-		socket.on("error", reject);
-		if (params.signal) {
-			if (params.signal.aborted) {
+function initFetchPeerCertificate(deps: { lookup?: SocketLookup }): AiaDeps["fetchPeerCertificate"] {
+	return (params) =>
+		new Promise((resolve, reject) => {
+			const socket = tls.connect({
+				host: params.hostname,
+				port: params.port,
+				servername: params.hostname,
+				rejectUnauthorized: false,
+				lookup: deps.lookup,
+			}, () => {
+				const cert = socket.getPeerCertificate(true);
 				socket.destroy();
-				reject(params.signal.reason);
-				return;
-			}
-			params.signal.addEventListener("abort", () => {
-				socket.destroy();
-				reject(params.signal?.reason);
-			}, { once: true });
-		}
-	});
-}
-
-async function downloadIssuerBytes(url: string, signal?: AbortSignal): Promise<Buffer> {
-	return new Promise((resolve, reject) => {
-		const parsed = new URL(url);
-		const mod = parsed.protocol === "https:" ? https : http;
-		const req = mod.get(url, (res) => {
-			if (res.statusCode !== 200) {
-				res.resume();
-				reject(new Error(`downloadIssuerBytes: HTTP ${res.statusCode} for ${url}`));
-				return;
-			}
-			const chunks: Buffer[] = [];
-			res.on("data", (chunk: Buffer) => chunks.push(chunk));
-			res.on("end", () => resolve(Buffer.concat(chunks)));
-			res.on("error", reject);
-		});
-		req.on("error", reject);
-		if (signal) {
-			if (signal.aborted) {
-				req.destroy(signal.reason);
-				reject(signal.reason);
-				return;
-			}
-			signal.addEventListener("abort", () => {
-				req.destroy(signal.reason);
-				reject(signal.reason);
-			}, { once: true });
-		}
-	});
-}
-
-async function httpsGet(params: HttpsGetParams): Promise<HttpsGetResult> {
-	return new Promise((resolve, reject) => {
-		const caList = params.ca && params.ca.length > 0 ? [...tls.rootCertificates, ...params.ca] : undefined;
-		const headers = { "accept-encoding": "identity", ...params.headers };
-		const req = https.request({
-			hostname: params.url.hostname,
-			port: params.url.port ? Number(params.url.port) : 443,
-			path: params.url.pathname + params.url.search,
-			method: "GET",
-			headers,
-			ca: caList,
-		}, (res) => {
-			const chunks: Buffer[] = [];
-			res.on("data", (chunk: Buffer) => chunks.push(chunk));
-			res.on("end", () => {
-				resolve({
-					status: res.statusCode ?? 0,
-					headers: res.headers,
-					body: Buffer.concat(chunks),
-				});
+				resolve(cert && Object.keys(cert).length > 0 ? cert : null);
 			});
-			res.on("error", reject);
-		});
-		req.on("error", reject);
-		if (params.signal) {
-			if (params.signal.aborted) {
-				req.destroy(params.signal.reason);
-				reject(params.signal.reason);
-				return;
+			socket.on("error", reject);
+			if (params.signal) {
+				if (params.signal.aborted) {
+					socket.destroy();
+					reject(params.signal.reason);
+					return;
+				}
+				params.signal.addEventListener("abort", () => {
+					socket.destroy();
+					reject(params.signal?.reason);
+				}, { once: true });
 			}
-			params.signal.addEventListener("abort", () => {
-				req.destroy(params.signal?.reason);
-				reject(params.signal?.reason);
-			}, { once: true });
-		}
-		req.end();
+		});
+}
+
+function initDownloadIssuerBytes(deps: { lookup?: SocketLookup }): AiaDeps["downloadIssuerBytes"] {
+	return (url, signal) =>
+		new Promise((resolve, reject) => {
+			const parsed = new URL(url);
+			const mod = parsed.protocol === "https:" ? https : http;
+			const req = mod.get(url, { lookup: deps.lookup }, (res) => {
+				if (res.statusCode !== 200) {
+					res.resume();
+					reject(new Error(`downloadIssuerBytes: HTTP ${res.statusCode} for ${url}`));
+					return;
+				}
+				const chunks: Buffer[] = [];
+				res.on("data", (chunk: Buffer) => chunks.push(chunk));
+				res.on("end", () => resolve(Buffer.concat(chunks)));
+				res.on("error", reject);
+			});
+			req.on("error", reject);
+			if (signal) {
+				if (signal.aborted) {
+					req.destroy(signal.reason);
+					reject(signal.reason);
+					return;
+				}
+				signal.addEventListener("abort", () => {
+					req.destroy(signal.reason);
+					reject(signal.reason);
+				}, { once: true });
+			}
+		});
+}
+
+function initHttpsGet(deps: { lookup?: SocketLookup }): AiaDeps["httpsGet"] {
+	return (params) =>
+		new Promise((resolve, reject) => {
+			const caList = params.ca && params.ca.length > 0 ? [...tls.rootCertificates, ...params.ca] : undefined;
+			const headers = { "accept-encoding": "identity", ...params.headers };
+			const req = https.request({
+				hostname: params.url.hostname,
+				port: params.url.port ? Number(params.url.port) : 443,
+				path: params.url.pathname + params.url.search,
+				method: "GET",
+				headers,
+				ca: caList,
+				lookup: deps.lookup,
+			}, (res) => {
+				const chunks: Buffer[] = [];
+				res.on("data", (chunk: Buffer) => chunks.push(chunk));
+				res.on("end", () => {
+					resolve({
+						status: res.statusCode ?? 0,
+						headers: res.headers,
+						body: Buffer.concat(chunks),
+					});
+				});
+				res.on("error", reject);
+			});
+			req.on("error", reject);
+			if (params.signal) {
+				if (params.signal.aborted) {
+					req.destroy(params.signal.reason);
+					reject(params.signal.reason);
+					return;
+				}
+				params.signal.addEventListener("abort", () => {
+					req.destroy(params.signal?.reason);
+					reject(params.signal?.reason);
+				}, { once: true });
+			}
+			req.end();
+		});
+}
+
+/**
+ * Builds the production AIA-chasing fetcher with the SSRF guard threaded into
+ * the main request, the TLS cert probe, AND the intermediate-cert download
+ * (whose URL comes from the origin's leaf cert, so it is attacker-influenced).
+ */
+export function initDefaultFetchAia(deps: { lookup?: SocketLookup }) {
+	return initFetchAia({
+		fetchPeerCertificate: initFetchPeerCertificate({ lookup: deps.lookup }),
+		downloadIssuerBytes: initDownloadIssuerBytes({ lookup: deps.lookup }),
+		httpsGet: initHttpsGet({ lookup: deps.lookup }),
 	});
 }
 
-const defaultFetchAia = initFetchAia({ fetchPeerCertificate, downloadIssuerBytes, httpsGet });
+const defaultFetchAia = initDefaultFetchAia({});
 
 type FetchInput = Parameters<typeof fetch>[0];
 type FetchInit = Parameters<typeof fetch>[1];

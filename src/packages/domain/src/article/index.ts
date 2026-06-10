@@ -38,6 +38,7 @@ export {
 	type SaveableUrlResult,
 	type ValidateSaveableUrl,
 } from "./saveable-url";
+export { isBlockedIpAddress } from "./blocked-address";
 export { calculateReadTime } from "./estimated-read-time";
 export {
 	ReaderArticleHashId,
