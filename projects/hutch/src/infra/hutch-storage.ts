@@ -271,10 +271,10 @@ export class HutchStorage extends pulumi.ComponentResource {
 			deletionProtectionEnabled: args.deletionProtection,
 			pointInTimeRecovery: { enabled: true },
 			hashKey: "userId",
-			rangeKey: "receivedAt",
+			rangeKey: "messageId",
 			attributes: [
 				{ name: "userId", type: "S" },
-				{ name: "receivedAt", type: "S" },
+				{ name: "messageId", type: "S" },
 			],
 		}, { parent: this });
 

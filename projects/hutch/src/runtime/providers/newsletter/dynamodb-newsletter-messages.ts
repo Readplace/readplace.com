@@ -81,17 +81,13 @@ export function initDynamoDbNewsletterMessages(deps: {
 			const { items } = await table.query({
 				KeyConditionExpression: "userId = :uid",
 				ExpressionAttributeValues: { ":uid": userId },
-				ScanIndexForward: false,
 			});
-			return items.map(toSummary);
+			return items
+				.sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
+				.map(toSummary);
 		},
 		findMessage: async ({ userId, id }) => {
-			const { items } = await table.query({
-				KeyConditionExpression: "userId = :uid",
-				FilterExpression: "messageId = :mid",
-				ExpressionAttributeValues: { ":uid": userId, ":mid": id },
-			});
-			const row = items[0];
+			const row = await table.get({ userId, messageId: id });
 			return row ? toMessage(row) : undefined;
 		},
 	};
