@@ -1,16 +1,17 @@
 # Readplace Android POC
 
 A throwaway, dev-only Android app that behaves like the Readplace **browser
-extension** (and mirrors the [iOS POC](../../experiments/ios-readplace-poc)): it
-lists your saved links and lets you save new ones by **sharing a URL to it** from any
-app. When you share a link, a **share-target Activity** renders the page in a hidden
-`WebView` first and uploads the **rendered HTML** (not just the URL) via the server's
+extension** (and mirrors the [iOS POC](../ios-readplace-poc)): it lists your saved
+links and lets you save new ones by **sharing a URL to it** from any app. When you
+share a link, a **share-target Activity** renders the page in a hidden `WebView`
+first and uploads the **rendered HTML** (not just the URL) via the server's
 `save-html` Siren action — exactly what the extension and the iOS share extension do.
 
-This is a proof of concept. It is a standalone Gradle project that is **not** wired
-into the nx/pnpm workspace (it has no `package.json`/`project.json`), so it has no nx
-targets and no CI. It touches no other project, and requires **no server-side
-changes**: it reuses the existing public OAuth client and Siren API.
+This is a proof of concept. Like its iOS sibling it is registered as an nx project
+(a minimal `project.json` names it in the graph), but it declares no nx targets, so
+`pnpm check` and CI never build it — Gradle drives it directly. It touches no other
+project, and requires **no server-side changes**: it reuses the existing public
+OAuth client and Siren API.
 
 > **On Android, the "extension" is a share target.** Android has no separate
 > share-extension binary like iOS. A share target is just an `Activity` with an
@@ -29,7 +30,8 @@ changes**: it reuses the existing public OAuth client and Siren API.
 - **List** your reading list by walking the Siren API: `GET /` → `303` → `/queue`
   collection, rendering each article (title, site, excerpt, thumbnail, read state),
   with pull-to-refresh, infinite scroll via the `next` link, and delete via each
-  item's server-declared `delete` action.
+  item's server-declared `delete` action. Tapping an article opens its original URL
+  in a Custom Tab — the analogue of the iOS POC's in-app Safari view.
 - **Save by sharing**: the **share target** appears in the Android share sheet for
   shared links (delivered as `text/plain`). It loads the page in a hidden `WebView`,
   captures `document.documentElement.outerHTML`, and POSTs `{url, rawHtml, title}` to
@@ -52,6 +54,7 @@ Android SDK or emulator:
 
 ```
 projects/android-readplace-poc/
+├── project.json                 # nx registration (no targets; Gradle drives the build)
 ├── settings.gradle.kts          # includeBuild("core") + include(":app")
 ├── build.gradle.kts             # AGP + Kotlin plugins (apply false)
 ├── gradlew, gradle/wrapper/…    # Gradle wrapper (8.11.1)
@@ -68,7 +71,7 @@ projects/android-readplace-poc/
 │       │   ├── ReadplaceApi.kt      #   the Siren walker (list/save/delete)
 │       │   ├── UrlDetection.kt      #   first http(s) URL in shared text
 │       │   └── http/                #   HttpClient seam + HttpURLConnection impl
-│       └── test/kotlin/…            #   == iOS Tests/ — 44 JVM unit tests
+│       └── test/kotlin/…            #   == iOS Tests/ — 53 JVM unit tests
 └── app/                         # == iOS App/ + ShareExtension/ — Android (needs the SDK)
     └── src/main/
         ├── AndroidManifest.xml      #   MainActivity (LAUNCHER) + ShareActivity (ACTION_SEND)
@@ -98,10 +101,11 @@ cd projects/android-readplace-poc/core
 ./gradlew test
 ```
 
-This exercises the real client logic — PKCE, the OAuth flow, Siren decoding, and the
-API walker (redirect following, `401` → refresh → retry, `save-html` → `save-article`
-fallback, delete) — against a fake HTTP transport, the analogue of the iOS POC's
-`StubURLProtocol` suite. **44 tests.**
+This exercises the real client logic — PKCE, the OAuth flow, the auth-callback
+parsing, Siren decoding, URL detection, and the API walker (redirect following,
+`401` → refresh → retry, `save-html` → `save-article` fallback, delete) — against a
+fake HTTP transport, the analogue of the iOS POC's `StubURLProtocol` suite.
+**53 tests.**
 
 ### Build & install the app (needs the Android SDK)
 

@@ -8,6 +8,21 @@ plugins {
 group = "com.readplace.poc"
 version = "0.1.0"
 
+// Match the Android app's jvmTarget so its dexer never sees newer bytecode, while
+// still building on any JDK >= 17 (a toolchain pin would instead require that
+// exact JDK to be installed). Java compatibility must agree or the Kotlin
+// plugin's JVM-target validation fails the build.
+kotlin {
+	compilerOptions {
+		jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+	}
+}
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_17
+	targetCompatibility = JavaVersion.VERSION_17
+}
+
 dependencies {
 	implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
