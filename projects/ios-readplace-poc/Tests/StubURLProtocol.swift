@@ -78,6 +78,16 @@ final class StubURLProtocol: URLProtocol {
 				httpVersion: "HTTP/1.1",
 				headerFields: stub.headers
 			)!
+			// URLSession only routes a custom protocol's response through the
+			// redirect machinery (willPerformHTTPRedirection, then a fresh load
+			// of the new request) when the protocol signals wasRedirectedTo;
+			// a 3xx delivered via didReceive is treated as the final response.
+			if (300...399).contains(stub.status), let location = stub.headers["Location"],
+				let redirectURL = URL(string: location, relativeTo: url) {
+				client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: redirectURL), redirectResponse: response)
+				client?.urlProtocolDidFinishLoading(self)
+				return
+			}
 			client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
 			if !stub.body.isEmpty { client?.urlProtocol(self, didLoad: stub.body) }
 			client?.urlProtocolDidFinishLoading(self)

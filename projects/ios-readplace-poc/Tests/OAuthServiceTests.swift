@@ -18,7 +18,7 @@ final class OAuthServiceTests: XCTestCase {
 		let components = URLComponents(url: request.url, resolvingAgainstBaseURL: false)!
 		XCTAssertEqual(components.host, "readplace.com")
 		XCTAssertEqual(components.path, "/oauth/authorize")
-		let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value) })
+		let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 		XCTAssertEqual(items["client_id"], "hutch-chrome-extension")
 		XCTAssertEqual(items["redirect_uri"], "https://readplace.com/oauth/callback")
 		XCTAssertEqual(items["response_type"], "code")
