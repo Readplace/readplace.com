@@ -52,7 +52,7 @@ describe("Queue highlights routes", () => {
 		);
 	});
 
-	it("deletes a highlight and returns the empty-state fragment", async () => {
+	it("deletes via the HTMX form and returns the empty-state fragment", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(harness.server, harness.auth);
 		const id = await saveArticleAndGetId(agent, "https://example.com/highlight-delete");
@@ -65,13 +65,39 @@ describe("Queue highlights routes", () => {
 			?.getAttribute("action");
 		assert.ok(deleteUrl, "delete form action must be present");
 
-		const deleteResponse = await agent.post(deleteUrl);
+		const deleteResponse = await agent.post(deleteUrl).set("HX-Request", "true");
 		expect(deleteResponse.status).toBe(200);
 		const doc = new JSDOM(deleteResponse.text).window.document;
 		expect(doc.querySelectorAll("[data-test-highlight]")).toHaveLength(0);
 		assert(
 			doc.querySelector("[data-test-highlights-empty]"),
 			"empty state must show once the last highlight is removed",
+		);
+	});
+
+	it("redirects a plain (no-JS) form delete back to the reader view", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const id = await saveArticleAndGetId(agent, "https://example.com/highlight-delete-nojs");
+
+		const createResponse = await agent
+			.post(`/queue/${id}/highlights`)
+			.send({ quote: "delete me without js", note: "" });
+		const deleteUrl = new JSDOM(createResponse.text).window.document
+			.querySelector("[data-test-highlight-delete]")
+			?.getAttribute("action");
+		assert.ok(deleteUrl, "delete form action must be present");
+
+		const deleteResponse = await agent.post(deleteUrl);
+		expect(deleteResponse.status).toBe(303);
+		expect(deleteResponse.headers.location).toBe(`/queue/${id}/view`);
+
+		const readerResponse = await agent.get(`/queue/${id}/view`);
+		const doc = new JSDOM(readerResponse.text).window.document;
+		expect(doc.querySelectorAll("[data-test-highlight]")).toHaveLength(0);
+		assert(
+			doc.querySelector("[data-test-highlights-empty]"),
+			"reader panel must show the empty state after the redirect",
 		);
 	});
 

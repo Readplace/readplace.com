@@ -1020,11 +1020,20 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			id: HighlightIdSchema.parse(req.params.hid),
 		});
 
-		const views = await loadHighlightViews(deps.findHighlightsByArticle, {
-			userId,
-			articleId: article.id,
-		});
-		res.status(200).type("html").send(renderHighlightsList(views));
+		/** The htmx-processed form swaps the returned fragment into the list, but
+		 * the same form submitted without JS — or inserted by the client via
+		 * innerHTML, which htmx never processes — navigates the page, and a bare
+		 * fragment response would strand the user on a chrome-less page. Mirror
+		 * account.page.ts: fragment for HTMX, POST-redirect-GET otherwise. */
+		if (req.get("HX-Request") === "true") {
+			const views = await loadHighlightViews(deps.findHighlightsByArticle, {
+				userId,
+				articleId: article.id,
+			});
+			res.status(200).type("html").send(renderHighlightsList(views));
+			return;
+		}
+		res.redirect(303, `/queue/${article.id.value}/view`);
 	});
 
 	return router;
