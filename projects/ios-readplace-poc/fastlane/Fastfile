@@ -7,11 +7,15 @@ EXT_ID      = "com.readplace.ShareExtension"
 OUTPUT_NAME = "Readplace.ipa"
 
 # fastlane runs with its working directory set to the fastlane/ folder, so raw
-# file paths must be anchored to the project root (the dir holding the
-# .xcodeproj), not the current directory. Walk up to find it.
+# file paths must be anchored to the project root, not the current directory.
+# Walk up to the committed XcodeGen spec — the .xcodeproj cannot be the anchor
+# because it is generated, not committed, so it does not exist on a fresh CI
+# checkout (the beta lane itself generates it mid-run).
+SPEC = "project.yml"
 PROJECT_ROOT = begin
   dir = Dir.pwd
-  dir = File.dirname(dir) until File.exist?(File.join(dir, PROJECT)) || dir == File.dirname(dir)
+  dir = File.dirname(dir) until File.exist?(File.join(dir, SPEC)) || dir == File.dirname(dir)
+  UI.user_error!("Could not find #{SPEC} in any directory above #{Dir.pwd}") unless File.exist?(File.join(dir, SPEC))
   dir
 end
 PROJECT_PATH = File.join(PROJECT_ROOT, PROJECT)
