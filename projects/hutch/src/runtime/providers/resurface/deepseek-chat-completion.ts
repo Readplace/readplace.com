@@ -4,6 +4,12 @@ import type { CreateChatCompletion } from "../../domain/resurface/match-articles
 
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
 
+/** Must fire before the hutch SSR Lambda's 30s timeout so a slow DeepSeek call
+ * surfaces as a thrown error the route can turn into a graceful redirect,
+ * instead of the Lambda being killed mid-request. Mirrors the save-link
+ * convention of DeepSeek-client timeout < Lambda timeout. */
+const DEEPSEEK_TIMEOUT_MS = 25_000;
+
 /** Minimal view of the chat-completions response — only the message text is
  * read downstream. `content` is `.nullish()` because some completions carry a
  * null content; `message` is merely optional to match the matcher's port. */
@@ -19,7 +25,7 @@ type FetchResponse = { ok: boolean; status: number; json: () => Promise<unknown>
 
 type FetchLike = (
 	url: string,
-	init: { method: string; headers: Record<string, string>; body: string },
+	init: { method: string; headers: Record<string, string>; body: string; signal: AbortSignal },
 ) => Promise<FetchResponse>;
 
 /** Wraps DeepSeek's OpenAI-compatible `/chat/completions` endpoint as a
@@ -37,6 +43,7 @@ export function initDeepseekChatCompletion(deps: {
 				authorization: `Bearer ${deps.apiKey}`,
 			},
 			body: JSON.stringify(params),
+			signal: AbortSignal.timeout(DEEPSEEK_TIMEOUT_MS),
 		});
 		assert(response.ok, `DeepSeek request failed with status ${response.status}`);
 		return ChatCompletionResponseSchema.parse(await response.json());
