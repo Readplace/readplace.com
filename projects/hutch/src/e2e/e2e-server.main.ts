@@ -2,7 +2,7 @@ import assert from 'node:assert'
 import express from 'express'
 import { z } from 'zod'
 import { HutchLogger, consoleLogger, noopLogger } from '@packages/hutch-logger'
-import { isBlockedIpAddress, validateSaveableUrl, type ValidateSaveableUrl } from '@packages/domain/article'
+import { validateSaveableUrl, type ValidateSaveableUrl } from '@packages/domain/article'
 import { createTestApp } from '../runtime/test-app'
 import {
   createDefaultTestAppFixture,
@@ -14,7 +14,7 @@ import {
 } from '@packages/test-fixtures'
 import { requireEnv } from '../runtime/domain/require-env'
 import { initRefreshArticleIfStale } from '@packages/test-fixtures/providers/article-freshness'
-import type { ExtractPdf } from '@packages/crawl-article'
+import type { ExtractPdf, IsBlockedAddress } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initCrawlArticle, initCrawlFetch } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
 import { initReadabilityParser, mediumPreParser, theInformationPreParser } from '@packages/article-parser'
@@ -32,7 +32,13 @@ const origin = `http://127.0.0.1:${PORT}`
 const logger = HutchLogger.from(consoleLogger)
 
 const logError = (message: string, error?: Error) => console.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }))
-const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: isBlockedIpAddress })
+/** The e2e harness crawls its own fixtures, all served from the loopback server
+ * below, so block nothing — otherwise the SSRF guard refuses every loopback
+ * address. Mirrors e2eValidateSaveableUrl relaxing the string-level
+ * private-network check; the guard's lookup returns every resolved address, so
+ * undici still reaches the 127.0.0.1 listener when localhost yields ::1 first. */
+const e2eIsBlocked: IsBlockedAddress = () => false
+const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: e2eIsBlocked })
 /** Deterministic PDF extractor for the e2e harness: emits the same synthetic
  * HTML the prod vision pipeline would produce for the bundled /e2e/fixtures/sample.pdf
  * fixture, so the pdf-save-flow e2e test can pin the extension's Siren contract

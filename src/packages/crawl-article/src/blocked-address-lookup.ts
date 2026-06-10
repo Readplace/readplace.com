@@ -10,7 +10,11 @@ import dns from "node:dns";
 export type SocketLookup = (
 	hostname: string,
 	options: dns.LookupOptions,
-	callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
+	callback: (
+		err: NodeJS.ErrnoException | null,
+		address: string | dns.LookupAddress[],
+		family?: number,
+	) => void,
 ) => void;
 
 /**
@@ -65,7 +69,7 @@ export function createBlockedAddressLookup(deps: {
 	isBlocked: IsBlockedAddress;
 }): SocketLookup {
 	const { isBlocked } = deps;
-	return (hostname, _options, callback) => {
+	return (hostname, options, callback) => {
 		deps.resolve(hostname, { all: true }, (err, addresses) => {
 			if (err) {
 				callback(err, "", 0);
@@ -79,6 +83,18 @@ export function createBlockedAddressLookup(deps: {
 			const [first] = addresses;
 			if (!first) {
 				callback(noAddressError(hostname), "", 0);
+				return;
+			}
+			/** Honour the caller's `all`: undici's connector calls the lookup with
+			 * `{ all: true }` and rejects a bare string with ERR_INVALID_IP_ADDRESS,
+			 * whereas net/http2 without auto-select want `(address, family)`. Every
+			 * resolved address has cleared the block check, so handing back the whole
+			 * set stays rebinding-safe — the socket connects to a checked literal IP
+			 * and never re-resolves the host — while letting the connector pick a
+			 * reachable family (e.g. fall through ::1 → 127.0.0.1 for a v4-only
+			 * listener). */
+			if (options.all) {
+				callback(null, [...addresses]);
 				return;
 			}
 			callback(null, first.address, first.family);

@@ -24,12 +24,20 @@ function resolverFailing(err: NodeJS.ErrnoException): ResolveAll {
 	return (_hostname, _options, callback) => callback(err, []);
 }
 
-type LookupOutcome = { err: NodeJS.ErrnoException | null; address: string; family: number };
+type LookupOutcome = {
+	err: NodeJS.ErrnoException | null;
+	address: string | dns.LookupAddress[];
+	family: number | undefined;
+};
 
-function runLookup(resolve: ResolveAll, hostname: string): Promise<LookupOutcome> {
+function runLookup(
+	resolve: ResolveAll,
+	hostname: string,
+	options: dns.LookupOptions = {},
+): Promise<LookupOutcome> {
 	const lookup = createBlockedAddressLookup({ resolve, isBlocked: blocksPrivate });
 	return new Promise((done) => {
-		lookup(hostname, {}, (err, address, family) => done({ err, address, family }));
+		lookup(hostname, options, (err, address, family) => done({ err, address, family }));
 	});
 }
 
@@ -66,6 +74,22 @@ describe("createBlockedAddressLookup", () => {
 		expect(outcome.err).toBeNull();
 		expect(outcome.address).toBe("2606:4700:4700::1111");
 		expect(outcome.family).toBe(6);
+	});
+
+	it("returns every checked address in array form when options.all is set (undici's connector requires it)", async () => {
+		const outcome = await runLookup(
+			resolverReturning([
+				{ address: "93.184.216.34", family: 4 },
+				{ address: "2606:4700:4700::1111", family: 6 },
+			]),
+			"multi.test",
+			{ all: true },
+		);
+		expect(outcome.err).toBeNull();
+		expect(outcome.address).toEqual([
+			{ address: "93.184.216.34", family: 4 },
+			{ address: "2606:4700:4700::1111", family: 6 },
+		]);
 	});
 
 	it("errors when the host resolves to no addresses", async () => {
