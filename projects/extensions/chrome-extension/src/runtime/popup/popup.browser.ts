@@ -6,6 +6,7 @@ import type {
 	GuardedResult,
 	SaveUrlResult,
 	RemoveUrlResult,
+	UnlockAction,
 } from "browser-extension-core";
 import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, installShortcuts, isCmdD, initSaveProgress, initSaveProgressSequencer } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
@@ -284,6 +285,19 @@ function setListWarning(message: string | null): void {
 	}
 }
 
+// Server-driven lockout: render the message + a single button pointing at the
+// unlock destination the server chose, then stop — the save is refused.
+function showAccountLocked(message: string, action: UnlockAction): void {
+	const messageEl = document.getElementById("locked-message");
+	if (messageEl) messageEl.textContent = message;
+	const linkEl = document.getElementById("unlock-link");
+	if (linkEl instanceof HTMLAnchorElement) {
+		linkEl.textContent = action.title;
+		linkEl.href = action.href;
+	}
+	showView("locked-view");
+}
+
 async function showListView() {
 	showView("list-view");
 	setListWarning(null);
@@ -361,6 +375,10 @@ async function saveAndShowList() {
 		showView("list-view");
 		setListWarning(saveResult.value.warning?.message ?? null);
 		renderLinks(filterItems());
+	}
+
+	if (saveResult.ok && !saveResult.value.ok && saveResult.value.reason === "account-locked") {
+		showAccountLocked(saveResult.value.message, saveResult.value.action);
 	}
 }
 

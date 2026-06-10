@@ -6,6 +6,9 @@ interface SirenField {
 
 export interface SirenAction {
 	name: string;
+	/** Human-readable label a client may render (e.g. a button caption). The
+	 * `name` stays the machine contract; `title` is presentation only. */
+	title?: string;
 	href: string;
 	method: string;
 	type?: string;

@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import type { Token, Client } from "@node-oauth/oauth2-server";
+import type { UserId } from "@packages/domain/user";
 import { loginAgent, useTestServer } from "../../test-app";
+import type { TestAppHarness } from "../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import { SIREN_MEDIA_TYPE } from "../api/siren";
+import { ACCOUNT_LOCKED_CODE, UNLOCK_ACTION_NAME } from "../api/account-locked-siren";
 
 const useApp = useTestServer();
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -14,6 +19,41 @@ function fixtureClockedDaysAhead(days: number) {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	fixture.shared.now = () => new Date(Date.now() + days * DAY_MS);
 	return fixture;
+}
+
+async function createUnverifiedUser(
+	harness: TestAppHarness,
+	email: string,
+): Promise<UserId> {
+	const created = await harness.auth.createUser({ email, password: "password123" });
+	assert(created.ok, "user should be created");
+	return created.userId;
+}
+
+/** Mints a bearer access token for the extension client, the way the iOS app
+ * and browser extension authenticate — no session cookie, so the lock has to
+ * resolve from the token's user rather than the session. */
+async function mintAccessToken(
+	harness: TestAppHarness,
+	userId: UserId,
+): Promise<string> {
+	const client = await harness.oauthModel.getClient("hutch-firefox-extension", "");
+	assert(client, "test OAuth client must exist");
+	const token: Token = {
+		accessToken: `access-${userId}`,
+		accessTokenExpiresAt: new Date(Date.now() + 3600000),
+		refreshToken: `refresh-${userId}`,
+		refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
+		client: {
+			id: "hutch-firefox-extension",
+			grants: ["authorization_code", "refresh_token"],
+			redirectUris: ["http://127.0.0.1:3000/oauth/callback"],
+		} as Client,
+		user: { id: userId },
+	};
+	const saved = await harness.oauthModel.saveToken(token, client, { id: userId });
+	assert(saved, "token should be saved");
+	return saved.accessToken;
 }
 
 describe("Email verification lockout", () => {
@@ -98,5 +138,99 @@ describe("Email verification lockout", () => {
 		assert(banner, "verify banner must be rendered");
 		expect(banner.getAttribute("data-verification-state")).toBe("verified");
 		expect(banner.classList.contains("verify-banner--hidden")).toBe(true);
+	});
+});
+
+describe("Email verification lockout (Siren API)", () => {
+	it("refuses a locked account's Siren save with the unlock action", async () => {
+		const harness = useApp(fixtureClockedDaysAhead(8));
+		const userId = await createUnverifiedUser(harness, "locked-api@example.com");
+		const token = await mintAccessToken(harness, userId);
+
+		const response = await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.set("Content-Type", "application/json")
+			.send({ url: "https://example.com/article" });
+
+		expect(response.status).toBe(403);
+		expect(response.type).toContain("application/vnd.siren+json");
+		expect(response.body.class).toContain("error");
+		expect(response.body.properties.code).toBe(ACCOUNT_LOCKED_CODE);
+		expect(response.body.properties.message).toContain(
+			"readplace+verification@readplace.com",
+		);
+
+		const action = response.body.actions?.find(
+			(a: { name: string }) => a.name === UNLOCK_ACTION_NAME,
+		);
+		assert(action, "locked error must carry an unlock action");
+		expect(action.href).toBe("mailto:readplace+verification@readplace.com");
+		expect(typeof action.title).toBe("string");
+		expect(action.title.length).toBeGreaterThan(0);
+	});
+
+	it("refuses a locked account's Siren save-html write too", async () => {
+		const harness = useApp(fixtureClockedDaysAhead(8));
+		const userId = await createUnverifiedUser(harness, "locked-html@example.com");
+		const token = await mintAccessToken(harness, userId);
+
+		const response = await request(harness.server)
+			.post("/queue/save-html")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.set("Content-Type", "application/json")
+			.send({ url: "https://example.com/article", rawHtml: "<p>hi</p>" });
+
+		expect(response.status).toBe(403);
+		expect(response.body.properties.code).toBe(ACCOUNT_LOCKED_CODE);
+	});
+
+	it("keeps a locked account's Siren reads working (read-only, not a wall)", async () => {
+		const harness = useApp(fixtureClockedDaysAhead(8));
+		const userId = await createUnverifiedUser(harness, "locked-read@example.com");
+		const token = await mintAccessToken(harness, userId);
+
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`);
+
+		expect(response.status).toBe(200);
+		expect(response.body.class).toContain("collection");
+	});
+
+	it("lets an account still inside the window save via Siren", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const userId = await createUnverifiedUser(harness, "counting-down-api@example.com");
+		const token = await mintAccessToken(harness, userId);
+
+		const response = await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.set("Content-Type", "application/json")
+			.send({ url: "https://example.com/article" });
+
+		expect(response.status).toBe(201);
+		expect(response.body.class).toContain("article");
+	});
+
+	it("never locks a verified account's Siren save, even past the window", async () => {
+		const harness = useApp(fixtureClockedDaysAhead(8));
+		const userId = await createUnverifiedUser(harness, "verified-api@example.com");
+		await harness.auth.markEmailVerified("verified-api@example.com");
+		const token = await mintAccessToken(harness, userId);
+
+		const response = await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.set("Content-Type", "application/json")
+			.send({ url: "https://example.com/article" });
+
+		expect(response.status).toBe(201);
+		expect(response.body.class).toContain("article");
 	});
 });

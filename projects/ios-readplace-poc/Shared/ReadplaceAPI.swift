@@ -1,10 +1,22 @@
 import Foundation
 
+/// The destination a locked account must follow to restore access, surfaced by
+/// the server on the account-locked error: `href` is what the client opens (a
+/// mailto/URL), `title` is the button label.
+struct UnlockAction: Equatable {
+	let href: String
+	let title: String
+}
+
 enum APIError: LocalizedError {
 	case noToken
 	case unauthorized
 	case notFound
 	case server(status: Int, code: String?, message: String?)
+	/// The account is locked (email never verified within the window). Carries
+	/// the server's message and the unlock destination so the UI can show a
+	/// button rather than a generic failure.
+	case accountLocked(message: String, action: UnlockAction)
 	case decoding
 
 	var errorDescription: String? {
@@ -14,10 +26,15 @@ enum APIError: LocalizedError {
 		case .notFound: return "That item no longer exists."
 		case .server(let status, let code, let message):
 			return message ?? "Server error \(status)\(code.map { " (\($0))" } ?? "")."
+		case .accountLocked(let message, _): return message
 		case .decoding: return "Could not read the server response."
 		}
 	}
 }
+
+/// The Siren error `code` the server uses for a locked-account refusal. Stable
+/// contract shared with the browser extension; see the extension-api-design skill.
+private let accountLockedCode = "account-locked"
 
 /// One page of the reading-list collection plus the collection-level actions
 /// and pagination links the server advertised.
@@ -116,6 +133,9 @@ final class ReadplaceAPI {
 		if http.statusCode == 201 || http.statusCode == 200 {
 			return try decodeArticle(data)
 		}
+		// A locked account is refused here too — surface it (with the unlock
+		// action) rather than following the unlock action as a save fallback.
+		if let locked = accountLockedError(from: data) { throw locked }
 		if let sirenError = try? JSONDecoder().decode(SirenError.self, from: data),
 			let fallback = sirenError.actions?.first {
 			var fallbackBody: [String: String] = ["url": url]
@@ -192,10 +212,26 @@ final class ReadplaceAPI {
 
 	private func apiError(from data: Data, status: Int) -> APIError {
 		if status == 401 { return .unauthorized }
+		if let locked = accountLockedError(from: data) { return locked }
 		if let sirenError = try? JSONDecoder().decode(SirenError.self, from: data) {
 			return .server(status: status, code: sirenError.properties.code, message: sirenError.properties.message)
 		}
 		return .server(status: status, code: nil, message: nil)
+	}
+
+	/// Decodes a locked-account refusal, or nil when the body isn't one. Detected
+	/// before the generic server error (and before the save-html fallback) so the
+	/// unlock action is never mistaken for a save fallback.
+	private func accountLockedError(from data: Data) -> APIError? {
+		guard let sirenError = try? JSONDecoder().decode(SirenError.self, from: data),
+			sirenError.properties.code == accountLockedCode,
+			let action = sirenError.actions?.first,
+			let title = action.title
+		else { return nil }
+		return .accountLocked(
+			message: sirenError.properties.message,
+			action: UnlockAction(href: action.href, title: title)
+		)
 	}
 }
 

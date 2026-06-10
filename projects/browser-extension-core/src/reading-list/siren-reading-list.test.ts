@@ -69,6 +69,27 @@ function collectionResponse(entities: unknown[] = []) {
 	});
 }
 
+const LOCK_MESSAGE =
+	"Your account is locked because your email was never verified. Email readplace+verification@readplace.com to restore access.";
+
+/** The Siren error the server returns when a locked account attempts a write.
+ * The single action is the unlock destination — it must never be followed as a
+ * save fallback. */
+function accountLockedErrorBody() {
+	return JSON.stringify({
+		class: ["error"],
+		properties: { code: "account-locked", message: LOCK_MESSAGE },
+		actions: [
+			{
+				name: "unlock-account",
+				title: "Email support to unlock",
+				href: "mailto:readplace+verification@readplace.com",
+				method: "GET",
+			},
+		],
+	});
+}
+
 function articleEntity(overrides: {
 	id: string;
 	url: string;
@@ -1150,6 +1171,30 @@ describe("save-html action", () => {
 		);
 	});
 
+	it("surfaces an account-locked refusal without following the unlock action as a fallback", async () => {
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveHtmlResponse(),
+				},
+				"POST http://localhost:3000/queue/save-html": {
+					status: 403,
+					body: accountLockedErrorBody(),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveHtml(), createDeps(fetchFn));
+		const collection = await start();
+		await expect(
+			collection.actions["save-html"]({ url: "https://example.com/article", rawHtml: "<html>x</html>" }),
+		).rejects.toThrow("Account locked");
+		// The unlock action (mailto:) must never be followed as a save fallback.
+		expect(calls.filter((c) => c.startsWith("POST"))).toEqual([
+			"POST http://localhost:3000/queue/save-html",
+		]);
+	});
+
 	it("throws when the save-html error body has no actions field at all", async () => {
 		const { fetchFn } = createRoutingFetch(
 			withEntryPoint({
@@ -1586,6 +1631,34 @@ describe("save-content action", () => {
 			url: "https://example.com/article",
 			title: "My Title",
 		});
+	});
+
+	it("surfaces an account-locked refusal without following the unlock action as a fallback", async () => {
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveContentResponse(),
+				},
+				"POST http://localhost:3000/queue/save-content": {
+					status: 403,
+					body: accountLockedErrorBody(),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
+		const collection = await start();
+		const htmlBytes = new TextEncoder().encode("<html></html>");
+		await expect(
+			collection.actions["save-content"]({
+				url: "https://example.com/article",
+				mediaType: "text/html",
+				contentBase64: bytesToBase64(htmlBytes),
+			}),
+		).rejects.toThrow("Account locked");
+		expect(calls.filter((c) => c.startsWith("POST"))).toEqual([
+			"POST http://localhost:3000/queue/save-content",
+		]);
 	});
 
 	it("throws when the save-content POST fails without a fallback action", async () => {
@@ -2226,6 +2299,32 @@ describe("initSirenReadingList", () => {
 			await expect(
 				list.saveUrl({ url: "bad-url", title: "Test" }),
 			).rejects.toThrow("Save failed: 422");
+		});
+
+		it("returns an account-locked result carrying the server message and unlock action", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+					"POST http://localhost:3000/queue": {
+						status: 403,
+						body: accountLockedErrorBody(),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			const result = await list.saveUrl({
+				url: "https://example.com/article",
+				title: "Ignored",
+			});
+			assert(!result.ok, "save should be refused while the account is locked");
+			expect(result.reason).toBe("account-locked");
+			const locked = result as Extract<typeof result, { reason: "account-locked" }>;
+			expect(locked.message).toContain("readplace+verification@readplace.com");
+			expect(locked.action.href).toBe("mailto:readplace+verification@readplace.com");
+			expect(locked.action.title).toBe("Email support to unlock");
 		});
 
 		it("returns a not-saveable result with collection items when server rejects with a collection body", async () => {

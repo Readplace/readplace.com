@@ -11,6 +11,8 @@ final class ShareViewController: UIViewController {
 	private let iconView = UIImageView()
 	private let spinner = UIActivityIndicatorView(style: .large)
 	private let statusLabel = UILabel()
+	private let unlockButton = UIButton(type: .system)
+	private var lockoutAction: UnlockAction?
 
 	override func viewDidLoad() {
 		super.viewDidLoad()
@@ -41,6 +43,8 @@ final class ShareViewController: UIViewController {
 		case .noSaveAction:
 			finish(message: "The server offered no save action.",
 				symbol: "exclamationmark.triangle.fill", success: false)
+		case .accountLocked(let message, let action):
+			finishLocked(message: message, action: action)
 		case .failed(let message):
 			finish(message: message, symbol: "exclamationmark.triangle.fill", success: false)
 		}
@@ -71,7 +75,12 @@ final class ShareViewController: UIViewController {
 		statusLabel.numberOfLines = 0
 		statusLabel.textAlignment = .center
 
-		let stack = UIStackView(arrangedSubviews: [iconView, spinner, statusLabel])
+		unlockButton.translatesAutoresizingMaskIntoConstraints = false
+		unlockButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
+		unlockButton.isHidden = true
+		unlockButton.addTarget(self, action: #selector(unlockTapped), for: .touchUpInside)
+
+		let stack = UIStackView(arrangedSubviews: [iconView, spinner, statusLabel, unlockButton])
 		stack.translatesAutoresizingMaskIntoConstraints = false
 		stack.axis = .vertical
 		stack.alignment = .center
@@ -116,6 +125,28 @@ final class ShareViewController: UIViewController {
 		statusLabel.text = message
 
 		DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
+			self?.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+		}
+	}
+
+	/// Locked account: show the server's message and a button pointing at the
+	/// unlock destination, and do NOT auto-dismiss — the save was refused and the
+	/// user needs to read it and choose to act.
+	private func finishLocked(message: String, action: UnlockAction) {
+		spinner.stopAnimating()
+		spinner.isHidden = true
+		iconView.image = UIImage(systemName: "lock.fill")
+		iconView.tintColor = .systemOrange
+		iconView.isHidden = false
+		statusLabel.text = message
+		lockoutAction = action
+		unlockButton.setTitle(action.title, for: .normal)
+		unlockButton.isHidden = false
+	}
+
+	@objc private func unlockTapped() {
+		guard let action = lockoutAction, let url = URL(string: action.href) else { return }
+		extensionContext?.open(url) { [weak self] _ in
 			self?.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
 		}
 	}

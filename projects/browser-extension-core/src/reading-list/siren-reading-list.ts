@@ -11,6 +11,7 @@ import type {
 	RemoveUrl,
 	SaveUrl,
 	SaveWarning,
+	UnlockAction,
 } from "./reading-list.types";
 import { pdfContentBody, htmlContentBody, type ContentBodyBuilder } from "./content-body-parsers";
 
@@ -50,6 +51,7 @@ const SirenLinkSchema = z.object({
 
 const SirenActionSchema = z.object({
 	name: z.string(),
+	title: z.string().optional(),
 	href: z.string(),
 	method: z.string(),
 	type: z.string().optional(),
@@ -75,6 +77,37 @@ const SirenErrorSchema = z.object({
 
 type SirenAction = z.infer<typeof SirenActionSchema>;
 type SirenSubEntity = z.infer<typeof SirenSubEntitySchema>;
+
+const ACCOUNT_LOCKED_CODE = "account-locked";
+
+/** Thrown when the server refuses a save because the account is locked (its
+ * email was never verified within the window). Carries the server's message and
+ * the unlock destination so the popup can show a button instead of a generic
+ * "save failed". */
+class AccountLockedError extends Error {
+	constructor(
+		public readonly lockMessage: string,
+		public readonly action: UnlockAction,
+	) {
+		super("Account locked");
+	}
+}
+
+/** A locked-account refusal is a Siren error whose `code` is account-locked,
+ * carrying the unlock action. Detect it BEFORE the save-html/save-content
+ * fallback logic so the unlock action is never mistaken for a save fallback and
+ * followed as a fetch. */
+function throwIfAccountLocked(error: z.infer<typeof SirenErrorSchema>): void {
+	if (error.properties.code !== ACCOUNT_LOCKED_CODE) return;
+	assert(error.actions, "account-locked error must carry an unlock action");
+	const action = error.actions[0];
+	assert(action, "account-locked error must carry an unlock action");
+	assert(action.title, "account-locked unlock action must carry a title");
+	throw new AccountLockedError(error.properties.message, {
+		href: action.href,
+		title: action.title,
+	});
+}
 
 const SirenWarningSchema = z.object({
 	code: z.string(),
@@ -176,6 +209,10 @@ export function initSaveArticleUnderstanding(): Map<string, ActionHandler> {
 				 * plus the optional `properties.warning` so the popup can render
 				 * a banner explaining why nothing was saved. */
 				const body = await response.json().catch(() => null);
+				/** A locked account is refused here too — surface it as the
+				 * structured account-locked result, not a generic failure. */
+				const errorParsed = SirenErrorSchema.safeParse(body);
+				if (errorParsed.success) throwIfAccountLocked(errorParsed.data);
 				const collection = SirenCollectionResponseSchema.safeParse(body);
 				if (collection.success && collection.data.class?.includes("collection")) {
 					throw new NotSaveableError(
@@ -221,6 +258,7 @@ export function initSaveHtmlUnderstanding(): Map<string, ActionHandler> {
 				if (!errorParsed.success) {
 					throw new Error(`Save failed: ${response.status}`);
 				}
+				throwIfAccountLocked(errorParsed.data);
 				const errorActions = errorParsed.data.actions;
 				if (errorActions === undefined) {
 					throw new Error(`Save failed: ${response.status}`);
@@ -290,6 +328,7 @@ export function initSaveContentUnderstanding(deps: {
 				if (!errorParsed.success) {
 					throw new Error(`Save failed: ${response.status}`);
 				}
+				throwIfAccountLocked(errorParsed.data);
 				const errorActions = errorParsed.data.actions;
 				if (errorActions === undefined) {
 					throw new Error(`Save failed: ${response.status}`);
@@ -599,38 +638,45 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	const saveUrl: SaveUrl = async ({ url, title, content }) => {
 		const collection = await start();
 		trackItems(collection.items);
-		const saveContentAction = collection.actions["save-content"];
-		if (saveContentAction && content) {
-			const fields: Record<string, string> = {
-				url,
-				mediaType: content.mediaType,
-				contentBase64: arrayBufferToBase64(content.bytes),
-			};
-			if (title) fields.title = title;
-			const result = await saveContentAction(fields);
-			const item = result.items[0];
-			trackItems(result.items);
-			return { ok: true, item };
-		}
-		const saveHtmlAction = collection.actions["save-html"];
-		if (content?.mediaType === "text/html" && saveHtmlAction) {
-			const rawHtml = new TextDecoder().decode(content.bytes);
-			const result = await saveHtmlAction({ url, rawHtml, title });
-			const item = result.items[0];
-			trackItems(result.items);
-			return { ok: true, item };
-		}
-		const saveAction = collection.actions["save-article"];
-		assert(
-			saveAction,
-			'Expected Siren action "save-article" not found in response',
-		);
 		try {
+			const saveContentAction = collection.actions["save-content"];
+			if (saveContentAction && content) {
+				const fields: Record<string, string> = {
+					url,
+					mediaType: content.mediaType,
+					contentBase64: arrayBufferToBase64(content.bytes),
+				};
+				if (title) fields.title = title;
+				const result = await saveContentAction(fields);
+				trackItems(result.items);
+				return { ok: true, item: result.items[0] };
+			}
+			const saveHtmlAction = collection.actions["save-html"];
+			if (content?.mediaType === "text/html" && saveHtmlAction) {
+				const rawHtml = new TextDecoder().decode(content.bytes);
+				const result = await saveHtmlAction({ url, rawHtml, title });
+				trackItems(result.items);
+				return { ok: true, item: result.items[0] };
+			}
+			const saveAction = collection.actions["save-article"];
+			assert(
+				saveAction,
+				'Expected Siren action "save-article" not found in response',
+			);
 			const result = await saveAction({ url });
-			const item = result.items[0];
 			trackItems(result.items);
-			return { ok: true, item };
+			return { ok: true, item: result.items[0] };
 		} catch (err) {
+			/** A locked account is refused every save path — surface the server's
+			 * message + unlock action so the popup shows a button, not a failure. */
+			if (err instanceof AccountLockedError) {
+				return {
+					ok: false,
+					reason: "account-locked",
+					message: err.lockMessage,
+					action: err.action,
+				};
+			}
 			if (err instanceof NotSaveableError) {
 				const failure: { ok: false; reason: "not-saveable"; items: ReadingListItem[]; warning?: SaveWarning } = {
 					ok: false,

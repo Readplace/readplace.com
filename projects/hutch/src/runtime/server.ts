@@ -313,9 +313,12 @@ export function createApp(dependencies: AppDependencies): Express {
 		next();
 	});
 
-	app.use(
-		initResolveVerificationStatus({ findUserById: deps.findUserById, now: deps.now }),
-	);
+	const resolveVerificationStatus = initResolveVerificationStatus({
+		findUserById: deps.findUserById,
+		markSessionEmailVerified: deps.markSessionEmailVerified,
+		now: deps.now,
+	});
+	app.use(resolveVerificationStatus);
 
 	const markExtensionInstalled = initMarkExtensionInstalled();
 	app.use(markExtensionInstalled);
@@ -706,6 +709,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		readArticleContent: deps.readArticleContent,
 		httpErrorMessageMapping: deps.httpErrorMessageMapping,
 		dualAuth: dualAuthMiddleware,
+		resolveVerificationStatus,
 		requireWriteAccess,
 		getEffectiveAccess,
 		buildBannerState,

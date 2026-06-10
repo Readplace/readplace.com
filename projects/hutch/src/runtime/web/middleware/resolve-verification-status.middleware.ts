@@ -1,6 +1,10 @@
 import type { RequestHandler } from "express";
-import type { FindUserById } from "@packages/test-fixtures/providers/auth";
+import type {
+	FindUserById,
+	MarkSessionEmailVerified,
+} from "@packages/test-fixtures/providers/auth";
 import { computeVerificationStatus } from "../../domain/access/verification-deadline";
+import { SESSION_COOKIE_NAME } from "../auth/session-cookie";
 
 /**
  * Resolves the verification countdown/lockout standing for the current request
@@ -8,20 +12,29 @@ import { computeVerificationStatus } from "../../domain/access/verification-dead
  * lock middleware read a single computed value.
  *
  * The deadline is anchored on the user's immutable `registeredAt` rather than on
- * the session, so signing out and back in cannot reset the clock. The lookup
- * only fires for sessions that claim to be unverified — verified users and
- * guests short-circuit with no read.
+ * the session, so signing out and back in cannot reset the clock.
+ *
+ * Mounted twice: globally (for the web banner, cookie sessions) and again inside
+ * the queue router after `dualAuth` (so bearer/Siren requests from the extension
+ * and iOS resolve too — they carry no session cookie, so the global mount sees
+ * no `userId` and skips). The lookup only fires when there is something to
+ * resolve: a cookie session that claims to be unverified, or a bearer request
+ * whose verification standing is still unknown (`emailVerified === undefined`,
+ * which is not `true`). Guests, known-verified sessions, and a request already
+ * resolved upstream short-circuit with no read.
  *
  * When the authoritative user record says the email is verified but the session
  * still says otherwise (the user verified in a different session), the request
- * self-heals: `req.emailVerified` is corrected and no lockout status is set.
+ * self-heals: `req.emailVerified` is corrected and the session row is updated so
+ * later requests skip the lookup. Bearer requests carry no session to mark.
  */
 export function initResolveVerificationStatus(deps: {
 	findUserById: FindUserById;
+	markSessionEmailVerified: MarkSessionEmailVerified;
 	now: () => Date;
 }): RequestHandler {
 	return async (req, _res, next) => {
-		if (!req.userId || req.emailVerified !== false) {
+		if (!req.userId || req.emailVerified === true || req.verificationStatus) {
 			next();
 			return;
 		}
@@ -34,6 +47,8 @@ export function initResolveVerificationStatus(deps: {
 
 		if (user.emailVerified) {
 			req.emailVerified = true;
+			const sessionId = req.cookies?.[SESSION_COOKIE_NAME];
+			if (sessionId) await deps.markSessionEmailVerified(sessionId);
 			next();
 			return;
 		}

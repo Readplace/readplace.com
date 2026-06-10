@@ -1,5 +1,12 @@
 import Foundation
 
+/// A locked-account refusal surfaced to the UI: the server's message plus the
+/// unlock destination to offer as a button.
+struct AccountLockout: Equatable {
+	let message: String
+	let action: UnlockAction
+}
+
 @MainActor
 final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var articles: [Article] = []
@@ -8,6 +15,7 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var hasMore = false
 	@Published var errorText: String?
 	@Published var warningText: String?
+	@Published var lockout: AccountLockout?
 
 	private var nextHref: String?
 	private var isLoadingMore = false
@@ -74,6 +82,7 @@ final class ReadingListViewModel: ObservableObject {
 		guard !trimmed.isEmpty, let action = saveArticleAction else { return }
 		isSaving = true
 		errorText = nil
+		lockout = nil
 		do {
 			_ = try await api.saveArticle(action: action, url: trimmed)
 			await fetchFirstPage()
@@ -100,6 +109,8 @@ final class ReadingListViewModel: ObservableObject {
 		switch error {
 		case APIError.unauthorized, APIError.noToken:
 			onSessionExpired()
+		case let APIError.accountLocked(message, action):
+			lockout = AccountLockout(message: message, action: action)
 		default:
 			errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
 		}

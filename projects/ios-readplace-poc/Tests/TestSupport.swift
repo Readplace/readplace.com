@@ -140,4 +140,16 @@ enum Fixtures {
 		{ "class": ["error"], "properties": { "code": "\(code)", "message": "\(message)" }\(actions) }
 		"""
 	}
+
+	/// The locked-account refusal the server returns on a write: a message plus a
+	/// single `unlock-account` action carrying the destination + button label.
+	static func accountLockedError(
+		message: String = "Your account is locked because your email was never verified. Email readplace+verification@readplace.com to restore access.",
+		href: String = "mailto:readplace+verification@readplace.com",
+		title: String = "Email support to unlock"
+	) -> String {
+		"""
+		{ "class": ["error"], "properties": { "code": "account-locked", "message": "\(message)" }, "actions": [{ "name": "unlock-account", "title": "\(title)", "href": "\(href)", "method": "GET" }] }
+		"""
+	}
 }

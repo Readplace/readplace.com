@@ -8,6 +8,14 @@ export interface SaveWarning {
 	readonly message: string;
 }
 
+/** The destination a locked account must follow to restore access, surfaced by
+ * the server on the account-locked error. `href` is what the client opens (a
+ * mailto/URL); `title` is the button label. */
+export interface UnlockAction {
+	readonly href: string;
+	readonly title: string;
+}
+
 export type TabContent = { bytes: ArrayBuffer; mediaType: string };
 
 export type SaveUrlResult =
@@ -18,6 +26,12 @@ export type SaveUrlResult =
 			reason: "not-saveable";
 			items: ReadingListItem[];
 			warning?: SaveWarning;
+	  }
+	| {
+			ok: false;
+			reason: "account-locked";
+			message: string;
+			action: UnlockAction;
 	  };
 
 export type RemoveUrlResult =
