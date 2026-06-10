@@ -27,8 +27,11 @@ export function renderHighlightsPanel(input: HighlightsPanelInput): string {
 		noteMaxLength: MAX_HIGHLIGHT_NOTE_LENGTH,
 	}));
 	return render(HIGHLIGHTS_PANEL_TEMPLATE, {
+		// Full class string (not an interpolated suffix) so the modifier literal is
+		// visible to the unused-CSS scanner, which reads *.component.ts.
+		panelClass: items.length === 0 ? "highlights-panel highlights-panel--empty" : "highlights-panel",
 		createAction: `/queue/${input.articleId}/highlights`,
-		hasHighlights: items.length > 0,
+		count: items.length,
 		highlights: items,
 	});
 }

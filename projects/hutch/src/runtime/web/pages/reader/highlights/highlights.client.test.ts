@@ -2,9 +2,8 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import {
 	anchorFromRange,
-	buildHighlightForm,
-	initHighlights,
 	type HighlightsClientDeps,
+	initHighlights,
 	readPanelEntries,
 	selectionButtonPosition,
 	type SelectionLike,
@@ -94,7 +93,7 @@ describe("textSegmentsInRange", () => {
 describe("wrapHighlight", () => {
 	it("wraps a range in the middle of a text node, preserving surrounding text", () => {
 		const doc = bodyDoc("<p>Hello world</p>");
-		wrapHighlight(doc, doc.body, { id: "h1", start: 6, end: 8 });
+		wrapHighlight(doc, doc.body, { id: "h1", start: 6, end: 8, quote: "wo" });
 		const mark = doc.querySelector("mark.rp-highlight");
 		assert(mark, "mark must be inserted");
 		expect(mark.getAttribute("data-rp-highlight-id")).toBe("h1");
@@ -104,22 +103,30 @@ describe("wrapHighlight", () => {
 
 	it("wraps a range at the very start of a text node", () => {
 		const doc = bodyDoc("<p>Hello world</p>");
-		wrapHighlight(doc, doc.body, { id: "h1", start: 0, end: 5 });
+		wrapHighlight(doc, doc.body, { id: "h1", start: 0, end: 5, quote: "Hello" });
 		expect(doc.querySelector("mark.rp-highlight")?.textContent).toBe("Hello");
 	});
 
 	it("wraps a range at the very end of a text node", () => {
 		const doc = bodyDoc("<p>Hello world</p>");
-		wrapHighlight(doc, doc.body, { id: "h1", start: 6, end: 11 });
+		wrapHighlight(doc, doc.body, { id: "h1", start: 6, end: 11, quote: "world" });
 		expect(doc.querySelector("mark.rp-highlight")?.textContent).toBe("world");
 		expect(doc.body.textContent).toBe("Hello world");
 	});
 
 	it("wraps each crossed text node when the range spans elements", () => {
 		const doc = bodyDoc("<p>a<b>bc</b>d</p>");
-		wrapHighlight(doc, doc.body, { id: "h1", start: 0, end: 4 });
+		wrapHighlight(doc, doc.body, { id: "h1", start: 0, end: 4, quote: "abcd" });
 		expect(doc.querySelectorAll("mark.rp-highlight").length).toBe(3);
 		expect(doc.body.textContent).toBe("abcd");
+	});
+
+	it("skips the highlight when the anchored text no longer matches the stored quote", () => {
+		const doc = bodyDoc("<p>Hello world</p>");
+		// Article changed: the offsets now cover "wo", not the stored "ZZ".
+		wrapHighlight(doc, doc.body, { id: "h1", start: 6, end: 8, quote: "ZZ" });
+		expect(doc.querySelectorAll("mark.rp-highlight").length).toBe(0);
+		expect(doc.body.textContent).toBe("Hello world");
 	});
 });
 
@@ -136,43 +143,33 @@ describe("selectionButtonPosition", () => {
 	});
 });
 
-describe("buildHighlightForm", () => {
-	it("builds a POST form carrying the anchor as hidden fields", () => {
-		const doc = bodyDoc("");
-		const form = buildHighlightForm(doc, "/queue/abc/highlights", {
-			start: 1,
-			end: 4,
-			quote: "abc",
-		});
-		expect(form.method).toBe("post");
-		expect(form.getAttribute("action")).toBe("/queue/abc/highlights");
-		expect(form.querySelector<HTMLInputElement>('input[name="start"]')?.value).toBe("1");
-		expect(form.querySelector<HTMLInputElement>('input[name="end"]')?.value).toBe("4");
-		expect(form.querySelector<HTMLInputElement>('input[name="quote"]')?.value).toBe("abc");
-	});
-});
-
 describe("readPanelEntries", () => {
 	it("reads well-formed items and skips malformed ones", () => {
 		const doc = new JSDOM(`<div data-highlights-panel>
-			<div data-highlights-item data-rp-highlight-id="id1" data-rp-start="0" data-rp-end="5"></div>
-			<div data-highlights-item data-rp-highlight-id="id2" data-rp-start="bad" data-rp-end="9"></div>
-			<div data-highlights-item data-rp-start="1" data-rp-end="2"></div>
-			<div data-highlights-item data-rp-highlight-id="id4" data-rp-end="3"></div>
+			<div data-highlights-item data-rp-highlight-id="id1" data-rp-start="0" data-rp-end="5" data-rp-quote="Hello"></div>
+			<div data-highlights-item data-rp-highlight-id="id2" data-rp-start="bad" data-rp-end="9" data-rp-quote="x"></div>
+			<div data-highlights-item data-rp-start="1" data-rp-end="2" data-rp-quote="x"></div>
+			<div data-highlights-item data-rp-highlight-id="id4" data-rp-start="1" data-rp-end="2"></div>
 		</div>`).window.document;
 		const panel = doc.querySelector("[data-highlights-panel]");
 		assert(panel, "panel");
-		expect(readPanelEntries(panel)).toEqual([{ id: "id1", start: 0, end: 5 }]);
+		expect(readPanelEntries(panel)).toEqual([{ id: "id1", start: 0, end: 5, quote: "Hello" }]);
 	});
 });
+
+const CREATE_FORM = `<form data-highlights-create-form action="/queue/abc/highlights"><input type="hidden" name="start"><input type="hidden" name="end"><input type="hidden" name="quote"></form>`;
+const PANEL_WITH_HIGHLIGHT = `<div data-highlights-panel data-highlights-count="1"><div data-highlights-item data-rp-highlight-id="h1" data-rp-start="0" data-rp-end="5" data-rp-quote="Hello"></div>${CREATE_FORM}</div>`;
+const EMPTY_PANEL = `<div data-highlights-panel data-highlights-count="0">${CREATE_FORM}</div>`;
+const IFRAME = `<iframe data-reader-iframe></iframe>`;
+const ARTICLE = `<html><body class="article-body__content"><p>Hello world</p></body></html>`;
 
 interface InitHarness {
 	parent: JSDOM;
 	deps: HighlightsClientDeps;
 	submittedForms: HTMLFormElement[];
-	swapListeners: Array<() => void>;
 	setSelection: (selection: SelectionLike | null) => void;
 	fireSwap: () => void;
+	button: () => HTMLButtonElement;
 }
 
 function makeInitHarness(panelHtml: string, iframeHtml: string): InitHarness {
@@ -190,12 +187,16 @@ function makeInitHarness(panelHtml: string, iframeHtml: string): InitHarness {
 		parent,
 		deps,
 		submittedForms,
-		swapListeners,
 		setSelection: (next) => {
 			selection = next;
 		},
 		fireSwap: () => {
 			for (const listener of swapListeners) listener();
+		},
+		button: () => {
+			const el = parent.window.document.querySelector<HTMLButtonElement>(".rp-highlight-button");
+			assert(el, "highlight button must be present in the document");
+			return el;
 		},
 	};
 }
@@ -218,11 +219,6 @@ function attachInner(
 	return { iframe, innerDoc, innerDom };
 }
 
-const PANEL_WITH_HIGHLIGHT = `<div data-highlights-panel data-highlights-create-url="/queue/abc/highlights"><div data-highlights-item data-rp-highlight-id="h1" data-rp-start="0" data-rp-end="5"></div></div>`;
-const EMPTY_PANEL = `<div data-highlights-panel data-highlights-create-url="/queue/abc/highlights"></div>`;
-const IFRAME = `<iframe data-reader-iframe></iframe>`;
-const ARTICLE = `<html><body class="article-body__content"><p>Hello world</p></body></html>`;
-
 describe("initHighlights", () => {
 	it("no-ops when the reader has no highlights panel", () => {
 		const harness = makeInitHarness("", IFRAME);
@@ -230,13 +226,15 @@ describe("initHighlights", () => {
 			throw new Error("getSelection must not run without a panel");
 		};
 		const controller = initHighlights(harness.deps);
+		// No panel → inert controller: scanning and stopping are safe no-ops and the
+		// injected getSelection (which throws) is never reached.
 		controller.scan();
 		controller.stop();
 	});
 
-	it("throws when the panel is missing its create URL", () => {
-		const harness = makeInitHarness(`<div data-highlights-panel></div>`, IFRAME);
-		expect(() => initHighlights(harness.deps)).toThrow(/create-url/);
+	it("throws when the panel has no create form", () => {
+		const harness = makeInitHarness(`<div data-highlights-panel data-highlights-count="0"></div>`, IFRAME);
+		expect(() => initHighlights(harness.deps)).toThrow(/create form/);
 	});
 
 	it("applies the panel's highlights to the iframe on load and does not re-apply on a redundant scan", () => {
@@ -253,19 +251,20 @@ describe("initHighlights", () => {
 		controller.stop();
 	});
 
-	it("shows a Highlight button for a fresh selection and submits it as a form", () => {
+	it("starts with a hidden button and shows it for a fresh selection, submitting the create form", () => {
 		const harness = makeInitHarness(EMPTY_PANEL, IFRAME);
 		const { innerDoc, innerDom } = attachInner(harness.parent, ARTICLE);
 		const controller = initHighlights(harness.deps);
+
+		expect(harness.button().hidden).toBe(true);
 
 		const text = childOf(childOf(innerDoc.body));
 		harness.setSelection({ rangeCount: 1, getRangeAt: () => rangeOver(innerDoc, text, 6, 11) });
 		innerDoc.dispatchEvent(new innerDom.window.Event("mouseup"));
 
-		const button = harness.parent.window.document.querySelector<HTMLButtonElement>(".rp-highlight-button");
-		assert(button, "highlight button must appear");
+		expect(harness.button().hidden).toBe(false);
 
-		button.click();
+		harness.button().click();
 		expect(harness.submittedForms.length).toBe(1);
 		const form = harness.submittedForms[0];
 		expect(form.getAttribute("action")).toBe("/queue/abc/highlights");
@@ -273,14 +272,15 @@ describe("initHighlights", () => {
 		expect(form.querySelector<HTMLInputElement>('input[name="start"]')?.value).toBe("6");
 		expect(form.querySelector<HTMLInputElement>('input[name="end"]')?.value).toBe("11");
 
-		// A second valid selection reuses the existing button element.
+		// A second valid selection reuses the same button element.
 		harness.setSelection({ rangeCount: 1, getRangeAt: () => rangeOver(innerDoc, text, 0, 5) });
 		innerDoc.dispatchEvent(new innerDom.window.Event("mouseup"));
 		expect(harness.parent.window.document.querySelectorAll(".rp-highlight-button").length).toBe(1);
+		expect(harness.button().hidden).toBe(false);
 		controller.stop();
 	});
 
-	it("removes the button when a later selection is empty", () => {
+	it("hides the button when a later selection is empty", () => {
 		const harness = makeInitHarness(EMPTY_PANEL, IFRAME);
 		const { innerDoc, innerDom } = attachInner(harness.parent, ARTICLE);
 		const controller = initHighlights(harness.deps);
@@ -288,15 +288,15 @@ describe("initHighlights", () => {
 
 		harness.setSelection({ rangeCount: 1, getRangeAt: () => rangeOver(innerDoc, text, 6, 11) });
 		innerDoc.dispatchEvent(new innerDom.window.Event("mouseup"));
-		assert(harness.parent.window.document.querySelector(".rp-highlight-button"), "button shows first");
+		expect(harness.button().hidden).toBe(false);
 
 		harness.setSelection(null);
 		innerDoc.dispatchEvent(new innerDom.window.Event("mouseup"));
-		expect(harness.parent.window.document.querySelector(".rp-highlight-button")).toBeNull();
+		expect(harness.button().hidden).toBe(true);
 		controller.stop();
 	});
 
-	it("ignores a collapsed selection and an empty range count", () => {
+	it("keeps the button hidden for a collapsed selection and an empty range count", () => {
 		const harness = makeInitHarness(EMPTY_PANEL, IFRAME);
 		const { innerDoc, innerDom } = attachInner(harness.parent, ARTICLE);
 		const controller = initHighlights(harness.deps);
@@ -304,11 +304,11 @@ describe("initHighlights", () => {
 
 		harness.setSelection({ rangeCount: 0, getRangeAt: () => rangeOver(innerDoc, text, 6, 11) });
 		innerDoc.dispatchEvent(new innerDom.window.Event("mouseup"));
-		expect(harness.parent.window.document.querySelector(".rp-highlight-button")).toBeNull();
+		expect(harness.button().hidden).toBe(true);
 
 		harness.setSelection({ rangeCount: 1, getRangeAt: () => rangeOver(innerDoc, text, 4, 4) });
 		innerDoc.dispatchEvent(new innerDom.window.Event("mouseup"));
-		expect(harness.parent.window.document.querySelector(".rp-highlight-button")).toBeNull();
+		expect(harness.button().hidden).toBe(true);
 		controller.stop();
 	});
 
@@ -329,6 +329,7 @@ describe("initHighlights", () => {
 		assert(iframe, "iframe");
 		Object.defineProperty(iframe, "contentDocument", { value: null, configurable: true });
 		const controller = initHighlights(harness.deps);
+		expect(harness.button().hidden).toBe(true);
 		controller.stop();
 	});
 
@@ -369,7 +370,7 @@ describe("initHighlights", () => {
 		const text = childOf(childOf(innerDoc.body));
 		harness.setSelection({ rangeCount: 1, getRangeAt: () => rangeOver(innerDoc, text, 6, 11) });
 		innerDoc.dispatchEvent(new innerDom.window.Event("mouseup"));
-		expect(harness.parent.window.document.querySelector(".rp-highlight-button")).toBeNull();
+		expect(harness.button().hidden).toBe(true);
 	});
 
 	it("stops scanning after stop is called", () => {
@@ -382,6 +383,6 @@ describe("initHighlights", () => {
 		const text = childOf(childOf(innerDoc.body));
 		harness.setSelection({ rangeCount: 1, getRangeAt: () => rangeOver(innerDoc, text, 6, 11) });
 		innerDoc.dispatchEvent(new innerDom.window.Event("mouseup"));
-		expect(harness.parent.window.document.querySelector(".rp-highlight-button")).toBeNull();
+		expect(harness.button().hidden).toBe(true);
 	});
 });

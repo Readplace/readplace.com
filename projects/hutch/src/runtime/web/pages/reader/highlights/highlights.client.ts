@@ -9,10 +9,11 @@
  * `[data-highlights-panel]`) is the source of truth for which ranges to
  * re-apply on load.
  *
- * Creating a highlight is a plain form POST to `/queue/<id>/highlights`: the
- * floating "Highlight" button builds a hidden form from the live selection and
- * submits it, so the round-trip works with the same SSR pipeline as the
- * note-edit and delete forms in the panel.
+ * Creating a highlight reuses the server-rendered `[data-highlights-create-form]`
+ * in the panel: the floating "Highlight" button fills that form's fields from the
+ * live selection and submits it, so the round-trip uses the same SSR pipeline as
+ * the note-edit and delete forms — and the form's action and field names live in
+ * the template, not hardcoded here.
  */
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -21,6 +22,7 @@ function assert(condition: unknown, message: string): asserts condition {
 
 const READER_IFRAME_SELECTOR = "iframe[data-reader-iframe]";
 const PANEL_SELECTOR = "[data-highlights-panel]";
+const CREATE_FORM_SELECTOR = "[data-highlights-create-form]";
 const ITEM_SELECTOR = "[data-highlights-item]";
 const HIGHLIGHT_CLASS = "rp-highlight";
 const BUTTON_CLASS = "rp-highlight-button";
@@ -36,6 +38,7 @@ export interface HighlightEntry {
 	id: string;
 	start: number;
 	end: number;
+	quote: string;
 }
 
 export interface TextSegment {
@@ -113,11 +116,18 @@ function wrapSegment(doc: Document, segment: TextSegment, id: string): void {
 	segment.node.replaceWith(fragment);
 }
 
-/** Wraps the highlight's character range in `<mark>` elements inside `root`. */
+/**
+ * Wraps the highlight's character range in `<mark>` elements inside `root`.
+ * The range's current text is compared against the stored `quote`: if they
+ * differ — e.g. the article was re-crawled and the offsets now point at
+ * different text — the highlight is skipped rather than marking the wrong words.
+ */
 export function wrapHighlight(doc: Document, root: Node, entry: HighlightEntry): void {
 	// Capture every covered text node before mutating: each segment is a distinct
 	// node, so replacing one never invalidates the others' references.
 	const segments = textSegmentsInRange(root, entry.start, entry.end);
+	const anchoredText = segments.map((s) => s.node.data.slice(s.from, s.to)).join("");
+	if (anchoredText !== entry.quote) return;
 	for (const segment of segments) wrapSegment(doc, segment, entry.id);
 }
 
@@ -154,43 +164,26 @@ export function selectionButtonPosition(input: {
 	};
 }
 
-function appendHiddenField(form: HTMLFormElement, name: string, value: string): void {
-	const doc = form.ownerDocument;
-	const input = doc.createElement("input");
-	input.type = "hidden";
-	input.name = name;
-	input.value = value;
-	form.appendChild(input);
-}
-
-export function buildHighlightForm(
-	doc: Document,
-	createUrl: string,
-	anchor: HighlightAnchorInput,
-): HTMLFormElement {
-	const form = doc.createElement("form");
-	form.method = "POST";
-	form.action = createUrl;
-	form.style.display = "none";
-	appendHiddenField(form, "start", String(anchor.start));
-	appendHiddenField(form, "end", String(anchor.end));
-	appendHiddenField(form, "quote", anchor.quote);
-	return form;
-}
-
 export function readPanelEntries(panel: Element): HighlightEntry[] {
 	const entries: HighlightEntry[] = [];
 	for (const item of Array.from(panel.querySelectorAll(ITEM_SELECTOR))) {
 		const id = item.getAttribute("data-rp-highlight-id");
 		const startAttr = item.getAttribute("data-rp-start");
 		const endAttr = item.getAttribute("data-rp-end");
-		if (id === null || startAttr === null || endAttr === null) continue;
+		const quote = item.getAttribute("data-rp-quote");
+		if (id === null || startAttr === null || endAttr === null || quote === null) continue;
 		const start = Number(startAttr);
 		const end = Number(endAttr);
 		if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
-		entries.push({ id, start, end });
+		entries.push({ id, start, end, quote });
 	}
 	return entries;
+}
+
+function setFormValue(form: HTMLFormElement, name: string, value: string): void {
+	const input = form.querySelector<HTMLInputElement>(`[name="${name}"]`);
+	assert(input, `highlights create form is missing its ${name} field`);
+	input.value = value;
 }
 
 export function initHighlights(deps: HighlightsClientDeps): {
@@ -200,33 +193,34 @@ export function initHighlights(deps: HighlightsClientDeps): {
 	const panel = deps.document.querySelector(PANEL_SELECTOR);
 	if (panel === null) return { scan() {}, stop() {} };
 
-	const createUrlAttr = panel.getAttribute("data-highlights-create-url");
-	assert(createUrlAttr, "highlights panel must carry data-highlights-create-url");
-	const createUrl: string = createUrlAttr;
+	const createFormEl = panel.querySelector<HTMLFormElement>(CREATE_FORM_SELECTOR);
+	assert(createFormEl, "highlights panel must contain a create form");
+	const createForm: HTMLFormElement = createFormEl;
 	const entries = readPanelEntries(panel);
+
+	const button = deps.document.createElement("button");
+	button.type = "button";
+	button.className = BUTTON_CLASS;
+	button.textContent = "Highlight";
+	button.hidden = true;
+	deps.document.body.appendChild(button);
 
 	let stopped = false;
 	let boundDoc: Document | undefined;
 	let binding: { innerDoc: Document; onMouseUp: () => void } | undefined;
-	let button: HTMLButtonElement | undefined;
 
 	function hideButton(): void {
-		if (button) button.remove();
+		button.hidden = true;
 	}
 
 	function submitAnchor(anchor: HighlightAnchorInput): void {
-		const form = buildHighlightForm(deps.document, createUrl, anchor);
-		deps.document.body.appendChild(form);
-		deps.submitForm(form);
+		setFormValue(createForm, "start", String(anchor.start));
+		setFormValue(createForm, "end", String(anchor.end));
+		setFormValue(createForm, "quote", anchor.quote);
+		deps.submitForm(createForm);
 	}
 
 	function showButton(anchor: HighlightAnchorInput, range: Range, iframe: HTMLIFrameElement): void {
-		if (!button) {
-			button = deps.document.createElement("button");
-			button.type = "button";
-			button.className = BUTTON_CLASS;
-			button.textContent = "Highlight";
-		}
 		button.onclick = () => submitAnchor(anchor);
 		const selectionRect = range.getBoundingClientRect();
 		const iframeRect = iframe.getBoundingClientRect();
@@ -238,7 +232,7 @@ export function initHighlights(deps: HighlightsClientDeps): {
 		});
 		button.style.left = `${position.left}px`;
 		button.style.top = `${position.top}px`;
-		deps.document.body.appendChild(button);
+		button.hidden = false;
 	}
 
 	function onSelection(innerDoc: Document, root: Element, iframe: HTMLIFrameElement): void {

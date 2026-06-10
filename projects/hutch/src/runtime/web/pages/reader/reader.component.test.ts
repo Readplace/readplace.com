@@ -137,10 +137,9 @@ describe("ReaderPage", () => {
 		const doc = renderReaderDoc(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, highlights: [] });
 		const panel = doc.querySelector("[data-highlights-panel]");
 		assert(panel, "highlights panel must render");
-		assert.equal(
-			panel.getAttribute("data-highlights-create-url"),
-			`/queue/${articleId.value}/highlights`,
-		);
+		const createForm = panel.querySelector("[data-highlights-create-form]");
+		assert(createForm, "create form must render");
+		assert.equal(createForm.getAttribute("action"), `/queue/${articleId.value}/highlights`);
 	});
 
 	it("loads the highlights client script", () => {
@@ -162,7 +161,9 @@ describe("ReaderPage", () => {
 			},
 		];
 		const doc = renderReaderDoc(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, highlights });
-		assert.equal(doc.querySelectorAll("[data-highlights-item]").length, 1);
-		assert.equal(doc.querySelector("[data-test-highlights-empty]"), null);
+		const panel = doc.querySelector("[data-highlights-panel]");
+		assert(panel, "highlights panel must render");
+		assert.equal(panel.getAttribute("data-highlights-count"), "1");
+		assert.equal(panel.querySelectorAll("[data-highlights-item]").length, 1);
 	});
 });

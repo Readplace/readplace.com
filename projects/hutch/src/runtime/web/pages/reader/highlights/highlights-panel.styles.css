@@ -108,10 +108,23 @@
   color: var(--color-error);
 }
 
+/* The panel always renders both the list and the empty message; the
+   `--empty` modifier (set in the component when there are no highlights)
+   decides which one shows, so visibility is explicit on both sides rather
+   than relying on a template branch. */
 .highlights-panel__empty {
+  display: none;
   margin: 0;
   font-size: 0.875rem;
   color: var(--color-text-secondary);
+}
+
+.highlights-panel--empty .highlights-panel__empty {
+  display: block;
+}
+
+.highlights-panel--empty .highlights-panel__list {
+  display: none;
 }
 
 /**

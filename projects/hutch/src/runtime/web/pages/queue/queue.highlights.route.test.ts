@@ -24,6 +24,12 @@ async function viewDoc(agent: Awaited<ReturnType<typeof setupArticle>>["agent"],
 	return new JSDOM((await agent.get(`/queue/${articleId}/view`)).text).window.document;
 }
 
+function panelOf(doc: Document): Element {
+	const panel = doc.querySelector("[data-highlights-panel]");
+	assert(panel, "reader view must render the highlights panel");
+	return panel;
+}
+
 describe("Queue highlight routes", () => {
 	describe("POST /queue/:id/highlights", () => {
 		it("creates a highlight that then renders in the reader side-menu", async () => {
@@ -66,8 +72,9 @@ describe("Queue highlight routes", () => {
 				.send({ start: "5", end: "5", quote: "x" });
 
 			expect(response.status).toBe(303);
-			const doc = await viewDoc(agent, articleId);
-			expect(doc.querySelector("[data-test-highlights-empty]")).not.toBeNull();
+			const panel = panelOf(await viewDoc(agent, articleId));
+			expect(panel.getAttribute("data-highlights-count")).toBe("0");
+			expect(panel.querySelectorAll("[data-highlights-item]").length).toBe(0);
 		});
 
 		it("redirects without saving for a malformed article id", async () => {
@@ -135,9 +142,9 @@ describe("Queue highlight routes", () => {
 			);
 
 			expect(response.status).toBe(303);
-			const doc = await viewDoc(agent, articleId);
-			expect(doc.querySelector("[data-highlights-item]")).toBeNull();
-			expect(doc.querySelector("[data-test-highlights-empty]")).not.toBeNull();
+			const panel = panelOf(await viewDoc(agent, articleId));
+			expect(panel.getAttribute("data-highlights-count")).toBe("0");
+			expect(panel.querySelectorAll("[data-highlights-item]").length).toBe(0);
 		});
 
 		it("redirects without error for a malformed highlight id", async () => {

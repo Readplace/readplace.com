@@ -1,12 +1,12 @@
-<aside class="highlights-panel" data-highlights-panel data-highlights-create-url="{{createAction}}" aria-label="Highlights and notes">
+<aside class="{{panelClass}}" data-highlights-panel data-highlights-count="{{count}}" aria-label="Highlights and notes">
   <header class="highlights-panel__header">
     <h2 class="highlights-panel__title">Notes</h2>
     <p class="highlights-panel__hint" data-test-highlights-hint>Select text in the article to add a highlight.</p>
   </header>
-  {{#if hasHighlights}}
+  <p class="highlights-panel__empty" data-test-highlights-empty>No highlights yet.</p>
   <ul class="highlights-panel__list" data-test-highlights-list>
     {{#each highlights}}
-    <li class="highlights-panel__item" data-highlights-item data-rp-highlight-id="{{id}}" data-rp-start="{{start}}" data-rp-end="{{end}}">
+    <li class="highlights-panel__item" data-highlights-item data-rp-highlight-id="{{id}}" data-rp-start="{{start}}" data-rp-end="{{end}}" data-rp-quote="{{quote}}">
       <blockquote class="highlights-panel__quote" data-test-highlights-quote>{{quote}}</blockquote>
       <form class="highlights-panel__note-form" method="POST" action="{{noteAction}}">
         <label class="highlights-panel__note-label" for="rp-note-{{id}}">Note</label>
@@ -19,7 +19,9 @@
     </li>
     {{/each}}
   </ul>
-  {{else}}
-  <p class="highlights-panel__empty" data-test-highlights-empty>No highlights yet.</p>
-  {{/if}}
+  <form class="highlights-panel__create" method="POST" action="{{createAction}}" data-highlights-create-form hidden>
+    <input type="hidden" name="start">
+    <input type="hidden" name="end">
+    <input type="hidden" name="quote">
+  </form>
 </aside>

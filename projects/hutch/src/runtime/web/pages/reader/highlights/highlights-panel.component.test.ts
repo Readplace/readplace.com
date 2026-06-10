@@ -19,39 +19,51 @@ function makeHighlight(overrides: Partial<Highlight> = {}): Highlight {
 	};
 }
 
-function renderDoc(highlights: readonly Highlight[]): Document {
-	return new JSDOM(renderHighlightsPanel({ articleId, highlights })).window.document;
+function renderPanel(highlights: readonly Highlight[]): Element {
+	const doc = new JSDOM(renderHighlightsPanel({ articleId, highlights })).window.document;
+	const panel = doc.querySelector("[data-highlights-panel]");
+	assert(panel, "panel must render");
+	return panel;
 }
 
 describe("renderHighlightsPanel", () => {
-	it("exposes the create URL on the panel for the reader client", () => {
-		const panel = renderDoc([]).querySelector("[data-highlights-panel]");
-		assert(panel, "panel must render");
-		assert.equal(
-			panel.getAttribute("data-highlights-create-url"),
-			`/queue/${articleId}/highlights`,
-		);
+	it("renders a hidden create form pointing at the article's create route", () => {
+		const form = renderPanel([]).querySelector("[data-highlights-create-form]");
+		assert(form, "create form must render");
+		assert.equal(form.getAttribute("action"), `/queue/${articleId}/highlights`);
+		assert.equal(form.getAttribute("method")?.toUpperCase(), "POST");
+		for (const name of ["start", "end", "quote"]) {
+			assert(form.querySelector(`input[name="${name}"]`), `create form needs a ${name} field`);
+		}
 	});
 
-	it("renders an empty state when there are no highlights", () => {
-		const doc = renderDoc([]);
-		assert(doc.querySelector("[data-test-highlights-empty]"), "empty state must render");
-		assert.equal(doc.querySelector("[data-test-highlights-list]"), null);
+	it("marks the panel empty via count and modifier when there are no highlights", () => {
+		const panel = renderPanel([]);
+		assert.equal(panel.getAttribute("data-highlights-count"), "0");
+		assert(panel.classList.contains("highlights-panel--empty"), "empty modifier must be set");
+		assert.equal(panel.querySelectorAll("[data-highlights-item]").length, 0);
+	});
+
+	it("renders one item per highlight and is not marked empty", () => {
+		const panel = renderPanel([makeHighlight()]);
+		assert.equal(panel.getAttribute("data-highlights-count"), "1");
+		assert.equal(panel.classList.contains("highlights-panel--empty"), false);
+		assert.equal(panel.querySelectorAll("[data-highlights-item]").length, 1);
 	});
 
 	it("renders each highlight with its anchor offsets and quote", () => {
-		const doc = renderDoc([makeHighlight()]);
-		const item = doc.querySelector("[data-highlights-item]");
+		const item = renderPanel([makeHighlight()]).querySelector("[data-highlights-item]");
 		assert(item, "highlight item must render");
 		assert.equal(item.getAttribute("data-rp-highlight-id"), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 		assert.equal(item.getAttribute("data-rp-start"), "4");
 		assert.equal(item.getAttribute("data-rp-end"), "9");
+		assert.equal(item.getAttribute("data-rp-quote"), "world");
 		assert.equal(item.querySelector("[data-test-highlights-quote]")?.textContent, "world");
 	});
 
 	it("prefills the note and points the note and delete forms at the right routes", () => {
-		const doc = renderDoc([makeHighlight({ note: "a thought" })]);
-		const noteInput = doc.querySelector("textarea[name='note']");
+		const panel = renderPanel([makeHighlight({ note: "a thought" })]);
+		const noteInput = panel.querySelector("textarea[name='note']");
 		assert(noteInput, "note textarea must render");
 		assert.equal(noteInput.textContent, "a thought");
 
@@ -61,8 +73,7 @@ describe("renderHighlightsPanel", () => {
 			`/queue/${articleId}/highlights/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/note`,
 		);
 
-		const deleteButton = doc.querySelector(".highlights-panel__delete");
-		const deleteForm = deleteButton?.closest("form");
+		const deleteForm = panel.querySelector(".highlights-panel__delete")?.closest("form");
 		assert.equal(
 			deleteForm?.getAttribute("action"),
 			`/queue/${articleId}/highlights/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/delete`,
@@ -70,17 +81,17 @@ describe("renderHighlightsPanel", () => {
 	});
 
 	it("renders an empty note textarea when the highlight has no note", () => {
-		const doc = renderDoc([makeHighlight()]);
-		assert.equal(doc.querySelector("textarea[name='note']")?.textContent, "");
+		const panel = renderPanel([makeHighlight()]);
+		assert.equal(panel.querySelector("textarea[name='note']")?.textContent, "");
 	});
 
 	it("escapes user-controlled quote and note text", () => {
-		const doc = renderDoc([
+		const panel = renderPanel([
 			makeHighlight({ anchor: { start: 0, end: 6, quote: "<b>x</b>" }, note: "<img src=x>" }),
 		]);
-		const quote = doc.querySelector("[data-test-highlights-quote]");
+		const quote = panel.querySelector("[data-test-highlights-quote]");
 		assert.equal(quote?.textContent, "<b>x</b>");
-		assert.equal(quote?.querySelector("b"), null);
-		assert.equal(doc.querySelector("textarea[name='note']")?.textContent, "<img src=x>");
+		assert.equal(panel.querySelector("[data-highlights-item]")?.getAttribute("data-rp-quote"), "<b>x</b>");
+		assert.equal(panel.querySelector("textarea[name='note']")?.textContent, "<img src=x>");
 	});
 });
