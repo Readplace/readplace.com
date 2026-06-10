@@ -45,6 +45,8 @@ dependencies {
 
 	implementation("androidx.core:core-ktx:1.13.1")
 	implementation("androidx.activity:activity-compose:1.9.3")
+	// Custom Tabs: the analogue of the iOS POC's in-app SafariView for opening articles.
+	implementation("androidx.browser:browser:1.8.0")
 	implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
 	implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")

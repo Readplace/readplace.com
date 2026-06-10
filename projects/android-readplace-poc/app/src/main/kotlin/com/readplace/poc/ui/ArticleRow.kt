@@ -1,5 +1,6 @@
 package com.readplace.poc.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,11 +27,12 @@ import com.readplace.poc.core.Article
 
 /** One saved article, mirroring the iOS POC's `ArticleRow`: thumbnail, title, meta, excerpt. */
 @Composable
-fun ArticleRow(article: Article, onDelete: () -> Unit) {
+fun ArticleRow(article: Article, onOpen: () -> Unit, onDelete: () -> Unit) {
 	Card(
 		modifier = Modifier
 			.fillMaxWidth()
-			.padding(horizontal = 16.dp, vertical = 6.dp),
+			.padding(horizontal = 16.dp, vertical = 6.dp)
+			.clickable(onClick = onOpen),
 	) {
 		Row(
 			modifier = Modifier.padding(12.dp),
