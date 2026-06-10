@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import request from "supertest";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -10,7 +11,8 @@ import {
 	createNoopLogError,
 } from "@packages/test-fixtures";
 import { initReadabilityParser } from "@packages/article-parser";
-import { useTestServer, loginAgent } from "../../../test-app";
+import { useTestServer } from "../../../test-app";
+import { SESSION_COOKIE_NAME } from "../../auth/session-cookie";
 
 const ARTICLE_URL = "https://example.com/shareable";
 const ARTICLE_HTML = `
@@ -53,16 +55,24 @@ async function saveAndOpenReader(appOrigin: string): Promise<Document> {
 		},
 		shared: { ...fixture.shared, appOrigin },
 	});
-	const agent = await loginAgent(harness.server, harness.auth);
+	/** Authenticate with an explicit Cookie header instead of the agent's cookie
+	 * jar: an https appOrigin marks the session cookie Secure, and the jar
+	 * (correctly) refuses to replay Secure cookies over supertest's plain-http
+	 * connection. Cookie transport is covered by secure-cookies.route.test.ts —
+	 * this test is about share-URL rendering. */
+	const created = await harness.auth.createUser({ email: "test@example.com", password: "password123" });
+	assert(created.ok, "test user must be created");
+	const sessionId = await harness.auth.createSession({ userId: created.userId, emailVerified: true });
+	const sessionCookie = `${SESSION_COOKIE_NAME}=${sessionId}`;
 
-	await agent.post("/queue/save").type("form").send({ url: ARTICLE_URL });
-	const queueDoc = new JSDOM((await agent.get("/queue")).text).window.document;
+	await request(harness.server).post("/queue/save").set("Cookie", sessionCookie).type("form").send({ url: ARTICLE_URL });
+	const queueDoc = new JSDOM((await request(harness.server).get("/queue").set("Cookie", sessionCookie)).text).window.document;
 	const articleId = queueDoc
 		.querySelector("[data-test-article-list] .queue-article")
 		?.getAttribute("data-test-article");
 	assert(articleId, "saved article must surface in the queue");
 
-	const response = await agent.get(`/queue/${articleId}/view`);
+	const response = await request(harness.server).get(`/queue/${articleId}/view`).set("Cookie", sessionCookie);
 	expect(response.status).toBe(200);
 	return new JSDOM(response.text).window.document;
 }

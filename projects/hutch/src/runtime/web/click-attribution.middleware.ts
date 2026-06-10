@@ -1,5 +1,6 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { z } from "zod";
+import { baseCookieOptions } from "./cookie-options";
 
 export const CLICK_COOKIE_NAME = "hutch_click";
 const CLICK_COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -16,13 +17,6 @@ const ClickAttributionSchema = z.object({
 });
 
 export type ClickAttribution = z.infer<typeof ClickAttributionSchema>;
-
-const COOKIE_OPTIONS = {
-	httpOnly: true,
-	sameSite: "lax" as const,
-	path: "/",
-	maxAge: CLICK_COOKIE_MAX_AGE_MS,
-};
 
 function extractQueryString(req: Request, name: string): string | undefined {
 	const value = req.query[name];
@@ -62,7 +56,9 @@ export function readClickAttribution(req: Request): ClickAttribution | undefined
 
 export function createClickAttributionMiddleware(deps: {
 	now: () => Date;
+	secure: boolean;
 }): RequestHandler {
+	const cookieOptions = { ...baseCookieOptions(deps.secure), maxAge: CLICK_COOKIE_MAX_AGE_MS };
 	return (req: Request, res: Response, next: NextFunction) => {
 		if (req.method !== "GET") {
 			next();
@@ -93,7 +89,7 @@ export function createClickAttributionMiddleware(deps: {
 			...(referrer_host ? { referrer_host } : {}),
 		};
 
-		res.cookie(CLICK_COOKIE_NAME, JSON.stringify(attribution), COOKIE_OPTIONS);
+		res.cookie(CLICK_COOKIE_NAME, JSON.stringify(attribution), cookieOptions);
 		next();
 	};
 }

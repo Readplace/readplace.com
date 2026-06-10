@@ -1,5 +1,6 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { z } from "zod";
+import { baseCookieOptions } from "./cookie-options";
 
 export const VISITOR_COOKIE_NAME = "hutch_vid";
 
@@ -11,16 +12,6 @@ const VISITOR_COOKIE_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000;
  * raw query string at a call site. */
 const VisitorIdSchema = z.string().uuid().brand<"VisitorId">();
 export type VisitorId = z.infer<typeof VisitorIdSchema>;
-
-/** Mirrors SESSION_COOKIE_OPTIONS / the click cookie: httpOnly + sameSite=lax +
- * path=/. `secure` is intentionally omitted to match the session and click
- * cookies — TLS is terminated at CloudFront and local dev runs over HTTP. */
-const COOKIE_OPTIONS = {
-	httpOnly: true,
-	sameSite: "lax" as const,
-	path: "/",
-	maxAge: VISITOR_COOKIE_MAX_AGE_MS,
-};
 
 /**
  * A cookie that fails validation is treated as absent so the middleware mints a
@@ -35,7 +26,9 @@ export function readVisitorId(req: Request): VisitorId | undefined {
 
 export function createVisitorIdMiddleware(deps: {
 	generateVisitorId: () => string;
+	secure: boolean;
 }): RequestHandler {
+	const cookieOptions = { ...baseCookieOptions(deps.secure), maxAge: VISITOR_COOKIE_MAX_AGE_MS };
 	return (req: Request, res: Response, next: NextFunction) => {
 		const existing = readVisitorId(req);
 		if (existing) {
@@ -45,7 +38,7 @@ export function createVisitorIdMiddleware(deps: {
 		}
 		const visitorId = VisitorIdSchema.parse(deps.generateVisitorId());
 		req.visitorId = visitorId;
-		res.cookie(VISITOR_COOKIE_NAME, visitorId, COOKIE_OPTIONS);
+		res.cookie(VISITOR_COOKIE_NAME, visitorId, cookieOptions);
 		next();
 	};
 }
