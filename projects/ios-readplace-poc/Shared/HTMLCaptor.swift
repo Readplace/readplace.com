@@ -85,3 +85,9 @@ final class HTMLCaptor: NSObject, WKNavigationDelegate {
 		continuation.resume(returning: page)
 	}
 }
+
+extension HTMLCaptor: HTMLCapturing {
+	/// The orchestrator-facing capture. Passes the default timeout explicitly so
+	/// the call resolves to `capture(url:timeout:)` rather than recursing.
+	func capture(url: URL) async -> CapturedPage { await capture(url: url, timeout: 12) }
+}

@@ -99,8 +99,9 @@ projects/ios-readplace-poc/
 │   ├── SirenModels.swift        #   Siren ⇄ Article decoding
 │   ├── ReadplaceAPI.swift       #   the Siren client (list/save/delete)
 │   ├── URLDetection.swift       #   first http(s) URL in shared text
-│   └── HTMLCaptor.swift         #   WKWebView → document.documentElement.outerHTML
-└── Tests/                       # XCTest unit tests (URLProtocol-stubbed network)
+│   ├── HTMLCaptor.swift         #   WKWebView → document.documentElement.outerHTML
+│   └── SaveSharedPage.swift     #   share-save orchestration (testable, no UIKit)
+└── Tests/                       # XCTest unit + journey tests (URLProtocol-stubbed network)
 ```
 
 The `.xcodeproj` is generated from `project.yml` by
@@ -203,6 +204,15 @@ cases:
   not-found, and missing-token handling.
 - **TokenStore / URL detection**: persistence and partial-token edge cases;
   http(s)-only link extraction that ignores `mailto:`/`tel:`.
+- **Login & share-save journeys**: the two orchestration seams end-to-end through
+  the real session/API types. Sign-in — `completeSignIn` exchanging the code and
+  flipping the session to logged-in (and rejecting a state-mismatched callback
+  without exchanging the code or raising the "Signing in…" overlay), then a
+  reading-list load preserving the bearer token across the entry-point `303`.
+  Share-save — `SaveSharedPage` saving rendered HTML when it's under the cap,
+  degrading to URL-only when the capture is empty or the HTML is over the cap,
+  short-circuiting before any network call when logged out or when there's no
+  link, and reporting no-op when the server advertises no save action.
 
 ## Notes & caveats
 
