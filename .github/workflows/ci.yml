@@ -14,7 +14,10 @@ permissions:
   contents: read
 
 jobs:
-  all-tests:
+  # Lint/type/test/coverage suite for every Node project (web app, extensions,
+  # packages). The iOS suite cannot live in this job: it needs Xcode on a macOS
+  # runner and is path-gated to iOS changes (see ios-tests below).
+  web-tests:
     runs-on: ubuntu-latest
     environment: staging
     env:
@@ -207,7 +210,7 @@ jobs:
   # because other projects depend on platform resources (e.g. event bus ARN)
   deploy-platform:
     if: needs.detect-projects.outputs.platform-affected == 'true'
-    needs: [all-tests, detect-projects]
+    needs: [web-tests, detect-projects]
     uses: ./.github/workflows/project-deployment.yaml
     secrets: inherit
     with:
@@ -220,11 +223,11 @@ jobs:
     name: ${{ matrix.project }}
     if: >-
       always()
-      && needs.all-tests.result == 'success'
+      && needs.web-tests.result == 'success'
       && needs.detect-projects.result == 'success'
       && needs.deploy-platform.result != 'failure'
       && needs.detect-projects.outputs.has-non-platform == 'true'
-    needs: [all-tests, detect-projects, deploy-platform]
+    needs: [web-tests, detect-projects, deploy-platform]
     strategy:
       fail-fast: false
       matrix:
@@ -298,17 +301,17 @@ jobs:
           make test SIM="platform=iOS Simulator,id=$UDID"
 
   # Build + upload the iOS app (and its embedded share extension, in one build)
-  # to TestFlight. Independent of the infra deploy pipeline — gated on the base
+  # to TestFlight. Independent of the infra deploy pipeline — gated on the web
   # test suite passing, the iOS test bundle passing, and the iOS shipping code
   # having changed.
   ios-testflight-publish:
     if: >-
       always()
-      && needs.all-tests.result == 'success'
+      && needs.web-tests.result == 'success'
       && needs.detect-projects.result == 'success'
       && needs.ios-tests.result == 'success'
       && needs.detect-projects.outputs.ios-affected == 'true'
-    needs: [all-tests, detect-projects, ios-tests]
+    needs: [web-tests, detect-projects, ios-tests]
     permissions:
       contents: write
     uses: ./.github/workflows/publish-ios-testflight.yml
