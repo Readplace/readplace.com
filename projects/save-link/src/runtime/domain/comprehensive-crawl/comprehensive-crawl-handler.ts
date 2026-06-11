@@ -261,19 +261,19 @@ export function initComprehensiveCrawlHandler(deps: {
 					refresh: refresh ? 1 : 0,
 				});
 
-				/* Consume the spend slot exactly once per message — on the first SQS
-				 * receive. A post-budget crawl that throws is redelivered; consuming
-				 * again on each redelivery would let one persistently-failing crawl
-				 * drain the whole window through retries alone. Redeliveries skip the
-				 * gate and proceed straight to the crawl — the slot is already paid. */
-				const isFirstReceive = Number(record.attributes.ApproximateReceiveCount) === 1;
-				if (isFirstReceive) {
-					const budget = await consumePaidCrawlBudget();
-					if (!budget.allowed) {
-						logger.warn(`${logPrefix} paid-crawl budget exhausted — failing crawl gracefully`, { url });
-						await resolveBudgetExhausted({ url, refresh });
-						continue;
-					}
+				/* Consume one spend slot, keyed on the message so the gate is safe to
+				 * run on every receive: the provider claims a per-message marker in
+				 * the same transaction as the counter increment, so a redelivery of an
+				 * already-counted message re-checks the gate but adds nothing to the
+				 * counter (one persistently-failing crawl can't drain the window
+				 * through retries). A consume that errors — rather than denies —
+				 * rethrows so the gate re-runs next receive (fail closed) instead of
+				 * slipping past an exhausted budget. */
+				const budget = await consumePaidCrawlBudget({ messageId: record.messageId });
+				if (!budget.allowed) {
+					logger.warn(`${logPrefix} paid-crawl budget exhausted — failing crawl gracefully`, { url });
+					await resolveBudgetExhausted({ url, refresh });
+					continue;
 				}
 
 				/*
@@ -318,11 +318,12 @@ export function initComprehensiveCrawlHandler(deps: {
 
 				/* The pre-parse byte gate fired: a not-modified crawl did no OCR/LLM
 				 * work, so the slot it reserved before crawlArticle goes back to the
-				 * window rather than starve a genuinely-expensive crawl. Refund only
-				 * what this invocation consumed (first receive only); best-effort,
+				 * window rather than starve a genuinely-expensive crawl. Refund only a
+				 * freshly-consumed slot — never an idempotent re-consume on redelivery,
+				 * whose slot was already accounted on the first receive; best-effort,
 				 * since a failed refund merely leaves the window slightly over-counted,
 				 * which fails safe toward under-spending. */
-				if (isFirstReceive && crawlResult.status === "not-modified") {
+				if (budget.consumed && crawlResult.status === "not-modified") {
 					await refundPaidCrawlBudget().catch((error: unknown) => {
 						logger.warn(`${logPrefix} paid-crawl budget refund failed`, {
 							url,

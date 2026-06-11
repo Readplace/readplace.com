@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
+	TransactionCanceledException,
 } from "@packages/hutch-storage-client";
 import { initDynamoDbPaidCrawlBudget } from "./dynamodb-paid-crawl-budget";
 
@@ -13,9 +14,22 @@ function createFakeClient(impl: (command: unknown) => unknown): DynamoDBDocument
 	} as DynamoDBDocumentClient;
 }
 
+interface CapturedTransaction {
+	input: {
+		TransactItems?: {
+			Update?: {
+				TableName?: string;
+				Key?: Record<string, unknown>;
+				UpdateExpression?: string;
+				ConditionExpression?: string;
+				ExpressionAttributeValues?: Record<string, unknown>;
+			};
+		}[];
+	};
+}
+
 interface CapturedUpdate {
 	input: {
-		TableName?: string;
 		Key?: Record<string, unknown>;
 		UpdateExpression?: string;
 		ConditionExpression?: string;
@@ -28,8 +42,16 @@ const HOUR_BUDGET = { limit: 50, windowSeconds: 3600 };
 // 02:00:00 UTC + 600s → window start 7200.
 const midWindowNow = () => new Date(7_800_000);
 
+function cancelled(codes: (string | undefined)[]): TransactionCanceledException {
+	return new TransactionCanceledException({
+		$metadata: {},
+		message: "transaction cancelled",
+		CancellationReasons: codes.map((Code) => ({ Code })),
+	});
+}
+
 describe("initDynamoDbPaidCrawlBudget", () => {
-	it("counts one invocation against the global window with a below-budget condition and TTL", async () => {
+	it("claims the message and counts one invocation against the global window in a single transaction", async () => {
 		let received: unknown;
 		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
 			client: createFakeClient((command) => {
@@ -41,42 +63,83 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 			now: midWindowNow,
 		});
 
-		const decision = await consumePaidCrawlBudget();
+		const decision = await consumePaidCrawlBudget({ messageId: "msg-1" });
 
-		assert.deepEqual(decision, { allowed: true });
-		const command = received as CapturedUpdate;
-		assert.equal(command.input.TableName, TABLE);
-		assert.deepEqual(command.input.Key, { pk: "paid-crawl#global#7200" });
-		expect(command.input.UpdateExpression).toContain("ADD #count :one");
-		expect(command.input.ConditionExpression).toContain("#count < :limit");
-		expect(command.input.ConditionExpression).toContain(
-			"attribute_not_exists(#count)",
-		);
-		expect(command.input.ExpressionAttributeValues?.[":limit"]).toBe(50);
-		expect(command.input.ExpressionAttributeValues?.[":expiresAt"]).toBe(
-			7200 + 2 * 3600,
-		);
+		assert.deepEqual(decision, { allowed: true, consumed: true });
+		const command = received as CapturedTransaction;
+		const [claim, counter] = command.input.TransactItems ?? [];
+		assert.equal(claim?.Update?.TableName, TABLE);
+		assert.deepEqual(claim?.Update?.Key, { pk: "paid-crawl#claim#msg-1#7200" });
+		expect(claim?.Update?.ConditionExpression).toContain("attribute_not_exists(pk)");
+		assert.deepEqual(counter?.Update?.Key, { pk: "paid-crawl#global#7200" });
+		expect(counter?.Update?.UpdateExpression).toContain("ADD #count :one");
+		expect(counter?.Update?.ConditionExpression).toContain("#count < :limit");
+		expect(counter?.Update?.ConditionExpression).toContain("attribute_not_exists(#count)");
+		expect(counter?.Update?.ExpressionAttributeValues?.[":limit"]).toBe(50);
+		expect(counter?.Update?.ExpressionAttributeValues?.[":expiresAt"]).toBe(7200 + 2 * 3600);
 	});
 
-	it("blocks invocations once the window's budget is spent", async () => {
+	it("treats a rejected claim as an idempotent re-consume (redelivery): allowed but not freshly counted", async () => {
 		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
 			client: createFakeClient(() => {
-				throw new ConditionalCheckFailedException({
-					$metadata: {},
-					message: "condition failed",
-				});
+				throw cancelled(["ConditionalCheckFailed", "None"]);
 			}),
 			tableName: TABLE,
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
 		});
 
-		const decision = await consumePaidCrawlBudget();
+		const decision = await consumePaidCrawlBudget({ messageId: "msg-1" });
+
+		assert.deepEqual(decision, { allowed: true, consumed: false });
+	});
+
+	it("blocks the invocation once the window's budget is spent (counter rejected, claim fresh)", async () => {
+		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
+			client: createFakeClient(() => {
+				throw cancelled(["None", "ConditionalCheckFailed"]);
+			}),
+			tableName: TABLE,
+			rule: HOUR_BUDGET,
+			now: midWindowNow,
+		});
+
+		const decision = await consumePaidCrawlBudget({ messageId: "msg-1" });
 
 		assert.deepEqual(decision, { allowed: false });
 	});
 
-	it("rethrows non-conditional errors", async () => {
+	it("favours idempotency when a redelivery lands after the budget is also spent (both axes rejected)", async () => {
+		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
+			client: createFakeClient(() => {
+				throw cancelled(["ConditionalCheckFailed", "ConditionalCheckFailed"]);
+			}),
+			tableName: TABLE,
+			rule: HOUR_BUDGET,
+			now: midWindowNow,
+		});
+
+		const decision = await consumePaidCrawlBudget({ messageId: "msg-1" });
+
+		assert.deepEqual(decision, { allowed: true, consumed: false });
+	});
+
+	it("rethrows a transaction cancelled for a non-budget reason (e.g. throttling) so the gate re-runs (fail closed)", async () => {
+		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
+			client: createFakeClient(() => {
+				throw cancelled(["TransactionConflict", "None"]);
+			}),
+			tableName: TABLE,
+			rule: HOUR_BUDGET,
+			now: midWindowNow,
+		});
+
+		await expect(consumePaidCrawlBudget({ messageId: "msg-1" })).rejects.toThrow(
+			TransactionCanceledException,
+		);
+	});
+
+	it("rethrows non-transaction errors", async () => {
 		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
 			client: createFakeClient(() => {
 				throw new Error("throttled");
@@ -86,7 +149,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 			now: midWindowNow,
 		});
 
-		await expect(consumePaidCrawlBudget()).rejects.toThrow("throttled");
+		await expect(consumePaidCrawlBudget({ messageId: "msg-1" })).rejects.toThrow("throttled");
 	});
 
 	it("refunds a slot to the current window with an underflow-guarding condition", async () => {
