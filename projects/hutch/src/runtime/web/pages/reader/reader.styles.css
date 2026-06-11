@@ -16,7 +16,7 @@
   }
 
   .reader__layout {
-    grid-template-columns: var(--reader-max-width) 20rem;
+    grid-template-columns: minmax(0, var(--reader-max-width)) 20rem;
     justify-content: center;
   }
 
