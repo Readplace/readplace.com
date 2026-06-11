@@ -15,8 +15,8 @@ import { accountLockedSirenError } from "../api/account-locked-siren";
  *
  * The refusal is content-negotiated. The web gets the locked screen (the only
  * escape is its unguarded logout form). API clients (the browser extension and
- * iOS, on bearer tokens) get a Siren error carrying the unlock action, so they
- * can show the server's message and a button rather than an HTML page.
+ * iOS, on bearer tokens) get a Siren error carrying the server's message (which
+ * itself names the address to email), shown in place of an HTML page.
  *
  * API clients stay read-only while locked: a Siren GET (navigation, listing)
  * passes so the client can still show the user their queue, but every write is

@@ -125,8 +125,8 @@ final class ReadplaceAPI {
 		if http.statusCode == 201 || http.statusCode == 200 {
 			return try decodeArticle(data)
 		}
-		// A locked account is refused here too — surface it (with the unlock
-		// action) rather than following the unlock action as a save fallback.
+		// A locked account is refused here too. Match its account-locked code so
+		// the refusal surfaces as .accountLocked rather than a generic save error.
 		if let locked = accountLockedError(from: data) { throw locked }
 		if let sirenError = try? JSONDecoder().decode(SirenError.self, from: data),
 			let fallback = sirenError.actions?.first {
