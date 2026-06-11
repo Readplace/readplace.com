@@ -2,7 +2,7 @@ import { noopLogger } from "@packages/hutch-logger";
 import { markCrawlFailed } from "@packages/domain/article-aggregate";
 import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initSaveLinkRawHtmlCommandHandler } from "./save-link-raw-html-command-handler";
-import type { FinalizeArticle, FinalizedArticle } from "../save-link/finalize-article";
+import type { FinalizeArticle, FinalizedArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
 

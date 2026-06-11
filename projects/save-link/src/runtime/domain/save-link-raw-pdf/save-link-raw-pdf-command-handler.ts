@@ -18,7 +18,7 @@ import {
 } from "@packages/hutch-infra-components";
 import type { ParseHtml } from "@packages/article-parser";
 import { ArticleResourceUniqueId } from "../save-link/article-resource-unique-id";
-import { estimatedReadTimeFromWordCount } from "../save-link/estimated-read-time";
+import { estimatedReadTimeFromWordCount } from "@packages/finalize-article";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { ReadPendingPdf } from "../../providers/article-store/read-pending-pdf";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";

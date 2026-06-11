@@ -1,12 +1,10 @@
 import { initFetchThumbnailImage } from "@packages/crawl-article";
 import {
-	initFinalizeArticle,
-	type FinalizeArticle,
-} from "../domain/save-link/finalize-article";
-import {
-	initCrawlAndFinalizeArticle,
 	type CrawlAndFinalizeArticle,
-} from "../domain/save-link/crawl-and-finalize-article";
+	type FinalizeArticle,
+	initCrawlAndFinalizeArticle,
+	initFinalizeArticle,
+} from "@packages/finalize-article";
 import type { LogError } from "./observability";
 import type { ArticleStoreDepBundle } from "./article-store";
 import type { MediaDepBundle } from "./media";

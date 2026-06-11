@@ -21,7 +21,7 @@ import type {
 } from "@packages/provider-contracts/events";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
-import type { CrawlAndFinalizeArticle } from "../save-link/crawl-and-finalize-article";
+import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 
 /**
  * Stale-check is now a simple-only worker: PDFs flow through the same

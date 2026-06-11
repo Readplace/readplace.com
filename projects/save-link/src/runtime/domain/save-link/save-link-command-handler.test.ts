@@ -2,8 +2,11 @@ import { noopLogger } from "@packages/hutch-logger";
 import { markCrawlFailed } from "@packages/domain/article-aggregate";
 import { TierContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initSaveLinkCommandHandler } from "./save-link-command-handler";
-import type { CrawlAndFinalizeArticle, CrawlAndFinalizeResult } from "./crawl-and-finalize-article";
-import type { FinalizedArticle } from "./finalize-article";
+import type {
+	CrawlAndFinalizeArticle,
+	CrawlAndFinalizeResult,
+	FinalizedArticle,
+} from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";

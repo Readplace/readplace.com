@@ -26,7 +26,6 @@ export default {
 		"livereload",
 		// Workspace dependencies with subpath imports not detected by knip
 		"browser-extension-core",
-		"save-link",
 		// Used in app.ts (reached via infra entry point which knip ignores)
 		"@packages/hutch-infra-components",
 		"@packages/hutch-storage-client",
@@ -39,6 +38,7 @@ export default {
 		"@packages/crawl-article",
 		"@packages/domain",
 		"@packages/extract-links-from-page",
+		"@packages/finalize-article",
 		"@packages/onboarding-extension-signal",
 		"@packages/provider-contracts",
 		"@packages/refresh-article-content",
