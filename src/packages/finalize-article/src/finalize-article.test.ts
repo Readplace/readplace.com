@@ -292,6 +292,36 @@ describe("initFinalizeArticle", () => {
 		}
 	});
 
+	it("detects an extension-less bare-image capture by its single-image document shape (no extension, no mediaType) and synthesises the image article", async () => {
+		const fetched: ThumbnailImage = {
+			body: Buffer.from([0xff, 0xd8, 0xff]),
+			contentType: "image/jpeg",
+			url: "https://example.com/media/F1ab?format=jpg",
+			extension: ".jpg",
+		};
+		const parseHtml = jest.fn<ReturnType<ParseHtml>, Parameters<ParseHtml>>(throwingParseHtml);
+		const fetchThumbnailImage = jest.fn().mockResolvedValue(fetched);
+		const putImageObject: PutImageObject = jest.fn().mockResolvedValue(undefined);
+		const finalize = createFinalize({ parseHtml, fetchThumbnailImage, putImageObject });
+		const html = `<html><head><title>F1ab (638×359)</title></head><body><img src="https://example.com/media/F1ab?format=jpg"></body></html>`;
+
+		const result = await finalize({ url: "https://example.com/media/F1ab?format=jpg", html });
+
+		expect(parseHtml).not.toHaveBeenCalled();
+		expect(fetchThumbnailImage).toHaveBeenCalledWith({
+			candidates: ["https://example.com/media/F1ab?format=jpg"],
+			referer: "https://example.com/media/F1ab?format=jpg",
+		});
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.article.metadata.wordCount).toBe(0);
+			expect(result.article.metadata.title).toBe("F1ab");
+			expect(result.article.html).toMatch(
+				/^<figure><img src="https:\/\/cdn\.example\.com\/content\/.+" alt="F1ab" loading="lazy"><\/figure>$/,
+			);
+		}
+	});
+
 	it("falls back to the origin image URL when hosting the image fails (origin blocked the fetch)", async () => {
 		const finalize = createFinalize({ fetchThumbnailImage: async () => undefined });
 		const html = `<html><body><img src="https://example.com/photo.jpg"></body></html>`;

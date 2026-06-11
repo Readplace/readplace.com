@@ -1,31 +1,64 @@
+import assert from "node:assert";
+import { parseHTML } from "linkedom";
+
 /**
- * Image file extensions a browser renders as a bare image at its own URL. The
- * page URL's path must end in one before a self-referencing candidate counts as
- * a bare-image capture: a real article URL ends in a slug, an id, `.html`, or
- * nothing — never an image extension — so this guard stops an article whose
- * og:image / first `<img>` happens to resolve to its own URL from being
- * misrouted to image synthesis, which skips Readability and would silently
- * discard all the article's text. `.jpg` and `.jpeg` are both listed because
- * direct image links use either spelling.
+ * Image file extensions a browser renders as a bare image at its own URL —
+ * `.jpg` and `.jpeg` are both listed because direct image links use either
+ * spelling. A page URL whose path ends in one is unambiguously an image; the
+ * structural fallback (`isSingleImageDocument`) covers extension-less image URLs
+ * (e.g. `…/media/F1ab?format=jpg`), which carry no suffix to match.
  */
 const IMAGE_URL_EXTENSIONS = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".svg"];
 
 /**
- * True when the page is a bare image: its URL path ends in an image extension
- * *and* one of its image candidates resolves to the page URL itself — the shape
- * a browser produces when it renders a bare image URL (the document's only
- * image *is* the page). The browser-extension save path posts that captured
- * HTML with no media-type signal, so the finalizer uses this to route the save
- * to image synthesis instead of Readability, which extracts no text from an
- * image-only document and would otherwise persist an empty body.
+ * True when the captured page is a bare image and must be routed to image
+ * synthesis instead of Readability (which extracts no text from an image-only
+ * document and would persist an empty body). The browser-extension save path
+ * posts the captured HTML with no media-type signal, so this is the sole
+ * detector on that path.
+ *
+ * A capture is a bare image when one of its image candidates resolves to the
+ * page URL itself — the page *is* one of its own images, the shape a browser
+ * produces when it renders a bare image URL — AND either:
+ *   - the page URL's path ends in a known image extension, or
+ *   - the captured document is structurally a single image with no body text
+ *     (`isSingleImageDocument`) — the native image-viewer shape, which detects
+ *     extension-less direct images that carry no suffix to match.
+ *
+ * The self-reference alone is not enough: a real article whose og:image happens
+ * to equal its own URL would be misrouted, silently discarding all its text. The
+ * extra signal prevents that — an article's URL has no image extension and its
+ * document carries body text, so it fails both branches.
  *
  * `candidates` are the absolute image URLs already extracted by
  * `extractThumbnailCandidates`, so each is a valid http(s) URL and `new URL`
  * cannot throw here.
  */
-export function isBareImageCapture(params: { candidates: readonly string[]; url: string }): boolean {
+export function isBareImageCapture(params: {
+	html: string;
+	candidates: readonly string[];
+	url: string;
+}): boolean {
 	const { pathname, href: pageHref } = new URL(params.url);
-	const path = pathname.toLowerCase();
-	if (!IMAGE_URL_EXTENSIONS.some((extension) => path.endsWith(extension))) return false;
-	return params.candidates.some((candidate) => new URL(candidate).href === pageHref);
+	const selfReferencing = params.candidates.some((candidate) => new URL(candidate).href === pageHref);
+	if (!selfReferencing) return false;
+	const pathEndsInImageExtension = IMAGE_URL_EXTENSIONS.some((extension) =>
+		pathname.toLowerCase().endsWith(extension),
+	);
+	return pathEndsInImageExtension || isSingleImageDocument(params.html);
+}
+
+/**
+ * Whether the document's only content is a single image: exactly one `<img>` and
+ * no body text. This is the shape a browser renders for a direct image URL — the
+ * dimensions shown in the tab title live in `<head>`, not the body. A real
+ * article fails it (it carries body text, and usually more than one image), so
+ * using it as a positive signal cannot strip the text from an article.
+ */
+function isSingleImageDocument(html: string): boolean {
+	const { document } = parseHTML(html);
+	if (document.querySelectorAll("img").length !== 1) return false;
+	const bodyText = document.body.textContent;
+	assert(bodyText !== null, "linkedom's <body> always exposes textContent");
+	return bodyText.trim() === "";
 }

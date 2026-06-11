@@ -88,7 +88,7 @@ export function initFinalizeArticle(deps: {
 		 * concerns, negligible overhead on article-sized documents. */
 		const candidates = extractThumbnailCandidates({ html: input.html, baseUrl: input.url });
 
-		if (input.mediaType === "image" || isBareImageCapture({ candidates, url: input.url })) {
+		if (input.mediaType === "image" || isBareImageCapture({ html: input.html, candidates, url: input.url })) {
 			return finalizeImageArticle({
 				url: input.url,
 				candidates,
@@ -159,9 +159,10 @@ export function initFinalizeArticle(deps: {
  * (reusing the pre-fetched bytes when the crawler already has them, else
  * fetching the bare-image candidate) and store an `<img>` body. The title is
  * the image filename; word count is zero, so the summary step skips and the
- * reader renders the image directly. When the image fetch/upload fails the
- * body falls back to the origin URL so the reader still shows something rather
- * than the empty-content dead-end.
+ * reader renders the image directly. When the image *fetch* fails (the origin
+ * blocked the hotlink) the body falls back to the origin URL so the reader
+ * still shows something rather than the empty-content dead-end; an upload
+ * failure propagates and fails the save, like the HTML path.
  */
 async function finalizeImageArticle(args: {
 	url: string;

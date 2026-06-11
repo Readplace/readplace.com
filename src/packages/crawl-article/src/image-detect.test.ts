@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { MAX_THUMBNAIL_BYTES } from "./extract-thumbnail";
 import { isSupportedImageContentType, MAX_IMAGE_BYTES } from "./image-detect";
 
 describe("isSupportedImageContentType", () => {
@@ -33,7 +34,12 @@ describe("isSupportedImageContentType", () => {
 });
 
 describe("MAX_IMAGE_BYTES", () => {
-	it("matches the 5 MB thumbnail budget", () => {
+	it("reuses the thumbnail cap so the primary-image and thumbnail budgets cannot drift", () => {
+		assert.equal(MAX_IMAGE_BYTES.bytes, MAX_THUMBNAIL_BYTES);
+	});
+
+	it("documents the budget as 5 MB", () => {
 		assert.equal(MAX_IMAGE_BYTES.bytes, 5 * 1024 * 1024);
+		assert.equal(MAX_IMAGE_BYTES.label, "5 MB");
 	});
 });

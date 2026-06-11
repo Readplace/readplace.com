@@ -1,3 +1,5 @@
+import { MAX_THUMBNAIL_BYTES } from "./extract-thumbnail";
+
 /**
  * The image content-types the crawler turns into an `<img>` article. Raster
  * formats plus SVG — all of which a browser renders through a plain `<img>`.
@@ -12,11 +14,11 @@ const SUPPORTED_IMAGE_CONTENT_TYPES = new Set([
 ]);
 
 /**
- * Cap on the image body the crawler will store as an article. Mirrors the
- * thumbnail cap in `extract-thumbnail.ts` so a primary image and an article
- * thumbnail share one size budget; oversize bodies fall back to `unsupported`.
+ * Cap on the image body the crawler will store as an article. Reuses
+ * `MAX_THUMBNAIL_BYTES` so a primary image and an article thumbnail share one
+ * size budget that cannot drift; oversize bodies fall back to `unsupported`.
  */
-export const MAX_IMAGE_BYTES = { bytes: 5 * 1024 * 1024, label: "5 MB" } as const;
+export const MAX_IMAGE_BYTES = { bytes: MAX_THUMBNAIL_BYTES, label: "5 MB" } as const;
 
 /**
  * Whether the `Content-Type` names an image the reader can display. Classified
