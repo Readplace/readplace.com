@@ -18,3 +18,6 @@ export type MarkSummaryPending = (params: { url: string }) => Promise<void>;
  * cached "ready" row. Clears any prior summaryFailureReason.
  */
 export type ForceMarkSummaryPending = (params: { url: string }) => Promise<void>;
+
+export const MAX_SUMMARY_LENGTH = 750;
+export const MAX_EXCERPT_LENGTH = 160;

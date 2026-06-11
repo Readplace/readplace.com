@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import request from "supertest";
 import { JSDOM } from "jsdom";
-import { MAX_SUMMARY_LENGTH } from "save-link/generate-summary";
+import { MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary";
 import { useTestServer } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,

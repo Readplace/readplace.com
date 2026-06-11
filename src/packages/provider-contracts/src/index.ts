@@ -1,7 +1,7 @@
 export type * from "./article-crawl";
 export type * from "./article-freshness";
 export type * from "./article-store";
-export type * from "./article-summary";
+export * from "./article-summary";
 export type * from "./auth";
 export type * from "./email";
 export type * from "./email-verification";
