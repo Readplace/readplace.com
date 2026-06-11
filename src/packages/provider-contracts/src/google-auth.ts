@@ -1,4 +1,6 @@
-export type GoogleId = string & { readonly __brand: "GoogleId" };
+import type { $brand } from "zod";
+
+export type GoogleId = string & $brand<"GoogleId">;
 
 export interface GoogleTokenResult {
 	googleId: GoogleId;

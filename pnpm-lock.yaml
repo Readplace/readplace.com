@@ -834,6 +834,9 @@ importers:
       '@packages/domain':
         specifier: workspace:*
         version: link:../domain
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       concurrently:
         specifier: 10.0.0
