@@ -8,6 +8,7 @@ import type { CrawlFetch } from "./crawl-fetch";
 import { extractThumbnailCandidates, initFetchThumbnailImage } from "./extract-thumbnail";
 import { headerOrUndefined } from "./header-utils";
 import { classifyMediaType } from "./media-type";
+import { parseImageFromBuffer } from "./parse-image";
 import { parsePlainTextFromBuffer } from "./parse-plain-text";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
 import type { ExtractPdf } from "./pdf-extract.types";
@@ -218,6 +219,8 @@ export async function parsePdfFromBuffer(input: {
  *     construct this without `extractPdf`, so a PDF body returns `unsupported`
  *     and the save-link orchestrator hands the URL to the comprehensive Lambda.
  *   - Plain text → `parsePlainTextFromBuffer` (wrapped as minimal HTML).
+ *   - Image → `parseImageFromBuffer` (bytes carried for the finalizer to host;
+ *     tagged `mediaType:"image"` so the finalizer skips Readability).
  *   - Unrecognised content type → `unsupported`.
  *
  * Adding a media type is a one-line edit to `MEDIA_TYPE_MATCHERS`; the new
@@ -281,6 +284,15 @@ export function initCrawlArticle(deps: {
 				});
 			case "plain-text":
 				return parsePlainTextFromBuffer({ buffer, bodyHash, response, url: params.url });
+			case "image":
+				return parseImageFromBuffer({
+					buffer,
+					bodyHash,
+					response,
+					url: params.url,
+					contentType,
+					logError,
+				});
 		}
 	};
 }

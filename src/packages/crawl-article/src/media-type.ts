@@ -1,3 +1,4 @@
+import { isSupportedImageContentType } from "./image-detect";
 import { isPDF } from "./pdf-detect";
 
 /**
@@ -37,6 +38,7 @@ const MEDIA_TYPE_MATCHERS = [
 			contentType.includes("text/html") || contentType.includes("application/xhtml+xml"),
 	},
 	{ kind: "plain-text", matches: ({ contentType }) => contentType.includes("text/plain") },
+	{ kind: "image", matches: ({ contentType }) => isSupportedImageContentType(contentType) },
 ] as const satisfies readonly MediaTypeMatcher[];
 
 type SupportedMediaType = (typeof MEDIA_TYPE_MATCHERS)[number]["kind"];

@@ -148,6 +148,36 @@ describe("initCrawlAndFinalizeArticle", () => {
 			url: URL_UNDER_TEST,
 			html: "<html></html>",
 			preFetchedThumbnail: preFetched,
+			mediaType: undefined,
+		});
+	});
+
+	it("threads the crawler's mediaType:image into finalizeArticle so the body is synthesised as an image", async () => {
+		const imageBytes: ThumbnailImage = {
+			body: Buffer.from([0xff, 0xd8, 0xff]),
+			contentType: "image/jpeg",
+			url: "https://example.com/photo.jpg",
+			extension: ".jpg",
+		};
+		const finalizeArticle = jest.fn(okFinalize);
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({
+			crawlArticle: async () => ({
+				status: "fetched",
+				mediaType: "image",
+				html: '<figure><img src="https://example.com/photo.jpg" alt=""></figure>',
+				thumbnailImage: imageBytes,
+				bodyHash: "a".repeat(64),
+			}),
+			finalizeArticle,
+		});
+
+		await crawlAndFinalize({ url: URL_UNDER_TEST });
+
+		expect(finalizeArticle).toHaveBeenCalledWith({
+			url: URL_UNDER_TEST,
+			html: '<figure><img src="https://example.com/photo.jpg" alt=""></figure>',
+			preFetchedThumbnail: imageBytes,
+			mediaType: "image",
 		});
 	});
 

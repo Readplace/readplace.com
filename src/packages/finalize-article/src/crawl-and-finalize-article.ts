@@ -65,6 +65,7 @@ export function initCrawlAndFinalizeArticle(deps: {
 			url: params.url,
 			html: crawlResult.html,
 			preFetchedThumbnail: crawlResult.thumbnailImage,
+			mediaType: crawlResult.mediaType,
 		});
 		if (!finalized.ok) return { status: "failed", reason: finalized.reason };
 

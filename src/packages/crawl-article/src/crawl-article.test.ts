@@ -258,6 +258,31 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		expect(extractPdf).not.toHaveBeenCalled();
 	});
 
+	it("dispatches an image content-type to the image path, carrying the bytes and tagging mediaType:image", async () => {
+		const imageBytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>();
+		const fakeFetch: typeof fetch = async () =>
+			new Response(imageBytes, {
+				status: 200,
+				headers: { "content-type": "image/jpeg", etag: '"img-1"' },
+			});
+		const crawlArticle = initCrawl({ fetch: fakeFetch, extractPdf });
+
+		const result = await crawlArticle({ url: "https://example.com/photo.jpg" });
+
+		assertFetched(result);
+		expect(result.mediaType).toBe("image");
+		expect(result.thumbnailImage).toEqual({
+			body: imageBytes,
+			contentType: "image/jpeg",
+			url: "https://example.com/photo.jpg",
+			extension: ".jpg",
+		});
+		expect(result.html).toBe('<figure><img src="https://example.com/photo.jpg" alt=""></figure>');
+		expect(result.etag).toBe('"img-1"');
+		expect(extractPdf).not.toHaveBeenCalled();
+	});
+
 	it("returns failed and logs the HTTP status on a non-ok, non-304 response", async () => {
 		const fakeFetch: typeof fetch = async () => new Response(null, { status: 500 });
 		const logError = jest.fn();
