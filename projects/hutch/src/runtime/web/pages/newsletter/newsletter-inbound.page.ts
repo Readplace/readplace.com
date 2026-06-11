@@ -26,6 +26,7 @@ interface NewsletterInboundRouteDeps extends SaveArticleFromUrlDependencies {
 	newsletterMessageStore: NewsletterMessageStore;
 	fetchInboundEmail: FetchInboundEmail;
 	getEffectiveAccess: GetEffectiveAccess;
+	logError: (message: string, error?: Error) => void;
 	inboxDomain: string;
 	inboundSigningSecret: string;
 	now: () => Date;
@@ -127,14 +128,37 @@ export function initNewsletterInboundRoutes(deps: NewsletterInboundRouteDeps): R
 				}
 				for (let i = 0; i < saveable.length; i += NEWSLETTER_SAVE_CONCURRENCY) {
 					const batch = saveable.slice(i, i + NEWSLETTER_SAVE_CONCURRENCY);
+					/** Isolate each save the way file import does. A single link that
+					 * throws (DynamoDB throttle, SQS/EventBridge hiccup) must not reject
+					 * the whole batch: that would leave the message unrecorded and make
+					 * Resend retry the event, re-saving the links that already succeeded.
+					 * Failures are logged and counted as skipped so the handler always
+					 * records the message and returns 200. */
 					const results = await Promise.all(
-						batch.map(async (url) => {
-							const freshness = await deps.refreshArticleIfStale({ url });
-							const { saved } = await saveArticleFromUrl(deps, { userId, url, freshness });
-							return { url, articleId: saved.id };
-						}),
+						batch.map((url) =>
+							deps
+								.refreshArticleIfStale({ url })
+								.then((freshness) => saveArticleFromUrl(deps, { userId, url, freshness }))
+								.then(({ saved }): NewsletterMessageLink | undefined => ({
+									url,
+									articleId: saved.id,
+								}))
+								.catch((error: unknown): NewsletterMessageLink | undefined => {
+									deps.logError(
+										`Failed to save newsletter link url=${url}`,
+										error instanceof Error ? error : undefined,
+									);
+									return undefined;
+								}),
+						),
 					);
-					savedLinks.push(...results);
+					for (const link of results) {
+						if (link) {
+							savedLinks.push(link);
+						} else {
+							skippedCount += 1;
+						}
+					}
 				}
 			}
 

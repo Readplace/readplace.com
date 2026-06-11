@@ -907,6 +907,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		newsletterMessageStore: deps.newsletterMessageStore,
 		fetchInboundEmail: deps.fetchInboundEmail,
 		getEffectiveAccess,
+		logError: deps.logError,
 		inboxDomain: deps.newsletterInboxDomain,
 		inboundSigningSecret: deps.resendInboundSigningSecret,
 		saveArticle: deps.saveArticle,

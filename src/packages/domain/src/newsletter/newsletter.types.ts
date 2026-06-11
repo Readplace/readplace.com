@@ -30,7 +30,8 @@ export interface NewsletterMessage {
 	/** The original message body, rendered verbatim in a sandboxed iframe. */
 	readonly html: string;
 	readonly savedLinks: readonly NewsletterMessageLink[];
-	/** Links found in the body that failed save-ability validation. */
+	/** Links found in the body that were not added to the queue — either they
+	 * failed save-ability validation or the save itself errored. */
 	readonly skippedCount: number;
 }
 

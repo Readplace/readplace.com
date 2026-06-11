@@ -251,4 +251,39 @@ describe("Newsletter inbound webhook", () => {
 		expect(list[0].subject).toBe("Weekly digest");
 		expect(list[0].savedCount).toBe(0);
 	});
+
+	it("isolates a single link's save failure, saving the rest and recording the message", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp({
+			...fixture,
+			freshness: {
+				refreshArticleIfStale: async (params) => {
+					if (params.url === "https://example.com/boom") {
+						throw new Error("save boom");
+					}
+					return fixture.freshness.refreshArticleIfStale(params);
+				},
+			},
+		});
+		const { userId, address } = await setupInbox(harness, fixture);
+		fixture.newsletter.seedInboundEmail("email-partial-failure", {
+			html: '<a href="https://example.com/boom">Boom</a> and <a href="https://example.com/ok">OK</a>',
+		});
+
+		const response = await postWebhook(
+			harness,
+			fixture,
+			receivedEvent({ to: address, emailId: "email-partial-failure", subject: "Weekly digest" }),
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.body).toEqual({ status: "processed", saved: 1, skipped: 1 });
+
+		const { articles } = await fixture.articleStore.findArticlesByUser({ userId });
+		expect(articles.map((article) => article.url)).toEqual(["https://example.com/ok"]);
+
+		const list = await fixture.newsletter.messageStore.listMessages(userId);
+		expect(list).toHaveLength(1);
+		expect(list[0].savedCount).toBe(1);
+	});
 });
