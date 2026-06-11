@@ -1,5 +1,5 @@
 .reader {
-  max-width: min(76rem, 100%);
+  max-width: var(--reader-max-width);
   margin: 0 auto;
   padding: 2rem 1rem 4rem;
 }
@@ -11,6 +11,10 @@
 }
 
 @media (min-width: 64rem) {
+  .reader {
+    max-width: min(76rem, 100%);
+  }
+
   .reader__layout {
     grid-template-columns: var(--reader-max-width) 20rem;
     justify-content: center;
