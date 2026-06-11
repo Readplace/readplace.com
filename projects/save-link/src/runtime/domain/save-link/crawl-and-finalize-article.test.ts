@@ -38,6 +38,18 @@ describe("initCrawlAndFinalizeArticle", () => {
 		}));
 	});
 
+	it("fails closed without fetching when the stored URL no longer passes validateSaveableUrl (SSRF defence-in-depth)", async () => {
+		const crawlArticle = jest.fn<Promise<CrawlArticleResult>, Parameters<CrawlArticle>>();
+		const finalizeArticle = jest.fn(okFinalize);
+		const crawlAndFinalize = initCrawlAndFinalizeArticle({ crawlArticle, finalizeArticle });
+
+		const result = await crawlAndFinalize({ url: "http://169.254.169.254/latest/meta-data/" });
+
+		expect(result).toEqual({ status: "failed", reason: "unsafe-url" });
+		expect(crawlArticle).not.toHaveBeenCalled();
+		expect(finalizeArticle).not.toHaveBeenCalled();
+	});
+
 	it("forwards previousBodyHash through to the crawler so the byte-gate fires when the origin returns the same body under 200 OK", async () => {
 		const crawlArticle = jest.fn<Promise<CrawlArticleResult>, Parameters<CrawlArticle>>(async () => ({
 			status: "not-modified",

@@ -1,4 +1,5 @@
 import type { CrawlArticle } from "@packages/crawl-article";
+import { validateSaveableUrl } from "@packages/domain/article";
 import type { FinalizeArticle, FinalizedArticle } from "./finalize-article";
 
 export type CrawlAndFinalizeResult =
@@ -37,6 +38,13 @@ export function initCrawlAndFinalizeArticle(deps: {
 }): CrawlAndFinalizeArticle {
 	const { crawlArticle, finalizeArticle } = deps;
 	return async (params) => {
+		/** Defence-in-depth: validation runs at the web boundary, but the async
+		 * workers re-fetch a stored URL, so re-check here and fail closed before
+		 * any network call rather than trusting that intake validated it. */
+		if (validateSaveableUrl(params.url).status === "ERROR") {
+			return { status: "failed", reason: "unsafe-url" };
+		}
+
 		const crawlResult = await crawlArticle({
 			url: params.url,
 			etag: params.etag,

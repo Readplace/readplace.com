@@ -8,6 +8,7 @@ import {
 	initCrawlFetch,
 	CRAWL_PERSONAS,
 } from "@packages/crawl-article";
+import { isBlockedIpAddress } from "@packages/domain/article";
 import {
 	initReadabilityParser,
 	mediumPreParser,
@@ -38,6 +39,7 @@ export function initParserDepBundle(deps: {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,
 		personas: CRAWL_PERSONAS,
+		isBlocked: isBlockedIpAddress,
 	});
 	const crawlArticle = initCrawlArticle({ crawlFetch, logError: deps.logError });
 	const { parseHtml } = initReadabilityParser({
@@ -68,6 +70,7 @@ export function initComprehensiveParserDepBundle(deps: {
 	const crawlFetch = initCrawlFetch({
 		fetch: globalThis.fetch,
 		personas: CRAWL_PERSONAS,
+		isBlocked: isBlockedIpAddress,
 	});
 	const crawlArticle = initCrawlArticle({
 		crawlFetch,

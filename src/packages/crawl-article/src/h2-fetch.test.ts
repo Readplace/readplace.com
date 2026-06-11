@@ -1,7 +1,13 @@
 import http2 from "node:http2";
 import type { AddressInfo } from "node:net";
-import type { fetchCurl } from "./curl-fetch";
+import type { CurlFetch } from "./curl-fetch";
 import { fetchH2, withH2Fallback } from "./h2-fetch";
+
+/** withH2Fallback now requires an explicit curl impl. Tests whose path never
+ * reaches curl pass this throwing stub so an accidental invocation fails loud. */
+const stubCurl: CurlFetch = async () => {
+	throw new Error("stubCurl: not expected to be called");
+};
 
 type StreamHandler = (stream: http2.ServerHttp2Stream, headers: http2.IncomingHttpHeaders) => void;
 
@@ -116,7 +122,7 @@ describe("withH2Fallback", () => {
 		const baseFetch: typeof fetch = async () =>
 			new Response("<html></html>", { status: 200, headers: { "content-type": "text/html" } });
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>();
-		const wrapped = withH2Fallback(baseFetch, h2Impl);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, stubCurl);
 
 		const response = await wrapped("https://example.com");
 
@@ -131,7 +137,7 @@ describe("withH2Fallback", () => {
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
 			new Response("<html>h2 bypassed snooserv</html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
-		const wrapped = withH2Fallback(baseFetch, h2Impl);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, stubCurl);
 
 		const response = await wrapped("https://example.com");
 
@@ -149,7 +155,7 @@ describe("withH2Fallback", () => {
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
 			new Response("<html>real</html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
-		const wrapped = withH2Fallback(baseFetch, h2Impl);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, stubCurl);
 
 		const signal = AbortSignal.timeout(5000);
 		const response = await wrapped("https://example.com", {
@@ -174,7 +180,7 @@ describe("withH2Fallback", () => {
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
 			new Response("<html>real</html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
-		const wrapped = withH2Fallback(baseFetch, h2Impl);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, stubCurl);
 
 		const response = await wrapped("https://example.com");
 
@@ -189,7 +195,7 @@ describe("withH2Fallback", () => {
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
 			new Response("<html>ok</html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
-		const wrapped = withH2Fallback(baseFetch, h2Impl);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, stubCurl);
 
 		const response = await wrapped("https://example.com");
 
@@ -203,7 +209,7 @@ describe("withH2Fallback", () => {
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
 			new Response("<html></html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
-		const wrapped = withH2Fallback(baseFetch, h2Impl);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, stubCurl);
 
 		await wrapped(new URL("https://example.com/page?q=1"));
 
@@ -216,7 +222,7 @@ describe("withH2Fallback", () => {
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
 			new Response("<html></html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
-		const wrapped = withH2Fallback(baseFetch, h2Impl);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, stubCurl);
 
 		await wrapped(new Request("https://example.com/other"));
 
@@ -229,7 +235,7 @@ describe("withH2Fallback", () => {
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
 			new Response("<html></html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
-		const wrapped = withH2Fallback(baseFetch, h2Impl);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, stubCurl);
 
 		const headers = new Headers();
 		headers.set("user-agent", "Test/1.0");
@@ -248,7 +254,7 @@ describe("withH2Fallback", () => {
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
 			new Response("<html></html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
-		const wrapped = withH2Fallback(baseFetch, h2Impl);
+		const wrapped = withH2Fallback(baseFetch, h2Impl, stubCurl);
 
 		await wrapped("https://example.com");
 
@@ -258,9 +264,9 @@ describe("withH2Fallback", () => {
 		});
 	});
 
-	it("defaults to the real fetchH2 implementation when no override is given", () => {
+	it("composes into a callable fetch from the supplied h2 and curl impls", () => {
 		const baseFetch: typeof fetch = async () => new Response("ok", { status: 200 });
-		const wrapped = withH2Fallback(baseFetch);
+		const wrapped = withH2Fallback(baseFetch, fetchH2, stubCurl);
 		expect(typeof wrapped).toBe("function");
 	});
 
@@ -270,7 +276,7 @@ describe("withH2Fallback", () => {
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () => {
 			throw new Error("ERR_HTTP2_ERROR: Protocol error");
 		});
-		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>(async () =>
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
 			new Response("<html>curl worked</html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
 		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
@@ -295,7 +301,7 @@ describe("withH2Fallback", () => {
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
 			new Response("Forbidden", { status: 403, headers: { server: "snooserv" } }),
 		);
-		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>(async () =>
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
 			new Response("<html>curl bypassed snooserv</html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
 		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
@@ -314,7 +320,7 @@ describe("withH2Fallback", () => {
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
 			new Response("<html>h2 ok</html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
-		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>();
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>();
 		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
 
 		const response = await wrapped("https://example.com");
@@ -333,7 +339,7 @@ describe("withH2Fallback", () => {
 			const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () => {
 				throw networkError;
 			});
-			const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>();
+			const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>();
 			const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
 
 			await expect(wrapped("https://example.com")).rejects.toBe(networkError);
@@ -349,7 +355,7 @@ describe("withH2Fallback", () => {
 			controller.abort(new Error("aborted"));
 			throw new Error("aborted");
 		});
-		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>();
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>();
 		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
 
 		await expect(wrapped("https://example.com", { signal: controller.signal })).rejects.toThrow("aborted");
@@ -365,7 +371,7 @@ describe("withH2Fallback", () => {
 			controller.abort(reason);
 			throw reason;
 		});
-		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>(async () =>
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
 			new Response("<html>curl after h2 timeout</html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
 		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
@@ -391,7 +397,7 @@ describe("withH2Fallback", () => {
 			controller.abort(reason);
 			throw reason;
 		});
-		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>(async () =>
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
 			new Response("ok", { status: 200 }),
 		);
 		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
@@ -408,7 +414,7 @@ describe("withH2Fallback", () => {
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () => {
 			throw "string-error";
 		});
-		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>(async () =>
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
 			new Response("ok", { status: 200, headers: { "content-type": "text/plain" } }),
 		);
 		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
@@ -427,7 +433,7 @@ describe("withH2Fallback", () => {
 			throw reason;
 		};
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>();
-		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>(async () =>
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
 			new Response("<html>curl fallback</html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
 		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
@@ -452,7 +458,7 @@ describe("withH2Fallback", () => {
 		const baseFetch: typeof fetch = async () => {
 			throw reason;
 		};
-		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>(async () =>
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
 			new Response("ok", { status: 200 }),
 		);
 		const wrapped = withH2Fallback(baseFetch, jest.fn(), curlImpl);
@@ -470,7 +476,7 @@ describe("withH2Fallback", () => {
 		const baseFetch: typeof fetch = async () => {
 			throw new Error("user cancelled");
 		};
-		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>();
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>();
 		const wrapped = withH2Fallback(baseFetch, jest.fn(), curlImpl);
 
 		await expect(wrapped("https://example.com", { signal: controller.signal })).rejects.toThrow("user cancelled");
@@ -484,7 +490,7 @@ describe("withH2Fallback", () => {
 			const baseFetch: typeof fetch = async () => {
 				throw networkError;
 			};
-			const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>();
+			const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>();
 			const wrapped = withH2Fallback(baseFetch, jest.fn(), curlImpl);
 
 			await expect(wrapped("https://example.com")).rejects.toBe(networkError);
@@ -500,7 +506,7 @@ describe("withH2Fallback", () => {
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () => {
 			throw new Error("h2 also failed");
 		});
-		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>(async () =>
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
 			new Response("<html>curl recovered</html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
 		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
@@ -524,7 +530,7 @@ describe("withH2Fallback", () => {
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () => {
 			throw new Error("h2 also failed");
 		});
-		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>(async () =>
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>(async () =>
 			new Response("ok", { status: 200, headers: { "content-type": "text/html" } }),
 		);
 		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
@@ -550,7 +556,7 @@ describe("withH2Fallback", () => {
 		const h2Impl = jest.fn<ReturnType<typeof fetchH2>, Parameters<typeof fetchH2>>(async () =>
 			new Response("<html>h2 bypassed akamai</html>", { status: 200, headers: { "content-type": "text/html" } }),
 		);
-		const curlImpl = jest.fn<ReturnType<typeof fetchCurl>, Parameters<typeof fetchCurl>>();
+		const curlImpl = jest.fn<ReturnType<CurlFetch>, Parameters<CurlFetch>>();
 		const wrapped = withH2Fallback(baseFetch, h2Impl, curlImpl);
 
 		const response = await wrapped("https://example.gov/file.pdf", {

@@ -7,6 +7,7 @@ function createCrawlFetch() {
 	return initCrawlFetch({
 		fetch: stubFetch,
 		personas: [{ name: "test", headers: { "user-agent": "test" } }],
+		isBlocked: () => false,
 	});
 }
 

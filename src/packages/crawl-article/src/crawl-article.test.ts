@@ -9,7 +9,7 @@ import {
 import type { CrawlArticleResult } from "./crawl-article.types";
 import type { CrawlFetch } from "./crawl-fetch";
 import { initCrawlFetch } from "./crawl-fetch";
-import type { fetchCurl } from "./curl-fetch";
+import type { CurlFetch } from "./curl-fetch";
 import type { fetchH2 } from "./h2-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
 
@@ -26,7 +26,7 @@ const noopLogError = () => {};
 // Never reached in unit tests: curl/h2 fallback only fires on block-class
 // responses/errors, which these fixtures don't produce. The fallback chain has
 // its own coverage in crawl-fetch/curl-fetch/h2-fetch tests.
-const stubFetchCurl: typeof fetchCurl = async () => {
+const stubFetchCurl: CurlFetch = async () => {
 	throw new Error("stub fetchCurl: not invoked");
 };
 const stubFetchH2: typeof fetchH2 = async () => {
@@ -37,12 +37,13 @@ const stubFetchH2: typeof fetchH2 = async () => {
  * the same header-merge + fallback wiring production uses. */
 function buildCrawlFetch(overrides: {
 	fetch: typeof fetch;
-	fetchCurl?: typeof fetchCurl;
+	fetchCurl?: CurlFetch;
 	fetchH2?: typeof fetchH2;
 }): CrawlFetch {
 	return initCrawlFetch({
 		fetch: overrides.fetch,
 		personas: [{ name: "test-default", headers: { ...DEFAULT_CRAWL_HEADERS } }],
+		isBlocked: () => false,
 		fetchCurl: overrides.fetchCurl ?? stubFetchCurl,
 		fetchH2: overrides.fetchH2 ?? stubFetchH2,
 	});
@@ -52,7 +53,7 @@ function initCrawl(overrides: {
 	fetch: typeof fetch;
 	extractPdf?: ExtractPdf;
 	logError?: (message: string, error?: Error) => void;
-	fetchCurl?: typeof fetchCurl;
+	fetchCurl?: CurlFetch;
 	fetchH2?: typeof fetchH2;
 }) {
 	return initCrawlArticle({

@@ -1,7 +1,13 @@
 import { execFile } from "node:child_process";
+import { isIP } from "node:net";
+import {
+	createPinnedAddressResolver,
+	type IsBlockedAddress,
+	type ResolveAll,
+	type ResolvePinnedAddress,
+} from "./blocked-address-lookup";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
 
-const MAX_REDIRECTS = 5;
 const DEFAULT_TIMEOUT_MS = 10000;
 
 type CurlFetchInit = {
@@ -20,7 +26,7 @@ export type ExecCurl = (
 	callback: (error: Error | null, stdout: Buffer) => void,
 ) => CurlChild;
 
-type CurlFetch = (url: string, init?: CurlFetchInit) => Promise<Response>;
+export type CurlFetch = (url: string, init?: CurlFetchInit) => Promise<Response>;
 
 /**
  * Binary name for the curl-impersonate Chrome variant. Lambda layers mount at
@@ -57,11 +63,14 @@ const defaultExecCurl: ExecCurl = (args, options, callback) => {
  * (argument construction, header title-casing, abort handling, error mapping,
  * response parsing) without spawning a real curl process.
  */
-export function createCurlFetch(deps: { execCurl: ExecCurl }): CurlFetch {
-	const { execCurl } = deps;
-	return function fetchCurl(url, init) {
-		return new Promise((resolve, reject) => {
-			const args = buildCurlArgs({ url, headers: init?.headers });
+export function createCurlFetch(deps: { execCurl: ExecCurl; resolvePinnedAddress: ResolvePinnedAddress }): CurlFetch {
+	const { execCurl, resolvePinnedAddress } = deps;
+	return async function fetchCurl(url, init) {
+		const parsed = new URL(url);
+		const port = parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80;
+		const pinnedAddress = await resolvePinnedAddress({ hostname: parsed.hostname });
+		return new Promise<Response>((resolve, reject) => {
+			const args = buildCurlArgs({ url, headers: init?.headers, hostname: parsed.hostname, port, pinnedAddress });
 			const timeoutMs = init?.signal ? undefined : DEFAULT_TIMEOUT_MS;
 			const child = execCurl(args, { timeoutMs }, (error, stdout) => {
 				if (error) {
@@ -89,9 +98,26 @@ export function createCurlFetch(deps: { execCurl: ExecCurl }): CurlFetch {
 	};
 }
 
-export const fetchCurl: CurlFetch = createCurlFetch({ execCurl: defaultExecCurl });
+/**
+ * Production curl fetcher with the SSRF guard wired from a resolver: every
+ * call resolves + checks the host before spawning curl and pins it to a
+ * verified address. `resolve` and `isBlocked` are injectable so tests drive
+ * the verdict.
+ */
+export function initGuardedCurlFetch(deps: { resolve: ResolveAll; isBlocked: IsBlockedAddress }): CurlFetch {
+	return createCurlFetch({
+		execCurl: defaultExecCurl,
+		resolvePinnedAddress: createPinnedAddressResolver({ resolve: deps.resolve, isBlocked: deps.isBlocked }),
+	});
+}
 
-function buildCurlArgs(params: { url: string; headers?: Record<string, string> }): string[] {
+function buildCurlArgs(params: {
+	url: string;
+	hostname: string;
+	port: number;
+	pinnedAddress: string;
+	headers?: Record<string, string>;
+}): string[] {
 	const args = [
 		"--http2",
 		// Disable curl's URL globbing so `[…]` and `{…}` in real URLs (e.g.
@@ -102,14 +128,26 @@ function buildCurlArgs(params: { url: string; headers?: Record<string, string> }
 		"--silent",
 		"--show-error",
 		"--location",
+		// curl resolves DNS itself, bypassing the Node-level SSRF guard, so a
+		// redirect could reach an unchecked private IP. Pin to the address we
+		// already verified (--resolve below) and refuse to follow any redirect:
+		// a 3xx exits non-zero and the crawl fails closed rather than chasing an
+		// unvalidated host.
 		"--max-redirs",
-		String(MAX_REDIRECTS),
+		"0",
 		"--dump-header",
 		"-",
 		"--output",
 		"-",
 		"--compressed",
 	];
+	// IP-literal hosts are validated up front by resolvePinnedAddress and curl
+	// connects to them without a DNS step, so there is nothing to pin; --resolve
+	// only matters when curl would otherwise resolve a name itself.
+	if (isIP(params.hostname) === 0) {
+		const pinnedForCurl = params.pinnedAddress.includes(":") ? `[${params.pinnedAddress}]` : params.pinnedAddress;
+		args.push("--resolve", `${params.hostname}:${params.port}:${pinnedForCurl}`);
+	}
 	if (params.headers) {
 		for (const [key, value] of Object.entries(params.headers)) {
 			args.push("--header", `${toTitleCase(key)}: ${value}`);

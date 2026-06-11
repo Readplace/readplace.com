@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import http2 from "node:http2";
-import { fetchCurl } from "./curl-fetch";
+import type { SocketLookup } from "./blocked-address-lookup";
+import type { CurlFetch } from "./curl-fetch";
 
 const MAX_REDIRECTS = 5;
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
@@ -16,35 +17,46 @@ type H2RequestResult = {
 	body: Buffer;
 };
 
+export type FetchH2 = (url: string, init?: FetchH2Init) => Promise<Response>;
+
 /**
  * HTTP/2 fetch with redirect following. Cloudflare's managed challenge
  * blocks HTTP/1.1 clients (Node.js undici/fetch) via TLS fingerprinting.
  * Node's built-in http2 module bypasses the challenge because real browsers
  * negotiate h2 by default and Cloudflare's heuristics trust the handshake.
+ *
+ * The optional `lookup` is threaded into every `http2.connect` — the initial
+ * request and each redirect hop open a fresh connection — so the SSRF guard
+ * rejects any host that resolves to a private/loopback/link-local address.
  */
-export async function fetchH2(url: string, init?: FetchH2Init): Promise<Response> {
-	let currentUrl = url;
-	for (let i = 0; i <= MAX_REDIRECTS; i++) {
-		const parsed = new URL(currentUrl);
-		const client = http2.connect(parsed.origin);
-		try {
-			const result = await h2Request(client, parsed, init);
-			if (REDIRECT_STATUS_CODES.has(result.status)) {
-				const location = result.headers.location;
-				assert(typeof location === "string" && location.length > 0, `HTTP/2 ${result.status} from ${currentUrl} missing location header`);
-				currentUrl = new URL(location, parsed.origin).href;
-				continue;
+export function initFetchH2(deps: { lookup?: SocketLookup } = {}): FetchH2 {
+	const connectOptions = deps.lookup ? { lookup: deps.lookup } : {};
+	return async (url, init) => {
+		let currentUrl = url;
+		for (let i = 0; i <= MAX_REDIRECTS; i++) {
+			const parsed = new URL(currentUrl);
+			const client = http2.connect(parsed.origin, connectOptions);
+			try {
+				const result = await h2Request(client, parsed, init);
+				if (REDIRECT_STATUS_CODES.has(result.status)) {
+					const location = result.headers.location;
+					assert(typeof location === "string" && location.length > 0, `HTTP/2 ${result.status} from ${currentUrl} missing location header`);
+					currentUrl = new URL(location, parsed.origin).href;
+					continue;
+				}
+				return new Response(result.body, {
+					status: result.status,
+					headers: toFetchHeaders(result.headers),
+				});
+			} finally {
+				client.close();
 			}
-			return new Response(result.body, {
-				status: result.status,
-				headers: toFetchHeaders(result.headers),
-			});
-		} finally {
-			client.close();
 		}
-	}
-	throw new Error(`fetchH2: too many redirects for ${url}`);
+		throw new Error(`fetchH2: too many redirects for ${url}`);
+	};
 }
+
+export const fetchH2: FetchH2 = initFetchH2();
 
 function h2Request(
 	client: http2.ClientHttp2Session,
@@ -129,8 +141,8 @@ function toFetchHeaders(incoming: http2.IncomingHttpHeaders): Headers {
  */
 export function withH2Fallback(
 	baseFetch: typeof fetch,
-	h2FetchImpl: typeof fetchH2 = fetchH2,
-	curlFetchImpl: typeof fetchCurl = fetchCurl,
+	h2FetchImpl: FetchH2,
+	curlFetchImpl: CurlFetch,
 ): typeof fetch {
 	return async (input, init) => {
 		let response: Response;
@@ -156,8 +168,8 @@ export function withH2Fallback(
 async function h2ThenCurl(
 	url: string,
 	init: FetchInit | undefined,
-	h2FetchImpl: typeof fetchH2,
-	curlFetchImpl: typeof fetchCurl,
+	h2FetchImpl: FetchH2,
+	curlFetchImpl: CurlFetch,
 ): Promise<Response> {
 	const fallbackInit = {
 		headers: toPlainHeaders(init?.headers),

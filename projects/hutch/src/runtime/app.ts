@@ -85,7 +85,7 @@ import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/provi
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initLogParseError, type ParseErrorEvent } from "@packages/hutch-infra-components";
-import { validateSaveableUrl } from "@packages/domain/article";
+import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { createApp } from "./server";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
@@ -115,7 +115,7 @@ function initProviders() {
 	const persistence = requireEnv<"prod" | "development">("PERSISTENCE");
 	const logError = (message: string, error?: Error) => console.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
 
-	const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS });
+	const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: isBlockedIpAddress });
 	const staleTtlMs = 86400000;
 
 	if (persistence === "prod") {

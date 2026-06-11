@@ -1,7 +1,14 @@
 import assert from "node:assert";
-import { withAiaChasing } from "./aia-fetch";
-import type { fetchCurl } from "./curl-fetch";
-import { type fetchH2, withH2Fallback } from "./h2-fetch";
+import { Agent } from "undici";
+import { initDefaultFetchAia, withAiaChasing } from "./aia-fetch";
+import {
+	createBlockedAddressLookup,
+	defaultResolveAll,
+	type IsBlockedAddress,
+	type ResolveAll,
+} from "./blocked-address-lookup";
+import { type CurlFetch, initGuardedCurlFetch } from "./curl-fetch";
+import { type FetchH2, initFetchH2, withH2Fallback } from "./h2-fetch";
 import { type Persona, withPersonaFallback } from "./persona-fallback";
 
 export type CrawlFetchInit = {
@@ -25,14 +32,30 @@ export type CrawlFetch = (url: string, init?: CrawlFetchInit) => Promise<Respons
 export function initCrawlFetch(deps: {
 	fetch: typeof globalThis.fetch;
 	personas: ReadonlyArray<Persona>;
-	fetchH2?: typeof fetchH2;
-	fetchCurl?: typeof fetchCurl;
+	/** Decides which resolved addresses to refuse — the shared
+	 * `isBlockedIpAddress` in production, a narrower fake in tests. Supplied by
+	 * the composition root so crawl-article carries no domain coupling. */
+	isBlocked: IsBlockedAddress;
+	/** DNS resolver behind the SSRF guard. Defaults to `dns.lookup`; tests
+	 * inject a fake to drive private-IP rejections without real DNS. */
+	resolve?: ResolveAll;
+	fetchH2?: FetchH2;
+	fetchCurl?: CurlFetch;
 }): CrawlFetch {
+	const resolve = deps.resolve ?? defaultResolveAll;
+	const { isBlocked } = deps;
+	const lookup = createBlockedAddressLookup({ resolve, isBlocked });
+	/** undici Agent applied only to crawl traffic (threaded as the request
+	 * dispatcher, never setGlobalDispatcher) so Stripe/Google calls keep the
+	 * unguarded global dispatcher. The Agent's connector runs `lookup` on the
+	 * initial connect and every redirect hop. */
+	const dispatcher = new Agent({ connect: { lookup } });
+	const guardedFetch: typeof fetch = (input, init) => deps.fetch(input, { ...init, dispatcher });
 	const fetchWithFallback = withPersonaFallback(
 		withH2Fallback(
-			withAiaChasing(deps.fetch),
-			deps.fetchH2,
-			deps.fetchCurl,
+			withAiaChasing(guardedFetch, initDefaultFetchAia({ lookup })),
+			deps.fetchH2 ?? initFetchH2({ lookup }),
+			deps.fetchCurl ?? initGuardedCurlFetch({ resolve, isBlocked }),
 		),
 		deps.personas,
 	);
