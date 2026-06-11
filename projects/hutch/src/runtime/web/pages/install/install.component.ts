@@ -14,9 +14,9 @@ const CHROME_WEB_STORE_URL = "https://chromewebstore.google.com/detail/hutch/klb
 const TESTFLIGHT_URL = "https://testflight.apple.com/join/5eng821W";
 
 const TAB_DEFINITIONS = [
-	{ key: "firefox", label: "Firefox" },
-	{ key: "chrome", label: "Chrome" },
-	{ key: "iphone", label: "iPhone" },
+	{ key: "firefox", label: "Firefox", icon: "fa-brands fa-firefox-browser" },
+	{ key: "chrome", label: "Chrome", icon: "fa-brands fa-chrome" },
+	{ key: "iphone", label: "iPhone (beta)", icon: "fa-brands fa-apple" },
 ] as const;
 
 export type InstallClient = (typeof TAB_DEFINITIONS)[number]["key"];
@@ -45,17 +45,19 @@ export async function fetchFirefoxDownloadUrl(): Promise<string | null> {
 interface InstallTab {
 	key: InstallClient;
 	label: string;
+	icon: string;
 	href: string;
 	activeClass: string;
 	ariaCurrent?: "page";
 }
 
 function buildInstallTabs(active: InstallClient): InstallTab[] {
-	return TAB_DEFINITIONS.map(({ key, label }) => {
+	return TAB_DEFINITIONS.map(({ key, label, icon }) => {
 		const isActive = key === active;
 		return {
 			key,
 			label,
+			icon,
 			href: withInternalTracking(`/install?client=${key}`, { source: "install-tabs", content: key }),
 			activeClass: isActive ? " install-page__tab--active" : "",
 			ariaCurrent: isActive ? "page" : undefined,
@@ -96,7 +98,7 @@ const BETA_SETUP_STEPS: BetaSetupStep[] = [
 ];
 
 const BETA_OUTRO =
-	"Use it for a few days or weeks: save the articles you want to read later, then open readplace.com when you have time to read them. I'll check in soon to see how it's going, and any feedback is welcome.";
+	"Use it for a few days or weeks: save the articles you want to read later, then open readplace.com when you have time to read them. I'll check in soon by email to see how it's going, and any feedback is welcome in-app.";
 
 export function InstallPage(params: { firefox: string | null; client: InstallClient }): PageBody {
 	return {

@@ -29,6 +29,9 @@ export const INSTALL_PAGE_STYLES = `
 }
 
 .install-page__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 12px 24px;
   font-size: 1rem;
   font-weight: 500;
@@ -37,6 +40,10 @@ export const INSTALL_PAGE_STYLES = `
   border-bottom: 2px solid transparent;
   transition: color 0.2s, border-color 0.2s;
   margin-bottom: -1px;
+}
+
+.install-page__tab-icon {
+  font-size: 1.125rem;
 }
 
 .install-page__tab:hover {

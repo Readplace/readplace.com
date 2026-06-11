@@ -139,7 +139,7 @@ describe("Nav component", () => {
 		expect(queue.textContent).toBe("Queue");
 	});
 
-	it("renders guest nav items (features, signup) as a flat list without group structure", () => {
+	it("renders guest nav items (install, features, signup) as a flat list without group structure, install left of features", () => {
 		const doc = parse(
 			Nav({
 				variant: "default",
@@ -151,9 +151,15 @@ describe("Nav component", () => {
 		const nav = doc.querySelector("[data-test-nav-variant]");
 		assert(nav, "nav variant marker must render");
 		expect(nav.getAttribute("data-test-nav-variant")).toBe("guest");
-		assert(doc.querySelector('[data-test-nav-item="features"]'));
-		assert(doc.querySelector('[data-test-nav-item="signup"]'));
-		expect(doc.querySelector('[data-test-nav-item="queue"]')).toBeNull();
+
+		const items = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
+			(el) => el.getAttribute("data-test-nav-item"),
+		);
+		expect(items).toEqual(["install", "features", "signup"]);
+
+		const install = doc.querySelector('[data-test-nav-item="install"]');
+		assert(install, "guest nav must render an install item");
+		expect(install.closest("form")?.getAttribute("action")).toBe("/install?utm_source=header-nav&utm_medium=internal&utm_content=install");
 		expect(doc.querySelectorAll("[data-test-nav-group]")).toHaveLength(0);
 	});
 
