@@ -10,6 +10,7 @@ import {
 } from "@packages/domain/rate-limit";
 
 export type ConsumePaidCrawlBudget = () => Promise<{ allowed: boolean }>;
+export type RefundPaidCrawlBudget = () => Promise<void>;
 
 const BudgetRow = z.object({ pk: z.string() });
 
@@ -26,7 +27,10 @@ export function initDynamoDbPaidCrawlBudget(deps: {
 	tableName: string;
 	rule: RateLimitRule;
 	now: () => Date;
-}): { consumePaidCrawlBudget: ConsumePaidCrawlBudget } {
+}): {
+	consumePaidCrawlBudget: ConsumePaidCrawlBudget;
+	refundPaidCrawlBudget: RefundPaidCrawlBudget;
+} {
 	const table = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.tableName,
@@ -64,5 +68,33 @@ export function initDynamoDbPaidCrawlBudget(deps: {
 		}
 	};
 
-	return { consumePaidCrawlBudget };
+	/* Hand a slot back to the current window when a crawl turns out cheap
+	 * (the byte gate fired — no OCR/LLM spend). Conditioned on a positive count
+	 * so a refund can never drive the counter negative: every refund pairs with
+	 * a prior consume in the same window, so the guard holds in practice, and a
+	 * rare miss (e.g. the window already rolled) is a swallowed no-op that fails
+	 * safe toward under-spending. */
+	const refundPaidCrawlBudget: RefundPaidCrawlBudget = async () => {
+		const nowMs = deps.now().getTime();
+		const windowStartSeconds = fixedWindowStartSeconds({
+			nowMs,
+			windowSeconds: deps.rule.windowSeconds,
+		});
+		try {
+			await table.update({
+				Key: { pk: `paid-crawl#global#${windowStartSeconds}` },
+				UpdateExpression: "ADD #count :negOne",
+				ConditionExpression: "attribute_exists(#count) AND #count > :zero",
+				ExpressionAttributeNames: { "#count": "count" },
+				ExpressionAttributeValues: { ":negOne": -1, ":zero": 0 },
+			});
+		} catch (error) {
+			if (error instanceof ConditionalCheckFailedException) {
+				return;
+			}
+			throw error;
+		}
+	};
+
+	return { consumePaidCrawlBudget, refundPaidCrawlBudget };
 }

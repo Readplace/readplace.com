@@ -3,7 +3,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
-import { markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import { markCrawlFailed, markCrawlUnsupported, markSummarySkipped } from "@packages/domain/article-aggregate";
 import {
 	ComprehensiveCrawlCommand,
 	RecrawlContentExtractedEvent,
@@ -12,7 +12,10 @@ import {
 } from "@packages/hutch-infra-components";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { MarkCrawlProgress } from "../../providers/article-crawl/mark-crawl-progress";
-import type { ConsumePaidCrawlBudget } from "../../providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
+import type {
+	ConsumePaidCrawlBudget,
+	RefundPaidCrawlBudget,
+} from "../../providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
 import { initProgressThrottle } from "../crawl-article-state/init-progress-throttle";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
@@ -41,6 +44,7 @@ export function initComprehensiveCrawlHandler(deps: {
 	markCrawlStage: MarkCrawlStage;
 	markCrawlProgress: MarkCrawlProgress;
 	consumePaidCrawlBudget: ConsumePaidCrawlBudget;
+	refundPaidCrawlBudget: RefundPaidCrawlBudget;
 	publishEvent: PublishEvent;
 	now: () => Date;
 	logger: HutchLogger;
@@ -58,6 +62,7 @@ export function initComprehensiveCrawlHandler(deps: {
 		markCrawlStage,
 		markCrawlProgress,
 		consumePaidCrawlBudget,
+		refundPaidCrawlBudget,
 		publishEvent,
 		now,
 		logger,
@@ -83,7 +88,12 @@ export function initComprehensiveCrawlHandler(deps: {
 	/* Spend breaker, not a crawl error: the message is consumed (no SQS retry —
 	 * a retry would re-spend the very budget that is exhausted) and the row is
 	 * settled so readers see the terminal "link is saved, content unavailable"
-	 * reframe instead of a forever-pending progress bar. */
+	 * reframe instead of a forever-pending progress bar. Both axes are
+	 * terminalised (crawl=failed, summary=skipped) — the stub save set summary
+	 * to `pending` and no *-ContentExtracted event will ever fire to advance it,
+	 * so without the summary write the row sits half-terminal and the
+	 * stuck-articles canary would page an operator over a transient throttle.
+	 * Mirrors markCrawlUnsupported's cross-axis pairing. */
 	const resolveBudgetExhausted = async (ctx: {
 		url: string;
 		refresh?: boolean;
@@ -98,6 +108,10 @@ export function initComprehensiveCrawlHandler(deps: {
 		await transitionAndPersist(markCrawlFailed, {
 			url: ctx.url,
 			input: { reason: { kind: "blocked", cause: "rate-limited" } },
+		});
+		await transitionAndPersist(markSummarySkipped, {
+			url: ctx.url,
+			input: { reason: "crawl-failed", now: now().toISOString() },
 		});
 		return { via: "committed-in-process" };
 	};
@@ -247,11 +261,19 @@ export function initComprehensiveCrawlHandler(deps: {
 					refresh: refresh ? 1 : 0,
 				});
 
-				const budget = await consumePaidCrawlBudget();
-				if (!budget.allowed) {
-					logger.warn(`${logPrefix} paid-crawl budget exhausted — failing crawl gracefully`, { url });
-					await resolveBudgetExhausted({ url, refresh });
-					continue;
+				/* Consume the spend slot exactly once per message — on the first SQS
+				 * receive. A post-budget crawl that throws is redelivered; consuming
+				 * again on each redelivery would let one persistently-failing crawl
+				 * drain the whole window through retries alone. Redeliveries skip the
+				 * gate and proceed straight to the crawl — the slot is already paid. */
+				const isFirstReceive = Number(record.attributes.ApproximateReceiveCount) === 1;
+				if (isFirstReceive) {
+					const budget = await consumePaidCrawlBudget();
+					if (!budget.allowed) {
+						logger.warn(`${logPrefix} paid-crawl budget exhausted — failing crawl gracefully`, { url });
+						await resolveBudgetExhausted({ url, refresh });
+						continue;
+					}
 				}
 
 				/*
@@ -293,6 +315,21 @@ export function initComprehensiveCrawlHandler(deps: {
 					},
 				});
 				await progressThrottle.flush({ url });
+
+				/* The pre-parse byte gate fired: a not-modified crawl did no OCR/LLM
+				 * work, so the slot it reserved before crawlArticle goes back to the
+				 * window rather than starve a genuinely-expensive crawl. Refund only
+				 * what this invocation consumed (first receive only); best-effort,
+				 * since a failed refund merely leaves the window slightly over-counted,
+				 * which fails safe toward under-spending. */
+				if (isFirstReceive && crawlResult.status === "not-modified") {
+					await refundPaidCrawlBudget().catch((error: unknown) => {
+						logger.warn(`${logPrefix} paid-crawl budget refund failed`, {
+							url,
+							error: String(error),
+						});
+					});
+				}
 
 				await resolveCrawlResult(crawlResult, {
 					url,

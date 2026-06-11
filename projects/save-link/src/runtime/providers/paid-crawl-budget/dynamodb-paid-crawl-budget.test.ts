@@ -88,4 +88,54 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 
 		await expect(consumePaidCrawlBudget()).rejects.toThrow("throttled");
 	});
+
+	it("refunds a slot to the current window with an underflow-guarding condition", async () => {
+		let received: unknown;
+		const { refundPaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
+			client: createFakeClient((command) => {
+				received = command;
+				return {};
+			}),
+			tableName: TABLE,
+			rule: HOUR_BUDGET,
+			now: midWindowNow,
+		});
+
+		await refundPaidCrawlBudget();
+
+		const command = received as CapturedUpdate;
+		assert.deepEqual(command.input.Key, { pk: "paid-crawl#global#7200" });
+		expect(command.input.UpdateExpression).toContain("ADD #count :negOne");
+		expect(command.input.ConditionExpression).toContain("#count > :zero");
+		expect(command.input.ExpressionAttributeValues?.[":negOne"]).toBe(-1);
+	});
+
+	it("treats an underflow-blocked refund as a no-op (nothing left to give back)", async () => {
+		const { refundPaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
+			client: createFakeClient(() => {
+				throw new ConditionalCheckFailedException({
+					$metadata: {},
+					message: "condition failed",
+				});
+			}),
+			tableName: TABLE,
+			rule: HOUR_BUDGET,
+			now: midWindowNow,
+		});
+
+		await expect(refundPaidCrawlBudget()).resolves.toBeUndefined();
+	});
+
+	it("rethrows non-conditional errors on refund", async () => {
+		const { refundPaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
+			client: createFakeClient(() => {
+				throw new Error("throttled");
+			}),
+			tableName: TABLE,
+			rule: HOUR_BUDGET,
+			now: midWindowNow,
+		});
+
+		await expect(refundPaidCrawlBudget()).rejects.toThrow("throttled");
+	});
 });
