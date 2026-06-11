@@ -13,6 +13,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly pendingSignupsTable: aws.dynamodb.Table;
 	public readonly importSessionsTable: aws.dynamodb.Table;
 	public readonly subscriptionProvidersTable: aws.dynamodb.Table;
+	public readonly rateLimitsTable: aws.dynamodb.Table;
 
 	constructor(name: string, args: { deletionProtection: boolean; tableNames: {
 		articles: string;
@@ -26,6 +27,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		pendingSignups: string;
 		importSessions: string;
 		subscriptionProviders: string;
+		rateLimits: string;
 	} }, opts?: pulumi.ComponentResourceOptions) {
 		super("hutch:infra:HutchStorage", name, {}, opts);
 
@@ -189,6 +191,20 @@ export class HutchStorage extends pulumi.ComponentResource {
 				enabled: true,
 			},
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+
+		/* Fixed-window throttle counters (per-IP buckets + the global paid-crawl
+		 * budget), each row one window. Ephemeral by definition — no deletion
+		 * protection or point-in-time recovery; TTL purges expired windows. */
+		this.rateLimitsTable = new aws.dynamodb.Table(`hutch-rate-limits`, {
+			name: args.tableNames.rateLimits,
+			billingMode: "PAY_PER_REQUEST",
+			hashKey: "pk",
+			attributes: [{ name: "pk", type: "S" }],
+			ttl: {
+				attributeName: "expiresAt",
+				enabled: true,
+			},
+		}, { parent: this });
 
 		this.subscriptionProvidersTable = new aws.dynamodb.Table(`hutch-subscription-providers`, {
 			name: args.tableNames.subscriptionProviders,

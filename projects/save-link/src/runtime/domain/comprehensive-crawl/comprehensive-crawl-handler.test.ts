@@ -88,6 +88,7 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
 		markCrawlProgress: jest.fn().mockResolvedValue(undefined),
+		consumePaidCrawlBudget: jest.fn().mockResolvedValue({ allowed: true }),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		now: fixedNow,
 		logger: noopLogger,
@@ -499,5 +500,114 @@ describe("initComprehensiveCrawlHandler", () => {
 
 		const result = await handler(invalidEvent, stubContext, () => {});
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
+	});
+
+	describe("paid-crawl budget circuit-breaker", () => {
+		it("fails the crawl gracefully past the budget: no crawl, terminal failed row, message consumed", async () => {
+			const crawlArticle = jest.fn(successfulComprehensiveCrawl);
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+			const logParseError = jest.fn();
+
+			const handler = createHandler({
+				crawlArticle,
+				transitionAndPersist,
+				publishEvent,
+				logParseError,
+				consumePaidCrawlBudget: jest.fn().mockResolvedValue({ allowed: false }),
+			});
+
+			const result = await handler(
+				createSqsEvent({ url: "https://example.com/doc.pdf" }),
+				stubContext,
+				() => {},
+			);
+
+			expect(result).toEqual({ batchItemFailures: [] });
+			expect(crawlArticle).not.toHaveBeenCalled();
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
+				url: "https://example.com/doc.pdf",
+				input: { reason: { kind: "blocked", cause: "rate-limited" } },
+			});
+			expect(publishEvent).not.toHaveBeenCalled();
+			expect(logParseError).toHaveBeenCalledWith({
+				url: "https://example.com/doc.pdf",
+				reason: "paid-crawl-budget-exhausted",
+			});
+		});
+
+		it("emits a tier-1 failure crawl-outcome when the budget blocks the crawl", async () => {
+			const logCrawlOutcome = jest.fn();
+			const readTierSnapshot = jest.fn().mockResolvedValue({
+				tier0Status: "success",
+				tier1Status: "not_attempted",
+				pickedTier: "tier-0",
+			});
+
+			const handler = createHandler({
+				logCrawlOutcome,
+				readTierSnapshot,
+				consumePaidCrawlBudget: jest.fn().mockResolvedValue({ allowed: false }),
+			});
+
+			await handler(
+				createSqsEvent({ url: "https://example.com/doc.pdf" }),
+				stubContext,
+				() => {},
+			);
+
+			expect(logCrawlOutcome).toHaveBeenCalledWith({
+				url: "https://example.com/doc.pdf",
+				thisTier: "tier-1",
+				thisTierStatus: "failed",
+				otherTierStatus: "success",
+				pickedTier: "tier-0",
+			});
+		});
+
+		it("leaves a refresh's row untouched past the budget — the prior canonical keeps serving", async () => {
+			const crawlArticle = jest.fn(successfulComprehensiveCrawl);
+			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+			const handler = createHandler({
+				crawlArticle,
+				transitionAndPersist,
+				publishEvent,
+				consumePaidCrawlBudget: jest.fn().mockResolvedValue({ allowed: false }),
+			});
+
+			const result = await handler(
+				createSqsEvent({ url: "https://example.com/doc.pdf", refresh: true }),
+				stubContext,
+				() => {},
+			);
+
+			expect(result).toEqual({ batchItemFailures: [] });
+			expect(crawlArticle).not.toHaveBeenCalled();
+			expect(transitionAndPersist).not.toHaveBeenCalled();
+			expect(publishEvent).not.toHaveBeenCalled();
+		});
+
+		it("runs the crawl normally while the budget allows it", async () => {
+			const consumePaidCrawlBudget = jest.fn().mockResolvedValue({ allowed: true });
+			const publishEvent = jest.fn().mockResolvedValue(undefined);
+
+			const handler = createHandler({ consumePaidCrawlBudget, publishEvent });
+
+			const result = await handler(
+				createSqsEvent({ url: "https://example.com/doc.pdf" }),
+				stubContext,
+				() => {},
+			);
+
+			expect(result).toEqual({ batchItemFailures: [] });
+			expect(consumePaidCrawlBudget).toHaveBeenCalledTimes(1);
+			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
+				url: "https://example.com/doc.pdf",
+				tier: "tier-1",
+				userId: undefined,
+			});
+		});
 	});
 });

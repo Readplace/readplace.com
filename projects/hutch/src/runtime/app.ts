@@ -32,6 +32,10 @@ import { initInMemoryEmailVerification } from "@packages/test-fixtures/providers
 import { initDynamoDbEmailVerification } from "./providers/email-verification/dynamodb-email-verification";
 import { initInMemoryPasswordReset } from "@packages/test-fixtures/providers/password-reset";
 import { initDynamoDbPasswordReset } from "./providers/password-reset/dynamodb-password-reset";
+import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
+import type { RateLimitRules } from "@packages/provider-contracts/rate-limit";
+import { parseRateLimitRule } from "@packages/domain/rate-limit";
+import { initDynamoDbRateLimit } from "./providers/rate-limit/dynamodb-rate-limit";
 import { initDynamoDbGeneratedSummary } from "./providers/article-summary/dynamodb-generated-summary";
 import { devSummariseInline } from "./providers/article-summary/dev-summarise-inline";
 import { initDynamoDbArticleCrawl } from "./providers/article-crawl/dynamodb-article-crawl";
@@ -139,6 +143,7 @@ function initProviders() {
 		const pendingPdfBucketName = requireEnv("PENDING_PDF_BUCKET_NAME");
 		const importSessionsTable = requireEnv("DYNAMODB_IMPORT_SESSIONS_TABLE");
 		const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
+		const rateLimitsTable = requireEnv("DYNAMODB_RATE_LIMITS_TABLE");
 		const trialSchedulerGroupName = requireEnv("TRIAL_SCHEDULER_GROUP_NAME");
 		const trialSchedulerRoleArn = requireEnv("TRIAL_SCHEDULER_ROLE_ARN");
 		const eventBusArn = requireEnv("EVENT_BUS_ARN");
@@ -231,6 +236,20 @@ function initProviders() {
 			tableName: importSessionsTable,
 			now: () => new Date(),
 		});
+		const { consumeRateLimit } = initDynamoDbRateLimit({
+			client,
+			tableName: rateLimitsTable,
+			now: () => new Date(),
+		});
+		// Strict (no defaults) so a deploy missing a limit fails at cold start
+		// instead of silently running unthrottled. Values come from the Pulumi
+		// stack config via the Lambda environment.
+		const rateLimitRules: RateLimitRules = {
+			viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL")),
+			login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
+			signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
+			forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
+		};
 
 		return {
 			auth,
@@ -270,6 +289,8 @@ function initProviders() {
 			markCrawlPending: crawlStore.markCrawlPending,
 			forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 			refreshArticleIfStale,
+			consumeRateLimit,
+			rateLimitRules,
 		};
 	}
 
@@ -388,6 +409,17 @@ function initProviders() {
 
 	const importSessionStore = initInMemoryImportSession({ now: () => new Date() });
 
+	// In-process counters are valid here because dev runs a single long-lived
+	// server. Defaults are liberal — every local/e2e request shares 127.0.0.1,
+	// so prod-strength per-IP limits would throttle a full e2e run.
+	const { consumeRateLimit } = initInMemoryRateLimit({ now: () => new Date() });
+	const rateLimitRules: RateLimitRules = {
+		viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL", { defaultValue: "1000/3600" })),
+		login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN", { defaultValue: "1000/900" })),
+		signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP", { defaultValue: "1000/3600" })),
+		forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD", { defaultValue: "1000/3600" })),
+	};
+
 	return {
 		auth,
 		articleStore,
@@ -431,6 +463,8 @@ function initProviders() {
 		markCrawlPending: crawlStore.markCrawlPending,
 		forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 		refreshArticleIfStale,
+		consumeRateLimit,
+		rateLimitRules,
 	};
 }
 

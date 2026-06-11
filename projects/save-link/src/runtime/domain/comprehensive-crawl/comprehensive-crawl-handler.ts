@@ -12,6 +12,7 @@ import {
 } from "@packages/hutch-infra-components";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { MarkCrawlProgress } from "../../providers/article-crawl/mark-crawl-progress";
+import type { ConsumePaidCrawlBudget } from "../../providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
 import { initProgressThrottle } from "../crawl-article-state/init-progress-throttle";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
@@ -39,6 +40,7 @@ export function initComprehensiveCrawlHandler(deps: {
 	transitionAndPersist: TransitionAndPersist;
 	markCrawlStage: MarkCrawlStage;
 	markCrawlProgress: MarkCrawlProgress;
+	consumePaidCrawlBudget: ConsumePaidCrawlBudget;
 	publishEvent: PublishEvent;
 	now: () => Date;
 	logger: HutchLogger;
@@ -55,6 +57,7 @@ export function initComprehensiveCrawlHandler(deps: {
 		transitionAndPersist,
 		markCrawlStage,
 		markCrawlProgress,
+		consumePaidCrawlBudget,
 		publishEvent,
 		now,
 		logger,
@@ -75,6 +78,28 @@ export function initComprehensiveCrawlHandler(deps: {
 			otherTierStatus: snapshot.tier0Status,
 			pickedTier: snapshot.pickedTier,
 		});
+	};
+
+	/* Spend breaker, not a crawl error: the message is consumed (no SQS retry —
+	 * a retry would re-spend the very budget that is exhausted) and the row is
+	 * settled so readers see the terminal "link is saved, content unavailable"
+	 * reframe instead of a forever-pending progress bar. */
+	const resolveBudgetExhausted = async (ctx: {
+		url: string;
+		refresh?: boolean;
+	}): Promise<CrawlTermination> => {
+		logParseError({ url: ctx.url, reason: "paid-crawl-budget-exhausted" });
+		await emitTier1Failure(ctx.url);
+		if (ctx.refresh) {
+			// A refresh re-checks an article that already has served content; the
+			// prior canonical stays valid, its freshness simply doesn't bump.
+			return { via: "already-terminal" };
+		}
+		await transitionAndPersist(markCrawlFailed, {
+			url: ctx.url,
+			input: { reason: { kind: "blocked", cause: "rate-limited" } },
+		});
+		return { via: "committed-in-process" };
 	};
 
 	const resolveCrawlResult = async (
@@ -221,6 +246,13 @@ export function initComprehensiveCrawlHandler(deps: {
 					recrawl: recrawl ? 1 : 0,
 					refresh: refresh ? 1 : 0,
 				});
+
+				const budget = await consumePaidCrawlBudget();
+				if (!budget.allowed) {
+					logger.warn(`${logPrefix} paid-crawl budget exhausted — failing crawl gracefully`, { url });
+					await resolveBudgetExhausted({ url, refresh });
+					continue;
+				}
 
 				/*
 				 * Server commits three coarse stages for the comprehensive path —

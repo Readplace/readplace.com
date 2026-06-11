@@ -30,6 +30,11 @@ config:
   hutch:dynamodbPendingSignupsTable: hutch-pending-signups
   hutch:dynamodbImportSessionsTable: hutch-import-sessions-prod
   hutch:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-prod
+  hutch:dynamodbRateLimitsTable: hutch-rate-limits-prod
+  hutch:rateLimitViewCrawl: 30/3600
+  hutch:rateLimitLogin: 10/900
+  hutch:rateLimitSignup: 10/3600
+  hutch:rateLimitForgotPassword: 5/3600
   hutch:trialSchedulerGroupName: hutch-trial-end-prod
   hutch:contentBucketName: hutch-article-content-prod
   hutch:pendingHtmlBucketName: hutch-pending-html-prod
