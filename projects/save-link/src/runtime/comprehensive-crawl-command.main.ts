@@ -7,8 +7,10 @@ import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { extractPdfMetadata } from "@packages/crawl-article";
+import { parseRateLimitRule } from "@packages/domain/rate-limit";
 import { requireEnv } from "../require-env";
 import { initComprehensiveCrawlHandler } from "./domain/comprehensive-crawl/comprehensive-crawl-handler";
+import { initDynamoDbPaidCrawlBudget } from "./providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
 import { initSaveLinkPdfExtract } from "./domain/article-parser/init-save-link-pdf-extract";
 import { initStagePdfToS3 } from "./domain/article-parser/init-stage-pdf-to-s3";
 import { initInvokePdfPageOcr } from "./domain/article-parser/init-invoke-pdf-page-ocr";
@@ -33,6 +35,8 @@ const pdfPageOcrFunctionName = requireEnv("PDF_PAGE_OCR_FUNCTION_NAME");
 const pdfPageLlmCleanupFunctionName = requireEnv("PDF_PAGE_LLM_CLEANUP_FUNCTION_NAME");
 const pdfDocumentDiffReviewFunctionName = requireEnv("PDF_DOCUMENT_DIFF_REVIEW_FUNCTION_NAME");
 const pdfPageHtmlConvertFunctionName = requireEnv("PDF_PAGE_HTML_CONVERT_FUNCTION_NAME");
+const rateLimitsTable = requireEnv("DYNAMODB_RATE_LIMITS_TABLE");
+const paidCrawlBudget = parseRateLimitRule(requireEnv("PAID_CRAWL_BUDGET"));
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
@@ -83,6 +87,12 @@ const crawlAndFinalize = initCrawlAndFinalizeDepBundle({
 const events = initEventsDepBundle({ eventBridgeClient, eventBusName, sqsClient, generateSummaryQueueUrl });
 const articleAggregate = initArticleAggregateDepBundle({ dynamoClient, articlesTable, events });
 const articleCrawl = initArticleCrawlDepBundle({ dynamoClient, articlesTable });
+const { consumePaidCrawlBudget, refundPaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
+	client: dynamoClient,
+	tableName: rateLimitsTable,
+	rule: paidCrawlBudget,
+	now,
+});
 
 export const handler = initComprehensiveCrawlHandler({
 	crawlArticle: parser.crawlArticle,
@@ -92,5 +102,7 @@ export const handler = initComprehensiveCrawlHandler({
 	...articleAggregate,
 	...articleCrawl,
 	...observability,
+	consumePaidCrawlBudget,
+	refundPaidCrawlBudget,
 	now,
 });

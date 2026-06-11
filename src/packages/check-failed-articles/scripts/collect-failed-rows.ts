@@ -14,6 +14,11 @@
  * failed first, etc.). A row whose only "non-ready" axis is summary-skipped
  * is a successful outcome and is not surfaced.
  *
+ * A crawl that `failed` with a `blocked`/`rate-limited` reason is likewise
+ * dropped: that is the paid-crawl-budget circuit-breaker tripping — a
+ * transient, self-inflicted spend cap, not a crawler defect. Re-saving only
+ * re-trips it until the window frees, so it is not a debug-worklist item.
+ *
  * The scan also accepts an optional lookback (in days) that gates rows on
  * `savedAt` — a value of `0` disables the gate and surfaces every historical
  * row, which is the default so the operator gets the full backlog and can
@@ -21,6 +26,7 @@
  */
 import assert from "node:assert/strict";
 import {
+	CrawlFailureReasonSchema,
 	CrawlStatusSchema,
 	SummaryStatusSchema,
 } from "@packages/article-state-types";
@@ -108,13 +114,30 @@ export function buildScanInput(now: Date, lookbackDays: number) {
 	} as const;
 }
 
+/* The crawl-failure reason is persisted as `JSON.stringify(reason)`; parse it
+ * back and recognise the paid-crawl-budget block so the worklist can drop it.
+ * Legacy rows whose reason is a bare (non-JSON) string fall through as "not a
+ * rate-limited block" and surface normally. */
+function isRateLimitedBlock(rawReason: string | undefined): boolean {
+	if (rawReason === undefined) return false;
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(rawReason);
+	} catch {
+		return false;
+	}
+	const result = CrawlFailureReasonSchema.safeParse(parsed);
+	if (!result.success) return false;
+	return result.data.kind === "blocked" && result.data.cause === "rate-limited";
+}
+
 function classifyAxes(row: z.infer<typeof FailedArticleRow>): {
 	axes: FailedAxis[];
 	reasons: Partial<Record<FailedAxis, string>>;
 } {
 	const axes: FailedAxis[] = [];
 	const reasons: Partial<Record<FailedAxis, string>> = {};
-	if (row.crawlStatus === "failed") {
+	if (row.crawlStatus === "failed" && !isRateLimitedBlock(row.crawlFailureReason)) {
 		axes.push("crawl-failed");
 		if (row.crawlFailureReason !== undefined) reasons["crawl-failed"] = row.crawlFailureReason;
 	}

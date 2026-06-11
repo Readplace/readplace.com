@@ -7,7 +7,10 @@ import type {
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts/password-reset";
 import { PasswordResetTokenSchema } from "@packages/test-fixtures/providers/password-reset";
+import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
+import type { RateLimitRule } from "@packages/domain/rate-limit";
 import { z } from "zod";
+import { createRateLimitMiddleware } from "../middleware/rate-limit";
 import { Base } from "../base.component";
 import { bannerStateFromRequest } from "../banner-state";
 import { sendComponent } from "../send-component";
@@ -28,6 +31,8 @@ interface ForgotPasswordDependencies {
 	verifyPasswordResetToken: VerifyPasswordResetToken;
 	baseUrl: string;
 	logError: (message: string, error?: Error) => void;
+	consumeRateLimit: ConsumeRateLimit;
+	rateLimitRule: RateLimitRule;
 }
 
 export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Router {
@@ -37,7 +42,12 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 		sendComponent(req, res, Base(ForgotPasswordPage(), bannerStateFromRequest(req)));
 	});
 
-	router.post("/forgot-password", async (req: Request, res: Response) => {
+	const forgotPasswordRateLimit = createRateLimitMiddleware({
+		consumeRateLimit: deps.consumeRateLimit,
+		bucket: "forgot-password",
+		rule: deps.rateLimitRule,
+	});
+	router.post("/forgot-password", forgotPasswordRateLimit, async (req: Request, res: Response) => {
 		const parsed = ForgotPasswordSchema.safeParse(req.body);
 
 		if (!parsed.success) {
