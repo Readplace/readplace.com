@@ -13,7 +13,7 @@ import type {
 	MarkCheckoutRecoveryEmailSent,
 	PendingSignup,
 	StorePendingSignup,
-} from "@packages/test-fixtures/providers/pending-signup";
+} from "@packages/provider-contracts/pending-signup";
 
 const PendingSignupRow = z.object({
 	checkoutSessionId: CheckoutSessionIdSchema,

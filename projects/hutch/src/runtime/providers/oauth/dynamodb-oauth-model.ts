@@ -15,7 +15,7 @@ import type {
 } from "@node-oauth/oauth2-server";
 import type { UserId } from "@packages/domain/user";
 import { getClient } from "@packages/test-fixtures/providers/oauth";
-import type { OAuthModel } from "@packages/test-fixtures/providers/oauth";
+import type { OAuthModel } from "@packages/provider-contracts/oauth";
 import { generateToken } from "@packages/test-fixtures/providers/oauth";
 
 function toEpochSeconds(date: Date): number {

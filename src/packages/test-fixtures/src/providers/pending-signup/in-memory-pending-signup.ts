@@ -1,11 +1,11 @@
-import type { CheckoutSessionId } from "../stripe-checkout/stripe-checkout.types";
+import type { CheckoutSessionId } from "@packages/provider-contracts/stripe-checkout";
 import type {
 	ConsumePendingSignup,
 	ListAllPendingSignups,
 	MarkCheckoutRecoveryEmailSent,
 	PendingSignup,
 	StorePendingSignup,
-} from "./pending-signup.types";
+} from "@packages/provider-contracts/pending-signup";
 
 interface StoredEntry {
 	signup: PendingSignup;

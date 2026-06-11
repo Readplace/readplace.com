@@ -1,5 +1,5 @@
-import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
-import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
+import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
+import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { renderSummaryFailed } from "./summary-failed.component";
 import { renderSummaryPending } from "./summary-pending.component";
 import { renderSummaryReady } from "./summary-ready.component";

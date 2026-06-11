@@ -1,3 +1,1 @@
-export type PublishSaveAnonymousLink = (params: {
-	url: string;
-}) => Promise<void>;
+export type { PublishSaveAnonymousLink } from "@packages/provider-contracts/events";

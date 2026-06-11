@@ -2,7 +2,7 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import type { S3Client } from "@aws-sdk/client-s3";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import type { PutPendingPdf } from "@packages/test-fixtures/providers/pending-pdf";
+import type { PutPendingPdf } from "@packages/provider-contracts/pending-pdf";
 
 export function initPutPendingPdf(deps: {
 	client: S3Client;

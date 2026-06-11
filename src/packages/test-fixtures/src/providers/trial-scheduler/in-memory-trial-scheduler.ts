@@ -6,7 +6,7 @@ import type {
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DeleteTrialFeedbackEmailSchedule,
-} from "./trial-scheduler.types";
+} from "@packages/provider-contracts/trial-scheduler";
 
 export function initInMemoryTrialScheduler(opts?: {
 	createFails?: boolean;

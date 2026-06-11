@@ -1,5 +1,5 @@
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishSubscriptionChargeSucceeded } from "./publish-subscription-charge-succeeded.types";
+import type { PublishSubscriptionChargeSucceeded } from "@packages/provider-contracts/events";
 
 export function initInMemorySubscriptionChargeSucceeded(deps: {
 	logger: HutchLogger;

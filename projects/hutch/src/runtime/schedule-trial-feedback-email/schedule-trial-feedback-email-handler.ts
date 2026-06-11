@@ -8,7 +8,7 @@ import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import { SubscriptionCancelledEvent } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { CreateTrialFeedbackEmailSchedule } from "@packages/test-fixtures/providers/trial-scheduler";
+import type { CreateTrialFeedbackEmailSchedule } from "@packages/provider-contracts/trial-scheduler";
 
 /** Three days after the trial-cancel arrives. Long enough that the email
  * doesn't read as automated reaction to the cancel click, short enough that

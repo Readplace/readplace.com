@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import type { UserId } from "@packages/domain/user";
-import type { FindSubscriptionByUserId } from "@packages/test-fixtures/providers/subscription-providers";
+import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
 
 /** The user can save articles, use the extension, and import. */
 export type FullAccessTier =

@@ -1,7 +1,5 @@
 import assert from "node:assert";
 import type {
-	AuthorizationCodeModel,
-	RefreshTokenModel,
 	Client,
 	Token,
 	AuthorizationCode,
@@ -9,6 +7,7 @@ import type {
 	User,
 	Falsey,
 } from "@node-oauth/oauth2-server";
+import type { OAuthModel } from "@packages/provider-contracts/oauth";
 import type { UserId } from "@packages/domain/user";
 import type {
 	AccessToken as AccessTokenBrand,
@@ -63,10 +62,7 @@ export function initInMemoryOAuthModel(): OAuthModelDeps {
 	};
 }
 
-export type OAuthModel = AuthorizationCodeModel &
-	RefreshTokenModel & {
-		revokeAllUserTokens(userId: UserId): Promise<void>;
-	};
+export type { OAuthModel };
 
 export function createOAuthModel(deps: OAuthModelDeps, options?: { appOrigin?: string }): OAuthModel {
 	function resolveClient(clientId: string) {

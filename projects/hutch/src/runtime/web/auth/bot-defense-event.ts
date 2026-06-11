@@ -1,7 +1,7 @@
 import type {
 	BotDefenseEvent,
 	BotDefenseRejectReason,
-} from "@packages/test-fixtures/providers/auth";
+} from "@packages/provider-contracts/auth";
 
 export interface BotDefenseTrip {
 	reason: BotDefenseRejectReason;

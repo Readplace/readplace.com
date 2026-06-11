@@ -1,11 +1,11 @@
 import type { Request, Response, Router } from "express";
 import express from "express";
-import type { SendEmail } from "@packages/test-fixtures/providers/email";
-import type { UserExistsByEmail, UpdatePassword } from "@packages/test-fixtures/providers/auth";
+import type { SendEmail } from "@packages/provider-contracts/email";
+import type { UserExistsByEmail, UpdatePassword } from "@packages/provider-contracts/auth";
 import type {
 	CreatePasswordResetToken,
 	VerifyPasswordResetToken,
-} from "@packages/test-fixtures/providers/password-reset";
+} from "@packages/provider-contracts/password-reset";
 import { PasswordResetTokenSchema } from "@packages/test-fixtures/providers/password-reset";
 import { z } from "zod";
 import { Base } from "../base.component";

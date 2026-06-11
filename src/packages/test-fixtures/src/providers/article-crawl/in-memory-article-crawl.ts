@@ -1,25 +1,21 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import type { CrawlStage } from "@packages/domain/article";
 import type {
 	ArticleCrawl,
 	FindArticleCrawlStatus,
 	ForceMarkCrawlPending,
+	InMemoryMarkCrawlFailed,
+	InMemoryMarkCrawlReady,
+	InMemoryMarkCrawlStage,
+	InMemoryMarkCrawlUnsupported,
 	MarkCrawlPending,
-} from "./article-crawl.types";
+} from "@packages/provider-contracts/article-crawl";
 
-export type InMemoryMarkCrawlReady = (params: { url: string }) => Promise<void>;
-export type InMemoryMarkCrawlFailed = (params: {
-	url: string;
-	reason: string;
-}) => Promise<void>;
-export type InMemoryMarkCrawlUnsupported = (params: {
-	url: string;
-	reason: string;
-}) => Promise<void>;
-export type InMemoryMarkCrawlStage = (params: {
-	url: string;
-	stage: CrawlStage;
-}) => Promise<void>;
+export type {
+	InMemoryMarkCrawlFailed,
+	InMemoryMarkCrawlReady,
+	InMemoryMarkCrawlStage,
+	InMemoryMarkCrawlUnsupported,
+};
 
 export function initInMemoryArticleCrawl(): {
 	findArticleCrawlStatus: FindArticleCrawlStatus;

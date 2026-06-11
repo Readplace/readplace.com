@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SavedArticle } from "@packages/domain/article";
-import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
+import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
-import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
+import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { PageBody } from "../../page-body.types";
 import { render } from "../../render";
 import { renderArticleBody } from "../../shared/article-body/article-body.component";

@@ -1,10 +1,10 @@
 import { calculateReadTime } from "@packages/domain/article";
-import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
-import type { MarkCrawlPending } from "@packages/test-fixtures/providers/article-crawl";
-import type { MarkSummaryPending } from "@packages/test-fixtures/providers/article-summary";
-import type { SaveArticle, UpdateArticleStatus } from "@packages/test-fixtures/providers/article-store";
-import type { PublishLinkSaved } from "@packages/test-fixtures/providers/events";
-import type { PublishUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
+import type { ContentFreshnessResult, RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
+import type { MarkCrawlPending } from "@packages/provider-contracts/article-crawl";
+import type { MarkSummaryPending } from "@packages/provider-contracts/article-summary";
+import type { SaveArticle, UpdateArticleStatus } from "@packages/provider-contracts/article-store";
+import type { PublishLinkSaved } from "@packages/provider-contracts/events";
+import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import type { UserId } from "@packages/domain/user";
 import type { SaveableUrl, SavedArticle } from "@packages/domain/article";
 

@@ -1,24 +1,17 @@
 import type { CrawlArticle, CrawlArticleResult } from "@packages/crawl-article";
+import type { ParseHtml } from "@packages/article-parser";
 import type {
-	ParseArticleResult,
-	ParseHtml,
-} from "@packages/article-parser";
-import type { FindArticleCrawlStatus } from "../article-crawl/article-crawl.types";
-import type { FindArticleFreshness } from "../article-store/article-store.types";
-import type { PublishRefreshArticleContent } from "../events/publish-refresh-article-content.types";
-import type { PublishUpdateFetchTimestamp } from "../events/publish-update-fetch-timestamp.types";
+	ContentFreshnessResult,
+	RefreshArticleIfStale,
+} from "@packages/provider-contracts/article-freshness";
+import type { FindArticleCrawlStatus } from "@packages/provider-contracts/article-crawl";
+import type { FindArticleFreshness } from "@packages/provider-contracts/article-store";
+import type { PublishRefreshArticleContent } from "@packages/provider-contracts/events";
+import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
 import { calculateReadTime } from "@packages/domain/article";
 import { decideTerminalAction } from "./decide-terminal-action";
 
-export type ContentFreshnessResult =
-	| { action: "new" }
-	| { action: "skip" }
-	| { action: "unchanged" }
-	| { action: "refreshed"; article: ParseArticleResult & { ok: true } };
-
-export type RefreshArticleIfStale = (params: {
-	url: string;
-}) => Promise<ContentFreshnessResult>;
+export type { ContentFreshnessResult, RefreshArticleIfStale };
 
 export function initRefreshArticleIfStale(deps: {
 	findArticleFreshness: FindArticleFreshness;

@@ -1,4 +1,4 @@
-import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
+import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { isPDF } from "@packages/crawl-article";
 import { renderReaderFailed } from "./reader-failed.component";
 import { renderReaderPending } from "./reader-pending.component";

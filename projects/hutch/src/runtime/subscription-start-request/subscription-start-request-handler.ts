@@ -8,12 +8,12 @@ import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import { SubscriptionStartRequestCommand } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { FindSubscriptionByUserId } from "@packages/test-fixtures/providers/subscription-providers";
-import type { CreateSubscriptionOnExistingCustomer } from "@packages/test-fixtures/providers/stripe-subscriptions";
+import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
+import type { CreateSubscriptionOnExistingCustomer } from "@packages/provider-contracts/stripe-subscriptions";
 import type {
 	PublishSubscriptionChargeFailed,
 	PublishSubscriptionChargeSucceeded,
-} from "@packages/test-fixtures/providers/events";
+} from "@packages/provider-contracts/events";
 
 interface HandlerDeps {
 	findSubscriptionByUserId: FindSubscriptionByUserId;

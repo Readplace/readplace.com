@@ -1,8 +1,8 @@
 import assert from "node:assert";
 import type { Request, Response, Router } from "express";
 import express from "express";
-import type { FindEmailByUserId } from "@packages/test-fixtures/providers/auth";
-import type { PublishExportUserDataCommand } from "@packages/test-fixtures/providers/events";
+import type { FindEmailByUserId } from "@packages/provider-contracts/auth";
+import type { PublishExportUserDataCommand } from "@packages/provider-contracts/events";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "../../send-component";

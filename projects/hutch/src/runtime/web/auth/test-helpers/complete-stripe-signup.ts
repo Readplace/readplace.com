@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import type { SuperTest, Test } from "supertest";
 import request from "supertest";
-import type { CheckoutSessionId } from "@packages/test-fixtures/providers/stripe-checkout";
+import type { CheckoutSessionId } from "@packages/provider-contracts/stripe-checkout";
 import type { AuthBundle, PendingSignupBundle } from "../../../test-app";
 
 interface StripeBundle {

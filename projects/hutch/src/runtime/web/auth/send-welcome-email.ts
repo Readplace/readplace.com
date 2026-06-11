@@ -1,4 +1,4 @@
-import type { SendEmail } from "@packages/test-fixtures/providers/email";
+import type { SendEmail } from "@packages/provider-contracts/email";
 import { buildWelcomeEmailHtml } from "./welcome-email";
 
 const WELCOME_EMAIL_FROM = "Fayner from Readplace <fayner@readplace.com>";

@@ -17,6 +17,8 @@ export default {
 		"@packages/extract-links-from-page",
 		"@packages/hutch-infra-components",
 		"@packages/hutch-logger",
+		"@packages/provider-contracts",
+		"@packages/web-test-harness",
 	],
 	ignoreBinaries: [
 		"knip",

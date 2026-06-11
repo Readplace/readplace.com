@@ -2,8 +2,8 @@ import type {
 	ArticleMetadata,
 	Minutes,
 } from "@packages/domain/article";
-import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
-import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
+import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
+import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { PageBody } from "../../page-body.types";
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
 import type { ProgressTick } from "@packages/domain/article";

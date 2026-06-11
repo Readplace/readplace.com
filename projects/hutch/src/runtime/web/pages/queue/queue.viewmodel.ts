@@ -1,8 +1,8 @@
 import type { SavedArticle, SaveableUrlErrorCode } from "@packages/domain/article";
-import type { FindArticlesResult } from "@packages/test-fixtures/providers/article-store";
+import type { FindArticlesResult } from "@packages/provider-contracts/article-store";
 import { pickExcerpt } from "../../../providers/article-summary/article-summary.helpers";
-import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
-import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
+import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
+import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { ComponentError } from "../../shared/component-error.types";
 import { MAX_POLLS } from "../../shared/article-reader/article-reader";
 import { buildCardPollUrl } from "./queue-card/queue-card-poll-url";

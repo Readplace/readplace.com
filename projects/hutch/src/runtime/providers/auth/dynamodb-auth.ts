@@ -25,7 +25,7 @@ import type {
 	UpdatePassword,
 	UserExistsByEmail,
 	VerifyCredentials,
-} from "@packages/test-fixtures/providers/auth";
+} from "@packages/provider-contracts/auth";
 import { normalizeEmail } from "@packages/test-fixtures/providers/auth";
 import { hashPassword, verifyPassword } from "@packages/test-fixtures/providers/auth";
 

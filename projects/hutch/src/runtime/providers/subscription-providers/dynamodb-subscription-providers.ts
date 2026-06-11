@@ -16,7 +16,7 @@ import type {
 	SubscriptionRecord,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
-} from "@packages/test-fixtures/providers/subscription-providers";
+} from "@packages/provider-contracts/subscription-providers";
 
 const SubscriptionProviderRow = z.object({
 	userId: UserIdSchema,

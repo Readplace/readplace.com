@@ -3,7 +3,7 @@ import type {
 	CreateSubscriptionOnExistingCustomer,
 	ReverseScheduledCancellation,
 	ScheduleCancellationAtPeriodEnd,
-} from "./stripe-subscriptions.types";
+} from "@packages/provider-contracts/stripe-subscriptions";
 
 /** Fixed cancellationEffectiveAt for the in-memory provider. Tests that need a
  * specific period-end can override it via `scheduleCancellationAtPeriodEndReturns`. */

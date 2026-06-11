@@ -1,4 +1,1 @@
-export type PublishLinkSaved = (params: {
-	url: string;
-	userId: string;
-}) => Promise<void>;
+export type { PublishLinkSaved } from "@packages/provider-contracts/events";

@@ -12,26 +12,26 @@ import type {
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
 	VerifyCredentials,
-} from "@packages/test-fixtures/providers/auth";
+} from "@packages/provider-contracts/auth";
 import type { UserId } from "@packages/domain/user";
-import type { SendEmail } from "@packages/test-fixtures/providers/email";
+import type { SendEmail } from "@packages/provider-contracts/email";
 import type {
 	CreateVerificationToken,
 	VerifyEmailToken,
-} from "@packages/test-fixtures/providers/email-verification";
+} from "@packages/provider-contracts/email-verification";
 import { VerificationTokenSchema } from "@packages/test-fixtures/providers/email-verification";
 import assert from "node:assert";
-import type { ConsumePendingSignup } from "@packages/test-fixtures/providers/pending-signup";
+import type { ConsumePendingSignup } from "@packages/provider-contracts/pending-signup";
 import type {
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
-} from "@packages/test-fixtures/providers/subscription-providers";
+} from "@packages/provider-contracts/subscription-providers";
 import type {
 	CreateTrialEndSchedule,
 	DeleteTrialEndSchedule,
-} from "@packages/test-fixtures/providers/trial-scheduler";
+} from "@packages/provider-contracts/trial-scheduler";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
-import type { RetrieveCheckoutSession } from "@packages/test-fixtures/providers/stripe-checkout";
+import type { RetrieveCheckoutSession } from "@packages/provider-contracts/stripe-checkout";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
 import { Base } from "../base.component";
 import { bannerStateFromRequest, type BuildBannerState } from "../banner-state";
@@ -58,7 +58,7 @@ const SignupQuerySchema = z.object({ email: z.string().email() }).passthrough();
 
 const EMAIL_FROM = "Fayner Brack <readplace@readplace.com>";
 
-import type { BotDefenseEvent } from "@packages/test-fixtures/providers/auth";
+import type { BotDefenseEvent } from "@packages/provider-contracts/auth";
 export type { BotDefenseEvent };
 
 interface AuthDependencies {

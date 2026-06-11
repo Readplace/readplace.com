@@ -1,6 +1,1 @@
-import type { UserId } from "@packages/domain/user";
-
-export type PublishSubscriptionReactivated = (params: {
-	userId: UserId;
-	subscriptionId?: string;
-}) => Promise<void>;
+export type { PublishSubscriptionReactivated } from "@packages/provider-contracts/events";

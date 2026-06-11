@@ -1,5 +1,5 @@
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishLinkSaved } from "./publish-link-saved.types";
+import type { PublishLinkSaved } from "@packages/provider-contracts/events";
 
 export function initInMemoryLinkSaved(deps: {
 	logger: HutchLogger;

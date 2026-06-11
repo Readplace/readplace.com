@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SavedArticle } from "@packages/domain/article";
-import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
-import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
+import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
+import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 
 export interface QueueCardEtagInput {
 	article: SavedArticle;

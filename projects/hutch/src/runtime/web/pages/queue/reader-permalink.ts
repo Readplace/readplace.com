@@ -5,7 +5,7 @@ import type { UserId } from "@packages/domain/user";
 import type {
 	FindArticleById,
 	FindArticleUrlById,
-} from "@packages/test-fixtures/providers/article-store";
+} from "@packages/provider-contracts/article-store";
 import type { Redirect } from "../../redirect.component";
 import { shareUserIdPrefix } from "../../shared/share-user-id";
 import { collectUtmParams } from "../../shared/utm";

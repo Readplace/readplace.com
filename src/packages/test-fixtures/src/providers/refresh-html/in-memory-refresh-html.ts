@@ -1,5 +1,5 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import type { PutRefreshHtml, ReadRefreshHtml } from "./refresh-html.types";
+import type { PutRefreshHtml, ReadRefreshHtml } from "@packages/provider-contracts/refresh-html";
 
 export interface InMemoryRefreshHtml {
 	putRefreshHtml: PutRefreshHtml;

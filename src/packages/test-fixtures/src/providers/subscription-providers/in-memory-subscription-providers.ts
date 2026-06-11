@@ -11,7 +11,7 @@ import type {
 	SubscriptionRecord,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
-} from "./subscription-providers.types";
+} from "@packages/provider-contracts/subscription-providers";
 
 export function initInMemorySubscriptionProviders(opts: {
 	now: () => Date;

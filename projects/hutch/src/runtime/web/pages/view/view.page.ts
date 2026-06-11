@@ -10,20 +10,20 @@ import { calculateReadTime } from "@packages/domain/article";
 import type {
 	FindArticleByUrl,
 	SaveArticleGlobally,
-} from "@packages/test-fixtures/providers/article-store";
-import type { ReadArticleContent } from "@packages/test-fixtures/providers/article-store";
+} from "@packages/provider-contracts/article-store";
+import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type {
 	FindArticleCrawlStatus,
 	MarkCrawlPending,
-} from "@packages/test-fixtures/providers/article-crawl";
+} from "@packages/provider-contracts/article-crawl";
 import type {
 	FindGeneratedSummary,
 	MarkSummaryPending,
-} from "@packages/test-fixtures/providers/article-summary";
+} from "@packages/provider-contracts/article-summary";
 import type {
 	PublishSaveAnonymousLink,
 	PublishStaleCheckRequested,
-} from "@packages/test-fixtures/providers/events";
+} from "@packages/provider-contracts/events";
 import { isbot } from "isbot";
 import { decomposeTimeLeft } from "@packages/time-left";
 import type { HutchLogger } from "@packages/hutch-logger";
@@ -47,7 +47,7 @@ import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
 import { collectUtmParams } from "../../shared/utm";
 import { SaveErrorPage } from "../save/save-error.component";
 import { ViewLandingPage } from "./view-landing.component";
-import type { ExistsUserByIdPrefix } from "@packages/test-fixtures/providers/auth";
+import type { ExistsUserByIdPrefix } from "@packages/provider-contracts/auth";
 import { PERMANENT_ARTICLE_DOMAINS, computePublicViewExpiry, formatSaveUtmContent, sharedUserIdFrom, sharedUserIdFromQueryParams, type ExpiryCountdown } from "./view-expiry";
 import { parseViewPath, viewPathFor } from "./view-path";
 import { ViewPage, formatViewDocumentTitle, type ViewAction } from "./view.component";

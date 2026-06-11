@@ -1,6 +1,4 @@
-export type PutPendingPdf = (params: {
-	url: string;
-	bytes: Buffer;
-}) => Promise<void>;
-
-export type ReadPendingPdf = (url: string) => Promise<Buffer>;
+export type {
+	PutPendingPdf,
+	ReadPendingPdf,
+} from "@packages/provider-contracts/pending-pdf";

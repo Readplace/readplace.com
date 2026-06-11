@@ -10,15 +10,15 @@ import { StaleCheckRequestedEvent } from "@packages/hutch-infra-components";
 import { decideTerminalAction } from "@packages/test-fixtures/providers/article-freshness";
 import type {
 	FindArticleFreshness,
-} from "@packages/test-fixtures/providers/article-store";
+} from "@packages/provider-contracts/article-store";
 import type {
 	FindArticleCrawlStatus,
-} from "@packages/test-fixtures/providers/article-crawl";
+} from "@packages/provider-contracts/article-crawl";
 import type {
 	PublishRefreshArticleContent,
 	PublishSaveAnonymousLink,
 	PublishUpdateFetchTimestamp,
-} from "@packages/test-fixtures/providers/events";
+} from "@packages/provider-contracts/events";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "../save-link/crawl-and-finalize-article";

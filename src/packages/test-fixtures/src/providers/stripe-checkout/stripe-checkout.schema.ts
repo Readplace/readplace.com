@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { CheckoutSessionId } from "./stripe-checkout.types";
+import type { CheckoutSessionId } from "@packages/provider-contracts/stripe-checkout";
 
 export const CheckoutSessionIdSchema = z
 	.string()

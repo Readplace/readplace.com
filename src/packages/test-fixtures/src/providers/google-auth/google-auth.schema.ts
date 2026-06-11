@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { GoogleId } from "@packages/provider-contracts/google-auth";
 
-export const GoogleIdSchema = z.string().brand<"GoogleId">();
-export type GoogleId = z.infer<typeof GoogleIdSchema>;
+export type { GoogleId };
+
+export const GoogleIdSchema = z.string().transform((s): GoogleId => s as GoogleId);

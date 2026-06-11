@@ -8,7 +8,7 @@ import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import { SubscriptionChargeFailedEvent } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishCancelSubscriptionCommand } from "@packages/test-fixtures/providers/events";
+import type { PublishCancelSubscriptionCommand } from "@packages/provider-contracts/events";
 import type { EmitSubscriptionEvent } from "../observability/subscription-events";
 
 export function initSubscriptionChargeFailedHandler(deps: {

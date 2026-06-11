@@ -1,4 +1,1 @@
-export type PublishSaveLinkRawPdfCommand = (params: {
-	url: string;
-	userId: string;
-}) => Promise<void>;
+export type { PublishSaveLinkRawPdfCommand } from "@packages/provider-contracts/events";
