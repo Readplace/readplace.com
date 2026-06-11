@@ -1,7 +1,7 @@
 import type {
 	BotDefenseRejectReason,
 	FindUserByEmail,
-} from "@packages/test-fixtures/providers/auth";
+} from "@packages/provider-contracts/auth";
 import type { ComponentError } from "../shared/component-error.types";
 import { SignupSchema } from "./auth.schema";
 import { flattenZodErrors } from "./flatten-zod-errors";

@@ -2,7 +2,7 @@ import express, { Router } from "express";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import ExpressOAuthServer from "@node-oauth/express-oauth-server";
-import type { OAuthModel } from "@packages/test-fixtures/providers/oauth";
+import type { OAuthModel } from "@packages/provider-contracts/oauth";
 import { getClient, validateRedirectUri } from "@packages/test-fixtures/providers/oauth";
 import { Base } from "../base.component";
 import type { BuildBannerState } from "../banner-state";

@@ -8,7 +8,7 @@ import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import { SubscriptionChargeSucceededEvent } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { UpsertActiveSubscription } from "@packages/test-fixtures/providers/subscription-providers";
+import type { UpsertActiveSubscription } from "@packages/provider-contracts/subscription-providers";
 import type { EmitSubscriptionEvent } from "../observability/subscription-events";
 
 export function initSubscriptionChargeSucceededHandler(deps: {

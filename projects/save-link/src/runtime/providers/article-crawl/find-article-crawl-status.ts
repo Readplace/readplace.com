@@ -10,7 +10,7 @@ import { ArticleResourceUniqueId } from "../../domain/save-link/article-resource
 import type {
 	ArticleCrawl,
 	FindArticleCrawlStatus,
-} from "@packages/test-fixtures/providers/article-crawl";
+} from "@packages/provider-contracts/article-crawl";
 
 const CrawlStatusSchema = z.enum(["ready", "failed", "pending"]);
 const CrawlStageSchema = z.enum([

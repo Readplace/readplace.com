@@ -1,5 +1,5 @@
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishExportUserDataCommand } from "./publish-export-user-data-command.types";
+import type { PublishExportUserDataCommand } from "@packages/provider-contracts/events";
 
 export function initInMemoryExportUserDataCommand(deps: {
 	logger: HutchLogger;

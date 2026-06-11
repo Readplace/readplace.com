@@ -1,5 +1,5 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import type { PutPendingHtml } from "./pending-html.types";
+import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
 
 export interface InMemoryPendingHtml {
 	putPendingHtml: PutPendingHtml;

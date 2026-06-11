@@ -12,7 +12,7 @@ import type {
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DeleteTrialFeedbackEmailSchedule,
-} from "@packages/test-fixtures/providers/trial-scheduler";
+} from "@packages/provider-contracts/trial-scheduler";
 
 /** EventBridge Scheduler's `at(<iso>)` does not accept fractional seconds or a
  * trailing Z. Strip both before composing the expression. */

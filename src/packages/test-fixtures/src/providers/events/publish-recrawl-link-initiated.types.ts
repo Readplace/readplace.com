@@ -1,3 +1,1 @@
-export type PublishRecrawlLinkInitiated = (params: {
-	url: string;
-}) => Promise<void>;
+export type { PublishRecrawlLinkInitiated } from "@packages/provider-contracts/events";

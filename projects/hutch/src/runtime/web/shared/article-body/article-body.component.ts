@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Minutes } from "@packages/domain/article";
-import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
-import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
+import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
+import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { requireEnv } from "../../../domain/require-env";
 import { render } from "../../render";
 import { renderArticleHeader } from "./article-header/article-header.component";

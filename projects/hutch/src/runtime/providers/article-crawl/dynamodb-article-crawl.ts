@@ -13,7 +13,7 @@ import type {
 	FindArticleCrawlStatus,
 	ForceMarkCrawlPending,
 	MarkCrawlPending,
-} from "@packages/test-fixtures/providers/article-crawl";
+} from "@packages/provider-contracts/article-crawl";
 
 const ArticleCrawlRow = z.object({
 	url: z.string(),

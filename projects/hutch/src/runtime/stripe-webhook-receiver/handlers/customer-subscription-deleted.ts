@@ -1,6 +1,6 @@
 import { SubscriptionCancelledEvent } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { FindSubscriptionBySubscriptionId } from "@packages/test-fixtures/providers/subscription-providers";
+import type { FindSubscriptionBySubscriptionId } from "@packages/provider-contracts/subscription-providers";
 import type { StripeEventHandler } from "../stripe-webhook-receiver-handler";
 
 export type CustomerSubscriptionDeletedDeps = {

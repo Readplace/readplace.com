@@ -1,9 +1,7 @@
-import type { AccessToken } from "@packages/domain/oauth";
-import type { UserId } from "@packages/domain/user";
 import { UserIdSchema } from "@packages/domain/user";
-import type { OAuthModel } from "./oauth-model";
+import type { OAuthModel, ValidateAccessToken } from "@packages/provider-contracts/oauth";
 
-export type ValidateAccessToken = (accessToken: AccessToken) => Promise<UserId | null>;
+export type { ValidateAccessToken };
 
 export function createValidateAccessToken(model: OAuthModel): ValidateAccessToken {
 	return async (accessToken) => {

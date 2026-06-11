@@ -1,5 +1,5 @@
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishStaleCheckRequested } from "./publish-stale-check-requested.types";
+import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
 
 export function initInMemoryStaleCheckRequested(deps: {
 	logger: HutchLogger;

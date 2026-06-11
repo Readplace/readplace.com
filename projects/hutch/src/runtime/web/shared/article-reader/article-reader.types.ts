@@ -5,15 +5,15 @@ import type {
 import type {
 	ArticleCrawl,
 	FindArticleCrawlStatus,
-} from "@packages/test-fixtures/providers/article-crawl";
+} from "@packages/provider-contracts/article-crawl";
 import type {
 	FindGeneratedSummary,
 	GeneratedSummary,
-} from "@packages/test-fixtures/providers/article-summary";
+} from "@packages/provider-contracts/article-summary";
 import type {
 	FindArticleByUrl,
 	ReadArticleContent,
-} from "@packages/test-fixtures/providers/article-store";
+} from "@packages/provider-contracts/article-store";
 import type { ProgressTick } from "@packages/domain/article";
 
 export interface ArticleReaderDeps {

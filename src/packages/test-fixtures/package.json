@@ -152,6 +152,8 @@
     "@packages/extract-links-from-page": "workspace:*",
     "@packages/hutch-infra-components": "workspace:*",
     "@packages/hutch-logger": "workspace:*",
+    "@packages/provider-contracts": "workspace:*",
+    "@packages/web-test-harness": "workspace:*",
     "zod": "4.4.3"
   },
   "devDependencies": {

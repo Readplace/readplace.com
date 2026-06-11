@@ -31,8 +31,8 @@ import type {
 	SaveArticle,
 	SaveArticleGlobally,
 	UpdateArticleStatus,
-} from "@packages/test-fixtures/providers/article-store";
-import type { ContentProvider } from "@packages/test-fixtures/providers/article-store";
+} from "@packages/provider-contracts/article-store";
+import type { ContentProvider } from "@packages/provider-contracts/article-store";
 
 const ArticleContentRow = z.object({
 	content: dynamoField(z.string()),

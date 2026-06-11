@@ -9,7 +9,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import type {
 	ClaimReaderReadyEmailSlot,
 	ReleaseReaderReadyEmailSlot,
-} from "@packages/test-fixtures/providers/reader-ready-state";
+} from "@packages/provider-contracts/reader-ready-state";
 
 const ReaderReadyNotificationRow = z.object({
 	userId: UserIdSchema,

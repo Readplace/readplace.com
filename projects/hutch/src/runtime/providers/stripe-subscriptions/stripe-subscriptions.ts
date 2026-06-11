@@ -4,7 +4,7 @@ import type {
 	CreateSubscriptionOnExistingCustomer,
 	ReverseScheduledCancellation,
 	ScheduleCancellationAtPeriodEnd,
-} from "@packages/test-fixtures/providers/stripe-subscriptions";
+} from "@packages/provider-contracts/stripe-subscriptions";
 
 const STRIPE_API = "https://api.stripe.com/v1";
 

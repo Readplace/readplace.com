@@ -1,6 +1,6 @@
 import { GetObjectCommand, NoSuchKey } from "@aws-sdk/client-s3";
 import assert from "node:assert";
-import type { ContentProvider } from "@packages/test-fixtures/providers/article-store";
+import type { ContentProvider } from "@packages/provider-contracts/article-store";
 
 // Narrow to just the GetObject response shape we actually consume — broader than
 // GetObjectCommandOutput, so S3Client.send is structurally assignable, and tests

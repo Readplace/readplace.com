@@ -16,13 +16,13 @@ import type {
 	FindArticleByUrl,
 	FindUserArticleNotificationState,
 	MarkReaderReadyEmailSent,
-} from "@packages/test-fixtures/providers/article-store";
-import type { FindUserContactByUserId } from "@packages/test-fixtures/providers/auth";
+} from "@packages/provider-contracts/article-store";
+import type { FindUserContactByUserId } from "@packages/provider-contracts/auth";
 import type {
 	ClaimReaderReadyEmailSlot,
 	ReleaseReaderReadyEmailSlot,
-} from "@packages/test-fixtures/providers/reader-ready-state";
-import type { SendEmail } from "@packages/test-fixtures/providers/email";
+} from "@packages/provider-contracts/reader-ready-state";
+import type { SendEmail } from "@packages/provider-contracts/email";
 import { buildReaderReadyEmailHtml } from "../web/reader-ready-email";
 
 const EMAIL_FROM = "Fayner from Readplace <readplace@readplace.com>";

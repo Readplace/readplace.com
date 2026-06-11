@@ -14,7 +14,7 @@ import type {
 	FindGeneratedSummary,
 	ForceMarkSummaryPending,
 	MarkSummaryPending,
-} from "@packages/test-fixtures/providers/article-summary";
+} from "@packages/provider-contracts/article-summary";
 
 const ArticleSummaryRow = z.object({
 	url: z.string(),

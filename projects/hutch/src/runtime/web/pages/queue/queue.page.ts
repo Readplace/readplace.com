@@ -19,7 +19,7 @@ import {
 } from "../import/import-skipped-cookie";
 import type { ImportSkippedViewModel } from "./queue.viewmodel";
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
-import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
+import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	CountArticlesByUser,
 	DeleteArticle,
@@ -30,29 +30,29 @@ import type {
 	MarkArticleViewed,
 	SaveArticle,
 	UpdateArticleStatus,
-} from "@packages/test-fixtures/providers/article-store";
-import type { PublishUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
-import type { PublishSaveLinkRawPdfCommand } from "@packages/test-fixtures/providers/events";
-import type { PutPendingPdf } from "@packages/test-fixtures/providers/pending-pdf";
+} from "@packages/provider-contracts/article-store";
+import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
+import type { PublishSaveLinkRawPdfCommand } from "@packages/provider-contracts/events";
+import type { PutPendingPdf } from "@packages/provider-contracts/pending-pdf";
 import { MAX_PDF_BYTES, isPDF } from "@packages/crawl-article";
 import { initMultipartUpload } from "../import/multipart-upload";
 import { initSaveContentLimitHandler } from "./save-content-limit-handler";
-import type { ReadArticleContent } from "@packages/test-fixtures/providers/article-store";
+import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type {
 	ArticleCrawl,
 	FindArticleCrawlStatus,
 	MarkCrawlPending,
-} from "@packages/test-fixtures/providers/article-crawl";
+} from "@packages/provider-contracts/article-crawl";
 import type {
 	FindGeneratedSummary,
 	GeneratedSummary,
 	MarkSummaryPending,
-} from "@packages/test-fixtures/providers/article-summary";
+} from "@packages/provider-contracts/article-summary";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.types";
-import type { PublishLinkSaved } from "@packages/test-fixtures/providers/events";
-import type { PublishSaveLinkRawHtmlCommand } from "@packages/test-fixtures/providers/events";
-import type { PutPendingHtml } from "@packages/test-fixtures/providers/pending-html";
+import type { PublishLinkSaved } from "@packages/provider-contracts/events";
+import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts/events";
+import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
 import { saveArticleFromUrl } from "../../shared/save-article/save-article-from-url";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";

@@ -1,5 +1,5 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
-import type { PutPendingPdf, ReadPendingPdf } from "./pending-pdf.types";
+import type { PutPendingPdf, ReadPendingPdf } from "@packages/provider-contracts/pending-pdf";
 
 export interface InMemoryPendingPdf {
 	putPendingPdf: PutPendingPdf;

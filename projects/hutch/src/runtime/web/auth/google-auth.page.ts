@@ -10,11 +10,11 @@ import type {
 	CreateSession,
 	FindUserByEmail,
 	MarkEmailVerified,
-} from "@packages/test-fixtures/providers/auth";
-import type { SendEmail } from "@packages/test-fixtures/providers/email";
-import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
-import type { UpsertTrialingSubscription } from "@packages/test-fixtures/providers/subscription-providers";
-import type { CreateTrialEndSchedule } from "@packages/test-fixtures/providers/trial-scheduler";
+} from "@packages/provider-contracts/auth";
+import type { SendEmail } from "@packages/provider-contracts/email";
+import type { ExchangeGoogleCode } from "@packages/provider-contracts/google-auth";
+import type { UpsertTrialingSubscription } from "@packages/provider-contracts/subscription-providers";
+import type { CreateTrialEndSchedule } from "@packages/provider-contracts/trial-scheduler";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { initSendWelcomeEmail } from "./send-welcome-email";

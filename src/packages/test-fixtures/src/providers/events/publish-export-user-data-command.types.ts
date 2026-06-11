@@ -1,5 +1,1 @@
-export type PublishExportUserDataCommand = (params: {
-	userId: string;
-	email: string;
-	requestedAt: string;
-}) => Promise<void>;
+export type { PublishExportUserDataCommand } from "@packages/provider-contracts/events";

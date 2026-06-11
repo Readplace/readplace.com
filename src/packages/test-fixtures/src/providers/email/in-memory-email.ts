@@ -1,4 +1,4 @@
-import type { EmailMessage, SendEmail } from "./email.types";
+import type { EmailMessage, SendEmail } from "@packages/provider-contracts/email";
 
 export function initInMemoryEmail(): {
 	sendEmail: SendEmail;

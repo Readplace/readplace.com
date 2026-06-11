@@ -1,5 +1,5 @@
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishSubscriptionChargeFailed } from "./publish-subscription-charge-failed.types";
+import type { PublishSubscriptionChargeFailed } from "@packages/provider-contracts/events";
 
 export function initInMemorySubscriptionChargeFailed(deps: {
 	logger: HutchLogger;

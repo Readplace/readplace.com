@@ -1,11 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
-import type { AccessToken } from "@packages/domain/oauth";
-import type { UserId } from "@packages/domain/user";
 import { AccessTokenSchema } from "@packages/domain/oauth";
+import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
 import { wantsSiren } from "./content-negotiation";
 import { SIREN_MEDIA_TYPE, sirenError } from "./api/siren";
-
-export type ValidateAccessToken = (accessToken: AccessToken) => Promise<UserId | null>;
 
 interface DualAuthDeps {
 	validateAccessToken: ValidateAccessToken;

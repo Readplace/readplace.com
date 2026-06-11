@@ -1,6 +1,6 @@
-import type { ArticleCrawl } from "@packages/test-fixtures/providers/article-crawl";
-import type { GeneratedSummary } from "@packages/test-fixtures/providers/article-summary";
-import type { GlobalArticleData } from "@packages/test-fixtures/providers/article-store";
+import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
+import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
+import type { GlobalArticleData } from "@packages/provider-contracts/article-store";
 import type { Component } from "../../component.types";
 import { HtmlPage } from "../../html-page";
 import {

@@ -6,14 +6,14 @@ import type {
 	FindArticleCrawlStatus,
 	ForceMarkCrawlPending,
 	MarkCrawlPending,
-} from "@packages/test-fixtures/providers/article-crawl";
-import type { FindArticleByUrl } from "@packages/test-fixtures/providers/article-store";
-import type { ReadArticleContent } from "@packages/test-fixtures/providers/article-store";
+} from "@packages/provider-contracts/article-crawl";
+import type { FindArticleByUrl } from "@packages/provider-contracts/article-store";
+import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type {
 	FindGeneratedSummary,
-} from "@packages/test-fixtures/providers/article-summary";
-import type { PublishRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
-import type { FindUserByEmail } from "@packages/test-fixtures/providers/auth";
+} from "@packages/provider-contracts/article-summary";
+import type { PublishRecrawlLinkInitiated } from "@packages/provider-contracts/events";
+import type { FindUserByEmail } from "@packages/provider-contracts/auth";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { extensionInstallUrlIfMissing } from "../../onboarding/extension-install";

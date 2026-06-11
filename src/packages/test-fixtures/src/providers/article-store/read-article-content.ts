@@ -1,8 +1,10 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import type {
+	ContentProvider,
+	ReadArticleContent,
+} from "@packages/provider-contracts/article-store";
 
-export type ContentProvider = (articleResourceUniqueId: ArticleResourceUniqueId) => Promise<string | undefined>;
-
-export type ReadArticleContent = (url: string) => Promise<string | undefined>;
+export type { ContentProvider, ReadArticleContent };
 
 export function initReadArticleContent(deps: {
 	storageProviderQueryOrder: ContentProvider[];

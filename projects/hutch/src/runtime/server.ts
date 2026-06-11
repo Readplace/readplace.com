@@ -22,35 +22,35 @@ import type {
 	UserExistsByEmail,
 	VerifyCredentials,
 	ExistsUserByIdPrefix,
-} from "@packages/test-fixtures/providers/auth";
+} from "@packages/provider-contracts/auth";
 import type {
 	CreateCheckoutSession,
 	RetrieveCheckoutSession,
-} from "@packages/test-fixtures/providers/stripe-checkout";
+} from "@packages/provider-contracts/stripe-checkout";
 import type {
 	ConsumePendingSignup,
 	StorePendingSignup,
-} from "@packages/test-fixtures/providers/pending-signup";
+} from "@packages/provider-contracts/pending-signup";
 import type {
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
-} from "@packages/test-fixtures/providers/subscription-providers";
+} from "@packages/provider-contracts/subscription-providers";
 import type {
 	CreateTrialEndSchedule,
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
-} from "@packages/test-fixtures/providers/trial-scheduler";
+} from "@packages/provider-contracts/trial-scheduler";
 import type {
 	PublishCancelSubscriptionCommand,
 	PublishSubscriptionReactivated,
-} from "@packages/test-fixtures/providers/events";
+} from "@packages/provider-contracts/events";
 import type {
 	CreateSubscriptionOnExistingCustomer,
 	ReverseScheduledCancellation,
-} from "@packages/test-fixtures/providers/stripe-subscriptions";
-import type { ExchangeGoogleCode } from "@packages/test-fixtures/providers/google-auth";
+} from "@packages/provider-contracts/stripe-subscriptions";
+import type { ExchangeGoogleCode } from "@packages/provider-contracts/google-auth";
 import type {
 	CountArticlesByUser,
 	DeleteArticle,
@@ -62,38 +62,38 @@ import type {
 	SaveArticle,
 	SaveArticleGlobally,
 	UpdateArticleStatus,
-} from "@packages/test-fixtures/providers/article-store";
-import type { PublishUpdateFetchTimestamp } from "@packages/test-fixtures/providers/events";
-import type { ReadArticleContent } from "@packages/test-fixtures/providers/article-store";
-import type { RefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
+} from "@packages/provider-contracts/article-store";
+import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
+import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	FindArticleCrawlStatus,
 	ForceMarkCrawlPending,
 	MarkCrawlPending,
-} from "@packages/test-fixtures/providers/article-crawl";
+} from "@packages/provider-contracts/article-crawl";
 import type {
 	FindGeneratedSummary,
 	MarkSummaryPending,
-} from "@packages/test-fixtures/providers/article-summary";
-import type { PublishLinkSaved } from "@packages/test-fixtures/providers/events";
-import type { PublishRecrawlLinkInitiated } from "@packages/test-fixtures/providers/events";
-import type { PublishSaveAnonymousLink } from "@packages/test-fixtures/providers/events";
-import type { PublishStaleCheckRequested } from "@packages/test-fixtures/providers/events";
-import type { PublishSaveLinkRawHtmlCommand } from "@packages/test-fixtures/providers/events";
-import type { PublishSaveLinkRawPdfCommand } from "@packages/test-fixtures/providers/events";
-import type { PublishExportUserDataCommand } from "@packages/test-fixtures/providers/events";
-import type { PutPendingHtml } from "@packages/test-fixtures/providers/pending-html";
-import type { PutPendingPdf } from "@packages/test-fixtures/providers/pending-pdf";
-import type { SendEmail } from "@packages/test-fixtures/providers/email";
+} from "@packages/provider-contracts/article-summary";
+import type { PublishLinkSaved } from "@packages/provider-contracts/events";
+import type { PublishRecrawlLinkInitiated } from "@packages/provider-contracts/events";
+import type { PublishSaveAnonymousLink } from "@packages/provider-contracts/events";
+import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
+import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts/events";
+import type { PublishSaveLinkRawPdfCommand } from "@packages/provider-contracts/events";
+import type { PublishExportUserDataCommand } from "@packages/provider-contracts/events";
+import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
+import type { PutPendingPdf } from "@packages/provider-contracts/pending-pdf";
+import type { SendEmail } from "@packages/provider-contracts/email";
 import type {
 	CreateVerificationToken,
 	VerifyEmailToken,
-} from "@packages/test-fixtures/providers/email-verification";
+} from "@packages/provider-contracts/email-verification";
 import type {
 	CreatePasswordResetToken,
 	VerifyPasswordResetToken,
-} from "@packages/test-fixtures/providers/password-reset";
-import type { OAuthModel } from "@packages/test-fixtures/providers/oauth";
+} from "@packages/provider-contracts/password-reset";
+import type { OAuthModel, ValidateAccessToken } from "@packages/provider-contracts/oauth";
 import { HutchLogger } from "@packages/hutch-logger";
 import type { AnalyticsEvent } from "./web/middleware/analytics";
 import { initAuthRoutes } from "./web/auth/auth.page";
@@ -120,7 +120,7 @@ import { initAccountRoutes } from "./web/pages/account/account.page";
 import { initBlogRoutes } from "./web/pages/blog";
 import { initBlogPosts } from "./web/pages/blog/blog.posts";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
-import { initDualAuth, type ValidateAccessToken } from "./web/dual-auth.middleware";
+import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
 import { initOAuthRoutes } from "./web/oauth/oauth.routes";
 import { Base } from "./web/base.component";

@@ -3,7 +3,7 @@ import type {
 	CreatePasswordResetToken,
 	PasswordResetToken,
 	VerifyPasswordResetToken,
-} from "./password-reset.types";
+} from "@packages/provider-contracts/password-reset";
 import { PasswordResetTokenSchema } from "./password-reset.schema";
 
 export function initInMemoryPasswordReset(): {

@@ -1,6 +1,6 @@
 /* c8 ignore start -- only used in dev composition root (app.ts) */
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishRefreshArticleContent } from "./publish-refresh-article-content.types";
+import type { PublishRefreshArticleContent } from "@packages/provider-contracts/events";
 
 export function initInMemoryRefreshArticleContent(deps: {
 	logger: HutchLogger;

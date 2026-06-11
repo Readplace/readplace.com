@@ -1,0 +1,135 @@
+{
+  "name": "@packages/provider-contracts",
+  "version": "1.0.0",
+  "description": "Provider contract types shared by production code and the in-memory test fixtures",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./article-crawl": {
+      "types": "./dist/article-crawl.d.ts",
+      "default": "./dist/article-crawl.js"
+    },
+    "./article-freshness": {
+      "types": "./dist/article-freshness.d.ts",
+      "default": "./dist/article-freshness.js"
+    },
+    "./article-store": {
+      "types": "./dist/article-store.d.ts",
+      "default": "./dist/article-store.js"
+    },
+    "./article-summary": {
+      "types": "./dist/article-summary.d.ts",
+      "default": "./dist/article-summary.js"
+    },
+    "./auth": {
+      "types": "./dist/auth.d.ts",
+      "default": "./dist/auth.js"
+    },
+    "./email": {
+      "types": "./dist/email.d.ts",
+      "default": "./dist/email.js"
+    },
+    "./email-verification": {
+      "types": "./dist/email-verification.d.ts",
+      "default": "./dist/email-verification.js"
+    },
+    "./events": {
+      "types": "./dist/events.d.ts",
+      "default": "./dist/events.js"
+    },
+    "./google-auth": {
+      "types": "./dist/google-auth.d.ts",
+      "default": "./dist/google-auth.js"
+    },
+    "./oauth": {
+      "types": "./dist/oauth.d.ts",
+      "default": "./dist/oauth.js"
+    },
+    "./password-reset": {
+      "types": "./dist/password-reset.d.ts",
+      "default": "./dist/password-reset.js"
+    },
+    "./pending-html": {
+      "types": "./dist/pending-html.d.ts",
+      "default": "./dist/pending-html.js"
+    },
+    "./pending-pdf": {
+      "types": "./dist/pending-pdf.d.ts",
+      "default": "./dist/pending-pdf.js"
+    },
+    "./pending-signup": {
+      "types": "./dist/pending-signup.d.ts",
+      "default": "./dist/pending-signup.js"
+    },
+    "./reader-ready-state": {
+      "types": "./dist/reader-ready-state.d.ts",
+      "default": "./dist/reader-ready-state.js"
+    },
+    "./refresh-html": {
+      "types": "./dist/refresh-html.d.ts",
+      "default": "./dist/refresh-html.js"
+    },
+    "./stripe-checkout": {
+      "types": "./dist/stripe-checkout.d.ts",
+      "default": "./dist/stripe-checkout.js"
+    },
+    "./stripe-subscriptions": {
+      "types": "./dist/stripe-subscriptions.d.ts",
+      "default": "./dist/stripe-subscriptions.js"
+    },
+    "./subscription-providers": {
+      "types": "./dist/subscription-providers.d.ts",
+      "default": "./dist/subscription-providers.js"
+    },
+    "./trial-scheduler": {
+      "types": "./dist/trial-scheduler.d.ts",
+      "default": "./dist/trial-scheduler.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "article-crawl": ["./dist/article-crawl.d.ts"],
+      "article-freshness": ["./dist/article-freshness.d.ts"],
+      "article-store": ["./dist/article-store.d.ts"],
+      "article-summary": ["./dist/article-summary.d.ts"],
+      "auth": ["./dist/auth.d.ts"],
+      "email": ["./dist/email.d.ts"],
+      "email-verification": ["./dist/email-verification.d.ts"],
+      "events": ["./dist/events.d.ts"],
+      "google-auth": ["./dist/google-auth.d.ts"],
+      "oauth": ["./dist/oauth.d.ts"],
+      "password-reset": ["./dist/password-reset.d.ts"],
+      "pending-html": ["./dist/pending-html.d.ts"],
+      "pending-pdf": ["./dist/pending-pdf.d.ts"],
+      "pending-signup": ["./dist/pending-signup.d.ts"],
+      "reader-ready-state": ["./dist/reader-ready-state.d.ts"],
+      "refresh-html": ["./dist/refresh-html.d.ts"],
+      "stripe-checkout": ["./dist/stripe-checkout.d.ts"],
+      "stripe-subscriptions": ["./dist/stripe-subscriptions.d.ts"],
+      "subscription-providers": ["./dist/subscription-providers.d.ts"],
+      "trial-scheduler": ["./dist/trial-scheduler.d.ts"]
+    }
+  },
+  "private": true,
+  "scripts": {
+    "compile": "tsc",
+    "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\"",
+    "check": "pnpm lint",
+    "check-infra": "echo 'No infrastructure — shared library'"
+  },
+  "dependencies": {
+    "@node-oauth/oauth2-server": "5.3.0",
+    "@packages/article-parser": "workspace:*",
+    "@packages/article-resource-unique-id": "workspace:*",
+    "@packages/domain": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "concurrently": "10.0.0",
+    "typescript": "5.9.3"
+  }
+}

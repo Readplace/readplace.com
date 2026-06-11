@@ -1,5 +1,1 @@
-import type { UserId } from "@packages/domain/user";
-
-export type PublishSubscriptionStartRequestCommand = (params: {
-	userId: UserId;
-}) => Promise<void>;
+export type { PublishSubscriptionStartRequestCommand } from "@packages/provider-contracts/events";

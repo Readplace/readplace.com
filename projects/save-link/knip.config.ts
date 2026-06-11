@@ -21,6 +21,7 @@ export default {
 		"@packages/article-store",
 		"@packages/crawl-article",
 		"@packages/domain",
+		"@packages/provider-contracts",
 		"@packages/refresh-article-content",
 		"@packages/retriable",
 		"@packages/test-fixtures",

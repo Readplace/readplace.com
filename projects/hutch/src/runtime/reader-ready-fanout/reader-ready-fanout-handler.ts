@@ -14,7 +14,7 @@ import type { DispatchCommand } from "@packages/hutch-infra-components/runtime";
 import type {
 	FindUserArticlesByUrl,
 	MarkReaderViewSucceeded,
-} from "@packages/test-fixtures/providers/article-store";
+} from "@packages/provider-contracts/article-store";
 
 export interface ReaderReadyUsersNotificationFanoutDeps {
 	findUserArticlesByUrl: FindUserArticlesByUrl;

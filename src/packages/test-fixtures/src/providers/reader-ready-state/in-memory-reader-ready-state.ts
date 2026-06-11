@@ -2,7 +2,7 @@ import type { UserId } from "@packages/domain/user";
 import type {
 	ClaimReaderReadyEmailSlot,
 	ReleaseReaderReadyEmailSlot,
-} from "./reader-ready-state.types";
+} from "@packages/provider-contracts/reader-ready-state";
 
 export function initInMemoryReaderReadyState(): {
 	claimReaderReadyEmailSlot: ClaimReaderReadyEmailSlot;

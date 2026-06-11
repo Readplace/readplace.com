@@ -8,7 +8,7 @@ import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { SubscriptionCancellationScheduledEvent } from "@packages/hutch-infra-components";
-import type { MarkSubscriptionPendingCancellation } from "@packages/test-fixtures/providers/subscription-providers";
+import type { MarkSubscriptionPendingCancellation } from "@packages/provider-contracts/subscription-providers";
 
 export function initHandleSubscriptionCancellationScheduledHandler(deps: {
 	markPendingCancellation: MarkSubscriptionPendingCancellation;

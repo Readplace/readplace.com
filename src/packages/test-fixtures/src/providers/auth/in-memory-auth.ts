@@ -19,7 +19,7 @@ import type {
 	UpdatePassword,
 	UserExistsByEmail,
 	VerifyCredentials,
-} from "./auth.types";
+} from "@packages/provider-contracts/auth";
 import { normalizeEmail } from "./normalize-email";
 
 interface StoredUser {

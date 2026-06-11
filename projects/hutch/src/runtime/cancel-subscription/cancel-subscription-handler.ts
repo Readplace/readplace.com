@@ -13,16 +13,16 @@ import type {
 	FindSubscriptionByUserId,
 	SubscriptionRecord,
 	SubscriptionStatus,
-} from "@packages/test-fixtures/providers/subscription-providers";
+} from "@packages/provider-contracts/subscription-providers";
 import type {
 	PublishSubscriptionCancellationScheduled,
 	PublishSubscriptionCancelled,
-} from "@packages/test-fixtures/providers/events";
-import type { ScheduleCancellationAtPeriodEnd } from "@packages/test-fixtures/providers/stripe-subscriptions";
+} from "@packages/provider-contracts/events";
+import type { ScheduleCancellationAtPeriodEnd } from "@packages/provider-contracts/stripe-subscriptions";
 import type {
 	CreateDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
-} from "@packages/test-fixtures/providers/trial-scheduler";
+} from "@packages/provider-contracts/trial-scheduler";
 
 type CancelBranch = (row: SubscriptionRecord) => Promise<void>;
 

@@ -1,0 +1,104 @@
+import type { UserId, UserIdPrefix } from "@packages/domain/user";
+
+export type CreateUserResult =
+	| { ok: true; userId: UserId }
+	| { ok: false; reason: "email-already-exists" };
+
+export type VerifyCredentialsResult =
+	| { ok: true; userId: UserId; emailVerified: boolean }
+	| { ok: false; reason: "invalid-credentials" };
+
+export type CreateUser = (credentials: {
+	email: string;
+	password: string;
+}) => Promise<CreateUserResult>;
+
+export type CreateUserWithPasswordHash = (credentials: {
+	email: string;
+	passwordHash: string;
+}) => Promise<CreateUserResult>;
+
+export type VerifyCredentials = (credentials: {
+	email: string;
+	password: string;
+}) => Promise<VerifyCredentialsResult>;
+
+export type CreateSession = (session: {
+	userId: UserId;
+	emailVerified: boolean;
+}) => Promise<string>;
+
+export type GetSessionUserId = (
+	sessionId: string,
+) => Promise<{ userId: UserId; emailVerified: boolean } | null>;
+
+export type DestroySession = (sessionId: string) => Promise<void>;
+
+export type CountUsers = () => Promise<number>;
+
+export type MarkEmailVerified = (email: string) => Promise<void>;
+
+export type MarkSessionEmailVerified = (sessionId: string) => Promise<void>;
+
+export type UserExistsByEmail = (email: string) => Promise<boolean>;
+
+export type UpdatePassword = (args: { email: string; password: string }) => Promise<void>;
+
+export type FindUserByEmailResult =
+	| { userId: UserId; emailVerified: boolean; registeredAt?: string }
+	| null;
+
+export type FindUserByEmail = (email: string) => Promise<FindUserByEmailResult>;
+
+export type FindEmailByUserId = (userId: UserId) => Promise<string | null>;
+
+export type UserContact = { email: string; emailVerified: boolean };
+
+/** Resolve a user's email + verification status by id (via the userId-index).
+ * The reader-ready notifier needs both: it only emails verified addresses. */
+export type FindUserContactByUserId = (
+	userId: UserId,
+) => Promise<UserContact | null>;
+
+export type ExistsUserByIdPrefix = (prefix: UserIdPrefix) => Promise<boolean>;
+
+export type CreateGoogleUser = (user: {
+	email: string;
+	userId: UserId;
+}) => Promise<CreateUserResult>;
+
+export type BotDefenseRejectReason =
+	| "honeypot"
+	| "submit_too_fast"
+	| "missing_timestamp"
+	| "invalid_timestamp";
+
+export interface BotDefenseEvent {
+	stream: "bot-defense";
+	event: "signup_rejected";
+	reason: BotDefenseRejectReason;
+	timestamp: string;
+	ip?: string;
+	user_agent?: string;
+	email_domain?: string;
+	time_to_submit_ms?: number;
+}
+
+export interface ConversionEvent {
+	stream: "conversions";
+	event: "user_created";
+	timestamp: string;
+	user_id: UserId;
+	email_hash: string;
+	method: "email" | "google";
+	tier: "free" | "paid" | "trial";
+	utm_source?: string;
+	utm_medium?: string;
+	utm_campaign?: string;
+	utm_content?: string;
+	referrer_host?: string;
+	first_seen_at?: string;
+	landing_path?: string;
+	stripe_checkout_session_id?: string;
+	visitor_id?: string;
+}

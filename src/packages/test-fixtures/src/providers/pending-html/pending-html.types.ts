@@ -1,4 +1,1 @@
-export type PutPendingHtml = (params: {
-	url: string;
-	html: string;
-}) => Promise<void>;
+export type { PutPendingHtml } from "@packages/provider-contracts/pending-html";

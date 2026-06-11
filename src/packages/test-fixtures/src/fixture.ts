@@ -4,8 +4,10 @@ import type { CrawlArticle } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { noopLogger } from "@packages/hutch-logger";
 import { calculateReadTime, validateSaveableUrl } from "@packages/domain/article";
-import type { BotDefenseEvent } from "./providers/auth/bot-defense.types";
-import type { ConversionEvent } from "./providers/auth/conversion.types";
+import type {
+	BotDefenseEvent,
+	ConversionEvent,
+} from "@packages/provider-contracts/auth";
 import type { ParseArticle } from "@packages/article-parser";
 import { initReadabilityParser } from "@packages/article-parser";
 import { initInMemoryArticleCrawl } from "./providers/article-crawl/in-memory-article-crawl";
@@ -38,15 +40,17 @@ import type {
 	ForceMarkSummaryPending,
 	GeneratedSummary,
 	MarkSummaryPending,
-} from "./providers/article-summary/article-summary.types";
+} from "@packages/provider-contracts/article-summary";
 import { initInMemoryLinkSaved } from "./providers/events/in-memory-link-saved";
 import { initInMemoryRecrawlLinkInitiated } from "./providers/events/in-memory-recrawl-link-initiated";
 import { initInMemorySaveAnonymousLink } from "./providers/events/in-memory-save-anonymous-link";
 import { initInMemoryStaleCheckRequested } from "./providers/events/in-memory-stale-check-requested";
 import { initInMemoryUpdateFetchTimestamp } from "./providers/events/in-memory-update-fetch-timestamp";
-import type { PublishLinkSaved } from "./providers/events/publish-link-saved.types";
-import type { PublishRecrawlLinkInitiated } from "./providers/events/publish-recrawl-link-initiated.types";
-import type { PublishSaveAnonymousLink } from "./providers/events/publish-save-anonymous-link.types";
+import type {
+	PublishLinkSaved,
+	PublishRecrawlLinkInitiated,
+	PublishSaveAnonymousLink,
+} from "@packages/provider-contracts/events";
 import type {
 	HttpErrorMessageMapping,
 	RefreshArticleIfStale,

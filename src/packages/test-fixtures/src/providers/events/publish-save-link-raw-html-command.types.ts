@@ -1,5 +1,1 @@
-export type PublishSaveLinkRawHtmlCommand = (params: {
-	url: string;
-	userId: string;
-	title?: string;
-}) => Promise<void>;
+export type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts/events";

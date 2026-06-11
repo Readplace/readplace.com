@@ -25,7 +25,7 @@ import type {
 	SaveArticle,
 	SaveArticleGlobally,
 	UpdateArticleStatus,
-} from "./article-store.types";
+} from "@packages/provider-contracts/article-store";
 import type { ContentProvider } from "./read-article-content";
 
 interface GlobalArticle {

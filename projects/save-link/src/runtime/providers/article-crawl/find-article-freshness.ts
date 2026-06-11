@@ -6,7 +6,7 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { ArticleResourceUniqueId } from "../../domain/save-link/article-resource-unique-id";
-import type { FindArticleFreshness } from "@packages/test-fixtures/providers/article-store";
+import type { FindArticleFreshness } from "@packages/provider-contracts/article-store";
 
 const FreshnessRow = z.object({
 	etag: dynamoField(z.string()),

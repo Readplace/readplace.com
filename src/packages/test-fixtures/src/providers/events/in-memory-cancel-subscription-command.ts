@@ -1,5 +1,5 @@
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishCancelSubscriptionCommand } from "./publish-cancel-subscription-command.types";
+import type { PublishCancelSubscriptionCommand } from "@packages/provider-contracts/events";
 
 export function initInMemoryCancelSubscriptionCommand(deps: {
 	logger: HutchLogger;

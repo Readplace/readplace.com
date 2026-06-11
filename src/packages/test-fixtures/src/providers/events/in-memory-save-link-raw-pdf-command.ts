@@ -1,5 +1,5 @@
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishSaveLinkRawPdfCommand } from "./publish-save-link-raw-pdf-command.types";
+import type { PublishSaveLinkRawPdfCommand } from "@packages/provider-contracts/events";
 
 export function initInMemorySaveLinkRawPdfCommand(deps: {
 	logger: HutchLogger;

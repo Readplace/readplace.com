@@ -1,7 +1,7 @@
 import type { HutchLogger } from "@packages/hutch-logger";
 import { RefreshContentExtractedEvent } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
-import type { ReadRefreshHtml } from "@packages/test-fixtures/providers/refresh-html";
+import type { ReadRefreshHtml } from "@packages/provider-contracts/refresh-html";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import { RefreshArticleContentCommand } from "./index";

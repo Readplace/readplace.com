@@ -10,7 +10,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import type {
 	CreateVerificationToken,
 	VerifyEmailToken,
-} from "@packages/test-fixtures/providers/email-verification";
+} from "@packages/provider-contracts/email-verification";
 import { VerificationTokenSchema } from "@packages/test-fixtures/providers/email-verification";
 
 const TOKEN_TTL_SECONDS = 24 * 60 * 60; // 24 hours

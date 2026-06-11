@@ -1,4 +1,4 @@
-import type { ArticleCrawl } from "../article-crawl/article-crawl.types";
+import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 
 /**
  * The stale-check has three possible decisions when a row exists. Encoded as

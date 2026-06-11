@@ -1,0 +1,10 @@
+{
+  "name": "@packages/provider-contracts",
+  "targets": {
+    "check": {
+      "command": "pnpm lint",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["compile"]
+    }
+  }
+}

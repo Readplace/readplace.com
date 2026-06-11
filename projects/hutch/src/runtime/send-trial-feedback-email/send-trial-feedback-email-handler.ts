@@ -8,13 +8,13 @@ import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import { SendTrialFeedbackEmailCommand } from "@packages/hutch-infra-components";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { FindEmailByUserId } from "@packages/test-fixtures/providers/auth";
-import type { FindArticlesByUser } from "@packages/test-fixtures/providers/article-store";
-import type { SendEmail } from "@packages/test-fixtures/providers/email";
+import type { FindEmailByUserId } from "@packages/provider-contracts/auth";
+import type { FindArticlesByUser } from "@packages/provider-contracts/article-store";
+import type { SendEmail } from "@packages/provider-contracts/email";
 import type {
 	FindSubscriptionByUserId,
 	MarkTrialFeedbackEmailSent,
-} from "@packages/test-fixtures/providers/subscription-providers";
+} from "@packages/provider-contracts/subscription-providers";
 import {
 	TrialFeedbackEmail,
 	TRIAL_FEEDBACK_EMAIL_SUBJECT,

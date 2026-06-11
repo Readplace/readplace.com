@@ -2,30 +2,30 @@ import assert from "node:assert";
 import type { Request, Response, Router } from "express";
 import express from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { FindEmailByUserId } from "@packages/test-fixtures/providers/auth";
+import type { FindEmailByUserId } from "@packages/provider-contracts/auth";
 import type {
 	CreateCheckoutSession,
 	CheckoutSessionId,
-} from "@packages/test-fixtures/providers/stripe-checkout";
+} from "@packages/provider-contracts/stripe-checkout";
 import type {
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
-} from "@packages/test-fixtures/providers/subscription-providers";
+} from "@packages/provider-contracts/subscription-providers";
 import type {
 	PublishCancelSubscriptionCommand,
 	PublishSubscriptionReactivated,
-} from "@packages/test-fixtures/providers/events";
+} from "@packages/provider-contracts/events";
 import type {
 	CreateSubscriptionOnExistingCustomer,
 	ReverseScheduledCancellation,
-} from "@packages/test-fixtures/providers/stripe-subscriptions";
+} from "@packages/provider-contracts/stripe-subscriptions";
 import type {
 	CreateTrialEndSchedule,
 	DeleteDeferredCancellationSchedule,
-} from "@packages/test-fixtures/providers/trial-scheduler";
-import type { StorePendingSignup } from "@packages/test-fixtures/providers/pending-signup";
+} from "@packages/provider-contracts/trial-scheduler";
+import type { StorePendingSignup } from "@packages/provider-contracts/pending-signup";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";

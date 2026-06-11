@@ -4,7 +4,7 @@ import type {
 	ForceMarkSummaryPending,
 	GeneratedSummary,
 	MarkSummaryPending,
-} from "./article-summary.types";
+} from "@packages/provider-contracts/article-summary";
 
 export type InMemoryMarkSummaryReady = (params: {
 	url: string;

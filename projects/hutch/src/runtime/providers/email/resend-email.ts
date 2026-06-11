@@ -1,6 +1,6 @@
 /* c8 ignore start -- thin SDK wrapper, tested via integration */
 import { Resend } from "resend";
-import type { SendEmail } from "@packages/test-fixtures/providers/email";
+import type { SendEmail } from "@packages/provider-contracts/email";
 
 export function initResendEmail(apiKey: string): { sendEmail: SendEmail } {
 	const resend = new Resend(apiKey);

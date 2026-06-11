@@ -10,7 +10,7 @@ import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import type {
 	PublishSaveAnonymousLink,
 	PublishUpdateFetchTimestamp,
-} from "@packages/test-fixtures/providers/events";
+} from "@packages/provider-contracts/events";
 import { initStaleCheckHandler } from "./domain/stale-check/stale-check-handler";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";

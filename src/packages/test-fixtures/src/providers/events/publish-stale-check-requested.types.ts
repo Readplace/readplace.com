@@ -1,3 +1,1 @@
-export type PublishStaleCheckRequested = (params: {
-	url: string;
-}) => Promise<void>;
+export type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";

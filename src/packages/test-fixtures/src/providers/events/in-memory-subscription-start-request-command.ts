@@ -1,5 +1,5 @@
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishSubscriptionStartRequestCommand } from "./publish-subscription-start-request-command.types";
+import type { PublishSubscriptionStartRequestCommand } from "@packages/provider-contracts/events";
 
 export function initInMemorySubscriptionStartRequestCommand(deps: {
 	logger: HutchLogger;

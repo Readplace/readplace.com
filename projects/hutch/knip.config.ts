@@ -40,10 +40,12 @@ export default {
 		"@packages/domain",
 		"@packages/extract-links-from-page",
 		"@packages/onboarding-extension-signal",
+		"@packages/provider-contracts",
 		"@packages/refresh-article-content",
 		"@packages/retriable",
 		"@packages/time-left",
 		"@packages/test-fixtures",
+		"@packages/web-test-harness",
 	],
 	ignoreBinaries: [
 		...(baseConfig.ignoreBinaries || []),

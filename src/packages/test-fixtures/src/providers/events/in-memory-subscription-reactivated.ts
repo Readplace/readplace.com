@@ -1,5 +1,5 @@
 import type { HutchLogger } from "@packages/hutch-logger";
-import type { PublishSubscriptionReactivated } from "./publish-subscription-reactivated.types";
+import type { PublishSubscriptionReactivated } from "@packages/provider-contracts/events";
 
 export function initInMemorySubscriptionReactivated(deps: {
 	logger: HutchLogger;

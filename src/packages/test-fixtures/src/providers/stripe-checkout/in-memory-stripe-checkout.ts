@@ -5,7 +5,7 @@ import type {
 	CheckoutSessionStatus,
 	CreateCheckoutSession,
 	RetrieveCheckoutSession,
-} from "./stripe-checkout.types";
+} from "@packages/provider-contracts/stripe-checkout";
 
 interface StoredSession {
 	customerEmail: string;
