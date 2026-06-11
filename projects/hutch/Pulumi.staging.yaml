@@ -24,6 +24,8 @@ config:
   hutch:rateLimitLogin: 300/900
   hutch:rateLimitSignup: 300/3600
   hutch:rateLimitForgotPassword: 100/3600
+  hutch:apiThrottleBurstLimit: 400
+  hutch:apiThrottleRateLimit: 200
   hutch:trialSchedulerGroupName: hutch-trial-end-staging
   hutch:contentBucketName: hutch-article-content-staging
   hutch:pendingHtmlBucketName: hutch-pending-html-staging

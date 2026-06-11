@@ -1,6 +1,6 @@
 import { noopLogger } from "@packages/hutch-logger";
 import type { CrawlArticle } from "@packages/crawl-article";
-import { markCrawlFailed, markCrawlUnsupported, markSummarySkipped } from "@packages/domain/article-aggregate";
+import { markCrawlBlocked, markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import {
 	RecrawlContentExtractedEvent,
 	RefreshContentExtractedEvent,
@@ -529,17 +529,17 @@ describe("initComprehensiveCrawlHandler", () => {
 
 			expect(result).toEqual({ batchItemFailures: [] });
 			expect(crawlArticle).not.toHaveBeenCalled();
-			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
+			// One atomic cross-axis transition terminalises both axes (crawl=failed,
+			// summary=skipped): the stub save left summary=pending and no
+			// *-ContentExtracted event will fire here, so a partial two-write
+			// terminalisation could strand the row half-terminal (the queue is
+			// maxReceiveCount=1 → DLQ handler only advances crawl) and the
+			// stuck-articles canary would page over a transient cap.
+			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
 				url: "https://example.com/doc.pdf",
 				input: { reason: { kind: "blocked", cause: "rate-limited" } },
 			});
-			// Both axes terminalised: the stub save left summary=pending and no
-			// *-ContentExtracted event will fire here, so without this the row sits
-			// half-terminal and the stuck-articles canary pages over a transient cap.
-			expect(transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
-				url: "https://example.com/doc.pdf",
-				input: { reason: "crawl-failed", now: "2026-04-18T12:00:00.000Z" },
-			});
+			expect(transitionAndPersist).toHaveBeenCalledTimes(1);
 			expect(publishEvent).not.toHaveBeenCalled();
 			expect(logParseError).toHaveBeenCalledWith({
 				url: "https://example.com/doc.pdf",

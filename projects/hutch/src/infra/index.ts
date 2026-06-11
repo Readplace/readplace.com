@@ -64,6 +64,15 @@ const rateLimitRules = {
 	forgotPassword: config.require("rateLimitForgotPassword"),
 };
 
+/* Blunt TOTAL-rate ceiling (all clients combined) applied by API Gateway before
+ * the Lambda runs — per-stack so staging, whose e2e suite drives the whole run
+ * from one CI egress IP, can lift the ceiling without a code change while prod
+ * stays tight. Per-IP fairness is the application limiter's job. */
+const apiThrottle = {
+	burstLimit: config.requireNumber("apiThrottleBurstLimit"),
+	rateLimit: config.requireNumber("apiThrottleRateLimit"),
+};
+
 const storage = new HutchStorage("hutch", {
 	deletionProtection,
 	tableNames,
@@ -304,10 +313,7 @@ const gateway = new HutchAPIGateway("hutch", {
 	domains: legacyPrimaryDomain ? [legacyPrimaryDomain] : [],
 	zoneId: legacyDomainRegistration.zoneId,
 	certificateArn: legacyDomainRegistration.certificateArn,
-	// Blunt TOTAL-rate ceiling (all clients combined) so a flood can't run the
-	// Lambda bill unbounded; sized far above organic traffic. Per-IP fairness
-	// is the application limiter's job.
-	throttling: { burstLimit: 200, rateLimit: 50 },
+	throttling: apiThrottle,
 });
 
 for (const [i, domain] of additionalDomains.entries()) {

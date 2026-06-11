@@ -7,10 +7,12 @@ import { initDynamoDbRateLimit } from "./dynamodb-rate-limit";
 
 type SendFn = DynamoDBDocumentClient["send"];
 
-function createFakeClient(impl: (command: unknown) => unknown): DynamoDBDocumentClient {
+function createFakeClient(
+	impl: (command: unknown) => unknown,
+): Partial<DynamoDBDocumentClient> {
 	return {
 		send: (async (command: unknown) => impl(command)) as unknown as SendFn,
-	} as DynamoDBDocumentClient;
+	};
 }
 
 interface CapturedUpdate {
@@ -35,7 +37,7 @@ describe("initDynamoDbRateLimit", () => {
 			client: createFakeClient((command) => {
 				received = command;
 				return {};
-			}),
+			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
 			now: midWindowNow,
 		});
@@ -68,7 +70,7 @@ describe("initDynamoDbRateLimit", () => {
 					$metadata: {},
 					message: "condition failed",
 				});
-			}),
+			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
 			now: midWindowNow,
 		});
@@ -86,7 +88,7 @@ describe("initDynamoDbRateLimit", () => {
 		const { consumeRateLimit } = initDynamoDbRateLimit({
 			client: createFakeClient(() => {
 				throw new Error("throttled");
-			}),
+			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
 			now: midWindowNow,
 		});

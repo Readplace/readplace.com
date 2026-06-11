@@ -8,10 +8,12 @@ import { initDynamoDbPaidCrawlBudget } from "./dynamodb-paid-crawl-budget";
 
 type SendFn = DynamoDBDocumentClient["send"];
 
-function createFakeClient(impl: (command: unknown) => unknown): DynamoDBDocumentClient {
+function createFakeClient(
+	impl: (command: unknown) => unknown,
+): Partial<DynamoDBDocumentClient> {
 	return {
 		send: (async (command: unknown) => impl(command)) as unknown as SendFn,
-	} as DynamoDBDocumentClient;
+	};
 }
 
 interface CapturedTransaction {
@@ -57,7 +59,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 			client: createFakeClient((command) => {
 				received = command;
 				return {};
-			}),
+			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
@@ -83,7 +85,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
 			client: createFakeClient(() => {
 				throw cancelled(["ConditionalCheckFailed", "None"]);
-			}),
+			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
@@ -98,7 +100,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
 			client: createFakeClient(() => {
 				throw cancelled(["None", "ConditionalCheckFailed"]);
-			}),
+			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
@@ -113,7 +115,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
 			client: createFakeClient(() => {
 				throw cancelled(["ConditionalCheckFailed", "ConditionalCheckFailed"]);
-			}),
+			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
@@ -128,7 +130,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
 			client: createFakeClient(() => {
 				throw cancelled(["TransactionConflict", "None"]);
-			}),
+			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
@@ -143,7 +145,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 		const { consumePaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
 			client: createFakeClient(() => {
 				throw new Error("throttled");
-			}),
+			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
@@ -158,7 +160,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 			client: createFakeClient((command) => {
 				received = command;
 				return {};
-			}),
+			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
@@ -180,7 +182,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 					$metadata: {},
 					message: "condition failed",
 				});
-			}),
+			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
 			rule: HOUR_BUDGET,
 			now: midWindowNow,
@@ -193,7 +195,7 @@ describe("initDynamoDbPaidCrawlBudget", () => {
 		const { refundPaidCrawlBudget } = initDynamoDbPaidCrawlBudget({
 			client: createFakeClient(() => {
 				throw new Error("throttled");
-			}),
+			}) as DynamoDBDocumentClient,
 			tableName: TABLE,
 			rule: HOUR_BUDGET,
 			now: midWindowNow,

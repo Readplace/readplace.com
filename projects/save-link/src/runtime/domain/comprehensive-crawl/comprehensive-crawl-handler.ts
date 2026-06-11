@@ -3,7 +3,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { CrawlArticle } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
-import { markCrawlFailed, markCrawlUnsupported, markSummarySkipped } from "@packages/domain/article-aggregate";
+import { markCrawlBlocked, markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import {
 	ComprehensiveCrawlCommand,
 	RecrawlContentExtractedEvent,
@@ -88,12 +88,13 @@ export function initComprehensiveCrawlHandler(deps: {
 	/* Spend breaker, not a crawl error: the message is consumed (no SQS retry —
 	 * a retry would re-spend the very budget that is exhausted) and the row is
 	 * settled so readers see the terminal "link is saved, content unavailable"
-	 * reframe instead of a forever-pending progress bar. Both axes are
-	 * terminalised (crawl=failed, summary=skipped) — the stub save set summary
-	 * to `pending` and no *-ContentExtracted event will ever fire to advance it,
-	 * so without the summary write the row sits half-terminal and the
-	 * stuck-articles canary would page an operator over a transient throttle.
-	 * Mirrors markCrawlUnsupported's cross-axis pairing. */
+	 * reframe instead of a forever-pending progress bar. markCrawlBlocked
+	 * terminalises both axes (crawl=failed, summary=skipped) in one atomic save:
+	 * the stub save set summary to `pending` and no *-ContentExtracted event will
+	 * ever fire to advance it, so a partial two-write terminalisation could strand
+	 * the row half-terminal (the comprehensive queue is maxReceiveCount=1, so the
+	 * failed message hits a DLQ handler that only advances the crawl axis) and the
+	 * stuck-articles canary would page an operator over a transient throttle. */
 	const resolveBudgetExhausted = async (ctx: {
 		url: string;
 		refresh?: boolean;
@@ -105,13 +106,9 @@ export function initComprehensiveCrawlHandler(deps: {
 			// prior canonical stays valid, its freshness simply doesn't bump.
 			return { via: "already-terminal" };
 		}
-		await transitionAndPersist(markCrawlFailed, {
+		await transitionAndPersist(markCrawlBlocked, {
 			url: ctx.url,
 			input: { reason: { kind: "blocked", cause: "rate-limited" } },
-		});
-		await transitionAndPersist(markSummarySkipped, {
-			url: ctx.url,
-			input: { reason: "crawl-failed", now: now().toISOString() },
 		});
 		return { via: "committed-in-process" };
 	};
