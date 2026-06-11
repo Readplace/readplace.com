@@ -11,7 +11,7 @@ import type { UpdateFetchTimestamp } from "./update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import { initSaveLinkWork } from "./save-link-work";
-import type { CrawlAndFinalizeArticle } from "./crawl-and-finalize-article";
+import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 

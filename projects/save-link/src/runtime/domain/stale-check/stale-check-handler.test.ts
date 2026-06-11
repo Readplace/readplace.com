@@ -15,8 +15,8 @@ import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
 import type {
 	CrawlAndFinalizeArticle,
 	CrawlAndFinalizeResult,
-} from "../save-link/crawl-and-finalize-article";
-import type { FinalizedArticle } from "../save-link/finalize-article";
+	FinalizedArticle,
+} from "@packages/finalize-article";
 import type { MarkCrawlStage } from "../../providers/article-crawl/mark-crawl-stage";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import { initStaleCheckHandler } from "./stale-check-handler";

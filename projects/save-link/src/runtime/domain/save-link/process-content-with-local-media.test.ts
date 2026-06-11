@@ -3,7 +3,7 @@ import { parseHTML } from "linkedom";
 import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import { initProcessContentWithLocalMedia, type RewriteHtmlUrls } from "./process-content-with-local-media";
-import type { DownloadedMedia } from "./download-media";
+import type { DownloadedMedia } from "@packages/finalize-article";
 
 const rewriteHtmlUrls: RewriteHtmlUrls = (html, rewriteUrl) => {
 	const plugin = urls({ eachURL: rewriteUrl });

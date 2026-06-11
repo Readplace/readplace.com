@@ -4,22 +4,13 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { parseHTML } from "linkedom";
 import parseSrcset from "parse-srcset";
 import type { CrawlFetch } from "@packages/crawl-article";
-import type { ArticleResourceUniqueId } from "./article-resource-unique-id";
-import type { PutImageObject } from "../../providers/article-store/s3-put-image-object";
+import type { DownloadedMedia, DownloadMedia, PutImageObject } from "@packages/finalize-article";
 
 const MAX_IMAGES = 20;
 const MAX_RENDITIONS_PER_IMAGE = 24;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT_MS = 5_000;
 const CONCURRENCY = 5;
-
-export type DownloadedMedia = { originalUrl: string; cdnUrl: string };
-
-export type DownloadMedia = (params: {
-	html: string;
-	articleUrl: string;
-	articleResourceUniqueId: ArticleResourceUniqueId;
-}) => Promise<DownloadedMedia[]>;
 
 export function initDownloadMedia(deps: {
 	putImageObject: PutImageObject;

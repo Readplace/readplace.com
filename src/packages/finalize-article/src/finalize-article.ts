@@ -5,9 +5,9 @@ import {
 	type FetchThumbnailImage,
 	type ThumbnailImage,
 } from "@packages/crawl-article";
-import type { PutImageObject } from "../../providers/article-store/s3-put-image-object";
-import { ArticleResourceUniqueId } from "./article-resource-unique-id";
-import type { DownloadMedia, DownloadedMedia } from "./download-media";
+import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
+import type { DownloadMedia, DownloadedMedia } from "./download-media.types";
+import type { PutImageObject } from "./put-image-object.types";
 import { estimatedReadTimeFromWordCount } from "./estimated-read-time";
 import { stripOversizedInlineImages } from "./strip-inline-image-data";
 

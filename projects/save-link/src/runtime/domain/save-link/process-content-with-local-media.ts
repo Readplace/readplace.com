@@ -1,4 +1,4 @@
-import type { DownloadedMedia } from "./download-media";
+import type { DownloadedMedia } from "@packages/finalize-article";
 
 export type RewriteHtmlUrls = (
 	html: string,

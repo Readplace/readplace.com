@@ -5,7 +5,7 @@ import type { SummarySkipReason } from "@packages/article-state-types";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { CreateAiMessage } from "./create-ai-message.types";
 import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
-import { MAX_EXCERPT_LENGTH, MAX_SUMMARY_LENGTH } from "./max-summary-length";
+import { MAX_EXCERPT_LENGTH, MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary";
 
 const SUMMARIZE_PROMPT = readFileSync(
 	join(__dirname, "summarize-prompt.md"),

@@ -1,8 +1,11 @@
 import { noopLogger } from "@packages/hutch-logger";
 import { RecrawlContentExtractedEvent } from "@packages/hutch-infra-components";
 import { initRecrawlLinkInitiatedHandler } from "./recrawl-link-initiated-handler";
-import type { CrawlAndFinalizeArticle, CrawlAndFinalizeResult } from "./crawl-and-finalize-article";
-import type { FinalizedArticle } from "./finalize-article";
+import type {
+	CrawlAndFinalizeArticle,
+	CrawlAndFinalizeResult,
+	FinalizedArticle,
+} from "@packages/finalize-article";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
 

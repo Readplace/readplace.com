@@ -7,7 +7,7 @@ import {
 	TierContentExtractedEvent,
 } from "@packages/hutch-infra-components";
 import { initComprehensiveCrawlHandler } from "./comprehensive-crawl-handler";
-import type { FinalizeArticle, FinalizedArticle } from "../save-link/finalize-article";
+import type { FinalizeArticle, FinalizedArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
 

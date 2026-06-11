@@ -1,7 +1,7 @@
 import type { ParseHtml } from "@packages/article-parser";
 import type { FetchThumbnailImage, ThumbnailImage } from "@packages/crawl-article";
-import type { PutImageObject } from "../../providers/article-store/s3-put-image-object";
-import type { DownloadMedia } from "./download-media";
+import type { DownloadMedia } from "./download-media.types";
+import type { PutImageObject } from "./put-image-object.types";
 import {
 	initFinalizeArticle,
 	type ProcessContent,

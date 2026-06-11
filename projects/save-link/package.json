@@ -4,40 +4,6 @@
   "description": "Event handlers for link saving and summary generation",
   "main": "src/infra/index.ts",
   "private": true,
-  "exports": {
-    "./save-link": {
-      "types": "./dist/runtime/domain/save-link/index.d.ts",
-      "default": "./dist/runtime/domain/save-link/index.js"
-    },
-    "./generate-summary": {
-      "types": "./dist/runtime/domain/generate-summary/index.d.ts",
-      "default": "./dist/runtime/domain/generate-summary/index.js"
-    },
-    "./finalize-article": {
-      "types": "./dist/runtime/domain/save-link/finalize-article.d.ts",
-      "default": "./dist/runtime/domain/save-link/finalize-article.js"
-    },
-    "./crawl-and-finalize-article": {
-      "types": "./dist/runtime/domain/save-link/crawl-and-finalize-article.d.ts",
-      "default": "./dist/runtime/domain/save-link/crawl-and-finalize-article.js"
-    }
-  },
-  "typesVersions": {
-    "*": {
-      "save-link": [
-        "./dist/runtime/domain/save-link/index.d.ts"
-      ],
-      "generate-summary": [
-        "./dist/runtime/domain/generate-summary/index.d.ts"
-      ],
-      "finalize-article": [
-        "./dist/runtime/domain/save-link/finalize-article.d.ts"
-      ],
-      "crawl-and-finalize-article": [
-        "./dist/runtime/domain/save-link/crawl-and-finalize-article.d.ts"
-      ]
-    }
-  },
   "scripts": {
     "compile": "rm -rf dist && tsc && node scripts/copy-static-assets.js",
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
@@ -61,6 +27,7 @@
     "@packages/article-store": "workspace:*",
     "@packages/crawl-article": "workspace:*",
     "@packages/domain": "workspace:*",
+    "@packages/finalize-article": "workspace:*",
     "@packages/hutch-infra-components": "workspace:*",
     "@packages/hutch-logger": "workspace:*",
     "@packages/hutch-storage-client": "workspace:*",

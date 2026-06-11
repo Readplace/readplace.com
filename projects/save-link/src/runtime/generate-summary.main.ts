@@ -16,7 +16,7 @@ import { initCreateDeepseekMessage } from "./domain/generate-summary/create-deep
 import { initDynamoDbMarkSummaryStage } from "./providers/article-crawl/mark-summary-stage";
 import { initGenerateSummaryHandler } from "./domain/generate-summary/generate-summary-handler";
 import { initLinkSummariser } from "./domain/generate-summary/link-summariser";
-import { MAX_SUMMARY_LENGTH } from "./domain/generate-summary/max-summary-length";
+import { MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary";
 import { stripHtml } from "./domain/generate-summary/strip-html";
 import { GENERATE_SUMMARY_TIMEOUTS } from "./domain/generate-summary/timeouts";
 import { requireEnv } from "../require-env";

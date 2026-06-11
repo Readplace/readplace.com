@@ -11,7 +11,7 @@ import {
 	type LogCrawlOutcome,
 	type LogParseError,
 } from "@packages/hutch-infra-components";
-import type { FinalizeArticle } from "../save-link/finalize-article";
+import type { FinalizeArticle } from "@packages/finalize-article";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
 import type { ReadPendingHtml } from "../../providers/article-store/read-pending-html";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";

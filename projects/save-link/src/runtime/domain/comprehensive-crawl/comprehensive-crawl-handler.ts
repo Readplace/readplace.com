@@ -17,7 +17,7 @@ import type { PutTierSource } from "../../providers/article-store/put-tier-sourc
 import type { UpdateFetchTimestamp } from "../save-link/update-fetch-timestamp-handler";
 import type { LogCrawlOutcome, LogParseError } from "@packages/hutch-infra-components";
 import type { ReadTierSnapshot } from "../crawl-article-state/read-tier-snapshot";
-import type { FinalizeArticle } from "../save-link/finalize-article";
+import type { FinalizeArticle } from "@packages/finalize-article";
 
 /* Every comprehensive-crawl record must account for the row's crawl axis being
  * in a terminal state: committed in-process here (unsupported), deferred to a

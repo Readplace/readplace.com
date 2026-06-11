@@ -15,8 +15,7 @@ import {
 	initFetchThumbnailImage,
 } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
-import { initFinalizeArticle } from "save-link/finalize-article";
-import { initCrawlAndFinalizeArticle } from "save-link/crawl-and-finalize-article";
+import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
 import { initReadabilityParser, mediumPreParser, theInformationPreParser } from "@packages/article-parser";
 import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
