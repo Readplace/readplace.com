@@ -293,6 +293,29 @@ describe("ViewPage", () => {
 		expect(data.image).toBeUndefined();
 	});
 
+	it("keeps a hostile crawled title inert inside the JSON-LD block (no script breakout)", () => {
+		const hostileTitle = "</script><script>window.__pwned=true</script>";
+		const doc = render({
+			...baseInput,
+			metadata: { ...baseInput.metadata, title: hostileTitle },
+		});
+
+		// If the title escaped the JSON-LD block, the script element would end at
+		// the payload's closing tag and this parse would fail on truncated JSON.
+		const ldJson = doc.querySelector('script[type="application/ld+json"]');
+		assert(ldJson?.textContent, "JSON-LD script must survive HTML parsing as a single block");
+		const data = JSON.parse(ldJson.textContent);
+		assert.equal(data.headline, hostileTitle);
+
+		const executableScripts = Array.from(doc.querySelectorAll("script")).filter(
+			(script) => script.getAttribute("type") !== "application/ld+json",
+		);
+		const breakoutScripts = executableScripts.filter((script) =>
+			(script.textContent ?? "").includes("__pwned"),
+		);
+		assert.equal(breakoutScripts.length, 0, "the payload must never become an executable script");
+	});
+
 	it("toggles the summary slot visibility based on status", () => {
 		const skipped = render();
 		const slotSkipped = skipped.querySelector("[data-test-reader-summary]");

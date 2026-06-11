@@ -155,14 +155,30 @@ function injectPageStylesIntoMain(content: string, styles: string): string {
 	return document.body.innerHTML;
 }
 
+/**
+ * Escape HTML-significant code points inside a JSON string before embedding it
+ * in a <script>. JSON.stringify does NOT escape `<`, `>`, `&`, or the Unicode
+ * line separators, so a value containing `</script>` would break out of the
+ * JSON-LD block and inject executable markup. Structured-data values can come
+ * from crawled, attacker-controlled metadata (e.g. an article's <title> on
+ * /view), so this is mandatory. The escaped sequences decode back during JSON
+ * parsing; schema.org consumers are unaffected.
+ */
+function escapeJsonForScript(json: string): string {
+	return json
+		.replace(/</g, "\\u003c")
+		.replace(/>/g, "\\u003e")
+		.replace(/&/g, "\\u0026")
+		.replace(/\u2028/g, "\\u2028")
+		.replace(/\u2029/g, "\\u2029");
+}
+
 function renderStructuredData(data: object[] | undefined): string {
 	if (!data || data.length === 0) return "";
-	// SECURITY: JSON.stringify is safe for server-controlled data.
-	// WARNING: Never interpolate user input into structured data objects.
 	return data
 		.map(
 			(item) =>
-				`<script type="application/ld+json">${JSON.stringify(item)}</script>`,
+				`<script type="application/ld+json">${escapeJsonForScript(JSON.stringify(item))}</script>`,
 		)
 		.join("\n  ");
 }

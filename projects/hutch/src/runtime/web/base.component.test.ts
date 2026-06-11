@@ -278,6 +278,85 @@ describe("Base component", () => {
 		expect(data.name).toBe("Readplace");
 	});
 
+	function extractJsonLdBlock(html: string): string {
+		const openTag = '<script type="application/ld+json">';
+		const start = html.indexOf(openTag);
+		assert(start >= 0, "JSON-LD script block must be rendered");
+		const innerStart = start + openTag.length;
+		const innerEnd = html.indexOf("</script>", innerStart);
+		assert(innerEnd >= 0, "JSON-LD script block must be closed");
+		return html.slice(innerStart, innerEnd);
+	}
+
+	it("escapes a </script> payload in structured data so it cannot terminate the JSON-LD block", () => {
+		const hostileHeadline = "</script><script>alert(1)</script>";
+		const page = createTestPageBody({
+			seo: {
+				title: "T",
+				description: "D",
+				canonicalUrl: "https://readplace.com",
+				structuredData: [{ "@type": "Article", headline: hostileHeadline }],
+			},
+		});
+		const result = Base(page, GUEST_STATE).to("text/html");
+
+		// Everything up to the first real closing tag must be the complete JSON,
+		// with the payload's tags emitted only in their JSON-escaped form.
+		const inner = extractJsonLdBlock(result.body);
+		expect(inner).toBe(
+			'{"@type":"Article","headline":"\\u003c/script\\u003e\\u003cscript\\u003ealert(1)\\u003c/script\\u003e"}',
+		);
+		expect(JSON.parse(inner)).toEqual({ "@type": "Article", headline: hostileHeadline });
+	});
+
+	it("escapes <!-- and the U+2028/U+2029 line separators in structured data", () => {
+		const page = createTestPageBody({
+			seo: {
+				title: "T",
+				description: "D",
+				canonicalUrl: "https://readplace.com",
+				structuredData: [
+					{
+						"@type": "Article",
+						headline: "line\u2028paragraph\u2029end",
+						description: "<!-- sneaky comment -->",
+					},
+				],
+			},
+		});
+		const result = Base(page, GUEST_STATE).to("text/html");
+
+		const inner = extractJsonLdBlock(result.body);
+		expect(inner).toBe(
+			'{"@type":"Article","headline":"line\\u2028paragraph\\u2029end","description":"\\u003c!-- sneaky comment --\\u003e"}',
+		);
+	});
+
+	it("round-trips structured data through escaping: parsing the JSON-LD block deep-equals the input", () => {
+		const original = {
+			"@context": "https://schema.org",
+			"@type": "Article",
+			headline: '</script><!--<script>alert(1)</script>-->',
+			description: 'Ampersands & angle <brackets> with "quotes", back\\slashes and line\u2028paragraph\u2029separators',
+			isBasedOn: { "@type": "Article", url: "https://example.com/a?b=1&c=<2>" },
+			keywords: ["a<b", "c>d", "e&f"],
+		};
+		const page = createTestPageBody({
+			seo: {
+				title: "T",
+				description: "D",
+				canonicalUrl: "https://readplace.com",
+				structuredData: [original],
+			},
+		});
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const ldJson = doc.querySelector('script[type="application/ld+json"]');
+		assert(ldJson?.textContent, "JSON-LD script must survive HTML parsing as a single block");
+		expect(JSON.parse(ldJson.textContent)).toEqual(original);
+	});
+
 	it("should show verification banner when authenticated and email not verified", () => {
 		const page = createTestPageBody();
 		const result = Base(page, { isAuthenticated: true, emailVerified: false }).to("text/html");
