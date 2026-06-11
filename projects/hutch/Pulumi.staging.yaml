@@ -19,13 +19,6 @@ config:
   hutch:dynamodbPendingSignupsTable: hutch-pending-signups
   hutch:dynamodbImportSessionsTable: hutch-import-sessions-staging
   hutch:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-staging
-  hutch:dynamodbRateLimitsTable: hutch-rate-limits-staging
-  hutch:rateLimitViewCrawl: 500/3600
-  hutch:rateLimitLogin: 300/900
-  hutch:rateLimitSignup: 300/3600
-  hutch:rateLimitForgotPassword: 100/3600
-  hutch:apiThrottleBurstLimit: 400
-  hutch:apiThrottleRateLimit: 200
   hutch:trialSchedulerGroupName: hutch-trial-end-staging
   hutch:contentBucketName: hutch-article-content-staging
   hutch:pendingHtmlBucketName: hutch-pending-html-staging

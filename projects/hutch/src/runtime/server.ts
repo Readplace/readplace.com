@@ -93,10 +93,6 @@ import type {
 	CreatePasswordResetToken,
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts/password-reset";
-import type {
-	ConsumeRateLimit,
-	RateLimitRules,
-} from "@packages/provider-contracts/rate-limit";
 import type { OAuthModel, ValidateAccessToken } from "@packages/provider-contracts/oauth";
 import { HutchLogger } from "@packages/hutch-logger";
 import type { AnalyticsEvent } from "./web/middleware/analytics";
@@ -244,8 +240,6 @@ interface AppDependencies {
 	salt: string;
 	foundingAllocation: FoundingAllocation;
 	expiryCountdown: ExpiryCountdown;
-	consumeRateLimit: ConsumeRateLimit;
-	rateLimitRules: RateLimitRules;
 }
 
 function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -606,11 +600,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		conversionLogger: deps.conversionLogger,
 		foundingAllocation,
 		buildBannerState,
-		consumeRateLimit: deps.consumeRateLimit,
-		rateLimitRules: {
-			login: deps.rateLimitRules.login,
-			signup: deps.rateLimitRules.signup,
-		},
 	});
 	app.use(authRouter);
 
@@ -646,8 +635,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		verifyPasswordResetToken: deps.verifyPasswordResetToken,
 		baseUrl: deps.baseUrl,
 		logError: deps.logError,
-		consumeRateLimit: deps.consumeRateLimit,
-		rateLimitRule: deps.rateLimitRules.forgotPassword,
 	});
 	app.use(forgotPasswordRouter);
 
@@ -734,8 +721,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		saveArticleGlobally: deps.saveArticleGlobally,
 		publishSaveAnonymousLink: deps.publishSaveAnonymousLink,
 		publishStaleCheckRequested: deps.publishStaleCheckRequested,
-		consumeRateLimit: deps.consumeRateLimit,
-		viewCrawlRateLimit: deps.rateLimitRules.viewCrawl,
 		existsUserByIdPrefix: deps.existsUserByIdPrefix,
 		expiryCountdown: deps.expiryCountdown,
 		now: deps.now,

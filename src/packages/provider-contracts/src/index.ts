@@ -12,7 +12,6 @@ export type * from "./password-reset";
 export type * from "./pending-html";
 export type * from "./pending-pdf";
 export type * from "./pending-signup";
-export type * from "./rate-limit";
 export type * from "./reader-ready-state";
 export type * from "./refresh-html";
 export type * from "./stripe-checkout";

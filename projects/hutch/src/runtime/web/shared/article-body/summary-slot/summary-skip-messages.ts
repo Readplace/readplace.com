@@ -9,8 +9,6 @@ const SUMMARY_SKIP_MESSAGES: Record<SummarySkipReason, string> = {
 		"Our summariser couldn't produce a useful summary for this article.",
 	"crawl-unsupported":
 		"Summary not generated for this link.",
-	"crawl-failed":
-		"Summary not generated for this link.",
 };
 
 const SUMMARY_SKIP_FALLBACK = "No summary was generated for this article.";

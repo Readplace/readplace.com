@@ -10,7 +10,6 @@ import type {
 	BumpArticleSavedAt,
 	CheckoutSessionId,
 	ConsumePendingSignup,
-	ConsumeRateLimit,
 	ContentProvider,
 	ConversionEvent,
 	CountArticlesByUser,
@@ -76,7 +75,6 @@ import type {
 	PublishUpdateFetchTimestamp,
 	PutPendingHtml,
 	PutPendingPdf,
-	RateLimitRules,
 	ReadArticleContent,
 	RefreshArticleIfStale,
 	RetrieveCheckoutSession,
@@ -267,11 +265,6 @@ export interface PasswordResetBundle {
 	verifyPasswordResetToken: VerifyPasswordResetToken;
 }
 
-export interface RateLimitBundle {
-	consumeRateLimit: ConsumeRateLimit;
-	rules: RateLimitRules;
-}
-
 export interface GoogleAuthBundle {
 	exchangeGoogleCode: ExchangeGoogleCode;
 	clientId: string;
@@ -331,7 +324,6 @@ export interface TestAppFixture {
 	email: EmailBundle;
 	emailVerification: EmailVerificationBundle;
 	passwordReset: PasswordResetBundle;
-	rateLimit: RateLimitBundle;
 	google: GoogleAuthBundle | undefined;
 	admin: AdminBundle;
 	importSession: ImportSessionBundle;

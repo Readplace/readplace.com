@@ -1,6 +1,6 @@
 import { noopLogger } from "@packages/hutch-logger";
 import type { CrawlArticle } from "@packages/crawl-article";
-import { markCrawlBlocked, markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
+import { markCrawlFailed, markCrawlUnsupported } from "@packages/domain/article-aggregate";
 import {
 	RecrawlContentExtractedEvent,
 	RefreshContentExtractedEvent,
@@ -33,22 +33,19 @@ const stubContext: Context = {
 	succeed: () => {},
 };
 
-function createSqsEvent(
-	detail: {
-		url: string;
-		userId?: string;
-		recrawl?: boolean;
-		refresh?: boolean;
-		previousBodyHash?: string;
-	},
-	opts: { receiveCount?: number } = {},
-): SQSEvent {
+function createSqsEvent(detail: {
+	url: string;
+	userId?: string;
+	recrawl?: boolean;
+	refresh?: boolean;
+	previousBodyHash?: string;
+}): SQSEvent {
 	return {
 		Records: [{
 			messageId: "msg-1",
 			receiptHandle: "receipt-1",
 			body: JSON.stringify({ detail }),
-			attributes: { ...stubAttributes, ApproximateReceiveCount: String(opts.receiveCount ?? 1) },
+			attributes: stubAttributes,
 			messageAttributes: {},
 			md5OfBody: "",
 			eventSource: "aws:sqs",
@@ -91,8 +88,6 @@ function createHandler(overrides: Partial<HandlerDeps> = {}) {
 		transitionAndPersist: jest.fn().mockResolvedValue(undefined),
 		markCrawlStage: jest.fn().mockResolvedValue(undefined),
 		markCrawlProgress: jest.fn().mockResolvedValue(undefined),
-		consumePaidCrawlBudget: jest.fn().mockResolvedValue({ allowed: true, consumed: true }),
-		refundPaidCrawlBudget: jest.fn().mockResolvedValue(undefined),
 		publishEvent: jest.fn().mockResolvedValue(undefined),
 		now: fixedNow,
 		logger: noopLogger,
@@ -504,216 +499,5 @@ describe("initComprehensiveCrawlHandler", () => {
 
 		const result = await handler(invalidEvent, stubContext, () => {});
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
-	});
-
-	describe("paid-crawl budget circuit-breaker", () => {
-		it("fails the crawl gracefully past the budget: no crawl, terminal failed row, message consumed", async () => {
-			const crawlArticle = jest.fn(successfulComprehensiveCrawl);
-			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
-			const logParseError = jest.fn();
-
-			const handler = createHandler({
-				crawlArticle,
-				transitionAndPersist,
-				publishEvent,
-				logParseError,
-				consumePaidCrawlBudget: jest.fn().mockResolvedValue({ allowed: false }),
-			});
-
-			const result = await handler(
-				createSqsEvent({ url: "https://example.com/doc.pdf" }),
-				stubContext,
-				() => {},
-			);
-
-			expect(result).toEqual({ batchItemFailures: [] });
-			expect(crawlArticle).not.toHaveBeenCalled();
-			// One atomic cross-axis transition terminalises both axes (crawl=failed,
-			// summary=skipped): the stub save left summary=pending and no
-			// *-ContentExtracted event will fire here, so a partial two-write
-			// terminalisation could strand the row half-terminal (the queue is
-			// maxReceiveCount=1 → DLQ handler only advances crawl) and the
-			// stuck-articles canary would page over a transient cap.
-			expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlBlocked, {
-				url: "https://example.com/doc.pdf",
-				input: { reason: { kind: "blocked", cause: "rate-limited" } },
-			});
-			expect(transitionAndPersist).toHaveBeenCalledTimes(1);
-			expect(publishEvent).not.toHaveBeenCalled();
-			expect(logParseError).toHaveBeenCalledWith({
-				url: "https://example.com/doc.pdf",
-				reason: "paid-crawl-budget-exhausted",
-			});
-		});
-
-		it("emits a tier-1 failure crawl-outcome when the budget blocks the crawl", async () => {
-			const logCrawlOutcome = jest.fn();
-			const readTierSnapshot = jest.fn().mockResolvedValue({
-				tier0Status: "success",
-				tier1Status: "not_attempted",
-				pickedTier: "tier-0",
-			});
-
-			const handler = createHandler({
-				logCrawlOutcome,
-				readTierSnapshot,
-				consumePaidCrawlBudget: jest.fn().mockResolvedValue({ allowed: false }),
-			});
-
-			await handler(
-				createSqsEvent({ url: "https://example.com/doc.pdf" }),
-				stubContext,
-				() => {},
-			);
-
-			expect(logCrawlOutcome).toHaveBeenCalledWith({
-				url: "https://example.com/doc.pdf",
-				thisTier: "tier-1",
-				thisTierStatus: "failed",
-				otherTierStatus: "success",
-				pickedTier: "tier-0",
-			});
-		});
-
-		it("leaves a refresh's row untouched past the budget — the prior canonical keeps serving", async () => {
-			const crawlArticle = jest.fn(successfulComprehensiveCrawl);
-			const transitionAndPersist = jest.fn().mockResolvedValue(undefined);
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
-
-			const handler = createHandler({
-				crawlArticle,
-				transitionAndPersist,
-				publishEvent,
-				consumePaidCrawlBudget: jest.fn().mockResolvedValue({ allowed: false }),
-			});
-
-			const result = await handler(
-				createSqsEvent({ url: "https://example.com/doc.pdf", refresh: true }),
-				stubContext,
-				() => {},
-			);
-
-			expect(result).toEqual({ batchItemFailures: [] });
-			expect(crawlArticle).not.toHaveBeenCalled();
-			expect(transitionAndPersist).not.toHaveBeenCalled();
-			expect(publishEvent).not.toHaveBeenCalled();
-		});
-
-		it("runs the crawl normally while the budget allows it, keying the consume on the message id", async () => {
-			const consumePaidCrawlBudget = jest.fn().mockResolvedValue({ allowed: true, consumed: true });
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
-
-			const handler = createHandler({ consumePaidCrawlBudget, publishEvent });
-
-			const result = await handler(
-				createSqsEvent({ url: "https://example.com/doc.pdf" }),
-				stubContext,
-				() => {},
-			);
-
-			expect(result).toEqual({ batchItemFailures: [] });
-			expect(consumePaidCrawlBudget).toHaveBeenCalledWith({ messageId: "msg-1" });
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
-				url: "https://example.com/doc.pdf",
-				tier: "tier-1",
-				userId: undefined,
-			});
-		});
-
-		it("re-runs the budget gate on an SQS redelivery; an idempotent re-consume (consumed=false) still completes the crawl", async () => {
-			// The provider makes a redelivered message's consume a no-op on the
-			// counter (consumed=false). The handler still evaluates the gate every
-			// receive rather than skipping it on ApproximateReceiveCount — so a
-			// transient first-receive error can't let a later receive bypass the cap.
-			const consumePaidCrawlBudget = jest.fn().mockResolvedValue({ allowed: true, consumed: false });
-			const crawlArticle = jest.fn(successfulComprehensiveCrawl);
-			const publishEvent = jest.fn().mockResolvedValue(undefined);
-
-			const handler = createHandler({ consumePaidCrawlBudget, crawlArticle, publishEvent });
-
-			const result = await handler(
-				createSqsEvent({ url: "https://example.com/doc.pdf" }, { receiveCount: 2 }),
-				stubContext,
-				() => {},
-			);
-
-			expect(result).toEqual({ batchItemFailures: [] });
-			expect(consumePaidCrawlBudget).toHaveBeenCalledWith({ messageId: "msg-1" });
-			expect(crawlArticle).toHaveBeenCalledTimes(1);
-			expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
-				url: "https://example.com/doc.pdf",
-				tier: "tier-1",
-				userId: undefined,
-			});
-		});
-
-		it("does not refund an idempotent re-consume (consumed=false) even when the crawl is not-modified — its slot was accounted on the first receive", async () => {
-			const consumePaidCrawlBudget = jest.fn().mockResolvedValue({ allowed: true, consumed: false });
-			const refundPaidCrawlBudget = jest.fn().mockResolvedValue(undefined);
-			const crawlArticle: CrawlArticle = async () => ({ status: "not-modified" });
-
-			const handler = createHandler({ consumePaidCrawlBudget, refundPaidCrawlBudget, crawlArticle });
-
-			const result = await handler(
-				createSqsEvent({
-					url: "https://example.com/doc.pdf",
-					refresh: true,
-					previousBodyHash: "h".repeat(64),
-				}, { receiveCount: 2 }),
-				stubContext,
-				() => {},
-			);
-
-			expect(result).toEqual({ batchItemFailures: [] });
-			expect(refundPaidCrawlBudget).not.toHaveBeenCalled();
-		});
-
-		it("refunds the slot when the crawl short-circuits as not-modified (cheap byte-gate, no OCR/LLM spend)", async () => {
-			const refundPaidCrawlBudget = jest.fn().mockResolvedValue(undefined);
-			const crawlArticle: CrawlArticle = async () => ({ status: "not-modified" });
-
-			const handler = createHandler({ refundPaidCrawlBudget, crawlArticle });
-
-			await handler(
-				createSqsEvent({
-					url: "https://example.com/doc.pdf",
-					refresh: true,
-					previousBodyHash: "h".repeat(64),
-				}),
-				stubContext,
-				() => {},
-			);
-
-			expect(refundPaidCrawlBudget).toHaveBeenCalledTimes(1);
-		});
-
-		it("logs a warning and still consumes the message when the budget refund fails (best-effort, fails safe)", async () => {
-			const refundPaidCrawlBudget = jest.fn().mockRejectedValue(new Error("DynamoDB throttled"));
-			const crawlArticle: CrawlArticle = async () => ({ status: "not-modified" });
-			const warn = jest.fn();
-			const logger = { ...noopLogger, warn };
-
-			const handler = createHandler({ refundPaidCrawlBudget, crawlArticle, logger });
-
-			const result = await handler(
-				createSqsEvent({
-					url: "https://example.com/doc.pdf",
-					refresh: true,
-					previousBodyHash: "h".repeat(64),
-				}),
-				stubContext,
-				() => {},
-			);
-
-			expect(result).toEqual({ batchItemFailures: [] });
-			expect(warn).toHaveBeenCalledWith(
-				"[ComprehensiveCrawlCommand] paid-crawl budget refund failed",
-				expect.objectContaining({
-					url: "https://example.com/doc.pdf",
-					error: "Error: DynamoDB throttled",
-				}),
-			);
-		});
 	});
 });

@@ -51,26 +51,6 @@ const tableNames = {
 	pendingSignups: config.require("dynamodbPendingSignupsTable"),
 	importSessions: config.require("dynamodbImportSessionsTable"),
 	subscriptionProviders: config.require("dynamodbSubscriptionProvidersTable"),
-	rateLimits: config.require("dynamodbRateLimitsTable"),
-};
-
-/* Per-stack "<limit>/<windowSeconds>" rules so staging e2e (one CI egress IP
- * driving the whole suite) can run with liberal limits while prod stays
- * strict. Parsed and enforced by the runtime's DynamoDB-backed limiter. */
-const rateLimitRules = {
-	viewCrawl: config.require("rateLimitViewCrawl"),
-	login: config.require("rateLimitLogin"),
-	signup: config.require("rateLimitSignup"),
-	forgotPassword: config.require("rateLimitForgotPassword"),
-};
-
-/* Blunt TOTAL-rate ceiling (all clients combined) applied by API Gateway before
- * the Lambda runs — per-stack so staging, whose e2e suite drives the whole run
- * from one CI egress IP, can lift the ceiling without a code change while prod
- * stays tight. Per-IP fairness is the application limiter's job. */
-const apiThrottle = {
-	burstLimit: config.requireNumber("apiThrottleBurstLimit"),
-	rateLimit: config.requireNumber("apiThrottleRateLimit"),
 };
 
 const storage = new HutchStorage("hutch", {
@@ -142,7 +122,6 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.pendingSignupsTable.arn, includeIndexes: false },
 		{ arn: storage.importSessionsTable.arn, includeIndexes: false },
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
-		{ arn: storage.rateLimitsTable.arn, includeIndexes: false },
 	],
 	actions: [
 		"dynamodb:GetItem",
@@ -271,11 +250,6 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		DYNAMODB_PENDING_SIGNUPS_TABLE: storage.pendingSignupsTable.name,
 		DYNAMODB_IMPORT_SESSIONS_TABLE: storage.importSessionsTable.name,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
-		DYNAMODB_RATE_LIMITS_TABLE: storage.rateLimitsTable.name,
-		RATE_LIMIT_VIEW_CRAWL: rateLimitRules.viewCrawl,
-		RATE_LIMIT_LOGIN: rateLimitRules.login,
-		RATE_LIMIT_SIGNUP: rateLimitRules.signup,
-		RATE_LIMIT_FORGOT_PASSWORD: rateLimitRules.forgotPassword,
 		GOOGLE_LOGIN_CLIENT_ID: requireEnv("GOOGLE_LOGIN_CLIENT_ID"),
 		GOOGLE_LOGIN_CLIENT_SECRET: requireEnv("GOOGLE_LOGIN_CLIENT_SECRET"),
 		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),
@@ -313,7 +287,6 @@ const gateway = new HutchAPIGateway("hutch", {
 	domains: legacyPrimaryDomain ? [legacyPrimaryDomain] : [],
 	zoneId: legacyDomainRegistration.zoneId,
 	certificateArn: legacyDomainRegistration.certificateArn,
-	throttling: apiThrottle,
 });
 
 for (const [i, domain] of additionalDomains.entries()) {

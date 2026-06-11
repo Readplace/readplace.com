@@ -55,13 +55,6 @@ const config = new pulumi.Config();
 const alertEmail = config.require("alertEmail");
 const articlesTableName = config.require("articlesTableName");
 const articlesTableArn = config.require("articlesTableArn");
-// Owned by the hutch stack (same convention as the articles table): counters
-// for per-IP throttles and the global paid-crawl budget share one TTL'd table.
-const rateLimitsTableName = config.require("rateLimitsTableName");
-const rateLimitsTableArn = config.require("rateLimitsTableArn");
-// "<budget>/<windowSeconds>" ceiling on comprehensive-crawl runs (OCR + LLM
-// cleanup spend); enforced by the runtime's DynamoDB circuit-breaker.
-const paidCrawlBudget = config.require("paidCrawlBudget");
 const contentBucketName = config.require("contentBucketName");
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
 const pendingPdfBucketName = config.require("pendingPdfBucketName");
@@ -632,11 +625,7 @@ const comprehensiveCrawlCommandQueue = new HutchSQS("comprehensive-crawl-command
 });
 
 const comprehensiveCrawlCommandDynamodb = new HutchDynamoDBAccess("comprehensive-crawl-command-dynamodb", {
-	tables: [
-		{ arn: articlesTableArn, includeIndexes: false },
-		// Paid-crawl budget counter (conditional UpdateItem per crawl).
-		{ arn: rateLimitsTableArn, includeIndexes: false },
-	],
+	tables: [{ arn: articlesTableArn, includeIndexes: false }],
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
@@ -695,8 +684,6 @@ const comprehensiveCrawlCommandLambda = new HutchLambda("comprehensive-crawl-com
 	containerImage: { imageUri: ocrImageTags["comprehensive-crawl-command"] },
 	environment: {
 		DYNAMODB_ARTICLES_TABLE: articlesTableName,
-		DYNAMODB_RATE_LIMITS_TABLE: rateLimitsTableName,
-		PAID_CRAWL_BUDGET: paidCrawlBudget,
 		CONTENT_BUCKET_NAME: contentBucketName,
 		EVENT_BUS_NAME: eventBus.eventBusName,
 		IMAGES_CDN_BASE_URL: contentMediaCdn.baseUrl,

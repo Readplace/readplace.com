@@ -6,9 +6,6 @@ config:
   save-link:alertEmail: readplace+devops@readplace.com
   save-link:articlesTableName: hutch-articles-cda0a08
   save-link:articlesTableArn: arn:aws:dynamodb:ap-southeast-2:278728209435:table/hutch-articles-cda0a08
-  save-link:rateLimitsTableName: hutch-rate-limits-prod
-  save-link:rateLimitsTableArn: arn:aws:dynamodb:ap-southeast-2:278728209435:table/hutch-rate-limits-prod
-  save-link:paidCrawlBudget: 50/3600
   save-link:contentBucketName: hutch-article-content-prod
   save-link:pendingHtmlBucketName: hutch-pending-html-prod
   save-link:pendingPdfBucketName: hutch-pending-pdf-prod

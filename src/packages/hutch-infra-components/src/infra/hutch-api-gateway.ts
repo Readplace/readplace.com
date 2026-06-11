@@ -18,15 +18,6 @@ export class HutchAPIGateway extends pulumi.ComponentResource {
 			domains: string[];
 			zoneId?: Promise<string>;
 			certificateArn?: pulumi.Output<string>;
-			/**
-			 * Stage-wide token bucket applied by API Gateway before the Lambda is
-			 * invoked. Bounds TOTAL request rate (every caller combined), so it is
-			 * a spend ceiling, not a fairness mechanism — per-client limiting lives
-			 * in the application's DynamoDB-backed limiter. WAFv2 web ACLs cannot
-			 * attach to v2 HTTP APIs, which makes this the only edge-side control
-			 * available without fronting the API with CloudFront.
-			 */
-			throttling: { burstLimit: number; rateLimit: number };
 		},
 		opts?: pulumi.ComponentResourceOptions,
 	) {
@@ -40,10 +31,6 @@ export class HutchAPIGateway extends pulumi.ComponentResource {
 			name: "$default",
 			autoDeploy: true,
 			description: `${args.stage} stage`,
-			defaultRouteSettings: {
-				throttlingBurstLimit: args.throttling.burstLimit,
-				throttlingRateLimit: args.throttling.rateLimit,
-			},
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
 
 		const lambdaIntegration = new aws.apigatewayv2.Integration(

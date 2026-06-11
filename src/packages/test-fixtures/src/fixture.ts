@@ -16,7 +16,6 @@ import { initInMemoryAuth } from "./providers/auth/in-memory-auth";
 import { initInMemoryEmail } from "./providers/email/in-memory-email";
 import { initInMemoryEmailVerification } from "./providers/email-verification/in-memory-email-verification";
 import { initInMemoryPasswordReset } from "./providers/password-reset/in-memory-password-reset";
-import { initInMemoryRateLimit } from "./providers/rate-limit/in-memory-rate-limit";
 import { initInMemoryPendingHtml } from "./providers/pending-html/in-memory-pending-html";
 import { initInMemoryPendingPdf } from "./providers/pending-pdf/in-memory-pending-pdf";
 import { initInMemoryPendingSignup } from "./providers/pending-signup/in-memory-pending-signup";
@@ -242,18 +241,6 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const email = initInMemoryEmail();
 	const emailVerification = initInMemoryEmailVerification();
 	const passwordReset = initInMemoryPasswordReset();
-	/* Generous enough that no unrelated suite ever trips a limiter; tests that
-	 * exercise 429 behaviour override the bundle with tight rules. */
-	const unlimitedRule = { limit: 10_000, windowSeconds: 3600 };
-	const rateLimit = {
-		consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
-		rules: {
-			viewCrawl: unlimitedRule,
-			login: unlimitedRule,
-			signup: unlimitedRule,
-			forgotPassword: unlimitedRule,
-		},
-	};
 	const pendingHtml = initInMemoryPendingHtml();
 	const pendingPdf = initInMemoryPendingPdf();
 	const { publishSaveLinkRawHtmlCommand } = initInMemorySaveLinkRawHtmlCommand({
@@ -364,7 +351,6 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		email,
 		emailVerification,
 		passwordReset,
-		rateLimit,
 		google: undefined,
 		admin: {
 			adminEmails: [],

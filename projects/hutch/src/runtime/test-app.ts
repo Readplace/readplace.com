@@ -145,8 +145,6 @@ function flattenFixtureToAppDependencies(
 		verifyEmailToken: fixture.emailVerification.verifyEmailToken,
 		createPasswordResetToken: fixture.passwordReset.createPasswordResetToken,
 		verifyPasswordResetToken: fixture.passwordReset.verifyPasswordResetToken,
-		consumeRateLimit: fixture.rateLimit.consumeRateLimit,
-		rateLimitRules: fixture.rateLimit.rules,
 		googleAuth: fixture.google,
 		adminEmails: fixture.admin.adminEmails,
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,

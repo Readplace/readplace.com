@@ -43,10 +43,6 @@ export {
 	type MarkCrawlUnsupportedInput,
 } from "./transitions/mark-crawl-unsupported";
 export {
-	markCrawlBlocked,
-	type MarkCrawlBlockedInput,
-} from "./transitions/mark-crawl-blocked";
-export {
 	markSummarySkipped,
 	type MarkSummarySkippedInput,
 } from "./transitions/mark-summary-skipped";
