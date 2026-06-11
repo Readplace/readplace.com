@@ -56,6 +56,23 @@ describe("Newsletter routes", () => {
 			const inbox = await fixture.newsletter.inboxStore.findInbox(userId);
 			assert(inbox, "inbox must exist after POST");
 		});
+
+		it("redirects a read-only user to /queue?inactive=1 without creating an inbox", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const { agent, userId } = await loginAndUserId(harness, fixture);
+			await fixture.subscriptionProviders.upsertTrialing({
+				userId,
+				trialEndsAt: "2020-01-01T00:00:00.000Z",
+			});
+
+			const response = await agent.post("/newsletter").set("Accept", "text/html");
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue?inactive=1");
+			const inbox = await fixture.newsletter.inboxStore.findInbox(userId);
+			assert.equal(inbox, undefined, "inbox must not be created for a read-only user");
+		});
 	});
 
 	describe("GET /newsletter (authenticated, with inbox)", () => {

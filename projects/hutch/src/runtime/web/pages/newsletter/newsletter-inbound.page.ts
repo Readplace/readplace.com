@@ -13,6 +13,7 @@ import {
 	type NewsletterMessageStore,
 } from "@packages/domain/newsletter";
 import type { SaveableUrl, ValidateSaveableUrl } from "@packages/domain/article";
+import type { GetEffectiveAccess } from "../../../domain/access/effective-access";
 import {
 	saveArticleFromUrl,
 	type SaveArticleFromUrlDependencies,
@@ -24,6 +25,7 @@ interface NewsletterInboundRouteDeps extends SaveArticleFromUrlDependencies {
 	newsletterInboxStore: NewsletterInboxStore;
 	newsletterMessageStore: NewsletterMessageStore;
 	fetchInboundEmail: FetchInboundEmail;
+	getEffectiveAccess: GetEffectiveAccess;
 	inboxDomain: string;
 	inboundSigningSecret: string;
 	now: () => Date;
@@ -104,29 +106,36 @@ export function initNewsletterInboundRoutes(deps: NewsletterInboundRouteDeps): R
 				return;
 			}
 
-			const { urls } = extractNewsletterLinks({ html: body.html });
-			const saveable: SaveableUrl[] = [];
-			let skippedCount = 0;
-			for (const url of urls) {
-				const validation = deps.validateSaveableUrl(url);
-				if (validation.status === "SUCCESS") {
-					saveable.push(validation.url);
-				} else {
-					skippedCount += 1;
-				}
-			}
+			/** Read-only users (trial-expired / cancelled) may read newsletters but
+			 * not grow their reading queue — the same invariant `requireWriteAccess`
+			 * enforces on /import and the /queue save routes. The message is still
+			 * recorded so the inbox stays usable; only the link-save is gated. */
+			const canSave = (await deps.getEffectiveAccess(userId)).access === "full";
 
 			const savedLinks: NewsletterMessageLink[] = [];
-			for (let i = 0; i < saveable.length; i += NEWSLETTER_SAVE_CONCURRENCY) {
-				const batch = saveable.slice(i, i + NEWSLETTER_SAVE_CONCURRENCY);
-				const results = await Promise.all(
-					batch.map(async (url) => {
-						const freshness = await deps.refreshArticleIfStale({ url });
-						const { saved } = await saveArticleFromUrl(deps, { userId, url, freshness });
-						return { url, articleId: saved.id };
-					}),
-				);
-				savedLinks.push(...results);
+			let skippedCount = 0;
+			if (canSave) {
+				const { urls } = extractNewsletterLinks({ html: body.html });
+				const saveable: SaveableUrl[] = [];
+				for (const url of urls) {
+					const validation = deps.validateSaveableUrl(url);
+					if (validation.status === "SUCCESS") {
+						saveable.push(validation.url);
+					} else {
+						skippedCount += 1;
+					}
+				}
+				for (let i = 0; i < saveable.length; i += NEWSLETTER_SAVE_CONCURRENCY) {
+					const batch = saveable.slice(i, i + NEWSLETTER_SAVE_CONCURRENCY);
+					const results = await Promise.all(
+						batch.map(async (url) => {
+							const freshness = await deps.refreshArticleIfStale({ url });
+							const { saved } = await saveArticleFromUrl(deps, { userId, url, freshness });
+							return { url, articleId: saved.id };
+						}),
+					);
+					savedLinks.push(...results);
+				}
 			}
 
 			await deps.newsletterMessageStore.recordMessage({
@@ -141,7 +150,7 @@ export function initNewsletterInboundRoutes(deps: NewsletterInboundRouteDeps): R
 			});
 
 			res.status(200).json({
-				status: "processed",
+				status: canSave ? "processed" : "read-only",
 				saved: savedLinks.length,
 				skipped: skippedCount,
 			});

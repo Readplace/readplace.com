@@ -221,4 +221,34 @@ describe("Newsletter inbound webhook", () => {
 		const list = await fixture.newsletter.messageStore.listMessages(userId);
 		expect(list[0].subject).toBe("");
 	});
+
+	it("records the message but saves no links when the recipient is read-only", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const { userId, address } = await setupInbox(harness, fixture);
+		await fixture.subscriptionProviders.upsertTrialing({
+			userId,
+			trialEndsAt: "2020-01-01T00:00:00.000Z",
+		});
+		fixture.newsletter.seedInboundEmail("email-readonly", {
+			html: '<a href="https://example.com/post-1">One</a> and https://example.com/post-2',
+		});
+
+		const response = await postWebhook(
+			harness,
+			fixture,
+			receivedEvent({ to: address, emailId: "email-readonly", subject: "Weekly digest" }),
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.body).toEqual({ status: "read-only", saved: 0, skipped: 0 });
+
+		const { articles } = await fixture.articleStore.findArticlesByUser({ userId });
+		expect(articles).toHaveLength(0);
+
+		const list = await fixture.newsletter.messageStore.listMessages(userId);
+		expect(list).toHaveLength(1);
+		expect(list[0].subject).toBe("Weekly digest");
+		expect(list[0].savedCount).toBe(0);
+	});
 });
