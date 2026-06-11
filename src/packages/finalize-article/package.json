@@ -22,7 +22,8 @@
   "dependencies": {
     "@packages/article-parser": "workspace:*",
     "@packages/article-resource-unique-id": "workspace:*",
-    "@packages/crawl-article": "workspace:*"
+    "@packages/crawl-article": "workspace:*",
+    "@packages/domain": "workspace:*"
   },
   "devDependencies": {
     "@types/jest": "29.5.14",

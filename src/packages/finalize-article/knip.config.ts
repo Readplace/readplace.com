@@ -7,6 +7,7 @@ export default {
 		"@packages/article-parser",
 		"@packages/article-resource-unique-id",
 		"@packages/crawl-article",
+		"@packages/domain",
 	],
 	ignoreBinaries: [
 		"knip",
