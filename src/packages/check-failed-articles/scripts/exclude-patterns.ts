@@ -37,6 +37,16 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// unusable, not just unreachable, so an operator re-save is the only
 	// resolution.
 	/^nhttps:\/{1,2}/i,
+	// Quote-wrapped absolute URLs resolved as relative paths
+	// (`…/%22https:/…`) — link-extraction artifacts where a client kept the
+	// quotes around a malformed href and resolved it against the page origin
+	// (issue #522). No real page exists behind such a path, so the crawl
+	// deterministically 404s and recrawl can never succeed. Anchored to the
+	// path portion ([^?#]*) so a quoted URL inside a query string — where the
+	// underlying page may still be crawlable — does not match. Matches both
+	// the collapsed (`https:/`) and uncollapsed (`https://`) embedded scheme,
+	// with or without a stored scheme prefix (legacy rows are schemeless).
+	/^(?:https?:\/\/)?[^?#]*\/%22https?:\//i,
 	// Browser-internal schemes (`chrome://`, `about:`, etc.) — legacy rows
 	// saved before `validateSaveableUrl` added the `unsupported_scheme`
 	// rejection. The crawler can never fetch these; intake now blocks them.

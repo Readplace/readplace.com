@@ -84,6 +84,96 @@ describe("EXCLUDE_PATTERNS — reddit.com entry", () => {
 	}
 });
 
+describe("EXCLUDE_PATTERNS — quote-wrapped embedded-scheme entry", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{
+			url: "https://fagnerbrack.com/%22https:/www.linkedin.com/in/fagnerbrack/%22",
+			excluded: true,
+			label: "issue #522 row — quoted linkedin profile",
+		},
+		{
+			url: "https://fagnerbrack.com/%22https:/reddit.com/u/fagnerbrack%22",
+			excluded: true,
+			label: "issue #522 row — quoted reddit profile",
+		},
+		{
+			url: "https://fagnerbrack.com/%22https:/github.com/kevinswiber/siren%22",
+			excluded: true,
+			label: "issue #522 row — quoted github repo",
+		},
+		{
+			url: "https://fagnerbrack.com/%22https:/readplace.com/view/https:/developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Methods%22",
+			excluded: true,
+			label: "issue #522 row — quoted readplace view of MDN",
+		},
+		{
+			url: "https://fagnerbrack.com/%22https:/readplace.com/view/https:/github.com/collection-json/spec%22",
+			excluded: true,
+			label: "issue #522 row — quoted readplace view of collection-json",
+		},
+		{
+			url: "https://fagnerbrack.com/%22https:/readplace.com/view/https:/fagnerbrack.com/what-is-a-rest-api-and-why-yours-probably-isnt-one-7e5fb65ece4d",
+			excluded: true,
+			label: "issue #522 row — quoted readplace view, truncated trailing quote",
+		},
+		{
+			url: "https://fagnerbrack.com/%22https:/readplace.com/view/https:/jsonapi.org/%22",
+			excluded: true,
+			label: "issue #522 row — quoted readplace view of jsonapi.org",
+		},
+		{
+			url: "https://fagnerbrack.com/%22https:/readplace.com/view/https:/github.com/kevinswiber/siren%22",
+			excluded: true,
+			label: "issue #522 row — quoted readplace view of siren repo",
+		},
+		{
+			url: "fagnerbrack.com/%22https:/example.org/a%22",
+			excluded: true,
+			label: "schemeless legacy storage shape",
+		},
+		{
+			url: "https://example.org/%22https://double-slash.test/a%22",
+			excluded: true,
+			label: "uncollapsed embedded scheme (double slash)",
+		},
+		{
+			url: "https://example.org/%22HTTP:/upper.test%22",
+			excluded: true,
+			label: "uppercase embedded scheme",
+		},
+		{
+			url: "https://fagnerbrack.com/what-is-a-rest-api-and-why-yours-probably-isnt-one-7e5fb65ece4d",
+			excluded: false,
+			label: "real post on the same host — should NOT match",
+		},
+		{
+			url: "https://example.org/redirect?next=/%22https://foo.test%22",
+			excluded: false,
+			label: "quoted URL only inside a query string — page may exist",
+		},
+		{
+			url: "https://example.org/%22quoted%22/page",
+			excluded: false,
+			label: "quoted path segment without an embedded scheme",
+		},
+		{
+			url: "https://web.archive.org/web/2020/https://example.org/a",
+			excluded: false,
+			label: "wayback-style path-embedded URL without quotes",
+		},
+		{
+			url: "https://readplace.com/view/https:/github.com/kevinswiber/siren",
+			excluded: false,
+			label: "readplace canonical /view path without quotes",
+		},
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
+
 describe("EXCLUDE_PATTERNS — browser-internal schemes", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
 		{ url: "chrome://extensions/", excluded: true, label: "chrome:// with path" },
