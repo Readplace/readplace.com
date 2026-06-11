@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { extensionFromContentType } from "@packages/crawl-article";
+import { extensionFromContentType, MAX_IMAGE_BYTES } from "@packages/crawl-article";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { parseHTML } from "linkedom";
 import parseSrcset from "parse-srcset";
@@ -8,7 +8,6 @@ import type { DownloadedMedia, DownloadMedia, PutImageObject } from "@packages/f
 
 const MAX_IMAGES = 20;
 const MAX_RENDITIONS_PER_IMAGE = 24;
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT_MS = 5_000;
 const CONCURRENCY = 5;
 
@@ -137,13 +136,13 @@ async function downloadImage(args: {
 	}
 
 	const contentLength = response.headers.get("content-length");
-	if (contentLength && Number.parseInt(contentLength, 10) > MAX_IMAGE_BYTES) {
+	if (contentLength && Number.parseInt(contentLength, 10) > MAX_IMAGE_BYTES.bytes) {
 		return undefined;
 	}
 	const arrayBuffer = await response.arrayBuffer();
 	const body = Buffer.from(arrayBuffer);
 
-	if (body.length > MAX_IMAGE_BYTES) return undefined;
+	if (body.length > MAX_IMAGE_BYTES.bytes) return undefined;
 
 	return { body, contentType };
 }

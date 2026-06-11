@@ -23,8 +23,13 @@ export function parseImageFromBuffer(input: {
 	logError: (message: string, error?: Error) => void;
 }): CrawlArticleResult {
 	if (input.buffer.length > MAX_IMAGE_BYTES.bytes) {
-		input.logError(`[CrawlArticle] Image body too large (${input.buffer.length} bytes) for ${input.url}`);
-		return { status: "unsupported", reason: `image body too large: ${input.buffer.length} bytes` };
+		input.logError(
+			`[CrawlArticle] Image body too large (${input.buffer.length} bytes, cap ${MAX_IMAGE_BYTES.label}) for ${input.url}`,
+		);
+		return {
+			status: "unsupported",
+			reason: `image body too large: ${input.buffer.length} bytes (cap ${MAX_IMAGE_BYTES.label})`,
+		};
 	}
 	return {
 		status: "fetched",

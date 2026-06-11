@@ -14,9 +14,11 @@ const SUPPORTED_IMAGE_CONTENT_TYPES = new Set([
 ]);
 
 /**
- * Cap on the image body the crawler will store as an article. Reuses
- * `MAX_THUMBNAIL_BYTES` so a primary image and an article thumbnail share one
- * size budget that cannot drift; oversize bodies fall back to `unsupported`.
+ * Size budget for a single image fetched and hosted on the CDN. Reuses
+ * `MAX_THUMBNAIL_BYTES` so every hosted-image path — an image article's primary
+ * image, an article thumbnail, and inline body media — shares one cap that
+ * cannot drift; `.label` is the human-readable form for oversize messages.
+ * Oversize bodies fall back to `unsupported`.
  */
 export const MAX_IMAGE_BYTES = { bytes: MAX_THUMBNAIL_BYTES, label: "5 MB" } as const;
 

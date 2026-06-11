@@ -55,7 +55,7 @@ describe("parseImageFromBuffer", () => {
 		assert.equal(result.html, '<figure><img src="https://example.com/a&quot;b.png" alt=""></figure>');
 	});
 
-	it("returns unsupported with the byte count when the body exceeds the cap", () => {
+	it("returns unsupported with the byte count and cap when the body exceeds the cap", () => {
 		const oversize = Buffer.alloc(MAX_IMAGE_BYTES.bytes + 1, 0);
 		const logError = jest.fn();
 		const result = parseImageFromBuffer({
@@ -67,9 +67,12 @@ describe("parseImageFromBuffer", () => {
 			logError,
 		});
 
-		assert.deepEqual(result, { status: "unsupported", reason: `image body too large: ${oversize.length} bytes` });
+		assert.deepEqual(result, {
+			status: "unsupported",
+			reason: `image body too large: ${oversize.length} bytes (cap ${MAX_IMAGE_BYTES.label})`,
+		});
 		expect(logError).toHaveBeenCalledWith(
-			`[CrawlArticle] Image body too large (${oversize.length} bytes) for https://example.com/huge.png`,
+			`[CrawlArticle] Image body too large (${oversize.length} bytes, cap ${MAX_IMAGE_BYTES.label}) for https://example.com/huge.png`,
 		);
 	});
 });
