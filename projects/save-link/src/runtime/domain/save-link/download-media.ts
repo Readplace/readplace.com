@@ -4,10 +4,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { parseHTML } from "linkedom";
 import parseSrcset from "parse-srcset";
 import type { CrawlFetch } from "@packages/crawl-article";
-import type { DownloadedMedia, DownloadMedia } from "@packages/finalize-article";
-import type { PutImageObject } from "../../providers/article-store/s3-put-image-object";
-
-export type { DownloadedMedia, DownloadMedia };
+import type { DownloadedMedia, DownloadMedia, PutImageObject } from "@packages/finalize-article";
 
 const MAX_IMAGES = 20;
 const MAX_RENDITIONS_PER_IMAGE = 24;

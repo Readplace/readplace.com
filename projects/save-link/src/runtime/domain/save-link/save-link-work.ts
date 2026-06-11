@@ -11,8 +11,6 @@ import type { PutTierSource } from "../../providers/article-store/put-tier-sourc
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
 import type { CrawlAndFinalizeArticle } from "@packages/finalize-article";
 
-export type { ProcessContent } from "@packages/finalize-article";
-
 /**
  * `"tier-1-written"` — the worker fetched, parsed, and wrote a tier-1 source.
  * The caller should publish TierContentExtractedEvent so the selector runs.

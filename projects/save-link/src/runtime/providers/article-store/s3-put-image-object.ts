@@ -3,8 +3,6 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import type { S3Client } from "@aws-sdk/client-s3";
 import type { PutImageObject } from "@packages/finalize-article";
 
-export type { PutImageObject };
-
 export function initS3PutImageObject(deps: {
 	client: S3Client;
 	bucketName: string;

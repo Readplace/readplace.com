@@ -7,7 +7,7 @@ import { initSaveLinkRawPdfCommandHandler } from "./save-link-raw-pdf-command-ha
 import { initProcessContentWithLocalMedia } from "../save-link/process-content-with-local-media";
 import type { ParseHtml } from "@packages/article-parser";
 import type { ExtractPdf } from "@packages/crawl-article";
-import type { DownloadMedia } from "../save-link/download-media";
+import type { DownloadMedia } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
 

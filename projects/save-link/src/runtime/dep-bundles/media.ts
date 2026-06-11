@@ -1,9 +1,9 @@
 import posthtml from "posthtml";
 import urls from "@11ty/posthtml-urls";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { initDownloadMedia, type DownloadMedia } from "../domain/save-link/download-media";
+import type { DownloadMedia, ProcessContent } from "@packages/finalize-article";
+import { initDownloadMedia } from "../domain/save-link/download-media";
 import { initProcessContentWithLocalMedia } from "../domain/save-link/process-content-with-local-media";
-import type { ProcessContent } from "../domain/save-link/save-link-work";
 import type { ParserDepBundle } from "./parser";
 import type { ArticleStoreDepBundle } from "./article-store";
 

@@ -1,7 +1,7 @@
 import { noopLogger } from "@packages/hutch-logger";
 import type { CrawlFetch } from "@packages/crawl-article";
 import { initDownloadMedia } from "./download-media";
-import type { PutImageObject } from "../../providers/article-store/s3-put-image-object";
+import type { PutImageObject } from "@packages/finalize-article";
 import { ArticleResourceUniqueId } from "./article-resource-unique-id";
 
 const ARTICLE_URL = "https://example.com/article";
