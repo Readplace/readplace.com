@@ -1,14 +1,6 @@
 import assert from "node:assert";
+import { IMAGE_URL_EXTENSIONS } from "@packages/crawl-article";
 import { parseHTML } from "linkedom";
-
-/**
- * Image file extensions a browser renders as a bare image at its own URL —
- * `.jpg` and `.jpeg` are both listed because direct image links use either
- * spelling. A page URL whose path ends in one is unambiguously an image; the
- * structural fallback (`isSingleImageDocument`) covers extension-less image URLs
- * (e.g. `…/media/F1ab?format=jpg`), which carry no suffix to match.
- */
-const IMAGE_URL_EXTENSIONS = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".svg"];
 
 /**
  * True when the captured page is a bare image and must be routed to image
