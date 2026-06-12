@@ -7,6 +7,12 @@ export interface SeoMetadata {
 	 * publisher so search/answer engines attribute the text to the source rather
 	 * than reading readplace.com as a scraper proxy. */
 	canonicalIsExternal?: boolean;
+	/** Overrides the page's `<meta property="og:url">` independently of
+	 * `canonicalUrl`. Defaults to `canonicalUrl` when absent. `/view` sets this
+	 * to the readplace wrapper so social shares preserve readplace's Open Graph
+	 * object identity (the downloaded thumbnail + reader content), while
+	 * `<link rel="canonical">` stays on the publisher for attribution. */
+	ogUrl?: string;
 	ogImage?: string;
 	ogImageAlt?: string;
 	ogImageType?: string;

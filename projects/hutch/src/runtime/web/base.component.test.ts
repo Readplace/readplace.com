@@ -447,6 +447,78 @@ describe("Base component", () => {
 		).toBe("https://readplace.com/queue");
 	});
 
+	it("preserves a cross-origin canonical (no readplace.com rewrite) when canonicalIsExternal is set", () => {
+		const page = createTestPageBody({
+			seo: {
+				title: "T",
+				description: "D",
+				canonicalUrl: "https://example.com/original-post",
+				canonicalIsExternal: true,
+			},
+		});
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(
+			doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
+		).toBe("https://example.com/original-post");
+	});
+
+	it("throws a clear invariant error when canonicalIsExternal is set with a relative URL (the branch tolerates only absolute http(s) URLs)", () => {
+		const page = createTestPageBody({
+			seo: {
+				title: "T",
+				description: "D",
+				canonicalUrl: "/relative-path",
+				canonicalIsExternal: true,
+			},
+		});
+
+		expect(() => Base(page, GUEST_STATE).to("text/html")).toThrow(
+			/canonicalIsExternal requires an absolute http\(s\) URL/,
+		);
+	});
+
+	it("defaults og:url to the canonical when seo.ogUrl is absent (keeps existing pages backward-compatible)", () => {
+		const page = createTestPageBody({
+			seo: {
+				title: "T",
+				description: "D",
+				canonicalUrl: "https://readplace.com/login",
+			},
+		});
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(
+			doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
+		).toBe("https://readplace.com/login");
+		expect(
+			doc.querySelector('meta[property="og:url"]')?.getAttribute("content"),
+		).toBe("https://readplace.com/login");
+	});
+
+	it("decouples og:url from canonical when seo.ogUrl is set, normalizing the OG identity onto readplace.com while canonical stays on the external source", () => {
+		const page = createTestPageBody({
+			seo: {
+				title: "T",
+				description: "D",
+				canonicalUrl: "https://example.com/original-post",
+				canonicalIsExternal: true,
+				ogUrl: "http://localhost:3000/view/example.com/original-post",
+			},
+		});
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(
+			doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
+		).toBe("https://example.com/original-post");
+		expect(
+			doc.querySelector('meta[property="og:url"]')?.getAttribute("content"),
+		).toBe("https://readplace.com/view/example.com/original-post");
+	});
+
 	it("does not render the trial countdown when state.trial is undefined", () => {
 		const page = createTestPageBody();
 		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");
