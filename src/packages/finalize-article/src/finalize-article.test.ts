@@ -219,6 +219,166 @@ describe("initFinalizeArticle", () => {
 		}
 	});
 
+	const throwingParseHtml = jest.fn<ReturnType<ParseHtml>, Parameters<ParseHtml>>(() => {
+		throw new Error("Readability must not run for an image article");
+	});
+
+	it("hosts the pre-fetched image and stores an <img> body without running Readability (mediaType:image)", async () => {
+		const preFetchedThumbnail: ThumbnailImage = {
+			body: Buffer.from([0xff, 0xd8, 0xff]),
+			contentType: "image/jpeg",
+			url: "https://example.com/lean-engineering-638.jpg",
+			extension: ".jpg",
+		};
+		const parseHtml = jest.fn<ReturnType<ParseHtml>, Parameters<ParseHtml>>(throwingParseHtml);
+		const fetchThumbnailImage = jest.fn(noopFetchThumbnailImage);
+		const putImageObject: PutImageObject = jest.fn().mockResolvedValue(undefined);
+		const finalize = createFinalize({ parseHtml, fetchThumbnailImage, putImageObject });
+
+		const result = await finalize({
+			url: "https://example.com/lean-engineering-638.jpg",
+			html: "<figure><img src=\"https://example.com/lean-engineering-638.jpg\" alt=\"\"></figure>",
+			mediaType: "image",
+			preFetchedThumbnail,
+		});
+
+		expect(parseHtml).not.toHaveBeenCalled();
+		expect(fetchThumbnailImage).not.toHaveBeenCalled();
+		expect(putImageObject).toHaveBeenCalledWith(expect.objectContaining({
+			body: preFetchedThumbnail.body,
+			contentType: "image/jpeg",
+		}));
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.article.metadata.title).toBe("lean engineering 638");
+			expect(result.article.metadata.wordCount).toBe(0);
+			expect(result.article.metadata.estimatedReadTime).toBeGreaterThan(0);
+			expect(result.article.metadata.imageUrl).toMatch(
+				/^https:\/\/cdn\.example\.com\/content\/.+\/images\/[0-9a-f]{16}\.jpg$/,
+			);
+			expect(result.article.html).toMatch(
+				/^<figure><img src="https:\/\/cdn\.example\.com\/content\/.+\.jpg" alt="lean engineering 638" loading="lazy"><\/figure>$/,
+			);
+		}
+	});
+
+	it("detects a bare-image capture (extension raw-HTML path, no mediaType) and synthesises the image article", async () => {
+		const fetched: ThumbnailImage = {
+			body: Buffer.from([0xff, 0xd8, 0xff]),
+			contentType: "image/jpeg",
+			url: "https://example.com/photo.jpg",
+			extension: ".jpg",
+		};
+		const parseHtml = jest.fn<ReturnType<ParseHtml>, Parameters<ParseHtml>>(throwingParseHtml);
+		const fetchThumbnailImage = jest.fn().mockResolvedValue(fetched);
+		const putImageObject: PutImageObject = jest.fn().mockResolvedValue(undefined);
+		const finalize = createFinalize({ parseHtml, fetchThumbnailImage, putImageObject });
+		const html = `<html><head><title>photo.jpg (638×359)</title></head><body><img src="https://example.com/photo.jpg"></body></html>`;
+
+		const result = await finalize({ url: "https://example.com/photo.jpg", html });
+
+		expect(parseHtml).not.toHaveBeenCalled();
+		expect(fetchThumbnailImage).toHaveBeenCalledWith({
+			candidates: ["https://example.com/photo.jpg"],
+			referer: "https://example.com/photo.jpg",
+		});
+		expect(putImageObject).toHaveBeenCalled();
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.article.metadata.wordCount).toBe(0);
+			expect(result.article.html).toMatch(
+				/^<figure><img src="https:\/\/cdn\.example\.com\/content\/.+" alt="photo" loading="lazy"><\/figure>$/,
+			);
+		}
+	});
+
+	it("detects an extension-less bare-image capture by its single-image document shape (no extension, no mediaType) and synthesises the image article", async () => {
+		const fetched: ThumbnailImage = {
+			body: Buffer.from([0xff, 0xd8, 0xff]),
+			contentType: "image/jpeg",
+			url: "https://example.com/media/F1ab?format=jpg",
+			extension: ".jpg",
+		};
+		const parseHtml = jest.fn<ReturnType<ParseHtml>, Parameters<ParseHtml>>(throwingParseHtml);
+		const fetchThumbnailImage = jest.fn().mockResolvedValue(fetched);
+		const putImageObject: PutImageObject = jest.fn().mockResolvedValue(undefined);
+		const finalize = createFinalize({ parseHtml, fetchThumbnailImage, putImageObject });
+		const html = `<html><head><title>F1ab (638×359)</title></head><body><img src="https://example.com/media/F1ab?format=jpg"></body></html>`;
+
+		const result = await finalize({ url: "https://example.com/media/F1ab?format=jpg", html });
+
+		expect(parseHtml).not.toHaveBeenCalled();
+		expect(fetchThumbnailImage).toHaveBeenCalledWith({
+			candidates: ["https://example.com/media/F1ab?format=jpg"],
+			referer: "https://example.com/media/F1ab?format=jpg",
+		});
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.article.metadata.wordCount).toBe(0);
+			expect(result.article.metadata.title).toBe("F1ab");
+			expect(result.article.html).toMatch(
+				/^<figure><img src="https:\/\/cdn\.example\.com\/content\/.+" alt="F1ab" loading="lazy"><\/figure>$/,
+			);
+		}
+	});
+
+	it("falls back to the origin image URL when hosting the image fails (origin blocked the fetch)", async () => {
+		const finalize = createFinalize({ fetchThumbnailImage: async () => undefined });
+		const html = `<html><body><img src="https://example.com/photo.jpg"></body></html>`;
+
+		const result = await finalize({ url: "https://example.com/photo.jpg", html, mediaType: "image" });
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.article.html).toBe(
+				'<figure><img src="https://example.com/photo.jpg" alt="photo" loading="lazy"></figure>',
+			);
+			expect(result.article.metadata.imageUrl).toBe("https://example.com/photo.jpg");
+		}
+	});
+
+	it("falls back to the page URL as the <img> src when there is no image to host and no candidate", async () => {
+		const finalize = createFinalize({ fetchThumbnailImage: async () => undefined });
+
+		const result = await finalize({
+			url: "https://example.com/photo.jpg",
+			html: "<html><body></body></html>",
+			mediaType: "image",
+		});
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.article.html).toBe(
+				'<figure><img src="https://example.com/photo.jpg" alt="photo" loading="lazy"></figure>',
+			);
+			expect(result.article.metadata.imageUrl).toBe("https://example.com/photo.jpg");
+		}
+	});
+
+	it("titles the image from the hostname when the URL has no filename segment", async () => {
+		const preFetchedThumbnail: ThumbnailImage = {
+			body: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+			contentType: "image/png",
+			url: "https://example.com/",
+			extension: ".png",
+		};
+		const finalize = createFinalize();
+
+		const result = await finalize({
+			url: "https://example.com/",
+			html: "<html></html>",
+			mediaType: "image",
+			preFetchedThumbnail,
+		});
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.article.metadata.title).toBe("example.com");
+			expect(result.article.metadata.siteName).toBe("example.com");
+			expect(result.article.metadata.excerpt).toBe("Image saved from example.com.");
+		}
+	});
+
 	it("strips multi-MB inline base64 images from the body before it is persisted (#473)", async () => {
 		const oversized = "A".repeat(5000);
 		const parseHtml: ParseHtml = (params) => ({

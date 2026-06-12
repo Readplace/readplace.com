@@ -11,6 +11,11 @@ export type CrawlArticleResult =
 	| {
 			status: "fetched";
 			html: string;
+			/* Set only when the fetched body was itself an image. Signals the
+			 * finalizer to synthesise an `<img>` body from `thumbnailImage`
+			 * instead of running Readability (which extracts no text from an
+			 * image and would persist an empty content body). */
+			mediaType?: "image";
 			thumbnailUrl?: string;
 			thumbnailImage?: ThumbnailImage;
 			etag?: string;

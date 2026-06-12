@@ -25,6 +25,22 @@ describe("classifyMediaType", () => {
 		assert.equal(classifyMediaType({ contentType: "text/plain; charset=utf-8", buffer: EMPTY }), "plain-text");
 	});
 
+	it("classifies image/jpeg as image", () => {
+		assert.equal(classifyMediaType({ contentType: "image/jpeg", buffer: EMPTY }), "image");
+	});
+
+	it("classifies image/svg+xml as image", () => {
+		assert.equal(classifyMediaType({ contentType: "image/svg+xml; charset=utf-8", buffer: EMPTY }), "image");
+	});
+
+	it("classifies image/webp as image", () => {
+		assert.equal(classifyMediaType({ contentType: "image/webp", buffer: EMPTY }), "image");
+	});
+
+	it("returns undefined for an unsupported image content type (no <img> rendering path)", () => {
+		assert.equal(classifyMediaType({ contentType: "image/tiff", buffer: EMPTY }), undefined);
+	});
+
 	it("returns undefined for an unrecognised content type", () => {
 		assert.equal(classifyMediaType({ contentType: "video/mp4", buffer: EMPTY }), undefined);
 	});

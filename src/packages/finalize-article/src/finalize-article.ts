@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { ParseHtml } from "@packages/article-parser";
 import {
+	escapeHtmlText,
 	extractThumbnailCandidates,
 	type FetchThumbnailImage,
 	type ThumbnailImage,
@@ -9,6 +10,7 @@ import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type { DownloadMedia, DownloadedMedia } from "./download-media.types";
 import type { PutImageObject } from "./put-image-object.types";
 import { estimatedReadTimeFromWordCount } from "./estimated-read-time";
+import { isBareImageCapture } from "./is-bare-image-capture";
 import { stripOversizedInlineImages } from "./strip-inline-image-data";
 
 export type ProcessContent = (params: { html: string; media: DownloadedMedia[] }) => Promise<string>;
@@ -38,18 +40,29 @@ export type FinalizeArticle = (input: {
 	 * When absent (raw-HTML save, comprehensive crawl), the finalizer fetches
 	 * the cascade of og:image / twitter:image / first-<img> candidates itself. */
 	preFetchedThumbnail?: ThumbnailImage;
+	/** Set by the crawler when the fetched body was itself an image. Routes the
+	 * save to image synthesis (host the image, store an `<img>` body, skip
+	 * Readability). The browser-extension raw-HTML save leaves this unset; the
+	 * finalizer then detects a bare-image capture via `isBareImageCapture`. */
+	mediaType?: "image";
 }) => Promise<FinalizeArticleResult>;
 
 /**
- * The single source of truth for turning a raw HTML body into the canonical
+ * The single source of truth for turning a fetched resource into the canonical
  * `{ html, metadata }` pair that gets persisted as a tier source. Every path
  * that produces an article representation routes through here: SimpleCrawl
  * save / recrawl, ComprehensiveCrawl PDF, stale-check refresh, browser-extension
- * raw-HTML save, dev in-memory wrappers. Steps run in the same order for every
- * caller — parseHtml → downloadMedia → processContent → fetch og:image (if not
- * pre-fetched) → uploadThumbnail — so the resulting metadata.imageUrl always
- * either points to the Readplace CDN (image fetch succeeded) or falls back to
- * the raw og:image URL (image fetch failed), never silently goes missing.
+ * raw-HTML save, dev in-memory wrappers.
+ *
+ * A resource is one of two shapes:
+ *   - An HTML body → parseHtml → downloadMedia → processContent → fetch
+ *     og:image (if not pre-fetched) → uploadThumbnail, so metadata.imageUrl
+ *     always either points to the Readplace CDN (image fetch succeeded) or
+ *     falls back to the raw og:image URL, never silently goes missing.
+ *   - An image (the crawler tagged it `mediaType:"image"`, or the captured
+ *     body is a bare-image page) → host the image on the CDN and store an
+ *     `<img>` body with synthesised metadata. Readability is skipped: it
+ *     extracts no text from an image and would persist an empty content body.
  */
 export function initFinalizeArticle(deps: {
 	parseHtml: ParseHtml;
@@ -74,6 +87,18 @@ export function initFinalizeArticle(deps: {
 		 * Readability for content extraction — different libraries, different
 		 * concerns, negligible overhead on article-sized documents. */
 		const candidates = extractThumbnailCandidates({ html: input.html, baseUrl: input.url });
+
+		if (input.mediaType === "image" || isBareImageCapture({ html: input.html, candidates, url: input.url })) {
+			return finalizeImageArticle({
+				url: input.url,
+				candidates,
+				preFetchedThumbnail: input.preFetchedThumbnail,
+				fetchThumbnailImage,
+				putImageObject,
+				imagesCdnBaseUrl,
+			});
+		}
+
 		const thumbnailUrl = candidates[0] ?? null;
 
 		const parseResult = parseHtml({
@@ -127,6 +152,58 @@ export function initFinalizeArticle(deps: {
 			},
 		};
 	};
+}
+
+/**
+ * Build the canonical article for an image resource: host the bytes on the CDN
+ * (reusing the pre-fetched bytes when the crawler already has them, else
+ * fetching the bare-image candidate) and store an `<img>` body. The title is
+ * the image filename; word count is zero, so the summary step skips and the
+ * reader renders the image directly. When the image *fetch* fails (the origin
+ * blocked the hotlink) the body falls back to the origin URL so the reader
+ * still shows something rather than the empty-content dead-end; an upload
+ * failure propagates and fails the save, like the HTML path.
+ */
+async function finalizeImageArticle(args: {
+	url: string;
+	candidates: string[];
+	preFetchedThumbnail: ThumbnailImage | undefined;
+	fetchThumbnailImage: FetchThumbnailImage;
+	putImageObject: PutImageObject;
+	imagesCdnBaseUrl: string;
+}): Promise<FinalizeArticleResult> {
+	const { url, candidates, preFetchedThumbnail, fetchThumbnailImage, putImageObject, imagesCdnBaseUrl } = args;
+	const { hostname, pathname } = new URL(url);
+	const title = imageTitleFromPathname(pathname) || hostname;
+	const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+
+	const image = preFetchedThumbnail ?? (await fetchThumbnailImage({ candidates, referer: url }));
+	const imageUrl = image
+		? await uploadThumbnail({ thumbnailImage: image, articleResourceUniqueId, putImageObject, imagesCdnBaseUrl })
+		: (candidates[0] ?? url);
+
+	return {
+		ok: true,
+		article: {
+			html: `<figure><img src="${escapeHtmlText(imageUrl)}" alt="${escapeHtmlText(title)}" loading="lazy"></figure>`,
+			metadata: {
+				title,
+				siteName: hostname,
+				excerpt: `Image saved from ${hostname}.`,
+				wordCount: 0,
+				estimatedReadTime: estimatedReadTimeFromWordCount(0),
+				imageUrl,
+			},
+		},
+	};
+}
+
+/** Filename of the URL's last path segment, extension dropped and separators
+ * spaced, as a human-readable image title. Empty when the URL has no usable
+ * segment, in which case the caller falls back to the hostname. */
+function imageTitleFromPathname(pathname: string): string {
+	const lastSegment = pathname.split("/").filter(Boolean).pop() ?? "";
+	return lastSegment.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim();
 }
 
 async function uploadThumbnail(args: {

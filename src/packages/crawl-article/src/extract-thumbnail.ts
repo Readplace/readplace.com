@@ -4,7 +4,7 @@ import { extensionFromContentType } from "./extension-from-content-type";
 import type { ThumbnailImage } from "./crawl-article.types";
 
 const THUMBNAIL_FETCH_TIMEOUT_MS = 5000;
-const MAX_THUMBNAIL_BYTES = 5 * 1024 * 1024;
+export const MAX_THUMBNAIL_BYTES = 5 * 1024 * 1024;
 
 /**
  * Single source of truth for picking the article's thumbnail URL out of
