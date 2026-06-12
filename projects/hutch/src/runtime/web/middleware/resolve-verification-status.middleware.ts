@@ -2,7 +2,7 @@ import type { RequestHandler } from "express";
 import type {
 	FindUserById,
 	MarkSessionEmailVerified,
-} from "@packages/test-fixtures/providers/auth";
+} from "@packages/provider-contracts/auth";
 import { computeVerificationStatus } from "../../domain/access/verification-deadline";
 import { SESSION_COOKIE_NAME } from "../auth/session-cookie";
 
