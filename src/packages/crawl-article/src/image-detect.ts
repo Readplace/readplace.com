@@ -27,7 +27,7 @@ const SUPPORTED_IMAGE_CONTENT_TYPES: ReadonlySet<string> = new Set(
  * URL path suffixes of a direct image link, derived from {@link IMAGE_FORMATS} so
  * they cannot drift from the content-type allowlist. The browser-extension save
  * path matches these against a captured page's own URL to recognise a bare image
- * (see `isBareImageCapture` in save-link).
+ * (see `isBareImageCapture` in @packages/finalize-article).
  */
 export const IMAGE_URL_EXTENSIONS: readonly string[] = IMAGE_FORMATS.flatMap(
 	(format) => format.extensions,
