@@ -232,6 +232,10 @@ function renderLinks(items: ReadingListItem[]) {
 					allItems = result.value.items;
 					renderLinks(filterItems());
 				}
+
+				if (result.ok && !result.value.ok && result.value.reason === "account-locked") {
+					showAccountLocked(result.value.message);
+				}
 			} finally {
 				if (overlay) overlay.hidden = true;
 			}

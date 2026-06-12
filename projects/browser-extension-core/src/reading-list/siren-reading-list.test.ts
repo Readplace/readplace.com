@@ -815,6 +815,33 @@ describe("initExtension", () => {
 			).rejects.toThrow("Delete failed: 404");
 		});
 
+		it("surfaces an account-locked refusal instead of a generic delete failure", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse([
+							articleEntity({
+								id: "article-1",
+								url: "https://example.com/a",
+								title: "A",
+								savedAt: "2026-01-15T10:00:00.000Z",
+							}),
+						]),
+					},
+					"POST http://localhost:3000/queue/article-1/delete": {
+						status: 403,
+						body: accountLockedErrorBody(),
+					},
+				}),
+			);
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			const collection = await start();
+			await expect(
+				collection.items[0].actions.delete(),
+			).rejects.toThrow("Account locked");
+		});
+
 		it("sends Prefer: return=representation on delete (RFC 7240)", async () => {
 			let observedPrefer: string | null = null;
 			const { fetchFn } = createRoutingFetch(
@@ -2613,6 +2640,36 @@ describe("initSirenReadingList", () => {
 				"article-1" as ReadingListItemId,
 			);
 			expect(result).toEqual({ ok: false, reason: "not-found" });
+		});
+
+		it("returns an account-locked result when the server refuses the delete while locked", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse([
+							articleEntity({
+								id: "article-1",
+								url: "https://example.com/a",
+								title: "A",
+								savedAt: "2026-01-15T10:00:00.000Z",
+							}),
+						]),
+					},
+					"POST http://localhost:3000/queue/article-1/delete": {
+						status: 403,
+						body: accountLockedErrorBody(),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			const result = await list.removeUrl(
+				"article-1" as ReadingListItemId,
+			);
+			assert(!result.ok, "delete should be refused while the account is locked");
+			expect(result.reason).toBe("account-locked");
+			const locked = result as Extract<typeof result, { reason: "account-locked" }>;
+			expect(locked.message).toContain("readplace+verification@readplace.com");
 		});
 
 		it("should propagate server errors other than 404", async () => {
