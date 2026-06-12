@@ -22,7 +22,8 @@ import { Base } from "../base.component";
 import { bannerStateFromRequest } from "../banner-state";
 import { sendComponent } from "../send-component";
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
-import { SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS } from "./session-cookie";
+import { baseCookieOptions } from "../cookie-options";
+import { SESSION_COOKIE_NAME } from "./session-cookie";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
 import { readClickAttribution } from "../click-attribution.middleware";
@@ -49,6 +50,7 @@ interface GoogleAuthDependencies {
 	appOrigin: string;
 	baseUrl: string;
 	staticBaseUrl: string;
+	secureCookies: boolean;
 	createSession: CreateSession;
 	createGoogleUser: CreateGoogleUser;
 	findUserByEmail: FindUserByEmail;
@@ -82,6 +84,7 @@ const verifyState = (signed: string, secret: string): string | null => {
 
 export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 	const router = express.Router();
+	const sessionCookieOptions = baseCookieOptions(deps.secureCookies);
 	const redirectUri = `${deps.appOrigin}/auth/google/callback`;
 	const fetchUserCount = initFetchUserCount({
 		countUsers: deps.countUsers,
@@ -103,7 +106,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		const signedState = signState(statePayload, deps.googleClientSecret);
 
 		res.cookie(STATE_COOKIE, signedState, {
-			...SESSION_COOKIE_OPTIONS,
+			...sessionCookieOptions,
 			maxAge: STATE_TTL_MS,
 		});
 
@@ -174,7 +177,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 				await deps.markEmailVerified(tokenResult.email);
 			}
 			const sessionId = await deps.createSession({ userId: existing.userId, emailVerified: true });
-			res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 			res.redirect(303, parseReturnUrl({ return: stateData.returnUrl }));
 			return;
 		}
@@ -195,7 +198,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 						await deps.markEmailVerified(tokenResult.email);
 					}
 					const sessionId = await deps.createSession({ userId: lookup.userId, emailVerified: true });
-					res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+					res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 					res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 					return;
 				}
@@ -204,7 +207,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			}
 
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
-			res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 			sendWelcomeEmail(tokenResult.email);
 			emitUserCreated(
 				{ logger: deps.conversionLogger, now: deps.now },
@@ -232,7 +235,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 					await deps.markEmailVerified(tokenResult.email);
 				}
 				const sessionIdRace = await deps.createSession({ userId: lookup.userId, emailVerified: true });
-				res.cookie(SESSION_COOKIE_NAME, sessionIdRace, SESSION_COOKIE_OPTIONS);
+				res.cookie(SESSION_COOKIE_NAME, sessionIdRace, sessionCookieOptions);
 				res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 				return;
 			}
@@ -257,7 +260,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		}
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
-		res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 		sendWelcomeEmail(tokenResult.email);
 		emitUserCreated(
 			{ logger: deps.conversionLogger, now: deps.now },

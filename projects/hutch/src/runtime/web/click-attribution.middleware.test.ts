@@ -47,10 +47,14 @@ function createRes(): { res: Partial<Response>; cookies: CapturedCookie[] } {
 	return { res, cookies };
 }
 
-function runMiddleware(req: Partial<Request>): { cookies: CapturedCookie[]; nextCalled: boolean } {
+function runMiddleware(
+	req: Partial<Request>,
+	options: { secure: boolean } = { secure: false },
+): { cookies: CapturedCookie[]; nextCalled: boolean } {
 	const { res, cookies } = createRes();
 	const middleware = createClickAttributionMiddleware({
 		now: () => new Date("2026-05-13T10:00:00.000Z"),
+		secure: options.secure,
 	});
 	let nextCalled = false;
 	const next: NextFunction = () => {
@@ -80,6 +84,7 @@ describe("createClickAttributionMiddleware", () => {
 			httpOnly: true,
 			sameSite: "lax",
 			path: "/",
+			secure: false,
 			maxAge: 30 * 24 * 60 * 60 * 1000,
 		});
 		expect(parseCookieValue(cookie.value)).toEqual({
@@ -88,6 +93,20 @@ describe("createClickAttributionMiddleware", () => {
 			utm_campaign: "spring",
 			first_seen_at: "2026-05-13T10:00:00.000Z",
 			landing_path: "/blog/launch",
+		});
+	});
+
+	it("marks the cookie Secure when the app serves over https, leaving the other attributes unchanged", () => {
+		const req = createReq({ path: "/" });
+		const { cookies } = runMiddleware(req, { secure: true });
+
+		expect(cookies).toHaveLength(1);
+		expect(cookies[0].options).toMatchObject({
+			httpOnly: true,
+			sameSite: "lax",
+			path: "/",
+			secure: true,
+			maxAge: 30 * 24 * 60 * 60 * 1000,
 		});
 	});
 

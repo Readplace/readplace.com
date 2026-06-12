@@ -107,6 +107,7 @@ import { createClickAttributionMiddleware } from "./web/click-attribution.middle
 import { createVisitorIdMiddleware } from "./web/visitor-id.middleware";
 import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { SESSION_COOKIE_NAME } from "./web/auth/session-cookie";
+import { isHttpsOrigin } from "./web/cookie-options";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initQueueRoutes } from "./web/pages/queue/queue.page";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
@@ -274,10 +275,12 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const blogPosts = initBlogPosts();
 
+	const secureCookies = isHttpsOrigin(appOrigin);
+
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());
-	app.use(createVisitorIdMiddleware({ generateVisitorId: randomUUID }));
-	app.use(createClickAttributionMiddleware({ now: dependencies.now }));
+	app.use(createVisitorIdMiddleware({ generateVisitorId: randomUUID, secure: secureCookies }));
+	app.use(createClickAttributionMiddleware({ now: dependencies.now, secure: secureCookies }));
 
 	// Same-origin client bundles — the Lambda packaging step copies
 	// src/runtime/web/client-dist/ into the bundle, so `__dirname/web/client-dist`
@@ -600,6 +603,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		},
 		baseUrl: deps.baseUrl,
 		staticBaseUrl,
+		secureCookies,
 		logError: deps.logError,
 		now: deps.now,
 		botDefenseLogger: deps.botDefenseLogger,
@@ -621,6 +625,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			appOrigin,
 			baseUrl: deps.baseUrl,
 			staticBaseUrl,
+			secureCookies,
 			createSession: deps.createSession,
 			createGoogleUser: deps.createGoogleUser,
 			findUserByEmail: deps.findUserByEmail,

@@ -53,7 +53,7 @@ describe("createVisitorIdMiddleware", () => {
 			nexted = true;
 		};
 
-		createVisitorIdMiddleware({ generateVisitorId: () => "unused" })(req, res, next);
+		createVisitorIdMiddleware({ generateVisitorId: () => "unused", secure: false })(req, res, next);
 
 		expect(req.visitorId).toBe(VALID_UUID);
 		expect(cookies).toEqual([]);
@@ -68,23 +68,38 @@ describe("createVisitorIdMiddleware", () => {
 			nexted = true;
 		};
 
-		createVisitorIdMiddleware({ generateVisitorId: () => VALID_UUID })(req, res, next);
+		createVisitorIdMiddleware({ generateVisitorId: () => VALID_UUID, secure: false })(req, res, next);
 
 		expect(req.visitorId).toBe(VALID_UUID);
 		expect(cookies).toHaveLength(1);
 		expect(cookies[0]).toMatchObject({
 			name: VISITOR_COOKIE_NAME,
 			value: VALID_UUID,
-			options: expect.objectContaining({ httpOnly: true, sameSite: "lax", path: "/" }),
+			options: expect.objectContaining({ httpOnly: true, sameSite: "lax", path: "/", secure: false }),
 		});
 		expect(nexted).toBe(true);
+	});
+
+	it("marks the cookie Secure when the app serves over https, leaving the other attributes unchanged", () => {
+		const { res, cookies } = createRes();
+		const req = createReq();
+
+		createVisitorIdMiddleware({ generateVisitorId: () => VALID_UUID, secure: true })(req, res, () => {});
+
+		expect(cookies).toHaveLength(1);
+		expect(cookies[0].options).toMatchObject({
+			httpOnly: true,
+			sameSite: "lax",
+			path: "/",
+			secure: true,
+		});
 	});
 
 	it("re-mints when the existing cookie is corrupt rather than propagating a tampered value", () => {
 		const { res, cookies } = createRes();
 		const req = createReq({ [VISITOR_COOKIE_NAME]: "corrupt" });
 
-		createVisitorIdMiddleware({ generateVisitorId: () => VALID_UUID })(req, res, () => {});
+		createVisitorIdMiddleware({ generateVisitorId: () => VALID_UUID, secure: false })(req, res, () => {});
 
 		expect(req.visitorId).toBe(VALID_UUID);
 		expect(cookies).toHaveLength(1);

@@ -45,7 +45,8 @@ import type { ComponentError } from "../shared/component-error.types";
 import { LoginSchema } from "./auth.schema";
 import { LoginPage, SignupPage, VerifyEmailPage } from "./auth.component";
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
-import { SESSION_COOKIE_NAME, SESSION_COOKIE_OPTIONS } from "./session-cookie";
+import { baseCookieOptions } from "../cookie-options";
+import { SESSION_COOKIE_NAME } from "./session-cookie";
 import { buildVerificationEmailHtml } from "./verification-email";
 import { flattenZodErrors } from "./flatten-zod-errors";
 import { initFetchUserCount } from "./fetch-user-count";
@@ -92,6 +93,7 @@ interface AuthDependencies {
 	};
 	baseUrl: string;
 	staticBaseUrl: string;
+	secureCookies: boolean;
 	logError: (message: string, error?: Error) => void;
 	now: () => Date;
 	botDefenseLogger: HutchLogger.Typed<BotDefenseEvent>;
@@ -104,6 +106,7 @@ interface AuthDependencies {
 
 export function initAuthRoutes(deps: AuthDependencies): Router {
 	const router = express.Router();
+	const sessionCookieOptions = baseCookieOptions(deps.secureCookies);
 
 	const fetchUserCount = initFetchUserCount({
 		countUsers: deps.countUsers,
@@ -197,7 +200,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		}
 
 		const sessionId = await deps.createSession({ userId: credentials.userId, emailVerified: credentials.emailVerified });
-		res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 		res.redirect(303, parseReturnUrl(req.query));
 	});
 
@@ -276,7 +279,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			}
 
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
-			res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 			sendVerificationEmail(created.userId, email);
 			emitUserCreated(
 				{ logger: deps.conversionLogger, now: deps.now },
@@ -319,7 +322,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		}
 
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
-		res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 		sendVerificationEmail(created.userId, email);
 		emitUserCreated(
 			{ logger: deps.conversionLogger, now: deps.now },
@@ -400,7 +403,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			await deps.subscriptionProviders.upsertActive({ userId: created.userId, subscriptionId, customerId });
 			await deps.trialScheduler.deleteTrialEndSchedule({ userId: created.userId });
 			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
-			res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 			sendVerificationEmail(created.userId, pending.email);
 			emitUserCreated(
 				{ logger: deps.conversionLogger, now: deps.now },
@@ -445,7 +448,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			await deps.subscriptionProviders.upsertActive({ userId: lookup.userId, subscriptionId, customerId });
 			await deps.trialScheduler.deleteTrialEndSchedule({ userId: lookup.userId });
 			const sessionId = await deps.createSession({ userId: lookup.userId, emailVerified: true });
-			res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 			res.redirect(303, returnPath);
 			return;
 		}
@@ -453,7 +456,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		await deps.subscriptionProviders.upsertActive({ userId: created.userId, subscriptionId, customerId });
 		await deps.trialScheduler.deleteTrialEndSchedule({ userId: created.userId });
 		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
-		res.cookie(SESSION_COOKIE_NAME, sessionId, SESSION_COOKIE_OPTIONS);
+		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 		sendWelcomeEmail(pending.email);
 		emitUserCreated(
 			{ logger: deps.conversionLogger, now: deps.now },
