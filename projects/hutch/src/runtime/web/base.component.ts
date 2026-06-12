@@ -72,6 +72,14 @@ function normalizeCanonicalUrl(canonicalUrl: string): string {
 	return `${CANONICAL_ORIGIN}${url.pathname}${url.search}${url.hash}`;
 }
 
+function externalCanonicalUrl(canonicalUrl: string): string {
+	assert(
+		/^https?:\/\//i.test(canonicalUrl),
+		`canonicalIsExternal requires an absolute http(s) URL, received: ${canonicalUrl}`,
+	);
+	return new URL(canonicalUrl).href;
+}
+
 const LIVERELOAD_SCRIPT = getEnv("LIVERELOAD")
 	? `\n<script src="http://localhost:35729/livereload.js?snipver=1"></script>`
 	: "";
@@ -190,13 +198,17 @@ function renderBaseTemplate(body: PageBody, state: BannerState): string {
 	const ogType = seo.ogType || "website";
 	const robots = seo.robots || "index, follow";
 
+	const canonicalUrl = seo.canonicalIsExternal
+		? externalCanonicalUrl(seo.canonicalUrl)
+		: normalizeCanonicalUrl(seo.canonicalUrl);
+	const ogUrl = seo.ogUrl ? normalizeCanonicalUrl(seo.ogUrl) : canonicalUrl;
+
 	return render(BASE_TEMPLATE, {
 		staticBaseUrl: STATIC_BASE_URL,
 		title: seo.title,
 		description: seo.description,
-		canonicalUrl: seo.canonicalIsExternal
-			? new URL(seo.canonicalUrl).href
-			: normalizeCanonicalUrl(seo.canonicalUrl),
+		canonicalUrl,
+		ogUrl,
 		ogType,
 		ogImage: seo.ogImage,
 		ogImageAlt: seo.ogImageAlt,

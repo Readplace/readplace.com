@@ -132,7 +132,7 @@ describe("ViewPage", () => {
 		expect(links[1]?.getAttribute("href")).toBe("/save?url=x");
 	});
 
-	it("emits OG metadata using the article title and excerpt, with canonical + og:url pointing at the original source", () => {
+	it("emits OG metadata using the article title and excerpt, with canonical pegged to the source and og:url pegged to the readplace wrapper so shares carry readplace's downloaded thumbnail + reader content", () => {
 		const doc = render();
 
 		const canonical = `https://example.com/post`;
@@ -157,7 +157,7 @@ describe("ViewPage", () => {
 		).toBe("article");
 		expect(
 			doc.querySelector('meta[property="og:url"]')?.getAttribute("content"),
-		).toBe(canonical);
+		).toBe("https://readplace.com/view/example.com/post");
 		expect(
 			doc
 				.querySelector('meta[property="og:site_name"]')
@@ -515,7 +515,7 @@ describe("ViewPage", () => {
 			assert.equal(copyUrl.origin, "https://staging.readplace.com");
 		});
 
-		it("pegs the SEO canonical to the original source regardless of appOrigin (we disclaim the wrapper; the publisher is canonical)", () => {
+		it("pegs the SEO canonical and JSON-LD url to the original source regardless of appOrigin (we disclaim the wrapper for attribution), and normalizes the readplace wrapper into og:url so the OG object identity always lives on the prod readplace host", () => {
 			const doc = render({
 				...baseInput,
 				appOrigin: "https://staging.readplace.com",
@@ -528,7 +528,7 @@ describe("ViewPage", () => {
 			);
 			assert.equal(
 				doc.querySelector('meta[property="og:url"]')?.getAttribute("content"),
-				canonical,
+				"https://readplace.com/view/example.com/post",
 			);
 			const script = doc.querySelector('script[type="application/ld+json"]');
 			assert(script, "JSON-LD script must be rendered");
