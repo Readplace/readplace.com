@@ -16,6 +16,7 @@ import {
 	createFakePublishRecrawlLinkInitiated,
 	createFakePublishSaveAnonymousLink,
 } from "@packages/test-fixtures";
+import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 import { calculateReadTime } from "@packages/domain/article";
 import { MAX_POLLS } from "../../shared/article-reader/article-reader";
 import type { ViewOpenedEvent } from "../../middleware/analytics";
@@ -1762,6 +1763,89 @@ describe("View routes", () => {
 			expect(counter.getAttribute("data-expiry-state")).toBe("permanent");
 
 			expect(doc.querySelectorAll("[data-test-view-paywall]").length).toBe(0);
+		});
+	});
+
+	describe("anonymous crawl-trigger rate limiting", () => {
+		function createMutableClock(startMs: number) {
+			let nowMs = startMs;
+			return {
+				now: () => new Date(nowMs),
+				advanceSeconds: (seconds: number) => {
+					nowMs += seconds * 1000;
+				},
+			};
+		}
+
+		function buildThrottledHarness(rule: { limit: number; windowSeconds: number }) {
+			const clock = createMutableClock(1_700_000_000_000);
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const publishedUrls: string[] = [];
+			const basePublish = fixture.events.publishSaveAnonymousLink;
+			fixture.events.publishSaveAnonymousLink = async (params) => {
+				publishedUrls.push(params.url);
+				await basePublish(params);
+			};
+			fixture.rateLimit = {
+				consumeRateLimit: initInMemoryRateLimit({ now: clock.now }).consumeRateLimit,
+				rules: { ...fixture.rateLimit.rules, viewCrawl: rule },
+			};
+			const harness = useApp(fixture);
+			return { harness, publishedUrls, clock };
+		}
+
+		it("returns 429 past the per-IP limit and enqueues no crawl for the throttled URL", async () => {
+			const { harness, publishedUrls } = buildThrottledHarness({
+				limit: 2,
+				windowSeconds: 3600,
+			});
+
+			const first = await request(harness.server).get("/view/example.com/first");
+			const second = await request(harness.server).get("/view/example.com/second");
+			const throttled = await request(harness.server).get("/view/example.com/third");
+
+			expect([first.status, second.status]).toEqual([200, 200]);
+			expect(throttled.status).toBe(429);
+			expect(String(throttled.headers["retry-after"])).toMatch(/^\d+$/);
+			expect(publishedUrls).toEqual([
+				"https://example.com/first",
+				"https://example.com/second",
+			]);
+			expect(
+				await harness.articleStore.findArticleByUrl("https://example.com/third"),
+			).toBeNull();
+		});
+
+		it("spends no crawl budget on repeat views of an already-known article", async () => {
+			const { harness, publishedUrls } = buildThrottledHarness({
+				limit: 1,
+				windowSeconds: 3600,
+			});
+
+			const firstVisit = await request(harness.server).get("/view/example.com/only");
+			const repeatVisit = await request(harness.server).get("/view/example.com/only");
+
+			expect([firstVisit.status, repeatVisit.status]).toEqual([200, 200]);
+			expect(publishedUrls).toEqual(["https://example.com/only"]);
+		});
+
+		it("allows new crawl triggers again after the window resets", async () => {
+			const { harness, publishedUrls, clock } = buildThrottledHarness({
+				limit: 1,
+				windowSeconds: 3600,
+			});
+			await request(harness.server).get("/view/example.com/first");
+
+			const throttled = await request(harness.server).get("/view/example.com/second");
+			clock.advanceSeconds(3600);
+			const afterReset = await request(harness.server).get("/view/example.com/second");
+
+			expect(throttled.status).toBe(429);
+			expect(afterReset.status).toBe(200);
+			expect(publishedUrls).toEqual([
+				"https://example.com/first",
+				"https://example.com/second",
+			]);
 		});
 	});
 });

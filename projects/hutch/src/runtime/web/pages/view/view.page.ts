@@ -24,10 +24,13 @@ import type {
 	PublishSaveAnonymousLink,
 	PublishStaleCheckRequested,
 } from "@packages/provider-contracts/events";
+import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
+import type { RateLimitRule } from "@packages/domain/rate-limit";
 import { isbot } from "isbot";
 import { decomposeTimeLeft } from "@packages/time-left";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { hashIp, type AnalyticsEvent } from "../../middleware/analytics";
+import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
 import { wantsMarkdown } from "../../content-negotiation";
 import { CacheableComponent } from "../../conditional-get";
@@ -64,6 +67,8 @@ interface ViewDependencies {
 	saveArticleGlobally: SaveArticleGlobally;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
 	publishStaleCheckRequested: PublishStaleCheckRequested;
+	consumeRateLimit: ConsumeRateLimit;
+	viewCrawlRateLimit: RateLimitRule;
 	existsUserByIdPrefix: ExistsUserByIdPrefix;
 	expiryCountdown: ExpiryCountdown;
 	now: () => Date;
@@ -145,6 +150,19 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 		// has metadata to render and the existing summary/reader pollers see a row.
 		const existing = await deps.findArticleByUrl(articleUrl);
 		if (!existing) {
+			// First visit is the request that triggers the whole crawl cascade
+			// (stub save → crawl → summary → possibly OCR), each leg with real
+			// third-party cost — so the per-IP budget is spent here, not on reads
+			// of already-known articles.
+			const decision = await deps.consumeRateLimit({
+				bucket: "view-crawl",
+				key: rateLimitKeyFromRequest(req),
+				rule: deps.viewCrawlRateLimit,
+			});
+			if (!decision.allowed) {
+				sendRateLimited(res, decision.retryAfterSeconds);
+				return;
+			}
 			const hostname = hostnameFrom(articleUrl);
 			await deps.saveArticleGlobally({
 				url: articleUrl,

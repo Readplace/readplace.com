@@ -65,6 +65,10 @@
       "types": "./dist/pending-signup.d.ts",
       "default": "./dist/pending-signup.js"
     },
+    "./rate-limit": {
+      "types": "./dist/rate-limit.d.ts",
+      "default": "./dist/rate-limit.js"
+    },
     "./reader-ready-state": {
       "types": "./dist/reader-ready-state.d.ts",
       "default": "./dist/reader-ready-state.js"
@@ -106,6 +110,7 @@
       "pending-html": ["./dist/pending-html.d.ts"],
       "pending-pdf": ["./dist/pending-pdf.d.ts"],
       "pending-signup": ["./dist/pending-signup.d.ts"],
+      "rate-limit": ["./dist/rate-limit.d.ts"],
       "reader-ready-state": ["./dist/reader-ready-state.d.ts"],
       "refresh-html": ["./dist/refresh-html.d.ts"],
       "stripe-checkout": ["./dist/stripe-checkout.d.ts"],

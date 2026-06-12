@@ -32,6 +32,11 @@ import type {
 } from "@packages/provider-contracts/trial-scheduler";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
 import type { RetrieveCheckoutSession } from "@packages/provider-contracts/stripe-checkout";
+import type {
+	ConsumeRateLimit,
+	RateLimitRules,
+} from "@packages/provider-contracts/rate-limit";
+import { createRateLimitMiddleware } from "../middleware/rate-limit";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
 import { Base } from "../base.component";
 import { bannerStateFromRequest, type BuildBannerState } from "../banner-state";
@@ -93,6 +98,8 @@ interface AuthDependencies {
 	conversionLogger: HutchLogger.Typed<ConversionEvent>;
 	foundingAllocation: FoundingAllocation;
 	buildBannerState: BuildBannerState;
+	consumeRateLimit: ConsumeRateLimit;
+	rateLimitRules: Pick<RateLimitRules, "login" | "signup">;
 }
 
 export function initAuthRoutes(deps: AuthDependencies): Router {
@@ -141,7 +148,12 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		sendComponent(req, res, Base(LoginPage({ returnUrl, userCount, foundingAllocation: deps.foundingAllocation }), bannerStateFromRequest(req)));
 	});
 
-	router.post("/login", async (req: Request, res: Response) => {
+	const loginRateLimit = createRateLimitMiddleware({
+		consumeRateLimit: deps.consumeRateLimit,
+		bucket: "login",
+		rule: deps.rateLimitRules.login,
+	});
+	router.post("/login", loginRateLimit, async (req: Request, res: Response) => {
 		const returnUrl = extractReturnUrl(req.query);
 		const parsed = LoginSchema.safeParse(req.body);
 
@@ -201,7 +213,12 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		sendComponent(req, res, Base(SignupPage({ returnUrl, userCount, foundingAllocation: deps.foundingAllocation, loadedAt: deps.now().getTime(), email }), bannerStateFromRequest(req)));
 	});
 
-	router.post("/signup", async (req: Request, res: Response) => {
+	const signupRateLimit = createRateLimitMiddleware({
+		consumeRateLimit: deps.consumeRateLimit,
+		bucket: "signup",
+		rule: deps.rateLimitRules.signup,
+	});
+	router.post("/signup", signupRateLimit, async (req: Request, res: Response) => {
 		const returnUrl = extractReturnUrl(req.query);
 		const body = (req.body ?? {}) as Record<string, unknown>;
 
