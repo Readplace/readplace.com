@@ -125,13 +125,13 @@ function handleViewLanding(deps: ViewDependencies) {
 
 function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof initArticleReader>) {
 	return async (
-		req: Request<Record<string, string>>,
+		req: Request<{ splat: string[] }>,
 		res: Response,
 	): Promise<void> => {
 		const queryIndex = req.originalUrl.indexOf("?");
 		const originalPath = queryIndex === -1 ? req.originalUrl : req.originalUrl.slice(0, queryIndex);
 		const encodedPath = originalPath.slice("/view/".length);
-		const parsed = parseViewPath({ rawPath: req.params[0], encodedPath });
+		const parsed = parseViewPath({ rawPath: req.params.splat.join("/"), encodedPath });
 		if (parsed.kind === "redirect") {
 			const queryString = queryIndex === -1 ? "" : req.originalUrl.slice(queryIndex);
 			res.redirect(301, `${parsed.canonicalPath}${queryString}`);
@@ -336,7 +336,7 @@ export function initViewRoutes(deps: ViewDependencies): Router {
 	router.get("/", handleViewLanding(deps));
 	router.get("/summary", handleViewSummary(deps, reader));
 	router.get("/reader", handleViewReader(deps, reader));
-	router.get<string, Record<string, string>>("/*", handleViewArticle(deps, reader));
+	router.get<string, { splat: string[] }>("/*splat", handleViewArticle(deps, reader));
 
 	return router;
 }
