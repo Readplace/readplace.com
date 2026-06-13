@@ -1,6 +1,4 @@
 import assert from "node:assert";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { parseHTML } from "linkedom";
 import {
 	BANNER_AREA_STYLES,
@@ -14,6 +12,8 @@ import {
 	VERIFY_BANNER_STYLES,
 	UTILITY_STYLES,
 } from "./base.styles";
+import { BASE_TEMPLATE } from "./base.template";
+import { FOOTER_TEMPLATE } from "./footer.template";
 import type { BannerState } from "./banner-state";
 import type { Component, ParsedComponent } from "./component.types";
 import { HtmlPage } from "./html-page";
@@ -29,9 +29,6 @@ import {
 } from "./shared/extension-suggestion-banner/extension-suggestion-banner.component";
 import { EXTENSION_SUGGESTION_BANNER_STYLES } from "./shared/extension-suggestion-banner/extension-suggestion-banner.styles";
 import { TOAST_STYLES } from "./shared/toast/toast.styles";
-
-const FOOTER_TEMPLATE = readFileSync(join(__dirname, "footer.template.html"), "utf-8");
-const BASE_TEMPLATE = readFileSync(join(__dirname, "base.template.html"), "utf-8");
 
 function renderFooter(): string {
 	return render(FOOTER_TEMPLATE, {
@@ -193,7 +190,7 @@ function renderMarkdown(body: PageBody): string {
 }
 
 /** Site-level configuration the shell cannot read for itself. `staticBaseUrl`
- * is the origin that fronts favicons/fonts referenced in base.template.html
+ * is the origin that fronts favicons/fonts referenced in base.template.ts
  * (each consuming site points it at static.readplace.com); `liveReload`
  * injects the dev livereload script. Both were env reads in hutch — lifted to
  * an injected config so the package stays free of process.env coupling and can

@@ -1,4 +1,4 @@
-<div
+export const EXTENSION_SUGGESTION_BANNER_TEMPLATE = `<div
   class="extension-suggestion-banner"
   role="status"
   aria-live="polite"
@@ -30,3 +30,4 @@
     </div>
   </div>
 </div>
+`;

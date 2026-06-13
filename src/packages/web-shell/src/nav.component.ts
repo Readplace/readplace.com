@@ -1,10 +1,7 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { render } from "./render";
 import { buildNavGroups, buildGuestNavItems } from "./banner-state";
+import { NAV_TEMPLATE } from "./nav.template";
 import { formatTrialDisplay, type TrialDisplay } from "./trial-countdown.format";
-
-const NAV_TEMPLATE = readFileSync(join(__dirname, "nav.template.html"), "utf-8");
 
 export interface NavProps {
 	variant: "default" | "transparent";

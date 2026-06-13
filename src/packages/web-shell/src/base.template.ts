@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+export const BASE_TEMPLATE = `<!DOCTYPE html>
 <html lang="en-AU">
 <head>
   <meta charset="UTF-8">
@@ -121,3 +121,4 @@
   {{{scripts}}}
 </body>
 </html>
+`;
