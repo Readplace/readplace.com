@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { OnboardingChecklist, ONBOARDING_STYLES } from "../../onboarding/onboarding.component";
 import type { BrowserName } from "../../onboarding/onboarding.types";
-import type { PageBody } from "../../page-body.types";
-import { render } from "../../render";
-import { withInternalTracking } from "../../internal-link-tracking";
+import { render, withInternalTracking } from "@packages/web-shell";
+import type { PageBody } from "@packages/web-shell";
+
 import { QUEUE_STYLES } from "./queue.styles";
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
 import { renderToast } from "../../shared/toast/toast.component";

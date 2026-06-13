@@ -1,6 +1,6 @@
 import { decomposeTimeLeft } from "@packages/time-left";
 import type { EffectiveAccess } from "../../../domain/access/effective-access";
-import { withInternalTracking } from "../../internal-link-tracking";
+import { withInternalTracking } from "@packages/web-shell";
 import {
 	ACCOUNT_CANCEL_URL,
 	ACCOUNT_REACTIVATE_URL,

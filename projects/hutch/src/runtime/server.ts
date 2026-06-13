@@ -130,8 +130,8 @@ import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middl
 import { initOAuthRoutes } from "./web/oauth/oauth.routes";
 import { Base } from "./web/base.component";
 import { initBuildBannerState } from "./web/banner-state";
-import { sendComponent } from "./web/send-component";
-import { wantsMarkdown, wantsSiren } from "./web/content-negotiation";
+import { sendComponent, wantsMarkdown } from "@packages/web-shell";
+import { wantsSiren } from "./web/content-negotiation";
 import { CONTENT_SIGNAL_VALUE, contentSignalMiddleware } from "./web/content-signal.middleware";
 import { linkHeaderMiddleware } from "./web/link-header.middleware";
 import { QuerystringFeatureToggle } from "./web/feature-toggle";

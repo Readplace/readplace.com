@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import assert from "node:assert";
-import type { PageBody } from "../../page-body.types";
-import { render } from "../../render";
+import { render, withInternalTracking } from "@packages/web-shell";
+import type { PageBody } from "@packages/web-shell";
+
 import { switchHelpers } from "../../handlebars-switch";
 import { INSTALL_PAGE_STYLES } from "./install.styles";
-import { withInternalTracking } from "../../internal-link-tracking";
+
 import { firefoxS3Config } from "browser-extension-core/s3-config";
 
 const INSTALL_TEMPLATE = readFileSync(join(__dirname, "install.template.html"), "utf-8");

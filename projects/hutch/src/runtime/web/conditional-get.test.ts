@@ -1,7 +1,7 @@
 import type { ConditionalGetRequest } from "./conditional-get";
 import { CacheableComponent } from "./conditional-get";
-import { HtmlPage } from "./html-page";
-import type { Component } from "./component.types";
+import { HtmlPage } from "@packages/web-shell";
+import type { Component } from "@packages/web-shell";
 
 function fakeReq(headers: Record<string, string> = {}): ConditionalGetRequest {
 	return { headers };

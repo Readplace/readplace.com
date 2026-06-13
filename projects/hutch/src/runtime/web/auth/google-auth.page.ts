@@ -19,8 +19,8 @@ import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-confi
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { initSendWelcomeEmail } from "./send-welcome-email";
 import { Base } from "../base.component";
-import { bannerStateFromRequest } from "../banner-state";
-import { sendComponent } from "../send-component";
+import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
+
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { baseCookieOptions } from "../cookie-options";
 import { SESSION_COOKIE_NAME } from "./session-cookie";

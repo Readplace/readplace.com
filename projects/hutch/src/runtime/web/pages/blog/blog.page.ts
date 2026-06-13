@@ -2,7 +2,7 @@ import type { Request, Response, Router } from "express";
 import express from "express";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import { sendComponent } from "../../send-component";
+import { sendComponent } from "@packages/web-shell";
 import { BlogIndexPage } from "./blog-index.component";
 import { BlogPostPage } from "./blog-post.component";
 import { NotFoundPage } from "../not-found";

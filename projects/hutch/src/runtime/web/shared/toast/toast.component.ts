@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "../../render";
+import { render } from "@packages/web-shell";
 
 export interface ToastAction {
 	method: string;

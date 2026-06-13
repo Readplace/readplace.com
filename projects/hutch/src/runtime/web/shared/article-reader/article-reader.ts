@@ -1,8 +1,9 @@
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import type { GlobalArticleData } from "@packages/provider-contracts/article-store";
-import type { Component } from "../../component.types";
-import { HtmlPage } from "../../html-page";
+import { HtmlPage } from "@packages/web-shell";
+import type { Component } from "@packages/web-shell";
+
 import {
 	renderArticleHeaderOob,
 	renderDocumentTitleOob,

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "../../../render";
-import { withInternalTracking } from "../../../internal-link-tracking";
+import { render, withInternalTracking } from "@packages/web-shell";
+
 import type {
 	ArticleAction,
 	QueueArticleViewModel,

@@ -1,9 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EMBED_BASE_STYLES } from "./embed-base.styles";
-import type { Component } from "../../component.types";
-import { HtmlPage } from "../../html-page";
-import { render } from "../../render";
+import { HtmlPage, render } from "@packages/web-shell";
+import type { Component } from "@packages/web-shell";
 
 const BASE_TEMPLATE = readFileSync(join(__dirname, "embed-base.template.html"), "utf-8");
 

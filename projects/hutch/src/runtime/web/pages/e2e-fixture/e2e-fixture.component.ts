@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { PageBody } from "../../page-body.types";
-import { render } from "../../render";
+import { render } from "@packages/web-shell";
+import type { PageBody } from "@packages/web-shell";
 
 const TEMPLATE = readFileSync(join(__dirname, "e2e-fixture.template.html"), "utf-8");
 
