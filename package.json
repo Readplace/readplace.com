@@ -4,14 +4,14 @@
   "private": true,
   "description": "Readplace monorepo — read-it-later app",
   "scripts": {
-    "test": "NX_TUI=true nx run-many --target=test --all",
-    "compile": "NX_TUI=true nx run-many --target=compile --all",
-    "lint": "NX_TUI=true nx run-many --target=lint --all",
+    "test": "nx run-many --target=test --all",
+    "compile": "nx run-many --target=compile --all",
+    "lint": "nx run-many --target=lint --all",
     "dev": "nx run hutch:dev",
     "permalink": "pnpm --filter hutch permalink",
-    "check": ". ./.envrc && NX_TUI=true nx run-many --target=check --all",
-    "check-infra": "NX_TUI=true nx run-many --target=check-infra --all",
-    "deploy-infra": "NX_TUI=true nx run-many --target=deploy-infra --all",
+    "check": ". ./.envrc && nx run-many --target=check --all",
+    "check-infra": "nx run-many --target=check-infra --all",
+    "deploy-infra": "nx run-many --target=deploy-infra --all",
     "prepare": "husky"
   },
   "devDependencies": {
