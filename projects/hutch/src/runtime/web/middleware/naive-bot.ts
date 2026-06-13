@@ -40,6 +40,10 @@ const BOT_BYPASS_PATHS: ReadonlySet<string> = new Set([
 	"/llms.txt",
 	"/llms-full.txt",
 	"/favicon.ico",
+	"/auth.md",
+	"/.well-known/oauth-protected-resource",
+	"/.well-known/oauth-authorization-server",
+	"/.well-known/api-catalog",
 ]);
 
 const MAX_LOGGED_UA_LENGTH = 200;

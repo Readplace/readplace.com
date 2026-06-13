@@ -192,6 +192,24 @@ describe("GET /llms-full.txt", () => {
 	});
 });
 
+describe("GET /auth.md", () => {
+	it("serves the agent registration recipe as markdown", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/auth.md");
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toMatch(/text\/markdown/);
+		expect(response.text.startsWith("# auth.md")).toBe(true);
+	});
+
+	it("documents the real OAuth endpoints against the configured base URL", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/auth.md");
+		expect(response.text).not.toContain("{{baseUrl}}");
+		expect(response.text).toContain("http://localhost:3000/oauth/authorize");
+		expect(response.text).toContain("http://localhost:3000/.well-known/oauth-protected-resource");
+	});
+});
+
 describe("GET /sitemap.xml", () => {
 	it("should return an XML sitemap with exactly the public pages", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -211,6 +229,7 @@ describe("GET /sitemap.xml", () => {
 			"http://localhost:3000/terms",
 			"http://localhost:3000/llms.txt",
 			"http://localhost:3000/llms-full.txt",
+			"http://localhost:3000/auth.md",
 			...blogPostUrls,
 		]);
 	});
@@ -249,6 +268,23 @@ describe("GET /.well-known/oauth-authorization-server", () => {
 			grant_types_supported: ["authorization_code", "refresh_token"],
 			token_endpoint_auth_methods_supported: ["none"],
 			code_challenge_methods_supported: ["S256"],
+			agent_auth: {
+				skill: "http://localhost:3000/auth.md",
+				register_uri: "http://localhost:3000/oauth/authorize",
+				identity_types_supported: ["delegated_user"],
+				credential_types_supported: ["oauth2_access_token", "oauth2_refresh_token"],
+				revocation_uri: "http://localhost:3000/oauth/revoke",
+				registration_methods: [
+					{
+						type: "oauth2_authorization_code_pkce",
+						authorization_uri: "http://localhost:3000/oauth/authorize",
+						token_uri: "http://localhost:3000/oauth/token",
+						grant_types_supported: ["authorization_code", "refresh_token"],
+						code_challenge_methods_supported: ["S256"],
+						token_endpoint_auth_methods_supported: ["none"],
+					},
+				],
+			},
 		});
 	});
 });
@@ -261,8 +297,11 @@ describe("GET /.well-known/oauth-protected-resource", () => {
 		expect(response.headers["content-type"]).toMatch(/application\/json/);
 		expect(response.body).toEqual({
 			resource: "http://localhost:3000",
+			resource_name: "Readplace",
 			authorization_servers: ["http://localhost:3000"],
+			scopes_supported: ["queue"],
 			bearer_methods_supported: ["header"],
+			resource_documentation: "http://localhost:3000/auth.md",
 		});
 	});
 });
