@@ -4,17 +4,25 @@ import {
 	type WebMcpDeps,
 	type WebMcpFetch,
 	type WebMcpModelContext,
+	type WebMcpResponse,
 	type WebMcpTool,
 } from "./webmcp.client";
 
-function fetchReturning(status: number): {
+/** A saved article 303-redirects to `/queue`; after the browser follows it the
+ * response's final URL is the queue, which is how the tool recognises success. */
+const SAVED_RESPONSE: WebMcpResponse = {
+	status: 200,
+	url: "https://readplace.com/queue",
+};
+
+function fetchReturning(response: WebMcpResponse): {
 	fetchFn: WebMcpFetch;
 	calls: Array<{ url: string; init: Parameters<WebMcpFetch>[1] }>;
 } {
 	const calls: Array<{ url: string; init: Parameters<WebMcpFetch>[1] }> = [];
 	const fetchFn: WebMcpFetch = (url, init) => {
 		calls.push({ url, init });
-		return Promise.resolve({ status });
+		return Promise.resolve(response);
 	};
 	return { fetchFn, calls };
 }
@@ -26,7 +34,7 @@ function makeDeps(overrides: Partial<WebMcpDeps> = {}): {
 	const navigations: string[] = [];
 	const deps: WebMcpDeps = {
 		modelContext: undefined,
-		fetchFn: () => Promise.resolve({ status: 201 }),
+		fetchFn: () => Promise.resolve(SAVED_RESPONSE),
 		navigate: (url) => navigations.push(url),
 		...overrides,
 	};
@@ -62,43 +70,65 @@ describe("buildReadplaceTools", () => {
 });
 
 describe("save_article execute", () => {
-	function runSave(input: unknown, status: number) {
-		const { fetchFn, calls } = fetchReturning(status);
+	function runSave(input: unknown, response: WebMcpResponse) {
+		const { fetchFn, calls } = fetchReturning(response);
 		const { deps } = makeDeps({ fetchFn });
 		const save = toolByName(buildReadplaceTools(deps), "save_article");
 		return { result: save.execute(input), calls };
 	}
 
-	it("POSTs the url to the queue Siren endpoint and confirms a 201 save", async () => {
-		const { result, calls } = runSave({ url: "https://example.com/post" }, 201);
+	it("POSTs a form-encoded url to the cookie-authenticated save endpoint and confirms a save", async () => {
+		const { result, calls } = runSave(
+			{ url: "https://example.com/post" },
+			SAVED_RESPONSE,
+		);
 
 		expect((await result).content[0].text).toBe(
 			"Saved to your Readplace reading queue: https://example.com/post",
 		);
 		expect(calls).toHaveLength(1);
-		expect(calls[0].url).toBe("/queue");
+		expect(calls[0].url).toBe("/queue/save");
 		expect(calls[0].init.method).toBe("POST");
-		expect(calls[0].init.headers.accept).toBe("application/vnd.siren+json");
-		expect(calls[0].init.headers["content-type"]).toBe("application/json");
-		expect(JSON.parse(calls[0].init.body)).toEqual({ url: "https://example.com/post" });
+		expect(calls[0].init.headers["content-type"]).toBe(
+			"application/x-www-form-urlencoded",
+		);
+		expect(calls[0].init.headers.accept).toBeUndefined();
+		expect(calls[0].init.body).toBe("url=https%3A%2F%2Fexample.com%2Fpost");
 	});
 
-	it.each([
-		[401, "Sign in to Readplace first, then ask again to save this article."],
-		[403, "Sign in to Readplace first, then ask again to save this article."],
+	it.each<[string, WebMcpResponse, string]>([
 		[
-			402,
+			"a sign-in redirect",
+			{ status: 200, url: "https://readplace.com/login" },
+			"Sign in to Readplace first, then ask again to save this article.",
+		],
+		[
+			"an inactive-subscription redirect",
+			{ status: 200, url: "https://readplace.com/queue?inactive=1" },
 			"This Readplace subscription is inactive. Reactivate it to save new articles.",
 		],
-		[422, "That URL can't be saved to Readplace: https://example.com/post"],
-		[500, "Couldn't save the article to Readplace (HTTP 500)."],
-	])("maps HTTP %i to a human-readable message", async (status, message) => {
-		const { result } = runSave({ url: "https://example.com/post" }, status);
+		[
+			"a save-failed redirect",
+			{ status: 200, url: "https://readplace.com/queue?error_code=save_failed" },
+			"Couldn't save the article to Readplace right now — please try again in a moment.",
+		],
+		[
+			"an unsaveable-url 422",
+			{ status: 422, url: "https://readplace.com/queue/save" },
+			"That URL can't be saved to Readplace: https://example.com/post",
+		],
+		[
+			"an unexpected status",
+			{ status: 500, url: "https://readplace.com/queue/save" },
+			"Couldn't save the article to Readplace (HTTP 500).",
+		],
+	])("maps %s to a human-readable message", async (_label, response, message) => {
+		const { result } = runSave({ url: "https://example.com/post" }, response);
 		expect((await result).content[0].text).toBe(message);
 	});
 
 	it("asks for a URL and skips the request when none is provided", async () => {
-		const { fetchFn, calls } = fetchReturning(201);
+		const { fetchFn, calls } = fetchReturning(SAVED_RESPONSE);
 		const { deps } = makeDeps({ fetchFn });
 		const save = toolByName(buildReadplaceTools(deps), "save_article");
 
@@ -113,7 +143,7 @@ describe("save_article execute", () => {
 		["a null input", null],
 		["a non-object input", "https://example.com"],
 	])("treats %s as a missing url", async (_label, input) => {
-		const { result, calls } = runSave(input, 201);
+		const { result, calls } = runSave(input, SAVED_RESPONSE);
 		expect((await result).content[0].text).toBe(
 			"Provide the full http(s) URL of the article you want to save.",
 		);

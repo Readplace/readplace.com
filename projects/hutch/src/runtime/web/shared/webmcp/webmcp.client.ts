@@ -41,10 +41,14 @@ export interface WebMcpModelContext {
 	registerTool?: (tool: WebMcpTool) => void;
 }
 
-/** Only the status code is read from the save response, so the dependency stays
- * trivial to fake in tests without constructing a whole `Response`. */
+/** The save endpoint authenticates with the session cookie and 303-redirects to
+ * a page whose URL encodes the outcome, so the followed response's final `url`
+ * (and `status`) — not a status code alone — tells saved / signed-out /
+ * inactive / rejected apart. Both fields come straight off a real `Response`, so
+ * tests can fake the dependency without constructing one. */
 export interface WebMcpResponse {
 	status: number;
+	url: string;
 }
 
 export type WebMcpFetch = (
@@ -60,8 +64,18 @@ export interface WebMcpDeps {
 
 export type WebMcpProvideVia = "provideContext" | "registerTool" | "none";
 
-/** The Siren API content type the queue save endpoint negotiates on. */
-const SIREN_MEDIA_TYPE = "application/vnd.siren+json";
+/**
+ * The browser save bar posts here. It authenticates with the `hutch_sid`
+ * session cookie — sent by default on this same-origin POST — instead of the
+ * extension's OAuth Bearer token, which page JavaScript cannot read. POSTing to
+ * the Siren `POST /queue` surface would always 401 from a page, because that
+ * branch demands a Bearer header and never consults the cookie.
+ */
+const SAVE_ENDPOINT = "/queue/save";
+
+/** Parsing base for the followed response URL. A real `Response.url` is absolute
+ * and overrides this; the base only stops `new URL` throwing on an empty value. */
+const SAVE_OUTCOME_BASE = "https://readplace.com";
 
 function toolText(text: string): WebMcpToolResult {
 	return { content: [{ type: "text", text }] };
@@ -74,34 +88,53 @@ function readStringField(input: unknown, key: string): string | undefined {
 	return typeof value === "string" ? value : undefined;
 }
 
+/**
+ * The save endpoint speaks redirects, not status codes: an unsaveable URL
+ * re-renders the queue with 422, every other outcome 303-redirects to a page
+ * whose path/query names what happened. After the browser follows the redirect,
+ * the final `response.url` is what distinguishes them — `/login` (signed out),
+ * `?inactive=1` (subscription lapsed), `?error_code=save_failed` (server error),
+ * or a clean `/queue` (saved).
+ */
+function classifySaveOutcome(
+	response: WebMcpResponse,
+	url: string,
+): WebMcpToolResult {
+	if (response.status === 422) {
+		return toolText(`That URL can't be saved to Readplace: ${url}`);
+	}
+	const outcome = new URL(response.url, SAVE_OUTCOME_BASE);
+	if (outcome.pathname === "/login") {
+		return toolText(
+			"Sign in to Readplace first, then ask again to save this article.",
+		);
+	}
+	if (outcome.searchParams.has("inactive")) {
+		return toolText(
+			"This Readplace subscription is inactive. Reactivate it to save new articles.",
+		);
+	}
+	if (outcome.searchParams.get("error_code") === "save_failed") {
+		return toolText(
+			"Couldn't save the article to Readplace right now — please try again in a moment.",
+		);
+	}
+	if (outcome.pathname === "/queue") {
+		return toolText(`Saved to your Readplace reading queue: ${url}`);
+	}
+	return toolText(
+		`Couldn't save the article to Readplace (HTTP ${response.status}).`,
+	);
+}
+
 function saveArticle(deps: WebMcpDeps, url: string): Promise<WebMcpToolResult> {
 	return deps
-		.fetchFn("/queue", {
+		.fetchFn(SAVE_ENDPOINT, {
 			method: "POST",
-			headers: { "content-type": "application/json", accept: SIREN_MEDIA_TYPE },
-			body: JSON.stringify({ url }),
+			headers: { "content-type": "application/x-www-form-urlencoded" },
+			body: `url=${encodeURIComponent(url)}`,
 		})
-		.then((response) => {
-			switch (response.status) {
-				case 201:
-					return toolText(`Saved to your Readplace reading queue: ${url}`);
-				case 401:
-				case 403:
-					return toolText(
-						"Sign in to Readplace first, then ask again to save this article.",
-					);
-				case 402:
-					return toolText(
-						"This Readplace subscription is inactive. Reactivate it to save new articles.",
-					);
-				case 422:
-					return toolText(`That URL can't be saved to Readplace: ${url}`);
-				default:
-					return toolText(
-						`Couldn't save the article to Readplace (HTTP ${response.status}).`,
-					);
-			}
-		});
+		.then((response) => classifySaveOutcome(response, url));
 }
 
 export function buildReadplaceTools(deps: WebMcpDeps): WebMcpTool[] {
