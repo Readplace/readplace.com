@@ -5,7 +5,6 @@ import { render } from "../render";
 import { renderFoundingProgress } from "../shared/founding-progress/founding-progress.component";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import type { ComponentError } from "../shared/component-error.types";
-import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
 import { AUTH_STYLES } from "./auth.styles";
 
 const LOGIN_TEMPLATE = readFileSync(join(__dirname, "login.template.html"), "utf-8");
@@ -87,10 +86,6 @@ export function VerifyEmailPage(data: { success: boolean; error?: string }): Pag
 export function SignupPage(data: SignupFormData, options?: { statusCode?: number }): PageBody {
 	const email = data.email ?? "";
 	const errors = data.errors;
-	const trialSuffix = data.foundingAllocation.isFoundingAllocationExhausted(data.userCount)
-		? ` (${STRIPE_TRIAL_PERIOD_DAYS} days free)`
-		: "";
-
 	const content = render(SIGNUP_TEMPLATE, {
 		email,
 		globalError: errors?.find((e) => !e.fieldName)?.message,
@@ -99,8 +94,8 @@ export function SignupPage(data: SignupFormData, options?: { statusCode?: number
 		emailField: toFieldViewModel(errors, "email"),
 		passwordField: toFieldViewModel(errors, "password"),
 		confirmPasswordField: toFieldViewModel(errors, "confirmPassword"),
-		submitLabel: `Join Readplace${trialSuffix}`,
-		googleLabel: `Sign up with Google${trialSuffix}`,
+		submitLabel: `Join Readplace`,
+		googleLabel: `Sign up with Google`,
 		foundingProgressHtml: renderFoundingProgress({
 			userCount: data.userCount,
 			foundingAllocation: data.foundingAllocation,

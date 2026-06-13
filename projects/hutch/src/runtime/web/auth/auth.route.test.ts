@@ -1081,7 +1081,7 @@ describe("Auth routes", () => {
 			expect(doc.querySelector("[data-test-trial-hint]")?.textContent).toBe("No credit card required.");
 		}, 30000);
 
-		it("renders 'Join Readplace (14 days free)' submit button on /signup when the founding allocation is exhausted", async () => {
+		it("renders 'Join Readplace' submit button on /signup when the founding allocation is exhausted", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth } = harness;
 			for (let i = 0; i < TEST_FOUNDING_MEMBER_LIMIT; i++) {
@@ -1090,7 +1090,7 @@ describe("Auth routes", () => {
 
 			const doc = new JSDOM((await request(harness.server).get("/signup")).text).window.document;
 			const submit = doc.querySelector('[data-test-form="signup"] button[type="submit"]');
-			expect(submit?.textContent).toBe("Join Readplace (14 days free)");
+			expect(submit?.textContent).toBe("Join Readplace");
 		}, 30000);
 	});
 });
