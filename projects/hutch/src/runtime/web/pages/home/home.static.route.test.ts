@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { useTestServer } from "../../../test-app";
@@ -323,6 +324,43 @@ describe("GET /.well-known/api-catalog", () => {
 			"http://localhost:3000/.well-known/oauth-protected-resource",
 		);
 		expect(entry.status[0].href).toBe("http://localhost:3000/health");
+	});
+});
+
+describe("GET /.well-known/agent-skills/index.json", () => {
+	it("publishes an Agent Skills Discovery RFC v0.2.0 index", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/.well-known/agent-skills/index.json");
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toMatch(/application\/json/);
+		expect(response.body.$schema).toBe(
+			"https://schemas.agentskills.io/discovery/0.2.0/schema.json",
+		);
+		expect(Array.isArray(response.body.skills)).toBe(true);
+		expect(response.body.skills.length).toBeGreaterThan(0);
+		for (const skill of response.body.skills) {
+			expect(typeof skill.name).toBe("string");
+			expect(skill.type).toBe("skill-md");
+			expect(typeof skill.description).toBe("string");
+			expect(skill.url).toBe(
+				`http://localhost:3000/.well-known/agent-skills/${skill.name}/SKILL.md`,
+			);
+			expect(skill.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+		}
+	});
+
+	it("serves each listed SKILL.md as markdown with a digest matching its sha256", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const index = await request(harness.server).get("/.well-known/agent-skills/index.json");
+
+		for (const skill of index.body.skills) {
+			const artifactPath = new URL(skill.url).pathname;
+			const artifact = await request(harness.server).get(artifactPath);
+			expect(artifact.status).toBe(200);
+			expect(artifact.headers["content-type"]).toMatch(/text\/markdown/);
+			const digest = `sha256:${createHash("sha256").update(Buffer.from(artifact.text, "utf-8")).digest("hex")}`;
+			expect(digest).toBe(skill.digest);
+		}
 	});
 });
 
