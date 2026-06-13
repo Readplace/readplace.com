@@ -22,6 +22,7 @@ import {
 } from "../runtime/observability/analytics-dashboard";
 import { DomainRegistration } from "./domain-registration";
 import { DomainRedirect } from "./domain-redirect";
+import { AgentDiscovery } from "./agent-discovery";
 import { HutchStorage } from "./hutch-storage";
 import { HutchStaticAssets } from "./hutch-static-assets";
 import { requireEnv } from "../runtime/domain/require-env";
@@ -111,6 +112,21 @@ if (redirectDomains.length > 0 || redirectSubdomains.length > 0) {
 		redirectSubdomains,
 		targetDomain: canonicalDomain,
 	});
+}
+
+// DNS for AI Discovery (DNS-AID) entry points are published in every configured
+// domain's zone, each pointing agents at the canonical registry host. Staging
+// configures no domains, so this is prod-only.
+if (canonicalDomain) {
+	for (const [i, domain] of domains.entries()) {
+		const zoneId = allDomainRegistrations[i]?.zoneId;
+		if (!zoneId) continue;
+		new AgentDiscovery(`hutch-agent-discovery-${domain.replace(/\./g, "-")}`, {
+			domain,
+			zoneId,
+			registryHost: canonicalDomain,
+		});
+	}
 }
 
 const staticDomainEntries = staticDomains.map((staticDomain) => {
