@@ -84,7 +84,7 @@
     "@packages/test-fixtures": "workspace:*",
     "@packages/test-phase-runner": "workspace:*",
     "@packages/web-test-harness": "workspace:*",
-    "@playwright/test": "1.58.2",
+    "@playwright/test": "1.60.0",
     "@pulumi/aws": "7.32.0",
     "@pulumi/pulumi": "3.244.0",
     "@testing-library/dom": "10",
