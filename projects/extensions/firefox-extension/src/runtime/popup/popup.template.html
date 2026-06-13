@@ -35,10 +35,6 @@
     <p>Removed</p>
   </div>
 
-  <div id="locked-view" class="view view--status" hidden>
-    <p id="locked-message"></p>
-  </div>
-
   <div id="list-view" class="view" hidden>
     <div class="list-view__header">
       <a href="https://readplace.com/queue?utm=ff-ext" class="list-view__brand" aria-label="Open Readplace queue" target="_blank" rel="noopener">
@@ -57,6 +53,7 @@
         placeholder="Search articles..."
       >
     </div>
+    <div id="messages" class="messages" role="status" hidden></div>
     <p id="list-warning" class="list-view__warning" role="status" hidden></p>
     <div id="link-list" class="list-view__links"></div>
     <div id="pagination" class="pagination" hidden></div>

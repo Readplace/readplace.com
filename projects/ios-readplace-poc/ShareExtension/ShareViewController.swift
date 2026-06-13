@@ -41,8 +41,8 @@ final class ShareViewController: UIViewController {
 		case .noSaveAction:
 			finish(message: "The server offered no save action.",
 				symbol: "exclamationmark.triangle.fill", success: false)
-		case .accountLocked(let message):
-			finish(message: message, symbol: "lock.fill", success: false)
+		case .refused(let messages):
+			finish(message: messages.map(\.plainText).joined(separator: "\n"), symbol: "lock.fill", success: false)
 		case .failed(let message):
 			finish(message: message, symbol: "exclamationmark.triangle.fill", success: false)
 		}

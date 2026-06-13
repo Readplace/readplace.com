@@ -8,6 +8,15 @@ export interface SaveWarning {
 	readonly message: string;
 }
 
+/** A server-authored message the client renders generically — it carries no
+ * feature-specific knowledge. `type` selects presentation; `content` is an HTML
+ * fragment the client injects into a generic message view. The same shape is
+ * used for every message the server asks the client to surface. */
+export interface Message {
+	readonly type: "warning" | "error";
+	readonly content: { readonly type: "text/html"; readonly body: string };
+}
+
 export type TabContent = { bytes: ArrayBuffer; mediaType: string };
 
 export type SaveUrlResult =
@@ -19,11 +28,7 @@ export type SaveUrlResult =
 			items: ReadingListItem[];
 			warning?: SaveWarning;
 	  }
-	| {
-			ok: false;
-			reason: "account-locked";
-			message: string;
-	  };
+	| { ok: false; messages: Message[] };
 
 export type RemoveUrlResult =
 	| { ok: true; items: ReadingListItem[] }

@@ -69,15 +69,20 @@ function collectionResponse(entities: unknown[] = []) {
 	});
 }
 
-const LOCK_MESSAGE =
-	"Your account is locked because your email was never verified. Email readplace+verification@readplace.com to restore access.";
+const LOCK_MESSAGE_HTML =
+	'Your account is locked because your email was never verified. Email <a href="mailto:readplace+verification@readplace.com">readplace+verification@readplace.com</a> to restore access.';
 
-/** The Siren error the server returns when a locked account attempts a write:
- * a `code` plus a human-readable `message`, and deliberately no action. */
-function accountLockedErrorBody() {
+/** The Siren error the server returns when a save is refused with messages for
+ * the client to render (e.g. a locked account): server-authored messages, and
+ * deliberately no code and no action. */
+function messageRefusalBody() {
 	return JSON.stringify({
 		class: ["error"],
-		properties: { code: "account-locked", message: LOCK_MESSAGE },
+		properties: {
+			messages: [
+				{ type: "warning", content: { type: "text/html", body: LOCK_MESSAGE_HTML } },
+			],
+		},
 	});
 }
 
@@ -1162,7 +1167,7 @@ describe("save-html action", () => {
 		);
 	});
 
-	it("surfaces an account-locked refusal and attempts no fallback save", async () => {
+	it("surfaces the server's messages and attempts no fallback save", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
 			withEntryPoint({
 				"GET http://localhost:3000/queue": {
@@ -1171,7 +1176,7 @@ describe("save-html action", () => {
 				},
 				"POST http://localhost:3000/queue/save-html": {
 					status: 403,
-					body: accountLockedErrorBody(),
+					body: messageRefusalBody(),
 				},
 			}),
 		);
@@ -1179,8 +1184,8 @@ describe("save-html action", () => {
 		const collection = await start();
 		await expect(
 			collection.actions["save-html"]({ url: "https://example.com/article", rawHtml: "<html>x</html>" }),
-		).rejects.toThrow("Account locked");
-		// The locked refusal carries no action, so no second (fallback) save fires.
+		).rejects.toThrow("Save blocked");
+		// The refusal carries no action, so no second (fallback) save fires.
 		expect(calls.filter((c) => c.startsWith("POST"))).toEqual([
 			"POST http://localhost:3000/queue/save-html",
 		]);
@@ -1624,7 +1629,7 @@ describe("save-content action", () => {
 		});
 	});
 
-	it("surfaces an account-locked refusal and attempts no fallback save", async () => {
+	it("surfaces the server's messages and attempts no fallback save", async () => {
 		const { fetchFn, calls } = createRoutingFetch(
 			withEntryPoint({
 				"GET http://localhost:3000/queue": {
@@ -1633,7 +1638,7 @@ describe("save-content action", () => {
 				},
 				"POST http://localhost:3000/queue/save-content": {
 					status: 403,
-					body: accountLockedErrorBody(),
+					body: messageRefusalBody(),
 				},
 			}),
 		);
@@ -1646,7 +1651,7 @@ describe("save-content action", () => {
 				mediaType: "text/html",
 				contentBase64: bytesToBase64(htmlBytes),
 			}),
-		).rejects.toThrow("Account locked");
+		).rejects.toThrow("Save blocked");
 		expect(calls.filter((c) => c.startsWith("POST"))).toEqual([
 			"POST http://localhost:3000/queue/save-content",
 		]);
@@ -2292,7 +2297,7 @@ describe("initSirenReadingList", () => {
 			).rejects.toThrow("Save failed: 422");
 		});
 
-		it("returns an account-locked result carrying the server message (no action)", async () => {
+		it("returns the server's messages when a save is refused", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({
 					"GET http://localhost:3000/queue": {
@@ -2301,7 +2306,7 @@ describe("initSirenReadingList", () => {
 					},
 					"POST http://localhost:3000/queue": {
 						status: 403,
-						body: accountLockedErrorBody(),
+						body: messageRefusalBody(),
 					},
 				}),
 			);
@@ -2310,10 +2315,13 @@ describe("initSirenReadingList", () => {
 				url: "https://example.com/article",
 				title: "Ignored",
 			});
-			assert(!result.ok, "save should be refused while the account is locked");
-			expect(result.reason).toBe("account-locked");
-			const locked = result as Extract<typeof result, { reason: "account-locked" }>;
-			expect(locked.message).toContain("readplace+verification@readplace.com");
+			assert(!result.ok, "save should be refused");
+			const messages = "messages" in result ? result.messages : undefined;
+			assert(messages, "refusal should carry messages");
+			expect(messages).toHaveLength(1);
+			expect(messages[0].type).toBe("warning");
+			expect(messages[0].content.type).toBe("text/html");
+			expect(messages[0].content.body).toContain("readplace+verification@readplace.com");
 		});
 
 		it("returns a not-saveable result with collection items when server rejects with a collection body", async () => {
@@ -2341,15 +2349,10 @@ describe("initSirenReadingList", () => {
 				title: "New Tab",
 			});
 			assert.equal(result.ok, false);
-			assert.equal(
-				(result as Extract<typeof result, { ok: false }>).reason,
-				"not-saveable",
-			);
-			const items = (
-				result as Extract<typeof result, { reason: "not-saveable" }>
-			).items;
-			expect(items).toHaveLength(1);
-			expect(items[0].url).toBe("https://example.com/existing");
+			const notSaveable = result as Extract<typeof result, { reason: "not-saveable" }>;
+			expect(notSaveable.reason).toBe("not-saveable");
+			expect(notSaveable.items).toHaveLength(1);
+			expect(notSaveable.items[0].url).toBe("https://example.com/existing");
 		});
 
 		it("propagates the server warning from properties.warning to the caller", async () => {

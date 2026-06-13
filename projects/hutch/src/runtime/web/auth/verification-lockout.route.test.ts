@@ -8,7 +8,6 @@ import { loginAgent, useTestServer } from "../../test-app";
 import type { TestAppHarness } from "../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { SIREN_MEDIA_TYPE } from "../api/siren";
-import { ACCOUNT_LOCKED_CODE } from "../api/account-locked-siren";
 
 const useApp = useTestServer();
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -208,10 +207,13 @@ describe("Email verification lockout (Siren API)", () => {
 		expect(response.status).toBe(403);
 		expect(response.type).toContain("application/vnd.siren+json");
 		expect(response.body.class).toContain("error");
-		expect(response.body.properties.code).toBe(ACCOUNT_LOCKED_CODE);
-		expect(response.body.properties.message).toContain(
+		expect(response.body.properties.messages).toHaveLength(1);
+		expect(response.body.properties.messages[0].type).toBe("warning");
+		expect(response.body.properties.messages[0].content.type).toBe("text/html");
+		expect(response.body.properties.messages[0].content.body).toContain(
 			"readplace+verification@readplace.com",
 		);
+		expect(response.body.properties.code).toBeUndefined();
 		expect(response.body.actions).toBeUndefined();
 	});
 
@@ -228,7 +230,9 @@ describe("Email verification lockout (Siren API)", () => {
 			.send({ url: "https://example.com/article", rawHtml: "<p>hi</p>" });
 
 		expect(response.status).toBe(403);
-		expect(response.body.properties.code).toBe(ACCOUNT_LOCKED_CODE);
+		expect(response.body.properties.messages[0].content.body).toContain(
+			"readplace+verification@readplace.com",
+		);
 	});
 
 	it("keeps a locked account's Siren reads working (the lock gates saves, not reads)", async () => {

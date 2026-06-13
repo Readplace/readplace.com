@@ -9,6 +9,7 @@ export type {
 export type {
 	SaveUrlResult,
 	SaveWarning,
+	Message,
 	RemoveUrlResult,
 } from "./reading-list/reading-list.types";
 export type {

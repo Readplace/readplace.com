@@ -8,6 +8,7 @@ import { UnauthorizedError } from "../auth/unauthorized-error";
 import type {
 	FindByUrl,
 	GetAllItems,
+	Message,
 	RemoveUrl,
 	SaveUrl,
 	SaveWarning,
@@ -76,24 +77,35 @@ const SirenErrorSchema = z.object({
 type SirenAction = z.infer<typeof SirenActionSchema>;
 type SirenSubEntity = z.infer<typeof SirenSubEntitySchema>;
 
-const ACCOUNT_LOCKED_CODE = "account-locked";
+const SirenMessageSchema = z.object({
+	type: z.enum(["warning", "error"]),
+	content: z.object({ type: z.literal("text/html"), body: z.string() }),
+});
 
-/** Thrown when the server refuses a save because the account is locked (its
- * email was never verified within the window). Carries only the server's
- * message — the refusal models no action, so the popup shows the message (which
- * itself names the address to email) rather than a button. */
-class AccountLockedError extends Error {
-	constructor(public readonly lockMessage: string) {
-		super("Account locked");
+/** A refusal the server expresses as messages for the client to render verbatim
+ * — no feature-specific code, no action. Distinct from SirenErrorSchema (a
+ * code + message): the client keys off the presence of `properties.messages`. */
+const SirenMessagesErrorSchema = z.object({
+	properties: z.object({ messages: z.array(SirenMessageSchema).min(1) }),
+});
+
+/** Thrown when a save is refused with server-authored messages (e.g. a locked
+ * account). Carries the messages so the popup renders them generically and
+ * drops the user back into the list — there is nothing for the client to "do",
+ * only something for the user to read, so the refusal models no action. */
+class SaveBlockedError extends Error {
+	constructor(public readonly messages: Message[]) {
+		super("Save blocked");
 	}
 }
 
-/** A locked-account refusal is a Siren error whose `code` is account-locked.
- * Detect it BEFORE the save-html/save-content fallback logic so the refusal
- * surfaces as its own structured result rather than a generic "save failed". */
-function throwIfAccountLocked(error: z.infer<typeof SirenErrorSchema>): void {
-	if (error.properties.code !== ACCOUNT_LOCKED_CODE) return;
-	throw new AccountLockedError(error.properties.message);
+/** Surfaces a message-only refusal as a SaveBlockedError. A no-op when the body
+ * isn't one, so the caller falls through to its normal error handling. Called
+ * BEFORE the save-html/save-content fallback logic so a message-only refusal is
+ * never mistaken for a fallback action. */
+function throwIfBlocked(body: unknown): void {
+	const parsed = SirenMessagesErrorSchema.safeParse(body);
+	if (parsed.success) throw new SaveBlockedError(parsed.data.properties.messages);
 }
 
 const SirenWarningSchema = z.object({
@@ -196,10 +208,9 @@ export function initSaveArticleUnderstanding(): Map<string, ActionHandler> {
 				 * plus the optional `properties.warning` so the popup can render
 				 * a banner explaining why nothing was saved. */
 				const body = await response.json().catch(() => null);
-				/** A locked account is refused here too — surface it as the
-				 * structured account-locked result, not a generic failure. */
-				const errorParsed = SirenErrorSchema.safeParse(body);
-				if (errorParsed.success) throwIfAccountLocked(errorParsed.data);
+				/** A refusal the server expressed as messages (e.g. a locked
+				 * account) surfaces as a SaveBlockedError, not a generic failure. */
+				throwIfBlocked(body);
 				const collection = SirenCollectionResponseSchema.safeParse(body);
 				if (collection.success && collection.data.class?.includes("collection")) {
 					throw new NotSaveableError(
@@ -241,11 +252,11 @@ export function initSaveHtmlUnderstanding(): Map<string, ActionHandler> {
 			if (!response.ok) {
 				/** The server may carry a fallback action inside a Siren error body — follow it with {url, title} (dropping rawHtml) to degrade onto the URL-only save path. */
 				const errorJson = await response.json().catch(() => null);
+				throwIfBlocked(errorJson);
 				const errorParsed = SirenErrorSchema.safeParse(errorJson);
 				if (!errorParsed.success) {
 					throw new Error(`Save failed: ${response.status}`);
 				}
-				throwIfAccountLocked(errorParsed.data);
 				const errorActions = errorParsed.data.actions;
 				if (errorActions === undefined) {
 					throw new Error(`Save failed: ${response.status}`);
@@ -311,11 +322,11 @@ export function initSaveContentUnderstanding(deps: {
 			);
 			if (!response.ok) {
 				const errorJson = await response.json().catch(() => null);
+				throwIfBlocked(errorJson);
 				const errorParsed = SirenErrorSchema.safeParse(errorJson);
 				if (!errorParsed.success) {
 					throw new Error(`Save failed: ${response.status}`);
 				}
-				throwIfAccountLocked(errorParsed.data);
 				const errorActions = errorParsed.data.actions;
 				if (errorActions === undefined) {
 					throw new Error(`Save failed: ${response.status}`);
@@ -654,14 +665,11 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 			trackItems(result.items);
 			return { ok: true, item: result.items[0] };
 		} catch (err) {
-			/** A locked account is refused every save path — surface the server's
-			 * message so the popup shows it, not a generic failure. */
-			if (err instanceof AccountLockedError) {
-				return {
-					ok: false,
-					reason: "account-locked",
-					message: err.lockMessage,
-				};
+			/** A save the server refused with messages (e.g. a locked account):
+			 * surface them so the popup renders the warning and drops the user
+			 * back into the list, rather than throwing a generic failure. */
+			if (err instanceof SaveBlockedError) {
+				return { ok: false, messages: err.messages };
 			}
 			if (err instanceof NotSaveableError) {
 				const failure: { ok: false; reason: "not-saveable"; items: ReadingListItem[]; warning?: SaveWarning } = {

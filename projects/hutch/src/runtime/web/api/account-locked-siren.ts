@@ -1,25 +1,24 @@
 import { VERIFICATION_CONTACT_EMAIL } from "../shared/verify-banner/verify-banner.component";
-import { type SirenEntity, sirenError } from "./siren";
-
-/** Siren error `code` an API client (the browser extension, iOS) matches to
- * recognise a locked-account refusal and switch from a generic "save failed"
- * into "you must unlock first". Stable contract — see the extension-api-design
- * skill; renaming it is a breaking change for those clients. */
-export const ACCOUNT_LOCKED_CODE = "account-locked";
+import { type SirenEntity, sirenMessages } from "./siren";
 
 /**
- * Refusal returned to API clients when a locked account attempts a write. It
- * carries only the `code` (for the client to recognise the refusal) and a
- * human-readable `message` that itself names the address to email — restoring
- * access is something the user reads and acts on, not a transition the client
- * can invoke, so the refusal models no action. Public reads stay open, so only
- * a save (or other write) ever produces this.
+ * The refusal a locked account receives when it tries to save a new link. The
+ * server authors a single warning message; the client renders it generically
+ * (the refusal carries no feature-specific code and no action). The HTML body
+ * names the address to email — restoring access is something the user reads and
+ * acts on, not a transition the client invokes. Reads, listing, and deletes
+ * stay open while locked, so only a save ever produces this.
  */
 export function accountLockedSirenError(): SirenEntity {
-	return sirenError({
-		code: ACCOUNT_LOCKED_CODE,
-		message:
-			"Your account is locked because your email was never verified. " +
-			`Email ${VERIFICATION_CONTACT_EMAIL} to restore access.`,
-	});
+	return sirenMessages([
+		{
+			type: "warning",
+			content: {
+				type: "text/html",
+				body:
+					"Your account is locked because your email was never verified. " +
+					`Email <a href="mailto:${VERIFICATION_CONTACT_EMAIL}">${VERIFICATION_CONTACT_EMAIL}</a> to restore access.`,
+			},
+		},
+	]);
 }

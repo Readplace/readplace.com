@@ -74,8 +74,11 @@ struct ReadingListView: View {
 			}
 		}
 		.overlay(alignment: .bottom) {
-			if let lockout = viewModel.lockout {
-				banner(lockout.message, color: .red) { viewModel.lockout = nil }
+			if !viewModel.messages.isEmpty {
+				banner(
+					viewModel.messages.map(\.plainText).joined(separator: "\n"),
+					color: viewModel.messages.contains { $0.type == "error" } ? .red : .orange
+				) { viewModel.messages = [] }
 			} else if let errorText = viewModel.errorText {
 				banner(errorText, color: .red) { viewModel.errorText = nil }
 			} else if let warningText = viewModel.warningText {

@@ -5,6 +5,7 @@ import type {
 	GuardedResult,
 	SaveUrlResult,
 	RemoveUrlResult,
+	Message,
 } from "browser-extension-core";
 import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, installShortcuts, isCmdD, initSaveProgress, initSaveProgressSequencer } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
@@ -283,17 +284,32 @@ function setListWarning(message: string | null): void {
 	}
 }
 
-// Server-driven lockout: render the server's message — which itself names the
-// address to email — and stop. The save is refused and there is no action.
-function showAccountLocked(message: string): void {
-	const messageEl = document.getElementById("locked-message");
-	if (messageEl) messageEl.textContent = message;
-	showView("locked-view");
+// Server-driven messages: the extension knows only how to render them, never
+// what they mean. `content` is a server-authored text/html fragment (e.g. a
+// lockout notice naming the address to email), so it is injected as HTML.
+function renderMessages(messages: Message[]): void {
+	const container = document.getElementById("messages");
+	if (!container) return;
+	container.replaceChildren();
+	if (messages.length === 0) {
+		container.hidden = true;
+		return;
+	}
+	for (const message of messages) {
+		const item = document.createElement("div");
+		const variant =
+			message.type === "error" ? "messages__item--error" : "messages__item--warning";
+		item.className = `messages__item ${variant}`;
+		item.innerHTML = message.content.body;
+		container.appendChild(item);
+	}
+	container.hidden = false;
 }
 
 async function showListView() {
 	showView("list-view");
 	setListWarning(null);
+	renderMessages([]);
 	await loadAllItems();
 }
 
@@ -363,15 +379,20 @@ async function saveAndShowList() {
 		return;
 	}
 
-	if (saveResult.ok && !saveResult.value.ok && saveResult.value.reason === "not-saveable") {
+	if (saveResult.ok && !saveResult.value.ok && "reason" in saveResult.value && saveResult.value.reason === "not-saveable") {
 		allItems = saveResult.value.items;
 		showView("list-view");
 		setListWarning(saveResult.value.warning?.message ?? null);
 		renderLinks(filterItems());
 	}
 
-	if (saveResult.ok && !saveResult.value.ok && saveResult.value.reason === "account-locked") {
-		showAccountLocked(saveResult.value.message);
+	if (saveResult.ok && !saveResult.value.ok && "messages" in saveResult.value) {
+		/** Interceptor: the server refused the save with messages to show.
+		 * Render them and drop the user into their list — existing items stay
+		 * manageable, but the new link was not saved. */
+		showView("list-view");
+		renderMessages(saveResult.value.messages);
+		await loadAllItems();
 	}
 }
 

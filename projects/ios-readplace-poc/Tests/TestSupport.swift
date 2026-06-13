@@ -141,13 +141,15 @@ enum Fixtures {
 		"""
 	}
 
-	/// The locked-account refusal the server returns on a write: a `code` plus a
-	/// human-readable `message`, and deliberately no action.
+	/// The refusal the server returns on a write it won't allow (e.g. a locked
+	/// account): server-authored messages for the client to render, and
+	/// deliberately no code and no action. Single-quoted HTML keeps the fixture
+	/// valid JSON.
 	static func accountLockedError(
-		message: String = "Your account is locked because your email was never verified. Email readplace+verification@readplace.com to restore access."
+		message: String = "Your account is locked because your email was never verified. Email <a href='mailto:readplace+verification@readplace.com'>readplace+verification@readplace.com</a> to restore access."
 	) -> String {
 		"""
-		{ "class": ["error"], "properties": { "code": "account-locked", "message": "\(message)" } }
+		{ "class": ["error"], "properties": { "messages": [{ "type": "warning", "content": { "type": "text/html", "body": "\(message)" } }] } }
 		"""
 	}
 }
