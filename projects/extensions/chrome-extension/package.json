@@ -38,6 +38,6 @@
     "jest": "29.7.0",
     "@packages/check-unused-css": "workspace:*",
     "selenium-webdriver": "4.44.0",
-    "typescript": "5.9.3"
+    "typescript": "6.0.3"
   }
 }
