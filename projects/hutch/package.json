@@ -102,7 +102,7 @@
     "concurrently": "10.0.0",
     "esbuild": "0.27.3",
     "jest": "29.7.0",
-    "jsdom": "25.0.1",
+    "jsdom": "26.1.0",
     "livereload": "0.10.3",
     "supertest": "7.2.2",
     "tsx": "4.22.3",
