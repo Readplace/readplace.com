@@ -35,7 +35,7 @@ export class AgentDiscovery extends pulumi.ComponentResource {
 				name: entryPoint,
 				type: "SVCB",
 				ttl: 300,
-				records: [`1 ${args.registryHost}. alpn="h2,h3" port=443`],
+				records: [`1 ${args.registryHost}. alpn="h2,http/1.1" port=443`],
 			},
 			{ parent: this },
 		);
