@@ -139,7 +139,6 @@ import { wantsSiren } from "./web/content-negotiation";
 import { CONTENT_SIGNAL_VALUE, contentSignalMiddleware } from "./web/content-signal.middleware";
 import { linkHeaderMiddleware } from "./web/link-header.middleware";
 import { AGENT_SCOPES_SUPPORTED, buildAgentAuthMetadata, renderAuthMarkdown } from "./web/agent-auth";
-import { QuerystringFeatureToggle } from "./web/feature-toggle";
 import { HomePage } from "./web/pages/home";
 import { PrivacyPage } from "./web/pages/privacy";
 import { TermsPage } from "./web/pages/terms";
@@ -745,8 +744,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		validateAccessToken: deps.validateAccessToken,
 	});
 
-	const featureToggle = new QuerystringFeatureToggle();
-
 	const queueRouter = initQueueRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,
 		appOrigin,
@@ -782,7 +779,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		analytics: deps.analytics,
 		salt: deps.salt,
 		now: deps.now,
-		featureToggle,
 	});
 	/** `dualAuthMiddleware` is applied INSIDE the queue router rather than at this
 	 * mount so that `GET /queue/:id/view` (and its legacy `/read` redirect) can

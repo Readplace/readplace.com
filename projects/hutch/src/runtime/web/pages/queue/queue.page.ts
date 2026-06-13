@@ -63,7 +63,6 @@ import { CacheableComponent } from "../../conditional-get";
 import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
 import { initReaderPermalink } from "./reader-permalink";
 import { wantsSiren } from "../../content-negotiation";
-import type { QuerystringFeatureToggle } from "../../feature-toggle";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { toArticleEntity } from "../../api/article-siren";
@@ -178,7 +177,6 @@ interface QueueDependencies {
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
 	salt: string;
 	now: () => Date;
-	featureToggle: QuerystringFeatureToggle;
 }
 
 import type { SavedArticle } from "@packages/domain/article";
@@ -291,7 +289,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			at: deps.now(),
 		});
 
-		const audioEnabled = deps.featureToggle.isEnabled(req, "audio");
 		const state = await reader.resolveReaderState({
 			article: {
 				url: ownedArticle.url,
@@ -315,7 +312,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				crawl: state.crawl,
 				readerPollUrl: state.readerPollUrl,
 				progress: state.progress,
-				audioEnabled,
 				extensionInstallUrl: extensionInstallUrlIfMissing(req),
 			}), {
 				...(await deps.buildBannerState(req)),

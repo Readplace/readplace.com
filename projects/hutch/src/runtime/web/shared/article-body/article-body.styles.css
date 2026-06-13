@@ -221,22 +221,6 @@
   color: var(--color-text-secondary);
 }
 
-.article-body__audio-slot--visible {
-  display: block;
-}
-
-.article-body__audio-slot--hidden {
-  display: none;
-}
-
-.article-body__audio-player {
-  padding: 0.75rem 0 1rem;
-}
-
-.article-body__audio-player audio {
-  width: 100%;
-}
-
 /**
  * 1. No `overflow: hidden`: the iframe height is sized to match its content
  *    by reader-iframe.client.ts. If that calculation regresses, the resulting

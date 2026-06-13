@@ -49,7 +49,6 @@ export function ReaderPage(
 		crawl?: ArticleCrawl;
 		readerPollUrl?: string;
 		progress?: ProgressTick;
-		audioEnabled?: boolean;
 		extensionInstallUrl?: string;
 	},
 ): PageBody {
@@ -69,7 +68,6 @@ export function ReaderPage(
 		summaryPollUrl: options.summaryPollUrl,
 		summaryOpen: true,
 		progress: options.progress,
-		audioEnabled: options.audioEnabled,
 		appOrigin: options.appOrigin,
 		backLink: {
 			topHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-top",

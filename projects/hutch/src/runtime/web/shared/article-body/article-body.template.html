@@ -1,9 +1,6 @@
     {{{headerHtml}}}
     {{{progressBarHtml}}}
     {{{summarySlotHtml}}}
-    {{#if audioEnabled}}<div class="article-body__audio-slot article-body__audio-slot--visible" data-test-audio-player><div class="article-body__audio-player">
-      <audio controls preload="metadata" src="{{staticBaseUrl}}/sample-audio.opus" data-audio-element></audio>
-    </div></div>{{else}}<div class="article-body__audio-slot article-body__audio-slot--hidden" data-test-audio-player></div>{{/if}}
     {{{readerSlotHtml}}}
     <div class="article-body__actions article-body__actions--bottom">
       {{#if backLink}}<div class="article-body__back-bottom-slot article-body__back-bottom-slot--visible" data-test-back-bottom-slot><a class="article-body__back-bottom" href="{{backLink.bottomHref}}" data-test-back-bottom-link>{{backLink.label}}</a></div>{{else}}<div class="article-body__back-bottom-slot article-body__back-bottom-slot--hidden" data-test-back-bottom-slot></div>{{/if}}
