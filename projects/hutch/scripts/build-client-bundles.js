@@ -200,6 +200,23 @@ const BUNDLES = [
 			"});",
 		].join("\n"),
 	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
+			"src/runtime/web/shared/webmcp/webmcp.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "webmcp.client.js"),
+		globalName: "ReadplaceWebMcp",
+		footer: [
+			// navigator.modelContext is the native WebMCP surface; absent in
+			// browsers without WebMCP, in which case provideWebMcpTools no-ops.
+			"ReadplaceWebMcp.provideWebMcpTools({",
+			"  modelContext: window.navigator.modelContext,",
+			"  fetchFn: function (url, init) { return window.fetch(url, init); },",
+			"  navigate: function (url) { window.location.assign(url); }",
+			"});",
+		].join("\n"),
+	},
 ];
 
 function buildOptions(bundle) {

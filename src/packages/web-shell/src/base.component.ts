@@ -82,6 +82,10 @@ const TRIAL_COUNTDOWN_SCRIPT = `<script src="/client-dist/trial-countdown.client
  * inside an htmx-swapped <main>, which a page-scoped script would never see. */
 const TOAST_SCRIPT = `<script src="/client-dist/toast.client.js" defer></script>`;
 
+/** Global so an AI browser agent discovers Readplace's WebMCP tools
+ * (navigator.modelContext) on whichever page it lands on first. */
+const WEBMCP_SCRIPT = `<script src="/client-dist/webmcp.client.js" defer></script>`;
+
 const OFFLINE_INDICATOR_SCRIPT = `
 <script>
 (function() {
@@ -267,6 +271,7 @@ export function initBase(config: BaseConfig): RenderBase {
 				HTMX_SCRIPTS +
 				EXTENSION_SUGGESTION_BANNER_SCRIPT +
 				TOAST_SCRIPT +
+				WEBMCP_SCRIPT +
 				(state.trial?.state === "active" ? TRIAL_COUNTDOWN_SCRIPT : "") +
 				(body.scripts ?? "") +
 				liveReloadScript,

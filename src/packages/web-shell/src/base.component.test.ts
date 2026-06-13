@@ -222,6 +222,18 @@ describe("Base component", () => {
 		expect(script.hasAttribute("defer")).toBe(true);
 	});
 
+	it("loads the WebMCP client bundle so agents discover the site's tools on load", () => {
+		const page = createTestPageBody();
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const script = doc.querySelector(
+			'script[src$="/client-dist/webmcp.client.js"]',
+		);
+		assert(script, "WebMCP client script must be rendered");
+		expect(script.hasAttribute("defer")).toBe(true);
+	});
+
 	it("should set meta description from seo", () => {
 		const page = createTestPageBody({ seo: { title: "T", description: "My desc", canonicalUrl: "https://readplace.com" } });
 		const result = Base(page, GUEST_STATE).to("text/html");
