@@ -30,6 +30,14 @@ interface AgentAuthMetadata {
 }
 
 /**
+ * Registration is concierge-only — there is no self-service Dynamic Client
+ * Registration — so `register_uri` is the email channel auth.md step 3
+ * documents, not `/oauth/authorize` (which rejects an unprovisioned client_id
+ * with 400 invalid_client).
+ */
+const AGENT_REGISTRATION_MAILTO = "mailto:readplace+agents@readplace.com";
+
+/**
  * The `agent_auth` extension to the RFC 8414 authorization-server metadata.
  * Readplace registers an agent as a delegate of a human user via the standard
  * authorization-code + PKCE flow, so there is no claim ceremony (`claim_uri` is
@@ -38,7 +46,7 @@ interface AgentAuthMetadata {
 export function buildAgentAuthMetadata(baseUrl: string): AgentAuthMetadata {
 	return {
 		skill: `${baseUrl}/auth.md`,
-		register_uri: `${baseUrl}/oauth/authorize`,
+		register_uri: AGENT_REGISTRATION_MAILTO,
 		identity_types_supported: ["delegated_user"],
 		credential_types_supported: ["oauth2_access_token", "oauth2_refresh_token"],
 		revocation_uri: `${baseUrl}/oauth/revoke`,

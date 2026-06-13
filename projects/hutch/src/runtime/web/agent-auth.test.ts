@@ -3,10 +3,10 @@ import { AGENT_SCOPES_SUPPORTED, buildAgentAuthMetadata, renderAuthMarkdown } fr
 const BASE_URL = "https://readplace.com";
 
 describe("buildAgentAuthMetadata", () => {
-	it("advertises the auth.md skill and the OAuth registration entry point", () => {
+	it("advertises the auth.md skill and the concierge registration channel", () => {
 		const metadata = buildAgentAuthMetadata(BASE_URL);
 		expect(metadata.skill).toBe("https://readplace.com/auth.md");
-		expect(metadata.register_uri).toBe("https://readplace.com/oauth/authorize");
+		expect(metadata.register_uri).toBe("mailto:readplace+agents@readplace.com");
 	});
 
 	it("declares the delegated-user identity and OAuth token credential types", () => {
@@ -53,9 +53,12 @@ describe("renderAuthMarkdown", () => {
 		expect(markdown).toContain("https://readplace.com/oauth/revoke");
 	});
 
-	it("documents the single coarse queue scope it advertises", () => {
+	it("documents queue as the single full-access level it advertises, without overstating enforcement", () => {
 		expect(AGENT_SCOPES_SUPPORTED).toEqual(["queue"]);
-		expect(renderAuthMarkdown(BASE_URL)).toContain("`queue` scope");
+		const markdown = renderAuthMarkdown(BASE_URL);
+		expect(markdown).toContain("full read/write access");
+		expect(markdown).toContain("does not sub-divide");
+		expect(markdown).toContain("`queue`");
 	});
 
 	it("points agents at the concierge address for client_id provisioning", () => {

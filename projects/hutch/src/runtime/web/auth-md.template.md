@@ -52,9 +52,11 @@ GET {{baseUrl}}/oauth/authorize
   &scope=queue
 ```
 
-`scope` is optional; Readplace issues a single coarse `queue` scope (see step 6)
-whether or not you request it. The user signs in if needed and approves, then
-Readplace redirects to `YOUR_REDIRECT_URI?code=AUTH_CODE&state=OPAQUE_VALUE`.
+`scope` is optional and makes no difference: Readplace does not sub-divide
+access, so every token carries the same full read/write access to the user's
+queue (see step 6). The discovery metadata labels that single access level
+`queue`. The user signs in if needed and approves, then Readplace redirects to
+`YOUR_REDIRECT_URI?code=AUTH_CODE&state=OPAQUE_VALUE`.
 
 ## 5. Exchange the code
 
@@ -80,8 +82,10 @@ Authorization: Bearer ACCESS_TOKEN
 Accept: application/vnd.siren+json
 ```
 
-The `queue` scope grants full read/write access to the authenticated user's
-reading queue. When the access token expires, refresh it:
+A Readplace access token carries full read/write access to the authenticated
+user's reading queue — the single access level the discovery metadata labels
+`queue`. Readplace does not sub-divide or separately enforce scopes. When the
+access token expires, refresh it:
 
 ```
 POST {{baseUrl}}/oauth/token
