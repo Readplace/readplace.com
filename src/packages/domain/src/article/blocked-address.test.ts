@@ -73,6 +73,7 @@ describe("isBlockedIpAddress", () => {
 			["2001:4860:4860::8888", "Google public DNS"],
 			["2606:4700:4700::1111", "Cloudflare public DNS"],
 			["::ffff:8.8.8.8", "IPv4-mapped public address"],
+			["::1234", "leading :: keeps the high bits zero, outside fc00::/7 and fe80::/10"],
 		] as const;
 
 		for (const [ip, why] of allowed) {

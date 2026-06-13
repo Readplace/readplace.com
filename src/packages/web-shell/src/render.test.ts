@@ -45,4 +45,11 @@ describe("render", () => {
 		const result = render("<a href=\"{{track 'https://github.com/Readplace/readplace.com' source='home-hero' content='github'}}\">GitHub</a>", {});
 		expect(result).toBe('<a href="https://github.com/Readplace/readplace.com">GitHub</a>');
 	});
+
+	it("registers caller-provided helpers for that render call", () => {
+		const result = render("<p>{{shout text}}</p>", { text: "hi" }, {
+			helpers: { shout: (value: string) => value.toUpperCase() },
+		});
+		expect(result).toBe("<p>HI</p>");
+	});
 });

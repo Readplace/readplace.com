@@ -50,6 +50,19 @@ describe("Base component", () => {
 		expect(heading?.textContent).toBe("Hello World");
 	});
 
+	it("injects page-specific styles as a <style> element at the start of <main>", () => {
+		const page = createTestPageBody({
+			styles: ".lead { color: rebeccapurple; }",
+			content: { html: "<main><p>Test content</p></main>" },
+		});
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const main = doc.querySelector("main");
+		expect(main?.firstElementChild?.tagName).toBe("STYLE");
+		expect(main?.querySelector("style")?.textContent).toBe(".lead { color: rebeccapurple; }");
+	});
+
 	it("should apply bodyClass when provided", () => {
 		const page = createTestPageBody({ bodyClass: "page-home" });
 		const result = Base(page, GUEST_STATE).to("text/html");
