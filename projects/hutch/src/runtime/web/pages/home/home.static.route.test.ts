@@ -343,7 +343,7 @@ describe("GET /.well-known/agent-skills/index.json", () => {
 			expect(skill.type).toBe("skill-md");
 			expect(typeof skill.description).toBe("string");
 			expect(skill.url).toBe(
-				`http://localhost:3000/.well-known/agent-skills/${skill.name}/SKILL.md`,
+				`/.well-known/agent-skills/${skill.name}/SKILL.md`,
 			);
 			expect(skill.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
 		}
@@ -354,8 +354,7 @@ describe("GET /.well-known/agent-skills/index.json", () => {
 		const index = await request(harness.server).get("/.well-known/agent-skills/index.json");
 
 		for (const skill of index.body.skills) {
-			const artifactPath = new URL(skill.url).pathname;
-			const artifact = await request(harness.server).get(artifactPath);
+			const artifact = await request(harness.server).get(skill.url);
 			expect(artifact.status).toBe(200);
 			expect(artifact.headers["content-type"]).toMatch(/text\/markdown/);
 			const digest = `sha256:${createHash("sha256").update(Buffer.from(artifact.text, "utf-8")).digest("hex")}`;

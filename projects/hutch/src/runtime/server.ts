@@ -460,7 +460,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 
 	app.get("/.well-known/agent-skills/index.json", (_req: Request, res: Response) => {
-		res.json(agentSkills.buildIndex({ baseUrl: dependencies.baseUrl }));
+		res.json(agentSkills.buildIndex());
 	});
 
 	for (const skill of agentSkills.getAll()) {

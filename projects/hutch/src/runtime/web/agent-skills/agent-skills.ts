@@ -35,7 +35,7 @@ interface SkillsDiscoveryIndex {
 
 interface AgentSkills {
 	getAll: () => AgentSkill[];
-	buildIndex: (deps: { baseUrl: string }) => SkillsDiscoveryIndex;
+	buildIndex: () => SkillsDiscoveryIndex;
 }
 
 export function initAgentSkills(): AgentSkills {
@@ -61,14 +61,14 @@ export function initAgentSkills(): AgentSkills {
 
 	return {
 		getAll: () => skills,
-		buildIndex: ({ baseUrl }) => ({
+		buildIndex: () => ({
 			$schema: DISCOVERY_SCHEMA_URI,
 			skills: skills.map(
 				(skill): SkillIndexEntry => ({
 					name: skill.name,
 					type: "skill-md",
 					description: skill.description,
-					url: `${baseUrl}/.well-known/agent-skills/${skill.name}/SKILL.md`,
+					url: `/.well-known/agent-skills/${skill.name}/SKILL.md`,
 					digest: skill.digest,
 				}),
 			),
