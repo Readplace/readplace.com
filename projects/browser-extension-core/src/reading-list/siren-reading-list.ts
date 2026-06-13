@@ -369,15 +369,7 @@ export function initDeleteArticleUnderstanding(): Map<string, ActionHandler> {
 					headers: { Prefer: "return=representation" },
 				},
 			);
-			if (!response.ok) {
-				/** A locked account is refused the delete too — surface it as the
-				 * structured account-locked result, not a generic failure. */
-				const errorParsed = SirenErrorSchema.safeParse(
-					await response.json().catch(() => null),
-				);
-				if (errorParsed.success) throwIfAccountLocked(errorParsed.data);
-				throw new Error(`Delete failed: ${response.status}`);
-			}
+			assert(response.ok, `Delete failed: ${response.status}`);
 			const body = SirenCollectionResponseSchema.parse(await response.json());
 			return context.parseCollection(body);
 		};
@@ -698,15 +690,6 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 			trackItems(result.items);
 			return { ok: true, items: result.items };
 		} catch (err) {
-			/** A locked account is refused the delete — surface the server's
-			 * message so the popup shows it, mirroring saveUrl. */
-			if (err instanceof AccountLockedError) {
-				return {
-					ok: false,
-					reason: "account-locked",
-					message: err.lockMessage,
-				};
-			}
 			if (err instanceof Error && err.message === "Delete failed: 404") {
 				return { ok: false, reason: "not-found" };
 			}

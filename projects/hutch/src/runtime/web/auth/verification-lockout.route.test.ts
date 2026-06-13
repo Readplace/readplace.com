@@ -3,6 +3,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import type { Token, Client } from "@node-oauth/oauth2-server";
 import type { UserId } from "@packages/domain/user";
+import { MinutesSchema } from "@packages/domain/article";
 import { loginAgent, useTestServer } from "../../test-app";
 import type { TestAppHarness } from "../../test-app";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
@@ -72,11 +73,33 @@ describe("Email verification lockout", () => {
 		expect(banner.textContent).toContain("before your account is locked");
 	});
 
-	it("locks the queue with a contact-support screen once the window lapses", async () => {
+	it("keeps the queue readable but shows the locked banner once the window lapses", async () => {
 		const harness = useApp(fixtureClockedDaysAhead(8));
 		const agent = await loginAgent(harness.server, harness.auth);
 
 		const response = await agent.get("/queue");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		assert(
+			doc.querySelector("[data-test-empty-queue]"),
+			"the queue list must still render while locked, not a lock wall",
+		);
+		expect(doc.querySelector("h1")?.textContent).not.toBe("Your account is locked");
+
+		const banner = doc.querySelector("[data-test-verify-banner]");
+		assert(banner, "verify banner must be rendered");
+		expect(banner.getAttribute("data-verification-state")).toBe("locked");
+	});
+
+	it("refuses a web save with the contact-support lock screen once the window lapses", async () => {
+		const harness = useApp(fixtureClockedDaysAhead(8));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent
+			.post("/queue/save")
+			.type("form")
+			.send({ url: "https://example.com/article" });
 
 		expect(response.status).toBe(403);
 		const doc = new JSDOM(response.text).window.document;
@@ -91,21 +114,49 @@ describe("Email verification lockout", () => {
 		const logout = doc.querySelector('form[action="/logout"]');
 		assert(logout, "locked screen must keep a logout escape hatch");
 		expect(logout.getAttribute("method")?.toUpperCase()).toBe("POST");
-
-		const banner = doc.querySelector("[data-test-verify-banner]");
-		assert(banner, "verify banner must be rendered");
-		expect(banner.getAttribute("data-verification-state")).toBe("locked");
 	});
 
-	it("locks export, import, and account for a lapsed account", async () => {
+	it("lets a locked account delete and mark articles as read (only new saves are gated)", async () => {
+		const harness = useApp(fixtureClockedDaysAhead(8));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+		assert(userId, "seeded login user must exist");
+		const saved = await harness.articleStore.saveArticle({
+			userId,
+			url: "https://example.com/already-saved",
+			metadata: { title: "Already saved", siteName: "example.com", excerpt: "", wordCount: 0 },
+			estimatedReadTime: MinutesSchema.parse(0),
+		});
+
+		const markRead = await agent
+			.post(`/queue/${saved.id.value}/status`)
+			.type("form")
+			.send({ status: "read" });
+		expect(markRead.status).toBe(303);
+
+		const deleted = await agent.post(`/queue/${saved.id.value}/delete`);
+		expect(deleted.status).toBe(303);
+
+		const remaining = await harness.articleStore.findArticlesByUser({ userId });
+		expect(remaining.articles).toHaveLength(0);
+	});
+
+	it("locks /import (a bulk-save tool) but reopens /export and /account for a lapsed account", async () => {
 		const harness = useApp(fixtureClockedDaysAhead(8));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		for (const path of ["/export", "/import", "/account"]) {
+		const importResponse = await agent.get("/import");
+		expect(importResponse.status).toBe(403);
+		expect(
+			new JSDOM(importResponse.text).window.document.querySelector("h1")?.textContent,
+		).toBe("Your account is locked");
+
+		for (const path of ["/export", "/account"]) {
 			const response = await agent.get(path);
-			expect(response.status).toBe(403);
-			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("h1")?.textContent).toBe("Your account is locked");
+			expect(response.status).toBe(200);
+			expect(
+				new JSDOM(response.text).window.document.querySelector("h1")?.textContent,
+			).not.toBe("Your account is locked");
 		}
 	});
 
@@ -180,7 +231,7 @@ describe("Email verification lockout (Siren API)", () => {
 		expect(response.body.properties.code).toBe(ACCOUNT_LOCKED_CODE);
 	});
 
-	it("keeps a locked account's Siren reads working (read-only, not a wall)", async () => {
+	it("keeps a locked account's Siren reads working (the lock gates saves, not reads)", async () => {
 		const harness = useApp(fixtureClockedDaysAhead(8));
 		const userId = await createUnverifiedUser(harness, "locked-read@example.com");
 		const token = await mintAccessToken(harness, userId);
@@ -192,6 +243,28 @@ describe("Email verification lockout (Siren API)", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.body.class).toContain("collection");
+	});
+
+	it("lets a locked account delete an existing item via Siren (delete is not a save)", async () => {
+		const harness = useApp(fixtureClockedDaysAhead(8));
+		const userId = await createUnverifiedUser(harness, "locked-delete@example.com");
+		const saved = await harness.articleStore.saveArticle({
+			userId,
+			url: "https://example.com/already-saved",
+			metadata: { title: "Already saved", siteName: "example.com", excerpt: "", wordCount: 0 },
+			estimatedReadTime: MinutesSchema.parse(0),
+		});
+		const token = await mintAccessToken(harness, userId);
+
+		const response = await request(harness.server)
+			.post(`/queue/${saved.id.value}/delete`)
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.set("Prefer", "return=representation");
+
+		expect(response.status).toBe(303);
+		const remaining = await harness.articleStore.findArticlesByUser({ userId });
+		expect(remaining.articles).toHaveLength(0);
 	});
 
 	it("lets an account still inside the window save via Siren", async () => {

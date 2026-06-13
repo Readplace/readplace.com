@@ -796,7 +796,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: () => new Date(),
 		buildBannerState,
 	});
-	app.use("/export", requireAuth, requireNotLocked, exportRouter);
+	app.use("/export", requireAuth, exportRouter);
 
 	const accountRouter = initAccountRoutes({
 		getEffectiveAccess,
@@ -829,7 +829,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 		buildBannerState,
 	});
-	app.use("/account", requireAuth, requireNotLocked, accountRouter);
+	app.use("/account", requireAuth, accountRouter);
 
 	const oauthRouter = initOAuthRoutes({
 		model: deps.oauthModel,

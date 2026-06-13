@@ -27,8 +27,7 @@ export type SaveUrlResult =
 
 export type RemoveUrlResult =
 	| { ok: true; items: ReadingListItem[] }
-	| { ok: false; reason: "not-found" }
-	| { ok: false; reason: "account-locked"; message: string };
+	| { ok: false; reason: "not-found" };
 
 export type SaveUrl = (params: {
 	url: string;

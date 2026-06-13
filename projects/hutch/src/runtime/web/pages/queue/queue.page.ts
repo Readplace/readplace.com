@@ -313,7 +313,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 	router.use(deps.dualAuth);
 	router.use(deps.resolveVerificationStatus);
-	router.use(requireNotLocked);
 
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
@@ -397,7 +396,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		res.redirect(303, "/queue");
 	});
 
-	router.post("/", deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
+	router.post("/", requireNotLocked, deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
 		if (!wantsSiren(req)) {
 			res.status(406).send("Not Acceptable");
 			return;
@@ -480,7 +479,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		next(err);
 	};
 
-	router.post("/save-html", deps.requireWriteAccess, express.json({ limit: MAX_RAW_HTML_REQUEST_BYTES }), saveHtmlLimitHandler, async (req: Request, res: Response) => {
+	router.post("/save-html", requireNotLocked, deps.requireWriteAccess, express.json({ limit: MAX_RAW_HTML_REQUEST_BYTES }), saveHtmlLimitHandler, async (req: Request, res: Response) => {
 		if (!wantsSiren(req)) {
 			res.status(406).send("Not Acceptable");
 			return;
@@ -582,6 +581,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 	router.post(
 		"/save-content",
+		requireNotLocked,
 		deps.requireWriteAccess,
 		contentUpload.rawBodyParser,
 		saveContentLimitHandler,
@@ -699,7 +699,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		},
 	);
 
-	router.post("/save", deps.requireWriteAccess, async (req: Request, res: Response) => {
+	router.post("/save", requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
