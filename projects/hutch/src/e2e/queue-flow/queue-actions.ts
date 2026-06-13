@@ -31,17 +31,21 @@ export type QueueProgress = {
 
 export function createLocalTestArticles(baseUrl: string): TestArticleData {
   return {
+    // Same-origin fixture articles served by hutch's own e2e-fixture route
+    // (/e2e/article/:id). The blog moved to its own deployable, so the e2e
+    // server no longer serves /blog; the fixture's title query param gives each
+    // save a distinct, deterministic title without adding more fixture pages.
     urls: [
-      `${baseUrl}/blog/pocket-migration`,
-      `${baseUrl}/blog/omnivore-alternative`,
-      `${baseUrl}/blog/newsletter-overload`,
-      `${baseUrl}/blog/ai-reading-assistant`,
+      `${baseUrl}/e2e/article/queue-flow-1?title=${encodeURIComponent("Readplace E2E Queue Article One")}`,
+      `${baseUrl}/e2e/article/queue-flow-2?title=${encodeURIComponent("Readplace E2E Queue Article Two")}`,
+      `${baseUrl}/e2e/article/queue-flow-3?title=${encodeURIComponent("Readplace E2E Queue Article Three")}`,
+      `${baseUrl}/e2e/article/queue-flow-4?title=${encodeURIComponent("Readplace E2E Queue Article Four")}`,
     ],
     titles: [
-      "Pocket Shut Down in 2025. Here's How to Recover and Move Your Reading List.",
-      "Omnivore Shut Down. Here's a Read-It-Later App That Won't.",
-      "You're Subscribed to 30 Newsletters. You Read 3. Here's a Better System.",
-      "Readplace: An AI Reading Assistant That Helps You Read More, Not Less",
+      "Readplace E2E Queue Article One",
+      "Readplace E2E Queue Article Two",
+      "Readplace E2E Queue Article Three",
+      "Readplace E2E Queue Article Four",
     ],
     paginationUrls: Array.from({ length: PAGINATION_ARTICLE_COUNT }, (_, i) => `${baseUrl}/privacy?p=${i + 1}`),
   }

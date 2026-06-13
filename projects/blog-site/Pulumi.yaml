@@ -1,0 +1,5 @@
+name: blog-site
+runtime:
+  name: nodejs
+  options:
+    typescript: true

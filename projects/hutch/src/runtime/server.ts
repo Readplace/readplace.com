@@ -122,8 +122,6 @@ import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
 import { initEmbedRoutes } from "./web/pages/embed/embed.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initAccountRoutes } from "./web/pages/account/account.page";
-import { initBlogRoutes } from "./web/pages/blog";
-import { initBlogPosts } from "./web/pages/blog/blog.posts";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
@@ -274,8 +272,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		next();
 	});
 
-	const blogPosts = initBlogPosts();
-
 	const secureCookies = isHttpsOrigin(appOrigin);
 
 	app.use(express.urlencoded({ extended: true }));
@@ -355,6 +351,7 @@ export function createApp(dependencies: AppDependencies): Express {
 				"Allow: /",
 				"",
 				`Sitemap: ${dependencies.baseUrl}/sitemap.xml`,
+				`Sitemap: ${dependencies.baseUrl}/blog/sitemap.xml`,
 			].join("\n"),
 		);
 	});
@@ -378,19 +375,11 @@ export function createApp(dependencies: AppDependencies): Express {
 	}
 
 	app.get("/sitemap.xml", (_req: Request, res: Response) => {
-		const blogPriorityMap: Record<string, string> = {
-			"best-read-it-later-apps-2026": "0.9",
-			"omnivore-alternative": "0.9",
-			"readplace-vs-readwise-reader": "0.8",
-			"readplace-vs-instapaper": "0.8",
-			"how-ai-tldr-actually-works": "0.8",
-			"free-read-it-later-apps-2026": "0.8",
-			"readplace-vs-karakeep-hosted-vs-self-hosted-read-it-later": "0.8",
-		};
-
+		/** Blog URLs live in blog-site's own sitemap at /blog/sitemap.xml
+		 * (advertised in robots.txt), since the blog is a separate deployable
+		 * and hutch can no longer enumerate its posts. */
 		const pages: { loc: string; priority: string; changefreq: string; lastmod: string }[] = [
 			{ loc: "/", priority: "1.0", changefreq: "weekly", lastmod: "2026-04-08" },
-			{ loc: "/blog", priority: "0.8", changefreq: "weekly", lastmod: "2026-04-07" },
 			{ loc: "/install", priority: "0.8", changefreq: "monthly", lastmod: "2026-03-01" },
 			{ loc: "/login", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/signup", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
@@ -401,14 +390,6 @@ export function createApp(dependencies: AppDependencies): Express {
 			{ loc: "/auth.md", priority: "0.3", changefreq: "monthly", lastmod: "2026-06-13" },
 		];
 
-		for (const post of blogPosts.getAllPostMetadata()) {
-			pages.push({
-				loc: `/blog/${post.slug}`,
-				priority: blogPriorityMap[post.slug] ?? "0.7",
-				changefreq: "weekly",
-				lastmod: post.date,
-			});
-		}
 		const urls = pages
 			.map(
 				(p) =>
@@ -532,7 +513,8 @@ export function createApp(dependencies: AppDependencies): Express {
 	// both expose it.
 	if (getEnv("NODE_ENV") !== "production") {
 		app.get("/e2e/article/:id", async (req: Request, res: Response) => {
-			sendComponent(req, res, Base(E2EFixturePage(), await buildBannerState(req)));
+			const title = typeof req.query.title === "string" ? req.query.title : undefined;
+			sendComponent(req, res, Base(E2EFixturePage({ title }), await buildBannerState(req)));
 		});
 
 		/**
@@ -583,8 +565,6 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	app.use(initInstallRoutes({ buildBannerState }));
 
-	const blogRouter = initBlogRoutes({ blogPosts, buildBannerState });
-	app.use("/blog", blogRouter);
 	app.use("/embed", initEmbedRoutes({ appOrigin }));
 
 	const authRouter = initAuthRoutes({

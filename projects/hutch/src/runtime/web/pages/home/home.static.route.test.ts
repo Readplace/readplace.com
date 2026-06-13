@@ -7,11 +7,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 
-import { initBlogPosts } from "../blog/blog.posts";
-
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
-
-const blogPosts = initBlogPosts();
 
 const useApp = useTestServer();
 
@@ -218,10 +214,10 @@ describe("GET /sitemap.xml", () => {
 		expect(response.headers["content-type"]).toMatch(/application\/xml/);
 
 		const urls = Array.from(response.text.matchAll(/<loc>([^<]+)<\/loc>/g)).map((m) => m[1]);
-		const blogPostUrls = blogPosts.getAllSlugs().map((slug) => `http://localhost:3000/blog/${slug}`);
+		// Blog URLs are served from blog-site's own /blog/sitemap.xml (a separate
+		// deployable), advertised via a second Sitemap line in robots.txt.
 		expect(urls).toEqual([
 			"http://localhost:3000/",
-			"http://localhost:3000/blog",
 			"http://localhost:3000/install",
 			"http://localhost:3000/login",
 			"http://localhost:3000/signup",
@@ -230,7 +226,6 @@ describe("GET /sitemap.xml", () => {
 			"http://localhost:3000/llms.txt",
 			"http://localhost:3000/llms-full.txt",
 			"http://localhost:3000/auth.md",
-			...blogPostUrls,
 		]);
 	});
 });

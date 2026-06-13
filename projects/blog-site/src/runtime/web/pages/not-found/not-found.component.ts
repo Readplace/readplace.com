@@ -1,0 +1,23 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { render } from "@packages/web-shell";
+import type { PageBody } from "@packages/web-shell";
+
+import { NOT_FOUND_STYLES } from "./not-found.styles";
+
+const NOT_FOUND_TEMPLATE = readFileSync(join(__dirname, "not-found.template.html"), "utf-8");
+
+export function NotFoundPage(): PageBody {
+	return {
+		seo: {
+			title: "Page Not Found — Readplace",
+			description: "The page you are looking for does not exist.",
+			canonicalUrl: "https://readplace.com",
+			robots: "noindex, nofollow",
+		},
+		styles: NOT_FOUND_STYLES,
+		bodyClass: "page-not-found",
+		content: { html: render(NOT_FOUND_TEMPLATE, {}) },
+		statusCode: 404,
+	};
+}

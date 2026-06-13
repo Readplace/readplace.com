@@ -1,0 +1,7 @@
+config:
+  aws:region: ap-southeast-2
+  aws:allowedAccountIds:
+    - '572337278115'
+  blog-site:stage: staging
+  blog-site:staticBaseUrl: https://d2uoxssv1ey7em.cloudfront.net
+  blog-site:hutchStack: organization/hutch/staging
