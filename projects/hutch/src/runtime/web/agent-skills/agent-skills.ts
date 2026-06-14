@@ -14,10 +14,10 @@ const SkillFrontmatter = z.object({
 });
 
 interface AgentSkill {
-	name: string;
-	description: string;
-	content: Buffer;
-	digest: string;
+	readonly name: string;
+	readonly description: string;
+	readonly content: Buffer;
+	readonly digest: string;
 }
 
 interface SkillIndexEntry {
@@ -34,7 +34,7 @@ interface SkillsDiscoveryIndex {
 }
 
 interface AgentSkills {
-	getAll: () => AgentSkill[];
+	getAll: () => readonly AgentSkill[];
 	buildIndex: () => SkillsDiscoveryIndex;
 }
 
@@ -44,7 +44,7 @@ export function initAgentSkills(): AgentSkills {
 		.filter((entry) => entry.isDirectory())
 		.map((entry) => entry.name);
 
-	const skills: AgentSkill[] = dirNames.map((dirName) => {
+	const skills: readonly AgentSkill[] = dirNames.map((dirName) => {
 		const content = readFileSync(join(skillsDir, dirName, "SKILL.md"));
 		const frontmatter = SkillFrontmatter.parse(matter(content).data);
 		assert(
@@ -52,12 +52,18 @@ export function initAgentSkills(): AgentSkills {
 			`Skill name "${frontmatter.name}" does not match directory "${dirName}"`,
 		);
 		const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
-		return { name: frontmatter.name, description: frontmatter.description, content, digest };
+		return Object.freeze({
+			name: frontmatter.name,
+			description: frontmatter.description,
+			content,
+			digest,
+		});
 	});
 
 	assert(skills.length > 0, "No agent skills found to publish");
 	const names = new Set(skills.map((skill) => skill.name));
 	assert(names.size === skills.length, "Duplicate agent skill names detected");
+	Object.freeze(skills);
 
 	return {
 		getAll: () => skills,

@@ -35,4 +35,12 @@ describe("initAgentSkills", () => {
 		const skill = index.skills.find((s) => s.name === "save-to-readplace");
 		expect(skill?.description).toContain("Readplace");
 	});
+
+	it("returns a frozen snapshot so callers cannot mutate the published skills", () => {
+		const skills = initAgentSkills().getAll();
+		expect(Object.isFrozen(skills)).toBe(true);
+		for (const skill of skills) {
+			expect(Object.isFrozen(skill)).toBe(true);
+		}
+	});
 });
