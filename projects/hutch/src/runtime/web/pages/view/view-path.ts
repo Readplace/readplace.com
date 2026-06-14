@@ -10,7 +10,7 @@ export type ParseViewPathResult =
 	| { kind: "redirect"; canonicalPath: string };
 
 export type ParseViewPathInput = {
-	/** Express-decoded wildcard from `req.params[0]`. */
+	/** Express-decoded wildcard from `req.params.splat.join("/")`. */
 	rawPath: string;
 	/** Original URL-encoded wildcard from `req.originalUrl` (path-only, no
 	 * query). Used to detect the legacy `http%3A%2F%2F` form whose decoded
@@ -26,7 +26,7 @@ export function viewPathFor(articleUrl: string): string {
 	return `/view/${scheme}${tail}`;
 }
 
-/** Parses the wildcard segment of `/view/*` into either the article URL to
+/** Parses the wildcard segment of `/view/*splat` into either the article URL to
  * render or the canonical path to 301-redirect to. */
 export function parseViewPath(input: ParseViewPathInput): ParseViewPathResult {
 	const rawPath = reEncodePartialPercents(input.rawPath);
