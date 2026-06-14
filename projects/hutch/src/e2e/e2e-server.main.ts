@@ -17,7 +17,7 @@ import { initRefreshArticleIfStale } from '@packages/test-fixtures/providers/art
 import type { ExtractPdf, IsBlockedAddress } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initCrawlArticle, initCrawlFetch } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
-import { initReadabilityParser, mediumPreParser, theInformationPreParser } from '@packages/article-parser'
+import { initReadabilityParser, linkedinPreParser, mediumPreParser, theInformationPreParser } from '@packages/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
 import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/providers/events'
 import { initInMemoryStripeCheckout } from '@packages/test-fixtures/providers/stripe-checkout'
@@ -61,7 +61,7 @@ const extractPdf: ExtractPdf = async () => ({
   html: `<!DOCTYPE html><html><head><title>${E2E_PDF_TITLE}</title></head><body><article><h1>${E2E_PDF_TITLE}</h1>${E2E_PDF_BODY_PARAGRAPHS}</article></body></html>`,
 })
 const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError })
-const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, sitePreParsers: [theInformationPreParser, mediumPreParser], logError })
+const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, sitePreParsers: [theInformationPreParser, linkedinPreParser, mediumPreParser], logError })
 
 /** E2E tests use localhost URLs because the test server IS localhost.
  * Skip private-network rejection so test articles can be saved and viewed. */

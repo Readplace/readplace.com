@@ -11,6 +11,7 @@ import {
 import { isBlockedIpAddress } from "@packages/domain/article";
 import {
 	initReadabilityParser,
+	linkedinPreParser,
 	mediumPreParser,
 	theInformationPreParser,
 } from "@packages/article-parser";
@@ -44,7 +45,7 @@ export function initParserDepBundle(deps: {
 	const crawlArticle = initCrawlArticle({ crawlFetch, logError: deps.logError });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
-		sitePreParsers: [theInformationPreParser, mediumPreParser],
+		sitePreParsers: [theInformationPreParser, linkedinPreParser, mediumPreParser],
 		logError: deps.logError,
 	});
 	return { crawlFetch, crawlArticle, parseHtml };
@@ -79,7 +80,7 @@ export function initComprehensiveParserDepBundle(deps: {
 	});
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
-		sitePreParsers: [theInformationPreParser, mediumPreParser],
+		sitePreParsers: [theInformationPreParser, linkedinPreParser, mediumPreParser],
 		logError: deps.logError,
 	});
 	return { crawlFetch, crawlArticle, parseHtml };
