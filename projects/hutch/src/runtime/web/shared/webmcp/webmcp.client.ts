@@ -60,6 +60,12 @@ export interface WebMcpDeps {
 	modelContext: WebMcpModelContext | undefined;
 	fetchFn: WebMcpFetch;
 	navigate: (url: string) => void;
+	/** Reads the page's server-rendered sign-in state (the `data-authenticated`
+	 * body attribute). `open_reading_queue` needs it because navigation is
+	 * fire-and-forget — without it the tool can't tell a signed-out agent that
+	 * `/queue` will bounce to `/login`, so it would report "opening your queue"
+	 * while the page lands on the login form. */
+	isAuthenticated: () => boolean;
 }
 
 export type WebMcpProvideVia = "provideContext" | "registerTool" | "none";
@@ -134,7 +140,12 @@ function saveArticle(deps: WebMcpDeps, url: string): Promise<WebMcpToolResult> {
 			headers: { "content-type": "application/x-www-form-urlencoded" },
 			body: `url=${encodeURIComponent(url)}`,
 		})
-		.then((response) => classifySaveOutcome(response, url));
+		.then((response) => classifySaveOutcome(response, url))
+		.catch(() =>
+			toolText(
+				"Couldn't reach Readplace right now — check your connection and try again.",
+			),
+		);
 }
 
 export function buildReadplaceTools(deps: WebMcpDeps): WebMcpTool[] {
@@ -184,6 +195,14 @@ export function buildReadplaceTools(deps: WebMcpDeps): WebMcpTool[] {
 				additionalProperties: false,
 			},
 			execute: (input) => {
+				if (!deps.isAuthenticated()) {
+					deps.navigate("/login");
+					return Promise.resolve(
+						toolText(
+							"Sign in to Readplace first, then ask again to open your reading queue.",
+						),
+					);
+				}
 				const filter = readStringField(input, "filter");
 				if (filter === "read") {
 					deps.navigate("/queue?tab=done");

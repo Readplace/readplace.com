@@ -257,6 +257,7 @@ export function initBase(config: BaseConfig): RenderBase {
 				extensionInstalled: state.extensionInstalled ?? false,
 			}),
 			bodyClass: body.bodyClass,
+			isAuthenticated: String(state.isAuthenticated),
 			header: Nav({
 				variant: headerVariant,
 				isAuthenticated: state.isAuthenticated,

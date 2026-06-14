@@ -8,8 +8,10 @@ import {
 	type WebMcpTool,
 } from "./webmcp.client";
 
-/** A saved article 303-redirects to `/queue`; after the browser follows it the
- * response's final URL is the queue, which is how the tool recognises success. */
+/** A saved article 303-redirects to `/queue#latest-saved`; the browser follows
+ * it as a GET and drops the fragment from `response.url` (per the Fetch spec),
+ * so the final URL the tool classifies is a bare `/queue`. The route test pins
+ * the server's `303 + Location`; this pins the client's reading of the result. */
 const SAVED_RESPONSE: WebMcpResponse = {
 	status: 200,
 	url: "https://readplace.com/queue",
@@ -36,6 +38,7 @@ function makeDeps(overrides: Partial<WebMcpDeps> = {}): {
 		modelContext: undefined,
 		fetchFn: () => Promise.resolve(SAVED_RESPONSE),
 		navigate: (url) => navigations.push(url),
+		isAuthenticated: () => true,
 		...overrides,
 	};
 	return { deps, navigations };
@@ -127,6 +130,19 @@ describe("save_article execute", () => {
 		expect((await result).content[0].text).toBe(message);
 	});
 
+	it("returns a connection error message when the request itself rejects", async () => {
+		const failingFetch: WebMcpFetch = () =>
+			Promise.reject(new Error("network down"));
+		const { deps } = makeDeps({ fetchFn: failingFetch });
+		const save = toolByName(buildReadplaceTools(deps), "save_article");
+
+		expect(
+			(await save.execute({ url: "https://example.com/post" })).content[0].text,
+		).toBe(
+			"Couldn't reach Readplace right now — check your connection and try again.",
+		);
+	});
+
 	it("asks for a URL and skips the request when none is provided", async () => {
 		const { fetchFn, calls } = fetchReturning(SAVED_RESPONSE);
 		const { deps } = makeDeps({ fetchFn });
@@ -152,8 +168,8 @@ describe("save_article execute", () => {
 });
 
 describe("open_reading_queue execute", () => {
-	function runOpen(input: unknown) {
-		const { deps, navigations } = makeDeps();
+	function runOpen(input: unknown, overrides: Partial<WebMcpDeps> = {}) {
+		const { deps, navigations } = makeDeps(overrides);
 		const open = toolByName(buildReadplaceTools(deps), "open_reading_queue");
 		return { result: open.execute(input), navigations };
 	}
@@ -179,6 +195,23 @@ describe("open_reading_queue execute", () => {
 		);
 		expect(navigations).toEqual(["/queue"]);
 	});
+
+	it.each([
+		["the read tab", { filter: "read" }],
+		["the default queue", {}],
+	])(
+		"tells a signed-out agent to sign in first and routes it to /login for %s",
+		async (_label, input) => {
+			const { result, navigations } = runOpen(input, {
+				isAuthenticated: () => false,
+			});
+
+			expect((await result).content[0].text).toBe(
+				"Sign in to Readplace first, then ask again to open your reading queue.",
+			);
+			expect(navigations).toEqual(["/login"]);
+		},
+	);
 });
 
 describe("provideWebMcpTools", () => {

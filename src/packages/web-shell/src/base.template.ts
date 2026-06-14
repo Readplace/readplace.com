@@ -91,7 +91,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
     {{{extensionSuggestionBannerStyles}}}
   </style>
 </head>
-<body{{#if bodyClass}} class="{{bodyClass}}"{{/if}}>
+<body data-authenticated="{{isAuthenticated}}"{{#if bodyClass}} class="{{bodyClass}}"{{/if}}>
   <div class="banner-area">
     <div class="offline-banner" role="alert" aria-live="polite" aria-hidden="true">
       You're offline. Some features may be unavailable.

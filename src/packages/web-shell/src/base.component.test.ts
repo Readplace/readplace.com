@@ -222,6 +222,22 @@ describe("Base component", () => {
 		expect(script.hasAttribute("defer")).toBe(true);
 	});
 
+	it("marks the body data-authenticated='true' for a signed-in request so client scripts can read sign-in state", () => {
+		const page = createTestPageBody();
+		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(doc.body.getAttribute("data-authenticated")).toBe("true");
+	});
+
+	it("marks the body data-authenticated='false' for a guest request", () => {
+		const page = createTestPageBody();
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(doc.body.getAttribute("data-authenticated")).toBe("false");
+	});
+
 	it("loads the WebMCP client bundle so agents discover the site's tools on load", () => {
 		const page = createTestPageBody();
 		const result = Base(page, GUEST_STATE).to("text/html");

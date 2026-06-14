@@ -210,10 +210,14 @@ const BUNDLES = [
 		footer: [
 			// navigator.modelContext is the native WebMCP surface; absent in
 			// browsers without WebMCP, in which case provideWebMcpTools no-ops.
+			// data-authenticated is the server-rendered sign-in state so
+			// open_reading_queue can tell a signed-out agent to log in first
+			// instead of silently bouncing it to /login.
 			"ReadplaceWebMcp.provideWebMcpTools({",
 			"  modelContext: window.navigator.modelContext,",
 			"  fetchFn: function (url, init) { return window.fetch(url, init); },",
-			"  navigate: function (url) { window.location.assign(url); }",
+			"  navigate: function (url) { window.location.assign(url); },",
+			"  isAuthenticated: function () { return window.document.body.getAttribute('data-authenticated') === 'true'; }",
 			"});",
 		].join("\n"),
 	},
