@@ -43,7 +43,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "esbuild": "0.28.0",
+    "esbuild": "catalog:",
     "@pulumi/aws": "7.32.0",
     "@pulumi/pulumi": "3.244.0",
     "@types/aws-lambda": "8.10.161",

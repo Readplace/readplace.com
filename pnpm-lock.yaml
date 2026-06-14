@@ -4,6 +4,12 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    esbuild:
+      specifier: 0.28.0
+      version: 0.28.0
+
 importers:
 
   .:
@@ -42,7 +48,7 @@ importers:
         specifier: workspace:*
         version: link:../../src/packages/hutch-logger
       esbuild:
-        specifier: 0.28.0
+        specifier: 'catalog:'
         version: 0.28.0
       js-base64:
         specifier: 3.7.8
@@ -116,7 +122,7 @@ importers:
         specifier: 10.0.0
         version: 10.0.0
       esbuild:
-        specifier: 0.28.0
+        specifier: 'catalog:'
         version: 0.28.0
       jest:
         specifier: 29.7.0
@@ -355,7 +361,7 @@ importers:
         specifier: 10.0.0
         version: 10.0.0
       esbuild:
-        specifier: 0.28.0
+        specifier: 'catalog:'
         version: 0.28.0
       jest:
         specifier: 29.7.0
@@ -495,7 +501,7 @@ importers:
         specifier: 10.0.0
         version: 10.0.0
       esbuild:
-        specifier: 0.28.0
+        specifier: 'catalog:'
         version: 0.28.0
       jest:
         specifier: 29.7.0
@@ -814,7 +820,7 @@ importers:
         specifier: 10.0.0
         version: 10.0.0
       esbuild:
-        specifier: 0.28.0
+        specifier: 'catalog:'
         version: 0.28.0
       jest:
         specifier: 29.7.0

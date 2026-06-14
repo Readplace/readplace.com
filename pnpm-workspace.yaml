@@ -2,3 +2,6 @@ packages:
   - 'projects/*'
   - 'projects/extensions/*'
   - 'src/packages/*'
+
+catalog:
+  esbuild: 0.28.0
