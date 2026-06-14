@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Handlebars from "handlebars";
 import type { Minutes } from "@packages/domain/article";
-import { render } from "../../../render";
+import { render } from "@packages/web-shell";
 
 const TEMPLATE = readFileSync(join(__dirname, "article-header.template.html"), "utf-8");
 

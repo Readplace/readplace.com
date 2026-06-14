@@ -44,6 +44,7 @@ export default {
 		"@packages/refresh-article-content",
 		"@packages/retriable",
 		"@packages/time-left",
+		"@packages/web-shell",
 		"@packages/test-fixtures",
 		"@packages/web-test-harness",
 	],

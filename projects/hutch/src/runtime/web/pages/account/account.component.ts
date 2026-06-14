@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { PageBody } from "../../page-body.types";
-import { render } from "../../render";
+import { render } from "@packages/web-shell";
+import type { PageBody } from "@packages/web-shell";
+
 import { ACCOUNT_STYLES } from "./account.styles";
 import type { AccountViewModel } from "./account.view-model";
 

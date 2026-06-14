@@ -1,4 +1,10 @@
-import { INTERNAL_CLICK_MEDIUM } from "../observability/events";
+/**
+ * `utm_medium` value stamped on every in-site link and action button. Inlined
+ * here (rather than imported from hutch's observability events) so the shell
+ * carries no hutch dependency; hutch's analytics middleware reads the same
+ * literal when it counts internal clicks.
+ */
+const INTERNAL_CLICK_MEDIUM = "internal";
 
 /**
  * `utm_source` is the section a clickable element lives in (`header-nav`,

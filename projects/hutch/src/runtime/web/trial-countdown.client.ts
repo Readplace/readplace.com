@@ -1,10 +1,5 @@
-import {
-	deriveTrialEscalation,
-	formatTrialDisplay,
-	formatTrialRemaining,
-	type TrialDisplay,
-	type TrialEscalation,
-} from "./trial-countdown.format";
+import { deriveTrialEscalation, formatTrialDisplay, formatTrialRemaining } from "@packages/web-shell/trial-countdown.format";
+import type { TrialDisplay, TrialEscalation } from "@packages/web-shell/trial-countdown.format";
 
 interface TrialCountdownDeps {
 	document: Document;

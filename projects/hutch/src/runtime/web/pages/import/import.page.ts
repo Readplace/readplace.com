@@ -16,7 +16,7 @@ import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page"
 import type { HutchLogger } from "@packages/hutch-logger";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import { sendComponent } from "../../send-component";
+import { sendComponent } from "@packages/web-shell";
 import { saveArticleFromUrl, type SaveArticleFromUrlDependencies } from "../../shared/save-article/save-article-from-url";
 import type { AnalyticsEvent } from "../../middleware/analytics";
 import { hashIp } from "../../middleware/analytics";

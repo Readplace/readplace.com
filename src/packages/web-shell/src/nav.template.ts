@@ -1,4 +1,4 @@
-  <header class="header{{#if transparent}} header--transparent{{/if}}">
+export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--transparent{{/if}}">
     <div class="header__content">
       <a href="{{track '/' source='header' content='brand'}}" class="header__brand">Read<span class="header__brand-mark">place</span></a>
       {{#if trial}}
@@ -52,3 +52,4 @@
       </nav>
     </div>
   </header>
+`;

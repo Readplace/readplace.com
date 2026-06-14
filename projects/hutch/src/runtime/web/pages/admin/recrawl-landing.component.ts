@@ -1,4 +1,4 @@
-import type { PageBody } from "../../page-body.types";
+import type { PageBody } from "@packages/web-shell";
 import { RECRAWL_STYLES } from "./recrawl.styles";
 
 /**

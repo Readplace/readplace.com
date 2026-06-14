@@ -1,0 +1,10 @@
+{
+  "name": "@packages/web-shell",
+  "targets": {
+    "check": {
+      "command": "pnpm lint && pnpm test-with-coverage",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["compile"]
+    }
+  }
+}
