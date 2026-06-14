@@ -13,11 +13,6 @@ export default {
 		"scripts/tier-1-plus-pipeline-health.ts",
 		"scripts/health-sources.ts",
 	],
-	ignoreDependencies: [
-		// Declared workspace dependency with no source import — without this
-		// knip reports @packages/hutch-logger as an unused dependency.
-		"@packages/hutch-logger",
-	],
 	ignoreBinaries: [
 		"knip",
 		"biome",

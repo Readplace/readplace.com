@@ -670,9 +670,6 @@ importers:
       '@packages/article-state-types':
         specifier: workspace:*
         version: link:../article-state-types
-      '@packages/hutch-logger':
-        specifier: workspace:*
-        version: link:../hutch-logger
       escape-html:
         specifier: 1.0.3
         version: 1.0.3
@@ -960,9 +957,6 @@ importers:
       '@packages/extract-links-from-page':
         specifier: workspace:*
         version: link:../extract-links-from-page
-      '@packages/hutch-infra-components':
-        specifier: workspace:*
-        version: link:../hutch-infra-components
       '@packages/hutch-logger':
         specifier: workspace:*
         version: link:../hutch-logger
