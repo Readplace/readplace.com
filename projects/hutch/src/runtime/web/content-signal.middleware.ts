@@ -6,6 +6,7 @@ const NON_PAGE_PREFIXES = [
 	"/robots.txt",
 	"/llms.txt",
 	"/llms-full.txt",
+	"/auth.md",
 	"/sitemap.xml",
 	"/health",
 	"/.well-known/api-catalog",
