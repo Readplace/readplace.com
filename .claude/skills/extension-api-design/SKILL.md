@@ -118,13 +118,15 @@ The server can refuse or annotate an action with a generic, feature-agnostic mes
 
 The client owns **no** knowledge of what a message means — it only knows how to render one. The web/extension clients inject `content.body` as HTML (so an `<a href="mailto:…">` renders); iOS strips it to plain text. A locked-account save refusal is the first producer (`accountLockedSirenError`), but the channel is deliberately generic so any future "show the user this, let them keep reading, but block the save" interceptor reuses it rather than adding another bespoke surface.
 
+**The client renders only media types it understands.** `content.type` is the body's media type. Today every client renders exactly one — `text/html` — and **ignores any other media type**: an unrecognised `content.type` is dropped, never displayed, never injected. Be liberal in what you accept (the envelope parses regardless of `content.type`, so a refusal carrying an unknown type still drops the user back into the list rather than failing generically) and conservative in what you render (only the media types the client knows). This makes a new media type a forward-compatible change — older clients skip a body they can't interpret instead of mis-rendering it. The extension filters in `buildMessageView`; iOS filters in `refusalError`.
+
 **Invariant — `content.body` is trusted, server-authored, server-side-escaped HTML.** The server is the *only* author. Because the extension renders it via `innerHTML`, a body that interpolates any untrusted or user-derived value — a saved URL, an article title, an email address — **without escaping it server-side** is markup injection into the popup. This is safe today only because the single producer builds from a static constant. Before a message body ever interpolates dynamic data:
 
 1. Escape it server-side. The body is HTML; treat every interpolation as untrusted until escaped.
-2. Keep `content.type` pinned to `text/html` (the client's zod schema rejects anything else) so the rendering contract cannot silently change.
+2. Only `text/html` bodies are ever injected — the client ignores any other `content.type` (see "The client renders only media types it understands" above), so an unknown media type can never be mis-rendered as HTML. A `text/html` body, by contrast, is *always* injected, so the escaping in (1) is mandatory for it.
 3. Never move escaping to the client — the server owns the protocol, and "the client only renders" is what stops every client (extension, iOS, future) re-implementing sanitisation differently.
 
-The client-side render decisions (per-`type` variant class, the `role` politeness, empty/hidden) live in `buildMessageView` (`browser-extension-core`) — pure and unit-tested; the popup glue only paints its output.
+The client-side render decisions (per-`type` variant class, the `role` politeness, empty/hidden, and which media types are renderable) live in `buildMessageView` (`browser-extension-core`) — pure and unit-tested; the popup glue only paints its output.
 
 ## Entity-Level vs Collection-Level Actions
 

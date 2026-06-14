@@ -213,11 +213,17 @@ final class ReadplaceAPI {
 	/// body isn't one. Detected before the generic server error (and before the
 	/// save-html fallback) so the refusal surfaces as `.refused` rather than a
 	/// generic save failure. The refusal carries no action — nothing to follow.
+	///
+	/// Messages whose media type the client can't render are dropped (be liberal
+	/// in what you accept, conservative in what you render); a refusal left with no
+	/// renderable message is treated as not-a-refusal so it never shows blank.
 	private func refusalError(from data: Data) -> APIError? {
 		guard let sirenError = try? JSONDecoder().decode(SirenError.self, from: data),
-			let messages = sirenError.properties.messages, !messages.isEmpty
+			let messages = sirenError.properties.messages
 		else { return nil }
-		return .refused(messages: messages)
+		let renderable = messages.filter(\.isRenderable)
+		guard !renderable.isEmpty else { return nil }
+		return .refused(messages: renderable)
 	}
 }
 

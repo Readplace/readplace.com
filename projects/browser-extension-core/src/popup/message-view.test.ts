@@ -58,4 +58,37 @@ describe("buildMessageView", () => {
 
 		expect(view.items[0].html).toBe(body);
 	});
+
+	it("ignores a message whose media type it doesn't understand", () => {
+		const view = buildMessageView([
+			{ type: "warning", content: { type: "text/markdown", body: "**locked**" } },
+		]);
+
+		expect(view.hidden).toBe(true);
+		expect(view.items).toEqual([]);
+		expect(view.role).toBe("status");
+	});
+
+	it("renders known media types and skips unknown ones in a mixed set", () => {
+		const view = buildMessageView([
+			{ type: "warning", content: { type: "text/markdown", body: "skip me" } },
+			warning("show me"),
+		]);
+
+		expect(view.items).toEqual([
+			{ className: "messages__item messages__item--warning", html: "show me" },
+		]);
+	});
+
+	it("doesn't upgrade the role for an error whose media type is ignored", () => {
+		const view = buildMessageView([
+			warning("heads up"),
+			{ type: "error", content: { type: "application/json", body: "{}" } },
+		]);
+
+		expect(view.role).toBe("status");
+		expect(view.items).toEqual([
+			{ className: "messages__item messages__item--warning", html: "heads up" },
+		]);
+	});
 });

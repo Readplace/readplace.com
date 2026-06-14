@@ -152,4 +152,15 @@ enum Fixtures {
 		{ "class": ["error"], "properties": { "messages": [{ "type": "warning", "content": { "type": "text/html", "body": "\(message)" } }] } }
 		"""
 	}
+
+	/// A message-only refusal carrying arbitrary messages — lets a test model a
+	/// media type the client doesn't understand. Each tuple is (type, mediaType, body).
+	static func messageRefusal(_ messages: [(type: String, mediaType: String, body: String)]) -> String {
+		let items = messages.map { m in
+			"{ \"type\": \"\(m.type)\", \"content\": { \"type\": \"\(m.mediaType)\", \"body\": \"\(m.body)\" } }"
+		}.joined(separator: ", ")
+		return """
+		{ "class": ["error"], "properties": { "messages": [\(items)] } }
+		"""
+	}
 }

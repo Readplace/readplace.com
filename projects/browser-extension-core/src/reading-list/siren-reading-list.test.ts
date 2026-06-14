@@ -2324,6 +2324,38 @@ describe("initSirenReadingList", () => {
 			expect(messages[0].content.body).toContain("readplace+verification@readplace.com");
 		});
 
+		it("accepts a refusal whose media type it can't render rather than failing", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+					"POST http://localhost:3000/queue": {
+						status: 403,
+						body: JSON.stringify({
+							class: ["error"],
+							properties: {
+								messages: [
+									{ type: "warning", content: { type: "text/markdown", body: "**locked**" } },
+								],
+							},
+						}),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			/** The envelope still parses (liberal accept) so the refusal surfaces as
+			 * messages and the user drops back into the list; the render layer
+			 * (`buildMessageView`) is what ignores the unknown media type. The
+			 * alternative — rejecting here — would throw a generic "Save failed". */
+			const result = await list.saveUrl({ url: "https://example.com/article", title: "Ignored" });
+			assert(!result.ok, "save should be refused");
+			const messages = "messages" in result ? result.messages : undefined;
+			assert(messages, "refusal should still carry the (unrenderable) messages");
+			expect(messages[0].content.type).toBe("text/markdown");
+		});
+
 		it("returns a not-saveable result with collection items when server rejects with a collection body", async () => {
 			const existing = articleEntity({
 				id: "article-existing",

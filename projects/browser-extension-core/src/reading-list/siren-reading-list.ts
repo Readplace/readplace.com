@@ -77,9 +77,14 @@ const SirenErrorSchema = z.object({
 type SirenAction = z.infer<typeof SirenActionSchema>;
 type SirenSubEntity = z.infer<typeof SirenSubEntitySchema>;
 
+/** `content.type` is `z.string()`, not `z.literal("text/html")`: the client
+ * accepts the message envelope whatever the media type, then ignores the ones it
+ * can't render (see `buildMessageView`). Rejecting an unknown media type here
+ * would discard a whole refusal — including any sibling `text/html` message — and
+ * fall through to a generic failure, which is the opposite of "ignore it". */
 const SirenMessageSchema = z.object({
 	type: z.enum(["warning", "error"]),
-	content: z.object({ type: z.literal("text/html"), body: z.string() }),
+	content: z.object({ type: z.string(), body: z.string() }),
 });
 
 /** A refusal the server expresses as messages for the client to render verbatim
