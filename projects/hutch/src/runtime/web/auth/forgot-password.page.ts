@@ -12,8 +12,8 @@ import type { RateLimitRule } from "@packages/domain/rate-limit";
 import { z } from "zod";
 import { createRateLimitMiddleware } from "../middleware/rate-limit";
 import { Base } from "../base.component";
-import { bannerStateFromRequest } from "../banner-state";
-import { sendComponent } from "../send-component";
+import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
+
 import { ForgotPasswordSchema, ResetPasswordSchema } from "./auth.schema";
 import { ForgotPasswordPage, ResetPasswordPage } from "./auth.component";
 import { buildPasswordResetEmailHtml } from "./password-reset-email";

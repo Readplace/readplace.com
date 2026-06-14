@@ -39,8 +39,9 @@ import type {
 import { createRateLimitMiddleware } from "../middleware/rate-limit";
 import { STRIPE_TRIAL_PERIOD_DAYS } from "../../domain/stripe/stripe-trial-config";
 import { Base } from "../base.component";
-import { bannerStateFromRequest, type BuildBannerState } from "../banner-state";
-import { sendComponent } from "../send-component";
+import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
+import type { BuildBannerState } from "../banner-state";
+
 import type { ComponentError } from "../shared/component-error.types";
 import { LoginSchema } from "./auth.schema";
 import { LoginPage, SignupPage, VerifyEmailPage } from "./auth.component";

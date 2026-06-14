@@ -4,7 +4,7 @@ import type {
 } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
-import type { PageBody } from "../../page-body.types";
+import type { PageBody } from "@packages/web-shell";
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
 import type { ProgressTick } from "@packages/domain/article";
 import { RECRAWL_STYLES } from "./recrawl.styles";

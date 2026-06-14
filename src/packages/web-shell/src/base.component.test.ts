@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { Base } from "./base.component";
+import { initBase } from "./base.component";
 import type { BannerState } from "./banner-state";
 import type { PageBody } from "./page-body.types";
+
+const Base = initBase({ staticBaseUrl: "", liveReload: false });
 
 function createTestPageBody(overrides: Partial<PageBody> = {}): PageBody {
 	return {
@@ -641,5 +643,28 @@ describe("Base component", () => {
 		expect(
 			doc.querySelector('link[rel="canonical"]')?.getAttribute("href"),
 		).toBe("https://readplace.com/install?client=firefox");
+	});
+});
+
+describe("initBase config", () => {
+	it("prefixes static asset URLs with the configured staticBaseUrl", () => {
+		const Base = initBase({ staticBaseUrl: "https://static.readplace.com", liveReload: false });
+		const page = createTestPageBody();
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const icon = doc.querySelector('link[rel="icon"]');
+		assert(icon, "favicon link must be rendered");
+		expect(icon.getAttribute("href")?.startsWith("https://static.readplace.com")).toBe(true);
+	});
+
+	it("injects the livereload script only when liveReload is enabled", () => {
+		const page = createTestPageBody();
+
+		const withReload = initBase({ staticBaseUrl: "", liveReload: true })(page, GUEST_STATE).to("text/html");
+		const withoutReload = initBase({ staticBaseUrl: "", liveReload: false })(page, GUEST_STATE).to("text/html");
+
+		expect(withReload.body).toContain("livereload.js?snipver=1");
+		expect(withoutReload.body).not.toContain("livereload.js?snipver=1");
 	});
 });

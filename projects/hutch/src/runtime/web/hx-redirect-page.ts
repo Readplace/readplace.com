@@ -1,4 +1,4 @@
-import type { Component, ParsedComponent } from "./component.types";
+import type { Component, ParsedComponent } from "@packages/web-shell";
 
 /** Tells HTMX to navigate the whole browser to `url` via
  * `window.location.href = url`. Needed when an hx-boost form submit must

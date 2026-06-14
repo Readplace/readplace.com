@@ -6,7 +6,7 @@ import type { OAuthModel } from "@packages/provider-contracts/oauth";
 import { getClient, validateRedirectUri } from "@packages/test-fixtures/providers/oauth";
 import { Base } from "../base.component";
 import type { BuildBannerState } from "../banner-state";
-import { sendComponent } from "../send-component";
+import { sendComponent } from "@packages/web-shell";
 import { OAuthAuthorizePage, OAuthCallbackPage } from "./oauth.component";
 
 const authorizeQuerySchema = z.object({

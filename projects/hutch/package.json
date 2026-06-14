@@ -62,6 +62,7 @@
     "@packages/refresh-article-content": "workspace:*",
     "@packages/retriable": "workspace:*",
     "@packages/time-left": "workspace:*",
+    "@packages/web-shell": "workspace:*",
     "browser-extension-core": "workspace:*",
     "compression": "1.8.1",
     "cookie-parser": "1.4.7",
@@ -73,7 +74,6 @@
     "isbot": "5.1.40",
     "linkedom": "0.18.12",
     "markdown-it": "14.2.0",
-    "node-html-markdown": "2.0.0",
     "resend": "6.12.4",
     "serverless-http": "4.0.0",
     "zod": "4.4.3"

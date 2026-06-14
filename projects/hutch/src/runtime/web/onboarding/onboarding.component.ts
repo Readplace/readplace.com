@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "../render";
+import { render } from "@packages/web-shell";
 import { requireEnv } from "../../domain/require-env";
 import { ONBOARDING_STEPS } from "./onboarding.steps";
 import type { OnboardingAction, OnboardingContext, OnboardingStep } from "./onboarding.types";
