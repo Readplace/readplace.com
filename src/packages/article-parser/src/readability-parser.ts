@@ -8,6 +8,7 @@ import type {
 	SiteArticleContent,
 	SitePreParser,
 } from "./article-parser.types";
+import { promoteBrParagraphHosts } from "./promote-br-paragraph-hosts";
 import { replaceVideosWithPlaceholder } from "./replace-videos-with-placeholder";
 import { resolveRelativeUrls } from "./resolve-relative-urls";
 
@@ -51,6 +52,13 @@ export function initReadabilityParser(deps: {
 				originalUrl: params.url,
 				renderPlaceholder: renderVideoPlaceholder,
 			});
+			/* Promote inline `<br><br>` paragraph hosts to `<div>` before
+			 * Readability runs, so its `_replaceBrs` + DIV phrasing-recovery
+			 * rebuild the paragraphs instead of orphaning the leading line and
+			 * nesting `<p>`s inside a phrasing `<span>` (the LinkedIn / Substack
+			 * inline-post shape). In place, so a false match can't drop the
+			 * article — Readability still scores the whole document. */
+			promoteBrParagraphHosts(document);
 			/* `reader-video-placeholder` joins Readability's default
 			 * `CLASSES_TO_PRESERVE` (concat'd internally) so the CSS hook
 			 * survives `_cleanClasses`; the <p> tag is also exempt from
