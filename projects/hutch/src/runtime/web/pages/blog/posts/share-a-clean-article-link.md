@@ -11,7 +11,7 @@ keywords: "read it later, share article link, link preview, clean reader link, s
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-You save an article in Readplace and share the link. The preview now shows Readplace's clean reader copy, with the title, a short excerpt, and the thumbnail Readplace already downloaded. The link points back to Readplace, so whoever taps it lands in the quiet reader, not a page full of pop-ups. Search engines still credit the original publisher, so readers see the right source.
+You save an article in Readplace and share the link. The preview now shows Readplace's clean reader copy: the title with a Reader View label, a short excerpt, and the thumbnail Readplace already downloaded. The link points back to Readplace, so whoever taps it lands in the quiet reader, not a page full of pop-ups. Search engines still credit the original publisher, so readers see the right source.
 
 </div>
 </details>
@@ -38,7 +38,7 @@ So the preview card belongs to Readplace, and a tap takes your friend into the c
 
 There is a second hidden tag. It tells search engines where the article really lives. Readplace sets it to the original site, and keeps these reader pages out of search results.
 
-So the publisher keeps the credit. Search engines and answer engines treat the original as the source, not Readplace. Readplace hosts a clean copy for you to read, and never claims to be the writer. The two tags do two jobs: one keeps your share looking good, the other keeps the source honest.
+So the publisher keeps the credit. Search engines and answer engines treat the original as the source, not Readplace. Readplace hosts a clean copy for you to read, and never claims to be the writer. One tag keeps your share looking good. The other keeps the source honest.
 
 ## Why this matters
 
