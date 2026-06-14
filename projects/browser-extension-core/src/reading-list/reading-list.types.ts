@@ -11,7 +11,13 @@ export interface SaveWarning {
 /** A server-authored message the client renders generically — it carries no
  * feature-specific knowledge. `type` selects presentation; `content` is an HTML
  * fragment the client injects into a generic message view. The same shape is
- * used for every message the server asks the client to surface. */
+ * used for every message the server asks the client to surface.
+ *
+ * Contract invariant: `content.body` MUST be trusted, server-authored,
+ * server-side-escaped HTML. The client injects it as HTML (`innerHTML`), so a
+ * body that interpolates any untrusted/user-derived value (a saved URL, a title,
+ * an email) without escaping it server-side is markup injection. See the
+ * extension-api-design skill, "Server-Driven Messages Are Trusted HTML". */
 export interface Message {
 	readonly type: "warning" | "error";
 	readonly content: { readonly type: "text/html"; readonly body: string };

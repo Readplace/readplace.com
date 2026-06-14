@@ -103,6 +103,29 @@ The server declares what an action needs via `action.fields`. The client's under
 
 When adding an optional input, only the server changes; old clients keep working.
 
+## Server-Driven Messages Are Trusted HTML
+
+The server can refuse or annotate an action with a generic, feature-agnostic message channel instead of a bespoke error code. The shape is a stable published interface:
+
+```jsonc
+"properties": {
+  "messages": [
+    { "type": "warning" | "error",
+      "content": { "type": "text/html", "body": "…server-authored HTML…" } }
+  ]
+}
+```
+
+The client owns **no** knowledge of what a message means — it only knows how to render one. The web/extension clients inject `content.body` as HTML (so an `<a href="mailto:…">` renders); iOS strips it to plain text. A locked-account save refusal is the first producer (`accountLockedSirenError`), but the channel is deliberately generic so any future "show the user this, let them keep reading, but block the save" interceptor reuses it rather than adding another bespoke surface.
+
+**Invariant — `content.body` is trusted, server-authored, server-side-escaped HTML.** The server is the *only* author. Because the extension renders it via `innerHTML`, a body that interpolates any untrusted or user-derived value — a saved URL, an article title, an email address — **without escaping it server-side** is markup injection into the popup. This is safe today only because the single producer builds from a static constant. Before a message body ever interpolates dynamic data:
+
+1. Escape it server-side. The body is HTML; treat every interpolation as untrusted until escaped.
+2. Keep `content.type` pinned to `text/html` (the client's zod schema rejects anything else) so the rendering contract cannot silently change.
+3. Never move escaping to the client — the server owns the protocol, and "the client only renders" is what stops every client (extension, iOS, future) re-implementing sanitisation differently.
+
+The client-side render decisions (per-`type` variant class, the `role` politeness, empty/hidden) live in `buildMessageView` (`browser-extension-core`) — pure and unit-tested; the popup glue only paints its output.
+
 ## Entity-Level vs Collection-Level Actions
 
 | Action scope | Where it lives | Example |
@@ -124,6 +147,7 @@ The client's walker binds both: `result.actions["save-article"]` (collection) an
 | CORS misses for `OPTIONS` on a Siren entry point | Firefox extensions send a preflight for `Accept: application/vnd.siren+json`; without `OPTIONS` it 404s and the fetch aborts with `NetworkError` |
 | Synthesising state after a mutation (`allItems.filter(i => i.id !== deletedId)`) | Server is the source of truth; follow the 303 and read the new collection |
 | Exporting an `/api` SDK that knows resource URLs | Becomes another versioned surface; expose only the walker and the entry point |
+| Interpolating unescaped user data into a `messages[].content.body` | The client injects it via `innerHTML`; unescaped server output is markup injection (see "Server-Driven Messages Are Trusted HTML") |
 
 ## Checklist — Adding a New Capability to the Extension API
 
