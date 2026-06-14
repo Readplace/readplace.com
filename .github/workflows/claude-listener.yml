@@ -98,7 +98,7 @@ jobs:
       - name: Install pinned Claude Code CLI
         id: install-claude-cli
         run: |
-          curl -fsSL https://claude.ai/install.sh | bash -s -- 2.1.161
+          curl -fsSL https://claude.ai/install.sh | bash -s -- 2.1.177
           claude_bin="$(command -v claude || true)"
           for c in "$claude_bin" "$HOME/.local/bin/claude" "$HOME/.claude/local/claude" "$HOME/.claude/bin/claude"; do
             if [ -n "$c" ] && [ -x "$c" ]; then claude_bin="$c"; break; fi
