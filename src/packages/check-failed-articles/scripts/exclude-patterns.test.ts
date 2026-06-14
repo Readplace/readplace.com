@@ -326,3 +326,99 @@ describe("EXCLUDE_PATTERNS — operator-curated exact-URL entries", () => {
 		});
 	}
 });
+
+describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		// (a) Origin removed the page (404).
+		{ url: "https://apisyouwonthate.com/blog/rest-and-hypermedia-in-2019/", excluded: true, label: "apisyouwonthate rest-and-hypermedia exact" },
+		{ url: "https://apisyouwonthate.com/blog/", excluded: false, label: "apisyouwonthate blog index — should NOT match" },
+		{ url: "https://bocoup.com/weblog/es2015-nightmarefile", excluded: true, label: "bocoup apex weblog post" },
+		{ url: "https://www.bocoup.com/weblog/es2015-nightmarefile", excluded: true, label: "bocoup www weblog post" },
+		{ url: "https://bocoup.com/weblog/", excluded: false, label: "bocoup weblog index — should NOT match" },
+		{ url: "https://braziljs.org/conf/2013", excluded: true, label: "braziljs apex conf 2013" },
+		{ url: "https://www.braziljs.org/conf/2013", excluded: true, label: "braziljs www conf 2013" },
+		{ url: "https://braziljs.org/conf/2014", excluded: false, label: "braziljs different conf year — should NOT match" },
+		{ url: "https://dannorth.net/author/tastapod/", excluded: true, label: "dannorth tastapod author archive" },
+		{ url: "https://dannorth.net/blog/whatever/", excluded: false, label: "dannorth live post — should NOT match" },
+		{ url: "https://www.ctl.io/developers/blog/post/career-path-of-a-programmer/", excluded: true, label: "ctl.io career-path post" },
+		{ url: "https://www.ctl.io/developers/blog/", excluded: false, label: "ctl.io blog index — should NOT match" },
+		{ url: "https://www.spacejam.com/archive/spacejam/movie/jam.htm", excluded: true, label: "spacejam 1996 archive frameset" },
+		{ url: "https://www.spacejam.com/", excluded: false, label: "spacejam 2021 site root — should NOT match" },
+		{
+			url: "https://www.se.rit.edu/~tabeec/RIT_441/Resources_files/How%20To%20Write%20Unmaintainable%20Code.pdf",
+			excluded: true,
+			label: "RIT unmaintainable-code PDF exact (percent-encoded path)",
+		},
+		{
+			url: "https://www.se.rit.edu/~tabeec/RIT_441/Resources_files/Other.pdf",
+			excluded: false,
+			label: "RIT same directory different file — should NOT match",
+		},
+		{ url: "https://www.hackerrank.com/request-demo-search", excluded: true, label: "hackerrank request-demo-search slashless" },
+		{ url: "https://www.hackerrank.com/request-demo-search/", excluded: true, label: "hackerrank request-demo-search trailing slash" },
+		{ url: "https://www.hackerrank.com/dashboard", excluded: false, label: "hackerrank live page — should NOT match" },
+		{
+			url: "https://rubyonrails.org/doctrine/#optimize-for-programmer-happiness",
+			excluded: true,
+			label: "rubyonrails doctrine trailing-slash + fragment exact (404)",
+		},
+		{
+			url: "https://rubyonrails.org/doctrine",
+			excluded: false,
+			label: "rubyonrails doctrine live slashless page — must NOT be hidden",
+		},
+		{ url: "https://medium.com/u/8de1791147b8", excluded: true, label: "medium deleted-user profile stub" },
+		{ url: "https://medium.com/p/some-real-article-abc123", excluded: false, label: "medium real article — should NOT match" },
+		{
+			url: "https://github.com/torvalds/linux/pull/17#issuecomment-5654674",
+			excluded: true,
+			label: "torvalds/linux PR permalink (PRs disabled, 404)",
+		},
+		{ url: "https://github.com/js-cookie/js-cookie", excluded: false, label: "live GitHub repo (health source) — must NOT be hidden" },
+		// (b) Domain no longer resolves (NXDOMAIN).
+		{ url: "https://divshot.com/blog/opinion/angular-2-crazy-like-a-fox/", excluded: true, label: "divshot angular-2 post (NXDOMAIN)" },
+		{ url: "https://divshot.com/", excluded: false, label: "divshot root — should NOT match" },
+		// (c) Dead hosting platform (terminal 503).
+		{ url: "https://jstl.java.net/", excluded: true, label: "jstl.java.net root (retired platform)" },
+		{ url: "https://jstl.java.net/foo", excluded: false, label: "jstl.java.net subpath — should NOT match" },
+		// (d) Redirects away from the saved content.
+		{ url: "https://www.fastcodesign.com/3062292/evidence/brainstorming-is-dumb", excluded: true, label: "fastcodesign brainstorming article (rebranded away)" },
+		{ url: "https://www.fastcompany.com/co-design", excluded: false, label: "fastcompany co-design redirect target — must NOT be hidden" },
+		{ url: "https://wiki.scratch.mit.edu/wiki/Help:Hard_Refresh", excluded: true, label: "scratch wiki help page (moved away)" },
+		{ url: "https://wiki.scratch.mit.edu/wiki/Scratch_Wiki", excluded: false, label: "scratch wiki other page — should NOT match" },
+		{ url: "https://mindsetworks.com/index.html", excluded: true, label: "mindsetworks index.html redirect stub" },
+		{ url: "https://mindsetworks.com/", excluded: false, label: "mindsetworks homepage — should NOT match" },
+		// (e) Edge firewall / bot-wall blocking datacenter egress.
+		{ url: "https://agilealliance.org/glossary/pairing/", excluded: true, label: "agilealliance pairing glossary (202 challenge)" },
+		{ url: "https://agilealliance.org/glossary/", excluded: false, label: "agilealliance glossary index — should NOT match" },
+		{
+			url: "https://unsplash.com/@metelevan?utm_source=medium&utm_medium=referral",
+			excluded: true,
+			label: "unsplash metelevan profile with tracking suffix (401 bot-check)",
+		},
+		{ url: "https://unsplash.com/@metelevan", excluded: false, label: "unsplash profile without tracking suffix — different stored value" },
+		{
+			url: "https://blogs.oracle.com/ravello/beware-http-requests-automatic-retries",
+			excluded: true,
+			label: "oracle ravello blog post (403 edge firewall)",
+		},
+		{ url: "https://blogs.oracle.com/java/some-live-post", excluded: false, label: "other oracle blog — should NOT match" },
+		{
+			url: "https://kernel-recipes.org/en/2016/talks/patches-carved-into-stone-tablets/",
+			excluded: true,
+			label: "kernel-recipes 2016 talk (503 to datacenter IPs)",
+		},
+		{ url: "https://kernel-recipes.org/en/2016/", excluded: false, label: "kernel-recipes 2016 index — should NOT match" },
+		{
+			url: "https://www.microservices.com/talks/dont-build-a-distributed-monolith/",
+			excluded: true,
+			label: "microservices.com talk (503 to datacenter IPs)",
+		},
+		{ url: "https://www.microservices.com/", excluded: false, label: "microservices.com root — should NOT match" },
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});
