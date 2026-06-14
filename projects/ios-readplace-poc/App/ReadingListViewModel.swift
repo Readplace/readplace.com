@@ -37,6 +37,10 @@ final class ReadingListViewModel: ObservableObject {
 	private func fetchFirstPage() async {
 		isLoading = true
 		errorText = nil
+		// A locked account's reads still succeed, so a fresh load reconciles a
+		// stale refusal banner (e.g. after verifying elsewhere): clear it here,
+		// then re-surface it only if the next save is refused again.
+		messages = []
 		do {
 			let page = try await api.loadQueue()
 			apply(page, replacing: true)
