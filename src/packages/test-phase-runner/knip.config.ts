@@ -1,9 +1,6 @@
 import type { KnipConfig } from "knip";
 
 export default {
-	ignoreDependencies: [
-		"c8",
-	],
 	ignoreBinaries: [
 		"knip",
 		"biome",

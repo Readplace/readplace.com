@@ -21,32 +21,8 @@ export default {
 		"purgecss.config.js",
 	],
 	ignoreDependencies: [
-		...(baseConfig.ignoreDependencies || []),
 		// Used via CLI in dev script
 		"livereload",
-		// Workspace dependencies with subpath imports not detected by knip
-		"browser-extension-core",
-		// Used in app.ts (reached via infra entry point which knip ignores)
-		"@packages/hutch-infra-components",
-		"@packages/hutch-storage-client",
-		// Used by scripts/check-unused-css.js (not a source-level import)
-		"@packages/check-unused-css",
-		// knip doesn't resolve workspace subpath for @packages/* imports
-		"@packages/article-parser",
-		"@packages/article-resource-unique-id",
-		"@packages/article-state-types",
-		"@packages/crawl-article",
-		"@packages/domain",
-		"@packages/extract-links-from-page",
-		"@packages/finalize-article",
-		"@packages/onboarding-extension-signal",
-		"@packages/provider-contracts",
-		"@packages/refresh-article-content",
-		"@packages/retriable",
-		"@packages/time-left",
-		"@packages/web-shell",
-		"@packages/test-fixtures",
-		"@packages/web-test-harness",
 	],
 	ignoreBinaries: [
 		...(baseConfig.ignoreBinaries || []),

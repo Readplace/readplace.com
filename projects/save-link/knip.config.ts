@@ -10,23 +10,6 @@ export default {
 		"tools/*.mjs",
 	],
 	ignore: [],
-	ignoreDependencies: [
-		...(base.ignoreDependencies ?? []),
-		// Workspace dependencies with subpath imports not detected by knip
-		"@packages/article-parser",
-		"@packages/hutch-infra-components",
-		"@packages/hutch-storage-client",
-		"@packages/article-resource-unique-id",
-		"@packages/article-state-types",
-		"@packages/article-store",
-		"@packages/crawl-article",
-		"@packages/domain",
-		"@packages/finalize-article",
-		"@packages/provider-contracts",
-		"@packages/refresh-article-content",
-		"@packages/retriable",
-		"@packages/test-fixtures",
-	],
 	ignoreBinaries: [
 		// knip + nx are used in package.json scripts
 		"knip",

@@ -7,18 +7,9 @@ export default {
 		"src/providers/**/index.ts",
 	],
 	ignoreDependencies: [
-		"c8",
-		// knip doesn't resolve workspace subpath for @packages/* imports
-		// (consistent with the workaround in @packages/crawl-article)
-		"@packages/article-parser",
-		"@packages/article-resource-unique-id",
-		"@packages/crawl-article",
-		"@packages/domain",
-		"@packages/extract-links-from-page",
+		// Declared workspace dependency with no source import — without this
+		// knip reports @packages/hutch-infra-components as an unused dependency.
 		"@packages/hutch-infra-components",
-		"@packages/hutch-logger",
-		"@packages/provider-contracts",
-		"@packages/web-test-harness",
 	],
 	ignoreBinaries: [
 		"knip",

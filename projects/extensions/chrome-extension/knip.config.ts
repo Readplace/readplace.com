@@ -14,18 +14,11 @@ export default {
 		"purgecss.config.js",
 	],
 	ignoreDependencies: [
-		...(base.ignoreDependencies ?? []),
 		// Used by Pulumi infra (compiled separately)
 		"@pulumi/aws",
 		"@pulumi/pulumi",
-		// Workspace dependencies — knip can't trace through esbuild-bundled entry points
-		"browser-extension-core",
-		"@packages/hutch-logger",
+		// Workspace dependency — knip can't trace through esbuild-bundled entry points
 		"@packages/onboarding-extension-signal",
-		// Used by scripts/check-unused-css.js (not a source-level import)
-		"@packages/check-unused-css",
-		// Used via scripts/run-tests-with-coverage.js (not a source import)
-		"@packages/test-phase-runner",
 	],
 	ignoreBinaries: [
 		...(base.ignoreBinaries ?? []),

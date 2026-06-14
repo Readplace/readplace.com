@@ -14,9 +14,8 @@ export default {
 		"scripts/health-sources.ts",
 	],
 	ignoreDependencies: [
-		// knip doesn't resolve workspace subpath for @packages/* imports
-		// (consistent with the same workaround in projects/hutch and projects/save-link)
-		"@packages/article-state-types",
+		// Declared workspace dependency with no source import — without this
+		// knip reports @packages/hutch-logger as an unused dependency.
 		"@packages/hutch-logger",
 	],
 	ignoreBinaries: [
