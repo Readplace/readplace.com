@@ -1,4 +1,4 @@
-.toast {
+export const TOAST_STYLES = `.toast {
   position: fixed;
   left: 50%;
   bottom: 24px;
@@ -60,3 +60,4 @@
 .toast__action:hover {
   opacity: 0.9;
 }
+`;

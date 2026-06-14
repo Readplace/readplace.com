@@ -12,7 +12,7 @@ export interface ToastDismissDeps {
 	addSwapListener: (listener: () => void) => void;
 }
 
-/** Matches the transition duration on `.toast` in toast.styles.css: the toast
+/** Matches the transition duration on `.toast` in toast.styles.ts: the toast
  * fades for this long before it is removed from the DOM. */
 const FADE_OUT_MS = 300;
 

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Component, ParsedComponent } from "./component.types";
+import type { Component, ParsedComponent } from "@packages/web-shell";
 
 export interface ConditionalGetRequest {
 	headers: Record<string, string | string[] | undefined>;

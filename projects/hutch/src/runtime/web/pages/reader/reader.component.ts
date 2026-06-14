@@ -4,8 +4,9 @@ import type { SavedArticle } from "@packages/domain/article";
 import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
-import type { PageBody } from "../../page-body.types";
-import { render } from "../../render";
+import { render } from "@packages/web-shell";
+import type { PageBody } from "@packages/web-shell";
+
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
 import type { ProgressTick } from "@packages/domain/article";
 import {

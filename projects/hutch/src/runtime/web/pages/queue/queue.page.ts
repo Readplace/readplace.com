@@ -56,7 +56,7 @@ import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
 import { saveArticleFromUrl } from "../../shared/save-article/save-article-from-url";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import { sendComponent } from "../../send-component";
+import { sendComponent } from "@packages/web-shell";
 import { RedirectComponent } from "../../redirect.component";
 import { CacheableComponent } from "../../conditional-get";
 import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render } from "../../render";
+import { render } from "@packages/web-shell";
 import type { FoundingAllocation } from "./founding-allocation";
 
 const FOUNDING_PROGRESS_TEMPLATE = readFileSync(

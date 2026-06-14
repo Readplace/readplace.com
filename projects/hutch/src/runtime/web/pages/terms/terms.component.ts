@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { PageBody } from "../../page-body.types";
-import { render } from "../../render";
+import { render } from "@packages/web-shell";
+import type { PageBody } from "@packages/web-shell";
+
 import { LEGAL_PAGE_STYLES } from "../privacy/privacy.styles";
 
 const TERMS_TEMPLATE = readFileSync(join(__dirname, "terms.template.html"), "utf-8");
