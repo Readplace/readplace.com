@@ -8,7 +8,7 @@ import {
 } from "@packages/domain/newsletter";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import { sendComponent } from "../../send-component";
+import { sendComponent } from "@packages/web-shell";
 import { NewsletterDetailPage, NewsletterListPage } from "./newsletter.component";
 import {
 	toNewsletterDetailViewModel,
