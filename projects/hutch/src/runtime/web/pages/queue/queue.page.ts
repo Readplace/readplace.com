@@ -249,7 +249,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		res.redirect(301, `/queue/${req.params.id}/view${queryString}`);
 	});
 
-	router.get("/:id/view", async (req: Request, res: Response) => {
+	router.get("/:id/view", async (req: Request<{ id: string }>, res: Response) => {
 		const result = await resolveReaderPermalink({
 			rawId: req.params.id,
 			requesterId: req.userId,
@@ -830,7 +830,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		res.status(200).type("html").send(html);
 	});
 
-	router.post("/:id/status", async (req: Request, res: Response) => {
+	router.post("/:id/status", async (req: Request<{ id: string }>, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);

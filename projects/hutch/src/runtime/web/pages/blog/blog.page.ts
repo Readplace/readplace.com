@@ -23,7 +23,7 @@ export function initBlogRoutes(deps: { blogPosts: BlogPosts; buildBannerState: B
 		sendComponent(req, res, Base(BlogIndexPage({ posts }), await buildBannerState(req)));
 	});
 
-	router.get("/:slug", async (req: Request, res: Response) => {
+	router.get("/:slug", async (req: Request<{ slug: string }>, res: Response) => {
 		const newSlug = SLUG_REDIRECTS[req.params.slug];
 		if (newSlug) {
 			res.redirect(301, `/blog/${newSlug}`);

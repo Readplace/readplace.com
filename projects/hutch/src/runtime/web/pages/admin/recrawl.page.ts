@@ -91,10 +91,10 @@ function handleRecrawlArticle(
 	reader: ReturnType<typeof initArticleReader>,
 ) {
 	return async (
-		req: Request<Record<string, string>>,
+		req: Request<{ splat: string[] }>,
 		res: Response,
 	): Promise<void> => {
-		const rawPath = req.params[0];
+		const rawPath = req.params.splat.join("/");
 		// API Gateway v2 HTTP API decodes %2F to /, restore https:/ → https://
 		// (same normalisation as /view).
 		const restoredScheme = rawPath.replace(/^(https?):\/(?!\/)/i, "$1://");
@@ -231,8 +231,8 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 	router.get("/", handleLanding(deps));
 	router.get("/summary", handleSummaryPoll(reader));
 	router.get("/reader", handleReaderPoll(reader));
-	router.get<string, Record<string, string>>(
-		"/*",
+	router.get<string, { splat: string[] }>(
+		"/*splat",
 		handleRecrawlArticle(deps, reader),
 	);
 
