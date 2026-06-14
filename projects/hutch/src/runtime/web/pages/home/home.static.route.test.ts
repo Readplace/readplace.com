@@ -107,7 +107,13 @@ describe("GET /robots.txt", () => {
 		expect(response.text).toContain("User-agent: *");
 		expect(response.text).toContain("Allow: /");
 		expect(response.text).toContain("Disallow: /queue");
-		expect(response.text).toContain("Sitemap:");
+		expect(response.text).toContain("Sitemap: http://localhost:3000/sitemap.xml");
+	});
+
+	it("advertises blog-site's sitemap so blog posts stay crawlable after the extraction", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/robots.txt");
+		expect(response.text).toContain("Sitemap: http://localhost:3000/blog/sitemap.xml");
 	});
 
 	it("declares the same Content-Signal policy as the HTTP header", async () => {
