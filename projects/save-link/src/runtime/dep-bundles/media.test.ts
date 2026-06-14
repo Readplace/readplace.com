@@ -40,7 +40,6 @@ describe("initMediaDepBundle", () => {
 			media: [{ originalUrl: "https://origin.example/a.jpg", cdnUrl: "https://cdn.example/a.jpg" }],
 		});
 
-		expect(rewritten).toContain("https://cdn.example/a.jpg");
-		expect(rewritten).not.toContain("https://origin.example/a.jpg");
+		expect(rewritten).toBe('<img src="https://cdn.example/a.jpg">');
 	});
 });
