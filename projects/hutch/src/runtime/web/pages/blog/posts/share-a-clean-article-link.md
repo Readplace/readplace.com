@@ -24,7 +24,7 @@ On most read-it-later tools you face a small problem. Paste the original link an
 
 Readplace gives every saved article a share link. Tap the share button on a saved article and you get a link to the clean reader view. Send that link anywhere.
 
-What does your friend see when the link lands in a chat? The right title, a short excerpt, and the thumbnail Readplace saved when it first fetched the page. The card looks finished, not empty.
+What does your friend see when the link lands in a chat? The article's title with a Reader View label, a short excerpt, and the thumbnail Readplace saved when it first fetched the page. The card looks finished, not empty, and the label signals the clean page behind the link.
 
 Whoever taps the link reads the clean version too. Readplace strips the ads and pop-ups and shows the words, plus the short summary it wrote for you.
 
@@ -36,9 +36,9 @@ So the preview card belongs to Readplace, and a tap takes your friend into the c
 
 ## The original publisher still gets the credit
 
-There is a second hidden tag. It tells search engines who wrote the article. Readplace points that one at the original site.
+There is a second hidden tag. It tells search engines where the article really lives. Readplace sets it to the original site, and keeps these reader pages out of search results.
 
-So Google and the answer engines credit the publisher. Readplace hosts a clean copy for you to read. It does not claim to be the writer. The two tags do two jobs: one keeps your share looking good, the other keeps the source honest.
+So the publisher keeps the credit. Search engines and answer engines treat the original as the source, not Readplace. Readplace hosts a clean copy for you to read, and never claims to be the writer. The two tags do two jobs: one keeps your share looking good, the other keeps the source honest.
 
 ## Why this matters
 
