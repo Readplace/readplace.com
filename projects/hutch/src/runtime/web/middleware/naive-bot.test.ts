@@ -194,6 +194,18 @@ describe("createBlockNaiveBotMiddleware", () => {
 		expect(run({ ua: "curl/7.88.1", path: "/favicon.ico" }).nextCalled).toBe(true);
 	});
 
+	it("bypasses the block for /auth.md so agents can read the registration recipe", () => {
+		expect(run({ ua: "curl/7.88.1", path: "/auth.md" }).nextCalled).toBe(true);
+	});
+
+	it.each([
+		"/.well-known/oauth-protected-resource",
+		"/.well-known/oauth-authorization-server",
+		"/.well-known/api-catalog",
+	])("bypasses the block for the discovery endpoint %s", (path) => {
+		expect(run({ ua: "curl/7.88.1", path }).nextCalled).toBe(true);
+	});
+
 	it("truncates logged user_agent to 200 chars so a malicious 10KB UA cannot blow up the log line size", () => {
 		const longUa = `curl/${"x".repeat(500)}`;
 		const result = run({ ua: longUa });
