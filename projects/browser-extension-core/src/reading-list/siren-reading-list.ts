@@ -8,6 +8,7 @@ import { UnauthorizedError } from "../auth/unauthorized-error";
 import type {
 	FindByUrl,
 	GetAllItems,
+	Message,
 	RemoveUrl,
 	SaveUrl,
 	SaveWarning,
@@ -75,6 +76,42 @@ const SirenErrorSchema = z.object({
 
 type SirenAction = z.infer<typeof SirenActionSchema>;
 type SirenSubEntity = z.infer<typeof SirenSubEntitySchema>;
+
+/** `content.type` is `z.string()`, not `z.literal("text/html")`: the client
+ * accepts the message envelope whatever the media type, then ignores the ones it
+ * can't render (see `buildMessageView`). Rejecting an unknown media type here
+ * would discard a whole refusal — including any sibling `text/html` message — and
+ * fall through to a generic failure, which is the opposite of "ignore it". */
+const SirenMessageSchema = z.object({
+	type: z.enum(["warning", "error"]),
+	content: z.object({ type: z.string(), body: z.string() }),
+});
+
+/** A refusal the server expresses as messages for the client to render verbatim
+ * — no feature-specific code, no action. Distinct from SirenErrorSchema (a
+ * code + message): the client keys off the presence of `properties.messages`. */
+const SirenMessagesErrorSchema = z.object({
+	properties: z.object({ messages: z.array(SirenMessageSchema).min(1) }),
+});
+
+/** Thrown when a save is refused with server-authored messages (e.g. a locked
+ * account). Carries the messages so the popup renders them generically and
+ * drops the user back into the list — there is nothing for the client to "do",
+ * only something for the user to read, so the refusal models no action. */
+class SaveBlockedError extends Error {
+	constructor(public readonly messages: Message[]) {
+		super("Save blocked");
+	}
+}
+
+/** Surfaces a message-only refusal as a SaveBlockedError. A no-op when the body
+ * isn't one, so the caller falls through to its normal error handling. Called
+ * BEFORE the save-html/save-content fallback logic so a message-only refusal is
+ * never mistaken for a fallback action. */
+function throwIfBlocked(body: unknown): void {
+	const parsed = SirenMessagesErrorSchema.safeParse(body);
+	if (parsed.success) throw new SaveBlockedError(parsed.data.properties.messages);
+}
 
 const SirenWarningSchema = z.object({
 	code: z.string(),
@@ -176,6 +213,9 @@ export function initSaveArticleUnderstanding(): Map<string, ActionHandler> {
 				 * plus the optional `properties.warning` so the popup can render
 				 * a banner explaining why nothing was saved. */
 				const body = await response.json().catch(() => null);
+				/** A refusal the server expressed as messages (e.g. a locked
+				 * account) surfaces as a SaveBlockedError, not a generic failure. */
+				throwIfBlocked(body);
 				const collection = SirenCollectionResponseSchema.safeParse(body);
 				if (collection.success && collection.data.class?.includes("collection")) {
 					throw new NotSaveableError(
@@ -217,6 +257,7 @@ export function initSaveHtmlUnderstanding(): Map<string, ActionHandler> {
 			if (!response.ok) {
 				/** The server may carry a fallback action inside a Siren error body — follow it with {url, title} (dropping rawHtml) to degrade onto the URL-only save path. */
 				const errorJson = await response.json().catch(() => null);
+				throwIfBlocked(errorJson);
 				const errorParsed = SirenErrorSchema.safeParse(errorJson);
 				if (!errorParsed.success) {
 					throw new Error(`Save failed: ${response.status}`);
@@ -286,6 +327,7 @@ export function initSaveContentUnderstanding(deps: {
 			);
 			if (!response.ok) {
 				const errorJson = await response.json().catch(() => null);
+				throwIfBlocked(errorJson);
 				const errorParsed = SirenErrorSchema.safeParse(errorJson);
 				if (!errorParsed.success) {
 					throw new Error(`Save failed: ${response.status}`);
@@ -599,38 +641,41 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	const saveUrl: SaveUrl = async ({ url, title, content }) => {
 		const collection = await start();
 		trackItems(collection.items);
-		const saveContentAction = collection.actions["save-content"];
-		if (saveContentAction && content) {
-			const fields: Record<string, string> = {
-				url,
-				mediaType: content.mediaType,
-				contentBase64: arrayBufferToBase64(content.bytes),
-			};
-			if (title) fields.title = title;
-			const result = await saveContentAction(fields);
-			const item = result.items[0];
-			trackItems(result.items);
-			return { ok: true, item };
-		}
-		const saveHtmlAction = collection.actions["save-html"];
-		if (content?.mediaType === "text/html" && saveHtmlAction) {
-			const rawHtml = new TextDecoder().decode(content.bytes);
-			const result = await saveHtmlAction({ url, rawHtml, title });
-			const item = result.items[0];
-			trackItems(result.items);
-			return { ok: true, item };
-		}
-		const saveAction = collection.actions["save-article"];
-		assert(
-			saveAction,
-			'Expected Siren action "save-article" not found in response',
-		);
 		try {
+			const saveContentAction = collection.actions["save-content"];
+			if (saveContentAction && content) {
+				const fields: Record<string, string> = {
+					url,
+					mediaType: content.mediaType,
+					contentBase64: arrayBufferToBase64(content.bytes),
+				};
+				if (title) fields.title = title;
+				const result = await saveContentAction(fields);
+				trackItems(result.items);
+				return { ok: true, item: result.items[0] };
+			}
+			const saveHtmlAction = collection.actions["save-html"];
+			if (content?.mediaType === "text/html" && saveHtmlAction) {
+				const rawHtml = new TextDecoder().decode(content.bytes);
+				const result = await saveHtmlAction({ url, rawHtml, title });
+				trackItems(result.items);
+				return { ok: true, item: result.items[0] };
+			}
+			const saveAction = collection.actions["save-article"];
+			assert(
+				saveAction,
+				'Expected Siren action "save-article" not found in response',
+			);
 			const result = await saveAction({ url });
-			const item = result.items[0];
 			trackItems(result.items);
-			return { ok: true, item };
+			return { ok: true, item: result.items[0] };
 		} catch (err) {
+			/** A save the server refused with messages (e.g. a locked account):
+			 * surface them so the popup renders the warning and drops the user
+			 * back into the list, rather than throwing a generic failure. */
+			if (err instanceof SaveBlockedError) {
+				return { ok: false, messages: err.messages };
+			}
 			if (err instanceof NotSaveableError) {
 				const failure: { ok: false; reason: "not-saveable"; items: ReadingListItem[]; warning?: SaveWarning } = {
 					ok: false,

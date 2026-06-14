@@ -6,8 +6,9 @@ import type {
 	GuardedResult,
 	SaveUrlResult,
 	RemoveUrlResult,
+	Message,
 } from "browser-extension-core";
-import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, installShortcuts, isCmdD, initSaveProgress, initSaveProgressSequencer } from "browser-extension-core";
+import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, installShortcuts, isCmdD, initSaveProgress, initSaveProgressSequencer, buildMessageView } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 declare const __APP_DOMAINS__: string[];
@@ -284,9 +285,30 @@ function setListWarning(message: string | null): void {
 	}
 }
 
+// Server-driven messages: the extension knows only how to render them, never
+// what they mean. `buildMessageView` (tested in browser-extension-core) makes
+// every rendering decision; this glue only paints it. `item.html` is the
+// server-authored text/html body, injected as HTML — trusted by contract (see
+// the Message type / the extension-api-design skill).
+function renderMessages(messages: Message[]): void {
+	const container = document.getElementById("messages");
+	if (!container) return;
+	const view = buildMessageView(messages);
+	container.replaceChildren();
+	container.setAttribute("role", view.role);
+	for (const item of view.items) {
+		const el = document.createElement("div");
+		el.className = item.className;
+		el.innerHTML = item.html;
+		container.appendChild(el);
+	}
+	container.hidden = view.hidden;
+}
+
 async function showListView() {
 	showView("list-view");
 	setListWarning(null);
+	renderMessages([]);
 	await loadAllItems();
 }
 
@@ -356,11 +378,23 @@ async function saveAndShowList() {
 		return;
 	}
 
-	if (saveResult.ok && !saveResult.value.ok && saveResult.value.reason === "not-saveable") {
+	if (saveResult.ok && !saveResult.value.ok && "reason" in saveResult.value && saveResult.value.reason === "not-saveable") {
 		allItems = saveResult.value.items;
 		showView("list-view");
+		renderMessages([]);
 		setListWarning(saveResult.value.warning?.message ?? null);
 		renderLinks(filterItems());
+	}
+
+	if (saveResult.ok && !saveResult.value.ok && "messages" in saveResult.value) {
+		/** Interceptor: the server refused the save with messages to show.
+		 * Render them and drop the user into their list — existing items stay
+		 * manageable, but the new link was not saved. The two server-message
+		 * channels are mutually exclusive, so clear the warning one. */
+		showView("list-view");
+		setListWarning(null);
+		renderMessages(saveResult.value.messages);
+		await loadAllItems();
 	}
 }
 

@@ -5,6 +5,11 @@ enum APIError: LocalizedError {
 	case unauthorized
 	case notFound
 	case server(status: Int, code: String?, message: String?)
+	/// The server refused the request with messages for the client to render
+	/// (e.g. a locked account). Carries the server-authored messages; the refusal
+	/// models no action — there is nothing for the client to invoke, only
+	/// something for the user to read.
+	case refused(messages: [ServerMessage])
 	case decoding
 
 	var errorDescription: String? {
@@ -14,6 +19,7 @@ enum APIError: LocalizedError {
 		case .notFound: return "That item no longer exists."
 		case .server(let status, let code, let message):
 			return message ?? "Server error \(status)\(code.map { " (\($0))" } ?? "")."
+		case .refused(let messages): return messages.map(\.plainText).joined(separator: "\n")
 		case .decoding: return "Could not read the server response."
 		}
 	}
@@ -116,6 +122,10 @@ final class ReadplaceAPI {
 		if http.statusCode == 201 || http.statusCode == 200 {
 			return try decodeArticle(data)
 		}
+		// The server may refuse with messages for the client to render (e.g. a
+		// locked account). Surface them as .refused before the fallback below, so
+		// a message-only refusal is never mistaken for a fallback action.
+		if let refusal = refusalError(from: data) { throw refusal }
 		if let sirenError = try? JSONDecoder().decode(SirenError.self, from: data),
 			let fallback = sirenError.actions?.first {
 			var fallbackBody: [String: String] = ["url": url]
@@ -192,10 +202,28 @@ final class ReadplaceAPI {
 
 	private func apiError(from data: Data, status: Int) -> APIError {
 		if status == 401 { return .unauthorized }
+		if let refusal = refusalError(from: data) { return refusal }
 		if let sirenError = try? JSONDecoder().decode(SirenError.self, from: data) {
 			return .server(status: status, code: sirenError.properties.code, message: sirenError.properties.message)
 		}
 		return .server(status: status, code: nil, message: nil)
+	}
+
+	/// Decodes a message-only refusal (e.g. a locked account), or nil when the
+	/// body isn't one. Detected before the generic server error (and before the
+	/// save-html fallback) so the refusal surfaces as `.refused` rather than a
+	/// generic save failure. The refusal carries no action — nothing to follow.
+	///
+	/// Messages whose media type the client can't render are dropped (be liberal
+	/// in what you accept, conservative in what you render); a refusal left with no
+	/// renderable message is treated as not-a-refusal so it never shows blank.
+	private func refusalError(from data: Data) -> APIError? {
+		guard let sirenError = try? JSONDecoder().decode(SirenError.self, from: data),
+			let messages = sirenError.properties.messages
+		else { return nil }
+		let renderable = messages.filter(\.isRenderable)
+		guard !renderable.isEmpty else { return nil }
+		return .refused(messages: renderable)
 	}
 }
 

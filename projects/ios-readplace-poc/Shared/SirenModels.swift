@@ -74,10 +74,55 @@ struct SirenCollection: Decodable {
 	let actions: [SirenAction]?
 }
 
-/// The properties block on a Siren error body.
+/// A server-authored message a client renders generically — it carries no
+/// feature-specific code or action. `type` selects presentation; `content` is a
+/// small HTML fragment. Mirrors the browser extension's `Message` and the
+/// server's `SirenMessage` — a stable contract shared across the clients.
+struct ServerMessage: Decodable, Equatable {
+	struct Content: Decodable, Equatable {
+		let type: String
+		let body: String
+	}
+	let type: String
+	let content: Content
+}
+
+extension ServerMessage {
+	/// The one content media type the clients know how to render. A message with
+	/// any other `content.type` is ignored — never shown — so the server can adopt
+	/// a richer media type without older clients mis-rendering an unknown body.
+	static let renderableMediaType = "text/html"
+
+	/// Whether this client can render the message. `false` for a media type the
+	/// client doesn't understand, in which case the message is dropped rather than
+	/// surfaced as text (see `ReadplaceAPI.refusalError`).
+	var isRenderable: Bool { content.type == Self.renderableMediaType }
+
+	/// The message body as plain text. `content` is a small server-authored HTML
+	/// fragment (`text/html` — the only media type surfaced; see `isRenderable`);
+	/// iOS shows it as text — the visible text still names any address to email.
+	/// Stripping the markup here keeps the HTML text importer (and its memory
+	/// cost) out of the share extension.
+	var plainText: String {
+		content.body
+			.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+			.replacingOccurrences(of: "&amp;", with: "&")
+			.replacingOccurrences(of: "&lt;", with: "<")
+			.replacingOccurrences(of: "&gt;", with: ">")
+			.replacingOccurrences(of: "&#39;", with: "'")
+			.replacingOccurrences(of: "&quot;", with: "\"")
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+	}
+}
+
+/// The properties block on a Siren error body. A `code` + `message` describes a
+/// conventional error; `messages` carries server-authored content the client
+/// renders generically (e.g. a locked-account refusal). All optional so either
+/// shape decodes and an evolving field never fails the whole decode.
 struct SirenErrorProperties: Decodable {
-	let code: String
-	let message: String
+	let code: String?
+	let message: String?
+	let messages: [ServerMessage]?
 }
 
 /// A Siren error response. May carry a fallback `action` (e.g. the URL-only

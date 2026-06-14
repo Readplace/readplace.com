@@ -128,4 +128,34 @@ describe("initDynamoDbAuth", () => {
 			expect(contact).toBeNull();
 		});
 	});
+
+	describe("findUserById", () => {
+		it("returns id, verification status, and registeredAt via the userId-index", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: {
+					email: "user@example.com",
+					userId: "abc123",
+					emailVerified: true,
+					registeredAt: "2026-04-20T00:00:00.000Z",
+				},
+			});
+
+			const user = await initAuth(client).findUserById(USER);
+
+			expect(user).toEqual({
+				userId: "abc123",
+				emailVerified: true,
+				registeredAt: "2026-04-20T00:00:00.000Z",
+			});
+			expect(commands.find((c) => c.name === "QueryCommand")?.input.IndexName).toBe("userId-index");
+		});
+
+		it("returns null when no row exists for the id", async () => {
+			const { client } = createQueryFakeClient({});
+
+			const user = await initAuth(client).findUserById(USER);
+
+			expect(user).toBeNull();
+		});
+	});
 });

@@ -31,6 +31,12 @@
   margin-bottom: 32px;
 }
 
+.auth-card__link {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
 .auth-card__founding-blurb {
   font-size: 0.8125rem;
   color: var(--muted-foreground);

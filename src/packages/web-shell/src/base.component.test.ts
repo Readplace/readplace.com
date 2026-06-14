@@ -370,6 +370,39 @@ describe("Base component", () => {
 		expect(banner.textContent).toContain("Please verify your email");
 	});
 
+	it("should show the days-only countdown when a verification deadline is approaching", () => {
+		const page = createTestPageBody();
+		const result = Base(page, {
+			isAuthenticated: true,
+			emailVerified: false,
+			verification: { state: "counting-down", daysLeft: 3 },
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const banner = doc.querySelector("[data-test-verify-banner]");
+		assert(banner, "verify banner must be rendered");
+		expect(banner.getAttribute("data-verification-state")).toBe("counting-down");
+		expect(banner.textContent).toContain("3 days");
+		expect(banner.textContent).toContain("before your account is locked");
+	});
+
+	it("should switch to the locked contact-support copy once the account is locked", () => {
+		const page = createTestPageBody();
+		const result = Base(page, {
+			isAuthenticated: true,
+			emailVerified: false,
+			verification: { state: "locked" },
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const banner = doc.querySelector("[data-test-verify-banner]");
+		assert(banner, "verify banner must be rendered");
+		expect(banner.getAttribute("data-verification-state")).toBe("locked");
+		expect(
+			banner.querySelector(".verify-banner__contact")?.getAttribute("href"),
+		).toBe("mailto:readplace+verification@readplace.com");
+	});
+
 	it("should hide verification banner when email is verified", () => {
 		const page = createTestPageBody();
 		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");

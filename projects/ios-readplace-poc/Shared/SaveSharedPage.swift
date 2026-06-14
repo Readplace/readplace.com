@@ -9,6 +9,7 @@ enum SaveSharedOutcome: Equatable {
 	case notLoggedIn
 	case noLink
 	case noSaveAction
+	case refused([ServerMessage])
 	case failed(String)
 }
 
@@ -56,6 +57,8 @@ struct SaveSharedPage {
 			} else {
 				return .noSaveAction
 			}
+		} catch let APIError.refused(messages) {
+			return .refused(messages)
 		} catch {
 			let message = (error as? LocalizedError)?.errorDescription ?? "Save failed."
 			return .failed(message)
