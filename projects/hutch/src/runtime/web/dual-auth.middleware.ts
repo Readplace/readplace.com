@@ -22,8 +22,8 @@ export function initDualAuth(deps: DualAuthDeps) {
 			}
 
 			const token = AccessTokenSchema.parse(header.slice(7));
-			const userId = await deps.validateAccessToken(token);
-			if (!userId) {
+			const validated = await deps.validateAccessToken(token);
+			if (!validated) {
 				res
 					.status(401)
 					.set("WWW-Authenticate", 'Bearer error="invalid_token"')
@@ -32,7 +32,12 @@ export function initDualAuth(deps: DualAuthDeps) {
 				return;
 			}
 
-			req.userId = userId;
+			req.userId = validated.userId;
+			// A token minted for an already-verified account carries that standing,
+			// letting resolveVerificationStatus short-circuit the userId-index read for
+			// the verified majority. Unverified/legacy tokens leave it `false`, so the
+			// record lookup (and self-heal) still runs — see resolve-verification-status.
+			req.emailVerified = validated.emailVerified;
 			next();
 			return;
 		}

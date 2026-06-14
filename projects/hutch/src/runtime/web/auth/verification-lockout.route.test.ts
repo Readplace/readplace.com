@@ -32,10 +32,13 @@ async function createUnverifiedUser(
 
 /** Mints a bearer access token for the extension client, the way the iOS app
  * and browser extension authenticate — no session cookie, so the lock has to
- * resolve from the token's user rather than the session. */
+ * resolve from the token's user rather than the session. `emailVerified` mirrors
+ * what the authorize step records at issuance: a token minted for a verified
+ * account carries that standing so the request can skip the record lookup. */
 async function mintAccessToken(
 	harness: TestAppHarness,
 	userId: UserId,
+	options: { emailVerified?: boolean } = {},
 ): Promise<string> {
 	const client = await harness.oauthModel.getClient("hutch-firefox-extension", "");
 	assert(client, "test OAuth client must exist");
@@ -51,7 +54,10 @@ async function mintAccessToken(
 		} as Client,
 		user: { id: userId },
 	};
-	const saved = await harness.oauthModel.saveToken(token, client, { id: userId });
+	const saved = await harness.oauthModel.saveToken(token, client, {
+		id: userId,
+		emailVerified: options.emailVerified === true,
+	});
 	assert(saved, "token should be saved");
 	return saved.accessToken;
 }
@@ -302,5 +308,35 @@ describe("Email verification lockout (Siren API)", () => {
 
 		expect(response.status).toBe(201);
 		expect(response.body.class).toContain("article");
+	});
+
+	it("skips the verification lookup entirely for a verified bearer token", async () => {
+		// A token minted for a verified account carries that standing, so the hot
+		// save path resolves without the eventually-consistent userId-index read an
+		// unverified/legacy token still pays for — proven here by a finder that
+		// records every call, even with the clock past the window.
+		const fixture = fixtureClockedDaysAhead(8);
+		let lookups = 0;
+		const recordedFindUserById = fixture.auth.findUserById;
+		fixture.auth.findUserById = async (id) => {
+			lookups += 1;
+			return recordedFindUserById(id);
+		};
+		const harness = useApp(fixture);
+
+		const userId = await createUnverifiedUser(harness, "verified-fast-api@example.com");
+		await harness.auth.markEmailVerified("verified-fast-api@example.com");
+		const token = await mintAccessToken(harness, userId, { emailVerified: true });
+
+		const lookupsBeforeSave = lookups;
+		const response = await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.set("Content-Type", "application/json")
+			.send({ url: "https://example.com/article" });
+
+		expect(response.status).toBe(201);
+		expect(lookups - lookupsBeforeSave).toBe(0);
 	});
 });

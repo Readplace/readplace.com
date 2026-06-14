@@ -10,4 +10,6 @@ export type OAuthModel = AuthorizationCodeModel &
 		revokeAllUserTokens(userId: UserId): Promise<void>;
 	};
 
-export type ValidateAccessToken = (accessToken: AccessToken) => Promise<UserId | null>;
+export type ValidateAccessToken = (
+	accessToken: AccessToken,
+) => Promise<{ userId: UserId; emailVerified: boolean } | null>;

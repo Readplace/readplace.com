@@ -18,15 +18,18 @@ import { SESSION_COOKIE_NAME } from "../auth/session-cookie";
  * the queue router after `dualAuth` (so bearer/Siren requests from the extension
  * and iOS resolve too — they carry no session cookie, so the global mount sees
  * no `userId` and skips). The lookup only fires when there is something to
- * resolve: a cookie session that claims to be unverified, or a bearer request
- * whose verification standing is still unknown (`emailVerified === undefined`,
- * which is not `true`). Guests, known-verified sessions, and a request already
- * resolved upstream short-circuit with no read.
+ * resolve: an authenticated request whose `emailVerified` standing is not yet
+ * `true`. Both clients carry that standing once verified — the cookie session
+ * stores it at login, the bearer token at issuance — so guests, known-verified
+ * sessions and tokens, and a request already resolved upstream short-circuit with
+ * no read; only a session/token minted for an unverified (or legacy) account hits
+ * the record.
  *
  * When the authoritative user record says the email is verified but the session
  * still says otherwise (the user verified in a different session), the request
  * self-heals: `req.emailVerified` is corrected and the session row is updated so
- * later requests skip the lookup. Bearer requests carry no session to mark.
+ * later requests skip the lookup. A bearer request carries no session to mark, so
+ * an unverified-at-issuance token keeps resolving via the record until re-minted.
  */
 export function initResolveVerificationStatus(deps: {
 	findUserById: FindUserById;

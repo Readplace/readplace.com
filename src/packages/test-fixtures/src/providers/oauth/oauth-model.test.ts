@@ -326,6 +326,76 @@ describe("createOAuthModel", () => {
 		});
 	});
 
+	describe("verification standing", () => {
+		it("carries a verified user's standing from saveToken to getAccessToken", async () => {
+			const deps = initInMemoryOAuthModel();
+			const model = createOAuthModel(deps);
+
+			const client = await model.getClient(TEST_CLIENT_ID, "");
+			assert(client, "Test client must exist");
+
+			await model.saveToken(createTestToken({ accessToken: "verified-token" }), client, {
+				id: TEST_USER_ID,
+				emailVerified: true,
+			});
+
+			const retrieved = await model.getAccessToken("verified-token");
+			assert(retrieved, "Token should be retrievable");
+			expect(retrieved.user.emailVerified).toBe(true);
+		});
+
+		it("reports a token minted for an unverified user as not verified", async () => {
+			const deps = initInMemoryOAuthModel();
+			const model = createOAuthModel(deps);
+
+			const client = await model.getClient(TEST_CLIENT_ID, "");
+			assert(client, "Test client must exist");
+
+			await model.saveToken(createTestToken({ accessToken: "plain-token" }), client, {
+				id: TEST_USER_ID,
+			});
+
+			const retrieved = await model.getAccessToken("plain-token");
+			assert(retrieved, "Token should be retrievable");
+			expect(retrieved.user.emailVerified).toBe(false);
+		});
+
+		it("preserves the standing across a refresh so re-issued tokens stay verified", async () => {
+			const deps = initInMemoryOAuthModel();
+			const model = createOAuthModel(deps);
+
+			const client = await model.getClient(TEST_CLIENT_ID, "");
+			assert(client, "Test client must exist");
+
+			await model.saveToken(createTestToken({ refreshToken: "verified-refresh" }), client, {
+				id: TEST_USER_ID,
+				emailVerified: true,
+			});
+
+			const refreshToken = await model.getRefreshToken("verified-refresh");
+			assert(refreshToken, "Refresh token should be retrievable");
+			expect(refreshToken.user.emailVerified).toBe(true);
+		});
+
+		it("carries a verified user's standing through the authorization code", async () => {
+			const deps = initInMemoryOAuthModel();
+			const model = createOAuthModel(deps);
+
+			const client = await model.getClient(TEST_CLIENT_ID, "");
+			assert(client, "Test client must exist");
+
+			await model.saveAuthorizationCode(
+				createTestAuthCode({ authorizationCode: "verified-code" }),
+				client,
+				{ id: TEST_USER_ID, emailVerified: true },
+			);
+
+			const retrieved = await model.getAuthorizationCode("verified-code");
+			assert(retrieved, "Code should be retrievable");
+			expect(retrieved.user.emailVerified).toBe(true);
+		});
+	});
+
 	describe("revokeAllUserTokens", () => {
 		it("invalidates all tokens for the specified user", async () => {
 			const deps = initInMemoryOAuthModel();

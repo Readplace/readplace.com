@@ -31,6 +31,7 @@ const AuthCodeRow = z.object({
 	codeChallenge: z.string(),
 	codeChallengeMethod: z.enum(["S256", "plain"]),
 	scope: z.array(z.string()).optional(),
+	emailVerified: z.boolean().optional(),
 });
 
 const TokenRow = z.object({
@@ -42,6 +43,7 @@ const TokenRow = z.object({
 	clientId: z.string(),
 	userId: z.string(),
 	scope: z.array(z.string()).optional(),
+	emailVerified: z.boolean().optional(),
 });
 
 const RefreshIndexRow = z.object({
@@ -93,6 +95,7 @@ export function initDynamoDbOAuthModel(deps: {
 					codeChallengeMethod: code.codeChallengeMethod ?? "S256",
 					scope: code.scope,
 					expiresAt: toEpochSeconds(code.expiresAt),
+					emailVerified: user.emailVerified === true,
 				},
 			});
 
@@ -122,7 +125,7 @@ export function initDynamoDbOAuthModel(deps: {
 				codeChallenge: row.codeChallenge,
 				codeChallengeMethod: row.codeChallengeMethod,
 				client: oauthClient,
-				user: { id: row.userId },
+				user: { id: row.userId, emailVerified: row.emailVerified },
 			};
 		},
 
@@ -158,6 +161,7 @@ export function initDynamoDbOAuthModel(deps: {
 					refreshTokenExpiresAt: toEpochSeconds(refreshTokenExpiresAt),
 					scope: token.scope,
 					expiresAt: ttl,
+					emailVerified: user.emailVerified === true,
 				},
 			});
 
@@ -191,7 +195,7 @@ export function initDynamoDbOAuthModel(deps: {
 				refreshTokenExpiresAt: new Date(row.refreshTokenExpiresAt * 1000),
 				scope: row.scope,
 				client: oauthClient,
-				user: { id: row.userId },
+				user: { id: row.userId, emailVerified: row.emailVerified },
 			};
 		},
 
@@ -213,7 +217,7 @@ export function initDynamoDbOAuthModel(deps: {
 				refreshTokenExpiresAt,
 				scope: row.scope,
 				client: oauthClient,
-				user: { id: row.userId },
+				user: { id: row.userId, emailVerified: row.emailVerified },
 			};
 		},
 

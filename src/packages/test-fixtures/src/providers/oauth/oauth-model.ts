@@ -34,6 +34,7 @@ interface StoredAuthorizationCode {
 	codeChallengeMethod: "S256" | "plain";
 	expiresAt: Date;
 	scope?: string[];
+	emailVerified?: boolean;
 }
 
 interface StoredToken {
@@ -44,6 +45,7 @@ interface StoredToken {
 	clientId: OAuthClientId;
 	userId: UserId;
 	scope?: string[];
+	emailVerified?: boolean;
 }
 
 interface OAuthModelDeps {
@@ -102,6 +104,7 @@ export function createOAuthModel(deps: OAuthModelDeps, options?: { appOrigin?: s
 				codeChallengeMethod: code.codeChallengeMethod === "plain" ? "plain" : "S256",
 				expiresAt: code.expiresAt,
 				scope: code.scope,
+				emailVerified: user.emailVerified === true,
 			};
 			deps.codes.set(code.authorizationCode, stored);
 			return {
@@ -137,7 +140,7 @@ export function createOAuthModel(deps: OAuthModelDeps, options?: { appOrigin?: s
 					grants: client.grants,
 					redirectUris: client.redirectUris,
 				},
-				user: { id: stored.userId },
+				user: { id: stored.userId, emailVerified: stored.emailVerified },
 			};
 		},
 
@@ -162,6 +165,7 @@ export function createOAuthModel(deps: OAuthModelDeps, options?: { appOrigin?: s
 				clientId: OAuthClientIdSchema.parse(client.id),
 				userId: UserIdSchema.parse(user.id),
 				scope: token.scope,
+				emailVerified: user.emailVerified === true,
 			};
 
 			deps.tokens.set(token.accessToken, stored);
@@ -202,7 +206,7 @@ export function createOAuthModel(deps: OAuthModelDeps, options?: { appOrigin?: s
 					grants: client.grants,
 					redirectUris: client.redirectUris,
 				},
-				user: { id: stored.userId },
+				user: { id: stored.userId, emailVerified: stored.emailVerified },
 			};
 		},
 
@@ -229,7 +233,7 @@ export function createOAuthModel(deps: OAuthModelDeps, options?: { appOrigin?: s
 					grants: client.grants,
 					redirectUris: client.redirectUris,
 				},
-				user: { id: stored.userId },
+				user: { id: stored.userId, emailVerified: stored.emailVerified },
 			};
 		},
 
