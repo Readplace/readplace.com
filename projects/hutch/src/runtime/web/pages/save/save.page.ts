@@ -6,7 +6,7 @@ import { isbot } from "isbot";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import { sendComponent } from "../../send-component";
+import { sendComponent } from "@packages/web-shell";
 import { collectUtmParams } from "../../shared/utm";
 import { hashIp, type AnalyticsEvent } from "../../middleware/analytics";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";

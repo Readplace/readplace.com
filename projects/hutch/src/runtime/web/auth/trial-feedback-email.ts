@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EMAIL_COLORS } from "../email-colors";
-import { render } from "../render";
+import { render } from "@packages/web-shell";
 
 const TEMPLATE = readFileSync(
 	join(__dirname, "trial-feedback-email.template.html"),

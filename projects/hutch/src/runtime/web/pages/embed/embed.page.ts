@@ -1,6 +1,6 @@
 import express, { type Router } from "express";
 import helmet from "helmet";
-import { sendComponent } from "../../send-component";
+import { sendComponent } from "@packages/web-shell";
 import { EmbedPage } from "./embed.component";
 import { PreviewPage } from "./preview.component";
 import { EMBED_ICON_SVG } from "./icon";

@@ -29,7 +29,7 @@ import type { StorePendingSignup } from "@packages/provider-contracts/pending-si
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { HxRedirectPage } from "../../hx-redirect-page";
-import { sendComponent } from "../../send-component";
+import { sendComponent } from "@packages/web-shell";
 import type { GetEffectiveAccess } from "../../../domain/access/effective-access";
 import { AccountPage } from "./account.component";
 import { parseAccountQuery, toAccountViewModel } from "./account.view-model";

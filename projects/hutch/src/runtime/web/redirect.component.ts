@@ -1,4 +1,4 @@
-import type { Component, ParsedComponent } from "./component.types";
+import type { Component, ParsedComponent } from "@packages/web-shell";
 
 export interface Redirect {
 	statusCode: 302 | 303;

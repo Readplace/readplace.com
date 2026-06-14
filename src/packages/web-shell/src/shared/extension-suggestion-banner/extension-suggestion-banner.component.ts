@@ -1,11 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { render } from "../../render";
-
-const EXTENSION_SUGGESTION_BANNER_TEMPLATE = readFileSync(
-	join(__dirname, "extension-suggestion-banner.template.html"),
-	"utf-8",
-);
+import { EXTENSION_SUGGESTION_BANNER_TEMPLATE } from "./extension-suggestion-banner.template";
 
 export const EXTENSION_SUGGESTION_BANNER_SCRIPT = `<script src="/client-dist/extension-suggestion-banner.client.js" defer></script>`;
 

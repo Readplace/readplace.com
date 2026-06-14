@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { wantsMarkdown, wantsSiren } from "./content-negotiation";
+import { wantsSiren } from "./content-negotiation";
 
 function requestWithAccept(accept: string): Request {
 	const types = accept.split(",").map(entry => {
@@ -49,37 +49,5 @@ describe("wantsSiren", () => {
 		const req = { get: () => undefined, accepts: () => false } as unknown as Request;
 
 		expect(wantsSiren(req)).toBe(false);
-	});
-});
-
-describe("wantsMarkdown", () => {
-	it("returns true when Accept header is text/markdown", () => {
-		const req = requestWithAccept("text/markdown");
-
-		expect(wantsMarkdown(req)).toBe(true);
-	});
-
-	it("returns true when text/markdown is among multiple accepted types", () => {
-		const req = requestWithAccept("text/markdown, text/html;q=0.5");
-
-		expect(wantsMarkdown(req)).toBe(true);
-	});
-
-	it("returns false for a plain HTML accept header", () => {
-		const req = requestWithAccept("text/html");
-
-		expect(wantsMarkdown(req)).toBe(false);
-	});
-
-	it("returns false when text/markdown has quality 0", () => {
-		const req = requestWithAccept("text/markdown;q=0, text/html");
-
-		expect(wantsMarkdown(req)).toBe(false);
-	});
-
-	it("returns false when no Accept header is present", () => {
-		const req = { get: () => undefined, accepts: () => false } as unknown as Request;
-
-		expect(wantsMarkdown(req)).toBe(false);
 	});
 });

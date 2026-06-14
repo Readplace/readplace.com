@@ -32,14 +32,12 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { hashIp, type AnalyticsEvent } from "../../middleware/analytics";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
-import { wantsMarkdown } from "../../content-negotiation";
+import { wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent } from "@packages/web-shell";
 import { CacheableComponent } from "../../conditional-get";
-import { htmlToMarkdown } from "../../html-to-markdown";
-import { buildMarkdownFrontmatter } from "../../markdown-frontmatter";
-import { MarkdownPage } from "../../markdown-page";
+
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import { sendComponent } from "../../send-component";
+
 import { extensionInstallUrlIfMissing, isExtensionInstalled } from "../../onboarding/extension-install";
 import { initArticleReader } from "../../shared/article-reader/article-reader";
 import type {

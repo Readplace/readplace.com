@@ -5,7 +5,7 @@ import type { FindEmailByUserId } from "@packages/provider-contracts/auth";
 import type { PublishExportUserDataCommand } from "@packages/provider-contracts/events";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
-import { sendComponent } from "../../send-component";
+import { sendComponent } from "@packages/web-shell";
 import { ExportPage } from "./export.component";
 
 interface ExportDependencies {

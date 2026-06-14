@@ -10,8 +10,9 @@ import { decomposeTimeLeft, formatCounter } from "@packages/time-left";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
 import { requireEnv } from "../../../domain/require-env";
-import type { PageBody } from "../../page-body.types";
-import { render } from "../../render";
+import { render } from "@packages/web-shell";
+import type { PageBody } from "@packages/web-shell";
+
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
 import type { ProgressTick } from "@packages/domain/article";
 import {

@@ -1,4 +1,4 @@
-  <footer class="footer">
+export const FOOTER_TEMPLATE = `  <footer class="footer">
     <div class="footer__content">
       <ul class="footer__links">
         <li><a href="{{track '/blog' source='footer' content='blog'}}" class="footer__link">Blog</a></li>
@@ -8,3 +8,4 @@
       <p class="footer__copyright">&copy; {{year}} Readplace. Made in Australia.</p>
     </div>
   </footer>
+`;

@@ -130,10 +130,11 @@ import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middl
 import { initOAuthRoutes } from "./web/oauth/oauth.routes";
 import { Base } from "./web/base.component";
 import { initBuildBannerState } from "./web/banner-state";
-import { sendComponent } from "./web/send-component";
-import { wantsMarkdown, wantsSiren } from "./web/content-negotiation";
+import { sendComponent, wantsMarkdown } from "@packages/web-shell";
+import { wantsSiren } from "./web/content-negotiation";
 import { CONTENT_SIGNAL_VALUE, contentSignalMiddleware } from "./web/content-signal.middleware";
 import { linkHeaderMiddleware } from "./web/link-header.middleware";
+import { AGENT_SCOPES_SUPPORTED, buildAgentAuthMetadata, renderAuthMarkdown } from "./web/agent-auth";
 import { QuerystringFeatureToggle } from "./web/feature-toggle";
 import { HomePage } from "./web/pages/home";
 import { PrivacyPage } from "./web/pages/privacy";
@@ -366,6 +367,10 @@ export function createApp(dependencies: AppDependencies): Express {
 		res.type("text/plain").send(LLMS_FULL_TXT);
 	});
 
+	app.get("/auth.md", (_req: Request, res: Response) => {
+		res.type("text/markdown").send(renderAuthMarkdown(dependencies.baseUrl));
+	});
+
 	if (INDEXNOW_KEY) {
 		app.get(`/${INDEXNOW_KEY}.txt`, (_req: Request, res: Response) => {
 			res.type("text/plain").send(INDEXNOW_KEY);
@@ -393,6 +398,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			{ loc: "/terms", priority: "0.3", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/llms.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
 			{ loc: "/llms-full.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
+			{ loc: "/auth.md", priority: "0.3", changefreq: "monthly", lastmod: "2026-06-13" },
 		];
 
 		for (const post of blogPosts.getAllPostMetadata()) {
@@ -428,14 +434,18 @@ export function createApp(dependencies: AppDependencies): Express {
 			grant_types_supported: ["authorization_code", "refresh_token"],
 			token_endpoint_auth_methods_supported: ["none"],
 			code_challenge_methods_supported: ["S256"],
+			agent_auth: buildAgentAuthMetadata(dependencies.baseUrl),
 		});
 	});
 
 	app.get("/.well-known/oauth-protected-resource", (_req: Request, res: Response) => {
 		res.json({
 			resource: dependencies.baseUrl,
+			resource_name: "Readplace",
 			authorization_servers: [dependencies.baseUrl],
+			scopes_supported: AGENT_SCOPES_SUPPORTED,
 			bearer_methods_supported: ["header"],
+			resource_documentation: `${dependencies.baseUrl}/auth.md`,
 		});
 	});
 

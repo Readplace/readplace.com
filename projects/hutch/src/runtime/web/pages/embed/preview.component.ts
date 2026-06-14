@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EmbedBase } from "./embed-base.component";
-import type { Component } from "../../component.types";
+import { render } from "@packages/web-shell";
+import type { Component } from "@packages/web-shell";
 import { PREVIEW_PAGE_STYLES } from "./preview.styles";
-import { render } from "../../render";
+
 import { renderSnippet } from "./snippet.component";
 
 const PREVIEW_TEMPLATE = readFileSync(join(__dirname, "preview.template.html"), "utf-8");

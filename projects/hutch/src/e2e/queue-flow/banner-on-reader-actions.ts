@@ -64,7 +64,7 @@ export function createBannerOnReaderActions(
 				// HTML keeps the entire `<div class="banner-area"><banner></div>`
 				// chrome wrapper inside the article reader slot; a descendant
 				// selector would still match both copies. The outer banner-area
-				// is body's first DOM child per base.template.html.
+				// is body's first DOM child per base.template.ts.
 				const banner = page.locator('body > .banner-area [data-test-extension-suggestion-banner]')
 				await expect(banner).toHaveAttribute('data-show-extension-suggestion', 'true')
 				await expect(banner).toHaveClass(/extension-suggestion-banner--visible/)
