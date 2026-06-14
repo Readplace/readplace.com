@@ -1,7 +1,6 @@
 import type { RequestHandler } from "express";
+import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 import { Base } from "../base.component";
-import { bannerStateFromRequest } from "../banner-state";
-import { sendComponent } from "../send-component";
 import { AccountLockedPage } from "../auth/auth.component";
 import { wantsSiren } from "../content-negotiation";
 import { SIREN_MEDIA_TYPE } from "../api/siren";

@@ -1,4 +1,4 @@
-import { VERIFICATION_CONTACT_EMAIL } from "../shared/verify-banner/verify-banner.component";
+import { VERIFICATION_CONTACT_EMAIL } from "@packages/web-shell";
 import { type SirenEntity, sirenMessages } from "./siren";
 
 /**
