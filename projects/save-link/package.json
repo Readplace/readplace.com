@@ -50,7 +50,7 @@
     "@pulumi/pulumi": "3.244.0",
     "@types/aws-lambda": "8.10.161",
     "@types/jest": "30.0.0",
-    "c8": "10.1.3",
+    "c8": "11.0.0",
     "concurrently": "10.0.0",
     "esbuild": "catalog:",
     "jest": "30.4.2",
