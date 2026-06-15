@@ -5,3 +5,4 @@ config:
   blog-site:stage: staging
   blog-site:staticBaseUrl: https://d2uoxssv1ey7em.cloudfront.net
   blog-site:hutchStack: organization/hutch/staging
+encryptionsalt: v1:K6HCDCWECIo=:v1:fGew/55ZZHhWixd9:fDj8bwCv+lgi5ALA8d79WMkFj/gm6w==

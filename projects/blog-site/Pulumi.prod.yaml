@@ -5,3 +5,4 @@ config:
   blog-site:stage: production
   blog-site:staticBaseUrl: https://static.readplace.com
   blog-site:hutchStack: organization/hutch/prod
+encryptionsalt: v1:Twafqcu8CoA=:v1:ala066U4VNMmKX8/:ubCpRQ3yAJc2v1iQIxY1d6RIOOYHwA==

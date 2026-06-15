@@ -20,6 +20,7 @@ const hutchStackName = config.require("hutchStack");
 const hutchStack = new pulumi.StackReference(hutchStackName);
 const apiGatewayId = hutchStack.requireOutput("apiGatewayId");
 const apiGatewayExecutionArn = hutchStack.requireOutput("apiGatewayExecutionArn");
+const hutchApiUrl = hutchStack.requireOutput("apiUrl");
 
 const lambda = new HutchLambda("blog-site", {
 	entryPoint: "./src/runtime/lambda.main.ts",
@@ -43,3 +44,8 @@ const blogRoutes = new HutchAPIGatewayLambdaRoute("blog-site", {
 
 export const functionName = lambda.functionName;
 export const routeKeys = blogRoutes.routes.map((route) => route.routeKey);
+
+/** The blog Lambda has no URL of its own — it answers on hutch's API Gateway
+ * under /blog. Re-export hutch's apiUrl so post-deploy can smoke-test the live
+ * routes without a second StackReference at verification time. */
+export const apiUrl = hutchApiUrl;
