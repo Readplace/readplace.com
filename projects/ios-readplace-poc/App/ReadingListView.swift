@@ -77,7 +77,7 @@ struct ReadingListView: View {
 			if !viewModel.messages.isEmpty {
 				banner(
 					viewModel.messages.map(\.plainText).joined(separator: "\n"),
-					color: viewModel.messages.contains { $0.type == "error" } ? .red : .orange
+					color: viewModel.messages.contains { $0.kind == .error } ? .red : .orange
 				) { viewModel.messages = [] }
 			} else if let errorText = viewModel.errorText {
 				banner(errorText, color: .red) { viewModel.errorText = nil }
