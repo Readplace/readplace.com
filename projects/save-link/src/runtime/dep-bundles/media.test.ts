@@ -5,26 +5,41 @@ import { initArticleStoreDepBundle } from "./article-store";
 import { initMediaDepBundle } from "./media";
 import { initParserDepBundle } from "./parser";
 
+function makeBundle() {
+	const parser = initParserDepBundle({
+		logError: () => {},
+	});
+	const articleStore = initArticleStoreDepBundle({
+		s3Client: new S3Client({ region: "us-east-1" }),
+		dynamoClient: createDynamoDocumentClient({ region: "us-east-1" }),
+		contentBucketName: "content-bucket",
+		articlesTable: "articles-table",
+	});
+
+	return initMediaDepBundle({
+		parser,
+		articleStore,
+		logger: noopLogger,
+		imagesCdnBaseUrl: "https://cdn.example",
+	});
+}
+
 describe("initMediaDepBundle", () => {
 	it("returns a bundle with downloadMedia and processContent fields", () => {
-		const parser = initParserDepBundle({
-			logError: () => {},
-		});
-		const articleStore = initArticleStoreDepBundle({
-			s3Client: new S3Client({ region: "us-east-1" }),
-			dynamoClient: createDynamoDocumentClient({ region: "us-east-1" }),
-			contentBucketName: "content-bucket",
-			articlesTable: "articles-table",
-		});
-
-		const bundle = initMediaDepBundle({
-			parser,
-			articleStore,
-			logger: noopLogger,
-			imagesCdnBaseUrl: "https://cdn.example",
-		});
+		const bundle = makeBundle();
 
 		expect(typeof bundle.downloadMedia).toBe("function");
 		expect(typeof bundle.processContent).toBe("function");
+	});
+
+	it("processContent rewrites in-article media URLs to their downloaded CDN equivalents", async () => {
+		const bundle = makeBundle();
+
+		const rewritten = await bundle.processContent({
+			html: '<img src="https://origin.example/a.jpg">',
+			media: [{ originalUrl: "https://origin.example/a.jpg", cdnUrl: "https://cdn.example/a.jpg" }],
+		});
+
+		expect(rewritten).toBe('<img src="https://cdn.example/a.jpg">');
 	});
 });

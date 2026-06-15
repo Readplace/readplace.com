@@ -32,6 +32,6 @@ export class ReaderArticleHashId {
 }
 
 export const ReaderArticleHashIdSchema = z
-	.string()
+	.string() /* c8 ignore next -- V8 block coverage phantom: zero-count sub-range at bytecode boundary (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 	.regex(HASH_PATTERN)
 	.transform((s) => ReaderArticleHashId.fromHash(s));

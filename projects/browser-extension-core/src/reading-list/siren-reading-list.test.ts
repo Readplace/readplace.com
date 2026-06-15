@@ -2329,6 +2329,40 @@ describe("initSirenReadingList", () => {
 			expect(warning).toBeUndefined();
 		});
 
+		it("omits the warning when properties.warning is present but malformed", async () => {
+			const collectionBody = JSON.stringify({
+				class: ["collection", "articles"],
+				properties: {
+					warning: { code: 123 },
+				},
+				entities: [],
+				links: [{ rel: ["self"], href: "/queue" }],
+				actions: COLLECTION_ACTIONS,
+			});
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+					"POST http://localhost:3000/queue": {
+						status: 422,
+						body: collectionBody,
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			const result = await list.saveUrl({
+				url: "chrome://newtab/",
+				title: "New Tab",
+			});
+			assert.equal(result.ok, false);
+			const warning = (
+				result as Extract<typeof result, { reason: "not-saveable" }>
+			).warning;
+			expect(warning).toBeUndefined();
+		});
+
 		it("should throw when collection fetch fails during action discovery", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({

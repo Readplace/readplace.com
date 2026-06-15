@@ -89,9 +89,9 @@ export function initReadabilityParser(deps: {
 		assert(parsed.textContent != null, "Readability provides textContent for parsed articles");
 		assert(parsed.content != null, "Readability provides content for parsed articles");
 
+		/* c8 ignore next 3 -- V8 block coverage phantom on object-literal start when followed by cascading `||` fallbacks (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 		return {
 			ok: true,
-			/* c8 ignore next -- V8 block coverage phantom on object-literal start when followed by cascading `||` fallbacks (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 			article: {
 				title: parsed.title || `Article from ${hostname}`,
 				siteName: parsed.siteName || hostname,
