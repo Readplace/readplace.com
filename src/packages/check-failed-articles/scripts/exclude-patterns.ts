@@ -97,12 +97,15 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// (a) Origin removed the page — the fetch resolves to a 404. The apex/www
 	// pairs were each saved as two rows; the apex form 30x-redirects to the www
 	// form, which 404s, so one `(?:www\.)?` entry covers both.
-	/^https:\/\/apisyouwonthate\.com\/blog\/rest-and-hypermedia-in-2019\/$/i,
+	// `…2019` was saved without a trailing slash; `\/?` covers both shapes.
+	/^https:\/\/apisyouwonthate\.com\/blog\/rest-and-hypermedia-in-2019\/?$/i,
 	/^https:\/\/(?:www\.)?bocoup\.com\/weblog\/es2015-nightmarefile$/i,
 	/^https:\/\/(?:www\.)?braziljs\.org\/conf\/2013$/i,
 	/^https:\/\/dannorth\.net\/author\/tastapod\/$/i,
 	/^https:\/\/www\.ctl\.io\/developers\/blog\/post\/career-path-of-a-programmer\/$/i,
-	/^https:\/\/www\.spacejam\.com\/archive\/spacejam\/movie\/jam\.htm$/i,
+	// The 1996 Space Jam frameset is mirrored on both spacejam.com and
+	// warnerbros.com; neither host serves a readable article body.
+	/^https:\/\/www\.(?:spacejam|warnerbros)\.com\/archive\/spacejam\/movie\/jam\.htm$/i,
 	/^https:\/\/www\.se\.rit\.edu\/~tabeec\/RIT_441\/Resources_files\/How%20To%20Write%20Unmaintainable%20Code\.pdf$/i,
 	// `/request-demo-search/` 301s to the slashless form, which 404s; `\/?`
 	// tolerates both saved shapes.
@@ -129,15 +132,34 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	/^https:\/\/www\.fastcodesign\.com\/3062292\/evidence\/brainstorming-is-dumb$/i,
 	/^https:\/\/wiki\.scratch\.mit\.edu\/wiki\/Help:Hard_Refresh$/i,
 	/^https:\/\/mindsetworks\.com\/index\.html$/i,
+	// The `/Science/` section pages (saved with both capitalisations) no longer
+	// resolve on the rebuilt site — the fetch never lands.
+	/^https:\/\/www\.mindsetworks\.com\/[Ss]cience\/$/i,
 	// (e) Edge firewall / bot-wall that answers datacenter egress with a
 	// challenge or error instead of content (202 JS-challenge, 401 bot-check,
 	// 403 edge ACL, 503) — the same residential-egress requirement as the USDA
 	// PDF entry above, so the AWS-egress crawler can never resolve them.
-	/^https:\/\/agilealliance\.org\/glossary\/pairing\/$/i,
+	/^https:\/\/(?:www\.)?agilealliance\.org\/glossary\/pairing\/$/i,
 	/^https:\/\/unsplash\.com\/@metelevan\?utm_source=medium&utm_medium=referral$/i,
+	// The gallery landing page saved with a Medium referral suffix — not an
+	// article, and 401-bot-walled like the profile above.
+	/^https:\/\/unsplash\.com\/\?utm_source=medium&utm_medium=referral$/i,
 	/^https:\/\/blogs\.oracle\.com\/ravello\/beware-http-requests-automatic-retries$/i,
 	/^https:\/\/kernel-recipes\.org\/en\/2016\/talks\/patches-carved-into-stone-tablets\/$/i,
 	/^https:\/\/www\.microservices\.com\/talks\/dont-build-a-distributed-monolith\/$/i,
+	// (f) Login/subscription wall — the origin serves a registration/login page
+	// instead of the article body to anonymous datacenter fetches, so the crawler
+	// exhausts retries without ever reaching content. academia.edu requires a free
+	// account to view the paper; Oxford Academic gates the QJE full text behind
+	// subscription login (the optional `?login=false` suffix is the host's own
+	// pre-login redirect shape; the bare URL was saved too).
+	/^https:\/\/www\.academia\.edu\/4749776\/Personal_experience_and_the_construction_of_knowledge_in_science$/i,
+	// academia.edu delivers PDF downloads from this CloudFront distribution via
+	// presigned URLs; the saved link's signature has expired (`Expires` is in the
+	// past), so the CDN returns 403 for the object regardless of signature and it
+	// can never be re-fetched. Matches the dead PDF path with or without a query.
+	/^https:\/\/d1wqtxts1xzle7\.cloudfront\.net\/49645891\/sce\.373067020820161016-1490-16axao2\.pdf(?:\?|$)/i,
+	/^https:\/\/academic\.oup\.com\/qje\/article-abstract\/101\/4\/729\/1840176(?:\?login=false)?$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

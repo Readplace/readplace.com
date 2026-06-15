@@ -330,7 +330,8 @@ describe("EXCLUDE_PATTERNS — operator-curated exact-URL entries", () => {
 describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
 		// (a) Origin removed the page (404).
-		{ url: "https://apisyouwonthate.com/blog/rest-and-hypermedia-in-2019/", excluded: true, label: "apisyouwonthate rest-and-hypermedia exact" },
+		{ url: "https://apisyouwonthate.com/blog/rest-and-hypermedia-in-2019/", excluded: true, label: "apisyouwonthate rest-and-hypermedia exact (trailing slash)" },
+		{ url: "https://apisyouwonthate.com/blog/rest-and-hypermedia-in-2019", excluded: true, label: "apisyouwonthate rest-and-hypermedia no trailing slash (stored shape)" },
 		{ url: "https://apisyouwonthate.com/blog/", excluded: false, label: "apisyouwonthate blog index — should NOT match" },
 		{ url: "https://bocoup.com/weblog/es2015-nightmarefile", excluded: true, label: "bocoup apex weblog post" },
 		{ url: "https://www.bocoup.com/weblog/es2015-nightmarefile", excluded: true, label: "bocoup www weblog post" },
@@ -343,7 +344,9 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 		{ url: "https://www.ctl.io/developers/blog/post/career-path-of-a-programmer/", excluded: true, label: "ctl.io career-path post" },
 		{ url: "https://www.ctl.io/developers/blog/", excluded: false, label: "ctl.io blog index — should NOT match" },
 		{ url: "https://www.spacejam.com/archive/spacejam/movie/jam.htm", excluded: true, label: "spacejam 1996 archive frameset" },
+		{ url: "https://www.warnerbros.com/archive/spacejam/movie/jam.htm", excluded: true, label: "warnerbros spacejam mirror — same frameset, stored shape" },
 		{ url: "https://www.spacejam.com/", excluded: false, label: "spacejam 2021 site root — should NOT match" },
+		{ url: "https://www.warnerbros.com/", excluded: false, label: "warnerbros root — should NOT match" },
 		{
 			url: "https://www.se.rit.edu/~tabeec/RIT_441/Resources_files/How%20To%20Write%20Unmaintainable%20Code.pdf",
 			excluded: true,
@@ -387,14 +390,23 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 		{ url: "https://wiki.scratch.mit.edu/wiki/Help:Hard_Refresh", excluded: true, label: "scratch wiki help page (moved away)" },
 		{ url: "https://wiki.scratch.mit.edu/wiki/Scratch_Wiki", excluded: false, label: "scratch wiki other page — should NOT match" },
 		{ url: "https://mindsetworks.com/index.html", excluded: true, label: "mindsetworks index.html redirect stub" },
+		{ url: "https://www.mindsetworks.com/Science/", excluded: true, label: "mindsetworks Science section (capitalised, stored shape)" },
+		{ url: "https://www.mindsetworks.com/science/", excluded: true, label: "mindsetworks science section (lowercase, stored shape)" },
 		{ url: "https://mindsetworks.com/", excluded: false, label: "mindsetworks homepage — should NOT match" },
+		{ url: "https://www.mindsetworks.com/Math/", excluded: false, label: "mindsetworks other section — should NOT match" },
 		// (e) Edge firewall / bot-wall blocking datacenter egress.
 		{ url: "https://agilealliance.org/glossary/pairing/", excluded: true, label: "agilealliance pairing glossary (202 challenge)" },
+		{ url: "https://www.agilealliance.org/glossary/pairing/", excluded: true, label: "agilealliance pairing glossary www variant (stored shape)" },
 		{ url: "https://agilealliance.org/glossary/", excluded: false, label: "agilealliance glossary index — should NOT match" },
 		{
 			url: "https://unsplash.com/@metelevan?utm_source=medium&utm_medium=referral",
 			excluded: true,
 			label: "unsplash metelevan profile with tracking suffix (401 bot-check)",
+		},
+		{
+			url: "https://unsplash.com/?utm_source=medium&utm_medium=referral",
+			excluded: true,
+			label: "unsplash gallery landing page with Medium referral suffix (stored shape)",
 		},
 		{ url: "https://unsplash.com/@metelevan", excluded: false, label: "unsplash profile without tracking suffix — different stored value" },
 		{
@@ -415,6 +427,47 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			label: "microservices.com talk (503 to datacenter IPs)",
 		},
 		{ url: "https://www.microservices.com/", excluded: false, label: "microservices.com root — should NOT match" },
+		// (f) Login/subscription wall.
+		{
+			url: "https://www.academia.edu/4749776/Personal_experience_and_the_construction_of_knowledge_in_science",
+			excluded: true,
+			label: "academia.edu paper exact (login wall)",
+		},
+		{
+			url: "https://www.academia.edu/4749776/",
+			excluded: false,
+			label: "academia.edu paper id without the slug — should NOT match",
+		},
+		{
+			url: "https://academic.oup.com/qje/article-abstract/101/4/729/1840176?login=false",
+			excluded: true,
+			label: "oup QJE article-abstract with ?login=false (login wall)",
+		},
+		{
+			url: "https://academic.oup.com/qje/article-abstract/101/4/729/1840176",
+			excluded: true,
+			label: "oup QJE article-abstract bare URL (stored shape) — login wall",
+		},
+		{
+			url: "https://academic.oup.com/qje/article-abstract/101/4/729/9999999",
+			excluded: false,
+			label: "oup different article id — should NOT match",
+		},
+		{
+			url: "https://d1wqtxts1xzle7.cloudfront.net/49645891/sce.373067020820161016-1490-16axao2.pdf?1476649331=&Expires=1620401627&Signature=abc&Key-Pair-Id=APKAJLOHF5GGSLRBV4ZA",
+			excluded: true,
+			label: "academia.edu CloudFront presigned PDF with expired-signature query (stored shape)",
+		},
+		{
+			url: "https://d1wqtxts1xzle7.cloudfront.net/49645891/sce.373067020820161016-1490-16axao2.pdf",
+			excluded: true,
+			label: "academia.edu CloudFront PDF path without query",
+		},
+		{
+			url: "https://d1wqtxts1xzle7.cloudfront.net/99999999/some-other-doc.pdf",
+			excluded: false,
+			label: "different CloudFront object — should NOT match",
+		},
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
