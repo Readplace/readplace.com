@@ -32,14 +32,18 @@ export type SiteArticleContent = {
 	bodyHtml: string;
 };
 
-/* Pre-parser for sites whose article body is not in the DOM as normal
- * markup (e.g. paywalled content rendered client-side from a JSON island).
+/* Site-specific hook applied before the default parser runs, in one of two
+ * shapes (a pre-parser provides whichever fits the site):
  *
- * The pre-parser is responsible for locating the content in whatever
- * site-specific way it needs (parsing the HTML, reading a JSON island,
- * calling out to an API) and returning a `SiteArticleContent` payload.
- * It returns `undefined` when the expected content shape is not present,
- * letting the parser fall back to its default extraction strategy.
+ *   - `extract` REPLACES the document with site content the default parser
+ *     could not reach (e.g. a paywalled body read from a JSON island). The
+ *     first matching `extract` that returns a result wins; the rest of the
+ *     page is discarded. Returns `undefined` to fall through.
+ *   - `transform` MUTATES the parsed document in place (e.g. rebuilding a
+ *     post's `\n\n` paragraph structure). Unlike `extract`, the whole page
+ *     survives, so the default parser still scores it and picks the real
+ *     article body — the right choice when the site-specific shape can't be
+ *     isolated from page chrome without that scoring.
  *
  * Open for extension: add a new site by writing a new module exporting a
  * `SitePreParser` and registering it at the composition root. The parser
@@ -47,5 +51,6 @@ export type SiteArticleContent = {
  * any particular downstream parsing strategy. */
 export type SitePreParser = {
 	matches: (params: { hostname: string }) => boolean;
-	extract: (params: { html: string }) => SiteArticleContent | undefined;
+	extract?: (params: { html: string }) => SiteArticleContent | undefined;
+	transform?: (params: { document: Document }) => void;
 };

@@ -428,6 +428,73 @@ describe("initReadabilityParser", () => {
 			expect(logged[0].error?.message).toBe("string-not-error");
 		});
 
+		it("runs a matching transform pre-parser against the parsed document", () => {
+			const calls: string[] = [];
+			const transforming: SitePreParser = {
+				matches: ({ hostname }) => hostname === "transform.example.com",
+				transform: ({ document }) => {
+					calls.push(document.body ? "ran-with-document" : "ran");
+				},
+			};
+
+			const { parseHtml } = initParser({ sitePreParsers: [transforming] });
+			parseHtml({
+				url: "https://transform.example.com/article",
+				html: ARTICLE_HTML,
+				thumbnailUrl: null,
+			});
+
+			expect(calls).toEqual(["ran-with-document"]);
+		});
+
+		it("skips a transform pre-parser whose host does not match", () => {
+			const calls: string[] = [];
+			const transforming: SitePreParser = {
+				matches: () => false,
+				transform: () => {
+					calls.push("ran");
+				},
+			};
+
+			const { parseHtml } = initParser({ sitePreParsers: [transforming] });
+			parseHtml({
+				url: "https://example.com/article",
+				html: ARTICLE_HTML,
+				thumbnailUrl: null,
+			});
+
+			expect(calls).toEqual([]);
+		});
+
+		it("logs and swallows when a transform pre-parser throws, leaving the document for Readability", () => {
+			const logged: { message: string; error?: Error }[] = [];
+			const throwingTransform: SitePreParser = {
+				matches: () => true,
+				transform: () => {
+					throw new Error("transform boom");
+				},
+			};
+
+			const { parseHtml } = initParser({
+				sitePreParsers: [throwingTransform],
+				logError: (message, error) => logged.push({ message, error }),
+			});
+
+			const result = parseHtml({
+				url: "https://example.com/article",
+				html: ARTICLE_HTML,
+				thumbnailUrl: null,
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.article.content).toContain("first paragraph");
+			}
+			expect(logged).toHaveLength(1);
+			expect(logged[0].message).toContain("transform threw");
+			expect(logged[0].error?.message).toBe("transform boom");
+		});
+
 		it("returns ok:false with the thrown error message when Readability crashes on the DOM (e.g. hex.ooo's _grabArticle null parent)", () => {
 			const spy = jest.spyOn(Readability.prototype, "parse").mockImplementation(() => {
 				throw new Error("Cannot read properties of null (reading 'tagName')");

@@ -54,8 +54,8 @@ const TITLE_SUFFIX_REGEX = /\s+[|\-–—]\s+.+$/;
  * falls back to `document.body` before stripping. */
 const MIN_BODY_CHARS = 200;
 
-export const mediumPreParser: SitePreParser = {
-	matches: () => true,
+export const mediumPreParser = {
+	matches: (_params: { hostname: string }) => true,
 	extract: ({ html }): SiteArticleContent | undefined => {
 		const { document } = parseHTML(html);
 
@@ -87,7 +87,7 @@ export const mediumPreParser: SitePreParser = {
 		const title = extractTitle({ container, document });
 		return { title, bodyHtml };
 	},
-};
+} satisfies SitePreParser;
 
 /* Medium-specific data-testid attributes used as secondary fingerprints
  * when the og:site_name / application-name meta tags are absent (e.g.

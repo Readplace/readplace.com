@@ -31,7 +31,7 @@ const PAYWALL_NOTICE =
  *
  * Returns `undefined` when the expected JSON island is missing/empty/
  * malformed so the parser falls back to its default extraction. */
-export const theInformationPreParser: SitePreParser = {
+export const theInformationPreParser = {
 	matches: ({ hostname }) => HOSTS.has(hostname),
 	extract: ({ html }): SiteArticleContent | undefined => {
 		const { document } = parseHTML(html);
@@ -76,4 +76,4 @@ export const theInformationPreParser: SitePreParser = {
 			bodyHtml: container.innerHTML,
 		};
 	},
-};
+} satisfies SitePreParser;

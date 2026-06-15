@@ -52,6 +52,16 @@ export function initReadabilityParser(deps: {
 				originalUrl: params.url,
 				renderPlaceholder: renderVideoPlaceholder,
 			});
+			/* Site pre-parsers may mutate the document in place (e.g. LinkedIn
+			 * rebuilding `\n\n` `white-space: pre-wrap` paragraphs) before
+			 * Readability scores it. */
+			applyTransforms({
+				preParsers: deps.sitePreParsers,
+				hostname,
+				document,
+				url: params.url,
+				logError: deps.logError,
+			});
 			/* Promote inline `<br><br>` paragraph hosts to `<div>` before
 			 * Readability runs, so its `_replaceBrs` + DIV phrasing-recovery
 			 * rebuild the paragraphs instead of orphaning the leading line and
@@ -91,6 +101,7 @@ export function initReadabilityParser(deps: {
 
 		/* c8 ignore next 3 -- V8 block coverage phantom on object-literal start when followed by cascading `||` fallbacks (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 		return {
+			/* c8 ignore next 2 -- V8 block coverage phantom on the success-return object literal with cascading `||` fallbacks (bcoe/c8#319, v8.dev/blog/javascript-code-coverage) */
 			ok: true,
 			article: {
 				title: parsed.title || `Article from ${hostname}`,
@@ -129,18 +140,50 @@ function tryExtractFromPreParsers(params: {
 	logError: (message: string, error?: Error) => void;
 }): SiteArticleContent | undefined {
 	for (const preParser of params.preParsers) {
+		const extract = preParser.extract;
+		if (!extract) continue;
 		try {
 			if (!preParser.matches({ hostname: params.hostname })) continue;
-			const extracted = preParser.extract({ html: params.html });
+			const extracted = extract({ html: params.html });
 			if (extracted) return extracted;
 		} catch (error) {
 			params.logError(
 				`[ReadabilityParser] Site pre-parser threw for ${params.url}`,
-				error instanceof Error ? error : new Error(String(error)),
+				toError(error),
 			);
 		}
 	}
 	return undefined;
+}
+
+/* Run every matching pre-parser's in-place `transform` against the parsed
+ * document before the default parser scores it. A transform that throws is
+ * logged and swallowed so a faulty site-specific tweak can never drop the
+ * article — the document is left as it was and Readability still scores it. */
+function applyTransforms(params: {
+	preParsers: readonly SitePreParser[];
+	hostname: string;
+	document: Document;
+	url: string;
+	logError: (message: string, error?: Error) => void;
+}): void {
+	for (const preParser of params.preParsers) {
+		const transform = preParser.transform;
+		if (!transform) continue;
+		if (!preParser.matches({ hostname: params.hostname })) continue;
+		try {
+			transform({ document: params.document });
+		} catch (error) {
+			params.logError(
+				`[ReadabilityParser] Site pre-parser transform threw for ${params.url}`,
+				toError(error),
+			);
+		}
+	}
+}
+
+function toError(error: unknown): Error {
+	return error instanceof Error ? error : new Error(String(error));
 }
 
 /* Wrap the pre-parser's extracted content in a minimal HTML document so

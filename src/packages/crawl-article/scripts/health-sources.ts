@@ -91,9 +91,17 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 		expectsThumbnail: true,
 	},
 	{
+		// LinkedIn's logged-out post page renders the whole body inside one
+		// `white-space: pre-wrap` element with `\n\n` paragraph breaks (no
+		// `<br>`, no block markup). `linkedinPreParser` rebuilds those into
+		// <p> blocks before Readability; without it the post collapses into a
+		// single run-on paragraph. forbiddenContent is the cross-paragraph
+		// `\n\n` run-on — present only when that paragraph split has regressed,
+		// so it asserts the structure was rebuilt, not just that the text exists.
 		label: "LinkedIn",
 		url: "https://www.linkedin.com/posts/fagnerbrack_ai-webdev-softwareengineering-activity-7429345910167453696-2MJD?utm_source=share&utm_medium=member_desktop&rcm=ACoAAA5sDgUBEQM_1ZyxJFG0-Bvfm4gOYd-wqo4",
 		expectedContent: "The issue now is that people realised coding was never the bottleneck",
+		forbiddenContent: ["dev positions:\n\n1."],
 		expectsThumbnail: true,
 	},
 	{

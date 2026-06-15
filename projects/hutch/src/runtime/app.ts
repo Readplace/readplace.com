@@ -17,7 +17,7 @@ import {
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
-import { initReadabilityParser, mediumPreParser, theInformationPreParser } from "@packages/article-parser";
+import { initReadabilityParser, linkedinPreParser, mediumPreParser, theInformationPreParser } from "@packages/article-parser";
 import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 import {
 	createOAuthModel,
@@ -185,7 +185,7 @@ function initProviders() {
 		const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 		const { parseHtml } = initReadabilityParser({
 			crawlArticle,
-			sitePreParsers: [theInformationPreParser, mediumPreParser],
+			sitePreParsers: [theInformationPreParser, mediumPreParser, linkedinPreParser],
 			logError,
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale({
