@@ -13,8 +13,10 @@ type UserId = string & { readonly __brand: "UserId" };
  * which only renders copy. Inlined (rather than imported from the domain) so the
  * shell stays dependency-free — any structurally identical status from elsewhere
  * assigns without a cast. Verified users and guests carry none; `pending` is the
- * legacy fallback (no anchor, so no countdown and no lockout). */
-export type VerificationStatus =
+ * legacy fallback (no anchor, so no countdown and no lockout). File-private: the
+ * shell consumes it only through BannerStateSource/BannerState, and callers pass
+ * a structurally identical value rather than importing this name. */
+type VerificationStatus =
 	| { state: "pending" }
 	| { state: "counting-down"; daysLeft: number }
 	| { state: "locked" };
