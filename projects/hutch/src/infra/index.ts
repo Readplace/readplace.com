@@ -1010,6 +1010,10 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 // --- Exports ---
 
 export const apiUrl: pulumi.Input<string> = canonicalDomain ? `https://${canonicalDomain}` : gateway.apiUrl;
+// Consumed by sibling deployables (blog-site, marketing-site) via a Pulumi
+// StackReference to attach their own more-specific routes to this same API.
+export const apiGatewayId = gateway.apiGatewayId;
+export const apiGatewayExecutionArn = gateway.apiGatewayExecutionArn;
 export const functionName = lambda.functionName;
 export const staticBaseUrl = staticAssets.baseUrl;
 export const exportUserDataQueueUrl = exportUserDataQueue.queueUrl;

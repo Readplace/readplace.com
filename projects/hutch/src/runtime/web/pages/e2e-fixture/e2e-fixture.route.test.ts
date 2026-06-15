@@ -35,6 +35,16 @@ describe("GET /e2e/article/:id", () => {
 		expect(h1?.textContent).toBe("Readplace E2E test fixture article");
 	});
 
+	it("uses the title query param as the article <h1> and document <title> so one run can save distinct fixtures", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get(
+			"/e2e/article/slot-1?title=Custom%20Fixture%20Title",
+		);
+		const doc = new JSDOM(response.text).window.document;
+		expect(doc.querySelector("article h1")?.textContent).toBe("Custom Fixture Title");
+		expect(doc.title).toBe("Custom Fixture Title");
+	});
+
 	it("is marked noindex so search engines do not pick up the fixture URLs", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/e2e/article/x");

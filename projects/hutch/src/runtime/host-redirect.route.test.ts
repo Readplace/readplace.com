@@ -38,7 +38,7 @@ describe("hutch-app.com → readplace.com host redirect", () => {
 
 	it("does not redirect requests whose Host is not hutch-app.com", async () => {
 		const harness = useApp(createDefaultTestAppFixture("https://readplace.com"));
-		const response = await request(harness.server).get("/blog");
+		const response = await request(harness.server).get("/login");
 		expect(response.status).toBe(200);
 	});
 });

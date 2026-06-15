@@ -1,0 +1,46 @@
+{
+  "name": "blog-site",
+  "version": "1.0.0",
+  "description": "Readplace blog — static content site (readplace.com/blog), deployed as its own Lambda",
+  "main": "src/infra/index.ts",
+  "scripts": {
+    "start": "NODE_ENV=production node dist/runtime/server.main.js",
+    "dev": "LIVERELOAD=true tsx watch src/runtime/server.main.ts",
+    "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
+    "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
+    "compile": "rm -rf dist && tsc && node scripts/copy-static-assets.js",
+    "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\"",
+    "check-infra": "PULUMI_CONFIG_PASSPHRASE='' pulumi preview --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\"",
+    "check": "nx run blog-site:check"
+  },
+  "dependencies": {
+    "@packages/web-shell": "workspace:*",
+    "compression": "1.8.1",
+    "express": "5.2.1",
+    "gray-matter": "4.0.3",
+    "helmet": "8.2.0",
+    "markdown-it": "14.2.0",
+    "serverless-http": "4.0.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@packages/hutch-infra-components": "workspace:*",
+    "@pulumi/aws": "7.32.0",
+    "@pulumi/pulumi": "3.244.0",
+    "@types/aws-lambda": "8.10.161",
+    "@types/compression": "1.8.1",
+    "@types/express": "5.0.6",
+    "@types/jest": "30.0.0",
+    "@types/jsdom": "21.1.7",
+    "@types/markdown-it": "14.1.2",
+    "@types/node": "22.19.19",
+    "@types/supertest": "7.2.0",
+    "c8": "10.1.3",
+    "concurrently": "10.0.0",
+    "jest": "30.4.2",
+    "jsdom": "26.1.0",
+    "supertest": "7.2.2",
+    "tsx": "4.22.3",
+    "typescript": "5.9.3"
+  }
+}
