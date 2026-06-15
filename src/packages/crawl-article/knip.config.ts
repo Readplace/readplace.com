@@ -13,12 +13,6 @@ export default {
 		"scripts/tier-1-plus-pipeline-health.ts",
 		"scripts/health-sources.ts",
 	],
-	ignoreDependencies: [
-		// knip doesn't resolve workspace subpath for @packages/* imports
-		// (consistent with the same workaround in projects/hutch and projects/save-link)
-		"@packages/article-state-types",
-		"@packages/hutch-logger",
-	],
 	ignoreBinaries: [
 		"knip",
 		"biome",

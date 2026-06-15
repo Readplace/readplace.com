@@ -14,19 +14,10 @@ export default {
 		"purgecss.config.js",
 	],
 	ignoreDependencies: [
-		...(base.ignoreDependencies ?? []),
-		// Workspace dependencies — knip can't trace through esbuild-bundled entry points
-		"browser-extension-core",
-		"@packages/hutch-logger",
+		// Workspace dependency — knip can't trace through esbuild-bundled entry points
 		"@packages/onboarding-extension-signal",
-		// Workspace dependency — knip can't resolve subpath imports (@packages/hutch-infra-components/infra)
-		"@packages/hutch-infra-components",
 		// Type-only dependency — needed for TypeScript inference of HutchS3PublicRead properties, not directly imported
 		"@pulumi/aws",
-		// Used by scripts/check-unused-css.js (not a source-level import)
-		"@packages/check-unused-css",
-		// Used via scripts/run-tests-with-coverage.js (not a source import)
-		"@packages/test-phase-runner",
 	],
 	ignoreBinaries: [
 		...(base.ignoreBinaries ?? []),
