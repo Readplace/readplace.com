@@ -69,6 +69,23 @@ function collectionResponse(entities: unknown[] = []) {
 	});
 }
 
+const LOCK_MESSAGE_HTML =
+	'Your account is locked because your email was never verified. Email <a href="mailto:readplace+verification@readplace.com">readplace+verification@readplace.com</a> to restore access.';
+
+/** The Siren error the server returns when a save is refused with messages for
+ * the client to render (e.g. a locked account): server-authored messages, and
+ * deliberately no code and no action. */
+function messageRefusalBody() {
+	return JSON.stringify({
+		class: ["error"],
+		properties: {
+			messages: [
+				{ type: "warning", content: { type: "text/html", body: LOCK_MESSAGE_HTML } },
+			],
+		},
+	});
+}
+
 function articleEntity(overrides: {
 	id: string;
 	url: string;
@@ -1150,6 +1167,30 @@ describe("save-html action", () => {
 		);
 	});
 
+	it("surfaces the server's messages and attempts no fallback save", async () => {
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveHtmlResponse(),
+				},
+				"POST http://localhost:3000/queue/save-html": {
+					status: 403,
+					body: messageRefusalBody(),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveHtml(), createDeps(fetchFn));
+		const collection = await start();
+		await expect(
+			collection.actions["save-html"]({ url: "https://example.com/article", rawHtml: "<html>x</html>" }),
+		).rejects.toThrow("Save blocked");
+		// The refusal carries no action, so no second (fallback) save fires.
+		expect(calls.filter((c) => c.startsWith("POST"))).toEqual([
+			"POST http://localhost:3000/queue/save-html",
+		]);
+	});
+
 	it("throws when the save-html error body has no actions field at all", async () => {
 		const { fetchFn } = createRoutingFetch(
 			withEntryPoint({
@@ -1586,6 +1627,34 @@ describe("save-content action", () => {
 			url: "https://example.com/article",
 			title: "My Title",
 		});
+	});
+
+	it("surfaces the server's messages and attempts no fallback save", async () => {
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveContentResponse(),
+				},
+				"POST http://localhost:3000/queue/save-content": {
+					status: 403,
+					body: messageRefusalBody(),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveContent(), createDeps(fetchFn));
+		const collection = await start();
+		const htmlBytes = new TextEncoder().encode("<html></html>");
+		await expect(
+			collection.actions["save-content"]({
+				url: "https://example.com/article",
+				mediaType: "text/html",
+				contentBase64: bytesToBase64(htmlBytes),
+			}),
+		).rejects.toThrow("Save blocked");
+		expect(calls.filter((c) => c.startsWith("POST"))).toEqual([
+			"POST http://localhost:3000/queue/save-content",
+		]);
 	});
 
 	it("throws when the save-content POST fails without a fallback action", async () => {
@@ -2228,6 +2297,65 @@ describe("initSirenReadingList", () => {
 			).rejects.toThrow("Save failed: 422");
 		});
 
+		it("returns the server's messages when a save is refused", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+					"POST http://localhost:3000/queue": {
+						status: 403,
+						body: messageRefusalBody(),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			const result = await list.saveUrl({
+				url: "https://example.com/article",
+				title: "Ignored",
+			});
+			assert(!result.ok, "save should be refused");
+			const messages = "messages" in result ? result.messages : undefined;
+			assert(messages, "refusal should carry messages");
+			expect(messages).toHaveLength(1);
+			expect(messages[0].type).toBe("warning");
+			expect(messages[0].content.type).toBe("text/html");
+			expect(messages[0].content.body).toContain("readplace+verification@readplace.com");
+		});
+
+		it("accepts a refusal whose media type it can't render rather than failing", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+					"POST http://localhost:3000/queue": {
+						status: 403,
+						body: JSON.stringify({
+							class: ["error"],
+							properties: {
+								messages: [
+									{ type: "warning", content: { type: "text/markdown", body: "**locked**" } },
+								],
+							},
+						}),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			/** The envelope still parses (liberal accept) so the refusal surfaces as
+			 * messages and the user drops back into the list; the render layer
+			 * (`buildMessageView`) is what ignores the unknown media type. The
+			 * alternative — rejecting here — would throw a generic "Save failed". */
+			const result = await list.saveUrl({ url: "https://example.com/article", title: "Ignored" });
+			assert(!result.ok, "save should be refused");
+			const messages = "messages" in result ? result.messages : undefined;
+			assert(messages, "refusal should still carry the (unrenderable) messages");
+			expect(messages[0].content.type).toBe("text/markdown");
+		});
+
 		it("returns a not-saveable result with collection items when server rejects with a collection body", async () => {
 			const existing = articleEntity({
 				id: "article-existing",
@@ -2253,15 +2381,10 @@ describe("initSirenReadingList", () => {
 				title: "New Tab",
 			});
 			assert.equal(result.ok, false);
-			assert.equal(
-				(result as Extract<typeof result, { ok: false }>).reason,
-				"not-saveable",
-			);
-			const items = (
-				result as Extract<typeof result, { reason: "not-saveable" }>
-			).items;
-			expect(items).toHaveLength(1);
-			expect(items[0].url).toBe("https://example.com/existing");
+			const notSaveable = result as Extract<typeof result, { reason: "not-saveable" }>;
+			expect(notSaveable.reason).toBe("not-saveable");
+			expect(notSaveable.items).toHaveLength(1);
+			expect(notSaveable.items[0].url).toBe("https://example.com/existing");
 		});
 
 		it("propagates the server warning from properties.warning to the caller", async () => {

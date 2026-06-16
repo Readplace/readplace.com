@@ -17,6 +17,7 @@ import type {
 	DestroySession,
 	ExistsUserByIdPrefix,
 	FindEmailByUserId,
+	FindUserById,
 	FindUserByEmail,
 	FindUserContactByUserId,
 	GetSessionUserId,
@@ -68,6 +69,7 @@ export function initDynamoDbAuth(deps: {
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
 	findUserContactByUserId: FindUserContactByUserId;
+	findUserById: FindUserById;
 } {
 	const users = defineDynamoTable({
 		client: deps.client,
@@ -260,6 +262,22 @@ export function initDynamoDbAuth(deps: {
 		return { email: row.email, emailVerified: row.emailVerified === true };
 	};
 
+	const findUserById: FindUserById = async (userId) => {
+		const { items } = await users.query({
+			IndexName: "userId-index",
+			KeyConditionExpression: "userId = :userId",
+			ExpressionAttributeValues: { ":userId": userId },
+			Limit: 1,
+		});
+		const row = items[0];
+		if (!row) return null;
+		return {
+			userId: row.userId,
+			emailVerified: row.emailVerified === true,
+			registeredAt: row.registeredAt,
+		};
+	};
+
 	const existsUserByIdPrefix: ExistsUserByIdPrefix = async (prefix) => {
 		// Select: COUNT because the GSI is KEYS_ONLY: returned items would lack
 		// `userId` and fail UserRow parsing in defineDynamoTable.query.
@@ -300,6 +318,7 @@ export function initDynamoDbAuth(deps: {
 		updatePassword,
 		findEmailByUserId,
 		findUserContactByUserId,
+		findUserById,
 	};
 }
 /* c8 ignore stop */

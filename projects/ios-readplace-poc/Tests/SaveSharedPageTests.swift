@@ -49,6 +49,42 @@ final class SaveSharedPageTests: XCTestCase {
 		XCTAssertTrue(queuePosts.isEmpty, "must not also POST the URL-only save when save-html succeeds")
 	}
 
+	func testRefusesWhenServerRefusesTheSave() async throws {
+		// The server refuses the save with a message-only error (e.g. a locked
+		// account). The share-save journey — the path the user actually takes from
+		// the Share Sheet — must surface it as `.refused` so the shell shows the
+		// server's message, not the generic "Save failed."; and the refusal must not
+		// fall back to a URL-only save.
+		let store = TestSupport.loggedInStore()
+		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured"))
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
+			case "/queue/save-html":
+				return .json(403, Fixtures.accountLockedError())
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
+		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil)
+
+		guard case let .refused(messages) = outcome else {
+			return XCTFail("expected .refused, got \(outcome)")
+		}
+		XCTAssertEqual(messages.first?.content.type, "text/html")
+		XCTAssertTrue(
+			messages.first?.content.body.contains("readplace+verification@readplace.com") ?? false,
+			"the refusal must carry the server's contact message verbatim"
+		)
+		let queuePosts = StubURLProtocol.records(path: "/queue").filter { $0.request.httpMethod == "POST" }
+		XCTAssertTrue(queuePosts.isEmpty, "a refusal must not fall back to a URL-only save")
+	}
+
 	func testDegradesToLinkOnlyWhenCaptureEmpty() async throws {
 		// The capture produced no HTML, so the orchestrator saves URL-only.
 		let store = TestSupport.loggedInStore()

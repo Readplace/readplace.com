@@ -28,6 +28,7 @@ import {
 	renderExtensionSuggestionBanner,
 } from "./shared/extension-suggestion-banner/extension-suggestion-banner.component";
 import { EXTENSION_SUGGESTION_BANNER_STYLES } from "./shared/extension-suggestion-banner/extension-suggestion-banner.styles";
+import { renderVerifyBanner } from "./shared/verify-banner/verify-banner.component";
 import { TOAST_STYLES } from "./shared/toast/toast.styles";
 
 function renderFooter(): string {
@@ -247,7 +248,7 @@ export function initBase(config: BaseConfig): RenderBase {
 			verifyBannerStyles: VERIFY_BANNER_STYLES,
 			trialCountdownStyles: TRIAL_COUNTDOWN_STYLES,
 			extensionSuggestionBannerStyles: EXTENSION_SUGGESTION_BANNER_STYLES,
-			showVerificationBanner: state.isAuthenticated && state.emailVerified === false,
+			verifyBanner: renderVerifyBanner(state),
 			extensionSuggestionBanner: renderExtensionSuggestionBanner({
 				show: state.showExtensionSuggestionBanner ?? false,
 				extensionInstalled: state.extensionInstalled ?? false,

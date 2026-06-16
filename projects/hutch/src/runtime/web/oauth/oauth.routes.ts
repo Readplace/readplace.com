@@ -129,7 +129,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 		oauthServer.authorize({
 			authenticateHandler: {
 				handle: (req: Request) => {
-					return { id: req.userId };
+					return { id: req.userId, emailVerified: req.emailVerified === true };
 				},
 			},
 		}),

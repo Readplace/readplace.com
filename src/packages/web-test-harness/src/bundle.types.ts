@@ -45,6 +45,7 @@ import type {
 	FindUserArticleNotificationState,
 	FindUserArticlesByUrl,
 	FindUserByEmail,
+	FindUserById,
 	ForceMarkCrawlPending,
 	ForceMarkSummaryPending,
 	GetSessionUserId,
@@ -122,6 +123,7 @@ export interface AuthBundle {
 	existsUserByIdPrefix: ExistsUserByIdPrefix;
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
+	findUserById: FindUserById;
 	deleteUser: (email: string) => Promise<void>;
 }
 

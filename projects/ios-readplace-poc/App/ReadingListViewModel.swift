@@ -8,6 +8,10 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var hasMore = false
 	@Published var errorText: String?
 	@Published var warningText: String?
+	/// Server-authored messages surfaced to the UI (e.g. a locked-account
+	/// refusal). The client renders them generically; it owns no per-feature
+	/// knowledge of what they mean.
+	@Published var messages: [ServerMessage] = []
 
 	private var nextHref: String?
 	private var isLoadingMore = false
@@ -33,6 +37,10 @@ final class ReadingListViewModel: ObservableObject {
 	private func fetchFirstPage() async {
 		isLoading = true
 		errorText = nil
+		// A locked account's reads still succeed, so a fresh load reconciles a
+		// stale refusal banner (e.g. after verifying elsewhere): clear it here,
+		// then re-surface it only if the next save is refused again.
+		messages = []
 		do {
 			let page = try await api.loadQueue()
 			apply(page, replacing: true)
@@ -74,6 +82,7 @@ final class ReadingListViewModel: ObservableObject {
 		guard !trimmed.isEmpty, let action = saveArticleAction else { return }
 		isSaving = true
 		errorText = nil
+		messages = []
 		do {
 			_ = try await api.saveArticle(action: action, url: trimmed)
 			await fetchFirstPage()
@@ -100,6 +109,8 @@ final class ReadingListViewModel: ObservableObject {
 		switch error {
 		case APIError.unauthorized, APIError.noToken:
 			onSessionExpired()
+		case let APIError.refused(messages):
+			self.messages = messages
 		default:
 			errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
 		}

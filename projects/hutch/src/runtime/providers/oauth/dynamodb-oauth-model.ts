@@ -14,8 +14,10 @@ import type {
 	User,
 } from "@node-oauth/oauth2-server";
 import type { UserId } from "@packages/domain/user";
+import { UserIdSchema } from "@packages/domain/user";
 import { getClient } from "@packages/test-fixtures/providers/oauth";
 import type { OAuthModel } from "@packages/provider-contracts/oauth";
+import type { FindUserById } from "@packages/provider-contracts/auth";
 import { generateToken } from "@packages/test-fixtures/providers/oauth";
 
 function toEpochSeconds(date: Date): number {
@@ -31,6 +33,7 @@ const AuthCodeRow = z.object({
 	codeChallenge: z.string(),
 	codeChallengeMethod: z.enum(["S256", "plain"]),
 	scope: z.array(z.string()).optional(),
+	emailVerified: z.boolean().optional(),
 });
 
 const TokenRow = z.object({
@@ -42,6 +45,7 @@ const TokenRow = z.object({
 	clientId: z.string(),
 	userId: z.string(),
 	scope: z.array(z.string()).optional(),
+	emailVerified: z.boolean().optional(),
 });
 
 const RefreshIndexRow = z.object({
@@ -64,8 +68,9 @@ function rebuildClient(clientId: string): Client | null {
 export function initDynamoDbOAuthModel(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
+	findUserById: FindUserById;
 }): OAuthModel {
-	const { client, tableName } = deps;
+	const { client, tableName, findUserById } = deps;
 	const authCodes = defineDynamoTable({ client, tableName, schema: AuthCodeRow });
 	const tokens = defineDynamoTable({ client, tableName, schema: TokenRow });
 	const refreshIndex = defineDynamoTable({ client, tableName, schema: RefreshIndexRow });
@@ -93,6 +98,7 @@ export function initDynamoDbOAuthModel(deps: {
 					codeChallengeMethod: code.codeChallengeMethod ?? "S256",
 					scope: code.scope,
 					expiresAt: toEpochSeconds(code.expiresAt),
+					emailVerified: user.emailVerified === true,
 				},
 			});
 
@@ -122,7 +128,7 @@ export function initDynamoDbOAuthModel(deps: {
 				codeChallenge: row.codeChallenge,
 				codeChallengeMethod: row.codeChallengeMethod,
 				client: oauthClient,
-				user: { id: row.userId },
+				user: { id: row.userId, emailVerified: row.emailVerified },
 			};
 		},
 
@@ -158,6 +164,7 @@ export function initDynamoDbOAuthModel(deps: {
 					refreshTokenExpiresAt: toEpochSeconds(refreshTokenExpiresAt),
 					scope: token.scope,
 					expiresAt: ttl,
+					emailVerified: user.emailVerified === true,
 				},
 			});
 
@@ -191,7 +198,7 @@ export function initDynamoDbOAuthModel(deps: {
 				refreshTokenExpiresAt: new Date(row.refreshTokenExpiresAt * 1000),
 				scope: row.scope,
 				client: oauthClient,
-				user: { id: row.userId },
+				user: { id: row.userId, emailVerified: row.emailVerified },
 			};
 		},
 
@@ -208,12 +215,25 @@ export function initDynamoDbOAuthModel(deps: {
 			const oauthClient = rebuildClient(row.clientId);
 			if (!oauthClient) return null;
 
+			// Re-resolve the standing on refresh so a token authorized while
+			// unverified catches up once the user verifies — without it the
+			// install-then-verify cohort would re-store emailVerified=false on every
+			// refresh and keep paying the userId-index read forever. Verification is
+			// monotonic, so an already-verified token needs no lookup.
+			let emailVerified = row.emailVerified === true;
+			if (!emailVerified) {
+				const user = await findUserById(UserIdSchema.parse(row.userId));
+				if (user) {
+					emailVerified = user.emailVerified === true;
+				}
+			}
+
 			return {
 				refreshToken: row.refreshToken,
 				refreshTokenExpiresAt,
 				scope: row.scope,
 				client: oauthClient,
-				user: { id: row.userId },
+				user: { id: row.userId, emailVerified },
 			};
 		},
 

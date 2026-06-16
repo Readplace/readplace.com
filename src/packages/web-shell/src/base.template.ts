@@ -96,9 +96,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
     <div class="offline-banner" role="alert" aria-live="polite" aria-hidden="true">
       You're offline. Some features may be unavailable.
     </div>
-    <div class="verify-banner {{#if showVerificationBanner}}verify-banner--visible{{else}}verify-banner--hidden{{/if}}" role="alert" data-test-verify-banner>
-      Please verify your email. Check your inbox or spam folder.
-    </div>
+    {{{verifyBanner}}}
     {{{extensionSuggestionBanner}}}
   </div>
   <script>

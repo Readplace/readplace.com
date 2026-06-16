@@ -11,6 +11,7 @@ import type {
 	DestroySession,
 	ExistsUserByIdPrefix,
 	FindEmailByUserId,
+	FindUserById,
 	FindUserByEmail,
 	FindUserContactByUserId,
 	GetSessionUserId,
@@ -55,6 +56,7 @@ export function initInMemoryAuth(opts: {
 	existsUserByIdPrefix: ExistsUserByIdPrefix;
 	findEmailByUserId: FindEmailByUserId;
 	findUserContactByUserId: FindUserContactByUserId;
+	findUserById: FindUserById;
 	deleteUser: (email: string) => Promise<void>;
 } {
 	const _hashPassword = opts.hashPassword;
@@ -209,6 +211,19 @@ export function initInMemoryAuth(opts: {
 		return null;
 	};
 
+	const findUserById: FindUserById = async (userId) => {
+		for (const user of users.values()) {
+			if (user.id === userId) {
+				return {
+					userId: user.id,
+					emailVerified: user.emailVerified,
+					registeredAt: user.registeredAt,
+				};
+			}
+		}
+		return null;
+	};
+
 	const updatePassword: UpdatePassword = async ({ email, password }) => {
 		const normalizedEmail = normalizeEmail(email);
 		const user = users.get(normalizedEmail);
@@ -237,6 +252,7 @@ export function initInMemoryAuth(opts: {
 		updatePassword,
 		findEmailByUserId,
 		findUserContactByUserId,
+		findUserById,
 		deleteUser,
 	};
 }

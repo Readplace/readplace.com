@@ -211,6 +211,83 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertEqual(body["url"] as? String, "https://example.com/x")
 	}
 
+	// MARK: - Account lockout
+
+	func testSaveArticleSurfacesRefusalMessages() async {
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { _, _ in .json(403, Fixtures.accountLockedError()) }
+		do {
+			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x")
+			XCTFail("Expected a message-only refusal")
+		} catch let APIError.refused(messages) {
+			XCTAssertEqual(messages.first?.type, "warning")
+			XCTAssertEqual(messages.first?.content.type, "text/html")
+			XCTAssertTrue(messages.first?.content.body.contains("readplace+verification@readplace.com") ?? false)
+		} catch {
+			XCTFail("Expected APIError.refused, got \(error)")
+		}
+	}
+
+	func testSaveHTMLSurfacesRefusalAndAttemptsNoFallbackSave() async {
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/queue/save-html":
+				return .json(403, Fixtures.accountLockedError())
+			default:
+				// A message-only refusal must never trigger a fallback save.
+				return .json(201, Fixtures.article(id: "should-not-happen"))
+			}
+		}
+		do {
+			_ = try await makeAPI(store: store).saveHTML(
+				action: saveHtmlAction(), url: "https://example.com/x", rawHtml: "<html></html>", title: nil
+			)
+			XCTFail("Expected a message-only refusal")
+		} catch let APIError.refused(messages) {
+			XCTAssertTrue(messages.first?.content.body.contains("readplace+verification@readplace.com") ?? false)
+		} catch {
+			XCTFail("Expected APIError.refused, got \(error)")
+		}
+		// The refusal carries no action, so no URL-only fallback save fires.
+		XCTAssertEqual(StubURLProtocol.records(path: "/queue").count, 0, "must not attempt a fallback save")
+	}
+
+	func testSaveIgnoresAMessageWhoseMediaTypeItCannotRender() async {
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { _, _ in
+			.json(403, Fixtures.messageRefusal([(type: "warning", mediaType: "text/markdown", body: "**locked**")]))
+		}
+		do {
+			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x")
+			XCTFail("Expected an error")
+		} catch let APIError.refused(messages) {
+			XCTFail("a media type the client can't render must be ignored, not surfaced: \(messages)")
+		} catch {
+			// A refusal left with no renderable message falls through to a generic
+			// server error rather than showing a blank banner — the message is ignored.
+		}
+	}
+
+	func testSaveKeepsOnlyRenderableMessagesInAMixedRefusal() async {
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { _, _ in
+			.json(403, Fixtures.messageRefusal([
+				(type: "warning", mediaType: "text/markdown", body: "skip me"),
+				(type: "warning", mediaType: "text/html", body: "show me"),
+			]))
+		}
+		do {
+			_ = try await makeAPI(store: store).saveArticle(action: saveArticleAction(), url: "https://example.com/x")
+			XCTFail("Expected a refusal")
+		} catch let APIError.refused(messages) {
+			XCTAssertEqual(messages.map(\.content.type), ["text/html"], "unknown media types are dropped, text/html kept")
+			XCTAssertEqual(messages.first?.content.body, "show me")
+		} catch {
+			XCTFail("Expected APIError.refused, got \(error)")
+		}
+	}
+
 	// MARK: - Deleting
 
 	func testDeleteReturnsRefreshedCollectionAndSendsPreferHeader() async throws {
