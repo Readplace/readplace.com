@@ -433,10 +433,14 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		 * again so they can install the extension here. */
 		const onboardingDismissed = extensionInstalled && req.cookies?.[DISMISS_COOKIE_NAME] === ONBOARDING_VERSION;
 		const browser = detectBrowser(req);
+		/** The founding-offer popup is a design prototype with placeholder scarcity
+		 * figures and no payment flow, so it renders only when explicitly previewed
+		 * — never for ordinary readers. */
+		const offerPreview = req.query["offer-preview"] === "1";
 		sendComponent(
 			req, res,
 			Base(
-				QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, extensionSavedArticle, browser, onboardingDismissed }),
+				QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, extensionSavedArticle, browser, onboardingDismissed, offerPreview }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);

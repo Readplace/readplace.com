@@ -169,13 +169,19 @@ const AUTO_SUBMIT_SCRIPT = `
 </script>
 `;
 
-export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; extensionInstalled?: boolean; extensionSavedArticle?: boolean; browser?: BrowserName; onboardingDismissed?: boolean; statusCode?: number }): PageBody {
+export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; extensionInstalled?: boolean; extensionSavedArticle?: boolean; browser?: BrowserName; onboardingDismissed?: boolean; offerPreview?: boolean; statusCode?: number }): PageBody {
 	const saveUrl = options?.saveUrl;
+	const offerPreview = options?.offerPreview ?? false;
 	const displayModel = toQueueDisplayModel(vm, { extensionInstalled: options?.extensionInstalled ?? false, extensionSavedArticle: options?.extensionSavedArticle ?? false, browser: options?.browser ?? "other", onboardingDismissed: options?.onboardingDismissed ?? false });
-	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl, offerPopupHtml: renderOfferPopup() });
+	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl, offerPopupHtml: offerPreview ? renderOfferPopup() : "" });
 
-	const scriptParts: string[] = [OFFER_POPUP_SCRIPT];
+	const scriptParts: string[] = [];
+	if (offerPreview) scriptParts.push(OFFER_POPUP_SCRIPT);
 	if (saveUrl) scriptParts.push(AUTO_SUBMIT_SCRIPT);
+
+	const styles = offerPreview
+		? `${QUEUE_STYLES}\n${ONBOARDING_STYLES}\n${OFFER_POPUP_STYLES}`
+		: `${QUEUE_STYLES}\n${ONBOARDING_STYLES}`;
 
 	return {
 		seo: {
@@ -184,7 +190,7 @@ export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; exte
 			canonicalUrl: "/queue",
 			robots: "noindex, nofollow",
 		},
-		styles: `${QUEUE_STYLES}\n${ONBOARDING_STYLES}\n${OFFER_POPUP_STYLES}`,
+		styles,
 		bodyClass: "page-queue",
 		content: { html: content },
 		scripts: scriptParts.join("\n"),

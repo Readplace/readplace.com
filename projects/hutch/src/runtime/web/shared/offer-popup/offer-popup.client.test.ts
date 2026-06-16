@@ -362,3 +362,101 @@ describe("initOfferPopup — storage failures", () => {
 		expect(popup(document).classList.contains(OPEN_CLASS)).toBe(false);
 	});
 });
+
+describe("initOfferPopup — focus management", () => {
+	function openPreview() {
+		const { window, document } = createDom("?offer-preview=1");
+		initOfferPopup({
+			document,
+			storage: window.localStorage,
+			location: { search: "?offer-preview=1" },
+			now: () => 0,
+			...createTimers(),
+		}).attach();
+		return { window, document };
+	}
+
+	function control(doc: Document, testAttr: string): HTMLElement {
+		const el = doc.querySelector<HTMLElement>(`[${testAttr}]`);
+		assert(el, `element [${testAttr}] must exist in fixture`);
+		return el;
+	}
+
+	it("moves focus to the first control when the dialog opens", () => {
+		const { document } = openPreview();
+		assert.equal(document.activeElement, control(document, "data-test-offer-close"));
+	});
+
+	it("moves focus into each step as the stage changes", () => {
+		const { document } = openPreview();
+		click(document, "data-test-offer-close");
+		assert.equal(document.activeElement, control(document, "data-test-offer-keep"));
+	});
+
+	it("wraps Tab from the last control back to the first", () => {
+		const { document } = openPreview();
+		const cta = control(document, "data-test-offer-cta");
+		cta.focus();
+		const notPrevented = fireEvent.keyDown(cta, { key: "Tab" });
+		assert.equal(document.activeElement, control(document, "data-test-offer-close"));
+		assert.equal(notPrevented, false);
+	});
+
+	it("wraps Shift+Tab from the first control to the last", () => {
+		const { document } = openPreview();
+		const close = control(document, "data-test-offer-close");
+		close.focus();
+		const notPrevented = fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
+		assert.equal(document.activeElement, control(document, "data-test-offer-cta"));
+		assert.equal(notPrevented, false);
+	});
+
+	it("lets Tab fall through when focus is not on the last control", () => {
+		const { document } = openPreview();
+		const close = control(document, "data-test-offer-close");
+		close.focus();
+		const notPrevented = fireEvent.keyDown(close, { key: "Tab" });
+		assert.equal(document.activeElement, close);
+		assert.equal(notPrevented, true);
+	});
+
+	it("lets Shift+Tab fall through when focus is not on the first control", () => {
+		const { document } = openPreview();
+		const cta = control(document, "data-test-offer-cta");
+		cta.focus();
+		const notPrevented = fireEvent.keyDown(cta, { key: "Tab", shiftKey: true });
+		assert.equal(document.activeElement, cta);
+		assert.equal(notPrevented, true);
+	});
+
+	it("ignores keys other than Tab", () => {
+		const { document } = openPreview();
+		const close = control(document, "data-test-offer-close");
+		close.focus();
+		fireEvent.keyDown(close, { key: "Enter" });
+		assert.equal(document.activeElement, close);
+	});
+
+	it("restores focus to the previously focused control when dismissed", () => {
+		const { window, document } = createDom("?offer-preview=1");
+		const opener = document.createElement("button");
+		document.body.appendChild(opener);
+		opener.focus();
+
+		initOfferPopup({
+			document,
+			storage: window.localStorage,
+			location: { search: "?offer-preview=1" },
+			now: () => 0,
+			...createTimers(),
+		}).attach();
+
+		assert.notEqual(document.activeElement, opener);
+
+		click(document, "data-test-offer-close");
+		click(document, "data-test-offer-confirm");
+		click(document, "data-test-offer-dismiss");
+
+		assert.equal(document.activeElement, opener);
+	});
+});
