@@ -236,12 +236,10 @@ export function createOAuthModel(
 			// refresh and keep paying the userId-index read forever. Verification is
 			// monotonic, so an already-verified token needs no lookup.
 			let emailVerified = stored.emailVerified === true;
-			if (!emailVerified) {
-				if (findUserById) {
-					const user = await findUserById(stored.userId);
-					if (user) {
-						emailVerified = user.emailVerified === true;
-					}
+			if (!emailVerified && findUserById) {
+				const user = await findUserById(stored.userId);
+				if (user) {
+					emailVerified = user.emailVerified === true;
 				}
 			}
 
