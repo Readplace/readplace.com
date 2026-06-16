@@ -120,7 +120,6 @@ import type { ValidateSaveableUrl } from "@packages/domain/article";
 import { initViewRoutes } from "./web/pages/view/view.page";
 import type { ExpiryCountdown } from "./web/pages/view/view-expiry";
 import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
-import { initEmbedRoutes } from "./web/pages/embed/embed.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initAccountRoutes } from "./web/pages/account/account.page";
 import { initAgentSkills } from "./web/agent-skills/agent-skills";
@@ -588,8 +587,6 @@ export function createApp(dependencies: AppDependencies): Express {
 	}
 
 	app.use(initInstallRoutes({ buildBannerState }));
-
-	app.use("/embed", initEmbedRoutes({ appOrigin }));
 
 	const authRouter = initAuthRoutes({
 		hashPassword: deps.hashPassword,
