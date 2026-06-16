@@ -172,6 +172,17 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// `.html` form 302-loops through `/oauth2authorize` for anonymous fetchers,
 	// while the slashless `…/WebView` is the canonical page.
 	/^https:\/\/developer\.android\.com\/reference\/android\/webkit\/WebView\.html$/i,
+	// Operator-curated excludes drained from the issue #573 worklist — each is a
+	// known-broken save the operator will not re-investigate.
+	//
+	// npmjs.com package-registry page — a package listing, not the readable
+	// article content the product renders; the crawl exhausts retries and there
+	// is nothing worth re-saving behind it.
+	/^https:\/\/npmjs\.com\/package\/jquery$/i,
+	// itnext.io is a Medium-hosted publication; Medium bot-walls datacenter
+	// egress (the same residential-egress requirement as the medium.com and
+	// edge-firewall entries above), so the AWS crawler exhausts retries.
+	/^https:\/\/itnext\.io\/youre-not-praised-for-the-bugs-you-didn-t-create-ef3df6894d5c$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

@@ -489,6 +489,27 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			excluded: false,
 			label: "android canonical no-.html reference — must NOT be hidden",
 		},
+		// Operator-curated excludes from issue #573.
+		{
+			url: "https://npmjs.com/package/jquery",
+			excluded: true,
+			label: "npmjs package-registry page (not article content)",
+		},
+		{
+			url: "https://npmjs.com/package/react",
+			excluded: false,
+			label: "different npm package page — must NOT be hidden",
+		},
+		{
+			url: "https://itnext.io/youre-not-praised-for-the-bugs-you-didn-t-create-ef3df6894d5c",
+			excluded: true,
+			label: "itnext.io Medium-hosted article (datacenter bot-wall)",
+		},
+		{
+			url: "https://itnext.io/some-other-article-0123456789ab",
+			excluded: false,
+			label: "different itnext article — must NOT be hidden",
+		},
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
