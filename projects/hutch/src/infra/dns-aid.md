@@ -22,7 +22,7 @@ _index._agents.<domain>.  3600  IN  SVCB  1 <domain> alpn="h2,http/1.1" port=443
   example label — the app answers over HTTPS, not Agent2Agent JSON-RPC, so an
   `_a2a` target would never connect.
 - **`alpn="h2,http/1.1"`** names both protocols the origin serves. A generic
-  SVCB record has no implicit ALPN default — RFC 9460 §9.5's `http/1.1` default
+  SVCB record has no implicit ALPN default — RFC 9460 §9's `http/1.1` default
   applies only to the HTTPS RR, not the SVCB RR this `_agents` scheme uses — so
   each protocol must be listed explicitly or, per §7.1.2, clients are told not
   to use it. `h3` is omitted because the API Gateway custom domains fronting the

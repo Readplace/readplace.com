@@ -22,7 +22,7 @@ export interface DnsAidRecord {
  * not the draft's `_a2a` example — because Readplace answers over HTTPS, not an
  * Agent2Agent JSON-RPC channel, so an `_a2a` target would never connect. `alpn`
  * names both `h2` and `http/1.1` explicitly: a generic SVCB record carries no
- * implicit ALPN default (RFC 9460 §9.5's `http/1.1` default is specific to the
+ * implicit ALPN default (RFC 9460 §9's `http/1.1` default is specific to the
  * HTTPS RR, not the SVCB RR this `_agents` scheme uses), so per §7.1.2 a
  * protocol the origin serves but does not advertise is one clients are told not
  * to use. The API Gateway custom domains fronting the apexes serve both, and
