@@ -1,0 +1,44 @@
+<div class="offer-popup" data-offer-popup data-offer-stage="offer" data-test-offer-popup role="dialog" aria-modal="true" aria-labelledby="offer-popup-headline">
+	<div class="offer-popup__backdrop"></div>
+	<div class="offer-popup__panel" role="document">
+		<section class="offer-popup__view offer-popup__view--offer" data-test-offer-view="offer">
+			<button type="button" class="offer-popup__close" data-offer-action="close" data-test-offer-close aria-label="Close this offer">
+				<span aria-hidden="true">&times;</span>
+			</button>
+			<p class="offer-popup__badge" data-test-offer-badge>Founding offer — {{remainingSlots}} of {{totalSlots}} spots left</p>
+			<h2 class="offer-popup__headline" id="offer-popup-headline">Own Readplace for good</h2>
+			<p class="offer-popup__subhead">One payment. No subscription, ever. Permanent access to everything you save.</p>
+			<p class="offer-popup__price" data-test-offer-price>
+				<span class="offer-popup__price-amount">A${{priceAud}}</span>
+				<span class="offer-popup__price-once">once</span>
+				<span class="offer-popup__price-anchor" data-test-offer-anchor>A${{anchorPriceAud}}/year</span>
+			</p>
+			<div class="offer-popup__scarcity" data-test-offer-scarcity>
+				<div class="offer-popup__scarcity-track">
+					<div class="offer-popup__scarcity-fill" style="width: {{claimedPercent}}%"></div>
+				</div>
+				<p class="offer-popup__scarcity-label"><strong data-test-offer-claimed>{{claimedSlots}} / {{totalSlots}}</strong> claimed — only <strong class="offer-popup__scarcity-remaining" data-test-offer-remaining>{{remainingSlots}}</strong> left</p>
+			</div>
+			<p class="offer-popup__countdown" data-test-offer-countdown-line>Offer closes in <strong class="offer-popup__countdown-clock" data-offer-countdown data-test-offer-countdown>{{countdownInitial}}</strong></p>
+			<p class="offer-popup__social" data-test-offer-social>{{viewersCount}} readers are looking at this offer right now</p>
+			<a class="offer-popup__cta" href="{{ctaHref}}" data-test-offer-cta>Lock in permanent access — A${{priceAud}}</a>
+			<p class="offer-popup__fine">No subscription. No auto-renewal. Yours to keep.</p>
+		</section>
+		<section class="offer-popup__view offer-popup__view--confirm-first" data-test-offer-view="confirm-first">
+			<h2 class="offer-popup__confirm-title">This offer won't come back</h2>
+			<p class="offer-popup__confirm-body">Close this and the A${{priceAud}} founding price disappears from this device for good. You'd pay the regular price later.</p>
+			<div class="offer-popup__confirm-actions">
+				<button type="button" class="offer-popup__btn offer-popup__btn--keep" data-offer-action="keep" data-test-offer-keep>Keep my spot</button>
+				<button type="button" class="offer-popup__btn offer-popup__btn--ghost" data-offer-action="confirm" data-test-offer-confirm>Close anyway</button>
+			</div>
+		</section>
+		<section class="offer-popup__view offer-popup__view--confirm-second" data-test-offer-view="confirm-second">
+			<h2 class="offer-popup__confirm-title">Last chance to lock in A${{priceAud}}</h2>
+			<p class="offer-popup__confirm-body">Permanent access for one payment — only {{remainingSlots}} of {{totalSlots}} spots remain. Close now and this founding offer is gone from this device.</p>
+			<div class="offer-popup__confirm-actions">
+				<button type="button" class="offer-popup__btn offer-popup__btn--keep" data-offer-action="keep" data-test-offer-keep-2>Keep my founding price</button>
+				<button type="button" class="offer-popup__btn offer-popup__btn--ghost" data-offer-action="dismiss" data-test-offer-dismiss>Close and lose it</button>
+			</div>
+		</section>
+	</div>
+</div>
