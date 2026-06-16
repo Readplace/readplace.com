@@ -1,0 +1,34 @@
+{
+  "name": "web-embed",
+  "version": "1.0.0",
+  "description": "Standalone embed kit pages (/embed, /embed/preview) — save-button snippets for publishers",
+  "private": true,
+  "scripts": {
+    "compile": "rm -rf dist && tsc && node scripts/copy-static-assets.js",
+    "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
+    "test-with-coverage": "c8 node scripts/run-tests-with-coverage.js && node enforce-coverage.config.js",
+    "test:e2e": "pnpm compile && E2E_PORT=3700 playwright test --config playwright.config.local-dev.ts",
+    "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\"",
+    "check": "nx run web-embed:check"
+  },
+  "dependencies": {
+    "@packages/web-shell": "workspace:*",
+    "express": "5.2.1",
+    "helmet": "8.2.0"
+  },
+  "devDependencies": {
+    "@packages/test-phase-runner": "workspace:*",
+    "@playwright/test": "1.60.0",
+    "@types/express": "5.0.6",
+    "@types/jest": "30.0.0",
+    "@types/jsdom": "21.1.7",
+    "@types/node": "22.19.19",
+    "@types/supertest": "7.2.0",
+    "c8": "11.0.0",
+    "concurrently": "10.0.0",
+    "jest": "30.4.2",
+    "jsdom": "26.1.0",
+    "supertest": "7.2.2",
+    "typescript": "6.0.3"
+  }
+}

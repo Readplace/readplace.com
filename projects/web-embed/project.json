@@ -1,0 +1,9 @@
+{
+  "name": "web-embed",
+  "targets": {
+    "check": {
+      "command": "pnpm lint && pnpm test-with-coverage",
+      "options": { "cwd": "{projectRoot}" }
+    }
+  }
+}
