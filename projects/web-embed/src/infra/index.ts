@@ -14,7 +14,7 @@ import {
  * so embed code changes never invalidate hutch's check or e2e cache.
  */
 const config = new pulumi.Config();
-const stage = config.require("stage");
+const nodeEnv = config.require("nodeEnv");
 const hutchStackName = config.require("hutchStack");
 
 const hutchStack = new pulumi.StackReference(hutchStackName);
@@ -24,13 +24,13 @@ const hutchApiUrl = hutchStack.requireOutput("apiUrl");
 const appOrigin = hutchStack.requireOutput("appOrigin");
 
 const lambda = new HutchLambda("web-embed", {
-	entryPoint: "./src/lambda.main.ts",
+	entryPoint: "./src/runtime/lambda.main.ts",
 	outputDir: ".lib/web-embed",
-	assetDir: "./src/embed",
+	assetDir: "./src/runtime/embed",
 	memorySize: 256,
 	timeout: 10,
 	environment: {
-		NODE_ENV: stage === "production" ? "production" : "development",
+		NODE_ENV: nodeEnv,
 		APP_ORIGIN: appOrigin,
 	},
 	policies: [],

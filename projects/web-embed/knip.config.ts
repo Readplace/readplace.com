@@ -10,7 +10,7 @@ export default {
 	entry: [
 		// Standalone composition root booted by the playwright webServer and the
 		// (future) production deployment — knip can't follow those references.
-		"src/*.main.ts",
+		"src/runtime/*.main.ts",
 	],
 	ignore: [...(baseConfig.ignore || [])],
 	ignoreDependencies: [

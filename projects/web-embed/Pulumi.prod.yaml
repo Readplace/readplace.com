@@ -2,5 +2,5 @@ config:
   aws:region: ap-southeast-2
   aws:allowedAccountIds:
     - '278728209435'
-  web-embed:stage: production
+  web-embed:nodeEnv: production
   web-embed:hutchStack: organization/hutch/prod
