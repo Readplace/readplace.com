@@ -9,6 +9,7 @@ export type {
 export type {
 	SaveUrlResult,
 	SaveWarning,
+	Message,
 	RemoveUrlResult,
 } from "./reading-list/reading-list.types";
 export type {
@@ -48,6 +49,8 @@ export { filterByUrl } from "./popup/filter-by-url";
 export { paginateItems } from "./popup/paginate-items";
 export { avatarColor } from "./popup/avatar-color";
 export { relativeTime } from "./popup/relative-time";
+export { buildMessageView } from "./popup/message-view";
+export type { MessageView } from "./popup/message-view";
 export { isAppUrl } from "./popup/is-app-url";
 export { initSaveProgress } from "./popup/save-progress";
 export type { SavePhase, SaveProgress } from "./popup/save-progress";

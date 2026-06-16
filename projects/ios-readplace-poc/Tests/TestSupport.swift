@@ -140,4 +140,27 @@ enum Fixtures {
 		{ "class": ["error"], "properties": { "code": "\(code)", "message": "\(message)" }\(actions) }
 		"""
 	}
+
+	/// The refusal the server returns on a write it won't allow (e.g. a locked
+	/// account): server-authored messages for the client to render, and
+	/// deliberately no code and no action. Single-quoted HTML keeps the fixture
+	/// valid JSON.
+	static func accountLockedError(
+		message: String = "Your account is locked because your email was never verified. Email <a href='mailto:readplace+verification@readplace.com'>readplace+verification@readplace.com</a> to restore access."
+	) -> String {
+		"""
+		{ "class": ["error"], "properties": { "messages": [{ "type": "warning", "content": { "type": "text/html", "body": "\(message)" } }] } }
+		"""
+	}
+
+	/// A message-only refusal carrying arbitrary messages — lets a test model a
+	/// media type the client doesn't understand. Each tuple is (type, mediaType, body).
+	static func messageRefusal(_ messages: [(type: String, mediaType: String, body: String)]) -> String {
+		let items = messages.map { m in
+			"{ \"type\": \"\(m.type)\", \"content\": { \"type\": \"\(m.mediaType)\", \"body\": \"\(m.body)\" } }"
+		}.joined(separator: ", ")
+		return """
+		{ "class": ["error"], "properties": { "messages": [\(items)] } }
+		"""
+	}
 }

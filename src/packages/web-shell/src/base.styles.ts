@@ -538,6 +538,20 @@ export const VERIFY_BANNER_STYLES = `
 
   .verify-banner--visible { display: block; }
   .verify-banner--hidden { display: none; }
+
+  .verify-banner--locked {
+    background: var(--color-error);
+    color: var(--error-foreground);
+    font-weight: 600;
+  }
+
+  .verify-banner__count { font-weight: 700; }
+
+  .verify-banner__contact {
+    color: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+  }
 `;
 
 export const BANNER_AREA_STYLES = `

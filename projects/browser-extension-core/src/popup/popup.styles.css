@@ -615,6 +615,43 @@ body {
   color: var(--popup-text);
 }
 
+/* --- Server-driven messages (generic; feature-agnostic) --- */
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 12px;
+}
+
+.messages[hidden] {
+  display: none;
+}
+
+/* purgecss-ignore-start: .messages__item variants are applied dynamically in popup.browser.ts as the server's messages render */
+.messages__item {
+  padding: 8px 12px;
+  font-size: 13px;
+  border-left: 3px solid var(--popup-warning);
+  background: color-mix(in srgb, var(--popup-warning) 12%, transparent);
+  color: var(--popup-text);
+}
+
+.messages__item--warning {
+  border-left-color: var(--popup-warning);
+  background: color-mix(in srgb, var(--popup-warning) 12%, transparent);
+}
+
+.messages__item--error {
+  border-left-color: var(--popup-error);
+  background: color-mix(in srgb, var(--popup-error) 12%, transparent);
+}
+
+.messages__item a {
+  color: var(--popup-brand);
+}
+/* purgecss-ignore-end */
+
 .login__error {
   color: var(--popup-error);
   font-size: 13px;

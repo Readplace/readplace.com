@@ -68,6 +68,7 @@
     "cookie-parser": "1.4.7",
     "cors": "2.8.6",
     "express": "5.2.1",
+    "gray-matter": "4.0.3",
     "handlebars": "4.7.9",
     "helmet": "8.2.0",
     "isbot": "5.1.40",
@@ -103,6 +104,6 @@
     "livereload": "0.10.3",
     "supertest": "7.2.2",
     "tsx": "4.22.3",
-    "typescript": "5.9.3"
+    "typescript": "6.0.3"
   }
 }

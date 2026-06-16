@@ -14,6 +14,7 @@ import type {
 	CreateUserWithPasswordHash,
 	DestroySession,
 	FindEmailByUserId,
+	FindUserById,
 	FindUserByEmail,
 	GetSessionUserId,
 	MarkEmailVerified,
@@ -122,6 +123,7 @@ import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
 import { initEmbedRoutes } from "./web/pages/embed/embed.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initAccountRoutes } from "./web/pages/account/account.page";
+import { initAgentSkills } from "./web/agent-skills/agent-skills";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
@@ -143,6 +145,8 @@ import { initInstallRoutes } from "./web/pages/install";
 import { NotFoundPage } from "./web/pages/not-found";
 import { initGetEffectiveAccess } from "./domain/access/effective-access";
 import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
+import { initResolveVerificationStatus } from "./web/middleware/resolve-verification-status.middleware";
+import { requireNotLocked } from "./web/middleware/require-not-locked.middleware";
 import { requireEnv, getEnv } from "./domain/require-env";
 import "./web/session.types";
 
@@ -166,6 +170,7 @@ interface AppDependencies {
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
+	findUserById: FindUserById;
 	googleAuth?: {
 		exchangeGoogleCode: ExchangeGoogleCode;
 		clientId: string;
@@ -272,6 +277,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		next();
 	});
 
+	const agentSkills = initAgentSkills();
+
 	const secureCookies = isHttpsOrigin(appOrigin);
 
 	app.use(express.urlencoded({ extended: true }));
@@ -304,6 +311,13 @@ export function createApp(dependencies: AppDependencies): Express {
 		}
 		next();
 	});
+
+	const resolveVerificationStatus = initResolveVerificationStatus({
+		findUserById: deps.findUserById,
+		markSessionEmailVerified: deps.markSessionEmailVerified,
+		now: deps.now,
+	});
+	app.use(resolveVerificationStatus);
 
 	const markExtensionInstalled = initMarkExtensionInstalled();
 	app.use(markExtensionInstalled);
@@ -455,6 +469,16 @@ export function createApp(dependencies: AppDependencies): Express {
 				),
 			);
 	});
+
+	app.get("/.well-known/agent-skills/index.json", (_req: Request, res: Response) => {
+		res.json(agentSkills.buildIndex());
+	});
+
+	for (const skill of agentSkills.getAll()) {
+		app.get(`/.well-known/agent-skills/${skill.name}/SKILL.md`, (_req: Request, res: Response) => {
+			res.type("text/markdown; charset=utf-8").send(skill.content);
+		});
+	}
 
 	const extensionCors = cors({
 		origin: (origin, callback) => {
@@ -678,6 +702,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		readArticleContent: deps.readArticleContent,
 		httpErrorMessageMapping: deps.httpErrorMessageMapping,
 		dualAuth: dualAuthMiddleware,
+		resolveVerificationStatus,
 		requireWriteAccess,
 		getEffectiveAccess,
 		buildBannerState,
@@ -712,7 +737,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 		buildBannerState,
 	});
-	app.use("/import", requireAuth, requireWriteAccess, importRouter);
+	app.use("/import", requireAuth, requireNotLocked, requireWriteAccess, importRouter);
 
 	const saveRouter = initSaveRoutes({ buildBannerState, analytics: deps.analytics, salt: deps.salt, now: deps.now });
 	app.use("/save", saveRouter);

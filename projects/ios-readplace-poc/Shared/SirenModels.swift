@@ -74,10 +74,114 @@ struct SirenCollection: Decodable {
 	let actions: [SirenAction]?
 }
 
-/// The properties block on a Siren error body.
+/// A server-authored message a client renders generically — it carries no
+/// feature-specific code or action. `type` selects presentation (mapped to
+/// `kind`); `content` is a small HTML fragment. Mirrors the browser extension's
+/// `Message` and the server's `SirenMessage` — a stable contract shared across
+/// the clients.
+struct ServerMessage: Decodable, Equatable {
+	struct Content: Decodable, Equatable {
+		let type: String
+		let body: String
+	}
+	let type: String
+	let content: Content
+}
+
+extension ServerMessage {
+	/// How a client should present a message. The wire `type` stays a `String` so
+	/// an unknown future value still decodes; `kind` maps it for the UI and treats
+	/// any unrecognized value as `.warning` (the neutral default) — mirroring the
+	/// server's current `"warning" | "error"` union without hard-failing on a value
+	/// a newer server might add.
+	enum Kind {
+		case warning
+		case error
+	}
+
+	/// The presentation bucket for this message, derived from the wire `type`.
+	var kind: Kind {
+		switch type {
+		case "error": return .error
+		default: return .warning
+		}
+	}
+
+	/// The one content media type the clients know how to render. A message with
+	/// any other `content.type` is ignored — never shown — so the server can adopt
+	/// a richer media type without older clients mis-rendering an unknown body.
+	static let renderableMediaType = "text/html"
+
+	/// Whether this client can render the message. `false` for a media type the
+	/// client doesn't understand, in which case the message is dropped rather than
+	/// surfaced as text (see `ReadplaceAPI.refusalError`).
+	var isRenderable: Bool { content.type == Self.renderableMediaType }
+
+	/// The message body as plain text. `content` is a small server-authored HTML
+	/// fragment (`text/html` — the only media type surfaced; see `isRenderable`);
+	/// iOS shows it as text — the visible text still names any address to email.
+	/// Stripping the markup here keeps the HTML text importer (and its memory
+	/// cost) out of the share extension.
+	var plainText: String {
+		Self.decodingHTMLEntities(
+			content.body.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+		).trimmingCharacters(in: .whitespacesAndNewlines)
+	}
+
+	/// The named character references the server's escaped messages use. Numeric
+	/// references (`&#39;`, `&#x27;`) are resolved separately in `decodeReference`.
+	private static let namedReferences: [Substring: Character] = [
+		"amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'",
+	]
+
+	/// Decodes HTML character references in a single left-to-right pass, so a
+	/// correctly-escaped `&amp;lt;` resolves once to the text `&lt;` rather than
+	/// twice to `<`. A chained `replacingOccurrences` would decode `&amp;` first
+	/// and then re-interpret the `&lt;` it just produced. A bare `&`, an
+	/// unterminated reference, or an unknown name is left verbatim.
+	private static func decodingHTMLEntities(_ input: String) -> String {
+		guard input.contains("&") else { return input }
+		var output = ""
+		output.reserveCapacity(input.count)
+		var cursor = input.startIndex
+		while cursor < input.endIndex {
+			let character = input[cursor]
+			guard character == "&",
+				let semicolon = input[cursor...].firstIndex(of: ";"),
+				let decoded = decodeReference(input[input.index(after: cursor)..<semicolon])
+			else {
+				output.append(character)
+				cursor = input.index(after: cursor)
+				continue
+			}
+			output.append(decoded)
+			cursor = input.index(after: semicolon)
+		}
+		return output
+	}
+
+	/// Resolves the inside of a single `&…;` reference — a known name (`amp`) or a
+	/// `#`-prefixed decimal/hex code point — or nil when it is neither.
+	private static func decodeReference(_ body: Substring) -> Character? {
+		if let named = namedReferences[body] { return named }
+		guard body.first == "#" else { return nil }
+		let digits = body.dropFirst()
+		let isHex = digits.first == "x" || digits.first == "X"
+		guard let value = UInt32(isHex ? digits.dropFirst() : digits, radix: isHex ? 16 : 10),
+			let scalar = Unicode.Scalar(value)
+		else { return nil }
+		return Character(scalar)
+	}
+}
+
+/// The properties block on a Siren error body. A `code` + `message` describes a
+/// conventional error; `messages` carries server-authored content the client
+/// renders generically (e.g. a locked-account refusal). All optional so either
+/// shape decodes and an evolving field never fails the whole decode.
 struct SirenErrorProperties: Decodable {
-	let code: String
-	let message: String
+	let code: String?
+	let message: String?
+	let messages: [ServerMessage]?
 }
 
 /// A Siren error response. May carry a fallback `action` (e.g. the URL-only

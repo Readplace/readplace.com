@@ -10,6 +10,8 @@ export type {
 	FindEmailByUserId,
 	FindUserByEmail,
 	FindUserByEmailResult,
+	FindUserById,
+	FindUserByIdResult,
 	FindUserContactByUserId,
 	GetSessionUserId,
 	MarkEmailVerified,

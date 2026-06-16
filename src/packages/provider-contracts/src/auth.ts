@@ -50,6 +50,12 @@ export type FindUserByEmailResult =
 
 export type FindUserByEmail = (email: string) => Promise<FindUserByEmailResult>;
 
+export type FindUserByIdResult =
+	| { userId: UserId; emailVerified: boolean; registeredAt?: string }
+	| null;
+
+export type FindUserById = (userId: UserId) => Promise<FindUserByIdResult>;
+
 export type FindEmailByUserId = (userId: UserId) => Promise<string | null>;
 
 export type UserContact = { email: string; emailVerified: boolean };

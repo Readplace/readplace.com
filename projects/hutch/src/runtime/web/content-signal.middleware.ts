@@ -14,12 +14,18 @@ const NON_PAGE_PREFIXES = [
 	"/.well-known/oauth-protected-resource",
 ];
 
+const AGENT_SKILLS_NAMESPACE = "/.well-known/agent-skills/";
+
+function isNonPage(path: string): boolean {
+	return NON_PAGE_PREFIXES.some(p => path === p) || path.startsWith(AGENT_SKILLS_NAMESPACE);
+}
+
 export function contentSignalMiddleware(
 	req: Request,
 	res: Response,
 	next: NextFunction,
 ): void {
-	if (req.method === "GET" && !NON_PAGE_PREFIXES.some(p => req.path === p)) {
+	if (req.method === "GET" && !isNonPage(req.path)) {
 		res.set("Content-Signal", CONTENT_SIGNAL_VALUE);
 		res.vary("Accept");
 	}

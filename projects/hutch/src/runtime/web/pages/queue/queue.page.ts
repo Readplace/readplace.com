@@ -57,6 +57,7 @@ import { saveArticleFromUrl } from "../../shared/save-article/save-article-from-
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "@packages/web-shell";
+import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
 import { RedirectComponent } from "../../redirect.component";
 import { CacheableComponent } from "../../conditional-get";
 import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
@@ -162,6 +163,10 @@ interface QueueDependencies {
 	 * `GET /:id/read` permalink. Owned by the composition root so the same
 	 * middleware applies to all other authenticated mounts. */
 	dualAuth: RequestHandler;
+	/** Re-resolves the verification/lock standing after `dualAuth` so bearer
+	 * (extension/iOS) requests — which carry no session cookie and so are
+	 * invisible to the global resolve step — are locked too. */
+	resolveVerificationStatus: RequestHandler;
 	/** 402-gates the save endpoints when a user's subscription is inactive
 	 * (cancelled or trial-expired). Mounted only on save routes — list, view,
 	 * mark-as-read, and delete remain reachable for read-only users. */
@@ -307,6 +312,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	});
 
 	router.use(deps.dualAuth);
+	router.use(deps.resolveVerificationStatus);
 
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
@@ -390,7 +396,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		res.redirect(303, "/queue");
 	});
 
-	router.post("/", deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
+	router.post("/", requireNotLocked, deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
 		if (!wantsSiren(req)) {
 			res.status(406).send("Not Acceptable");
 			return;
@@ -473,7 +479,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		next(err);
 	};
 
-	router.post("/save-html", deps.requireWriteAccess, express.json({ limit: MAX_RAW_HTML_REQUEST_BYTES }), saveHtmlLimitHandler, async (req: Request, res: Response) => {
+	router.post("/save-html", requireNotLocked, deps.requireWriteAccess, express.json({ limit: MAX_RAW_HTML_REQUEST_BYTES }), saveHtmlLimitHandler, async (req: Request, res: Response) => {
 		if (!wantsSiren(req)) {
 			res.status(406).send("Not Acceptable");
 			return;
@@ -575,6 +581,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 	router.post(
 		"/save-content",
+		requireNotLocked,
 		deps.requireWriteAccess,
 		contentUpload.rawBodyParser,
 		saveContentLimitHandler,
@@ -692,7 +699,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		},
 	);
 
-	router.post("/save", deps.requireWriteAccess, async (req: Request, res: Response) => {
+	router.post("/save", requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";

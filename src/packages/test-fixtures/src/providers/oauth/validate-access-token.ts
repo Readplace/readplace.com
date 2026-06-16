@@ -7,6 +7,9 @@ export function createValidateAccessToken(model: OAuthModel): ValidateAccessToke
 	return async (accessToken) => {
 		const token = await model.getAccessToken(accessToken);
 		if (!token) return null;
-		return UserIdSchema.parse(token.user.id);
+		return {
+			userId: UserIdSchema.parse(token.user.id),
+			emailVerified: token.user.emailVerified === true,
+		};
 	};
 }

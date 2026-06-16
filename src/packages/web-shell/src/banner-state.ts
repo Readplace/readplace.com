@@ -8,9 +8,23 @@ import type { TrialDisplay } from "./trial-countdown.format";
  * assigns to it without a cast. */
 type UserId = string & { readonly __brand: "UserId" };
 
+/** Presentational standing of an *unverified* account, mirroring TrialDisplay:
+ * the consuming site computes it from its own domain and hands it to the shell,
+ * which only renders copy. Inlined (rather than imported from the domain) so the
+ * shell stays dependency-free — any structurally identical status from elsewhere
+ * assigns without a cast. Verified users and guests carry none; `pending` is the
+ * legacy fallback (no anchor, so no countdown and no lockout). File-private: the
+ * shell consumes it only through BannerStateSource/BannerState, and callers pass
+ * a structurally identical value rather than importing this name. */
+type VerificationStatus =
+	| { state: "pending" }
+	| { state: "counting-down"; daysLeft: number }
+	| { state: "locked" };
+
 export interface BannerStateSource {
 	userId?: UserId;
 	emailVerified?: boolean;
+	verificationStatus?: VerificationStatus;
 }
 
 export type NavItemKey =
@@ -93,6 +107,10 @@ export interface NavGroup {
 export interface BannerState {
 	isAuthenticated: boolean;
 	emailVerified: boolean | undefined;
+	/** Verification standing of an unverified account. Undefined for verified
+	 * users and guests; the verify banner reads it to switch between the
+	 * countdown copy and the locked-out contact-support copy. */
+	verification?: VerificationStatus;
 	/** When true, the SSR markup carries data-show-extension-suggestion="true"
 	 * so the banner client can reveal the dismissible extension-suggestion banner
 	 * (subject to its own localStorage dismissal). Defaults to false; the queue
@@ -160,5 +178,6 @@ export function bannerStateFromRequest(source: BannerStateSource): BannerState {
 	return {
 		isAuthenticated: Boolean(source.userId),
 		emailVerified: source.emailVerified,
+		verification: source.verificationStatus,
 	};
 }

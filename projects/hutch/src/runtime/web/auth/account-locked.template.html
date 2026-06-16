@@ -1,0 +1,9 @@
+    <main class="auth-page">
+      <div class="auth-card">
+        <h1 class="auth-card__title">Your account is locked</h1>
+        <p class="auth-card__subtitle">Your email was never verified within 7 days of signing up, so your account is locked. Email <a class="auth-card__link" href="mailto:{{contactEmail}}">{{contactEmail}}</a> and we'll restore your access.</p>
+        <form method="POST" action="/logout">
+          <button class="auth-form__submit" type="submit">Sign out</button>
+        </form>
+      </div>
+    </main>

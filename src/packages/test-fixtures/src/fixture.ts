@@ -271,7 +271,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const { publishSubscriptionReactivated } = initInMemorySubscriptionReactivated({
 		logger: noopLogger,
 	});
-	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), { appOrigin });
+	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), { appOrigin, findUserById: auth.findUserById });
 	const stripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const pendingSignup = initInMemoryPendingSignup();
 	const subscriptionProviders = initInMemorySubscriptionProviders({ now: () => new Date() });

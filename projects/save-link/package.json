@@ -54,6 +54,6 @@
     "concurrently": "10.0.0",
     "esbuild": "catalog:",
     "jest": "30.4.2",
-    "typescript": "5.9.3"
+    "typescript": "6.0.3"
   }
 }
