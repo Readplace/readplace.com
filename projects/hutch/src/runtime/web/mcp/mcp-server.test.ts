@@ -49,6 +49,9 @@ function makeDeps(overrides: Partial<McpDependencies> = {}): DepsResult {
 			listStatuses.push(query.status);
 			return { articles: [savedArticle], total: 1, page: 1, pageSize: 20 };
 		},
+		getEffectiveAccess: async () => ({ tier: "founding", access: "full", banner: "none" }),
+		findUserById: async () => ({ userId, emailVerified: true }),
+		now: () => new Date("2026-01-15T00:00:00.000Z"),
 		saveArticle: async (params) => {
 			savedUrls.push(params.url);
 			return savedArticle;
@@ -288,6 +291,94 @@ describe("MCP save_link tool", () => {
 	});
 });
 
+describe("MCP save_link save-gates", () => {
+	function saveLink(deps: McpDependencies, id: number) {
+		return rpc(
+			makeApp(deps),
+			{
+				jsonrpc: "2.0",
+				id,
+				method: "tools/call",
+				params: { name: "save_link", arguments: { url: "https://example.com/post" } },
+			},
+			"good-token",
+		);
+	}
+
+	it("refuses to save for a locked account (unverified past the 7-day window)", async () => {
+		const { deps, savedUrls } = makeDeps({
+			validateAccessToken: async () => ({ userId, emailVerified: false }),
+			findUserById: async () => ({
+				userId,
+				emailVerified: false,
+				registeredAt: "2026-01-01T00:00:00.000Z",
+			}),
+			now: () => new Date("2026-01-15T00:00:00.000Z"),
+		});
+		const response = await saveLink(deps, 20);
+
+		expect(response.status).toBe(200);
+		expect(response.body.result.isError).toBe(true);
+		expect(response.body.result.content[0].text).toContain("locked");
+		expect(savedUrls).toEqual([]);
+	});
+
+	it("still saves for an unverified account within the verification window", async () => {
+		const { deps, savedUrls } = makeDeps({
+			validateAccessToken: async () => ({ userId, emailVerified: false }),
+			findUserById: async () => ({
+				userId,
+				emailVerified: false,
+				registeredAt: "2026-01-14T00:00:00.000Z",
+			}),
+			now: () => new Date("2026-01-15T00:00:00.000Z"),
+		});
+		const response = await saveLink(deps, 21);
+
+		expect(response.body.result.isError).toBeUndefined();
+		expect(savedUrls).toEqual(["https://example.com/post"]);
+	});
+
+	it("self-heals and saves when the token says unverified but the user record is verified", async () => {
+		const { deps, savedUrls } = makeDeps({
+			validateAccessToken: async () => ({ userId, emailVerified: false }),
+			findUserById: async () => ({ userId, emailVerified: true }),
+		});
+		const response = await saveLink(deps, 22);
+
+		expect(response.body.result.isError).toBeUndefined();
+		expect(savedUrls).toEqual(["https://example.com/post"]);
+	});
+
+	it("does not lock a save when the user record cannot be found", async () => {
+		const { deps, savedUrls } = makeDeps({
+			validateAccessToken: async () => ({ userId, emailVerified: false }),
+			findUserById: async () => null,
+		});
+		const response = await saveLink(deps, 23);
+
+		expect(response.body.result.isError).toBeUndefined();
+		expect(savedUrls).toEqual(["https://example.com/post"]);
+	});
+
+	it("refuses to save when the subscription is inactive", async () => {
+		const { deps, savedUrls } = makeDeps({
+			getEffectiveAccess: async () => ({
+				tier: "inactive",
+				access: "read-only",
+				banner: "inactive",
+				reason: "subscription-cancelled",
+			}),
+		});
+		const response = await saveLink(deps, 24);
+
+		expect(response.status).toBe(200);
+		expect(response.body.result.isError).toBe(true);
+		expect(response.body.result.content[0].text).toContain("subscription is inactive");
+		expect(savedUrls).toEqual([]);
+	});
+});
+
 describe("MCP list_reading_list tool", () => {
 	it("returns the saved articles with reader permalinks", async () => {
 		const { deps } = makeDeps();
@@ -302,6 +393,33 @@ describe("MCP list_reading_list tool", () => {
 		expect(text).toContain("1 saved article(s)");
 		expect(text).toContain(`${BASE_URL}/queue/${articleId}/view`);
 		expect(text).toContain("Example Article");
+	});
+
+	it("reports how many of the total are shown and how to page when the list is truncated", async () => {
+		const pages: (number | undefined)[] = [];
+		const firstPage = Array.from({ length: 20 }, () => makeSavedArticle());
+		const { deps } = makeDeps({
+			findArticlesByUser: async (query) => {
+				pages.push(query.page);
+				return { articles: firstPage, total: 25, page: query.page ?? 1, pageSize: 20 };
+			},
+		});
+		const response = await rpc(
+			makeApp(deps),
+			{
+				jsonrpc: "2.0",
+				id: 25,
+				method: "tools/call",
+				params: { name: "list_reading_list", arguments: { page: 1 } },
+			},
+			"good-token",
+		);
+
+		expect(response.status).toBe(200);
+		const text = response.body.result.content[0].text;
+		expect(text).toContain("Showing 20 of 25 saved article(s) (page 1 of 2).");
+		expect(text).toContain('Pass a higher "page" to see more.');
+		expect(pages).toEqual([1]);
 	});
 
 	it("forwards a status filter to the article store", async () => {

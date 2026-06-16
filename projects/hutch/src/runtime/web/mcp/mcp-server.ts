@@ -1,10 +1,14 @@
 import type { RequestHandler, Response } from "express";
 import { z } from "zod";
+import { VERIFICATION_CONTACT_EMAIL } from "@packages/web-shell";
 import { AccessTokenSchema } from "@packages/domain/oauth";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
 import type { FindArticlesByUser } from "@packages/provider-contracts/article-store";
+import type { FindUserById } from "@packages/provider-contracts/auth";
+import type { GetEffectiveAccess } from "../../domain/access/effective-access";
+import { computeVerificationStatus } from "../../domain/access/verification-deadline";
 import {
 	saveArticleFromUrl,
 	type SaveArticleFromUrlDependencies,
@@ -24,6 +28,9 @@ export interface McpDependencies extends SaveArticleFromUrlDependencies {
 	validateAccessToken: ValidateAccessToken;
 	validateSaveableUrl: ValidateSaveableUrl;
 	findArticlesByUser: FindArticlesByUser;
+	getEffectiveAccess: GetEffectiveAccess;
+	findUserById: FindUserById;
+	now: () => Date;
 	logError: (message: string, error?: Error) => void;
 }
 
@@ -96,6 +103,7 @@ type ToolOutcome =
 
 interface ToolContext {
 	userId: UserId;
+	emailVerified: boolean;
 }
 
 interface McpTool {
@@ -108,7 +116,41 @@ interface McpTool {
 const SaveLinkArgsSchema = z.object({ url: z.string().min(1) });
 const ListReadingListArgsSchema = z.object({
 	status: z.enum(["unread", "read"]).optional(),
+	page: z.number().int().positive().default(1),
 });
+
+const ACCOUNT_LOCKED_MESSAGE = `Your Readplace account is locked because your email was never verified. Email ${VERIFICATION_CONTACT_EMAIL} to restore access.`;
+
+/** The save gates that protect every other save surface — requireNotLocked and
+ * requireWriteAccess — run as middleware after auth on the web, extension, and
+ * iOS paths. The MCP endpoint authenticates inside its handler, so save_link
+ * re-runs the same two gates here; without them a lapsed subscription or a
+ * locked (unverified-past-deadline) account could keep saving through MCP. */
+async function isAccountLocked(deps: McpDependencies, context: ToolContext): Promise<boolean> {
+	/* A token minted for a verified account carries that standing, so the record
+	 * read is skipped for the verified majority — mirrors resolveVerificationStatus. */
+	if (context.emailVerified) return false;
+	const user = await deps.findUserById(context.userId);
+	if (!user || user.emailVerified) return false;
+	return (
+		computeVerificationStatus({ registeredAt: user.registeredAt, now: deps.now() }).state ===
+		"locked"
+	);
+}
+
+async function reasonSaveNotAllowed(
+	deps: McpDependencies,
+	context: ToolContext,
+): Promise<string | undefined> {
+	if (await isAccountLocked(deps, context)) {
+		return ACCOUNT_LOCKED_MESSAGE;
+	}
+	const access = await deps.getEffectiveAccess(context.userId);
+	if (access.access !== "full") {
+		return `Your Readplace subscription is inactive, so new links can't be saved. Visit ${deps.baseUrl}/account to reactivate your subscription.`;
+	}
+	return undefined;
+}
 
 function makeSaveLinkTool(deps: McpDependencies): McpTool {
 	return {
@@ -126,7 +168,11 @@ function makeSaveLinkTool(deps: McpDependencies): McpTool {
 			required: ["url"],
 			additionalProperties: false,
 		},
-		run: async (rawArgs, { userId }) => {
+		run: async (rawArgs, context) => {
+			const refusal = await reasonSaveNotAllowed(deps, context);
+			if (refusal) {
+				return { kind: "result", result: toolError(refusal) };
+			}
 			const parsed = SaveLinkArgsSchema.safeParse(rawArgs);
 			if (!parsed.success) {
 				return {
@@ -143,7 +189,7 @@ function makeSaveLinkTool(deps: McpDependencies): McpTool {
 			}
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
 			const { saved } = await saveArticleFromUrl(deps, {
-				userId,
+				userId: context.userId,
 				url: validation.url,
 				freshness,
 			});
@@ -170,6 +216,12 @@ function makeListReadingListTool(deps: McpDependencies): McpTool {
 					enum: ["unread", "read"],
 					description: "Optional filter: return only unread or only read articles.",
 				},
+				page: {
+					type: "integer",
+					minimum: 1,
+					description:
+						"Optional 1-based page number; fetch further pages when the result is truncated.",
+				},
 			},
 			additionalProperties: false,
 		},
@@ -178,12 +230,14 @@ function makeListReadingListTool(deps: McpDependencies): McpTool {
 			if (!parsed.success) {
 				return {
 					kind: "invalid-params",
-					message: 'list_reading_list "status" must be "unread" or "read".',
+					message:
+						'list_reading_list accepts an optional "status" ("unread" or "read") and a positive integer "page".',
 				};
 			}
 			const found = await deps.findArticlesByUser({
 				userId,
 				status: parsed.data.status,
+				page: parsed.data.page,
 				excludeContent: true,
 			});
 			const articles = found.articles.map((article) => ({
@@ -196,10 +250,13 @@ function makeListReadingListTool(deps: McpDependencies): McpTool {
 				estimatedReadTimeMinutes: article.estimatedReadTime,
 				readerUrl: `${deps.baseUrl}/queue/${article.id}/view`,
 			}));
+			const totalPages = Math.max(1, Math.ceil(found.total / found.pageSize));
+			const more =
+				parsed.data.page < totalPages ? ' Pass a higher "page" to see more.' : "";
 			return {
 				kind: "result",
 				result: textResult(
-					`${found.total} saved article(s).\n${JSON.stringify(articles, null, 2)}`,
+					`Showing ${articles.length} of ${found.total} saved article(s) (page ${parsed.data.page} of ${totalPages}).${more}\n${JSON.stringify(articles, null, 2)}`,
 				),
 			};
 		},
@@ -215,7 +272,7 @@ function resourceMetadataChallenge(baseUrl: string, error?: string): string {
 }
 
 type AuthOutcome =
-	| { ok: true; userId: UserId }
+	| { ok: true; userId: UserId; emailVerified: boolean }
 	| { ok: false; wwwAuthenticate: string; message: string };
 
 async function authenticate(
@@ -238,7 +295,7 @@ async function authenticate(
 			message: "The access token is invalid or has expired.",
 		};
 	}
-	return { ok: true, userId: validated.userId };
+	return { ok: true, userId: validated.userId, emailVerified: validated.emailVerified };
 }
 
 function buildServerCard(baseUrl: string) {
@@ -297,7 +354,10 @@ export function createMcpHandler(deps: McpDependencies): McpHandler {
 		}
 		let outcome: ToolOutcome;
 		try {
-			outcome = await tool.run(parsed.data.arguments, { userId: auth.userId });
+			outcome = await tool.run(parsed.data.arguments, {
+				userId: auth.userId,
+				emailVerified: auth.emailVerified,
+			});
 		} catch (error) {
 			deps.logError(
 				`MCP tool ${tool.name} failed`,
