@@ -250,7 +250,7 @@
 }
 
 .queue-article--unread {
-  border-left: 3px solid var(--primary);
+  background: var(--secondary);
 }
 
 .queue-article__thumbnail-link {
