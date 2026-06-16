@@ -4,10 +4,7 @@ import { render } from "@packages/web-shell";
 
 const TEMPLATE = readFileSync(join(__dirname, "offer-popup.template.html"), "utf-8");
 
-/** Total seats in the founding cohort. */
 const TOTAL_SLOTS = 50;
-/** Seats already taken. Static placeholder copy for the prototype — wire this to
- * real inventory before showing it to readers (see the README note on the PR). */
 const CLAIMED_SLOTS = 46;
 const PRICE_AUD = 99;
 /** Crossed-out anchor price that frames the one-time fee as a saving. */
