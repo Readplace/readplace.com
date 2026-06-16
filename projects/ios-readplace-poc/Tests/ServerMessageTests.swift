@@ -19,8 +19,8 @@ final class ServerMessageTests: XCTestCase {
 	}
 
 	func testDecodesDecimalAndHexReferences() {
-		let message = message(body: "&#39;quoted&#39; and &#x27;hex&#x27; and &#38;")
-		XCTAssertEqual(message.plainText, "'quoted' and 'hex' and &")
+		let message = message(body: "&#39;dec&#39; &#x27;hex&#x27; &#X27;upperhex&#X27; &#38;")
+		XCTAssertEqual(message.plainText, "'dec' 'hex' 'upperhex' &")
 	}
 
 	/// The reason for a single-pass decoder: a correctly-escaped `&amp;lt;` must

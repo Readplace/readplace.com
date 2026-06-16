@@ -394,6 +394,111 @@ describe("createOAuthModel", () => {
 			assert(retrieved, "Code should be retrievable");
 			expect(retrieved.user.emailVerified).toBe(true);
 		});
+
+		it("re-resolves a newly-verified user's standing on refresh", async () => {
+			const deps = initInMemoryOAuthModel();
+			const model = createOAuthModel(deps, {
+				findUserById: async (id) => ({ userId: id, emailVerified: true }),
+			});
+
+			const client = await model.getClient(TEST_CLIENT_ID, "");
+			assert(client, "Test client must exist");
+
+			// Authorized while unverified, then the user verifies before refreshing.
+			await model.saveToken(createTestToken({ refreshToken: "catch-up-refresh" }), client, {
+				id: TEST_USER_ID,
+			});
+
+			const refreshed = await model.getRefreshToken("catch-up-refresh");
+			assert(refreshed, "Refresh token should be retrievable");
+			expect(refreshed.user.emailVerified).toBe(true);
+		});
+
+		it("keeps a still-unverified user's refresh standing unverified", async () => {
+			const deps = initInMemoryOAuthModel();
+			const model = createOAuthModel(deps, {
+				findUserById: async (id) => ({ userId: id, emailVerified: false }),
+			});
+
+			const client = await model.getClient(TEST_CLIENT_ID, "");
+			assert(client, "Test client must exist");
+
+			await model.saveToken(createTestToken({ refreshToken: "still-unverified-refresh" }), client, {
+				id: TEST_USER_ID,
+			});
+
+			const refreshed = await model.getRefreshToken("still-unverified-refresh");
+			assert(refreshed, "Refresh token should be retrievable");
+			expect(refreshed.user.emailVerified).toBe(false);
+		});
+
+		it("treats a missing user record on refresh as unverified", async () => {
+			const deps = initInMemoryOAuthModel();
+			const model = createOAuthModel(deps, { findUserById: async () => null });
+
+			const client = await model.getClient(TEST_CLIENT_ID, "");
+			assert(client, "Test client must exist");
+
+			await model.saveToken(createTestToken({ refreshToken: "ghost-refresh" }), client, {
+				id: TEST_USER_ID,
+			});
+
+			const refreshed = await model.getRefreshToken("ghost-refresh");
+			assert(refreshed, "Refresh token should be retrievable");
+			expect(refreshed.user.emailVerified).toBe(false);
+		});
+
+		it("skips the user lookup on refresh for an already-verified token", async () => {
+			const deps = initInMemoryOAuthModel();
+			let lookups = 0;
+			const model = createOAuthModel(deps, {
+				findUserById: async (id) => {
+					lookups += 1;
+					return { userId: id, emailVerified: true };
+				},
+			});
+
+			const client = await model.getClient(TEST_CLIENT_ID, "");
+			assert(client, "Test client must exist");
+
+			await model.saveToken(createTestToken({ refreshToken: "already-verified-refresh" }), client, {
+				id: TEST_USER_ID,
+				emailVerified: true,
+			});
+
+			const refreshed = await model.getRefreshToken("already-verified-refresh");
+			assert(refreshed, "Refresh token should be retrievable");
+			expect(refreshed.user.emailVerified).toBe(true);
+			expect(lookups).toBe(0);
+		});
+
+		it("re-issues a verified access token after refresh so later requests carry the standing", async () => {
+			const deps = initInMemoryOAuthModel();
+			const model = createOAuthModel(deps, {
+				findUserById: async (id) => ({ userId: id, emailVerified: true }),
+			});
+
+			const client = await model.getClient(TEST_CLIENT_ID, "");
+			assert(client, "Test client must exist");
+
+			await model.saveToken(createTestToken({ refreshToken: "reissue-refresh" }), client, {
+				id: TEST_USER_ID,
+			});
+
+			// The refresh grant: getRefreshToken re-resolves, then the library hands
+			// that re-resolved user to saveToken against the new access token.
+			const refreshed = await model.getRefreshToken("reissue-refresh");
+			assert(refreshed, "Refresh token should be retrievable");
+			await model.saveToken(
+				createTestToken({ accessToken: "reissued-access", refreshToken: "reissue-refresh-2" }),
+				client,
+				refreshed.user,
+			);
+
+			const reissued = await model.getAccessToken("reissued-access");
+			assert(reissued, "Re-issued access token should be retrievable");
+			expect(reissued.user.emailVerified).toBe(true);
+		});
 	});
 
 	describe("revokeAllUserTokens", () => {

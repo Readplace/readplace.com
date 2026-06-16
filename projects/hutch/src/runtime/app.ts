@@ -159,7 +159,7 @@ function initProviders() {
 			],
 			logError,
 		});
-		const oauthModel = initDynamoDbOAuthModel({ client, tableName: oauthTable });
+		const oauthModel = initDynamoDbOAuthModel({ client, tableName: oauthTable, findUserById: auth.findUserById });
 		const summaryStore = initDynamoDbGeneratedSummary({ client, tableName: articlesTable });
 		const crawlStore = initDynamoDbArticleCrawl({ client, tableName: articlesTable });
 		const { publishEvent } = initEventBridgePublisher({
@@ -295,7 +295,7 @@ function initProviders() {
 
 	const auth = initInMemoryAuth({ hashPassword, verifyPassword });
 	const articleStore = initInMemoryArticleStore();
-	const oauthModel = createOAuthModel(initInMemoryOAuthModel());
+	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), { findUserById: auth.findUserById });
 	const devStripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const devStripeSubscriptions = initInMemoryStripeSubscriptions();
 	const devPendingSignup = initInMemoryPendingSignup();

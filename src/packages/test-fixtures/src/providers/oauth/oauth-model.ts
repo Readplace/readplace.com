@@ -8,6 +8,7 @@ import type {
 	Falsey,
 } from "@node-oauth/oauth2-server";
 import type { OAuthModel } from "@packages/provider-contracts/oauth";
+import type { FindUserById } from "@packages/provider-contracts/auth";
 import type { UserId } from "@packages/domain/user";
 import type {
 	AccessToken as AccessTokenBrand,
@@ -66,7 +67,12 @@ export function initInMemoryOAuthModel(): OAuthModelDeps {
 
 export type { OAuthModel };
 
-export function createOAuthModel(deps: OAuthModelDeps, options?: { appOrigin?: string }): OAuthModel {
+export function createOAuthModel(
+	deps: OAuthModelDeps,
+	options?: { appOrigin?: string; findUserById?: FindUserById },
+): OAuthModel {
+	const findUserById = options?.findUserById;
+
 	function resolveClient(clientId: string) {
 		const client = getClient(clientId);
 		if (!client) return null;
@@ -224,6 +230,21 @@ export function createOAuthModel(deps: OAuthModelDeps, options?: { appOrigin?: s
 			const client = resolveClient(stored.clientId);
 			if (!client) return null;
 
+			// Re-resolve the standing on refresh so a token authorized while
+			// unverified catches up once the user verifies — without it the
+			// install-then-verify cohort would re-store emailVerified=false on every
+			// refresh and keep paying the userId-index read forever. Verification is
+			// monotonic, so an already-verified token needs no lookup.
+			let emailVerified = stored.emailVerified === true;
+			if (!emailVerified) {
+				if (findUserById) {
+					const user = await findUserById(stored.userId);
+					if (user) {
+						emailVerified = user.emailVerified === true;
+					}
+				}
+			}
+
 			return {
 				refreshToken: stored.refreshToken,
 				refreshTokenExpiresAt: stored.refreshTokenExpiresAt,
@@ -233,7 +254,7 @@ export function createOAuthModel(deps: OAuthModelDeps, options?: { appOrigin?: s
 					grants: client.grants,
 					redirectUris: client.redirectUris,
 				},
-				user: { id: stored.userId, emailVerified: stored.emailVerified },
+				user: { id: stored.userId, emailVerified },
 			};
 		},
 

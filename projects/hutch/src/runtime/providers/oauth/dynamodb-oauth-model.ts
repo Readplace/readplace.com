@@ -14,8 +14,10 @@ import type {
 	User,
 } from "@node-oauth/oauth2-server";
 import type { UserId } from "@packages/domain/user";
+import { UserIdSchema } from "@packages/domain/user";
 import { getClient } from "@packages/test-fixtures/providers/oauth";
 import type { OAuthModel } from "@packages/provider-contracts/oauth";
+import type { FindUserById } from "@packages/provider-contracts/auth";
 import { generateToken } from "@packages/test-fixtures/providers/oauth";
 
 function toEpochSeconds(date: Date): number {
@@ -66,8 +68,9 @@ function rebuildClient(clientId: string): Client | null {
 export function initDynamoDbOAuthModel(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
+	findUserById: FindUserById;
 }): OAuthModel {
-	const { client, tableName } = deps;
+	const { client, tableName, findUserById } = deps;
 	const authCodes = defineDynamoTable({ client, tableName, schema: AuthCodeRow });
 	const tokens = defineDynamoTable({ client, tableName, schema: TokenRow });
 	const refreshIndex = defineDynamoTable({ client, tableName, schema: RefreshIndexRow });
@@ -212,12 +215,25 @@ export function initDynamoDbOAuthModel(deps: {
 			const oauthClient = rebuildClient(row.clientId);
 			if (!oauthClient) return null;
 
+			// Re-resolve the standing on refresh so a token authorized while
+			// unverified catches up once the user verifies — without it the
+			// install-then-verify cohort would re-store emailVerified=false on every
+			// refresh and keep paying the userId-index read forever. Verification is
+			// monotonic, so an already-verified token needs no lookup.
+			let emailVerified = row.emailVerified === true;
+			if (!emailVerified) {
+				const user = await findUserById(UserIdSchema.parse(row.userId));
+				if (user) {
+					emailVerified = user.emailVerified === true;
+				}
+			}
+
 			return {
 				refreshToken: row.refreshToken,
 				refreshTokenExpiresAt,
 				scope: row.scope,
 				client: oauthClient,
-				user: { id: row.userId, emailVerified: row.emailVerified },
+				user: { id: row.userId, emailVerified },
 			};
 		},
 
