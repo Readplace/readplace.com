@@ -713,4 +713,22 @@ describe("initBase config", () => {
 		expect(withReload.body).toContain("livereload.js?snipver=1");
 		expect(withoutReload.body).not.toContain("livereload.js?snipver=1");
 	});
+
+	it("appends siteScripts to every page when configured, and nothing when omitted", () => {
+		const page = createTestPageBody();
+		const marker = '<script src="/client-dist/webmcp.client.js" defer></script>';
+
+		const withScripts = initBase({
+			staticBaseUrl: "",
+			liveReload: false,
+			siteScripts: marker,
+		})(page, GUEST_STATE).to("text/html");
+		const withoutScripts = initBase({ staticBaseUrl: "", liveReload: false })(
+			page,
+			GUEST_STATE,
+		).to("text/html");
+
+		expect(withScripts.body).toContain(marker);
+		expect(withoutScripts.body).not.toContain(marker);
+	});
 });
