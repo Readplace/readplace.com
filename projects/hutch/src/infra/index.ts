@@ -105,13 +105,17 @@ const additionalDomainRegistrations = additionalDomains.map((domain) =>
 
 const allDomainRegistrations = [legacyDomainRegistration, ...additionalDomainRegistrations];
 
-/** DNS for AI Discovery (DNS-AID) records + DNSSEC on the primary zone. Hand
- * `agentDnsDsRecord` to the registrar to complete the DNSSEC chain of trust. */
+/** DNS for AI Discovery (DNS-AID) records + DNSSEC on the canonical zone — the
+ * user-facing origin agents resolve and the registrar holds the DS for — not the
+ * legacy domain. Hand `agentDnsDsRecord` to the canonical domain's registrar to
+ * complete the DNSSEC chain of trust. */
+const canonicalDomainRegistration =
+	allDomainRegistrations[allDomainRegistrations.length - 1];
 const agentDiscoveryDns =
-	legacyPrimaryDomain && legacyDomainRegistration.zoneId
+	canonicalDomain && canonicalDomainRegistration?.zoneId
 		? new AgentDiscoveryDns("hutch-agent-dns", {
-				domain: legacyPrimaryDomain,
-				zoneId: legacyDomainRegistration.zoneId,
+				domain: canonicalDomain,
+				zoneId: canonicalDomainRegistration.zoneId,
 			})
 		: undefined;
 
