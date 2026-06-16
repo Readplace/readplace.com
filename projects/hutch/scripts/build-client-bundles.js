@@ -217,6 +217,26 @@ const BUNDLES = [
 			"});",
 		].join("\n"),
 	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
+			"src/runtime/web/shared/offer-popup/offer-popup.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "offer-popup.client.js"),
+		globalName: "OfferPopup",
+		footer: [
+			"document.addEventListener('DOMContentLoaded', function () {",
+			"  OfferPopup.initOfferPopup({",
+			"    document: window.document,",
+			"    storage: window.localStorage,",
+			"    location: window.location,",
+			"    now: function () { return Date.now(); },",
+			"    setIntervalFn: function (cb, ms) { return window.setInterval(cb, ms); },",
+			"    clearIntervalFn: function (id) { window.clearInterval(id); }",
+			"  }).attach();",
+			"});",
+		].join("\n"),
+	},
 ];
 
 function buildOptions(bundle) {
