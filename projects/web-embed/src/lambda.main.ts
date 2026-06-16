@@ -1,11 +1,10 @@
 import type { Handler } from "aws-lambda";
-import assert from "node:assert";
 import express from "express";
 import serverless from "serverless-http";
 import { initEmbedRoutes } from "./embed/embed.page";
+import { requireEnv } from "./require-env";
 
-const appOrigin = process.env.APP_ORIGIN;
-assert(appOrigin, "APP_ORIGIN is required");
+const appOrigin = requireEnv("APP_ORIGIN");
 
 const app = express();
 app.disable("x-powered-by");
