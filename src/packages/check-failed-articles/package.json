@@ -1,7 +1,7 @@
 {
   "name": "@packages/check-failed-articles",
   "version": "1.0.0",
-  "description": "Read-only DDB scan canary that surfaces articles whose state machines reached a terminal but unsuccessful state (crawl failed/unsupported, summary failed/skipped) so the operator can debug each one",
+  "description": "Read-only DDB scan canary that surfaces articles whose state machines reached a terminal error (crawl failed or summary failed) so the operator can debug each one; complete outcomes (crawl unsupported, summary skipped) are not surfaced",
   "main": "dist/scripts/check-failed-articles.js",
   "private": true,
   "scripts": {
