@@ -36,6 +36,7 @@ const OPEN_CLASS = "offer-popup--open";
 const STAGE_ATTR = "data-offer-stage";
 const PREVIEW_PARAM = "offer-preview";
 const COUNTDOWN_TICK_MS = 1000;
+const FOCUSABLE_SELECTOR = "a[href], button:not([disabled])";
 
 type Stage = "offer" | "confirm-first" | "confirm-second";
 
@@ -53,9 +54,59 @@ export function initOfferPopup(deps: OfferPopupDeps): OfferPopupController {
 		new URLSearchParams(deps.location.search).get(PREVIEW_PARAM) === "1";
 
 	let dismissed = false;
+	let currentStage: Stage = "offer";
+	let restoreFocus: (() => void) | null = null;
+
+	function currentView(): HTMLElement {
+		return ensure(
+			root.querySelector<HTMLElement>(`.offer-popup__view--${currentStage}`),
+			`missing view for stage ${currentStage}`,
+		);
+	}
+
+	function focusFirstControl(): void {
+		ensure(
+			currentView().querySelector<HTMLElement>(FOCUSABLE_SELECTOR),
+			`stage ${currentStage} must expose a focusable control`,
+		).focus();
+	}
 
 	function setStage(stage: Stage): void {
+		currentStage = stage;
 		root.setAttribute(STAGE_ATTR, stage);
+		focusFirstControl();
+	}
+
+	/** Hands focus back to whatever held it before the dialog opened. The DOM
+	 * types `activeElement` as `Element`, which omits `focus()`, so we read the
+	 * method reflectively rather than reference the realm's `HTMLElement`
+	 * constructor (absent under the Node test runtime). */
+	function captureRestoreFocus(): () => void {
+		const active = ensure(
+			deps.document.activeElement,
+			"document must expose an active element",
+		);
+		const focus = Reflect.get(active, "focus");
+		return () => focus.call(active);
+	}
+
+	function trapFocus(event: KeyboardEvent): void {
+		if (event.key !== "Tab") return;
+		const controls = Array.from(
+			currentView().querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+		);
+		const first = controls[0];
+		const last = controls[controls.length - 1];
+		const active = deps.document.activeElement;
+		if (event.shiftKey) {
+			if (active === first) {
+				last.focus();
+				event.preventDefault();
+			}
+		} else if (active === last) {
+			first.focus();
+			event.preventDefault();
+		}
 	}
 
 	function readState(): PopupState {
@@ -104,6 +155,9 @@ export function initOfferPopup(deps: OfferPopupDeps): OfferPopupController {
 			persist(state);
 		}
 		root.classList.remove(OPEN_CLASS);
+		root.removeEventListener("keydown", trapFocus);
+		const restore = ensure(restoreFocus, "popup must be open before dismiss");
+		restore();
 	}
 
 	function bind(selector: string, handler: () => void): void {
@@ -113,8 +167,10 @@ export function initOfferPopup(deps: OfferPopupDeps): OfferPopupController {
 	}
 
 	function open(deadlineMs: number): void {
-		setStage("offer");
+		restoreFocus = captureRestoreFocus();
 		root.classList.add(OPEN_CLASS);
+		root.addEventListener("keydown", trapFocus);
+		setStage("offer");
 		startCountdown(deadlineMs);
 	}
 
