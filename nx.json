@@ -9,8 +9,13 @@
     }
   ],
   "namedInputs": {
-    "default": ["{projectRoot}/**/*", "sharedGlobals"],
-    "sharedGlobals": ["{workspaceRoot}/*.config.base.*"],
+    "default": [
+      "{projectRoot}/**/*",
+      "sharedGlobals"
+    ],
+    "sharedGlobals": [
+      "{workspaceRoot}/*.config.base.*"
+    ],
     "production": [
       "default",
       "!{projectRoot}/**/*.test.ts",
@@ -19,39 +24,73 @@
   },
   "targetDefaults": {
     "test": {
-      "inputs": ["default", "^production"],
+      "inputs": [
+        "default",
+        "^production"
+      ],
       "cache": true
     },
     "test-with-coverage": {
-      "inputs": ["default", "^production"],
-      "outputs": ["{projectRoot}/coverage"],
+      "inputs": [
+        "default",
+        "^production"
+      ],
+      "outputs": [
+        "{projectRoot}/coverage"
+      ],
       "cache": true
     },
     "compile": {
-      "inputs": ["default", "^production"],
-      "outputs": ["{projectRoot}/dist"],
-      "dependsOn": ["^compile"],
+      "inputs": [
+        "default",
+        "^production"
+      ],
+      "outputs": [
+        "{projectRoot}/dist"
+      ],
+      "dependsOn": [
+        "^compile"
+      ],
       "cache": true
     },
     "lint": {
-      "inputs": ["default"],
+      "inputs": [
+        "default"
+      ],
       "cache": true
     },
     "check": {
-      "inputs": ["default", "^production"],
-      "dependsOn": ["compile", "^compile"],
+      "inputs": [
+        "default",
+        "^production"
+      ],
+      "dependsOn": [
+        "compile",
+        "^compile"
+      ],
       "cache": true
     },
     "check-infra": {
-      "inputs": ["production", "^production"],
-      "dependsOn": ["^compile"],
+      "inputs": [
+        "production",
+        "^production"
+      ],
+      "dependsOn": [
+        "^compile"
+      ],
       "cache": false
     },
     "deploy-infra": {
-      "inputs": ["production", "^production"],
-      "dependsOn": ["^compile"],
+      "inputs": [
+        "production",
+        "^production"
+      ],
+      "dependsOn": [
+        "^compile"
+      ],
       "cache": false
     }
   },
-  "defaultBase": "main"
+  "defaultBase": "main",
+  "analytics": false
 }
