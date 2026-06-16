@@ -22,6 +22,7 @@ import {
 } from "../runtime/observability/analytics-dashboard";
 import { DomainRegistration } from "./domain-registration";
 import { DomainRedirect } from "./domain-redirect";
+import { AgentDiscoveryDns } from "./agent-discovery-dns";
 import { HutchStorage } from "./hutch-storage";
 import { HutchStaticAssets } from "./hutch-static-assets";
 import { requireEnv } from "../runtime/domain/require-env";
@@ -103,6 +104,18 @@ const additionalDomainRegistrations = additionalDomains.map((domain) =>
 );
 
 const allDomainRegistrations = [legacyDomainRegistration, ...additionalDomainRegistrations];
+
+/** DNS for AI Discovery (DNS-AID) records + DNSSEC on the primary zone. Hand
+ * `agentDnsDsRecord` to the registrar to complete the DNSSEC chain of trust. */
+const agentDiscoveryDns =
+	legacyPrimaryDomain && legacyDomainRegistration.zoneId
+		? new AgentDiscoveryDns("hutch-agent-dns", {
+				domain: legacyPrimaryDomain,
+				zoneId: legacyDomainRegistration.zoneId,
+			})
+		: undefined;
+
+export const agentDnsDsRecord = agentDiscoveryDns?.dsRecord;
 
 if (redirectDomains.length > 0 || redirectSubdomains.length > 0) {
 	assert(canonicalDomain, "redirectDomains requires domains to be configured");

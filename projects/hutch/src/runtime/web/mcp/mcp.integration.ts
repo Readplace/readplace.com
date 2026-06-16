@@ -1,0 +1,124 @@
+import assert from "node:assert/strict";
+import { createHash, randomBytes } from "node:crypto";
+import request from "supertest";
+import {
+	TEST_APP_ORIGIN,
+	createDefaultTestAppFixture,
+} from "@packages/test-fixtures";
+import { useTestServer } from "../../test-app";
+import type { TestAppHarness } from "../../test-app";
+
+const CLIENT_ID = "hutch-firefox-extension";
+const REDIRECT_URI = "http://127.0.0.1:3000/oauth/callback";
+
+function generatePkce() {
+	const codeVerifier = randomBytes(32).toString("base64url");
+	const codeChallenge = createHash("sha256")
+		.update(codeVerifier)
+		.digest("base64url");
+	return { codeVerifier, codeChallenge };
+}
+
+async function obtainAccessToken(harness: TestAppHarness): Promise<string> {
+	await harness.auth.createUser({ email: "mcp@example.com", password: "password123" });
+	const agent = request.agent(harness.server);
+	await agent
+		.post("/login")
+		.type("form")
+		.send({ email: "mcp@example.com", password: "password123" });
+
+	const { codeVerifier, codeChallenge } = generatePkce();
+	const authorizeResponse = await agent
+		.post("/oauth/authorize")
+		.type("form")
+		.send({
+			client_id: CLIENT_ID,
+			redirect_uri: REDIRECT_URI,
+			response_type: "code",
+			code_challenge: codeChallenge,
+			code_challenge_method: "S256",
+			state: randomBytes(16).toString("base64url"),
+			action: "approve",
+		});
+
+	const redirectUrl = new URL(authorizeResponse.headers.location);
+	const authorizationCode = redirectUrl.searchParams.get("code");
+	assert(authorizationCode, "authorize endpoint must redirect with a code");
+
+	const tokenResponse = await request(harness.server)
+		.post("/oauth/token")
+		.type("form")
+		.send({
+			grant_type: "authorization_code",
+			code: authorizationCode,
+			redirect_uri: REDIRECT_URI,
+			client_id: CLIENT_ID,
+			code_verifier: codeVerifier,
+		});
+	assert.equal(tokenResponse.status, 200);
+	const accessToken = tokenResponse.body.access_token;
+	assert(accessToken, "token endpoint must return an access_token");
+	return accessToken;
+}
+
+function callTool(harness: TestAppHarness, accessToken: string, body: unknown) {
+	return request(harness.server)
+		.post("/mcp")
+		.set("Authorization", `Bearer ${accessToken}`)
+		.set("Content-Type", "application/json")
+		.send(JSON.stringify(body));
+}
+
+const useApp = useTestServer();
+
+describe("MCP server over the real app", () => {
+	it("serves the discovery card pointing at the /mcp transport", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get(
+			"/.well-known/mcp/server-card.json",
+		);
+		expect(response.status).toBe(200);
+		expect(response.body.transport.endpoint).toContain("/mcp");
+		expect(response.body.serverInfo.name).toBe("Readplace");
+	});
+
+	it("saves a link and then lists it back for the authenticated user", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await obtainAccessToken(harness);
+
+		const saveResponse = await callTool(harness, accessToken, {
+			jsonrpc: "2.0",
+			id: 1,
+			method: "tools/call",
+			params: { name: "save_link", arguments: { url: "https://example.com/article" } },
+		});
+		expect(saveResponse.status).toBe(200);
+		expect(saveResponse.body.result.content[0].text).toContain("Saved");
+		expect(saveResponse.body.result.isError).toBeUndefined();
+
+		const listResponse = await callTool(harness, accessToken, {
+			jsonrpc: "2.0",
+			id: 2,
+			method: "tools/call",
+			params: { name: "list_queue" },
+		});
+		expect(listResponse.status).toBe(200);
+		expect(listResponse.body.result.content[0].text).toContain(
+			"https://example.com/article",
+		);
+	});
+
+	it("returns a tool error result when asked to save an unsaveable URL", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await obtainAccessToken(harness);
+
+		const response = await callTool(harness, accessToken, {
+			jsonrpc: "2.0",
+			id: 3,
+			method: "tools/call",
+			params: { name: "save_link", arguments: { url: "not-a-url" } },
+		});
+		expect(response.status).toBe(200);
+		expect(response.body.result.isError).toBe(true);
+	});
+});

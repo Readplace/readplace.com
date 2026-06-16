@@ -183,6 +183,23 @@ const BUNDLES = [
 		].join("\n"),
 	},
 	{
+		entry: path.join(PROJECT_ROOT, "src/runtime/web/webmcp.client.ts"),
+		outfile: path.join(OUT_DIR, "webmcp.client.js"),
+		globalName: "WebMcp",
+		footer: [
+			// The WebMCP context lives on navigator in Chrome's preview and on
+			// document in the W3C draft; pass whichever exists. Saving navigates
+			// to the same /save entrypoint the UI uses, so the agent's save and a
+			// human click are one code path.
+			"var mcNav = window.navigator && window.navigator.modelContext;",
+			"var mcDoc = window.document && window.document.modelContext;",
+			"WebMcp.initWebMcp({",
+			"  modelContext: mcNav || mcDoc || null,",
+			"  navigateTo: function (url) { window.location.assign(url); }",
+			"});",
+		].join("\n"),
+	},
+	{
 		entry: path.join(
 			PROJECT_ROOT,
 			"src/runtime/web/shared/toast/toast.client.ts",

@@ -199,6 +199,11 @@ function renderMarkdown(body: PageBody): string {
 export interface BaseConfig {
 	staticBaseUrl: string;
 	liveReload: boolean;
+	/** Markup appended to every page this site serves, after the page's own
+	 * scripts. Lets a consuming site inject a site-wide script (e.g. hutch's
+	 * WebMCP tool registration) without each page opting in, while a site that
+	 * omits it — like the blog, which ships no such bundle — stays untouched. */
+	siteScripts?: string;
 }
 
 export type RenderBase = (body: PageBody, state: BannerState) => Component;
@@ -207,6 +212,8 @@ export function initBase(config: BaseConfig): RenderBase {
 	const liveReloadScript = config.liveReload
 		? `\n<script src="http://localhost:35729/livereload.js?snipver=1"></script>`
 		: "";
+
+	const siteScripts = config.siteScripts ?? "";
 
 	function renderBaseTemplate(body: PageBody, state: BannerState): string {
 		const headerVariant = body.headerVariant || "default";
@@ -270,6 +277,7 @@ export function initBase(config: BaseConfig): RenderBase {
 				TOAST_SCRIPT +
 				(state.trial?.state === "active" ? TRIAL_COUNTDOWN_SCRIPT : "") +
 				(body.scripts ?? "") +
+				siteScripts +
 				liveReloadScript,
 		});
 	}

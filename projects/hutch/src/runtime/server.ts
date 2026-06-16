@@ -124,6 +124,10 @@ import { initEmbedRoutes } from "./web/pages/embed/embed.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initAccountRoutes } from "./web/pages/account/account.page";
 import { initAgentSkills } from "./web/agent-skills/agent-skills";
+import { initMcpServer } from "./web/mcp/mcp-server";
+import { initMcpRoutes } from "./web/mcp/mcp.routes";
+import { buildMcpServerCard } from "./web/mcp/server-card";
+import { saveArticleFromUrl } from "./web/shared/save-article/save-article-from-url";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
@@ -278,6 +282,48 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 
 	const agentSkills = initAgentSkills();
+
+	/** The MCP server's tools are the same writes/reads the hypermedia `/queue`
+	 * API performs, so an agent acting over MCP and the browser extension take
+	 * the identical save and list paths. */
+	const mcpServer = initMcpServer({
+		saveLink: async ({ userId, url }) => {
+			const validation = deps.validateSaveableUrl(url);
+			if (validation.status === "ERROR") {
+				return { ok: false, message: validation.error.message };
+			}
+			try {
+				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
+				const { saved } = await saveArticleFromUrl(deps, {
+					userId,
+					url: validation.url,
+					freshness,
+				});
+				return { ok: true, title: saved.metadata.title, url: saved.url };
+			} catch (error) {
+				deps.logError(
+					"MCP save_link failed",
+					error instanceof Error ? error : undefined,
+				);
+				return { ok: false, message: "Could not save the link right now." };
+			}
+		},
+		listQueue: async ({ userId, status }) => {
+			const result = await deps.findArticlesByUser({
+				userId,
+				status,
+				excludeContent: true,
+			});
+			return {
+				total: result.total,
+				articles: result.articles.map((article) => ({
+					url: article.url,
+					title: article.metadata.title,
+					status: article.status,
+				})),
+			};
+		},
+	});
 
 	const secureCookies = isHttpsOrigin(appOrigin);
 
@@ -479,6 +525,19 @@ export function createApp(dependencies: AppDependencies): Express {
 			res.type("text/markdown; charset=utf-8").send(skill.content);
 		});
 	}
+
+	app.get("/.well-known/mcp/server-card.json", (_req: Request, res: Response) => {
+		res.json(buildMcpServerCard(dependencies.baseUrl));
+	});
+
+	app.use(
+		"/mcp",
+		initMcpRoutes({
+			validateAccessToken: deps.validateAccessToken,
+			mcpServer,
+			baseUrl: dependencies.baseUrl,
+		}),
+	);
 
 	const extensionCors = cors({
 		origin: (origin, callback) => {
