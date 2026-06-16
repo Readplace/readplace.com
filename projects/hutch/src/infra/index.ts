@@ -22,6 +22,7 @@ import {
 } from "../runtime/observability/analytics-dashboard";
 import { DomainRegistration } from "./domain-registration";
 import { DomainRedirect } from "./domain-redirect";
+import { AgentDiscoveryRecords } from "./agent-discovery-records";
 import { HutchStorage } from "./hutch-storage";
 import { HutchStaticAssets } from "./hutch-static-assets";
 import { requireEnv } from "../runtime/domain/require-env";
@@ -356,6 +357,21 @@ for (const [i, domain] of additionalDomains.entries()) {
 			},
 		],
 	});
+}
+
+// --- Agent discovery (DNS-AID) ---
+// Publishes the `_index._agents.<domain>` ServiceMode SVCB record for each apex
+// that has a hosted zone, so agents can discover our HTTPS agent surface
+// (.well-known/agent-skills, OAuth metadata, api-catalog) straight from DNS.
+// Staging configures no apex domains, so this is a no-op there. The DNSSEC
+// follow-up is a manual, change-controlled runbook — see src/infra/dns-aid.md.
+const agentDiscoveryDomains = allDomainRegistrations.flatMap((registration) =>
+	registration.primaryDomain && registration.zoneId
+		? [{ domain: registration.primaryDomain, zoneId: registration.zoneId }]
+		: [],
+);
+if (agentDiscoveryDomains.length > 0) {
+	new AgentDiscoveryRecords("hutch-agent-discovery", { domains: agentDiscoveryDomains });
 }
 
 // --- User Data Export Bucket ---
