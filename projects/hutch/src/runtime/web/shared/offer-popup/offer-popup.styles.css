@@ -1,0 +1,282 @@
+/**
+ * 1. Ships hidden; the client adds `offer-popup--open` once the once-per-device
+ *    gate opens (or `?offer-preview=1` forces it). Visibility is an explicit
+ *    state class on both sides so it never depends on an implicit default.
+ * 2. Which step shows is driven by `data-offer-stage` so the client only flips a
+ *    single attribute — the markup for every step always ships.
+ */
+.offer-popup {
+	display: none; /* 1 */
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	align-items: center;
+	justify-content: center;
+	padding: 16px;
+}
+
+.offer-popup--open {
+	display: flex; /* 1 */
+}
+
+.offer-popup__backdrop {
+	position: absolute;
+	inset: 0;
+	background: rgba(26, 32, 44, 0.6);
+	animation: offer-popup-fade 200ms ease-out;
+}
+
+.offer-popup__panel {
+	position: relative;
+	width: 100%;
+	max-width: 420px;
+	max-height: calc(100vh - 32px);
+	overflow-y: auto;
+	background: var(--color-surface-elevated);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-lg);
+	box-shadow: var(--shadow-md);
+	padding: 28px 24px 24px;
+	text-align: center;
+	animation: offer-popup-pop 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.offer-popup__view {
+	display: none; /* 2 */
+}
+
+.offer-popup[data-offer-stage="offer"] .offer-popup__view--offer,
+.offer-popup[data-offer-stage="confirm-first"] .offer-popup__view--confirm-first,
+.offer-popup[data-offer-stage="confirm-second"] .offer-popup__view--confirm-second {
+	display: block; /* 2 */
+}
+
+.offer-popup__close {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	width: 32px;
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 22px;
+	line-height: 1;
+	color: var(--color-text-muted);
+	background: transparent;
+	border: none;
+	border-radius: var(--radius-sm);
+	cursor: pointer;
+}
+
+.offer-popup__close:hover {
+	color: var(--color-text-primary);
+	background: var(--color-surface);
+}
+
+.offer-popup__badge {
+	display: inline-block;
+	margin: 0 0 16px;
+	padding: 4px 12px;
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	color: var(--color-error);
+	background: var(--color-brand-light);
+	border-radius: var(--radius-sm);
+}
+
+.offer-popup__headline {
+	margin: 0 0 8px;
+	font-size: 26px;
+	line-height: 1.2;
+	color: var(--color-text-primary);
+}
+
+.offer-popup__subhead {
+	margin: 0 0 20px;
+	font-size: 15px;
+	line-height: 1.5;
+	color: var(--color-text-secondary);
+}
+
+.offer-popup__price {
+	display: flex;
+	align-items: baseline;
+	justify-content: center;
+	gap: 8px;
+	margin: 0 0 20px;
+}
+
+.offer-popup__price-amount {
+	font-size: 40px;
+	font-weight: 700;
+	color: var(--color-text-primary);
+}
+
+.offer-popup__price-once {
+	font-size: 14px;
+	color: var(--color-text-secondary);
+}
+
+.offer-popup__price-anchor {
+	font-size: 14px;
+	color: var(--color-text-muted);
+	text-decoration: line-through;
+}
+
+.offer-popup__scarcity {
+	margin: 0 0 16px;
+}
+
+.offer-popup__scarcity-track {
+	height: 8px;
+	border-radius: 999px;
+	background: var(--color-surface);
+	overflow: hidden;
+}
+
+.offer-popup__scarcity-fill {
+	height: 100%;
+	border-radius: 999px;
+	background: var(--color-error);
+}
+
+.offer-popup__scarcity-label {
+	margin: 8px 0 0;
+	font-size: 13px;
+	color: var(--color-text-secondary);
+}
+
+.offer-popup__scarcity-remaining {
+	color: var(--color-error);
+}
+
+.offer-popup__countdown {
+	margin: 0 0 8px;
+	font-size: 14px;
+	color: var(--color-text-secondary);
+}
+
+.offer-popup__countdown-clock {
+	font-variant-numeric: tabular-nums;
+	color: var(--color-error);
+}
+
+.offer-popup__social {
+	margin: 0 0 20px;
+	font-size: 13px;
+	color: var(--color-text-muted);
+}
+
+.offer-popup__cta {
+	display: block;
+	width: 100%;
+	padding: 14px 20px;
+	font-size: 16px;
+	font-weight: 600;
+	color: var(--primary-foreground);
+	background: var(--primary);
+	border: none;
+	border-radius: var(--radius);
+	text-decoration: none;
+	cursor: pointer;
+	animation: offer-popup-pulse 2.4s ease-in-out infinite;
+}
+
+.offer-popup__cta:hover {
+	background: var(--color-brand-dark);
+}
+
+.offer-popup__fine {
+	margin: 12px 0 0;
+	font-size: 12px;
+	color: var(--color-text-muted);
+}
+
+.offer-popup__confirm-title {
+	margin: 8px 0 12px;
+	font-size: 22px;
+	line-height: 1.25;
+	color: var(--color-text-primary);
+}
+
+.offer-popup__confirm-body {
+	margin: 0 0 24px;
+	font-size: 15px;
+	line-height: 1.6;
+	color: var(--color-text-secondary);
+}
+
+.offer-popup__confirm-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.offer-popup__btn {
+	width: 100%;
+	padding: 13px 20px;
+	font-size: 15px;
+	font-weight: 600;
+	border-radius: var(--radius);
+	cursor: pointer;
+}
+
+.offer-popup__btn--keep {
+	color: var(--primary-foreground);
+	background: var(--primary);
+	border: none;
+}
+
+.offer-popup__btn--keep:hover {
+	background: var(--color-brand-dark);
+}
+
+.offer-popup__btn--ghost {
+	color: var(--color-text-muted);
+	background: transparent;
+	border: 1px solid var(--color-border);
+}
+
+.offer-popup__btn--ghost:hover {
+	color: var(--color-text-secondary);
+}
+
+@keyframes offer-popup-fade {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes offer-popup-pop {
+	from {
+		opacity: 0;
+		transform: translateY(8px) scale(0.98);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+@keyframes offer-popup-pulse {
+	0%,
+	100% {
+		transform: scale(1);
+	}
+	50% {
+		transform: scale(1.02);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.offer-popup__backdrop,
+	.offer-popup__panel,
+	.offer-popup__cta {
+		animation: none;
+	}
+}

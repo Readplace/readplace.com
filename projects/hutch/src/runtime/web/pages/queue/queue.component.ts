@@ -8,6 +8,8 @@ import type { PageBody } from "@packages/web-shell";
 import { QUEUE_STYLES } from "./queue.styles";
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
 import { renderToast } from "../../shared/toast/toast.component";
+import { OFFER_POPUP_SCRIPT, renderOfferPopup } from "../../shared/offer-popup/offer-popup.component";
+import { OFFER_POPUP_STYLES } from "../../shared/offer-popup/offer-popup.styles";
 import type { QueueViewModel, SubscriptionBannerState } from "./queue.viewmodel";
 import { buildQueueUrl } from "./queue.url";
 import { tabQuery, type TabId } from "./queue.tabs";
@@ -170,9 +172,9 @@ const AUTO_SUBMIT_SCRIPT = `
 export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; extensionInstalled?: boolean; extensionSavedArticle?: boolean; browser?: BrowserName; onboardingDismissed?: boolean; statusCode?: number }): PageBody {
 	const saveUrl = options?.saveUrl;
 	const displayModel = toQueueDisplayModel(vm, { extensionInstalled: options?.extensionInstalled ?? false, extensionSavedArticle: options?.extensionSavedArticle ?? false, browser: options?.browser ?? "other", onboardingDismissed: options?.onboardingDismissed ?? false });
-	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl });
+	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl, offerPopupHtml: renderOfferPopup() });
 
-	const scriptParts: string[] = [];
+	const scriptParts: string[] = [OFFER_POPUP_SCRIPT];
 	if (saveUrl) scriptParts.push(AUTO_SUBMIT_SCRIPT);
 
 	return {
@@ -182,7 +184,7 @@ export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; exte
 			canonicalUrl: "/queue",
 			robots: "noindex, nofollow",
 		},
-		styles: `${QUEUE_STYLES}\n${ONBOARDING_STYLES}`,
+		styles: `${QUEUE_STYLES}\n${ONBOARDING_STYLES}\n${OFFER_POPUP_STYLES}`,
 		bodyClass: "page-queue",
 		content: { html: content },
 		scripts: scriptParts.join("\n"),
