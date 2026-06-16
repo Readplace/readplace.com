@@ -21,10 +21,14 @@ export interface DnsAidRecord {
  * One ServiceMode SVCB record (RFC 9460) per domain. We publish `_index` only —
  * not the draft's `_a2a` example — because Readplace answers over HTTPS, not an
  * Agent2Agent JSON-RPC channel, so an `_a2a` target would never connect. `alpn`
- * lists `h2` alone: RFC 9460 §7.1.1 folds in the https default (`http/1.1`)
- * automatically, and the API Gateway custom domains fronting the apexes do not
- * serve `h3`. The value is Route 53 SVCB presentation format; the draft's
- * `mandatory` and `keyNNNNN` SvcParams are left out because Route 53 rejects them.
+ * names both `h2` and `http/1.1` explicitly: a generic SVCB record carries no
+ * implicit ALPN default (RFC 9460 §9.5's `http/1.1` default is specific to the
+ * HTTPS RR, not the SVCB RR this `_agents` scheme uses), so per §7.1.2 a
+ * protocol the origin serves but does not advertise is one clients are told not
+ * to use. The API Gateway custom domains fronting the apexes serve both, and
+ * `h3` is omitted because they do not serve HTTP/3. The value is Route 53 SVCB
+ * presentation format; the draft's `mandatory` and `keyNNNNN` SvcParams are left
+ * out because Route 53 rejects them.
  */
 export function buildDnsAidRecords(domain: string): readonly DnsAidRecord[] {
 	assert(domain.length > 0, "DNS-AID records require a domain");
@@ -32,7 +36,7 @@ export function buildDnsAidRecords(domain: string): readonly DnsAidRecord[] {
 		{
 			name: `_index._agents.${domain}`,
 			type: "SVCB",
-			value: `1 ${domain} alpn="h2" port=443`,
+			value: `1 ${domain} alpn="h2,http/1.1" port=443`,
 			ttlSeconds: DNS_AID_TTL_SECONDS,
 		},
 	];

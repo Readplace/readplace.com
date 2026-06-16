@@ -15,15 +15,18 @@ record ([RFC 9460](https://www.rfc-editor.org/rfc/rfc9460)) per apex; the
 writes them to Route 53. For each configured domain:
 
 ```
-_index._agents.<domain>.  3600  IN  SVCB  1 <domain> alpn="h2" port=443
+_index._agents.<domain>.  3600  IN  SVCB  1 <domain> alpn="h2,http/1.1" port=443
 ```
 
 - **`_index`** is the general entrypoint. We do not publish the draft's `_a2a`
   example label — the app answers over HTTPS, not Agent2Agent JSON-RPC, so an
   `_a2a` target would never connect.
-- **`alpn="h2"`** advertises HTTP/2. RFC 9460 §7.1.1 implies the https default
-  (`http/1.1`); `h3` is omitted because the API Gateway custom domains fronting
-  the apexes do not serve HTTP/3.
+- **`alpn="h2,http/1.1"`** names both protocols the origin serves. A generic
+  SVCB record has no implicit ALPN default — RFC 9460 §9.5's `http/1.1` default
+  applies only to the HTTPS RR, not the SVCB RR this `_agents` scheme uses — so
+  each protocol must be listed explicitly or, per §7.1.2, clients are told not
+  to use it. `h3` is omitted because the API Gateway custom domains fronting the
+  apexes do not serve HTTP/3.
 - The `mandatory` and `keyNNNNN` SvcParams from the draft are omitted because
   Route 53 rejects them.
 
@@ -34,7 +37,7 @@ configures no apex domains, so no records are created there.
 
 ```sh
 dig +short _index._agents.readplace.com SVCB
-# 1 readplace.com. alpn="h2" port=443
+# 1 readplace.com. alpn="h2,http/1.1" port=443
 ```
 
 Then confirm the external scanner sees them:
