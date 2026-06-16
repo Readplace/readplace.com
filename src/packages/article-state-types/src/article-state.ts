@@ -47,3 +47,43 @@ export function deriveReaderViewStatus(input: {
 	}
 	return "loading";
 }
+
+/**
+ * Operator-facing terminal outcome of a single state-machine axis, used by the
+ * failed-articles canary to decide what counts as a debuggable failure.
+ *
+ * `complete` is a finished, non-error result: a `ready` crawl, a `skipped`
+ * summary (nothing to summarise), or an `unsupported` crawl — a definitive
+ * *supported* determination that the resource is a content type the product
+ * does not render (e.g. an image). That is correct behaviour, not a bug. Only
+ * `error` is a recoverable failure worth surfacing; `pending` is not terminal.
+ *
+ * Defined beside the status enums so the canary tracks production's notion of
+ * complete-vs-error: adding or reclassifying a status is a compile break in
+ * these exhaustive switches, not a silent change to what the canary reports.
+ */
+type AxisOutcome = "pending" | "complete" | "error";
+
+export function classifyCrawlOutcome(status: CrawlStatus): AxisOutcome {
+	switch (status) {
+		case "pending":
+			return "pending";
+		case "ready":
+		case "unsupported":
+			return "complete";
+		case "failed":
+			return "error";
+	}
+}
+
+export function classifySummaryOutcome(status: SummaryStatus): AxisOutcome {
+	switch (status) {
+		case "pending":
+			return "pending";
+		case "ready":
+		case "skipped":
+			return "complete";
+		case "failed":
+			return "error";
+	}
+}

@@ -1,4 +1,6 @@
 export {
+	classifyCrawlOutcome,
+	classifySummaryOutcome,
 	CrawlStatusSchema,
 	deriveReaderViewStatus,
 	ReaderStatusSchema,

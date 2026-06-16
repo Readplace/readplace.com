@@ -468,6 +468,27 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			excluded: false,
 			label: "different CloudFront object — should NOT match",
 		},
+		// (g) Redirect-variant duplicates of working canonical URLs.
+		{
+			url: "https://hynek.me/articles/what-to-mock-in-5-mins",
+			excluded: true,
+			label: "hynek no-trailing-slash variant (301s to the working article)",
+		},
+		{
+			url: "https://hynek.me/articles/what-to-mock-in-5-mins/",
+			excluded: false,
+			label: "hynek canonical trailing-slash article — must NOT be hidden",
+		},
+		{
+			url: "https://developer.android.com/reference/android/webkit/WebView.html",
+			excluded: true,
+			label: "android .html legacy variant (oauth redirect loop)",
+		},
+		{
+			url: "https://developer.android.com/reference/android/webkit/WebView",
+			excluded: false,
+			label: "android canonical no-.html reference — must NOT be hidden",
+		},
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {

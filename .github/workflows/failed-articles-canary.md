@@ -1,12 +1,11 @@
 # Failed Articles Canary Investigation
 
-You have been triggered because the `Failed articles canary` workflow surfaced one or more articles in the production DynamoDB articles table whose state machines reached a **terminal but unsuccessful** outcome:
+You have been triggered because the `Failed articles canary` workflow surfaced one or more articles in the production DynamoDB articles table whose state machines reached a **terminal error** outcome:
 
 - `crawlStatus = failed` — crawl exhausted its retry chain and the DLQ handler flipped the row.
-- `crawlStatus = unsupported` — crawler refused the URL (e.g., non-HTML content type, blocked by a content gate).
 - `summaryStatus = failed` — summary generation exhausted its retries (likely DeepSeek or an upstream LLM error).
 
-`summaryStatus = skipped` is NOT a failure — the summary worker intentionally decided not to produce a summary (content too short, crawl failed first, etc.). The canary treats it as a successful terminal outcome and does not surface rows whose only non-ready axis is summary-skipped.
+`crawlStatus = unsupported` and `summaryStatus = skipped` are NOT failures — they are complete, *supported* terminal outcomes, and the canary does not surface them. `unsupported` is a deliberate determination that the URL is a content type the product does not render (e.g., an image); `skipped` is the summary worker intentionally producing no summary (content too short, crawl failed first, etc.). The canary derives this split from `classifyCrawlOutcome` / `classifySummaryOutcome` in `src/packages/article-state-types/`.
 
 This canary is a **debug worklist**, not a pass/fail health check. The script always exits 0; a non-empty report means real customer URLs were dropped and the operator wants to investigate each one.
 
@@ -24,7 +23,7 @@ This canary is a **debug worklist**, not a pass/fail health check. The script al
 ## Important Guidelines
 
 - Follow ALL CLAUDE.md guidelines.
-- **The stored `failed` / `unsupported` reason strings on each row are the most direct signal of root cause.** Read them before reaching for logs. The schemas live in `src/packages/article-state-types/` (`CrawlFailureReasonSchema`, `CrawlUnsupportedReasonSchema`, `SummaryFailureReasonSchema`).
+- **The stored `crawl-failed` / `summary-failed` reason strings on each row are the most direct signal of root cause.** Read them before reaching for logs. The schemas live in `src/packages/article-state-types/` (`CrawlFailureReasonSchema`, `SummaryFailureReasonSchema`).
 - **Never edit `src/packages/check-failed-articles/scripts/exclude-patterns.ts` to make the canary quiet.** Each entry must represent a class of URL that is genuinely unsupported by product policy. Adding a fixable failure URL silently hides the regression and tomorrow's cron emits a shorter (misleading) list.
 - **Never raise `FAILED_ARTICLES_LOOKBACK_DAYS` to hide a backlog.** That env var is for the operator to narrow the worklist once the historical tail is processed, not a way to make the next scan smaller without doing the work.
 - **Never lower `MAX_PAGES` in `collect-failed-rows.ts`.** The cap exists to fail loud on a runaway scan.
