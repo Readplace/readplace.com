@@ -12,6 +12,8 @@ const NON_PAGE_PREFIXES = [
 	"/.well-known/api-catalog",
 	"/.well-known/oauth-authorization-server",
 	"/.well-known/oauth-protected-resource",
+	"/.well-known/mcp/server-card.json",
+	"/mcp",
 ];
 
 const AGENT_SKILLS_NAMESPACE = "/.well-known/agent-skills/";

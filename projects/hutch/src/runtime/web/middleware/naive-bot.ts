@@ -44,6 +44,8 @@ const BOT_BYPASS_PATHS: ReadonlySet<string> = new Set([
 	"/.well-known/oauth-protected-resource",
 	"/.well-known/oauth-authorization-server",
 	"/.well-known/api-catalog",
+	"/.well-known/mcp/server-card.json",
+	"/mcp",
 ]);
 
 /** Machine-targeted discovery namespace: a skills validator or agent may fetch it with a scripted client. */

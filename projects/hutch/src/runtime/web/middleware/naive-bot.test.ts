@@ -202,6 +202,8 @@ describe("createBlockNaiveBotMiddleware", () => {
 		"/.well-known/oauth-protected-resource",
 		"/.well-known/oauth-authorization-server",
 		"/.well-known/api-catalog",
+		"/.well-known/mcp/server-card.json",
+		"/mcp",
 	])("bypasses the block for the discovery endpoint %s", (path) => {
 		expect(run({ ua: "curl/7.88.1", path }).nextCalled).toBe(true);
 	});

@@ -124,6 +124,7 @@ import { initEmbedRoutes } from "./web/pages/embed/embed.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initAccountRoutes } from "./web/pages/account/account.page";
 import { initAgentSkills } from "./web/agent-skills/agent-skills";
+import { createMcpHandler } from "./web/mcp/mcp-server";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
@@ -479,6 +480,25 @@ export function createApp(dependencies: AppDependencies): Express {
 			res.type("text/markdown; charset=utf-8").send(skill.content);
 		});
 	}
+
+	const mcp = createMcpHandler({
+		baseUrl: deps.baseUrl,
+		validateAccessToken: deps.validateAccessToken,
+		validateSaveableUrl: deps.validateSaveableUrl,
+		findArticlesByUser: deps.findArticlesByUser,
+		saveArticle: deps.saveArticle,
+		updateArticleStatus: deps.updateArticleStatus,
+		markCrawlPending: deps.markCrawlPending,
+		markSummaryPending: deps.markSummaryPending,
+		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
+		publishLinkSaved: deps.publishLinkSaved,
+		refreshArticleIfStale: deps.refreshArticleIfStale,
+		logError: deps.logError,
+	});
+
+	app.get("/.well-known/mcp/server-card.json", mcp.serveCard);
+	app.post("/mcp", express.text({ type: "*/*", limit: "1mb" }), mcp.handlePost);
+	app.get("/mcp", mcp.methodNotAllowed);
 
 	const extensionCors = cors({
 		origin: (origin, callback) => {
