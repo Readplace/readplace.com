@@ -245,6 +245,28 @@ describe("initMcpServer", () => {
 			});
 		});
 
+		it("flags that only the first page is shown when the total exceeds the listed articles", async () => {
+			const listQueue = jest.fn(async () => ({
+				total: 5,
+				articles: [
+					{ url: "https://a.test/", title: "A", status: "unread" as const },
+					{ url: "https://b.test/", title: "B", status: "unread" as const },
+				],
+			}));
+			const server = initMcpServer(fakeDeps({ listQueue }));
+			const response = await server.handle(
+				{ jsonrpc: "2.0", id: 14, method: "tools/call", params: { name: "list_queue" } },
+				context,
+			);
+			expect(response).toMatchObject({
+				result: {
+					content: [
+						{ text: expect.stringContaining("You have 5 saved article(s); showing the first 2:") },
+					],
+				},
+			});
+		});
+
 		it("returns an error result for an invalid status", async () => {
 			const server = initMcpServer(fakeDeps());
 			const response = await server.handle(

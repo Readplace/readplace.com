@@ -121,4 +121,25 @@ describe("MCP server over the real app", () => {
 		expect(response.status).toBe(200);
 		expect(response.body.result.isError).toBe(true);
 	});
+
+	it("refuses save_link with a tool error when the caller's subscription is inactive", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await obtainAccessToken(harness);
+		const user = await harness.auth.findUserByEmail("mcp@example.com");
+		assert(user, "the authenticated user must exist");
+		await harness.subscriptionProviders.upsertTrialing({
+			userId: user.userId,
+			trialEndsAt: new Date(Date.now() - 86_400_000).toISOString(),
+		});
+
+		const response = await callTool(harness, accessToken, {
+			jsonrpc: "2.0",
+			id: 4,
+			method: "tools/call",
+			params: { name: "save_link", arguments: { url: "https://example.com/blocked" } },
+		});
+		expect(response.status).toBe(200);
+		expect(response.body.result.isError).toBe(true);
+		expect(response.body.result.content[0].text).toContain("subscription");
+	});
 });

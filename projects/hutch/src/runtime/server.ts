@@ -127,6 +127,7 @@ import { initAgentSkills } from "./web/agent-skills/agent-skills";
 import { initMcpServer } from "./web/mcp/mcp-server";
 import { initMcpRoutes } from "./web/mcp/mcp.routes";
 import { buildMcpServerCard } from "./web/mcp/server-card";
+import { initResolveSaveAccess } from "./web/mcp/save-access";
 import { saveArticleFromUrl } from "./web/shared/save-article/save-article-from-url";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
@@ -283,11 +284,29 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	const agentSkills = initAgentSkills();
 
+	const getEffectiveAccess = initGetEffectiveAccess({
+		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
+		now: deps.now,
+	});
+
 	/** The MCP server's tools are the same writes/reads the hypermedia `/queue`
 	 * API performs, so an agent acting over MCP and the browser extension take
-	 * the identical save and list paths. */
+	 * the identical save and list paths — including the lockout and write-access
+	 * gates the extension save clears (resolved here from the bearer-derived
+	 * userId, since the request carries no session), so an MCP save is the
+	 * identical write rather than a back door around them. Listing stays open
+	 * while locked, matching `requireNotLocked`, so only `save_link` is gated. */
+	const resolveSaveAccess = initResolveSaveAccess({
+		findUserById: deps.findUserById,
+		getEffectiveAccess,
+		now: deps.now,
+	});
 	const mcpServer = initMcpServer({
 		saveLink: async ({ userId, url }) => {
+			const access = await resolveSaveAccess(userId);
+			if (!access.allowed) {
+				return { ok: false, message: access.message };
+			}
 			const validation = deps.validateSaveableUrl(url);
 			if (validation.status === "ERROR") {
 				return { ok: false, message: validation.error.message };
@@ -368,10 +387,6 @@ export function createApp(dependencies: AppDependencies): Express {
 	const markExtensionInstalled = initMarkExtensionInstalled();
 	app.use(markExtensionInstalled);
 
-	const getEffectiveAccess = initGetEffectiveAccess({
-		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
-		now: deps.now,
-	});
 	const requireWriteAccess = initRequireWriteAccess({ getEffectiveAccess });
 	const buildBannerState = initBuildBannerState({
 		getEffectiveAccess,

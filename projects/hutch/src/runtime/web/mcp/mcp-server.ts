@@ -190,9 +190,12 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				(article) =>
 					`- ${article.title || article.url} [${article.status}] ${article.url}`,
 			);
-			return text(
-				`You have ${outcome.total} saved article(s):\n${lines.join("\n")}`,
-			);
+			const shown = outcome.articles.length;
+			const header =
+				shown < outcome.total
+					? `You have ${outcome.total} saved article(s); showing the first ${shown}:`
+					: `You have ${outcome.total} saved article(s):`;
+			return text(`${header}\n${lines.join("\n")}`);
 		} catch (error) {
 			return toolError(`Could not list your queue. ${errorMessage(error)}`);
 		}
