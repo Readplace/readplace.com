@@ -1,5 +1,7 @@
 import type { CrawlStatus, ReaderViewStatus, SummaryStatus } from "./article-state";
 import {
+	classifyCrawlOutcome,
+	classifySummaryOutcome,
 	CrawlStatusSchema,
 	deriveReaderViewStatus,
 	ReaderStatusSchema,
@@ -75,5 +77,35 @@ describe("deriveReaderViewStatus", () => {
 			{ crawl: "ready", summary: "ready", expected: "succeeded" },
 			{ crawl: "ready", summary: "skipped", expected: "succeeded" },
 		]);
+	});
+});
+
+describe("classifyCrawlOutcome", () => {
+	const cases: Array<{ status: CrawlStatus; expected: "pending" | "complete" | "error" }> = [
+		{ status: "pending", expected: "pending" },
+		{ status: "ready", expected: "complete" },
+		{ status: "unsupported", expected: "complete" },
+		{ status: "failed", expected: "error" },
+	];
+
+	it.each(cases)("classifies crawl=$status as $expected", ({ status, expected }) => {
+		expect(classifyCrawlOutcome(status)).toBe(expected);
+	});
+
+	it("treats unsupported as complete (a supported determination), never error", () => {
+		expect(classifyCrawlOutcome("unsupported")).toBe("complete");
+	});
+});
+
+describe("classifySummaryOutcome", () => {
+	const cases: Array<{ status: SummaryStatus; expected: "pending" | "complete" | "error" }> = [
+		{ status: "pending", expected: "pending" },
+		{ status: "ready", expected: "complete" },
+		{ status: "skipped", expected: "complete" },
+		{ status: "failed", expected: "error" },
+	];
+
+	it.each(cases)("classifies summary=$status as $expected", ({ status, expected }) => {
+		expect(classifySummaryOutcome(status)).toBe(expected);
 	});
 });

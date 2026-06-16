@@ -4,15 +4,18 @@
  * the top-level `test()` block (which requires AWS env vars at import).
  *
  * A row is "failed" when both state-machine axes have reached a terminal
- * value (non-`pending`) AND at least one axis terminated in a state that
- * represents an actual failure:
- *   - `crawlStatus` ∈ {failed, unsupported}
+ * value (non-`pending`) AND at least one axis is a genuine error, as classified
+ * by production's `classifyCrawlOutcome` / `classifySummaryOutcome`:
+ *   - `crawlStatus` = failed
  *   - `summaryStatus` = failed
  *
- * `summaryStatus = skipped` is NOT a failure — the summary worker
- * deliberately decided not to produce a summary (content too short, crawl
- * failed first, etc.). A row whose only "non-ready" axis is summary-skipped
- * is a successful outcome and is not surfaced.
+ * Terminal-but-complete outcomes are NOT surfaced. `crawlStatus = unsupported`
+ * is a definitive *supported* determination that the content type is one the
+ * product does not render (e.g. an image) — correct behaviour, not a bug — and
+ * `summaryStatus = skipped` means the worker deliberately produced no summary
+ * (content too short, crawl failed first, etc.). Deriving the failure set from
+ * the shared predicates keeps the canary in step with production: a new or
+ * reclassified status is a compile break there, not a silent canary change.
  *
  * A crawl that `failed` with a `blocked`/`rate-limited` reason is likewise
  * dropped: that is the paid-crawl-budget circuit-breaker tripping — a
@@ -26,6 +29,8 @@
  */
 import assert from "node:assert/strict";
 import {
+	classifyCrawlOutcome,
+	classifySummaryOutcome,
 	CrawlFailureReasonSchema,
 	CrawlStatusSchema,
 	SummaryStatusSchema,
@@ -42,19 +47,17 @@ import { isExcluded } from "./exclude-patterns";
 const FailedArticleRow = z.object({
 	url: z.string(),
 	originalUrl: dynamoField(z.string()),
-	crawlStatus: dynamoField(CrawlStatusSchema),
+	/* Required (not dynamoField): the scan's `attribute_exists(...) AND <> :pending`
+	 * filter only returns rows where both axes are present and terminal. */
+	crawlStatus: CrawlStatusSchema,
 	crawlFailureReason: dynamoField(z.string()),
-	crawlUnsupportedReason: dynamoField(z.string()),
-	summaryStatus: dynamoField(SummaryStatusSchema),
+	summaryStatus: SummaryStatusSchema,
 	summaryFailureReason: dynamoField(z.string()),
 	contentFetchedAt: dynamoField(z.string()),
 	savedAt: z.string(),
 });
 
-export type FailedAxis =
-	| "crawl-failed"
-	| "crawl-unsupported"
-	| "summary-failed";
+export type FailedAxis = "crawl-failed" | "summary-failed";
 
 export interface FailedRow {
 	originalUrl: string;
@@ -87,13 +90,10 @@ export function buildScanInput(now: Date, lookbackDays: number) {
 	const baseExpressionAttributeValues: Record<string, string> = {
 		":pending": "pending",
 		":crawlFailed": "failed",
-		":crawlUnsupported": "unsupported",
 		":summaryFailed": "failed",
 	};
 	const terminalUnsuccessful =
-		"(crawlStatus = :crawlFailed " +
-		"OR crawlStatus = :crawlUnsupported " +
-		"OR summaryStatus = :summaryFailed)";
+		"(crawlStatus = :crawlFailed OR summaryStatus = :summaryFailed)";
 	const bothAxesTerminal =
 		"attribute_exists(crawlStatus) AND attribute_exists(summaryStatus) " +
 		"AND crawlStatus <> :pending AND summaryStatus <> :pending";
@@ -107,7 +107,7 @@ export function buildScanInput(now: Date, lookbackDays: number) {
 	return {
 		FilterExpression: filterExpression,
 		ProjectionExpression:
-			"originalUrl, #u, crawlStatus, crawlFailureReason, crawlUnsupportedReason, " +
+			"originalUrl, #u, crawlStatus, crawlFailureReason, " +
 			"summaryStatus, summaryFailureReason, contentFetchedAt, savedAt",
 		ExpressionAttributeNames: { "#u": "url" },
 		ExpressionAttributeValues: expressionAttributeValues,
@@ -137,16 +137,14 @@ function classifyAxes(row: z.infer<typeof FailedArticleRow>): {
 } {
 	const axes: FailedAxis[] = [];
 	const reasons: Partial<Record<FailedAxis, string>> = {};
-	if (row.crawlStatus === "failed" && !isRateLimitedBlock(row.crawlFailureReason)) {
+	if (
+		classifyCrawlOutcome(row.crawlStatus) === "error" &&
+		!isRateLimitedBlock(row.crawlFailureReason)
+	) {
 		axes.push("crawl-failed");
 		if (row.crawlFailureReason !== undefined) reasons["crawl-failed"] = row.crawlFailureReason;
 	}
-	if (row.crawlStatus === "unsupported") {
-		axes.push("crawl-unsupported");
-		if (row.crawlUnsupportedReason !== undefined)
-			reasons["crawl-unsupported"] = row.crawlUnsupportedReason;
-	}
-	if (row.summaryStatus === "failed") {
+	if (classifySummaryOutcome(row.summaryStatus) === "error") {
 		axes.push("summary-failed");
 		if (row.summaryFailureReason !== undefined)
 			reasons["summary-failed"] = row.summaryFailureReason;

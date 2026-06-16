@@ -160,6 +160,18 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// can never be re-fetched. Matches the dead PDF path with or without a query.
 	/^https:\/\/d1wqtxts1xzle7\.cloudfront\.net\/49645891\/sce\.373067020820161016-1490-16axao2\.pdf(?:\?|$)/i,
 	/^https:\/\/academic\.oup\.com\/qje\/article-abstract\/101\/4\/729\/1840176(?:\?login=false)?$/i,
+	// (g) Redirect-variant of a working canonical URL — the saved form 30x-redirects
+	// to a different URL the AWS crawler can't follow (datacenter edge block, or an
+	// auth redirect loop), so the variant stays crawl-failed while the canonical
+	// form the reader actually uses renders normally. Excluded as a duplicate.
+	//
+	// hynek.me 301s the slashless form to the trailing-slash article, then edge-
+	// blocks datacenter egress on the fetch; the slash form is the live article.
+	/^https:\/\/hynek\.me\/articles\/what-to-mock-in-5-mins$/i,
+	// developer.android.com serves reference pages without the legacy `.html`; the
+	// `.html` form 302-loops through `/oauth2authorize` for anonymous fetchers,
+	// while the slashless `…/WebView` is the canonical page.
+	/^https:\/\/developer\.android\.com\/reference\/android\/webkit\/WebView\.html$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

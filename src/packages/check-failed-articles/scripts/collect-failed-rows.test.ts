@@ -55,14 +55,17 @@ describe("buildScanInput", () => {
 		);
 	});
 
-	it("matches the three real-failure terminal values; summary-skipped is intentionally NOT a failure", () => {
+	it("matches the two genuine-error terminal values; unsupported and summary-skipped are complete, not failures", () => {
 		const input = buildScanInput(NOW, 0);
 		assert.match(input.FilterExpression, /crawlStatus = :crawlFailed/);
-		assert.match(input.FilterExpression, /crawlStatus = :crawlUnsupported/);
 		assert.match(input.FilterExpression, /summaryStatus = :summaryFailed/);
 		assert.equal(input.ExpressionAttributeValues[":crawlFailed"], "failed");
-		assert.equal(input.ExpressionAttributeValues[":crawlUnsupported"], "unsupported");
 		assert.equal(input.ExpressionAttributeValues[":summaryFailed"], "failed");
+		assert.ok(
+			!("crawlUnsupported" in input.ExpressionAttributeValues) &&
+				!input.FilterExpression.includes("unsupported"),
+			"crawl-unsupported must not appear in the filter — it is a complete (supported) terminal outcome",
+		);
 		assert.ok(
 			!("summarySkipped" in input.ExpressionAttributeValues) &&
 				!input.FilterExpression.includes("summarySkipped"),
@@ -97,7 +100,6 @@ describe("buildScanInput", () => {
 			"originalUrl",
 			"crawlStatus",
 			"crawlFailureReason",
-			"crawlUnsupportedReason",
 			"summaryStatus",
 			"summaryFailureReason",
 			"contentFetchedAt",
@@ -108,6 +110,10 @@ describe("buildScanInput", () => {
 				`ProjectionExpression must include ${attr}`,
 			);
 		}
+		assert.ok(
+			!input.ProjectionExpression.includes("crawlUnsupportedReason"),
+			"crawlUnsupportedReason is not surfaced — crawl-unsupported is a complete outcome",
+		);
 		assert.ok(
 			!input.ProjectionExpression.includes("summarySkippedReason"),
 			"summarySkippedReason is not surfaced — summary-skipped is a successful outcome",
@@ -279,14 +285,13 @@ describe("collectFailedRows", () => {
 		assert.equal(failed[0]?.reasons["crawl-failed"], undefined);
 	});
 
-	it("classifies a crawl-unsupported row and surfaces its unsupported reason", async () => {
+	it("drops a crawl-unsupported row — an unsupported content type is a complete, supported determination, not a failure", async () => {
 		const { client } = createFakeClient(() => ({
 			Items: [
 				{
 					url: "site.test/pdf",
 					originalUrl: "https://site.test/paper.pdf",
 					crawlStatus: "unsupported",
-					crawlUnsupportedReason: '{"kind":"non-html-content","contentType":"application/pdf"}',
 					summaryStatus: "skipped",
 					savedAt: "2026-05-10T00:00:00.000Z",
 				},
@@ -301,12 +306,7 @@ describe("collectFailedRows", () => {
 			lookbackDays: 0,
 			excludePatterns: NO_EXCLUDES,
 		});
-		assert.equal(failed.length, 1);
-		assert.deepEqual(failed[0]?.axes, ["crawl-unsupported"]);
-		assert.equal(
-			failed[0]?.reasons["crawl-unsupported"],
-			'{"kind":"non-html-content","contentType":"application/pdf"}',
-		);
+		assert.deepEqual(failed, []);
 	});
 
 	it("classifies a summary-only-failed row whose crawl succeeded", async () => {
