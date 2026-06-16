@@ -594,13 +594,28 @@ importers:
       helmet:
         specifier: 8.2.0
         version: 8.2.0
+      serverless-http:
+        specifier: 4.0.0
+        version: 4.0.0
     devDependencies:
+      '@packages/hutch-infra-components':
+        specifier: workspace:*
+        version: link:../../src/packages/hutch-infra-components
       '@packages/test-phase-runner':
         specifier: workspace:*
         version: link:../../src/packages/test-phase-runner
       '@playwright/test':
         specifier: 1.60.0
         version: 1.60.0
+      '@pulumi/aws':
+        specifier: 7.32.0
+        version: 7.32.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
+      '@pulumi/pulumi':
+        specifier: 3.244.0
+        version: 3.244.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
+      '@types/aws-lambda':
+        specifier: 8.10.161
+        version: 8.10.161
       '@types/express':
         specifier: 5.0.6
         version: 5.0.6

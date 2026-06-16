@@ -13,7 +13,16 @@ export default {
 		"src/*.main.ts",
 	],
 	ignore: [...(baseConfig.ignore || [])],
-	ignoreBinaries: [...(baseConfig.ignoreBinaries || [])],
+	ignoreDependencies: [
+		// Required by Pulumi to resolve the AWS provider at deploy time, but not
+		// imported directly (HutchLambda in @packages/hutch-infra-components is)
+		"@pulumi/aws",
+	],
+	ignoreBinaries: [
+		...(baseConfig.ignoreBinaries || []),
+		// Used via the deploy / check-infra scripts, installed globally or via npx
+		"pulumi",
+	],
 	jest: {
 		entry: ["src/**/*.test.ts"],
 	},

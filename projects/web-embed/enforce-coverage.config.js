@@ -17,5 +17,7 @@ config.enforceCoverage({
   showTextTable: true,
   extraExcludePatterns: [
     ...(config.extraExcludePatterns || []),
+    // Infrastructure layer — deployed via Pulumi, not testable in CI
+    'src/infra/**',
   ],
 });

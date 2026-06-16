@@ -1,9 +1,34 @@
 {
   "name": "web-embed",
   "targets": {
-    "check": {
-      "command": "pnpm lint && pnpm test-with-coverage",
+    "install-deps": {
+      "command": "test -d projects/web-embed/node_modules || pnpm install --frozen-lockfile",
+      "options": { "cwd": "{workspaceRoot}" },
+      "cache": false
+    },
+    "compile": {
+      "dependsOn": ["install-deps", "^compile"]
+    },
+    "deploy-infra": {
+      "command": "PULUMI_CONFIG_PASSPHRASE='' pulumi up --stack \"${PULUMI_STACK:?PULUMI_STACK is not set}\" $([ \"$CI\" = true ] && echo --yes)",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["compile"]
+    },
+    "post-deploy": {
+      "command": "bash scripts/post-deploy.sh",
       "options": { "cwd": "{projectRoot}" }
-    }
+    },
+    "check": {
+      "command": "true",
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": ["lint", "test-with-coverage"]
+    },
+    "lint": {
+      "dependsOn": ["compile"]
+    },
+    "test-with-coverage": {
+      "dependsOn": ["compile"]
+    },
+    "test": {}
   }
 }
