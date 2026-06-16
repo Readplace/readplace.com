@@ -46,13 +46,16 @@ const BOT_BYPASS_PATHS: ReadonlySet<string> = new Set([
 	"/.well-known/api-catalog",
 ]);
 
+/** Machine-targeted discovery namespace: a skills validator or agent may fetch it with a scripted client. */
+const BOT_BYPASS_NAMESPACE = "/.well-known/agent-skills/";
+
 const MAX_LOGGED_UA_LENGTH = 200;
 
 export function createBlockNaiveBotMiddleware(deps: {
 	logger: HutchLogger.Typed<BotBlockEvent>;
 }): RequestHandler {
 	return (req: Request, res: Response, next: NextFunction) => {
-		if (BOT_BYPASS_PATHS.has(req.path)) {
+		if (BOT_BYPASS_PATHS.has(req.path) || req.path.startsWith(BOT_BYPASS_NAMESPACE)) {
 			next();
 			return;
 		}

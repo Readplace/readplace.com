@@ -122,6 +122,7 @@ import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
 import { initEmbedRoutes } from "./web/pages/embed/embed.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
 import { initAccountRoutes } from "./web/pages/account/account.page";
+import { initAgentSkills } from "./web/agent-skills/agent-skills";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
@@ -271,6 +272,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		}
 		next();
 	});
+
+	const agentSkills = initAgentSkills();
 
 	const secureCookies = isHttpsOrigin(appOrigin);
 
@@ -455,6 +458,16 @@ export function createApp(dependencies: AppDependencies): Express {
 				),
 			);
 	});
+
+	app.get("/.well-known/agent-skills/index.json", (_req: Request, res: Response) => {
+		res.json(agentSkills.buildIndex());
+	});
+
+	for (const skill of agentSkills.getAll()) {
+		app.get(`/.well-known/agent-skills/${skill.name}/SKILL.md`, (_req: Request, res: Response) => {
+			res.type("text/markdown; charset=utf-8").send(skill.content);
+		});
+	}
 
 	const extensionCors = cors({
 		origin: (origin, callback) => {

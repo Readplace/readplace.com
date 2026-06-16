@@ -206,6 +206,13 @@ describe("createBlockNaiveBotMiddleware", () => {
 		expect(run({ ua: "curl/7.88.1", path }).nextCalled).toBe(true);
 	});
 
+	it("bypasses the block for the agent-skills discovery namespace so a validator can fetch it", () => {
+		const result = run({ ua: "curl/7.88.1", path: "/.well-known/agent-skills/index.json" });
+		expect(result.nextCalled).toBe(true);
+		expect(result.status).toBeUndefined();
+		expect(result.logged).toEqual([]);
+	});
+
 	it("truncates logged user_agent to 200 chars so a malicious 10KB UA cannot blow up the log line size", () => {
 		const longUa = `curl/${"x".repeat(500)}`;
 		const result = run({ ua: longUa });
