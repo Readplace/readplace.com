@@ -6,7 +6,13 @@ import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subs
 export type FullAccessTier =
 	| { tier: "founding"; access: "full"; banner: "none" }
 	| { tier: "paid"; access: "full"; banner: "none" }
-	| { tier: "trial"; access: "full"; banner: "trial-countdown"; trialEndsAt: string }
+	| {
+			tier: "trial";
+			access: "full";
+			banner: "trial-countdown";
+			trialEndsAt: string;
+			trialStartedAt: string;
+		}
 	| {
 			tier: "paid" | "trial";
 			access: "full";
@@ -70,6 +76,7 @@ export function initGetEffectiveAccess(deps: {
 						access: "full",
 						banner: "trial-countdown",
 						trialEndsAt: row.trialEndsAt,
+						trialStartedAt: row.createdAt,
 					};
 				}
 				return {

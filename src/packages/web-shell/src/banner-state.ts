@@ -134,6 +134,12 @@ export interface BannerState {
 	 * (without an access lookup); `buildNavGroups` treats undefined as full
 	 * access. */
 	accessIsReadOnly?: boolean;
+	/** Pre-rendered founding-offer popup, present only when the consuming site
+	 * decides the current user is eligible to see it (e.g. an active trial past a
+	 * grace period, or a locked-out account — never founding members). The shell
+	 * owns no offer logic: it renders the markup, styles, and script the site
+	 * supplies so the overlay appears on every page. Undefined for everyone else. */
+	offerPopup?: { html: string; styles: string; script: string };
 }
 
 const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method: "GET", icon: "fa-solid fa-inbox" });

@@ -1,10 +1,6 @@
 export interface PopupState {
-	firstVisitAt?: number;
-	shownAt?: number;
 	closed?: boolean;
 }
-
-export const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 /** The countdown is anchored to the moment the popup is first shown so it stays
  * consistent across reloads on the same device rather than resetting to the top
@@ -22,14 +18,6 @@ export function parseStoredState(raw: string | null): PopupState {
 	if (parsed === null) return {};
 	if (typeof parsed !== "object") return {};
 	const state: PopupState = {};
-	if ("firstVisitAt" in parsed) {
-		const value = parsed.firstVisitAt;
-		if (typeof value === "number") state.firstVisitAt = value;
-	}
-	if ("shownAt" in parsed) {
-		const value = parsed.shownAt;
-		if (typeof value === "number") state.shownAt = value;
-	}
 	if ("closed" in parsed) {
 		const value = parsed.closed;
 		if (typeof value === "boolean") state.closed = value;
@@ -41,25 +29,12 @@ export function serializeState(state: PopupState): string {
 	return JSON.stringify(state);
 }
 
-/** Decides whether the one-time offer should show on this load and returns the
- * state to persist next. The popup never shows on the first visit (that visit
- * only records `firstVisitAt`); it shows exactly once, on a later visit at least
- * a day after the first; and once the reader closes it (`closed`) or it has been
- * shown once (`shownAt`) it never shows again. */
-export function decideVisibility(input: {
-	state: PopupState;
-	now: number;
-}): { show: boolean; next: PopupState } {
-	const { state, now } = input;
-	if (state.closed === true) return { show: false, next: state };
-	if (state.firstVisitAt === undefined) {
-		return { show: false, next: { ...state, firstVisitAt: now } };
-	}
-	if (state.shownAt !== undefined) return { show: false, next: state };
-	if (now - state.firstVisitAt >= ONE_DAY_MS) {
-		return { show: true, next: { ...state, shownAt: now } };
-	}
-	return { show: false, next: state };
+/** Whether the reader has permanently dismissed the popup on this device. The
+ * server decides *eligibility* (an active trial past its grace period, or a
+ * locked-out account); the client only suppresses a popup the reader has already
+ * closed here, so it stays hidden on this device but can reappear on another. */
+export function isDismissed(state: PopupState): boolean {
+	return state.closed === true;
 }
 
 export function formatCountdown(remainingMs: number): string {

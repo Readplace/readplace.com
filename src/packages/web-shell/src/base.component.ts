@@ -255,6 +255,8 @@ export function initBase(config: BaseConfig): RenderBase {
 			verifyBannerStyles: VERIFY_BANNER_STYLES,
 			trialCountdownStyles: TRIAL_COUNTDOWN_STYLES,
 			extensionSuggestionBannerStyles: EXTENSION_SUGGESTION_BANNER_STYLES,
+			offerPopupStyles: state.offerPopup?.styles ?? "",
+			offerPopup: state.offerPopup?.html ?? "",
 			verifyBanner: renderVerifyBanner(state),
 			extensionSuggestionBanner: renderExtensionSuggestionBanner({
 				show: state.showExtensionSuggestionBanner ?? false,
@@ -276,6 +278,7 @@ export function initBase(config: BaseConfig): RenderBase {
 				EXTENSION_SUGGESTION_BANNER_SCRIPT +
 				TOAST_SCRIPT +
 				(state.trial?.state === "active" ? TRIAL_COUNTDOWN_SCRIPT : "") +
+				(state.offerPopup?.script ?? "") +
 				(body.scripts ?? "") +
 				siteScripts +
 				liveReloadScript,
