@@ -14,9 +14,15 @@ interface StripeBundle {
 	markPaid: (id: CheckoutSessionId) => void;
 }
 
-/** Hits `GET /auth/checkout/success` directly rather than through the signup
- * form, using a shared supertest agent so the session cookie the success
- * handler sets persists across the test's later requests. */
+/** Drives the existing-user-subscribe path through `GET /auth/checkout/success`:
+ * pre-creates the account, opens a Stripe checkout session via the in-memory
+ * fake, stores an `existing-user-subscribe` pending signup keyed by that session
+ * id, marks the session paid, then GETs the success URL using a shared agent.
+ *
+ * This mirrors production: a logged-in user clicks Subscribe on /account, which
+ * stores the pending signup; `/auth/checkout/success` then upserts an active
+ * subscription on the pre-existing account (no account creation, no session
+ * cookie, no verification email — those belong to `POST /signup`). */
 export async function completeStripeSignup(params: {
 	server: Server;
 	auth: AuthBundle;
@@ -30,18 +36,23 @@ export async function completeStripeSignup(params: {
 	successResponse: import("supertest").Response;
 	checkoutSessionId: CheckoutSessionId;
 }> {
+	const created = await params.auth.createUser({
+		email: params.email,
+		password: params.password,
+	});
+	assert(created.ok, "user must be created before driving Stripe success");
+
 	const checkout = await params.stripe.createCheckoutSession({
 		customerEmail: params.email,
 		successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 		cancelUrl: "http://localhost:3000/signup",
 	});
-	const passwordHash = `plain:${params.password}`;
 	await params.pendingSignup.storePendingSignup({
 		checkoutSessionId: checkout.id,
 		signup: {
-			method: "email",
+			method: "existing-user-subscribe",
 			email: params.email,
-			passwordHash,
+			userId: created.userId,
 			...(params.returnUrl ? { returnUrl: params.returnUrl } : {}),
 		},
 		createdAt: 1735000000,

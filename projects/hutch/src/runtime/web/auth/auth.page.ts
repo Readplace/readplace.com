@@ -4,7 +4,6 @@ import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type {
 	CountUsers,
-	CreateGoogleUser,
 	CreateSession,
 	CreateUserWithPasswordHash,
 	DestroySession,
@@ -74,7 +73,6 @@ export type { BotDefenseEvent };
 interface AuthDependencies {
 	hashPassword: (password: string) => Promise<string>;
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
-	createGoogleUser: CreateGoogleUser;
 	findUserByEmail: FindUserByEmail;
 	verifyCredentials: VerifyCredentials;
 	createSession: CreateSession;
@@ -394,91 +392,13 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			return;
 		}
 
-		const returnPath = parseReturnUrl({ return: pending.returnUrl });
-
-		if (pending.method === "email") {
-			const created = await deps.createUserWithPasswordHash({
-				email: pending.email,
-				passwordHash: pending.passwordHash,
-			});
-			if (!created.ok) {
-				await renderFailure(409, "An account with this email already exists. Please sign in.");
-				return;
-			}
-
-			await deps.subscriptionProviders.upsertActive({ userId: created.userId, subscriptionId, customerId });
-			await deps.trialScheduler.deleteTrialEndSchedule({ userId: created.userId });
-			const sessionId = await deps.createSession({ userId: created.userId, emailVerified: false });
-			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
-			sendVerificationEmail(created.userId, pending.email);
-			emitUserCreated(
-				{ logger: deps.conversionLogger, now: deps.now },
-				{
-					userId: created.userId,
-					email: pending.email,
-					method: "email",
-					tier: "paid",
-					stripeCheckoutSessionId: checkoutSessionId,
-					attribution: readClickAttribution(req),
-					visitorId: req.visitorId,
-					pendingSaveId: consumePendingSaveId({ req, res }),
-				},
-			);
-			res.redirect(303, returnPath);
-			return;
-		}
-
-		if (pending.method === "existing-user-subscribe") {
-			await deps.subscriptionProviders.upsertActive({
-				userId: pending.userId,
-				subscriptionId,
-				customerId,
-			});
-			await deps.trialScheduler.deleteTrialEndSchedule({ userId: pending.userId });
-			res.redirect(303, returnPath);
-			return;
-		}
-
-		const created = await deps.createGoogleUser({
-			email: pending.email,
+		await deps.subscriptionProviders.upsertActive({
 			userId: pending.userId,
+			subscriptionId,
+			customerId,
 		});
-		if (!created.ok) {
-			const lookup = await deps.findUserByEmail(pending.email);
-			if (!lookup) {
-				await renderFailure(500, "Account creation failed. Please contact support.");
-				return;
-			}
-			if (!lookup.emailVerified) {
-				await deps.markEmailVerified(pending.email);
-			}
-			await deps.subscriptionProviders.upsertActive({ userId: lookup.userId, subscriptionId, customerId });
-			await deps.trialScheduler.deleteTrialEndSchedule({ userId: lookup.userId });
-			const sessionId = await deps.createSession({ userId: lookup.userId, emailVerified: true });
-			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
-			res.redirect(303, returnPath);
-			return;
-		}
-
-		await deps.subscriptionProviders.upsertActive({ userId: created.userId, subscriptionId, customerId });
-		await deps.trialScheduler.deleteTrialEndSchedule({ userId: created.userId });
-		const sessionId = await deps.createSession({ userId: created.userId, emailVerified: true });
-		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
-		sendWelcomeEmail(pending.email);
-		emitUserCreated(
-			{ logger: deps.conversionLogger, now: deps.now },
-			{
-				userId: created.userId,
-				email: pending.email,
-				method: "google",
-				tier: "paid",
-				stripeCheckoutSessionId: checkoutSessionId,
-				attribution: readClickAttribution(req),
-				visitorId: req.visitorId,
-				pendingSaveId: consumePendingSaveId({ req, res }),
-			},
-		);
-		res.redirect(303, returnPath);
+		await deps.trialScheduler.deleteTrialEndSchedule({ userId: pending.userId });
+		res.redirect(303, parseReturnUrl({ return: pending.returnUrl }));
 	});
 
 	router.get("/verify-email", async (req: Request, res: Response) => {

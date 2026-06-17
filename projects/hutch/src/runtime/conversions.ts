@@ -12,9 +12,8 @@ function hashEmail(email: string): string {
 }
 
 /**
- * Stripe checkout session id is included so events can be cross-joined with
- * payment data downstream. Attribution is device-scoped — a user who pays from
- * a different browser will have no attribution on their paid event.
+ * Attribution is device-scoped — a signup completed in a different browser from
+ * the one that drove the click will carry no attribution on the event.
  */
 export function emitUserCreated(
 	deps: {
@@ -25,8 +24,7 @@ export function emitUserCreated(
 		userId: UserId;
 		email: string;
 		method: "email" | "google";
-		tier: "free" | "paid" | "trial";
-		stripeCheckoutSessionId?: string;
+		tier: "free" | "trial";
 		attribution: ClickAttribution | undefined;
 		visitorId?: string;
 		pendingSaveId?: string;
@@ -40,9 +38,6 @@ export function emitUserCreated(
 		email_hash: hashEmail(params.email),
 		method: params.method,
 		tier: params.tier,
-		...(params.stripeCheckoutSessionId
-			? { stripe_checkout_session_id: params.stripeCheckoutSessionId }
-			: {}),
 		...(params.attribution ?? {}),
 		...(params.visitorId ? { visitor_id: params.visitorId } : {}),
 		...(params.pendingSaveId ? { pending_save_id: params.pendingSaveId } : {}),
