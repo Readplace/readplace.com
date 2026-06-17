@@ -11,14 +11,12 @@ keywords: "chatgpt article summary, read it later, article summarizer, chatgpt a
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Copy-pasting articles into ChatGPT for summaries takes seven steps, leaves no record, and loses the source. Readplace does it in one click: save the article, get an AI summary automatically, and keep both in a searchable archive. Summaries are cached by URL so they are ready instantly.
+Copy-pasting articles into ChatGPT for a summary runs to seven steps, leaves no record, and loses the source. Readplace does it in one click. You save the article, an AI summary arrives on its own, and both stay in a searchable archive. Summaries are cached by URL, so they tend to be ready right away.
 
 </div>
 </details>
 
-You find a 2,400-word article. You don't have time to read it now. You want the gist.
-
-So you do the thing:
+You find a 2,400-word article that looks worth reading, except not right now, and what you really want is the gist before you commit any more of your afternoon to it. So you fall into the routine you have run a hundred times.
 
 1. Select all.
 2. Copy.
@@ -29,50 +27,50 @@ So you do the thing:
 7. Close both tabs.
 8. Forget the article existed.
 
-That is seven steps, two apps, and zero record of what you read.
+That is seven steps across two apps, and at the end you keep no record of what you read. I do this too, and I noticed it only after pasting the same article into a fresh chat twice in one week.
 
-## The problems nobody talks about
+## The friction in the routine
 
-**It's manual every time.** No shortcut makes this smooth. You are a human clipboard moving text between browser tabs.
+**It's manual every time.** No shortcut makes this smooth, because the work is you acting as a clipboard, carrying text between two browser tabs by hand. The 100th time costs you the same effort as the first.
 
-**The summary vanishes.** ChatGPT conversations get buried fast. Try finding that summary from Tuesday on Friday. You end up copy-pasting the same article again.
+**The summary vanishes.** ChatGPT threads get buried within a day or two, so the summary you read on Tuesday is hard to find again by Friday, and you give up and re-paste the article rather than dig for it.
 
-**There's no archive.** You got the summary, but the article itself is gone. You didn't bookmark it. You didn't save it anywhere. It's lost in your browser history.
+**There's no archive.** You walked away with the summary and left the article behind. You didn't bookmark it. It's somewhere in your browser history, which is to say it's gone.
 
-**Long articles get truncated.** Paste a 5,000-word piece into ChatGPT and you hit token limits. Now you split the article into chunks and paste twice. You hope the model connects the context across both pastes. Reading just became project management.
+**Long articles get cut off.** Paste a 5,000-word piece and you can run into the model's token limit, so you split the article into chunks, paste it twice, and hope the context carries across the break. Reading turned into project management.
 
-**You lose the queue.** Real reading is not one article at a time. It's fifteen tabs you opened on Monday and plan to get through by Sunday. Copy-paste gives you no way to manage that backlog.
+**You lose the queue.** Reading is rarely one article at a time. It's fifteen tabs opened on Monday with a vague plan to clear them by Sunday, and copy-paste gives you nothing to manage that backlog with.
 
-## What if it took one click?
+## The same scene, one click
 
-Here's the same scenario with [Readplace](https://readplace.com/install):
+Here is that afternoon again, this time with [Readplace](https://readplace.com/install):
 
 1. Click the browser extension.
 
-That's it.
+That's the whole sequence.
 
-The article is saved. A TL;DR summary shows up on its own.
+The article gets saved and a TL;DR summary shows up on its own, without a prompt or a second tab.
 
-Read the summary now and decide if the full piece is worth your time. Or skip it. The article stays in your archive either way, searchable and yours.
+> **The real gain is that the article stays, summary and source together, instead of evaporating with the chat thread.**
 
-You skip the tab-switching, the pasting, the prompt crafting, and the vanishing chat threads.
+You read the summary, decide whether the full piece earns your time, and either way the article is sitting in your archive, searchable and yours. The tab-switching, the pasting, the wording of the prompt, and the chat thread you'd lose by Friday all drop out of the routine.
 
-Readplace [caches summaries by URL](/blog/how-ai-tldr-actually-works). If fifty people save the same article, it gets summarised once. Your summary is ready the moment you open the article.
+Readplace [caches summaries by URL](/blog/how-ai-tldr-actually-works). When a popular article has already been saved by other readers, it gets summarised once and your copy is ready the moment you open it.
 
-## One click vs. seven steps
+## What the two routines leave behind
 
-Speed is part of it. The bigger thing is whether your reading adds up to something.
+Speed is the part you feel first. The other part is whether a month of reading adds up to anything you can go back to.
 
-With copy-paste, every article is disposable. You extract a summary and throw away the source. You have no trail back to the piece, no personal library to browse, and no way to revisit what you read last month.
+With copy-paste, each article is disposable by design. You pull out a summary, discard the source, and end up with no trail back to the piece, no library to browse, and no way to revisit what caught your attention last month.
 
-With Readplace, every saved article becomes part of your personal archive. Summaries are there for a quick scan. Full articles are there when you want depth. Your reading list is a queue you can manage, not a pile of browser tabs about to crash.
+With Readplace, a saved article becomes part of an archive you own. The summary is there for a quick scan, the full text is there when you want the depth, and the reading list behaves like a queue you can work through instead of a wall of tabs one crash away from disappearing.
 
-## The point
+## If this is you
 
-ChatGPT is a great tool. But using it as a manual article summariser is seven steps too many.
+ChatGPT is a good tool, and using it as a hand-fed article summariser is a habit I fell into too, one paste at a time, until the steps added up. There's no shame in it. The routine works, which is exactly why you stopped questioning it.
 
-Readplace does it in one.
+Readplace folds those steps into one click and keeps the article instead of throwing it away.
 
-Save the article, get the summary, and keep both.
+Save the piece, read the summary, and have both when you come back for them.
 
 [Try Readplace](https://readplace.com/install)

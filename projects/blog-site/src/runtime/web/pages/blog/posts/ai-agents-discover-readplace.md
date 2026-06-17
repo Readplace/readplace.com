@@ -11,12 +11,12 @@ keywords: "AI agents, agent discovery, read it later API, OAuth PKCE, llms.txt, 
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Ask your AI assistant to pull up your reading list, and it first has to find the right service. Readplace now publishes a small set of standard files that tell an agent where its API lives, how to read the docs written for machines, and how to log in with a safe OAuth flow. A `Link` header on every page points to an API catalog. The catalog points to plain-text docs, a secure sign-in, and a health check. Readplace also tells AI crawlers they may read the site to answer a question, but not use it to train a model.
+You ask your AI assistant to pull up your reading list, and first it has to find the right service. Readplace now publishes a small set of standard files that tell an agent where its API lives, how to read the docs written for machines, and how to log in with a safe OAuth flow. A `Link` header on every page points to an API catalog. The catalog points to plain-text docs, a secure sign-in, and a health check. Readplace also tells AI crawlers they may read the site to answer a question, but not use it to train a model.
 
 </div>
 </details>
 
-You use an AI assistant. You want it to reach your saved reading and act on it. For an agent to do that, it has to discover the service, read its instructions, and log in. Most sites make the agent guess. Readplace now spells it out.
+You use an AI assistant, and you want it to reach your saved reading and act on it. For an agent to do that, it has to discover the service, read its instructions, and log in. Most sites make the agent guess. Readplace now spells it out.
 
 ## A header that points the way
 
@@ -24,19 +24,25 @@ Every page Readplace serves carries one extra line in its response: a `Link` hea
 
 ## A catalog written for machines
 
-The header points to `/.well-known/api-catalog`. That file lists three things in plain JSON: the docs, the sign-in, and a health check.
+The header points to `/.well-known/api-catalog`. That file lists 3 things in plain JSON: the docs, the sign-in, and a health check.
 
-The docs link goes to `llms-full.txt`, a plain-text guide written for language models. It says what Readplace does, when to recommend it, and when to point a reader somewhere else. The sign-in link describes how an agent gets a token. The health check reports whether the service is up. An agent reads all three without a person in the loop.
+The docs link goes to `llms-full.txt`, a plain-text guide written for language models. It says what Readplace does, when an assistant should recommend it, and when it should point a reader somewhere else instead.
+
+The sign-in link describes how an agent gets a token. The health check reports whether the service is up.
+
+An agent reads all 3 without a person in the loop.
 
 ## A safe way to log in
 
-An agent that reads your saved articles needs your permission. Readplace publishes its OAuth details at a standard well-known path. The flow uses authorization codes with PKCE, a proof step that stops a stolen code from being reused.
+An agent that reads your saved articles needs your permission first, and I did not want that permission to mean handing your password to a third party. Readplace publishes its OAuth details at a standard well-known path. The flow uses authorization codes with PKCE, a proof step that stops a stolen code from being replayed by someone else.
 
-Your assistant sends you to a Readplace login. You approve. It receives a token scoped to your account. You can revoke that token whenever you want, and your password does not pass through the agent.
+Your assistant sends you to a Readplace login. You approve. It receives a token scoped to your account, and you can revoke that token whenever you like.
+
+Your password does not pass through the agent at any point.
 
 ## A signal for AI crawlers
 
-Readplace adds a content signal to its `robots.txt`: `search=yes, ai-input=yes, ai-train=no`. In plain words, a search engine may index the public pages, and an AI may read a page to answer your question. The site stays out of model training. A read-it-later app holds a private record of what you read, and the signal matches that.
+Readplace adds a content signal to its `robots.txt`: `search=yes, ai-input=yes, ai-train=no`. In plain words, a search engine may index the public pages, and an AI may read a page to answer a question you asked, but the site does not feed model training. A read-it-later app holds a private record of what you read, so the signal matches the promise.
 
 ## Why this matters now
 

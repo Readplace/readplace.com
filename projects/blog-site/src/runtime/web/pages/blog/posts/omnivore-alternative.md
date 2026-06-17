@@ -11,45 +11,45 @@ keywords: "Omnivore alternative, Omnivore replacement, Omnivore shut down, read 
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Omnivore shut down two weeks after ElevenLabs acquired it. The problem was venture capital needing an exit. Readplace is self-funded at $3.99/mo. Subscriptions pay for servers, with no investors expecting an exit. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, full data export, and source-available code under AGPL. Hosted in Sydney under Australian privacy law.
+Omnivore shut down two weeks after ElevenLabs acquired it. The cause was venture capital that needed an exit. Readplace is self-funded at $3.99/mo, so subscriptions pay for servers and no investors are waiting on a sale. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, full data export, and source-available code under AGPL. It runs in Sydney under Australian privacy law.
 
 </div>
 </details>
 
-On November 1, 2024, ElevenLabs acquired Omnivore. On November 15, the service shut down and data deletion began. Users had two weeks to export years of saved articles, highlights, and notes.
+On November 1, 2024, ElevenLabs acquired Omnivore. Two weeks later, on November 15, the service shut down and data deletion began. If you had years of saved articles, highlights, and notes in there, you had 14 days to get them out before they were gone.
 
-Two weeks. That was the entire window between "your app still works" and "your data is gone."
+Two weeks was the entire gap between "your app still works fine" and "your data no longer exists."
 
-Omnivore was open source, community-loved, and had a clear mission. None of that mattered once the acquisition closed. The codebase went read-only, the API stopped responding, and the newsletters stopped arriving.
+I want to walk through what actually happened, because the failure was not a bug in the code. Omnivore was open source, it was loved, and it had a clear mission with a real team behind it, and none of that survived the day the acquisition closed. The repository went read-only, the API stopped answering requests, and the newsletters stopped arriving in inboxes.
 
-## The problem was the business model
+## The business model is what broke
 
-The problem was not Omnivore's intentions. The team built a good product. The problem was venture capital. VC-funded apps need an exit. The exit arrives, and users become an afterthought.
+Nothing about Omnivore's intentions was wrong. The team built a product people relied on every day, and then it vanished anyway, which tells you the problem lived one layer up from the product. A venture-backed app has to produce an exit for the people who funded it. When the exit shows up, the users who were the whole point a month earlier turn into an afterthought.
 
-Many Omnivore users moved to [Readwise Reader](https://readwise.io/read) at $12.99/month. Others went to self-hosted options like Karakeep or Wallabag. Each option has trade-offs. Readwise is feature-rich but expensive. Self-hosted tools are free but need you to run a server and deal with updates.
+Plenty of Omnivore users landed on [Readwise Reader](https://readwise.io/read) at $12.99/month, while others went self-hosted with Karakeep or Wallabag. Each path costs you something. Readwise has the most features but the highest price, and the self-hosted tools are free right up until you remember that you are now the one running a server and applying the updates when they break.
 
-I built Readplace as a middle ground. A hosted read-it-later app with a clear revenue model: subscriptions pay for servers and development, with no investors expecting an exit. For a full breakdown of each option, see the [best read-it-later apps in 2026](/blog/best-read-it-later-apps-2026).
+I built Readplace to sit between those two. It is hosted, so you do not run anything, and the money comes from one place only: subscriptions pay for the servers and the work, and there is no investor in the background waiting for a sale. If you want the side-by-side on every option, I wrote up the [best read-it-later apps in 2026](/blog/best-read-it-later-apps-2026).
 
-## Built by a developer who reads
+## Built by one developer who actually reads
 
-I maintained a personal reading pipeline for ten years before turning it into Readplace. Pocket was abandoned. Omnivore disappeared. I turned that system into a product. One developer, building in public, one feature at a time.
+I ran a personal reading pipeline for myself for 10 years before any of this became a product, watching the apps I leaned on disappear one after another. Pocket got abandoned. Omnivore got bought and shut down. So I took the system I had already been depending on for a decade and turned it into something other people could use too, run by one developer building in the open and shipping one feature at a time.
 
 ## What works today
 
-These features are shipped and live right now:
+Here is what is shipped and running right now:
 
 - **Firefox and Chrome extensions.** Save any page with one click, a keyboard shortcut, or the right-click menu.
-- **Reader view.** Clean article layout powered by Mozilla's readability engine. No clutter.
-- **TL;DR summaries.** AI-generated summary per article. Key points in seconds. Included in every plan.
-- **Web app.** Manage your reading list from any browser. No app store needed.
-- **Auto dark mode.** Matches your system preference.
-- **Secure auth.** OAuth with PKCE. Tokens stored locally in your browser.
-- **Full data export.** Export your saved articles anytime. Even after you cancel.
-- **Privacy first.** Hosted in Sydney under the Australian Privacy Act, with no tracking scripts or ads.
+- **Reader view.** A clean article layout built on Mozilla's readability engine, with the clutter stripped out.
+- **TL;DR summaries.** An AI-generated summary on every article, so you can read the key points in seconds. It is in every plan.
+- **Web app.** Manage your reading list from any browser, with no app store in the way.
+- **Auto dark mode.** It follows your system preference.
+- **Secure auth.** OAuth with PKCE, and tokens stay in your own browser.
+- **Full data export.** Pull your saved articles out whenever you want, including after you cancel.
+- **Privacy first.** Hosted in Sydney under the Australian Privacy Act, with no tracking scripts and no ads.
 
 ## What Omnivore had, and where Readplace stands
 
-Omnivore had years of development. Readplace is newer. Here is an honest look at the gaps.
+Omnivore had years of head start. Readplace is younger, and I would rather show you the gaps than talk around them.
 
 | Feature | Omnivore | Readplace | Status |
 | --- | --- | --- | --- |
@@ -67,25 +67,25 @@ Omnivore had years of development. Readplace is newer. Here is an honest look at
 | RSS feed reader | Yes | No | Not planned yet |
 | API access | Yes | OAuth only | Extension API exists but not yet for public consumption |
 
-> **I would rather be honest about gaps than pretend they don't exist.**
+> **I would rather be honest about the gaps than pretend they aren't there.**
 
-Features ship one at a time, and the [roadmap is public](https://readplace.com/#roadmap).
+Features land one at a time, and the [roadmap is public](https://readplace.com/#roadmap) so you can see what is next.
 
-## Your data, your terms
+## Your data, on your terms
 
-**AGPL source-available.** The full source code is [on GitHub](https://github.com/Readplace/readplace.com). If Readplace disappears tomorrow, anyone can run it. That's the point.
+**AGPL source-available.** The full source is [on GitHub](https://github.com/Readplace/readplace.com). If Readplace went away tomorrow, anyone could stand it back up, and that is the whole point of putting it there.
 
-**Full export, anytime.** Export all your data, even after you cancel. Data export is a core promise: your saved articles stay available for export regardless of your subscription status.
+**Full export, whenever you want.** You can export all of your data even after you cancel. The export is a core promise, not a perk, so your saved articles stay reachable no matter what your subscription is doing.
 
-**Australian hosting.** Hosted in Sydney, governed by the Australian Privacy Act, outside US jurisdiction. The app runs without tracking scripts, ads, or data sales.
+**Australian hosting.** It runs in Sydney, under the Australian Privacy Act, outside US jurisdiction, with no tracking scripts, no ads, and no data sales.
 
-**No venture capital.** Readplace is self-funded. Revenue comes from subscriptions. There is no board expecting an exit and no acquisition to chase.
+**No venture capital.** Readplace is self-funded and the revenue comes from subscriptions, which means there is no board counting on an exit and no acquisition for me to go chase at your expense.
 
 ## Pricing
 
-$3.99/month. TL;DR summaries are included.
+It is $3.99/month, and the TL;DR summaries are part of that.
 
-Readwise Reader is a great choice for power users at $12.99/month. Readplace is simpler and cheaper. The product stays focused on saving and reading articles rather than building a full research platform.
+Readwise Reader is a strong pick for power users at $12.99/month. Readplace is the simpler and cheaper option, and it stays pointed at saving and reading articles rather than growing into a full research platform.
 
 [Sign up here](https://readplace.com/signup).
 
@@ -93,20 +93,20 @@ Readwise Reader is a great choice for power users at $12.99/month. Readplace is 
 
 **What happened to Omnivore?**
 
-ElevenLabs acquired Omnivore on November 1, 2024, and shut it down on November 15. Users had about two weeks to export their data before deletion began. The open-source repository was archived.
+ElevenLabs acquired it on November 1, 2024 and shut it down on November 15, which left users roughly two weeks to export their data before deletion started. The open-source repository was archived.
 
-The team moved to ElevenLabs to work on text-to-speech, not reading tools. Omnivore is not coming back.
+The team went to ElevenLabs to work on text-to-speech rather than reading tools, so Omnivore is not coming back.
 
 **Is there a free Omnivore alternative?**
 
-Readplace costs $3.99/month. Self-hosted alternatives like Karakeep and Wallabag are free but require you to run your own server. Readwise Reader is the most feature-complete option at $12.99/month.
+Readplace costs $3.99/month. The self-hosted options like Karakeep and Wallabag are free, but you run your own server to use them. Readwise Reader is the most feature-complete of the bunch at $12.99/month.
 
 **Can I import my Omnivore data into Readplace?**
 
-You can send Omnivore data file to readplace+migrate@readplace.com and I'll do it for you. If you exported your data before the shutdown, keep that file. You can start fresh right now with the [browser extension](https://readplace.com/install). Save any article with one click.
+Send your Omnivore data file to readplace+migrate@readplace.com and I will do the import for you, so if you exported your data before the shutdown, hold onto that file. You can also start fresh right now with the [browser extension](https://readplace.com/install) and save any article with one click.
 
-## Your reading list should not have an expiry date
+## Your reading list should not come with an expiry date
 
-Install the extension. Save an article. See if it fits how you read.
+The Omnivore shutdown taught me something I already half-knew: a read-it-later app is only as durable as the reason it exists, and "return capital to investors" is not a reason that protects your saved articles. Install the extension, save one article, and see whether it fits how you read.
 
 [Install the browser extension](https://readplace.com/install) or [view the source on GitHub](https://github.com/Readplace/readplace.com).

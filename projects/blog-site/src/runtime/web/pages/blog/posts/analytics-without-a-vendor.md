@@ -11,20 +11,26 @@ keywords: "privacy analytics, cookieless analytics, IP hashing, read it later pr
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readplace tracks pageviews without cookies, third-party scripts, or consent banners. An Express middleware hashes each visitor's IP with a secret salt (SHA-256, truncated to 16 chars) and logs a JSON line to stdout. Same IP produces the same hash, so distinct visitors are countable, and the hash is one-way and cannot be reversed into an IP. The logs flow to CloudWatch. The dashboard is infrastructure-as-code. About eighty lines of TypeScript replace an analytics vendor.
+Readplace counts pageviews without cookies, third-party scripts, or a consent banner. An Express middleware hashes each visitor's IP with a secret salt (SHA-256, truncated to 16 chars) and logs a JSON line to stdout. The same IP yields the same hash, so distinct visitors are countable, and because the hash is one-way it cannot be reversed into an IP. The logs flow to CloudWatch and the dashboard ships as infrastructure-as-code. About 80 lines of TypeScript stand in for an analytics vendor.
 
 </div>
 </details>
 
-Every web server sees its own traffic. Analytics vendors package that data as a dashboard and charge for it.
+I had a Hacker News post climbing the front page and no idea whether it was sending real readers or the same dozen people hitting refresh. Readplace runs without third-party analytics, without cookies, and without a consent banner, which is the privacy story I wanted to keep. It also meant I had nothing to look at while the traffic spiked.
 
-Most sites pay for the dashboard with surveillance. Cookies on the visitor. Third-party scripts in the browser. Identifiers that follow people between sites they did not ask to connect.
+So I had a decision to make under a little pressure, and I made the obvious wrong move first.
 
-> The server has the data. The vendor has the interface.
+I started copying a Google Analytics snippet into the head of the marketing site.
 
-Readplace runs without any third-party analytics, cookies, or consent banner. The whole system is an Express middleware that writes JSON to stdout. About eighty lines of TypeScript.
+I got about as far as the script tag before stopping.
 
-Here is one log line:
+> The server already has the data. The vendor just sells you the interface.
+
+Readplace stores what people read. Pasting a tracker onto the front door of an app built on that promise would have turned the promise into a line of copy.
+
+I deleted the snippet.
+
+Then I went back to first principles and looked at what a single request already hands me. Here is the log line I ended up with:
 
 ```json
 {
@@ -38,54 +44,60 @@ Here is one log line:
 }
 ```
 
-Every field on that line comes straight out of the HTTP request. The path is the path. The UTM parameters sit in the landing URL. The referrer sits in the `Referer` header. The user agent sits in the `User-Agent` header. The IP address is part of the TCP connection.
+Every field on that line falls out of the HTTP request without any extra work. The path is the path. The UTM parameters sit in the landing URL, the referrer sits in the `Referer` header, the user agent sits in the `User-Agent` header, and the IP address is part of the TCP connection itself.
 
-Only `visitor_hash` required design work.
+Only one field needed design work, and it was the one that nearly sent me back to the vendor.
 
-## The visitor hash is the whole trick
+## The visitor hash was the only hard part
 
-I want to tell 100 pageviews from 100 people apart from 100 pageviews from three people refreshing. That is the single job of a unique-visitor identifier.
+The question I actually had was simple to state. Were those 100 pageviews coming from 100 people, or from 3 people refreshing a tab?
 
-Most analytics tools do that job with a cookie. They drop a first-party or third-party identifier on the visitor and recognise it on each new request. The cookie is the identity.
+That is the entire job of a unique-visitor identifier, and most tools do it with a cookie. They drop a first-party or third-party identifier on the browser and recognise it on the next request, so the cookie becomes the identity. I had ruled cookies out an hour earlier, so I needed the count without the cookie.
 
-Readplace does it with a salted hash. Take the visitor's IP address. Add a secret salt that lives only on the server. Run SHA-256 over the result. Truncate to sixteen characters.
+My first attempt was to log the raw IP and count distinct values in the query. That works, and it also parks a list of every visitor's IP address in CloudWatch, which is the same surveillance I had just deleted from the marketing site, only worse because now I owned the storage.
 
-The output is a string like `b56e9aa95cabdf99`. The same IP produces the same string, so the system can count distinct visitors. A different IP produces a different string.
+So I reached for a salted hash instead.
 
-The hash is one-way. The logs cannot be reversed into IP addresses. The salt is secret, so guessing an IP does not reproduce the hash.
+Take the visitor's IP, add a secret salt that lives only on the server, run SHA-256 over the result, then truncate to 16 characters.
 
-That is the whole identity system. Six lines of code.
+The output is a string like `b56e9aa95cabdf99`. The same IP produces the same string, so the count works. A different IP produces a different string, and the hash is one-way, so the logs cannot be turned back into IP addresses. Because the salt stays on the server, guessing an IP does not reproduce the hash either.
 
-## The hash counts endpoints, not people
+That was the whole identity system, and it came out to 6 lines of code.
 
-Devices on the same office Wi-Fi collapse into one hash. A corporate VPN routes its users through one exit node and produces one hash. A visitor on mobile and the same visitor on home broadband look like two different visitors.
+## Then the numbers looked wrong
 
-For marketing analytics, that resolution is enough. A Hacker News post either drove a hundred clicks or five. A blog either sends real readers or does not. The hash distinguishes the cases.
+The first night the dashboard ran, the unique-visitor count was lower than I expected for the traffic I could see in the access logs. I assumed the hash had a bug.
 
-It cannot tell me a specific person came back on Tuesday. It does not follow people across sessions. It does not survive a change of network.
+It did not. I had forgotten what the hash measures.
 
-> The data is less precise than cookie-based analytics. It answers the questions I actually have.
+Devices on the same office Wi-Fi collapse into one hash. A corporate VPN routes its users through a single exit node and produces a single hash. A reader on mobile and the same reader on home broadband show up as 2 different visitors, because they arrive on 2 different IPs.
 
-Those are the questions analytics should answer on a product that stores what its users read.
+The hash counts network endpoints, not human beings, and once I stopped treating it as a headcount the numbers made sense.
 
-## The analytics model has to match the product model
+For marketing questions that resolution is plenty. A Hacker News post either drove 100 clicks or 5, a blog either sends real readers or it does not, and the hash tells those cases apart.
 
-Reading habits are personal. What you save reveals what you worry about and what you want to learn. Sometimes it reveals what you are hiding from.
+What it cannot do is tell me a specific person came back on Tuesday. It does not follow people across sessions and it does not survive a change of network, which felt like a gap at 1am and felt like the point by morning.
 
-A read-it-later app holds a detailed portrait of its user's inner life.
+> The hash is less precise than cookie analytics, and it answers the questions I actually had.
 
-An analytics stack that contradicts that privacy model is worse than no analytics. A marketing site shipping Google Analytics turns a privacy promise into a marketing line.
+Those are the only questions a product that stores what its users read has any business asking.
 
-Collect the minimum data that answers the question. Nothing more.
+## Matching the analytics to the product
 
-## The implementation is boring on purpose
+Reading habits are personal. What you save reveals what you worry about, what you want to learn, and sometimes what you are hiding from, so a read-it-later app holds a fairly detailed portrait of someone's inner life.
 
-The logs flow to CloudWatch through the standard Lambda log pipeline. The dashboard ships as infrastructure-as-code alongside the rest of the application. Bot filtering lives in the dashboard query, not in the middleware, so the filter changes without a redeploy.
+An analytics stack that fights that privacy model is worse than having no analytics at all. A marketing site shipping a third-party tracker would contradict the one thing the product is supposed to protect.
 
-There is no vendor SDK, no analytics platform, no contract to renew. Adding a new metric is a field on the log line and a widget on the dashboard.
+The rule I kept after that night was to collect the smallest amount of data that answers the question, and nothing past it.
 
-The approach is portable. Write a middleware that reads the HTTP headers you already have. Hash the IP with a secret salt.
+## The implementation stayed boring
 
-Log a JSON object. Point your cloud provider's log query tool at the output.
+The logs flow to CloudWatch through the standard Lambda log pipeline, and the dashboard ships as infrastructure-as-code alongside the rest of the app. Bot filtering lives in the dashboard query rather than the middleware, so I can change the filter without a redeploy, which mattered the week a scraper skewed one of the referrer charts.
 
-Prefer writing a middleware over paying a vendor to count pageviews.
+There is no vendor SDK, no platform login, and no contract to renew.
+
+Adding a new metric is one field on the log line and one widget on the dashboard.
+
+The shape of it is portable if you want to copy it. Write a middleware that reads the HTTP headers you already receive, hash the IP with a secret salt, log a JSON object, and point your cloud provider's log query tool at the output.
+
+The lesson I took from that Hacker News night is small. Before you pay a vendor to count pageviews, check how much of the answer is already sitting in the request, because for the questions I had it was almost all of it.

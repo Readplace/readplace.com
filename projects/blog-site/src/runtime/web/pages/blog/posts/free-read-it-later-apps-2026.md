@@ -11,78 +11,96 @@ keywords: "free read it later app, read it later free, instapaper free, wallabag
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Free read-it-later options in 2026: Instapaper and Raindrop.io have usable free tiers. Karakeep and Wallabag are free and self-hosted but cost time and server money. Browser bookmarks cost nothing but offer no reader view. Pocket and Omnivore were free and both shut down. Free hosted services have a shelf life. The money situation changes, and the service goes with it. Readplace costs $3.99/mo because the price is the business model.
+Free read-it-later options in 2026 sort into 3 kinds. Instapaper and Raindrop.io run usable free tiers. Karakeep and Wallabag are free software you self-host, which trades money for time and a server bill. Browser bookmarks cost nothing and give you no reader view. Pocket and Omnivore were free and both shut down, so a free hosted tier carries a shutdown risk you should price in. Readplace costs $3.99/mo, and that price is the business model.
 
 </div>
 </details>
 
-You want a free read-it-later app. You have options. But "free" means different things depending on who offers it and why. Here is what's available, what the tradeoffs look like, and what you're risking.
+You want a free read-it-later app, and the market gives you several.
+
+The catch is that "free" hides at least 3 different bargains, depending on who pays the bill and how. With two of them, a paid tier or a parent company covers the cost so you can read without paying. With two more, you become the operator and run the server yourself. The last is free because it barely does anything.
+
+Each option costs you something in money or time, and each leaves you exposed to a different kind of loss when the arrangement ends. Read each entry for the tradeoff it names, then check the table at the bottom for the side-by-side view.
 
 ## The Genuinely Free Options
 
 ### Instapaper (Free Tier)
 
-Instapaper's free tier covers the basics: saving articles, reading them later, syncing across devices. The premium tier adds full-text search and text-to-speech for $2.99/month.
+Instapaper's free tier covers the basics you actually use day to day: saving articles, reading them later, and syncing across devices. The premium tier adds full-text search and text-to-speech for $2.99/month, so the free tier is the product minus search.
 
-Instapaper has been around since 2008. It changed hands from Betaworks to Pinterest to Instant Paper Inc. It has survived longer than most apps in this category. Whether it will still be around in five years, nobody knows.
+Instapaper has been around since 2008, and it has changed hands from Betaworks to Pinterest to Instant Paper Inc without disappearing.
+
+That track record is the strongest argument for it. It does not tell you who will own Instapaper in 5 years, or whether the next owner keeps the free tier intact.
 
 ### Raindrop.io (Free Tier)
 
-Raindrop is a bookmarking tool first, read-it-later app second. The free tier gives you unlimited bookmarks, basic collections, and a decent web clipper. The Pro tier at $2.49/month adds permanent copies of saved pages and nested collections.
+Raindrop is a bookmarking tool first and a read-it-later app second, which shapes what its free tier is good at. You get unlimited bookmarks, basic collections, and a decent web clipper at no cost. The Pro tier at $2.49/month adds saved copies of pages that stick around after the source goes offline, plus nested collections.
 
-If your needs lean more toward "organise links" than "read long articles distraction-free," Raindrop's free tier is solid.
+If you mostly want to file links you will return to, Raindrop's free tier holds up. If you want to read long articles without ads in the way, it is the weaker fit, because it was built for filing rather than reading.
 
 ### Karakeep (Self-Hosted, Free)
 
-Karakeep is open-source and self-hosted. You run it on your own server. It supports article saving, tagging, full-text search, and has browser extensions.
+Karakeep is open-source and self-hosted, which means you run it on hardware you control. It handles article saving, tagging, full-text search, and ships browser extensions, so the feature list rivals the paid hosted apps.
 
-The software costs nothing. The server, the domain, the backups, the maintenance, the time you spend debugging why the container won't start after an update: that costs something. More on this below.
+The download costs nothing.
+
+The server, the domain, the backups, the security updates, and the hour you lose debugging why the container won't start after an update all cost something real. The self-hosting section below puts numbers on that second bill.
 
 ### Wallabag (Self-Hosted, Free)
 
-Wallabag has been around since 2013. It's the longest-running open-source read-it-later app. Self-hosted, PHP-based, functional. It does what it says. Like Karakeep, the software is free. The infrastructure and your time are not. A hosted version (wallabag.it) starts at €9/year if you'd rather not manage a server.
+Wallabag has been around since 2013, which makes it the longest-running open-source option in this group. It is self-hosted, PHP-based, and does what it says without much flash. The software is free in the same way Karakeep is, and the infrastructure and your time are the real cost. If you would rather not run a server at all, the hosted version at wallabag.it starts at €9/year and moves the maintenance to someone else.
 
 ### Browser Bookmarks
 
-The genuinely free option most people overlook. Create a "Read Later" folder right now, for nothing. There are no sync issues and no service shutdowns.
+This is the free option that owes nothing to anyone. Create a "Read Later" folder in your browser right now and you have a working save-for-later tool. Nothing syncs to a third party that can break, and no company can shut it down.
 
-The reading experience is whatever the original website gives you, ads and paywalls included. You get no offline access, clean reader view, or tagging. But it's real, it's free, and sometimes simple is enough.
+The cost shows up when you open a link.
+
+The reading experience is whatever the original website gives you, ads and paywalls included, and you get no offline copy, no clean reader view, and no tagging. The bargain is honest, the price is zero, and for some readers that is enough.
 
 ## The Problem With "Free"
 
-Free hosted services need a business model. They need to pay for servers, storage, bandwidth, and engineering time. If users aren't paying, something else is: ads, data, venture capital, or a parent company's goodwill.
+A free hosted service still has to pay for servers, storage, bandwidth, and the engineers who keep it running. If you are not paying, something else is, whether that is ads, your data, venture capital, or a parent company that has decided to absorb the cost for now. That funding source is the second axis, and it is the one that predicts how the service ends.
 
-**Pocket** was free. Mozilla acquired it in 2017. In 2025, Mozilla shut it down. Millions of users scrambled to export their libraries. Some lost articles they'd saved for years.
+**Pocket** was free. Mozilla acquired it in 2017, ran it for 8 years, and shut it down in 2025. Millions of users scrambled to export their libraries, and some lost articles they had saved for years.
 
-**Omnivore** was free. Fully free, open-source, with a hosted version that cost users nothing. In late 2024 the team was acqui-hired by ElevenLabs and the service shut down. Users got two weeks' notice.
+**Omnivore** was free in the strongest sense: open-source, with a hosted version that cost users nothing. In late 2024 the team was acqui-hired by ElevenLabs and the service closed. Users got two weeks' notice.
 
-After the Omnivore shutdown, Steph Ango, the founder of Obsidian, made an observation that stuck with me. He pointed out that a product with no clear revenue model survives only as long as the founders' runway lasts, or until an acquirer shows interest, or until someone decides to stop subsidising it.
+After the Omnivore shutdown, Steph Ango, the founder of Obsidian, made a point that stuck with me. A product with no clear revenue survives only as long as the founders' runway lasts, or until an acquirer shows up, or until whoever is subsidising it stops.
 
-Users become dependent on someone else's goodwill. The product isn't sustainable. It's just running on borrowed time.
+When that happens, your library depends on a goodwill that has run out.
 
-That's not a criticism of the people who built Pocket or Omnivore. They made good products. But the pattern is clear.
+The product was not built to fund itself, so it was living on borrowed time the whole way through. None of that is a knock on the people who built Pocket or Omnivore. They shipped good products.
+
+But the shape of how those products ended is hard to miss once you have seen it twice.
 
 > **Free hosted services in this category have a shelf life. The money situation changes, and the service goes with it.**
 
 ## Self-Hosted Is Genuinely Free (But Not Actually Free)
 
-Karakeep and Wallabag are legitimately free software. You own your data. Nobody can shut down your instance. That's real and valuable.
+Karakeep and Wallabag are free software in a way the hosted tiers can't match.
 
-But self-hosting costs time. You need a server. A VPS runs $5 to $15 a month. You handle updates, backups, security patches, and SSL certificates. You debug things at 2am when something breaks.
+You own the data, and nobody can switch off your instance because nobody else is running it. That is worth a lot if your worry is the kind of shutdown that ended Pocket.
 
-If you're a developer who enjoys this, great. If you just want to save articles and read them, it's overhead you didn't sign up for.
+The catch is that the bill moves from money to time. You need a server, and a VPS runs $5 to $15 a month, so it is not even free in dollars. On top of that you own the updates, the backups, the security patches, and the SSL certificates, and you are the one debugging at 2am when something breaks.
 
-Self-hosting trades money for time and expertise. That's a legitimate choice. Just know what you're choosing.
+If you are a developer who finds that satisfying, this is the strongest option on the list. If you want to save an article and read it on the train, you have signed up for a side job instead.
+
+So self-hosting trades money and a recurring server bill for time and operating skill. That is a fair deal for the right person. The mistake is taking it without seeing the second half of the price.
 
 ## Where Readplace Sits
 
-I built Readplace after realising I needed a read-it-later app I could trust to still exist in ten years. The approach is simple. You pay for the product, and the product stays alive.
+I built Readplace after watching too many of these services close and wanting one I could trust to still be here in 10 years.
+
+The model is the plain one. You pay for the product, and the money keeps the product alive.
 
 Readplace costs $3.99/month.
 
-The price is the business model. There is no venture capital to run out, no acqui-hire that pulls the team onto someone else's priorities, and no ad network that needs your reading data. Subscriptions pay for servers and development. If the product is good enough that people keep paying, it keeps running.
+That subscription is the whole funding source. There is no venture capital to run out, no acqui-hire to pull the team onto someone else's roadmap, and no ad network that needs your reading history to sell. The fees cover servers and development. If the product stays good enough that people keep paying, it keeps running, which is the same test any honest business has to pass.
 
-That's not the right choice for every reader. If you want free and you're comfortable with the risks, Instapaper or Raindrop will serve you well today. If you have the technical skills, Karakeep or Wallabag give you full control. If you want something that just works and has a clear reason to keep existing, that's what Readplace is for.
+This is not the right fit for every reader, and the table below should tell you why.
+
+If you want zero cost and you accept the shutdown risk, Instapaper or Raindrop serve you well today. If you have the skills and the appetite, Karakeep or Wallabag hand you full control. If you want a hosted reader with a reason to still exist next year, that is the gap Readplace is built to fill.
 
 ## The Short Version
 
@@ -95,4 +113,6 @@ That's not the right choice for every reader. If you want free and you're comfor
 | Browser bookmarks | $0 | Zero dependencies | No reader view, no offline, no organisation |
 | Readplace | $3.99/mo | Hosted, maintained, no ads | Paying money for software |
 
-Pick the tradeoff you're comfortable with. Just make sure you know what it is.
+Every row in that table is a real bargain, not a free lunch.
+
+The choice comes down to which cost you would rather carry: the dollars, the maintenance hours, or the chance of a shutdown email. Pick the tradeoff you can live with, and pick it on purpose.

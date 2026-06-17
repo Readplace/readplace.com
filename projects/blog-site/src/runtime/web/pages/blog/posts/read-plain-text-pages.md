@@ -16,28 +16,44 @@ Readplace now reads plain text pages. A `.txt` link used to show a "not a webpag
 </div>
 </details>
 
-You paste a link to a plain text page. Maybe a classic book from Project Gutenberg, or an old technical spec kept as raw text. Readplace used to fetch the page, read it, and write a summary. Then it showed you a message that said the link was not a webpage. The work was done, but you had no way to read it.
+I saved a Project Gutenberg book to my queue. The card showed up, the AI summary landed under it a few seconds later, and then I tapped to read and got a screen that told me the link was not a webpage. Readplace had fetched the file and summarised it, so the work was done, but the part I wanted, reading it, was the part it blocked.
 
-That gap is closed. Plain text pages now open in the same reader you use for articles and PDFs.
+That bug is fixed now. Plain text pages open in the same reader you use for articles and PDFs.
 
 ## Why a finished summary still showed an error
 
-A web page arrives as HTML, full of tags that mark headings and paragraphs. A book or a spec often arrives as plain text, with no tags at all. Readplace knew how to read HTML and PDFs, so a `.txt` link landed in an unsupported bucket and hit the fallback screen. The summary sat ready behind it, out of reach.
+Here is what was happening underneath. A web page arrives as HTML, full of tags that mark where a heading starts and where a paragraph ends, and the reader leans on those tags to lay the page out.
 
-Now Readplace prepares the text before it reads it. It takes a title from the link, splits the text into paragraphs at the blank lines, and sends it through the same reader steps as the rest. You get a title, clean paragraphs, and a short summary at the top.
+A book from Project Gutenberg, or an old RFC, arrives as raw text with none of that markup.
+
+Readplace knew how to handle HTML and it knew how to handle PDFs. A `.txt` link matched neither, so it fell through to an unsupported bucket and hit the fallback screen.
+
+The summary was sitting right behind that screen, finished, with no door to it.
+
+The fix turned out to be smaller than the bug felt. Before the reader runs, Readplace now prepares the text: it pulls a title from the link, splits the body into paragraphs wherever it finds a blank line, then feeds that through the same reader steps as an article or a PDF.
+
+You end up with a title, clean paragraphs, and a short summary at the top.
 
 ## Where this helps
 
-Project Gutenberg holds over 70,000 free books, most of them as plain text files. Save one to your queue and read it with a summary, the same as any article.
+Project Gutenberg holds over 70,000 free books, most of them served as plain text. Save one to your queue and read it with a summary, the same as any article.
 
-Old internet standards, the RFCs that describe how email and the web work, ship as plain text too. Save the one you keep meaning to read.
+The RFCs that describe how email and the web actually work also ship as plain text. Save the one you keep meaning to get to.
 
-Meeting transcripts, mailing-list archives, and README files served as raw text all work the same way now. If the page is text, Readplace will read it.
+Meeting transcripts, mailing-list archives, and README files served raw all behave the same way now.
 
-## A small guard against future gaps
+If the page is text, Readplace will read it.
 
-The change came with a quiet bit of engineering. Readplace keeps one list of the file types it can read. The code that picks a reader for each type has to handle every entry on that list, or the app will not build. So adding a new type is a one-line change, and Readplace refuses to ship if any type is left without a reader. The result for you is fewer dead ends like the one this fixed.
+## A small guard against the next gap
+
+I also added something to stop this class of bug coming back. Readplace keeps a single list of the file types it can read. The code that picks a reader for each type has to handle every entry on that list, or the build fails before it ships. Adding a new type is a one-line change, and if anyone adds a type without wiring up its reader, the compiler stops them.
+
+So the failure mode I hit, a known file type with no reader behind it, gets caught at build time instead of in your hands.
+
+For you that means fewer dead ends like this one.
 
 ## Try it
 
-Open Project Gutenberg, pick a book, and copy its plain text link. Paste it into your Readplace queue. It will read like any other saved article, summary and all. Start at [readplace.com](/).
+Open Project Gutenberg, pick a book, and copy its plain text link. Paste it into your Readplace queue.
+
+It reads like any other saved article, summary and all. Start at [readplace.com](/).

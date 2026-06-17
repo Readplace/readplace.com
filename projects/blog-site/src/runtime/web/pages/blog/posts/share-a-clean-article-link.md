@@ -11,41 +11,49 @@ keywords: "read it later, share article link, link preview, clean reader link, s
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-You save an article in Readplace and share the link. The preview now shows Readplace's clean reader copy: the title with a Reader View label, a short excerpt, and the thumbnail Readplace already downloaded. The link points back to Readplace, so whoever taps it lands in the quiet reader, not a page full of pop-ups. Search engines still credit the original publisher, so readers see the right source.
+Save an article in Readplace and share the link. The preview shows Readplace's clean reader copy: the title with a Reader View label, a short excerpt, and the thumbnail Readplace already downloaded. The link points back to Readplace, so whoever taps it lands in the quiet reader instead of a page full of pop-ups. Search engines still credit the original publisher, so readers see the right source.
 
 </div>
 </details>
 
-You read something good. You want to send it to a friend, a group chat, or your team. So you copy the link and paste it.
+You read something good. You want to send it to a friend, a group chat, or your team, so you copy the link and paste it.
 
-On most read-it-later tools you face a small problem. Paste the original link and your friend hits the same wall you did: the cookie banner, the paywall nag, the video that plays on its own. Paste a saved-page link and the preview often comes out blank or broken.
+On most read-it-later tools you hit a snag. Paste the original link and your friend lands on the same wall you did: the cookie banner, the paywall nag, the video that starts on its own. Paste a saved-page link instead and the preview often comes out blank or broken.
+
+Readplace fixes that one link.
 
 ## Readplace shares the clean version
 
-Readplace gives every saved article a share link. Tap the share button on a saved article and you get a link to the clean reader view. Send that link anywhere.
+Every saved article in Readplace gets a share link.
 
-What does your friend see when the link lands in a chat? The article's title with a Reader View label, a short excerpt, and the thumbnail Readplace saved when it first fetched the page. The card looks finished, not empty, and the label signals the clean page behind the link.
+Tap the share button and you get a link to the clean reader view, and you can send it anywhere a link goes. Your friend sees the article's title with a Reader View label, a short excerpt, and the thumbnail Readplace saved when it first fetched the page. The card looks finished rather than empty, and the label tells them what sits behind the link before they even tap.
 
-Whoever taps the link reads the clean version too. Readplace strips the ads and pop-ups and shows the words, plus the short summary it wrote for you.
+Whoever taps the link reads the clean version too, because Readplace strips the ads and pop-ups, shows the words, and puts the short summary it wrote for you at the top.
 
 ## The preview points back to Readplace
 
-A link preview carries a hidden address. It tells chat apps and social sites which page the card stands for. Readplace now sets that address to its own reader page.
+A link preview carries a hidden address that tells chat apps and social sites which page the card stands for.
 
-So the preview card belongs to Readplace, and a tap takes your friend into the clean reader, not the cluttered original. The thumbnail and the reader content travel with the link, and they stay attached to a page you control.
+Readplace sets that address to its own reader page, so the card belongs to a page you control. Tap it and your friend opens the clean reader instead of the cluttered original. The thumbnail and the reader content travel with the link, and they stay attached to the copy Readplace already trimmed and stored.
 
 ## The original publisher still gets the credit
 
-There is a second hidden tag. It tells search engines where the article really lives. Readplace sets it to the original site, and keeps these reader pages out of search results.
+There is a second hidden tag, and this one tells search engines where the article really lives.
 
-So the publisher keeps the credit. Search engines and answer engines treat the original as the source, not Readplace. Readplace hosts a clean copy for you to read, and never claims to be the writer. One tag keeps your share looking good. The other keeps the source honest.
+Readplace points it at the original site and keeps these reader pages out of search results. So the publisher keeps the credit. Search engines and answer engines treat the original site as the source, and Readplace hosts a clean copy for you to read without claiming to be the writer.
 
-## Why this matters
+One tag keeps your share looking good in a chat. The other keeps the source honest in search.
 
-Sharing is how good reading spreads. A friend sends you a link, you read it, you save it, and you send it on. Every clean share link carries Readplace with it.
+## Why a clean share link earns its keep
 
-The person who clicks sees what the app does in one tap. A fast, quiet page they can actually read, with a summary up top. That is the clearest pitch we have, and it rides along in a link.
+Good reading spreads when one person hands it to another.
 
-There is a smaller win on your side. You send the clean copy you already trust, so you skip the worry about whether your friend will hit a paywall or a wall of ads. The link you share matches the page you read.
+A friend sends you a link, you read it, you save it, and then you pass it on, and a clean share link carries Readplace along for the ride.
 
-Save an article, tap share, and paste the link into a chat with yourself. Look at the preview. Then send the next good read to someone who will thank you for the clean version. Start at [readplace.com](/) or [install the browser extension](https://readplace.com/install).
+The person who clicks sees what the app does in a single tap: a fast, quiet page they can actually read, with a summary up top. That is the clearest pitch we have, and it rides along in an ordinary link.
+
+There is a smaller benefit on your side too. You send the copy you already trust, so you skip the worry about whether your friend will hit a paywall or a wall of ads after they click.
+
+> The link you share matches the page you read, down to the thumbnail.
+
+Save an article, tap share, and paste the link into a chat with yourself first. Look at how the preview renders. Then send the next good read to someone who will thank you for the clean version. Start at [readplace.com](/) or [install the browser extension](https://readplace.com/install).

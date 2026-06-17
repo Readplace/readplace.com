@@ -16,28 +16,44 @@ Readplace saves a copy of an article's images on its own CDN, so your saved copy
 </div>
 </details>
 
-You save a long feature with a dozen photos. Two weeks later you open it on your phone. Every picture loads, sharp and at the right size. The original site has redesigned and dropped half those images, but your saved copy still has them.
+I saved a long photo feature, opened it on my phone the next morning, and a picture halfway down was the wrong one. Not a gray box where an image used to be, but a close-up of a sauce pan sitting where a wide kitchen shot should have been. The photos further down were broken gray boxes.
 
-That is the promise of a read-it-later app. You save now, you read later, and what you saved stays put. Plenty of apps break that promise with images. They store the text and point the pictures straight back to the source site. The day the site moves or deletes a file, your saved copy shows a gray box.
+That is the kind of thing a read-it-later app is supposed to make impossible. You save now, you read later, and what you saved stays put. Plenty of apps store only the text and point the images back at the source site, so the day that site moves a file you get a gray box. Readplace downloads the images and stores them on its own copy host, so your reader loads pictures from us and not from the source. The wrong picture meant something in our own pipeline had gone sideways.
 
-Readplace works differently. Save a page and it downloads the images and stores them on its own CDN. Your reader loads pictures from Readplace, not from the source. The article keeps its look after the original changes.
+> **The article kept its text, but it served someone else's photo in the middle of mine.**
 
-## The bug I found in multi-image articles
+## Tracing the wrong picture
 
-Modern sites ship each photo at several sizes. Your browser picks the right one for your screen through the `srcset` attribute. One photo can carry six or eight versions, one per width.
+The first thing I checked was the saved copy in the database. The text matched the source. The image references did not.
 
-Readplace saves up to twenty photos per article, so a single save stays fast and small. The old limit counted files, not photos. A single photo with eight versions ate eight slots. A gallery near the top of an article could use up the whole budget on its own. Later photos got nothing.
+Modern sites ship each photo at several widths, and the browser picks one through the `srcset` attribute. A single photo can carry 6 or 8 versions, one per screen size.
 
-Two bad things followed. A photo with no saved copy fell back to a neighbour's image, so you saw the wrong picture. Or it pointed at the source site, and that link broke the day the site changed.
+That detail turned out to be the whole bug.
 
-## The fix: count photos instead of files
+Readplace caps a save at 20 photos per article so the save stays fast and the stored copy stays small. The old code counted files, not photos. One photo with 8 versions ate 8 slots.
 
-I changed the limit to count distinct photos. Readplace groups every version of one photo together, then saves whole photos up to the budget. Each photo it keeps gets all its sizes, so your screen has the right one to load. No photo is left half-saved, so the wrong-image fallback no longer fires for a photo we kept.
+A gallery near the top of a long feature could spend the entire budget before the saver ever reached the body of the piece.
 
-I added a second guard for re-saves. Readplace re-checks saved articles over time. Sometimes the text reads the same but the site swapped the images. The old check saw matching text and kept the stale copy. Now Readplace compares the image URLs too. If the pictures changed, it keeps the fresh version with the current images.
+So the later photos in my feature got no saved copy at all. When the reader could not find a stored image for a slot, it fell back to the nearest one it did have, which is how I ended up staring at a sauce pan.
+
+The photos past that point had no fallback to grab, so they pointed back at the source and broke when the site changed.
+
+## Counting photos instead of files
+
+The fix was to change what the limit counts.
+
+Readplace now groups every version of one photo together and spends the budget on whole photos, so each photo it keeps comes with all of its widths and the reader has the right size to load.
+
+No photo gets left half-saved, which is what killed the wrong-image fallback for anything we chose to keep.
+
+Then I found a second hole while testing the first fix. Readplace re-checks saved articles over time, and sometimes the text reads the same on a re-check while the site has swapped the images underneath it. The old comparison saw matching text and kept the stale copy, so a re-save could drop a corrected set of pictures without me noticing.
+
+I made it compare the image URLs as well, and when the pictures have changed it keeps the version with the current images.
 
 ## What this means for you
 
-Save a photo-heavy piece and trust the photos to be there later. A recipe with step-by-step shots, a travel diary, a design teardown, a research paper full of figures. The images load from Readplace at the size your screen wants, and they hold up after the source site moves on.
+Save a photo-heavy piece and the photos hold up. A recipe with step-by-step shots, a travel diary, a design teardown, a research paper full of figures all keep their images, loaded from Readplace at the size your screen wants, even after the source site redesigns and drops half of them.
+
+The lesson I took from this one is small but it cost me a morning: when you cap a resource, count the thing the user cares about, not the file that happens to represent it. A photo is one thing to a reader even when it is 8 files to a browser.
 
 Try it with the next article you mean to read. Paste the link into your queue, open it tomorrow, and check the pictures. Start saving at [readplace.com](/).

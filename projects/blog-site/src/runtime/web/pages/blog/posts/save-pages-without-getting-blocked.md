@@ -16,30 +16,56 @@ Readplace now fetches each saved page one time. The crawler downloads the body o
 </div>
 </details>
 
-You paste a link into a read-it-later app. A few seconds later it says: sorry, we couldn't save this. The page opens fine in your browser, so what went wrong?
+A reader saved a PDF report and got back the line a lot of read-it-later tools hand you when the crawler trips: sorry, we couldn't save this link.
 
-Often the site blocked the app's crawler. Plenty of websites run bot protection from Cloudflare or Fastly. These services watch for traffic that looks automated, and they hand back a block page in place of the article.
+The PDF opened fine in their browser. It opened fine in mine too. So I pulled the logs.
 
-Readplace used to make that worse for some pages. The old crawler fetched a page, read it, and sometimes fetched the same page again. A PDF was the common case. The first fetch treated the page as HTML, found a PDF, and gave up. The crawler then passed the same URL to a second path built for PDFs, which downloaded it from scratch.
+What I found was two fetches of the same URL inside one save. The first request pulled the page, the parser read it as HTML, saw a `%PDF` header where it wanted markup, and bailed. The crawler then handed that same URL to a separate code path built for PDFs, which opened a fresh connection and downloaded the whole file again from scratch.
 
-That meant two downloads of one page. It put double the load on the website, and it doubled the odds that bot protection flagged the request and returned a block.
+Two downloads of one document.
 
-## Fetch once, then decide
+On a plain origin nobody would notice. This report sat behind Cloudflare.
 
-I rebuilt the crawler around one rule. Fetch the page once, then work out what it is. The new crawler sends a single request and reads the whole body into memory one time. After that it checks the content type. HTML goes to the article parser. A PDF goes to the PDF reader. A link to X or Twitter skips the fetch and reads the post through Twitter's public oembed feed, a small endpoint that hands back the text.
+The part that took me a while to see is that Cloudflare's bot protection scores the pattern, not the single request. Two near-identical hits from the same client in the same second, the second one with no warm session from the first, reads like a script hammering the file.
 
-One page, one request. That holds for articles, PDFs, and tweets alike.
+The first fetch went through. The second came back as a managed challenge with a `cf-mitigated` header, and the PDF path had no way past it.
 
-The change helps you in two ways. Saves finish faster now, with one download in place of two. And they work more of the time. The site sees a single polite visit, not a repeat hit that trips its alarms.
+So the logs showed a clean 200 followed by a block, and the reader just saw the failure.
 
-There is a second part to it. When Readplace re-checks a page you saved earlier, it first asks the site whether the page changed since the last read. It sends the page's ETag and last-modified date with the request. If nothing changed, the site replies with a short 304 and no body. Readplace keeps your saved copy and skips the download. Your reading list stays fresh, and the publisher serves far less traffic.
+I had spent the first hour staring at the PDF parser. The bug was upstream of it: the crawler fetched the same URL twice.
 
-## Saving is the hard part
+## Fetch once, then decide what it is
 
-Saving a page sounds simple. In day-to-day use it is the hard part of the product. The web is full of edge guards, odd content types, and sites that fight scrapers. Readplace keeps a health check for the trickiest sources. Every entry on that list traces back to a real reader who hit that wall. A broken check means I fix the crawler until the page loads again, and I do not drop the source to quiet the alarm.
+I rebuilt the crawler around one rule.
 
-## Saving should just work
+Pull the body a single time, then work out what it is from what came back, not from what the URL looked like up front.
 
-Try it on the link your old app refused. Save a dense PDF, a tweet thread, a news page behind an edge guard. See if it lands in your reader, clean and readable.
+The new path sends one request and reads the whole response into memory. Then it branches on the content type. HTML goes to the article parser. A PDF goes to the PDF reader off the bytes already in hand, with no second connection. A link to X or Twitter skips the fetch, because those pages are mostly a login wall to a crawler, and instead reads the post through Twitter's public oembed endpoint, which hands back the text without the wall.
+
+One save, one request to the origin. Articles, PDFs, and tweets all run through that single download.
+
+> **The fix came down to one thing: making a single save cost the origin a single visit.**
+
+Two things changed right away. Saves came back faster, because a PDF no longer paid for two round trips. And the success rate on Cloudflare and Fastly sites climbed, because the origin now sees one ordinary visit rather than a repeat hit that reads like a bot.
+
+There was a second fetch I could cut while I was in there.
+
+When Readplace re-checks a page you already saved, it now sends the stored ETag and last-modified date on the request. If nothing changed, the origin answers with a 304 and no body, and Readplace keeps the copy it already has. The reader gets a fresh list and the publisher serves far less traffic for the same result.
+
+## Saving is the part that breaks
+
+Saving a page sounds like the easy half of a read-it-later tool. In practice it is the half that fights back.
+
+Odd content types, edge guards, sites that treat any non-browser client as an attacker. Readplace runs a health check against the sources that have broken before, and each entry on that list traces back to a real reader who hit that exact wall.
+
+When a check goes red I fix the crawler until the page loads again. I do not drop the source to make the alarm stop, because dropping it just moves the failure onto the next reader who saves that kind of link.
+
+## Try the link your last app refused
+
+Save a dense PDF, a tweet thread, a news page sitting behind an edge guard. See whether it lands in your reader clean and readable, or whether you get the sorry-we-couldn't line.
+
+If it lands, the one-request rule is doing its job. If it doesn't, that URL is a candidate for the health check, and I would rather hear about it than have it fail without me knowing.
+
+Here is the lesson I took from that PDF. When a save fails behind bot protection, count how many times you touched the origin before you blame the parser.
 
 [Install the browser extension](https://readplace.com/install) or [view the source on GitHub](https://github.com/Readplace/readplace.com).

@@ -1,6 +1,6 @@
 ---
 title: "Pocket Shut Down in 2025. Here's How to Recover and Move Your Reading List."
-description: "Pocket closed on July 8, 2025. If you never exported, your articles are often still recoverable. Here's how to find them and move to Readplace."
+description: "Pocket closed on July 8, 2025. If you missed the export, your articles are often still recoverable. Here's how to find them and move to Readplace."
 slug: "pocket-migration"
 date: "2026-05-06"
 author: "Fayner Brack"
@@ -16,43 +16,57 @@ Pocket shut down July 8, 2025. If you missed the export window, check your email
 </div>
 </details>
 
-Pocket shut down on July 8, 2025. Mozilla had acquired it in 2017, slowed development over the years, and pulled the plug. Users got a window to export their data before the servers went offline.
+I went to getpocket.com in July 2025 to grab the export I had put off for years, and the site was already gone. Pocket had shut down on July 8. Mozilla acquired it back in 2017, slowed the work down over the years, and then pulled the plug. There had been a window to export before the servers went offline, and I had walked right past it.
 
-Many people missed that window. If you were one of them, your articles are not gone.
+So this is the story of getting that reading list back without the export tool, and what I learned moving it into Readplace.
 
-## What happened to Pocket
+## How Pocket got to the shutdown
 
-Mozilla bought Pocket for an undisclosed amount in 2017. The team was small and the roadmap slowed. Feature updates thinned out.
+Mozilla bought Pocket for an undisclosed amount in 2017. The team stayed small and the roadmap thinned out, and feature updates came less and less often.
 
-By early 2025, Pocket was in maintenance mode. Mozilla announced the shutdown in April 2025 and gave users until July 8 to export.
+By early 2025 Pocket was running in maintenance mode. Mozilla posted the shutdown notice in April 2025 and gave people until July 8 to export their data.
 
-The export tool produced an HTML file containing every saved URL and its title. If you downloaded that file, you have everything you need. If you did not, the next section is for you.
+The export tool produced one HTML file with every saved URL and its title in it.
 
-## If you never exported your Pocket data
+If you grabbed that file, you already have what you need and you can skip ahead. I did not grab it, and that is where the work started.
 
-The Pocket servers are offline, but copies of your saved articles likely still exist in other places.
+## Recovering a library with no export file
 
-**Check your email for Pocket confirmation messages.** Every time you saved an article, Pocket sent a confirmation to some accounts. Search your inbox for "Pocket" or "getpocket.com" and collect the URLs from those emails.
+The Pocket servers were offline. But the articles I had saved over the years had left copies in a handful of other places, and that is what I went after, one source at a time.
 
-**Check your browser history.** If you read saved articles through Pocket's web app, those URLs appear in your browser history. Search for "getpocket.com/read" to find them. Most browsers keep 90 days of history by default, but some keep more.
+I started with email.
 
-**Try the Wayback Machine.** The Internet Archive crawled many Pocket profiles and public lists. Visit web.archive.org and search for your Pocket profile URL. Cached snapshots often contain saved article links.
+Pocket used to send a confirmation message every time you saved something, at least to some accounts, so I searched my inbox for "Pocket" and "getpocket.com" and pulled the URLs out of those messages. That gave me a first batch of links.
 
-**Check linked accounts.** If you connected Pocket to services like IFTTT, Zapier, or Buffer, those services likely logged the URLs you saved over time.
+Then I checked browser history. I had read a lot of saved articles through Pocket's web app, and those reader URLs were still sitting in Chrome's history.
 
-> **These methods will not recover your full library.** They recover fragments. The more places you look, the more you get back.
+A search for "getpocket.com/read" surfaced them. Most browsers keep about 90 days of history by default, and some keep more, so the older saves were thin here.
 
-## How to import into Readplace
+Next I tried the Wayback Machine. The Internet Archive had crawled plenty of Pocket profiles and public lists over the years.
 
-If you have a Pocket export file (the HTML file from before the shutdown), sign in and go to your [reading list](/queue). Next to the save bar there's an "Import from a file" picker. Choose the file, click Upload, and Readplace shows every URL it found. Untick anything you don't want, then click "Import N selected". Cards appear in your queue immediately and the titles and excerpts fill in over the next minute or two.
+I went to web.archive.org, searched for my old profile URL, and several cached snapshots came back with saved article links inside them.
 
-The importer brings in every URL the file contains. Tags, highlights, and read/unread status do not transfer. Pocket's export format only included URLs and titles, and the in-app importer treats every text-shaped file the same way.
+Last I went through linked accounts. Years earlier I had wired Pocket up to IFTTT, and that recipe had logged each URL it saw. Zapier and Buffer do the same thing if you connected them.
 
-If your file is over 5 MiB, has more than 2,000 links, or the picker fails for any reason, send it to [readplace+migrate@readplace.com](mailto:readplace+migrate@readplace.com) and I import it by hand within 24 to 48 hours.
+> **No single source gave the whole library back. Each one returned a fragment, and the more places I checked, the more I got back.**
 
-Open your [reading list](/queue) and spot-check a few entries to make sure titles and URLs match. Something look wrong? Send a follow-up to readplace+migrate@readplace.com.
+None of these methods rebuilt my full library on its own. Each one returned a piece of it.
 
-If you do not have the export file, you can still rebuild your reading list. Install the Readplace browser extension for [Chrome](/install?client=chrome) or [Firefox](/install?client=firefox) and save articles one at a time from the URLs you recovered.
+Between the 4 of them I got most of what I cared about back, and the rest I let go.
+
+## Importing into Readplace
+
+Once I had a Pocket export file in hand, the rest was quick. I signed in, opened my [reading list](/queue), and found the "Import from a file" picker sitting next to the save bar. I chose the file, clicked Upload, and Readplace listed every URL it found. I unticked the few I no longer wanted, clicked "Import N selected", and the cards showed up in my queue right away. Titles and excerpts filled in over the next minute or two.
+
+The importer pulls in every URL the file holds.
+
+Tags, highlights, and read/unread state do not come across. Pocket's export format only carried URLs and titles, and the in-app importer reads any text-shaped file the same way, so there is nothing more to bring over.
+
+One snag worth knowing about. If your file runs over 5 MiB, holds more than 2,000 links, or the picker fails for any reason, send it to [readplace+migrate@readplace.com](mailto:readplace+migrate@readplace.com) and I import it by hand within 24 to 48 hours.
+
+After the import I opened my [reading list](/queue) again and spot-checked a handful of entries to confirm the titles and URLs lined up. If something looks off, a follow-up to readplace+migrate@readplace.com will sort it.
+
+If you came out of the recovery step with a pile of loose URLs and no export file at all, you can still rebuild by hand. Install the Readplace browser extension for [Chrome](/install?client=chrome) or [Firefox](/install?client=firefox) and save the recovered articles one at a time. It is slower, but it works.
 
 ## What you had in Pocket vs. what you get in Readplace
 
@@ -69,28 +83,32 @@ If you do not have the export file, you can still rebuild your reading list. Ins
 | Data export | Yes (before shutdown) | Anytime, even after cancelling |
 | Dark mode | Yes | Yes |
 
-Readplace is smaller than Pocket was. It does not have tags or a mobile app yet.
+Readplace is smaller than Pocket was. It has no tags and no mobile app yet.
 
-It does have AI-generated TL;DR summaries for every saved article, which Pocket did not offer. For a full comparison of the current options, see the [best read-it-later apps in 2026](/blog/best-read-it-later-apps-2026).
+What it does have is an AI-generated TL;DR for every saved article, which Pocket did not offer. If you want to see how the current options stack up against each other, I wrote up the [best read-it-later apps in 2026](/blog/best-read-it-later-apps-2026).
 
 ## AI summaries for imported articles
 
-After your articles are imported, Readplace generates a short AI summary for each one. Summaries appear as each article is processed.
+Once your articles land, Readplace writes a short AI summary for each one. The summaries show up as each article finishes processing.
 
-You do not need to do anything. The processing runs in the background and finishes within hours for most libraries.
+There is nothing for you to do here.
+
+The work runs in the background and wraps up within a few hours for most libraries.
 
 ## Common questions
 
 **Can I still export from Pocket?**
 
-No. Pocket's servers went offline on July 8, 2025. The export tool is no longer available.
+No. The servers went offline on July 8, 2025, and the export tool went with them.
 
-If you downloaded the HTML export file before the shutdown, you can still use it. If not, the recovery steps above are your best option.
+If you downloaded the HTML export file before the shutdown, it still works fine. If you did not, the recovery steps above are your best shot.
 
 **How do I import Pocket articles into another app?**
 
-Most read-it-later apps accept the HTML export file that Pocket provided. Readwise Reader, Instapaper, and Raindrop.io all support it. Readplace accepts it too. Go to your queue, upload the file with the "Import from a file" picker, and confirm the link list. For files over 5 MiB or imports above the 2,000-URL cap, email readplace+migrate@readplace.com and the import is handled for you within 24 to 48 hours.
+Most read-it-later apps take the HTML export file that Pocket handed out. Readwise Reader, Instapaper, and Raindrop.io all read it, and so does Readplace. Open your queue, upload the file with the "Import from a file" picker, and confirm the link list. For files over 5 MiB or imports above the 2,000-URL cap, email readplace+migrate@readplace.com and the import gets handled for you within 24 to 48 hours.
 
 **I lost my Omnivore reading list too. Can Readplace help?**
 
-Yes. Omnivore shut down in November 2024. If you have an Omnivore data export, send it to the same email address. For more on what happened to Omnivore, see [Omnivore shut down: here's a read-it-later app that won't](/blog/omnivore-alternative).
+Yes. Omnivore shut down in November 2024. If you still have an Omnivore data export, send it to the same address. For the longer version of what happened there, see [Omnivore shut down: here's a read-it-later app that won't](/blog/omnivore-alternative).
+
+The lesson I took from this is small and a little embarrassing. Export your data the day a service announces it is closing, and keep that file somewhere you control, because the recovery dance afterward only ever returns part of what you had.

@@ -11,69 +11,81 @@ keywords: "newsletter overload, developer newsletters, read it later, email news
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-You subscribe to dozens of newsletters and read almost none. The fix is not discipline. Route links into a read-it-later app, triage with summaries, and archive the email. Each issue costs 30 seconds of triage instead of guilt. Readplace is building a Gmail import feature that will automate this: connect once and newsletter links flow into your reading list with AI summaries.
+You subscribe to dozens of newsletters and read almost none. The fix is plumbing, not discipline. Route the links into a read-it-later app, triage them with summaries, and archive the email. Each issue then costs about 30 seconds of triage instead of a low background guilt. Readplace is building a Gmail import that aims to automate this. You connect once and newsletter links flow into your reading list with AI summaries.
 
 </div>
 </details>
 
-Your inbox has unread issues of JavaScript Weekly, TLDR, Pointer, Bytes, Changelog, and four others you forgot about. You won't read them. You know it. I know it. Tomorrow a new one lands, you skim two links, close it, and feel behind.
+Your inbox has unread issues of JavaScript Weekly, TLDR, Pointer, Bytes, Changelog, and 4 others you forgot you signed up for. You already know you won't read them, and you keep them anyway, because deleting unread feels worse than letting them sit. Tomorrow another one lands, you skim two links, close the tab, and carry a small sense of being behind into the rest of the day.
 
-Most developers I talk to are stuck in the same loop.
+I recognise this because I have been the person with 30 open subscriptions and a reading habit that covers maybe 3 of them. Most of the developers I talk to are caught in the same loop, and almost none of them describe it out loud.
 
 ## The guilt cycle
 
-It starts small. Someone recommends a newsletter. You subscribe. The first few issues feel great. You click links, read articles, feel informed.
+It starts small. Someone whose taste you trust recommends a newsletter, you subscribe, and the first few issues feel great because you actually click the links and read the articles. For a couple of weeks you feel a little more on top of things than you did before.
 
-Then life gets busy. Issues pile up. You skim subject lines instead of opening emails.
+Then a busy stretch arrives and the issues pile up faster than you open them.
 
-Guilt builds. You tell yourself you'll catch up this weekend. You don't. You unsubscribe.
+You start skimming subject lines from the notification preview instead of opening the email at all.
 
-Three months later, a friend shares a link from that same newsletter. You resubscribe.
+Guilt builds. You tell yourself you'll catch up this weekend, you don't, and eventually you unsubscribe to make the count go down.
 
-Run that loop across 10 or 15 newsletters and you have a quiet anxiety generator in your inbox every day.
+A few months later a friend shares a good link that turns out to be from that same newsletter, and you resubscribe, half-convinced this time will be different.
+
+Run that small loop across 10 or 15 subscriptions at once and you've built a low-grade anxiety generator that refills your inbox every single morning.
 
 ## The newsletters aren't the problem
 
-The people curating JavaScript Weekly or TLDR filter hundreds of links each week. They do real work so you don't have to. The quality is there.
+The people curating JavaScript Weekly or TLDR filter through hundreds of links every week and ship you the survivors. That's real editorial work, and the quality is genuinely there once you open an issue.
 
-But each issue has 10 to 15 links. On a given week, 2 or 3 of those are relevant to you. The rest are fine but not worth your time right now.
+But a single issue still carries 10 to 15 links, and in a typical week only 2 or 3 of those touch what you're actually building.
 
-So what do most people do? They treat each newsletter as all or nothing. Read everything or read nothing. "Nothing" wins almost every time.
+The rest are fine. They're just not worth your attention this week, and that's a hard thing to admit one link at a time.
 
-> **The missing piece is a system that pulls the 2 or 3 good links out of each issue and lets the rest go.**
+So you do the thing that feels safest, which is treat each issue as all or nothing. Read it cover to cover or leave it sealed. The second option keeps winning, because reading it fully is a chore and reading it partly feels like cheating.
+
+> **The missing piece is a system that pulls the 2 or 3 good links out of each issue and lets the rest go without making you feel like you skipped homework.**
 
 ## A better workflow
 
-The fix is not discipline. It's plumbing.
+The fix is plumbing.
 
-**Funnel, don't read.** Stop opening newsletters in your inbox. Route the links into a read-it-later app instead. Your inbox goes back to messages. Your reading list becomes the single place for things worth reading.
+Discipline is what you reach for when the plumbing is missing, and it tends to run out by Wednesday.
 
-**Triage with summaries.** A one-line summary per article is enough to decide if it matters. You don't need to click through to learn that "Rust in the Browser" isn't relevant to your React project. Skim summaries. Pick winners. Archive the rest.
+**Funnel, don't read.** Stop opening newsletters where they land. Route the links into a read-it-later app instead, so your inbox goes back to being a place for messages and your reading list becomes the one place you go for things worth reading.
 
-**Read without guilt.** Once you pull out the 2 or 3 links that matter, archive the newsletter. You processed it. You didn't miss anything. The gap between "I didn't read it" and "I triaged it and nothing was relevant this week" is huge for mental overhead.
+**Triage with summaries.** A one-line summary per article is usually enough to decide whether it matters to you right now. You don't need to click through to learn that "Rust in the Browser" has nothing to do with the React work on your plate this week. Skim the summaries, mark the 2 or 3 that earn it, and let the rest drop off.
 
-This turns newsletters from a guilt source into a curated feed. Each issue costs about 30 seconds of triage.
+**Read without guilt.** Once you've pulled the links that matter, archive the issue. You processed it, and the work is done. There's a real difference in mental weight between "I didn't read it" and "I looked, and nothing this week was for me," and most of the guilt lives in that first phrasing.
+
+That turns a stack of newsletters into a curated feed you chose. Each issue costs you roughly 30 seconds.
 
 ## What I'm building
 
 I'm working on this exact problem with Readplace.
 
-The plan: a Gmail import feature. You connect your Gmail account and select which newsletters to import. Readplace extracts the links from each issue, generates a short summary for each one, and saves them to your reading list. You stop opening newsletters in your inbox and stop skimming and forgetting. The links show up in Readplace, ready to triage.
+The plan is a Gmail import. You connect your Gmail account, pick which newsletters to pull from, and Readplace extracts the links from each issue, writes a short summary for each one, and drops them into your reading list.
 
-I want to be direct about where things stand. Gmail import is in development. It's not shipped yet.
+The links show up ready to triage, which removes the part where you open the email, skim it, and forget.
 
-Readplace already works as a read-it-later app. You can save articles, read them later, and keep a clean reading list. But the newsletter workflow I described above is manual today. You open the newsletter, find the links that interest you, and save them one by one.
+I want to be plain about where this stands. Gmail import is in development and it has not shipped.
 
-The Gmail integration will automate that process. Connect once. Your newsletter links flow into Readplace with AI-generated summaries to help you sort fast.
+Readplace already works as a read-it-later app today. You can save articles, read them whenever, and keep a clean reading list.
+
+The newsletter workflow I described above still runs by hand for now, which means you open the issue, find the links you want, and save them one at a time.
+
+The Gmail integration is meant to take that manual step off your hands. You connect once, and your newsletter links flow into Readplace with AI summaries to help you sort through them fast.
 
 ## Try this today
 
-You don't need automation to start. If newsletters are piling up, do three things:
+You don't need any automation to start. If the unread issues are piling up, here are 3 things you can do this afternoon:
 
-- Pick your top 3 newsletters. Unsubscribe from the rest. Do it now.
-- When an issue arrives, open it, save the 2 or 3 links that catch your eye to any read-it-later app, and archive the email.
-- Read from your reading list, not your inbox.
+- Pick the 3 newsletters you'd genuinely miss, and unsubscribe from the rest while the resolve is fresh.
+- When the next issue lands, open it once, save the 2 or 3 links that catch your eye to any read-it-later app, and archive the email.
+- Read from your reading list rather than your inbox, so the two stop competing for the same attention.
 
-That alone breaks the guilt cycle. When Readplace's Gmail import ships, it handles the whole thing for you.
+That much, on its own, is usually enough to break the loop.
 
-Your inbox was never meant to be a reading list. Stop using it as one.
+When Readplace's Gmail import ships, it does the same routing for you without the manual step.
+
+Your inbox was built to hold messages. It does a poor job of holding a backlog of things you mean to read, so stop asking it to be your reading list.

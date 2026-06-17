@@ -11,56 +11,72 @@ keywords: "instapaper alternative, read it later, readplace vs instapaper, pocke
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Instapaper is the familiar Pocket replacement: mature, stable, free tier, native mobile apps, Kobo support, but limited recent development and no AI. Readplace is newer and actively shipping: AI summaries, Australian hosting, source-available code, $3.99/mo with no free tier, but no native mobile apps or offline reading yet. Pick Instapaper for stability and mobile. Pick Readplace for AI triage and active development.
+Instapaper is the familiar Pocket replacement: mature, stable, a free tier, native mobile apps, Kobo support, but little recent development and no AI. Readplace is newer and shipping every week: AI summaries, Australian hosting, source-available code, $3.99/mo and no free tier, but no native mobile apps or offline reading yet. Pick Instapaper for stability and mobile. Pick Readplace for AI triage and active development.
 
 </div>
 </details>
 
-Pocket shut down in July 2025. A lot of readers lost their go-to save-for-later tool overnight. Some moved to Omnivore, but that shut down too. Many landed on Instapaper, which has been running since 2008.
+Pocket shut down in July 2025, and a lot of readers lost their go-to save-for-later tool overnight. Some moved to Omnivore, but that shut down too. Many of them landed on Instapaper, which has been running since 2008.
 
-Readplace launched around the same time. I had been running my own reading system for about ten years before turning it into a product.
+If you are one of those readers, you now have to choose a tool without much to go on. Instapaper and Readplace both save articles for later, and that is most of what they have in common.
 
-Both apps save articles for later. Past that, they take different paths. This is an honest comparison of the two.
+This post lays out the axes I would compare them on, then applies each axis to Instapaper and Readplace so you can decide which trade-offs you actually want.
 
-## The basics
+Readplace launched around the same time Pocket closed.
 
-Instapaper and Readplace do the same core thing. You find something on the web, save it, and read it when you're ready. Both strip away clutter and give you a clean reading view. Both let you organise saved articles.
+I had been running my own reading system for about 10 years before I turned it into a product, so I have a stake in one side of this, and I will mark where that bias shows up.
 
-That's where the overlap ends.
+Both apps save articles for later. Past that, they pull in different directions, which is what the rest of this post works through.
 
-## Instapaper: the familiar choice
+## The axes that matter
 
-Instapaper is the closest thing to Pocket that still exists. If you used Pocket for years and want something that works the same way, Instapaper is the natural pick.
+Five things separate one read-it-later tool from another once you get past the save button, and I will compare both apps on each of them. **Reading surface** is where you actually read: a native app, a browser, an e-reader, or all three. **Triage** is how you decide what to read when the list grows faster than you clear it. **Maturity** is how long the product has run and how stable it feels. **Development pace** is how often it changes under you, for better and worse. **Pricing and data** cover what you pay and where your reading history lives.
 
-It has native mobile apps for iOS and Android. The reading view is clean and distraction-free. Kobo e-readers ship with Instapaper built in, which is a nice bonus if you own one. The interface is simple and stays out of your way.
+Instapaper and Readplace score very differently on those five, so the choice mostly comes down to which trade-offs you want.
 
-Instapaper has a free tier that covers the basics: saving articles, reading them later, and basic organisation. A premium tier adds full-text search, speed reading, and text-to-speech.
+They agree on the basics. You find something on the web, save it, and read it later in a clean view with the clutter stripped out, and both let you organise what you saved.
 
-The company is US-based and has changed hands a few times over the years (Betaworks, then Pinterest, then back to independent).
+That shared base is where the overlap ends.
 
-Here's the trade-off. Instapaper has not shipped many new features in recent years. It works, and it works well, but it's the same product it was in 2023.
+## Instapaper on the five axes
 
-> **For some people, that stability is a feature. For others, it feels like maintenance mode.**
+Instapaper is the closest thing to Pocket that still exists. If you used Pocket for years and want a tool that works the same way, it is the natural pick, and it scores its highest on **reading surface** and **maturity**.
 
-## Readplace: a different bet
+On reading surface it is strong. Native mobile apps for iOS and Android, a clean and distraction-free reader, and Kobo e-readers that ship with Instapaper built in, which is a real convenience if you already own one. The interface is simple and stays out of the way.
 
-Readplace comes at the problem from another direction. It's a newer product, built by one developer in Australia. It has a clear opinion about where read-it-later tools should go next.
+On triage it does the minimum. You save, you read later, and you organise by folder, with no help deciding what is worth opening when the backlog gets long.
 
-The biggest difference is AI. Readplace generates summaries of saved articles. You can scan a summary before deciding to read the full piece. Instapaper has no AI features at all.
+On maturity it is hard to beat. The product has run since 2008 and the company is US-based, having changed hands a few times over the years, from Betaworks to Pinterest and back to independent, and that long history shows up as a tool that rarely surprises you.
 
-Does that matter? The answer comes down to how you read. If you save three articles a week and read all of them, summaries won't change much.
+Development pace is the other side of that history.
 
-But what if you save thirty a week and fall behind? A quick summary for each article helps you pick what's worth your time. That can turn an overflowing reading list into a useful one.
+Instapaper has shipped few new features in recent years. It works, and it works well, but it is close to the same product it was in 2023.
 
-Readplace is browser-first. It's a web app with a browser extension, not a native mobile app. It works on any device with a browser, but it lacks the deep OS features a native app gives you. There is no share sheet on your phone and no offline reading on the train yet. If you need mobile apps, that's a real gap right now.
+On pricing and data, there is a free tier that covers the basics, namely saving, reading later, and basic organisation. A premium tier adds full-text search, speed reading, and text-to-speech. Your data sits on US infrastructure.
 
-Readplace is hosted in Australia. Your reading data stays on Australian infrastructure under Australian privacy law. That matters if you care about where your data lives.
+> **For some readers that stability is the feature. For others it reads as a product in maintenance mode.**
 
-On pricing: Readplace costs $3.99 per month. There's no free tier the way Instapaper offers one. Readplace is a paid product from the start.
+## Readplace on the five axes
 
-The other side of that trade-off: Readplace ships new features every week. It's a product you can watch evolve in real time. That momentum is real, but so is the risk that comes with any newer product.
+Readplace comes at the same five axes from the opposite end. It is a newer product, built by one developer in Australia, and it scores its highest on **triage** and **development pace** while it is still catching up on reading surface.
+
+Triage is where it makes its bet. Readplace generates an AI summary of each saved article, so you can scan the gist before deciding to read the full piece. Instapaper has no AI features.
+
+Whether that helps depends on how you read. If you save 3 articles a week and read all of them, the summaries change little.
+
+But if you save 30 a week and fall behind, a one-paragraph summary per article tells you which ones earn your time, so the list becomes something you work through instead of avoid.
+
+On reading surface it is the weaker of the two. Readplace is browser-first: a web app with a browser extension rather than a native mobile app. It runs on any device with a browser, but it lacks the OS-level features a native app gives you, so there is no phone share sheet and no offline reading on a train yet. If mobile apps are a requirement, this is a real gap today.
+
+On data it makes a deliberate choice. Readplace is hosted in Australia, so your reading history stays on Australian infrastructure under Australian privacy law, which matters if you care where your data lives.
+
+On pricing it is blunt. Readplace costs $3.99 per month with no free tier. It is a paid product from the start.
+
+On development pace it moves fast, and here is where my bias is loudest, since I ship those features. New ones land most weeks, so you can watch the product change in close to real time. That pace is real, and so is the instability that comes with any young product.
 
 ## Feature comparison
+
+The table below is the same five axes broken into the concrete features behind them, so you can match each row to the trade-off it represents.
 
 | | Instapaper | Readplace |
 |---|---|---|
@@ -95,13 +111,19 @@ The other side of that trade-off: Readplace ships new features every week. It's 
 - You want a product that ships new features regularly
 - You're willing to pay for a tool built by someone who uses it every day
 
-## The honest take
+## What this comparison does and does not settle
 
-Instapaper is the closest thing to Pocket that still exists. If you want exactly what Pocket was, a clean and simple read-it-later app with mobile apps and a free tier, it's the safe choice. It has done that job well for close to two decades.
+The five axes settle the trade-offs you can name in advance. They do not settle the things you only find by living in a tool for a month: how the reader feels on your phone, how good a given summary turns out for the articles you actually save, how much the weekly changes annoy you versus help you. I have not benchmarked summary quality across topics here, and I have not measured battery or sync reliability, so treat both as open until you test them yourself.
 
-If you want AI summaries and a product that's actively growing, Readplace is a different bet. It's newer, smaller, and lacks native mobile apps for now. But it's built with a clear direction, and it ships toward that direction every week.
+What the comparison does settle is the choice you can make up front: a tool that stays still, or a tool that helps you triage and keeps changing.
 
-Neither choice is wrong. They solve the same problem from different starting points.
+If you want what Pocket was, a clean and simple reader with mobile apps and a free tier, Instapaper is the steady choice, and it has done that job well for close to two decades.
+
+If you save more than you can read and want AI summaries to sort the pile, Readplace is the other bet. It is newer, smaller, and missing native mobile apps for now, but it has a clear direction and ships toward it most weeks.
+
+Both solve the same problem from opposite starting points.
+
+The right pick is the one whose trade-offs you can live with.
 
 ---
 

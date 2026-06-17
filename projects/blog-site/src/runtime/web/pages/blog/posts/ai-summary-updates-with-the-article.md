@@ -16,34 +16,48 @@ Readplace keeps one TL;DR per link, shared across anyone who saves it. The first
 </div>
 </details>
 
-You save a long article on Monday. The TL;DR reads oddly short, like it missed half the piece. You open the article and the full text is right there. So why did the summary come up thin?
+A user saved a long news article on a Monday and then emailed me, because the TL;DR on his saved card read like two lines, as if Readplace had only ever seen the headline and one stray paragraph. He opened the card and the full article was sitting right there, every word of it. The summary and the page disagreed, and at first I had no idea why.
 
-The cause sits in how the page loaded the first time. Some sites serve a stripped page to a first-time visitor. A paywall throws up a teaser. A bot guard returns a near-empty shell. A slow page hands over half its body before the connection drops. Readplace saved what it got, and the summary described that thin copy.
+I pulled the saved row.
 
-Readplace does not stop at the first read. It re-checks saved pages, and it grades each copy it pulls. A fuller, cleaner copy outranks a thin one. When a better copy arrives, Readplace swaps it in as the version you read.
+The content grade on the first crawl was low, the body was a thin stub, and the summary had been written against that body. The summary was correct. It was just correct about a copy of the page nobody could see anymore.
 
-The summary used to stay behind. The page upgraded to the clean copy, yet the old TL;DR sat on top of it. You read the full article and a summary built from the broken version. That gap is now closed.
+What had happened is that the site served a stripped page to the first fetch. That can be a paywall teaser, a bot guard handing back a near-empty shell, or a slow page that drops the connection halfway through the body before the rest arrives. Readplace summarised whatever it got, which on that Monday was the shell.
 
-## How the summary catches up
+Then I remembered the part of my own system I had stopped thinking about. Readplace does not stop at the first read. It re-checks saved pages on a schedule, grades each copy it pulls, and a fuller, cleaner copy outranks a thin one, so when the better copy of that news article eventually arrived, Readplace swapped it in as the version the user read. The page had upgraded under the summary while the summary stayed put.
 
-Readplace marks the moment a saved page changes. A new content grade or a real edit to the text both count as a change. The app raises a small internal signal that says, this link has a better copy now.
+> **The summary cached the first copy of a page and stayed pinned there even after a better copy replaced it.**
 
-A separate worker listens for that signal. It checks that the clean copy is readable, then clears the stale summary and asks for a fresh one. The same DeepSeek step that wrote the first TL;DR runs again, this time against the better copy. If you want the full picture of that step, read [how AI TL;DR actually works in Readplace](/blog/how-ai-tldr-actually-works).
+The old TL;DR sat on top of the clean copy, built from a body that no longer existed, which meant the user was reading the full article next to a two-line summary of a shell that had been thrown away. That was the bug.
 
-Readplace caches one summary per link, so the rebuilt TL;DR lands for the next reader who saves or opens that link too.
+## Tracking down where the summary fell behind
 
-There is a sharper version of this problem. A thin first copy can be short enough that Readplace skips the summary outright, tagging it too short to bother with. The page later upgrades to the full article, long enough to summarise well. The old code left it tagged as skipped. The new path notices the upgrade and builds the summary it passed on the first time.
+I traced the swap first.
 
-## Why this matters for your queue
+When a re-crawl lands a better copy, the row already records it. A new content grade counts as a change, and so does a real edit to the text. The piece I was missing was a signal that said, this link has a better copy now, go look at the summary again.
 
-A summary you cannot trust is worse than no summary. You glance at the TL;DR, decide the piece is light, and skip something worth your time. Or the reverse, where a broken summary buries a quick read under a wall of words you did not need.
+So I added one. A separate worker listens for that signal, checks that the clean copy is actually readable, clears the stale TL;DR, and asks for a fresh one. The same DeepSeek step that wrote the first summary runs again, this time against the better copy. If you want the full picture of that step, read [how AI TL;DR actually works in Readplace](/blog/how-ai-tldr-actually-works).
 
-Readplace treats the TL;DR as a triage tool. It helps you pick what to read and when. That job works only if the summary matches the article in front of you. Tying the summary to the best copy of the page keeps that promise honest.
+Readplace caches one summary per link, shared across anyone who saves it, so the rebuilt TL;DR lands for the next reader who opens that link too.
 
-This builds on the way Readplace re-reads saved pages. It already asks a site whether a page changed before pulling it again, which keeps your list current and spares the publisher the traffic. Read more on that in [how Readplace saves a page without getting blocked](/blog/save-pages-without-getting-blocked).
+Then I hit a second case that the first fix did not cover.
 
-## See it on a stubborn save
+A thin first copy can be short enough that Readplace skips the summary step outright and tags the link "too short to summarise". The page later upgrades to the full article, now long enough to summarise well, but my new worker ignored it, because it only looked at links that already had a summary to rebuild. The link was tagged as skipped, so it stayed skipped. I had to widen the trigger to cover the upgrade-from-nothing path, where the summary the crawler passed on during the first read finally gets written against the full article.
 
-Save an article that fought you the first time, like a news page behind a soft wall or a slow longread. Give Readplace a beat to re-read it. Open the card and check the TL;DR against the full text. It should describe the article you actually get, not the shell the site served at first.
+## Why this mattered for the queue
+
+A summary you cannot trust is worse than no summary at all.
+
+You glance at a two-line TL;DR, decide the piece is light, and skip something worth your time. The reverse hurts too, when a broken summary makes a quick read look like a wall of text you do not have time for.
+
+I built the TL;DR as a triage tool, there to help you pick what to read and when, and that job only works if the summary describes the article in front of you rather than a stale copy the crawler happened to catch on a bad morning.
+
+This rides on top of the re-read system that was already there. Readplace asks a site whether a page changed before pulling it again, which keeps your list current and spares the publisher the traffic. Read more on that in [how Readplace saves a page without getting blocked](/blog/save-pages-without-getting-blocked).
+
+## Try it on a stubborn save
+
+Save an article that fought the crawler the first time, like a news page behind a soft wall or a slow longread. Give Readplace a beat to re-read it on its schedule, then open the card and check the TL;DR against the full text. It should describe the article you actually get, not the shell the site served on the first fetch.
+
+The lesson I took from this one is small. If you cache a derived thing like a summary, you have to invalidate it on every input change, not only the inputs you remembered to wire up the first time around.
 
 [Create an account](https://readplace.com) or [view the source on GitHub](https://github.com/Readplace/readplace.com).
