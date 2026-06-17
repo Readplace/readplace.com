@@ -93,9 +93,16 @@ platform :ios do
       )
     end
 
-    # CI passes an incrementing build number — TestFlight requires CFBundleVersion
-    # to increase on every upload. Locally the project.yml default is used.
+    # CI passes the build counter as both the build number and the marketing patch
+    # (CFBundleVersion must increase per upload; CFBundleShortVersionString tracks it
+    # as 0.1.<build>). Locally neither is set and the project.yml defaults are used.
     build_number = ENV["APP_BUILD_NUMBER"]
+    marketing    = ENV["APP_MARKETING_VERSION"]
+
+    version_args = [
+      build_number && "CURRENT_PROJECT_VERSION=#{build_number}",
+      marketing    && "MARKETING_VERSION=#{marketing}",
+    ].compact.join(" ")
 
     build_app(
       project: PROJECT_PATH,
@@ -106,7 +113,7 @@ platform :ios do
       output_name: OUTPUT_NAME,
       export_method: "app-store",
       skip_profile_detection: true,
-      xcargs: build_number ? "CURRENT_PROJECT_VERSION=#{build_number}" : nil,
+      xcargs: version_args.empty? ? nil : version_args,
       export_options: {
         method: "app-store",
         signingStyle: "manual",
