@@ -74,18 +74,6 @@
 	background: var(--color-surface);
 }
 
-.offer-popup__badge {
-	display: inline-block;
-	margin: 0 0 16px;
-	padding: 4px 12px;
-	font-size: 12px;
-	font-weight: 600;
-	letter-spacing: 0.02em;
-	color: var(--color-error);
-	background: var(--color-brand-light);
-	border-radius: var(--radius-sm);
-}
-
 .offer-popup__headline {
 	margin: 0 0 8px;
 	font-size: 26px;
@@ -163,12 +151,6 @@
 	color: var(--color-error);
 }
 
-.offer-popup__social {
-	margin: 0 0 20px;
-	font-size: 13px;
-	color: var(--color-text-muted);
-}
-
 .offer-popup__cta {
 	display: block;
 	width: 100%;
@@ -181,7 +163,6 @@
 	border-radius: var(--radius);
 	text-decoration: none;
 	cursor: pointer;
-	animation: offer-popup-pulse 2.4s ease-in-out infinite;
 }
 
 .offer-popup__cta:hover {
@@ -263,20 +244,9 @@
 	}
 }
 
-@keyframes offer-popup-pulse {
-	0%,
-	100% {
-		transform: scale(1);
-	}
-	50% {
-		transform: scale(1.02);
-	}
-}
-
 @media (prefers-reduced-motion: reduce) {
 	.offer-popup__backdrop,
-	.offer-popup__panel,
-	.offer-popup__cta {
+	.offer-popup__panel {
 		animation: none;
 	}
 }
