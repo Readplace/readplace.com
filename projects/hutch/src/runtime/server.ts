@@ -110,7 +110,7 @@ import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { SESSION_COOKIE_NAME } from "./web/auth/session-cookie";
 import { isHttpsOrigin } from "./web/cookie-options";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
-import { initQueueRoutes } from "./web/pages/queue/queue.page";
+import { initQueueRoutes, QUEUE_PATH } from "./web/pages/queue/queue.page";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
@@ -789,7 +789,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * stay publicly reachable. Shared reader permalinks (people copy them from
 	 * the browser URL bar) redirect non-owners and anonymous visitors to
 	 * `/view/<url>` instead of bouncing them to /login. */
-	app.use("/queue", extensionCors, queueRouter);
+	app.use(QUEUE_PATH, extensionCors, queueRouter);
 
 	const importRouter = initImportSessionRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,
