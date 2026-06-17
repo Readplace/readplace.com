@@ -6,10 +6,9 @@ const TEMPLATE = readFileSync(join(__dirname, "offer-popup.template.html"), "utf
 
 const TOTAL_SLOTS = 50;
 const CLAIMED_SLOTS = 46;
-const PRICE_AUD = 99;
+const PRICE_USD = 49;
 /** Crossed-out anchor price that frames the one-time fee as a saving. */
-const ANCHOR_PRICE_AUD = 240;
-const VIEWERS_COUNT = 11;
+const ANCHOR_PRICE_USD = 3.99;
 const COUNTDOWN_INITIAL = "10:00";
 const CTA_HREF = "/account";
 
@@ -23,9 +22,8 @@ export function renderOfferPopup(): string {
 		claimedSlots: CLAIMED_SLOTS,
 		remainingSlots,
 		claimedPercent,
-		priceAud: PRICE_AUD,
-		anchorPriceAud: ANCHOR_PRICE_AUD,
-		viewersCount: VIEWERS_COUNT,
+		priceUsd: PRICE_USD,
+		anchorPriceUsd: ANCHOR_PRICE_USD,
 		countdownInitial: COUNTDOWN_INITIAL,
 		ctaHref: CTA_HREF,
 	});

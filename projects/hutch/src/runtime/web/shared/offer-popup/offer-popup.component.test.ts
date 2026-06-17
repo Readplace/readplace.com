@@ -36,11 +36,11 @@ describe("renderOfferPopup", () => {
 
 		const price = doc.querySelector("[data-test-offer-price]");
 		assert(price, "price must render");
-		assert.match(price.textContent ?? "", /A\$99/);
+		assert.match(price.textContent ?? "", /US\$49/);
 
 		const anchor = doc.querySelector("[data-test-offer-anchor]");
 		assert(anchor, "anchor price must render");
-		assert.equal(anchor.textContent, "A$240/year");
+		assert.equal(anchor.textContent, "US$3.99 over 3 years");
 	});
 
 	it("seeds the countdown the client takes over", () => {
