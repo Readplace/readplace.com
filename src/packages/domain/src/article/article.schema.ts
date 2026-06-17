@@ -15,6 +15,13 @@ export const SaveArticlesInputSchema = z.object({
 	urls: z.array(z.string()).min(1).max(MAX_URLS_PER_BULK_SAVE),
 });
 
+/** Body-parser limit for POST /queue/save-articles. express.json()'s 100 KB
+ * default would reject a full MAX_URLS_PER_BULK_SAVE batch of long
+ * (tracking-param-laden) URLs with a 413 before the route's schema runs, so the
+ * parser limit is sized to the cap: up to 2 KiB per URL covers long tracking
+ * URLs with JSON punctuation headroom. */
+export const MAX_BULK_SAVE_REQUEST_BYTES = MAX_URLS_PER_BULK_SAVE * 2048;
+
 export const MAX_RAW_HTML_BYTES = 10 * 1024 * 1024;
 
 /* Body-parser limit is slightly above MAX_RAW_HTML_BYTES so the rawHtml size

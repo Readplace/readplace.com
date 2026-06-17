@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemoryAuth } from "./auth/in-memory-auth";
-import { BrowserExtensionCore } from "./core";
+import { BrowserExtensionCore, BULK_SAVE_BATCH_SIZE } from "./core";
 import type { CoreError, ReadingList } from "./core";
 import { initInMemoryReadingList } from "./reading-list/in-memory-reading-list";
 import type { BulkSaveResult, SaveUrl, SaveUrls, SaveUrlResult } from "./reading-list/reading-list.types";
 import type { BrowserShell } from "./shell.types";
 import type { Auth, GuardedResult, WhenLoggedIn } from "./auth/auth.types";
-import { UnauthorizedError } from "./auth/unauthorized-error";
 import type { ReadingListItem, ReadingListItemId } from "./domain/reading-list-item.types";
 import { MENU_ITEM_SAVE_ALL_TABS } from "./get-context-menu-target";
 
@@ -259,7 +258,6 @@ describe("BrowserExtensionCore save", () => {
 	});
 });
 
-
 type ShortcutHandler = () => void;
 type ContextMenuHandler = (
 	info: { menuItemId: string; linkUrl?: string; pageUrl?: string },
@@ -299,6 +297,8 @@ function createCapturingShell(
 		openPopup: (params) => {
 			openPopupCalls.push(params);
 		},
+		openSaveAllTabsPopup: () => {},
+		onSaveAllTabsShortcut: () => {},
 		getActiveTab: async () => options.activeTab ?? null,
 		queryActiveTabs: async () => options.activeTabs ?? [],
 		setIcon: {
@@ -840,6 +840,82 @@ describe("BrowserExtensionCore saveAll", () => {
 		expect(result).toEqual({ saved: 2, skipped: 0, failed: 0, skippedUrls: [] });
 		expect(readingList.saveUrlsCalls).toEqual([
 			{ urls: ["https://example.com/a", "https://example.com/b"] },
+		]);
+	});
+
+	it("folds an empty tab list to a zero summary without calling the reading list", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList();
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
+			core.once("saved-all-tabs", { success: resolve, failure: reject });
+			core.saveAll("tabs", { urls: [] });
+		});
+
+		expect(result).toEqual({ saved: 0, skipped: 0, failed: 0, skippedUrls: [] });
+		expect(readingList.saveUrlsCalls).toEqual([]);
+	});
+
+	it("splits a window larger than the batch size into capped requests and aggregates the summary", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList();
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const urls = Array.from(
+			{ length: BULK_SAVE_BATCH_SIZE * 2 + 1 },
+			(_v, i) => `https://example.com/${i}`,
+		);
+
+		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
+			core.once("saved-all-tabs", { success: resolve, failure: reject });
+			core.saveAll("tabs", { urls });
+		});
+
+		expect(readingList.saveUrlsCalls.map((c) => c.urls.length)).toEqual([
+			BULK_SAVE_BATCH_SIZE,
+			BULK_SAVE_BATCH_SIZE,
+			1,
+		]);
+		expect(result.saved).toBe(BULK_SAVE_BATCH_SIZE * 2 + 1);
+		expect(result.skipped).toBe(0);
+		expect(result.failed).toBe(0);
+	});
+
+	it("aggregates skipped urls reported by the reading list", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList();
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		/** The in-memory list reports a re-save of the same url as skipped, so a
+		 * list with a duplicate exercises the skippedUrls folding. */
+		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
+			core.once("saved-all-tabs", { success: resolve, failure: reject });
+			core.saveAll("tabs", { urls: ["https://example.com/a", "https://example.com/a"] });
+		});
+
+		expect(result.saved).toBe(1);
+		expect(result.skipped).toBe(1);
+		expect(result.skippedUrls).toEqual([
+			{ url: "https://example.com/a", code: "already-saved" },
 		]);
 	});
 

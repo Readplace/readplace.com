@@ -11,7 +11,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type { SaveableUrl, ValidateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
-import { SaveArticleInputSchema, SaveArticlesInputSchema, BULK_SAVE_CONCURRENCY, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
+import { SaveArticleInputSchema, SaveArticlesInputSchema, BULK_SAVE_CONCURRENCY, MAX_BULK_SAVE_REQUEST_BYTES, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
 import { buildSaveIntentEvent, hashIp, type AnalyticsEvent } from "../../middleware/analytics";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
 import {
@@ -38,6 +38,7 @@ import type { PutPendingPdf } from "@packages/provider-contracts/pending-pdf";
 import { MAX_PDF_BYTES, isPDF } from "@packages/crawl-article";
 import { initMultipartUpload } from "../import/multipart-upload";
 import { initSaveContentLimitHandler } from "./save-content-limit-handler";
+import { initSaveArticlesLimitHandler } from "./save-articles-limit-handler";
 import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type {
 	ArticleCrawl,
@@ -557,8 +558,17 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * unsaveable ones (chrome://, file:, private hosts) are reported as skipped
 	 * rather than failing the batch — then saveable ones are URL-only saved
 	 * through the same pipeline as POST /, in bounded-concurrency batches. The
-	 * server crawls each asynchronously, exactly like /import. */
-	router.post("/save-articles", requireNotLocked, deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
+	 * server crawls each asynchronously, exactly like /import.
+	 *
+	 * The body-parser limit is sized to MAX_URLS_PER_BULK_SAVE so a full
+	 * cap-sized batch of long URLs isn't rejected with a 413 by express.json()'s
+	 * 100 KB default before the schema runs; saveArticlesLimitHandler turns an
+	 * over-limit body into a Siren 422 rather than an unhandled 413. */
+	const saveArticlesLimitHandler = initSaveArticlesLimitHandler({
+		logError: deps.logError,
+		maxBytes: MAX_BULK_SAVE_REQUEST_BYTES,
+	});
+	router.post("/save-articles", requireNotLocked, deps.requireWriteAccess, express.json({ limit: MAX_BULK_SAVE_REQUEST_BYTES }), saveArticlesLimitHandler, async (req: Request, res: Response) => {
 		if (!wantsSiren(req)) {
 			res.status(406).send("Not Acceptable");
 			return;

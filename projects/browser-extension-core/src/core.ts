@@ -18,6 +18,13 @@ export interface ReadingList {
 	saveUrls: SaveUrls;
 }
 
+/** A single save-articles request is capped server-side at
+ * MAX_URLS_PER_BULK_SAVE (500). saveAll batches well below that so a window with
+ * more saveable tabs than the cap saves across several requests instead of one
+ * the server rejects with a generic error, and an empty window makes zero
+ * requests and folds to a `Saved 0` summary. Must stay ≤ the server cap. */
+export const BULK_SAVE_BATCH_SIZE = 100;
+
 export type ResultCallbacks<T> = {
 	success: (value: T) => void;
 	failure: (error: CoreError) => void;
@@ -116,6 +123,20 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 		auth
 			.ensureWebSession()
 			.catch((error) => logger.warn("Failed to mint web session for reader links", error));
+	}
+
+	async function saveUrlsInBatches(urls: string[]): Promise<BulkSaveResult> {
+		const summary: BulkSaveResult = { saved: 0, skipped: 0, failed: 0, skippedUrls: [] };
+		for (let i = 0; i < urls.length; i += BULK_SAVE_BATCH_SIZE) {
+			const batch = await readingList.saveUrls({
+				urls: urls.slice(i, i + BULK_SAVE_BATCH_SIZE),
+			});
+			summary.saved += batch.saved;
+			summary.skipped += batch.skipped;
+			summary.failed += batch.failed;
+			summary.skippedUrls.push(...batch.skippedUrls);
+		}
+		return summary;
 	}
 
 	return {
@@ -219,7 +240,7 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 		},
 
 		saveAll(_resource, data) {
-			const guarded = auth.whenLoggedIn(() => readingList.saveUrls({ urls: data.urls }));
+			const guarded = auth.whenLoggedIn(() => saveUrlsInBatches(data.urls));
 			emitResult("saved-all-tabs", guarded);
 		},
 

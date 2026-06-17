@@ -116,6 +116,36 @@ describe("POST /queue/save-articles", () => {
 		expect(response.body.properties.code).toBe("invalid-save-articles");
 	});
 
+	it("accepts a full cap-sized batch of long URLs that exceeds express.json()'s 100 KB default", async () => {
+		const testApp = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(testApp);
+
+		/** MAX_URLS_PER_BULK_SAVE long URLs (~400 chars each) total ~200 KB —
+		 * over express.json()'s 100 KB default, under MAX_BULK_SAVE_REQUEST_BYTES.
+		 * Before sizing the parser limit to the cap this 413'd before the schema. */
+		const longQuery = "a".repeat(370);
+		const urls = Array.from(
+			{ length: MAX_URLS_PER_BULK_SAVE },
+			(_v, i) => `https://example.com/${i}?q=${longQuery}`,
+		);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.send({ urls });
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties).toEqual(
+			expect.objectContaining({
+				requested: MAX_URLS_PER_BULK_SAVE,
+				saved: MAX_URLS_PER_BULK_SAVE,
+				skipped: 0,
+				failed: 0,
+			}),
+		);
+	});
+
 	it("returns 406 when an authenticated cookie session requests text/html", async () => {
 		const testApp = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const agent = await loginAgent(testApp.server, testApp.auth);
