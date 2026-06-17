@@ -56,6 +56,7 @@ import { createBotDefenseEvent } from "./bot-defense-event";
 import { initValidateSignup } from "./validate-signup";
 import type { FoundingAllocation } from "../shared/founding-progress/founding-allocation";
 import { readClickAttribution } from "../click-attribution.middleware";
+import { consumePendingSaveId } from "../pending-save";
 import type { ConversionEvent } from "../../conversions";
 import { emitUserCreated } from "../../conversions";
 
@@ -291,6 +292,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					tier: "free",
 					attribution: readClickAttribution(req),
 					visitorId: req.visitorId,
+					pendingSaveId: consumePendingSaveId({ req, res }),
 				},
 			);
 			res.redirect(303, parseReturnUrl({ return: returnUrl }));
@@ -334,6 +336,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				tier: "trial",
 				attribution: readClickAttribution(req),
 				visitorId: req.visitorId,
+				pendingSaveId: consumePendingSaveId({ req, res }),
 			},
 		);
 		res.redirect(303, parseReturnUrl({ return: returnUrl }));
@@ -416,6 +419,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					stripeCheckoutSessionId: checkoutSessionId,
 					attribution: readClickAttribution(req),
 					visitorId: req.visitorId,
+					pendingSaveId: consumePendingSaveId({ req, res }),
 				},
 			);
 			res.redirect(303, returnPath);
@@ -469,6 +473,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 				stripeCheckoutSessionId: checkoutSessionId,
 				attribution: readClickAttribution(req),
 				visitorId: req.visitorId,
+				pendingSaveId: consumePendingSaveId({ req, res }),
 			},
 		);
 		res.redirect(303, returnPath);

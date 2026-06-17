@@ -810,7 +810,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 	app.use("/import", requireAuth, requireNotLocked, requireWriteAccess, importRouter);
 
-	const saveRouter = initSaveRoutes({ buildBannerState, analytics: deps.analytics, salt: deps.salt, now: deps.now });
+	const saveRouter = initSaveRoutes({ buildBannerState, analytics: deps.analytics, salt: deps.salt, now: deps.now, secureCookies, generatePendingSaveId: randomUUID });
 	app.use("/save", saveRouter);
 
 	const viewRouter = initViewRoutes({

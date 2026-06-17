@@ -227,10 +227,49 @@ describe("Save routes", () => {
 				event: "view_save_intent",
 				path: "/save",
 				article_host: "example.com",
+				content_class: "third_party",
+				surface: "reader_view",
+				outcome: "prompted_to_sign_up",
 				is_authenticated: 0,
 			});
 			expect(typeof intents[0].visitor_id).toBe("string");
 			expect(typeof intents[0].visitor_hash).toBe("string");
+			expect(typeof intents[0].pending_save_id).toBe("string");
+		});
+
+		it("mints a pending-save cookie carrying the same id as the event so the blocked save links to the eventual signup", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).get("/save?url=https://example.com/article");
+
+			const setCookieHeader: string | string[] = response.headers["set-cookie"];
+			const setCookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+			const pendingCookie = setCookies.find((c) => c.startsWith("hutch_psid="));
+			assert(pendingCookie, "a hutch_psid cookie must be set");
+			const cookieValue = decodeURIComponent(pendingCookie.split(";")[0].split("=")[1]);
+			expect(cookieValue).toBe(saveIntents(harness)[0].pending_save_id);
+		});
+
+		it("classifies a save of our own content (readplace.com) as own", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server).get("/save?url=https://readplace.com/blog/something");
+
+			expect(saveIntents(harness)[0]).toMatchObject({ article_host: "readplace.com", content_class: "own" });
+		});
+
+		it("classifies by the article's own domain, not the referrer: an own-domain referrer saving a third-party article is still a third-party save", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			await request(harness.server)
+				.get("/save?url=https://example.com/article")
+				.set("Referer", "https://readplace.com/some/reader/page");
+
+			expect(saveIntents(harness)[0]).toMatchObject({
+				article_host: "example.com",
+				content_class: "third_party",
+				referrer_host: "readplace.com",
+			});
 		});
 
 		it("does not emit view_save_intent for a bot user-agent (keeps the funnel free of crawler-followed Save links)", async () => {
@@ -252,6 +291,50 @@ describe("Save routes", () => {
 
 			expect(response.status).toBe(303);
 			assert.equal(saveIntents(harness).length, 0, "no view_save_intent when already authenticated");
+		});
+	});
+
+	describe("pending-save linkage (signup-blocked save → account creation)", () => {
+		it("stamps the same pending_save_id on the blocked view_save_intent and the eventual user_created conversion", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = request.agent(harness.server);
+
+			await agent.get("/save?url=https://example.com/article");
+			const intent = saveIntents(harness)[0];
+			assert(intent.pending_save_id, "the blocked save must mint a pending_save_id");
+
+			const signup = await agent.post("/signup").type("form").send({
+				email: "blocked-then-signed-up@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: String(Date.now() - 5000),
+			});
+			expect(signup.status).toBe(303);
+
+			const conversion = harness.conversions.events.find((e) => e.event === "user_created");
+			assert(conversion, "signup must emit a user_created conversion");
+			expect(conversion.pending_save_id).toBe(intent.pending_save_id);
+		});
+
+		it("clears the pending-save cookie once consumed so a second signup on the same browser cannot inherit the id", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = request.agent(harness.server);
+
+			await agent.get("/save?url=https://example.com/article");
+
+			const signup = await agent.post("/signup").type("form").send({
+				email: "clears-pending-save@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: String(Date.now() - 5000),
+			});
+			expect(signup.status).toBe(303);
+
+			const setCookieHeader: string | string[] = signup.headers["set-cookie"];
+			const setCookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+			const pendingCookieDirective = setCookies.find((c) => c.startsWith("hutch_psid="));
+			assert(pendingCookieDirective, "signup must send a hutch_psid clear directive");
+			expect(pendingCookieDirective).toMatch(/^hutch_psid=;/);
 		});
 	});
 });

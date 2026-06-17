@@ -29,6 +29,7 @@ export function emitUserCreated(
 		stripeCheckoutSessionId?: string;
 		attribution: ClickAttribution | undefined;
 		visitorId?: string;
+		pendingSaveId?: string;
 	},
 ): void {
 	const event: ConversionEvent = {
@@ -44,6 +45,7 @@ export function emitUserCreated(
 			: {}),
 		...(params.attribution ?? {}),
 		...(params.visitorId ? { visitor_id: params.visitorId } : {}),
+		...(params.pendingSaveId ? { pending_save_id: params.pendingSaveId } : {}),
 	};
 	deps.logger.info(event);
 }

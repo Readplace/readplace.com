@@ -4,6 +4,8 @@ import {
 	CONVERSION_EVENTS,
 	LOG_GROUPS,
 	METRICS,
+	SAVE_OUTCOMES,
+	SAVE_SURFACES,
 	STREAMS,
 	SUBSCRIPTION_EVENTS,
 } from "./events";
@@ -362,9 +364,16 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			region,
 			title: "Try → Save-intent → Signup (unique visitors by event)",
 			logGroupNames: [hutchLogGroupName],
+			/**
+			 * The save-intent leg is pinned to the anonymous reader surface so this
+			 * funnel keeps its original meaning now that `view_save_intent` also
+			 * fires for authenticated saves on the queue/extension surfaces.
+			 * `not ispresent(surface)` keeps pre-enrichment events (which had no
+			 * surface and were all anonymous reader saves) in the count.
+			 */
 			query: [
 				"fields visitor_id",
-				`| filter (stream = "${STREAMS.analytics}" and event in ["${ANALYTICS_EVENTS.viewOpened}", "${ANALYTICS_EVENTS.viewSaveIntent}"]) or (stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}")`,
+				`| filter (stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewOpened}") or (stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}" and (surface = "${SAVE_SURFACES.readerView}" or not ispresent(surface))) or (stream = "${STREAMS.conversions}" and event = "${CONVERSION_EVENTS.userCreated}")`,
 				"| filter ispresent(visitor_id)",
 				...exclude,
 				"| stats count_distinct(visitor_id) as visitors by event",
@@ -396,6 +405,60 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 			].join(" "),
 			x: 0, y: 82, width: 24, height: 8,
 			view: "table",
+		}),
+	);
+
+	// --- Save funnel (content class × surface × outcome) ---
+	// Driven by the enriched view_save_intent event. content_class is derived
+	// from the article's own domain (never the referrer). coalesce() folds
+	// pre-enrichment events — which carried no surface/outcome and were all
+	// anonymous reader saves — into the reader_view / prompted_to_sign_up
+	// buckets so historical data still reads correctly.
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Save-intent by surface × content class",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				`fields coalesce(surface, "${SAVE_SURFACES.readerView}") as surface, coalesce(content_class, "unclassified") as content_class`,
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}"`,
+				...exclude,
+				"| stats count(*) as saves by surface, content_class",
+				"| sort saves desc",
+				"| limit 50",
+			].join(" "),
+			x: 0, y: 90, width: 12, height: 8,
+			view: "table",
+		}),
+		logWidget({
+			region,
+			title: "Save-intent by content class (own vs third-party, %)",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				"fields coalesce(content_class, \"unclassified\") as content_class",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}"`,
+				...exclude,
+				"| stats count(*) as saves by content_class",
+				"| sort saves desc",
+			].join(" "),
+			x: 12, y: 90, width: 12, height: 8,
+			view: "pie",
+		}),
+		logWidget({
+			region,
+			title: "Anonymous reader-view save attempts by outcome",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				`fields coalesce(outcome, "${SAVE_OUTCOMES.promptedToSignUp}") as outcome`,
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.viewSaveIntent}"`,
+				`| filter (surface = "${SAVE_SURFACES.readerView}" or not ispresent(surface)) and is_authenticated = 0`,
+				...exclude,
+				"| stats count(*) as attempts by outcome",
+				"| sort attempts desc",
+			].join(" "),
+			x: 0, y: 98, width: 12, height: 8,
+			view: "bar",
 		}),
 	);
 

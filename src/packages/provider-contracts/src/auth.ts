@@ -107,4 +107,9 @@ export interface ConversionEvent {
 	landing_path?: string;
 	stripe_checkout_session_id?: string;
 	visitor_id?: string;
+	/** The id minted when an anonymous save was held behind the sign-in wall
+	 * (carried on the matching `view_save_intent`), so a signup-blocked save can
+	 * be traced to the account it eventually created. Absent when the signup did
+	 * not follow a pending save. */
+	pending_save_id?: string;
 }

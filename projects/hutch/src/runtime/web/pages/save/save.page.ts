@@ -8,8 +8,9 @@ import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "@packages/web-shell";
 import { collectUtmParams } from "../../shared/utm";
-import { hashIp, type AnalyticsEvent } from "../../middleware/analytics";
-import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
+import { buildSaveIntentEvent, type AnalyticsEvent } from "../../middleware/analytics";
+import { SAVE_OUTCOMES, SAVE_SURFACES } from "../../../observability/events";
+import { setPendingSaveId } from "../../pending-save";
 import { SaveErrorPage } from "./save-error.component";
 
 const SaveUrlSchema = z.url();
@@ -25,6 +26,8 @@ export function initSaveRoutes(deps: {
 	analytics: HutchLogger.Typed<AnalyticsEvent>;
 	salt: string;
 	now: () => Date;
+	secureCookies: boolean;
+	generatePendingSaveId: () => string;
 }): Router {
 	const router = express.Router();
 
@@ -41,16 +44,21 @@ export function initSaveRoutes(deps: {
 		if (!req.userId) {
 			if (!isbot(req.get("user-agent"))) {
 				assert(req.visitorId, "visitor-id middleware must run before /save");
-				deps.analytics.info({
-					stream: STREAMS.analytics,
-					event: ANALYTICS_EVENTS.viewSaveIntent,
-					timestamp: deps.now().toISOString(),
-					path: req.baseUrl,
-					article_host: new URL(url).hostname,
-					visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
-					visitor_id: req.visitorId,
-					is_authenticated: 0,
-				});
+				const pendingSaveId = deps.generatePendingSaveId();
+				setPendingSaveId({ res, secure: deps.secureCookies }, pendingSaveId);
+				deps.analytics.info(
+					buildSaveIntentEvent(
+						{ now: deps.now, salt: deps.salt },
+						{
+							req,
+							url,
+							path: req.baseUrl,
+							surface: SAVE_SURFACES.readerView,
+							outcome: SAVE_OUTCOMES.promptedToSignUp,
+							pendingSaveId,
+						},
+					),
+				);
 			}
 			res.redirect(303, `/login?return=${encodeURIComponent(req.originalUrl)}`);
 			return;
