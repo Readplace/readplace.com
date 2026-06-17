@@ -988,6 +988,33 @@ describe("initArticleReader", () => {
 			expect(summarySlot.getAttribute("hx-get")).toBe("/test/summary?poll=1");
 		});
 
+		it("handleReaderPoll emits a deferred OOB summary slot (no loading span, still polling) while the crawl is pending", async () => {
+			const { deps } = initFakeDeps({
+				crawl: { status: "pending" },
+				summary: { status: "pending" },
+				content: undefined,
+			});
+			const reader = initArticleReader(deps);
+
+			const component = await reader.handleReaderPoll({
+				articleUrl: ARTICLE_URL,
+				pollCount: 0,
+				pollUrlBuilder: makePollUrlBuilder(),
+				extensionInstallUrl: undefined,
+			});
+
+			const doc = parse(toHtml(component));
+			const summarySlot = doc.querySelector("[data-test-reader-summary]");
+			assert(summarySlot, "OOB summary slot must accompany the reader-poll response");
+			expect(summarySlot.getAttribute("hx-swap-oob")).toBe("outerHTML");
+			expect(summarySlot.getAttribute("data-summary-status")).toBe("pending");
+			expect(
+				summarySlot.classList.contains("article-body__summary-slot--deferred"),
+			).toBe(true);
+			expect(summarySlot.getAttribute("hx-get")).toBe("/test/summary?poll=1");
+			expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
+		});
+
 		it("handleSummaryPoll emits an OOB reader slot with hx-get when crawl has gone pending while summary is settling", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending", stage: "crawl-fetching" },

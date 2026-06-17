@@ -34,9 +34,11 @@ describe("renderSummarySlot", () => {
 		expect(details.hasAttribute("open")).toBe(true);
 	});
 
-	it("routes status=pending to the pending component with the poll URL", () => {
+	it("routes status=pending to the pending component with the poll URL once the reader view is ready", () => {
 		const doc = parse(
 			renderSummarySlot({
+				crawl: { status: "ready" },
+				content: "<p>x</p>",
 				summary: { status: "pending" },
 				summaryPollUrl: "/queue/abc/summary?poll=1",
 			}),
@@ -46,6 +48,87 @@ describe("renderSummarySlot", () => {
 		assert(slot, "summary slot must be rendered");
 		expect(slot.getAttribute("data-summary-status")).toBe("pending");
 		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/summary?poll=1");
+		expect(
+			doc.querySelector(".article-body__summary-loading")?.textContent,
+		).toBe("Generating summary");
+	});
+
+	it("defers the summary (empty, still polling) while the crawl is pending and content is absent", () => {
+		const doc = parse(
+			renderSummarySlot({
+				crawl: { status: "pending" },
+				content: undefined,
+				summary: { status: "pending" },
+				summaryPollUrl: "/queue/abc/summary?poll=1",
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-summary]");
+		assert(slot, "summary slot must be rendered");
+		expect(slot.getAttribute("data-summary-status")).toBe("pending");
+		expect(slot.classList.contains("article-body__summary-slot--deferred")).toBe(
+			true,
+		);
+		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/summary?poll=1");
+		expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
+		expect(slot.getAttribute("hx-swap")).toBe("outerHTML");
+		expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
+	});
+
+	it("defers the summary during the promotion race (crawl ready but content not yet copied)", () => {
+		const doc = parse(
+			renderSummarySlot({
+				crawl: { status: "ready" },
+				content: undefined,
+				summary: { status: "pending" },
+				summaryPollUrl: "/queue/abc/summary?poll=1",
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-summary]");
+		assert(slot, "summary slot must be rendered");
+		expect(slot.classList.contains("article-body__summary-slot--deferred")).toBe(
+			true,
+		);
+		expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
+	});
+
+	it("shows the pending indicator for a legacy ready row (crawl undefined, content present)", () => {
+		const doc = parse(
+			renderSummarySlot({
+				crawl: undefined,
+				content: "<p>x</p>",
+				summary: { status: "pending" },
+				summaryPollUrl: "/queue/abc/summary?poll=1",
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-summary]");
+		assert(slot, "summary slot must be rendered");
+		expect(slot.classList.contains("article-body__summary-slot--visible")).toBe(
+			true,
+		);
+		expect(
+			doc.querySelector(".article-body__summary-loading")?.textContent,
+		).toBe("Generating summary");
+	});
+
+	it("defers without poll attributes when there is no summary poll URL (e.g. unsupported crawl)", () => {
+		const doc = parse(
+			renderSummarySlot({
+				crawl: { status: "unsupported", reason: "binary content" },
+				content: undefined,
+				summary: { status: "pending" },
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-summary]");
+		assert(slot, "summary slot must be rendered");
+		expect(slot.classList.contains("article-body__summary-slot--deferred")).toBe(
+			true,
+		);
+		expect(slot.hasAttribute("hx-get")).toBe(false);
+		expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
 	});
 
 	it("routes status=failed to the failed component and surfaces the reason", () => {
@@ -107,11 +190,33 @@ describe("renderSummarySlot", () => {
 		expect(slot.children.length).toBe(0);
 	});
 
-	it("defaults to pending when summary is undefined", () => {
+	it("defaults to the deferred variant when summary is undefined and the reader view is not ready", () => {
 		const doc = parse(renderSummarySlot({ summary: undefined }));
 
 		const slot = doc.querySelector("[data-test-reader-summary]");
 		assert(slot, "summary slot must be rendered");
 		expect(slot.getAttribute("data-summary-status")).toBe("pending");
+		expect(slot.classList.contains("article-body__summary-slot--deferred")).toBe(
+			true,
+		);
+		expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
+	});
+
+	it("defaults to the pending indicator when summary is undefined but the reader view is ready", () => {
+		const doc = parse(
+			renderSummarySlot({
+				crawl: { status: "ready" },
+				content: "<p>x</p>",
+				summary: undefined,
+				summaryPollUrl: "/queue/abc/summary?poll=1",
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-summary]");
+		assert(slot, "summary slot must be rendered");
+		expect(slot.getAttribute("data-summary-status")).toBe("pending");
+		expect(
+			doc.querySelector(".article-body__summary-loading")?.textContent,
+		).toBe("Generating summary");
 	});
 });

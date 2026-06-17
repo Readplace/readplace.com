@@ -96,6 +96,10 @@
   display: none;
 }
 
+.article-body__summary-slot--deferred {
+  display: none;
+}
+
 .article-body__summary {
   margin-bottom: 2rem;
   background: var(--color-surface);

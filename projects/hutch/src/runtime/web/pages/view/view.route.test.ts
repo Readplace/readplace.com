@@ -1280,7 +1280,7 @@ describe("View routes", () => {
 			expect(slot.getAttribute("hx-get")).toMatch(/poll=6$/);
 		});
 
-		it("stops polling at the cap and renders a terminal message", async () => {
+		it("stops polling at the cap and collapses to an empty deferred slot while the reader view is not ready", async () => {
 			const findGeneratedSummary: FindGeneratedSummary = async () => ({ status: "pending" });
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
@@ -1301,9 +1301,14 @@ describe("View routes", () => {
 			const slot = doc.querySelector("[data-test-reader-summary]");
 			assert(slot, "summary slot must be rendered");
 			expect(slot.hasAttribute("hx-get")).toBe(false);
+			// Reader view never became ready (no content), so the summary stays
+			// deferred and empty rather than showing the misleading
+			// "Still generating — refresh" message; the reader slot carries the
+			// terminal reframe in this state.
 			expect(
-				doc.querySelector(".article-body__summary-loading")?.textContent,
-			).toContain("Still generating");
+				slot.classList.contains("article-body__summary-slot--deferred"),
+			).toBe(true);
+			expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
 		});
 
 		it("returns 400 for an invalid url", async () => {

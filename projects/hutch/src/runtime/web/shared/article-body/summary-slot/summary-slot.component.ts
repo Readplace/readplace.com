@@ -10,6 +10,11 @@ export interface SummarySlotInput {
 	summary: GeneratedSummary | undefined;
 	summaryPollUrl?: string;
 	summaryOpen?: boolean;
+	/* The reader content. Gates the pending indicator: the summary pipeline is
+	 * only triggered once the crawl publishes canonical content, so until the
+	 * reader view is ready nothing is generating the summary and the indicator
+	 * would sit stuck. */
+	content?: string;
 	/* When true, the rendered slot carries `hx-swap-oob="outerHTML"` so HTMX
 	 * splices it into a sibling poll response and replaces the live slot. The
 	 * stable `id="article-body-summary-slot"` on every variant gives HTMX a
@@ -28,6 +33,30 @@ function renderHiddenSlot(oob: boolean): string {
 	return `<div id="article-body-summary-slot" class="article-body__summary-slot article-body__summary-slot--hidden" data-test-reader-summary data-summary-status="skipped"${oobAttr}></div>`;
 }
 
+// While the reader view is still generating, the pending summary indicator
+// would spin with nothing behind it (the summary pipeline can't start until the
+// crawl publishes canonical content). This variant collapses the slot to an
+// empty, display:none placeholder that keeps the htmx poll alive, so the moment
+// the reader view is ready the next poll reveals the real "Generating summary"
+// indicator. The stable `id` lets the cross-axis OOB swap still target it.
+function renderDeferredSlot(pollUrl: string | undefined, oob: boolean): string {
+	const oobAttr = oob ? ' hx-swap-oob="outerHTML"' : "";
+	const pollAttrs = pollUrl
+		? ` hx-get="${pollUrl}" hx-trigger="every 3s" hx-swap="outerHTML"`
+		: "";
+	return `<div id="article-body-summary-slot" class="article-body__summary-slot article-body__summary-slot--deferred" data-test-reader-summary data-summary-status="pending"${oobAttr}${pollAttrs}></div>`;
+}
+
+// Mirrors renderReaderSlot's ready condition (renderReaderReady fires when
+// content is present and the crawl is a legacy row or has reached ready), so
+// the summary indicator surfaces exactly when the reader view does.
+function isReaderViewReady(
+	crawl: ArticleCrawl | undefined,
+	content: string | undefined,
+): boolean {
+	return content !== undefined && (crawl === undefined || crawl.status === "ready");
+}
+
 export function renderSummarySlot(input: SummarySlotInput): string {
 	const oob = input.oob === true;
 	if (input.crawl?.status === "failed") return renderHiddenSlot(oob);
@@ -40,7 +69,9 @@ export function renderSummarySlot(input: SummarySlotInput): string {
 				oob,
 			});
 		case "pending":
-			return renderSummaryPending({ pollUrl: input.summaryPollUrl, oob });
+			return isReaderViewReady(input.crawl, input.content)
+				? renderSummaryPending({ pollUrl: input.summaryPollUrl, oob })
+				: renderDeferredSlot(input.summaryPollUrl, oob);
 		case "failed":
 			return renderSummaryFailed({ reason: summary.reason, oob });
 		case "skipped":

@@ -55,6 +55,43 @@ describe("renderArticleBody", () => {
 		expect(slot.getAttribute("data-summary-status")).toBe("ready");
 	});
 
+	it("defers the summary slot (no 'Generating summary') while the crawl is still pending", () => {
+		const html = renderArticleBody({
+			...baseInput,
+			content: undefined,
+			crawl: { status: "pending" },
+			summary: { status: "pending" },
+			summaryPollUrl: "/queue/abc/summary?poll=1",
+			readerPollUrl: "/queue/abc/reader?poll=1",
+		});
+		const doc = parse(html);
+
+		const slot = doc.querySelector("[data-test-reader-summary]");
+		assert(slot, "summary slot must be rendered");
+		expect(slot.classList.contains("article-body__summary-slot--deferred")).toBe(
+			true,
+		);
+		expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
+	});
+
+	it("shows 'Generating summary' once the reader view is ready and the summary is still pending", () => {
+		const html = renderArticleBody({
+			...baseInput,
+			content: "<p>Body</p>",
+			crawl: { status: "ready" },
+			summary: { status: "pending" },
+			summaryPollUrl: "/queue/abc/summary?poll=1",
+		});
+		const doc = parse(html);
+
+		const slot = doc.querySelector("[data-test-reader-summary]");
+		assert(slot, "summary slot must be rendered");
+		expect(slot.getAttribute("data-summary-status")).toBe("pending");
+		expect(
+			doc.querySelector(".article-body__summary-loading")?.textContent,
+		).toBe("Generating summary");
+	});
+
 	it("renders the back link inside the back slot when backLink is provided", () => {
 		const html = renderArticleBody({
 			...baseInput,

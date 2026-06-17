@@ -79,6 +79,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		summary: input.summary,
 		summaryPollUrl: input.summaryPollUrl,
 		summaryOpen: input.summaryOpen,
+		content: input.content,
 		oob: input.primary !== "summary",
 	});
 	const progressBarOob = renderProgressBarOob({ progress: input.progress });

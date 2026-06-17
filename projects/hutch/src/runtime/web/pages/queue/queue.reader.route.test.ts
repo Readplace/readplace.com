@@ -643,6 +643,81 @@ describe("Queue routes", () => {
 			assert(loading, "loading indicator must be rendered when status=pending");
 		});
 
+		it("defers the summary slot (empty, still polling) while the crawl is pending at request time", async () => {
+			const articleHtml = `
+			<html><head><title>Deferred Post</title></head>
+			<body><article>
+				<h1>Deferred Post</h1>
+				<p>Content not yet ready.</p>
+			</article></body></html>`;
+
+			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const { parseArticle } = initReadabilityParser({ crawlArticle, sitePreParsers: [], logError: createNoopLogError() });
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const harness = useApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle },
+				events: {
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+				},
+				articleCrawl: {
+					...fixture.articleCrawl,
+					findArticleCrawlStatus: async () => ({ status: "pending" as const }),
+				},
+				articleStore: {
+					...fixture.articleStore,
+					readArticleContent: async () => undefined,
+				},
+			});
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: "https://example.com/deferred-summary" });
+
+			const queueResponse = await agent.get("/queue");
+			const queueDoc = new JSDOM(queueResponse.text).window.document;
+			const articleId = queueDoc
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+
+			const readerResponse = await agent.get(`/queue/${articleId}/view`);
+			const doc = new JSDOM(readerResponse.text).window.document;
+
+			const summarySlot = doc.querySelector("[data-test-reader-summary]");
+			assert(summarySlot, "summary slot must be rendered");
+			expect(summarySlot.getAttribute("data-summary-status")).toBe("pending");
+			expect(
+				summarySlot.classList.contains("article-body__summary-slot--deferred"),
+			).toBe(true);
+			expect(summarySlot.getAttribute("hx-get")).toMatch(/^\/queue\/.+\/summary\?poll=1$/);
+			expect(summarySlot.getAttribute("hx-trigger")).toBe("every 3s");
+			expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
+
+			const readerSlot = doc.querySelector("[data-test-reader-slot]");
+			assert(readerSlot, "reader slot must be rendered");
+			expect(readerSlot.getAttribute("data-reader-status")).toBe("pending");
+			expect(
+				doc.querySelector(".article-body__reader-loading")?.textContent,
+			).toContain("Generating clean reader view");
+		});
+
 		it("should show an inline error when status=failed", async () => {
 			const articleHtml = `
 			<html><head><title>Failed Post</title></head>
