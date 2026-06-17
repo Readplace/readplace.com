@@ -27,7 +27,7 @@ import { SESSION_COOKIE_NAME } from "./session-cookie";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
 import { readClickAttribution } from "../click-attribution.middleware";
-import { readPendingSaveId } from "../pending-save";
+import { consumePendingSaveId } from "../pending-save";
 import type { ConversionEvent } from "../../conversions";
 import { emitUserCreated } from "../../conversions";
 
@@ -219,7 +219,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 					tier: "free",
 					attribution: readClickAttribution(req),
 					visitorId: req.visitorId,
-					pendingSaveId: readPendingSaveId(req),
+					pendingSaveId: consumePendingSaveId({ req, res }),
 				},
 			);
 			res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
@@ -273,7 +273,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 				tier: "trial",
 				attribution: readClickAttribution(req),
 				visitorId: req.visitorId,
-				pendingSaveId: readPendingSaveId(req),
+				pendingSaveId: consumePendingSaveId({ req, res }),
 			},
 		);
 		res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));

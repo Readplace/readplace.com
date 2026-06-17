@@ -315,5 +315,26 @@ describe("Save routes", () => {
 			assert(conversion, "signup must emit a user_created conversion");
 			expect(conversion.pending_save_id).toBe(intent.pending_save_id);
 		});
+
+		it("clears the pending-save cookie once consumed so a second signup on the same browser cannot inherit the id", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = request.agent(harness.server);
+
+			await agent.get("/save?url=https://example.com/article");
+
+			const signup = await agent.post("/signup").type("form").send({
+				email: "clears-pending-save@example.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: String(Date.now() - 5000),
+			});
+			expect(signup.status).toBe(303);
+
+			const setCookieHeader: string | string[] = signup.headers["set-cookie"];
+			const setCookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+			const pendingCookieDirective = setCookies.find((c) => c.startsWith("hutch_psid="));
+			assert(pendingCookieDirective, "signup must send a hutch_psid clear directive");
+			expect(pendingCookieDirective).toMatch(/^hutch_psid=;/);
+		});
 	});
 });

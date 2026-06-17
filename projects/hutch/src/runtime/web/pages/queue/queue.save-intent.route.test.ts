@@ -148,6 +148,20 @@ describe("view_save_intent — authenticated save surfaces", () => {
 			expect(response.status).toBe(201);
 			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-html", surface: "extension", outcome: "saved" });
 		});
+
+		it("emits extension / error when the save throws", async () => {
+			const harness = useApp(failingSaveFixture());
+			const token = await bearerToken(harness);
+
+			const response = await request(harness.server)
+				.post("/queue/save-html")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${token}`)
+				.send({ url: "https://example.com/article", rawHtml: "<html>captured</html>", title: "Captured" });
+
+			expect(response.status).toBe(500);
+			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-html", surface: "extension", outcome: "error" });
+		});
 	});
 
 	describe("POST /queue/save-content (extension)", () => {

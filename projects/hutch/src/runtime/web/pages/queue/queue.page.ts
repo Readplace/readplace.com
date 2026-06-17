@@ -504,6 +504,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 
+		let validatedArticleUrl: string | undefined;
+
 		try {
 			const parsed = SaveHtmlInputSchema.safeParse(req.body);
 
@@ -521,6 +523,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					? deps.validateSaveableUrl(urlOnly.data.url)
 					: undefined;
 				if (urlOnlyValidation?.status === "SUCCESS") {
+					validatedArticleUrl = urlOnlyValidation.url;
 					const rawHtml: unknown = req.body?.rawHtml;
 					const sizeBytes = typeof rawHtml === "string" ? rawHtml.length : 0;
 					/* logError (not warn) on purpose: feeds the alarm so oversize Tier-0
@@ -549,6 +552,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				return;
 			}
 			const articleUrl = urlValidation.url;
+			validatedArticleUrl = articleUrl;
 
 			const freshness = await deps.refreshArticleIfStale({ url: articleUrl });
 
@@ -565,6 +569,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
 			deps.logError("Failed to save article from html", error instanceof Error ? error : undefined);
+			assert(validatedArticleUrl, "save-html reaches the save pipeline only after the article URL is validated");
+			emitSaveIntent({ req, url: validatedArticleUrl, path: "/queue/save-html", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 			res.status(500).type(SIREN_MEDIA_TYPE).json(
 				sirenError({ code: "save-failed", message: "Could not save article" }),
 			);
