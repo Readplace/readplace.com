@@ -95,7 +95,7 @@ platform :ios do
 
     # CI passes the build counter as both the build number and the marketing patch
     # (CFBundleVersion must increase per upload; CFBundleShortVersionString tracks it
-    # as 0.1.<build>). Locally neither is set and the project.yml defaults are used.
+    # as <major.minor>.<build>). Locally neither is set and the project.yml defaults are used.
     build_number = ENV["APP_BUILD_NUMBER"]
     marketing    = ENV["APP_MARKETING_VERSION"]
 
