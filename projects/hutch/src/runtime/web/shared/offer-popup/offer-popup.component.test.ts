@@ -3,8 +3,10 @@ import { JSDOM } from "jsdom";
 import { renderOfferPopup } from "./offer-popup.component";
 import { OFFER_POPUP_STYLES } from "./offer-popup.styles";
 
+const TEST_CTA_LINK = "https://buy.stripe.com/test_offer-popup-cta";
+
 function parse(): Document {
-	return new JSDOM(renderOfferPopup()).window.document;
+	return new JSDOM(renderOfferPopup(TEST_CTA_LINK)).window.document;
 }
 
 describe("renderOfferPopup", () => {
@@ -60,7 +62,7 @@ describe("renderOfferPopup", () => {
 	it("points the call to action at a destination", () => {
 		const cta = parse().querySelector("[data-test-offer-cta]");
 		assert(cta, "cta must render");
-		assert.equal(cta.getAttribute("href"), "/account");
+		assert.equal(cta.getAttribute("href"), TEST_CTA_LINK);
 	});
 
 	it("publishes the stylesheet that scopes the popup", () => {
