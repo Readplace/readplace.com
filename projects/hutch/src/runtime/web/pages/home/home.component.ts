@@ -122,7 +122,7 @@ export function HomePage(params: {
 		seo: {
 			title: "Readplace — Read the web, not the slop. | Read-It-Later App",
 			description:
-				"Read the web, not the slop. A read-it-later app and Pocket alternative — save articles with one click, read them later in a clean reader view. Real Tesseract OCR for scanned PDFs (no LLM hallucination). Privacy-first, built in Australia by the creator of js-cookie.",
+				"The read-it-later app and online reader for distraction-free reading — save any article or web page in one click and read it later in a clean reader view. A privacy-first Pocket alternative with real Tesseract OCR for scanned PDFs (no LLM hallucination). Read the web, not the slop.",
 			canonicalUrl: "https://readplace.com",
 			ogType: "website",
 			ogImage: `${staticBaseUrl}/og-image-1200x630.png`,
@@ -132,7 +132,7 @@ export function HomePage(params: {
 			twitterImage: `${staticBaseUrl}/twitter-card-1200x600.png`,
 				author: "Fayner Brack",
 			keywords:
-				"read the web not the slop, slop-free reading, no LLM hallucination, real OCR, Tesseract OCR, deterministic PDF extraction, read it later, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, Firefox extension, Chrome extension, article reader, distraction free reading, AI summaries",
+				"read it later, read-it-later app, online reader, online reading app, read the web not the slop, slop-free reading, no LLM hallucination, real OCR, Tesseract OCR, deterministic PDF extraction, save articles, bookmark manager, reading list, Pocket alternative, Omnivore alternative, browser extension, Firefox extension, Chrome extension, article reader, distraction free reading, AI summaries",
 			structuredData: [
 				{
 					"@context": "https://schema.org",
