@@ -90,6 +90,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
     {{{verifyBannerStyles}}}
     {{{trialCountdownStyles}}}
     {{{extensionSuggestionBannerStyles}}}
+    {{{offerPopupStyles}}}
   </style>
 </head>
 <body{{#if bodyClass}} class="{{bodyClass}}"{{/if}}>
@@ -116,6 +117,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
   </script>
   {{{content}}}
   {{{footer}}}
+  {{{offerPopup}}}
   {{{navScript}}}
   {{{offlineScript}}}
   {{{scripts}}}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { fireEvent } from "@testing-library/dom";
 import { JSDOM } from "jsdom";
-import { ONE_DAY_MS, serializeState } from "./offer-popup.logic";
+import { serializeState } from "./offer-popup.logic";
 import { initOfferPopup } from "./offer-popup.client";
 
 const STORAGE_KEY = "readplace.offer-popup.v1";
@@ -81,8 +81,8 @@ describe("initOfferPopup — missing root", () => {
 	});
 });
 
-describe("initOfferPopup — visit gating", () => {
-	it("does not show on the first visit and records firstVisitAt", () => {
+describe("initOfferPopup — dismissal gating", () => {
+	it("opens immediately when the device carries no stored dismissal (the server already gated eligibility) and starts the countdown", () => {
 		const { window, document } = createDom("");
 		const timers = createTimers();
 
@@ -94,83 +94,24 @@ describe("initOfferPopup — visit gating", () => {
 			...timers,
 		}).attach();
 
-		expect(popup(document).classList.contains(OPEN_CLASS)).toBe(false);
-		expect(window.localStorage.getItem(STORAGE_KEY)).toBe(
-			serializeState({ firstVisitAt: 5000 }),
-		);
-	});
-
-	it("does not show when the return visit is less than a day after the first", () => {
-		const { window, document } = createDom("");
-		window.localStorage.setItem(STORAGE_KEY, serializeState({ firstVisitAt: 1000 }));
-
-		initOfferPopup({
-			document,
-			storage: window.localStorage,
-			location: { search: "" },
-			now: () => 1000 + ONE_DAY_MS - 1,
-			...createTimers(),
-		}).attach();
-
-		expect(popup(document).classList.contains(OPEN_CLASS)).toBe(false);
-	});
-
-	it("shows once on a return visit at least a day later and starts the countdown", () => {
-		const { window, document } = createDom("");
-		window.localStorage.setItem(STORAGE_KEY, serializeState({ firstVisitAt: 1000 }));
-		const now = 1000 + ONE_DAY_MS;
-		const timers = createTimers();
-
-		initOfferPopup({
-			document,
-			storage: window.localStorage,
-			location: { search: "" },
-			now: () => now,
-			...timers,
-		}).attach();
-
 		const root = popup(document);
 		expect(root.classList.contains(OPEN_CLASS)).toBe(true);
 		expect(root.getAttribute("data-offer-stage")).toBe("offer");
-		expect(window.localStorage.getItem(STORAGE_KEY)).toBe(
-			serializeState({ firstVisitAt: 1000, shownAt: now }),
-		);
 		expect(timers.setIntervalFn).toHaveBeenCalledTimes(1);
 		expect(
 			document.querySelector("[data-test-offer-countdown]")?.textContent,
 		).toBe("10:00");
 	});
 
-	it("does not show again once it has already been shown on this device", () => {
+	it("does not open once the reader has closed it on this device", () => {
 		const { window, document } = createDom("");
-		window.localStorage.setItem(
-			STORAGE_KEY,
-			serializeState({ firstVisitAt: 1000, shownAt: 2000 }),
-		);
+		window.localStorage.setItem(STORAGE_KEY, serializeState({ closed: true }));
 
 		initOfferPopup({
 			document,
 			storage: window.localStorage,
 			location: { search: "" },
-			now: () => 1000 + 5 * ONE_DAY_MS,
-			...createTimers(),
-		}).attach();
-
-		expect(popup(document).classList.contains(OPEN_CLASS)).toBe(false);
-	});
-
-	it("does not show again once the reader has closed it", () => {
-		const { window, document } = createDom("");
-		window.localStorage.setItem(
-			STORAGE_KEY,
-			serializeState({ firstVisitAt: 1000, closed: true }),
-		);
-
-		initOfferPopup({
-			document,
-			storage: window.localStorage,
-			location: { search: "" },
-			now: () => 1000 + 5 * ONE_DAY_MS,
+			now: () => 5000,
 			...createTimers(),
 		}).attach();
 
@@ -242,12 +183,11 @@ describe("initOfferPopup — double-confirmation close flow", () => {
 
 	it("persists the closed flag when dismissed outside preview so it never returns", () => {
 		const { window, document } = createDom("");
-		window.localStorage.setItem(STORAGE_KEY, serializeState({ firstVisitAt: 1000 }));
 		initOfferPopup({
 			document,
 			storage: window.localStorage,
 			location: { search: "" },
-			now: () => 1000 + ONE_DAY_MS,
+			now: () => 1000,
 			...createTimers(),
 		}).attach();
 
@@ -316,14 +256,13 @@ describe("initOfferPopup — countdown lifecycle", () => {
 });
 
 describe("initOfferPopup — storage failures", () => {
-	it("treats a throwing getItem as a first visit and still records progress", () => {
+	it("treats a throwing getItem as a fresh, undismissed device and still opens", () => {
 		const { document } = createDom("");
-		const setItem = jest.fn();
 		const storage = {
 			getItem: jest.fn((): string | null => {
 				throw new Error("access denied");
 			}),
-			setItem,
+			setItem: jest.fn(),
 		};
 
 		expect(() =>
@@ -335,13 +274,10 @@ describe("initOfferPopup — storage failures", () => {
 				...createTimers(),
 			}).attach(),
 		).not.toThrow();
-		expect(setItem).toHaveBeenCalledWith(
-			STORAGE_KEY,
-			serializeState({ firstVisitAt: 5000 }),
-		);
+		expect(popup(document).classList.contains(OPEN_CLASS)).toBe(true);
 	});
 
-	it("swallows a throwing setItem", () => {
+	it("swallows a throwing setItem when persisting the dismissal", () => {
 		const { document } = createDom("");
 		const storage = {
 			getItem: jest.fn((): string | null => null),
@@ -350,15 +286,15 @@ describe("initOfferPopup — storage failures", () => {
 			}),
 		};
 
-		expect(() =>
-			initOfferPopup({
-				document,
-				storage,
-				location: { search: "" },
-				now: () => 5000,
-				...createTimers(),
-			}).attach(),
-		).not.toThrow();
+		initOfferPopup({
+			document,
+			storage,
+			location: { search: "" },
+			now: () => 5000,
+			...createTimers(),
+		}).attach();
+
+		expect(() => click(document, "data-test-offer-dismiss")).not.toThrow();
 		expect(popup(document).classList.contains(OPEN_CLASS)).toBe(false);
 	});
 });

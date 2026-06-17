@@ -13,6 +13,7 @@ describe("toAccountViewModel — state", () => {
 			access: "full",
 			banner: "trial-countdown",
 			trialEndsAt,
+			trialStartedAt: now.toISOString(),
 		};
 		const vm = toAccountViewModel(
 			access,
@@ -31,6 +32,7 @@ describe("toAccountViewModel — state", () => {
 			access: "full",
 			banner: "trial-countdown",
 			trialEndsAt,
+			trialStartedAt: now.toISOString(),
 		};
 		const vm = toAccountViewModel(
 			access,
@@ -81,7 +83,7 @@ describe("toAccountViewModel — actions", () => {
 	it("trial users get a primary subscribe action only — no cancel button while on trial", () => {
 		const trialEndsAt = new Date(now.getTime() + 5 * ONE_DAY_MS).toISOString();
 		const vm = toAccountViewModel(
-			{ tier: "trial", access: "full", banner: "trial-countdown", trialEndsAt },
+			{ tier: "trial", access: "full", banner: "trial-countdown", trialEndsAt, trialStartedAt: now.toISOString() },
 			baseQuery,
 			now,
 		);

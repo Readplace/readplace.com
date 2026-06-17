@@ -54,6 +54,23 @@ describe("Base component", () => {
 		expect(heading?.textContent).toBe("Hello World");
 	});
 
+	it("renders the supplied offer-popup markup, styles, and script when the state carries them", () => {
+		const page = createTestPageBody();
+		const result = Base(page, {
+			...GUEST_STATE,
+			offerPopup: {
+				html: '<div data-test-offer-popup class="offer-popup">offer</div>',
+				styles: ".offer-popup__panel { display: none; }",
+				script: '<script src="/client-dist/offer-popup.client.js" defer></script>',
+			},
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		expect(doc.querySelector("[data-test-offer-popup]")).not.toBeNull();
+		expect(result.body).toContain(".offer-popup__panel { display: none; }");
+		expect(result.body).toContain("/client-dist/offer-popup.client.js");
+	});
+
 	it("injects page-specific styles as a <style> element at the start of <main>", () => {
 		const page = createTestPageBody({
 			styles: ".lead { color: rebeccapurple; }",

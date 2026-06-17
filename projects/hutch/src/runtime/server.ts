@@ -400,6 +400,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		getEffectiveAccess,
 		getChangelogBanner: deps.getChangelogBanner,
 		now: deps.now,
+		offerPaymentLink: deps.offerPaymentLink,
 	});
 
 	app.get("/favicon.ico", (_req: Request, res: Response) => {
@@ -810,7 +811,6 @@ export function createApp(dependencies: AppDependencies): Express {
 		salt: deps.salt,
 		now: deps.now,
 		featureToggle,
-		offerPaymentLink: deps.offerPaymentLink,
 	});
 	/** `dualAuthMiddleware` is applied INSIDE the queue router rather than at this
 	 * mount so that `GET /queue/:id/view` (and its legacy `/read` redirect) can

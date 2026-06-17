@@ -180,9 +180,6 @@ interface QueueDependencies {
 	salt: string;
 	now: () => Date;
 	featureToggle: QuerystringFeatureToggle;
-	/** Per-environment Stripe payment link the founding-offer CTA points at
-	 * (staging uses a Stripe test link, production the live one). */
-	offerPaymentLink: string;
 }
 
 import type { SavedArticle } from "@packages/domain/article";
@@ -436,14 +433,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		 * again so they can install the extension here. */
 		const onboardingDismissed = extensionInstalled && req.cookies?.[DISMISS_COOKIE_NAME] === ONBOARDING_VERSION;
 		const browser = detectBrowser(req);
-		/** The founding-offer popup is a design prototype with placeholder scarcity
-		 * figures and no payment flow, so it renders only when explicitly previewed
-		 * — never for ordinary readers. */
-		const offerPreview = req.query["offer-preview"] === "1";
 		sendComponent(
 			req, res,
 			Base(
-				QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, extensionSavedArticle, browser, onboardingDismissed, offerPreview, offerPaymentLink: deps.offerPaymentLink }),
+				QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, extensionSavedArticle, browser, onboardingDismissed }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);
@@ -790,7 +783,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				summaryByUrl,
 				crawlByUrl,
 			});
-			sendComponent(req, res, Base(QueuePage(vm, { statusCode: 422, offerPaymentLink: deps.offerPaymentLink }), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(QueuePage(vm, { statusCode: 422 }), await deps.buildBannerState(req)));
 			return;
 		}
 

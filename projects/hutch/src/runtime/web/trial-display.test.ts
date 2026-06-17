@@ -16,6 +16,7 @@ describe("toTrialDisplay", () => {
 			access: "full",
 			banner: "trial-countdown",
 			trialEndsAt,
+			trialStartedAt: now.toISOString(),
 		};
 		const result = toTrialDisplay(access, now);
 		expect(result).toEqual({

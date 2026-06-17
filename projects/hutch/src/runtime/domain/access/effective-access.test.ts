@@ -115,6 +115,7 @@ describe("initGetEffectiveAccess", () => {
 			access: "full",
 			banner: "trial-countdown",
 			trialEndsAt,
+			trialStartedAt: NOW.toISOString(),
 		});
 	});
 
