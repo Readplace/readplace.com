@@ -5,7 +5,7 @@
   "main": "dist/scripts/check-failed-articles.js",
   "private": true,
   "scripts": {
-    "compile": "tsc",
+    "compile": "rm -rf dist && tsc",
     "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint scripts\" \"knip\"",
     "test": "node --test dist/scripts/collect-failed-rows.test.js dist/scripts/exclude-patterns.test.js",
     "check": "pnpm lint && pnpm test",
