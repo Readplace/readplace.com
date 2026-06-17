@@ -6,7 +6,7 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import { UserIdSchema } from "@packages/domain/user";
+import { UserIdSchema, type UserId } from "@packages/domain/user";
 import {
 	IMPORT_SESSION_TTL_SECONDS,
 	type ImportSessionStore,
@@ -14,9 +14,20 @@ import {
 } from "@packages/domain/import-session";
 import { computeDeselected, toImportSession } from "./import-session-mapping";
 
+/** An anonymous caller (no userId) may only touch anonymous rows; an authenticated
+ * caller may touch anonymous rows (adopting a pre-auth review at commit) plus their
+ * own. Mirrors the in-memory store's `load` guard at the DynamoDB condition layer.
+ * The `:uid` value is supplied separately, only when authenticated, so DynamoDB
+ * never sees an empty ExpressionAttributeValues map for the anonymous case. */
+function ownershipCondition(userId: UserId | undefined): string {
+	return userId === undefined
+		? "attribute_not_exists(userId)"
+		: "attribute_not_exists(userId) OR userId = :uid";
+}
+
 const SessionRow = z.object({
 	sessionId: ImportSessionIdSchema,
-	userId: UserIdSchema,
+	userId: dynamoField(UserIdSchema),
 	createdAt: z.string(),
 	expiresAt: z.number(),
 	totalUrls: z.number().int().min(0),
@@ -38,12 +49,13 @@ export function initDynamoDbImportSession(deps: {
 		schema: SessionRow,
 	});
 
-	async function loadOwned(owner: { id: string; userId: string }) {
-		const row = await table.get({ sessionId: owner.id });
+	async function loadAccessible(id: string, userId: UserId | undefined) {
+		const row = await table.get({ sessionId: id });
 		if (!row) return undefined;
-		if (row.userId !== owner.userId) return undefined;
 		if (row.expiresAt < Math.floor(deps.now().getTime() / 1000)) return undefined;
-		return row;
+		if (row.userId === undefined) return row;
+		if (row.userId === userId) return row;
+		return undefined;
 	}
 
 	return {
@@ -54,7 +66,7 @@ export function initDynamoDbImportSession(deps: {
 			await table.put({
 				Item: {
 					sessionId: id,
-					userId,
+					...(userId ? { userId } : {}),
 					createdAt,
 					expiresAt,
 					totalUrls: urls.length,
@@ -77,22 +89,22 @@ export function initDynamoDbImportSession(deps: {
 			};
 		},
 		findImportSession: async ({ id, userId }) => {
-			const row = await loadOwned({ id, userId });
+			const row = await loadAccessible(id, userId);
 			return row ? toImportSession(row) : undefined;
 		},
 		loadImportSessionPage: async ({ id, userId, page, pageSize }) => {
-			const row = await loadOwned({ id, userId });
+			const row = await loadAccessible(id, userId);
 			if (!row) return undefined;
 			const start = (page - 1) * pageSize;
 			const pageUrls = row.urls.slice(start, start + pageSize);
 			return { session: toImportSession(row), pageUrls, page, pageSize };
 		},
 		loadAllImportSessionUrls: async ({ id, userId }) => {
-			const row = await loadOwned({ id, userId });
+			const row = await loadAccessible(id, userId);
 			return row?.urls;
 		},
 		toggleImportSelection: async ({ id, userId, index, checked }) => {
-			const row = await loadOwned({ id, userId });
+			const row = await loadAccessible(id, userId);
 			if (!row) return;
 			const allSelected = row.allSelected ?? true;
 			if (!allSelected && !checked) return;
@@ -105,24 +117,24 @@ export function initDynamoDbImportSession(deps: {
 			else current.add(index);
 			await table.update({
 				Key: { sessionId: id },
-				ConditionExpression: "userId = :uid",
+				ConditionExpression: ownershipCondition(userId),
 				UpdateExpression: "SET deselected = :d, allSelected = :a",
 				ExpressionAttributeValues: {
-					":uid": userId,
+					...(userId ? { ":uid": userId } : {}),
 					":d": Array.from(current),
 					":a": true,
 				},
 			});
 		},
 		toggleAllImportSelection: async ({ id, userId, checked }) => {
-			const row = await loadOwned({ id, userId });
+			const row = await loadAccessible(id, userId);
 			if (!row) return;
 			await table.update({
 				Key: { sessionId: id },
-				ConditionExpression: "userId = :uid",
+				ConditionExpression: ownershipCondition(userId),
 				UpdateExpression: "SET deselected = :d, allSelected = :a",
 				ExpressionAttributeValues: {
-					":uid": userId,
+					...(userId ? { ":uid": userId } : {}),
 					":d": [],
 					":a": checked,
 				},
@@ -131,8 +143,8 @@ export function initDynamoDbImportSession(deps: {
 		deleteImportSession: async ({ id, userId }) => {
 			await table.delete({
 				Key: { sessionId: id },
-				ConditionExpression: "userId = :uid",
-				ExpressionAttributeValues: { ":uid": userId },
+				ConditionExpression: ownershipCondition(userId),
+				...(userId ? { ExpressionAttributeValues: { ":uid": userId } } : {}),
 			});
 		},
 	};

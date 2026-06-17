@@ -65,7 +65,7 @@ export interface ImportUploadedEvent {
 	url_count: number;
 	truncated: 0 | 1;
 	visitor_hash: string | null;
-	is_authenticated: 1;
+	is_authenticated: 0 | 1;
 }
 
 export interface ImportCommittedEvent {
@@ -94,7 +94,7 @@ export interface ImportFromUrlAcquiredEvent {
 	url_count: number;
 	truncated: 0 | 1;
 	visitor_hash: string | null;
-	is_authenticated: 1;
+	is_authenticated: 0 | 1;
 }
 
 export interface ArticleReadEvent {

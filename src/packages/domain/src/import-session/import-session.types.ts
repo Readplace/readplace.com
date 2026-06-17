@@ -9,7 +9,12 @@ export interface ImportLinksResult {
 
 export interface ImportSession {
 	readonly id: ImportSessionId;
-	readonly userId: UserId;
+	/** Undefined for a session created by an anonymous visitor. Such sessions are
+	 * accessible by capability (anyone holding the unguessable id), letting a
+	 * logged-out user build a review and then sign up before committing. A session
+	 * created while authenticated carries its owner's id and stays isolated to that
+	 * owner. */
+	readonly userId: UserId | undefined;
 	readonly createdAt: string;
 	readonly expiresAt: number;
 	readonly totalUrls: number;
@@ -26,7 +31,7 @@ export interface ImportSessionPage {
 }
 
 export type CreateImportSession = (params: {
-	userId: UserId;
+	userId: UserId | undefined;
 	urls: readonly string[];
 	truncated: boolean;
 	totalFound: number;
@@ -34,37 +39,37 @@ export type CreateImportSession = (params: {
 
 export type FindImportSession = (params: {
 	id: ImportSessionId;
-	userId: UserId;
+	userId: UserId | undefined;
 }) => Promise<ImportSession | undefined>;
 
 export type LoadImportSessionPage = (params: {
 	id: ImportSessionId;
-	userId: UserId;
+	userId: UserId | undefined;
 	page: number;
 	pageSize: number;
 }) => Promise<ImportSessionPage | undefined>;
 
 export type LoadAllImportSessionUrls = (params: {
 	id: ImportSessionId;
-	userId: UserId;
+	userId: UserId | undefined;
 }) => Promise<readonly string[] | undefined>;
 
 export type ToggleImportSelection = (params: {
 	id: ImportSessionId;
-	userId: UserId;
+	userId: UserId | undefined;
 	index: number;
 	checked: boolean;
 }) => Promise<void>;
 
 export type ToggleAllImportSelection = (params: {
 	id: ImportSessionId;
-	userId: UserId;
+	userId: UserId | undefined;
 	checked: boolean;
 }) => Promise<void>;
 
 export type DeleteImportSession = (params: {
 	id: ImportSessionId;
-	userId: UserId;
+	userId: UserId | undefined;
 }) => Promise<void>;
 
 export interface ImportSessionStore {

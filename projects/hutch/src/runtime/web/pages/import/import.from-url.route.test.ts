@@ -57,14 +57,30 @@ describe("POST /import/from-url routes", () => {
 	});
 
 	describe("POST /import/from-url (unauthenticated)", () => {
-		it("redirects to /login", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		it("creates an anonymous session from the harvested URLs and redirects to the review screen", async () => {
+			const harness = useApp(
+				withExtractor({
+					status: "OK",
+					links: {
+						urls: ["https://example.com/a", "https://example.com/b"],
+						truncated: false,
+						totalFound: 2,
+					},
+				}),
+			);
 			const response = await request(harness.server)
 				.post("/import/from-url")
 				.type("form")
 				.send({ url: "https://news.example/issues/42" });
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/login");
+			assert.match(
+				response.headers.location,
+				/^\/import\/[a-f0-9]{32}$/,
+				"redirect must point at the new session",
+			);
+
+			const review = await request(harness.server).get(response.headers.location);
+			expect(review.status).toBe(200);
 		});
 	});
 
@@ -291,6 +307,32 @@ describe("POST /import/from-url routes", () => {
 			assert.equal(event.utm_medium, "form");
 			assert.equal(event.utm_campaign, "from-url");
 			assert.equal(event.is_authenticated, 1);
+		});
+
+		it("emits import_from_url_acquired with is_authenticated=0 for an anonymous visitor", async () => {
+			const harness = useApp(
+				withExtractor({
+					status: "OK",
+					links: {
+						urls: ["https://example.com/a", "https://example.com/b"],
+						truncated: false,
+						totalFound: 2,
+					},
+				}),
+			);
+
+			await request(harness.server)
+				.post("/import/from-url")
+				.type("form")
+				.send({ url: "https://news.example/issues/42" });
+
+			const events = harness.analytics.events.filter(
+				(e) => e.event === "import_from_url_acquired",
+			);
+			assert.equal(events.length, 1, "exactly one import_from_url_acquired event");
+			const event = events[0];
+			assert(event.event === "import_from_url_acquired");
+			assert.equal(event.is_authenticated, 0);
 		});
 
 		it("does not emit import_from_url_acquired on failure paths", async () => {

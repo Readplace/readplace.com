@@ -144,7 +144,7 @@ describe("Nav component", () => {
 		expect(queue.textContent).toBe("Queue");
 	});
 
-	it("renders guest nav items (install, features, signup) as a flat list without group structure, install left of features", () => {
+	it("renders guest nav items (install, features, import, signup) as a flat list without group structure, install left of features", () => {
 		const doc = parse(
 			Nav({
 				variant: "default",
@@ -160,7 +160,7 @@ describe("Nav component", () => {
 		const items = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(items).toEqual(["install", "features", "signup"]);
+		expect(items).toEqual(["install", "features", "import", "signup"]);
 
 		const install = doc.querySelector('[data-test-nav-item="install"]');
 		assert(install, "guest nav must render an install item");

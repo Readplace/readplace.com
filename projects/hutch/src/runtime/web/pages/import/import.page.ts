@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import type { ErrorRequestHandler, Request, Response, Router } from "express";
+import type { ErrorRequestHandler, Request, RequestHandler, Response, Router } from "express";
 import express from "express";
 import { extractUrls } from "@packages/domain/import-session";
 import {
@@ -41,6 +41,14 @@ interface ImportRouteDependencies extends SaveArticleFromUrlDependencies {
 	salt: string;
 	now: () => Date;
 	buildBannerState: BuildBannerState;
+	/** Save gates applied only at commit, the sole route that creates content.
+	 * The earlier routes (upload, review, toggle) are public so a logged-out
+	 * visitor can build a review before signing up. `requireNotLocked` blocks a
+	 * locked (unverified-past-window) account; `requireWriteAccess` blocks a
+	 * read-only (trial-expired / cancelled) account. Both assume an authenticated
+	 * identity, so they run after the anonymous-visitor redirect. */
+	requireNotLocked: RequestHandler;
+	requireWriteAccess: RequestHandler;
 }
 
 const UPLOAD_ERROR_REDIRECT = {
@@ -69,8 +77,25 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		next(err);
 	};
 
+	/** Commit is the one route that needs an account: an anonymous visitor who has
+	 * built a review is sent to sign up, carrying the review's id in `?return=` so
+	 * the post-signup redirect lands them back on the same review (selections
+	 * intact, since the session is reached by capability). An unparseable id has no
+	 * review to return to, so it falls back to a bare /signup. */
+	const redirectAnonymousToSignup: RequestHandler = (req, res, next) => {
+		if (req.userId) {
+			next();
+			return;
+		}
+		const parsedId = ImportSessionIdSchema.safeParse(req.params.id);
+		if (!parsedId.success) {
+			res.redirect(303, "/signup");
+			return;
+		}
+		res.redirect(303, `/signup?return=${encodeURIComponent(`/import/${parsedId.data}`)}`);
+	};
+
 	router.get("/", async (req: Request, res: Response) => {
-		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const errorMessage = importErrorMessageMapping(req.query);
 		const mode = typeof req.query.mode === "string" ? req.query.mode : undefined;
 		const vm = toImportAcquireViewModel({
@@ -81,7 +106,6 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 	});
 
 	router.post("/", rawBodyParser, sizeLimitHandler, async (req: Request, res: Response) => {
-		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const parsed = parseRequest(req);
 		if (!parsed.ok) {
 			res.redirect(303, UPLOAD_ERROR_REDIRECT.noUrls);
@@ -111,13 +135,12 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			url_count: urls.length,
 			truncated: truncated ? 1 : 0,
 			visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
-			is_authenticated: 1,
+			is_authenticated: req.userId ? 1 : 0,
 		});
 		res.redirect(303, `/import/${session.id}`);
 	});
 
 	router.post("/from-url", async (req: Request, res: Response) => {
-		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const rawUrl = typeof req.body?.url === "string" ? req.body.url.trim() : "";
 		if (rawUrl === "") {
 			res.redirect(303, FROM_URL_ERROR_REDIRECT.invalid);
@@ -165,13 +188,12 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			url_count: urls.length,
 			truncated: truncated ? 1 : 0,
 			visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
-			is_authenticated: 1,
+			is_authenticated: req.userId ? 1 : 0,
 		});
 		res.redirect(303, `/import/${session.id}`);
 	});
 
 	router.get("/:id", async (req: Request, res: Response) => {
-		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const parsedId = ImportSessionIdSchema.safeParse(req.params.id);
 		if (!parsedId.success) {
 			res.redirect(303, QUEUE_PATH);
@@ -198,7 +220,6 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 	});
 
 	router.post("/:id/toggle", async (req: Request, res: Response) => {
-		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const parsedId = ImportSessionIdSchema.safeParse(req.params.id);
 		const parsedBody = ImportToggleSchema.safeParse(req.body);
 		if (!parsedId.success || !parsedBody.success) {
@@ -218,7 +239,6 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 	});
 
 	router.post("/:id/toggle-all", async (req: Request, res: Response) => {
-		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const parsedId = ImportSessionIdSchema.safeParse(req.params.id);
 		const parsedBody = ImportToggleAllSchema.safeParse(req.body);
 		if (!parsedId.success || !parsedBody.success) {
@@ -236,8 +256,8 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		res.redirect(303, page > 1 ? `/import/${parsedId.data}?page=${page}` : `/import/${parsedId.data}`);
 	});
 
-	router.post("/:id/commit", async (req: Request, res: Response) => {
-		assert(req.userId, "userId required - route must be protected by requireAuth");
+	router.post("/:id/commit", redirectAnonymousToSignup, deps.requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - redirectAnonymousToSignup guarantees an authenticated identity here");
 		const userId = req.userId;
 		const parsedId = ImportSessionIdSchema.safeParse(req.params.id);
 		if (!parsedId.success) {

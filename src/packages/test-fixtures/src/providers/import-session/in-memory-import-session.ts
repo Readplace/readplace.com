@@ -7,6 +7,7 @@ import type {
 	ImportSession,
 	ImportSessionStore,
 } from "@packages/domain/import-session";
+import type { UserId } from "@packages/domain/user";
 
 interface StoredSession {
 	session: ImportSession;
@@ -19,15 +20,20 @@ export function initInMemoryImportSession(deps: {
 }): ImportSessionStore {
 	const sessions = new Map<string, StoredSession>();
 
-	function load(id: string, userId: string): StoredSession | undefined {
+	/** Anonymous sessions (no stored userId) are reachable by capability — anyone
+	 * holding the id, including a just-signed-up user adopting their pre-auth
+	 * review. Owned sessions stay isolated to their owner; a different user (or an
+	 * anonymous caller) gets undefined. */
+	function load(id: string, userId: UserId | undefined): StoredSession | undefined {
 		const row = sessions.get(id);
 		if (!row) return undefined;
-		if (row.session.userId !== userId) return undefined;
 		if (row.session.expiresAt < Math.floor(deps.now().getTime() / 1000)) {
 			sessions.delete(id);
 			return undefined;
 		}
-		return row;
+		if (row.session.userId === undefined) return row;
+		if (row.session.userId === userId) return row;
+		return undefined;
 	}
 
 	return {

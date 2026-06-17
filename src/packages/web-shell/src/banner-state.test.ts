@@ -40,9 +40,15 @@ describe("bannerStateFromRequest", () => {
 });
 
 describe("buildGuestNavItems", () => {
-	it("returns install, features, and signup as a flat list with install left of features", () => {
+	it("returns install, features, import, and signup as a flat list in that order", () => {
 		const items = buildGuestNavItems();
-		expect(items.map((i) => i.key)).toEqual(["install", "features", "signup"]);
+		expect(items.map((i) => i.key)).toEqual(["install", "features", "import", "signup"]);
+	});
+
+	it("points the import item at the import page so logged-out visitors can start a migration", () => {
+		const item = buildGuestNavItems().find((i) => i.key === "import");
+		assert(item, "guest nav must include an import item");
+		expect(item.href).toBe("/import?utm_source=header-nav&utm_medium=internal&utm_content=import");
 	});
 
 	it("points the install item at the install page", () => {
