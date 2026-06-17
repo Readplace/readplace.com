@@ -9,6 +9,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
+import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
@@ -100,6 +101,22 @@ describe("Auth routes", () => {
 			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
 				"Invalid email or password",
 			);
+		});
+
+		it("treats a disposable email as a normal login attempt, not a disposable rejection", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.post("/login")
+				.type("form")
+				.send({ email: "user@slmail.me", password: "wrong" });
+
+			expect(response.status).toBe(422);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
+				"Invalid email or password",
+			);
+			expect(doc.querySelector('[data-test-error="email"]')).toBeNull();
 		});
 
 		it("should redirect to return URL after successful login", async () => {
@@ -670,6 +687,35 @@ describe("Auth routes", () => {
 			expect(response.status).toBe(422);
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector('[data-test-error="password"]')?.textContent).toBe("Password must be at least 8 characters");
+		});
+
+		it("rejects a disposable email domain with a 422 and the disposable message on the email field", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "user@slmail.me",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(422);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector('[data-test-error="email"]')?.textContent).toBe(DISPOSABLE_EMAIL_MESSAGE);
+		});
+
+		it("lets a normal email domain proceed past schema validation to /queue", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).post("/signup").type("form").send({
+				email: "real-person@gmail.com",
+				password: "password123",
+				confirmPassword: "password123",
+				loadedAt: freshLoadedAt(),
+			});
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue");
 		});
 
 	});
