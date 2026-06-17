@@ -2,9 +2,6 @@ export interface PopupState {
 	closed?: boolean;
 }
 
-/** The countdown is anchored to the moment the popup is first shown so it stays
- * consistent across reloads on the same device rather than resetting to the top
- * on every paint. */
 export const OFFER_WINDOW_MS = 10 * 60 * 1000;
 
 export function parseStoredState(raw: string | null): PopupState {
