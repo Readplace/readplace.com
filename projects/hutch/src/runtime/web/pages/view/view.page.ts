@@ -32,6 +32,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { hashIp, type AnalyticsEvent } from "../../middleware/analytics";
 import { rateLimitKeyFromRequest, sendRateLimited } from "../../middleware/rate-limit";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
+import { articleHostFrom } from "../../../observability/content-source";
 import { wantsMarkdown, htmlToMarkdown, buildMarkdownFrontmatter, MarkdownPage, sendComponent } from "@packages/web-shell";
 import { CacheableComponent } from "../../conditional-get";
 
@@ -79,10 +80,6 @@ async function renderError(deps: ViewDependencies, req: Request, res: Response):
 	const redirectUrl = req.userId ? "/queue" : "/";
 	const linkLabel = req.userId ? "Go to your queue" : "Go to homepage";
 	sendComponent(req, res, Base(SaveErrorPage({ redirectUrl, linkLabel }), await deps.buildBannerState(req)));
-}
-
-function hostnameFrom(validatedUrl: string): string {
-	return new URL(validatedUrl).hostname;
 }
 
 function pollUrlBuilderFor(articleUrl: string): PollUrlBuilder {
@@ -161,7 +158,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 				sendRateLimited(res, decision.retryAfterSeconds);
 				return;
 			}
-			const hostname = hostnameFrom(articleUrl);
+			const hostname = articleHostFrom(articleUrl);
 			await deps.saveArticleGlobally({
 				url: articleUrl,
 				metadata: {
@@ -212,7 +209,7 @@ function handleViewArticle(deps: ViewDependencies, reader: ReturnType<typeof ini
 				event: ANALYTICS_EVENTS.viewOpened,
 				timestamp: deps.now().toISOString(),
 				path: originalPath,
-				article_host: hostnameFrom(articleUrl),
+				article_host: articleHostFrom(articleUrl),
 				visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
 				visitor_id: req.visitorId,
 				is_authenticated: req.userId ? 1 : 0,

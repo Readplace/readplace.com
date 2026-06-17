@@ -27,6 +27,32 @@ export const ANALYTICS_EVENTS = {
 } as const;
 
 /**
+ * Dimensions of the `view_save_intent` event. Each is the single source of
+ * truth shared by emitters (the save surfaces) and the dashboard widgets that
+ * slice the save funnel, so a value rename surfaces as a TypeScript error at
+ * every call site rather than silently splitting a metric in two.
+ */
+export const SAVE_SURFACES = {
+	readerView: "reader_view",
+	queueSaveBar: "queue_save_bar",
+	extension: "extension",
+} as const;
+
+export const SAVE_OUTCOMES = {
+	saved: "saved",
+	promptedToSignUp: "prompted_to_sign_up",
+	error: "error",
+} as const;
+
+export const CONTENT_CLASSES = {
+	own: "own",
+	thirdParty: "third_party",
+} as const;
+
+export type SaveSurface = (typeof SAVE_SURFACES)[keyof typeof SAVE_SURFACES];
+export type SaveOutcome = (typeof SAVE_OUTCOMES)[keyof typeof SAVE_OUTCOMES];
+
+/**
  * `utm_medium` value stamped on every in-site link and action button so a click
  * can be counted without an extra request or a client-side beacon. The analytics
  * middleware emits a `click` event for any request carrying it (GET, HTMX-boosted,

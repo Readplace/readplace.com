@@ -11,8 +11,8 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import { SaveArticleInputSchema, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
-import { hashIp, type AnalyticsEvent } from "../../middleware/analytics";
-import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
+import { buildSaveIntentEvent, hashIp, type AnalyticsEvent } from "../../middleware/analytics";
+import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
 import {
 	IMPORT_SKIPPED_COOKIE_NAME,
 	decodeImportSkippedCookie,
@@ -207,6 +207,20 @@ async function loadCrawls(
 
 export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
+
+	/** Records a save-intent for an authenticated save surface. The save has
+	 * already happened (or failed) by the time this is called, so `outcome` is
+	 * `saved` or `error` — never `prompted_to_sign_up`, which is anonymous-only. */
+	const emitSaveIntent = (params: {
+		req: Request;
+		url: string;
+		path: string;
+		surface: SaveSurface;
+		outcome: SaveOutcome;
+	}): void => {
+		deps.analytics.info(buildSaveIntentEvent({ now: deps.now, salt: deps.salt }, params));
+	};
+
 	const reader = initArticleReader({
 		findArticleCrawlStatus: deps.findArticleCrawlStatus,
 		findGeneratedSummary: deps.findGeneratedSummary,
@@ -435,9 +449,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
 			const result = await saveArticleFromUrl(deps, { userId, url: validation.url, freshness });
 			markExtensionSavedArticle(res);
+			emitSaveIntent({ req, url: validation.url, path: "/queue", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
+			emitSaveIntent({ req, url: validation.url, path: "/queue", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 			res.status(500).type(SIREN_MEDIA_TYPE).json(
 				sirenError({ code: "save-failed", message: "Could not save article" }),
 			);
@@ -515,6 +531,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					const freshness = await deps.refreshArticleIfStale({ url: urlOnlyValidation.url });
 					const result = await saveArticleFromUrl(deps, { userId, url: urlOnlyValidation.url, freshness });
 					markExtensionSavedArticle(res);
+					emitSaveIntent({ req, url: urlOnlyValidation.url, path: "/queue/save-html", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 					res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 					return;
 				}
@@ -544,6 +561,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 			const result = await saveArticleFromUrl(deps, { userId, url: articleUrl, freshness });
 			markExtensionSavedArticle(res);
+			emitSaveIntent({ req, url: articleUrl, path: "/queue/save-html", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
 			deps.logError("Failed to save article from html", error instanceof Error ? error : undefined);
@@ -689,9 +707,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 				const result = await saveArticleFromUrl(deps, { userId, url: articleUrl, freshness });
 				markExtensionSavedArticle(res);
+				emitSaveIntent({ req, url: articleUrl, path: "/queue/save-content", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 				res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 			} catch (error) {
 				deps.logError("Failed to save article from content", error instanceof Error ? error : undefined);
+				emitSaveIntent({ req, url: validation.url, path: "/queue/save-content", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 				res.status(500).type(SIREN_MEDIA_TYPE).json(
 					sirenError({ code: "save-failed", message: "Could not save article" }),
 				);
@@ -727,9 +747,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		try {
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
 			await saveArticleFromUrl(deps, { userId, url: validation.url, freshness });
+			emitSaveIntent({ req, url: validation.url, path: "/queue/save", surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.saved });
 			res.redirect(303, "/queue#latest-saved");
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
+			emitSaveIntent({ req, url: validation.url, path: "/queue/save", surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.error });
 			res.redirect(303, "/queue?error_code=save_failed");
 		}
 	});

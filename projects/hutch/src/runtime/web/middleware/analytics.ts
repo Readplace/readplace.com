@@ -1,9 +1,21 @@
+import assert from "node:assert";
 import { createHash } from "node:crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { isbot } from "isbot";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { UserId } from "@packages/domain/user";
-import { ANALYTICS_EVENTS, INTERNAL_CLICK_MEDIUM, STREAMS } from "../../observability/events";
+import {
+	ANALYTICS_EVENTS,
+	INTERNAL_CLICK_MEDIUM,
+	type SaveOutcome,
+	type SaveSurface,
+	STREAMS,
+} from "../../observability/events";
+import {
+	articleHostFrom,
+	classifyContentSource,
+	type ContentClass,
+} from "../../observability/content-source";
 
 export interface AnalyticsPageview {
 	stream: typeof STREAMS.analytics;
@@ -111,15 +123,29 @@ export interface ViewOpenedEvent {
 	is_authenticated: 0 | 1;
 }
 
-/** Emitted when a visitor clicks "Save to My Queue" on the public reader — the
- * warmest moment in the funnel. Anonymous clicks redirect to /login (a separate
- * surface), so this event is the only record that the intent occurred. */
+/**
+ * Emitted when a user signals intent to save an article to their queue. Born on
+ * the public reader's "Save to My Queue" click — the warmest funnel moment,
+ * where an anonymous click redirects to /login and would otherwise vanish — and
+ * since extended additively to every other save surface (queue save bar, browser
+ * extension) so the funnel can be sliced by `surface` and `outcome`. The event
+ * name is kept for backward compatibility even though it now spans surfaces.
+ *
+ * `content_class` is derived solely from `article_host` (where the saved post
+ * lives), never the `referrer_host` (where the click came from): saving a
+ * third-party article from our own reader is a third-party save.
+ */
 export interface ViewSaveIntentEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.viewSaveIntent;
 	timestamp: string;
 	path: string;
 	article_host: string;
+	content_class: ContentClass;
+	surface: SaveSurface;
+	outcome: SaveOutcome;
+	referrer_host?: string;
+	pending_save_id?: string;
 	visitor_hash: string | null;
 	visitor_id: string | null;
 	is_authenticated: 0 | 1;
@@ -224,6 +250,46 @@ export function hashIp(deps: { ip: string | undefined; salt: string }): string |
 		.update(deps.ip + deps.salt)
 		.digest("hex")
 		.slice(0, 16);
+}
+
+/**
+ * Builds a `view_save_intent` event for any save surface. Centralizing the
+ * derivation keeps `article_host` (and therefore `content_class`) normalized
+ * identically across surfaces and joinable with `view_opened`, and keeps the
+ * dedup/exclusion identifiers (`visitor_hash`, `visitor_id`) consistent so the
+ * same dashboard exclusions apply to every emission. `referrer_host` is the
+ * traffic source, captured separately from `article_host` and never used for
+ * `content_class`.
+ */
+export function buildSaveIntentEvent(
+	deps: { now: () => Date; salt: string },
+	params: {
+		req: Request;
+		url: string;
+		path: string;
+		surface: SaveSurface;
+		outcome: SaveOutcome;
+		pendingSaveId?: string;
+	},
+): ViewSaveIntentEvent {
+	assert(params.req.visitorId, "visitor-id middleware must run before a save surface emits view_save_intent");
+	const articleHost = articleHostFrom(params.url);
+	const referrerHost = extractReferrerHost(params.req);
+	return {
+		stream: STREAMS.analytics,
+		event: ANALYTICS_EVENTS.viewSaveIntent,
+		timestamp: deps.now().toISOString(),
+		path: params.path,
+		article_host: articleHost,
+		content_class: classifyContentSource(articleHost),
+		surface: params.surface,
+		outcome: params.outcome,
+		...(referrerHost ? { referrer_host: referrerHost } : {}),
+		...(params.pendingSaveId ? { pending_save_id: params.pendingSaveId } : {}),
+		visitor_hash: hashIp({ ip: params.req.ip, salt: deps.salt }),
+		visitor_id: params.req.visitorId,
+		is_authenticated: params.req.userId ? 1 : 0,
+	};
 }
 
 export function createAnalyticsMiddleware(deps: {

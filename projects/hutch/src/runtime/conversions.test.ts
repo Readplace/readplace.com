@@ -195,5 +195,43 @@ describe("emitUserCreated", () => {
 		expect(serialized).not.toContain("first_seen_at");
 		expect(serialized).not.toContain("landing_path");
 		expect(serialized).not.toContain("visitor_id");
+		expect(serialized).not.toContain("pending_save_id");
+	});
+
+	it("includes pending_save_id so a signup-blocked save can be traced to the account it created", () => {
+		const { logger, captured } = createCapturingLogger();
+
+		emitUserCreated(
+			{ logger, now: TEST_NOW },
+			{
+				userId: TEST_USER_ID,
+				email: "blocked@example.com",
+				method: "email",
+				tier: "free",
+				attribution: undefined,
+				pendingSaveId: "9f1c0c8e-3b2a-4d6e-8c1f-2a7b5d4e6f10",
+			},
+		);
+
+		expect(captured[0]).toMatchObject({
+			pending_save_id: "9f1c0c8e-3b2a-4d6e-8c1f-2a7b5d4e6f10",
+		});
+	});
+
+	it("omits pending_save_id when the signup did not follow a pending save", () => {
+		const { logger, captured } = createCapturingLogger();
+
+		emitUserCreated(
+			{ logger, now: TEST_NOW },
+			{
+				userId: TEST_USER_ID,
+				email: "organic@example.com",
+				method: "email",
+				tier: "free",
+				attribution: undefined,
+			},
+		);
+
+		expect(JSON.stringify(captured[0])).not.toContain("pending_save_id");
 	});
 });
