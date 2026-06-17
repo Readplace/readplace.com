@@ -89,6 +89,7 @@ function flattenFixtureToAppDependencies(
 	return {
 		validateSaveableUrl: fixture.shared.validateSaveableUrl,
 		appOrigin: fixture.shared.appOrigin,
+		offerPaymentLink: "https://buy.stripe.com/test_offer-popup-cta",
 		staticBaseUrl: fixture.shared.staticBaseUrl,
 		baseUrl: fixture.shared.appOrigin,
 		logError: fixture.shared.logError,

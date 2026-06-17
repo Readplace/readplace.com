@@ -508,6 +508,7 @@ export function createHutchApp(deps?: {
 
 	const appOrigin = deps?.appOrigin ?? requireEnv("APP_ORIGIN");
 	const staticBaseUrl = requireEnv("STATIC_BASE_URL");
+	const offerPaymentLink = requireEnv("OFFER_PAYMENT_LINK");
 	const expiryCountdown = requireEnv<"enabled" | "disabled">("EXPIRY_COUNTDOWN");
 	const foundingMemberLimit = Number.parseInt(requireEnv("FOUNDING_MEMBER_LIMIT"), 10);
 	assert(
@@ -540,6 +541,7 @@ export function createHutchApp(deps?: {
 	const app = createApp({
 		validateSaveableUrl,
 		appOrigin,
+		offerPaymentLink,
 		staticBaseUrl,
 		hashPassword,
 		...auth,

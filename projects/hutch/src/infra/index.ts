@@ -321,6 +321,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		TRIAL_SCHEDULER_ROLE_ARN: trialSchedulerRole.arn,
 		EXPIRY_COUNTDOWN: config.require("expiryCountdown"),
 		FOUNDING_MEMBER_LIMIT: config.require("foundingMemberLimit"),
+		OFFER_PAYMENT_LINK: config.require("offerPaymentLink"),
 	},
 	policies: [
 		...dynamodb.policies,

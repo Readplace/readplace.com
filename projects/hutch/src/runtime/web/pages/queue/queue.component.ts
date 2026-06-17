@@ -169,11 +169,11 @@ const AUTO_SUBMIT_SCRIPT = `
 </script>
 `;
 
-export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; extensionInstalled?: boolean; extensionSavedArticle?: boolean; browser?: BrowserName; onboardingDismissed?: boolean; offerPreview?: boolean; statusCode?: number }): PageBody {
-	const saveUrl = options?.saveUrl;
-	const offerPreview = options?.offerPreview ?? false;
-	const displayModel = toQueueDisplayModel(vm, { extensionInstalled: options?.extensionInstalled ?? false, extensionSavedArticle: options?.extensionSavedArticle ?? false, browser: options?.browser ?? "other", onboardingDismissed: options?.onboardingDismissed ?? false });
-	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl, offerPopupHtml: offerPreview ? renderOfferPopup() : "" });
+export function QueuePage(vm: QueueViewModel, options: { offerPaymentLink: string; saveUrl?: string; extensionInstalled?: boolean; extensionSavedArticle?: boolean; browser?: BrowserName; onboardingDismissed?: boolean; offerPreview?: boolean; statusCode?: number }): PageBody {
+	const saveUrl = options.saveUrl;
+	const offerPreview = options.offerPreview ?? false;
+	const displayModel = toQueueDisplayModel(vm, { extensionInstalled: options.extensionInstalled ?? false, extensionSavedArticle: options.extensionSavedArticle ?? false, browser: options.browser ?? "other", onboardingDismissed: options.onboardingDismissed ?? false });
+	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl, offerPopupHtml: offerPreview ? renderOfferPopup(options.offerPaymentLink) : "" });
 
 	const scriptParts: string[] = [];
 	if (offerPreview) scriptParts.push(OFFER_POPUP_SCRIPT);
@@ -194,6 +194,6 @@ export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; exte
 		bodyClass: "page-queue",
 		content: { html: content },
 		scripts: scriptParts.join("\n"),
-		statusCode: options?.statusCode,
+		statusCode: options.statusCode,
 	};
 }

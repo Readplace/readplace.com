@@ -36,5 +36,6 @@ config:
   hutch:alertEmail: readplace+staging@readplace.com
   hutch:expiryCountdown: enabled
   hutch:foundingMemberLimit: '5'
+  hutch:offerPaymentLink: https://buy.stripe.com/test_5kQ8wOfCk1GLfsN5880kE00
   hutch:excludedVisitorHashes: []
 encryptionsalt: v1:fILgDgnVVEY=:v1:sFKytKYEpZU4Qs+9:o/Q+JSj6rS/qo7p6WyjaekWrgFAk5A==

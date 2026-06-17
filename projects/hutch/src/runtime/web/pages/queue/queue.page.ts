@@ -180,6 +180,9 @@ interface QueueDependencies {
 	salt: string;
 	now: () => Date;
 	featureToggle: QuerystringFeatureToggle;
+	/** Per-environment Stripe payment link the founding-offer CTA points at
+	 * (staging uses a Stripe test link, production the live one). */
+	offerPaymentLink: string;
 }
 
 import type { SavedArticle } from "@packages/domain/article";
@@ -440,7 +443,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		sendComponent(
 			req, res,
 			Base(
-				QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, extensionSavedArticle, browser, onboardingDismissed, offerPreview }),
+				QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, extensionSavedArticle, browser, onboardingDismissed, offerPreview, offerPaymentLink: deps.offerPaymentLink }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);
@@ -787,7 +790,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				summaryByUrl,
 				crawlByUrl,
 			});
-			sendComponent(req, res, Base(QueuePage(vm, { statusCode: 422 }), await deps.buildBannerState(req)));
+			sendComponent(req, res, Base(QueuePage(vm, { statusCode: 422, offerPaymentLink: deps.offerPaymentLink }), await deps.buildBannerState(req)));
 			return;
 		}
 

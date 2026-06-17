@@ -174,6 +174,7 @@ interface AppDependencies {
 	validateSaveableUrl: ValidateSaveableUrl;
 	appOrigin: string;
 	staticBaseUrl: string;
+	offerPaymentLink: string;
 	hashPassword: (password: string) => Promise<string>;
 	createUser: CreateUser;
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
@@ -809,6 +810,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		salt: deps.salt,
 		now: deps.now,
 		featureToggle,
+		offerPaymentLink: deps.offerPaymentLink,
 	});
 	/** `dualAuthMiddleware` is applied INSIDE the queue router rather than at this
 	 * mount so that `GET /queue/:id/view` (and its legacy `/read` redirect) can
