@@ -49,7 +49,7 @@ config:
   hutch:alertEmail: readplace+devops@readplace.com
   hutch:expiryCountdown: enabled
   hutch:foundingMemberLimit: '50'
-  hutch:offerPaymentLink: https://buy.stripe.com/eVqfZg0Hq4SXeoJfMM0kE06
+  hutch:offerPaymentLink: https://buy.stripe.com/test_5kQ8wOfCk1GLfsN5880kE00
   hutch:excludedVisitorHashes: [
     b4248a499303636a,
     cae1bf1ec4181321,
