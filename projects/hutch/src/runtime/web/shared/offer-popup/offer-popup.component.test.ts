@@ -17,22 +17,6 @@ describe("renderOfferPopup", () => {
 		assert.equal(root.getAttribute("data-offer-stage"), "offer");
 	});
 
-	it("renders the static scarcity figures that drive urgency", () => {
-		const doc = parse();
-
-		const claimed = doc.querySelector("[data-test-offer-claimed]");
-		assert(claimed, "claimed counter must render");
-		assert.equal(claimed.textContent, "46 / 50");
-
-		const remaining = doc.querySelector("[data-test-offer-remaining]");
-		assert(remaining, "remaining counter must render");
-		assert.equal(remaining.textContent, "4");
-
-		const fill = doc.querySelector(".offer-popup__scarcity-fill");
-		assert(fill, "scarcity fill must render");
-		assert.equal(fill.getAttribute("style"), "width: 92%");
-	});
-
 	it("renders the one-time price with a crossed-out anchor", () => {
 		const doc = parse();
 

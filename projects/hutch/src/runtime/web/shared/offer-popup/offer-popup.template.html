@@ -12,12 +12,6 @@
 				<span class="offer-popup__price-once">once</span>
 				<span class="offer-popup__price-anchor" data-test-offer-anchor>${{anchorPriceUsd}} over 3 years</span>
 			</p>
-			<div class="offer-popup__scarcity" data-test-offer-scarcity>
-				<div class="offer-popup__scarcity-track">
-					<div class="offer-popup__scarcity-fill" style="width: {{claimedPercent}}%"></div>
-				</div>
-				<p class="offer-popup__scarcity-label"><strong data-test-offer-claimed>{{claimedSlots}} / {{totalSlots}}</strong> claimed — only <strong class="offer-popup__scarcity-remaining" data-test-offer-remaining>{{remainingSlots}}</strong> left</p>
-			</div>
 			<p class="offer-popup__countdown" data-test-offer-countdown-line>Offer closes in <strong class="offer-popup__countdown-clock" data-offer-countdown data-test-offer-countdown>{{countdownInitial}}</strong></p>
 			<a class="offer-popup__cta" href="{{ctaHref}}" data-test-offer-cta>Lock in permanent access — ${{priceUsd}}</a>
 			<p class="offer-popup__fine">No subscription. No auto-renewal. Yours to keep.</p>
@@ -32,7 +26,7 @@
 		</section>
 		<section class="offer-popup__view offer-popup__view--confirm-second" data-test-offer-view="confirm-second">
 			<h2 class="offer-popup__confirm-title">Last chance to lock in ${{priceUsd}}</h2>
-			<p class="offer-popup__confirm-body">Permanent access for one payment — only {{remainingSlots}} of {{totalSlots}} spots remain. Close now and this founding offer is gone from this device.</p>
+			<p class="offer-popup__confirm-body">Permanent access for one payment. Close now and this founding offer is gone from this device.</p>
 			<div class="offer-popup__confirm-actions">
 				<button type="button" class="offer-popup__btn offer-popup__btn--keep" data-offer-action="keep" data-test-offer-keep-2>Keep my founding price</button>
 				<button type="button" class="offer-popup__btn offer-popup__btn--ghost" data-offer-action="dismiss" data-test-offer-dismiss>Close and lose it</button>
