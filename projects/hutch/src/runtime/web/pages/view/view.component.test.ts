@@ -573,7 +573,7 @@ describe("ViewPage", () => {
 			assert(body, "paywall body must be rendered");
 			assert.equal(
 				body.textContent,
-				"Save this link to your readplace queue to see the full content.",
+				"Save this link to your readplace queue and read every link without expiration.",
 			);
 
 			const save = paywall.querySelector("[data-test-view-paywall-save]");
