@@ -115,6 +115,27 @@
   letter-spacing: 0.05em;
   color: var(--color-text-secondary);
   list-style: none;
+  user-select: none;
+  border-radius: 8px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.article-body__summary[open] .article-body__summary-toggle {
+  border-radius: 8px 8px 0 0;
+}
+
+.article-body__summary-toggle:hover {
+  background: color-mix(in srgb, var(--color-brand) 8%, transparent);
+  color: var(--color-text-primary);
+}
+
+.article-body__summary-toggle:active {
+  background: color-mix(in srgb, var(--color-brand) 14%, transparent);
+}
+
+.article-body__summary-toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
 }
 
 .article-body__summary-toggle::-webkit-details-marker {
@@ -125,7 +146,11 @@
   content: "\25BE";
   font-size: 1.2em;
   color: var(--color-text-muted);
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.article-body__summary-toggle:hover::after {
+  color: var(--color-brand);
 }
 
 .article-body__summary[open] .article-body__summary-toggle::after {
@@ -262,7 +287,7 @@
   padding: 2rem 1.5rem;
   background: var(--color-surface);
   border-radius: 8px;
-  border-left: 3px solid var(--color-brand);
+  border: 1px solid var(--color-border);
   text-align: center;
   font-size: 0.95rem;
   color: var(--color-text-secondary);
