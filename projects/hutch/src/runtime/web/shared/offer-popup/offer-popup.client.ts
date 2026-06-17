@@ -1,8 +1,8 @@
 import {
 	OFFER_WINDOW_MS,
 	type PopupState,
-	decideVisibility,
 	formatCountdown,
+	isDismissed,
 	parseStoredState,
 	serializeState,
 } from "./offer-popup.logic";
@@ -186,9 +186,7 @@ export function initOfferPopup(deps: OfferPopupDeps): OfferPopupController {
 			return;
 		}
 
-		const decision = decideVisibility({ state: readState(), now });
-		persist(decision.next);
-		if (!decision.show) return;
+		if (isDismissed(readState())) return;
 		open(now + OFFER_WINDOW_MS);
 	}
 

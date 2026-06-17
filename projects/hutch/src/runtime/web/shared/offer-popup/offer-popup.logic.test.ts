@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import {
-	ONE_DAY_MS,
-	decideVisibility,
 	formatCountdown,
+	isDismissed,
 	parseStoredState,
 	serializeState,
 } from "./offer-popup.logic";
@@ -24,18 +23,14 @@ describe("parseStoredState", () => {
 		assert.deepEqual(parseStoredState("42"), {});
 	});
 
-	it("reads all known fields when present and correctly typed", () => {
-		const raw = JSON.stringify({ firstVisitAt: 1000, shownAt: 2000, closed: true });
-		assert.deepEqual(parseStoredState(raw), {
-			firstVisitAt: 1000,
-			shownAt: 2000,
+	it("reads the closed flag when present and correctly typed", () => {
+		assert.deepEqual(parseStoredState(JSON.stringify({ closed: true })), {
 			closed: true,
 		});
 	});
 
-	it("ignores fields with the wrong type", () => {
-		const raw = JSON.stringify({ firstVisitAt: "soon", shownAt: null, closed: "yes" });
-		assert.deepEqual(parseStoredState(raw), {});
+	it("ignores closed when it has the wrong type", () => {
+		assert.deepEqual(parseStoredState(JSON.stringify({ closed: "yes" })), {});
 	});
 
 	it("ignores unknown fields and keeps the empty shape", () => {
@@ -45,48 +40,22 @@ describe("parseStoredState", () => {
 
 describe("serializeState", () => {
 	it("round-trips through parseStoredState", () => {
-		const state = { firstVisitAt: 5, shownAt: 9, closed: false };
+		const state = { closed: true };
 		assert.deepEqual(parseStoredState(serializeState(state)), state);
 	});
 });
 
-describe("decideVisibility", () => {
-	it("never shows on the first visit and records firstVisitAt", () => {
-		const result = decideVisibility({ state: {}, now: 1000 });
-		assert.equal(result.show, false);
-		assert.deepEqual(result.next, { firstVisitAt: 1000 });
+describe("isDismissed", () => {
+	it("is true once the reader has closed the popup", () => {
+		assert.equal(isDismissed({ closed: true }), true);
 	});
 
-	it("does not show when the second visit is less than a day after the first", () => {
-		const firstVisitAt = 1000;
-		const result = decideVisibility({
-			state: { firstVisitAt },
-			now: firstVisitAt + ONE_DAY_MS - 1,
-		});
-		assert.equal(result.show, false);
-		assert.deepEqual(result.next, { firstVisitAt });
+	it("is false for a fresh device with no stored close", () => {
+		assert.equal(isDismissed({}), false);
 	});
 
-	it("shows once on a visit at least a day after the first and records shownAt", () => {
-		const firstVisitAt = 1000;
-		const now = firstVisitAt + ONE_DAY_MS;
-		const result = decideVisibility({ state: { firstVisitAt }, now });
-		assert.equal(result.show, true);
-		assert.deepEqual(result.next, { firstVisitAt, shownAt: now });
-	});
-
-	it("never shows again once it has already been shown", () => {
-		const state = { firstVisitAt: 1000, shownAt: 2000 };
-		const result = decideVisibility({ state, now: 1000 + 5 * ONE_DAY_MS });
-		assert.equal(result.show, false);
-		assert.deepEqual(result.next, state);
-	});
-
-	it("never shows again once the reader has closed it", () => {
-		const state = { firstVisitAt: 1000, closed: true };
-		const result = decideVisibility({ state, now: 1000 + 5 * ONE_DAY_MS });
-		assert.equal(result.show, false);
-		assert.deepEqual(result.next, state);
+	it("is false when closed is explicitly false", () => {
+		assert.equal(isDismissed({ closed: false }), false);
 	});
 });
 
