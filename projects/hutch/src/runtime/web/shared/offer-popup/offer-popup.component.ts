@@ -8,7 +8,7 @@ const TOTAL_SLOTS = 50;
 const CLAIMED_SLOTS = 46;
 const PRICE_USD = 39;
 /** Crossed-out anchor price that frames the one-time fee as a saving. */
-const ANCHOR_PRICE_USD = 3.99;
+const ANCHOR_PRICE_USD = 140;
 const COUNTDOWN_INITIAL = "10:00";
 const CTA_HREF = "/account";
 
