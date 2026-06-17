@@ -36,6 +36,7 @@ function multipartBody(filename: string, content: Buffer): { body: Buffer; conte
 }
 
 const useApp = useTestServer();
+const ONE_DAY_MS = 86_400_000;
 
 describe("Import routes", () => {
 	describe("GET /import (unauthenticated)", () => {
@@ -714,6 +715,39 @@ describe("Import routes", () => {
 			const again = await agent.get("/queue");
 			const docAgain = new JSDOM(again.text).window.document;
 			expect(docAgain.querySelectorAll("[data-test-import-skipped-row]").length).toBe(0);
+		});
+	});
+
+	describe("POST /import/:id/commit write-access gating", () => {
+		it("keeps the upload+review public but redirects the commit to /queue?inactive=1 for a trial-expired account", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "seeded login user must exist");
+			// A trial past its window leaves the account read-only: the commit
+			// (the bulk save) is gated by requireWriteAccess while the upload and
+			// review pages stay public — the read-only mirror of the locked case.
+			await harness.subscriptionProviders.upsertTrialing({
+				userId,
+				trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+			});
+
+			const acquire = await agent.get("/import");
+			expect(acquire.status).toBe(200);
+
+			const create = await agent
+				.post("/import/from-url")
+				.type("form")
+				.send({ url: "https://news.example/issues/7" });
+			expect(create.status).toBe(303);
+			const reviewPath = create.headers.location;
+
+			const review = await agent.get(reviewPath);
+			expect(review.status).toBe(200);
+
+			const commit = await agent.post(`${reviewPath}/commit`).set("Accept", "text/html");
+			expect(commit.status).toBe(303);
+			expect(commit.headers.location).toBe("/queue?inactive=1");
 		});
 	});
 
