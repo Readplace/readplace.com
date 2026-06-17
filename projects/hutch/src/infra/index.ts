@@ -278,6 +278,10 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		NODE_ENV: stage === "production" ? "production" : "development",
 		PERSISTENCE: "prod",
 		APP_ORIGIN: appOrigin,
+		/** Same-origin fragment endpoint served by blog-site behind this same API
+		 * Gateway (/blog/{proxy+} routes there). The banner source is cached and
+		 * fail-open, so the extra gateway hop is fine for a decorative banner. */
+		CHANGELOG_BANNER_URL: pulumi.interpolate`${appOrigin}/blog/changelog-banner`,
 		DYNAMODB_ARTICLES_TABLE: storage.articlesTable.name,
 		DYNAMODB_USER_ARTICLES_TABLE: storage.userArticlesTable.name,
 		DYNAMODB_USERS_TABLE: storage.usersTable.name,

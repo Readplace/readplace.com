@@ -1,11 +1,37 @@
+import express from "express";
+import { type ChangelogBanner, initBase } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { createBlogApp } from "../../../app";
-import { initBlogPosts } from "./blog.posts";
+import { initBlogRoutes } from "./blog.page";
+import { type BlogPosts, initBlogPosts } from "./blog.posts";
 
 const app = createBlogApp({ staticBaseUrl: "", liveReload: false });
 const blogPosts = initBlogPosts();
 const firstPost = blogPosts.getAllPosts()[0];
+
+const FAKE_BANNER: ChangelogBanner = {
+	hook: "I added keyboard shortcuts to the reader",
+	href: "/blog/keyboard-shortcuts?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more",
+	version: "a1b2c3d4",
+};
+
+/** Builds an app whose blog routes are driven by an injected `blogPosts`, so a
+ * test can control the changelog banner independently of the on-disk posts. */
+function appWithChangelogBanner(banner: ChangelogBanner | undefined) {
+	const blogPostsStub: BlogPosts = {
+		getAllPosts: () => [],
+		findPostBySlug: () => undefined,
+		getAllSlugs: () => [],
+		getAllPostMetadata: () => [],
+		getLatestChangelogBanner: () => banner,
+	};
+	const expressApp = express();
+	expressApp.disable("x-powered-by");
+	const base = initBase({ staticBaseUrl: "", liveReload: false });
+	expressApp.use("/blog", initBlogRoutes({ blogPosts: blogPostsStub, base }));
+	return expressApp;
+}
 
 describe("GET /blog", () => {
 	it("should return 200 and HTML content", async () => {
@@ -225,6 +251,95 @@ describe("GET /blog/:slug with Accept: text/markdown", () => {
 			.get(`/blog/${firstPost.slug}`)
 			.set("Accept", "text/markdown");
 		expect(response.text).toContain(firstPost.markdownContent.trim().split("\n")[0]);
+	});
+});
+
+describe("GET /blog/changelog-banner", () => {
+	it("returns 200 with a parseable fragment when a changelog banner exists", async () => {
+		const response = await request(appWithChangelogBanner(FAKE_BANNER)).get(
+			"/blog/changelog-banner",
+		);
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toMatch(/text\/html/);
+		const root = new JSDOM(response.text).window.document.querySelector("[data-changelog-version]");
+		expect(root?.getAttribute("data-changelog-version")).toBe(FAKE_BANNER.version);
+		expect(root?.querySelector("a")?.getAttribute("href")).toBe(FAKE_BANNER.href);
+	});
+
+	it("returns 204 with no body when there is nothing to announce", async () => {
+		const response = await request(appWithChangelogBanner(undefined)).get(
+			"/blog/changelog-banner",
+		);
+		expect(response.status).toBe(204);
+		expect(response.text).toBe("");
+	});
+
+	it("is matched as the fragment endpoint, not as a post slug", async () => {
+		const response = await request(appWithChangelogBanner(FAKE_BANNER)).get(
+			"/blog/changelog-banner",
+		);
+		// A 404 would mean it fell through to the /:slug handler (NotFoundPage).
+		expect(response.status).toBe(200);
+	});
+});
+
+describe("changelog banner on /blog pages", () => {
+	it("renders the visible banner on the index when one exists and is not dismissed", async () => {
+		const response = await request(appWithChangelogBanner(FAKE_BANNER)).get("/blog");
+		const banner = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-changelog-banner]",
+		);
+		expect(banner?.classList.contains("changelog-banner--visible")).toBe(true);
+		expect(banner?.querySelector(".changelog-banner__hook")?.textContent).toBe(FAKE_BANNER.hook);
+	});
+
+	it("renders the hidden shell on the index when there is nothing to announce", async () => {
+		const response = await request(appWithChangelogBanner(undefined)).get("/blog");
+		const banner = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-changelog-banner]",
+		);
+		expect(banner?.classList.contains("changelog-banner--hidden")).toBe(true);
+	});
+
+	it("hides the banner when the dismissal cookie matches the banner version", async () => {
+		const response = await request(appWithChangelogBanner(FAKE_BANNER))
+			.get("/blog")
+			.set("Cookie", `rp_changelog_dismissed=${FAKE_BANNER.version}`);
+		const banner = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-changelog-banner]",
+		);
+		expect(banner?.classList.contains("changelog-banner--hidden")).toBe(true);
+	});
+
+	it("keeps showing the banner when the dismissal cookie is for a different version", async () => {
+		const response = await request(appWithChangelogBanner(FAKE_BANNER))
+			.get("/blog")
+			.set("Cookie", "rp_changelog_dismissed=00000000");
+		const banner = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-changelog-banner]",
+		);
+		expect(banner?.classList.contains("changelog-banner--visible")).toBe(true);
+	});
+
+	it("renders the banner on a post page too (same shell, every page)", async () => {
+		const slug = firstPost.slug;
+		const blogPostsStub: BlogPosts = {
+			getAllPosts: () => [firstPost],
+			findPostBySlug: (s) => (s === slug ? firstPost : undefined),
+			getAllSlugs: () => [slug],
+			getAllPostMetadata: () => [{ slug, date: firstPost.date }],
+			getLatestChangelogBanner: () => FAKE_BANNER,
+		};
+		const expressApp = express();
+		expressApp.disable("x-powered-by");
+		const base = initBase({ staticBaseUrl: "", liveReload: false });
+		expressApp.use("/blog", initBlogRoutes({ blogPosts: blogPostsStub, base }));
+
+		const response = await request(expressApp).get(`/blog/${slug}`);
+		const banner = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-changelog-banner]",
+		);
+		expect(banner?.classList.contains("changelog-banner--visible")).toBe(true);
 	});
 });
 

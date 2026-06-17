@@ -1,26 +1,93 @@
 import assert from "node:assert";
+import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, basename } from "node:path";
 import { z } from "zod";
+import { type ChangelogBanner, withInternalTracking } from "@packages/web-shell";
 import matter from "gray-matter";
 import MarkdownIt from "markdown-it";
 
 const md = new MarkdownIt({ html: true });
 
-const BlogFrontmatter = z.object({
-	title: z.string(),
-	description: z.string(),
-	slug: z.string(),
-	date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-	author: z.string(),
-	keywords: z.string().optional(),
-});
+/** The tag that opts a post into the site-wide changelog banner. The newest
+ * post carrying it drives the banner; the schema below requires such a post to
+ * also supply `banner:` copy. */
+const CHANGELOG_TAG = "changelog";
 
-export type BlogPost = z.infer<typeof BlogFrontmatter> & {
+const BlogFrontmatter = z
+	.object({
+		title: z.string(),
+		description: z.string(),
+		slug: z.string(),
+		date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+		author: z.string(),
+		keywords: z.string().optional(),
+		tags: z.array(z.string()).default([]),
+		/** One-line hook shown in the site-wide banner. Required for a post tagged
+		 * `changelog` (see refine) and ignored otherwise. */
+		banner: z.string().optional(),
+	})
+	.refine(
+		(value) => {
+			if (!value.tags.includes(CHANGELOG_TAG)) return true;
+			return value.banner !== undefined;
+		},
+		{
+			message: 'A post tagged "changelog" must include a `banner:` one-liner for the site-wide banner.',
+			path: ["banner"],
+		},
+	);
+
+type BlogFrontmatterData = z.infer<typeof BlogFrontmatter>;
+
+export type BlogPost = BlogFrontmatterData & {
 	htmlContent: string;
 	markdownContent: string;
 	formattedDate: string;
 };
+
+/** Parses and validates one post's frontmatter, asserting the slug matches the
+ * filename. Extracted (and exported) as a pure function so the schema rules —
+ * the `tags` default, the changelog⇒banner requirement, and the slug invariant —
+ * are covered without reading the posts directory. */
+export function parseBlogFrontmatter(data: unknown, file: string): BlogFrontmatterData {
+	const frontmatter = BlogFrontmatter.parse(data);
+	const expectedSlug = basename(file, ".md");
+	assert(
+		frontmatter.slug === expectedSlug,
+		`Slug "${frontmatter.slug}" in ${file} does not match filename "${expectedSlug}"`,
+	);
+	return frontmatter;
+}
+
+/** What `deriveChangelogBanner` needs from a post — a structural subset of
+ * BlogPost so the derivation is testable without constructing full posts. */
+interface ChangelogCandidate {
+	slug: string;
+	tags: string[];
+	banner?: string;
+}
+
+/** Builds the banner from the newest changelog-tagged post (posts arrive sorted
+ * newest-first). The version is sha256("slug|banner")[:8] so any change to the
+ * slug or the copy yields a new version and the banner reappears; the href is
+ * UTM-tagged here, at the single producer, so hutch echoes it without re-tagging. */
+export function deriveChangelogBanner(
+	posts: readonly ChangelogCandidate[],
+): ChangelogBanner | undefined {
+	const latest = posts.find((post) => post.tags.includes(CHANGELOG_TAG));
+	if (!latest) return undefined;
+	assert(latest.banner !== undefined, "a changelog-tagged post must carry a banner (enforced at load)");
+	const version = createHash("sha256")
+		.update(`${latest.slug}|${latest.banner}`)
+		.digest("hex")
+		.slice(0, 8);
+	const href = withInternalTracking(`/blog/${latest.slug}`, {
+		source: "changelog-banner",
+		content: "read-more",
+	});
+	return { hook: latest.banner, href, version };
+}
 
 function formatDate(isoDate: string): string {
 	const date = new Date(`${isoDate}T00:00:00Z`);
@@ -37,6 +104,7 @@ export interface BlogPosts {
 	findPostBySlug: (slug: string) => BlogPost | undefined;
 	getAllSlugs: () => string[];
 	getAllPostMetadata: () => { slug: string; date: string }[];
+	getLatestChangelogBanner: () => ChangelogBanner | undefined;
 }
 
 export function initBlogPosts(): BlogPosts {
@@ -47,13 +115,7 @@ export function initBlogPosts(): BlogPosts {
 		.map((file) => {
 			const raw = readFileSync(join(postsDir, file), "utf-8");
 			const { data, content } = matter(raw);
-			const frontmatter = BlogFrontmatter.parse(data);
-
-			const expectedSlug = basename(file, ".md");
-			assert(
-				frontmatter.slug === expectedSlug,
-				`Slug "${frontmatter.slug}" in ${file} does not match filename "${expectedSlug}"`,
-			);
+			const frontmatter = parseBlogFrontmatter(data, file);
 
 			return {
 				...frontmatter,
@@ -72,5 +134,6 @@ export function initBlogPosts(): BlogPosts {
 		findPostBySlug: (slug) => posts.find((p) => p.slug === slug),
 		getAllSlugs: () => posts.map((p) => p.slug),
 		getAllPostMetadata: () => posts.map((p) => ({ slug: p.slug, date: p.date })),
+		getLatestChangelogBanner: () => deriveChangelogBanner(posts),
 	};
 }

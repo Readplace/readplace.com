@@ -235,6 +235,38 @@ describe("Base component", () => {
 		expect(script.hasAttribute("defer")).toBe(true);
 	});
 
+	it("renders the changelog banner hidden by default (no announcement in state)", () => {
+		const page = createTestPageBody();
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const banner = doc.querySelector("[data-test-changelog-banner]");
+		assert(banner, "changelog banner element must always be in the DOM");
+		expect(banner.classList.contains("changelog-banner--hidden")).toBe(true);
+	});
+
+	it("renders the changelog banner visible inside the banner area when state carries an announcement", () => {
+		const page = createTestPageBody();
+		const result = Base(page, {
+			...GUEST_STATE,
+			changelogBanner: {
+				hook: "I added keyboard shortcuts to the reader",
+				href: "/blog/keyboard-shortcuts?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more",
+				version: "a1b2c3d4",
+			},
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const bannerArea = doc.querySelector(".banner-area");
+		assert(bannerArea, "banner area must be rendered");
+		const banner = bannerArea.querySelector("[data-test-changelog-banner]");
+		assert(banner, "changelog banner must render inside the banner area");
+		expect(banner.classList.contains("changelog-banner--visible")).toBe(true);
+		expect(banner.querySelector(".changelog-banner__hook")?.textContent).toBe(
+			"I added keyboard shortcuts to the reader",
+		);
+	});
+
 	it("should set meta description from seo", () => {
 		const page = createTestPageBody({ seo: { title: "T", description: "My desc", canonicalUrl: "https://readplace.com" } });
 		const result = Base(page, GUEST_STATE).to("text/html");

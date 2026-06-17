@@ -153,6 +153,7 @@ function flattenFixtureToAppDependencies(
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,
 		importSessionStore: fixture.importSession.importSessionStore,
 		extractLinksFromPageUrl: fixture.importSession.extractLinksFromPageUrl,
+		getChangelogBanner: async () => undefined,
 		now: fixture.shared.now,
 		retrieveCheckoutSession: fixture.stripe.retrieveCheckoutSession,
 		createCheckoutSession: fixture.stripe.createCheckoutSession,

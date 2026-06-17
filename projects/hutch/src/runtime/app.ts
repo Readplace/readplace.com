@@ -90,6 +90,7 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initLogParseError, type ParseErrorEvent } from "@packages/hutch-infra-components";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
 import { createApp } from "./server";
+import { initChangelogBannerSource } from "./web/changelog-banner-source";
 import type { BotDefenseEvent } from "./web/auth/auth.page";
 import type { ConversionEvent } from "./conversions";
 import type { AnalyticsEvent } from "./web/middleware/analytics";
@@ -492,6 +493,18 @@ export function createHutchApp(deps?: {
 	const salt = requireEnv("ANALYTICS_SALT");
 	const analyticsLogger = HutchLogger.fromJSON<AnalyticsEvent>();
 
+	// Decorative, cached, fail-open source for the site-wide changelog banner.
+	// Points at blog-site's fragment endpoint via hutch's own API Gateway (set in
+	// infra); a slow or down source never blocks a page render.
+	const { getChangelogBanner } = initChangelogBannerSource({
+		fetch: globalThis.fetch,
+		sourceUrl: requireEnv("CHANGELOG_BANNER_URL"),
+		now: () => Date.now(),
+		ttlMs: 300_000,
+		timeoutMs: 800,
+		logger: HutchLogger.from(consoleLogger),
+	});
+
 	const { logParseError } = initLogParseError({
 		logger: HutchLogger.fromJSON<ParseErrorEvent>(),
 		now: () => new Date(),
@@ -515,6 +528,7 @@ export function createHutchApp(deps?: {
 		httpErrorMessageMapping,
 		logParseError,
 		importSessionStore,
+		getChangelogBanner,
 		now: () => new Date(),
 		botDefenseLogger: HutchLogger.fromJSON<BotDefenseEvent>(),
 		conversionLogger: HutchLogger.fromJSON<ConversionEvent>(),

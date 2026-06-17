@@ -1,5 +1,13 @@
 import express, { type Request, type Response, type Router } from "express";
-import { type BannerState, type RenderBase, sendComponent } from "@packages/web-shell";
+import {
+	type BannerState,
+	CHANGELOG_DISMISS_COOKIE_NAME,
+	type ChangelogBanner,
+	readCookie,
+	type RenderBase,
+	renderChangelogBannerFragment,
+	sendComponent,
+} from "@packages/web-shell";
 import { BlogIndexPage } from "./blog-index.component";
 import { BlogPostPage } from "./blog-post.component";
 import { NotFoundPage } from "../not-found";
@@ -11,6 +19,19 @@ const CANONICAL_ORIGIN = "https://readplace.com";
  * state. Every page renders the guest header; a logged-in reader sees the
  * guest nav on /blog (the session cookie is never read here). */
 const GUEST_STATE: BannerState = { isAuthenticated: false, emailVerified: undefined };
+
+/** Suppresses the banner when the reader's dismissal cookie matches its version.
+ * Read straight off the raw Cookie header — blog-site takes no cookie-parser
+ * dependency — and compared byte-for-byte against the version blog-site itself
+ * produced, so a dismissal on the app also hides it here (shared cookie). */
+function hideIfDismissed(
+	banner: ChangelogBanner | undefined,
+	req: Request,
+): ChangelogBanner | undefined {
+	if (!banner) return undefined;
+	const dismissed = readCookie(req.headers.cookie, CHANGELOG_DISMISS_COOKIE_NAME);
+	return dismissed === banner.version ? undefined : banner;
+}
 
 const SLUG_REDIRECTS: Record<string, string> = {
 	"hutch-vs-readwise-reader": "readplace-vs-readwise-reader",
@@ -59,9 +80,23 @@ export function initBlogRoutes(deps: { blogPosts: BlogPosts; base: RenderBase })
 		res.type("application/xml").send(renderSitemap(blogPosts));
 	});
 
+	/** The HTML contract hutch fetches to render the site-wide banner on its own
+	 * pages. 200 carries the parseable fragment (with the version blog-site
+	 * computed); 204 means there is nothing to announce. Registered before
+	 * `/:slug` so "changelog-banner" is never matched as a post slug. */
+	router.get("/changelog-banner", (_req: Request, res: Response) => {
+		const banner = blogPosts.getLatestChangelogBanner();
+		if (!banner) {
+			res.status(204).end();
+			return;
+		}
+		res.type("html").send(renderChangelogBannerFragment(banner));
+	});
+
 	router.get("/", (req: Request, res: Response) => {
 		const posts = blogPosts.getAllPosts();
-		sendComponent(req, res, base(BlogIndexPage({ posts }), GUEST_STATE));
+		const changelogBanner = hideIfDismissed(blogPosts.getLatestChangelogBanner(), req);
+		sendComponent(req, res, base(BlogIndexPage({ posts }), { ...GUEST_STATE, changelogBanner }));
 	});
 
 	router.get("/:slug", (req: Request<{ slug: string }>, res: Response) => {
@@ -71,11 +106,12 @@ export function initBlogRoutes(deps: { blogPosts: BlogPosts; base: RenderBase })
 			return;
 		}
 		const post = blogPosts.findPostBySlug(req.params.slug);
+		const changelogBanner = hideIfDismissed(blogPosts.getLatestChangelogBanner(), req);
 		if (!post) {
-			sendComponent(req, res, base(NotFoundPage(), GUEST_STATE));
+			sendComponent(req, res, base(NotFoundPage(), { ...GUEST_STATE, changelogBanner }));
 			return;
 		}
-		sendComponent(req, res, base(BlogPostPage({ post }), GUEST_STATE));
+		sendComponent(req, res, base(BlogPostPage({ post }), { ...GUEST_STATE, changelogBanner }));
 	});
 
 	return router;

@@ -134,6 +134,9 @@ import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middl
 import { initOAuthRoutes } from "./web/oauth/oauth.routes";
 import { Base } from "./web/base.component";
 import { initBuildBannerState } from "./web/banner-state";
+import type { GetChangelogBanner } from "./web/changelog-banner-source";
+import { changelogDismissMiddleware } from "./web/changelog-dismiss.middleware";
+import { initChangelogDismissRoute } from "./web/pages/banner/changelog-dismiss.route";
 import { sendComponent, wantsMarkdown } from "@packages/web-shell";
 import { wantsSiren } from "./web/content-negotiation";
 import { CONTENT_SIGNAL_VALUE, contentSignalMiddleware } from "./web/content-signal.middleware";
@@ -226,6 +229,7 @@ interface AppDependencies {
 	logParseError: LogParseError;
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
+	getChangelogBanner: GetChangelogBanner;
 	now: () => Date;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
 	createCheckoutSession: CreateCheckoutSession;
@@ -347,6 +351,7 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	app.use(express.urlencoded({ extended: true }));
 	app.use(cookieParser());
+	app.use(changelogDismissMiddleware);
 	app.use(createVisitorIdMiddleware({ generateVisitorId: randomUUID, secure: secureCookies }));
 	app.use(createClickAttributionMiddleware({ now: dependencies.now, secure: secureCookies }));
 
@@ -389,6 +394,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	const requireWriteAccess = initRequireWriteAccess({ getEffectiveAccess });
 	const buildBannerState = initBuildBannerState({
 		getEffectiveAccess,
+		getChangelogBanner: deps.getChangelogBanner,
 		now: deps.now,
 	});
 
@@ -661,6 +667,10 @@ export function createApp(dependencies: AppDependencies): Express {
 	}
 
 	app.use(initInstallRoutes({ buildBannerState }));
+
+	/** Same-origin dismissal endpoint for the site-wide changelog banner; served
+	 * here on $default even when the close button is clicked on a /blog page. */
+	app.use(initChangelogDismissRoute({ appOrigin, secureCookies }));
 
 	const authRouter = initAuthRoutes({
 		hashPassword: deps.hashPassword,

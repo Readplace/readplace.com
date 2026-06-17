@@ -1,6 +1,15 @@
-import { initBlogPosts } from "./blog.posts";
+import { createHash } from "node:crypto";
+import { deriveChangelogBanner, initBlogPosts, parseBlogFrontmatter } from "./blog.posts";
 
 const blogPosts = initBlogPosts();
+
+const VALID_FRONTMATTER = {
+	title: "A Post",
+	description: "About something",
+	slug: "a-post",
+	date: "2026-01-02",
+	author: "Fagner",
+};
 
 describe("blog posts", () => {
 	const posts = blogPosts.getAllPosts();
@@ -75,5 +84,77 @@ describe("getAllSlugs", () => {
 		const slugs = blogPosts.getAllSlugs();
 		const posts = blogPosts.getAllPosts();
 		expect(slugs).toEqual(posts.map((p) => p.slug));
+	});
+});
+
+describe("parseBlogFrontmatter", () => {
+	it("defaults tags to an empty array when omitted", () => {
+		const parsed = parseBlogFrontmatter(VALID_FRONTMATTER, "a-post.md");
+		expect(parsed.tags).toEqual([]);
+	});
+
+	it("accepts a changelog-tagged post that carries banner copy", () => {
+		const parsed = parseBlogFrontmatter(
+			{ ...VALID_FRONTMATTER, tags: ["changelog"], banner: "I shipped a thing" },
+			"a-post.md",
+		);
+		expect(parsed.tags).toEqual(["changelog"]);
+		expect(parsed.banner).toBe("I shipped a thing");
+	});
+
+	it("rejects a changelog-tagged post with no banner copy", () => {
+		expect(() =>
+			parseBlogFrontmatter({ ...VALID_FRONTMATTER, tags: ["changelog"] }, "a-post.md"),
+		).toThrow(/must include a `banner:`/);
+	});
+
+	it("rejects a post whose slug does not match its filename", () => {
+		expect(() => parseBlogFrontmatter(VALID_FRONTMATTER, "different-name.md")).toThrow(
+			/does not match filename/,
+		);
+	});
+});
+
+describe("deriveChangelogBanner", () => {
+	function expectedVersion(slug: string, banner: string): string {
+		return createHash("sha256").update(`${slug}|${banner}`).digest("hex").slice(0, 8);
+	}
+
+	it("returns undefined when no post is tagged changelog", () => {
+		expect(
+			deriveChangelogBanner([
+				{ slug: "a", tags: [], banner: undefined },
+				{ slug: "b", tags: ["news"], banner: undefined },
+			]),
+		).toBeUndefined();
+	});
+
+	it("builds the banner from the newest changelog post (first in the sorted list)", () => {
+		const banner = deriveChangelogBanner([
+			{ slug: "newer", tags: ["changelog"], banner: "The newest change" },
+			{ slug: "older", tags: ["changelog"], banner: "An older change" },
+		]);
+		expect(banner).toEqual({
+			hook: "The newest change",
+			href: "/blog/newer?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more",
+			version: expectedVersion("newer", "The newest change"),
+		});
+	});
+
+	it("changes the version when the banner copy changes (so the banner reappears)", () => {
+		const a = deriveChangelogBanner([{ slug: "s", tags: ["changelog"], banner: "First copy" }]);
+		const b = deriveChangelogBanner([{ slug: "s", tags: ["changelog"], banner: "Second copy" }]);
+		expect(a?.version).not.toBe(b?.version);
+	});
+});
+
+describe("getLatestChangelogBanner", () => {
+	it("returns either undefined or a well-formed banner for the on-disk posts", () => {
+		const banner = blogPosts.getLatestChangelogBanner();
+		if (banner !== undefined) {
+			expect(banner.version).toMatch(/^[0-9a-f]{8}$/);
+			expect(banner.href.startsWith("/blog/")).toBe(true);
+			expect(banner.hook.length).toBeGreaterThan(0);
+		}
 	});
 });

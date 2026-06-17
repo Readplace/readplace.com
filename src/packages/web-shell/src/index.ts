@@ -32,6 +32,14 @@ export type {
 	NavItem,
 	NavItemKey,
 } from "./banner-state";
+export {
+	CHANGELOG_DISMISS_COOKIE_NAME,
+	parseChangelogBannerFragment,
+	readCookie,
+	renderChangelogBannerFragment,
+	renderChangelogBannerShell,
+} from "./changelog-banner";
+export type { ChangelogBanner } from "./changelog-banner";
 export { Nav } from "./nav.component";
 export type { NavProps } from "./nav.component";
 export { initBase } from "./base.component";
