@@ -128,13 +128,17 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 	async function saveUrlsInBatches(urls: string[]): Promise<BulkSaveResult> {
 		const summary: BulkSaveResult = { saved: 0, skipped: 0, failed: 0, skippedUrls: [] };
 		for (let i = 0; i < urls.length; i += BULK_SAVE_BATCH_SIZE) {
-			const batch = await readingList.saveUrls({
-				urls: urls.slice(i, i + BULK_SAVE_BATCH_SIZE),
-			});
-			summary.saved += batch.saved;
-			summary.skipped += batch.skipped;
-			summary.failed += batch.failed;
-			summary.skippedUrls.push(...batch.skippedUrls);
+			const batch = urls.slice(i, i + BULK_SAVE_BATCH_SIZE);
+			try {
+				const result = await readingList.saveUrls({ urls: batch });
+				summary.saved += result.saved;
+				summary.skipped += result.skipped;
+				summary.failed += result.failed;
+				summary.skippedUrls.push(...result.skippedUrls);
+			} catch (err) {
+				if (err instanceof UnauthorizedError) throw err;
+				summary.failed += batch.length;
+			}
 		}
 		return summary;
 	}

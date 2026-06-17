@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemoryAuth } from "./auth/in-memory-auth";
+import { UnauthorizedError } from "./auth/unauthorized-error";
 import { BrowserExtensionCore, BULK_SAVE_BATCH_SIZE } from "./core";
 import type { CoreError, ReadingList } from "./core";
 import { initInMemoryReadingList } from "./reading-list/in-memory-reading-list";
@@ -77,7 +78,10 @@ function createFakeShell(
 type SaveArgs = { url: string; title: string; content?: { bytes: ArrayBuffer; mediaType: string } };
 
 function createRecordingReadingList(
-	options: { saveResult?: SaveUrlResult } = {},
+	options: {
+		saveResult?: SaveUrlResult;
+		failSaveUrlsOnCall?: { call: number; error: Error };
+	} = {},
 ): ReadingList & { saveCalls: SaveArgs[]; saveUrlsCalls: { urls: string[] }[] } {
 	const inner = initInMemoryReadingList();
 	const saveCalls: SaveArgs[] = [];
@@ -89,6 +93,12 @@ function createRecordingReadingList(
 	};
 	const saveUrls: SaveUrls = async (params) => {
 		saveUrlsCalls.push(params);
+		if (
+			options.failSaveUrlsOnCall &&
+			saveUrlsCalls.length === options.failSaveUrlsOnCall.call
+		) {
+			throw options.failSaveUrlsOnCall.error;
+		}
 		return inner.saveUrls(params);
 	};
 	return {
@@ -892,6 +902,69 @@ describe("BrowserExtensionCore saveAll", () => {
 		expect(result.saved).toBe(BULK_SAVE_BATCH_SIZE * 2 + 1);
 		expect(result.skipped).toBe(0);
 		expect(result.failed).toBe(0);
+	});
+
+	it("folds a failing chunk into the failed count and keeps saving the remaining chunks", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList({
+			failSaveUrlsOnCall: { call: 2, error: new Error("network blip") },
+		});
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const urls = Array.from(
+			{ length: BULK_SAVE_BATCH_SIZE * 2 + 50 },
+			(_v, i) => `https://example.com/${i}`,
+		);
+
+		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
+			core.once("saved-all-tabs", { success: resolve, failure: reject });
+			core.saveAll("tabs", { urls });
+		});
+
+		expect(readingList.saveUrlsCalls.map((c) => c.urls.length)).toEqual([
+			BULK_SAVE_BATCH_SIZE,
+			BULK_SAVE_BATCH_SIZE,
+			50,
+		]);
+		expect(result.saved).toBe(BULK_SAVE_BATCH_SIZE + 50);
+		expect(result.failed).toBe(BULK_SAVE_BATCH_SIZE);
+		expect(result.skipped).toBe(0);
+	});
+
+	it("logs the user out when a chunk fails with a 401 instead of folding it into failed", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList({
+			failSaveUrlsOnCall: { call: 2, error: new UnauthorizedError() },
+		});
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const urls = Array.from(
+			{ length: BULK_SAVE_BATCH_SIZE + 50 },
+			(_v, i) => `https://example.com/${i}`,
+		);
+
+		const error = await new Promise<CoreError>((resolve) => {
+			core.once("saved-all-tabs", {
+				success: () =>
+					resolve({ reason: "error", error: new Error("unexpected success") }),
+				failure: resolve,
+			});
+			core.saveAll("tabs", { urls });
+		});
+
+		expect(error).toEqual({ reason: "not-logged-in" });
 	});
 
 	it("aggregates skipped urls reported by the reading list", async () => {
