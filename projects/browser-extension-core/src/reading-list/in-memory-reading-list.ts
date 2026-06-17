@@ -7,6 +7,7 @@ import type {
 	GetAllItems,
 	InvokeAction,
 	SaveUrl,
+	SaveUrls,
 } from "./reading-list.types";
 
 export function initInMemoryReadingList(): {
@@ -14,6 +15,7 @@ export function initInMemoryReadingList(): {
 	invokeAction: InvokeAction;
 	findByUrl: FindByUrl;
 	getAllItems: GetAllItems;
+	saveUrls: SaveUrls;
 } {
 	const items = new Map<ReadingListItemId, ReadingListItem>();
 
@@ -71,10 +73,25 @@ export function initInMemoryReadingList(): {
 		return Array.from(items.values());
 	};
 
+	const saveUrls: SaveUrls = async ({ urls }) => {
+		let saved = 0;
+		const skippedUrls: { url: string; code: string }[] = [];
+		for (const url of urls) {
+			const result = await saveUrl({ url, title: url });
+			if (result.ok) {
+				saved += 1;
+			} else {
+				skippedUrls.push({ url, code: "already-saved" });
+			}
+		}
+		return { saved, skipped: skippedUrls.length, failed: 0, skippedUrls };
+	};
+
 	return {
 		saveUrl,
 		invokeAction,
 		findByUrl,
 		getAllItems,
+		saveUrls,
 	};
 }

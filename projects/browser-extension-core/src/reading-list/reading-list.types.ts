@@ -71,3 +71,12 @@ export type FindByUrl = (
 ) => Promise<ReadingListItem | null>;
 
 export type GetAllItems = () => Promise<ReadingListItem[]>;
+
+export type BulkSaveResult = {
+	saved: number;
+	skipped: number;
+	failed: number;
+	skippedUrls: { url: string; code: string }[];
+};
+
+export type SaveUrls = (params: { urls: string[] }) => Promise<BulkSaveResult>;

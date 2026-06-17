@@ -1,13 +1,13 @@
 import type { ReadingListItem, ReadingListItemId } from "./domain/reading-list-item.types";
 import type { Auth, GuardedResult } from "./auth/auth.types";
-import type { SaveUrlResult, InvokeActionResult, SaveUrl, InvokeAction, FindByUrl, GetAllItems } from "./reading-list/reading-list.types";
+import type { SaveUrlResult, InvokeActionResult, SaveUrl, InvokeAction, FindByUrl, GetAllItems, SaveUrls, BulkSaveResult } from "./reading-list/reading-list.types";
 import type { BrowserShell } from "./shell.types";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { createEventBus } from "./event-bus";
 import { UnauthorizedError } from "./auth/unauthorized-error";
 import { initSaveCurrentTab } from "./save-current-tab";
 import { initIconStatus } from "./icon-status";
-import { initGetContextMenuTarget } from "./get-context-menu-target";
+import { initGetContextMenuTarget, MENU_ITEM_SAVE_ALL_TABS } from "./get-context-menu-target";
 import { initGetShortcutTarget } from "./handle-shortcut-command";
 
 export interface ReadingList {
@@ -15,6 +15,7 @@ export interface ReadingList {
 	invokeAction: InvokeAction;
 	findByUrl: FindByUrl;
 	getAllItems: GetAllItems;
+	saveUrls: SaveUrls;
 }
 
 export type ResultCallbacks<T> = {
@@ -38,6 +39,7 @@ export interface Core {
 	invoke(resource: "item-action", data: { id: ReadingListItemId; name: string }): void;
 	fetch(resource: "reading-list"): void;
 	check(resource: "url", data: { url: string }): void;
+	saveAll(resource: "tabs", data: { urls: string[] }): void;
 
 	on(event: "pre-init", handler: () => void): void;
 	on(event: "post-init", handler: () => void): void;
@@ -47,12 +49,14 @@ export interface Core {
 	on(event: "invoked-item-action", handler: ResultCallbacks<InvokeActionResult>): void;
 	on(event: "fetched-reading-list", handler: ResultCallbacks<ReadingListItem[]>): void;
 	on(event: "checked-url", handler: ResultCallbacks<ReadingListItem | null>): void;
+	on(event: "saved-all-tabs", handler: ResultCallbacks<BulkSaveResult>): void;
 
 	once(event: "logged-in", handler: ResultCallbacks<void>): void;
 	once(event: "saved-current-tab", handler: ResultCallbacks<SaveUrlResult>): void;
 	once(event: "invoked-item-action", handler: ResultCallbacks<InvokeActionResult>): void;
 	once(event: "fetched-reading-list", handler: ResultCallbacks<ReadingListItem[]>): void;
 	once(event: "checked-url", handler: ResultCallbacks<ReadingListItem | null>): void;
+	once(event: "saved-all-tabs", handler: ResultCallbacks<BulkSaveResult>): void;
 }
 
 export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; logger: HutchLogger; readingList: ReadingList }): Core {
@@ -119,10 +123,16 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 			eventBus.emit("pre-init");
 
 			shell.onContextMenuClicked((info, tab) => {
+				if (info.menuItemId === MENU_ITEM_SAVE_ALL_TABS) {
+					shell.openSaveAllTabsPopup();
+					return;
+				}
 				const target = getContextMenuTarget(info, tab);
 				if (!target) return;
 				shell.openPopup({ url: target.url, title: target.title });
 			});
+
+			shell.onSaveAllTabsShortcut(() => shell.openSaveAllTabsPopup());
 
 			shell.onShortcutPressed(() => {
 				getShortcutTarget()
@@ -206,6 +216,11 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 		check(_resource, data) {
 			const guarded = auth.whenLoggedIn(() => readingList.findByUrl(data.url));
 			emitResult("checked-url", guarded);
+		},
+
+		saveAll(_resource, data) {
+			const guarded = auth.whenLoggedIn(() => readingList.saveUrls({ urls: data.urls }));
+			emitResult("saved-all-tabs", guarded);
 		},
 
 		// biome-ignore lint/suspicious/noExplicitAny: implementation signature must accept all overloaded handler shapes

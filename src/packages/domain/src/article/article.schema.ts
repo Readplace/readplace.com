@@ -4,6 +4,17 @@ export const SaveArticleInputSchema = z.object({
 	url: z.url({ message: "Please enter a valid URL" }),
 });
 
+export const MAX_URLS_PER_BULK_SAVE = 500;
+
+export const BULK_SAVE_CONCURRENCY = 25;
+
+/** `urls` are plain strings, not `z.url()`: each URL is classified per-entry by
+ * `validateSaveableUrl` in the route so an unsupported scheme (chrome://, file:)
+ * is reported as skipped rather than failing the whole batch with a 422. */
+export const SaveArticlesInputSchema = z.object({
+	urls: z.array(z.string()).min(1).max(MAX_URLS_PER_BULK_SAVE),
+});
+
 export const MAX_RAW_HTML_BYTES = 10 * 1024 * 1024;
 
 /* Body-parser limit is slightly above MAX_RAW_HTML_BYTES so the rawHtml size

@@ -241,6 +241,23 @@ describe("toArticleCollectionEntity", () => {
 		});
 	});
 
+	it("includes save-articles bulk action", () => {
+		const result: FindArticlesResult = {
+			articles: [],
+			total: 0,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, {});
+
+		const saveArticlesAction = entity.actions?.find((a) => a.name === "save-articles");
+		expect(saveArticlesAction?.href).toBe("/queue/save-articles");
+		expect(saveArticlesAction?.method).toBe("POST");
+		expect(saveArticlesAction?.type).toBe("application/json");
+		expect(saveArticlesAction?.fields?.map((f) => f.name)).toEqual(["urls"]);
+	});
+
 	it("includes search action with filter fields", () => {
 		const result: FindArticlesResult = {
 			articles: [],

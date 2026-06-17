@@ -6,6 +6,7 @@ export type PopupMessage =
 	| { type: "save-progress"; phase: SavePhase }
 	| { type: "invoke-action"; id: ReadingListItemId; name: string }
 	| { type: "check-url"; url: string }
+	| { type: "save-all-tabs"; urls: string[] }
 	| { type: "get-all-items" }
 	| { type: "login" }
 	| { type: "logout" };

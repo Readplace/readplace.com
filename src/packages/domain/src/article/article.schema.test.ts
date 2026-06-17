@@ -1,5 +1,7 @@
 import {
 	SaveArticleInputSchema,
+	SaveArticlesInputSchema,
+	MAX_URLS_PER_BULK_SAVE,
 	SaveHtmlInputSchema,
 	ArticleStatusSchema,
 	MinutesSchema,
@@ -20,6 +22,33 @@ describe("SaveArticleInputSchema", () => {
 
 	it("rejects an invalid URL string", () => {
 		const result = SaveArticleInputSchema.safeParse({ url: "not-a-url" });
+
+		expect(result.success).toBe(false);
+	});
+});
+
+describe("SaveArticlesInputSchema", () => {
+	it("accepts an array of url strings", () => {
+		const result = SaveArticlesInputSchema.safeParse({
+			urls: ["https://example.com/a", "https://example.com/b"],
+		});
+
+		expect(result.success).toBe(true);
+	});
+
+	it("rejects an empty array", () => {
+		const result = SaveArticlesInputSchema.safeParse({ urls: [] });
+
+		expect(result.success).toBe(false);
+	});
+
+	it("rejects more urls than MAX_URLS_PER_BULK_SAVE", () => {
+		const urls = Array.from(
+			{ length: MAX_URLS_PER_BULK_SAVE + 1 },
+			(_v, i) => `https://example.com/${i}`,
+		);
+
+		const result = SaveArticlesInputSchema.safeParse({ urls });
 
 		expect(result.success).toBe(false);
 	});

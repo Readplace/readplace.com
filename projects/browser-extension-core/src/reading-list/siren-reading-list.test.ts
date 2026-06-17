@@ -6,6 +6,7 @@ import {
 	initSirenReadingList,
 	initExtension,
 	initSaveArticleUnderstanding,
+	initSaveArticlesUnderstanding,
 	initSaveHtmlUnderstanding,
 	initSaveContentUnderstanding,
 	initDeleteArticleUnderstanding,
@@ -2030,6 +2031,192 @@ describe("save-content action", () => {
 	});
 });
 
+describe("save-articles action", () => {
+	const COLLECTION_ACTIONS_WITH_SAVE_ARTICLES = [
+		COLLECTION_ACTIONS[0],
+		{
+			name: "save-articles",
+			href: "/queue/save-articles",
+			method: "POST",
+			type: "application/json",
+			fields: [{ name: "urls", type: "text" }],
+		},
+		COLLECTION_ACTIONS[1],
+	];
+
+	function collectionWithSaveArticlesResponse() {
+		return JSON.stringify({
+			class: ["collection", "articles"],
+			entities: [],
+			links: [{ rel: ["self"], href: "/queue" }],
+			actions: COLLECTION_ACTIONS_WITH_SAVE_ARTICLES,
+		});
+	}
+
+	function bulkResultResponse(properties: {
+		saved: number;
+		skipped: number;
+		failed: number;
+		skippedUrls: { url: string; code: string }[];
+	}) {
+		return JSON.stringify({ class: ["save-articles-result"], properties });
+	}
+
+	function createUnderstandingsWithSaveArticles() {
+		return groupOf(
+			initSaveArticleUnderstanding(),
+			initSaveArticlesUnderstanding(),
+			initDeleteArticleUnderstanding(),
+			httpCacheable(initListArticlesUnderstanding()),
+		);
+	}
+
+	it("POSTs the urls array as JSON and returns the parsed bulk summary", async () => {
+		let capturedBody: string | undefined;
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveArticlesResponse(),
+				},
+				"POST http://localhost:3000/queue/save-articles": (init) => {
+					capturedBody = typeof init?.body === "string" ? init.body : undefined;
+					return {
+						status: 200,
+						body: bulkResultResponse({
+							saved: 2,
+							skipped: 1,
+							failed: 0,
+							skippedUrls: [{ url: "chrome://x", code: "unsupported_scheme" }],
+						}),
+					};
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
+		const collection = await start();
+		const result = await collection.actions["save-articles"]({
+			urls: JSON.stringify([
+				"https://example.com/a",
+				"https://example.com/b",
+				"chrome://x",
+			]),
+		});
+		expect(result.items).toEqual([]);
+		expect(result.bulk).toEqual({
+			saved: 2,
+			skipped: 1,
+			failed: 0,
+			skippedUrls: [{ url: "chrome://x", code: "unsupported_scheme" }],
+		});
+		expect(calls).toContain("POST http://localhost:3000/queue/save-articles");
+		expect(capturedBody).toBe(
+			JSON.stringify({
+				urls: ["https://example.com/a", "https://example.com/b", "chrome://x"],
+			}),
+		);
+	});
+
+	it("asserts when the urls field is missing", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveArticlesResponse(),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
+		const collection = await start();
+		await expect(
+			collection.actions["save-articles"](),
+		).rejects.toThrow("save-articles requires a urls field");
+	});
+
+	it("falls back to application/json when the action has no type", async () => {
+		const actionsWithoutType = [
+			COLLECTION_ACTIONS[0],
+			{
+				name: "save-articles",
+				href: "/queue/save-articles",
+				method: "POST",
+				fields: [{ name: "urls", type: "text" }],
+			},
+			COLLECTION_ACTIONS[1],
+		];
+		const headers: Record<string, string>[] = [];
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: JSON.stringify({
+						actions: actionsWithoutType,
+						links: [{ rel: ["self"], href: "/queue" }],
+					}),
+				},
+				"POST http://localhost:3000/queue/save-articles": (init) => {
+					headers.push((init?.headers ?? {}) as Record<string, string>);
+					return {
+						status: 200,
+						body: bulkResultResponse({ saved: 1, skipped: 0, failed: 0, skippedUrls: [] }),
+					};
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
+		const collection = await start();
+		await collection.actions["save-articles"]({
+			urls: JSON.stringify(["https://example.com/a"]),
+		});
+		expect(headers[0]["Content-Type"]).toBe("application/json");
+	});
+
+	it("throws when the bulk save POST fails", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveArticlesResponse(),
+				},
+				"POST http://localhost:3000/queue/save-articles": { status: 500 },
+			}),
+		);
+		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
+		const collection = await start();
+		await expect(
+			collection.actions["save-articles"]({
+				urls: JSON.stringify(["https://example.com/a"]),
+			}),
+		).rejects.toThrow("Bulk save failed: 500");
+	});
+
+	it("throws UnauthorizedError and calls onUnauthorized on 401", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionWithSaveArticlesResponse(),
+				},
+				"POST http://localhost:3000/queue/save-articles": { status: 401 },
+			}),
+		);
+		let onUnauthorizedCallCount = 0;
+		const start = initExtension(
+			createUnderstandingsWithSaveArticles(),
+			createDeps(fetchFn, async () => {
+				onUnauthorizedCallCount++;
+			}),
+		);
+		const collection = await start();
+		await expect(
+			collection.actions["save-articles"]({
+				urls: JSON.stringify(["https://example.com/a"]),
+			}),
+		).rejects.toBeInstanceOf(UnauthorizedError);
+		expect(onUnauthorizedCallCount).toBe(1);
+	});
+});
+
 describe("initSirenReadingList capability negotiation", () => {
 	function createAdapterDeps(
 		fetchFn: SirenReadingListDeps["fetchFn"],
@@ -3363,6 +3550,84 @@ describe("initSirenReadingList", () => {
 			).rejects.toThrow(
 				'Expected Siren action "search" not found in response',
 			);
+		});
+	});
+
+	describe("saveUrls", () => {
+		const COLLECTION_ACTIONS_WITH_SAVE_ARTICLES = [
+			COLLECTION_ACTIONS[0],
+			{
+				name: "save-articles",
+				href: "/queue/save-articles",
+				method: "POST",
+				type: "application/json",
+				fields: [{ name: "urls", type: "text" }],
+			},
+			COLLECTION_ACTIONS[1],
+		];
+
+		function collectionWithSaveArticles() {
+			return JSON.stringify({
+				class: ["collection", "articles"],
+				entities: [],
+				links: [{ rel: ["self"], href: "/queue" }],
+				actions: COLLECTION_ACTIONS_WITH_SAVE_ARTICLES,
+			});
+		}
+
+		it("discovers the collection, POSTs the urls, and returns the bulk summary", async () => {
+			let capturedBody: string | undefined;
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionWithSaveArticles(),
+					},
+					"POST http://localhost:3000/queue/save-articles": (init) => {
+						capturedBody = typeof init?.body === "string" ? init.body : undefined;
+						return {
+							status: 200,
+							body: JSON.stringify({
+								class: ["save-articles-result"],
+								properties: {
+									saved: 1,
+									skipped: 1,
+									failed: 0,
+									skippedUrls: [{ url: "chrome://x", code: "unsupported_scheme" }],
+								},
+							}),
+						};
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			const result = await list.saveUrls({
+				urls: ["https://example.com/a", "chrome://x"],
+			});
+			expect(result).toEqual({
+				saved: 1,
+				skipped: 1,
+				failed: 0,
+				skippedUrls: [{ url: "chrome://x", code: "unsupported_scheme" }],
+			});
+			expect(capturedBody).toBe(
+				JSON.stringify({ urls: ["https://example.com/a", "chrome://x"] }),
+			);
+		});
+
+		it("asserts when the collection has no save-articles action", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			await expect(
+				list.saveUrls({ urls: ["https://example.com/a"] }),
+			).rejects.toThrow('Expected Siren action "save-articles" not found in response');
 		});
 	});
 

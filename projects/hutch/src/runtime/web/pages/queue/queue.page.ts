@@ -9,9 +9,9 @@ import type { ErrorRequestHandler, Request, RequestHandler, Response, Router } f
 import express from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
-import type { ValidateSaveableUrl } from "@packages/domain/article";
+import type { SaveableUrl, ValidateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
-import { SaveArticleInputSchema, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
+import { SaveArticleInputSchema, SaveArticlesInputSchema, BULK_SAVE_CONCURRENCY, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
 import { buildSaveIntentEvent, hashIp, type AnalyticsEvent } from "../../middleware/analytics";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
 import {
@@ -67,6 +67,7 @@ import { wantsSiren } from "../../content-negotiation";
 import type { QuerystringFeatureToggle } from "../../feature-toggle";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
+import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
 import { toArticleEntity } from "../../api/article-siren";
 import { parseQueueUrl, buildQueueUrl, QUEUE_PATH, canonicalQueuePageRedirect } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
@@ -549,6 +550,74 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				sirenError({ code: "save-failed", message: "Could not save article" }),
 			);
 		}
+	});
+
+	/** Bulk save: the extension's "Save All Tabs" capability hands the server a
+	 * list of tab URLs in one request. Each URL is validated and classified —
+	 * unsaveable ones (chrome://, file:, private hosts) are reported as skipped
+	 * rather than failing the batch — then saveable ones are URL-only saved
+	 * through the same pipeline as POST /, in bounded-concurrency batches. The
+	 * server crawls each asynchronously, exactly like /import. */
+	router.post("/save-articles", requireNotLocked, deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
+		if (!wantsSiren(req)) {
+			res.status(406).send("Not Acceptable");
+			return;
+		}
+
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const parsed = SaveArticlesInputSchema.safeParse(req.body);
+		if (!parsed.success) {
+			res.status(422).type(SIREN_MEDIA_TYPE).json(
+				sirenError({ code: "invalid-save-articles", message: "Invalid save-articles request" }),
+			);
+			return;
+		}
+
+		const saveable: SaveableUrl[] = [];
+		const skipped: { url: string; code: string }[] = [];
+		for (const url of parsed.data.urls) {
+			const validation = deps.validateSaveableUrl(url);
+			if (validation.status === "SUCCESS") {
+				saveable.push(validation.url);
+			} else {
+				skipped.push({ url, code: validation.error.code });
+			}
+		}
+
+		let saved = 0;
+		let failed = 0;
+		for (let i = 0; i < saveable.length; i += BULK_SAVE_CONCURRENCY) {
+			const batch = saveable.slice(i, i + BULK_SAVE_CONCURRENCY);
+			await Promise.all(
+				batch.map((url) =>
+					deps
+						.refreshArticleIfStale({ url })
+						.then((freshness) => saveArticleFromUrl(deps, { userId, url, freshness }))
+						.then(() => {
+							saved += 1;
+						})
+						.catch((error: unknown) => {
+							failed += 1;
+							deps.logError(
+								`Failed to bulk-save url=${url}`,
+								error instanceof Error ? error : undefined,
+							);
+						}),
+				),
+			);
+		}
+
+		if (saved > 0) markExtensionSavedArticle(res);
+		res.status(200).type(SIREN_MEDIA_TYPE).json(
+			toBulkSaveResultEntity({
+				requested: parsed.data.urls.length,
+				saved,
+				skipped: skipped.length,
+				failed,
+				skippedUrls: skipped,
+			}),
+		);
 	});
 
 	/** Translates body-parser oversize errors (bodies above MAX_RAW_HTML_REQUEST_BYTES, where we can't reach req.body.url to salvage) into a Siren 500 carrying the save-article action, so the extension can drop the oversized rawHtml and degrade onto the URL-only tier. Also gated on err.limit as defense-in-depth against a future middleware in the chain raising entity.too.large for a different parser. */

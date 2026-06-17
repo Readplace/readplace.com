@@ -83,6 +83,15 @@ export function toArticleCollectionEntity(
 				fields: [{ name: "url", type: "url" }],
 			},
 			{
+				name: "save-articles",
+				href: "/queue/save-articles",
+				method: "POST",
+				type: "application/json",
+				/** Siren has no array field type; `urls` carries a JSON-encoded
+				 * array of URL strings, so `text` is the closest hint. */
+				fields: [{ name: "urls", type: "text" }],
+			},
+			{
 				name: "save-html",
 				title: "Save a page",
 				href: "/queue/save-html",

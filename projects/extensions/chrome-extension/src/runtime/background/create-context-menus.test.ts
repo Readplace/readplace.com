@@ -35,7 +35,11 @@ describe("createContextMenus", () => {
 		await createContextMenus();
 
 		expect(contextMenus.registeredIds).toEqual(
-			expect.arrayContaining(["save-page-to-hutch", "save-link-to-hutch"]),
+			expect.arrayContaining([
+				"save-page-to-hutch",
+				"save-link-to-hutch",
+				"save-all-tabs-to-hutch",
+			]),
 		);
 	});
 });

@@ -9,11 +9,13 @@ import type {
 import { ReadingListItemIdSchema } from "../domain/reading-list-item-id";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import type {
+	BulkSaveResult,
 	FindByUrl,
 	GetAllItems,
 	InvokeAction,
 	Message,
 	SaveUrl,
+	SaveUrls,
 	SaveWarning,
 } from "./reading-list.types";
 import { pdfContentBody, htmlContentBody, type ContentBodyBuilder } from "./content-body-parsers";
@@ -215,6 +217,18 @@ const SirenWarningSchema = z.object({
 	message: z.string(),
 });
 
+/** The `save-articles-result` Siren entity the bulk-save route returns. Only
+ * `properties` is read; the surrounding `class`/`links` are ignored. The shape
+ * matches `BulkSaveResult`, which the popup renders as "Saved N · Skipped M". */
+const SaveArticlesResultSchema = z.object({
+	properties: z.object({
+		saved: z.number(),
+		skipped: z.number(),
+		failed: z.number(),
+		skippedUrls: z.array(z.object({ url: z.string(), code: z.string() })),
+	}),
+});
+
 const SirenCollectionResponseSchema = z.object({
 	class: z.array(z.string()).optional(),
 	properties: z.record(z.string(), z.unknown()).optional(),
@@ -259,6 +273,9 @@ export type BoundAction = (
 export type NavigationResult = {
 	items: ArticleItem[];
 	actions: Record<string, BoundAction>;
+	/** Set only by the save-articles understanding; carries the bulk-save
+	 * summary so `saveUrls` can surface it. Other actions leave it undefined. */
+	bulk?: BulkSaveResult;
 };
 
 /** The walker's in-memory item. It keeps the cross-boundary `ReadingListItem`
@@ -355,6 +372,32 @@ export function initSaveArticleUnderstanding(): Map<string, ActionHandler> {
 			const body = SirenSubEntitySchema.parse(await readSirenBody(response));
 			const item = context.resolveItem(body);
 			return { items: [item], actions: {} };
+		};
+	});
+	return handlers;
+}
+
+export function initSaveArticlesUnderstanding(): Map<string, ActionHandler> {
+	const handlers = new Map<string, ActionHandler>();
+	handlers.set("save-articles", (sirenAction, context) => {
+		return async (fields) => {
+			assert(fields?.urls, "save-articles requires a urls field");
+			/** Siren fields are strings, so the caller JSON-encodes the URL
+			 * array; decode it back into the request body the server expects. */
+			const urls = z.array(z.string()).parse(JSON.parse(fields.urls));
+			const response = await context.doFetch(
+				`${context.serverUrl}${sirenAction.href}`,
+				{
+					method: sirenAction.method,
+					headers: {
+						"Content-Type": sirenAction.type ?? "application/json",
+					},
+					body: JSON.stringify({ urls }),
+				},
+			);
+			assert(response.ok, `Bulk save failed: ${response.status}`);
+			const body = SaveArticlesResultSchema.parse(await response.json());
+			return { items: [], actions: {}, bulk: body.properties };
 		};
 	});
 	return handlers;
@@ -831,9 +874,11 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	invokeAction: InvokeAction;
 	findByUrl: FindByUrl;
 	getAllItems: GetAllItems;
+	saveUrls: SaveUrls;
 } {
 	const understandings = groupOf(
 		initSaveArticleUnderstanding(),
+		initSaveArticlesUnderstanding(),
 		initSaveHtmlUnderstanding({ logger: deps.logger }),
 		initSaveContentUnderstanding({
 			parsers: {
@@ -969,5 +1014,17 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		return collection.items;
 	};
 
-	return { saveUrl, invokeAction, findByUrl, getAllItems };
+	const saveUrls: SaveUrls = async ({ urls }) => {
+		const collection = await start();
+		const action = collection.actions["save-articles"];
+		assert(
+			action,
+			'Expected Siren action "save-articles" not found in response',
+		);
+		const result = await action({ urls: JSON.stringify(urls) });
+		assert(result.bulk, "save-articles response missing bulk summary");
+		return result.bulk;
+	};
+
+	return { saveUrl, invokeAction, findByUrl, getAllItems, saveUrls };
 }

@@ -1,5 +1,6 @@
 export const MENU_ITEM_SAVE_PAGE = "save-page-to-hutch";
 export const MENU_ITEM_SAVE_LINK = "save-link-to-hutch";
+export const MENU_ITEM_SAVE_ALL_TABS = "save-all-tabs-to-hutch";
 
 interface ClickInfo {
 	menuItemId: string;

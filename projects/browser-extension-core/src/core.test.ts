@@ -2,19 +2,26 @@ import assert from "node:assert/strict";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemoryAuth } from "./auth/in-memory-auth";
 import { BrowserExtensionCore } from "./core";
-import type { ReadingList } from "./core";
+import type { CoreError, ReadingList } from "./core";
 import { initInMemoryReadingList } from "./reading-list/in-memory-reading-list";
-import type { SaveUrl, SaveUrlResult } from "./reading-list/reading-list.types";
+import type { BulkSaveResult, SaveUrl, SaveUrls, SaveUrlResult } from "./reading-list/reading-list.types";
 import type { BrowserShell } from "./shell.types";
 import type { Auth, GuardedResult, WhenLoggedIn } from "./auth/auth.types";
 import { UnauthorizedError } from "./auth/unauthorized-error";
 import type { ReadingListItem, ReadingListItemId } from "./domain/reading-list-item.types";
+import { MENU_ITEM_SAVE_ALL_TABS } from "./get-context-menu-target";
 
 interface FakeShell {
 	shell: BrowserShell;
 	showSavedCalls: number[];
 	showDefaultCalls: number[];
 	iconUpdated: Promise<void>;
+	getOpenSaveAllTabsPopupCount: () => number;
+	triggerContextMenu: (
+		info: { menuItemId: string; linkUrl?: string; pageUrl?: string },
+		tab?: { url?: string; title?: string },
+	) => void;
+	triggerSaveAllTabsShortcut: () => void;
 }
 
 function createFakeShell(
@@ -22,6 +29,9 @@ function createFakeShell(
 ): FakeShell {
 	const showSavedCalls: number[] = [];
 	const showDefaultCalls: number[] = [];
+	let openSaveAllTabsPopupCount = 0;
+	let contextMenuHandler: Parameters<BrowserShell["onContextMenuClicked"]>[0] = () => {};
+	let saveAllTabsShortcutHandler: () => void = () => {};
 	let resolveIconUpdated!: () => void;
 	const iconUpdated = new Promise<void>((resolve) => {
 		resolveIconUpdated = resolve;
@@ -29,6 +39,12 @@ function createFakeShell(
 	const shell: BrowserShell = {
 		onShortcutPressed: () => {},
 		openPopup: () => {},
+		openSaveAllTabsPopup: () => {
+			openSaveAllTabsPopupCount += 1;
+		},
+		onSaveAllTabsShortcut: (handler) => {
+			saveAllTabsShortcutHandler = handler;
+		},
 		getActiveTab: async () => activeTab,
 		queryActiveTabs: async () => [],
 		setIcon: {
@@ -42,28 +58,45 @@ function createFakeShell(
 			},
 		},
 		createContextMenus: () => {},
-		onContextMenuClicked: () => {},
+		onContextMenuClicked: (handler) => {
+			contextMenuHandler = handler;
+		},
 		onTabActivated: () => {},
 		onTabUpdated: () => {},
 	};
-	return { shell, showSavedCalls, showDefaultCalls, iconUpdated };
+	return {
+		shell,
+		showSavedCalls,
+		showDefaultCalls,
+		iconUpdated,
+		getOpenSaveAllTabsPopupCount: () => openSaveAllTabsPopupCount,
+		triggerContextMenu: (info, tab) => contextMenuHandler(info, tab),
+		triggerSaveAllTabsShortcut: () => saveAllTabsShortcutHandler(),
+	};
 }
 
 type SaveArgs = { url: string; title: string; content?: { bytes: ArrayBuffer; mediaType: string } };
 
 function createRecordingReadingList(
 	options: { saveResult?: SaveUrlResult } = {},
-): ReadingList & { saveCalls: SaveArgs[] } {
+): ReadingList & { saveCalls: SaveArgs[]; saveUrlsCalls: { urls: string[] }[] } {
 	const inner = initInMemoryReadingList();
 	const saveCalls: SaveArgs[] = [];
+	const saveUrlsCalls: { urls: string[] }[] = [];
 	const saveUrl: SaveUrl = async (params) => {
 		saveCalls.push(params);
 		if (options.saveResult) return options.saveResult;
 		return inner.saveUrl(params);
 	};
+	const saveUrls: SaveUrls = async (params) => {
+		saveUrlsCalls.push(params);
+		return inner.saveUrls(params);
+	};
 	return {
 		saveCalls,
+		saveUrlsCalls,
 		saveUrl,
+		saveUrls,
 		invokeAction: inner.invokeAction,
 		findByUrl: inner.findByUrl,
 		getAllItems: inner.getAllItems,
@@ -225,6 +258,7 @@ describe("BrowserExtensionCore save", () => {
 		expect(mintCalls).toBe(1);
 	});
 });
+
 
 type ShortcutHandler = () => void;
 type ContextMenuHandler = (
@@ -781,5 +815,87 @@ describe("BrowserExtensionCore result emission", () => {
 		});
 		core.once("checked-url", { success: () => {}, failure: () => {} });
 		expect(cap.openPopupCalls).toEqual([]);
+	});
+});
+
+describe("BrowserExtensionCore saveAll", () => {
+	it("emits saved-all-tabs with the bulk summary on success", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList();
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
+			core.once("saved-all-tabs", { success: resolve, failure: reject });
+			core.saveAll("tabs", {
+				urls: ["https://example.com/a", "https://example.com/b"],
+			});
+		});
+
+		expect(result).toEqual({ saved: 2, skipped: 0, failed: 0, skippedUrls: [] });
+		expect(readingList.saveUrlsCalls).toEqual([
+			{ urls: ["https://example.com/a", "https://example.com/b"] },
+		]);
+	});
+
+	it("emits not-logged-in when saving all tabs while logged out", async () => {
+		const auth = initInMemoryAuth();
+		const readingList = createRecordingReadingList();
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const error = await new Promise<CoreError>((resolve) => {
+			core.once("saved-all-tabs", {
+				success: () => resolve({ reason: "error", error: new Error("unexpected success") }),
+				failure: resolve,
+			});
+			core.saveAll("tabs", { urls: ["https://example.com/a"] });
+		});
+
+		expect(error).toEqual({ reason: "not-logged-in" });
+		expect(readingList.saveUrlsCalls).toEqual([]);
+	});
+
+	it("opens the save-all-tabs popup from the context menu item", () => {
+		const auth = initInMemoryAuth();
+		const readingList = createRecordingReadingList();
+		const { shell, getOpenSaveAllTabsPopupCount, triggerContextMenu } =
+			createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+		core.init();
+
+		triggerContextMenu({ menuItemId: MENU_ITEM_SAVE_ALL_TABS });
+
+		expect(getOpenSaveAllTabsPopupCount()).toBe(1);
+	});
+
+	it("opens the save-all-tabs popup from the keyboard shortcut", () => {
+		const auth = initInMemoryAuth();
+		const readingList = createRecordingReadingList();
+		const { shell, getOpenSaveAllTabsPopupCount, triggerSaveAllTabsShortcut } =
+			createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+		core.init();
+
+		triggerSaveAllTabsShortcut();
+
+		expect(getOpenSaveAllTabsPopupCount()).toBe(1);
 	});
 });

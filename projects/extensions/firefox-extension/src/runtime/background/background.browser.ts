@@ -5,6 +5,7 @@ import {
 	initSirenReadingList,
 	MENU_ITEM_SAVE_PAGE,
 	MENU_ITEM_SAVE_LINK,
+	MENU_ITEM_SAVE_ALL_TABS,
 	type BrowserShell,
 	type OAuthTokens,
 	type PopupMessage,
@@ -13,6 +14,7 @@ import {
 	type SavePhase,
 	type SaveUrlResult,
 	type InvokeActionResult,
+	type BulkSaveResult,
 	type TokenStorage,
 } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
@@ -68,6 +70,22 @@ const shell: BrowserShell = {
 		});
 	},
 
+	openSaveAllTabsPopup() {
+		// The popup reads-and-removes this marker on init to enter bulk mode.
+		// Caller MUST be in a user-gesture context for openPopup to succeed.
+		void browser.storage.session.set({ pendingBulkSave: true });
+		browser.browserAction.openPopup().catch(async (err) => {
+			await browser.storage.session.remove("pendingBulkSave").catch(() => {});
+			logger.error(err);
+		});
+	},
+
+	onSaveAllTabsShortcut(handler) {
+		browser.commands.onCommand.addListener((command) => {
+			if (command === "save-all-tabs") handler();
+		});
+	},
+
 	getActiveTab: async () => {
 		const tabs = await browser.tabs.query({
 			active: true,
@@ -93,6 +111,11 @@ const shell: BrowserShell = {
 			id: MENU_ITEM_SAVE_LINK,
 			title: "Save Link to Readplace",
 			contexts: ["link"],
+		});
+		browser.menus.create({
+			id: MENU_ITEM_SAVE_ALL_TABS,
+			title: "Save All Tabs to Readplace",
+			contexts: ["page"],
 		});
 	},
 
@@ -329,6 +352,18 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 						});
 					});
 					core.fetch("reading-list");
+					pending.then(sendResponse);
+					break;
+				}
+				case "save-all-tabs": {
+					const pending = new Promise<unknown>((resolve) => {
+						core.once("saved-all-tabs", {
+							success: (value: BulkSaveResult) =>
+								resolve({ ok: true, value }),
+							failure: (err) => resolve({ ok: false, ...err }),
+						});
+					});
+					core.saveAll("tabs", { urls: message.urls });
 					pending.then(sendResponse);
 					break;
 				}

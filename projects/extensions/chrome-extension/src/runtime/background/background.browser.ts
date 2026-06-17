@@ -13,6 +13,7 @@ import {
 	type SavePhase,
 	type SaveUrlResult,
 	type InvokeActionResult,
+	type BulkSaveResult,
 	type TokenStorage,
 } from "browser-extension-core";
 import { initCreateContextMenus } from "./create-context-menus";
@@ -56,6 +57,22 @@ const shell: BrowserShell = {
 		browser.action.openPopup().catch(async (err) => {
 			await browser.storage.session.remove("pendingTarget").catch(() => {});
 			logger.error(err);
+		});
+	},
+
+	openSaveAllTabsPopup() {
+		// The popup reads-and-removes this marker on init to enter bulk mode.
+		// Caller MUST be in a user-gesture context for openPopup to succeed.
+		void browser.storage.session.set({ pendingBulkSave: true });
+		browser.action.openPopup().catch(async (err) => {
+			await browser.storage.session.remove("pendingBulkSave").catch(() => {});
+			logger.error(err);
+		});
+	},
+
+	onSaveAllTabsShortcut(handler) {
+		browser.commands.onCommand.addListener((command) => {
+			if (command === "save-all-tabs") handler();
 		});
 	},
 
@@ -289,6 +306,18 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 						});
 					});
 					core.fetch("reading-list");
+					pending.then(sendResponse);
+					break;
+				}
+				case "save-all-tabs": {
+					const pending = new Promise<unknown>((resolve) => {
+						core.once("saved-all-tabs", {
+							success: (value: BulkSaveResult) =>
+								resolve({ ok: true, value }),
+							failure: (err) => resolve({ ok: false, ...err }),
+						});
+					});
+					core.saveAll("tabs", { urls: message.urls });
 					pending.then(sendResponse);
 					break;
 				}
