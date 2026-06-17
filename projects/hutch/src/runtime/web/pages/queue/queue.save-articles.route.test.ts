@@ -8,7 +8,7 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { SIREN_MEDIA_TYPE } from "../../api/siren";
-import { MAX_URLS_PER_BULK_SAVE } from "@packages/domain/article";
+import { MAX_URLS_PER_BULK_SAVE, MAX_BULK_SAVE_REQUEST_BYTES } from "@packages/domain/article";
 
 const TEST_USER_ID = "test-user-bulk" as UserId;
 
@@ -144,6 +144,35 @@ describe("POST /queue/save-articles", () => {
 				failed: 0,
 			}),
 		);
+	});
+
+	it("returns a Siren 422 (save-articles-too-large) when the body exceeds MAX_BULK_SAVE_REQUEST_BYTES, before the schema cap", async () => {
+		const testApp = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(testApp);
+
+		/** Fewer than MAX_URLS_PER_BULK_SAVE URLs, each padded with a long ?q= so the
+		 * serialized body exceeds MAX_BULK_SAVE_REQUEST_BYTES: the express.json({ limit })
+		 * parser trips before the schema's URL-count cap, driving the real
+		 * limit + saveArticlesLimitHandler chain end-to-end (which the isolated
+		 * handler unit test, with its synthetic limit and fake req/res, can't reach). */
+		const urlCount = 8;
+		const padPerUrl = Math.ceil(MAX_BULK_SAVE_REQUEST_BYTES / urlCount) + 1024;
+		const longQuery = "q".repeat(padPerUrl);
+		const urls = Array.from(
+			{ length: urlCount },
+			(_v, i) => `https://example.com/${i}?q=${longQuery}`,
+		);
+		expect(urls.length).toBeLessThan(MAX_URLS_PER_BULK_SAVE);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.send({ urls });
+
+		expect(response.status).toBe(422);
+		expect(response.headers["content-type"]).toContain(SIREN_MEDIA_TYPE);
+		expect(response.body.properties.code).toBe("save-articles-too-large");
 	});
 
 	it("returns 406 when an authenticated cookie session requests text/html", async () => {
