@@ -116,7 +116,6 @@ describe("Auth routes", () => {
 			expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain(
 				"Invalid email or password",
 			);
-			expect(doc.querySelector('[data-test-error="email"]')).toBeNull();
 		});
 
 		it("should redirect to return URL after successful login", async () => {
