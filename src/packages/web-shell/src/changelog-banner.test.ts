@@ -205,4 +205,8 @@ describe("readCookie", () => {
 	it("decodes percent-encoded values", () => {
 		expect(readCookie("k=a%20b", "k")).toBe("a b");
 	});
+
+	it("returns the raw value rather than throwing when it is not a valid percent-escape", () => {
+		expect(readCookie("k=%", "k")).toBe("%");
+	});
 });

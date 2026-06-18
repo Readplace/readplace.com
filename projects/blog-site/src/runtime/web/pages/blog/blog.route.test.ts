@@ -321,6 +321,17 @@ describe("changelog banner on /blog pages", () => {
 		expect(banner?.classList.contains("changelog-banner--visible")).toBe(true);
 	});
 
+	it("shows the banner with 200 (not 500) when the dismissal cookie is a malformed percent-escape", async () => {
+		const response = await request(appWithChangelogBanner(FAKE_BANNER))
+			.get("/blog")
+			.set("Cookie", "rp_changelog_dismissed=%");
+		expect(response.status).toBe(200);
+		const banner = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-changelog-banner]",
+		);
+		expect(banner?.classList.contains("changelog-banner--visible")).toBe(true);
+	});
+
 	it("renders the banner on a post page too (same shell, every page)", async () => {
 		const slug = firstPost.slug;
 		const blogPostsStub: BlogPosts = {
