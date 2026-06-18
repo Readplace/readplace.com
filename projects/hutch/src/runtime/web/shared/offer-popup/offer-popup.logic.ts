@@ -2,8 +2,6 @@ export interface PopupState {
 	closed?: boolean;
 }
 
-export const OFFER_WINDOW_MS = 10 * 60 * 1000;
-
 export function parseStoredState(raw: string | null): PopupState {
 	if (raw === null) return {};
 	let parsed: unknown;
@@ -32,16 +30,4 @@ export function serializeState(state: PopupState): string {
  * closed here, so it stays hidden on this device but can reappear on another. */
 export function isDismissed(state: PopupState): boolean {
 	return state.closed === true;
-}
-
-export function formatCountdown(remainingMs: number): string {
-	const clamped = remainingMs > 0 ? remainingMs : 0;
-	const totalSeconds = Math.floor(clamped / 1000);
-	const minutes = Math.floor(totalSeconds / 60);
-	const seconds = totalSeconds % 60;
-	return `${pad(minutes)}:${pad(seconds)}`;
-}
-
-function pad(value: number): string {
-	return value < 10 ? `0${value}` : `${value}`;
 }

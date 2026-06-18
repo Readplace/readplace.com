@@ -113,17 +113,6 @@
 	text-decoration: line-through;
 }
 
-.offer-popup__countdown {
-	margin: 0 0 8px;
-	font-size: 14px;
-	color: var(--color-text-secondary);
-}
-
-.offer-popup__countdown-clock {
-	font-variant-numeric: tabular-nums;
-	color: var(--color-error);
-}
-
 .offer-popup__cta {
 	display: block;
 	width: 100%;
