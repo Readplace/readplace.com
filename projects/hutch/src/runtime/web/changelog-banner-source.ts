@@ -18,8 +18,10 @@ type ChangelogFetch = (
  * a slow, down, or malformed source never breaks a page render:
  *
  *   - 200 + parseable  → adopt it as the new last-good value.
- *   - 204 / !ok / unparseable / timeout / throw → keep the last good value
- *     (undefined only until the first success).
+ *   - 204 (authoritative "nothing to announce") → clear the banner, so
+ *     untagging the post retracts it even on a warm instance.
+ *   - !ok / unparseable / timeout / throw (transient failure) → keep the last
+ *     good value (undefined only until the first success).
  *
  * Results are cached for `ttlMs` so most renders pay nothing, and concurrent
  * misses share one in-flight fetch. Failures log at warn (no alarm — a missing
@@ -43,7 +45,10 @@ export function initChangelogBannerSource(deps: {
 	async function fetchFresh(): Promise<ChangelogBanner | undefined> {
 		try {
 			const response = await fetch(sourceUrl, { signal: AbortSignal.timeout(timeoutMs) });
-			if (response.status === 204) return lastGood;
+			if (response.status === 204) {
+				lastGood = undefined;
+				return undefined;
+			}
 			if (!response.ok) {
 				logger.warn(`[changelog-banner] source responded ${response.status}; keeping last good value`);
 				return lastGood;

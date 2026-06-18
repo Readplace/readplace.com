@@ -28,6 +28,10 @@ describe("safeBackPath", () => {
 		expect(safeBackPath("https://evil.example/queue", ORIGIN)).toBe("/");
 	});
 
+	it("returns / for a protocol-relative path on a same-origin referer", () => {
+		expect(safeBackPath("https://readplace.com//evil.com", ORIGIN)).toBe("/");
+	});
+
 	it("returns / for a malformed referer", () => {
 		expect(safeBackPath("not a url", ORIGIN)).toBe("/");
 	});
@@ -53,6 +57,20 @@ describe("POST /banner/changelog/dismiss", () => {
 		expect(cookie).toContain("HttpOnly");
 		expect(cookie).toContain("SameSite=Lax");
 		expect(cookie).toContain("Path=/");
+	});
+
+	it("redirects to / (never a protocol-relative Location) for a same-origin referer with a // path", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(harness.server)
+			.post("/banner/changelog/dismiss")
+			.type("form")
+			.set("Referer", `${TEST_APP_ORIGIN}//evil.com`)
+			.send({ version: "a1b2c3d4" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/");
+		expect(response.headers.location.startsWith("//")).toBe(false);
 	});
 
 	it("redirects to / when no referer is present", async () => {

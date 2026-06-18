@@ -97,6 +97,24 @@ describe("initChangelogBannerSource", () => {
 		expect(warnings).toEqual([]);
 	});
 
+	it("retracts a previously good banner when a later refetch returns 204", async () => {
+		let clock = 0;
+		const responses = [okFragment(BANNER), statusOnly(204)];
+		let index = 0;
+		const { logger, warnings } = capturingLogger();
+		const { getChangelogBanner } = initChangelogBannerSource({
+			...FIXED,
+			now: () => clock,
+			logger,
+			fetch: async () => responses[index++],
+		});
+
+		expect(await getChangelogBanner()).toEqual(BANNER);
+		clock = 2000; // force a refetch past the TTL
+		expect(await getChangelogBanner()).toBeUndefined();
+		expect(warnings).toEqual([]);
+	});
+
 	it("returns undefined when the source has never succeeded", async () => {
 		const { logger, warnings } = capturingLogger();
 		const { getChangelogBanner } = initChangelogBannerSource({

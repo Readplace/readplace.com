@@ -7,14 +7,17 @@ const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
 /** Where to send the reader after dismissing. The Referer is untrusted, so only
  * a same-origin URL is honoured (its path + query); anything absent,
- * cross-origin, or unparseable falls back to "/". Pure and exported so the
- * safety rules are covered without an HTTP round-trip. */
+ * cross-origin, protocol-relative (`//host`, which a same-origin Referer can
+ * still yield as a pathname and a browser resolves off-site), or unparseable
+ * falls back to "/". Pure and exported so the safety rules are covered without
+ * an HTTP round-trip. */
 export function safeBackPath(referer: string | undefined, appOrigin: string): string {
 	if (!referer) return "/";
 	try {
 		const target = new URL(referer);
 		if (target.origin !== new URL(appOrigin).origin) return "/";
-		return `${target.pathname}${target.search}`;
+		const path = `${target.pathname}${target.search}`;
+		return path.startsWith("//") ? "/" : path;
 	} catch {
 		return "/";
 	}
