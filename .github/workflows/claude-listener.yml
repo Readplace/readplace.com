@@ -70,6 +70,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          # Check out the PR head for @claude PR comments so the action computes
+          # file SHAs against the PR (where added/renamed files exist), not the
+          # base branch — avoids the git hash-object -> ajv "dependencies" crash
+          # (anthropics/claude-code-action#979, #852) on PRs that add or rename
+          # files. Non-PR events fall back to the default ref.
+          ref: ${{ github.event.issue.pull_request && format('refs/pull/{0}/head', github.event.issue.number) || '' }}
           fetch-depth: 0
           token: ${{ secrets.PAT_TOKEN }}
 
