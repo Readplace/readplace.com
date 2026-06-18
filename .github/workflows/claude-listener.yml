@@ -159,13 +159,16 @@ jobs:
           }
           JSON
 
-      # The pinned action's bundled agent-SDK intermittently crashes at startup
-      # with an ajv "dependencies" validation error (anthropics/claude-code-action#852)
-      # — exiting before the agent does any work, unfixed upstream, and the action
-      # is pinned for the Max-plan OAuth fix. A startup crash leaves nothing done,
-      # so retry the step up to 4 times; only the final attempt may fail the job.
-      # timeout-minutes is a watchdog so a genuinely stuck run can't hang to the 6h
-      # job limit (a healthy run finishes well under 50m).
+      # The pinned action's bundled agent-SDK crashes at startup with an ajv
+      # "dependencies" validation error (anthropics/claude-code-action#852, unfixed;
+      # the action is pinned for the Max-plan OAuth fix) once it ingests enough
+      # comment images — it re-reads prior tracking comments and the decorative
+      # spinner image accumulates across runs. use_sticky_comment (below) keeps the
+      # action to a single tracking comment so that can't pile up; the retry below
+      # is a backstop for any residual startup failure. A startup crash leaves
+      # nothing done, so retry up to 4 times (only the final attempt may fail the
+      # job). timeout-minutes is a watchdog so a genuinely stuck run can't hang to
+      # the 6h job limit (a healthy run finishes well under 50m).
       - name: Run Claude Code
         id: claude
         continue-on-error: true
@@ -175,6 +178,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           path_to_claude_code_executable: ${{ steps.install-claude-cli.outputs.claude_bin }}
           show_full_output: true
+          use_sticky_comment: true
           additional_permissions: |
             actions: read
           claude_args: ${{ env.CLAUDE_ARGS }}
@@ -189,6 +193,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           path_to_claude_code_executable: ${{ steps.install-claude-cli.outputs.claude_bin }}
           show_full_output: true
+          use_sticky_comment: true
           additional_permissions: |
             actions: read
           claude_args: ${{ env.CLAUDE_ARGS }}
@@ -203,6 +208,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           path_to_claude_code_executable: ${{ steps.install-claude-cli.outputs.claude_bin }}
           show_full_output: true
+          use_sticky_comment: true
           additional_permissions: |
             actions: read
           claude_args: ${{ env.CLAUDE_ARGS }}
@@ -216,6 +222,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           path_to_claude_code_executable: ${{ steps.install-claude-cli.outputs.claude_bin }}
           show_full_output: true
+          use_sticky_comment: true
           additional_permissions: |
             actions: read
           claude_args: ${{ env.CLAUDE_ARGS }}
