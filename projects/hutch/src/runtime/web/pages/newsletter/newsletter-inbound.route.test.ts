@@ -5,6 +5,7 @@ import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fix
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 type Harness = ReturnType<typeof useApp>;
 type Fixture = ReturnType<typeof createDefaultTestAppFixture>;
@@ -241,7 +242,40 @@ describe("Newsletter inbound webhook", () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(response.body).toEqual({ status: "read-only", saved: 0, skipped: 0 });
+		expect(response.body).toEqual({ status: "save-disabled", saved: 0, skipped: 0 });
+
+		const { articles } = await fixture.articleStore.findArticlesByUser({ userId });
+		expect(articles).toHaveLength(0);
+
+		const list = await fixture.newsletter.messageStore.listMessages(userId);
+		expect(list).toHaveLength(1);
+		expect(list[0].subject).toBe("Weekly digest");
+		expect(list[0].savedCount).toBe(0);
+	});
+
+	it("records the message but saves no links when the recipient is locked (email unverified past the window)", async () => {
+		/** A full-access founding user who never verified their email is locked once
+		 * the 7-day window lapses. Running the server clock 8 days ahead lands a
+		 * freshly-created user past it; the Svix timestamp is moved in lockstep so the
+		 * signature stays inside its ±5-min replay window. */
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const clockMs = Date.now() + 8 * DAY_MS;
+		fixture.shared.now = () => new Date(clockMs);
+		const harness = useApp(fixture);
+		const { userId, address } = await setupInbox(harness, fixture);
+		fixture.newsletter.seedInboundEmail("email-locked", {
+			html: '<a href="https://example.com/post-1">One</a> and https://example.com/post-2',
+		});
+
+		const response = await postWebhook(
+			harness,
+			fixture,
+			receivedEvent({ to: address, emailId: "email-locked", subject: "Weekly digest" }),
+			{ timestamp: Math.floor(clockMs / 1000) },
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.body).toEqual({ status: "save-disabled", saved: 0, skipped: 0 });
 
 		const { articles } = await fixture.articleStore.findArticlesByUser({ userId });
 		expect(articles).toHaveLength(0);

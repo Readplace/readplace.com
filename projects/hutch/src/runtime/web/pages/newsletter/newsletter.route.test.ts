@@ -7,6 +7,7 @@ import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fix
 import { loginAgent, useTestServer } from "../../../test-app";
 
 const useApp = useTestServer();
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 type Harness = ReturnType<typeof useApp>;
 type Fixture = ReturnType<typeof createDefaultTestAppFixture>;
@@ -72,6 +73,23 @@ describe("Newsletter routes", () => {
 			expect(response.headers.location).toBe("/queue?inactive=1");
 			const inbox = await fixture.newsletter.inboxStore.findInbox(userId);
 			assert.equal(inbox, undefined, "inbox must not be created for a read-only user");
+		});
+
+		it("blocks a locked user from creating an inbox with the account-locked screen", async () => {
+			/** Running the server clock 8 days ahead locks a freshly-created
+			 * (unverified) user, the same gate `requireNotLocked` enforces on /import. */
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.shared.now = () => new Date(Date.now() + 8 * DAY_MS);
+			const harness = useApp(fixture);
+			const { agent, userId } = await loginAndUserId(harness, fixture);
+
+			const response = await agent.post("/newsletter").set("Accept", "text/html");
+
+			expect(response.status).toBe(403);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("h1")?.textContent).toBe("Your account is locked");
+			const inbox = await fixture.newsletter.inboxStore.findInbox(userId);
+			assert.equal(inbox, undefined, "inbox must not be created for a locked user");
 		});
 	});
 

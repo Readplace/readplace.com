@@ -21,6 +21,7 @@ interface NewsletterRouteDeps {
 	inboxDomain: string;
 	appOrigin: string;
 	buildBannerState: BuildBannerState;
+	requireNotLocked: RequestHandler;
 	requireWriteAccess: RequestHandler;
 }
 
@@ -36,7 +37,7 @@ export function initNewsletterRoutes(deps: NewsletterRouteDeps): Router {
 		sendComponent(req, res, Base(NewsletterListPage(vm), await deps.buildBannerState(req)));
 	});
 
-	router.post("/", deps.requireWriteAccess, async (req: Request, res: Response) => {
+	router.post("/", deps.requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		await deps.newsletterInboxStore.getOrCreateInbox(req.userId);
 		res.redirect(303, "/newsletter");

@@ -24,11 +24,13 @@ type SaveAccess =
 	| { readonly allowed: true }
 	| { readonly allowed: false; readonly message: string };
 
+export type ResolveSaveAccess = (userId: UserId) => Promise<SaveAccess>;
+
 export function initResolveSaveAccess(deps: {
 	findUserById: FindUserById;
 	findSubscriptionByUserId: FindSubscriptionByUserId;
 	now: () => Date;
-}): (userId: UserId) => Promise<SaveAccess> {
+}): ResolveSaveAccess {
 	return async (userId) => {
 		const user = await deps.findUserById(userId);
 		if (user && !user.emailVerified) {

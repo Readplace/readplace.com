@@ -894,6 +894,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		inboxDomain: deps.newsletterInboxDomain,
 		appOrigin,
 		buildBannerState,
+		requireNotLocked,
 		requireWriteAccess,
 	});
 	app.use("/newsletter", requireAuth, newsletterRouter);
@@ -906,7 +907,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		newsletterInboxStore: deps.newsletterInboxStore,
 		newsletterMessageStore: deps.newsletterMessageStore,
 		fetchInboundEmail: deps.fetchInboundEmail,
-		getEffectiveAccess,
+		resolveSaveAccess,
 		logError: deps.logError,
 		inboxDomain: deps.newsletterInboxDomain,
 		inboundSigningSecret: deps.resendInboundSigningSecret,

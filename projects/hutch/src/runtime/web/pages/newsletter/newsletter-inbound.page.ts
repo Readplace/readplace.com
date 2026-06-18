@@ -13,7 +13,7 @@ import {
 	type NewsletterMessageStore,
 } from "@packages/domain/newsletter";
 import type { SaveableUrl, ValidateSaveableUrl } from "@packages/domain/article";
-import type { GetEffectiveAccess } from "../../../domain/access/effective-access";
+import type { ResolveSaveAccess } from "../../mcp/save-access";
 import {
 	saveArticleFromUrl,
 	type SaveArticleFromUrlDependencies,
@@ -25,7 +25,7 @@ interface NewsletterInboundRouteDeps extends SaveArticleFromUrlDependencies {
 	newsletterInboxStore: NewsletterInboxStore;
 	newsletterMessageStore: NewsletterMessageStore;
 	fetchInboundEmail: FetchInboundEmail;
-	getEffectiveAccess: GetEffectiveAccess;
+	resolveSaveAccess: ResolveSaveAccess;
 	logError: (message: string, error?: Error) => void;
 	inboxDomain: string;
 	inboundSigningSecret: string;
@@ -107,11 +107,14 @@ export function initNewsletterInboundRoutes(deps: NewsletterInboundRouteDeps): R
 				return;
 			}
 
-			/** Read-only users (trial-expired / cancelled) may read newsletters but
-			 * not grow their reading queue — the same invariant `requireWriteAccess`
-			 * enforces on /import and the /queue save routes. The message is still
-			 * recorded so the inbox stays usable; only the link-save is gated. */
-			const canSave = (await deps.getEffectiveAccess(userId)).access === "full";
+			/** A locked (email unverified past its 7-day window) or read-only
+			 * (trial-expired / cancelled) recipient may read newsletters but not grow
+			 * their reading queue — the same `requireNotLocked` + `requireWriteAccess`
+			 * gates that /import and the /queue save routes enforce, resolved here from
+			 * the userId because the webhook is signature-authenticated with no session.
+			 * The message is still recorded so the inbox stays usable; only the
+			 * link-save is gated. */
+			const canSave = (await deps.resolveSaveAccess(userId)).allowed;
 
 			const savedLinks: NewsletterMessageLink[] = [];
 			let skippedCount = 0;
@@ -174,7 +177,7 @@ export function initNewsletterInboundRoutes(deps: NewsletterInboundRouteDeps): R
 			});
 
 			res.status(200).json({
-				status: canSave ? "processed" : "read-only",
+				status: canSave ? "processed" : "save-disabled",
 				saved: savedLinks.length,
 				skipped: skippedCount,
 			});
