@@ -1,7 +1,5 @@
 import {
-	OFFER_WINDOW_MS,
 	type PopupState,
-	formatCountdown,
 	isDismissed,
 	parseStoredState,
 	serializeState,
@@ -20,9 +18,6 @@ interface OfferPopupDeps {
 	document: Document;
 	storage: OfferPopupStorage;
 	location: OfferPopupLocation;
-	now: () => number;
-	setIntervalFn: (cb: () => void, ms: number) => number;
-	clearIntervalFn: (id: number) => void;
 }
 
 interface OfferPopupController {
@@ -31,11 +26,9 @@ interface OfferPopupController {
 
 const STORAGE_KEY = "readplace.offer-popup.v1";
 const ROOT_SELECTOR = "[data-offer-popup]";
-const COUNTDOWN_SELECTOR = "[data-offer-countdown]";
 const OPEN_CLASS = "offer-popup--open";
 const STAGE_ATTR = "data-offer-stage";
 const PREVIEW_PARAM = "offer-preview";
-const COUNTDOWN_TICK_MS = 1000;
 const FOCUSABLE_SELECTOR = "a[href], button:not([disabled])";
 
 type Stage = "offer" | "confirm-first" | "confirm-second";
@@ -53,7 +46,6 @@ export function initOfferPopup(deps: OfferPopupDeps): OfferPopupController {
 	const preview =
 		new URLSearchParams(deps.location.search).get(PREVIEW_PARAM) === "1";
 
-	let dismissed = false;
 	let currentStage: Stage = "offer";
 	let restoreFocus: (() => void) | null = null;
 
@@ -125,30 +117,7 @@ export function initOfferPopup(deps: OfferPopupDeps): OfferPopupController {
 		}
 	}
 
-	function paintCountdown(deadlineMs: number): number {
-		const remaining = deadlineMs - deps.now();
-		const text = formatCountdown(remaining);
-		root.querySelectorAll(COUNTDOWN_SELECTOR).forEach((el) => {
-			el.textContent = text;
-		});
-		return remaining;
-	}
-
-	function startCountdown(deadlineMs: number): void {
-		paintCountdown(deadlineMs);
-		const id = deps.setIntervalFn(() => {
-			if (dismissed) {
-				deps.clearIntervalFn(id);
-				return;
-			}
-			if (paintCountdown(deadlineMs) <= 0) {
-				deps.clearIntervalFn(id);
-			}
-		}, COUNTDOWN_TICK_MS);
-	}
-
 	function dismiss(): void {
-		dismissed = true;
 		if (!preview) {
 			const state = readState();
 			state.closed = true;
@@ -166,12 +135,11 @@ export function initOfferPopup(deps: OfferPopupDeps): OfferPopupController {
 		});
 	}
 
-	function open(deadlineMs: number): void {
+	function open(): void {
 		restoreFocus = captureRestoreFocus();
 		root.classList.add(OPEN_CLASS);
 		root.addEventListener("keydown", trapFocus);
 		setStage("offer");
-		startCountdown(deadlineMs);
 	}
 
 	function attach(): void {
@@ -180,14 +148,13 @@ export function initOfferPopup(deps: OfferPopupDeps): OfferPopupController {
 		bind('[data-offer-action="keep"]', () => setStage("offer"));
 		bind('[data-offer-action="dismiss"]', dismiss);
 
-		const now = deps.now();
 		if (preview) {
-			open(now + OFFER_WINDOW_MS);
+			open();
 			return;
 		}
 
 		if (isDismissed(readState())) return;
-		open(now + OFFER_WINDOW_MS);
+		open();
 	}
 
 	return { attach };

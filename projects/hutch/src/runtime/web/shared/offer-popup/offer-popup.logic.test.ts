@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import {
-	formatCountdown,
 	isDismissed,
 	parseStoredState,
 	serializeState,
@@ -56,19 +55,5 @@ describe("isDismissed", () => {
 
 	it("is false when closed is explicitly false", () => {
 		assert.equal(isDismissed({ closed: false }), false);
-	});
-});
-
-describe("formatCountdown", () => {
-	it("formats a multi-minute remaining time as mm:ss", () => {
-		assert.equal(formatCountdown(10 * 60 * 1000), "10:00");
-	});
-
-	it("zero-pads single-digit minutes and seconds", () => {
-		assert.equal(formatCountdown(9 * 60 * 1000 + 5 * 1000), "09:05");
-	});
-
-	it("clamps negative remaining time to zero", () => {
-		assert.equal(formatCountdown(-5000), "00:00");
 	});
 });
