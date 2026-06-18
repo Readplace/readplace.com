@@ -112,20 +112,38 @@ jobs:
 
       # Headless single-shot runs never re-invoke the agent when a backgrounded
       # command finishes, so a `pnpm check` started with run_in_background is
-      # killed when the turn ends and the fix is never committed. This PreToolUse
-      # guard denies any Bash call requesting background, forcing foreground.
+      # killed when the turn ends and the fix is never committed. The PreToolUse
+      # guard denies background (forcing foreground); run-checked.sh bounds long
+      # commands with a hard timeout so a hung shell run cannot stall the turn;
+      # and the settings env raises the Bash timeout so a foreground check has
+      # room to finish.
       - name: Install headless Bash guard
         run: |
           cat > /tmp/claude-deny-bg.sh <<'HOOK'
           #!/usr/bin/env bash
           run_in_background="$(jq -r '.tool_input.run_in_background // false' 2>/dev/null || echo false)"
           if [ "$run_in_background" = "true" ]; then
-            jq -n '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Background shell execution is disabled in this headless CI run; there is no re-invocation when a backgrounded command finishes, so your turn would end mid-command and the work would be lost. Re-run in the FOREGROUND (omit run_in_background) so the call blocks until it exits, then commit and push."}}'
+            jq -n '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Background shell execution is disabled in this headless CI run; a backgrounded command is killed when your turn ends, so the work would be lost. Run it in the FOREGROUND. For a long verification like pnpm check, run it through the watchdog wrapper by passing your full command as a single quoted argument to bash /tmp/run-checked.sh - the wrapper enforces a hard timeout (exit 124 if it hangs) so the command cannot get stuck, then returns its exit code. After it passes, commit and push."}}'
           fi
           HOOK
           chmod +x /tmp/claude-deny-bg.sh
+          cat > /tmp/run-checked.sh <<'WRAP'
+          #!/usr/bin/env bash
+          TIMEOUT="${RUN_CHECKED_TIMEOUT:-23m}"
+          echo "[run-checked] running under ${TIMEOUT}: $*"
+          timeout --kill-after=30s "${TIMEOUT}" bash -c "$*"
+          code=$?
+          [ "$code" -eq 124 ] && echo "[run-checked] TIMED OUT after ${TIMEOUT} (exit 124) - the command hung; treat as a failure, do not retry blindly."
+          echo "[run-checked] exit=${code}"
+          exit "$code"
+          WRAP
+          chmod +x /tmp/run-checked.sh
           cat > /tmp/claude-headless-settings.json <<'JSON'
           {
+            "env": {
+              "BASH_DEFAULT_TIMEOUT_MS": "1500000",
+              "BASH_MAX_TIMEOUT_MS": "1800000"
+            },
             "hooks": {
               "PreToolUse": [
                 { "matcher": "Bash", "hooks": [ { "type": "command", "command": "bash /tmp/claude-deny-bg.sh" } ] }
