@@ -161,63 +161,18 @@ jobs:
 
       # The pinned action's bundled agent-SDK crashes at startup with an ajv
       # "dependencies" validation error (anthropics/claude-code-action#852, unfixed;
-      # the action is pinned for the Max-plan OAuth fix) once it ingests enough
-      # comment images — it re-reads prior tracking comments and the decorative
-      # spinner image accumulates across runs. use_sticky_comment (below) keeps the
-      # action to a single tracking comment so that can't pile up; the retry below
-      # is a backstop for any residual startup failure. A startup crash leaves
-      # nothing done, so retry up to 4 times (only the final attempt may fail the
-      # job). timeout-minutes is a watchdog so a genuinely stuck run can't hang to
-      # the 6h job limit (a healthy run finishes well under 50m).
+      # the action is pinned for the Max-plan OAuth fix) when it ingests a PR's
+      # accumulated comment data — notably its own "working/finished" tracking
+      # comments, each carrying a decorative spinner image. use_sticky_comment keeps
+      # the action to a SINGLE tracking comment so images can't pile up run over
+      # run. Do NOT retry this step: each attempt is a fresh action invocation that
+      # posts its own tracking comment, so retries accelerate the accumulation and
+      # never help anyway (the crash is correlated within a job). timeout-minutes is
+      # a watchdog so a genuinely stuck run can't hang to the 6h job limit.
       - name: Run Claude Code
         id: claude
-        continue-on-error: true
         timeout-minutes: 50
         uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c # v1.0.72 — pinned: newer agent-SDK glue breaks Max-plan OAuth (anthropics/claude-code-action#1126, #1281); the CLI is upgraded separately via path_to_claude_code_executable
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          path_to_claude_code_executable: ${{ steps.install-claude-cli.outputs.claude_bin }}
-          show_full_output: true
-          use_sticky_comment: true
-          additional_permissions: |
-            actions: read
-          claude_args: ${{ env.CLAUDE_ARGS }}
-
-      - name: Run Claude Code (retry 1)
-        id: claude_r1
-        if: steps.claude.outcome == 'failure'
-        continue-on-error: true
-        timeout-minutes: 50
-        uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          path_to_claude_code_executable: ${{ steps.install-claude-cli.outputs.claude_bin }}
-          show_full_output: true
-          use_sticky_comment: true
-          additional_permissions: |
-            actions: read
-          claude_args: ${{ env.CLAUDE_ARGS }}
-
-      - name: Run Claude Code (retry 2)
-        id: claude_r2
-        if: steps.claude.outcome == 'failure' && steps.claude_r1.outcome == 'failure'
-        continue-on-error: true
-        timeout-minutes: 50
-        uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          path_to_claude_code_executable: ${{ steps.install-claude-cli.outputs.claude_bin }}
-          show_full_output: true
-          use_sticky_comment: true
-          additional_permissions: |
-            actions: read
-          claude_args: ${{ env.CLAUDE_ARGS }}
-
-      - name: Run Claude Code (retry 3, final)
-        id: claude_r3
-        if: steps.claude.outcome == 'failure' && steps.claude_r1.outcome == 'failure' && steps.claude_r2.outcome == 'failure'
-        timeout-minutes: 50
-        uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           path_to_claude_code_executable: ${{ steps.install-claude-cli.outputs.claude_bin }}
