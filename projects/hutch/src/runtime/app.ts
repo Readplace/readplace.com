@@ -231,7 +231,7 @@ function initProviders() {
 			apiKey: stripeApiKey,
 			fetch: globalThis.fetch,
 		});
-		const pendingSignup = initDynamoDbPendingSignup({ client, tableName: pendingSignupsTable });
+		const pendingSignup = initDynamoDbPendingSignup({ client, tableName: pendingSignupsTable, logger: consoleLogger });
 		const subscriptionProviders = initDynamoDbSubscriptionProviders({
 			client,
 			tableName: subscriptionProvidersTable,

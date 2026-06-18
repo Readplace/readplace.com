@@ -3,6 +3,7 @@ import {
 	defineDynamoTable,
 	dynamoField,
 } from "@packages/hutch-storage-client";
+import type { HutchLogger } from "@packages/hutch-logger";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import { CheckoutSessionIdSchema } from "@packages/provider-contracts/stripe-checkout";
@@ -16,7 +17,12 @@ import type {
 
 const PendingSignupRow = z.object({
 	checkoutSessionId: CheckoutSessionIdSchema,
-	method: z.literal("existing-user-subscribe"),
+	/** z.string(), not the live `existing-user-subscribe` literal: table.delete()
+	 * parses ALL_OLD *after* the DeleteCommand removes the row, so a literal
+	 * mismatch on a leftover pre-Phase-1 email/google row would throw post-delete
+	 * (HTTP 500 + a silently destroyed paid customer). consumePendingSignup
+	 * narrows to the contract and skips anything else. */
+	method: z.string(),
 	email: z.string(),
 	userId: dynamoField(UserIdSchema),
 	returnUrl: dynamoField(z.string()),
@@ -34,6 +40,7 @@ const PendingSignupSummaryRow = z.object({
 export function initDynamoDbPendingSignup(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
+	logger: HutchLogger;
 }): {
 	storePendingSignup: StorePendingSignup;
 	consumePendingSignup: ConsumePendingSignup;
@@ -71,6 +78,13 @@ export function initDynamoDbPendingSignup(deps: {
 			ReturnValues: "ALL_OLD",
 		});
 		if (!Attributes) return null;
+
+		if (Attributes.method !== "existing-user-subscribe") {
+			deps.logger.warn(
+				`[pending-signup] discarded legacy '${Attributes.method}' row for checkout session ${checkoutSessionId}; the DeleteCommand has already removed it, so this warning is the only remaining trace`,
+			);
+			return null;
+		}
 
 		const userId = Attributes.userId;
 		if (!userId) return null;
