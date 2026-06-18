@@ -110,6 +110,21 @@ jobs:
           "$claude_bin" --version
           echo "claude_bin=$claude_bin" >> "$GITHUB_OUTPUT"
 
+      # Headless single-shot runs never re-invoke the agent when a backgrounded
+      # command finishes, so a `pnpm check` started with run_in_background is
+      # killed when the turn ends and the fix is never committed. This PreToolUse
+      # guard denies any Bash call requesting background, forcing foreground.
+      - name: Install headless Bash guard
+        run: |
+          cat > /tmp/claude-deny-bg.sh <<'HOOK'
+          #!/usr/bin/env bash
+          run_in_background="$(jq -r '.tool_input.run_in_background // false' 2>/dev/null || echo false)"
+          if [ "$run_in_background" = "true" ]; then
+            jq -n '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"Background shell execution is disabled in this headless CI run; there is no re-invocation when a backgrounded command finishes, so your turn would end mid-command and the work would be lost. Re-run in the FOREGROUND (omit run_in_background) so the call blocks until it exits, then commit and push."}}'
+          fi
+          HOOK
+          chmod +x /tmp/claude-deny-bg.sh
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c # v1.0.72 — pinned: newer agent-SDK glue breaks Max-plan OAuth (anthropics/claude-code-action#1126, #1281); the CLI is upgraded separately via path_to_claude_code_executable
@@ -120,5 +135,19 @@ jobs:
 
           additional_permissions: |
             actions: read
+
+          settings: |
+            {
+              "hooks": {
+                "PreToolUse": [
+                  {
+                    "matcher": "Bash",
+                    "hooks": [
+                      { "type": "command", "command": "bash /tmp/claude-deny-bg.sh" }
+                    ]
+                  }
+                ]
+              }
+            }
 
           claude_args: '--model "claude-opus-4-8[1m]" --effort max --dangerously-skip-permissions --allowedTools WebSearch,WebFetch --disallowedTools Monitor,Task,TaskCreate,TaskGet,TaskList,TaskUpdate,TaskOutput,TaskStop'
