@@ -124,6 +124,15 @@ jobs:
           fi
           HOOK
           chmod +x /tmp/claude-deny-bg.sh
+          cat > /tmp/claude-headless-settings.json <<'JSON'
+          {
+            "hooks": {
+              "PreToolUse": [
+                { "matcher": "Bash", "hooks": [ { "type": "command", "command": "bash /tmp/claude-deny-bg.sh" } ] }
+              ]
+            }
+          }
+          JSON
 
       - name: Run Claude Code
         id: claude
@@ -136,18 +145,4 @@ jobs:
           additional_permissions: |
             actions: read
 
-          settings: |
-            {
-              "hooks": {
-                "PreToolUse": [
-                  {
-                    "matcher": "Bash",
-                    "hooks": [
-                      { "type": "command", "command": "bash /tmp/claude-deny-bg.sh" }
-                    ]
-                  }
-                ]
-              }
-            }
-
-          claude_args: '--model "claude-opus-4-8[1m]" --effort max --dangerously-skip-permissions --allowedTools WebSearch,WebFetch --disallowedTools Monitor,Task,TaskCreate,TaskGet,TaskList,TaskUpdate,TaskOutput,TaskStop'
+          claude_args: '--model "claude-opus-4-8[1m]" --effort max --dangerously-skip-permissions --allowedTools WebSearch,WebFetch --disallowedTools Monitor,Task,TaskCreate,TaskGet,TaskList,TaskUpdate,TaskOutput,TaskStop --settings /tmp/claude-headless-settings.json'
