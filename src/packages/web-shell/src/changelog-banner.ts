@@ -25,9 +25,10 @@ const VERSION_PATTERN = /^[0-9a-f]{8}$/;
 /** The transport contract between blog-site (producer) and hutch (consumer):
  * minimal HTML that survives a fetch + parse round-trip. Handlebars escapes the
  * hook and href; linkedom decodes them back, so the values reconstruct exactly.
- * Data attributes (not BEM classes) carry the machine-read fields because this
- * fragment is never styled — it exists only to be parsed. */
-const CHANGELOG_FRAGMENT_TEMPLATE = `<div data-changelog-version="{{version}}"><span data-changelog-hook>{{hook}}</span><a data-changelog-link href="{{href}}">Read more</a></div>`;
+ * Data attributes mark the version and hook (BEM classes are for the styled
+ * shell, never this); the link is the fragment's only `<a>`, so the parser finds
+ * it by tag. This fragment is never styled — it exists only to be parsed. */
+const CHANGELOG_FRAGMENT_TEMPLATE = `<div data-changelog-version="{{version}}"><span data-changelog-hook>{{hook}}</span><a href="{{href}}">Read more</a></div>`;
 
 export function renderChangelogBannerFragment(banner: ChangelogBanner): string {
 	return render(CHANGELOG_FRAGMENT_TEMPLATE, banner);
