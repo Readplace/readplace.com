@@ -121,4 +121,4 @@ jobs:
           additional_permissions: |
             actions: read
 
-          claude_args: '--model "claude-opus-4-8[1m]" --effort max --dangerously-skip-permissions --allowedTools Task,TaskOutput,TaskStop,WebSearch,WebFetch'
+          claude_args: '--model "claude-opus-4-8[1m]" --effort max --dangerously-skip-permissions --allowedTools WebSearch,WebFetch --disallowedTools Monitor,Task,TaskCreate,TaskGet,TaskList,TaskUpdate,TaskOutput,TaskStop'
