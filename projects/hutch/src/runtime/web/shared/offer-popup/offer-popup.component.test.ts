@@ -29,12 +29,6 @@ describe("renderOfferPopup", () => {
 		assert.equal(anchor.textContent, "$140 over 3 years");
 	});
 
-	it("seeds the countdown the client takes over", () => {
-		const clock = parse().querySelector("[data-offer-countdown]");
-		assert(clock, "countdown clock must render");
-		assert.equal(clock.textContent, "10:00");
-	});
-
 	it("renders every close-flow action the client wires up", () => {
 		const doc = parse();
 		const actions = Array.from(

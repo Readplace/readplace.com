@@ -12,7 +12,6 @@ const FIXTURE = `<!DOCTYPE html><html><body>
     <div class="offer-popup__panel">
       <section class="offer-popup__view offer-popup__view--offer">
         <button type="button" data-offer-action="close" data-test-offer-close>×</button>
-        <strong data-offer-countdown data-test-offer-countdown>10:00</strong>
         <a href="/account" data-test-offer-cta>Lock in</a>
       </section>
       <section class="offer-popup__view offer-popup__view--confirm-first">
@@ -30,25 +29,6 @@ const FIXTURE = `<!DOCTYPE html><html><body>
 function createDom(search: string) {
 	const dom = new JSDOM(FIXTURE, { url: `https://readplace.com/queue${search}` });
 	return { window: dom.window, document: dom.window.document };
-}
-
-/** Captures the single interval callback so tests can advance time and drive
- * ticks deterministically without real timers. */
-function createTimers() {
-	let captured: (() => void) | undefined;
-	const clearIntervalFn = jest.fn();
-	const setIntervalFn = jest.fn((cb: () => void): number => {
-		captured = cb;
-		return 7;
-	});
-	return {
-		setIntervalFn,
-		clearIntervalFn,
-		tick(): void {
-			assert(captured, "interval callback must be registered before ticking");
-			captured();
-		},
-	};
 }
 
 function popup(doc: Document): HTMLElement {
@@ -73,34 +53,24 @@ describe("initOfferPopup — missing root", () => {
 				document: dom.window.document,
 				storage: dom.window.localStorage,
 				location: { search: "" },
-				now: () => 0,
-				setIntervalFn: () => 0,
-				clearIntervalFn: () => {},
 			}),
 		).toThrow(/missing element \[data-offer-popup\]/);
 	});
 });
 
 describe("initOfferPopup — dismissal gating", () => {
-	it("opens immediately when the device carries no stored dismissal (the server already gated eligibility) and starts the countdown", () => {
+	it("opens immediately when the device carries no stored dismissal (the server already gated eligibility)", () => {
 		const { window, document } = createDom("");
-		const timers = createTimers();
 
 		initOfferPopup({
 			document,
 			storage: window.localStorage,
 			location: { search: "" },
-			now: () => 5000,
-			...timers,
 		}).attach();
 
 		const root = popup(document);
 		expect(root.classList.contains(OPEN_CLASS)).toBe(true);
 		expect(root.getAttribute("data-offer-stage")).toBe("offer");
-		expect(timers.setIntervalFn).toHaveBeenCalledTimes(1);
-		expect(
-			document.querySelector("[data-test-offer-countdown]")?.textContent,
-		).toBe("10:00");
 	});
 
 	it("does not open once the reader has closed it on this device", () => {
@@ -111,8 +81,6 @@ describe("initOfferPopup — dismissal gating", () => {
 			document,
 			storage: window.localStorage,
 			location: { search: "" },
-			now: () => 5000,
-			...createTimers(),
 		}).attach();
 
 		expect(popup(document).classList.contains(OPEN_CLASS)).toBe(false);
@@ -122,19 +90,15 @@ describe("initOfferPopup — dismissal gating", () => {
 describe("initOfferPopup — preview override", () => {
 	it("shows immediately without persisting any state", () => {
 		const { window, document } = createDom("?offer-preview=1");
-		const timers = createTimers();
 
 		initOfferPopup({
 			document,
 			storage: window.localStorage,
 			location: { search: "?offer-preview=1" },
-			now: () => 0,
-			...timers,
 		}).attach();
 
 		expect(popup(document).classList.contains(OPEN_CLASS)).toBe(true);
 		expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
-		expect(timers.setIntervalFn).toHaveBeenCalledTimes(1);
 	});
 });
 
@@ -145,8 +109,6 @@ describe("initOfferPopup — double-confirmation close flow", () => {
 			document,
 			storage: window.localStorage,
 			location: { search: "?offer-preview=1" },
-			now: () => 0,
-			...createTimers(),
 		}).attach();
 		return { window, document };
 	}
@@ -187,8 +149,6 @@ describe("initOfferPopup — double-confirmation close flow", () => {
 			document,
 			storage: window.localStorage,
 			location: { search: "" },
-			now: () => 1000,
-			...createTimers(),
 		}).attach();
 
 		click(document, "data-test-offer-dismiss");
@@ -203,55 +163,6 @@ describe("initOfferPopup — double-confirmation close flow", () => {
 		const { window, document } = shownPreviewDom();
 		click(document, "data-test-offer-dismiss");
 		expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
-	});
-});
-
-describe("initOfferPopup — countdown lifecycle", () => {
-	it("counts down on each tick and stops when the window closes", () => {
-		const { window, document } = createDom("?offer-preview=1");
-		const timers = createTimers();
-		let nowMs = 0;
-
-		initOfferPopup({
-			document,
-			storage: window.localStorage,
-			location: { search: "?offer-preview=1" },
-			now: () => nowMs,
-			...timers,
-		}).attach();
-
-		nowMs = 1000;
-		timers.tick();
-		expect(
-			document.querySelector("[data-test-offer-countdown]")?.textContent,
-		).toBe("09:59");
-
-		nowMs = 10 * 60 * 1000;
-		timers.tick();
-		expect(
-			document.querySelector("[data-test-offer-countdown]")?.textContent,
-		).toBe("00:00");
-		expect(timers.clearIntervalFn).toHaveBeenCalledWith(7);
-	});
-
-	it("stops ticking once the popup has been dismissed", () => {
-		const { window, document } = createDom("?offer-preview=1");
-		const timers = createTimers();
-
-		initOfferPopup({
-			document,
-			storage: window.localStorage,
-			location: { search: "?offer-preview=1" },
-			now: () => 0,
-			...timers,
-		}).attach();
-
-		click(document, "data-test-offer-close");
-		click(document, "data-test-offer-confirm");
-		click(document, "data-test-offer-dismiss");
-		timers.tick();
-
-		expect(timers.clearIntervalFn).toHaveBeenCalledWith(7);
 	});
 });
 
@@ -270,8 +181,6 @@ describe("initOfferPopup — storage failures", () => {
 				document,
 				storage,
 				location: { search: "" },
-				now: () => 5000,
-				...createTimers(),
 			}).attach(),
 		).not.toThrow();
 		expect(popup(document).classList.contains(OPEN_CLASS)).toBe(true);
@@ -290,8 +199,6 @@ describe("initOfferPopup — storage failures", () => {
 			document,
 			storage,
 			location: { search: "" },
-			now: () => 5000,
-			...createTimers(),
 		}).attach();
 
 		expect(() => click(document, "data-test-offer-dismiss")).not.toThrow();
@@ -306,8 +213,6 @@ describe("initOfferPopup — focus management", () => {
 			document,
 			storage: window.localStorage,
 			location: { search: "?offer-preview=1" },
-			now: () => 0,
-			...createTimers(),
 		}).attach();
 		return { window, document };
 	}
@@ -383,8 +288,6 @@ describe("initOfferPopup — focus management", () => {
 			document,
 			storage: window.localStorage,
 			location: { search: "?offer-preview=1" },
-			now: () => 0,
-			...createTimers(),
 		}).attach();
 
 		assert.notEqual(document.activeElement, opener);
