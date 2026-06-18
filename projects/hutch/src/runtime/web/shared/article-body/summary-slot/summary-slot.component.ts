@@ -54,7 +54,7 @@ function isReaderViewReady(
 	crawl: ArticleCrawl | undefined,
 	content: string | undefined,
 ): boolean {
-	return content !== undefined && (crawl === undefined || crawl.status === "ready");
+	return !!content && (crawl === undefined || crawl.status === "ready");
 }
 
 export function renderSummarySlot(input: SummarySlotInput): string {

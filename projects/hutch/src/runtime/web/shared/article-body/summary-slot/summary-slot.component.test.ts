@@ -93,6 +93,24 @@ describe("renderSummarySlot", () => {
 		expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
 	});
 
+	it("defers the summary when content is an empty string (mirrors renderReaderSlot's truthy content gate)", () => {
+		const doc = parse(
+			renderSummarySlot({
+				crawl: { status: "ready" },
+				content: "",
+				summary: { status: "pending" },
+				summaryPollUrl: "/queue/abc/summary?poll=1",
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-summary]");
+		assert(slot, "summary slot must be rendered");
+		expect(slot.classList.contains("article-body__summary-slot--deferred")).toBe(
+			true,
+		);
+		expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
+	});
+
 	it("shows the pending indicator for a legacy ready row (crawl undefined, content present)", () => {
 		const doc = parse(
 			renderSummarySlot({
