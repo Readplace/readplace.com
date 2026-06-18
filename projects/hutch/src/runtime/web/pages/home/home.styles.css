@@ -22,6 +22,20 @@
   }
 }
 
+hr {
+  border: none;
+  height: auto;
+  margin: 48px auto;
+  text-align: center;
+}
+
+hr::before {
+  content: "\2022\00a0\00a0\2022\00a0\00a0\2022";
+  color: var(--color-text-muted);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
 /**
  * Shared Section Header
  *
@@ -448,12 +462,6 @@
   margin-bottom: 24px;
 }
 
-.home-features__rule {
-  border: none;
-  border-top: 1px solid var(--border);
-  margin-bottom: 32px;
-}
-
 /**
  * Featured features get individual full-width blocks separated by
  * bottom borders instead of card containers.
@@ -737,6 +745,14 @@
 .home-backstory__content a {
   color: var(--primary);
   text-decoration: underline;
+}
+
+.home-backstory__highlight {
+  color: var(--color-highlight);
+}
+
+.home-backstory__highlight a {
+  color: inherit;
 }
 
 /* Comparison Section */
