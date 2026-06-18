@@ -160,6 +160,11 @@ jobs:
 
       - name: Run Claude Code
         id: claude
+        # Watchdog: kill a stuck run instead of letting it hang to the 6h job
+        # limit. A healthy run (agent + a foreground pnpm check capped at ~25m by
+        # BASH_*_TIMEOUT_MS) finishes well under this; the auto-fix/review loop
+        # re-triggers if the watchdog fires.
+        timeout-minutes: 50
         uses: anthropics/claude-code-action@cd77b50d2b0808657f8e6774085c8bf54484351c # v1.0.72 — pinned: newer agent-SDK glue breaks Max-plan OAuth (anthropics/claude-code-action#1126, #1281); the CLI is upgraded separately via path_to_claude_code_executable
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
