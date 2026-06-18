@@ -11,7 +11,7 @@ keywords: "karakeep, hoarder, readplace, read it later, self-hosted, pocket alte
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Karakeep is free, open-source, and self-hosted with Docker. You get full data control and AI auto-tagging via Ollama, but you handle updates, backups, and uptime. Readplace is hosted at $3.99/mo with AI summaries included and no setup. You trade self-hosted control for convenience. Pick Karakeep if you already run a homelab. Pick Readplace if you would rather not maintain infrastructure for your reading list.
+Karakeep is free, open-source, and self-hosted with Docker. You get full data control and AI auto-tagging via Ollama, but you handle updates, backups, and uptime. Readplace is hosted at $49/year with AI summaries included and no setup. You trade self-hosted control for convenience. Pick Karakeep if you already run a homelab. Pick Readplace if you would rather not maintain infrastructure for your reading list.
 
 </div>
 </details>
@@ -26,7 +26,7 @@ This post compares the two along that axis, so you can pick the tool that fits h
 
 **Karakeep** is free, open-source, and self-hosted. You run it yourself with Docker. It does AI-powered auto-tagging through Ollama (local) or OpenAI, and it ships full-text search, browser extensions, and mobile apps for iOS and Android. It started as Hoarder, rebranded to Karakeep, and now has 38,000+ GitHub stars with active development.
 
-**Readplace** is hosted at $3.99/month. You sign up, install the browser extension, and start saving articles. It includes AI-generated TL;DR summaries, a clean reader view, Pocket import, and full-text search, and you skip Docker, server setup, and ongoing maintenance entirely. I built it as a solo developer after running my own reading system for 10 years.
+**Readplace** is hosted at $49/year. You sign up, install the browser extension, and start saving articles. It includes AI-generated TL;DR summaries, a clean reader view, Pocket import, and full-text search, and you skip Docker, server setup, and ongoing maintenance entirely. I built it as a solo developer after running my own reading system for 10 years.
 
 ## The real comparison: deployment model
 
@@ -59,7 +59,7 @@ If you self-host, you have likely been burned before, because a service you reli
 - **Source-available under AGPL.** The full codebase is public. You can read every line of code that touches your data.
 - **Full data export.** You can export your articles, tags, and metadata at any time, in a standard format, with no lock-in.
 - **Australian hosting.** Data stays in Australia under Australian privacy law, which keeps US jurisdiction out of the picture.
-- **Clear revenue model.** $3.99/month, with no ads, no tracking, no venture capital, and no growth-at-all-costs pressure. You pay for the service and I keep running it. That is the model, start to finish.
+- **Clear revenue model.** $49/year, with no ads, no tracking, no venture capital, and no growth-at-all-costs pressure. You pay for the service and I keep running it. That is the model, start to finish.
 
 I can't promise what a hosted service will look like in 5 years. But each of the choices above is checkable today rather than taken on faith, and together they make a hosted service as trustworthy as it can be without putting the database on your own disk.
 
@@ -67,7 +67,7 @@ I can't promise what a hosted service will look like in 5 years. But each of the
 
 | | Karakeep | Readplace |
 |---|---|---|
-| **Price** | Free | $3.99/month |
+| **Price** | Free | $49/year |
 | **Hosting** | Self-hosted (Docker) | Managed |
 | **Source code** | Open source (AGPLv3) | Source-available (AGPL) |
 | **AI features** | Auto-tagging (Ollama / OpenAI) | TL;DR summaries (included) |
@@ -108,4 +108,4 @@ Both tools answer the same question with different philosophies: how much of the
 
 ---
 
-*Readplace is a read-it-later app for people who read a lot. $3.99/month, no ads, no tracking. Try it at [readplace.com](https://readplace.com).*
+*Readplace is a read-it-later app for people who read a lot. $49/year, no ads, no tracking. Try it at [readplace.com](https://readplace.com).*

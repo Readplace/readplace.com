@@ -11,7 +11,7 @@ keywords: "free read it later app, read it later free, instapaper free, wallabag
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Free read-it-later options in 2026 sort into 3 kinds. Instapaper and Raindrop.io run usable free tiers. Karakeep and Wallabag are free software you self-host, which trades money for time and a server bill. Browser bookmarks cost nothing and give you no reader view. Pocket and Omnivore were free and both shut down, so a free hosted tier carries a shutdown risk you should price in. Readplace costs $3.99/mo, and that price is the business model.
+Free read-it-later options in 2026 sort into 3 kinds. Instapaper and Raindrop.io run usable free tiers. Karakeep and Wallabag are free software you self-host, which trades money for time and a server bill. Browser bookmarks cost nothing and give you no reader view. Pocket and Omnivore were free and both shut down, so a free hosted tier carries a shutdown risk you should price in. Readplace costs $49/year, and that price is the business model.
 
 </div>
 </details>
@@ -94,7 +94,7 @@ I built Readplace after watching too many of these services close and wanting on
 
 The model is the plain one. You pay for the product, and the money keeps the product alive.
 
-Readplace costs $3.99/month.
+Readplace costs $49/year.
 
 That subscription is the whole funding source. There is no venture capital to run out, no acqui-hire to pull the team onto someone else's roadmap, and no ad network that needs your reading history to sell. The fees cover servers and development. If the product stays good enough that people keep paying, it keeps running, which is the same test any honest business has to pass.
 
@@ -111,7 +111,7 @@ If you want zero cost and you accept the shutdown risk, Instapaper or Raindrop s
 | Karakeep | $0 + server + time | Full control, self-hosted | Your own maintenance burden |
 | Wallabag | $0 + server + time | Full control, self-hosted | Your own maintenance burden |
 | Browser bookmarks | $0 | Zero dependencies | No reader view, no offline, no organisation |
-| Readplace | $3.99/mo | Hosted, maintained, no ads | Paying money for software |
+| Readplace | $49/yr | Hosted, maintained, no ads | Paying money for software |
 
 Every row in that table is a real bargain, not a free lunch.
 

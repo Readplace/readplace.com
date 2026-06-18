@@ -15,7 +15,7 @@ describe("htmlToMarkdown", () => {
 			<table>
 				<thead><tr><th>Name</th><th>Price</th></tr></thead>
 				<tbody>
-					<tr><td>Readplace</td><td>$3.99</td></tr>
+					<tr><td>Readplace</td><td>$49/yr</td></tr>
 					<tr><td>Readwise</td><td>$9.99</td></tr>
 				</tbody>
 			</table>
@@ -26,7 +26,7 @@ describe("htmlToMarkdown", () => {
 		expect(md).toMatch(/\|\s+Name\s+\|\s+Price\s+\|/);
 		expect(md).toMatch(/\|\s+-+\s+\|\s+-+\s+\|/);
 		expect(md).toContain("Readplace");
-		expect(md).toContain("$3.99");
+		expect(md).toContain("$49/yr");
 	});
 
 	it("drops <script> blocks (including JSON-LD) entirely", () => {

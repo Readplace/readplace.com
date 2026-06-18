@@ -4,8 +4,7 @@ describe("CheckoutRecoveryEmail", () => {
 	const baseParams = {
 		founderAvatarUrl: "https://readplace.com/fayner-brack.jpg",
 		resumeUrl: "https://readplace.com/signup?email=jane%40example.com&utm_source=recovery",
-		monthlyPrice: "$3.99",
-		yearlyDiscount: "20%",
+		annualPrice: "$49",
 	};
 
 	it("includes the resume URL on the CTA anchor", () => {
@@ -51,10 +50,8 @@ describe("CheckoutRecoveryEmail", () => {
 		const html = email.to("text/html");
 		const text = email.to("text/plain");
 
-		expect(html).toContain("$3.99 a month");
-		expect(html).toContain("20% off");
-		expect(text).toContain("$3.99 a month");
-		expect(text).toContain("20% off");
+		expect(html).toContain("$49 a year");
+		expect(text).toContain("$49 a year");
 	});
 
 	it("returns a plain-text body containing the resume URL on its own line", () => {
@@ -78,8 +75,7 @@ describe("CheckoutRecoveryEmail", () => {
 			"Hi there,",
 			"I'm Fayner \u2014 I built Readplace alone",
 			"I genuinely want to know",
-			"$3.99 a month",
-			"20% off",
+			"$49 a year",
 			"Either way, your 14-day free trial is still waiting",
 			"Resume your trial",
 			"\u2014 Fayner",

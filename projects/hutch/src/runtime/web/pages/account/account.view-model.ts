@@ -80,7 +80,7 @@ function action(input: Omit<AccountAction, "isLink">): AccountAction {
 
 const SUBSCRIBE_ACTION = action({
 	key: "subscribe",
-	name: "Subscribe — $3.99/month",
+	name: "Subscribe — $49/year",
 	variant: "primary",
 	method: "POST",
 	href: ACCOUNT_SUBSCRIBE_URL,

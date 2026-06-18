@@ -292,7 +292,7 @@ describe("GET /", () => {
 
 		const section = doc.querySelector('[data-test-section="cost-transparency"]');
 		assert(section, "cost transparency section must be rendered");
-		expect(section.querySelector(".home-cost__heading")?.textContent).toContain("$3.99");
+		expect(section.querySelector(".home-cost__heading")?.textContent).toContain("$49");
 		const items = section.querySelectorAll("[data-test-cost-list] .home-cost__item");
 		expect(items.length).toBe(3);
 		const text = section.textContent ?? "";
@@ -421,7 +421,7 @@ describe("GET /", () => {
 
 		expect(faq.mainEntity.length).toBe(6);
 		expect(faq.mainEntity[0].name).toBe("What is Readplace?");
-		expect(faq.mainEntity[4].name).toBe("What does the $3.99/month subscription pay for?");
+		expect(faq.mainEntity[4].name).toBe("What does the $49/year subscription pay for?");
 		expect(faq.mainEntity[5].name).toBe("Does Readplace hallucinate text when extracting PDFs?");
 	});
 

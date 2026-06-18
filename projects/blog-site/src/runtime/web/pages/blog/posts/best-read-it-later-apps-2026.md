@@ -11,7 +11,7 @@ keywords: "read it later apps, Pocket alternative, Omnivore alternative, best re
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Pocket and Omnivore both shut down, so here are the real 2026 alternatives. Readwise Reader ($12.99/mo) for power users who need highlight sync to Obsidian or Notion. Instapaper (free tier) for a simple Pocket replacement with Kobo support. Karakeep (free, self-hosted) for developers who want full data control. Raindrop.io ($3/mo) for bookmark-heavy workflows. Wallabag (free, self-hosted) for long-term stability. Matter ($8/mo) for social reading. Readplace ($3.99/mo) for AI summaries and privacy without the cost of Readwise.
+Pocket and Omnivore both shut down, so here are the real 2026 alternatives. Readwise Reader ($119.88/year) for power users who need highlight sync to Obsidian or Notion. Instapaper (free tier) for a simple Pocket replacement with Kobo support. Karakeep (free, self-hosted) for developers who want full data control. Raindrop.io ($28/year) for bookmark-heavy workflows. Wallabag (free, self-hosted) for long-term stability. Matter ($60/year) for social reading. Readplace ($49/year) for AI summaries and privacy without the cost of Readwise.
 
 </div>
 </details>
@@ -32,13 +32,13 @@ These 5 axes leave things out. They say nothing about reading-view typography, p
 
 | App | Price | AI Features | Open Source | Offline Reading | Platforms |
 |-----|-------|-------------|-------------|-----------------|-----------|
-| **Readplace** | $3.99/mo | TL;DR summaries | Source-available | Planned | Web, Chrome, Firefox |
-| **Readwise Reader** | $9.99-12.99/mo | Ghostreader AI | No | Yes | Web, iOS, Android, Chrome, Firefox, Safari |
+| **Readplace** | $49/yr | TL;DR summaries | Source-available | Planned | Web, Chrome, Firefox |
+| **Readwise Reader** | $119.88/yr | Ghostreader AI | No | Yes | Web, iOS, Android, Chrome, Firefox, Safari |
 | **Instapaper** | Free / Premium | No | No | Yes | Web, iOS, Android, Kobo |
-| **Raindrop.io** | Free / $3/mo | No | No | Pro only | Web, iOS, Android, Chrome, Firefox, Safari |
+| **Raindrop.io** | Free / $28/yr | No | No | Pro only | Web, iOS, Android, Chrome, Firefox, Safari |
 | **Karakeep** | Free (self-hosted) | AI auto-tagging | Yes | Yes | Web, Chrome, Firefox |
 | **Wallabag** | Free (self-hosted) | No | Yes | Yes | Web, iOS, Android, Chrome, Firefox |
-| **Matter** | Free / $8/mo | AI co-reader | No | Yes | iOS, Android, Web |
+| **Matter** | Free / $60/yr | AI co-reader | No | Yes | iOS, Android, Web |
 
 ## Readplace
 
@@ -46,7 +46,7 @@ I built Readplace after 10 years of maintaining a personal reading system that I
 
 The code is source-available, so you can read every line that touches your data. Readplace is younger than most options here and still adding features. What it does today, it does well.
 
-**$3.99/month**
+**$49/year**
 
 ### Strengths
 
@@ -65,7 +65,7 @@ The code is source-available, so you can read every line that touches your data.
 
 Readwise Reader packs in more than any other read-it-later app I have used. It folds article saving, an RSS reader, YouTube transcript support, and highlighting tools into a single interface, and Ghostreader, its built-in AI assistant, summarises your saved content, tags it, and generates questions about it so you can revisit what you read. Highlights sync automatically to Obsidian, Notion, Logseq, and other note-taking tools. If you turn saved reading into notes, Reader does the most with it.
 
-**$12.99/month (or $9.99/month billed annually)**
+**$119.88/year ($9.99/month billed annually, or $12.99/month month-to-month)**
 
 ### Strengths
 
@@ -105,7 +105,7 @@ It is now the default reading app on Kobo e-readers, which gives it an edge for 
 
 Raindrop.io is a bookmark manager first and a read-it-later tool second. It handles collections, nested folders, tags, and full-text search across saved pages, and the Pro tier adds an archive and a reader view. It fits best if your main need is organising and finding links rather than reading long-form, because the free tier works but lacks the reader view that makes it useful as a reading app.
 
-**Free / $3/month Pro**
+**Free / $28/year Pro**
 
 ### Strengths
 
@@ -159,9 +159,9 @@ Wallabag is the longest-standing open source read-it-later application. It has b
 
 ## Matter
 
-Matter takes a different shape than the rest. It layers social discovery and AI co-reading on top of the save-and-read loop, so it summarises articles, highlights key passages, and surfaces content based on what people in your network read. The social angle sets it apart, but it also pulls focus away from the plain save-and-read workflow. The free tier covers the basics, and Matter Premium at $8/month adds HD text-to-speech, fluid highlighting, integrations, and full-text search.
+Matter takes a different shape than the rest. It layers social discovery and AI co-reading on top of the save-and-read loop, so it summarises articles, highlights key passages, and surfaces content based on what people in your network read. The social angle sets it apart, but it also pulls focus away from the plain save-and-read workflow. The free tier covers the basics, and Matter Premium at $60/year adds HD text-to-speech, fluid highlighting, integrations, and full-text search.
 
-**Free / $8/month Premium**
+**Free / $60/year Premium**
 
 ### Strengths
 

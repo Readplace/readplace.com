@@ -11,7 +11,7 @@ keywords: "readplace vs readwise, read it later app, readwise alternative, read 
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Readwise Reader ($12.99/mo) has the deeper feature set: Ghostreader AI, highlight sync to Obsidian/Notion/Logseq, RSS, and a newsletter inbox. Readplace ($3.99/mo) is simpler, with AI TL;DR summaries, Australian hosting, source-available code, and a focused reading experience. Pick Readwise if you need highlighting that syncs into a note-taking tool. Pick Readplace if you want AI summaries and privacy at a lower price.
+Readwise Reader ($119.88/year) has the deeper feature set: Ghostreader AI, highlight sync to Obsidian/Notion/Logseq, RSS, and a newsletter inbox. Readplace ($49/year) is simpler, with AI TL;DR summaries, Australian hosting, source-available code, and a focused reading experience. Pick Readwise if you need highlighting that syncs into a note-taking tool. Pick Readplace if you want AI summaries and privacy at a lower price.
 
 </div>
 </details>
@@ -28,7 +28,7 @@ I've tried to be fair anyway. Readwise is a good product, and where it's the bet
 
 | | Readplace | Readwise Reader |
 |---|---|---|
-| **Price** | $3.99/mo | $12.99/mo ($8.99/mo annual) |
+| **Price** | $49/yr | $119.88/yr ($9.99/mo billed annually) |
 | **AI summaries** | Global TL;DR (included) | Ghostreader (inline AI, Q&A, more advanced) |
 | **Highlights** | Coming soon | Full highlighting with sync to Obsidian, Notion, Logseq |
 | **RSS reader** | No | Yes, built in |
@@ -40,7 +40,7 @@ I've tried to be fair anyway. Readwise is a good product, and where it's the bet
 
 ## Price
 
-Readplace costs $3.99 per month. Readwise Reader costs $12.99 per month, or $8.99 per month if you pay for a year up front, which puts Readplace at roughly a third of the monthly price.
+Readplace costs $49/year. Readwise Reader costs $119.88/year, which puts Readplace at roughly a third of the annual price.
 
 Both include their AI features in that base price, with no add-ons and no usage caps to watch.
 

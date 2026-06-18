@@ -57,8 +57,7 @@ async function main(): Promise<void> {
 		const email = CheckoutRecoveryEmail({
 			founderAvatarUrl,
 			resumeUrl,
-			monthlyPrice: "$3.99",
-			yearlyDiscount: "20%",
+			annualPrice: "$49",
 		});
 		const message = {
 			from,
