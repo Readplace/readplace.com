@@ -208,7 +208,7 @@ describe("cancel-subscription handler", () => {
 			subscriptionId: "sub_done",
 			customerId: "cus_done",
 		});
-		await subject.providers.markCancelled({ subscriptionId: "sub_done" });
+		await subject.providers.markCancelledByUserId({ userId: USER_ID });
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-cancelled", body: buildEventBridgeBody(USER_ID) }]),

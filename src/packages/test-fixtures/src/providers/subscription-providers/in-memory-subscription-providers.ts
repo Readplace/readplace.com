@@ -4,7 +4,6 @@ import type {
 	FindSubscriptionBySubscriptionId,
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
-	MarkSubscriptionCancelled,
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
 	MarkTrialFeedbackEmailSent,
@@ -21,7 +20,6 @@ export function initInMemorySubscriptionProviders(opts: {
 	upsertTrialing: UpsertTrialingSubscription;
 	upsertActive: UpsertActiveSubscription;
 	markPendingCancellation: MarkSubscriptionPendingCancellation;
-	markCancelled: MarkSubscriptionCancelled;
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
@@ -76,20 +74,6 @@ export function initInMemorySubscriptionProviders(opts: {
 		});
 	};
 
-	const markCancelled: MarkSubscriptionCancelled = async ({ subscriptionId }) => {
-		for (const [userId, row] of rows.entries()) {
-			if (row.subscriptionId === subscriptionId) {
-				rows.set(userId, {
-					...row,
-					status: "cancelled",
-					updatedAt: opts.now().toISOString(),
-				});
-				return;
-			}
-		}
-		throw new Error(`No subscription row for subscriptionId ${subscriptionId}`);
-	};
-
 	const markCancelledByUserId: MarkSubscriptionCancelledByUserId = async ({ userId }) => {
 		const existing = rows.get(userId);
 		assert(existing, `No subscription row for user ${userId}`);
@@ -139,7 +123,6 @@ export function initInMemorySubscriptionProviders(opts: {
 		upsertTrialing,
 		upsertActive,
 		markPendingCancellation,
-		markCancelled,
 		markCancelledByUserId,
 		markActive,
 		markTrialFeedbackEmailSent,

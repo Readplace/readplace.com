@@ -140,7 +140,7 @@ describe("initGetEffectiveAccess", () => {
 			subscriptionId: "sub_test_cancelled",
 			customerId: "cus_test_cancelled",
 		});
-		await providers.markCancelled({ subscriptionId: "sub_test_cancelled" });
+		await providers.markCancelledByUserId({ userId: USER_ID });
 
 		const result = await getEffectiveAccess(USER_ID);
 

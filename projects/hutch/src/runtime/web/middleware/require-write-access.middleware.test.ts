@@ -119,7 +119,7 @@ describe("requireWriteAccess middleware", () => {
 			subscriptionId: "sub_cancelled",
 			customerId: "cus_cancelled",
 		});
-		await providers.markCancelled({ subscriptionId: "sub_cancelled" });
+		await providers.markCancelledByUserId({ userId: TEST_USER_ID });
 
 		const response = await request(app).post("/protected").set("Accept", "text/html");
 
@@ -134,7 +134,7 @@ describe("requireWriteAccess middleware", () => {
 			subscriptionId: "sub_api_cancelled",
 			customerId: "cus_api_cancelled",
 		});
-		await providers.markCancelled({ subscriptionId: "sub_api_cancelled" });
+		await providers.markCancelledByUserId({ userId: TEST_USER_ID });
 
 		const response = await request(app)
 			.post("/protected")

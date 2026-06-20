@@ -1,4 +1,3 @@
-import assert from "node:assert";
 import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
@@ -10,7 +9,6 @@ import type {
 	FindSubscriptionBySubscriptionId,
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
-	MarkSubscriptionCancelled,
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
 	MarkTrialFeedbackEmailSent,
@@ -59,7 +57,6 @@ export function initDynamoDbSubscriptionProviders(deps: {
 	upsertTrialing: UpsertTrialingSubscription;
 	upsertActive: UpsertActiveSubscription;
 	markPendingCancellation: MarkSubscriptionPendingCancellation;
-	markCancelled: MarkSubscriptionCancelled;
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
 	markTrialFeedbackEmailSent: MarkTrialFeedbackEmailSent;
@@ -140,27 +137,6 @@ export function initDynamoDbSubscriptionProviders(deps: {
 		});
 	};
 
-	const markCancelled: MarkSubscriptionCancelled = async ({ subscriptionId }) => {
-		const { items } = await table.query({
-			IndexName: "subscriptionId-index",
-			KeyConditionExpression: "subscriptionId = :sid",
-			ExpressionAttributeValues: { ":sid": subscriptionId },
-			Limit: 1,
-		});
-		const row = items[0];
-		assert(row, `No subscription row for subscriptionId ${subscriptionId}`);
-		await table.update({
-			Key: { userId: row.userId },
-			UpdateExpression: "SET #status = :status, updatedAt = :now",
-			ConditionExpression: "attribute_exists(userId)",
-			ExpressionAttributeNames: { "#status": "status" },
-			ExpressionAttributeValues: {
-				":status": "cancelled",
-				":now": deps.now().toISOString(),
-			},
-		});
-	};
-
 	const markCancelledByUserId: MarkSubscriptionCancelledByUserId = async ({ userId }) => {
 		await table.update({
 			Key: { userId },
@@ -210,7 +186,6 @@ export function initDynamoDbSubscriptionProviders(deps: {
 		upsertTrialing,
 		upsertActive,
 		markPendingCancellation,
-		markCancelled,
 		markCancelledByUserId,
 		markActive,
 		markTrialFeedbackEmailSent,

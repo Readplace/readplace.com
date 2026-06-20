@@ -105,7 +105,7 @@ describe("GET /account?error=payment_method", () => {
 			subscriptionId: "sub_pay_err",
 			customerId: "cus_pay_err",
 		});
-		await subscriptionProviders.markCancelled({ subscriptionId: "sub_pay_err" });
+		await subscriptionProviders.markCancelledByUserId({ userId });
 
 		const response = await agent.get("/account?error=payment_method");
 
@@ -219,7 +219,7 @@ describe("GET /account (inactive — trial expired vs cancelled render identical
 			subscriptionId: "sub_cancelled",
 			customerId: "cus_cancelled",
 		});
-		await harnessB.subscriptionProviders.markCancelled({ subscriptionId: "sub_cancelled" });
+		await harnessB.subscriptionProviders.markCancelledByUserId({ userId: userIdB });
 		const responseB = await agentB.get("/account");
 		const cardB = new JSDOM(responseB.text).window.document
 			.querySelector("[data-test-account-card]")?.outerHTML;
@@ -380,7 +380,7 @@ describe("POST /account/subscribe", () => {
 			subscriptionId: "sub_was_paid",
 			customerId: "cus_was_paid",
 		});
-		await subscriptionProviders.markCancelled({ subscriptionId: "sub_was_paid" });
+		await subscriptionProviders.markCancelledByUserId({ userId });
 
 		const response = await agent.post("/account/subscribe");
 
@@ -415,7 +415,7 @@ describe("POST /account/subscribe", () => {
 			subscriptionId: "sub_was_paid",
 			customerId: "cus_will_fail",
 		});
-		await subscriptionProviders.markCancelled({ subscriptionId: "sub_was_paid" });
+		await subscriptionProviders.markCancelledByUserId({ userId });
 
 		const response = await agent.post("/account/subscribe");
 

@@ -60,7 +60,6 @@ import type {
 	MarkReaderViewSucceeded,
 	MarkSessionEmailVerified,
 	MarkSubscriptionActive,
-	MarkSubscriptionCancelled,
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
 	MarkSummaryPending,
@@ -145,7 +144,6 @@ export interface SubscriptionProvidersBundle {
 	upsertTrialing: UpsertTrialingSubscription;
 	upsertActive: UpsertActiveSubscription;
 	markPendingCancellation: MarkSubscriptionPendingCancellation;
-	markCancelled: MarkSubscriptionCancelled;
 	markCancelledByUserId: MarkSubscriptionCancelledByUserId;
 	markActive: MarkSubscriptionActive;
 	seedRow: (row: SubscriptionRecord) => void;
