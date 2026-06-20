@@ -63,6 +63,7 @@ const rateLimitRules = {
 	login: config.require("rateLimitLogin"),
 	signup: config.require("rateLimitSignup"),
 	forgotPassword: config.require("rateLimitForgotPassword"),
+	oauthRegister: config.require("rateLimitOauthRegister"),
 };
 
 /* Blunt TOTAL-rate ceiling (all clients combined) applied by API Gateway before
@@ -297,6 +298,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		RATE_LIMIT_LOGIN: rateLimitRules.login,
 		RATE_LIMIT_SIGNUP: rateLimitRules.signup,
 		RATE_LIMIT_FORGOT_PASSWORD: rateLimitRules.forgotPassword,
+		RATE_LIMIT_OAUTH_REGISTER: rateLimitRules.oauthRegister,
 		GOOGLE_LOGIN_CLIENT_ID: requireEnv("GOOGLE_LOGIN_CLIENT_ID"),
 		GOOGLE_LOGIN_CLIENT_SECRET: requireEnv("GOOGLE_LOGIN_CLIENT_SECRET"),
 		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),

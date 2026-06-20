@@ -265,6 +265,7 @@ describe("GET /.well-known/oauth-authorization-server", () => {
 			issuer: "http://localhost:3000",
 			authorization_endpoint: "http://localhost:3000/oauth/authorize",
 			token_endpoint: "http://localhost:3000/oauth/token",
+			registration_endpoint: "http://localhost:3000/oauth/register",
 			revocation_endpoint: "http://localhost:3000/oauth/revoke",
 			response_types_supported: ["code"],
 			grant_types_supported: ["authorization_code", "refresh_token"],
@@ -272,7 +273,7 @@ describe("GET /.well-known/oauth-authorization-server", () => {
 			code_challenge_methods_supported: ["S256"],
 			agent_auth: {
 				skill: "http://localhost:3000/auth.md",
-				register_uri: "mailto:readplace+agents@readplace.com",
+				register_uri: "http://localhost:3000/oauth/register",
 				identity_types_supported: ["delegated_user"],
 				credential_types_supported: ["oauth2_access_token", "oauth2_refresh_token"],
 				revocation_uri: "http://localhost:3000/oauth/revoke",

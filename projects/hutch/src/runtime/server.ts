@@ -98,7 +98,13 @@ import type {
 	ConsumeRateLimit,
 	RateLimitRules,
 } from "@packages/provider-contracts/rate-limit";
-import type { OAuthModel, ValidateAccessToken } from "@packages/provider-contracts/oauth";
+import type {
+	FindOAuthClient,
+	OAuthModel,
+	RegisterOAuthClient,
+	ValidateAccessToken,
+	ValidateOAuthRedirectUri,
+} from "@packages/provider-contracts/oauth";
 import { HutchLogger } from "@packages/hutch-logger";
 import type { AnalyticsEvent } from "./web/middleware/analytics";
 import { initAuthRoutes } from "./web/auth/auth.page";
@@ -206,6 +212,9 @@ interface AppDependencies {
 	logError: (message: string, error?: Error) => void;
 	oauthModel: OAuthModel;
 	validateAccessToken: ValidateAccessToken;
+	findOAuthClient: FindOAuthClient;
+	validateOAuthRedirectUri: ValidateOAuthRedirectUri;
+	registerOAuthClient: RegisterOAuthClient;
 	publishLinkSaved: PublishLinkSaved;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
@@ -491,6 +500,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			issuer: dependencies.baseUrl,
 			authorization_endpoint: `${dependencies.baseUrl}/oauth/authorize`,
 			token_endpoint: `${dependencies.baseUrl}/oauth/token`,
+			registration_endpoint: `${dependencies.baseUrl}/oauth/register`,
 			revocation_endpoint: `${dependencies.baseUrl}/oauth/revoke`,
 			response_types_supported: ["code"],
 			grant_types_supported: ["authorization_code", "refresh_token"],
@@ -909,6 +919,11 @@ export function createApp(dependencies: AppDependencies): Express {
 	const oauthRouter = initOAuthRoutes({
 		model: deps.oauthModel,
 		buildBannerState,
+		findClient: deps.findOAuthClient,
+		validateRedirectUri: deps.validateOAuthRedirectUri,
+		registerClient: deps.registerOAuthClient,
+		consumeRateLimit: deps.consumeRateLimit,
+		registerRateLimitRule: deps.rateLimitRules.oauthRegister,
 	});
 	app.use("/oauth/token", extensionCors);
 	app.use("/oauth/revoke", extensionCors);

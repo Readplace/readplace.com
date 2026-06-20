@@ -11,3 +11,8 @@ export {
 	RefreshTokenSchema,
 	AuthorizationCodeSchema,
 } from "./oauth.schema";
+export { getBuiltInClient, isBuiltInRedirectUri } from "./built-in-clients";
+export {
+	computeOAuthClientDedupeKey,
+	defaultOAuthClientName,
+} from "./client-registration";

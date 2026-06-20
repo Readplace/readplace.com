@@ -24,6 +24,7 @@ config:
   hutch:rateLimitLogin: 5000/900
   hutch:rateLimitSignup: 5000/3600
   hutch:rateLimitForgotPassword: 5000/3600
+  hutch:rateLimitOauthRegister: 5000/3600
   hutch:apiThrottleBurstLimit: 5000
   hutch:apiThrottleRateLimit: 2000
   hutch:trialSchedulerGroupName: hutch-trial-end-staging

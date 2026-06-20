@@ -35,6 +35,8 @@ import {
 	createOAuthModel,
 	initInMemoryOAuthModel,
 } from "./providers/oauth/oauth-model";
+import { initInMemoryOAuthClients } from "./providers/oauth/in-memory-oauth-clients";
+import { initInMemoryOAuthClientLookup } from "./providers/oauth/oauth-client-lookup";
 import { createValidateAccessToken } from "./providers/oauth/validate-access-token";
 import type {
 	FindGeneratedSummary,
@@ -252,6 +254,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			login: unlimitedRule,
 			signup: unlimitedRule,
 			forgotPassword: unlimitedRule,
+			oauthRegister: unlimitedRule,
 		},
 	};
 	const pendingHtml = initInMemoryPendingHtml();
@@ -271,7 +274,14 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const { publishSubscriptionReactivated } = initInMemorySubscriptionReactivated({
 		logger: noopLogger,
 	});
-	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), { appOrigin, findUserById: auth.findUserById });
+	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });
+	const oauthClientLookup = initInMemoryOAuthClientLookup({ dynamic: oauthClients });
+	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), {
+		appOrigin,
+		findUserById: auth.findUserById,
+		findClient: oauthClientLookup.findClient,
+		markClientActive: oauthClientLookup.markClientActive,
+	});
 	const stripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const pendingSignup = initInMemoryPendingSignup();
 	const subscriptionProviders = initInMemorySubscriptionProviders({ now: () => new Date() });
@@ -360,6 +370,9 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		oauth: {
 			oauthModel,
 			validateAccessToken: createValidateAccessToken(oauthModel),
+			findClient: oauthClientLookup.findClient,
+			validateRedirectUri: oauthClientLookup.validateRedirectUri,
+			registerClient: oauthClients.registerClient,
 		},
 		email,
 		emailVerification,

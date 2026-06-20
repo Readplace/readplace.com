@@ -7,12 +7,17 @@ import type {
 	User,
 	Falsey,
 } from "@node-oauth/oauth2-server";
-import type { OAuthModel } from "@packages/provider-contracts/oauth";
+import type {
+	MarkOAuthClientActive,
+	FindOAuthClient,
+	OAuthModel,
+} from "@packages/provider-contracts/oauth";
 import type { FindUserById } from "@packages/provider-contracts/auth";
 import type { UserId } from "@packages/domain/user";
 import type {
 	AccessToken as AccessTokenBrand,
 	AuthorizationCode as AuthorizationCodeBrand,
+	OAuthClient,
 	OAuthClientId,
 	RefreshToken as RefreshTokenBrand,
 } from "@packages/domain/oauth";
@@ -21,9 +26,9 @@ import {
 	AccessTokenSchema,
 	AuthorizationCodeSchema,
 	RefreshTokenSchema,
+	getBuiltInClient,
 } from "@packages/domain/oauth";
 import { UserIdSchema } from "@packages/domain/user";
-import { getClient } from "./oauth-clients";
 import { generateToken } from "./generate-token";
 
 interface StoredAuthorizationCode {
@@ -69,12 +74,22 @@ export type { OAuthModel };
 
 export function createOAuthModel(
 	deps: OAuthModelDeps,
-	options?: { appOrigin?: string; findUserById?: FindUserById },
+	options?: {
+		appOrigin?: string;
+		findUserById?: FindUserById;
+		findClient?: FindOAuthClient;
+		markClientActive?: MarkOAuthClientActive;
+	},
 ): OAuthModel {
 	const findUserById = options?.findUserById;
+	const findClient = options?.findClient;
+	const markClientActive = options?.markClientActive;
 
-	function resolveClient(clientId: string) {
-		const client = getClient(clientId);
+	async function resolveClient(clientId: string): Promise<OAuthClient | null> {
+		if (findClient) {
+			return (await findClient(clientId)) ?? null;
+		}
+		const client = getBuiltInClient(clientId);
 		if (!client) return null;
 		if (!options?.appOrigin?.includes("127.0.0.1")) return client;
 		return {
@@ -85,7 +100,7 @@ export function createOAuthModel(
 
 	return {
 		async getClient(clientId: string, _clientSecret: string): Promise<Client | Falsey> {
-			const client = resolveClient(clientId);
+			const client = await resolveClient(clientId);
 			if (!client) return null;
 
 			return {
@@ -131,7 +146,7 @@ export function createOAuthModel(
 				return null;
 			}
 
-			const client = resolveClient(stored.clientId);
+			const client = await resolveClient(stored.clientId);
 			if (!client) return null;
 
 			return {
@@ -183,6 +198,8 @@ export function createOAuthModel(
 			userTokens.add(token.accessToken);
 			deps.userIdIndex.set(user.id, userTokens);
 
+			if (markClientActive) await markClientActive(client.id);
+
 			return {
 				...token,
 				client,
@@ -198,7 +215,7 @@ export function createOAuthModel(
 				return null;
 			}
 
-			const client = resolveClient(stored.clientId);
+			const client = await resolveClient(stored.clientId);
 			if (!client) return null;
 
 			return {
@@ -227,7 +244,7 @@ export function createOAuthModel(
 				return null;
 			}
 
-			const client = resolveClient(stored.clientId);
+			const client = await resolveClient(stored.clientId);
 			if (!client) return null;
 
 			// Re-resolve the standing on refresh so a token authorized while
