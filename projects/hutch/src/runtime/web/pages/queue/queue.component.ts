@@ -5,7 +5,7 @@ import type { BrowserName } from "../../onboarding/onboarding.types";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
-import { STANDARD_YEARLY_USD } from "../../pricing";
+import { STANDARD_YEARLY_USD } from "../../../domain/pricing";
 import { QUEUE_STYLES } from "./queue.styles";
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
 import { renderToast } from "../../shared/toast/toast.component";

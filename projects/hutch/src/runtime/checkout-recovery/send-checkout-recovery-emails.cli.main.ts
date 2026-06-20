@@ -7,7 +7,7 @@ import { CheckoutRecoveryEmail } from "../web/auth/checkout-recovery-email";
 import { buildSignupResumeUrl } from "../web/auth/signup-resume-url";
 import { requireEnv } from "../domain/require-env";
 import { selectRecipients } from "../domain/checkout-recovery/select-recipients";
-import { STANDARD_YEARLY_USD } from "../web/pricing";
+import { STANDARD_YEARLY_USD } from "../domain/pricing";
 
 const logger = HutchLogger.from(consoleLogger);
 

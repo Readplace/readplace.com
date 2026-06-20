@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
-import { STANDARD_YEARLY_USD } from "../../pricing";
+import { STANDARD_YEARLY_USD } from "../../../domain/pricing";
 
 const TEMPLATE = readFileSync(join(__dirname, "offer-popup.template.html"), "utf-8");
 

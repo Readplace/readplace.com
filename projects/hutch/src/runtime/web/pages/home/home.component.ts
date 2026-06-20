@@ -5,7 +5,7 @@ import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { switchHelpers } from "../../handlebars-switch";
-import { STANDARD_YEARLY_USD } from "../../pricing";
+import { STANDARD_YEARLY_USD } from "../../../domain/pricing";
 import { renderFoundingProgress } from "../../shared/founding-progress/founding-progress.component";
 import type { FoundingAllocation } from "../../shared/founding-progress/founding-allocation";
 import { HOME_PAGE_STYLES } from "./home.styles";

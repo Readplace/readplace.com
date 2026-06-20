@@ -1,7 +1,7 @@
 import { decomposeTimeLeft } from "@packages/time-left";
 import type { EffectiveAccess } from "../../../domain/access/effective-access";
 import { withInternalTracking } from "@packages/web-shell";
-import { STANDARD_YEARLY_USD } from "../../pricing";
+import { STANDARD_YEARLY_USD } from "../../../domain/pricing";
 import {
 	ACCOUNT_CANCEL_URL,
 	ACCOUNT_REACTIVATE_URL,
