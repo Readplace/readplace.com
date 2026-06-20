@@ -4,6 +4,7 @@ import express from "express";
 import helmet from "helmet";
 import compression from "compression";
 import serverless from "serverless-http";
+import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createBlogApp, PORT } from "./app";
 import { getEnv, requireEnv } from "./require-env";
 
@@ -27,8 +28,9 @@ const application = express()
 	);
 
 if (!lambda) {
+	const logger = HutchLogger.from(consoleLogger);
 	application.listen(PORT, () => {
-		console.log(`blog-site is running on http://localhost:${PORT}`);
+		logger.info(`blog-site is running on http://localhost:${PORT}`);
 	});
 }
 

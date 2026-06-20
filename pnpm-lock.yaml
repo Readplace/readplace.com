@@ -44,6 +44,9 @@ importers:
 
   projects/blog-site:
     dependencies:
+      '@packages/hutch-logger':
+        specifier: workspace:*
+        version: link:../../src/packages/hutch-logger
       '@packages/web-shell':
         specifier: workspace:*
         version: link:../../src/packages/web-shell
