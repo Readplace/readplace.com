@@ -21,6 +21,7 @@ export type {
 	OAuthTokens,
 	TokenStorage,
 } from "./auth/auth.types";
+export { OAuthTokensSchema } from "./auth/auth.types";
 export { initOAuthAuth } from "./auth/oauth-auth";
 export { UnauthorizedError } from "./auth/unauthorized-error";
 export {

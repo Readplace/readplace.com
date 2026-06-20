@@ -1,3 +1,5 @@
+import "../zod-config";
+import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
 
 export type LoginResult = { ok: true };
@@ -30,10 +32,12 @@ export interface Auth {
 	whenLoggedIn: WhenLoggedIn;
 }
 
-export interface OAuthTokens {
-	accessToken: string;
-	refreshToken: string;
-}
+export const OAuthTokensSchema = z.object({
+	accessToken: z.string(),
+	refreshToken: z.string(),
+});
+
+export type OAuthTokens = z.infer<typeof OAuthTokensSchema>;
 
 export interface TokenStorage {
 	getTokens(): Promise<OAuthTokens | null>;
