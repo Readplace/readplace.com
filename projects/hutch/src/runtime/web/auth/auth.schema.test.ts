@@ -87,6 +87,7 @@ describe("SignupSchema", () => {
 
 		expect(result.success).toBe(false);
 		if (result.success) return;
-		expect(result.error.issues[0]?.message).toBe(DISPOSABLE_EMAIL_MESSAGE);
+		const emailIssue = result.error.issues.find((issue) => issue.path.includes("email"));
+		expect(emailIssue?.message).toBe(DISPOSABLE_EMAIL_MESSAGE);
 	});
 });
