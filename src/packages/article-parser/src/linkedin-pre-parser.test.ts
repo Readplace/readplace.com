@@ -155,7 +155,9 @@ describe("linkedinPreParser end-to-end through parseHtml", () => {
 		expect((content.match(/<p[\s>]/g) ?? []).length).toBeGreaterThanOrEqual(3);
 		expect(content).toContain("available dev positions");
 		expect(content).toContain("never the bottleneck");
-		expect(content).not.toContain("dev positions:\n\n1.");
+		expect(content).toContain(
+			'available dev positions:</p><p dir="ltr">1. The cycle of punched cards (70s)<br>',
+		);
 	});
 
 	it("leaves the same page mushed when the pre-parser is not registered", () => {
