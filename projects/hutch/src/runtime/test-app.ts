@@ -189,8 +189,8 @@ function flattenFixtureToAppDependencies(
 }
 
 /** `overrides` lets a test swap a single decorative dependency without rebuilding
- * the whole fixture — currently just `getChangelogBanner`, which defaults to "no
- * banner" so the banner stays hidden in every other route test. */
+ * the whole fixture — `getChangelogBanner`, which defaults to "no banner" so the
+ * banner stays hidden in every other route test. */
 export function createTestApp(
 	fixture: TestAppFixture,
 	overrides?: { getChangelogBanner?: GetChangelogBanner },

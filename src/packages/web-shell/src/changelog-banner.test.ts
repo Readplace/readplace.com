@@ -3,6 +3,7 @@ import { JSDOM } from "jsdom";
 import {
 	CHANGELOG_DISMISS_COOKIE_NAME,
 	type ChangelogBanner,
+	isChangelogVersion,
 	parseChangelogBannerFragment,
 	readCookie,
 	renderChangelogBannerFragment,
@@ -13,10 +14,12 @@ function parse(html: string): Document {
 	return new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window.document;
 }
 
+const VERSION = "a1b2c3d4";
+assert(isChangelogVersion(VERSION));
 const BANNER: ChangelogBanner = {
 	hook: "I added keyboard shortcuts to the reader",
 	href: "/blog/keyboard-shortcuts?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more",
-	version: "a1b2c3d4",
+	version: VERSION,
 };
 
 describe("renderChangelogBannerFragment", () => {
@@ -112,6 +115,25 @@ describe("parseChangelogBannerFragment", () => {
 				`<div data-changelog-version="a1b2c3d4"><span data-changelog-hook>hi</span><a href="//evil.example/x">Read more</a></div>`,
 			),
 		).toBeUndefined();
+	});
+});
+
+describe("isChangelogVersion", () => {
+	it("accepts exactly eight lowercase hex characters", () => {
+		expect(isChangelogVersion("a1b2c3d4")).toBe(true);
+	});
+
+	it("rejects a non-string value", () => {
+		expect(isChangelogVersion(undefined)).toBe(false);
+		expect(isChangelogVersion(null)).toBe(false);
+		expect(isChangelogVersion(0xa1b2c3d4)).toBe(false);
+	});
+
+	it("rejects the wrong length, uppercase, or non-hex characters", () => {
+		expect(isChangelogVersion("a1b2c3d")).toBe(false);
+		expect(isChangelogVersion("a1b2c3d4e")).toBe(false);
+		expect(isChangelogVersion("A1B2C3D4")).toBe(false);
+		expect(isChangelogVersion("zzzzzzzz")).toBe(false);
 	});
 });
 

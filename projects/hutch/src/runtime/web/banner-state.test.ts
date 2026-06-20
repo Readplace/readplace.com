@@ -1,4 +1,5 @@
-import type { ChangelogBanner } from "@packages/web-shell";
+import assert from "node:assert/strict";
+import { type ChangelogBanner, isChangelogVersion } from "@packages/web-shell";
 import { UserIdSchema } from "@packages/domain/user";
 import { initBuildBannerState } from "./banner-state";
 import type { GetChangelogBanner } from "./changelog-banner-source";
@@ -10,10 +11,12 @@ const FIXED_NOW = new Date("2026-01-01T00:00:00.000Z");
 
 const noChangelogBanner: GetChangelogBanner = async () => undefined;
 
+const CHANGELOG_VERSION = "a1b2c3d4";
+assert(isChangelogVersion(CHANGELOG_VERSION));
 const CHANGELOG: ChangelogBanner = {
 	hook: "I added keyboard shortcuts to the reader",
 	href: "/blog/keyboard-shortcuts?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more",
-	version: "a1b2c3d4",
+	version: CHANGELOG_VERSION,
 };
 
 describe("initBuildBannerState", () => {

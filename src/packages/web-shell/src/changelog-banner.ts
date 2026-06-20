@@ -2,25 +2,42 @@ import assert from "node:assert";
 import { parseHTML } from "linkedom";
 import { render } from "./render";
 
+/** An opaque 8-lowercase-hex fingerprint of the announcing post, branded so its
+ * shape is single-sourced across the deploy boundary. The only way to obtain one
+ * is `isChangelogVersion`, so the producer (blog-site), the fragment parser here,
+ * and hutch's dismiss route cannot drift to different notions of a valid version
+ * without a type error — they share this contract by name, never a re-declared
+ * regex (connascence of name, compiler-enforced). */
+export type ChangelogVersion = string & { readonly __brand: "ChangelogVersion" };
+
+const VERSION_PATTERN = /^[0-9a-f]{8}$/;
+
+/** The sole validator and narrowing gate for a ChangelogVersion. A value that
+ * crossed a boundary — a fetched fragment's attribute, a posted form field, a
+ * freshly hashed slug — is checked here once; callers narrow to the brand through
+ * this predicate instead of re-testing the shape, so the version contract has a
+ * single definition the compiler keeps every call site honest about. */
+export function isChangelogVersion(value: unknown): value is ChangelogVersion {
+	return typeof value === "string" && VERSION_PATTERN.test(value);
+}
+
 /** A single site-wide feature announcement. `hook` is the human-facing
  * one-liner, `href` the root-relative link to the announcing blog post (already
- * UTM-tagged by the producer), and `version` an opaque 8-hex-char fingerprint of
- * the post that drives dismissal: the close button posts it back, the cookie
- * stores it, and both deployables compare it byte-for-byte. The version is
- * produced only by blog-site and echoed through the fragment — no other code
- * re-hashes it, so a reader's dismissal always matches the banner they saw. */
+ * UTM-tagged by the producer), and `version` an opaque fingerprint of the post
+ * that drives dismissal: the close button posts it back, the cookie stores it,
+ * and both deployables compare it byte-for-byte. The version is produced only by
+ * blog-site and echoed through the fragment — no other code re-hashes it, so a
+ * reader's dismissal always matches the banner they saw. */
 export interface ChangelogBanner {
 	hook: string;
 	href: string;
-	version: string;
+	version: ChangelogVersion;
 }
 
 /** Shared by both deployables: hutch reads it via cookie-parser, blog-site via
  * the raw header. path:"/" + the readplace.com origin make it readable by both
  * Lambdas, so dismissing on /blog also dismisses on the app and vice versa. */
 export const CHANGELOG_DISMISS_COOKIE_NAME = "rp_changelog_dismissed";
-
-const VERSION_PATTERN = /^[0-9a-f]{8}$/;
 
 /** The transport contract between blog-site (producer) and hutch (consumer):
  * minimal HTML that survives a fetch + parse round-trip. Handlebars escapes the
@@ -45,7 +62,7 @@ export function parseChangelogBannerFragment(html: string): ChangelogBanner | un
 	if (!root) return undefined;
 
 	const version = root.getAttribute("data-changelog-version");
-	if (!version || !VERSION_PATTERN.test(version)) return undefined;
+	if (!isChangelogVersion(version)) return undefined;
 
 	const hookEl = root.querySelector("[data-changelog-hook]");
 	if (!hookEl) return undefined;

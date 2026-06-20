@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { initBase } from "./base.component";
+import { isChangelogVersion } from "./changelog-banner";
 import type { BannerState } from "./banner-state";
 import type { PageBody } from "./page-body.types";
 
 const Base = initBase({ staticBaseUrl: "", liveReload: false });
+
+const CHANGELOG_VERSION = "a1b2c3d4";
+assert(isChangelogVersion(CHANGELOG_VERSION));
 
 function createTestPageBody(overrides: Partial<PageBody> = {}): PageBody {
 	return {
@@ -252,7 +256,7 @@ describe("Base component", () => {
 			changelogBanner: {
 				hook: "I added keyboard shortcuts to the reader",
 				href: "/blog/keyboard-shortcuts?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more",
-				version: "a1b2c3d4",
+				version: CHANGELOG_VERSION,
 			},
 		}).to("text/html");
 		const doc = new JSDOM(result.body).window.document;

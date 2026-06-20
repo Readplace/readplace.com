@@ -1,8 +1,7 @@
 import express, { type Request, type Response, type Router } from "express";
-import { CHANGELOG_DISMISS_COOKIE_NAME } from "@packages/web-shell";
+import { CHANGELOG_DISMISS_COOKIE_NAME, isChangelogVersion } from "@packages/web-shell";
 import { baseCookieOptions } from "../../cookie-options";
 
-const VERSION_PATTERN = /^[0-9a-f]{8}$/;
 const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
 /** Where to send the reader after dismissing. The Referer is untrusted, so only
@@ -39,7 +38,7 @@ export function initChangelogDismissRoute(deps: {
 
 	router.post("/banner/changelog/dismiss", (req: Request, res: Response) => {
 		const version: unknown = req.body.version;
-		if (typeof version === "string" && VERSION_PATTERN.test(version)) {
+		if (isChangelogVersion(version)) {
 			res.cookie(CHANGELOG_DISMISS_COOKIE_NAME, version, {
 				...baseCookieOptions(deps.secureCookies),
 				maxAge: ONE_YEAR_MS,

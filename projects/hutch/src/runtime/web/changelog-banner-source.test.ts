@@ -1,14 +1,18 @@
+import assert from "node:assert/strict";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import {
 	type ChangelogBanner,
+	isChangelogVersion,
 	renderChangelogBannerFragment,
 } from "@packages/web-shell";
 import { initChangelogBannerSource } from "./changelog-banner-source";
 
+const VERSION = "a1b2c3d4";
+assert(isChangelogVersion(VERSION));
 const BANNER: ChangelogBanner = {
 	hook: "I added keyboard shortcuts to the reader",
 	href: "/blog/keyboard-shortcuts?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more",
-	version: "a1b2c3d4",
+	version: VERSION,
 };
 
 type FetchResult = { status: number; ok: boolean; text: () => Promise<string> };

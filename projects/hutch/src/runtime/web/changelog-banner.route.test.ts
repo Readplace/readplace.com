@@ -1,13 +1,16 @@
-import type { ChangelogBanner } from "@packages/web-shell";
+import assert from "node:assert/strict";
+import { type ChangelogBanner, isChangelogVersion } from "@packages/web-shell";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { createTestApp } from "../test-app";
 
+const VERSION = "a1b2c3d4";
+assert(isChangelogVersion(VERSION));
 const BANNER: ChangelogBanner = {
 	hook: "I added keyboard shortcuts to the reader",
 	href: "/blog/keyboard-shortcuts?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more",
-	version: "a1b2c3d4",
+	version: VERSION,
 };
 
 describe("changelog banner on hutch pages", () => {

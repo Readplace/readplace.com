@@ -1,5 +1,6 @@
+import assert from "node:assert/strict";
 import express from "express";
-import { type ChangelogBanner, initBase } from "@packages/web-shell";
+import { type ChangelogBanner, initBase, isChangelogVersion } from "@packages/web-shell";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { createBlogApp } from "../../../app";
@@ -10,10 +11,12 @@ const app = createBlogApp({ staticBaseUrl: "", liveReload: false });
 const blogPosts = initBlogPosts();
 const firstPost = blogPosts.getAllPosts()[0];
 
+const FAKE_VERSION = "a1b2c3d4";
+assert(isChangelogVersion(FAKE_VERSION));
 const FAKE_BANNER: ChangelogBanner = {
 	hook: "I added keyboard shortcuts to the reader",
 	href: "/blog/keyboard-shortcuts?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more",
-	version: "a1b2c3d4",
+	version: FAKE_VERSION,
 };
 
 /** Builds an app whose blog routes are driven by an injected `blogPosts`, so a

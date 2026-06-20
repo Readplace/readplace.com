@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, basename } from "node:path";
 import { z } from "zod";
-import { type ChangelogBanner, withInternalTracking } from "@packages/web-shell";
+import { type ChangelogBanner, isChangelogVersion, withInternalTracking } from "@packages/web-shell";
 import matter from "gray-matter";
 import MarkdownIt from "markdown-it";
 
@@ -82,6 +82,7 @@ export function deriveChangelogBanner(
 		.update(`${latest.slug}|${latest.banner}`)
 		.digest("hex")
 		.slice(0, 8);
+	assert(isChangelogVersion(version), "sha256 hex slice is always a valid changelog version");
 	const href = withInternalTracking(`/blog/${latest.slug}`, {
 		source: "changelog-banner",
 		content: "read-more",
