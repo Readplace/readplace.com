@@ -13,17 +13,7 @@ import {
 	ImportSessionIdSchema,
 } from "@packages/domain/import-session";
 import { computeDeselected, toImportSession } from "./import-session-mapping";
-
-/** An anonymous caller (no userId) may only touch anonymous rows; an authenticated
- * caller may touch anonymous rows (adopting a pre-auth review at commit) plus their
- * own. Mirrors the in-memory store's `load` guard at the DynamoDB condition layer.
- * The `:uid` value is supplied separately, only when authenticated, so DynamoDB
- * never sees an empty ExpressionAttributeValues map for the anonymous case. */
-function ownershipCondition(userId: UserId | undefined): string {
-	return userId === undefined
-		? "attribute_not_exists(userId)"
-		: "attribute_not_exists(userId) OR userId = :uid";
-}
+import { isAccessibleBy, ownershipCondition } from "./import-session-ownership";
 
 const SessionRow = z.object({
 	sessionId: ImportSessionIdSchema,
@@ -53,9 +43,7 @@ export function initDynamoDbImportSession(deps: {
 		const row = await table.get({ sessionId: id });
 		if (!row) return undefined;
 		if (row.expiresAt < Math.floor(deps.now().getTime() / 1000)) return undefined;
-		if (row.userId === undefined) return row;
-		if (row.userId === userId) return row;
-		return undefined;
+		return isAccessibleBy({ ownerId: row.userId, callerId: userId }) ? row : undefined;
 	}
 
 	return {

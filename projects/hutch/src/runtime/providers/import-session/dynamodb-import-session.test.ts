@@ -43,22 +43,26 @@ function storedRow(userId?: UserId): Record<string, unknown> {
  * every command so the write's ConditionExpression / ExpressionAttributeValues can
  * be asserted. A null `row` makes Get return no item (caller is denied). */
 function createFakeClient(row: Record<string, unknown> | null): {
-	client: DynamoDBDocumentClient;
+	client: Partial<DynamoDBDocumentClient>;
 	commands: CapturedCommand[];
 } {
 	const commands: CapturedCommand[] = [];
-	const client = {
+	const client: Partial<DynamoDBDocumentClient> = {
 		send: (async (command: { constructor: { name: string }; input: CapturedCommand["input"] }) => {
 			commands.push({ name: command.constructor.name, input: command.input });
 			if (command.constructor.name === "GetCommand") return row ? { Item: row } : {};
 			return {};
 		}) as DynamoDBDocumentClient["send"],
 	};
-	return { client: client as typeof client & DynamoDBDocumentClient, commands };
+	return { client, commands };
 }
 
-function initStore(client: DynamoDBDocumentClient) {
-	return initDynamoDbImportSession({ client, tableName: TABLE, now: NOW });
+function initStore(client: Partial<DynamoDBDocumentClient>) {
+	return initDynamoDbImportSession({
+		client: client as DynamoDBDocumentClient,
+		tableName: TABLE,
+		now: NOW,
+	});
 }
 
 describe("initDynamoDbImportSession", () => {
