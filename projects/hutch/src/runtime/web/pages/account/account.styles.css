@@ -85,7 +85,6 @@
 /* purgecss-ignore-start: action variants are interpolated from AccountAction.variant in account.template.html */
 .account-card__action {
   display: inline-flex;
-  text-decoration: none;
   cursor: pointer;
   border: 0;
   font-family: inherit;
