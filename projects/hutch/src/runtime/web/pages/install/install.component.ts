@@ -66,9 +66,6 @@ function buildInstallTabs(active: InstallClient): InstallTab[] {
 	});
 }
 
-/** One numbered step in the iPhone beta setup guide. `note` is an optional
- * caveat shown under the instruction (e.g. why the app must be opened once
- * before the iOS share option appears). */
 interface BetaSetupStep {
 	title: string;
 	note?: string;
