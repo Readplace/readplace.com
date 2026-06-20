@@ -47,7 +47,6 @@ describe("emitUserCreated", () => {
 			method: "email",
 			tier: "free",
 		});
-		expect(JSON.stringify(captured[0])).not.toContain("stripe_checkout_session_id");
 	});
 
 	it("emits a trial signup event without a stripe checkout session id", () => {
@@ -64,11 +63,15 @@ describe("emitUserCreated", () => {
 			},
 		);
 
-		expect(captured[0]).toMatchObject({
-			tier: "trial",
+		expect(captured[0]).toEqual({
+			stream: "conversions",
+			event: "user_created",
+			timestamp: "2026-05-13T10:00:00.000Z",
+			user_id: TEST_USER_ID,
+			email_hash: "63f6f5c42a8bfcdb",
 			method: "email",
+			tier: "trial",
 		});
-		expect(JSON.stringify(captured[0])).not.toContain("stripe_checkout_session_id");
 	});
 
 	it("includes stripe_checkout_session_id for paid signups so the event can be joined to Stripe payment data downstream", () => {
@@ -186,16 +189,15 @@ describe("emitUserCreated", () => {
 			},
 		);
 
-		const serialized = JSON.stringify(captured[0]);
-		expect(serialized).not.toContain("utm_source");
-		expect(serialized).not.toContain("utm_medium");
-		expect(serialized).not.toContain("utm_campaign");
-		expect(serialized).not.toContain("utm_content");
-		expect(serialized).not.toContain("referrer_host");
-		expect(serialized).not.toContain("first_seen_at");
-		expect(serialized).not.toContain("landing_path");
-		expect(serialized).not.toContain("visitor_id");
-		expect(serialized).not.toContain("pending_save_id");
+		expect(captured[0]).toEqual({
+			stream: "conversions",
+			event: "user_created",
+			timestamp: "2026-05-13T10:00:00.000Z",
+			user_id: TEST_USER_ID,
+			email_hash: "5fe5806a804c99a3",
+			method: "email",
+			tier: "free",
+		});
 	});
 
 	it("includes pending_save_id so a signup-blocked save can be traced to the account it created", () => {
@@ -232,6 +234,14 @@ describe("emitUserCreated", () => {
 			},
 		);
 
-		expect(JSON.stringify(captured[0])).not.toContain("pending_save_id");
+		expect(captured[0]).toEqual({
+			stream: "conversions",
+			event: "user_created",
+			timestamp: "2026-05-13T10:00:00.000Z",
+			user_id: TEST_USER_ID,
+			email_hash: "908cf3c1dc654595",
+			method: "email",
+			tier: "free",
+		});
 	});
 });
