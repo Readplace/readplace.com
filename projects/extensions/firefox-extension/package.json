@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "compile": "rm -rf dist && tsc && EXTENSION_VERSION=\"${EXTENSION_VERSION:-0.0.0}\" HUTCH_SERVER_URL=https://readplace.com node scripts/build-extension.js",
-    "compile-dev": "tsc && HUTCH_SERVER_URL=http://127.0.0.1:3000 node scripts/build-extension.js",
+    "compile-dev": "rm -rf dist && tsc && HUTCH_SERVER_URL=http://127.0.0.1:3000 node scripts/build-extension.js",
     "sign": "web-ext sign --channel=unlisted --source-dir dist-extension-compiled --artifacts-dir /tmp/ext-sign-submit --upload-source-code /tmp/extension-source.zip --api-key=\"$AMO_JWT_ISSUER\" --api-secret=\"$AMO_JWT_SECRET\" --approval-timeout 0",
     "check-unused-css": "node scripts/check-unused-css.js",
     "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\" \"pnpm check-unused-css\"",
