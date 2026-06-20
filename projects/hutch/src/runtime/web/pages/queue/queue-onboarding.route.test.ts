@@ -205,7 +205,8 @@ describe("Queue onboarding", () => {
 
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
-		expect(onboarding).toBeNull();
+		assert(onboarding, "onboarding container must still be rendered so visibility is encoded as a state class");
+		expect(onboarding.classList.contains("onboarding--hidden")).toBe(true);
 	});
 
 	it("re-renders onboarding when dismiss cookie is present but alive cookie is missing", async () => {

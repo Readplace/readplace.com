@@ -15,6 +15,10 @@
   display: block;
 }
 
+.onboarding--hidden {
+  display: none;
+}
+
 .onboarding__intro {
   display: flex;
   align-items: flex-start;
