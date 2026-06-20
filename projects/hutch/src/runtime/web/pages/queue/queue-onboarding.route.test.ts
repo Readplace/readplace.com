@@ -194,7 +194,7 @@ describe("Queue onboarding", () => {
 	 *   2. Dismiss cookie alone → onboarding re-renders with install-extension
 	 *      marked incomplete, so the user is prompted to install in this browser.
 	 */
-	it("does not render onboarding when dismiss cookie matches current version and extension is alive", async () => {
+	it("renders onboarding hidden when dismiss cookie matches current version and extension is alive", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth } = harness;
 		const agent = await loginAgent(harness.server, auth);
