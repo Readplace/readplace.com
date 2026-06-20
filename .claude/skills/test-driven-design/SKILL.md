@@ -302,6 +302,26 @@ For usage examples, see `projects/hutch/src/test-utils.ts`.
 
 Do not create unit tests for functions, types, or schemas that are only used by other tests. If a function is exported but never imported by production code, delete it.
 
+### Never Test What a Schema Already Declares
+
+A zod schema (or a TypeScript type) is **declarative** — the declaration *is* the specification. A test whose only job is to re-assert a schema constraint (`z.string().min(1)` rejects `""`, an enum rejects an unknown member, `.parse()` rejects a missing field) adds no protection: schema and test state the same fact, so they can only ever agree, and weakening the schema silently edits the test along with it.
+
+Tests exist to exercise **generic** code — logic that branches across specific inputs. Cover the handler that *consumes* the schema with representative cases; do not add a separate test per declarative constraint.
+
+```typescript
+// ❌ BAD - This test's only job is to restate `z.string().min(1)`
+const response = await request(harness.server)
+	.post("/oauth/revoke")
+	.send({ token: "" });
+expect(response.status).toBe(400);
+
+// ✅ GOOD - `.min(1)` is the spec; the existing handler tests already exercise
+//           the generic logic (valid token → 200, malformed body → 400).
+const revokeBodySchema = z.object({ token: z.string().min(1) });
+```
+
+Testing-side corollary of [No Unnecessary Runtime Validation](#no-unnecessary-runtime-validation): you don't runtime-check what the compiler enforces, and you don't write a test to pin what a schema already declares.
+
 ### Meaningful Variable Names Over Technical Prefixes
 
 ```typescript
