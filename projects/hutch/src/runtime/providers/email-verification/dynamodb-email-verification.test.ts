@@ -51,7 +51,7 @@ function rowAttributes(overrides: Record<string, unknown> = {}): Record<string, 
 
 describe("initDynamoDbEmailVerification", () => {
 	describe("createVerificationToken", () => {
-		it("persists a 64-char hex token guarded against overwrite and returns it", async () => {
+		it("persists a 64-char hex token and returns it", async () => {
 			const { client, commands } = createFakeClient();
 
 			const token = await initVerification(client).createVerificationToken({
