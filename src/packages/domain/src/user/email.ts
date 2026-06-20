@@ -20,7 +20,7 @@ export function normalizeEmail(email: string): string {
 
 const GMAIL_DOMAINS = new Set(["gmail.com", "googlemail.com"]);
 
-const GMAIL_PLAINTEXT_LOCAL = /^[A-Za-z0-9.+]+$/;
+const GMAIL_PLAINTEXT_BASE = /^[A-Za-z0-9.]+$/;
 
 export function canonicalizeEmail(raw: string): CanonicalEmail {
 	const trimmed = raw.trim();
@@ -36,15 +36,15 @@ export function canonicalizeEmail(raw: string): CanonicalEmail {
 		return CanonicalEmailSchema.parse(`${local}@${domain}`);
 	}
 
-	if (!GMAIL_PLAINTEXT_LOCAL.test(local)) {
+	const plusIndex = local.indexOf("+");
+	const base = plusIndex === -1 ? local : local.slice(0, plusIndex);
+
+	if (base.length > 0 && !GMAIL_PLAINTEXT_BASE.test(base)) {
 		return CanonicalEmailSchema.parse(`${local}@gmail.com`);
 	}
 
-	const lowered = local.toLowerCase();
-	const plusIndex = lowered.indexOf("+");
-	const beforePlus = plusIndex === -1 ? lowered : lowered.slice(0, plusIndex);
-	const base = beforePlus.replaceAll(".", "");
-	assert(base.length > 0, `Gmail address has no local part before the tag: ${raw}`);
+	const canonical = base.toLowerCase().replaceAll(".", "");
+	assert(canonical.length > 0, `Gmail address has no local part before the tag: ${raw}`);
 
-	return CanonicalEmailSchema.parse(`${base}@gmail.com`);
+	return CanonicalEmailSchema.parse(`${canonical}@gmail.com`);
 }

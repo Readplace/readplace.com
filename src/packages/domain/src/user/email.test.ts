@@ -32,6 +32,10 @@ describe("canonicalizeEmail (identity key)", () => {
 			expect(canonicalizeEmail("johndoe+a+b@gmail.com")).toBe("johndoe@gmail.com");
 		});
 
+		it("drops a +tag regardless of the characters inside it", () => {
+			expect(canonicalizeEmail("johndoe+my_tag@gmail.com")).toBe("johndoe@gmail.com");
+		});
+
 		it("treats googlemail.com as gmail.com", () => {
 			expect(canonicalizeEmail("johndoe@googlemail.com")).toBe("johndoe@gmail.com");
 		});
@@ -78,6 +82,10 @@ describe("canonicalizeEmail (identity key)", () => {
 
 		it("leaves quoted Gmail local parts untouched", () => {
 			expect(canonicalizeEmail('"john.doe"@gmail.com')).toBe('"john.doe"@gmail.com');
+		});
+
+		it("leaves a quoted Gmail local part containing + untouched", () => {
+			expect(canonicalizeEmail('"john+doe"@gmail.com')).toBe('"john+doe"@gmail.com');
 		});
 
 		it("leaves non-ASCII Gmail local parts untouched", () => {
