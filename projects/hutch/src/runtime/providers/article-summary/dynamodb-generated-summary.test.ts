@@ -1,17 +1,18 @@
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbGeneratedSummary } from "./dynamodb-generated-summary";
 
-function createFakeClient(item: Record<string, unknown> | undefined): Partial<DynamoDBDocumentClient> {
-	return {
+function createFakeClient(item: Record<string, unknown> | undefined): DynamoDBDocumentClient {
+	const fake: Partial<DynamoDBDocumentClient> = {
 		send: async () => ({ Item: item }),
 	};
+	return fake as Partial<DynamoDBDocumentClient> as DynamoDBDocumentClient;
 }
 
 describe("initDynamoDbGeneratedSummary", () => {
 	it("returns undefined when no row exists", async () => {
 		const client = createFakeClient(undefined);
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -27,7 +28,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		// re-prime the pipeline rather than polling forever.
 		const client = createFakeClient({ url: "https://example.com/article" });
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -42,7 +43,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summary: "Legacy summary",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -58,7 +59,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summaryStatus: "ready",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -83,7 +84,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summaryStatus: "ready",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -100,7 +101,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summaryStatus: "ready",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -119,7 +120,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summaryStatus: "pending",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -135,7 +136,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summaryStage: "summary-generating",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -151,7 +152,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summaryFailureReason: "deepseek timeout",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -166,7 +167,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summaryStatus: "failed",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -181,7 +182,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summaryStatus: "skipped",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -197,7 +198,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summarySkippedReason: "content-too-short",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
