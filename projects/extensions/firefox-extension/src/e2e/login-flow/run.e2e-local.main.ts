@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { Builder, By } from "selenium-webdriver";
-import { Options } from "selenium-webdriver/firefox";
+import { Options, Driver } from "selenium-webdriver/firefox";
 import { FlowRunner, ExtensionStateHandler } from "browser-extension-core/e2e";
 import {
 	createSeleniumElementQueries,
@@ -133,14 +133,8 @@ test("should complete OAuth login flow, save links, and paginate the list", asyn
 			.build();
 
 		try {
-			await (
-				driver as unknown as {
-					installAddon: (
-						path: string,
-						temporary: boolean,
-					) => Promise<void>;
-				}
-			).installAddon(EXTENSION_DIR, true);
+			assert(driver instanceof Driver, "firefox builder must produce a firefox Driver");
+			await driver.installAddon(EXTENSION_DIR, true);
 
 			await driver.get(POPUP_URL);
 
