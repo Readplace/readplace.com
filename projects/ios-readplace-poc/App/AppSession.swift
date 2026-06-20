@@ -1,11 +1,10 @@
 import Foundation
 
-/// App-wide auth/session state. Owns the base URL and exposes factories for
-/// the API and OAuth services so views never construct them with stale config.
+/// App-wide auth/session state. Exposes factories for the API and OAuth
+/// services so views never construct them with stale config.
 @MainActor
 final class AppSession: ObservableObject {
 	@Published private(set) var isLoggedIn: Bool
-	@Published var baseURL: String
 
 	private let store: TokenStore
 	private let sessionConfiguration: URLSessionConfiguration
@@ -14,16 +13,6 @@ final class AppSession: ObservableObject {
 		self.store = store
 		self.sessionConfiguration = sessionConfiguration
 		self.isLoggedIn = store.isLoggedIn
-		self.baseURL = store.baseURL
-	}
-
-	/// Normalises and persists the server URL (so the share extension matches).
-	func setBaseURL(_ raw: String) {
-		var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-		while trimmed.hasSuffix("/") { trimmed.removeLast() }
-		guard !trimmed.isEmpty else { return }
-		baseURL = trimmed
-		store.baseURL = trimmed
 	}
 
 	func refreshLoginState() {
@@ -74,10 +63,10 @@ final class AppSession: ObservableObject {
 	}
 
 	func makeAPI() -> ReadplaceAPI {
-		ReadplaceAPI(baseURL: store.baseURL, store: store, sessionConfiguration: sessionConfiguration)
+		ReadplaceAPI(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: sessionConfiguration)
 	}
 
 	func makeOAuth() -> OAuthService {
-		OAuthService(baseURL: store.baseURL, store: store, sessionConfiguration: sessionConfiguration)
+		OAuthService(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: sessionConfiguration)
 	}
 }

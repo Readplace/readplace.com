@@ -42,16 +42,6 @@ final class TokenStoreTests: XCTestCase {
 		XCTAssertFalse(store.isLoggedIn)
 	}
 
-	func testBaseURLDefaultsToConfig() {
-		XCTAssertEqual(makeStore().baseURL, AppConfig.defaultBaseURL)
-	}
-
-	func testBaseURLPersists() {
-		let store = makeStore()
-		store.baseURL = "https://example.test"
-		XCTAssertEqual(store.baseURL, "https://example.test")
-	}
-
 	func testPartialTokensAreTreatedAsLoggedOut() {
 		let defaults = TestSupport.ephemeralDefaults()
 		defaults.set("only-access", forKey: "oauth.accessToken")

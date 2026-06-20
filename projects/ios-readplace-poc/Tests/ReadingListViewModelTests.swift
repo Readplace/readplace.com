@@ -10,7 +10,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 	private func makeViewModel(store: TokenStore) -> ReadingListViewModel {
 		let api = ReadplaceAPI(
-			baseURL: store.baseURL,
+			baseURL: AppConfig.serverBaseURL,
 			store: store,
 			sessionConfiguration: TestSupport.stubbedConfiguration()
 		)

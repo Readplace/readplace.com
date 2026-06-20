@@ -32,6 +32,19 @@ describe("isBuiltInRedirectUri", () => {
 		);
 	});
 
+	it("accepts the iOS staging callback listed on the Chrome extension client", () => {
+		const chromeClient = getBuiltInClient("hutch-chrome-extension");
+		assert(chromeClient, "Chrome client must exist");
+		assert.equal(
+			isBuiltInRedirectUri({
+				client: chromeClient,
+				redirectUri:
+					"https://hkncrxpii6.execute-api.ap-southeast-2.amazonaws.com/oauth/callback",
+			}),
+			true,
+		);
+	});
+
 	it("accepts any 127.0.0.1 port on the loopback callback path", () => {
 		assert.equal(
 			isBuiltInRedirectUri({ client, redirectUri: "http://127.0.0.1:49999/oauth/callback" }),

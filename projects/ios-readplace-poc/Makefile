@@ -1,8 +1,13 @@
-.PHONY: ipa generate open test clean
+.PHONY: ipa ipa-staging generate open test clean
 
-# Build an UNSIGNED .ipa you can sideload onto your iPhone (one command).
-ipa:
+# Build an UNSIGNED .ipa you can sideload onto your iPhone. Generates the Xcode
+# project first (the build script no longer self-generates).
+ipa: generate
 	./scripts/build-unsigned-ipa.sh
+
+# Same, but built against the deployed staging stack (separate artifact name).
+ipa-staging: generate
+	READPLACE_ENV=staging ./scripts/build-unsigned-ipa.sh
 
 # Regenerate the Xcode project from project.yml (requires `brew install xcodegen`).
 # Routed through a wrapper that keeps the project format openable by Xcode 15.x.

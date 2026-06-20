@@ -19,14 +19,14 @@ final class ShareViewController: UIViewController {
 	}
 
 	private func run() async {
-		NSLog("[ReadplacePOC] ShareExt start: group=\(TokenStore.resolvedAppGroupId) loggedIn=\(store.isLoggedIn) baseURL=\(store.baseURL)")
+		NSLog("[ReadplacePOC] ShareExt start: group=\(TokenStore.resolvedAppGroupId) loggedIn=\(store.isLoggedIn) baseURL=\(AppConfig.serverBaseURL)")
 
 		setStatus("Saving…")
 		let shared = await ShareURLExtractor.extract(from: extensionContext)
 		if let shared { NSLog("[ReadplacePOC] ShareExt: extracted url=\(shared.url.absoluteString)") }
 
 		let captor = LazyHTMLCaptor { [weak self] webView in self?.attachHidden(webView) }
-		let saver = SaveSharedPage(store: store, api: ReadplaceAPI(baseURL: store.baseURL, store: store), captor: captor)
+		let saver = SaveSharedPage(store: store, api: ReadplaceAPI(baseURL: AppConfig.serverBaseURL, store: store), captor: captor)
 		switch await saver.run(url: shared?.url, fallbackTitle: shared?.title) {
 		case .savedWithContent:
 			finish(message: "Saved with content", symbol: "checkmark.circle.fill", success: true)

@@ -8,7 +8,7 @@ final class OAuthServiceTests: XCTestCase {
 	}
 
 	private func makeService(store: TokenStore) -> OAuthService {
-		OAuthService(baseURL: store.baseURL, store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		OAuthService(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
 	}
 
 	func testAuthorizationRequestHasCorrectParams() {
