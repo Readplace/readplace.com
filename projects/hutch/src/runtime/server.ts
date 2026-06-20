@@ -110,7 +110,8 @@ import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
 import { SESSION_COOKIE_NAME } from "./web/auth/session-cookie";
 import { isHttpsOrigin } from "./web/cookie-options";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
-import { initQueueRoutes, QUEUE_PATH } from "./web/pages/queue/queue.page";
+import { initQueueRoutes } from "./web/pages/queue/queue.page";
+import { QUEUE_PATH } from "./web/pages/queue/queue.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
@@ -407,7 +408,7 @@ export function createApp(dependencies: AppDependencies): Express {
 				"User-agent: *",
 				`Content-Signal: ${CONTENT_SIGNAL_VALUE}`,
 				"Allow: /",
-				"Disallow: /queue",
+				`Disallow: ${QUEUE_PATH}`,
 				"Disallow: /export",
 				"Disallow: /oauth",
 				"Disallow: /forgot-password",
@@ -575,7 +576,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.options("/", extensionCors);
 	app.get("/", extensionCors, async (req: Request, res: Response) => {
 		if (wantsSiren(req) && !wantsMarkdown(req)) {
-			res.redirect(303, "/queue");
+			res.redirect(303, QUEUE_PATH);
 			return;
 		}
 
