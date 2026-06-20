@@ -8,8 +8,18 @@ import {
 
 /** The shell carries no @packages/domain dependency, so there is no UserId
  * schema to parse here. The truthiness of `userId` is all bannerStateFromRequest
- * reads, so a plain branded fixture is sufficient. */
-const USER_ID = "user-1" as unknown as NonNullable<BannerStateSource["userId"]>;
+ * reads, so a non-empty string narrowed through this predicate is a sufficient
+ * branded fixture — mirroring the isChangelogVersion + assert narrowing used in
+ * changelog-banner.test.ts, and avoiding an `as` cast to brand the value. */
+function isUserId(value: string): value is NonNullable<BannerStateSource["userId"]> {
+	return value.length > 0;
+}
+
+assert(isUserId("user-1"));
+assert(!isUserId(""));
+
+const USER_ID = "user-1";
+assert(isUserId(USER_ID));
 
 describe("bannerStateFromRequest", () => {
 	it("maps a present userId to isAuthenticated=true", () => {
