@@ -1009,7 +1009,7 @@ describe("initArticleReader", () => {
 			expect(summarySlot.getAttribute("hx-swap-oob")).toBe("outerHTML");
 			expect(summarySlot.getAttribute("data-summary-status")).toBe("pending");
 			expect(
-				summarySlot.classList.contains("article-body__summary-slot--deferred"),
+				summarySlot.classList.contains("article-body__summary-slot--hidden"),
 			).toBe(true);
 			expect(summarySlot.getAttribute("hx-get")).toBe("/test/summary?poll=1");
 			expect(doc.querySelector(".article-body__summary-loading")).toBe(null);

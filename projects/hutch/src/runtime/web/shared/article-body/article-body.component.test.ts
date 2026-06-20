@@ -68,7 +68,8 @@ describe("renderArticleBody", () => {
 
 		const slot = doc.querySelector("[data-test-reader-summary]");
 		assert(slot, "summary slot must be rendered");
-		expect(slot.classList.contains("article-body__summary-slot--deferred")).toBe(
+		expect(slot.getAttribute("data-summary-status")).toBe("pending");
+		expect(slot.classList.contains("article-body__summary-slot--hidden")).toBe(
 			true,
 		);
 		expect(doc.querySelector(".article-body__summary-loading")).toBe(null);

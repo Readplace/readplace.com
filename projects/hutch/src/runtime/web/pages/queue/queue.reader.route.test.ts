@@ -704,7 +704,7 @@ describe("Queue routes", () => {
 			assert(summarySlot, "summary slot must be rendered");
 			expect(summarySlot.getAttribute("data-summary-status")).toBe("pending");
 			expect(
-				summarySlot.classList.contains("article-body__summary-slot--deferred"),
+				summarySlot.classList.contains("article-body__summary-slot--hidden"),
 			).toBe(true);
 			expect(summarySlot.getAttribute("hx-get")).toMatch(/^\/queue\/.+\/summary\?poll=1$/);
 			expect(summarySlot.getAttribute("hx-trigger")).toBe("every 3s");

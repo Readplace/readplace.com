@@ -66,7 +66,7 @@ describe("renderSummarySlot", () => {
 		const slot = doc.querySelector("[data-test-reader-summary]");
 		assert(slot, "summary slot must be rendered");
 		expect(slot.getAttribute("data-summary-status")).toBe("pending");
-		expect(slot.classList.contains("article-body__summary-slot--deferred")).toBe(
+		expect(slot.classList.contains("article-body__summary-slot--hidden")).toBe(
 			true,
 		);
 		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/summary?poll=1");
@@ -87,27 +87,11 @@ describe("renderSummarySlot", () => {
 
 		const slot = doc.querySelector("[data-test-reader-summary]");
 		assert(slot, "summary slot must be rendered");
-		expect(slot.classList.contains("article-body__summary-slot--deferred")).toBe(
+		expect(slot.getAttribute("data-summary-status")).toBe("pending");
+		expect(slot.classList.contains("article-body__summary-slot--hidden")).toBe(
 			true,
 		);
-		expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
-	});
-
-	it("defers the summary when content is an empty string (mirrors renderReaderSlot's truthy content gate)", () => {
-		const doc = parse(
-			renderSummarySlot({
-				crawl: { status: "ready" },
-				content: "",
-				summary: { status: "pending" },
-				summaryPollUrl: "/queue/abc/summary?poll=1",
-			}),
-		);
-
-		const slot = doc.querySelector("[data-test-reader-summary]");
-		assert(slot, "summary slot must be rendered");
-		expect(slot.classList.contains("article-body__summary-slot--deferred")).toBe(
-			true,
-		);
+		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/summary?poll=1");
 		expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
 	});
 
@@ -142,11 +126,29 @@ describe("renderSummarySlot", () => {
 
 		const slot = doc.querySelector("[data-test-reader-summary]");
 		assert(slot, "summary slot must be rendered");
-		expect(slot.classList.contains("article-body__summary-slot--deferred")).toBe(
+		expect(slot.getAttribute("data-summary-status")).toBe("pending");
+		expect(slot.classList.contains("article-body__summary-slot--hidden")).toBe(
 			true,
 		);
 		expect(slot.hasAttribute("hx-get")).toBe(false);
 		expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
+	});
+
+	it("HTML-escapes the deferred poll URL, matching the Handlebars-rendered pending slot", () => {
+		const html = renderSummarySlot({
+			crawl: { status: "pending" },
+			content: undefined,
+			summary: { status: "pending" },
+			summaryPollUrl: "/view/summary?url=x&poll=1",
+		});
+
+		// The query-joining '&' must be HTML-escaped in the attribute, exactly as
+		// {{pollUrl}} is escaped in summary-pending.template.html. getAttribute
+		// then decodes it back to the URL htmx polls.
+		expect(html).toContain("&amp;poll");
+		const slot = parse(html).querySelector("[data-test-reader-summary]");
+		assert(slot, "summary slot must be rendered");
+		expect(slot.getAttribute("hx-get")).toBe("/view/summary?url=x&poll=1");
 	});
 
 	it("routes status=failed to the failed component and surfaces the reason", () => {
@@ -214,7 +216,7 @@ describe("renderSummarySlot", () => {
 		const slot = doc.querySelector("[data-test-reader-summary]");
 		assert(slot, "summary slot must be rendered");
 		expect(slot.getAttribute("data-summary-status")).toBe("pending");
-		expect(slot.classList.contains("article-body__summary-slot--deferred")).toBe(
+		expect(slot.classList.contains("article-body__summary-slot--hidden")).toBe(
 			true,
 		);
 		expect(doc.querySelector(".article-body__summary-loading")).toBe(null);

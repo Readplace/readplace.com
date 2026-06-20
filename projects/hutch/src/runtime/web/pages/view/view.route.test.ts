@@ -1305,8 +1305,9 @@ describe("View routes", () => {
 			// deferred and empty rather than showing the misleading
 			// "Still generating — refresh" message; the reader slot carries the
 			// terminal reframe in this state.
+			expect(slot.getAttribute("data-summary-status")).toBe("pending");
 			expect(
-				slot.classList.contains("article-body__summary-slot--deferred"),
+				slot.classList.contains("article-body__summary-slot--hidden"),
 			).toBe(true);
 			expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
 		});
