@@ -68,8 +68,6 @@ const AGGREGATE_FIELDS = ArticleAggregateRow.keyof().options;
 /**
  * 1. Legacy rows saved before `pendingSince` existed default to epoch 0 so the
  *    canary's age-gate immediately surfaces them once they cross MIN_AGE_MS.
- *    Fallback is dropped after a follow-up canary scan reports zero legacy
- *    rows still in flight.
  */
 const LEGACY_PENDING_SINCE = new Date(0).toISOString();
 
@@ -77,7 +75,6 @@ const LEGACY_PENDING_SINCE = new Date(0).toISOString();
  * 1. Legacy rows wrote a plain string (free-form, set by save-link-work and
  *    DLQ handlers). Map it onto the closest tagged-union variant so the
  *    reader can render it; new rows write a JSON-encoded discriminated union.
- *    Dropped after a follow-up canary scan reports zero legacy rows.
  */
 function parseCrawlFailureReason(raw: string): import("@packages/article-state-types").CrawlFailureReason {
 	if (raw.startsWith("{")) return CrawlFailureReasonSchema.parse(JSON.parse(raw));
