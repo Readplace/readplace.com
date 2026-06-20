@@ -31,7 +31,8 @@ const tokenStorage: TokenStorage = {
 		const result = await browser.storage.local.get(STORAGE_KEY);
 		const raw = result[STORAGE_KEY];
 		if (!raw) return null;
-		return OAuthTokensSchema.parse(raw);
+		const parsed = OAuthTokensSchema.safeParse(raw);
+		return parsed.success ? parsed.data : null;
 	},
 	async setTokens(tokens: OAuthTokens): Promise<void> {
 		await browser.storage.local.set({ [STORAGE_KEY]: tokens });
