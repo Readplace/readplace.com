@@ -36,7 +36,7 @@ function bodyParagraphs(clause: string): string[] {
 	return [
 		`You started a trial of Readplace${clause} and decided not to continue. Which is completely fine. That decision is one of the most useful things I can learn from right now, so I'm asking directly: what was missing?`,
 		"I'm not trying to change your mind or sell you anything. I'd rather know the real reason it didn't earn a place in how you read — a missing feature, the price, something that didn't work, or just that it didn't fit.",
-		"The honest answer helps more than being nice. A sentence is good enough, and there's nothing to click. I respond to ALL replies personally, this is my promise 🤝 :D",
+		"The honest answer helps more than being nice. A sentence is good enough, and there's nothing to click. I respond to ALL replies personally, this is my promise.",
 	];
 }
 
