@@ -201,7 +201,10 @@ describe("Queue routes", () => {
 
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-article-url]")).toBeNull();
+			const card = doc.querySelector("[data-test-article-list] .queue-article");
+			assert(card, "the saved article card must be rendered");
+			expect(card.querySelector("[data-test-article-title]")).not.toBeNull();
+			expect(card.querySelectorAll("[data-test-article-url]").length).toBe(0);
 		});
 	});
 
