@@ -22,6 +22,6 @@
 
 .admin-recrawl__tier-badge--legacy {
   background: var(--color-surface);
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
   border-color: var(--color-border);
 }
