@@ -2,6 +2,12 @@ import { z } from "zod";
 import type { SortOrder } from "@packages/provider-contracts/article-store";
 import { type TabId, tabQuery } from "./queue.tabs";
 
+/** Mount path of the queue router (`app.use(QUEUE_PATH, …)` in server.ts). The
+ * queue router builds its redirects, links and analytics paths — plus the
+ * skipped-import cookie scope and the query strings `buildQueueUrl` produces —
+ * from this constant so they can't drift from where the router is mounted. */
+export const QUEUE_PATH = "/queue";
+
 export interface QueueUrlState {
 	tab: TabId;
 	order?: SortOrder;
@@ -47,5 +53,5 @@ export function buildQueueUrl(
 	}
 
 	const qs = params.toString();
-	return qs ? `/queue?${qs}` : "/queue";
+	return qs ? `${QUEUE_PATH}?${qs}` : QUEUE_PATH;
 }
