@@ -1,4 +1,4 @@
-import { buildQueueUrl, parseQueueUrl } from "./queue.url";
+import { buildQueueUrl, canonicalQueuePageRedirect, parseQueueUrl } from "./queue.url";
 
 describe("parseQueueUrl", () => {
 	it("should default to queue tab for empty query", () => {
@@ -90,4 +90,51 @@ describe("buildQueueUrl", () => {
 		expect(url).toContain("page=3");
 	});
 
+});
+
+describe("canonicalQueuePageRedirect", () => {
+	it("returns undefined for an in-bounds page", () => {
+		expect(
+			canonicalQueuePageRedirect({ state: { tab: "queue", page: 1 }, total: 20, pageSize: 20 }),
+		).toBeUndefined();
+	});
+
+	it("clamps page 2 of a single-page result back to page 1 (/queue)", () => {
+		expect(
+			canonicalQueuePageRedirect({ state: { tab: "queue", page: 2 }, total: 20, pageSize: 20 }),
+		).toBe("/queue");
+	});
+
+	it("returns undefined for the last valid page", () => {
+		expect(
+			canonicalQueuePageRedirect({ state: { tab: "queue", page: 3 }, total: 60, pageSize: 20 }),
+		).toBeUndefined();
+	});
+
+	it("clamps a page beyond the last to the last valid page", () => {
+		expect(
+			canonicalQueuePageRedirect({ state: { tab: "queue", page: 4 }, total: 60, pageSize: 20 }),
+		).toBe("/queue?page=3");
+	});
+
+	it("preserves extra params (utm + status flash) on the clamped URL", () => {
+		expect(
+			canonicalQueuePageRedirect({
+				state: { tab: "queue", page: 2 },
+				total: 20,
+				pageSize: 20,
+				extraParams: [
+					["utm_source", "queue"],
+					["status_changed", "read"],
+					["status_article", "abc"],
+				],
+			}),
+		).toBe("/queue?utm_source=queue&status_changed=read&status_article=abc");
+	});
+
+	it("clamps page 2 of an empty queue to page 1 so the empty state renders", () => {
+		expect(
+			canonicalQueuePageRedirect({ state: { tab: "queue", page: 2 }, total: 0, pageSize: 20 }),
+		).toBe("/queue");
+	});
 });

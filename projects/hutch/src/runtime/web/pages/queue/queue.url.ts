@@ -55,3 +55,16 @@ export function buildQueueUrl(
 	const qs = params.toString();
 	return qs ? `${QUEUE_PATH}?${qs}` : QUEUE_PATH;
 }
+
+/** totalPages mirrors queue.viewmodel.ts so this read-boundary clamp and the
+ * rendered pagination agree on where the list ends; they must not diverge. */
+export function canonicalQueuePageRedirect(input: {
+	state: QueueUrlState;
+	total: number;
+	pageSize: number;
+	extraParams?: readonly (readonly [string, string])[];
+}): string | undefined {
+	const totalPages = Math.max(1, Math.ceil(input.total / input.pageSize));
+	if (input.state.page <= totalPages) return undefined;
+	return buildQueueUrl({ ...input.state, page: totalPages }, input.extraParams);
+}

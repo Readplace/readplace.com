@@ -67,11 +67,11 @@ import type { QuerystringFeatureToggle } from "../../feature-toggle";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { toArticleEntity } from "../../api/article-siren";
-import { parseQueueUrl, buildQueueUrl, QUEUE_PATH } from "./queue.url";
+import { parseQueueUrl, buildQueueUrl, QUEUE_PATH, canonicalQueuePageRedirect } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
 import { tabQuery } from "./queue.tabs";
 import type { HttpErrorMessageMapping } from "./queue.error";
-import { importFlashMapping, statusFlashMapping } from "./queue.error";
+import { collectStatusFlashParams, importFlashMapping, statusFlashMapping } from "./queue.error";
 import { MAX_POLLS } from "../../shared/article-reader/article-reader";
 import { toQueueArticleViewModel, toQueueViewModel } from "./queue.viewmodel";
 import { QueuePage } from "./queue.component";
@@ -379,6 +379,23 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					url: filterUrl,
 				}),
 			);
+			return;
+		}
+
+		/** Marking the last item on a page read (or deleting it, or a stale
+		 * bookmark) leaves the requested page beyond the new last page, which the
+		 * store answers with zero rows. Clamp at this read boundary so the empty
+		 * out-of-bounds render is unreachable by navigation; mutation handlers
+		 * stay unchanged because they all redirect back through here. 302 not
+		 * 301/308 — the page becomes valid again once the list refills. */
+		const pageRedirect = canonicalQueuePageRedirect({
+			state: urlState,
+			total: result.total,
+			pageSize: result.pageSize,
+			extraParams: [...collectUtmParams(req.query), ...collectStatusFlashParams(req.query)],
+		});
+		if (pageRedirect) {
+			res.redirect(302, pageRedirect);
 			return;
 		}
 

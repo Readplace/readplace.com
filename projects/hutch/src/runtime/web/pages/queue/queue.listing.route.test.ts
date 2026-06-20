@@ -282,6 +282,22 @@ describe("Queue routes", () => {
 			const pagination = doc.querySelector("[data-test-pagination]");
 			expect(pagination?.querySelector(".queue__pagination-link")?.textContent).toContain("Previous");
 		});
+
+		it("redirects an out-of-bounds page (stale bookmark / manual URL) to the last valid page", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			await agent
+				.post("/queue/save")
+				.type("form")
+				.send({ url: "https://example.com/only" });
+
+			const response = await agent.get("/queue?page=99");
+
+			expect(response.status).toBe(302);
+			expect(response.headers.location).toBe("/queue");
+		});
 	});
 
 	describe("Filter and sort", () => {
