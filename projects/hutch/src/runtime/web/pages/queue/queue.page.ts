@@ -921,7 +921,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		return `/queue/${encodeURIComponent(rawId)}/view`;
 	}
 
-	router.post("/:id/highlights", async (req: Request, res: Response) => {
+	router.post("/:id/highlights", async (req: Request<{ id: string }>, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
@@ -943,7 +943,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		res.redirect(303, readerViewPath(req.params.id));
 	});
 
-	router.post("/:id/highlights/:highlightId/note", async (req: Request, res: Response) => {
+	router.post("/:id/highlights/:highlightId/note", async (req: Request<{ id: string; highlightId: string }>, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
@@ -962,7 +962,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		res.redirect(303, readerViewPath(req.params.id));
 	});
 
-	router.post("/:id/highlights/:highlightId/delete", async (req: Request, res: Response) => {
+	router.post("/:id/highlights/:highlightId/delete", async (req: Request<{ id: string; highlightId: string }>, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);

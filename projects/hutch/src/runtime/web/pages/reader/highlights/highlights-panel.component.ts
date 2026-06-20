@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MAX_HIGHLIGHT_NOTE_LENGTH } from "@packages/domain/highlight";
 import type { Highlight } from "@packages/domain/highlight";
-import { render } from "../../../render";
+import { render } from "@packages/web-shell";
 
 const HIGHLIGHTS_PANEL_TEMPLATE = readFileSync(
 	join(__dirname, "highlights-panel.template.html"),
