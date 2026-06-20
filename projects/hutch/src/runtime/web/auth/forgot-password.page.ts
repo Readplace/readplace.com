@@ -6,7 +6,7 @@ import type {
 	CreatePasswordResetToken,
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts/password-reset";
-import { PasswordResetTokenSchema } from "@packages/test-fixtures/providers/password-reset";
+import { PasswordResetTokenSchema } from "@packages/provider-contracts/password-reset";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import type { RateLimitRule } from "@packages/domain/rate-limit";
 import { z } from "zod";
