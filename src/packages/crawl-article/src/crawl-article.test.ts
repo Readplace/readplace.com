@@ -13,10 +13,7 @@ import type { CurlFetch } from "./curl-fetch";
 import type { fetchH2 } from "./h2-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
 
-jest.mock("./pdf-page-limits", () => ({
-	MAX_PDF_BYTES: { bytes: 25 * 1024 * 1024, label: "25 MB" },
-	MAX_PDF_PAGES: 300,
-}));
+const PDF_BYTES_CAP = 25 * 1024 * 1024;
 
 const PDF_EXTRACT_FAILURE_REASON = "synthetic extractor failure";
 const PDF_MAGIC_BUFFER = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(64, 0x20)]);
@@ -665,6 +662,7 @@ describe("parsePdfFromBuffer", () => {
 			bodyHash,
 			response: htmlResponse({ etag: '"pdf-1"', "last-modified": "Wed, 21 Oct 2025 07:28:00 GMT" }),
 			url: "https://example.com/doc.pdf",
+			maxPdfBytes: PDF_BYTES_CAP,
 			extractPdf,
 			logError: noopLogError,
 		});
@@ -689,6 +687,7 @@ describe("parsePdfFromBuffer", () => {
 			bodyHash: createHash("sha256").update(PDF_MAGIC_BUFFER).digest("hex"),
 			response: htmlResponse(),
 			url: "https://example.com/doc.pdf",
+			maxPdfBytes: PDF_BYTES_CAP,
 			extractPdf,
 			onProgress,
 			logError: noopLogError,
@@ -705,6 +704,7 @@ describe("parsePdfFromBuffer", () => {
 			bodyHash: createHash("sha256").update(PDF_MAGIC_BUFFER).digest("hex"),
 			response: htmlResponse(),
 			url: "https://example.com/scan.pdf",
+			maxPdfBytes: PDF_BYTES_CAP,
 			extractPdf,
 			logError,
 		});
@@ -727,6 +727,7 @@ describe("parsePdfFromBuffer", () => {
 			bodyHash,
 			response: undefined,
 			url: "https://example.com/doc.pdf",
+			maxPdfBytes: PDF_BYTES_CAP,
 			extractPdf,
 			logError: noopLogError,
 		});
@@ -741,7 +742,7 @@ describe("parsePdfFromBuffer", () => {
 	});
 
 	it("returns unsupported with the byte count when the body exceeds the cap, without invoking the extractor", async () => {
-		const oversize = Buffer.concat([Buffer.from("%PDF-1.4"), Buffer.alloc(25 * 1024 * 1024 + 1, 0x20)]);
+		const oversize = Buffer.concat([Buffer.from("%PDF-1.4"), Buffer.alloc(PDF_BYTES_CAP + 1, 0x20)]);
 		const extractPdf = jest.fn<ReturnType<ExtractPdf>, Parameters<ExtractPdf>>();
 		const logError = jest.fn();
 		const result = await parsePdfFromBuffer({
@@ -749,6 +750,7 @@ describe("parsePdfFromBuffer", () => {
 			bodyHash: createHash("sha256").update(oversize).digest("hex"),
 			response: htmlResponse(),
 			url: "https://example.com/huge.pdf",
+			maxPdfBytes: PDF_BYTES_CAP,
 			extractPdf,
 			logError,
 		});
