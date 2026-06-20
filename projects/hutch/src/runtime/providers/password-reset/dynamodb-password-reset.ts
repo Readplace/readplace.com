@@ -1,4 +1,3 @@
-/* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
 import { randomBytes } from "node:crypto";
 import {
 	ConditionalCheckFailedException,
@@ -10,9 +9,9 @@ import type {
 	CreatePasswordResetToken,
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts/password-reset";
-import { PasswordResetTokenSchema } from "@packages/test-fixtures/providers/password-reset";
+import { PasswordResetTokenSchema } from "@packages/provider-contracts/password-reset";
 
-const TOKEN_TTL_SECONDS = 60 * 60; // 1 hour
+const TOKEN_TTL_SECONDS = 60 * 60;
 
 const PasswordResetRow = z.object({
 	token: z.string(),
@@ -70,4 +69,3 @@ export function initDynamoDbPasswordReset(deps: {
 
 	return { createPasswordResetToken, verifyPasswordResetToken };
 }
-/* c8 ignore stop */

@@ -8,7 +8,7 @@ export type * from "./email-verification";
 export type * from "./events";
 export type * from "./google-auth";
 export type * from "./oauth";
-export type * from "./password-reset";
+export * from "./password-reset";
 export type * from "./pending-html";
 export type * from "./pending-pdf";
 export type * from "./pending-signup";
