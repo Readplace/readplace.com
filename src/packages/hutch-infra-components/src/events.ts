@@ -453,8 +453,8 @@ export type UpdateFetchTimestampDetail = z.infer<
 	typeof UpdateFetchTimestampCommand.detailSchema
 >;
 
-/** Broadened in Phase 2 to carry `userId` so handlers can update the row by
- * primary key instead of GSI-querying on `subscriptionId`. Emitted by the
+/** Carries `userId` so handlers can update the row by primary key instead of
+ * GSI-querying on `subscriptionId`. Emitted by the
  * `cancel-subscription` Lambda for every user-initiated cancel (trialing →
  * no `subscriptionId`; active and pending_cancellation → with `subscriptionId`)
  * and by `stripe-webhook-receiver` on `customer.subscription.deleted` for
@@ -630,8 +630,8 @@ export type SendTrialFeedbackEmailDetail = z.infer<
  * `hasSummary` is true only for ready summaries; a skipped summary still
  * succeeds the reader view but carries no summary to announce. The reader-ready
  * fan-out Lambda subscribes and stamps a per-user `succeededAt` for every saver
- * of this URL. `contentSourceTier` is reserved for a future
- * "loaded with a more complete version" notification and is not populated yet. */
+ * of this URL. `contentSourceTier` is optional — it backs a "loaded with a more
+ * complete version" notification, so consumers must tolerate its absence. */
 export const ReaderViewLoadingSucceeded = defineEvent({
 	name: "reader-view-loading-succeeded",
 	source: "hutch.save-link",
