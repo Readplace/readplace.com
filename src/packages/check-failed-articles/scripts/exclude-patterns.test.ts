@@ -543,3 +543,33 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 		});
 	}
 });
+
+describe("EXCLUDE_PATTERNS — doubled-URL save (issue #594)", () => {
+	const cases: ReadonlyArray<{ url: string; excluded: boolean; label: string }> = [
+		{
+			url: "https://fagnerbrack.com/learn-sql-once-use-it-for-30-years-9aceb0bdee03https:/fagnerbrack.com/learn-sql-once-use-it-for-30-years-9aceb0bdee03",
+			excluded: true,
+			label: "stored doubled form with collapsed embedded scheme (https:/)",
+		},
+		{
+			url: "https://fagnerbrack.com/learn-sql-once-use-it-for-30-years-9aceb0bdee03https://fagnerbrack.com/learn-sql-once-use-it-for-30-years-9aceb0bdee03",
+			excluded: true,
+			label: "doubled form with uncollapsed embedded scheme (https://)",
+		},
+		{
+			url: "https://fagnerbrack.com/learn-sql-once-use-it-for-30-years-9aceb0bdee03",
+			excluded: false,
+			label: "the real single article — must NOT be hidden",
+		},
+		{
+			url: "https://fagnerbrack.com/some-other-article-0123456789ab",
+			excluded: false,
+			label: "different fagnerbrack article — must NOT be hidden",
+		},
+	];
+	for (const { url, excluded, label } of cases) {
+		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
+			assert.equal(isExcluded(url, EXCLUDE_PATTERNS), excluded);
+		});
+	}
+});

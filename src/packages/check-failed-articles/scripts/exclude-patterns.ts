@@ -193,6 +193,15 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// tolerates the one-digit transcription variant so the exclude holds whether
 	// the row reads `l-l-118` or `l-l-18`.
 	/^https:\/\/www\.castorama\.fr\/coffre-de-jardin-resine-effet-rotin-tresse-270-l-l-1?18-x-h-57-x-p-45-cm-marron-keter-emily\/7290112634603_CAFR\.prd$/i,
+	// Operator-curated exclude drained from the issue #594 worklist.
+	//
+	// Doubled save: the fagnerbrack.com article URL with a scheme-collapsed copy
+	// of itself appended to the slug — a paste/link-extraction artifact with no
+	// real page behind it, so the crawl exhausts retries. Anchored to the doubled
+	// form so the real single article (`…-9aceb0bdee03`) still crawls; `https:\/{1,2}`
+	// tolerates the embedded scheme whether normalization left one slash or two
+	// (issue #522 documents both shapes).
+	/^https:\/\/fagnerbrack\.com\/learn-sql-once-use-it-for-30-years-9aceb0bdee03https:\/{1,2}fagnerbrack\.com\/learn-sql-once-use-it-for-30-years-9aceb0bdee03$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {
