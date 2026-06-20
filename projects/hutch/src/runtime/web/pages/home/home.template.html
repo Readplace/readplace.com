@@ -270,12 +270,10 @@
 
     <section id="pricing" class="home-pricing" data-test-section="pricing" aria-label="Pricing">
       <div class="home-pricing__container">
-        {{#if foundingAllocationAvailable}}
-        <div class="section-header" data-test-pricing-title>
+        <div class="section-header home-pricing__title {{pricingTitleStateClass}}" data-test-pricing-title>
           <h2 class="section-header__title">Free for the first {{foundingMemberLimit}} members.</h2>
         </div>
-        {{/if}}
-        {{{foundingProgressHtml}}}
+        <div class="home-pricing__progress {{progressStateClass}}" data-test-founding-progress-slot>{{{foundingProgressHtml}}}</div>
         <div class="pricing-grid {{pricingGridStateClass}}">
           <div class="pricing-card pricing-card--featured" data-test-plan="founding">
             <span class="pricing-card__badge">First {{foundingMemberLimit}} Users</span>

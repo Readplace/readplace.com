@@ -1042,6 +1042,22 @@ hr::before {
   display: none;
 }
 
+.home-pricing__title--visible {
+  display: block;
+}
+
+.home-pricing__title--hidden {
+  display: none;
+}
+
+.home-pricing__progress--visible {
+  display: block;
+}
+
+.home-pricing__progress--hidden {
+  display: none;
+}
+
 .home-pricing__fallback {
   max-width: 480px;
   margin: 0 auto;
