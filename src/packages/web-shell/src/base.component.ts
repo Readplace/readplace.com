@@ -4,6 +4,7 @@ import {
 	BANNER_AREA_STYLES,
 	BASE_CSS_VARIABLES,
 	BASE_RESET_STYLES,
+	CHANGELOG_BANNER_STYLES,
 	FOOTER_STYLES,
 	HEADER_STYLES,
 	NAV_STYLES,
@@ -15,6 +16,7 @@ import {
 import { BASE_TEMPLATE } from "./base.template";
 import { FOOTER_TEMPLATE } from "./footer.template";
 import type { BannerState } from "./banner-state";
+import { renderChangelogBannerShell } from "./changelog-banner";
 import type { Component, ParsedComponent } from "./component.types";
 import { HtmlPage } from "./html-page";
 import { htmlToMarkdown } from "./html-to-markdown";
@@ -247,6 +249,7 @@ export function initBase(config: BaseConfig): RenderBase {
 			resetStyles: BASE_RESET_STYLES,
 			utilityStyles: UTILITY_STYLES,
 			bannerAreaStyles: BANNER_AREA_STYLES,
+			changelogBannerStyles: CHANGELOG_BANNER_STYLES,
 			headerStyles: HEADER_STYLES,
 			navStyles: NAV_STYLES,
 			footerStyles: FOOTER_STYLES,
@@ -255,6 +258,7 @@ export function initBase(config: BaseConfig): RenderBase {
 			verifyBannerStyles: VERIFY_BANNER_STYLES,
 			trialCountdownStyles: TRIAL_COUNTDOWN_STYLES,
 			extensionSuggestionBannerStyles: EXTENSION_SUGGESTION_BANNER_STYLES,
+			changelogBanner: renderChangelogBannerShell(state.changelogBanner),
 			verifyBanner: renderVerifyBanner(state),
 			extensionSuggestionBanner: renderExtensionSuggestionBanner({
 				show: state.showExtensionSuggestionBanner ?? false,

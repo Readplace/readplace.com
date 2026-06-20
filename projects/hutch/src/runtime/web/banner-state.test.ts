@@ -1,16 +1,30 @@
+import assert from "node:assert/strict";
+import { type ChangelogBanner, isChangelogVersion } from "@packages/web-shell";
 import { UserIdSchema } from "@packages/domain/user";
 import { initBuildBannerState } from "./banner-state";
+import type { GetChangelogBanner } from "./changelog-banner-source";
 import type { EffectiveAccess } from "../domain/access/effective-access";
 
 const USER_ID = UserIdSchema.parse("user-1");
 const ONE_DAY_MS = 86_400_000;
 const FIXED_NOW = new Date("2026-01-01T00:00:00.000Z");
 
+const noChangelogBanner: GetChangelogBanner = async () => undefined;
+
+const CHANGELOG_VERSION = "a1b2c3d4";
+assert(isChangelogVersion(CHANGELOG_VERSION));
+const CHANGELOG: ChangelogBanner = {
+	hook: "I added keyboard shortcuts to the reader",
+	href: "/blog/keyboard-shortcuts?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more",
+	version: CHANGELOG_VERSION,
+};
+
 describe("initBuildBannerState", () => {
 	it("returns isAuthenticated=false with no trial for an unauthenticated request and never fetches access", async () => {
 		const getEffectiveAccess = jest.fn();
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess,
+			getChangelogBanner: noChangelogBanner,
 			now: () => FIXED_NOW,
 		});
 
@@ -30,6 +44,7 @@ describe("initBuildBannerState", () => {
 		};
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess: async () => access,
+			getChangelogBanner: noChangelogBanner,
 			now: () => FIXED_NOW,
 		});
 
@@ -60,10 +75,12 @@ describe("initBuildBannerState", () => {
 
 		const buildExpired = initBuildBannerState({
 			getEffectiveAccess: async () => trialExpired,
+			getChangelogBanner: noChangelogBanner,
 			now: () => FIXED_NOW,
 		});
 		const buildCancelled = initBuildBannerState({
 			getEffectiveAccess: async () => cancelled,
+			getChangelogBanner: noChangelogBanner,
 			now: () => FIXED_NOW,
 		});
 
@@ -90,6 +107,7 @@ describe("initBuildBannerState", () => {
 		for (const access of [founding, paid]) {
 			const build = initBuildBannerState({
 				getEffectiveAccess: async () => access,
+				getChangelogBanner: noChangelogBanner,
 				now: () => FIXED_NOW,
 			});
 			expect((await build({ userId: USER_ID })).trial).toBeUndefined();
@@ -107,6 +125,7 @@ describe("initBuildBannerState", () => {
 		const getEffectiveAccess = jest.fn();
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess,
+			getChangelogBanner: noChangelogBanner,
 			now: () => FIXED_NOW,
 		});
 
@@ -131,6 +150,7 @@ describe("initBuildBannerState", () => {
 		};
 		const buildBannerState = initBuildBannerState({
 			getEffectiveAccess: async () => access,
+			getChangelogBanner: noChangelogBanner,
 			now: () => FIXED_NOW,
 		});
 
@@ -142,5 +162,81 @@ describe("initBuildBannerState", () => {
 			serverNowIso: FIXED_NOW.toISOString(),
 		});
 		expect(result.accessIsReadOnly).toBe(false);
+	});
+
+	describe("changelog banner", () => {
+		it("includes the changelog banner for a guest, folded in before the unauthenticated early-return", async () => {
+			const getEffectiveAccess = jest.fn();
+			const build = initBuildBannerState({
+				getEffectiveAccess,
+				getChangelogBanner: async () => CHANGELOG,
+				now: () => FIXED_NOW,
+			});
+
+			const result = await build({});
+
+			expect(result).toEqual({
+				isAuthenticated: false,
+				emailVerified: undefined,
+				changelogBanner: CHANGELOG,
+			});
+			expect(getEffectiveAccess).not.toHaveBeenCalled();
+		});
+
+		it("drops the changelog banner when the reader has dismissed that exact version", async () => {
+			const build = initBuildBannerState({
+				getEffectiveAccess: jest.fn(),
+				getChangelogBanner: async () => CHANGELOG,
+				now: () => FIXED_NOW,
+			});
+
+			const result = await build({ dismissedChangelogVersion: CHANGELOG.version });
+
+			expect(result.changelogBanner).toBeUndefined();
+		});
+
+		it("keeps the changelog banner when the dismissed version is for a different (older) announcement", async () => {
+			const build = initBuildBannerState({
+				getEffectiveAccess: jest.fn(),
+				getChangelogBanner: async () => CHANGELOG,
+				now: () => FIXED_NOW,
+			});
+
+			const result = await build({ dismissedChangelogVersion: "ffffffff" });
+
+			expect(result.changelogBanner).toEqual(CHANGELOG);
+		});
+
+		it("includes the changelog banner for an authenticated user alongside their trial state", async () => {
+			const trialEndsAt = new Date(FIXED_NOW.getTime() + 3 * ONE_DAY_MS).toISOString();
+			const access: EffectiveAccess = {
+				tier: "trial",
+				access: "full",
+				banner: "trial-countdown",
+				trialEndsAt,
+			};
+			const build = initBuildBannerState({
+				getEffectiveAccess: async () => access,
+				getChangelogBanner: async () => CHANGELOG,
+				now: () => FIXED_NOW,
+			});
+
+			const result = await build({ userId: USER_ID });
+
+			expect(result.changelogBanner).toEqual(CHANGELOG);
+			expect(result.trial?.state).toBe("active");
+		});
+
+		it("leaves the state unchanged when there is nothing to announce", async () => {
+			const build = initBuildBannerState({
+				getEffectiveAccess: jest.fn(),
+				getChangelogBanner: noChangelogBanner,
+				now: () => FIXED_NOW,
+			});
+
+			const result = await build({});
+
+			expect(result.changelogBanner).toBeUndefined();
+		});
 	});
 });

@@ -1,3 +1,4 @@
+import type { ChangelogBanner } from "./changelog-banner";
 import { withInternalTracking } from "./internal-link-tracking";
 import type { TrialDisplay } from "./trial-countdown.format";
 
@@ -25,6 +26,11 @@ export interface BannerStateSource {
 	userId?: UserId;
 	emailVerified?: boolean;
 	verificationStatus?: VerificationStatus;
+	/** The changelog version the reader has dismissed, lifted from the dismissal
+	 * cookie by the consuming site (hutch via cookie-parser middleware). When it
+	 * equals the live banner's version the banner is suppressed; a newer post
+	 * carries a different version and reappears. */
+	dismissedChangelogVersion?: string;
 }
 
 export type NavItemKey =
@@ -134,6 +140,11 @@ export interface BannerState {
 	 * (without an access lookup); `buildNavGroups` treats undefined as full
 	 * access. */
 	accessIsReadOnly?: boolean;
+	/** The latest feature announcement to surface site-wide, already filtered
+	 * for the reader's dismissal. Undefined when there is nothing to announce or
+	 * the reader has dismissed the current one; the shell then renders the
+	 * hidden, empty banner shell. */
+	changelogBanner?: ChangelogBanner;
 }
 
 const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method: "GET", icon: "fa-solid fa-inbox" });

@@ -81,6 +81,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
     {{{resetStyles}}}
     {{{utilityStyles}}}
     {{{bannerAreaStyles}}}
+    {{{changelogBannerStyles}}}
     {{{headerStyles}}}
     {{{navStyles}}}
     {{{footerStyles}}}
@@ -93,6 +94,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
 </head>
 <body{{#if bodyClass}} class="{{bodyClass}}"{{/if}}>
   <div class="banner-area">
+    {{{changelogBanner}}}
     <div class="offline-banner" role="alert" aria-live="polite" aria-hidden="true">
       You're offline. Some features may be unavailable.
     </div>

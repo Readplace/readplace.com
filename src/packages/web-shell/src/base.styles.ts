@@ -564,6 +564,102 @@ export const BANNER_AREA_STYLES = `
   }
 `;
 
+export const CHANGELOG_BANNER_STYLES = `
+  .changelog-banner {
+    background: var(--color-surface-elevated);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--foreground);
+    font-size: 14px;
+    line-height: 1.5;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .changelog-banner--visible { display: block; }
+  .changelog-banner--hidden { display: none; }
+
+  .changelog-banner__inner {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /**
+   * 1. A label, not a pill — 6px radius (var(--radius-sm)) keeps it inside the
+   *    brand's "never fully rounded" rule while the brand fill carries novelty.
+   */
+  .changelog-banner__chip {
+    flex: 0 0 auto;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 4px 7px;
+    background: var(--color-brand);
+    color: var(--color-on-brand);
+    border-radius: var(--radius-sm); /* 1 */
+  }
+
+  .changelog-banner__hook {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text-secondary);
+  }
+
+  .changelog-banner__link {
+    flex: 0 0 auto;
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .changelog-banner__link:hover,
+  .changelog-banner__link:focus-visible {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+
+  .changelog-banner__arrow { margin-left: 2px; }
+
+  .changelog-banner__dismiss {
+    flex: 0 0 auto;
+    margin: 0;
+    line-height: 1;
+  }
+
+  .changelog-banner__close {
+    background: transparent;
+    border: none;
+    color: var(--color-text-muted);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: var(--radius-sm);
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+
+  .changelog-banner__close:hover,
+  .changelog-banner__close:focus-visible {
+    color: var(--foreground);
+    background: var(--color-surface);
+  }
+
+  @media (max-width: 480px) {
+    .changelog-banner__hook {
+      white-space: normal;
+    }
+  }
+`;
+
 
 export const UTILITY_STYLES = `
   .sr-only {

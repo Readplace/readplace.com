@@ -5,6 +5,8 @@ slug: "save-articles-with-your-ai-assistant"
 date: "2026-06-16"
 author: "Fayner Brack"
 keywords: "MCP server, Model Context Protocol, Claude MCP, read it later MCP, save articles AI assistant, AI reading queue, save_link tool, OAuth MCP, Readplace MCP"
+tags: ["changelog"]
+banner: "Your AI assistant can now save articles to your queue"
 ---
 
 <details class="blog-tldr">

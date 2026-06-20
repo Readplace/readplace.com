@@ -22,6 +22,7 @@ import type {
 } from "@packages/web-test-harness";
 import { useTestServer as useServerForFixture } from "@packages/web-test-harness";
 import { createApp } from "./server";
+import type { GetChangelogBanner } from "./web/changelog-banner-source";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import type { AnalyticsEvent } from "./web/middleware/analytics";
 
@@ -153,6 +154,7 @@ function flattenFixtureToAppDependencies(
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,
 		importSessionStore: fixture.importSession.importSessionStore,
 		extractLinksFromPageUrl: fixture.importSession.extractLinksFromPageUrl,
+		getChangelogBanner: async () => undefined,
 		now: fixture.shared.now,
 		retrieveCheckoutSession: fixture.stripe.retrieveCheckoutSession,
 		createCheckoutSession: fixture.stripe.createCheckoutSession,
@@ -186,14 +188,20 @@ function flattenFixtureToAppDependencies(
 	};
 }
 
-export function createTestApp(fixture: TestAppFixture): TestAppResult {
+/** `overrides` lets a test swap a single decorative dependency without rebuilding
+ * the whole fixture — `getChangelogBanner`, which defaults to "no banner" so the
+ * banner stays hidden in every other route test. */
+export function createTestApp(
+	fixture: TestAppFixture,
+	overrides?: { getChangelogBanner?: GetChangelogBanner },
+): TestAppResult {
 	const analyticsEvents: AnalyticsEvent[] = [];
 	const captureAnalytics = (data: AnalyticsEvent) => { analyticsEvents.push(data); };
 	const analyticsBundle: AnalyticsBundle = {
 		logger: { info: captureAnalytics, error: captureAnalytics, warn: captureAnalytics, debug: captureAnalytics },
 		events: analyticsEvents,
 	};
-	const app = createApp(flattenFixtureToAppDependencies(fixture, analyticsBundle));
+	const app = createApp({ ...flattenFixtureToAppDependencies(fixture, analyticsBundle), ...overrides });
 	return {
 		app,
 		auth: fixture.auth,

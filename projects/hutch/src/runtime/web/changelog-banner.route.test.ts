@@ -1,0 +1,45 @@
+import assert from "node:assert/strict";
+import { type ChangelogBanner, isChangelogVersion } from "@packages/web-shell";
+import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
+import { JSDOM } from "jsdom";
+import request from "supertest";
+import { createTestApp } from "../test-app";
+
+const VERSION = "a1b2c3d4";
+assert(isChangelogVersion(VERSION));
+const BANNER: ChangelogBanner = {
+	hook: "I added keyboard shortcuts to the reader",
+	href: "/blog/keyboard-shortcuts?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more",
+	version: VERSION,
+};
+
+describe("changelog banner on hutch pages", () => {
+	it("renders the visible banner in the banner area for a guest when the source has one", async () => {
+		const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN), {
+			getChangelogBanner: async () => BANNER,
+		});
+
+		const response = await request(app).get("/privacy");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const bannerArea = doc.querySelector(".banner-area");
+		const banner = bannerArea?.querySelector("[data-test-changelog-banner]");
+		expect(banner?.classList.contains("changelog-banner--visible")).toBe(true);
+		expect(banner?.querySelector(".changelog-banner__hook")?.textContent).toBe(BANNER.hook);
+		expect(banner?.querySelector(".changelog-banner__link")?.getAttribute("href")).toBe(
+			BANNER.href,
+		);
+	});
+
+	it("renders the hidden shell when the source has nothing to announce", async () => {
+		const { app } = createTestApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+		const response = await request(app).get("/privacy");
+
+		const banner = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-changelog-banner]",
+		);
+		expect(banner?.classList.contains("changelog-banner--hidden")).toBe(true);
+	});
+});

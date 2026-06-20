@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { initBase } from "./base.component";
+import { isChangelogVersion } from "./changelog-banner";
 import type { BannerState } from "./banner-state";
 import type { PageBody } from "./page-body.types";
 
 const Base = initBase({ staticBaseUrl: "", liveReload: false });
+
+const CHANGELOG_VERSION = "a1b2c3d4";
+assert(isChangelogVersion(CHANGELOG_VERSION));
 
 function createTestPageBody(overrides: Partial<PageBody> = {}): PageBody {
 	return {
@@ -233,6 +237,38 @@ describe("Base component", () => {
 		);
 		assert(script, "extension suggestion banner client script must be rendered");
 		expect(script.hasAttribute("defer")).toBe(true);
+	});
+
+	it("renders the changelog banner hidden by default (no announcement in state)", () => {
+		const page = createTestPageBody();
+		const result = Base(page, GUEST_STATE).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const banner = doc.querySelector("[data-test-changelog-banner]");
+		assert(banner, "changelog banner element must always be in the DOM");
+		expect(banner.classList.contains("changelog-banner--hidden")).toBe(true);
+	});
+
+	it("renders the changelog banner visible inside the banner area when state carries an announcement", () => {
+		const page = createTestPageBody();
+		const result = Base(page, {
+			...GUEST_STATE,
+			changelogBanner: {
+				hook: "I added keyboard shortcuts to the reader",
+				href: "/blog/keyboard-shortcuts?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more",
+				version: CHANGELOG_VERSION,
+			},
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const bannerArea = doc.querySelector(".banner-area");
+		assert(bannerArea, "banner area must be rendered");
+		const banner = bannerArea.querySelector("[data-test-changelog-banner]");
+		assert(banner, "changelog banner must render inside the banner area");
+		expect(banner.classList.contains("changelog-banner--visible")).toBe(true);
+		expect(banner.querySelector(".changelog-banner__hook")?.textContent).toBe(
+			"I added keyboard shortcuts to the reader",
+		);
 	});
 
 	it("should set meta description from seo", () => {
