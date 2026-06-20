@@ -5,6 +5,7 @@ import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
 import { switchHelpers } from "../../handlebars-switch";
+import { STANDARD_YEARLY_USD } from "../../pricing";
 import { renderFoundingProgress } from "../../shared/founding-progress/founding-progress.component";
 import type { FoundingAllocation } from "../../shared/founding-progress/founding-allocation";
 import { HOME_PAGE_STYLES } from "./home.styles";
@@ -173,7 +174,7 @@ export function HomePage(params: {
 						{
 							"@type": "Offer",
 							name: "Standard",
-							price: "49",
+							price: String(STANDARD_YEARLY_USD),
 							priceCurrency: "USD",
 							description: "Full access including TL;DR summaries",
 						},

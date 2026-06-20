@@ -8,6 +8,7 @@ const STORAGE_KEY = "readplace.offer-popup.v1";
 const OPEN_CLASS = "offer-popup--open";
 
 const FIXTURE = `<!DOCTYPE html><html><body>
+  <main data-test-page-behind>Page content behind the modal</main>
   <div class="offer-popup" data-offer-popup data-offer-stage="offer">
     <div class="offer-popup__panel">
       <section class="offer-popup__view offer-popup__view--offer">
@@ -163,6 +164,75 @@ describe("initOfferPopup — double-confirmation close flow", () => {
 		const { window, document } = shownPreviewDom();
 		click(document, "data-test-offer-dismiss");
 		expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
+	});
+});
+
+describe("initOfferPopup — stage labelling", () => {
+	it("labels the dialog by the visible heading of each stage", () => {
+		const { window, document } = createDom("?offer-preview=1");
+		initOfferPopup({
+			document,
+			storage: window.localStorage,
+			location: { search: "?offer-preview=1" },
+		}).attach();
+		const root = popup(document);
+
+		assert.equal(root.getAttribute("aria-labelledby"), "offer-popup-title-offer");
+
+		click(document, "data-test-offer-close");
+		assert.equal(
+			root.getAttribute("aria-labelledby"),
+			"offer-popup-title-confirm-first",
+		);
+
+		click(document, "data-test-offer-confirm");
+		assert.equal(
+			root.getAttribute("aria-labelledby"),
+			"offer-popup-title-confirm-second",
+		);
+
+		click(document, "data-test-offer-keep-2");
+		assert.equal(root.getAttribute("aria-labelledby"), "offer-popup-title-offer");
+	});
+});
+
+describe("initOfferPopup — background inertness", () => {
+	function behind(doc: Document): Element {
+		const el = doc.querySelector("[data-test-page-behind]");
+		assert(el, "page content behind the modal must exist in the fixture");
+		return el;
+	}
+
+	it("marks sibling page content inert and aria-hidden while open, sparing the popup itself", () => {
+		const { window, document } = createDom("?offer-preview=1");
+		initOfferPopup({
+			document,
+			storage: window.localStorage,
+			location: { search: "?offer-preview=1" },
+		}).attach();
+
+		const el = behind(document);
+		assert.equal(el.getAttribute("inert"), "");
+		assert.equal(el.getAttribute("aria-hidden"), "true");
+
+		const root = popup(document);
+		assert.equal(root.hasAttribute("inert"), false);
+		assert.equal(root.hasAttribute("aria-hidden"), false);
+	});
+
+	it("restores the background once the popup is dismissed", () => {
+		const { window, document } = createDom("");
+		initOfferPopup({
+			document,
+			storage: window.localStorage,
+			location: { search: "" },
+		}).attach();
+
+		click(document, "data-test-offer-dismiss");
+
+		const el = behind(document);
+		assert.equal(el.hasAttribute("inert"), false);
+		assert.equal(el.hasAttribute("aria-hidden"), false);
 	});
 });
 

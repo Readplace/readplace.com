@@ -17,6 +17,24 @@ describe("renderOfferPopup", () => {
 		assert.equal(root.getAttribute("data-offer-stage"), "offer");
 	});
 
+	it("labels the dialog by the offer heading and gives every stage heading its own id", () => {
+		const doc = parse();
+
+		const root = doc.querySelector("[data-test-offer-popup]");
+		assert(root, "popup root must render");
+		assert.equal(root.getAttribute("aria-labelledby"), "offer-popup-title-offer");
+
+		assert(doc.querySelector("#offer-popup-title-offer"), "offer heading needs its id");
+		assert(
+			doc.querySelector("#offer-popup-title-confirm-first"),
+			"confirm-first heading needs its id",
+		);
+		assert(
+			doc.querySelector("#offer-popup-title-confirm-second"),
+			"confirm-second heading needs its id",
+		);
+	});
+
 	it("renders the one-time price with a crossed-out anchor", () => {
 		const doc = parse();
 

@@ -38,9 +38,10 @@ export function initBuildBannerState(deps: {
 		const userId = UserIdSchema.parse(source.userId);
 		const access =
 			options?.preFetchedAccess ?? (await deps.getEffectiveAccess(userId));
-		const trial = toTrialDisplay(access, deps.now());
+		const now = deps.now();
+		const trial = toTrialDisplay(access, now);
 		const accessIsReadOnly = access.access === "read-only";
-		const offerPopup = isOfferPopupEligible(access, deps.now())
+		const offerPopup = isOfferPopupEligible(access, now)
 			? {
 					html: renderOfferPopup(deps.offerPaymentLink),
 					styles: OFFER_POPUP_STYLES,

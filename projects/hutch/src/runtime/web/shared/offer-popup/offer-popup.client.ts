@@ -66,7 +66,25 @@ export function initOfferPopup(deps: OfferPopupDeps): OfferPopupController {
 	function setStage(stage: Stage): void {
 		currentStage = stage;
 		root.setAttribute(STAGE_ATTR, stage);
+		root.setAttribute("aria-labelledby", `offer-popup-title-${stage}`);
 		focusFirstControl();
+	}
+
+	/** Takes the page out of the tab/AT tree while the dialog is open. Inerting
+	 * the popup root's siblings covers the whole page because the popup renders
+	 * as a direct child of <body>. */
+	function setBackgroundInert(inert: boolean): void {
+		const parent = ensure(root.parentElement, "popup root must have a parent");
+		for (const sibling of Array.from(parent.children)) {
+			if (sibling === root) continue;
+			if (inert) {
+				sibling.setAttribute("inert", "");
+				sibling.setAttribute("aria-hidden", "true");
+			} else {
+				sibling.removeAttribute("inert");
+				sibling.removeAttribute("aria-hidden");
+			}
+		}
 	}
 
 	/** Hands focus back to whatever held it before the dialog opened. The DOM
@@ -125,6 +143,7 @@ export function initOfferPopup(deps: OfferPopupDeps): OfferPopupController {
 		}
 		root.classList.remove(OPEN_CLASS);
 		root.removeEventListener("keydown", trapFocus);
+		setBackgroundInert(false);
 		const restore = ensure(restoreFocus, "popup must be open before dismiss");
 		restore();
 	}
@@ -139,6 +158,7 @@ export function initOfferPopup(deps: OfferPopupDeps): OfferPopupController {
 		restoreFocus = captureRestoreFocus();
 		root.classList.add(OPEN_CLASS);
 		root.addEventListener("keydown", trapFocus);
+		setBackgroundInert(true);
 		setStage("offer");
 	}
 
