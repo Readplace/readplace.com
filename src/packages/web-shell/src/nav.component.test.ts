@@ -25,7 +25,11 @@ describe("Nav component", () => {
 			}),
 		);
 
-		expect(doc.querySelector("[data-test-trial-countdown]")).toBeNull();
+		const brand = doc.querySelector(".header__brand");
+		assert(brand, "header brand must render");
+		const afterBrand = brand.nextElementSibling;
+		assert(afterBrand, "an element must follow the brand inside .header__content");
+		expect(afterBrand.classList.contains("nav")).toBe(true);
 	});
 
 	it("renders the trial countdown with active state, escalation class, and data attributes", () => {
