@@ -1,7 +1,6 @@
 import assert from "node:assert";
 import { createHash, randomBytes } from "node:crypto";
 import request from "supertest";
-import type { Token } from "@node-oauth/oauth2-server";
 import { useTestServer } from "../../test-app";
 import {
 	TEST_APP_ORIGIN,
@@ -329,7 +328,9 @@ describe("OAuth routes", () => {
 					accessTokenExpiresAt: new Date(Date.now() + 3600000),
 					refreshToken: "revoke-refresh",
 					refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
-				} as Token,
+					client,
+					user: { id: TEST_USER_ID },
+				},
 				client,
 				{ id: TEST_USER_ID },
 			);
@@ -368,7 +369,9 @@ describe("OAuth routes", () => {
 					accessTokenExpiresAt: new Date(Date.now() + 3600000),
 					refreshToken: "refresh-for-revoke",
 					refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
-				} as Token,
+					client,
+					user: { id: TEST_USER_ID },
+				},
 				client,
 				{ id: TEST_USER_ID },
 			);
