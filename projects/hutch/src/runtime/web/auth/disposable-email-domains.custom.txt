@@ -1,0 +1,7 @@
+# Disposable email domains — custom additions (hand-maintained)
+#
+# Domains here are merged with the generated disposable-email-domains.txt at load.
+# Re-syncing the canonical list never touches this file. Lines starting with #
+# are comments; blank lines are ignored. Add one domain per line below.
+
+slmail.me
