@@ -1,4 +1,4 @@
-/* c8 ignore start -- thin Stripe API wrapper, tested via integration */
+import assert from "node:assert";
 import { z } from "zod";
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
 import type {
@@ -106,8 +106,8 @@ export function initStripeCheckout(deps: {
 		}
 
 		const parsed = RetrieveSessionResponse.parse(json);
-		const customerEmail =
-			parsed.customer_details?.email ?? parsed.customer_email ?? "";
+		const customerEmail = parsed.customer_details?.email ?? parsed.customer_email;
+		assert(customerEmail, `Stripe checkout session ${id} has no customer email`);
 		return {
 			ok: true,
 			paid: parsed.payment_status === "paid" || parsed.payment_status === "no_payment_required",
@@ -121,4 +121,3 @@ export function initStripeCheckout(deps: {
 
 	return { createCheckoutSession, retrieveCheckoutSession };
 }
-/* c8 ignore stop */
