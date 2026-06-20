@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
@@ -147,7 +148,7 @@ export function initDynamoDbSubscriptionProviders(deps: {
 			Limit: 1,
 		});
 		const row = items[0];
-		if (!row) throw new Error(`No subscription row for subscriptionId ${subscriptionId}`);
+		assert(row, `No subscription row for subscriptionId ${subscriptionId}`);
 		await table.update({
 			Key: { userId: row.userId },
 			UpdateExpression: "SET #status = :status, updatedAt = :now",
