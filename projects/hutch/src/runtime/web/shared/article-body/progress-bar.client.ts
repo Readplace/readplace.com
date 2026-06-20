@@ -33,7 +33,10 @@ function assert(cond: unknown, message: string): asserts cond {
  * Linear rate between two ticks, floored at 0 so a regression (worker
  * redelivery) doesn't pull the bar backwards mid-frame.
  */
-export function computeRate(prev: BarTick, next: BarTick): number {
+export function computeRate({
+	prev,
+	next,
+}: { prev: BarTick; next: BarTick }): number {
 	const dt = next.tickAtMs - prev.tickAtMs;
 	if (dt <= 0) return 0;
 	const rate = (next.pct - prev.pct) / dt;
@@ -159,7 +162,7 @@ export function initProgressBars(deps: ProgressBarDeps): ProgressBarController {
 		states.set(bar, {
 			prev: existing.last,
 			last: newTick,
-			rate: computeRate(existing.last, newTick),
+			rate: computeRate({ prev: existing.last, next: newTick }),
 			fill,
 		});
 	}

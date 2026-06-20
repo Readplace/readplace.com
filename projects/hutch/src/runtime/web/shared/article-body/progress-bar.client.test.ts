@@ -21,21 +21,21 @@ describe("computeRate", () => {
 		const prev: BarTick = { tickAtMs: 1000, pct: 25 };
 		const next: BarTick = { tickAtMs: 4000, pct: 55 };
 
-		expect(computeRate(prev, next)).toBeCloseTo(0.01);
+		expect(computeRate({ prev, next })).toBeCloseTo(0.01);
 	});
 
 	it("floors at 0 when the server reports a regression (worker redelivery)", () => {
 		const prev: BarTick = { tickAtMs: 1000, pct: 90 };
 		const next: BarTick = { tickAtMs: 4000, pct: 55 };
 
-		expect(computeRate(prev, next)).toBe(0);
+		expect(computeRate({ prev, next })).toBe(0);
 	});
 
 	it("returns 0 when both ticks share a timestamp (clock skew)", () => {
 		const prev: BarTick = { tickAtMs: 1000, pct: 25 };
 		const next: BarTick = { tickAtMs: 1000, pct: 55 };
 
-		expect(computeRate(prev, next)).toBe(0);
+		expect(computeRate({ prev, next })).toBe(0);
 	});
 });
 
