@@ -183,6 +183,16 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// egress (the same residential-egress requirement as the medium.com and
 	// edge-firewall entries above), so the AWS crawler exhausts retries.
 	/^https:\/\/itnext\.io\/youre-not-praised-for-the-bugs-you-didn-t-create-ef3df6894d5c$/i,
+	// Operator-curated exclude drained from the issue #591 worklist.
+	//
+	// castorama.fr product listing for a Keter garden storage box — an
+	// e-commerce product page, not the readable article content the product
+	// renders, so the crawl exhausts retries with nothing worth re-saving behind
+	// it (same rationale as the npmjs package-listing entry above). The stored
+	// row's dimension segment is `…270-l-l-118-x-h-57…` (L 118 cm); `1?18`
+	// tolerates the one-digit transcription variant so the exclude holds whether
+	// the row reads `l-l-118` or `l-l-18`.
+	/^https:\/\/www\.castorama\.fr\/coffre-de-jardin-resine-effet-rotin-tresse-270-l-l-1?18-x-h-57-x-p-45-cm-marron-keter-emily\/7290112634603_CAFR\.prd$/i,
 ];
 
 export function isExcluded(url: string, patterns: readonly RegExp[]): boolean {

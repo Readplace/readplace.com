@@ -510,6 +510,32 @@ describe("EXCLUDE_PATTERNS — permanently-unreachable saves", () => {
 			excluded: false,
 			label: "different itnext article — must NOT be hidden",
 		},
+		// Operator-curated exclude from issue #591.
+		{
+			url: "https://www.castorama.fr/coffre-de-jardin-resine-effet-rotin-tresse-270-l-l-118-x-h-57-x-p-45-cm-marron-keter-emily/7290112634603_CAFR.prd",
+			excluded: true,
+			label: "castorama Keter box stored row shape (l-l-118)",
+		},
+		{
+			url: "https://www.castorama.fr/coffre-de-jardin-resine-effet-rotin-tresse-270-l-l-18-x-h-57-x-p-45-cm-marron-keter-emily/7290112634603_CAFR.prd",
+			excluded: true,
+			label: "castorama Keter box one-digit transcription variant (l-l-18)",
+		},
+		{
+			url: "https://www.castorama.fr/coffre-de-jardin-resine-effet-rotin-tresse-270-l-l-118-x-h-57-x-p-45-cm-marron-keter-emily/7290112634603_CAFR.prd?utm=x",
+			excluded: false,
+			label: "castorama Keter box with a query suffix — anchored exact, should NOT match",
+		},
+		{
+			url: "https://www.castorama.fr/perceuse-visseuse-sans-fil-18v/1234567890123_CAFR.prd",
+			excluded: false,
+			label: "different castorama product — must NOT be hidden",
+		},
+		{
+			url: "https://www.castorama.fr/",
+			excluded: false,
+			label: "castorama homepage — should NOT match",
+		},
 	];
 	for (const { url, excluded, label } of cases) {
 		it(`${excluded ? "excludes" : "keeps"}: ${label} — ${url}`, () => {
