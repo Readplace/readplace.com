@@ -2,15 +2,23 @@ import assert from "node:assert";
 import { parseHTML } from "linkedom";
 import { render } from "./render";
 
-/** An opaque 8-lowercase-hex fingerprint of the announcing post, branded so its
- * shape is single-sourced across the deploy boundary. The only way to obtain one
- * is `isChangelogVersion`, so the producer (blog-site), the fragment parser here,
- * and hutch's dismiss route cannot drift to different notions of a valid version
- * without a type error — they share this contract by name, never a re-declared
- * regex (connascence of name, compiler-enforced). */
+/** An opaque lowercase-hex fingerprint of the announcing post (`CHANGELOG_VERSION_LENGTH`
+ * chars), branded so its shape is single-sourced across the deploy boundary. The
+ * only way to obtain one is `isChangelogVersion`, so the producer (blog-site), the
+ * fragment parser here, and hutch's dismiss route cannot drift to different notions
+ * of a valid version without a type error — they share this contract by name, never
+ * a re-declared regex (connascence of name, compiler-enforced). */
 export type ChangelogVersion = string & { readonly __brand: "ChangelogVersion" };
 
-const VERSION_PATTERN = /^[0-9a-f]{8}$/;
+/** The width, in lowercase-hex characters, of a `ChangelogVersion`. Both the
+ * validator's shape (`VERSION_PATTERN`) and the producer's hash truncation
+ * (blog-site's `deriveChangelogBanner`) derive from this one constant, so the
+ * version length is single-sourced alongside its charset — the blog-site↔hutch
+ * boundary cannot drift to disagreeing widths, and changing the fingerprint width
+ * is a one-line edit here. */
+export const CHANGELOG_VERSION_LENGTH = 8;
+
+const VERSION_PATTERN = new RegExp(`^[0-9a-f]{${CHANGELOG_VERSION_LENGTH}}$`);
 
 /** The sole validator and narrowing gate for a ChangelogVersion. A value that
  * crossed a boundary — a fetched fragment's attribute, a posted form field, a

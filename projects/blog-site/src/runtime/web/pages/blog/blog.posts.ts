@@ -3,7 +3,12 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, basename } from "node:path";
 import { z } from "zod";
-import { type ChangelogBanner, isChangelogVersion, withInternalTracking } from "@packages/web-shell";
+import {
+	CHANGELOG_VERSION_LENGTH,
+	type ChangelogBanner,
+	isChangelogVersion,
+	withInternalTracking,
+} from "@packages/web-shell";
 import matter from "gray-matter";
 import MarkdownIt from "markdown-it";
 
@@ -69,9 +74,10 @@ interface ChangelogCandidate {
 }
 
 /** Builds the banner from the newest changelog-tagged post (posts arrive sorted
- * newest-first). The version is sha256("slug|banner")[:8] so any change to the
- * slug or the copy yields a new version and the banner reappears; the href is
- * UTM-tagged here, at the single producer, so hutch echoes it without re-tagging. */
+ * newest-first). The version is the leading `CHANGELOG_VERSION_LENGTH` hex chars of
+ * sha256("slug|banner") so any change to the slug or the copy yields a new version
+ * and the banner reappears; the href is UTM-tagged here, at the single producer, so
+ * hutch echoes it without re-tagging. */
 export function deriveChangelogBanner(
 	posts: readonly ChangelogCandidate[],
 ): ChangelogBanner | undefined {
@@ -81,7 +87,7 @@ export function deriveChangelogBanner(
 	const version = createHash("sha256")
 		.update(`${latest.slug}|${latest.banner}`)
 		.digest("hex")
-		.slice(0, 8);
+		.slice(0, CHANGELOG_VERSION_LENGTH);
 	assert(isChangelogVersion(version), "sha256 hex slice is always a valid changelog version");
 	const href = withInternalTracking(`/blog/${latest.slug}`, {
 		source: "changelog-banner",
