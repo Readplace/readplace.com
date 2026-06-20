@@ -142,11 +142,9 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 
 	it("queries spanning subscription Lambda log groups emit one `SOURCE '<name>'` per group joined by `|` — `logGroups(namePrefix: [...])` is a CLI-only form the dashboard renderer rejects", () => {
 		const subscriptionQueries = widgetQueries().filter((q) => q.includes(`"${STREAMS.subscriptions}"`));
+		const expectedSourcePrefix = `${SUBSCRIPTION_DASHBOARD_LOG_GROUPS.map((name) => `SOURCE '${name}'`).join(" | ")} | `;
 		for (const q of subscriptionQueries) {
-			for (const name of SUBSCRIPTION_DASHBOARD_LOG_GROUPS) {
-				expect(q).toContain(`SOURCE '${name}'`);
-			}
-			expect(q).not.toContain("logGroups(namePrefix");
+			expect(q.startsWith(expectedSourcePrefix)).toBe(true);
 		}
 		expect(subscriptionQueries.length).toBeGreaterThan(0);
 	});
@@ -189,17 +187,21 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(Object.keys(LOG_GROUPS).sort()).toEqual(Object.keys(LAMBDA_NAMES).sort());
 	});
 
-	it("omits the visitor_hash exclusion clause from every widget query when no hashes are configured", () => {
-		const body = buildAnalyticsDashboardBody({
+	it("omits the visitor_hash exclusion clause from every widget query when no hashes are configured — each query equals the configured-hash query with the exclusion clause stripped", () => {
+		const excludeClause = `| filter (not ispresent(visitor_hash)) or (visitor_hash not in ["deadbeefcafef00d"]) `;
+		const withExclusion = buildBody();
+		const withoutExclusion = buildAnalyticsDashboardBody({
 			region: "ap-southeast-2",
 			hutchLogGroupName: LOG_GROUPS.hutchHandler,
 			subscriptionLogGroupNames: SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
 			excludedVisitorHashes: [],
 		});
-		for (const w of body.widgets) {
-			const q = w.properties.query;
-			if (typeof q !== "string") continue;
-			expect(q).not.toContain("visitor_hash not in");
+		expect(withoutExclusion.widgets).toHaveLength(withExclusion.widgets.length);
+		for (let i = 0; i < withoutExclusion.widgets.length; i++) {
+			const configured = withExclusion.widgets[i].properties.query;
+			const omitted = withoutExclusion.widgets[i].properties.query;
+			if (typeof configured !== "string" || typeof omitted !== "string") continue;
+			expect(omitted).toBe(configured.split(excludeClause).join(""));
 		}
 	});
 });
