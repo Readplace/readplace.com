@@ -1,4 +1,3 @@
-/* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
 import assert from "node:assert";
 import { SummaryStatusSchema } from "@packages/article-state-types";
 import {
@@ -130,4 +129,3 @@ export function initDynamoDbGeneratedSummary(deps: {
 
 	return { findGeneratedSummary, markSummaryPending, forceMarkSummaryPending };
 }
-/* c8 ignore stop */
