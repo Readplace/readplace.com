@@ -245,7 +245,7 @@ describe("GET /", () => {
 
 		const table = doc.querySelector("[data-test-comparison-table]");
 		const rows = table?.querySelectorAll("tbody tr");
-		expect(rows?.length).toBe(8);
+		expect(rows?.length).toBe(5);
 	});
 
 	it("should render the trust section with three trust items", async () => {
@@ -443,9 +443,9 @@ describe("GET /", () => {
 		const doc = new JSDOM(response.text).window.document;
 
 		const colHeaders = doc.querySelectorAll('[data-test-comparison-table] thead th[scope="col"]');
-		expect(colHeaders.length).toBe(7);
+		expect(colHeaders.length).toBe(6);
 
 		const rowHeaders = doc.querySelectorAll('[data-test-comparison-table] tbody th[scope="row"]');
-		expect(rowHeaders.length).toBe(8);
+		expect(rowHeaders.length).toBe(5);
 	});
 });

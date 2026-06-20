@@ -26,7 +26,7 @@ Each option costs you something in money or time, and each leaves you exposed to
 
 ### Instapaper (Free Tier)
 
-Instapaper's free tier covers the basics you actually use day to day: saving articles, reading them later, and syncing across devices. The premium tier adds full-text search and text-to-speech for $2.99/month, so the free tier is the product minus search.
+Instapaper's free tier covers the basics you actually use day to day: saving articles, reading them later, and syncing across devices. The premium tier adds full-text search and text-to-speech for $5.99/month (or $59.99/year), so the free tier is the product minus search.
 
 Instapaper has been around since 2008, and it has changed hands from Betaworks to Pinterest to Instant Paper Inc without disappearing.
 
@@ -34,7 +34,7 @@ That track record is the strongest argument for it. It does not tell you who wil
 
 ### Raindrop.io (Free Tier)
 
-Raindrop is a bookmarking tool first and a read-it-later app second, which shapes what its free tier is good at. You get unlimited bookmarks, basic collections, and a decent web clipper at no cost. The Pro tier at $2.49/month adds saved copies of pages that stick around after the source goes offline, plus nested collections.
+Raindrop is a bookmarking tool first and a read-it-later app second, which shapes what its free tier is good at. You get unlimited bookmarks, basic collections, and a decent web clipper at no cost. The Pro tier at about $2.30/month (billed annually, $28/year) adds saved copies of pages that stick around after the source goes offline, plus nested collections.
 
 If you mostly want to file links you will return to, Raindrop's free tier holds up. If you want to read long articles without ads in the way, it is the weaker fit, because it was built for filing rather than reading.
 
@@ -48,7 +48,7 @@ The server, the domain, the backups, the security updates, and the hour you lose
 
 ### Wallabag (Self-Hosted, Free)
 
-Wallabag has been around since 2013, which makes it the longest-running open-source option in this group. It is self-hosted, PHP-based, and does what it says without much flash. The software is free in the same way Karakeep is, and the infrastructure and your time are the real cost. If you would rather not run a server at all, the hosted version at wallabag.it starts at €9/year and moves the maintenance to someone else.
+Wallabag has been around since 2013, which makes it the longest-running open-source option in this group. It is self-hosted, PHP-based, and does what it says without much flash. The software is free in the same way Karakeep is, and the infrastructure and your time are the real cost. If you would rather not run a server at all, the hosted version at wallabag.it starts at €11/year and moves the maintenance to someone else.
 
 ### Browser Bookmarks
 

@@ -33,7 +33,7 @@ The icon is a serif **"&"** (ampersand) in white, centred on a navy (`#2B3A55`) 
 
 ### Assets
 
-Icon assets live in `/projects/hutch/static-assets/` and `/projects/firefox-extension/src/icons/`.
+Icon assets live in `/projects/hutch/static-assets/` and `/projects/extensions/firefox-extension/src/icons/`.
 
 | Asset | Sizes available | Location |
 |---|---|---|
@@ -42,7 +42,7 @@ Icon assets live in `/projects/hutch/static-assets/` and `/projects/firefox-exte
 | **Android Chrome** | 48–512px + maskable variants | `projects/hutch/static-assets/android-chrome-*.png` |
 | **Windows Tile** | 70, 150, 310×150, 310px | `projects/hutch/static-assets/mstile-*.png` |
 | **Social cards** | 1200×630 (OG), 1200×600 (Twitter) | `projects/hutch/static-assets/og-image-*.png`, `twitter-card-*.png` |
-| **Extension icon** | 16–128px | `projects/firefox-extension/src/icons/icon-*.png` |
+| **Extension icon** | 16–128px | `projects/extensions/firefox-extension/src/icons/icon-*.png` |
 
 ### Usage Rules
 
@@ -278,7 +278,7 @@ Use a **4px base unit** with the following standard increments:
 
 ### Browser Extension
 
-- The toolbar icon is the standalone H mark at 16×16 / 32×32px (see `projects/extensions/firefox-extension/src/icons/`).
+- The toolbar icon is the standalone ampersand mark at 16×16 / 32×32px (see `projects/extensions/firefox-extension/src/icons/`).
 - The popup should feel like a utility — fast, minimal, single-purpose. Open → save → close. Width: `350px`.
 - Respect the user's browser theme. Match system light/dark mode via `prefers-color-scheme`.
 - No marketing or upsells inside the extension popup. It's a tool, not a billboard.

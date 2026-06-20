@@ -801,15 +801,6 @@ hr::before {
   color: var(--color-brand-dark);
 }
 
-.comparison-table__hutch-sub {
-  display: block;
-  margin-top: 4px;
-  font-size: 0.75rem;
-  font-weight: 400;
-  line-height: 1.4;
-  opacity: 0.75;
-}
-
 .comparison-table__check {
   color: var(--color-success);
 }

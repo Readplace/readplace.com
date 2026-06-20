@@ -56,10 +56,10 @@ If you self-host, you have likely been burned before, because a service you reli
 
 "Just trust me" doesn't answer that. Here's what Readplace does in concrete terms instead.
 
-- **Source-available under AGPL.** The full codebase is public. You can read every line of code that touches your data.
+- **Source-available.** The full codebase is public. You can read every line of code that touches your data.
 - **Full data export.** You can export your articles, tags, and metadata at any time, in a standard format, with no lock-in.
 - **Australian hosting.** Data stays in Australia under Australian privacy law, which keeps US jurisdiction out of the picture.
-- **Clear revenue model.** $49/year, with no ads, no tracking, no venture capital, and no growth-at-all-costs pressure. You pay for the service and I keep running it. That is the model, start to finish.
+- **Clear revenue model.** $49/year, with no ads, no third-party tracking, no venture capital, and no growth-at-all-costs pressure. You pay for the service and I keep running it. That is the model, start to finish.
 
 I can't promise what a hosted service will look like in 5 years. But each of the choices above is checkable today rather than taken on faith, and together they make a hosted service as trustworthy as it can be without putting the database on your own disk.
 
@@ -69,10 +69,10 @@ I can't promise what a hosted service will look like in 5 years. But each of the
 |---|---|---|
 | **Price** | Free | $49/year |
 | **Hosting** | Self-hosted (Docker) | Managed |
-| **Source code** | Open source (AGPLv3) | Source-available (AGPL) |
+| **Source code** | Open source | Source-available |
 | **AI features** | Auto-tagging (Ollama / OpenAI) | TL;DR summaries (included) |
-| **Browser extensions** | Chrome, Firefox | Firefox (Chrome coming) |
-| **Mobile apps** | iOS, Android | Mobile web (native planned) |
+| **Browser extensions** | Chrome, Firefox | Chrome, Firefox |
+| **Mobile apps** | iOS, Android | Mobile web |
 | **Full-text search** | Yes (Meilisearch) | Yes |
 | **Pocket import** | Yes | Yes |
 | **Data ownership** | Full (your server) | Export anytime |
@@ -96,7 +96,7 @@ I can't promise what a hosted service will look like in 5 years. But each of the
 - You are comfortable with a hosted service that is source-available and offers full export.
 - You want a focused, opinionated reading experience over a configurable one.
 - You want someone else handling backups, updates, and uptime.
-- A few dollars a month is worth more to you than the hours you would spend maintaining it.
+- Paying $49/year is worth more to you than the hours you would spend maintaining it.
 
 ## The honest take
 
@@ -108,4 +108,4 @@ Both tools answer the same question with different philosophies: how much of the
 
 ---
 
-*Readplace is a read-it-later app for people who read a lot. $49/year, no ads, no tracking. Try it at [readplace.com](https://readplace.com).*
+*Readplace is a read-it-later app for people who read a lot. $49/year, no ads, no third-party tracking. Try it at [readplace.com](https://readplace.com).*

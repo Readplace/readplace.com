@@ -186,7 +186,7 @@ export function HomePage(params: {
 						"Auto dark mode following system preference",
 						"OAuth 2.0 with PKCE authentication",
 						"Data hosted in Sydney, Australia under Australian Privacy Act",
-						"No third-party tracking, no ads, no analytics in the app",
+						"No third-party tracking, no ads, no third-party analytics",
 						"Full data export available at any time, even after cancellation",
 					],
 				},
@@ -322,9 +322,9 @@ export function HomePage(params: {
 						"Every saved article gets a TL;DR outlining the most important points. Built on the same AI that powers the reading experience.",
 				},
 				{
-					name: "PDF Extraction with Vision OCR",
+					name: "PDF Extraction with Real OCR",
 					description:
-						"Save any PDF link. Vision OCR turns it into a clean, readable article with a TL;DR — scanned pages included.",
+						"Save any PDF link. Real Tesseract OCR turns it into a clean, readable article with a TL;DR — scanned pages included.",
 				},
 				{
 					name: "Browser Extensions",
@@ -341,7 +341,7 @@ export function HomePage(params: {
 				{
 					name: "Privacy First",
 					description:
-						"Hosted in Sydney. Australian Privacy Act compliant. No tracking, no ads.",
+						"Hosted in Sydney. Australian Privacy Act compliant. No third-party tracking, no ads.",
 				},
 			],
 			plannedFeatures: [
@@ -375,7 +375,7 @@ export function HomePage(params: {
 				{
 					name: "Hosted in Sydney, Australia",
 					description:
-						"Infrastructure sits under the Australian Privacy Act. No third-party tracking, no ads, no analytics inside the app.",
+						"Infrastructure sits under the Australian Privacy Act. No third-party tracking, no ads, no third-party analytics inside the app.",
 				},
 			],
 		}, { helpers: switchHelpers }) },

@@ -11,7 +11,7 @@ keywords: "instapaper alternative, read it later, readplace vs instapaper, pocke
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Instapaper is the familiar Pocket replacement: mature, stable, a free tier, native mobile apps, Kobo support, but little recent development and no AI. Readplace is newer and shipping every week: AI summaries, Australian hosting, source-available code, $49/year and no free tier, but no native mobile apps or offline reading yet. Pick Instapaper for stability and mobile. Pick Readplace for AI triage and active development.
+Instapaper is the familiar Pocket replacement: mature, stable, a free tier, native mobile apps, Kobo support, but little recent development and only metered, on-request AI summaries. Readplace is newer and shipping every week: AI summaries, Australian hosting, source-available code, $49/year and no free tier, but no native mobile apps or offline reading yet. Pick Instapaper for stability and mobile. Pick Readplace for AI triage and active development.
 
 </div>
 </details>
@@ -60,7 +60,7 @@ On pricing and data, there is a free tier that covers the basics, namely saving,
 
 Readplace comes at the same five axes from the opposite end. It is a newer product, built by one developer in Australia, and it scores its highest on **triage** and **development pace** while it is still catching up on reading surface.
 
-Triage is where it makes its bet. Readplace generates an AI summary of each saved article, so you can scan the gist before deciding to read the full piece. Instapaper has no AI features.
+Triage is where it makes its bet. Readplace generates an AI summary of each saved article, so you can scan the gist before deciding to read the full piece. Instapaper has AI summaries too, but they are metered (five a month on the free tier, unlimited on Premium) and generated on request rather than automatically for everything you save.
 
 Whether that helps depends on how you read. If you save 3 articles a week and read all of them, the summaries change little.
 
@@ -81,7 +81,7 @@ The table below is the same five axes broken into the concrete features behind t
 | | Instapaper | Readplace |
 |---|---|---|
 | **Core reading** | Clean, distraction-free reader | Clean, distraction-free reader |
-| **AI summaries** | No | Yes |
+| **AI summaries** | Metered (5/mo free, unlimited Premium) | Automatic on every save |
 | **Mobile apps** | iOS and Android | Browser-based (no native apps) |
 | **Browser extension** | Yes | Yes (Firefox, Chrome) |
 | **Free tier** | Yes | No |

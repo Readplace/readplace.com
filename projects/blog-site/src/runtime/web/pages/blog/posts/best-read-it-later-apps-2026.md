@@ -24,7 +24,7 @@ These apps optimise for different things, so the best one depends on what you do
 
 Each axis maps to a column in the table below.
 
-**Price** is the monthly cost. **AI features** covers summaries, tagging, and co-reading. **Open source** matters if you want to read the code or self-host. **Offline reading** is whether saved articles work without a connection. **Platforms** is where the app runs.
+**Price** is the yearly cost. **AI features** covers summaries, tagging, and co-reading. **Open source** matters if you want to read the code or self-host. **Offline reading** is whether saved articles work without a connection. **Platforms** is where the app runs.
 
 These 5 axes leave things out. They say nothing about reading-view typography, parser accuracy on awkward sites, or how an app handles paywalled pages, and those can matter once you have used a tool for a month. The table is a starting point.
 
@@ -34,11 +34,11 @@ These 5 axes leave things out. They say nothing about reading-view typography, p
 |-----|-------|-------------|-------------|-----------------|-----------|
 | **Readplace** | $49/yr | TL;DR summaries | Source-available | Planned | Web, Chrome, Firefox |
 | **Readwise Reader** | $119.88/yr | Ghostreader AI | No | Yes | Web, iOS, Android, Chrome, Firefox, Safari |
-| **Instapaper** | Free / Premium | No | No | Yes | Web, iOS, Android, Kobo |
-| **Raindrop.io** | Free / $28/yr | No | No | Pro only | Web, iOS, Android, Chrome, Firefox, Safari |
-| **Karakeep** | Free (self-hosted) | AI auto-tagging | Yes | Yes | Web, Chrome, Firefox |
-| **Wallabag** | Free (self-hosted) | No | Yes | Yes | Web, iOS, Android, Chrome, Firefox |
-| **Matter** | Free / $60/yr | AI co-reader | No | Yes | iOS, Android, Web |
+| **Instapaper** | Free / Premium | Summaries | No | Yes | Web, iOS, macOS, Android, Kindle/Kobo |
+| **Raindrop.io** | Free / $28/yr | AI Suggestions + Stella | Clients only | Pro only | Web, iOS, Android, Chrome, Firefox, Safari |
+| **Karakeep** | Free (self-hosted) | AI tagging + summaries | Yes | Planned | Web, iOS, Android, Chrome, Firefox, Safari |
+| **Wallabag** | Free (self-hosted) | No (core) | Yes | Yes | Web, iOS, Android, Chrome, Firefox |
+| **Matter** | Free / $60/yr | AI co-reader | No | Yes | iOS, macOS, Web, Chrome |
 
 ## Readplace
 
@@ -51,7 +51,7 @@ The code is source-available, so you can read every line that touches your data.
 ### Strengths
 
 - AI TL;DR summaries are included in the base price. There is no upsell tier to reach them.
-- Hosted in Australia under the Australian Privacy Act, with no tracking scripts and no third-party analytics in the app.
+- Hosted in Australia under the Australian Privacy Act, with no third-party tracking scripts and no third-party analytics in the app.
 - Source-available, so you can audit the code that handles your data.
 
 ### Limitations
@@ -84,7 +84,7 @@ Readwise Reader packs in more than any other read-it-later app I have used. It f
 
 Instapaper is the original read-it-later app, and it predates Pocket. Ownership changed several times, from Marco Arment to Betaworks to Pinterest and now Instant Paper, Inc., and the core reading experience stayed clean and reliable through each handoff.
 
-It is now the default reading app on Kobo e-readers, which gives it an edge for people who read on dedicated hardware. There are no AI features here, but the reading experience is mature and comfortable.
+It is now the default reading app on Kobo e-readers, which gives it an edge for people who read on dedicated hardware. It does have AI features — AI-generated summaries and higher-quality AI Voices for text-to-speech — but no AI chat assistant, and the reading experience is mature and comfortable.
 
 **Free (with optional premium tier)**
 
@@ -96,10 +96,10 @@ It is now the default reading app on Kobo e-readers, which gives it an edge for 
 
 ### Limitations
 
-- Development has been slow, with no AI features and little new functionality in recent years.
+- Development has been slow, with AI limited to summaries and AI Voices rather than a full assistant, and little other new functionality in recent years.
 - It has changed hands several times, which raises the same long-term-continuity question people had about Pocket.
 
-**Good fit for:** Readers who want a simple, reliable Pocket replacement with Kobo support and do not need AI features.
+**Good fit for:** Readers who want a simple, reliable Pocket replacement with Kobo support.
 
 ## Raindrop.io
 
@@ -122,7 +122,7 @@ Raindrop.io is a bookmark manager first and a read-it-later tool second. It hand
 
 ## Karakeep (formerly Hoarder)
 
-Karakeep, previously known as Hoarder, is a self-hosted bookmarking and read-it-later app built for developers. It uses AI to auto-tag saved content and supports full-text search. Setup takes Docker and some comfort with self-hosting, which is the price of admission. The project is fully open source and growing fast in the developer community. If you want complete control over your data and you enjoy running your own services, Karakeep is a strong option.
+Karakeep, previously known as Hoarder, is a self-hosted bookmarking and read-it-later app built for developers. It uses AI to auto-tag and summarize saved content and supports full-text search. Setup takes Docker and some comfort with self-hosting, which is the price of admission. The project is fully open source and growing fast in the developer community. If you want complete control over your data and you enjoy running your own services, Karakeep is a strong option.
 
 **Free (self-hosted, requires Docker)**
 
@@ -135,7 +135,7 @@ Karakeep, previously known as Hoarder, is a self-hosted bookmarking and read-it-
 ### Limitations
 
 - It requires Docker and self-hosting knowledge, so it is not a fit for non-technical users.
-- There is no managed hosting option, which means you handle backups, updates, and uptime yourself.
+- Self-hosting means you handle backups, updates, and uptime yourself, though the team also offers managed Karakeep Cloud hosting if you would rather not.
 
 **Good fit for:** Developers and self-hosters who want full data ownership with AI features and are comfortable with Docker.
 
@@ -153,7 +153,7 @@ Wallabag is the longest-standing open source read-it-later application. It has b
 ### Limitations
 
 - The interface feels dated, which is the most common criticism and a fair one.
-- It has no AI features, and development moves slower than newer alternatives like Karakeep.
+- The core app has no AI features (the official iOS app adds an optional paid assistant), and development moves slower than newer alternatives like Karakeep.
 
 **Good fit for:** Users who want a long-running, self-hosted option and who value stability over modern design.
 

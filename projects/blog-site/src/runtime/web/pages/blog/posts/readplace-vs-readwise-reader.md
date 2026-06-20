@@ -40,13 +40,13 @@ I've tried to be fair anyway. Readwise is a good product, and where it's the bet
 
 ## Price
 
-Readplace costs $49/year. Readwise Reader costs $119.88/year, which puts Readplace at roughly a third of the annual price.
+Readplace costs $49/year. Readwise Reader costs $119.88/year, which puts Readplace at roughly two-fifths of the annual price.
 
 Both include their AI features in that base price, with no add-ons and no usage caps to watch.
 
 Readwise's price is fair for the breadth you get, because it does more.
 
-The question this axis answers is narrow: are you paying for features you'll actually open? If you want a simpler tool, paying 3 times as much for a feature set you'd leave untouched is hard to justify.
+The question this axis answers is narrow: are you paying for features you'll actually open? If you want a simpler tool, paying about two and a half times as much for a feature set you'd leave untouched is hard to justify.
 
 ## AI Features
 
@@ -54,7 +54,7 @@ Both apps use AI, and the axis here is depth against simplicity.
 
 Readplace gives you a TL;DR summary for every saved article. Open a piece and a short summary sits at the top, so you can read the whole thing or move on without committing to it first. That summary comes with the base price and there's nothing to turn on.
 
-Readwise offers Ghostreader, which goes considerably further. It generates inline highlights, answers questions about the article you're reading, and runs more involved AI tasks against the text. If you want to interrogate what you're reading rather than skim a summary of it, Ghostreader does more than Readplace does today.
+Readwise offers Ghostreader, which goes considerably further. It summarizes documents and selections, answers questions about the article you're reading, and runs more involved AI tasks against the text. If you want to interrogate what you're reading rather than skim a summary of it, Ghostreader does more than Readplace does today.
 
 So the AI axis splits cleanly.
 
@@ -94,7 +94,7 @@ Both apps handle this well, and it's where they look most alike. Save a page and
 
 Readplace runs on servers in Sydney, Australia, and operates under the Australian Privacy Act, so your reading data stays in Australian infrastructure under Australian law.
 
-Readwise is a US-based company. Its servers sit in the US and US data privacy laws apply to what you save there.
+Readwise is a US-based company. It doesn't publicly document where its servers sit, and US data privacy laws apply to what you save there.
 
 Whether this axis matters depends entirely on you. If you care about where your data lives and which jurisdiction governs it, this is a real difference between the two. If jurisdiction isn't something you weigh, it won't move your decision either way.
 
@@ -116,7 +116,7 @@ Fewer features also means less to learn and less to get in your way. If you want
 
 - Highlighting and syncing to Obsidian, Notion, or Logseq is part of how you work every day.
 - You want RSS feeds living alongside your saved articles.
-- You need Ghostreader's AI to question articles and generate inline highlights.
+- You need Ghostreader's AI to question articles and summarize what you read.
 - You want a mature product with a wide range of integrations behind it.
 
 ## Choose Readplace If...

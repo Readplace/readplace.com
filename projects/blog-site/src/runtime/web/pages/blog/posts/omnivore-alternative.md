@@ -11,7 +11,7 @@ keywords: "Omnivore alternative, Omnivore replacement, Omnivore shut down, read 
 <summary class="blog-tldr__toggle">Summary (TL;DR)</summary>
 <div class="blog-tldr__body">
 
-Omnivore shut down two weeks after ElevenLabs acquired it. The cause was venture capital that needed an exit. Readplace is self-funded at $49/year, so subscriptions pay for servers and no investors are waiting on a sale. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, full data export, and source-available code under AGPL. It runs in Sydney under Australian privacy law.
+Omnivore shut down two weeks after ElevenLabs acquired it. The cause was venture capital that needed an exit. Readplace is self-funded at $49/year, so subscriptions pay for servers and no investors are waiting on a sale. It ships Firefox and Chrome extensions, reader view, AI TL;DR summaries, full data export, and source-available code. It runs in Sydney under Australian privacy law.
 
 </div>
 </details>
@@ -45,7 +45,7 @@ Here is what is shipped and running right now:
 - **Auto dark mode.** It follows your system preference.
 - **Secure auth.** OAuth with PKCE, and tokens stay in your own browser.
 - **Full data export.** Pull your saved articles out whenever you want, including after you cancel.
-- **Privacy first.** Hosted in Sydney under the Australian Privacy Act, with no tracking scripts and no ads.
+- **Privacy first.** Hosted in Sydney under the Australian Privacy Act, with no third-party tracking scripts and no ads.
 
 ## What Omnivore had, and where Readplace stands
 
@@ -58,7 +58,7 @@ Omnivore had years of head start. Readplace is younger, and I would rather show 
 | TL;DR summaries | No | Yes | Shipped |
 | Dark mode | Yes | Yes | Shipped |
 | Full data export | Yes | Yes | Shipped |
-| Open source | Was (archived) | Yes | Shipped |
+| Open source | Was (archived) | Source-available | Shipped |
 | Highlights and notes | Yes | No | Planned |
 | Full-text search | Yes | No | Planned |
 | Newsletter inbox | Yes | No | Planned as Gmail import |
@@ -73,11 +73,11 @@ Features land one at a time, and the [roadmap is public](https://readplace.com/#
 
 ## Your data, on your terms
 
-**AGPL source-available.** The full source is [on GitHub](https://github.com/Readplace/readplace.com). If Readplace went away tomorrow, anyone could stand it back up, and that is the whole point of putting it there.
+**Source-available.** The full source is [on GitHub](https://github.com/Readplace/readplace.com). If Readplace went away tomorrow, anyone could stand it back up, and that is the whole point of putting it there.
 
 **Full export, whenever you want.** You can export all of your data even after you cancel. The export is a core promise, not a perk, so your saved articles stay reachable no matter what your subscription is doing.
 
-**Australian hosting.** It runs in Sydney, under the Australian Privacy Act, outside US jurisdiction, with no tracking scripts, no ads, and no data sales.
+**Australian hosting.** It runs in Sydney, under the Australian Privacy Act, outside US jurisdiction, with no third-party tracking scripts, no ads, and no data sales.
 
 **No venture capital.** Readplace is self-funded and the revenue comes from subscriptions, which means there is no board counting on an exit and no acquisition for me to go chase at your expense.
 
