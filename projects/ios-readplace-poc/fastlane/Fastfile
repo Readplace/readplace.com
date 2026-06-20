@@ -99,6 +99,18 @@ platform :ios do
     build_number = ENV["APP_BUILD_NUMBER"]
     marketing    = ENV["APP_MARKETING_VERSION"]
 
+    # A TestFlight upload can't be cleanly unpublished, so a malformed version from
+    # CI must abort HERE — before build_app/upload_to_testflight — rather than be
+    # baked into CFBundleVersion/CFBundleShortVersionString and shipped. nil means
+    # "not set" (local make ipa) and correctly falls through to the project.yml
+    # defaults; only a present-but-malformed value is a hard error.
+    if build_number && !build_number.match?(/\A\d+\z/)
+      UI.user_error!("APP_BUILD_NUMBER must be a plain integer (CFBundleVersion), got: #{build_number.inspect}")
+    end
+    if marketing && !marketing.match?(/\A\d+(\.\d+){0,2}\z/)
+      UI.user_error!("APP_MARKETING_VERSION must be 1-3 dot-separated integers (CFBundleShortVersionString), got: #{marketing.inspect}")
+    end
+
     version_args = [
       build_number && "CURRENT_PROJECT_VERSION=#{build_number}",
       marketing    && "MARKETING_VERSION=#{marketing}",
