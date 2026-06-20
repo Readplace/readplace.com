@@ -1,7 +1,7 @@
 export const EXTENSION_SUGGESTION_BANNER_STYLES = `
   .extension-suggestion-banner {
     background: linear-gradient(135deg, #2B3A55 0%, #1E2A40 100%);
-    color: #FFFFFF;
+    color: var(--color-on-brand);
     font-size: 14px;
     line-height: 1.5;
     max-height: 0;
@@ -120,7 +120,7 @@ export const EXTENSION_SUGGESTION_BANNER_STYLES = `
 
   .extension-suggestion-banner__inline:hover,
   .extension-suggestion-banner__inline:focus-visible {
-    text-decoration-color: #FFFFFF;
+    text-decoration-color: var(--color-on-brand);
   }
 
   .extension-suggestion-banner__cta {
@@ -162,7 +162,7 @@ export const EXTENSION_SUGGESTION_BANNER_STYLES = `
 
   .extension-suggestion-banner__close:hover,
   .extension-suggestion-banner__close:focus-visible {
-    color: #FFFFFF;
+    color: var(--color-on-brand);
     background: rgba(255, 255, 255, 0.08);
   }
 
