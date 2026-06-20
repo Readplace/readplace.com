@@ -27,7 +27,7 @@ import { buildReaderReadyEmailHtml } from "../web/reader-ready-email";
 
 const EMAIL_FROM = "Fayner from Readplace <readplace@readplace.com>";
 const READER_READY_BCC = "readplace+reader_ready@readplace.com";
-const SUBJECT = "An article you saved now has a reader view!";
+const SUBJECT = "An article you saved now has a reader view.";
 /** The reader view must have taken longer than a minute to qualify — a fast
  * generation means the saver watched it finish live and needs no nudge. */
 const MIN_GENERATION_MS = 60_000;
