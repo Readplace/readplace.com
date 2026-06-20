@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { Context } from "aws-lambda";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
@@ -7,6 +8,21 @@ import { initSubscriptionChargeSucceededHandler } from "./subscription-charge-su
 import { initEmitSubscriptionEvent, type SubscriptionLogEvent } from "../observability/subscription-events";
 
 const USER_ID = UserIdSchema.parse("2".repeat(32));
+
+const stubContext: Context = {
+	callbackWaitsForEmptyEventLoop: true,
+	functionName: "test",
+	functionVersion: "1",
+	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
+	memoryLimitInMB: "128",
+	awsRequestId: "test-request-id",
+	logGroupName: "/aws/lambda/test",
+	logStreamName: "test-stream",
+	getRemainingTimeInMillis: () => 30000,
+	done: () => {},
+	fail: () => {},
+	succeed: () => {},
+};
 
 function buildBody(detail: {
 	userId: string;
@@ -52,7 +68,7 @@ describe("subscription-charge-succeeded handler", () => {
 					}),
 				},
 			]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -77,7 +93,7 @@ describe("subscription-charge-succeeded handler", () => {
 
 		const result = await handler(
 			buildSqsEvent([{ messageId: "msg-bad", body: "{not-json" }]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -94,7 +110,7 @@ describe("subscription-charge-succeeded handler", () => {
 			buildSqsEvent([
 				{ messageId: "msg-schema", body: JSON.stringify({ detail: { userId: USER_ID, customerId: "cus_x" } }) },
 			]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
