@@ -160,11 +160,21 @@ the chrome/firefox publish workflows it's a reusable workflow invoked by
 changes never ship a build). It's also runnable manually from the **Actions** tab
 (`Publish iOS to TestFlight` → *Run workflow*) for the first publish.
 
-Each run derives the next **build number** from the latest `ios-readplace-poc@v*`
-git tag (TestFlight needs a unique, increasing `CFBundleVersion`), **tags the
-commit `ios-readplace-poc@v<n>` to reserve that number before the irreversible
-upload**, then builds and uploads. Runs are serialized (a `concurrency` group) so
-two runs can't claim the same number.
+Each run derives a single **build counter** `<N>` from the latest
+`ios-readplace-poc@v*` git tag (latest + 1) and drives **both** version numbers
+from it: the **build number** (`CFBundleVersion`) is `<N>`, and the **marketing
+version** (`CFBundleShortVersionString`) is `<major.minor>.<N>`, where
+`<major.minor>` is read from `MARKETING_VERSION` in `project.yml`. So with the
+spec at `0.1`, TestFlight shows e.g. `0.1.4 (4)`, then `0.1.5 (5)`. The run
+**tags the commit `ios-readplace-poc@v<N>` to reserve the counter before the
+irreversible upload**, then builds and uploads. Runs are serialized (a
+`concurrency` group) so two runs can't claim the same counter.
+
+Bump the **minor** (e.g. to `0.2`) by editing `MARKETING_VERSION` in
+`project.yml` in a normal PR. The **patch is the monotonic build counter and
+never resets** (`CFBundleVersion` must always increase), so a later minor bump
+yields `0.2.<current counter>` (e.g. `0.2.9`), not `0.2.0` — a per-minor patch
+reset would need a different counter design.
 
 ### Required repository/`prod`-environment secrets
 

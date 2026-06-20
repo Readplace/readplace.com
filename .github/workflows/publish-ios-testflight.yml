@@ -64,14 +64,20 @@ jobs:
           bundler-cache: true
           working-directory: projects/ios-readplace-poc
 
-      - name: Compute next build number from the latest tag
+      - name: Compute next build number and marketing version from the latest tag
         id: version
         if: steps.preflight.outputs.configured == 'true'
         run: |
           LATEST=$(git tag --list 'ios-readplace-poc@v*' --sort=-v:refname | head -n1 | sed 's/^ios-readplace-poc@v//')
           [ -z "$LATEST" ] && LATEST=0
-          echo "build=$((LATEST + 1))" >> "$GITHUB_OUTPUT"
-          echo "Next TestFlight build number: $((LATEST + 1))"
+          BUILD=$((LATEST + 1))
+          # major.minor is the human-controlled line in project.yml; the patch is the
+          # build counter, so the published marketing version is <major.minor>.<build>
+          # and the build number equals the patch.
+          BASE=$(grep -E '^[[:space:]]*MARKETING_VERSION:' project.yml | head -n1 | sed -E 's/.*"([0-9]+\.[0-9]+)(\.[0-9]+)?".*/\1/')
+          echo "build=$BUILD"           >> "$GITHUB_OUTPUT"
+          echo "marketing=$BASE.$BUILD" >> "$GITHUB_OUTPUT"
+          echo "Next TestFlight version: $BASE.$BUILD ($BUILD)"
 
       # Reserve the build number by tagging the commit BEFORE the irreversible
       # upload. A failed tag push aborts before any TestFlight side effect; a
@@ -112,3 +118,4 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
           APP_BUILD_NUMBER: ${{ steps.version.outputs.build }}
+          APP_MARKETING_VERSION: ${{ steps.version.outputs.marketing }}
