@@ -36,7 +36,7 @@ import {
 	initInMemoryOAuthModel,
 } from "./providers/oauth/oauth-model";
 import { initInMemoryOAuthClients } from "./providers/oauth/in-memory-oauth-clients";
-import { initInMemoryOAuthClientLookup } from "./providers/oauth/oauth-client-lookup";
+import { initOAuthClientLookup } from "@packages/domain/oauth";
 import { createValidateAccessToken } from "./providers/oauth/validate-access-token";
 import type {
 	FindGeneratedSummary,
@@ -275,7 +275,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		logger: noopLogger,
 	});
 	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });
-	const oauthClientLookup = initInMemoryOAuthClientLookup({ dynamic: oauthClients });
+	const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });
 	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), {
 		appOrigin,
 		findUserById: auth.findUserById,

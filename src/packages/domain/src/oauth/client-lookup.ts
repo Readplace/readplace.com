@@ -1,14 +1,9 @@
-import type { OAuthClient } from "@packages/domain/oauth";
-import { getBuiltInClient, isBuiltInRedirectUri } from "@packages/domain/oauth";
-import type {
-	FindOAuthClient,
-	MarkOAuthClientActive,
-	ValidateOAuthRedirectUri,
-} from "@packages/provider-contracts/oauth";
+import { getBuiltInClient, isBuiltInRedirectUri } from "./built-in-clients";
+import type { OAuthClient } from "./oauth.types";
 
 export interface DynamicOAuthClientStore {
 	getClient: (clientId: string) => Promise<OAuthClient | undefined>;
-	markClientActive: MarkOAuthClientActive;
+	markClientActive: (clientId: string) => Promise<void>;
 }
 
 /**
@@ -18,17 +13,23 @@ export interface DynamicOAuthClientStore {
  * while dynamic clients are held to exact redirect-uri matches.
  */
 export function initOAuthClientLookup(deps: { dynamic: DynamicOAuthClientStore }): {
-	findClient: FindOAuthClient;
-	validateRedirectUri: ValidateOAuthRedirectUri;
-	markClientActive: MarkOAuthClientActive;
+	findClient: (clientId: string) => Promise<OAuthClient | undefined>;
+	validateRedirectUri: (params: { clientId: string; redirectUri: string }) => Promise<boolean>;
+	markClientActive: (clientId: string) => Promise<void>;
 } {
-	const findClient: FindOAuthClient = async (clientId) => {
+	const findClient = async (clientId: string): Promise<OAuthClient | undefined> => {
 		const builtIn = getBuiltInClient(clientId);
 		if (builtIn) return builtIn;
 		return deps.dynamic.getClient(clientId);
 	};
 
-	const validateRedirectUri: ValidateOAuthRedirectUri = async ({ clientId, redirectUri }) => {
+	const validateRedirectUri = async ({
+		clientId,
+		redirectUri,
+	}: {
+		clientId: string;
+		redirectUri: string;
+	}): Promise<boolean> => {
 		const builtIn = getBuiltInClient(clientId);
 		if (builtIn) return isBuiltInRedirectUri({ client: builtIn, redirectUri });
 		const dynamic = await deps.dynamic.getClient(clientId);
@@ -36,7 +37,7 @@ export function initOAuthClientLookup(deps: { dynamic: DynamicOAuthClientStore }
 		return dynamic.redirectUris.includes(redirectUri);
 	};
 
-	const markClientActive: MarkOAuthClientActive = async (clientId) => {
+	const markClientActive = async (clientId: string): Promise<void> => {
 		if (getBuiltInClient(clientId)) return;
 		await deps.dynamic.markClientActive(clientId);
 	};

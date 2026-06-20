@@ -26,7 +26,7 @@ import {
 } from "@packages/test-fixtures/providers/oauth";
 import { initDynamoDbOAuthModel } from "./providers/oauth/dynamodb-oauth-model";
 import { initDynamoDbOAuthClients } from "./providers/oauth/dynamodb-oauth-clients";
-import { initOAuthClientLookup } from "./providers/oauth/oauth-client-lookup";
+import { initOAuthClientLookup } from "@packages/domain/oauth";
 import { createValidateAccessToken } from "@packages/test-fixtures/providers/oauth";
 import { initLogEmail } from "./providers/email/log-email";
 import { initResendEmail } from "./providers/email/resend-email";

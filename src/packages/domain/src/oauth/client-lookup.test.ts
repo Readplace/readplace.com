@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import type { OAuthClient } from "@packages/domain/oauth";
-import { OAuthClientIdSchema } from "@packages/domain/oauth";
-import { initOAuthClientLookup } from "./oauth-client-lookup";
+import { initOAuthClientLookup } from "./client-lookup";
+import { OAuthClientIdSchema } from "./oauth.schema";
+import type { OAuthClient } from "./oauth.types";
 
 const DYNAMIC: OAuthClient = {
 	id: OAuthClientIdSchema.parse("dyn-123"),
