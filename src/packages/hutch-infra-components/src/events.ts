@@ -630,8 +630,9 @@ export type SendTrialFeedbackEmailDetail = z.infer<
  * `hasSummary` is true only for ready summaries; a skipped summary still
  * succeeds the reader view but carries no summary to announce. The reader-ready
  * fan-out Lambda subscribes and stamps a per-user `succeededAt` for every saver
- * of this URL. `contentSourceTier` is optional — it backs a "loaded with a more
- * complete version" notification, so consumers must tolerate its absence. */
+ * of this URL. `contentSourceTier` is optional — a reserved slot a "loaded with a
+ * more complete version" notification can use to distinguish tiers — so consumers
+ * must tolerate its absence. */
 export const ReaderViewLoadingSucceeded = defineEvent({
 	name: "reader-view-loading-succeeded",
 	source: "hutch.save-link",
