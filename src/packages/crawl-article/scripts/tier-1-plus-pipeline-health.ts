@@ -52,6 +52,7 @@ type TerminalReaderStatus = Exclude<ReaderStatus, "pending">;
 
 async function forceRecrawl(url: string): Promise<void> {
 	const res = await fetch(`${ORIGIN}/admin/recrawl/${encodeURIComponent(url)}`, {
+		method: "POST",
 		headers: { "x-service-token": SERVICE_TOKEN },
 	});
 	assert.equal(
