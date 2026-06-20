@@ -4,6 +4,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import express from "express";
 import { initEmbedRoutes } from "./embed.page";
+import { renderCanonicalSnippet } from "./snippet.component";
 
 const servers: Server[] = [];
 afterEach(async () => {
@@ -146,9 +147,7 @@ describe("GET /embed", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const source = doc.querySelector('[data-test="source-b"]');
 		assert(source, "source-b must be rendered");
-		expect(source.textContent).toContain("https://readplace.com/save?url=PAGE_URL");
-		expect(source.textContent).toContain("https://readplace.com/embed/icon.svg");
-		expect(source.textContent).not.toContain("http://127.0.0.1:9999");
+		expect(source.textContent).toBe(renderCanonicalSnippet("b"));
 	});
 
 	it("should link the footer back to the Readplace app origin", async () => {
