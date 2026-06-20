@@ -43,7 +43,7 @@
 }
 
 .embed-preview__stage--white {
-  background: #FFFFFF;
+  background: var(--color-background);
   color: var(--color-text-primary);
 }
 
@@ -53,8 +53,8 @@
 }
 
 .embed-preview__stage--dark {
-  background: #1A202C;
-  color: #FFFFFF;
+  background: var(--color-text-primary);
+  color: var(--color-background);
 }
 
 .embed-preview__row {
