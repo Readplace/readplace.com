@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import type { UserId } from "@packages/domain/user";
-import { UserIdSchema, authenticatedUserIdFrom, userIdPrefixFrom } from "@packages/domain/user";
+import { UserIdSchema, authenticatedUserIdFrom, userIdPrefixFrom, normalizeEmail } from "@packages/domain/user";
 import type {
 	CountUsers,
 	CreateGoogleUser,
@@ -21,7 +21,6 @@ import type {
 	UserExistsByEmail,
 	VerifyCredentials,
 } from "@packages/provider-contracts/auth";
-import { normalizeEmail } from "./normalize-email";
 
 interface StoredUser {
 	id: UserId;
