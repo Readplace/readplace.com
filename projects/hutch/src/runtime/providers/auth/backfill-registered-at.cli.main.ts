@@ -1,4 +1,5 @@
 /* c8 ignore start -- one-off backfill script, run manually against staging then prod */
+import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import {
 	ConditionalCheckFailedException,
 	createDynamoDocumentClient,
@@ -7,6 +8,8 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { requireEnv } from "../../domain/require-env";
+
+const logger = HutchLogger.from(consoleLogger);
 
 const BackfillRow = z.object({
 	email: z.string(),
@@ -19,7 +22,7 @@ async function main(): Promise<void> {
 	const users = defineDynamoTable({ client, tableName, schema: BackfillRow });
 	const now = new Date().toISOString();
 
-	console.log(`Backfilling registeredAt = ${now} on table ${tableName}`);
+	logger.info(`Backfilling registeredAt = ${now} on table ${tableName}`);
 
 	const { items } = await users.scan({
 		ProjectionExpression: "email, registeredAt",
@@ -50,13 +53,13 @@ async function main(): Promise<void> {
 		}
 	}
 
-	console.log(
+	logger.info(
 		`Done. Scanned ${items.length} rows, set registeredAt on ${updatedTotal}, ${alreadySetTotal} already had a value.`,
 	);
 }
 
 main().catch((err) => {
-	console.error("Backfill failed:", err);
+	logger.error("Backfill failed:", err);
 	process.exit(1);
 });
 /* c8 ignore stop */
