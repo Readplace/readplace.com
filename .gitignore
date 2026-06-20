@@ -48,3 +48,6 @@ playwright-report/
 # Claude Code runtime artifacts
 .claude/scheduled_tasks.lock
 .claude/worktrees
+
+# Guidelines audit scratch artifacts (local tooling output, never committed)
+.audit-*
