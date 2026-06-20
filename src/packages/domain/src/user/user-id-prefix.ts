@@ -5,16 +5,14 @@ export const USER_ID_PREFIX_LENGTH = 6;
 
 const USER_ID_PREFIX_PATTERN = /^[0-9a-f]{6}$/;
 
-export type UserIdPrefix = string & { readonly __brand: "UserIdPrefix" };
+const UserIdPrefixBrand = z.string().brand<"UserIdPrefix">();
+export type UserIdPrefix = z.infer<typeof UserIdPrefixBrand>;
 
-export const UserIdPrefixSchema = z
-	.string()
-	.regex(USER_ID_PREFIX_PATTERN)
-	.transform((s): UserIdPrefix => s as UserIdPrefix);
+export const UserIdPrefixSchema = z.string().regex(USER_ID_PREFIX_PATTERN).pipe(UserIdPrefixBrand);
 
 /** Extracts the first 6 characters of a UserId as the prefix for sharing/GSI lookups. */
 export function userIdPrefixFrom(userId: UserId): UserIdPrefix {
-	return userId.slice(0, USER_ID_PREFIX_LENGTH).toLowerCase() as UserIdPrefix;
+	return UserIdPrefixBrand.parse(userId.slice(0, USER_ID_PREFIX_LENGTH).toLowerCase());
 }
 
 /** Validates an external string (e.g. utm_content) as a well-formed 6-hex-char prefix. */
