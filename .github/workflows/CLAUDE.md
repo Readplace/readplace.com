@@ -27,6 +27,7 @@ Inspect the `.yml` files in this directory for implementation details. Summary:
 | `claude-PR-code-reviewer.yml` | Automated code review | CI succeeds on PR |
 | `claude-PR-code-review-auto-apply.yml` | Fix HIGH/MEDIUM priority issues | Claude review comment |
 | `claude-PR-conflict-fixer.yml` | Resolve merge conflicts | CI succeeds + conflicts detected |
+| `claude-PR-crash-retry.yml` | Re-run `claude-listener.yml` on the intermittent agent-SDK startup crash (#852); fast failures only, ≤4 attempts | `claude-listener.yml` run fails |
 | `tier-1-plus-crawl-pipeline-health.yml` | Tier 1+ crawl pipeline canary; opens a tracking issue on failure for an operator to debug and close manually | Schedule (06:00 AEST daily) / manual |
 | `stuck-articles-canary.yml` | Surfaces articles stuck non-terminal whose URLs still resolve; opens or comments on a tracking issue on failure for an operator to debug and close manually | Schedule (06:30 AEST daily) / manual |
 | `failed-articles-canary.yml` | Surfaces articles whose state machines reached a terminal unsuccessful outcome; opens a debug-worklist tracking issue when non-empty for an operator to debug and close manually; skips while a prior issue is open | Schedule (07:00 AEST daily) / manual |
