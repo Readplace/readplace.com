@@ -95,6 +95,28 @@ describe("renderSummarySlot", () => {
 		expect(doc.querySelector(".article-body__summary-loading")).toBe(null);
 	});
 
+	it("defers the summary when content is present but the crawl is back to pending (admin recrawl)", () => {
+		const doc = parse(
+			renderSummarySlot({
+				crawl: { status: "pending" },
+				content: "<p>x</p>",
+				summary: { status: "pending" },
+				summaryPollUrl: "/queue/abc/summary?poll=1",
+			}),
+		);
+
+		const slot = doc.querySelector("[data-test-reader-summary]");
+		assert(slot, "summary slot must be rendered");
+		expect(slot.getAttribute("data-summary-status")).toBe("pending");
+		expect(slot.classList.contains("article-body__summary-slot--hidden")).toBe(
+			true,
+		);
+		expect(slot.getAttribute("hx-get")).toBe("/queue/abc/summary?poll=1");
+		expect(slot.getAttribute("hx-trigger")).toBe("every 3s");
+		expect(slot.getAttribute("hx-swap")).toBe("outerHTML");
+		expect(slot.children.length).toBe(0);
+	});
+
 	it("shows the pending indicator for a legacy ready row (crawl undefined, content present)", () => {
 		const doc = parse(
 			renderSummarySlot({

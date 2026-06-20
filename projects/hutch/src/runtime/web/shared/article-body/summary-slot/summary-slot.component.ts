@@ -46,13 +46,19 @@ function renderCollapsedSlot(input: {
 	return render(COLLAPSED_TEMPLATE, input);
 }
 
-// The reader view is ready exactly when canonical content is present: the
-// pipeline makes content readable only once the crawl has published it (and
-// legacy rows always have it), the same `if (content)` signal renderReaderSlot
-// renders its ready view on. So the summary indicator surfaces precisely when
-// the reader view does.
-function isReaderViewReady(content: string | undefined): boolean {
-	return !!content;
+// The reader view is ready exactly when renderReaderSlot renders its ready
+// view: content present AND the crawl `ready` (or a legacy `crawl === undefined`
+// row). Content presence alone is not enough — renderReaderSlot's `pending`
+// branch ignores content, and content-present-with-crawl-pending is reachable
+// (e.g. an admin recrawl flips the crawl back to `pending` without dropping the
+// already-published content), a state where the reader still shows its pending
+// spinner. Gating on the crawl too keeps the summary deferred there instead of
+// spinning a second, orphaned indicator beside the reader's.
+function isReaderViewReady(
+	crawl: ArticleCrawl | undefined,
+	content: string | undefined,
+): boolean {
+	return !!content && (crawl === undefined || crawl.status === "ready");
 }
 
 export function renderSummarySlot(input: SummarySlotInput): string {
@@ -68,7 +74,7 @@ export function renderSummarySlot(input: SummarySlotInput): string {
 				oob,
 			});
 		case "pending":
-			return isReaderViewReady(input.content)
+			return isReaderViewReady(input.crawl, input.content)
 				? renderSummaryPending({ pollUrl: input.summaryPollUrl, oob })
 				: renderCollapsedSlot({
 						status: "pending",
