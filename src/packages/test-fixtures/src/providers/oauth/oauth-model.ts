@@ -271,9 +271,6 @@ export function createOAuthModel(
 			return true;
 		},
 
-		// TODO: Update this function when scopes are added. Currently returns true
-		// because no scopes are implemented. Once scopes are added, this must
-		// validate that the token has the requested scope(s).
 		async verifyScope(_token: Token, _scope: string | string[]): Promise<boolean> {
 			return true;
 		},
