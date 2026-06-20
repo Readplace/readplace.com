@@ -61,9 +61,9 @@ export const CRAWL_MIN_AGE_MS = 20 * 60_000; /* 1 */
 
 /**
  * 1. Generate-summary retry chain is visibility 300s × default maxReceiveCount
- *    3 = 900s = 15 min. Bumped to 20 min to absorb DeepSeek slow periods
- *    documented in #251 — DeepSeek occasionally drags an in-flight summary
- *    past the SQS budget without the chain failing.
+ *    3 = 900s = 15 min; allow 20 min to absorb DeepSeek slow periods, which
+ *    occasionally drag an in-flight summary past the SQS budget without the
+ *    chain failing.
  */
 export const SUMMARY_MIN_AGE_MS = 20 * 60_000; /* 1 */
 
@@ -76,8 +76,7 @@ export const SUMMARY_MIN_AGE_MS = 20 * 60_000; /* 1 */
  *      writes (refresh updating contentFetchedAt while a summary regen is in
  *      flight, for example).
  *   2. Legacy disjunct on contentFetchedAt/savedAt — covers rows saved
- *      before pendingSince existed. Dropped once the canary scan reports
- *      zero rows hitting this branch.
+ *      before pendingSince existed.
  *   3. `summaryStatus = "skipped" AND summarySkippedReason = "ai-unavailable"`
  *      — `summaryPendingSince` is removed when the summary transitions to
  *      skipped (see `dynamodb-article-store.ts` REMOVE clause), so the
