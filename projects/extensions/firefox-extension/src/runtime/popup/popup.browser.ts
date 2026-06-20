@@ -9,7 +9,7 @@ import type {
 	Message,
 	ActionVariant,
 } from "browser-extension-core";
-import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, itemDisplay, installShortcuts, isCmdD, initSaveProgress, initSaveProgressSequencer, buildMessageView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation } from "browser-extension-core";
+import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabUrls, summarizeBulkSave, installShortcuts, isCmdD, initSaveProgress, initSaveProgressSequencer, buildMessageView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 /** The client's own presentation map: an action variant -> the popup's CSS
@@ -477,11 +477,7 @@ async function saveAndShowList() {
 async function saveAllTabsFlow() {
 	showView("save-all-view");
 	const tabs = await browser.tabs.query({ currentWindow: true });
-	const urls = tabs
-		.map((tab) => tab.url)
-		.filter((url): url is string => typeof url === "string")
-		.filter((url) => /^https?:/i.test(url))
-		.filter((url) => !isAppUrl({ tabUrl: url, appDomains: __APP_DOMAINS__ }));
+	const urls = selectSaveableTabUrls(tabs, __APP_DOMAINS__);
 
 	const titleEl = document.querySelector("[data-test-save-all-title]");
 	const summaryEl = document.querySelector("[data-test-save-all-summary]");
@@ -502,13 +498,12 @@ async function saveAllTabsFlow() {
 		return;
 	}
 
-	// Tabs filtered out before sending (chrome://, the app's own pages) are
-	// skips the server never saw, so fold them into the skipped count.
-	const clientSkipped = tabs.length - urls.length;
-	const skipped = result.value.skipped + clientSkipped;
-	if (titleEl) titleEl.textContent = "Tabs saved";
-	let summary = `Saved ${result.value.saved} · Skipped ${skipped}`;
-	if (result.value.failed > 0) summary += ` · Failed ${result.value.failed}`;
+	const { title, summary } = summarizeBulkSave({
+		result: result.value,
+		tabCount: tabs.length,
+		saveableCount: urls.length,
+	});
+	if (titleEl) titleEl.textContent = title;
 	if (summaryEl) summaryEl.textContent = summary;
 
 	const queueButton = document.getElementById("save-all-view-queue");

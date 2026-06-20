@@ -603,9 +603,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				batch.map((url) =>
 					deps
 						.refreshArticleIfStale({ url })
-						.then((freshness) => saveArticleFromUrl(deps, { userId, url, freshness }))
+						.then((freshness) => saveArticleFromUrl({ userId, url, freshness }))
 						.then(() => {
 							saved += 1;
+							emitSaveIntent({ req, url, path: "/queue/save-articles", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 						})
 						.catch((error: unknown) => {
 							failed += 1;
@@ -613,6 +614,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 								`Failed to bulk-save url=${url}`,
 								error instanceof Error ? error : undefined,
 							);
+							emitSaveIntent({ req, url, path: "/queue/save-articles", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 						}),
 				),
 			);
@@ -621,7 +623,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		if (saved > 0) markExtensionSavedArticle(res);
 		res.status(200).type(SIREN_MEDIA_TYPE).json(
 			toBulkSaveResultEntity({
-				requested: parsed.data.urls.length,
 				saved,
 				skipped: skipped.length,
 				failed,

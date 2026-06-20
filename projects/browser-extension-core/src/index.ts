@@ -61,6 +61,7 @@ export { itemDisplay } from "./popup/item-display";
 export type { ItemDisplay } from "./popup/item-display";
 export { actionIcon, actionLabel, actionVariant, humanize, linkLabel, linkPresentation } from "./popup/action-affordance";
 export type { ActionVariant, LinkPresentation } from "./popup/action-affordance";
+export { selectSaveableTabUrls, summarizeBulkSave } from "./popup/save-all-tabs";
 export { initSaveProgress } from "./popup/save-progress";
 export type { SavePhase, SaveProgress } from "./popup/save-progress";
 export { initSaveProgressSequencer } from "./popup/save-progress-sequencer";

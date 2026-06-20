@@ -53,8 +53,9 @@ describe("POST /queue/save-articles", () => {
 		expect(response.headers["content-type"]).toContain(SIREN_MEDIA_TYPE);
 		expect(response.body.class).toContain("save-articles-result");
 		expect(response.body.properties).toEqual(
-			expect.objectContaining({ requested: 2, saved: 1, skipped: 1, failed: 0 }),
+			expect.objectContaining({ saved: 1, skipped: 1, failed: 0 }),
 		);
+		expect(response.body.properties.requested).toBeUndefined();
 		expect(response.body.properties.skippedUrls).toEqual([
 			{ url: "chrome://settings", code: "unsupported_scheme" },
 		]);
@@ -89,7 +90,7 @@ describe("POST /queue/save-articles", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.body.properties).toEqual(
-			expect.objectContaining({ requested: 1, saved: 0, skipped: 0, failed: 1 }),
+			expect.objectContaining({ saved: 0, skipped: 0, failed: 1 }),
 		);
 		expect(errors).toHaveLength(1);
 
@@ -138,7 +139,6 @@ describe("POST /queue/save-articles", () => {
 		expect(response.status).toBe(200);
 		expect(response.body.properties).toEqual(
 			expect.objectContaining({
-				requested: MAX_URLS_PER_BULK_SAVE,
 				saved: MAX_URLS_PER_BULK_SAVE,
 				skipped: 0,
 				failed: 0,
