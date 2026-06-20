@@ -3,6 +3,7 @@ config:
   aws:allowedAccountIds:
     - '572337278115'
   hutch:stage: staging
+  hutch:nodeEnv: development
   hutch:platformStack: organization/platform/staging
   hutch:deletionProtection: false
   hutch:staticDomains:

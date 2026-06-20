@@ -275,7 +275,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	memorySize: 512,
 	timeout: 30,
 	environment: {
-		NODE_ENV: stage === "production" ? "production" : "development",
+		NODE_ENV: config.require("nodeEnv"),
 		PERSISTENCE: "prod",
 		APP_ORIGIN: appOrigin,
 		/** Same-origin fragment endpoint served by blog-site behind this same API
