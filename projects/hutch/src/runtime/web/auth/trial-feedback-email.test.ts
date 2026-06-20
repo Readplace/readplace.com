@@ -28,6 +28,11 @@ describe("TrialFeedbackEmail", () => {
 			expect(text).not.toContain("!");
 		});
 
+		it("contains no emoji", () => {
+			const text = TrialFeedbackEmail(baseParams).to("text/plain");
+			expect(text).not.toMatch(/\p{Extended_Pictographic}/u);
+		});
+
 		it("contains exactly one question mark — the single 'what was missing?'", () => {
 			const text = TrialFeedbackEmail(baseParams).to("text/plain");
 			const questionMarks = text.match(/\?/g) ?? [];
