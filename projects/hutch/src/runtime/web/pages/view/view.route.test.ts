@@ -892,7 +892,14 @@ describe("View routes", () => {
 			const response = await request(harness.server).get("/view");
 
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-share-balloon]")).toBeNull();
+			const form = doc.querySelector("[data-test-view-landing-form]");
+			assert(form, "landing page must render its paste-a-link form");
+			const input = doc.querySelector("[data-test-view-landing-input]");
+			assert(input, "landing page must render its URL input");
+			expect(input.getAttribute("name")).toBe("url");
+			const submit = doc.querySelector("[data-test-view-landing-submit]");
+			assert(submit, "landing page must render its submit button");
+			expect(submit.textContent?.trim()).toBe("Open in reader view");
 		});
 
 		it("includes the founder avatar inside the balloon", async () => {
