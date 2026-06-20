@@ -86,16 +86,22 @@ export function createOAuthModel(
 	const markClientActive = options?.markClientActive;
 
 	async function resolveClient(clientId: string): Promise<OAuthClient | null> {
-		if (findClient) {
-			return (await findClient(clientId)) ?? null;
+		const resolved = findClient
+			? (await findClient(clientId)) ?? null
+			: getBuiltInClient(clientId) ?? null;
+		if (!resolved) return null;
+		// A dev/e2e server binds a dynamic loopback port, but built-in clients only
+		// register fixed ports; oauth2-server exact-matches redirect_uri at both
+		// authorize and token time, so add this origin's callback for built-ins on a
+		// 127.0.0.1 appOrigin. Dynamically-registered clients already carry their
+		// exact redirect_uri, so they are never augmented.
+		if (getBuiltInClient(clientId) && options?.appOrigin?.includes("127.0.0.1")) {
+			return {
+				...resolved,
+				redirectUris: [...resolved.redirectUris, `${options.appOrigin}/oauth/callback`],
+			};
 		}
-		const client = getBuiltInClient(clientId);
-		if (!client) return null;
-		if (!options?.appOrigin?.includes("127.0.0.1")) return client;
-		return {
-			...client,
-			redirectUris: [...client.redirectUris, `${options.appOrigin}/oauth/callback`],
-		};
+		return resolved;
 	}
 
 	return {

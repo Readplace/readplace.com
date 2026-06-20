@@ -587,6 +587,57 @@ describe("OAuth routes", () => {
 		});
 	});
 
+	describe("built-in client on a dynamic loopback port", () => {
+		// The dev/e2e server binds a free port that is not in a built-in client's
+		// fixed redirect list; the extension login flow uses that exact origin. The
+		// model augments built-in redirect URIs for a 127.0.0.1 appOrigin so
+		// oauth2-server's exact match accepts it at authorize and token time.
+		const DYNAMIC_ORIGIN = "http://127.0.0.1:54321";
+		const DYNAMIC_REDIRECT = `${DYNAMIC_ORIGIN}/oauth/callback`;
+
+		it("completes authorize and token for a port outside the built-in list", async () => {
+			const harness = useApp(createDefaultTestAppFixture(DYNAMIC_ORIGIN));
+			const pkce = generatePKCE();
+			await harness.auth.createUser({ email: "loop@example.com", password: "password123" });
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({
+				email: "loop@example.com",
+				password: "password123",
+			});
+
+			const authorizeResponse = await agent
+				.post("/oauth/authorize")
+				.type("form")
+				.send({
+					client_id: TEST_CLIENT_ID,
+					redirect_uri: DYNAMIC_REDIRECT,
+					response_type: "code",
+					code_challenge: pkce.challenge,
+					code_challenge_method: "S256",
+					state: "loopback-state",
+					action: "approve",
+				});
+
+			expect(authorizeResponse.status).toBe(302);
+			const code = new URL(authorizeResponse.headers.location).searchParams.get("code");
+			assert(code, "authorize must redirect with a code, not reject the dynamic-port redirect_uri");
+
+			const tokenResponse = await request(harness.server)
+				.post("/oauth/token")
+				.type("form")
+				.send({
+					grant_type: "authorization_code",
+					code,
+					redirect_uri: DYNAMIC_REDIRECT,
+					client_id: TEST_CLIENT_ID,
+					code_verifier: pkce.verifier,
+				});
+
+			expect(tokenResponse.status).toBe(200);
+			expect(typeof tokenResponse.body.access_token).toBe("string");
+		});
+	});
+
 	describe("RFC 8707 resource parameter", () => {
 		it("is accepted on GET /oauth/authorize without breaking the flow", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
