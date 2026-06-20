@@ -9,18 +9,7 @@ const SAVE_ERROR_TEMPLATE = readFileSync(join(__dirname, "save-error.template.ht
 
 const COUNTDOWN_SECONDS = 5;
 
-const COUNTDOWN_SCRIPT = `<script>
-(function() {
-  var el = document.querySelector('.save-error__seconds');
-  if (!el) return;
-  var seconds = ${COUNTDOWN_SECONDS};
-  var interval = setInterval(function() {
-    seconds--;
-    el.textContent = seconds;
-    if (seconds <= 0) clearInterval(interval);
-  }, 1000);
-})();
-</script>`;
+const COUNTDOWN_SCRIPT = `<script src="/client-dist/save-error.client.js" defer></script>`;
 
 export function SaveErrorPage(input: { redirectUrl: string; linkLabel: string }): PageBody {
 	return {

@@ -166,6 +166,23 @@ const BUNDLES = [
 	{
 		entry: path.join(
 			PROJECT_ROOT,
+			"src/runtime/web/pages/save/save-error.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "save-error.client.js"),
+		globalName: "SaveErrorCountdown",
+		footer: [
+			"document.addEventListener('DOMContentLoaded', function () {",
+			"  SaveErrorCountdown.initSaveErrorCountdown({",
+			"    document: window.document,",
+			"    setIntervalFn: function (cb, ms) { return window.setInterval(cb, ms); },",
+			"    clearIntervalFn: function (id) { window.clearInterval(id); }",
+			"  });",
+			"});",
+		].join("\n"),
+	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
 			"src/runtime/web/pages/view/view-paywall.client.ts",
 		),
 		outfile: path.join(OUT_DIR, "view-paywall.client.js"),
