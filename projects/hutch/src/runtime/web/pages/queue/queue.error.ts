@@ -36,7 +36,7 @@ export const statusFlashMapping = (
 
 /** Pulls the one-shot status flash params off the query so an intervening
  * redirect — e.g. the out-of-bounds page clamp in GET /queue — carries the Undo
- * toast across the extra hop. statusFlashMapping above renders them. */
+ * toast across the extra hop. statusFlashMapping renders them. */
 export function collectStatusFlashParams(query: Request["query"]): [string, string][] {
 	return (["status_changed", "status_article"] as const).flatMap((key): [string, string][] => {
 		const value = query[key];
