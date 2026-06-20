@@ -31,7 +31,7 @@
   },
   "private": true,
   "scripts": {
-    "compile": "tsc",
+    "compile": "rm -rf dist && tsc",
     "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\"",
     "test": "jest --testMatch='**/dist/**/*.test.js'",
     "check": "pnpm lint",

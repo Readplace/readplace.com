@@ -8,6 +8,9 @@
     "compile": {
       "outputs": ["{projectRoot}/dist-extension-compiled", "{projectRoot}/dist-extension-files"]
     },
+    "compile-dev": {
+      "dependsOn": ["^compile"]
+    },
     "test:e2e": {
       "dependsOn": ["compile", "hutch:compile"]
     },

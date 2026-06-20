@@ -5,8 +5,8 @@
   "main": "src/infra/index.ts",
   "private": true,
   "scripts": {
-    "compile": "tsc && EXTENSION_VERSION=\"${EXTENSION_VERSION:-0.0.0}\" HUTCH_SERVER_URL=https://readplace.com node scripts/build-extension.js",
-    "compile-dev": "tsc && HUTCH_SERVER_URL=http://127.0.0.1:3000 node scripts/build-extension.js",
+    "compile": "rm -rf dist && tsc && EXTENSION_VERSION=\"${EXTENSION_VERSION:-0.0.0}\" HUTCH_SERVER_URL=https://readplace.com node scripts/build-extension.js",
+    "compile-dev": "rm -rf dist && tsc && HUTCH_SERVER_URL=http://127.0.0.1:3000 node scripts/build-extension.js",
     "check-unused-css": "node scripts/check-unused-css.js",
     "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\" \"pnpm check-unused-css\"",
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000 --passWithNoTests",
