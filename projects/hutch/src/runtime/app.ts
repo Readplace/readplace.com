@@ -117,7 +117,8 @@ function createPdfDeferralStub(publishStaleCheckRequested: PublishStaleCheckRequ
 
 function initProviders() {
 	const persistence = requireEnv<"prod" | "development">("PERSISTENCE");
-	const logError = (message: string, error?: Error) => console.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
+	const logger = HutchLogger.from(consoleLogger);
+	const logError = (message: string, error?: Error) => logger.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
 
 	const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: isBlockedIpAddress });
 	const staleTtlMs = 86400000;
@@ -522,7 +523,7 @@ export function createHutchApp(deps?: {
 		adminEmails,
 		recrawlServiceToken,
 		baseUrl: appOrigin,
-		logError: (message, error) => console.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack })),
+		logError: (message, error) => HutchLogger.from(consoleLogger).error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack })),
 		oauthModel,
 		validateAccessToken,
 		httpErrorMessageMapping,
