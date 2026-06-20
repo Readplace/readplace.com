@@ -30,7 +30,9 @@ describe("TrialFeedbackEmail", () => {
 
 		it("contains no emoji", () => {
 			const text = TrialFeedbackEmail(baseParams).to("text/plain");
+			const html = TrialFeedbackEmail(baseParams).to("text/html");
 			expect(text).not.toMatch(/\p{Extended_Pictographic}/u);
+			expect(html).not.toMatch(/\p{Extended_Pictographic}/u);
 		});
 
 		it("contains exactly one question mark — the single 'what was missing?'", () => {
