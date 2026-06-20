@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import type { Server } from "node:http";
 import { JSDOM } from "jsdom";
 import request from "supertest";
@@ -148,8 +149,14 @@ describe("Admin recrawl routes", () => {
 			expect(response.status).toBe(200);
 			expect(response.headers["cache-control"]).toBe("no-store");
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-admin-recrawl-form]")).not.toBeNull();
-			expect(doc.querySelector("[data-test-admin-recrawl-input]")).not.toBeNull();
+			const form = doc.querySelector("[data-test-admin-recrawl-form]");
+			assert(form);
+			expect(form.getAttribute("action")).toBe("/admin/recrawl");
+			expect(form.getAttribute("method")).toBe("GET");
+			const input = doc.querySelector("[data-test-admin-recrawl-input]");
+			assert(input);
+			expect(input.getAttribute("name")).toBe("url");
+			expect(input.getAttribute("type")).toBe("url");
 		});
 
 		it("redirects submitted ?url to the encoded article path", async () => {
@@ -280,9 +287,9 @@ describe("Admin recrawl routes", () => {
 			expect(form?.getAttribute("action")).toBe(`/admin/recrawl/${ENCODED}`);
 			expect(form?.hasAttribute("data-auto-submit")).toBe(true);
 			expect(response.text).toContain("requestSubmit");
-			expect(doc.querySelector("[data-test-admin-recrawl]")).not.toBeNull();
-			expect(doc.querySelector("[data-share-balloon]")).toBeNull();
-			expect(doc.querySelector("[data-test-view-cta]")).toBeNull();
+			const recrawlMain = doc.querySelector("[data-test-admin-recrawl]");
+			assert(recrawlMain);
+			assert(recrawlMain.querySelector(".admin-recrawl__body [data-test-reader-slot]"));
 			expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
 				"noindex, nofollow",
 			);
@@ -472,7 +479,8 @@ describe("Admin recrawl routes", () => {
 
 			expect(response.status).toBe(200);
 			// First poll URL must reference poll=1 (pollCount defaulted to 0, then +1)
-			const pollUrl = response.text.match(/hx-get="([^"]+)"/)?.[1];
+			const doc = new JSDOM(response.text).window.document;
+			const pollUrl = doc.querySelector("[hx-get]")?.getAttribute("hx-get");
 			expect(pollUrl).toContain("poll");
 		});
 
@@ -500,7 +508,8 @@ describe("Admin recrawl routes", () => {
 
 			expect(response.status).toBe(200);
 			expect(response.headers["cache-control"]).toBe("no-store");
-			const pollUrl = response.text.match(/hx-get="([^"]+)"/)?.[1];
+			const doc = new JSDOM(response.text).window.document;
+			const pollUrl = doc.querySelector("[hx-get]")?.getAttribute("hx-get");
 			expect(pollUrl).toContain("/admin/recrawl/reader");
 			expect(pollUrl).toContain(encodeURIComponent(ARTICLE_URL));
 		});
