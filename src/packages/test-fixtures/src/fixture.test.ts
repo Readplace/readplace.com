@@ -1,4 +1,5 @@
 import { calculateReadTime } from "@packages/domain/article";
+import { UserIdSchema } from "@packages/domain/user";
 import {
 	createFakeSummaryProvider,
 	createDefaultTestAppFixture,
@@ -289,7 +290,7 @@ describe("createFakePublishLinkSaved", () => {
 		};
 		const publish = createFakePublishLinkSaved(apply);
 
-		await publish({ url: "https://example.com/x", userId: "user-1" });
+		await publish({ url: "https://example.com/x", userId: UserIdSchema.parse("user-1") });
 
 		expect(calls).toEqual(["https://example.com/x"]);
 	});
