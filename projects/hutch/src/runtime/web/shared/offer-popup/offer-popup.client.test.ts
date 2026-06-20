@@ -27,8 +27,8 @@ const FIXTURE = `<!DOCTYPE html><html><body>
   </div>
 </body></html>`;
 
-function createDom(search: string) {
-	const dom = new JSDOM(FIXTURE, { url: `https://readplace.com/queue${search}` });
+function createDom() {
+	const dom = new JSDOM(FIXTURE, { url: "https://readplace.com/queue" });
 	return { window: dom.window, document: dom.window.document };
 }
 
@@ -53,7 +53,6 @@ describe("initOfferPopup — missing root", () => {
 			initOfferPopup({
 				document: dom.window.document,
 				storage: dom.window.localStorage,
-				location: { search: "" },
 			}),
 		).toThrow(/missing element \[data-offer-popup\]/);
 	});
@@ -61,12 +60,11 @@ describe("initOfferPopup — missing root", () => {
 
 describe("initOfferPopup — dismissal gating", () => {
 	it("opens immediately when the device carries no stored dismissal (the server already gated eligibility)", () => {
-		const { window, document } = createDom("");
+		const { window, document } = createDom();
 
 		initOfferPopup({
 			document,
 			storage: window.localStorage,
-			location: { search: "" },
 		}).attach();
 
 		const root = popup(document);
@@ -75,60 +73,43 @@ describe("initOfferPopup — dismissal gating", () => {
 	});
 
 	it("does not open once the reader has closed it on this device", () => {
-		const { window, document } = createDom("");
+		const { window, document } = createDom();
 		window.localStorage.setItem(STORAGE_KEY, serializeState({ closed: true }));
 
 		initOfferPopup({
 			document,
 			storage: window.localStorage,
-			location: { search: "" },
 		}).attach();
 
 		expect(popup(document).classList.contains(OPEN_CLASS)).toBe(false);
 	});
 });
 
-describe("initOfferPopup — preview override", () => {
-	it("shows immediately without persisting any state", () => {
-		const { window, document } = createDom("?offer-preview=1");
-
-		initOfferPopup({
-			document,
-			storage: window.localStorage,
-			location: { search: "?offer-preview=1" },
-		}).attach();
-
-		expect(popup(document).classList.contains(OPEN_CLASS)).toBe(true);
-		expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
-	});
-});
-
 describe("initOfferPopup — double-confirmation close flow", () => {
-	function shownPreviewDom() {
-		const { window, document } = createDom("?offer-preview=1");
+	function shownDom() {
+		const { window, document } = createDom();
 		initOfferPopup({
 			document,
 			storage: window.localStorage,
-			location: { search: "?offer-preview=1" },
 		}).attach();
 		return { window, document };
 	}
 
 	it("moves from the offer to the first confirmation when the reader closes", () => {
-		const { document } = shownPreviewDom();
+		const { document } = shownDom();
 		click(document, "data-test-offer-close");
 		expect(popup(document).getAttribute("data-offer-stage")).toBe("confirm-first");
 	});
 
 	it("moves to the second confirmation when the reader insists on closing", () => {
-		const { document } = shownPreviewDom();
+		const { document } = shownDom();
 		click(document, "data-test-offer-close");
 		click(document, "data-test-offer-confirm");
 		expect(popup(document).getAttribute("data-offer-stage")).toBe("confirm-second");
 	});
 
 	it("returns to the offer when the reader keeps their spot", () => {
-		const { document } = shownPreviewDom();
+		const { document } = shownDom();
 		click(document, "data-test-offer-close");
 		click(document, "data-test-offer-confirm");
 		click(document, "data-test-offer-keep-2");
@@ -137,19 +118,18 @@ describe("initOfferPopup — double-confirmation close flow", () => {
 	});
 
 	it("closes the popup only after both confirmations", () => {
-		const { document } = shownPreviewDom();
+		const { document } = shownDom();
 		click(document, "data-test-offer-close");
 		click(document, "data-test-offer-confirm");
 		click(document, "data-test-offer-dismiss");
 		expect(popup(document).classList.contains(OPEN_CLASS)).toBe(false);
 	});
 
-	it("persists the closed flag when dismissed outside preview so it never returns", () => {
-		const { window, document } = createDom("");
+	it("persists the closed flag when dismissed so it never returns", () => {
+		const { window, document } = createDom();
 		initOfferPopup({
 			document,
 			storage: window.localStorage,
-			location: { search: "" },
 		}).attach();
 
 		click(document, "data-test-offer-dismiss");
@@ -159,21 +139,14 @@ describe("initOfferPopup — double-confirmation close flow", () => {
 		assert(stored, "state must be persisted");
 		expect(JSON.parse(stored).closed).toBe(true);
 	});
-
-	it("does not persist the closed flag when dismissed in preview", () => {
-		const { window, document } = shownPreviewDom();
-		click(document, "data-test-offer-dismiss");
-		expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
-	});
 });
 
 describe("initOfferPopup — stage labelling", () => {
 	it("labels the dialog by the visible heading of each stage", () => {
-		const { window, document } = createDom("?offer-preview=1");
+		const { window, document } = createDom();
 		initOfferPopup({
 			document,
 			storage: window.localStorage,
-			location: { search: "?offer-preview=1" },
 		}).attach();
 		const root = popup(document);
 
@@ -204,11 +177,10 @@ describe("initOfferPopup — background inertness", () => {
 	}
 
 	it("marks sibling page content inert and aria-hidden while open, sparing the popup itself", () => {
-		const { window, document } = createDom("?offer-preview=1");
+		const { window, document } = createDom();
 		initOfferPopup({
 			document,
 			storage: window.localStorage,
-			location: { search: "?offer-preview=1" },
 		}).attach();
 
 		const el = behind(document);
@@ -221,11 +193,10 @@ describe("initOfferPopup — background inertness", () => {
 	});
 
 	it("restores the background once the popup is dismissed", () => {
-		const { window, document } = createDom("");
+		const { window, document } = createDom();
 		initOfferPopup({
 			document,
 			storage: window.localStorage,
-			location: { search: "" },
 		}).attach();
 
 		click(document, "data-test-offer-dismiss");
@@ -238,7 +209,7 @@ describe("initOfferPopup — background inertness", () => {
 
 describe("initOfferPopup — storage failures", () => {
 	it("treats a throwing getItem as a fresh, undismissed device and still opens", () => {
-		const { document } = createDom("");
+		const { document } = createDom();
 		const storage = {
 			getItem: jest.fn((): string | null => {
 				throw new Error("access denied");
@@ -250,14 +221,13 @@ describe("initOfferPopup — storage failures", () => {
 			initOfferPopup({
 				document,
 				storage,
-				location: { search: "" },
 			}).attach(),
 		).not.toThrow();
 		expect(popup(document).classList.contains(OPEN_CLASS)).toBe(true);
 	});
 
 	it("swallows a throwing setItem when persisting the dismissal", () => {
-		const { document } = createDom("");
+		const { document } = createDom();
 		const storage = {
 			getItem: jest.fn((): string | null => null),
 			setItem: jest.fn((_k: string, _v: string): void => {
@@ -268,7 +238,6 @@ describe("initOfferPopup — storage failures", () => {
 		initOfferPopup({
 			document,
 			storage,
-			location: { search: "" },
 		}).attach();
 
 		expect(() => click(document, "data-test-offer-dismiss")).not.toThrow();
@@ -277,12 +246,11 @@ describe("initOfferPopup — storage failures", () => {
 });
 
 describe("initOfferPopup — focus management", () => {
-	function openPreview() {
-		const { window, document } = createDom("?offer-preview=1");
+	function openDom() {
+		const { window, document } = createDom();
 		initOfferPopup({
 			document,
 			storage: window.localStorage,
-			location: { search: "?offer-preview=1" },
 		}).attach();
 		return { window, document };
 	}
@@ -294,18 +262,18 @@ describe("initOfferPopup — focus management", () => {
 	}
 
 	it("moves focus to the first control when the dialog opens", () => {
-		const { document } = openPreview();
+		const { document } = openDom();
 		assert.equal(document.activeElement, control(document, "data-test-offer-close"));
 	});
 
 	it("moves focus into each step as the stage changes", () => {
-		const { document } = openPreview();
+		const { document } = openDom();
 		click(document, "data-test-offer-close");
 		assert.equal(document.activeElement, control(document, "data-test-offer-keep"));
 	});
 
 	it("wraps Tab from the last control back to the first", () => {
-		const { document } = openPreview();
+		const { document } = openDom();
 		const cta = control(document, "data-test-offer-cta");
 		cta.focus();
 		const notPrevented = fireEvent.keyDown(cta, { key: "Tab" });
@@ -314,7 +282,7 @@ describe("initOfferPopup — focus management", () => {
 	});
 
 	it("wraps Shift+Tab from the first control to the last", () => {
-		const { document } = openPreview();
+		const { document } = openDom();
 		const close = control(document, "data-test-offer-close");
 		close.focus();
 		const notPrevented = fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
@@ -323,7 +291,7 @@ describe("initOfferPopup — focus management", () => {
 	});
 
 	it("lets Tab fall through when focus is not on the last control", () => {
-		const { document } = openPreview();
+		const { document } = openDom();
 		const close = control(document, "data-test-offer-close");
 		close.focus();
 		const notPrevented = fireEvent.keyDown(close, { key: "Tab" });
@@ -332,7 +300,7 @@ describe("initOfferPopup — focus management", () => {
 	});
 
 	it("lets Shift+Tab fall through when focus is not on the first control", () => {
-		const { document } = openPreview();
+		const { document } = openDom();
 		const cta = control(document, "data-test-offer-cta");
 		cta.focus();
 		const notPrevented = fireEvent.keyDown(cta, { key: "Tab", shiftKey: true });
@@ -341,7 +309,7 @@ describe("initOfferPopup — focus management", () => {
 	});
 
 	it("ignores keys other than Tab", () => {
-		const { document } = openPreview();
+		const { document } = openDom();
 		const close = control(document, "data-test-offer-close");
 		close.focus();
 		fireEvent.keyDown(close, { key: "Enter" });
@@ -349,7 +317,7 @@ describe("initOfferPopup — focus management", () => {
 	});
 
 	it("restores focus to the previously focused control when dismissed", () => {
-		const { window, document } = createDom("?offer-preview=1");
+		const { window, document } = createDom();
 		const opener = document.createElement("button");
 		document.body.appendChild(opener);
 		opener.focus();
@@ -357,7 +325,6 @@ describe("initOfferPopup — focus management", () => {
 		initOfferPopup({
 			document,
 			storage: window.localStorage,
-			location: { search: "?offer-preview=1" },
 		}).attach();
 
 		assert.notEqual(document.activeElement, opener);

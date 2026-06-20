@@ -6,7 +6,7 @@
       <aside class="queue-banner {{subscriptionBannerStateClass}}" aria-live="polite" data-test-subscription-banner>
         {{#if subscriptionBannerIsTrialCountdown}}
         <p class="queue-banner__message"><strong data-test-trial-days-left>{{trialDaysLeft}} {{trialDaysLeftWord}} left</strong> in your free trial.</p>
-        <a class="queue-banner__cta" href="{{track '/account' source='queue-banner' content='subscribe'}}">Subscribe — $49/year</a>
+        <a class="queue-banner__cta" href="{{track '/account' source='queue-banner' content='subscribe'}}">Subscribe — ${{standardYearlyUsd}}/year</a>
         {{/if}}
         {{#if subscriptionBannerIsCancellationScheduled}}
         <p class="queue-banner__message"><strong>Subscription ending {{cancellationEffectiveAt}}.</strong> You still have full access until then.</p>

@@ -1,6 +1,7 @@
 import { decomposeTimeLeft } from "@packages/time-left";
 import type { EffectiveAccess } from "../../../domain/access/effective-access";
 import { withInternalTracking } from "@packages/web-shell";
+import { STANDARD_YEARLY_USD } from "../../pricing";
 import {
 	ACCOUNT_CANCEL_URL,
 	ACCOUNT_REACTIVATE_URL,
@@ -78,7 +79,7 @@ function action(input: AccountAction): AccountAction {
 
 const SUBSCRIBE_ACTION = action({
 	key: "subscribe",
-	name: "Subscribe — $49/year",
+	name: `Subscribe — $${STANDARD_YEARLY_USD}/year`,
 	variant: "primary",
 	method: "POST",
 	href: ACCOUNT_SUBSCRIBE_URL,

@@ -1,7 +1,7 @@
 /**
  * 1. Ships hidden; the client adds `offer-popup--open` once the once-per-device
- *    gate opens (or `?offer-preview=1` forces it). Visibility is an explicit
- *    state class on both sides so it never depends on an implicit default.
+ *    gate opens. Visibility is an explicit state class on both sides so it never
+ *    depends on an implicit default.
  * 2. Which step shows is driven by `data-offer-stage` so the client only flips a
  *    single attribute — the markup for every step always ships.
  */

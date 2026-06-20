@@ -261,7 +261,7 @@ export function HomePage(params: {
 							name: "Is Readplace free?",
 							acceptedAnswer: {
 								"@type": "Answer",
-								text: `The first ${foundingMemberLimit} founding members get full access free, forever. After that, $49/year — includes TL;DR summaries.`,
+								text: `The first ${foundingMemberLimit} founding members get full access free, forever. After that, $${STANDARD_YEARLY_USD}/year — includes TL;DR summaries.`,
 							},
 						},
 						{
@@ -282,10 +282,10 @@ export function HomePage(params: {
 						},
 						{
 							"@type": "Question",
-							name: "What does the $49/year subscription pay for?",
+							name: `What does the $${STANDARD_YEARLY_USD}/year subscription pay for?`,
 							acceptedAnswer: {
 								"@type": "Answer",
-								text: `Each saved article runs through a pipeline: Mozilla Readability parses the page (free, open source); real Tesseract OCR runs locally on Lambda to extract text from multi-page scanned PDFs — pixel-level character recognition, not an LLM "reading" the image, so it never hallucinates — up to 300 pages and ${MAX_PDF_BYTES.label} per file (free, open source); and DeepSeek V3.2 writes the TL;DR, disambiguates the canonical URL when an extension capture and a link submission point at the same article, and cleans up Tesseract's OCR output for structure only (paragraphs, headings, lists) before a deterministic document-diff review rejects any token the LLM tried to add or remove, so no hallucinated words ever reach you. The $49/year covers the infrastructure cost and crawler maintenance. There is no ad path, no data resale, and no third-party tracking.`,
+								text: `Each saved article runs through a pipeline: Mozilla Readability parses the page (free, open source); real Tesseract OCR runs locally on Lambda to extract text from multi-page scanned PDFs — pixel-level character recognition, not an LLM "reading" the image, so it never hallucinates — up to 300 pages and ${MAX_PDF_BYTES.label} per file (free, open source); and DeepSeek V3.2 writes the TL;DR, disambiguates the canonical URL when an extension capture and a link submission point at the same article, and cleans up Tesseract's OCR output for structure only (paragraphs, headings, lists) before a deterministic document-diff review rejects any token the LLM tried to add or remove, so no hallucinated words ever reach you. The $${STANDARD_YEARLY_USD}/year covers the infrastructure cost and crawler maintenance. There is no ad path, no data resale, and no third-party tracking.`,
 							},
 						},
 						{
@@ -315,6 +315,7 @@ export function HomePage(params: {
 		content: { html: render(HOME_TEMPLATE, {
 			staticBaseUrl,
 			browserName: browser,
+			standardYearlyUsd: STANDARD_YEARLY_USD,
 			maxPdfBytesLabel: MAX_PDF_BYTES.label,
 			founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
 			foundingProgressHtml,

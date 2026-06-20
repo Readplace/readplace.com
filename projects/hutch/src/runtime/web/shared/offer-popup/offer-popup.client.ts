@@ -10,14 +10,9 @@ interface OfferPopupStorage {
 	setItem(key: string, value: string): void;
 }
 
-interface OfferPopupLocation {
-	search: string;
-}
-
 interface OfferPopupDeps {
 	document: Document;
 	storage: OfferPopupStorage;
-	location: OfferPopupLocation;
 }
 
 interface OfferPopupController {
@@ -28,7 +23,6 @@ const STORAGE_KEY = "readplace.offer-popup.v1";
 const ROOT_SELECTOR = "[data-offer-popup]";
 const OPEN_CLASS = "offer-popup--open";
 const STAGE_ATTR = "data-offer-stage";
-const PREVIEW_PARAM = "offer-preview";
 const FOCUSABLE_SELECTOR = "a[href], button:not([disabled])";
 
 type Stage = "offer" | "confirm-first" | "confirm-second";
@@ -43,8 +37,6 @@ export function initOfferPopup(deps: OfferPopupDeps): OfferPopupController {
 		deps.document.querySelector<HTMLElement>(ROOT_SELECTOR),
 		`missing element ${ROOT_SELECTOR}`,
 	);
-	const preview =
-		new URLSearchParams(deps.location.search).get(PREVIEW_PARAM) === "1";
 
 	let currentStage: Stage = "offer";
 	let restoreFocus: (() => void) | null = null;
@@ -136,11 +128,9 @@ export function initOfferPopup(deps: OfferPopupDeps): OfferPopupController {
 	}
 
 	function dismiss(): void {
-		if (!preview) {
-			const state = readState();
-			state.closed = true;
-			persist(state);
-		}
+		const state = readState();
+		state.closed = true;
+		persist(state);
 		root.classList.remove(OPEN_CLASS);
 		root.removeEventListener("keydown", trapFocus);
 		setBackgroundInert(false);
@@ -167,11 +157,6 @@ export function initOfferPopup(deps: OfferPopupDeps): OfferPopupController {
 		bind('[data-offer-action="confirm"]', () => setStage("confirm-second"));
 		bind('[data-offer-action="keep"]', () => setStage("offer"));
 		bind('[data-offer-action="dismiss"]', dismiss);
-
-		if (preview) {
-			open();
-			return;
-		}
 
 		if (isDismissed(readState())) return;
 		open();

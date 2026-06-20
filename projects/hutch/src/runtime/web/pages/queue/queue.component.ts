@@ -5,6 +5,7 @@ import type { BrowserName } from "../../onboarding/onboarding.types";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
+import { STANDARD_YEARLY_USD } from "../../pricing";
 import { QUEUE_STYLES } from "./queue.styles";
 import { renderQueueCard, toQueueCardDisplayModel } from "./queue-card/queue-card.component";
 import { renderToast } from "../../shared/toast/toast.component";
@@ -170,7 +171,11 @@ const AUTO_SUBMIT_SCRIPT = `
 export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; extensionInstalled?: boolean; extensionSavedArticle?: boolean; browser?: BrowserName; onboardingDismissed?: boolean; statusCode?: number }): PageBody {
 	const saveUrl = options?.saveUrl;
 	const displayModel = toQueueDisplayModel(vm, { extensionInstalled: options?.extensionInstalled ?? false, extensionSavedArticle: options?.extensionSavedArticle ?? false, browser: options?.browser ?? "other", onboardingDismissed: options?.onboardingDismissed ?? false });
-	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl });
+	const content = render(QUEUE_TEMPLATE, {
+		...displayModel,
+		saveUrl,
+		standardYearlyUsd: STANDARD_YEARLY_USD,
+	});
 
 	const scriptParts: string[] = [];
 	if (saveUrl) scriptParts.push(AUTO_SUBMIT_SCRIPT);
