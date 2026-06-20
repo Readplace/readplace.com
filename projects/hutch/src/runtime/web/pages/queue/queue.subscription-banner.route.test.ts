@@ -28,7 +28,9 @@ describe("Queue page banner state", () => {
 		const banner = doc.querySelector("[data-test-subscription-banner]");
 		assert(banner, "queue banner aside must always be rendered");
 		expect(banner.classList.contains("queue-banner--none")).toBe(true);
-		expect(doc.querySelector("[data-test-trial-countdown]")).toBeNull();
+		const saveForm = doc.querySelector('[data-test-form="save-article"]');
+		assert(saveForm, "save form must be rendered with full access for a founding member");
+		expect(saveForm.classList.contains("queue__save-form--disabled")).toBe(false);
 	});
 
 	it("renders the header trial countdown and the queue aside trial-countdown banner for a trialing user", async () => {
