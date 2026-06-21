@@ -1,5 +1,5 @@
 <div class="queue-article{{unreadClass}}" data-test-article="{{id}}"{{#if isFirst}} id="latest-saved"{{/if}}{{#if cardPollUrl}} hx-get="{{cardPollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}} data-card-status="{{cardStatus}}">
-	{{!-- onerror/onload defend against legacy DynamoDB rows whose imageUrl points at an external host that can 404 over time; a broken image removes its container instead of showing a placeholder. New saves use the S3-only thumbnail path in @packages/crawl-article. --}}
+	{{!-- The thumbnail link is display:none until onload adds --loaded (queue.styles.css), so onload is the reveal-on-load for every thumbnail, including S3 saves — removing it hides all thumbnails. onerror is the 404 safety net for legacy DynamoDB rows whose imageUrl points at an external host that can rot over time: a broken image removes its container instead of showing a placeholder. New saves use the S3-only thumbnail path in @packages/crawl-article. --}}
 	{{#if imageUrl}}<a href="{{linkUrl}}" class="queue-article__thumbnail-link" tabindex="-1" aria-hidden="true"><img class="queue-article__thumbnail" src="{{imageUrl}}" alt="" onload="this.parentElement.classList.add('queue-article__thumbnail-link--loaded')" onerror="this.parentElement.remove()"></a>{{/if}}
 	<div class="queue-article__content">
 		<div class="queue-article__title-row">
