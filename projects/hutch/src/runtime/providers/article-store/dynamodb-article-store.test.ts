@@ -1,13 +1,20 @@
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
-import type { UserId } from "@packages/domain/user";
+import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbArticleStore } from "./dynamodb-article-store";
 
-const USER = "abc123" as UserId;
+type SendFn = DynamoDBDocumentClient["send"];
+
+const USER = UserIdSchema.parse("abc123");
 const URL = "https://example.com/article";
 
 interface CapturedCommand {
 	name: string;
-	input: Record<string, unknown>;
+	input: {
+		UpdateExpression?: string;
+		ConditionExpression?: string;
+		IndexName?: string;
+		ExpressionAttributeValues?: Record<string, unknown>;
+	};
 }
 
 /** Records every command sent and replays canned responses keyed by command
@@ -17,10 +24,10 @@ interface CapturedCommand {
 function createFakeClient(opts: {
 	queryItems?: Record<string, unknown>[];
 	updateError?: Error;
-} = {}): { client: DynamoDBDocumentClient; commands: CapturedCommand[] } {
+} = {}): { client: Partial<DynamoDBDocumentClient>; commands: CapturedCommand[] } {
 	const commands: CapturedCommand[] = [];
-	const client = {
-		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+	const client: Partial<DynamoDBDocumentClient> = {
+		send: (async (command: { constructor: { name: string }; input: CapturedCommand["input"] }) => {
 			const name = command.constructor.name;
 			commands.push({ name, input: command.input });
 			if (name === "QueryCommand") {
@@ -31,14 +38,14 @@ function createFakeClient(opts: {
 				return {};
 			}
 			return {};
-		}) as DynamoDBDocumentClient["send"],
+		}) as unknown as SendFn,
 	};
-	return { client: client as typeof client & DynamoDBDocumentClient, commands };
+	return { client, commands };
 }
 
-function initStore(client: DynamoDBDocumentClient) {
+function initStore(client: Partial<DynamoDBDocumentClient>) {
 	return initDynamoDbArticleStore({
-		client,
+		client: client as DynamoDBDocumentClient,
 		tableName: "articles",
 		userArticlesTableName: "user-articles",
 	});
@@ -52,9 +59,7 @@ describe("initDynamoDbArticleStore reader-ready columns", () => {
 		const update = commands.find((c) => c.name === "UpdateCommand");
 		expect(update?.input.UpdateExpression).toContain("SET viewedAt = :at");
 		expect(update?.input.ConditionExpression).toBeUndefined();
-		expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":at"]).toBe(
-			"2026-05-30T10:00:00.000Z",
-		);
+		expect(update?.input.ExpressionAttributeValues?.[":at"]).toBe("2026-05-30T10:00:00.000Z");
 	});
 
 	it("markReaderViewSucceeded writes succeededAt set-once via if_not_exists", async () => {
