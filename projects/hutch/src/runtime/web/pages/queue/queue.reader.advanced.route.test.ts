@@ -218,7 +218,6 @@ describe("Queue routes", () => {
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
  	markSummaryPending: fixture.summary.markSummaryPending,
- 	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
 			});
 			const { auth } = harness;
@@ -274,7 +273,6 @@ describe("Queue routes", () => {
 				summary:{
  	findGeneratedSummary: findGeneratedSummary,
  	markSummaryPending: fixture.summary.markSummaryPending,
- 	forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
  },
 			});
 			const { auth } = harness;
@@ -513,7 +511,6 @@ describe("Queue routes", () => {
 					markSummaryPending: async (_params) => {
 						markSummaryPendingCalls += 1;
 					},
-					forceMarkSummaryPending: async (_params) => {},
 				},
 			});
 			const { auth } = harness;

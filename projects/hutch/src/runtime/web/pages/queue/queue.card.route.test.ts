@@ -332,7 +332,6 @@ describe("Queue routes", () => {
 				summary: {
 					findGeneratedSummary,
 					markSummaryPending: fixture.summary.markSummaryPending,
-					forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
 				},
 			});
 		}

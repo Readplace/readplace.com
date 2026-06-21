@@ -41,16 +41,6 @@ describe("initInMemoryGeneratedSummary", () => {
 		});
 	});
 
-	describe("forceMarkSummaryPending", () => {
-		it("overrides a ready row so an operator recrawl re-runs the worker", async () => {
-			const store = initInMemoryGeneratedSummary();
-			await store.markSummaryReady({ url: URL, summary: "S" });
-			await store.forceMarkSummaryPending({ url: URL });
-
-			expect(await store.findGeneratedSummary(URL)).toEqual({ status: "pending" });
-		});
-	});
-
 	describe("markSummaryReady", () => {
 		it("writes the summary and excerpt", async () => {
 			const store = initInMemoryGeneratedSummary();

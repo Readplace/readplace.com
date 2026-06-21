@@ -47,7 +47,6 @@ import type {
 	FindUserByEmail,
 	FindUserById,
 	ForceMarkCrawlPending,
-	ForceMarkSummaryPending,
 	GetSessionUserId,
 	InMemoryMarkCrawlFailed,
 	InMemoryMarkCrawlReady,
@@ -242,7 +241,6 @@ export interface PendingPdfBundle {
 export interface SummaryBundle {
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
-	forceMarkSummaryPending: ForceMarkSummaryPending;
 }
 
 export interface FreshnessBundle {

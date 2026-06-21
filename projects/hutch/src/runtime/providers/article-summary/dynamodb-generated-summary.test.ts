@@ -284,35 +284,4 @@ describe("initDynamoDbGeneratedSummary", () => {
 			).rejects.toThrow("throttled");
 		});
 	});
-
-	describe("forceMarkSummaryPending", () => {
-		it("issues an unconditional UpdateItem that sets summaryStatus=pending and clears the terminal reason columns", async () => {
-			let received: unknown;
-			const client = createSendingClient((input) => {
-				received = input;
-				return {};
-			});
-			const { forceMarkSummaryPending } = initDynamoDbGeneratedSummary({
-				client,
-				tableName: "test-table",
-			});
-
-			await forceMarkSummaryPending({ url: "https://example.com/article" });
-
-			const command = received as {
-				input: {
-					UpdateExpression?: string;
-					ConditionExpression?: string;
-					ExpressionAttributeValues?: Record<string, unknown>;
-				};
-			};
-			expect(command.input.UpdateExpression).toContain(
-				"SET summaryStatus = :pending REMOVE summaryFailureReason, summarySkippedReason",
-			);
-			expect(command.input.ConditionExpression).toBeUndefined();
-			expect(command.input.ExpressionAttributeValues?.[":pending"]).toBe(
-				"pending",
-			);
-		});
-	});
 });
