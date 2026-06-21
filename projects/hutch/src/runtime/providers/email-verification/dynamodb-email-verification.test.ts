@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import type { UserId } from "@packages/domain/user";
 import { VerificationTokenSchema } from "@packages/test-fixtures/providers/email-verification";
@@ -62,7 +63,8 @@ describe("initDynamoDbEmailVerification", () => {
 			expect(token).toMatch(/^[0-9a-f]{64}$/);
 			const put = commands.find((c) => c.name === "PutCommand");
 			expect(put?.input.Item).toMatchObject({ token, userId: USER, email: "user@example.com" });
-			expect(put?.input.Item).toHaveProperty("expiresAt");
+			const { expiresAt } = z.object({ expiresAt: z.number() }).parse(put?.input.Item);
+			expect(expiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000));
 		});
 	});
 
