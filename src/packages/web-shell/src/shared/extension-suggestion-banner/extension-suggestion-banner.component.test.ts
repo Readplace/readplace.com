@@ -130,24 +130,32 @@ describe("renderExtensionSuggestionBanner", () => {
 			);
 		});
 
-		it("hides the install CTA button (the user already has it)", () => {
+		it("renders the installed variant, which has no install CTA button (the user already has it)", () => {
 			const doc = parse(
 				renderExtensionSuggestionBanner({ show: true, extensionInstalled: true }),
 			);
 
+			const message = doc.querySelector(
+				"[data-test-extension-suggestion-variant]",
+			);
+			assert(message, "message variant marker must be rendered");
 			expect(
-				doc.querySelector("[data-test-extension-suggestion-cta]"),
-			).toBeNull();
+				message.getAttribute("data-test-extension-suggestion-variant"),
+			).toBe("installed");
 		});
 
-		it("hides the inline install link (the user already has it)", () => {
+		it("renders the installed variant, which has no inline install link (the user already has it)", () => {
 			const doc = parse(
 				renderExtensionSuggestionBanner({ show: true, extensionInstalled: true }),
 			);
 
+			const message = doc.querySelector(
+				"[data-test-extension-suggestion-variant]",
+			);
+			assert(message, "message variant marker must be rendered");
 			expect(
-				doc.querySelector("[data-test-extension-suggestion-inline]"),
-			).toBeNull();
+				message.getAttribute("data-test-extension-suggestion-variant"),
+			).toBe("installed");
 		});
 
 		it("tells the reader to save again using the extension", () => {
