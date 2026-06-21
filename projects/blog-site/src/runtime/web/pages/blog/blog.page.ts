@@ -96,7 +96,11 @@ export function initBlogRoutes(deps: { blogPosts: BlogPosts; base: RenderBase })
 	router.get("/", (req: Request, res: Response) => {
 		const posts = blogPosts.getAllPosts();
 		const changelogBanner = hideIfDismissed(blogPosts.getLatestChangelogBanner(), req);
-		sendComponent(req, res, base(BlogIndexPage({ posts }), { ...GUEST_STATE, changelogBanner }));
+		sendComponent(
+			req,
+			res,
+			base(BlogIndexPage({ posts }), { ...GUEST_STATE, changelogBanner, currentPath: req.originalUrl }),
+		);
 	});
 
 	router.get("/:slug", (req: Request<{ slug: string }>, res: Response) => {
@@ -108,10 +112,18 @@ export function initBlogRoutes(deps: { blogPosts: BlogPosts; base: RenderBase })
 		const post = blogPosts.findPostBySlug(req.params.slug);
 		const changelogBanner = hideIfDismissed(blogPosts.getLatestChangelogBanner(), req);
 		if (!post) {
-			sendComponent(req, res, base(NotFoundPage(), { ...GUEST_STATE, changelogBanner }));
+			sendComponent(
+				req,
+				res,
+				base(NotFoundPage(), { ...GUEST_STATE, changelogBanner, currentPath: req.originalUrl }),
+			);
 			return;
 		}
-		sendComponent(req, res, base(BlogPostPage({ post }), { ...GUEST_STATE, changelogBanner }));
+		sendComponent(
+			req,
+			res,
+			base(BlogPostPage({ post }), { ...GUEST_STATE, changelogBanner, currentPath: req.originalUrl }),
+		);
 	});
 
 	return router;
