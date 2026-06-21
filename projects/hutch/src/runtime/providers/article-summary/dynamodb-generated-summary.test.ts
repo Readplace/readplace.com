@@ -6,13 +6,6 @@ import { initDynamoDbGeneratedSummary } from "./dynamodb-generated-summary";
 
 type SendFn = DynamoDBDocumentClient["send"];
 
-function createFakeClient(item: Record<string, unknown> | undefined): DynamoDBDocumentClient {
-	const fake: Partial<DynamoDBDocumentClient> = {
-		send: async () => ({ Item: item }),
-	};
-	return fake as Partial<DynamoDBDocumentClient> as DynamoDBDocumentClient;
-}
-
 function createSendingClient(
 	impl: (input: unknown) => unknown,
 ): DynamoDBDocumentClient {
@@ -20,6 +13,10 @@ function createSendingClient(
 		send: (async (input: unknown) => impl(input)) as unknown as SendFn,
 	} as Partial<DynamoDBDocumentClient> as DynamoDBDocumentClient;
 }
+
+const createFakeClient = (
+	item: Record<string, unknown> | undefined,
+): DynamoDBDocumentClient => createSendingClient(() => ({ Item: item }));
 
 describe("initDynamoDbGeneratedSummary", () => {
 	it("returns undefined when no row exists", async () => {
