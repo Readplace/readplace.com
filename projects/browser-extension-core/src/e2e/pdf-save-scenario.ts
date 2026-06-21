@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
+import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initSirenReadingList } from "../reading-list/siren-reading-list";
 
 /**
@@ -187,6 +188,7 @@ export async function runPdfSaveScenario(
 		onUnauthorized: async () => {
 			throw new Error("Unauthorized while running pdf-save scenario");
 		},
+		logger: HutchLogger.from(consoleLogger),
 	});
 
 	const saveResult = await saveUrl({

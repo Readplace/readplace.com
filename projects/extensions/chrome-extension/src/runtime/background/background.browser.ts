@@ -148,6 +148,7 @@ async function initCore() {
 		getAccessToken: auth.getAccessToken,
 		fetchFn: (...args) => fetch(...args),
 		onUnauthorized: auth.logout,
+		logger,
 	});
 
 	const core = BrowserExtensionCore(shell, { auth, logger, readingList });

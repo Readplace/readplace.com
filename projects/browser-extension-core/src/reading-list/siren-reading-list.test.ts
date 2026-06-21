@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { noopLogger } from "@packages/hutch-logger";
 import type { ReadingListItemId } from "../domain/reading-list-item.types";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import {
@@ -1018,7 +1019,7 @@ describe("save-html action", () => {
 	function createUnderstandingsWithSaveHtml() {
 		return groupOf(
 			initSaveArticleUnderstanding(),
-			initSaveHtmlUnderstanding(),
+			initSaveHtmlUnderstanding({ logger: noopLogger }),
 			initDeleteArticleUnderstanding(),
 			httpCacheable(initListArticlesUnderstanding()),
 		);
@@ -1439,7 +1440,7 @@ describe("save-content action", () => {
 	function createUnderstandingsWithSaveContent() {
 		return groupOf(
 			initSaveArticleUnderstanding(),
-			initSaveContentUnderstanding({ parsers: { "application/pdf": pdfContentBody, "text/html": htmlContentBody } }),
+			initSaveContentUnderstanding({ parsers: { "application/pdf": pdfContentBody, "text/html": htmlContentBody }, logger: noopLogger }),
 			initDeleteArticleUnderstanding(),
 			httpCacheable(initListArticlesUnderstanding()),
 		);
@@ -1786,6 +1787,7 @@ describe("initSirenReadingList capability negotiation", () => {
 			getAccessToken: async () => "test-token",
 			fetchFn,
 			onUnauthorized,
+			logger: noopLogger,
 		};
 	}
 
@@ -2191,6 +2193,7 @@ describe("initSirenReadingList", () => {
 			getAccessToken: async () => "test-token",
 			fetchFn,
 			onUnauthorized,
+			logger: noopLogger,
 		};
 	}
 
@@ -2994,6 +2997,7 @@ describe("initSirenReadingList", () => {
 				getAccessToken: async () => null,
 				fetchFn,
 				onUnauthorized: async () => {},
+				logger: noopLogger,
 			};
 			const list = initSirenReadingList(deps);
 			await expect(list.getAllItems()).rejects.toThrow(
