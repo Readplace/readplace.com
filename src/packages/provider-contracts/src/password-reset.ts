@@ -1,10 +1,9 @@
 import { z } from "zod";
+import type { $brand } from "zod";
 
-export type PasswordResetToken = string & { readonly __brand: "PasswordResetToken" };
+export type PasswordResetToken = string & $brand<"PasswordResetToken">;
 
-export const PasswordResetTokenSchema = z
-	.string()
-	.transform((s): PasswordResetToken => s as PasswordResetToken);
+export const PasswordResetTokenSchema = z.string().brand<"PasswordResetToken">();
 
 export type CreatePasswordResetToken = (args: { email: string }) => Promise<PasswordResetToken>;
 
