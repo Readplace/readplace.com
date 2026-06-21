@@ -17,9 +17,11 @@ import {
 	ScanCommand,
 	UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
-import type { z } from "zod";
+import { z } from "zod";
 
 type Key = Record<string, string | number>;
+
+const KeySchema = z.array(z.record(z.string(), z.union([z.string(), z.number()])));
 
 /** Every command input minus `TableName` — the gateway supplies the name. */
 type WithoutTable<T> = Omit<T, "TableName">;
@@ -38,7 +40,6 @@ export type DynamoTable<TSchema extends z.ZodObject> = {
 	/** Raw Put passthrough. Item is not parsed — writes bypass the read-side schema. */
 	put: (input: WithoutTable<PutCommandInput>) => Promise<void>;
 
-	/** Raw Update passthrough. */
 	update: (input: WithoutTable<UpdateCommandInput>) => Promise<void>;
 
 	/**
@@ -194,7 +195,7 @@ export async function batchGetFromTable<TSchema extends z.ZodObject>(config: {
 	const buildRequest = (batchKeys: readonly Key[]): BatchGetCommandInput => ({
 		RequestItems: {
 			[tableName]: {
-				Keys: batchKeys as Key[],
+				Keys: [...batchKeys],
 				...projectionOptions,
 			},
 		},
@@ -217,7 +218,7 @@ export async function batchGetFromTable<TSchema extends z.ZodObject>(config: {
 				await new Promise((resolve) =>
 					setTimeout(resolve, UNPROCESSED_KEYS_INITIAL_DELAY_MS * 2 ** attempt),
 				);
-				pending = unprocessed as Key[];
+				pending = KeySchema.parse(unprocessed);
 			}
 		}),
 	);
