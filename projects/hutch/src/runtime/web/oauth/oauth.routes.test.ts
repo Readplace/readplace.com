@@ -188,6 +188,46 @@ describe("OAuth routes", () => {
 			expect(response.headers.location).toContain("state=test-state-123");
 		});
 
+		it("appends error to a registered redirect_uri that already has a query string", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({
+				email: "test@example.com",
+				password: "password123",
+			});
+
+			const registration = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: ["https://app.example.com/cb?tenant=acme"] });
+			expect(registration.status).toBe(201);
+			const dynamicClientId = registration.body.client_id;
+
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({
+				email: "test@example.com",
+				password: "password123",
+			});
+
+			const response = await agent
+				.post("/oauth/authorize")
+				.type("form")
+				.send({
+					client_id: dynamicClientId,
+					redirect_uri: "https://app.example.com/cb?tenant=acme",
+					response_type: "code",
+					code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+					code_challenge_method: "S256",
+					state: "test-state-123",
+					action: "deny",
+				});
+
+			expect(response.status).toBe(302);
+			const location = new URL(response.headers.location);
+			expect(location.searchParams.get("tenant")).toBe("acme");
+			expect(location.searchParams.get("error")).toBe("access_denied");
+			expect(location.searchParams.get("state")).toBe("test-state-123");
+			expect(response.headers.location).not.toContain("?tenant=acme?");
+		});
+
 		it("approves authorization and redirects with code", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const pkce = generatePKCE();

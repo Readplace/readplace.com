@@ -235,8 +235,12 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 					return;
 				}
 
-				const errorUrl = `${redirect_uri}?error=access_denied${state ? `&state=${encodeURIComponent(state)}` : ""}`;
-				res.redirect(302, errorUrl);
+				const errorUrl = new URL(redirect_uri);
+				errorUrl.searchParams.set("error", "access_denied");
+				if (state) {
+					errorUrl.searchParams.set("state", state);
+				}
+				res.redirect(302, errorUrl.toString());
 				return;
 			}
 
