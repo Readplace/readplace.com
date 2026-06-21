@@ -10,6 +10,7 @@ import express from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
+import type { UserId } from "@packages/domain/user";
 import { SaveArticleInputSchema, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
 import { buildSaveIntentEvent, hashIp, type AnalyticsEvent } from "../../middleware/analytics";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
@@ -125,7 +126,7 @@ type SaveContentMediaHandler = (input: {
 	url: string;
 	bytes: Buffer;
 	title?: string;
-	userId: string;
+	userId: UserId;
 }) => Promise<SaveContentResult>;
 
 function normalizeMediaType(mediaType: string): string {

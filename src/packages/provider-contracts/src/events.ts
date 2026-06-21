@@ -5,14 +5,14 @@ export type PublishCancelSubscriptionCommand = (params: {
 }) => Promise<void>;
 
 export type PublishExportUserDataCommand = (params: {
-	userId: string;
+	userId: UserId;
 	email: string;
 	requestedAt: string;
 }) => Promise<void>;
 
 export type PublishLinkSaved = (params: {
 	url: string;
-	userId: string;
+	userId: UserId;
 }) => Promise<void>;
 
 export type PublishRecrawlLinkInitiated = (params: {
@@ -42,13 +42,13 @@ export type PublishSaveAnonymousLink = (params: {
 
 export type PublishSaveLinkRawHtmlCommand = (params: {
 	url: string;
-	userId: string;
+	userId: UserId;
 	title?: string;
 }) => Promise<void>;
 
 export type PublishSaveLinkRawPdfCommand = (params: {
 	url: string;
-	userId: string;
+	userId: UserId;
 }) => Promise<void>;
 
 export type PublishStaleCheckRequested = (params: {
