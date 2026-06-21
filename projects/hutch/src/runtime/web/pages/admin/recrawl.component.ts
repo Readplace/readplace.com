@@ -12,6 +12,31 @@ import { RECRAWL_STYLES } from "./recrawl.styles";
 const PROGRESS_BAR_SCRIPT = `<script src="/client-dist/progress-bar.client.js" defer></script>`;
 const READER_IFRAME_SCRIPT = `<script src="/client-dist/reader-iframe.client.js" defer></script>`;
 
+// POST-Redirect-GET: the recrawl is a state mutation, so the operator's
+// browser submits it via POST instead of firing it on the read-only GET.
+const RECRAWL_TRIGGER_SCRIPT = `
+<script>
+	(function () {
+		function run() {
+			var form = document.querySelector('[data-auto-submit]');
+			if (form) form.requestSubmit();
+		}
+		if (document.readyState === 'loading') {
+			document.addEventListener('DOMContentLoaded', run, { once: true });
+		} else {
+			run();
+		}
+	})();
+</script>
+`;
+
+function renderRecrawlForm(action: string | undefined): string {
+	if (action === undefined) {
+		return "";
+	}
+	return `<form method="POST" action="${action}" data-auto-submit data-test-admin-recrawl-trigger></form>`;
+}
+
 /**
  * Both the initial SSR <title> and the OOB <title> swap emitted by recrawl
  * polls have to use the same format — otherwise the browser tab flickers
@@ -35,6 +60,7 @@ export interface AdminRecrawlPageInput {
 	contentSourceTier?: "tier-0" | "tier-1";
 	extensionInstallUrl?: string;
 	appOrigin: string;
+	recrawlFormAction?: string;
 }
 
 /**
@@ -68,7 +94,10 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 	});
 
 	const tierBadge = renderTierBadge(input.contentSourceTier);
-	const content = `<main class="admin-recrawl" data-test-admin-recrawl>${tierBadge}<article class="admin-recrawl__body">${innerContent}</article></main>`;
+	const recrawlForm = renderRecrawlForm(input.recrawlFormAction);
+	const content = `<main class="admin-recrawl" data-test-admin-recrawl>${tierBadge}${recrawlForm}<article class="admin-recrawl__body">${innerContent}</article></main>`;
+	const triggerScript =
+		input.recrawlFormAction === undefined ? "" : RECRAWL_TRIGGER_SCRIPT;
 
 	return {
 		seo: {
@@ -80,7 +109,7 @@ export function AdminRecrawlPage(input: AdminRecrawlPageInput): PageBody {
 		styles: RECRAWL_STYLES,
 		bodyClass: "page-admin-recrawl",
 		content: { html: content },
-		scripts: PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT,
+		scripts: PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + triggerScript,
 	};
 }
 
