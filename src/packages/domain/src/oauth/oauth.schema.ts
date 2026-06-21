@@ -1,10 +1,13 @@
 import { z } from "zod";
-import type { OAuthClientId, AccessToken, RefreshToken, AuthorizationCode } from "./oauth.types";
 
-export const OAuthClientIdSchema = z.string().transform((s): OAuthClientId => s as OAuthClientId);
+export const OAuthClientIdSchema = z.string().brand<"OAuthClientId">();
+export type OAuthClientId = z.infer<typeof OAuthClientIdSchema>;
 
-export const AccessTokenSchema = z.string().transform((s): AccessToken => s as AccessToken);
+export const AccessTokenSchema = z.string().brand<"AccessToken">();
+export type AccessToken = z.infer<typeof AccessTokenSchema>;
 
-export const RefreshTokenSchema = z.string().transform((s): RefreshToken => s as RefreshToken);
+export const RefreshTokenSchema = z.string().brand<"RefreshToken">();
+export type RefreshToken = z.infer<typeof RefreshTokenSchema>;
 
-export const AuthorizationCodeSchema = z.string().transform((s): AuthorizationCode => s as AuthorizationCode);
+export const AuthorizationCodeSchema = z.string().brand<"AuthorizationCode">();
+export type AuthorizationCode = z.infer<typeof AuthorizationCodeSchema>;
