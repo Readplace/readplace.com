@@ -135,13 +135,20 @@ describe("renderExtensionSuggestionBanner", () => {
 				renderExtensionSuggestionBanner({ show: true, extensionInstalled: true }),
 			);
 
-			const message = doc.querySelector(
+			const banner = doc.querySelector(
+				"[data-test-extension-suggestion-banner]",
+			);
+			assert(banner, "banner must be rendered");
+			const message = banner.querySelector(
 				"[data-test-extension-suggestion-variant]",
 			);
 			assert(message, "message variant marker must be rendered");
 			expect(
 				message.getAttribute("data-test-extension-suggestion-variant"),
 			).toBe("installed");
+			expect(
+				banner.querySelector("[data-test-extension-suggestion-cta]"),
+			).toBeNull();
 		});
 
 		it("renders the installed variant, which has no inline install link (the user already has it)", () => {
@@ -149,13 +156,20 @@ describe("renderExtensionSuggestionBanner", () => {
 				renderExtensionSuggestionBanner({ show: true, extensionInstalled: true }),
 			);
 
-			const message = doc.querySelector(
+			const banner = doc.querySelector(
+				"[data-test-extension-suggestion-banner]",
+			);
+			assert(banner, "banner must be rendered");
+			const message = banner.querySelector(
 				"[data-test-extension-suggestion-variant]",
 			);
 			assert(message, "message variant marker must be rendered");
 			expect(
 				message.getAttribute("data-test-extension-suggestion-variant"),
 			).toBe("installed");
+			expect(
+				banner.querySelector("[data-test-extension-suggestion-inline]"),
+			).toBeNull();
 		});
 
 		it("tells the reader to save again using the extension", () => {
