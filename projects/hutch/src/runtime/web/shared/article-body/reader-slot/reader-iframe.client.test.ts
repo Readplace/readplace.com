@@ -2,8 +2,13 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { initReaderIframes, measureContentHeight } from "./reader-iframe.client";
 
+interface FakeObserverInstance {
+	observe(): void;
+	disconnect(): void;
+}
+
 interface FakeObserverCtor {
-	new (cb: () => void): { observe(): void; disconnect(): void };
+	new (cb: () => void): FakeObserverInstance;
 }
 
 interface FakeObserverFactory {
@@ -13,7 +18,7 @@ interface FakeObserverFactory {
 
 function makeObserverFactory(): FakeObserverFactory {
 	const callbacks: Array<() => void> = [];
-	class FakeObserver {
+	class FakeObserver implements FakeObserverInstance {
 		private readonly cb: () => void;
 		constructor(cb: () => void) {
 			this.cb = cb;
@@ -26,7 +31,7 @@ function makeObserverFactory(): FakeObserverFactory {
 		}
 	}
 	return {
-		Ctor: FakeObserver as unknown as FakeObserverCtor,
+		Ctor: FakeObserver,
 		trigger() {
 			for (const cb of callbacks.slice()) cb();
 		},
