@@ -1,6 +1,5 @@
-/* c8 ignore start -- thin Google API wrapper, tested via integration */
 import { z } from "zod";
-import { GoogleIdSchema } from "@packages/test-fixtures/providers/google-auth";
+import { GoogleIdSchema } from "@packages/provider-contracts/google-auth";
 import type { ExchangeGoogleCode } from "@packages/provider-contracts/google-auth";
 
 const GoogleTokenResponse = z.object({
@@ -45,4 +44,3 @@ export function initExchangeGoogleCode(deps: {
 		};
 	};
 }
-/* c8 ignore stop */
