@@ -26,13 +26,17 @@ function failingSpawn(): TesseractChildProcess {
 
 /** A fake `tesseract` child whose stdout/stderr/close are driven on the next
  * microtask so the wrapper's listeners are registered before they fire. */
-function makeFakeSpawn(outcome: {
-	stdout?: string;
-	stderr?: string;
-	exitCode?: number | null;
-	error?: Error;
-}): SpawnTesseractProcess {
-	return () => {
+function makeFakeSpawn(
+	outcome: {
+		stdout?: string;
+		stderr?: string;
+		exitCode?: number | null;
+		error?: Error;
+	},
+	onSpawn?: (args: readonly string[]) => void,
+): SpawnTesseractProcess {
+	return (args) => {
+		onSpawn?.(args);
 		const child = new EventEmitter();
 		const stdout = new EventEmitter();
 		const stderr = new EventEmitter();
@@ -158,9 +162,12 @@ describe("initTesseractOcr", () => {
 
 	it("wraps each recognised paragraph in an ocr-tesseract <p>, escaping HTML and dropping blank blocks", async () => {
 		dir = makeFakeTessdataDir(["Latin.traineddata"]);
+		let capturedArgs: readonly string[] | undefined;
 		const runPageOcr = initTesseractOcr({
 			tessdataDir: dir,
-			spawnTesseractProcess: makeFakeSpawn({ stdout: "First & <b>bold</b>\n\n   \n\nSecond\n\n" }),
+			spawnTesseractProcess: makeFakeSpawn({ stdout: "First & <b>bold</b>\n\n   \n\nSecond\n\n" }, (args) => {
+				capturedArgs = args;
+			}),
 		});
 
 		const result = await runPageOcr({ images: [{ pngBuffer: Buffer.from("png") }] });
@@ -168,6 +175,9 @@ describe("initTesseractOcr", () => {
 		expect(result).toBe(
 			'<p class="ocr-tesseract">First &amp; &lt;b&gt;bold&lt;/b&gt;</p><p class="ocr-tesseract">Second</p>',
 		);
+		const pngPath = capturedArgs?.[0];
+		expect(pngPath).toMatch(/page\.png$/);
+		expect(capturedArgs).toEqual([pngPath, "-", "--psm", "1", "--oem", "1", "-l", "script/Latin"]);
 	});
 
 	it("concatenates one fragment per image in order", async () => {
