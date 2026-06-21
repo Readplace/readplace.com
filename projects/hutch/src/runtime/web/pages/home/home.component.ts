@@ -11,96 +11,7 @@ import { HOME_PAGE_STYLES } from "./home.styles";
 
 const HOME_TEMPLATE = readFileSync(join(__dirname, "home.template.html"), "utf-8");
 
-const HOME_HEADLINE_SCRIPT = `<script>
-(function () {
-  var rotator = document.querySelector('.hero-headline__rotator');
-  if (!rotator) return;
-  var words = ['articles', 'news', 'blogs', 'stories', 'newsletters', 'posts', 'reports', 'interviews', 'essays', 'longreads'];
-  function makeSpan(cls, text) {
-    var el = document.createElement('span');
-    el.className = cls;
-    el.textContent = text;
-    return el;
-  }
-  rotator.textContent = '';
-  var sizer = makeSpan('hero-headline__sizer', words[0]);
-  var measurer = makeSpan('hero-headline__measurer', '');
-  var slots = [
-    makeSpan('hero-headline__word hero-headline__word--visible', words[0]),
-    makeSpan('hero-headline__word', '')
-  ];
-  rotator.appendChild(sizer);
-  rotator.appendChild(measurer);
-  rotator.appendChild(slots[0]);
-  rotator.appendChild(slots[1]);
-  rotator.classList.add('hero-headline__rotator--enhanced');
-  function measure(text) {
-    measurer.textContent = text;
-    return measurer.offsetWidth;
-  }
-  rotator.style.width = measure(words[0]) + 'px';
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  var index = 0;
-  var current = 0;
-  var scheduled = null;
-  var inTick = false;
-  function tick() {
-    scheduled = null;
-    inTick = true;
-    var nextIndex = (index + 1) % words.length;
-    var next = 1 - current;
-    slots[next].textContent = words[nextIndex];
-    rotator.style.width = measure(words[nextIndex]) + 'px';
-    slots[current].classList.remove('hero-headline__word--visible');
-    slots[current].classList.add('hero-headline__word--leaving');
-    setTimeout(function () {
-      slots[next].classList.add('hero-headline__word--visible');
-    }, 150);
-    setTimeout(function () {
-      slots[current].classList.remove('hero-headline__word--leaving');
-      current = next;
-      index = nextIndex;
-      inTick = false;
-      schedule();
-    }, 700);
-  }
-  function schedule() {
-    scheduled = setTimeout(tick, 2500);
-  }
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'hidden') {
-      if (scheduled) {
-        clearTimeout(scheduled);
-        scheduled = null;
-      }
-    } else if (!scheduled && !inTick) {
-      schedule();
-    }
-  });
-  schedule();
-})();
-</script>`;
-
-const HOME_SCROLL_HINT_SCRIPT = `<script>
-(function () {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  var hint = document.querySelector('.home-try__scroll-hint');
-  var header = document.querySelector('.header');
-  hint.addEventListener('click', function (e) {
-    e.preventDefault();
-    var target = document.getElementById(hint.getAttribute('href').slice(1));
-    var navOffset = header.getBoundingClientRect().height + parseFloat(getComputedStyle(header).top);
-    var startY = window.pageYOffset;
-    var endY = target.getBoundingClientRect().top + startY - navOffset;
-    var startTime = performance.now();
-    requestAnimationFrame(function step(now) {
-      var t = Math.min((now - startTime) / 350, 1);
-      window.scrollTo(0, startY + (endY - startY) * (1 - Math.pow(1 - t, 3)));
-      if (t < 1) requestAnimationFrame(step);
-    });
-  });
-})();
-</script>`;
+const HOME_CLIENT_SCRIPT = `<script src="/client-dist/home.client.js" defer></script>`;
 
 export function HomePage(params: {
 	userCount: number;
@@ -303,7 +214,7 @@ export function HomePage(params: {
 			],
 		},
 		styles: HOME_PAGE_STYLES,
-		scripts: HOME_HEADLINE_SCRIPT + HOME_SCROLL_HINT_SCRIPT,
+		scripts: HOME_CLIENT_SCRIPT,
 		bodyClass: "page-home",
 		content: { html: render(HOME_TEMPLATE, {
 			staticBaseUrl,
