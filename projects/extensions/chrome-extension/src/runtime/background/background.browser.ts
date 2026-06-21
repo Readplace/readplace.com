@@ -1,5 +1,4 @@
 /* c8 ignore start -- composition root, all browser API glue, tested via Selenium E2E */
-// (test 3/4 probe: chrome-only edit must publish chrome but skip firefox)
 import browser from "webextension-polyfill";
 import {
 	BrowserExtensionCore,
@@ -7,6 +6,7 @@ import {
 	initSirenReadingList,
 	type BrowserShell,
 	type OAuthTokens,
+	OAuthTokensSchema,
 	type PopupMessage,
 	type ReadingListItem,
 	captureActiveTabBytes,
@@ -31,7 +31,8 @@ const tokenStorage: TokenStorage = {
 		const result = await browser.storage.local.get(STORAGE_KEY);
 		const raw = result[STORAGE_KEY];
 		if (!raw) return null;
-		return raw as OAuthTokens;
+		const parsed = OAuthTokensSchema.safeParse(raw);
+		return parsed.success ? parsed.data : null;
 	},
 	async setTokens(tokens: OAuthTokens): Promise<void> {
 		await browser.storage.local.set({ [STORAGE_KEY]: tokens });

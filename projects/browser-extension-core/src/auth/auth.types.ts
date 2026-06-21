@@ -1,4 +1,7 @@
 import type { HutchLogger } from "@packages/hutch-logger";
+import type { OAuthTokens } from "./oauth-tokens";
+
+export type { OAuthTokens };
 
 export type LoginResult = { ok: true };
 
@@ -28,11 +31,6 @@ export interface Auth {
 	refreshTokens: RefreshTokens;
 	getAccessToken: GetAccessToken;
 	whenLoggedIn: WhenLoggedIn;
-}
-
-export interface OAuthTokens {
-	accessToken: string;
-	refreshToken: string;
 }
 
 export interface TokenStorage {
