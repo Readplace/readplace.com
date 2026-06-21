@@ -37,14 +37,16 @@ describe("initExchangeGoogleCode", () => {
 
 		assert.equal(receivedUrl, "https://oauth2.googleapis.com/token");
 		assert.equal(receivedInit?.method, "POST");
-		const headers = receivedInit?.headers as Record<string, string>;
-		assert.equal(headers["Content-Type"], "application/x-www-form-urlencoded");
-		const body = new URLSearchParams(receivedInit?.body as string);
-		assert.equal(body.get("code"), "auth-code-789");
-		assert.equal(body.get("client_id"), "client-id-123");
-		assert.equal(body.get("client_secret"), "client-secret-456");
-		assert.equal(body.get("redirect_uri"), "https://app.test/auth/google/callback");
-		assert.equal(body.get("grant_type"), "authorization_code");
+		const headers = new Headers(receivedInit?.headers);
+		assert.equal(headers.get("Content-Type"), "application/x-www-form-urlencoded");
+		const body = receivedInit?.body;
+		assert(typeof body === "string");
+		const params = new URLSearchParams(body);
+		assert.equal(params.get("code"), "auth-code-789");
+		assert.equal(params.get("client_id"), "client-id-123");
+		assert.equal(params.get("client_secret"), "client-secret-456");
+		assert.equal(params.get("redirect_uri"), "https://app.test/auth/google/callback");
+		assert.equal(params.get("grant_type"), "authorization_code");
 	});
 
 	it("decodes the id_token payload into the branded google identity", async () => {
