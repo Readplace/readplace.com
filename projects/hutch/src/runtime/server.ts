@@ -128,7 +128,7 @@ import { initMcpServer } from "./web/mcp/mcp-server";
 import { initMcpRoutes } from "./web/mcp/mcp.routes";
 import { buildMcpServerCard } from "./web/mcp/server-card";
 import { initResolveSaveAccess } from "./web/mcp/save-access";
-import { saveArticleFromUrl } from "./web/shared/save-article/save-article-from-url";
+import { initSaveArticleFromUrl } from "./web/shared/save-article/save-article-from-url";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
@@ -317,7 +317,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			}
 			try {
 				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-				const { saved } = await saveArticleFromUrl(deps, {
+				const { saved } = await initSaveArticleFromUrl(deps)({
 					userId,
 					url: validation.url,
 					freshness,

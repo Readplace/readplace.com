@@ -17,7 +17,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "@packages/web-shell";
-import { saveArticleFromUrl, type SaveArticleFromUrlDependencies } from "../../shared/save-article/save-article-from-url";
+import { initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "../../shared/save-article/save-article-from-url";
 import type { AnalyticsEvent } from "../../middleware/analytics";
 import { hashIp } from "../../middleware/analytics";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
@@ -278,7 +278,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 				batch.map((url) =>
 					deps
 						.refreshArticleIfStale({ url })
-						.then((freshness) => saveArticleFromUrl(deps, { userId, url, freshness }))
+						.then((freshness) => initSaveArticleFromUrl(deps)({ userId, url, freshness }))
 						.catch((error: unknown) => {
 							deps.logError(
 								`Failed to import url=${url}`,
