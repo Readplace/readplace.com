@@ -50,12 +50,16 @@ function allStepsComplete(ctx: OnboardingContext): boolean {
 	return ONBOARDING_STEPS.every((step) => step.isComplete(ctx));
 }
 
-export function OnboardingChecklist(ctx: OnboardingContext): string {
+export function OnboardingChecklist(
+	ctx: OnboardingContext,
+	options: { dismissed?: boolean } = {},
+): string {
 	const steps = ONBOARDING_STEPS.map((step) => toStepDisplayModel(step, ctx));
 	const allComplete = allStepsComplete(ctx);
-	const stateClass = allComplete
+	const activeStateClass = allComplete
 		? "onboarding--complete"
 		: "onboarding--visible";
+	const stateClass = options.dismissed ? "onboarding--hidden" : activeStateClass;
 	return render(ONBOARDING_TEMPLATE, {
 		steps,
 		stateClass,

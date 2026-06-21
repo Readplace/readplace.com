@@ -83,13 +83,14 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 		content: "sort",
 	});
 
-	const onboardingHtml = options.onboardingDismissed
-		? ""
-		: OnboardingChecklist({
+	const onboardingHtml = OnboardingChecklist(
+		{
 			extensionInstalled: options.extensionInstalled,
 			extensionSavedArticle: options.extensionSavedArticle,
 			browser: options.browser,
-		});
+		},
+		{ dismissed: options.onboardingDismissed },
+	);
 
 	const banner: SubscriptionBannerState = vm.subscriptionBanner;
 	return {

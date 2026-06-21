@@ -209,4 +209,13 @@ describe("OnboardingChecklist", () => {
 		const steps = doc.querySelector("[data-test-onboarding-steps]");
 		assert.equal(steps, null);
 	});
+
+	it("renders the container hidden when dismissed", () => {
+		const doc = parse(OnboardingChecklist(contextWith(), { dismissed: true }));
+
+		const container = doc.querySelector("[data-test-onboarding]");
+		assert(container, "onboarding container must still be rendered when dismissed");
+		assert(container.classList.contains("onboarding--hidden"));
+		assert(!container.classList.contains("onboarding--visible"));
+	});
 });

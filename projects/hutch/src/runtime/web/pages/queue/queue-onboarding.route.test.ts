@@ -194,7 +194,7 @@ describe("Queue onboarding", () => {
 	 *   2. Dismiss cookie alone → onboarding re-renders with install-extension
 	 *      marked incomplete, so the user is prompted to install in this browser.
 	 */
-	it("does not render onboarding when dismiss cookie matches current version and extension is alive", async () => {
+	it("renders onboarding hidden when dismiss cookie matches current version and extension is alive", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth } = harness;
 		const agent = await loginAgent(harness.server, auth);
@@ -205,7 +205,8 @@ describe("Queue onboarding", () => {
 
 		const doc = new JSDOM(response.text).window.document;
 		const onboarding = doc.querySelector("[data-test-onboarding]");
-		expect(onboarding).toBeNull();
+		assert(onboarding, "onboarding container must still be rendered so visibility is encoded as a state class");
+		expect(onboarding.classList.contains("onboarding--hidden")).toBe(true);
 	});
 
 	it("re-renders onboarding when dismiss cookie is present but alive cookie is missing", async () => {
