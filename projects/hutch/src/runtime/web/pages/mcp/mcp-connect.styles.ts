@@ -88,4 +88,33 @@ export const MCP_CONNECT_STYLES = `
   color: var(--foreground);
   font-weight: 600;
 }
+
+.mcp-connect__examples {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcp-connect__example {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--foreground);
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+}
+
+.mcp-connect__example::before {
+  content: "“";
+  color: var(--muted-foreground);
+}
+
+.mcp-connect__example::after {
+  content: "”";
+  color: var(--muted-foreground);
+}
 `;

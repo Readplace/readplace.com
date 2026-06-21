@@ -57,6 +57,15 @@ const MCP_TOOLS = [
 	},
 ] as const;
 
+const GETTING_STARTED_PROMPT = "Connect my reading list to readplace.com/mcp.";
+
+const EXAMPLE_PROMPTS = [
+	"Save the top sources from your research to my Readplace.",
+	"What's the most relevant unread link in my Readplace about the war in Iran?",
+	"Save this page to my reading queue.",
+	"List everything I've saved but haven't read yet.",
+] as const;
+
 export function McpConnectPage(): PageBody {
 	return {
 		seo: {
@@ -68,6 +77,13 @@ export function McpConnectPage(): PageBody {
 		},
 		styles: MCP_CONNECT_STYLES,
 		bodyClass: "page-mcp-connect",
-		content: { html: render(MCP_CONNECT_TEMPLATE, { serverUrl: "https://readplace.com/mcp", tools: MCP_TOOLS }) },
+		content: {
+			html: render(MCP_CONNECT_TEMPLATE, {
+				serverUrl: "https://readplace.com/mcp",
+				gettingStartedPrompt: GETTING_STARTED_PROMPT,
+				tools: MCP_TOOLS,
+				examples: EXAMPLE_PROMPTS,
+			}),
+		},
 	};
 }

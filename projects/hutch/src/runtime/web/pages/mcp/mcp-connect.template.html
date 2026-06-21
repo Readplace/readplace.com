@@ -9,6 +9,24 @@
       </div>
       <p class="mcp-connect__note">Paste that URL into your assistant&rsquo;s connector settings. You sign in once with OAuth &mdash; your assistant never sees your password, and you can revoke access at any time from your account or the assistant&rsquo;s settings.</p>
 
+      <section class="mcp-connect__tool">
+        <h2 class="mcp-connect__tool-name">Getting started</h2>
+        <p class="mcp-connect__tool-req">If your assistant supports MCP, just ask it to connect &mdash; it walks you through the rest.</p>
+        <ul class="mcp-connect__examples">
+          <li class="mcp-connect__example">{{gettingStartedPrompt}}</li>
+        </ul>
+      </section>
+
+      <section class="mcp-connect__tool">
+        <h2 class="mcp-connect__tool-name">Once connected, ask away</h2>
+        <p class="mcp-connect__tool-req">Talk to your assistant in plain language &mdash; it maps your request onto the tools for you.</p>
+        <ul class="mcp-connect__examples">
+          {{#each examples}}
+          <li class="mcp-connect__example">{{this}}</li>
+          {{/each}}
+        </ul>
+      </section>
+
       {{#each tools}}
       <section class="mcp-connect__tool" data-test-tool="{{name}}">
         <h2 class="mcp-connect__tool-name">{{name}}</h2>
