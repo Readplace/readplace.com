@@ -77,6 +77,30 @@ describe("renderQueueCard", () => {
 		expect(status?.textContent).toBe("Read");
 	});
 
+	it("renders the site name as a visible link to the original URL when siteName is present", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(makeViewModel({ siteName: "Example Blog" }), {
+				isFirst: false,
+			}),
+		);
+		const link = parse(html).querySelector("[data-test-article-url]");
+		assert(link, "the url link must always be rendered");
+		expect(link.classList.contains("queue-article__url--empty")).toBe(false);
+		expect(link.textContent).toBe("Example Blog");
+		expect(link.getAttribute("href")).toBe("https://example.com/article");
+	});
+
+	it("renders the URL link in its empty state when siteName is blank", () => {
+		const html = renderQueueCard(
+			toQueueCardDisplayModel(makeViewModel({ siteName: "" }), {
+				isFirst: false,
+			}),
+		);
+		const link = parse(html).querySelector("[data-test-article-url]");
+		assert(link, "the url link must always be rendered even when siteName is blank");
+		expect(link.classList.contains("queue-article__url--empty")).toBe(true);
+	});
+
 	it("emits the polling htmx attributes when cardPollUrl is set", () => {
 		const html = renderQueueCard(
 			toQueueCardDisplayModel(
