@@ -436,7 +436,7 @@ function initProviders() {
 		reverseScheduledCancellation: devStripeSubscriptions.reverseScheduledCancellation,
 		stripePriceId: "price_dev_default",
 
-		...initLogEmail(),
+		...initLogEmail({ logger: HutchLogger.from(consoleLogger) }),
 		...initInMemoryEmailVerification(),
 		...initInMemoryPasswordReset(),
 		createCheckoutSession: devStripe.createCheckoutSession,

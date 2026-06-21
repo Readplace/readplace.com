@@ -1,9 +1,11 @@
+import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initLogEmail } from "./log-email";
 
 describe("initLogEmail", () => {
-	it("logs the email message to console", async () => {
-		const consoleSpy = jest.spyOn(console, "log").mockImplementation(() => {});
-		const { sendEmail } = initLogEmail();
+	it("logs the email message through the injected logger", async () => {
+		const infoSpy = jest.fn();
+		const logger = HutchLogger.from({ ...noopLogger, info: infoSpy });
+		const { sendEmail } = initLogEmail({ logger });
 
 		await sendEmail({
 			from: "sender@example.com",
@@ -12,7 +14,7 @@ describe("initLogEmail", () => {
 			html: "<p>Test</p>",
 		});
 
-		expect(consoleSpy).toHaveBeenCalledWith("[Email]", {
+		expect(infoSpy).toHaveBeenCalledWith("[Email]", {
 			from: "sender@example.com",
 			to: "recipient@example.com",
 			bcc: undefined,
@@ -21,7 +23,5 @@ describe("initLogEmail", () => {
 			html: "<p>Test</p>",
 			text: undefined,
 		});
-
-		consoleSpy.mockRestore();
 	});
 });
