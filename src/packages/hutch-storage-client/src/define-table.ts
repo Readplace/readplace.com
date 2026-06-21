@@ -87,7 +87,7 @@ export type DynamoTable<TSchema extends z.ZodObject> = {
  * accepted and normalized.
  */
 export function defineDynamoTable<TSchema extends z.ZodObject>(config: {
-	client: DynamoDBDocumentClient;
+	client: Pick<DynamoDBDocumentClient, "send">;
 	tableName: string;
 	schema: TSchema;
 }): DynamoTable<TSchema> {

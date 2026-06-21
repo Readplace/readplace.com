@@ -19,7 +19,7 @@ const RateLimitRow = z.object({ pk: z.string() });
  * window regardless of how many Lambda instances serve them concurrently.
  */
 export function initDynamoDbRateLimit(deps: {
-	client: DynamoDBDocumentClient;
+	client: Pick<DynamoDBDocumentClient, "send">;
 	tableName: string;
 	now: () => Date;
 }): { consumeRateLimit: ConsumeRateLimit } {
