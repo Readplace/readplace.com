@@ -1,10 +1,25 @@
 import assert from "node:assert/strict";
-import type { SQSEvent } from "aws-lambda";
+import type { Context, SQSEvent } from "aws-lambda";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initHandleSubscriptionCancellationScheduledHandler } from "./handle-subscription-cancellation-scheduled-handler";
 
 const USER_ID = UserIdSchema.parse("user-cancel-scheduled");
+
+const stubContext: Context = {
+	callbackWaitsForEmptyEventLoop: true,
+	functionName: "test",
+	functionVersion: "1",
+	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
+	memoryLimitInMB: "128",
+	awsRequestId: "test-request-id",
+	logGroupName: "/aws/lambda/test",
+	logStreamName: "test-stream",
+	getRemainingTimeInMillis: () => 30000,
+	done: () => {},
+	fail: () => {},
+	succeed: () => {},
+};
 
 function buildSqsEvent(records: Array<{ messageId: string; body: string }>): SQSEvent {
 	return {
@@ -62,7 +77,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 					}),
 				},
 			]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -92,7 +107,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 					}),
 				},
 			]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -121,7 +136,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 					}),
 				},
 			]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -147,7 +162,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 					}),
 				},
 			]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -166,7 +181,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 			buildSqsEvent([
 				{ messageId: "msg-schema", body: JSON.stringify({ detail: { userId: USER_ID } }) },
 			]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -194,7 +209,7 @@ describe("handle-subscription-cancellation-scheduled-handler", () => {
 				{ messageId: "msg-1", body },
 				{ messageId: "msg-2-dup", body },
 			]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
