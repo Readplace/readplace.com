@@ -1,15 +1,35 @@
 import type { AggregateField, Article } from "@packages/domain/article-aggregate";
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import { z } from "zod";
 import { initDynamoDbArticleStore } from "./dynamodb-article-store";
 
-type SendFn = DynamoDBDocumentClient["send"];
-
+/**
+ * 1. The DocumentClient `send` is a heavily-overloaded generic the test fake
+ *    cannot structurally satisfy; the single contained cast is the isolated
+ *    SDK-wrapper exception in CLAUDE.md "Avoid TypeScript Type Assertions".
+ *    Callers receive a fully-typed client so no per-call-site cast is needed.
+ */
 function createFakeClient(
 	impl: (input: unknown) => unknown,
-): Partial<DynamoDBDocumentClient> {
-	return {
-		send: (async (input: unknown) => impl(input)) as unknown as SendFn,
-	};
+): DynamoDBDocumentClient {
+	const send = async (input: unknown) => impl(input);
+	return { send } as unknown as DynamoDBDocumentClient /* 1 */;
+}
+
+const CapturedCommand = z.object({
+	input: z.object({
+		Key: z.record(z.string(), z.unknown()).optional(),
+		UpdateExpression: z.string().optional(),
+		ExpressionAttributeValues: z.record(z.string(), z.unknown()).optional(),
+	}),
+});
+
+function capturedCommand(received: unknown): z.infer<typeof CapturedCommand> {
+	return CapturedCommand.parse(received);
+}
+
+function jsonString(value: unknown): string {
+	return z.string().parse(value);
 }
 
 const TABLE = "test-articles";
@@ -49,7 +69,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 		it("returns undefined when no row exists for the URL", async () => {
 			const client = createFakeClient(() => ({ Item: undefined }));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -81,7 +101,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 			}));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -126,7 +146,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 			}));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -146,7 +166,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 			}));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -165,7 +185,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 			}));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -187,7 +207,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 			}));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -209,7 +229,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 			}));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -235,7 +255,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 			}));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -262,7 +282,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 			}));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -280,7 +300,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 		it("defaults missing fields to safe values so legacy rows load cleanly", async () => {
 			const client = createFakeClient(() => ({ Item: {} }));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -314,7 +334,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 			}));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -336,7 +356,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 			}));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -358,7 +378,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 			}));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -379,7 +399,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 			}));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -395,13 +415,13 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return { Item: { contentFetchedAt: "2026-01-01T00:00:00.000Z" } };
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
 			const article = await store.load("https://example.com/article?utm_source=x");
 
-			const command = received as { input: { Key?: Record<string, unknown> } };
+			const command = capturedCommand(received);
 			expect(command.input.Key).toEqual({ url: "example.com/article" });
 			expect(article?.url).toBe("https://example.com/article?utm_source=x");
 		});
@@ -415,7 +435,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 			}));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -439,7 +459,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 			}));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -456,7 +476,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				Item: { contentFetchedAt: "2026-01-01T00:00:00.000Z" },
 			}));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -476,7 +496,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				},
 			}));
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -497,7 +517,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -507,13 +527,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: REFRESH_WRITES,
 			});
 
-			const command = received as {
-				input: {
-					Key?: Record<string, unknown>;
-					UpdateExpression?: string;
-					ExpressionAttributeValues?: Record<string, unknown>;
-				};
-			};
+			const command = capturedCommand(received);
 			expect(command.input.Key).toEqual({ url: "example.com/article" });
 			expect(command.input.UpdateExpression).toContain("title = :title");
 			expect(command.input.UpdateExpression).toContain("siteName = :siteName");
@@ -549,7 +563,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -566,9 +580,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: REFRESH_WRITES,
 			});
 
-			const command = received as {
-				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain("bodyHash = :bh");
 			expect(command.input.ExpressionAttributeValues?.[":bh"]).toBe("c".repeat(64));
 		});
@@ -580,7 +592,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -590,9 +602,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: REFRESH_WRITES,
 			});
 
-			const command = received as {
-				input: { ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.ExpressionAttributeValues?.[":bh"]).toBeNull();
 		});
 
@@ -603,7 +613,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -615,9 +625,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: REFRESH_WRITES,
 			});
 
-			const command = received as {
-				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain(
 				"summaryPendingSince = :summaryPendingSince",
 			);
@@ -633,7 +641,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -643,7 +651,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: ["summary"],
 			});
 
-			const command = received as { input: { UpdateExpression?: string } };
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain(
 				"summaryPendingSince",
 			);
@@ -657,7 +665,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -669,9 +677,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: ["crawl"],
 			});
 
-			const command = received as {
-				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain(
 				"crawlPendingSince = :crawlPendingSince",
 			);
@@ -687,7 +693,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -697,7 +703,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: ["crawl"],
 			});
 
-			const command = received as { input: { UpdateExpression?: string } };
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toMatch(/REMOVE.*crawlPendingSince/);
 		});
 
@@ -708,7 +714,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -718,9 +724,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: REFRESH_WRITES,
 			});
 
-			const command = received as {
-				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).not.toContain("crawlStatus");
 			expect(command.input.UpdateExpression).not.toContain("crawlFailureReason");
 			expect(command.input.UpdateExpression).not.toContain(
@@ -735,7 +739,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -753,9 +757,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: REFRESH_WRITES,
 			});
 
-			const command = received as {
-				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain("summary = :summary");
 			expect(command.input.UpdateExpression).toContain(
 				"summaryExcerpt = :summaryExcerpt",
@@ -789,7 +791,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -799,9 +801,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: REFRESH_WRITES,
 			});
 
-			const command = received as {
-				input: { ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.ExpressionAttributeValues?.[":summaryExcerpt"]).toBeNull();
 			expect(
 				command.input.ExpressionAttributeValues?.[":summaryInputTokens"],
@@ -818,7 +818,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -830,9 +830,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: REFRESH_WRITES,
 			});
 
-			const command = received as {
-				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain(
 				"summaryFailureReason = :summaryFailureReason",
 			);
@@ -845,9 +843,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			);
 			expect(
 				JSON.parse(
-					command.input.ExpressionAttributeValues?.[
-						":summaryFailureReason"
-					] as string,
+					jsonString(command.input.ExpressionAttributeValues?.[":summaryFailureReason"]),
 				),
 			).toEqual({ kind: "model-overload" });
 		});
@@ -859,7 +855,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -871,9 +867,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: REFRESH_WRITES,
 			});
 
-			const command = received as {
-				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain(
 				"summarySkippedReason = :summarySkippedReason",
 			);
@@ -896,7 +890,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -906,9 +900,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: REFRESH_WRITES,
 			});
 
-			const command = received as {
-				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain(
 				"REMOVE summarySkippedReason, summaryFailureReason",
 			);
@@ -925,7 +917,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -942,12 +934,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: REFRESH_WRITES,
 			});
 
-			const command = received as {
-				input: {
-					UpdateExpression?: string;
-					ExpressionAttributeValues?: Record<string, unknown>;
-				};
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain(
 				"canonicalContentHash = :cch",
 			);
@@ -963,7 +950,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -975,9 +962,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: REFRESH_WRITES,
 			});
 
-			const command = received as {
-				input: { ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.ExpressionAttributeValues?.[":cch"]).toBeNull();
 		});
 
@@ -988,7 +973,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -1004,12 +989,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: ["summary"],
 			});
 
-			const command = received as {
-				input: {
-					UpdateExpression?: string;
-					ExpressionAttributeValues?: Record<string, unknown>;
-				};
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain(
 				"summarySourceContentHash = :summarySourceContentHash",
 			);
@@ -1025,7 +1005,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -1037,7 +1017,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: ["summary"],
 			});
 
-			const command = received as { input: { UpdateExpression?: string } };
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toMatch(
 				/REMOVE.*summarySourceContentHash/,
 			);
@@ -1050,7 +1030,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -1068,9 +1048,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: REFRESH_WRITES,
 			});
 
-			const command = received as {
-				input: { ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.ExpressionAttributeValues?.[":etag"]).toBeNull();
 			expect(command.input.ExpressionAttributeValues?.[":lm"]).toBeNull();
 			expect(command.input.ExpressionAttributeValues?.[":img"]).toBeNull();
@@ -1085,7 +1063,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -1095,9 +1073,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: ["crawl", "summary"],
 			});
 
-			const command = received as {
-				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain(
 				"aggregateTransitionName = :atn",
 			);
@@ -1115,7 +1091,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -1128,9 +1104,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: ["crawl", "summary"],
 			});
 
-			const command = received as {
-				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain(
 				"crawlStatus = :crawlStatus",
 			);
@@ -1146,9 +1120,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			);
 			expect(
 				JSON.parse(
-					command.input.ExpressionAttributeValues?.[
-						":crawlFailureReason"
-					] as string,
+					jsonString(command.input.ExpressionAttributeValues?.[":crawlFailureReason"]),
 				),
 			).toEqual({ kind: "exhausted-retries", receiveCount: 4 });
 		});
@@ -1160,7 +1132,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -1173,17 +1145,13 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: ["crawl", "summary"],
 			});
 
-			const command = received as {
-				input: { ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.ExpressionAttributeValues?.[":summaryStatus"]).toBe(
 				"failed",
 			);
 			expect(
 				JSON.parse(
-					command.input.ExpressionAttributeValues?.[
-						":summaryFailureReason"
-					] as string,
+					jsonString(command.input.ExpressionAttributeValues?.[":summaryFailureReason"]),
 				),
 			).toEqual({ kind: "crawl-failed" });
 		});
@@ -1195,7 +1163,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -1208,9 +1176,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: ["crawl", "summary"],
 			});
 
-			const command = received as {
-				input: { UpdateExpression?: string };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).not.toContain("title = :title");
 			expect(command.input.UpdateExpression).not.toContain(
 				"contentFetchedAt = :cfa",
@@ -1228,7 +1194,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -1243,9 +1209,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: ["crawl"],
 			});
 
-			const command = received as {
-				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain(
 				"crawlUnsupportedReason = :crawlUnsupportedReason",
 			);
@@ -1257,9 +1221,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 			);
 			expect(
 				JSON.parse(
-					command.input.ExpressionAttributeValues?.[
-						":crawlUnsupportedReason"
-					] as string,
+					jsonString(command.input.ExpressionAttributeValues?.[":crawlUnsupportedReason"]),
 				),
 			).toEqual({ kind: "non-html-content", contentType: "application/pdf" });
 		});
@@ -1271,7 +1233,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -1281,9 +1243,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: ["crawl"],
 			});
 
-			const command = received as {
-				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain(
 				"crawlStatus = :crawlStatus",
 			);
@@ -1303,7 +1263,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -1313,9 +1273,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: ["crawl"],
 			});
 
-			const command = received as {
-				input: { UpdateExpression?: string; ExpressionAttributeValues?: Record<string, unknown> };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain(
 				"crawlStatus = :crawlStatus",
 			);
@@ -1334,7 +1292,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -1347,9 +1305,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: ["crawl"],
 			});
 
-			const command = received as {
-				input: { UpdateExpression?: string };
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).not.toContain(
 				"summaryStatus = :summaryStatus",
 			);
@@ -1365,7 +1321,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -1378,12 +1334,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: ["summary", "summaryAutoHeal"],
 			});
 
-			const command = received as {
-				input: {
-					UpdateExpression?: string;
-					ExpressionAttributeValues?: Record<string, unknown>;
-				};
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toContain(
 				"summaryAutoHealAttempts = :summaryAutoHealAttempts",
 			);
@@ -1405,7 +1356,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				return {};
 			});
 			const { store } = initDynamoDbArticleStore({
-				client: client as DynamoDBDocumentClient,
+				client,
 				tableName: TABLE,
 			});
 
@@ -1418,12 +1369,7 @@ describe("initDynamoDbArticleStore (unit)", () => {
 				writes: ["summary", "summaryAutoHeal"],
 			});
 
-			const command = received as {
-				input: {
-					UpdateExpression?: string;
-					ExpressionAttributeValues?: Record<string, unknown>;
-				};
-			};
+			const command = capturedCommand(received);
 			expect(command.input.UpdateExpression).toMatch(
 				/REMOVE.*summaryAutoHealLastAttemptAt/,
 			);
