@@ -1,5 +1,5 @@
 <div class="queue-article{{unreadClass}}" data-test-article="{{id}}"{{#if isFirst}} id="latest-saved"{{/if}}{{#if cardPollUrl}} hx-get="{{cardPollUrl}}" hx-trigger="every 3s" hx-target="this" hx-swap="outerHTML"{{/if}} data-card-status="{{cardStatus}}">
-	{{!-- onerror is a vestigial safety net for legacy DynamoDB rows whose imageUrl still points at an external host that can 404 over time. New saves go through the S3-only thumbnail path in @packages/crawl-article, so once a backfill migration rewrites every legacy row to a CDN URL, this onerror (and the paired onload) can be deleted. --}}
+	{{!-- onerror/onload defend against legacy DynamoDB rows whose imageUrl points at an external host that can 404 over time; a broken image removes its container instead of showing a placeholder. New saves use the S3-only thumbnail path in @packages/crawl-article. --}}
 	{{#if imageUrl}}<a href="{{linkUrl}}" class="queue-article__thumbnail-link" tabindex="-1" aria-hidden="true"><img class="queue-article__thumbnail" src="{{imageUrl}}" alt="" onload="this.parentElement.classList.add('queue-article__thumbnail-link--loaded')" onerror="this.parentElement.remove()"></a>{{/if}}
 	<div class="queue-article__content">
 		<div class="queue-article__title-row">
