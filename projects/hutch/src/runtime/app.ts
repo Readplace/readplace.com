@@ -21,9 +21,12 @@ import { initReadabilityParser, linkedinPreParser, mediumPreParser, theInformati
 import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 import {
 	createOAuthModel,
+	initInMemoryOAuthClients,
 	initInMemoryOAuthModel,
 } from "@packages/test-fixtures/providers/oauth";
 import { initDynamoDbOAuthModel } from "./providers/oauth/dynamodb-oauth-model";
+import { initDynamoDbOAuthClients } from "./providers/oauth/dynamodb-oauth-clients";
+import { initOAuthClientLookup } from "@packages/domain/oauth";
 import { createValidateAccessToken } from "@packages/test-fixtures/providers/oauth";
 import { initLogEmail } from "./providers/email/log-email";
 import { initResendEmail } from "./providers/email/resend-email";
@@ -161,7 +164,15 @@ function initProviders() {
 			],
 			logError,
 		});
-		const oauthModel = initDynamoDbOAuthModel({ client, tableName: oauthTable, findUserById: auth.findUserById });
+		const oauthClients = initDynamoDbOAuthClients({ client, tableName: oauthTable, now: () => new Date() });
+		const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });
+		const oauthModel = initDynamoDbOAuthModel({
+			client,
+			tableName: oauthTable,
+			findUserById: auth.findUserById,
+			findClient: oauthClientLookup.findClient,
+			markClientActive: oauthClientLookup.markClientActive,
+		});
 		const summaryStore = initDynamoDbGeneratedSummary({ client, tableName: articlesTable });
 		const crawlStore = initDynamoDbArticleCrawl({ client, tableName: articlesTable });
 		const { publishEvent } = initEventBridgePublisher({
@@ -250,6 +261,7 @@ function initProviders() {
 			login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
 			signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
 			forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
+			oauthRegister: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_REGISTER")),
 		};
 
 		return {
@@ -272,6 +284,9 @@ function initProviders() {
 			googleAuth,
 			oauthModel,
 			validateAccessToken: createValidateAccessToken(oauthModel),
+			findOAuthClient: oauthClientLookup.findClient,
+			validateOAuthRedirectUri: oauthClientLookup.validateRedirectUri,
+			registerOAuthClient: oauthClients.registerClient,
 			publishLinkSaved,
 			publishRecrawlLinkInitiated,
 			publishSaveAnonymousLink,
@@ -297,7 +312,13 @@ function initProviders() {
 
 	const auth = initInMemoryAuth({ hashPassword, verifyPassword });
 	const articleStore = initInMemoryArticleStore();
-	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), { findUserById: auth.findUserById });
+	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });
+	const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });
+	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), {
+		findUserById: auth.findUserById,
+		findClient: oauthClientLookup.findClient,
+		markClientActive: oauthClientLookup.markClientActive,
+	});
 	const devStripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const devStripeSubscriptions = initInMemoryStripeSubscriptions();
 	const devPendingSignup = initInMemoryPendingSignup();
@@ -419,6 +440,7 @@ function initProviders() {
 		login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
 		signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
 		forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
+		oauthRegister: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_REGISTER")),
 	};
 
 	return {
@@ -446,6 +468,9 @@ function initProviders() {
 		googleAuth,
 		oauthModel,
 		validateAccessToken: createValidateAccessToken(oauthModel),
+		findOAuthClient: oauthClientLookup.findClient,
+		validateOAuthRedirectUri: oauthClientLookup.validateRedirectUri,
+		registerOAuthClient: oauthClients.registerClient,
 		publishLinkSaved,
 		publishRecrawlLinkInitiated,
 		publishSaveAnonymousLink,

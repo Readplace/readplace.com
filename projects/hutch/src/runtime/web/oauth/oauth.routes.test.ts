@@ -7,8 +7,11 @@ import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+import { initInMemoryRateLimit } from "@packages/test-fixtures/providers/rate-limit";
 
 import type { UserId } from "@packages/domain/user";
+
+const CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback";
 
 function generatePKCE() {
 	const verifier = randomBytes(32).toString("base64url");
@@ -405,6 +408,276 @@ describe("OAuth routes", () => {
 			expect(response.status).toBe(200);
 			expect(response.text).toContain("Authorization Complete");
 			expect(response.text).toContain("You may close this window");
+		});
+	});
+
+	describe("POST /oauth/register", () => {
+		it("returns 201 with RFC 7591 metadata, no-store, and no client_secret", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: [CLAUDE_CALLBACK], client_name: "Claude" });
+
+			expect(response.status).toBe(201);
+			expect(response.headers["cache-control"]).toBe("no-store");
+			expect(typeof response.body.client_id).toBe("string");
+			expect(typeof response.body.client_id_issued_at).toBe("number");
+			expect(response.body.client_name).toBe("Claude");
+			expect(response.body.redirect_uris).toEqual([CLAUDE_CALLBACK]);
+			expect(response.body.grant_types).toEqual(["authorization_code", "refresh_token"]);
+			expect(response.body.response_types).toEqual(["code"]);
+			expect(response.body.token_endpoint_auth_method).toBe("none");
+			expect(response.body).not.toHaveProperty("client_secret");
+		});
+
+		it("accepts loopback redirect URIs (127.0.0.1 and [::1])", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const ipv4 = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: ["http://127.0.0.1:8080/cb"] });
+			const ipv6 = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: ["http://[::1]:8080/cb"] });
+
+			expect(ipv4.status).toBe(201);
+			expect(ipv6.status).toBe(201);
+		});
+
+		it("rejects a body with no redirect_uris as invalid_client_metadata", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).post("/oauth/register").send({});
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_client_metadata");
+		});
+
+		it("rejects more than 32 redirect_uris as invalid_client_metadata", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const redirect_uris = Array.from({ length: 33 }, (_, i) => `https://app.example/cb${i}`);
+			const response = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris });
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_client_metadata");
+		});
+
+		it("rejects a redirect_uri longer than 2048 chars as invalid_client_metadata", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const overlongUri = `https://app.example/cb?x=${"a".repeat(2048)}`;
+			const response = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: [overlongUri] });
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_client_metadata");
+		});
+
+		it("rejects a non-https, non-loopback redirect_uri as invalid_redirect_uri", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: ["http://evil.example/cb"] });
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_redirect_uri");
+		});
+
+		it("rejects a malformed redirect_uri as invalid_redirect_uri", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: ["not a url"] });
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_redirect_uri");
+		});
+
+		it("rejects token_endpoint_auth_method other than none", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).post("/oauth/register").send({
+				redirect_uris: [CLAUDE_CALLBACK],
+				token_endpoint_auth_method: "client_secret_basic",
+			});
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_client_metadata");
+		});
+
+		it("rejects unsupported grant_types and response_types", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const badGrant = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: [CLAUDE_CALLBACK], grant_types: ["password"] });
+			const badResponse = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: [CLAUDE_CALLBACK], response_types: ["token"] });
+
+			expect(badGrant.status).toBe(400);
+			expect(badGrant.body.error).toBe("invalid_client_metadata");
+			expect(badResponse.status).toBe(400);
+			expect(badResponse.body.error).toBe("invalid_client_metadata");
+		});
+
+		it("rate-limits registration per IP", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.rateLimit = {
+				consumeRateLimit: initInMemoryRateLimit({ now: () => new Date() }).consumeRateLimit,
+				rules: { ...fixture.rateLimit.rules, oauthRegister: { limit: 1, windowSeconds: 3600 } },
+			};
+			const harness = useApp(fixture);
+
+			const first = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: [CLAUDE_CALLBACK] });
+			const second = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: [CLAUDE_CALLBACK] });
+
+			expect(first.status).toBe(201);
+			expect(second.status).toBe(429);
+		});
+	});
+
+	describe("dynamic client end-to-end", () => {
+		it("registers, authorizes and exchanges a token for a self-registered client", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const pkce = generatePKCE();
+
+			const registration = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: [CLAUDE_CALLBACK], client_name: "Claude" });
+			expect(registration.status).toBe(201);
+			const clientId = registration.body.client_id;
+
+			await harness.auth.createUser({ email: "agent@example.com", password: "password123" });
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({
+				email: "agent@example.com",
+				password: "password123",
+			});
+
+			const authorizeResponse = await agent
+				.post("/oauth/authorize")
+				.type("form")
+				.send({
+					client_id: clientId,
+					redirect_uri: CLAUDE_CALLBACK,
+					response_type: "code",
+					code_challenge: pkce.challenge,
+					code_challenge_method: "S256",
+					state: "dyn-state",
+					action: "approve",
+				});
+
+			expect(authorizeResponse.status).toBe(302);
+			const code = new URL(authorizeResponse.headers.location).searchParams.get("code");
+			assert(code, "Authorization code must be present");
+
+			const tokenResponse = await request(harness.server)
+				.post("/oauth/token")
+				.type("form")
+				.send({
+					grant_type: "authorization_code",
+					code,
+					redirect_uri: CLAUDE_CALLBACK,
+					client_id: clientId,
+					code_verifier: pkce.verifier,
+				});
+
+			expect(tokenResponse.status).toBe(200);
+			expect(typeof tokenResponse.body.access_token).toBe("string");
+			expect(typeof tokenResponse.body.refresh_token).toBe("string");
+		});
+
+		it("rejects a redirect_uri the dynamic client did not register", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const registration = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: [CLAUDE_CALLBACK] });
+			const clientId = registration.body.client_id;
+
+			const response = await request(harness.server).get("/oauth/authorize").query({
+				client_id: clientId,
+				redirect_uri: "https://attacker.example/cb",
+				response_type: "code",
+				code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+				code_challenge_method: "S256",
+			});
+
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_request");
+		});
+	});
+
+	describe("built-in client on a dynamic loopback port", () => {
+		// The dev/e2e server binds a free port that is not in a built-in client's
+		// fixed redirect list; the extension login flow uses that exact origin. The
+		// model augments built-in redirect URIs for a 127.0.0.1 appOrigin so
+		// oauth2-server's exact match accepts it at authorize and token time.
+		const DYNAMIC_ORIGIN = "http://127.0.0.1:54321";
+		const DYNAMIC_REDIRECT = `${DYNAMIC_ORIGIN}/oauth/callback`;
+
+		it("completes authorize and token for a port outside the built-in list", async () => {
+			const harness = useApp(createDefaultTestAppFixture(DYNAMIC_ORIGIN));
+			const pkce = generatePKCE();
+			await harness.auth.createUser({ email: "loop@example.com", password: "password123" });
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({
+				email: "loop@example.com",
+				password: "password123",
+			});
+
+			const authorizeResponse = await agent
+				.post("/oauth/authorize")
+				.type("form")
+				.send({
+					client_id: TEST_CLIENT_ID,
+					redirect_uri: DYNAMIC_REDIRECT,
+					response_type: "code",
+					code_challenge: pkce.challenge,
+					code_challenge_method: "S256",
+					state: "loopback-state",
+					action: "approve",
+				});
+
+			expect(authorizeResponse.status).toBe(302);
+			const code = new URL(authorizeResponse.headers.location).searchParams.get("code");
+			assert(code, "authorize must redirect with a code, not reject the dynamic-port redirect_uri");
+
+			const tokenResponse = await request(harness.server)
+				.post("/oauth/token")
+				.type("form")
+				.send({
+					grant_type: "authorization_code",
+					code,
+					redirect_uri: DYNAMIC_REDIRECT,
+					client_id: TEST_CLIENT_ID,
+					code_verifier: pkce.verifier,
+				});
+
+			expect(tokenResponse.status).toBe(200);
+			expect(typeof tokenResponse.body.access_token).toBe("string");
+		});
+	});
+
+	describe("RFC 8707 resource parameter", () => {
+		it("is accepted on GET /oauth/authorize without breaking the flow", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			await harness.auth.createUser({ email: "res@example.com", password: "password123" });
+			const agent = request.agent(harness.server);
+			await agent.post("/login").type("form").send({
+				email: "res@example.com",
+				password: "password123",
+			});
+
+			const response = await agent.get("/oauth/authorize").query({
+				client_id: TEST_CLIENT_ID,
+				redirect_uri: TEST_REDIRECT_URI,
+				response_type: "code",
+				code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+				code_challenge_method: "S256",
+				resource: "http://localhost:3000/mcp",
+			});
+
+			expect(response.status).toBe(200);
 		});
 	});
 });

@@ -6,7 +6,7 @@ import Foundation
 /// server (`hutch-chrome-extension`) and the registered HTTPS callback URL,
 /// so it talks to production exactly like the browser extension does — no
 /// server-side changes are required. See the server's
-/// `src/packages/test-fixtures/src/providers/oauth/oauth-clients.ts`.
+/// `src/packages/domain/src/oauth/built-in-clients.ts`.
 enum AppConfig {
 	/// Default server. Overridable at runtime on the login screen and persisted
 	/// in the shared App Group so the share extension targets the same server.

@@ -65,6 +65,9 @@ import type {
 	MarkSubscriptionPendingCancellation,
 	MarkSummaryPending,
 	OAuthModel,
+	FindOAuthClient,
+	RegisterOAuthClient,
+	ValidateOAuthRedirectUri,
 	PublishCancelSubscriptionCommand,
 	PublishExportUserDataCommand,
 	PublishLinkSaved,
@@ -252,6 +255,9 @@ export interface FreshnessBundle {
 export interface OAuthBundle {
 	oauthModel: OAuthModel;
 	validateAccessToken: ValidateAccessToken;
+	findClient: FindOAuthClient;
+	validateRedirectUri: ValidateOAuthRedirectUri;
+	registerClient: RegisterOAuthClient;
 }
 
 export interface EmailBundle {

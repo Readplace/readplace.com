@@ -2,10 +2,18 @@ import express, { Router } from "express";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import ExpressOAuthServer from "@node-oauth/express-oauth-server";
-import type { OAuthModel } from "@packages/provider-contracts/oauth";
-import { getClient, validateRedirectUri } from "@packages/test-fixtures/providers/oauth";
+import type { RateLimitRule } from "@packages/domain/rate-limit";
+import type {
+	FindOAuthClient,
+	OAuthModel,
+	RegisterOAuthClient,
+	RegisterOAuthClientInput,
+	ValidateOAuthRedirectUri,
+} from "@packages/provider-contracts/oauth";
+import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
 import { Base } from "../base.component";
 import type { BuildBannerState } from "../banner-state";
+import { createRateLimitMiddleware } from "../middleware/rate-limit";
 import { sendComponent } from "@packages/web-shell";
 import { OAuthAuthorizePage, OAuthCallbackPage } from "./oauth.component";
 
@@ -28,9 +36,84 @@ const revokeBodySchema = z.object({
 	token: z.string().min(1),
 });
 
+const SUPPORTED_GRANTS = new Set(["authorization_code", "refresh_token"]);
+
+const registerBodySchema = z.object({
+	redirect_uris: z.array(z.string().max(2048)).min(1).max(32),
+	client_name: z.string().optional(),
+	grant_types: z.array(z.string()).optional(),
+	response_types: z.array(z.string()).optional(),
+	token_endpoint_auth_method: z.string().optional(),
+});
+
+type RegistrationError = { ok: false; error: string; errorDescription: string };
+
+function regError(error: string, errorDescription: string): RegistrationError {
+	return { ok: false, error, errorDescription };
+}
+
+/**
+ * RFC 7591 + RFC 8252: a public client may redirect to an https URI or to the
+ * loopback IP literal on any port (never the `localhost` name, which can resolve
+ * off-host). Everything else — http to a real host, custom schemes, `javascript:`
+ * — is rejected so a registration can't seed an open redirect.
+ */
+function isAllowedDynamicRedirectUri(uri: string): boolean {
+	let parsed: URL;
+	try {
+		parsed = new URL(uri);
+	} catch {
+		return false;
+	}
+	if (parsed.protocol === "https:") return true;
+	return (
+		parsed.protocol === "http:" &&
+		(parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]")
+	);
+}
+
+function validateRegistration(
+	body: unknown,
+): { ok: true; value: RegisterOAuthClientInput } | RegistrationError {
+	const parsed = registerBodySchema.safeParse(body);
+	if (!parsed.success) {
+		return regError("invalid_client_metadata", "invalid client registration metadata");
+	}
+	const data = parsed.data;
+	for (const uri of data.redirect_uris) {
+		if (!isAllowedDynamicRedirectUri(uri)) {
+			return regError("invalid_redirect_uri", `redirect_uri must be https or loopback: ${uri}`);
+		}
+	}
+	if (data.token_endpoint_auth_method && data.token_endpoint_auth_method !== "none") {
+		return regError("invalid_client_metadata", "token_endpoint_auth_method must be 'none'");
+	}
+	const grants = data.grant_types ?? ["authorization_code", "refresh_token"];
+	if (grants.some((grant) => !SUPPORTED_GRANTS.has(grant))) {
+		return regError("invalid_client_metadata", "unsupported grant_types");
+	}
+	if (data.response_types?.some((type) => type !== "code")) {
+		return regError("invalid_client_metadata", "unsupported response_types");
+	}
+	return {
+		ok: true,
+		value: {
+			redirectUris: data.redirect_uris,
+			clientName: data.client_name,
+			grants,
+			tokenEndpointAuthMethod: "none",
+		},
+	};
+}
+
 interface OAuthRouteDeps {
 	model: OAuthModel;
 	buildBannerState: BuildBannerState;
+	findClient: FindOAuthClient;
+	validateRedirectUri: ValidateOAuthRedirectUri;
+	registerClient: RegisterOAuthClient;
+	consumeRateLimit: ConsumeRateLimit;
+	registerRateLimitRule: RateLimitRule;
 }
 
 export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
@@ -45,6 +128,39 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 		},
 	});
 
+	router.post(
+		"/register",
+		createRateLimitMiddleware({
+			consumeRateLimit: deps.consumeRateLimit,
+			bucket: "oauth-register",
+			rule: deps.registerRateLimitRule,
+		}),
+		express.json(),
+		async (req: Request, res: Response) => {
+			const result = validateRegistration(req.body);
+			if (!result.ok) {
+				res
+					.status(400)
+					.set("Cache-Control", "no-store")
+					.json({ error: result.error, error_description: result.errorDescription });
+				return;
+			}
+			const client = await deps.registerClient(result.value);
+			res
+				.status(201)
+				.set("Cache-Control", "no-store")
+				.json({
+					client_id: client.id,
+					client_id_issued_at: client.clientIdIssuedAt,
+					client_name: client.name,
+					redirect_uris: client.redirectUris,
+					grant_types: client.grants,
+					response_types: ["code"],
+					token_endpoint_auth_method: client.tokenEndpointAuthMethod,
+				});
+		},
+	);
+
 	router.get("/authorize", async (req: Request, res: Response) => {
 		const parsed = authorizeQuerySchema.safeParse(req.query);
 		if (!parsed.success) {
@@ -57,7 +173,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 
 		const { client_id, redirect_uri, state } = parsed.data;
 
-		const client = getClient(client_id);
+		const client = await deps.findClient(client_id);
 		if (!client) {
 			res.status(400).json({
 				error: "invalid_client",
@@ -66,7 +182,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 			return;
 		}
 
-		if (!validateRedirectUri({ clientId: client_id, redirectUri: redirect_uri })) {
+		if (!(await deps.validateRedirectUri({ clientId: client_id, redirectUri: redirect_uri }))) {
 			res.status(400).json({
 				error: "invalid_request",
 				error_description: "Invalid redirect_uri",
@@ -94,7 +210,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 
 	router.post(
 		"/authorize",
-		(req: Request, res: Response, next) => {
+		async (req: Request, res: Response, next) => {
 			if (!req.userId) {
 				res.status(401).json({
 					error: "access_denied",
@@ -115,7 +231,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 
 				const { client_id, redirect_uri, state } = denyParsed.data;
 
-				if (!validateRedirectUri({ clientId: client_id, redirectUri: redirect_uri })) {
+				if (!(await deps.validateRedirectUri({ clientId: client_id, redirectUri: redirect_uri }))) {
 					res.status(400).json({
 						error: "invalid_request",
 						error_description: "Invalid redirect_uri",
@@ -123,8 +239,13 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 					return;
 				}
 
-				const errorUrl = `${redirect_uri}?error=access_denied${state ? `&state=${encodeURIComponent(state)}` : ""}`;
-				res.redirect(302, errorUrl);
+				// Build via URL so a registered redirect_uri that already carries a
+				// query string (dynamic clients may register one) gets `error` as a
+				// real parameter, not a malformed second `?`.
+				const denyUrl = new URL(redirect_uri);
+				denyUrl.searchParams.set("error", "access_denied");
+				if (state) denyUrl.searchParams.set("state", state);
+				res.redirect(302, denyUrl.toString());
 				return;
 			}
 

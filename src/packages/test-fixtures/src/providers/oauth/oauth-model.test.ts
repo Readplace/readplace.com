@@ -776,4 +776,91 @@ describe("createOAuthModel", () => {
 			expect(token1.length).toBe(64);
 		});
 	});
+
+	describe("injected client lookup", () => {
+		const DYN_ID = "dyn-x" as OAuthClientId;
+		const DYN_REDIRECTS = ["https://claude.ai/api/mcp/auth_callback"];
+		const DYN_GRANTS = ["authorization_code", "refresh_token"];
+		const dynamicClient: Client = {
+			id: DYN_ID,
+			grants: DYN_GRANTS,
+			redirectUris: DYN_REDIRECTS,
+		};
+
+		it("resolves clients through findClient when one is provided", async () => {
+			const model = createOAuthModel(initInMemoryOAuthModel(), {
+				findClient: async (id) =>
+					id === DYN_ID
+						? { id: DYN_ID, name: "Claude", redirectUris: DYN_REDIRECTS, grants: DYN_GRANTS }
+						: undefined,
+			});
+
+			const client = await model.getClient(DYN_ID, "");
+			assert(client, "dynamic client should resolve");
+			expect(client.id).toBe(DYN_ID);
+		});
+
+		it("returns null when findClient does not resolve the id", async () => {
+			const model = createOAuthModel(initInMemoryOAuthModel(), {
+				findClient: async () => undefined,
+			});
+			expect(await model.getClient("ghost", "")).toBeNull();
+		});
+
+		it("augments a built-in client's redirect URIs with a loopback appOrigin even when findClient is used", async () => {
+			// The dev/e2e server binds a dynamic loopback port that is not in the
+			// built-in registry; without this augmentation oauth2-server rejects the
+			// redirect_uri at token time and the extension login flow hangs.
+			const model = createOAuthModel(initInMemoryOAuthModel(), {
+				appOrigin: "http://127.0.0.1:54321",
+				findClient: async (id) =>
+					id === TEST_CLIENT_ID
+						? {
+								id: TEST_CLIENT_ID,
+								name: "Built-in",
+								redirectUris: ["http://127.0.0.1:3000/oauth/callback"],
+								grants: ["authorization_code", "refresh_token"],
+							}
+						: undefined,
+			});
+
+			const client = await model.getClient(TEST_CLIENT_ID, "");
+			assert(client, "built-in client should resolve");
+			expect(client.redirectUris).toContain("http://127.0.0.1:54321/oauth/callback");
+		});
+
+		it("does not augment a dynamically-registered (non-built-in) client", async () => {
+			const dynId = "dyn-abc";
+			const model = createOAuthModel(initInMemoryOAuthModel(), {
+				appOrigin: "http://127.0.0.1:54321",
+				findClient: async () => ({
+					id: dynId as OAuthClientId,
+					name: "Dynamic",
+					redirectUris: ["https://claude.ai/api/mcp/auth_callback"],
+					grants: ["authorization_code"],
+				}),
+			});
+
+			const client = await model.getClient(dynId, "");
+			assert(client, "dynamic client should resolve");
+			expect(client.redirectUris).toEqual(["https://claude.ai/api/mcp/auth_callback"]);
+		});
+
+		it("marks the client active on token issuance", async () => {
+			const marked: string[] = [];
+			const model = createOAuthModel(initInMemoryOAuthModel(), {
+				markClientActive: async (id) => {
+					marked.push(id);
+				},
+			});
+
+			await model.saveToken(
+				createTestToken({ client: dynamicClient }),
+				dynamicClient,
+				{ id: TEST_USER_ID },
+			);
+
+			expect(marked).toEqual([DYN_ID]);
+		});
+	});
 });

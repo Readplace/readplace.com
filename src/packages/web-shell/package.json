@@ -34,12 +34,10 @@
     "node-html-markdown": "2.0.0"
   },
   "devDependencies": {
-    "@types/express": "5.0.6",
     "@types/jest": "30.0.0",
     "@types/jsdom": "21.1.7",
     "c8": "11.0.0",
     "concurrently": "10.0.0",
-    "express": "5.2.1",
     "jest": "30.4.2",
     "jsdom": "26.1.0",
     "typescript": "6.0.3"

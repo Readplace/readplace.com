@@ -1180,9 +1180,6 @@ importers:
         specifier: 2.0.0
         version: 2.0.0
     devDependencies:
-      '@types/express':
-        specifier: 5.0.6
-        version: 5.0.6
       '@types/jest':
         specifier: 30.0.0
         version: 30.0.0
@@ -1195,9 +1192,6 @@ importers:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      express:
-        specifier: 5.2.1
-        version: 5.2.1
       jest:
         specifier: 30.4.2
         version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
@@ -2245,25 +2239,21 @@ packages:
     resolution: {integrity: sha512-QLnkJl3HkHsPfpLiNiAiMfpfAeFpic0U1diAxF8RqChOkCpQ7ulvyBVgE1UrQxvhd+gFQ3ed5RNDxtCRw8nTiw==}
     cpu: [arm64]
     os: [linux]
-    libc: [glibc]
 
   '@nx/nx-linux-arm64-musl@22.7.5':
     resolution: {integrity: sha512-cEP6KmwBgnb38+jTTaibWCjwXcHmigqhTfy0tN1be7WZr6bHxbqNLsXqKRN70PSNA3HouZcxw1cdRL8tqbPBBA==}
     cpu: [arm64]
     os: [linux]
-    libc: [musl]
 
   '@nx/nx-linux-x64-gnu@22.7.5':
     resolution: {integrity: sha512-tbaX1tZCSpGifDNBfDdEZAMxVF3Yg4bhFP/bm1needc0diqb+Zflc0u5tM5/6BWDMITQDwenJVsNiQ8ZdtJURA==}
     cpu: [x64]
     os: [linux]
-    libc: [glibc]
 
   '@nx/nx-linux-x64-musl@22.7.5':
     resolution: {integrity: sha512-H0M7csOZIgPT822LqjxSXzf4MXRND15vIkAQe3F3Jlr3Si8LC3tzbL52aVcRfgb8MF/xOB5U47mSwxWt1M2bPQ==}
     cpu: [x64]
     os: [linux]
-    libc: [musl]
 
   '@nx/nx-win32-arm64-msvc@22.7.5':
     resolution: {integrity: sha512-JTcZch9YAnDL1gbhqePz3DZ4x7iYemLn1yJzrjbbXAmXju2eiiJiZvJJHbV06+SP9HKXDT8RjTKuAWTdVxnHug==}
