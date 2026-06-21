@@ -1,6 +1,6 @@
 import type { Context, SQSEvent } from "aws-lambda";
 import { noopLogger } from "@packages/hutch-logger";
-import type { UserId } from "@packages/domain/user";
+import { UserIdSchema } from "@packages/domain/user";
 import { initReaderReadyUsersNotificationFanoutHandler, type ReaderReadyUsersNotificationFanoutDeps } from "./reader-ready-fanout-handler";
 
 const URL = "https://example.com/article";
@@ -55,8 +55,8 @@ function createHandler(overrides: Partial<ReaderReadyUsersNotificationFanoutDeps
 
 describe("initReaderReadyUsersNotificationFanoutHandler", () => {
 	it("stamps succeededAt for every saver and dispatches a notify command only for savers who viewed while loading (hasSummary=true)", async () => {
-		const viewedSaver = { userId: "viewer" as UserId, viewedAt: new Date("2026-05-30T11:50:00.000Z") };
-		const neverViewedSaver = { userId: "never" as UserId, viewedAt: undefined };
+		const viewedSaver = { userId: UserIdSchema.parse("viewer"), viewedAt: new Date("2026-05-30T11:50:00.000Z") };
+		const neverViewedSaver = { userId: UserIdSchema.parse("never"), viewedAt: undefined };
 		const { handler, deps } = createHandler({
 			findUserArticlesByUrl: jest.fn().mockResolvedValue([viewedSaver, neverViewedSaver]),
 		});
@@ -76,7 +76,7 @@ describe("initReaderReadyUsersNotificationFanoutHandler", () => {
 	});
 
 	it("stamps succeededAt but dispatches nothing when the summary was skipped (hasSummary=false)", async () => {
-		const viewedSaver = { userId: "viewer" as UserId, viewedAt: new Date("2026-05-30T11:50:00.000Z") };
+		const viewedSaver = { userId: UserIdSchema.parse("viewer"), viewedAt: new Date("2026-05-30T11:50:00.000Z") };
 		const { handler, deps } = createHandler({
 			findUserArticlesByUrl: jest.fn().mockResolvedValue([viewedSaver]),
 		});
