@@ -1,4 +1,6 @@
-export type CheckoutSessionId = string & { readonly __brand: "CheckoutSessionId" };
+import type { $brand } from "zod";
+
+export type CheckoutSessionId = string & $brand<"CheckoutSessionId">;
 
 export interface CheckoutSession {
 	id: CheckoutSessionId;
