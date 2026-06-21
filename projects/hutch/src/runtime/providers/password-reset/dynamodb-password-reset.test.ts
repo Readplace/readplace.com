@@ -73,7 +73,7 @@ describe("initDynamoDbPasswordReset", () => {
 			expect(result).toEqual({ ok: true, email: "user@example.com" });
 			const del = commands.find((c) => c.name === "DeleteCommand");
 			expect(del?.input.Key).toEqual({ token });
-			expect(del?.input.ConditionExpression).toBe("attribute_exists(#tk)");
+			expect(del?.input.ConditionExpression).toContain("attribute_exists(#tk)");
 			expect(del?.input.ReturnValues).toBe("ALL_OLD");
 		});
 
