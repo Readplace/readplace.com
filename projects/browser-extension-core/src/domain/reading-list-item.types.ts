@@ -1,6 +1,5 @@
-export type ReadingListItemId = string & {
-	readonly __brand: "ReadingListItemId";
-};
+export type { ReadingListItemId } from "./reading-list-item-id";
+import type { ReadingListItemId } from "./reading-list-item-id";
 
 export interface ReadingListItem {
 	id: ReadingListItemId;

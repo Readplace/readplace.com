@@ -1,9 +1,8 @@
 import "../zod-config";
 import { z } from "zod";
-import type {
-	ReadingListItem,
-	ReadingListItemId,
-} from "../domain/reading-list-item.types";
+import type { HutchLogger } from "@packages/hutch-logger";
+import type { ReadingListItem } from "../domain/reading-list-item.types";
+import { ReadingListItemIdSchema } from "../domain/reading-list-item-id";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import type {
 	FindByUrl,
@@ -38,7 +37,7 @@ class NotSaveableError extends Error {
 }
 
 const SirenPropertiesSchema = z.object({
-	id: z.string(),
+	id: ReadingListItemIdSchema,
 	url: z.string(),
 	title: z.string(),
 	savedAt: z.string(),
@@ -180,7 +179,7 @@ function toReadingListItem(
 	const props = SirenPropertiesSchema.parse(entity.properties);
 	const readHref = findLinkHref(entity, "read");
 	return {
-		id: props.id as ReadingListItemId,
+		id: props.id,
 		url: props.url,
 		title: props.title,
 		savedAt: new Date(props.savedAt),
@@ -233,7 +232,9 @@ export function initSaveArticleUnderstanding(): Map<string, ActionHandler> {
 	return handlers;
 }
 
-export function initSaveHtmlUnderstanding(): Map<string, ActionHandler> {
+export function initSaveHtmlUnderstanding(deps: {
+	logger: HutchLogger;
+}): Map<string, ActionHandler> {
 	const handlers = new Map<string, ActionHandler>();
 	handlers.set("save-html", (sirenAction, context) => {
 		return async (fields) => {
@@ -270,7 +271,7 @@ export function initSaveHtmlUnderstanding(): Map<string, ActionHandler> {
 					throw new Error(`Save failed: ${response.status}`);
 				}
 				const fallbackAction = errorActions[0];
-				console.warn(errorParsed.data.properties.message);
+				deps.logger.warn(errorParsed.data.properties.message);
 				const fallbackBody: Record<string, string> = { url: fields.url };
 				if (fields.title) fallbackBody.title = fields.title;
 				const fallbackContentType = fallbackAction.type === undefined
@@ -304,6 +305,7 @@ export function initSaveHtmlUnderstanding(): Map<string, ActionHandler> {
 
 export function initSaveContentUnderstanding(deps: {
 	parsers: Record<string, ContentBodyBuilder>;
+	logger: HutchLogger;
 }): Map<string, ActionHandler> {
 	const handlers = new Map<string, ActionHandler>();
 	handlers.set("save-content", (sirenAction, context) => {
@@ -340,7 +342,7 @@ export function initSaveContentUnderstanding(deps: {
 					throw new Error(`Save failed: ${response.status}`);
 				}
 				const fallbackAction = errorActions[0];
-				console.warn(errorParsed.data.properties.message);
+				deps.logger.warn(errorParsed.data.properties.message);
 				const fallbackBody: Record<string, string> = { url: input.url };
 				if (input.title) fallbackBody.title = input.title;
 				const fallbackContentType = fallbackAction.type === undefined
@@ -597,6 +599,7 @@ export interface SirenReadingListDeps {
 	getAccessToken: () => Promise<string | null>;
 	fetchFn: typeof fetch;
 	onUnauthorized: () => Promise<void>;
+	logger: HutchLogger;
 }
 
 export function initSirenReadingList(deps: SirenReadingListDeps): {
@@ -607,12 +610,13 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 } {
 	const understandings = groupOf(
 		initSaveArticleUnderstanding(),
-		initSaveHtmlUnderstanding(),
+		initSaveHtmlUnderstanding({ logger: deps.logger }),
 		initSaveContentUnderstanding({
 			parsers: {
 				"application/pdf": pdfContentBody,
 				"text/html": htmlContentBody,
 			},
+			logger: deps.logger,
 		}),
 		initDeleteArticleUnderstanding(),
 		httpCacheable(initListArticlesUnderstanding()),
