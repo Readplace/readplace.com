@@ -1,10 +1,12 @@
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
-import type { UserId } from "@packages/domain/user";
+import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbArticleStore } from "./dynamodb-article-store";
 
-const USER = "abc123" as UserId;
+type SendFn = DynamoDBDocumentClient["send"];
+
+const USER = UserIdSchema.parse("abc123");
 const URL = "https://example.com/article";
 const RESOURCE_ID = "example.com/article";
 const ROUTE_ID = ReaderArticleHashId.from(URL).value;
@@ -12,7 +14,16 @@ const TWO_MINUTES = MinutesSchema.parse(2);
 
 interface CapturedCommand {
 	name: string;
-	input: Record<string, unknown>;
+	input: {
+		UpdateExpression?: string;
+		ConditionExpression?: string;
+		FilterExpression?: string;
+		IndexName?: string;
+		ScanIndexForward?: boolean;
+		Select?: string;
+		ExpressionAttributeValues?: Record<string, unknown>;
+		RequestItems?: Record<string, { ProjectionExpression?: string }>;
+	};
 }
 
 type CommandResponse = Record<string, unknown> | (() => Record<string, unknown>);
@@ -25,7 +36,7 @@ type CommandResponse = Record<string, unknown> | (() => Record<string, unknown>)
  * is invoked so a test can throw to simulate a failed conditional write. */
 function createFakeClient(
 	responses: Partial<Record<string, { queue?: CommandResponse[]; default?: CommandResponse }>> = {},
-): { client: DynamoDBDocumentClient; commands: CapturedCommand[] } {
+): { client: Partial<DynamoDBDocumentClient>; commands: CapturedCommand[] } {
 	const commands: CapturedCommand[] = [];
 	const queues = new Map<string, CommandResponse[]>();
 	for (const [name, spec] of Object.entries(responses)) {
@@ -33,22 +44,22 @@ function createFakeClient(
 	}
 	const resolve = (value: CommandResponse): Record<string, unknown> =>
 		typeof value === "function" ? value() : value;
-	const client = {
-		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+	const client: Partial<DynamoDBDocumentClient> = {
+		send: (async (command: { constructor: { name: string }; input: CapturedCommand["input"] }) => {
 			const name = command.constructor.name;
 			commands.push({ name, input: command.input });
 			const queue = queues.get(name);
 			if (queue && queue.length > 0) return resolve(queue.shift() as CommandResponse);
 			const fallback = responses[name]?.default;
 			return fallback ? resolve(fallback) : {};
-		}) as DynamoDBDocumentClient["send"],
+		}) as unknown as SendFn,
 	};
-	return { client: client as typeof client & DynamoDBDocumentClient, commands };
+	return { client, commands };
 }
 
-function initStore(client: DynamoDBDocumentClient) {
+function initStore(client: Partial<DynamoDBDocumentClient>) {
 	return initDynamoDbArticleStore({
-		client,
+		client: client as DynamoDBDocumentClient,
 		tableName: "articles",
 		userArticlesTableName: "user-articles",
 	});
@@ -89,9 +100,7 @@ describe("initDynamoDbArticleStore reader-ready columns", () => {
 		const update = commands.find((c) => c.name === "UpdateCommand");
 		expect(update?.input.UpdateExpression).toContain("SET viewedAt = :at");
 		expect(update?.input.ConditionExpression).toBeUndefined();
-		expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":at"]).toBe(
-			"2026-05-30T10:00:00.000Z",
-		);
+		expect(update?.input.ExpressionAttributeValues?.[":at"]).toBe("2026-05-30T10:00:00.000Z");
 	});
 
 	it("markReaderViewSucceeded writes succeededAt set-once via if_not_exists", async () => {
@@ -410,7 +419,7 @@ describe("initDynamoDbArticleStore findArticlesByUser", () => {
 		const firstQuery = commands.find((c) => c.name === "QueryCommand");
 		expect(firstQuery?.input.IndexName).toBe("userId-readAt-index");
 		expect(firstQuery?.input.FilterExpression).toBe("#status = :status");
-		expect((firstQuery?.input.ExpressionAttributeValues as Record<string, unknown>)[":status"]).toBe("read");
+		expect(firstQuery?.input.ExpressionAttributeValues?.[":status"]).toBe("read");
 		const pageQuery = commands.filter((c) => c.name === "QueryCommand")[1];
 		expect(pageQuery?.input.ScanIndexForward).toBe(true);
 		expect(result.articles[0]?.readAt).toEqual(new Date("2026-05-30T11:00:00.000Z"));
@@ -430,8 +439,8 @@ describe("initDynamoDbArticleStore findArticlesByUser", () => {
 		await initStore(client).findArticlesByUser({ userId: USER, excludeContent: true });
 
 		const batch = commands.find((c) => c.name === "BatchGetCommand");
-		const requestItems = batch?.input.RequestItems as Record<string, { ProjectionExpression?: string }>;
-		expect(requestItems.articles.ProjectionExpression).toBe(
+		const requestItems = batch?.input.RequestItems;
+		expect(requestItems?.articles.ProjectionExpression).toBe(
 			"#url, #routeId, #originalUrl, #title, #siteName, #excerpt, #wordCount, #imageUrl, #estimatedReadTime, #savedAt, #contentSourceTier",
 		);
 	});
@@ -504,7 +513,7 @@ describe("initDynamoDbArticleStore countArticlesByUser", () => {
 
 		const total = await initStore(client).countArticlesByUser({ userId: USER });
 
-		expect(commands.every((c) => (c.input as { Select?: string }).Select === "COUNT")).toBe(true);
+		expect(commands.every((c) => c.input.Select === "COUNT")).toBe(true);
 		expect(total).toBe(8);
 	});
 
