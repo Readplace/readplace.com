@@ -81,8 +81,7 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("authorPhoto");
-		expect(result?.bodyHtml).toContain("This is filler body content");
+		expect(result?.bodyHtml).toBe(`<h1>Headline</h1><div></div>${FILLER_PARAGRAPH}`);
 	});
 
 	it("activates and strips authorPhoto when data-testid is on a wrapper div (friends-link variant)", () => {
@@ -93,9 +92,7 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("authorPhoto");
-		expect(result?.bodyHtml).not.toContain("avatar.jpg");
-		expect(result?.bodyHtml).toContain("This is filler body content");
+		expect(result?.bodyHtml).toBe(`<h1>Headline</h1>${FILLER_PARAGRAPH}`);
 	});
 
 	it("activates when canonical URL contains medium.com", () => {
@@ -143,8 +140,7 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("5 min read");
-		expect(result?.bodyHtml).toContain("This is filler body content");
+		expect(result?.bodyHtml).toBe(`<h1>Headline</h1>${FILLER_PARAGRAPH}`);
 	});
 
 	it("falls back to document body when no semantic container exists and still strips chrome", () => {
@@ -157,8 +153,7 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).toContain("Loose body");
-		expect(result?.bodyHtml).not.toContain("authorPhoto");
+		expect(result?.bodyHtml).toBe(`<div></div><p>Loose body</p>${FILLER_PARAGRAPH}`);
 	});
 
 	it("returns undefined when stripping reduces the body below MIN_BODY_CHARS so default Readability handles it", () => {
@@ -183,10 +178,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("authorPhoto");
-		expect(result?.bodyHtml).not.toContain("5 min read");
-		expect(result?.bodyHtml).not.toContain("Jun 21, 2018");
-		expect(result?.bodyHtml).not.toContain('href="/author"');
+		expect(result?.bodyHtml).toBe(`<div></div>${FILLER_PARAGRAPH}`);
 	});
 
 	it("preserves the filler body content alongside the chrome stripping", () => {
@@ -233,7 +225,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("Jun 21, 2018");
+		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
 
 	it("strips 'Jun 21' (no year) formatted storyPublishDate inside its enclosing <p>", () => {
@@ -244,7 +236,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("Jun 21");
+		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
 
 	it("preserves body text that reads 'Jun 21, 2018' but has no data-testid", () => {
@@ -266,7 +258,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("authorPhoto");
+		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
 
 	it("strips authorPhoto when data-testid is on a wrapper div instead of the img", () => {
@@ -278,8 +270,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("authorPhoto");
-		expect(result?.bodyHtml).not.toContain("avatar.jpg");
+		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
 
 	it("strips author photo when data-testid is a suffixed variation like 'authorPhoto-v2'", () => {
@@ -291,8 +282,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("authorPhoto");
-		expect(result?.bodyHtml).not.toContain("avatar.jpg");
+		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
 
 	it("strips author photo when data-testid uses kebab-case 'author-photo'", () => {
@@ -303,7 +293,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("author-photo");
+		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
 
 	it("strips read time by text content when data-testid attribute is absent", () => {
@@ -314,7 +304,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("5 min read");
+		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
 
 	it("strips publish date by text content when data-testid attribute is absent", () => {
@@ -325,7 +315,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("Jun 21, 2018");
+		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
 
 	it("strips all authorPhoto elements when multiple are present", () => {
@@ -337,8 +327,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("authorPhoto");
-		expect(result?.bodyHtml).toContain("Body.");
+		expect(result?.bodyHtml).toBe(`<div></div><p>Body.</p><div></div>${FILLER_PARAGRAPH}`);
 	});
 });
 
@@ -352,8 +341,9 @@ describe("mediumPreParser.extract — picture tooltip", () => {
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("Press enter or click to view image in full size");
-		expect(result?.bodyHtml).toContain("<picture>");
+		expect(result?.bodyHtml).toBe(
+			`<figure><div role="button"><div><picture><img src="x.jpg"></picture></div></div></figure>${FILLER_PARAGRAPH}`,
+		);
 	});
 
 	it("preserves the picture tooltip text when it appears in body prose (no figure[role=button] ancestor)", () => {
@@ -380,7 +370,7 @@ describe("mediumPreParser.extract — claps separator '--'", () => {
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toMatch(/<p[^>]*><span[^>]*>\s*--\s*<\/span><\/p>/);
+		expect(result?.bodyHtml).toBe(`<div></div>${FILLER_PARAGRAPH}`);
 	});
 
 	it("preserves a <p><span>--</span></p> when no authorPhoto anchor is present", () => {
@@ -417,10 +407,9 @@ describe("mediumPreParser.extract — footer subscribe CTA", () => {
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).toContain("Body paragraph.");
-		expect(result?.bodyHtml).not.toContain("stories in your inbox");
-		expect(result?.bodyHtml).not.toContain("Join Medium for free");
-		expect(result?.bodyHtml).not.toContain("Remember me for faster sign in");
+		expect(result?.bodyHtml).toBe(
+			`<p>Body paragraph.</p><section></section>${FILLER_PARAGRAPH}`,
+		);
 	});
 
 	it("preserves a <p> that reads 'Get Mary's stories in your inbox' (CTA fingerprint requires an h2)", () => {
@@ -455,8 +444,7 @@ describe("mediumPreParser.extract — footer subscribe CTA", () => {
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("stories in your inbox");
-		expect(result?.bodyHtml).toContain("Body.");
+		expect(result?.bodyHtml).toBe(`<section></section><p>Body.</p>${FILLER_PARAGRAPH}`);
 	});
 
 	it("removes only the h2 when no wrapping section/div container exists", () => {
@@ -467,8 +455,7 @@ describe("mediumPreParser.extract — footer subscribe CTA", () => {
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("stories in your inbox");
-		expect(result?.bodyHtml).toContain("Body.");
+		expect(result?.bodyHtml).toBe(`<p>Body.</p>${FILLER_PARAGRAPH}`);
 	});
 
 	it("falls back to defensive sweep for 'Join Medium for free' / 'Remember me' outside the footer cluster", () => {
@@ -480,9 +467,9 @@ describe("mediumPreParser.extract — footer subscribe CTA", () => {
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("Join Medium for free");
-		expect(result?.bodyHtml).not.toContain("Remember me for faster sign in");
-		expect(result?.bodyHtml).toContain("Body.");
+		expect(result?.bodyHtml).toBe(
+			`<section></section><p>Body.</p>${FILLER_PARAGRAPH}`,
+		);
 	});
 });
 
@@ -495,9 +482,9 @@ describe("mediumPreParser.extract — narrow container body fallback", () => {
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).toContain("This is filler body content");
-		expect(result?.bodyHtml).not.toContain("authorPhoto");
-		expect(result?.bodyHtml).not.toContain("5 min read");
+		expect(result?.bodyHtml).toBe(
+			`\n\t\t\t<article></article>\n\t\t\t<div><h1>Headline</h1>${FILLER_PARAGRAPH}</div>\n\t\t`,
+		);
 		expect(result?.title).toBe("Headline");
 	});
 
@@ -509,9 +496,9 @@ describe("mediumPreParser.extract — narrow container body fallback", () => {
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).toContain("This is filler body content");
-		expect(result?.bodyHtml).not.toContain("authorPhoto");
-		expect(result?.bodyHtml).not.toContain("Jun 21, 2018");
+		expect(result?.bodyHtml).toBe(
+			`\n\t\t\t<article></article>\n\t\t\t<div>${FILLER_PARAGRAPH}</div>\n\t\t`,
+		);
 	});
 
 	it("returns undefined when even the body fallback is below MIN_BODY_CHARS", () => {
@@ -569,8 +556,9 @@ describe("mediumPreParser.extract — title and body preservation", () => {
 
 		const result = mediumPreParser.extract({ html });
 
-		expect(result?.bodyHtml).toContain("The subtitle dek that triggered the chrome leak.");
-		expect(result?.bodyHtml).not.toContain("5 min read");
+		expect(result?.bodyHtml).toBe(
+			`<h1>Headline</h1><h2>The subtitle dek that triggered the chrome leak.</h2><div></div><p>Body.</p>${FILLER_PARAGRAPH}`,
+		);
 	});
 
 	it("preserves multiple body paragraphs and non-footer h2 sub-headings verbatim", () => {
