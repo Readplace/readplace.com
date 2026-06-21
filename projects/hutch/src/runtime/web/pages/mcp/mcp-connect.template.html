@@ -1,0 +1,29 @@
+  <main class="mcp-connect">
+    <div class="mcp-connect__container">
+      <h1 class="mcp-connect__title">Connect Readplace to your AI assistant</h1>
+      <p class="mcp-connect__lead">Readplace runs an MCP server. Connect it once and your assistant can save pages to your reading queue and read your list back &mdash; right inside the conversation.</p>
+
+      <div class="mcp-connect__url" data-test-server-url>
+        <span class="mcp-connect__url-label">Server URL</span>
+        <code class="mcp-connect__url-value">{{serverUrl}}</code>
+      </div>
+      <p class="mcp-connect__note">Paste that URL into your assistant&rsquo;s connector settings. You sign in once with OAuth &mdash; your assistant never sees your password, and you can revoke access at any time from your account or the assistant&rsquo;s settings.</p>
+
+      {{#each tools}}
+      <section class="mcp-connect__tool" data-test-tool="{{name}}">
+        <h2 class="mcp-connect__tool-name">{{name}}</h2>
+        <p class="mcp-connect__tool-req">{{requirement}}</p>
+        <ol class="mcp-connect__steps">
+          {{#each steps}}
+          <li class="mcp-connect__step">{{this}}</li>
+          {{/each}}
+        </ol>
+      </section>
+      {{/each}}
+
+      <section class="mcp-connect__tool">
+        <h2 class="mcp-connect__tool-name">What your assistant can do</h2>
+        <p class="mcp-connect__tool-req">Once connected, your assistant gets two tools: <strong>save_link</strong> adds a page to your queue (the title, excerpt, and clean reader view fill in moments later), and <strong>list_queue</strong> reads back what you have saved, filtered to unread or already-read. Every page it saves gets the same reader view and summary as one you save yourself.</p>
+      </section>
+    </div>
+  </main>

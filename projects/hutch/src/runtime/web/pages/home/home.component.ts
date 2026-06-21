@@ -338,6 +338,13 @@ export function HomePage(params: {
 					description:
 						"Save any page with one click, Ctrl/Cmd+D, or right-click. The extension captures the full rendered page — picking the most complete version of the content over what a URL-only crawl would see. Available for Firefox and Chrome.",
 				},
+				{
+					name: "Connect Your AI Assistant",
+					description:
+						"Readplace runs an MCP server, so Claude, ChatGPT, Perplexity, and other AI assistants can save links to your queue and read your list back — right inside the conversation. One OAuth login and your assistant does the rest.",
+					linkHref: "/mcp",
+					linkLabel: "How to connect",
+				},
 			],
 			compactFeatures: [
 				{

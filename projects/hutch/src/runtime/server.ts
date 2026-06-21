@@ -151,6 +151,7 @@ import { linkHeaderMiddleware } from "./web/link-header.middleware";
 import { AGENT_SCOPES_SUPPORTED, buildAgentAuthMetadata, renderAuthMarkdown } from "./web/agent-auth";
 import { QuerystringFeatureToggle } from "./web/feature-toggle";
 import { HomePage } from "./web/pages/home";
+import { McpConnectPage } from "./web/pages/mcp";
 import { PrivacyPage } from "./web/pages/privacy";
 import { TermsPage } from "./web/pages/terms";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
@@ -559,6 +560,18 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	app.get("/.well-known/mcp/server-card.json", (_req: Request, res: Response) => {
 		res.json(buildMcpServerCard(dependencies.baseUrl));
+	});
+
+	// Browsers visiting /mcp get the human connection guide; MCP clients (which
+	// send Accept: application/json, text/event-stream — never text/html) fall
+	// through to the Streamable-HTTP transport below, preserving its 405/POST
+	// and 401 bootstrap behaviour unchanged.
+	app.get("/mcp", async (req: Request, res: Response, next: NextFunction) => {
+		if (!(req.headers.accept ?? "").includes("text/html")) {
+			next();
+			return;
+		}
+		sendComponent(req, res, Base(McpConnectPage(), await buildBannerState(req)));
 	});
 
 	app.use(

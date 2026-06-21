@@ -173,7 +173,16 @@ describe("GET /", () => {
 
 		const coreSection = doc.querySelector('[data-test-section="core-features"]');
 		const features = coreSection?.querySelectorAll("[data-test-feature]");
-		expect(features?.length).toBe(5);
+		expect(features?.length).toBe(6);
+	});
+
+	it("links the MCP feature to the /mcp connection guide", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const mcpLink = doc.querySelector('[data-test-feature-link="Connect Your AI Assistant"]');
+		expect(mcpLink?.getAttribute("href")).toBe("/mcp");
 	});
 
 	it("should render two demo videos: Desktop and Browser Extension", async () => {

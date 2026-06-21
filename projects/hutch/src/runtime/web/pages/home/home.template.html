@@ -113,6 +113,7 @@
           <div class="feature-card feature-card--featured" data-test-feature="{{name}}">
             <h3 class="feature-card__name">{{name}}</h3>
             <p class="feature-card__description">{{description}}</p>
+            {{#if linkHref}}<a class="feature-card__link" href="{{linkHref}}" data-test-feature-link="{{name}}">{{linkLabel}} &rarr;</a>{{/if}}
           </div>
           {{/each}}
         </div>
