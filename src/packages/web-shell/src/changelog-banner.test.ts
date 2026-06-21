@@ -152,7 +152,7 @@ describe("renderChangelogBannerShell", () => {
 		assert(banner, "the banner element must always render so layout stays stable");
 		expect(banner.classList.contains("changelog-banner--hidden")).toBe(true);
 		expect(banner.classList.contains("changelog-banner--visible")).toBe(false);
-		expect(banner.querySelector(".changelog-banner__hook")).toBeNull();
+		expect(banner.children.length).toBe(0);
 	});
 
 	it("uses role=status with a polite live region for assistive tech", () => {
