@@ -45,9 +45,8 @@ const sequencer = initSaveProgressSequencer({
 });
 
 browser.runtime.onMessage.addListener((raw) => {
-	const message = raw as PopupMessage;
-	if (message.type !== "save-progress") return undefined;
-	sequencer.enqueue(message.phase);
+	if (!isSaveProgressMessage(raw)) return undefined;
+	sequencer.enqueue(raw.phase);
 	return undefined;
 });
 
@@ -67,8 +66,22 @@ async function finishSavingProgress(): Promise<void> {
 	});
 }
 
-function send(message: PopupMessage): Promise<unknown> {
-	return browser.runtime.sendMessage(message);
+/** Isolated boundary wrapper: the single contained assertion for the untyped
+ * webextension-polyfill response, so call sites stay free of `as`. */
+function send<T>(message: PopupMessage): Promise<T> {
+	return browser.runtime.sendMessage(message) as Promise<T>;
+}
+
+function isSaveProgressMessage(
+	raw: unknown,
+): raw is Extract<PopupMessage, { type: "save-progress" }> {
+	return (
+		typeof raw === "object" &&
+		raw !== null &&
+		"type" in raw &&
+		raw.type === "save-progress" &&
+		"phase" in raw
+	);
 }
 
 async function performLogout() {
@@ -218,10 +231,10 @@ function renderLinks(items: ReadingListItem[]) {
 			const overlay = document.getElementById("spinner-overlay");
 			if (overlay) overlay.hidden = false;
 			try {
-				const result = (await send({
+				const result = await send<GuardedResult<RemoveUrlResult>>({
 					type: "remove-item",
 					id: item.id,
-				})) as GuardedResult<RemoveUrlResult>;
+				});
 
 				if (isNotLoggedIn(result)) {
 					await performLogout();
@@ -252,9 +265,9 @@ function filterItems(): ReadingListItem[] {
 }
 
 async function loadAllItems() {
-	const result = (await send({
+	const result = await send<GuardedResult<ReadingListItem[]>>({
 		type: "get-all-items",
-	})) as GuardedResult<ReadingListItem[]>;
+	});
 
 	if (isNotLoggedIn(result)) {
 		await performLogout();
@@ -340,10 +353,10 @@ async function saveAndShowList() {
 		return;
 	}
 
-	const checkResult = (await send({
+	const checkResult = await send<GuardedResult<ReadingListItem | null>>({
 		type: "check-url",
 		url: activeTab.url,
-	})) as GuardedResult<ReadingListItem | null>;
+	});
 
 	if (isNotLoggedIn(checkResult)) {
 		await performLogout();
@@ -359,12 +372,12 @@ async function saveAndShowList() {
 		return;
 	}
 
-	const saveResult = (await send({
+	const saveResult = await send<GuardedResult<SaveUrlResult>>({
 		type: "save-current-tab",
 		url: activeTab.url,
 		title: activeTab.title,
 		tabId: activeTab.tabId,
-	})) as GuardedResult<SaveUrlResult>;
+	});
 
 	if (isNotLoggedIn(saveResult)) {
 		await performLogout();
