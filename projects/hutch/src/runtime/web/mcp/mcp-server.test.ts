@@ -610,13 +610,11 @@ describe("initMcpServer", () => {
 
 	describe("tools/call app-only write tools", () => {
 		it("redirects set_article_status to the app without mutating", async () => {
-			const updateSpy = jest.fn();
 			const server = initMcpServer(fakeDeps());
 			const response = await call(server, 60, "set_article_status", {
 				id: "x".repeat(32),
 				status: "read",
 			});
-			expect(updateSpy).not.toHaveBeenCalled();
 			expect(response).toMatchObject({
 				id: 60,
 				result: {
