@@ -18,10 +18,9 @@ export interface TesseractChildProcess {
 	on(event: "close", listener: (exitCode: number | null) => void): void;
 }
 
-/** Spawns the `tesseract` binary with the given argv and returns the child so
- * the wrapper can stream stdout/stderr. Injected at the composition root from
- * `node:child_process` `spawn` so tests can fake the subprocess and exercise
- * every exit/error branch without a real Tesseract install. */
+/** Injected at the composition root from `node:child_process` `spawn` so tests
+ * can fake the subprocess and exercise every exit/error branch without a real
+ * Tesseract install. */
 export type SpawnTesseractProcess = (args: readonly string[]) => TesseractChildProcess;
 
 /* Tesseract loads every script pack passed via `-l` and `--psm 1` then runs

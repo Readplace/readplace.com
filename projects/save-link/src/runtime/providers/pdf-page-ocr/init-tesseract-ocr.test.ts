@@ -160,7 +160,7 @@ describe("initTesseractOcr", () => {
 		dir = makeFakeTessdataDir(["Latin.traineddata"]);
 		const runPageOcr = initTesseractOcr({
 			tessdataDir: dir,
-			spawnTesseractProcess: makeFakeSpawn({ stdout: "First & <b>bold</b>\n\n   \n\nSecond" }),
+			spawnTesseractProcess: makeFakeSpawn({ stdout: "First & <b>bold</b>\n\n   \n\nSecond\n\n" }),
 		});
 
 		const result = await runPageOcr({ images: [{ pngBuffer: Buffer.from("png") }] });
