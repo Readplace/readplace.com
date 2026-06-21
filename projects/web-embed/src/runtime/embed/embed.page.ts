@@ -4,6 +4,7 @@ import { sendComponent } from "@packages/web-shell";
 import { EmbedPage } from "./embed.component";
 import { PreviewPage } from "./preview.component";
 import { EMBED_ICON_SVG } from "./icon";
+import { EMBED_CLIENT_JS } from "./embed-client-script";
 
 export function initEmbedRoutes(deps: { appOrigin: string }): Router {
 	const embedOrigin = `${deps.appOrigin}/embed`;
@@ -30,6 +31,13 @@ export function initEmbedRoutes(deps: { appOrigin: string }): Router {
 			.type("image/svg+xml")
 			.set("Cache-Control", "public, max-age=31536000, immutable")
 			.send(EMBED_ICON_SVG);
+	});
+
+	router.get("/embed.client.js", (_req, res) => {
+		res
+			.type("text/javascript")
+			.set("Cache-Control", "public, max-age=31536000, immutable")
+			.send(EMBED_CLIENT_JS);
 	});
 
 	return router;

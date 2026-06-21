@@ -112,8 +112,18 @@ describe("GET /embed", () => {
 		expect(doc.querySelectorAll("button[data-copy]")).toHaveLength(4);
 	});
 
-	it("should include the copy-to-clipboard inline script", async () => {
+	it("should reference the copy-to-clipboard script same-origin, not inline", async () => {
 		const response = await request(makeServer()).get("/embed");
+		const doc = new JSDOM(response.text).window.document;
+		const script = doc.querySelector('script[src$="/embed/embed.client.js"]');
+		expect(script).not.toBeNull();
+		expect(response.text).not.toContain("navigator.clipboard");
+	});
+
+	it("should serve the copy-to-clipboard script same-origin as JavaScript", async () => {
+		const response = await request(makeServer()).get("/embed/embed.client.js");
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toContain("text/javascript");
 		expect(response.text).toContain("navigator.clipboard");
 	});
 
