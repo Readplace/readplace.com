@@ -35,15 +35,11 @@ import { test } from "node:test";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { type FailedRow, collectFailedRows } from "./collect-failed-rows";
 import { EXCLUDE_PATTERNS } from "./exclude-patterns";
-
-function requireEnv(name: string): string {
-	const value = process.env[name];
-	assert(value, `${name} env var is required`);
-	return value;
-}
+import { getEnv, requireEnv } from "./require-env";
 
 function parseLookbackDays(): number {
-	const raw = process.env.FAILED_ARTICLES_LOOKBACK_DAYS ?? "0";
+	const raw = getEnv("FAILED_ARTICLES_LOOKBACK_DAYS");
+	if (raw === undefined) return 0;
 	const parsed = Number(raw);
 	assert(
 		Number.isInteger(parsed) && parsed >= 0,
@@ -53,7 +49,7 @@ function parseLookbackDays(): number {
 }
 
 async function writeReportIfRequested(failed: FailedRow[]): Promise<void> {
-	const reportPath = process.env.FAILED_ARTICLES_REPORT_PATH;
+	const reportPath = getEnv("FAILED_ARTICLES_REPORT_PATH");
 	if (reportPath === undefined) return;
 	await writeFile(reportPath, `${JSON.stringify({ failed }, null, 2)}\n`, "utf8");
 }
