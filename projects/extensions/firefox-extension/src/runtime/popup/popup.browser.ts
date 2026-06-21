@@ -415,11 +415,11 @@ document.getElementById("login-button")?.addEventListener("click", async () => {
 	if (loginError) loginError.hidden = true;
 
 	try {
-		const result = (await send({ type: "login" })) as {
+		const result = await send<{
 			ok: boolean;
 			reason?: string;
 			error?: { message?: string };
-		};
+		}>({ type: "login" });
 		if (!result.ok) {
 			if (loginError) {
 				loginError.textContent = `Login failed: ${result.reason ?? "unknown"} — ${result.error?.message ?? ""}`;
