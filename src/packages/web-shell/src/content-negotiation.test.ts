@@ -1,7 +1,6 @@
-import type { Request } from "express";
-import { wantsMarkdown } from "./content-negotiation";
+import { type AcceptNegotiable, wantsMarkdown } from "./content-negotiation";
 
-function requestWithAccept(accept: string): Request {
+function requestWithAccept(accept: string): AcceptNegotiable {
 	const types = accept.split(",").map(entry => {
 		const [type, ...params] = entry.trim().split(";");
 		const qParam = params.find(p => p.trim().startsWith("q="));
@@ -17,7 +16,7 @@ function requestWithAccept(accept: string): Request {
 			}
 			return false;
 		},
-	} as unknown as Request;
+	};
 }
 
 describe("wantsMarkdown", () => {
@@ -46,7 +45,7 @@ describe("wantsMarkdown", () => {
 	});
 
 	it("returns false when no Accept header is present", () => {
-		const req = { get: () => undefined, accepts: () => false } as unknown as Request;
+		const req: AcceptNegotiable = { get: () => undefined, accepts: () => false };
 
 		expect(wantsMarkdown(req)).toBe(false);
 	});
