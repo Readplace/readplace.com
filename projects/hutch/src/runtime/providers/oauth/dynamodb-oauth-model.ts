@@ -33,7 +33,7 @@ const AuthCodeRow = z.object({
 	codeChallenge: z.string(),
 	codeChallengeMethod: z.enum(["S256", "plain"]),
 	scope: z.array(z.string()).optional(),
-	emailVerified: z.boolean().optional(),
+	emailVerified: z.boolean(),
 });
 
 const TokenRow = z.object({
@@ -45,7 +45,7 @@ const TokenRow = z.object({
 	clientId: z.string(),
 	userId: z.string(),
 	scope: z.array(z.string()).optional(),
-	emailVerified: z.boolean().optional(),
+	emailVerified: z.boolean(),
 });
 
 const RefreshIndexRow = z.object({
