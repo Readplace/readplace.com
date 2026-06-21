@@ -1180,9 +1180,6 @@ importers:
         specifier: 2.0.0
         version: 2.0.0
     devDependencies:
-      '@types/express':
-        specifier: 5.0.6
-        version: 5.0.6
       '@types/jest':
         specifier: 30.0.0
         version: 30.0.0
@@ -1195,9 +1192,6 @@ importers:
       concurrently:
         specifier: 10.0.0
         version: 10.0.0
-      express:
-        specifier: 5.2.1
-        version: 5.2.1
       jest:
         specifier: 30.4.2
         version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
