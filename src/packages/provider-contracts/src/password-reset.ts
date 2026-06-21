@@ -1,4 +1,10 @@
+import { z } from "zod";
+
 export type PasswordResetToken = string & { readonly __brand: "PasswordResetToken" };
+
+export const PasswordResetTokenSchema = z
+	.string()
+	.transform((s): PasswordResetToken => s as PasswordResetToken);
 
 export type CreatePasswordResetToken = (args: { email: string }) => Promise<PasswordResetToken>;
 
