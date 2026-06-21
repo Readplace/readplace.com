@@ -39,8 +39,6 @@ interface FakeState {
 	summary: GeneratedSummary | undefined;
 	content: string | undefined;
 	article: GlobalArticleData | null;
-	markCrawlPendingCalls: number;
-	markSummaryPendingCalls: number;
 }
 
 const FIXED_NOW = new Date("2026-04-25T12:00:00.000Z");
@@ -75,10 +73,6 @@ function initFakeDeps(initial: {
 		summary: initial.summary,
 		content: initial.content,
 		article: initial.article === undefined ? defaultFakeArticle() : initial.article,
-		// The reader never marks anything pending; these counters let the tests
-		// assert the pending-mark paths stay untouched.
-		markCrawlPendingCalls: 0,
-		markSummaryPendingCalls: 0,
 	};
 	const deps: ArticleReaderDeps = {
 		findArticleCrawlStatus: async () => state.crawl,
@@ -372,7 +366,7 @@ describe("initArticleReader", () => {
 		});
 
 		it("does NOT re-prime a legacy stub from the reader path (auto-heal removed; recovery is operator-driven via /admin/recrawl)", async () => {
-			const { state, deps } = initFakeDeps({
+			const { deps } = initFakeDeps({
 				crawl: undefined,
 				summary: undefined,
 				content: undefined,
@@ -384,8 +378,6 @@ describe("initArticleReader", () => {
 				pollUrlBuilder: makePollUrlBuilder(),
 			});
 
-			expect(state.markCrawlPendingCalls).toBe(0);
-			expect(state.markSummaryPendingCalls).toBe(0);
 			// crawl + summary stay undefined; the read-after-write race branch in
 			// shouldKeepPollingReader still emits a poll URL so the page keeps
 			// asking while the stale-check Lambda decides what to do.
@@ -393,40 +385,6 @@ describe("initArticleReader", () => {
 			expect(result.summary).toBeUndefined();
 			expect(result.readerPollUrl).toBe("/test/reader?poll=1");
 			expect(result.summaryPollUrl).toBe("/test/summary?poll=1");
-		});
-
-		it("does not re-prime when crawl is present but summary is missing", async () => {
-			const { state, deps } = initFakeDeps({
-				crawl: { status: "ready" },
-				summary: undefined,
-				content: "<p>body</p>",
-			});
-			const reader = initArticleReader(deps);
-
-			await reader.resolveReaderState({
-				article: makeSnapshot(),
-				pollUrlBuilder: makePollUrlBuilder(),
-			});
-
-			expect(state.markCrawlPendingCalls).toBe(0);
-			expect(state.markSummaryPendingCalls).toBe(0);
-		});
-
-		it("does not re-prime when summary is present but crawl is missing", async () => {
-			const { state, deps } = initFakeDeps({
-				crawl: undefined,
-				summary: { status: "ready", summary: "TL;DR" },
-				content: "<p>body</p>",
-			});
-			const reader = initArticleReader(deps);
-
-			await reader.resolveReaderState({
-				article: makeSnapshot(),
-				pollUrlBuilder: makePollUrlBuilder(),
-			});
-
-			expect(state.markCrawlPendingCalls).toBe(0);
-			expect(state.markSummaryPendingCalls).toBe(0);
 		});
 
 		it("emits readerPollUrl when crawl is undefined with no content (read-after-write race)", async () => {
