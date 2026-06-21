@@ -26,12 +26,23 @@ declare const __SERVER_URL__: string;
 const SERVER_URL = __SERVER_URL__;
 const CLIENT_ID = "hutch-firefox-extension";
 
+function isOAuthTokens(value: unknown): value is OAuthTokens {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"accessToken" in value &&
+		typeof value.accessToken === "string" &&
+		"refreshToken" in value &&
+		typeof value.refreshToken === "string"
+	);
+}
+
 const tokenStorage: TokenStorage = {
 	async getTokens(): Promise<OAuthTokens | null> {
 		const result = await browser.storage.local.get(STORAGE_KEY);
 		const raw = result[STORAGE_KEY];
-		if (!raw) return null;
-		return raw as OAuthTokens;
+		if (!isOAuthTokens(raw)) return null;
+		return raw;
 	},
 	async setTokens(tokens: OAuthTokens): Promise<void> {
 		await browser.storage.local.set({ [STORAGE_KEY]: tokens });
@@ -190,7 +201,7 @@ async function captureActiveTabHtml(message: {
 		),
 	]).catch(() => undefined);
 	if (captured && typeof captured === "object" && "rawHtml" in captured) {
-		const rawHtml = (captured as { rawHtml: unknown }).rawHtml;
+		const rawHtml = captured.rawHtml;
 		if (typeof rawHtml === "string" && rawHtml.length > 0) return rawHtml;
 	}
 	return undefined;
@@ -201,13 +212,37 @@ function broadcastSaveProgress(phase: SavePhase): void {
 	browser.runtime.sendMessage({ type: "save-progress", phase }).catch(() => {});
 }
 
+const POPUP_MESSAGE_TYPES = new Set([
+	"save-current-tab",
+	"save-progress",
+	"remove-item",
+	"check-url",
+	"get-all-items",
+	"login",
+	"logout",
+]);
+
+function hasStringType(value: unknown): value is { type: string } {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"type" in value &&
+		typeof value.type === "string"
+	);
+}
+
+function isPopupMessage(value: unknown): value is PopupMessage {
+	return hasStringType(value) && POPUP_MESSAGE_TYPES.has(value.type);
+}
+
 browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
-	if ((raw as { type: string }).type === "shortcut-pressed") {
+	if (hasStringType(raw) && raw.type === "shortcut-pressed") {
 		browser.browserAction.openPopup().catch((err) => logger.error(err));
 		return;
 	}
 
-	const message = raw as PopupMessage;
+	if (!isPopupMessage(raw)) return;
+	const message = raw;
 
 	corePromise
 		.then((core) => {
