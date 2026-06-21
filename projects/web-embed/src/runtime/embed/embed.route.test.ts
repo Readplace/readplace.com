@@ -127,6 +127,11 @@ describe("GET /embed", () => {
 		expect(response.text).toContain("navigator.clipboard");
 	});
 
+	it("should serve the copy-to-clipboard script with a revalidating cache so it can never go stale against the per-request HTML", async () => {
+		const response = await request(makeServer()).get("/embed/embed.client.js");
+		expect(response.headers["cache-control"]).toBe("public, max-age=0, must-revalidate");
+	});
+
 	it("should register / with the default indexable robots directive", async () => {
 		const response = await request(makeServer()).get("/embed");
 		const doc = new JSDOM(response.text).window.document;

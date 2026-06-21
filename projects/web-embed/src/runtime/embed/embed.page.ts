@@ -34,9 +34,14 @@ export function initEmbedRoutes(deps: { appOrigin: string }): Router {
 	});
 
 	router.get("/embed.client.js", (_req, res) => {
+		/** Revalidate, don't cache immutably: the page HTML is rendered fresh per
+		 * request and the script depends on its IDs/classes, so a stale-but-valid
+		 * copy would desync from the markup. The weak ETag res.send() emits keeps
+		 * returning visitors on cheap 304s. icon.svg stays immutable because it is
+		 * a canonical, content-stable URL embedded across the web. */
 		res
 			.type("text/javascript")
-			.set("Cache-Control", "public, max-age=31536000, immutable")
+			.set("Cache-Control", "public, max-age=0, must-revalidate")
 			.send(EMBED_CLIENT_JS);
 	});
 
