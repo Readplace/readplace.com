@@ -185,7 +185,7 @@ describe("Queue routes", () => {
 			expect(urlLink?.textContent).toBe("Example Blog");
 		});
 
-		it("should not render URL link when siteName is empty", async () => {
+		it("should hide the URL link when siteName is empty", async () => {
 			const skipFreshness: RefreshArticleIfStale = async () => ({ action: "skip" });
 			const harness = useApp({
 				...createDefaultTestAppFixture(TEST_APP_ORIGIN),
@@ -201,7 +201,12 @@ describe("Queue routes", () => {
 
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector("[data-test-article-url]")).toBeNull();
+			const card = doc.querySelector("[data-test-article-list] .queue-article");
+			assert(card, "the saved article card must be rendered");
+			expect(card.querySelector("[data-test-article-title]")).not.toBeNull();
+			const urlLink = card.querySelector("[data-test-article-url]");
+			assert(urlLink, "the url link element must always be rendered");
+			expect(urlLink.classList.contains("queue-article__url--empty")).toBe(true);
 		});
 	});
 

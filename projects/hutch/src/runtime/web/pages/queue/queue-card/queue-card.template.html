@@ -7,7 +7,7 @@
 		</div>
 		<div class="queue-article__meta">
 			{{#if isUnread}}<span class="queue-article__status queue-article__status--unread" data-test-read-status="unread">Unread</span>{{else}}<span class="queue-article__status queue-article__status--read" data-test-read-status="read">Read</span>{{/if}}
-			{{#if siteName}}<a class="queue-article__url" href="{{url}}" target="_blank" rel="noopener" data-test-article-url>{{siteName}}</a>{{/if}}
+			<a class="queue-article__url{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" data-test-article-url>{{siteName}}</a>
 			<span>{{readTimeLabel}}</span>
 			<span>{{savedAgo}}</span>
 		</div>

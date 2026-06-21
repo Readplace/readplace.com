@@ -326,8 +326,13 @@
 }
 
 .queue-article__url {
+  display: inline;
   color: var(--muted-foreground);
   text-decoration: none;
+}
+
+.queue-article__url--empty {
+  display: none;
 }
 
 .queue-article__url:hover {
