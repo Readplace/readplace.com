@@ -414,10 +414,10 @@ function initProviders() {
 	// so prod-strength per-IP limits would throttle a full e2e run.
 	const { consumeRateLimit } = initInMemoryRateLimit({ now: () => new Date() });
 	const rateLimitRules: RateLimitRules = {
-		viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL", { defaultValue: "1000/3600" })),
-		login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN", { defaultValue: "1000/900" })),
-		signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP", { defaultValue: "1000/3600" })),
-		forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD", { defaultValue: "1000/3600" })),
+		viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL")),
+		login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
+		signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
+		forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
 	};
 
 	return {
@@ -480,7 +480,7 @@ export function createHutchApp(deps?: {
 }) {
 	const { auth, articleStore, oauthModel, validateAccessToken, importSessionStore, ...providers } = initProviders();
 
-	const appOrigin = deps?.appOrigin ?? requireEnv("APP_ORIGIN", { defaultValue: `http://localhost:${getEnv("PORT") || "3000"}` });
+	const appOrigin = deps?.appOrigin ?? requireEnv("APP_ORIGIN");
 	const staticBaseUrl = requireEnv("STATIC_BASE_URL");
 	const expiryCountdown = requireEnv<"enabled" | "disabled">("EXPIRY_COUNTDOWN");
 	const foundingMemberLimit = Number.parseInt(requireEnv("FOUNDING_MEMBER_LIMIT"), 10);
