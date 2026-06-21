@@ -24,7 +24,9 @@ describe("GET / with exhausted founding allocation", () => {
 		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
-		expect(doc.querySelector("[data-test-founding-progress]")).toBeNull();
+		const progressSlot = doc.querySelector("[data-test-founding-progress-slot]");
+		assert(progressSlot, "founding progress slot must be rendered");
+		expect(progressSlot.classList.contains("home-pricing__progress--hidden")).toBe(true);
 	}, 30000);
 
 	it("should hide the founding pricing card and show the fallback benefits + CTA when over the limit", async () => {
@@ -51,7 +53,11 @@ describe("GET / with exhausted founding allocation", () => {
 		const benefits = fallback.querySelector("[data-test-fallback-benefits]");
 		assert(benefits, "fallback benefits list must be rendered");
 		expect(benefits.querySelectorAll(".pricing-card__feature").length).toBe(6);
-		expect(fallback.querySelector('[data-test-cta="become-member"]')).not.toBeNull();
+		const becomeMemberCta = fallback.querySelector('[data-test-cta="become-member"]');
+		assert(becomeMemberCta, "become-member CTA must be rendered");
+		expect(becomeMemberCta.getAttribute("href")).toBe(
+			"/signup?utm_source=homepage&utm_medium=internal&utm_content=signup-body",
+		);
 	}, 30000);
 
 	it("should hide the founding pricing title when over the limit", async () => {
@@ -65,8 +71,9 @@ describe("GET / with exhausted founding allocation", () => {
 		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
-		expect(doc.querySelector("[data-test-pricing-title]")).toBeNull();
-		expect(response.text).not.toContain(`Free for the first ${TEST_FOUNDING_MEMBER_LIMIT} members.`);
+		const pricingTitle = doc.querySelector("[data-test-pricing-title]");
+		assert(pricingTitle, "pricing title must be rendered");
+		expect(pricingTitle.classList.contains("home-pricing__title--hidden")).toBe(true);
 	}, 30000);
 });
 
@@ -220,7 +227,8 @@ describe("GET /sitemap.xml", () => {
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toMatch(/application\/xml/);
 
-		const urls = Array.from(response.text.matchAll(/<loc>([^<]+)<\/loc>/g)).map((m) => m[1]);
+		const sitemapDoc = new JSDOM(response.text, { contentType: "text/xml" }).window.document;
+		const urls = Array.from(sitemapDoc.querySelectorAll("loc")).map((loc) => loc.textContent);
 		// Blog URLs are served from blog-site's own /blog/sitemap.xml (a separate
 		// deployable), advertised via a second Sitemap line in robots.txt.
 		expect(urls).toEqual([
