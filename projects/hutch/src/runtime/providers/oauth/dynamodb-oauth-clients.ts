@@ -68,7 +68,7 @@ function toOAuthClient(row: z.infer<typeof ClientRow>): RegisteredOAuthClient {
 }
 
 export function initDynamoDbOAuthClients(deps: {
-	client: DynamoDBDocumentClient;
+	client: Pick<DynamoDBDocumentClient, "send">;
 	tableName: string;
 	now: () => Date;
 }): {

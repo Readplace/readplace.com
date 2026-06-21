@@ -12,23 +12,22 @@ const ACTIVE = 365 * 24 * 60 * 60;
 // `Item`, GetCommand carries a `Key`, so the input shape distinguishes them
 // without importing the SDK command classes (not a direct dependency here).
 function createFakeClient(): {
-	client: DynamoDBDocumentClient;
+	client: Pick<DynamoDBDocumentClient, "send">;
 	rows: Map<string, Record<string, unknown>>;
 } {
 	const rows = new Map<string, Record<string, unknown>>();
-	const send = async (command: Command) => {
-		const { Item, Key } = command.input;
-		if (Item) {
-			rows.set(String(Item.pk), Item);
-			return {};
-		}
-		assert(Key, "command must carry an Item or a Key");
-		return { Item: rows.get(String(Key.pk)) };
+	const client: Pick<DynamoDBDocumentClient, "send"> = {
+		send: (async (command: Command) => {
+			const { Item, Key } = command.input;
+			if (Item) {
+				rows.set(String(Item.pk), Item);
+				return {};
+			}
+			assert(Key, "command must carry an Item or a Key");
+			return { Item: rows.get(String(Key.pk)) };
+		}) as DynamoDBDocumentClient["send"],
 	};
-	// One contained cast: the fake only implements `.send`, which is all
-	// defineDynamoTable calls; the structural shape can't satisfy the SDK's
-	// overloaded client type without it.
-	return { client: { send } as unknown as DynamoDBDocumentClient, rows };
+	return { client, rows };
 }
 
 const REGISTER_INPUT = {
