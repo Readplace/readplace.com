@@ -92,18 +92,6 @@ describe("initDynamoDbPasswordReset", () => {
 			});
 		});
 
-		it("rejects when the delete returns no prior attributes", async () => {
-			const token = await initStore(createFakeClient({}).client).createPasswordResetToken({
-				email: "user@example.com",
-			});
-			const { client } = createFakeClient({});
-
-			expect(await initStore(client).verifyPasswordResetToken(token)).toEqual({
-				ok: false,
-				reason: "invalid-token",
-			});
-		});
-
 		it("rejects when the attribute_exists condition fails (token already consumed or absent)", async () => {
 			const token = await initStore(createFakeClient({}).client).createPasswordResetToken({
 				email: "user@example.com",

@@ -1,3 +1,4 @@
+import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import {
 	ConditionalCheckFailedException,
@@ -50,9 +51,7 @@ export function initDynamoDbPasswordReset(deps: {
 				ReturnValues: "ALL_OLD",
 			});
 
-			if (!Attributes) {
-				return { ok: false, reason: "invalid-token" };
-			}
+			assert(Attributes, "a conditional delete with ReturnValues ALL_OLD always returns the prior item");
 
 			if (Attributes.expiresAt < Math.floor(Date.now() / 1000)) {
 				return { ok: false, reason: "invalid-token" };
