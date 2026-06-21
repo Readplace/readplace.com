@@ -18,7 +18,7 @@ async function loginUser(harness: ReturnType<ReturnType<typeof useTestServer>>, 
 }
 
 describe("Queue page banner state", () => {
-	it("renders the aside with state class `queue-banner--none` and no header countdown for a founding member (no row)", async () => {
+	it("renders the aside with state class `queue-banner--none` and an enabled save form for a founding member (no row)", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const { auth } = harness;
 		const agent = await loginAgent(harness.server, auth);
