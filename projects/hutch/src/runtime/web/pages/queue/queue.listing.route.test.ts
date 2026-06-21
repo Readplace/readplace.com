@@ -203,7 +203,9 @@ describe("Queue routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			const card = doc.querySelector("[data-test-article-list] .queue-article");
 			assert(card, "the saved article card must be rendered");
-			expect(card.querySelector("[data-test-article-title]")).not.toBeNull();
+			const titleLink = card.querySelector("[data-test-article-title]");
+			assert(titleLink, "the title link element must always be rendered");
+			expect(titleLink.getAttribute("href")).toContain("/view");
 			const urlLink = card.querySelector("[data-test-article-url]");
 			assert(urlLink, "the url link element must always be rendered");
 			expect(urlLink.classList.contains("queue-article__url--empty")).toBe(true);
