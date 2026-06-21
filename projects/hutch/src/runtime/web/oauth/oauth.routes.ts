@@ -24,6 +24,10 @@ const denyBodySchema = z.object({
 	state: z.string().optional(),
 });
 
+const revokeBodySchema = z.object({
+	token: z.string().min(1),
+});
+
 interface OAuthRouteDeps {
 	model: OAuthModel;
 	buildBannerState: BuildBannerState;
@@ -138,14 +142,16 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 	router.post("/token", oauthServer.token());
 
 	router.post("/revoke", express.json(), async (req: Request, res: Response) => {
-		const token = req.body.token;
-		if (!token) {
+		const parsed = revokeBodySchema.safeParse(req.body);
+		if (!parsed.success) {
 			res.status(400).json({
 				error: "invalid_request",
 				error_description: "token parameter required",
 			});
 			return;
 		}
+
+		const { token } = parsed.data;
 
 		const refreshToken = await deps.model.getRefreshToken(token);
 		if (refreshToken) {
