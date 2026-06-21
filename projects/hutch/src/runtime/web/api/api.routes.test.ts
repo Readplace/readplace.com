@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import request from "supertest";
-import type { Token, Client } from "@node-oauth/oauth2-server";
+import type { Token } from "@node-oauth/oauth2-server";
 import { useTestServer } from "../../test-app";
 import type { TestAppHarness } from "../../test-app";
 import {
@@ -14,10 +14,10 @@ import {
 } from "@packages/test-fixtures";
 import { initReadabilityParser } from "@packages/article-parser";
 
-import type { UserId } from "@packages/domain/user";
+import { UserIdSchema } from "@packages/domain/user";
 import { SIREN_MEDIA_TYPE } from "./siren";
 
-const TEST_USER_ID = "test-user-123" as UserId;
+const TEST_USER_ID = UserIdSchema.parse("test-user-123");
 
 function createTestToken(): Token {
 	return {
@@ -29,7 +29,7 @@ function createTestToken(): Token {
 			id: "hutch-firefox-extension",
 			grants: ["authorization_code", "refresh_token"],
 			redirectUris: ["http://127.0.0.1:3000/oauth/callback"],
-		} as Client,
+		},
 		user: { id: TEST_USER_ID },
 	};
 }
