@@ -167,7 +167,7 @@ const UNPROCESSED_KEYS_INITIAL_DELAY_MS = 50;
  * by the 16 MB response cap or throttling) with exponential backoff.
  */
 export async function batchGetFromTable<TSchema extends z.ZodObject>(config: {
-	client: DynamoDBDocumentClient;
+	client: Pick<DynamoDBDocumentClient, "send">;
 	tableName: string;
 	schema: TSchema;
 	keys: readonly Key[];

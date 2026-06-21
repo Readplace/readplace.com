@@ -34,33 +34,31 @@ function createFakeClient(
 		responses?: Array<{ url: string; payload: string }>;
 		unprocessedKeys?: Array<{ url: string }>;
 	},
-): { client: DynamoDBDocumentClient; calls: CapturedRequest[] } {
+): { client: Pick<DynamoDBDocumentClient, "send">; calls: CapturedRequest[] } {
 	const calls: CapturedRequest[] = [];
-	const fake: Partial<DynamoDBDocumentClient> = {
-		send: (async (input: BatchGetCommandLike) => {
-			const requestItems = input.input.RequestItems ?? {};
-			const tableName = Object.keys(requestItems)[0] ?? "";
-			const tableEntry = requestItems[tableName];
-			const rawKeys = tableEntry?.Keys ?? [];
-			const keys = rawKeys.map((k) => ({ url: String(k.url) }));
-			const callIndex = calls.length;
-			calls.push({
-				tableName,
-				keys,
-				projection: tableEntry?.ProjectionExpression,
-				expressionAttributeNames: tableEntry?.ExpressionAttributeNames,
-			});
-			const { responses = [], unprocessedKeys = [] } = respond(keys, callIndex);
-			return {
-				Responses: { [tableName]: responses },
-				UnprocessedKeys:
-					unprocessedKeys.length > 0
-						? { [tableName]: { Keys: unprocessedKeys } }
-						: undefined,
-			};
-		}) as unknown as SendFn,
-	};
-	return { client: fake as DynamoDBDocumentClient, calls };
+	const send: SendFn = (async (input: BatchGetCommandLike) => {
+		const requestItems = input.input.RequestItems ?? {};
+		const tableName = Object.keys(requestItems)[0] ?? "";
+		const tableEntry = requestItems[tableName];
+		const rawKeys = tableEntry?.Keys ?? [];
+		const keys = rawKeys.map((k) => ({ url: String(k.url) }));
+		const callIndex = calls.length;
+		calls.push({
+			tableName,
+			keys,
+			projection: tableEntry?.ProjectionExpression,
+			expressionAttributeNames: tableEntry?.ExpressionAttributeNames,
+		});
+		const { responses = [], unprocessedKeys = [] } = respond(keys, callIndex);
+		return {
+			Responses: { [tableName]: responses },
+			UnprocessedKeys:
+				unprocessedKeys.length > 0
+					? { [tableName]: { Keys: unprocessedKeys } }
+					: undefined,
+		};
+	}) as SendFn;
+	return { client: { send }, calls };
 }
 
 const TABLE = "test-articles";
