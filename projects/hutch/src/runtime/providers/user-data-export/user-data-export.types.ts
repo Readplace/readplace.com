@@ -1,5 +1,7 @@
+import type { UserId } from "@packages/domain/user";
+
 export interface UploadUserDataExportParams {
-	userId: string;
+	userId: UserId;
 	body: string;
 }
 

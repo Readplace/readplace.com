@@ -32,6 +32,10 @@ const denyBodySchema = z.object({
 	state: z.string().optional(),
 });
 
+const revokeBodySchema = z.object({
+	token: z.string().min(1),
+});
+
 const SUPPORTED_GRANTS = new Set(["authorization_code", "refresh_token"]);
 
 const registerBodySchema = z.object({
@@ -73,7 +77,7 @@ function validateRegistration(
 ): { ok: true; value: RegisterOAuthClientInput } | RegistrationError {
 	const parsed = registerBodySchema.safeParse(body);
 	if (!parsed.success) {
-		return regError("invalid_client_metadata", "redirect_uris is required");
+		return regError("invalid_client_metadata", "invalid client registration metadata");
 	}
 	const data = parsed.data;
 	for (const uri of data.redirect_uris) {
@@ -235,8 +239,13 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 					return;
 				}
 
-				const errorUrl = `${redirect_uri}?error=access_denied${state ? `&state=${encodeURIComponent(state)}` : ""}`;
-				res.redirect(302, errorUrl);
+				// Build via URL so a registered redirect_uri that already carries a
+				// query string (dynamic clients may register one) gets `error` as a
+				// real parameter, not a malformed second `?`.
+				const denyUrl = new URL(redirect_uri);
+				denyUrl.searchParams.set("error", "access_denied");
+				if (state) denyUrl.searchParams.set("state", state);
+				res.redirect(302, denyUrl.toString());
 				return;
 			}
 
@@ -254,14 +263,16 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 	router.post("/token", oauthServer.token());
 
 	router.post("/revoke", express.json(), async (req: Request, res: Response) => {
-		const token = req.body.token;
-		if (!token) {
+		const parsed = revokeBodySchema.safeParse(req.body);
+		if (!parsed.success) {
 			res.status(400).json({
 				error: "invalid_request",
 				error_description: "token parameter required",
 			});
 			return;
 		}
+
+		const { token } = parsed.data;
 
 		const refreshToken = await deps.model.getRefreshToken(token);
 		if (refreshToken) {

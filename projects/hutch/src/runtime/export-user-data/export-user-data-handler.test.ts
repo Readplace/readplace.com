@@ -1,8 +1,9 @@
 import { noopLogger, HutchLogger } from "@packages/hutch-logger";
-import type { SQSBatchResponse, SQSEvent, SQSRecord, SQSRecordAttributes } from "aws-lambda";
+import type { Context, SQSBatchResponse, SQSEvent, SQSRecord, SQSRecordAttributes } from "aws-lambda";
+import { z } from "zod";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
-import type { Minutes } from "@packages/domain/article";
-import type { UserId } from "@packages/domain/user";
+import { MinutesSchema } from "@packages/domain/article";
+import { UserIdSchema } from "@packages/domain/user";
 import { UserDataExportedEvent } from "@packages/hutch-infra-components";
 import type { UploadUserDataExport } from "../providers/user-data-export/user-data-export.types";
 import { initExportUserDataHandler } from "./export-user-data-handler";
@@ -13,6 +14,26 @@ const stubAttributes: SQSRecordAttributes = {
 	SenderId: "TESTID",
 	ApproximateFirstReceiveTimestamp: "1620000000001",
 };
+
+const stubContext: Context = {
+	callbackWaitsForEmptyEventLoop: true,
+	functionName: "test",
+	functionVersion: "1",
+	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
+	memoryLimitInMB: "128",
+	awsRequestId: "test-request-id",
+	logGroupName: "/aws/lambda/test",
+	logStreamName: "test-stream",
+	getRemainingTimeInMillis: () => 30000,
+	done: () => {},
+	fail: () => {},
+	succeed: () => {},
+};
+
+const ExportBodySchema = z.object({
+	articleCount: z.number(),
+	articles: z.array(z.object({ url: z.string(), title: z.string() }).passthrough()),
+});
 
 function createSqsEvent(detail: {
 	userId: string;
@@ -83,7 +104,7 @@ async function invokeHandler(
 	harness: HandlerHarness,
 	detail: { userId: string; email: string; requestedAt: string },
 ): Promise<SQSBatchResponse> {
-	const result = harness.handler(createSqsEvent(detail), {} as never, () => {});
+	const result = harness.handler(createSqsEvent(detail), stubContext, () => {});
 	const awaited = result instanceof Promise ? await result : result;
 	if (!awaited) throw new Error("handler returned void; expected SQSBatchResponse");
 	return awaited;
@@ -92,7 +113,7 @@ async function invokeHandler(
 describe("initExportUserDataHandler", () => {
 	it("uploads an export, emails the user a download link, and publishes UserDataExportedEvent", async () => {
 		const harness = createHarness();
-		const userId = "user-1" as UserId;
+		const userId = UserIdSchema.parse("user-1");
 		await harness.store.saveArticle({
 			userId,
 			url: "https://example.com/article-1",
@@ -102,7 +123,7 @@ describe("initExportUserDataHandler", () => {
 				excerpt: "An excerpt",
 				wordCount: 100,
 			},
-			estimatedReadTime: 1 as Minutes,
+			estimatedReadTime: MinutesSchema.parse(1),
 		});
 
 		const response = await invokeHandler(harness, {
@@ -115,10 +136,7 @@ describe("initExportUserDataHandler", () => {
 		expect(harness.uploadCalls).toHaveLength(1);
 		const upload = harness.uploadCalls[0];
 		expect(upload.userId).toBe(userId);
-		const body = upload.parsedBody as {
-			articleCount: number;
-			articles: Array<{ url: string; title: string }>;
-		};
+		const body = ExportBodySchema.parse(upload.parsedBody);
 		expect(body.articleCount).toBe(1);
 		expect(body.articles[0].url).toBe("https://example.com/article-1");
 		expect(body.articles[0].title).toBe("Article 1");
@@ -143,7 +161,7 @@ describe("initExportUserDataHandler", () => {
 
 	it("paginates through every page when the user has more articles than one page", async () => {
 		const harness = createHarness();
-		const userId = "user-many" as UserId;
+		const userId = UserIdSchema.parse("user-many");
 		// PAGE_SIZE in the handler is 500; cross the boundary to force two pages.
 		const TOTAL = 600;
 		for (let i = 0; i < TOTAL; i++) {
@@ -156,7 +174,7 @@ describe("initExportUserDataHandler", () => {
 					excerpt: "x",
 					wordCount: 100,
 				},
-				estimatedReadTime: 1 as Minutes,
+				estimatedReadTime: MinutesSchema.parse(1),
 			});
 		}
 
@@ -166,14 +184,14 @@ describe("initExportUserDataHandler", () => {
 			requestedAt: "2026-04-30T11:59:00.000Z",
 		});
 
-		const body = harness.uploadCalls[0].parsedBody as { articleCount: number };
+		const body = ExportBodySchema.parse(harness.uploadCalls[0].parsedBody);
 		expect(body.articleCount).toBe(TOTAL);
 		expect(harness.publishedEvents[0].detail).toMatchObject({ articleCount: TOTAL });
 	});
 
 	it("emits an empty export when the user has no articles", async () => {
 		const harness = createHarness();
-		const userId = "user-empty" as UserId;
+		const userId = UserIdSchema.parse("user-empty");
 
 		await invokeHandler(harness, {
 			userId,
@@ -181,7 +199,7 @@ describe("initExportUserDataHandler", () => {
 			requestedAt: "2026-04-30T11:59:00.000Z",
 		});
 
-		const body = harness.uploadCalls[0].parsedBody as { articleCount: number; articles: unknown[] };
+		const body = ExportBodySchema.parse(harness.uploadCalls[0].parsedBody);
 		expect(body.articleCount).toBe(0);
 		expect(body.articles).toEqual([]);
 		expect(harness.emailCalls[0].html).toContain("0 articles");
@@ -204,7 +222,7 @@ describe("initExportUserDataHandler", () => {
 			}],
 		};
 
-		const result = harness.handler(invalidEvent, {} as never, () => {});
+		const result = harness.handler(invalidEvent, stubContext, () => {});
 		const response = result instanceof Promise ? await result : result;
 
 		expect(response).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
@@ -216,7 +234,7 @@ describe("initExportUserDataHandler", () => {
 	it("stops on the first empty page when total claims more rows (orphaned user_articles)", async () => {
 		// findArticlesByUser drops orphans, so total can exceed the rows the
 		// handler will ever see; termination must come from an empty page.
-		const userId = "user-orphan" as UserId;
+		const userId = UserIdSchema.parse("user-orphan");
 		const findArticlesByUser = jest
 			.fn()
 			.mockResolvedValueOnce({
@@ -226,7 +244,7 @@ describe("initExportUserDataHandler", () => {
 						userId,
 						url: "https://example.com/a-1",
 						metadata: { title: "A1", siteName: "example.com", excerpt: "x", wordCount: 1 },
-						estimatedReadTime: 1 as Minutes,
+						estimatedReadTime: MinutesSchema.parse(1),
 						status: "unread" as const,
 						savedAt: new Date("2026-04-29T00:00:00.000Z"),
 					},
@@ -263,14 +281,14 @@ describe("initExportUserDataHandler", () => {
 				email: "user@example.com",
 				requestedAt: "2026-04-30T11:59:00.000Z",
 			}),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 		if (result instanceof Promise) await result;
 
 		expect(findArticlesByUser).toHaveBeenCalledTimes(2);
 		expect(result).toBeInstanceOf(Promise);
-		const body = uploadCalls[0].parsedBody as { articleCount: number };
+		const body = ExportBodySchema.parse(uploadCalls[0].parsedBody);
 		expect(body.articleCount).toBe(1);
 		expect(emailCalls).toHaveLength(1);
 		expect(publishedEvents[0].detail).toMatchObject({ articleCount: 1 });

@@ -2,7 +2,7 @@ import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 } from "@packages/hutch-storage-client";
-import type { UserId } from "@packages/domain/user";
+import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbReaderReadyState } from "./dynamodb-reader-ready-state";
 
 interface CapturedCommand {
@@ -10,28 +10,33 @@ interface CapturedCommand {
 	input: Record<string, unknown>;
 }
 
+type SendFn = DynamoDBDocumentClient["send"];
+
 /** Records commands and optionally fails the conditional update so the
  * cooldown-rejected path can be asserted. */
 function createFakeClient(opts: {
 	updateError?: Error;
-}): { client: DynamoDBDocumentClient; commands: CapturedCommand[] } {
+}): { client: Partial<DynamoDBDocumentClient>; commands: CapturedCommand[] } {
 	const commands: CapturedCommand[] = [];
-	const client = {
+	const client: Partial<DynamoDBDocumentClient> = {
 		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
 			const name = command.constructor.name;
 			commands.push({ name, input: command.input });
 			if (name === "UpdateCommand" && opts.updateError) throw opts.updateError;
 			return {};
-		}) as DynamoDBDocumentClient["send"],
+		}) as unknown as SendFn,
 	};
-	return { client: client as typeof client & DynamoDBDocumentClient, commands };
+	return { client, commands };
 }
 
-function initStore(client: DynamoDBDocumentClient) {
-	return initDynamoDbReaderReadyState({ client, tableName: "reader-ready-notifications" });
+function initStore(client: Partial<DynamoDBDocumentClient>) {
+	return initDynamoDbReaderReadyState({
+		client: client as DynamoDBDocumentClient,
+		tableName: "reader-ready-notifications",
+	});
 }
 
-const USER = "abc123" as UserId;
+const USER = UserIdSchema.parse("abc123");
 const COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
 describe("initDynamoDbReaderReadyState", () => {

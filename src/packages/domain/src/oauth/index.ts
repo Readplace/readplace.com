@@ -1,15 +1,15 @@
-export type {
-	OAuthClientId,
-	AuthorizationCode,
-	AccessToken,
-	RefreshToken,
-	OAuthClient,
-} from "./oauth.types";
+export type { OAuthClient } from "./oauth.types";
 export {
 	OAuthClientIdSchema,
 	AccessTokenSchema,
 	RefreshTokenSchema,
 	AuthorizationCodeSchema,
+} from "./oauth.schema";
+export type {
+	OAuthClientId,
+	AuthorizationCode,
+	AccessToken,
+	RefreshToken,
 } from "./oauth.schema";
 export { getBuiltInClient, isBuiltInRedirectUri } from "./built-in-clients";
 export {

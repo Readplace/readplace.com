@@ -66,7 +66,6 @@ describe("toAccountViewModel — actions", () => {
 		assert.equal(vm.actions[0].variant, "destructive");
 		assert.equal(vm.actions[0].method, "POST");
 		assert.equal(vm.actions[0].href, "/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form");
-		assert.equal(vm.actions[0].isLink, false);
 	});
 
 	it("active paid users with cancelling=1 get no actions — the Cancel command is already in flight", () => {

@@ -41,6 +41,8 @@ const UserRow = z.object({
 	userIdPrefix: dynamoField(z.string()),
 });
 
+const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
+
 const SessionRow = z.object({
 	sessionId: z.string(),
 	userId: UserIdSchema,
@@ -183,7 +185,7 @@ export function initDynamoDbAuth(deps: {
 
 	const createSession: CreateSession = async ({ userId, emailVerified }) => {
 		const sessionId = randomBytes(32).toString("hex");
-		const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60; // 7 days in seconds (TTL)
+		const expiresAt = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
 
 		await sessions.put({
 			Item: { sessionId, userId, emailVerified, expiresAt },

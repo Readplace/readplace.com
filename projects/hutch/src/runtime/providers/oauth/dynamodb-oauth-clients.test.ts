@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbOAuthClients } from "./dynamodb-oauth-clients";
 
-type SendFn = DynamoDBDocumentClient["send"];
 type Command = { input: { Item?: Record<string, unknown>; Key?: { pk?: unknown } } };
 
 const TABLE = "test-oauth";
@@ -17,7 +16,7 @@ function createFakeClient(): {
 	rows: Map<string, Record<string, unknown>>;
 } {
 	const rows = new Map<string, Record<string, unknown>>();
-	const send = (async (command: Command) => {
+	const send = async (command: Command) => {
 		const { Item, Key } = command.input;
 		if (Item) {
 			rows.set(String(Item.pk), Item);
@@ -25,8 +24,11 @@ function createFakeClient(): {
 		}
 		assert(Key, "command must carry an Item or a Key");
 		return { Item: rows.get(String(Key.pk)) };
-	}) as unknown as SendFn;
-	return { client: { send } as Partial<DynamoDBDocumentClient> as DynamoDBDocumentClient, rows };
+	};
+	// One contained cast: the fake only implements `.send`, which is all
+	// defineDynamoTable calls; the structural shape can't satisfy the SDK's
+	// overloaded client type without it.
+	return { client: { send } as unknown as DynamoDBDocumentClient, rows };
 }
 
 const REGISTER_INPUT = {

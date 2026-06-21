@@ -1,2 +1,2 @@
-export type UserId = string & { readonly __brand: "UserId" };
+export type { UserId } from "./user.schema";
 

@@ -9,6 +9,28 @@ interface SerializedImageData {
 
 type Theme = "dark" | "light";
 
+function isSerializedImageData(value: unknown): value is SerializedImageData {
+	if (typeof value !== "object" || value === null) return false;
+	const candidate: Record<string, unknown> = { ...value };
+	return (
+		typeof candidate.width === "number" &&
+		typeof candidate.height === "number" &&
+		Array.isArray(candidate.data) &&
+		candidate.data.every((entry) => typeof entry === "number")
+	);
+}
+
+function isSerializedIconData(
+	value: unknown,
+): value is Record<number, SerializedImageData> {
+	if (typeof value !== "object" || value === null) return false;
+	return Object.values(value).every(isSerializedImageData);
+}
+
+function isTheme(value: unknown): value is Theme {
+	return value === "dark" || value === "light";
+}
+
 // Dark variant = navy "&" + amber dot, no halo. Used on light browser themes.
 // Light variant = same shapes wrapped in a white halo. Used on dark browser themes.
 const VARIANT_PATHS: Record<Theme, Record<number, string>> = {
@@ -50,10 +72,13 @@ async function getSavedIconData(): Promise<Record<number, ImageData>> {
 
 	await ensureOffscreen();
 
-	const rawData = (await browser.runtime.sendMessage({
+	const rawData = await browser.runtime.sendMessage({
 		target: "offscreen",
 		type: "get-saved-icon-data",
-	})) as Record<number, SerializedImageData>;
+	});
+	if (!isSerializedIconData(rawData)) {
+		throw new Error("offscreen returned malformed saved icon data");
+	}
 
 	const result: Record<number, ImageData> = {};
 	for (const [size, { width, height, data }] of Object.entries(rawData)) {
@@ -69,10 +94,13 @@ async function getSavedIconData(): Promise<Record<number, ImageData>> {
 
 async function getDefaultPathsForCurrentTheme(): Promise<Record<number, string>> {
 	await ensureOffscreen();
-	const theme = (await browser.runtime.sendMessage({
+	const theme = await browser.runtime.sendMessage({
 		target: "offscreen",
 		type: "get-current-theme",
-	})) as Theme;
+	});
+	if (!isTheme(theme)) {
+		throw new Error("offscreen returned an unknown theme");
+	}
 	// User prefers dark UI → toolbar is dark → light-colored icon contrasts against it.
 	// User prefers light UI → toolbar is light → dark-colored icon contrasts against it.
 	return theme === "dark" ? VARIANT_PATHS.light : VARIANT_PATHS.dark;

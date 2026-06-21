@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { Minutes } from "./article.types";
 
 export const SaveArticleInputSchema = z.object({
 	url: z.url({ message: "Please enter a valid URL" }),
@@ -21,6 +20,6 @@ export const SaveHtmlInputSchema = z.object({
 
 export const RAW_HTML_FIELD = "rawHtml" satisfies keyof z.infer<typeof SaveHtmlInputSchema>;
 
-export const MinutesSchema = z.number().transform((n): Minutes => n as Minutes);
+export const MinutesSchema = z.number().brand<"Minutes">();
 
 export const ArticleStatusSchema = z.enum(["unread", "read"]);

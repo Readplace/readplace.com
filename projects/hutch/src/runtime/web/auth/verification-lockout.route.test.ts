@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import type { Token, Client } from "@node-oauth/oauth2-server";
+import type { Token } from "@node-oauth/oauth2-server";
 import type { UserId } from "@packages/domain/user";
 import { MinutesSchema } from "@packages/domain/article";
 import { loginAgent, useTestServer } from "../../test-app";
@@ -51,7 +51,7 @@ async function mintAccessToken(
 			id: "hutch-firefox-extension",
 			grants: ["authorization_code", "refresh_token"],
 			redirectUris: ["http://127.0.0.1:3000/oauth/callback"],
-		} as Client,
+		},
 		user: { id: userId },
 	};
 	const saved = await harness.oauthModel.saveToken(token, client, {

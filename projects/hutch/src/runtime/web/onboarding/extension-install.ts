@@ -29,7 +29,6 @@ export function buildExtensionInstallUrl(browser: BrowserName): string {
 	return INSTALL_URLS[browser];
 }
 
-/** Install URL the reader-failed slot should link to, or undefined when the user already has the extension. */
 export function extensionInstallUrlIfMissing(req: Request): string | undefined {
 	if (isExtensionInstalled(req)) return undefined;
 	return buildExtensionInstallUrl(detectBrowser(req));

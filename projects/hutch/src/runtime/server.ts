@@ -164,7 +164,7 @@ import { requireNotLocked } from "./web/middleware/require-not-locked.middleware
 import { requireEnv, getEnv } from "./domain/require-env";
 import "./web/session.types";
 
-export const PORT = requireEnv("PORT", { defaultValue: "3000" });
+export const PORT = requireEnv("PORT");
 
 const noop = () => {};
 

@@ -1,8 +1,13 @@
-import type { Request, Response } from "express";
 import type { Component } from "./component.types";
-import { wantsMarkdown } from "./content-negotiation";
+import { type AcceptNegotiable, wantsMarkdown } from "./content-negotiation";
 
-export function sendComponent(req: Request, res: Response, component: Component): void {
+export type SendableResponse = {
+	status(code: number): SendableResponse;
+	set(headers: Record<string, string>): SendableResponse;
+	send(body: string): SendableResponse;
+};
+
+export function sendComponent(req: AcceptNegotiable, res: SendableResponse, component: Component): void {
 	if (wantsMarkdown(req)) {
 		const md = component.to("text/markdown");
 		if (md.statusCode !== 406) {

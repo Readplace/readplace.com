@@ -2,13 +2,6 @@ import type { ChangelogBanner } from "./changelog-banner";
 import { withInternalTracking } from "./internal-link-tracking";
 import type { TrialDisplay } from "./trial-countdown.format";
 
-/** Local brand for the authenticated user's identifier. Inlined (rather than
- * imported from @packages/domain) so the shell carries no dependency on the
- * domain package — a domain change must not invalidate the content sites that
- * consume this shell. The brand is structural: any UserId from elsewhere
- * assigns to it without a cast. */
-type UserId = string & { readonly __brand: "UserId" };
-
 /** Presentational standing of an *unverified* account, mirroring TrialDisplay:
  * the consuming site computes it from its own domain and hands it to the shell,
  * which only renders copy. Inlined (rather than imported from the domain) so the
@@ -23,7 +16,11 @@ type VerificationStatus =
 	| { state: "locked" };
 
 export interface BannerStateSource {
-	userId?: UserId;
+	/** The authenticated user's id as a plain string. The shell reads it only for
+	 * truthiness (isAuthenticated) and carries no @packages/domain dependency, so
+	 * it deliberately does not reconstruct the domain's branded UserId here — a
+	 * domain change must not invalidate the content sites that consume this shell. */
+	userId?: string;
 	emailVerified?: boolean;
 	verificationStatus?: VerificationStatus;
 	/** The changelog version the reader has dismissed, lifted from the dismissal

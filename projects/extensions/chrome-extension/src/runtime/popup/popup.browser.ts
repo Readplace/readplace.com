@@ -3,6 +3,7 @@ import browser from "webextension-polyfill";
 import type {
 	ReadingListItem,
 	PopupMessage,
+	SavePhase,
 	GuardedResult,
 	SaveUrlResult,
 	RemoveUrlResult,
@@ -12,6 +13,12 @@ import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, instal
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 declare const __APP_DOMAINS__: string[];
+
+declare global {
+	interface Navigator {
+		userAgentData?: { platform: string };
+	}
+}
 
 const logger = HutchLogger.from(consoleLogger);
 
@@ -45,10 +52,21 @@ const sequencer = initSaveProgressSequencer({
 	},
 });
 
+function isSavePhase(value: unknown): value is SavePhase {
+	return value === "capturing" || value === "uploading";
+}
+
+function isSaveProgressMessage(
+	value: unknown,
+): value is { type: "save-progress"; phase: SavePhase } {
+	if (typeof value !== "object" || value === null) return false;
+	if (!("type" in value) || value.type !== "save-progress") return false;
+	return "phase" in value && isSavePhase(value.phase);
+}
+
 browser.runtime.onMessage.addListener((raw) => {
-	const message = raw as PopupMessage;
-	if (message.type !== "save-progress") return undefined;
-	sequencer.enqueue(message.phase);
+	if (!isSaveProgressMessage(raw)) return undefined;
+	sequencer.enqueue(raw.phase);
 	return undefined;
 });
 
@@ -444,11 +462,8 @@ document.getElementById("filter-input")?.addEventListener("input", () => {
 
 const shortcutHint = document.querySelector(".shortcut-hint");
 if (shortcutHint) {
-	// navigator.userAgentData is the modern replacement for navigator.platform
-	// but TypeScript DOM types don't include it yet, so use a type assertion
-	const nav = navigator as Navigator & { userAgentData?: { platform: string } };
-	const isMac = nav.userAgentData
-		? nav.userAgentData.platform === "macOS"
+	const isMac = navigator.userAgentData
+		? navigator.userAgentData.platform === "macOS"
 		: navigator.platform.startsWith("Mac");
 	if (isMac) {
 		shortcutHint.textContent = "";

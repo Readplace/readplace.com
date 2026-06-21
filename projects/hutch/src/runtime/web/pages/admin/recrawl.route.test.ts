@@ -250,7 +250,45 @@ describe("Admin recrawl routes", () => {
 			expect(badge?.textContent).toContain("legacy");
 		});
 
-		it("triggers a fresh recrawl for a known URL and renders the page in pending state", async () => {
+		it("renders the page read-only with an auto-submitting POST form (no mutation on GET)", async () => {
+			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			await harness.articleStore.saveArticleGlobally({
+				url: ARTICLE_URL,
+				metadata: {
+					title: "Stale Title",
+					siteName: "example.com",
+					excerpt: "Stale excerpt",
+					wordCount: 10,
+				},
+				estimatedReadTime: MinutesSchema.parse(1),
+				savedAt: new Date(),
+			});
+			await harness.articleCrawl.markCrawlReady({ url: ARTICLE_URL });
+
+			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+
+			expect(response.status).toBe(200);
+			expect(response.headers["cache-control"]).toBe("no-store");
+			// GET is read-only: the recrawl must not have been triggered.
+			expect(harness.recrawlPublishedCalls).toEqual([]);
+			const doc = new JSDOM(response.text).window.document;
+			const form = doc.querySelector("[data-test-admin-recrawl-trigger]");
+			expect(form?.getAttribute("method")).toBe("POST");
+			expect(form?.getAttribute("action")).toBe(`/admin/recrawl/${ENCODED}`);
+			expect(form?.hasAttribute("data-auto-submit")).toBe(true);
+			expect(response.text).toContain("requestSubmit");
+			expect(doc.querySelector("[data-test-admin-recrawl]")).not.toBeNull();
+			expect(doc.querySelector("[data-share-balloon]")).toBeNull();
+			expect(doc.querySelector("[data-test-view-cta]")).toBeNull();
+			expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
+				"noindex, nofollow",
+			);
+		});
+
+		it("triggers a fresh recrawl on POST and redirects (303) to the started result view rendered in pending state", async () => {
 			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
 			// Seed an article so the admin path has something to recrawl.
@@ -271,23 +309,36 @@ describe("Admin recrawl routes", () => {
 
 			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const postResponse = await agent.post(`/admin/recrawl/${ENCODED}`);
+
+			expect(postResponse.status).toBe(303);
+			expect(postResponse.headers.location).toBe(
+				`/admin/recrawl/${ENCODED}?started=1`,
+			);
+			expect(harness.recrawlPublishedCalls).toEqual([{ url: ARTICLE_URL }]);
+
+			const response = await agent.get(`/admin/recrawl/${ENCODED}?started=1`);
 
 			expect(response.status).toBe(200);
 			expect(response.headers["cache-control"]).toBe("no-store");
-			expect(harness.recrawlPublishedCalls).toEqual([{ url: ARTICLE_URL }]);
 			const doc = new JSDOM(response.text).window.document;
 			const readerSlot = doc.querySelector("[data-test-reader-slot]");
 			expect(readerSlot?.getAttribute("data-reader-status")).toBe("pending");
-			expect(doc.querySelector("[data-test-admin-recrawl]")).not.toBeNull();
-			expect(doc.querySelector("[data-share-balloon]")).toBeNull();
-			expect(doc.querySelector("[data-test-view-cta]")).toBeNull();
-			expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
-				"noindex, nofollow",
-			);
+			// The result view must not re-emit the auto-submit form.
+			expect(doc.querySelector("[data-test-admin-recrawl-trigger]")).toBeNull();
 		});
 
-		it("treats a schemeless path segment as https:// so admins can paste `host/path` without typing the scheme", async () => {
+		it("returns 404 on POST when the URL is not already in the articles DB", async () => {
+			const { server, auth } = buildHarness({ adminEmails: [ADMIN_EMAIL] });
+			await auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+			const agent = await loginAs(server, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+			const response = await agent.post(`/admin/recrawl/${ENCODED}`);
+
+			expect(response.status).toBe(404);
+		});
+
+		it("treats a schemeless POST path segment as https:// so admins can paste `host/path` without typing the scheme", async () => {
 			const harness = buildHarness({ adminEmails: [ADMIN_EMAIL] });
 			await harness.auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
 			await harness.articleStore.saveArticleGlobally({
@@ -301,9 +352,9 @@ describe("Admin recrawl routes", () => {
 			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
 			// Mirrors the real bug report: /admin/recrawl/example.com/post (no scheme)
 			// previously rendered the "No article URL provided" error page.
-			const response = await agent.get("/admin/recrawl/example.com/post");
+			const response = await agent.post("/admin/recrawl/example.com/post");
 
-			expect(response.status).toBe(200);
+			expect(response.status).toBe(303);
 			expect(harness.recrawlPublishedCalls).toEqual([{ url: ARTICLE_URL }]);
 		});
 
@@ -333,9 +384,9 @@ describe("Admin recrawl routes", () => {
 
 			const agent = await loginAs(harness.server, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-			const response = await agent.get(`/admin/recrawl/${ENCODED}`);
+			const response = await agent.post(`/admin/recrawl/${ENCODED}`);
 
-			expect(response.status).toBe(200);
+			expect(response.status).toBe(303);
 			const summaryAfter = await harness.summary.findGeneratedSummary(ARTICLE_URL);
 			expect(summaryAfter).toEqual({
 				status: "ready",

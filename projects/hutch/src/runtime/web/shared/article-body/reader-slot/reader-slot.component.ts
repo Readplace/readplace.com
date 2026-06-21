@@ -42,10 +42,7 @@ export interface ReaderSlotInput {
  * backend uses with `contentType` + `bodyBytes` signals at fetch time. Here
  * we only have the URL pre-fetch, so we pass the `pathname` signal alone;
  * `isPDF` treats `pathname` as the weakest signal and a false negative just
- * shows the standard pending message. When the article aggregate gains a
- * persisted `mediaType` field (follow-up), the hint will read that instead
- * so it stays consistent with the parser branch even for PDF URLs without
- * a `.pdf` suffix and for future uploaded-PDF flows that have no URL. */
+ * shows the standard pending message. */
 const PDF_LOADING_HINT =
 	"We optimise for accuracy over slop — low-quality PDFs may produce some optical scan gibberish.";
 

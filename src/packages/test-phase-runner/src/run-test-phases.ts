@@ -3,6 +3,14 @@ import { execSync as defaultExecSync } from "node:child_process";
 import type { ExecSyncOptions } from "node:child_process";
 import { globSync as defaultGlobSync } from "node:fs";
 
+function getEnv(name: string): string | undefined {
+	return process.env[name];
+}
+
+function parentEnv(): NodeJS.ProcessEnv {
+	return process.env;
+}
+
 interface JestPhase {
 	type: "jest";
 	name: string;
@@ -154,7 +162,7 @@ export const defaultDeps: TestPhaseRunnerDeps = {
 	execSync: defaultExecSync as ExecSyncFn,
 	globSync: defaultGlobSync,
 	log: console.log,
-	shouldSkipE2E: () => process.env.CLAUDE_CODE_REMOTE === "true",
+	shouldSkipE2E: () => getEnv("CLAUDE_CODE_REMOTE") === "true",
 };
 
 export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
@@ -163,7 +171,7 @@ export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
 		deps.execSync(command, {
 			cwd: options.cwd,
 			stdio: "inherit",
-			env: { ...process.env, ...options.extraEnv },
+			env: { ...parentEnv(), ...options.extraEnv },
 		});
 	}
 
@@ -188,7 +196,7 @@ export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
 	function runPlaywrightPhase(displayName: string, phase: ResolvedPlaywrightPhase, projectRoot: string) {
 		deps.log(`\n=== ${displayName} ===\n`);
 
-		const isCI = process.env.CI === "true";
+		const isCI = getEnv("CI") === "true";
 		if (isCI) {
 			deps.log("Installing browsers (output suppressed in CI; errors still shown)...");
 		}
@@ -200,7 +208,7 @@ export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
 		deps.execSync(phase.testCommand, {
 			cwd: projectRoot,
 			stdio: "inherit",
-			env: { ...process.env, ...phase.env },
+			env: { ...parentEnv(), ...phase.env },
 		});
 	}
 

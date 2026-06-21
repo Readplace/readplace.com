@@ -1,4 +1,3 @@
-/* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
@@ -571,4 +570,3 @@ export function initDynamoDbArticleStore(deps: {
 		readContent,
 	};
 }
-/* c8 ignore stop */

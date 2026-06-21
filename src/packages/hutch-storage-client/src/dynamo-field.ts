@@ -11,7 +11,7 @@ import type { z } from "zod";
  */
 export function dynamoField<T extends z.ZodTypeAny>(schema: T) {
 	const wrapped = schema.nullish().transform((v) => v ?? undefined);
-	return wrapped as typeof wrapped & { readonly __dynamoField: true };
+	return Object.assign(wrapped, { __dynamoField: true as const });
 }
 
 export type DynamoFieldSchema = z.ZodTypeAny & { readonly __dynamoField: true };

@@ -1,6 +1,7 @@
+import type { $brand } from "zod";
 import type { UserId } from "@packages/domain/user";
 
-export type VerificationToken = string & { readonly __brand: "VerificationToken" };
+export type VerificationToken = string & $brand<"VerificationToken">;
 
 export type CreateVerificationToken = (args: { userId: UserId; email: string }) => Promise<VerificationToken>;
 

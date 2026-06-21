@@ -278,6 +278,10 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	environment: {
 		NODE_ENV: stage === "production" ? "production" : "development",
 		PERSISTENCE: "prod",
+		/** server.ts reads PORT at module load (it is imported transitively by the
+		 * Lambda handler via createHutchApp). requireEnv no longer defaults it, so
+		 * it must be present even though serverless-http does not bind a port. */
+		PORT: "3000",
 		APP_ORIGIN: appOrigin,
 		/** Same-origin fragment endpoint served by blog-site behind this same API
 		 * Gateway (/blog/{proxy+} routes there). The banner source is cached and

@@ -23,9 +23,8 @@ export interface AccountAction {
 	key: AccountActionKey;
 	name: string;
 	variant: AccountActionVariant;
-	method: "GET" | "POST";
+	method: "POST";
 	href: string;
-	isLink: boolean;
 }
 
 export interface AccountViewModel {
@@ -70,11 +69,10 @@ export function parseAccountQuery(query: Record<string, unknown> | undefined): A
 	};
 }
 
-function action(input: Omit<AccountAction, "isLink">): AccountAction {
+function action(input: AccountAction): AccountAction {
 	return {
 		...input,
 		href: withInternalTracking(input.href, { source: "account", content: input.key }),
-		isLink: input.method === "GET",
 	};
 }
 
