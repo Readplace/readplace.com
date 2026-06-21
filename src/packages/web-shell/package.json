@@ -1,47 +1,45 @@
 {
-	"name": "@packages/web-shell",
-	"version": "1.0.0",
-	"description": "Presentational web shell (base layout, nav, render plumbing) shared across Readplace sites",
-	"main": "dist/index.js",
-	"types": "dist/index.d.ts",
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"default": "./dist/index.js"
-		},
-		"./trial-countdown.format": {
-			"types": "./dist/trial-countdown.format.d.ts",
-			"default": "./dist/trial-countdown.format.js"
-		}
-	},
-	"typesVersions": {
-		"*": {
-			"trial-countdown.format": [
-				"./dist/trial-countdown.format.d.ts"
-			]
-		}
-	},
-	"private": true,
-	"scripts": {
-		"compile": "rm -rf dist && tsc",
-		"lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\"",
-		"test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
-		"test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
-		"check": "nx run @packages/web-shell:check",
-		"check-infra": "echo 'No infrastructure — shared library'"
-	},
-	"dependencies": {
-		"handlebars": "4.7.9",
-		"linkedom": "0.18.12",
-		"node-html-markdown": "2.0.0"
-	},
-	"devDependencies": {
-		"@types/jest": "30.0.0",
-		"@types/jsdom": "21.1.7",
-		"c8": "11.0.0",
-		"concurrently": "10.0.0",
-		"jest": "30.4.2",
-		"jsdom": "26.1.0",
-		"typescript": "6.0.3"
-	}
+  "name": "@packages/web-shell",
+  "version": "1.0.0",
+  "description": "Presentational web shell (base layout, nav, render plumbing) shared across Readplace sites",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./trial-countdown.format": {
+      "types": "./dist/trial-countdown.format.d.ts",
+      "default": "./dist/trial-countdown.format.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "trial-countdown.format": ["./dist/trial-countdown.format.d.ts"]
+    }
+  },
+  "private": true,
+  "scripts": {
+    "compile": "rm -rf dist && tsc",
+    "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\"",
+    "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
+    "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
+    "check": "nx run @packages/web-shell:check",
+    "check-infra": "echo 'No infrastructure — shared library'"
+  },
+  "dependencies": {
+    "handlebars": "4.7.9",
+    "linkedom": "0.18.12",
+    "node-html-markdown": "2.0.0"
+  },
+  "devDependencies": {
+    "@types/jest": "30.0.0",
+    "@types/jsdom": "21.1.7",
+    "c8": "11.0.0",
+    "concurrently": "10.0.0",
+    "jest": "30.4.2",
+    "jsdom": "26.1.0",
+    "typescript": "6.0.3"
+  }
 }
