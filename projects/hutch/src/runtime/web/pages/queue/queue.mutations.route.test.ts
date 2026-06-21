@@ -27,8 +27,9 @@ describe("Queue routes", () => {
 
 			const queueResponse = await agent.get("/queue");
 			const doc = new JSDOM(queueResponse.text).window.document;
-			expect(doc.querySelectorAll(".queue-article").length).toBe(1);
-			expect(doc.querySelector("[data-test-empty-queue]")).toBeNull();
+			const list = doc.querySelector("[data-test-article-list]");
+			assert(list, "article list region must render after a save");
+			expect(list.querySelectorAll(".queue-article").length).toBe(1);
 		});
 
 		it("should show error for invalid URL", async () => {
