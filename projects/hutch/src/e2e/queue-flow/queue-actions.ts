@@ -145,6 +145,7 @@ export function createQueueActions(
             .locator('#latest-saved .queue-article__url')
             .first()
             .getAttribute('href')
+            // c8 ignore: catch only fires on CI when the latest-saved card is detached mid page-reload
             .catch(/* c8 ignore next */ () => null)
           return latestHref?.includes(slug) === true
         },
