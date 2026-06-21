@@ -1,17 +1,17 @@
-import type { Request, Response } from "express";
 import type { Component } from "./component.types";
+import type { AcceptNegotiable } from "./content-negotiation";
 import { HtmlPage } from "./html-page";
 import { MarkdownPage } from "./markdown-page";
-import { sendComponent } from "./send-component";
+import { type SendableResponse, sendComponent } from "./send-component";
 
 interface FakeResponse {
 	calls: { status: number[]; set: Record<string, string>[]; send: unknown[] };
-	res: Response;
+	res: SendableResponse;
 }
 
 function createFakeResponse(): FakeResponse {
 	const calls: FakeResponse["calls"] = { status: [], set: [], send: [] };
-	const res = {
+	const res: SendableResponse = {
 		status(code: number) {
 			calls.status.push(code);
 			return res;
@@ -20,15 +20,15 @@ function createFakeResponse(): FakeResponse {
 			calls.set.push(headers);
 			return res;
 		},
-		send(body: unknown) {
+		send(body: string) {
 			calls.send.push(body);
 			return res;
 		},
-	} as unknown as Response;
+	};
 	return { calls, res };
 }
 
-function requestWithAccept(accept?: string): Request {
+function requestWithAccept(accept?: string): AcceptNegotiable {
 	const types = (accept || "").split(",").map(entry => {
 		const [type, ...params] = entry.trim().split(";");
 		const qParam = params.find(p => p.trim().startsWith("q="));
@@ -44,7 +44,7 @@ function requestWithAccept(accept?: string): Request {
 			}
 			return false;
 		},
-	} as unknown as Request;
+	};
 }
 
 describe("sendComponent", () => {
