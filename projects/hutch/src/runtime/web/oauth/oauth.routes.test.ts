@@ -452,6 +452,26 @@ describe("OAuth routes", () => {
 			expect(response.body.error).toBe("invalid_client_metadata");
 		});
 
+		it("rejects more than 32 redirect_uris as invalid_client_metadata", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const redirect_uris = Array.from({ length: 33 }, (_, i) => `https://app.example/cb${i}`);
+			const response = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris });
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_client_metadata");
+		});
+
+		it("rejects a redirect_uri longer than 2048 chars as invalid_client_metadata", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const overlongUri = `https://app.example/cb?x=${"a".repeat(2048)}`;
+			const response = await request(harness.server)
+				.post("/oauth/register")
+				.send({ redirect_uris: [overlongUri] });
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_client_metadata");
+		});
+
 		it("rejects a non-https, non-loopback redirect_uri as invalid_redirect_uri", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const response = await request(harness.server)

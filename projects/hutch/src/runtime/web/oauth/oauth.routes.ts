@@ -35,7 +35,7 @@ const denyBodySchema = z.object({
 const SUPPORTED_GRANTS = new Set(["authorization_code", "refresh_token"]);
 
 const registerBodySchema = z.object({
-	redirect_uris: z.array(z.string()).min(1),
+	redirect_uris: z.array(z.string().max(2048)).min(1).max(32),
 	client_name: z.string().optional(),
 	grant_types: z.array(z.string()).optional(),
 	response_types: z.array(z.string()).optional(),
