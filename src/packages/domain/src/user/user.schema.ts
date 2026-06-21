@@ -1,4 +1,4 @@
 import { z } from "zod";
-import type { UserId } from "./user.types";
 
-export const UserIdSchema = z.string().transform((s: string): UserId => s as UserId);
+export const UserIdSchema = z.string().brand<"UserId">();
+export type UserId = z.infer<typeof UserIdSchema>;
