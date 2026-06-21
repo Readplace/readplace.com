@@ -97,7 +97,7 @@ async function processCommand(
 	const body = JSON.stringify(envelope, null, 2);
 
 	const { s3Key, downloadUrl } = await deps.uploadUserDataExport({
-		userId: detail.userId,
+		userId,
 		body,
 	});
 	deps.logger.info("[ExportUserData] uploaded export to S3", {
