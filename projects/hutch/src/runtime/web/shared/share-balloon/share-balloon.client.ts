@@ -43,10 +43,14 @@ export function initShareBalloon(
 	const OPEN_CLASS = "share-balloon__wrap--open";
 	const COPIED_VISIBLE_CLASS = "share-balloon__copied--visible";
 
+	function assert(cond: unknown, message: string): asserts cond {
+		/** esbuild bundles this module for the browser, where `node:assert`
+		 * is not resolvable, so the invariant check is inlined here. */
+		if (!cond) throw new Error(`share balloon: ${message}`);
+	}
+
 	function ensure<T>(value: T | null | undefined, description: string): T {
-		if (value === null || value === undefined) {
-			throw new Error(`share balloon: ${description}`);
-		}
+		assert(value !== null && value !== undefined, description);
 		return value;
 	}
 
@@ -103,8 +107,8 @@ export function initShareBalloon(
 			"[data-reader-status]",
 		);
 		/** No reader-slot in the DOM means the host page does not track article
-		 * crawl state (e.g. share-balloon-only test fixtures). Default to ready
-		 * so the balloon retains its pre-#389 behaviour in those contexts. */
+		 * crawl state (e.g. share-balloon-only test fixtures), so default to
+		 * ready and let the balloon open in those contexts. */
 		if (slot === null) return true;
 		return slot.getAttribute("data-reader-status") === "ready";
 	}
