@@ -45,7 +45,7 @@ const TokenRow = z.object({
 	clientId: z.string(),
 	userId: z.string(),
 	scope: z.array(z.string()).optional(),
-	emailVerified: z.boolean(),
+	emailVerified: z.boolean().optional(),
 });
 
 const RefreshIndexRow = z.object({
