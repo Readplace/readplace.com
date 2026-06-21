@@ -75,8 +75,8 @@ function initFakeDeps(initial: {
 		summary: initial.summary,
 		content: initial.content,
 		article: initial.article === undefined ? defaultFakeArticle() : initial.article,
-		// Auto-heal was removed: the reader no longer marks anything pending.
-		// The counters stay so the regression test can assert they don't tick.
+		// The reader never marks anything pending; these counters let the tests
+		// assert the pending-mark paths stay untouched.
 		markCrawlPendingCalls: 0,
 		markSummaryPendingCalls: 0,
 	};
@@ -610,7 +610,7 @@ describe("initArticleReader", () => {
 			expect(slot.getAttribute("hx-get")).toBe("/test/reader?poll=3");
 		});
 
-		it("stops polling at MAX_POLLS=40 and swaps to the 'Your link is saved' slow reframe", async () => {
+		it("stops polling at MAX_POLLS and swaps to the 'Your link is saved' slow reframe", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending" },
 			});
@@ -887,10 +887,13 @@ describe("initArticleReader", () => {
 			});
 
 			const doc = parse(toHtml(component));
-			expect(doc.querySelector("#article-header")).toBeNull();
-			expect(doc.querySelector("title#document-title")).toBeNull();
+			// Anchor on a positive: the reader-slot fragment must render even with
+			// no article row. Only then are the absence checks below meaningful (a
+			// typo'd selector would otherwise also return null and pass silently).
 			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, "reader-slot fragment must still be emitted even with no article row");
+			expect(doc.querySelector("#article-header")).toBeNull();
+			expect(doc.querySelector("title#document-title")).toBeNull();
 		});
 	});
 
