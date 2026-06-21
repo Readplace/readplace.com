@@ -1,5 +1,3 @@
-/* c8 ignore start -- tested via Jest unit tests + node:test integration; c8 cannot merge V8 coverage from both runners (bcoe/c8#126) */
-import { spawn } from "node:child_process";
 import assert from "node:assert";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -9,14 +7,21 @@ import { resolve } from "node:path";
 import { escapeHtmlText } from "@packages/crawl-article";
 import type { RunPageOcr } from "../../domain/pdf-page-ocr/pdf-page-ocr-handler.types";
 
-/* Resolve the tessdata directory the Lambda container ships with. The
- * Dockerfile copies the langpacks to /opt/tesseract/tessdata and exports
- * TESSDATA_PREFIX accordingly; falling back to that absolute path keeps
- * the wrapper usable when the env var is unset (e.g. on a developer
- * machine running an integration test against a system tesseract). */
-export function resolveTessdataDir(env: NodeJS.ProcessEnv = process.env): string {
-	return env.TESSDATA_PREFIX ?? "/opt/tesseract/tessdata";
+/** Narrow view of the child returned by `node:child_process` `spawn` — just
+ * the stdout/stderr streams and the error/close events this wrapper consumes.
+ * Narrowing it (rather than depending on the full `ChildProcessWithoutNullStreams`)
+ * lets tests supply a plain fake child without a type assertion. */
+export interface TesseractChildProcess {
+	readonly stdout: { on(event: "data", listener: (chunk: Buffer) => void): void };
+	readonly stderr: { on(event: "data", listener: (chunk: Buffer) => void): void };
+	on(event: "error", listener: (error: Error) => void): void;
+	on(event: "close", listener: (exitCode: number | null) => void): void;
 }
+
+/** Injected at the composition root from `node:child_process` `spawn` so tests
+ * can fake the subprocess and exercise every exit/error branch without a real
+ * Tesseract install. */
+export type SpawnTesseractProcess = (args: readonly string[]) => TesseractChildProcess;
 
 /* Tesseract loads every script pack passed via `-l` and `--psm 1` then runs
  * OSD across all of them to decide which model to apply per region. With ~35
@@ -48,40 +53,63 @@ export function buildLanguageFlag(installedScripts: readonly string[]): string {
 	return installedScripts.map((script) => `script/${script}`).join("+");
 }
 
-export function initTesseractOcr(deps: { tessdataDir: string }): RunPageOcr {
+export function initTesseractOcr(deps: {
+	tessdataDir: string;
+	spawnTesseractProcess: SpawnTesseractProcess;
+}): RunPageOcr {
 	const installedScripts = discoverInstalledScripts(deps.tessdataDir);
 	const languageFlag = buildLanguageFlag(installedScripts);
-	return createOcrClosure(languageFlag);
+	return createOcrClosure({ languageFlag, spawnTesseractProcess: deps.spawnTesseractProcess });
 }
 
-function createOcrClosure(languageFlag: string): RunPageOcr {
+function createOcrClosure(deps: {
+	languageFlag: string;
+	spawnTesseractProcess: SpawnTesseractProcess;
+}): RunPageOcr {
 	return async ({ images }) => {
 		const fragments: string[] = [];
 		for (const { pngBuffer } of images) {
-			fragments.push(await ocrOneImage(pngBuffer, languageFlag));
+			fragments.push(await ocrOneImage({ pngBuffer, ...deps }));
 		}
 		return fragments.join("");
 	};
 }
 
-async function ocrOneImage(pngBuffer: Buffer, languageFlag: string): Promise<string> {
-	const text = await runTesseract(pngBuffer, languageFlag);
+async function ocrOneImage(params: {
+	pngBuffer: Buffer;
+	languageFlag: string;
+	spawnTesseractProcess: SpawnTesseractProcess;
+}): Promise<string> {
+	const text = await runTesseract(params);
 	return renderTesseractHtml(text);
 }
 
-async function runTesseract(pngBuffer: Buffer, languageFlag: string): Promise<string> {
+async function runTesseract(params: {
+	pngBuffer: Buffer;
+	languageFlag: string;
+	spawnTesseractProcess: SpawnTesseractProcess;
+}): Promise<string> {
 	const scratchDir = resolve(tmpdir(), `tesseract-${randomUUID()}`);
 	const pngPath = resolve(scratchDir, "page.png");
 	await mkdir(scratchDir, { recursive: true });
-	await writeFile(pngPath, pngBuffer);
+	await writeFile(pngPath, params.pngBuffer);
 	try {
-		return await spawnTesseract(pngPath, languageFlag);
+		return await spawnTesseract({
+			pngPath,
+			languageFlag: params.languageFlag,
+			spawnTesseractProcess: params.spawnTesseractProcess,
+		});
 	} finally {
 		await rm(scratchDir, { recursive: true, force: true });
 	}
 }
 
-function spawnTesseract(pngPath: string, languageFlag: string): Promise<string> {
+function spawnTesseract(params: {
+	pngPath: string;
+	languageFlag: string;
+	spawnTesseractProcess: SpawnTesseractProcess;
+}): Promise<string> {
+	const { pngPath, languageFlag, spawnTesseractProcess } = params;
 	return new Promise((resolvePromise, rejectPromise) => {
 		// --psm 1: auto page segmentation with OSD (orientation + script detection).
 		// --oem 1: pin the OCR engine to the LSTM neural net (the default `--oem 3`
@@ -93,7 +121,7 @@ function spawnTesseract(pngPath: string, languageFlag: string): Promise<string> 
 		//   English/Portuguese/German/etc. — so the flag is short and the recogniser
 		//   only loads the script needed per region (tessdata is mmapped lazily).
 		// `-` as output base writes recognised text to stdout.
-		const child = spawn("tesseract", [pngPath, "-", "--psm", "1", "--oem", "1", "-l", languageFlag]);
+		const child = spawnTesseractProcess([pngPath, "-", "--psm", "1", "--oem", "1", "-l", languageFlag]);
 		const stdoutChunks: Buffer[] = [];
 		const stderrChunks: Buffer[] = [];
 		child.stdout.on("data", (chunk: Buffer) => stdoutChunks.push(chunk));
@@ -121,4 +149,3 @@ function renderTesseractHtml(text: string): string {
 		.map((paragraph) => `<p class="ocr-tesseract">${escapeHtmlText(paragraph)}</p>`)
 		.join("");
 }
-/* c8 ignore stop */
