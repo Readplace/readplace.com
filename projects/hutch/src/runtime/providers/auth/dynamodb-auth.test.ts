@@ -1,5 +1,5 @@
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
-import type { UserId } from "@packages/domain/user";
+import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbAuth } from "./dynamodb-auth";
 
 /** Fake that honours the GetCommand projection so a row with fields missing from it round-trips as real DynamoDB would. */
@@ -48,7 +48,7 @@ function initAuth(client: DynamoDBDocumentClient) {
 	});
 }
 
-const USER = "abc123" as UserId;
+const USER = UserIdSchema.parse("abc123");
 
 describe("initDynamoDbAuth", () => {
 	describe("findUserByEmail", () => {
