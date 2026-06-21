@@ -461,7 +461,15 @@ export const TRIAL_COUNTDOWN_STYLES = `
     text-underline-offset: 3px;
   }
 
-  /* purgecss-ignore-start: modifier suffix is interpolated from BannerState.trial.escalation in nav.template.ts */
+  /* purgecss-ignore-start: modifier suffix is interpolated from BannerState.trial.escalation and the visibility state in nav.template.ts */
+  .trial-countdown--visible {
+    display: inline-block;
+  }
+
+  .trial-countdown--hidden {
+    display: none;
+  }
+
   .trial-countdown--soft {
     font-weight: 500;
     opacity: 0.85;

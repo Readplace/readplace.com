@@ -31,6 +31,10 @@ describe("Queue page banner state", () => {
 		const saveForm = doc.querySelector('[data-test-form="save-article"]');
 		assert(saveForm, "save form must be rendered with full access for a founding member");
 		expect(saveForm.classList.contains("queue__save-form--disabled")).toBe(false);
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "trial countdown element must always be in the DOM");
+		expect(countdown.classList.contains("trial-countdown--hidden")).toBe(true);
+		expect(countdown.getAttribute("data-trial-state")).toBe("");
 	});
 
 	it("renders the header trial countdown and the queue aside trial-countdown banner for a trialing user", async () => {

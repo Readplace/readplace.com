@@ -1,8 +1,7 @@
 export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--transparent{{/if}}">
     <div class="header__content">
       <a href="{{track '/' source='header' content='brand'}}" class="header__brand">Read<span class="header__brand-mark">place</span></a>
-      {{#if trial}}
-      <a class="trial-countdown trial-countdown--{{trialEscalationClass}}"
+      <a class="trial-countdown trial-countdown--{{trialEscalationClass}} trial-countdown--{{trialVisibility}}"
          href="{{track '/account' source='header' content='trial-countdown'}}"
          data-trial-ends-at-iso="{{trialEndsAtIso}}"
          data-server-now-iso="{{serverNowIso}}"
@@ -11,7 +10,6 @@ export const NAV_TEMPLATE = `  <header class="header{{#if transparent}} header--
          aria-live="off"
          aria-atomic="true"
          data-test-trial-countdown>{{trialDisplayText}}</a>
-      {{/if}}
       <nav class="nav">
         <button class="nav__toggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-menu">
           <span class="nav__toggle-bar"></span>

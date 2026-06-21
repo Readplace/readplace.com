@@ -25,6 +25,12 @@ function createTestPageBody(overrides: Partial<PageBody> = {}): PageBody {
 
 const GUEST_STATE: BannerState = { isAuthenticated: false, emailVerified: undefined };
 
+function loadedClientScripts(doc: Document): string[] {
+	return Array.from(doc.querySelectorAll('script[src*="/client-dist/"]')).map(
+		(el) => el.getAttribute("src") ?? "",
+	);
+}
+
 describe("Base component", () => {
 	it("should render a complete HTML page with the provided title", () => {
 		const page = createTestPageBody({ seo: { title: "My Title", description: "Desc", canonicalUrl: "https://readplace.com" } });
@@ -621,22 +627,19 @@ describe("Base component", () => {
 		).toBe("https://readplace.com/view/example.com/original-post");
 	});
 
-	it("does not render the trial countdown when state.trial is undefined", () => {
+	it("renders the trial countdown hidden (state class) and omits the client script when state.trial is undefined", () => {
 		const page = createTestPageBody();
 		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
-		const headerContent = doc.querySelector(".header__content");
-		assert(headerContent, "header content container must exist");
-		const brand = headerContent.querySelector(".header__brand");
-		assert(brand, "brand link must exist");
-		const next = brand.nextElementSibling;
-		assert(next, "an element must follow the brand inside .header__content");
-		expect(next.tagName).toBe("NAV");
-		expect(next.classList.contains("nav")).toBe(true);
-		expect(
-			doc.querySelector('script[src$="/client-dist/trial-countdown.client.js"]'),
-		).toBeNull();
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "trial countdown element must always be in the DOM");
+		expect(countdown.classList.contains("trial-countdown--hidden")).toBe(true);
+		expect(countdown.getAttribute("data-trial-state")).toBe("");
+
+		const scripts = loadedClientScripts(doc);
+		expect(scripts).toContain("/client-dist/toast.client.js");
+		expect(scripts).not.toContain("/client-dist/trial-countdown.client.js");
 	});
 
 	it("renders the trial countdown with text/data-attrs and includes the client script when trial.state='active'", () => {
@@ -667,6 +670,7 @@ describe("Base component", () => {
 		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe("2026-01-15T00:00:00.000Z");
 		expect(countdown.getAttribute("data-server-now-iso")).toBe("2026-01-01T00:00:00.000Z");
 		expect(countdown.classList.contains("trial-countdown--moderate")).toBe(true);
+		expect(countdown.classList.contains("trial-countdown--visible")).toBe(true);
 		expect(countdown.getAttribute("role")).toBe("timer");
 		expect(countdown.getAttribute("aria-live")).toBe("off");
 
@@ -691,10 +695,11 @@ describe("Base component", () => {
 		expect(countdown.textContent).toBe("Subscription not active");
 		expect(countdown.getAttribute("data-trial-state")).toBe("expired");
 		expect(countdown.classList.contains("trial-countdown--expired")).toBe(true);
+		expect(countdown.classList.contains("trial-countdown--visible")).toBe(true);
 
-		expect(
-			doc.querySelector('script[src$="/client-dist/trial-countdown.client.js"]'),
-		).toBeNull();
+		const scripts = loadedClientScripts(doc);
+		expect(scripts).toContain("/client-dist/toast.client.js");
+		expect(scripts).not.toContain("/client-dist/trial-countdown.client.js");
 	});
 
 	it("renders the trial countdown as an anchor to /account so the user can fix the subscription state from any page", () => {
