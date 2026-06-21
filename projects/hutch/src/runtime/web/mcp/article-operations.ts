@@ -1,0 +1,132 @@
+import { ReaderArticleHashIdSchema } from "@packages/domain/article";
+import type { SavedArticle } from "@packages/domain/article";
+import type { UserId } from "@packages/domain/user";
+import type {
+	FindArticleById,
+	FindArticlesByUser,
+	ReadArticleContent,
+} from "@packages/provider-contracts/article-store";
+import type {
+	FindGeneratedSummary,
+	GeneratedSummary,
+} from "@packages/provider-contracts/article-summary";
+import type {
+	ArticleSummaryResult,
+	McpArticle,
+	McpServerDeps,
+} from "./mcp-server";
+
+interface McpArticleOperationDeps {
+	findArticleById: FindArticleById;
+	findArticlesByUser: FindArticlesByUser;
+	readArticleContent: ReadArticleContent;
+	findGeneratedSummary: FindGeneratedSummary;
+}
+
+export function toMcpArticle(article: SavedArticle): McpArticle {
+	return {
+		id: article.id.value,
+		url: article.url,
+		title: article.metadata.title,
+		siteName: article.metadata.siteName,
+		excerpt: article.metadata.excerpt,
+		wordCount: article.metadata.wordCount,
+		...(article.metadata.imageUrl !== undefined
+			? { imageUrl: article.metadata.imageUrl }
+			: {}),
+		estimatedReadTime: article.estimatedReadTime,
+		status: article.status,
+		savedAt: article.savedAt.toISOString(),
+		...(article.readAt !== undefined
+			? { readAt: article.readAt.toISOString() }
+			: {}),
+	};
+}
+
+export function toSummaryResult(
+	summary: GeneratedSummary | undefined,
+): ArticleSummaryResult {
+	if (!summary) return { status: "pending" };
+	switch (summary.status) {
+		case "pending":
+			return { status: "pending" };
+		case "ready":
+			return {
+				status: "ready",
+				summary: summary.summary,
+				...(summary.excerpt !== undefined ? { excerpt: summary.excerpt } : {}),
+			};
+		case "failed":
+			return { status: "failed", reason: summary.reason };
+		case "skipped":
+			return {
+				status: "skipped",
+				...(summary.reason !== undefined ? { reason: summary.reason } : {}),
+			};
+	}
+}
+
+/**
+ * Builds the article-facing MCP operations from the same store seams the
+ * hypermedia `/queue` API uses. Lives here rather than in the composition root
+ * so the id→owner resolution and the metadata/summary mapping are unit-testable
+ * without standing up the whole app. Every lookup is owner-scoped
+ * (`findArticleById` is keyed by userId), so a cross-user or malformed id
+ * resolves to "not found" rather than another user's article.
+ */
+export function initMcpArticleOperations(
+	deps: McpArticleOperationDeps,
+): Pick<
+	McpServerDeps,
+	"listQueue" | "getArticle" | "getArticleContent" | "getArticleSummary"
+> {
+	async function resolveOwned(
+		userId: UserId,
+		id: string,
+	): Promise<SavedArticle | null> {
+		const parsed = ReaderArticleHashIdSchema.safeParse(id);
+		if (!parsed.success) return null;
+		return deps.findArticleById(parsed.data, userId);
+	}
+
+	return {
+		listQueue: async ({ userId, status, sort, order, page, pageSize }) => {
+			const result = await deps.findArticlesByUser({
+				userId,
+				status,
+				sort,
+				order,
+				page,
+				pageSize,
+				excludeContent: true,
+			});
+			return {
+				total: result.total,
+				page: result.page,
+				pageSize: result.pageSize,
+				articles: result.articles.map(toMcpArticle),
+			};
+		},
+
+		getArticle: async ({ userId, id }) => {
+			const article = await resolveOwned(userId, id);
+			return article ? toMcpArticle(article) : null;
+		},
+
+		getArticleContent: async ({ userId, id }) => {
+			const article = await resolveOwned(userId, id);
+			if (!article) return { status: "not_found" };
+			const content = await deps.readArticleContent(article.url);
+			return content === undefined
+				? { status: "pending" }
+				: { status: "ready", content };
+		},
+
+		getArticleSummary: async ({ userId, id }) => {
+			const article = await resolveOwned(userId, id);
+			if (!article) return { status: "not_found" };
+			const summary = await deps.findGeneratedSummary(article.url);
+			return toSummaryResult(summary);
+		},
+	};
+}

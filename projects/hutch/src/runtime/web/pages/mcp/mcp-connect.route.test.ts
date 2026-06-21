@@ -20,6 +20,8 @@ describe("GET /mcp (browser connection guide)", () => {
 		expect(response.text).toContain("Claude");
 		expect(response.text).toContain("ChatGPT");
 		expect(response.text).toContain("Perplexity");
+		expect(response.text).toContain("get_article");
+		expect(response.text).toContain("marking articles read and deleting them stay in the Readplace app");
 	});
 
 	it.each([
