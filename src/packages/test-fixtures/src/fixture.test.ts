@@ -61,17 +61,6 @@ describe("createFakeSummaryProvider", () => {
 		expect(await findGeneratedSummary("https://example.com/never-saved")).toBeUndefined();
 	});
 
-	it("forceMarkSummaryPending overrides a ready row back to pending", async () => {
-		const { findGeneratedSummary, markSummaryReady, forceMarkSummaryPending } =
-			createFakeSummaryProvider();
-		const url = "https://example.com/article";
-
-		markSummaryReady({ url, summary: "X", excerpt: "Y" });
-		await forceMarkSummaryPending({ url });
-
-		expect(await findGeneratedSummary(url)).toEqual({ status: "pending" });
-	});
-
 	it("markSummaryReady writes the supplied summary and excerpt", async () => {
 		const { findGeneratedSummary, markSummaryReady } = createFakeSummaryProvider();
 		const url = "https://example.com/article";

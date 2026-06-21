@@ -1,7 +1,6 @@
 import { ArticleResourceUniqueId } from "@packages/article-resource-unique-id";
 import type {
 	FindGeneratedSummary,
-	ForceMarkSummaryPending,
 	GeneratedSummary,
 	MarkSummaryPending,
 } from "@packages/provider-contracts/article-summary";
@@ -20,7 +19,6 @@ export type InMemoryMarkSummarySkipped = (params: {
 export function initInMemoryGeneratedSummary(): {
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
-	forceMarkSummaryPending: ForceMarkSummaryPending;
 	markSummaryReady: InMemoryMarkSummaryReady;
 	markSummarySkipped: InMemoryMarkSummarySkipped;
 } {
@@ -35,11 +33,6 @@ export function initInMemoryGeneratedSummary(): {
 		const id = ArticleResourceUniqueId.parse(url);
 		const current = states.get(id.value);
 		if (current?.status === "ready" || current?.status === "skipped") return;
-		states.set(id.value, { status: "pending" });
-	};
-
-	const forceMarkSummaryPending: ForceMarkSummaryPending = async ({ url }) => {
-		const id = ArticleResourceUniqueId.parse(url);
 		states.set(id.value, { status: "pending" });
 	};
 
@@ -62,7 +55,6 @@ export function initInMemoryGeneratedSummary(): {
 	return {
 		findGeneratedSummary,
 		markSummaryPending,
-		forceMarkSummaryPending,
 		markSummaryReady,
 		markSummarySkipped,
 	};

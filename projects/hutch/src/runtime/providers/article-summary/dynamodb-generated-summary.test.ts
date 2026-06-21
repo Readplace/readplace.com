@@ -1,11 +1,24 @@
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import {
+	ConditionalCheckFailedException,
+	type DynamoDBDocumentClient,
+} from "@packages/hutch-storage-client";
 import { initDynamoDbGeneratedSummary } from "./dynamodb-generated-summary";
+
+type SendFn = DynamoDBDocumentClient["send"];
 
 function createFakeClient(item: Record<string, unknown> | undefined): DynamoDBDocumentClient {
 	const fake: Partial<DynamoDBDocumentClient> = {
 		send: async () => ({ Item: item }),
 	};
 	return fake as Partial<DynamoDBDocumentClient> as DynamoDBDocumentClient;
+}
+
+function createSendingClient(
+	impl: (input: unknown) => unknown,
+): DynamoDBDocumentClient {
+	return {
+		send: (async (input: unknown) => impl(input)) as unknown as SendFn,
+	} as Partial<DynamoDBDocumentClient> as DynamoDBDocumentClient;
 }
 
 describe("initDynamoDbGeneratedSummary", () => {
@@ -205,5 +218,70 @@ describe("initDynamoDbGeneratedSummary", () => {
 		const result = await findGeneratedSummary("https://example.com/article");
 
 		expect(result).toEqual({ status: "skipped", reason: "content-too-short" });
+	});
+
+	describe("markSummaryPending", () => {
+		it("issues an UpdateItem that sets summaryStatus=pending with a guard against ready rows", async () => {
+			let received: unknown;
+			const client = createSendingClient((input) => {
+				received = input;
+				return {};
+			});
+			const { markSummaryPending } = initDynamoDbGeneratedSummary({
+				client,
+				tableName: "test-table",
+			});
+
+			await markSummaryPending({ url: "https://example.com/article" });
+
+			const command = received as {
+				input: {
+					UpdateExpression?: string;
+					ConditionExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.UpdateExpression).toContain(
+				"SET summaryStatus = :pending",
+			);
+			expect(command.input.ConditionExpression).toContain(
+				"attribute_not_exists(summaryStatus) OR summaryStatus <> :ready",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":pending"]).toBe(
+				"pending",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":ready"]).toBe("ready");
+		});
+
+		it("swallows ConditionalCheckFailedException so ready rows stay ready", async () => {
+			const client = createSendingClient(() => {
+				throw new ConditionalCheckFailedException({
+					$metadata: {},
+					message: "condition failed",
+				});
+			});
+			const { markSummaryPending } = initDynamoDbGeneratedSummary({
+				client,
+				tableName: "test-table",
+			});
+
+			await expect(
+				markSummaryPending({ url: "https://example.com/article" }),
+			).resolves.toBeUndefined();
+		});
+
+		it("rethrows non-ConditionalCheck errors", async () => {
+			const client = createSendingClient(() => {
+				throw new Error("throttled");
+			});
+			const { markSummaryPending } = initDynamoDbGeneratedSummary({
+				client,
+				tableName: "test-table",
+			});
+
+			await expect(
+				markSummaryPending({ url: "https://example.com/article" }),
+			).rejects.toThrow("throttled");
+		});
 	});
 });
