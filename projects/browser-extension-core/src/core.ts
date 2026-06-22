@@ -75,10 +75,7 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 	function emitResult<T>(event: string, guardedResult: GuardedResult<Promise<T>>): void;
 	function emitResult<T>(event: string, guardedResult: GuardedResult<T | Promise<T>>): void {
 		if (!guardedResult.ok) {
-			const failure: CoreError =
-				guardedResult.reason === "not-logged-in"
-					? { reason: "not-logged-in" }
-					: { reason: "error", error: guardedResult.error };
+			const failure: CoreError = guardedResult;
 			eventBus.emit(event, "failure", failure);
 			return;
 		}
