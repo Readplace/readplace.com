@@ -9,12 +9,10 @@ import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	IMPORT_SESSION_TTL_SECONDS,
+	type ImportSessionStore,
 	ImportSessionIdSchema,
 } from "@packages/domain/import-session";
-import type {
-	ImportSession,
-	ImportSessionStore,
-} from "@packages/domain/import-session";
+import { computeDeselected, toImportSession } from "./import-session-mapping";
 
 const SessionRow = z.object({
 	sessionId: ImportSessionIdSchema,
@@ -29,22 +27,6 @@ const SessionRow = z.object({
 	allSelected: dynamoField(z.boolean()),
 });
 
-function toSession(row: z.infer<typeof SessionRow>): ImportSession {
-	const allSelected = row.allSelected ?? true;
-	return {
-		id: row.sessionId,
-		userId: row.userId,
-		createdAt: row.createdAt,
-		expiresAt: row.expiresAt,
-		totalUrls: row.totalUrls,
-		totalFound: row.totalFoundInFile,
-		truncated: row.truncated,
-		deselected: allSelected
-			? new Set(row.deselected ?? [])
-			: new Set(Array.from({ length: row.totalUrls }, (_v, i) => i)),
-	};
-}
-
 export function initDynamoDbImportSession(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
@@ -56,10 +38,10 @@ export function initDynamoDbImportSession(deps: {
 		schema: SessionRow,
 	});
 
-	async function loadOwned(id: string, userId: string) {
-		const row = await table.get({ sessionId: id });
+	async function loadOwned(owner: { id: string; userId: string }) {
+		const row = await table.get({ sessionId: owner.id });
 		if (!row) return undefined;
-		if (row.userId !== userId) return undefined;
+		if (row.userId !== owner.userId) return undefined;
 		if (row.expiresAt < Math.floor(deps.now().getTime() / 1000)) return undefined;
 		return row;
 	}
@@ -95,28 +77,30 @@ export function initDynamoDbImportSession(deps: {
 			};
 		},
 		findImportSession: async ({ id, userId }) => {
-			const row = await loadOwned(id, userId);
-			return row ? toSession(row) : undefined;
+			const row = await loadOwned({ id, userId });
+			return row ? toImportSession(row) : undefined;
 		},
 		loadImportSessionPage: async ({ id, userId, page, pageSize }) => {
-			const row = await loadOwned(id, userId);
+			const row = await loadOwned({ id, userId });
 			if (!row) return undefined;
 			const start = (page - 1) * pageSize;
 			const pageUrls = row.urls.slice(start, start + pageSize);
-			return { session: toSession(row), pageUrls, page, pageSize };
+			return { session: toImportSession(row), pageUrls, page, pageSize };
 		},
 		loadAllImportSessionUrls: async ({ id, userId }) => {
-			const row = await loadOwned(id, userId);
+			const row = await loadOwned({ id, userId });
 			return row?.urls;
 		},
 		toggleImportSelection: async ({ id, userId, index, checked }) => {
-			const row = await loadOwned(id, userId);
+			const row = await loadOwned({ id, userId });
 			if (!row) return;
 			const allSelected = row.allSelected ?? true;
 			if (!allSelected && !checked) return;
-			const current = allSelected
-				? new Set<number>(row.deselected ?? [])
-				: new Set(Array.from({ length: row.totalUrls }, (_v, i) => i));
+			const current = computeDeselected({
+				allSelected: row.allSelected,
+				deselected: row.deselected,
+				totalUrls: row.totalUrls,
+			});
 			if (checked) current.delete(index);
 			else current.add(index);
 			await table.update({
@@ -131,7 +115,7 @@ export function initDynamoDbImportSession(deps: {
 			});
 		},
 		toggleAllImportSelection: async ({ id, userId, checked }) => {
-			const row = await loadOwned(id, userId);
+			const row = await loadOwned({ id, userId });
 			if (!row) return;
 			await table.update({
 				Key: { sessionId: id },
