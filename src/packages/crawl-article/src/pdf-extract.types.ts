@@ -27,17 +27,18 @@ export type PdfExtractStage = "comprehensive-extracting" | "comprehensive-cleani
  * the extractor does not await it and never surfaces errors from it. Indices
  * are 1-based.
  *
- * `stage` is set when the extractor transitions between coarse-grained phases
- * (`comprehensive-extracting` → `comprehensive-cleaning`). The orchestrator
- * handler latches `markCrawlStage` to that value so the reader-facing
- * progress bar advances past the OCR mark when LLM cleanup begins. The field
- * is optional for backward compatibility: when omitted, the orchestrator
- * keeps the prior "latch on first onProgress" behaviour.
+ * `stage` is the coarse-grained phase the part belongs to
+ * (`comprehensive-extracting` while Tesseract runs, `comprehensive-cleaning`
+ * once LLM cleanup begins). The orchestrator handler latches `markCrawlStage`
+ * to this value on a phase change so the reader-facing progress bar advances
+ * past the OCR mark when cleanup starts. Every part reports its phase, so the
+ * field is required: the compiler forces every producer to name the phase
+ * rather than defer a missing value to runtime.
  */
 export type PdfExtractProgress = (params: {
 	partIndex: number;
 	partCount: number;
-	stage?: PdfExtractStage;
+	stage: PdfExtractStage;
 }) => void;
 
 export type ExtractPdf = (params: {
