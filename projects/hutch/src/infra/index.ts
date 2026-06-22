@@ -276,7 +276,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	memorySize: 512,
 	timeout: 30,
 	environment: {
-		NODE_ENV: stage === "production" ? "production" : "development",
+		NODE_ENV: config.require("nodeEnv"),
 		PERSISTENCE: "prod",
 		/** server.ts reads PORT at module load (it is imported transitively by the
 		 * Lambda handler via createHutchApp). requireEnv no longer defaults it, so
