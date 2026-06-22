@@ -1,3 +1,4 @@
+import type { UserId } from "@packages/domain/user";
 import type {
 	CancelSubscriptionImmediately,
 	CreateSubscriptionOnExistingCustomer,
@@ -20,12 +21,18 @@ export function initInMemoryStripeSubscriptions(opts?: {
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
 	cancelledSubscriptionIds: () => readonly string[];
-	createdSubscriptions: () => readonly { customerId: string; priceId: string; subscriptionId: string }[];
+	createdSubscriptions: () => readonly {
+		customerId: string;
+		priceId: string;
+		userId: UserId;
+		subscriptionId: string;
+	}[];
 	scheduledCancellations: () => readonly { subscriptionId: string; cancellationEffectiveAt: string }[];
 	reversedCancellations: () => readonly string[];
 } {
 	const cancelled: string[] = [];
-	const created: { customerId: string; priceId: string; subscriptionId: string }[] = [];
+	const created: { customerId: string; priceId: string; userId: UserId; subscriptionId: string }[] =
+		[];
 	const scheduledCancellationCalls: { subscriptionId: string; cancellationEffectiveAt: string }[] = [];
 	const reversed: string[] = [];
 	let nextId = 1;
@@ -37,12 +44,13 @@ export function initInMemoryStripeSubscriptions(opts?: {
 	const createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer = async ({
 		customerId,
 		priceId,
+		userId,
 	}) => {
 		if (opts?.createSubscriptionFails) {
 			throw new Error("In-memory Stripe createSubscription failure");
 		}
 		const subscriptionId = `sub_inmem_${nextId++}`;
-		created.push({ customerId, priceId, subscriptionId });
+		created.push({ customerId, priceId, userId, subscriptionId });
 		return { subscriptionId };
 	};
 

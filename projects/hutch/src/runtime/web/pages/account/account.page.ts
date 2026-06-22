@@ -200,6 +200,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				const { subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
 					customerId: row.customerId,
 					priceId: deps.stripePriceId,
+					userId,
 				});
 				await deps.upsertActiveSubscription({
 					userId,

@@ -1,3 +1,5 @@
+import type { UserId } from "@packages/domain/user";
+
 export type CancelSubscriptionImmediately = (input: {
 	subscriptionId: string;
 }) => Promise<void>;
@@ -5,6 +7,7 @@ export type CancelSubscriptionImmediately = (input: {
 export type CreateSubscriptionOnExistingCustomer = (input: {
 	customerId: string;
 	priceId: string;
+	userId: UserId;
 }) => Promise<{ subscriptionId: string }>;
 
 export type ScheduleCancellationAtPeriodEnd = (input: {
