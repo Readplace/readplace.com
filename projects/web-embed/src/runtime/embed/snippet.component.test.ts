@@ -37,21 +37,16 @@ describe("rendered canonical snippet invariants", () => {
 		expect(html).toContain("https://readplace.com/embed/icon.svg");
 	});
 
-	it.each(all)("snippet %s contains no <script> tags", (_label, html) => {
-		expect(html).not.toMatch(/<script/i);
-	});
+	const expectedCanonicalHtml: Record<SnippetVariant, string> = {
+		a: '<a href="https://readplace.com/save?url=PAGE_URL" title="Save to Readplace" aria-label="Save to Readplace">\n  <img src="https://readplace.com/embed/icon.svg" alt="Save to Readplace" width="32" height="32" style="display:block;border:0;border-radius:6px">\n</a>\n',
+		b: '<a href="https://readplace.com/save?url=PAGE_URL" style="display:inline-flex;align-items:center;gap:8px;padding:8px 14px;background:#2B3A55;color:#FFFFFF;text-decoration:none;font:600 14px/1 Inter,-apple-system,system-ui,sans-serif;border-radius:6px;border:1px solid #2B3A55">\n  <img src="https://readplace.com/embed/icon.svg" alt="" width="20" height="20" style="display:block;border:0">Save to Readplace\n</a>\n',
+		c: '<aside style="margin:32px 0;padding:20px 24px;background:#F7F8FA;border:1px solid #E2E5EA;border-radius:8px;font-family:Inter,-apple-system,system-ui,sans-serif;color:#1A202C">\n  <div style="display:flex;align-items:flex-start;gap:16px">\n    <img src="https://readplace.com/embed/icon.svg" alt="" width="40" height="40" style="display:block;border:0;border-radius:6px;flex:none">\n    <div style="flex:1;min-width:0">\n      <h3 style="margin:0 0 6px;font:700 18px/1.3 Georgia,\'Times New Roman\',serif;color:#2B3A55">Save this for later</h3>\n      <p style="margin:0 0 14px;font-size:14px;line-height:1.5;color:#5A6170">Add it to your Readplace queue and come back when you have time.</p>\n      <a href="https://readplace.com/save?url=PAGE_URL" style="display:inline-block;padding:8px 16px;background:#2B3A55;color:#FFFFFF;text-decoration:none;font-weight:600;font-size:14px;border-radius:6px;border:1px solid #2B3A55">Save to Readplace</a>\n    </div>\n  </div>\n</aside>\n',
+	};
 
-	it.each(all)(
-		"snippet %s contains no cookie assignments or JavaScript event handlers",
-		(_label, html) => {
-			expect(html).not.toMatch(/document\.cookie|onclick=|onload=/i);
-		},
-	);
-
-	it.each(all)(
-		'snippet %s must not contain rel="nofollow" — publishers endorse us and should pass link equity',
-		(_label, html) => {
-			expect(html).not.toMatch(/rel=["']nofollow/i);
+	it.each(VARIANTS)(
+		"snippet %s renders the exact canonical HTML — no <script>, no cookie/event handlers, no rel=nofollow, link equity preserved",
+		(variant) => {
+			expect(renderCanonicalSnippet(variant)).toBe(expectedCanonicalHtml[variant]);
 		},
 	);
 });
