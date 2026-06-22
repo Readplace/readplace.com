@@ -9,13 +9,14 @@ export type UserId = z.infer<typeof UserIdSchema>;
  * (e.g. one read off a row, an event payload, or a tool argument) is NOT
  * assignable here. That makes "use a caller-supplied id as the current user" a
  * compile error, not a runtime audit. Minted only by `authenticatedUserIdFrom`
- * at request-auth boundaries — see authenticated-principal-mint-sites.test.ts. */
+ * at request-auth boundaries. */
 const AuthenticatedUserIdSchema = UserIdSchema.brand<"AuthenticatedUserId">();
 export type AuthenticatedUserId = z.infer<typeof AuthenticatedUserIdSchema>;
 
 /** Mint the authenticated principal from the id carried by a validated session
- * or bearer token. The ONLY producer of an `AuthenticatedUserId`; its call sites
- * are restricted to the auth boundary and enforced by a test. */
+ * or bearer token. The ONLY producer of an `AuthenticatedUserId`; importing it
+ * outside the auth-boundary allowlist fails the noRestrictedImports lint rule
+ * (biome.config.base.json). */
 export function authenticatedUserIdFrom(userId: string): AuthenticatedUserId {
 	return AuthenticatedUserIdSchema.parse(userId);
 }
