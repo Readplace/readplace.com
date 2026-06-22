@@ -608,7 +608,14 @@ describe("Base component", () => {
 		const result = Base(page, { isAuthenticated: true, emailVerified: true }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
-		expect(doc.querySelector("[data-test-trial-countdown]")).toBeNull();
+		const headerContent = doc.querySelector(".header__content");
+		assert(headerContent, "header content container must exist");
+		const brand = headerContent.querySelector(".header__brand");
+		assert(brand, "brand link must exist");
+		const next = brand.nextElementSibling;
+		assert(next, "an element must follow the brand inside .header__content");
+		expect(next.tagName).toBe("NAV");
+		expect(next.classList.contains("nav")).toBe(true);
 		expect(
 			doc.querySelector('script[src$="/client-dist/trial-countdown.client.js"]'),
 		).toBeNull();

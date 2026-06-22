@@ -29,6 +29,7 @@ describe("Nav component", () => {
 		assert(brand, "header brand must render");
 		const afterBrand = brand.nextElementSibling;
 		assert(afterBrand, "an element must follow the brand inside .header__content");
+		expect(afterBrand.tagName).toBe("NAV");
 		expect(afterBrand.classList.contains("nav")).toBe(true);
 	});
 
