@@ -8,8 +8,8 @@ the server's `save-html` Siren action — exactly what the extension does.
 
 This is a proof of concept that lives under `projects/` as an nx project
 (`ios-readplace-poc`). It builds with its own Swift/fastlane toolchain rather
-than pnpm, and its code touches no other project. It requires **no server-side
-changes**: it reuses the existing public OAuth client and Siren API.
+than pnpm, and its code touches no other project. The production build needs
+**no server-side change**: it reuses the existing public OAuth client and Siren API.
 
 ---
 
@@ -46,8 +46,8 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
    appleid.apple.com.)
 6. On the iPhone: **Settings → General → VPN & Device Management →** tap your
    Apple ID → **Trust**.
-7. Open **Readplace**, sign in (server `https://readplace.com`), and to save a
-   page tap **Share → Readplace** from Safari.
+7. Open **Readplace**, tap **Login** (the build targets `https://readplace.com`),
+   and to save a page tap **Share → Readplace** from Safari.
 
 > The free signature lasts **7 days**; re-run `make ipa` and re-install in
 > Sideloadly to renew. Prefer an all-GUI route with no extra app? See
@@ -87,12 +87,12 @@ extension uses. See [`../../.claude/skills/extension-api-design/SKILL.md`](../..
 ```
 projects/ios-readplace-poc/
 ├── project.yml                  # XcodeGen spec (source of truth for the project)
-├── Makefile                     # make ipa / generate / open / test / clean
+├── Makefile                     # make ipa / ipa-staging / generate / open / test / clean
 ├── scripts/build-unsigned-ipa.sh  # one command → installable unsigned .ipa
 ├── App/                         # the SwiftUI app target (lists + sign-in)
 ├── ShareExtension/              # the share-sheet target (renders + saves)
 ├── Shared/                      # code compiled into BOTH targets
-│   ├── AppConfig.swift          #   base URL, client id, App Group id
+│   ├── AppConfig.swift          #   compile-time server URL, client id, App Group id
 │   ├── PKCE.swift               #   S256 verifier/challenge
 │   ├── OAuthService.swift       #   authorize URL + token exchange/refresh/revoke
 │   ├── TokenStore.swift         #   tokens in the shared App Group
@@ -134,7 +134,14 @@ Both also wire up the **App Group**, so the share extension can read the token t
 app stores. The free-account signature lasts 7 days; re-run `make ipa` and
 re-install to renew.
 
-Run the tests with `make test` (boots a simulator).
+For a build that targets the deployed **staging** stack instead of production,
+run `make ipa-staging` (or `nx run ios-readplace-poc:compile-test`). It sets the
+`STAGING` Swift compilation condition and writes a separate
+`build/Readplace-staging-unsigned.ipa`, so a tester signs in against staging
+without typing a URL. Same bundle id, so it replaces the prod app on a device.
+
+Run the tests with `make test` (boots a simulator); it also recompiles the
+`STAGING` condition as a smoke pass — run that alone with `make test-staging`.
 
 ---
 
@@ -168,7 +175,7 @@ You need a Mac with **Xcode 15+** and an Apple ID (a free personal team is fine)
    The first time, approve the developer certificate on the phone under
    *Settings → General → VPN & Device Management*.
 
-5. **Sign in** in the app (default server `https://readplace.com`).
+5. **Login** in the app (the build targets `https://readplace.com`).
 
 6. **Save by sharing**: in Safari (or anywhere with a link), tap **Share → 
    Readplace**. The extension renders the page and saves it; pull-to-refresh in
@@ -214,6 +221,14 @@ cases:
   short-circuiting before any network call when logged out or when there's no
   link, and reporting no-op when the server advertises no save action.
 
+`make test` then runs a **staging smoke pass** (`make test-staging`): it
+recompiles the app, extension and tests with the `STAGING` condition and runs
+`AppConfigTests` under it. The full suite can't run under `STAGING` — the OAuth
+tests pin the production redirect URI — but compiling everything proves the
+staging build stays green, and the smoke test asserts the `#if STAGING` server
+selection resolves to the staging stack. CI runs `make test`, so this path is
+exercised on every run, not only when someone builds `make ipa-staging` by hand.
+
 ## Notes & caveats
 
 - **App icon.** The app ships a brand icon — a navy serif ampersand with the
@@ -236,13 +251,15 @@ cases:
 - **Tapping an item** opens the original article URL in an in-app Safari view.
   The server's reader (`/queue/{id}/view`) needs a cookie session this
   token-based POC doesn't hold, so it isn't used.
-- **No server changes**: the app authenticates as the existing
+- **Production needs no server change**: the app authenticates as the existing
   `hutch-chrome-extension` client and uses its registered HTTPS callback. Custom
   URL schemes are rejected by the server's redirect allowlist, which is why the
-  flow intercepts the HTTPS callback inside the web view.
-- **Point at a local server** by editing the **Server** field on the sign-in
-  screen (e.g. your machine's LAN address). Note the OAuth redirect allowlist
-  only accepts `https://readplace.com/oauth/callback`,
-  `https://hutch-app.com/oauth/callback`, or `http://127.0.0.1:<port>/oauth/callback`,
-  so a LAN-IP base URL won't complete the OAuth redirect without a server-side
-  allowlist entry.
+  flow intercepts the HTTPS callback inside the web view. (Staging sign-in needs
+  the staging callback registered for that client — see the `make ipa-staging`
+  note above.)
+- **The server URL is fixed at build time** in `AppConfig.serverBaseURL` — there
+  is no Server field on the sign-in screen. `make ipa` targets production;
+  `make ipa-staging` compiles with the `STAGING` condition to target staging. The
+  OAuth redirect allowlist must contain the build's callback (`callbackPath` on
+  the base URL); both the production and staging callbacks are registered for
+  `hutch-chrome-extension` in `built-in-clients.ts`.

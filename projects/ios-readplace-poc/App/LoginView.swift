@@ -2,7 +2,6 @@ import SwiftUI
 
 struct LoginView: View {
 	@EnvironmentObject private var session: AppSession
-	@State private var baseURLField = ""
 	@State private var showingAuth = false
 	@State private var errorText: String?
 
@@ -22,24 +21,11 @@ struct LoginView: View {
 						.foregroundStyle(.secondary)
 				}
 
-				VStack(alignment: .leading, spacing: 6) {
-					Text("Server")
-						.font(.caption)
-						.foregroundStyle(.secondary)
-					TextField("https://readplace.com", text: $baseURLField)
-						.textInputAutocapitalization(.never)
-						.autocorrectionDisabled()
-						.keyboardType(.URL)
-						.padding(12)
-						.background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
-				}
-
 				Button {
-					session.setBaseURL(baseURLField)
 					errorText = nil
 					showingAuth = true
 				} label: {
-					Text("Sign in")
+					Text("Login")
 						.font(.headline)
 						.frame(maxWidth: .infinity)
 						.padding(.vertical, 14)
@@ -60,7 +46,6 @@ struct LoginView: View {
 					.multilineTextAlignment(.center)
 			}
 			.padding(24)
-			.onAppear { baseURLField = session.baseURL }
 			.sheet(isPresented: $showingAuth) {
 				AuthFlowView { result in
 					if case .failure(let error) = result {

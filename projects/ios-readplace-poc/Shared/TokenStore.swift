@@ -6,8 +6,9 @@ struct OAuthTokens: Equatable {
 	let refreshToken: String
 }
 
-/// Persists tokens and the active base URL in the shared App Group so the
-/// app and the share extension agree on identity and server.
+/// Persists OAuth tokens in the shared App Group so the app (which signs in)
+/// and the share extension (which saves) agree on identity. The server they
+/// target is fixed at compile time in `AppConfig.serverBaseURL`, not stored here.
 ///
 /// A POC-grade store: UserDefaults in the shared container. (A production app
 /// would keep tokens in the Keychain with a shared access group.)
@@ -17,7 +18,6 @@ struct TokenStore {
 	private enum Key {
 		static let accessToken = "oauth.accessToken"
 		static let refreshToken = "oauth.refreshToken"
-		static let baseURL = "config.baseURL"
 	}
 
 	init() {
@@ -78,11 +78,6 @@ struct TokenStore {
 	func clear() {
 		defaults.removeObject(forKey: Key.accessToken)
 		defaults.removeObject(forKey: Key.refreshToken)
-	}
-
-	var baseURL: String {
-		get { defaults.string(forKey: Key.baseURL) ?? AppConfig.defaultBaseURL }
-		nonmutating set { defaults.set(newValue, forKey: Key.baseURL) }
 	}
 
 	var isLoggedIn: Bool { tokens != nil }

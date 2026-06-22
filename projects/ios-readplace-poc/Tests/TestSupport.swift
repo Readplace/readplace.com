@@ -20,12 +20,10 @@ enum TestSupport {
 
 	/// A token store pre-seeded with a logged-in session.
 	static func loggedInStore(
-		baseURL: String = "https://readplace.com",
 		access: String = "access-1",
 		refresh: String = "refresh-1"
 	) -> TokenStore {
 		let store = TokenStore(defaults: ephemeralDefaults())
-		store.baseURL = baseURL
 		store.save(OAuthTokens(accessToken: access, refreshToken: refresh))
 		return store
 	}

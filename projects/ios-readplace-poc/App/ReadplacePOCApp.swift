@@ -18,7 +18,6 @@ struct RootView: View {
 	var body: some View {
 		if session.isLoggedIn {
 			ReadingListView(session: session)
-				.id(session.baseURL)
 		} else {
 			LoginView()
 		}

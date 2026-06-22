@@ -13,7 +13,7 @@ final class SaveSharedPageTests: XCTestCase {
 	}
 
 	private func makeAPI(store: TokenStore) -> ReadplaceAPI {
-		ReadplaceAPI(baseURL: store.baseURL, store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		ReadplaceAPI(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
 	}
 
 	func testSavesRenderedHTMLWhenUnderCap() async throws {
@@ -150,7 +150,6 @@ final class SaveSharedPageTests: XCTestCase {
 	func testGuardsWhenLoggedOut() async throws {
 		// A logged-out store must short-circuit before any network call.
 		let loggedOut = TokenStore(defaults: TestSupport.ephemeralDefaults())
-		loggedOut.baseURL = "https://readplace.com"
 		let saver = SaveSharedPage(
 			store: loggedOut,
 			api: makeAPI(store: loggedOut),

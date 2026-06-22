@@ -15,7 +15,6 @@ final class LoginFlowTests: XCTestCase {
 
 	func testCompleteSignInExchangesCodeAndFlipsSessionToLoggedIn() async throws {
 		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
-		store.baseURL = "https://readplace.com"
 		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
 		XCTAssertFalse(session.isLoggedIn)
 
@@ -48,7 +47,6 @@ final class LoginFlowTests: XCTestCase {
 
 	func testRejectedCallbackNeitherRaisesOverlayNorExchanges() async throws {
 		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
-		store.baseURL = "https://readplace.com"
 		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
 
 		var exchangeStarts = 0

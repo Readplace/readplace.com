@@ -1,16 +1,41 @@
 import Foundation
 
+/// Maps each deployment to its server base URL. Kept data-driven (a value per
+/// case, not an `#if` at the call site) so `AppConfigTests` can assert both
+/// branches in one test build, whichever compilation condition is active.
+enum ServerEnvironment {
+	case production
+	case staging
+
+	var baseURL: String {
+		switch self {
+		case .production: return "https://readplace.com"
+		// Staging has no custom domain; this is the staging stack's API Gateway
+		// endpoint (pulumi stack output appOrigin --stack staging). Update here +
+		// in built-in-clients.ts if the gateway is ever replaced (new api id).
+		case .staging: return "https://hkncrxpii6.execute-api.ap-southeast-2.amazonaws.com"
+		}
+	}
+}
+
 /// Central configuration for the Readplace iOS POC.
 ///
 /// The app reuses the existing public OAuth/PKCE client registered on the
-/// server (`hutch-chrome-extension`) and the registered HTTPS callback URL,
-/// so it talks to production exactly like the browser extension does — no
-/// server-side changes are required. See the server's
+/// server (`hutch-chrome-extension`) and a registered HTTPS callback URL, so it
+/// talks to the server exactly like the browser extension does. The production
+/// build needs no server-side change; the staging build relies on the staging
+/// callback listed in the server's
 /// `src/packages/domain/src/oauth/built-in-clients.ts`.
 enum AppConfig {
-	/// Default server. Overridable at runtime on the login screen and persisted
-	/// in the shared App Group so the share extension targets the same server.
-	static let defaultBaseURL = "https://readplace.com"
+	/// The server this build targets, fixed at compile time. The `compile-test`
+	/// build sets the `STAGING` Swift compilation condition to select staging;
+	/// every other build is production. There is no runtime override.
+	#if STAGING
+	static let serverEnvironment: ServerEnvironment = .staging
+	#else
+	static let serverEnvironment: ServerEnvironment = .production
+	#endif
+	static let serverBaseURL = serverEnvironment.baseURL
 
 	/// A registered public PKCE client. `https://readplace.com/oauth/callback`
 	/// is one of its allow-listed redirect URIs, which is what makes the
@@ -21,7 +46,7 @@ enum AppConfig {
 	static let sirenMediaType = "application/vnd.siren+json"
 
 	/// Shared container so the app (which signs in) and the share extension
-	/// (which saves) can both read the OAuth tokens and the base URL.
+	/// (which saves) can both read the OAuth tokens.
 	///
 	/// This must match the App Groups entitlement on BOTH targets and the App
 	/// Group identifier registered in the Apple Developer portal, otherwise the

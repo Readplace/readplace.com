@@ -8,7 +8,7 @@ final class ReadplaceAPITests: XCTestCase {
 	}
 
 	private func makeAPI(store: TokenStore) -> ReadplaceAPI {
-		ReadplaceAPI(baseURL: store.baseURL, store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+		ReadplaceAPI(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
 	}
 
 	private func saveHtmlAction() -> SirenAction {
@@ -102,7 +102,6 @@ final class ReadplaceAPITests: XCTestCase {
 
 	func testNoTokenThrowsNoTokenError() async {
 		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
-		store.baseURL = "https://readplace.com"
 		StubURLProtocol.setHandler { _, _ in .json(200, "{}") }
 		do {
 			_ = try await makeAPI(store: store).loadQueue()

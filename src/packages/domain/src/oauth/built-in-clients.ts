@@ -24,6 +24,10 @@ const BUILT_IN_OAUTH_CLIENTS: Record<string, OAuthClient> = {
 		redirectUris: [
 			"https://readplace.com/oauth/callback",
 			"https://hutch-app.com/oauth/callback",
+			// iOS staging build's OAuth callback: the staging stack's API Gateway
+			// endpoint (staging has no custom domain). Mirrors ServerEnvironment.staging
+			// in ios-readplace-poc's AppConfig.swift — keep both in sync.
+			"https://hkncrxpii6.execute-api.ap-southeast-2.amazonaws.com/oauth/callback",
 			"http://127.0.0.1:3000/oauth/callback",
 			"http://127.0.0.1:3001/oauth/callback",
 		],

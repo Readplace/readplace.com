@@ -4,7 +4,12 @@
 # that you can install on your own iPhone with a sideloader (Sideloadly or
 # AltStore), which re-signs it with your free Apple ID at install time.
 #
-# Usage:  ./scripts/build-unsigned-ipa.sh   (or: make ipa)
+# Usage:  make ipa            (production → https://readplace.com)
+#         make ipa-staging    (staging   → the deployed staging API Gateway)
+#
+# Both run `make generate` first: this script no longer generates the Xcode
+# project itself. To invoke it directly, run `make generate` once beforehand and
+# set READPLACE_ENV=staging for a staging build.
 #
 # Requirements (on your Mac): a full Xcode install and XcodeGen
 # (`brew install xcodegen`). No paid Apple Developer account needed.
@@ -15,7 +20,27 @@ cd "$(dirname "$0")/.."
 TARGET="ReadplacePOC"
 SYM="$(pwd)/build/sym"
 OBJ="$(pwd)/build/obj"
-OUT="build/Readplace-unsigned.ipa"
+
+# Which deployment this build targets. `production` (default) → https://readplace.com.
+# `staging` sets the STAGING Swift compilation condition so AppConfig.serverBaseURL
+# resolves to the staging API Gateway, and names the artifact separately so the
+# prod and staging .ipas coexist on disk. The command-line build-setting override
+# applies to the app and its embedded ShareExtension in one xcodebuild invocation.
+READPLACE_ENV="${READPLACE_ENV:-production}"
+case "$READPLACE_ENV" in
+	production)
+		OUT="build/Readplace-unsigned.ipa"
+		STAGING_BUILD_SETTING=""
+		;;
+	staging)
+		OUT="build/Readplace-staging-unsigned.ipa"
+		STAGING_BUILD_SETTING="SWIFT_ACTIVE_COMPILATION_CONDITIONS=STAGING"
+		;;
+	*)
+		echo "!! READPLACE_ENV must be 'production' or 'staging', got: '$READPLACE_ENV'" >&2
+		exit 1
+		;;
+esac
 
 # --- Locate the real Xcode toolchain -----------------------------------------
 # This repo's devbox/nix shell points DEVELOPER_DIR at a macOS-only SDK and
@@ -53,16 +78,13 @@ if ! command -v xcodegen >/dev/null 2>&1; then
 	brew install xcodegen
 fi
 
-echo "==> Generating Xcode project…"
-./scripts/generate-project.sh
-
 echo "==> Cleaning previous build artifacts…"
 rm -rf "$SYM" "$OBJ" build/Payload "$OUT"
 
 # Build the app target directly (-target, not -scheme): this links against the
 # iphoneos SDK without requiring the iOS *platform* to be registered for a
 # destination — which matters on partial Xcode installs missing the platform.
-echo "==> Building $TARGET for device (code signing disabled)…"
+echo "==> Building $TARGET for device ($READPLACE_ENV, code signing disabled)…"
 xc xcodebuild \
 	-project ReadplacePOC.xcodeproj \
 	-target "$TARGET" \
@@ -73,6 +95,7 @@ xc xcodebuild \
 	CODE_SIGNING_ALLOWED=NO \
 	CODE_SIGNING_REQUIRED=NO \
 	CODE_SIGN_IDENTITY="" \
+	${STAGING_BUILD_SETTING:+"$STAGING_BUILD_SETTING"} \
 	build
 
 APP="$(find "$SYM/Release-iphoneos" -maxdepth 1 -name '*.app' 2>/dev/null | head -1 || true)"
@@ -103,7 +126,7 @@ cp -R "$APP" build/Payload/
 rm -rf build/Payload
 
 echo ""
-echo "✅ Unsigned IPA ready: $(pwd)/$OUT"
+echo "✅ Unsigned IPA ready ($READPLACE_ENV): $(pwd)/$OUT"
 echo "   Embeds: $(ls "$APP/PlugIns" 2>/dev/null | tr '\n' ' ')"
 echo ""
 echo "Install it on your iPhone with either:"

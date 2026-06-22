@@ -2,7 +2,7 @@
   "name": "ios-readplace-poc",
   "projectType": "application",
   "targets": {
-    "compile": {
+    "generate": {
       "command": "bash scripts/generate-project.sh",
       "options": { "cwd": "{projectRoot}" },
       "inputs": [
@@ -13,6 +13,20 @@
       ],
       "cache": false,
       "dependsOn": []
+    },
+    "compile": {
+      "command": "READPLACE_ENV=production bash scripts/build-unsigned-ipa.sh",
+      "options": { "cwd": "{projectRoot}" },
+      "outputs": ["{projectRoot}/build/Readplace-unsigned.ipa"],
+      "cache": false,
+      "dependsOn": ["generate"]
+    },
+    "compile-test": {
+      "command": "READPLACE_ENV=staging bash scripts/build-unsigned-ipa.sh",
+      "options": { "cwd": "{projectRoot}" },
+      "outputs": ["{projectRoot}/build/Readplace-staging-unsigned.ipa"],
+      "cache": false,
+      "dependsOn": ["generate"]
     }
   }
 }
