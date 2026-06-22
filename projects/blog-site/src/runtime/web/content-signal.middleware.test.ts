@@ -1,49 +1,42 @@
-import type { NextFunction, Request, Response } from "express";
+import express from "express";
+import request from "supertest";
 import {
 	CONTENT_SIGNAL_VALUE,
 	contentSignalMiddleware,
 } from "./content-signal.middleware";
 
-function run(method: string, path: string) {
-	const headers: Record<string, string> = {};
-	let varied: string | undefined;
-	let nextCalled = false;
-	const req = { method, path } as unknown as Request;
-	const res = {
-		set: (name: string, value: string) => {
-			headers[name] = value;
-		},
-		vary: (header: string) => {
-			varied = header;
-		},
-	} as unknown as Response;
-	const next: NextFunction = () => {
-		nextCalled = true;
-	};
-	contentSignalMiddleware(req, res, next);
-	return { headers, varied, nextCalled };
+function appUnderTest() {
+	const app = express();
+	app.disable("x-powered-by");
+	app.use(contentSignalMiddleware);
+	app.all(/.*/, (_req, res) => {
+		res.status(200).send("ok");
+	});
+	return app;
 }
 
 describe("contentSignalMiddleware", () => {
-	it("sets Content-Signal and Vary: Accept on a GET page request", () => {
-		const { headers, varied } = run("GET", "/blog");
-		expect(headers["Content-Signal"]).toBe(CONTENT_SIGNAL_VALUE);
-		expect(varied).toBe("Accept");
+	it("sets Content-Signal and Vary: Accept on a GET page request", async () => {
+		const response = await request(appUnderTest()).get("/blog");
+		expect(response.headers["content-signal"]).toBe(CONTENT_SIGNAL_VALUE);
+		expect(response.headers.vary).toBe("Accept");
 	});
 
-	it("skips the sitemap (machine metadata, not a page)", () => {
-		const { headers, varied } = run("GET", "/blog/sitemap.xml");
-		expect(headers["Content-Signal"]).toBeUndefined();
-		expect(varied).toBeUndefined();
+	it("skips the sitemap (machine metadata, not a page)", async () => {
+		const response = await request(appUnderTest()).get("/blog/sitemap.xml");
+		expect(response.headers["content-signal"]).toBeUndefined();
+		expect(response.headers.vary).toBeUndefined();
 	});
 
-	it("skips non-GET requests", () => {
-		const { headers } = run("POST", "/blog");
-		expect(headers["Content-Signal"]).toBeUndefined();
+	it("skips non-GET requests", async () => {
+		const response = await request(appUnderTest()).post("/blog");
+		expect(response.headers["content-signal"]).toBeUndefined();
 	});
 
-	it("always calls next", () => {
-		expect(run("GET", "/blog").nextCalled).toBe(true);
-		expect(run("GET", "/blog/sitemap.xml").nextCalled).toBe(true);
+	it("always calls next", async () => {
+		const page = await request(appUnderTest()).get("/blog");
+		const sitemap = await request(appUnderTest()).get("/blog/sitemap.xml");
+		expect(page.status).toBe(200);
+		expect(sitemap.status).toBe(200);
 	});
 });
