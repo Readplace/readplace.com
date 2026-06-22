@@ -661,8 +661,10 @@ describe("Queue routes", () => {
 				const hints = Array.from(
 					doc.querySelectorAll("[data-test-share-balloon-hint]"),
 				).map((el) => el.textContent?.trim());
-				expect(hints).toContain("Click here to share this post!");
-				expect(hints).not.toContain("Click here to share this view!");
+				expect(hints).toEqual([
+					"Thanks for trying Readplace.",
+					"Click here to share this post!",
+				]);
 			});
 
 			it("boots the share balloon client via the same bundle as /view", async () => {
