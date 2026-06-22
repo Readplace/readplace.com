@@ -13,21 +13,21 @@ const ROLE_ARN = "arn:aws:iam::123456789:role/hutch-scheduler";
 const GROUP_NAME = "hutch-trial-end-test";
 
 interface CapturedSend {
-	commands: unknown[];
+	commands: (CreateScheduleCommand | DeleteScheduleCommand)[];
 }
 
 function buildFakeClient(opts?: {
 	deleteThrows?: Error;
 }): { client: Pick<SchedulerClient, "send">; captured: CapturedSend } {
 	const captured: CapturedSend = { commands: [] };
-	const client = {
-		send: (async (cmd: unknown) => {
+	const client: Pick<SchedulerClient, "send"> = {
+		async send(cmd: CreateScheduleCommand | DeleteScheduleCommand) {
 			captured.commands.push(cmd);
 			if (opts?.deleteThrows && cmd instanceof DeleteScheduleCommand) {
 				throw opts.deleteThrows;
 			}
 			return {};
-		}) as unknown as SchedulerClient["send"],
+		},
 	};
 	return { client, captured };
 }
