@@ -25,9 +25,9 @@ describe("initStripeSubscriptions", () => {
 
 			assert.equal(receivedUrl, "https://api.stripe.com/v1/subscriptions/sub_to_cancel");
 			assert.equal(receivedInit?.method, "DELETE");
-			const headers = receivedInit?.headers as Record<string, string>;
-			assert.equal(headers?.Authorization, "Bearer sk_test_abc");
-			assert.equal(headers?.["Stripe-Version"], "2026-04-22.dahlia");
+			const headers = new Headers(receivedInit?.headers);
+			assert.equal(headers.get("Authorization"), "Bearer sk_test_abc");
+			assert.equal(headers.get("Stripe-Version"), "2026-04-22.dahlia");
 		});
 
 		it("URL-encodes the subscription id so unusual characters reach Stripe intact", async () => {
@@ -113,9 +113,9 @@ describe("initStripeSubscriptions", () => {
 			assert.equal(result.subscriptionId, "sub_freshly_created");
 			assert.equal(receivedUrl, "https://api.stripe.com/v1/subscriptions");
 			assert.equal(receivedInit?.method, "POST");
-			const headers = receivedInit?.headers as Record<string, string>;
-			assert.equal(headers?.Authorization, "Bearer sk_test_abc");
-			assert.equal(headers?.["Content-Type"], "application/x-www-form-urlencoded");
+			const headers = new Headers(receivedInit?.headers);
+			assert.equal(headers.get("Authorization"), "Bearer sk_test_abc");
+			assert.equal(headers.get("Content-Type"), "application/x-www-form-urlencoded");
 			const body = String(receivedInit?.body ?? "");
 			assert.ok(body.includes("customer=cus_existing"));
 			assert.ok(body.includes("items%5B0%5D%5Bprice%5D=price_abc"));
@@ -197,10 +197,10 @@ describe("initStripeSubscriptions", () => {
 			assert.equal(result.cancellationEffectiveAt, "2026-06-22T10:00:00.000Z");
 			assert.equal(receivedUrl, "https://api.stripe.com/v1/subscriptions/sub_paid");
 			assert.equal(receivedInit?.method, "POST");
-			const headers = receivedInit?.headers as Record<string, string>;
-			assert.equal(headers?.Authorization, "Bearer sk_test_abc");
-			assert.equal(headers?.["Stripe-Version"], "2026-04-22.dahlia");
-			assert.equal(headers?.["Content-Type"], "application/x-www-form-urlencoded");
+			const headers = new Headers(receivedInit?.headers);
+			assert.equal(headers.get("Authorization"), "Bearer sk_test_abc");
+			assert.equal(headers.get("Stripe-Version"), "2026-04-22.dahlia");
+			assert.equal(headers.get("Content-Type"), "application/x-www-form-urlencoded");
 			const body = String(receivedInit?.body ?? "");
 			assert.ok(body.includes("cancel_at_period_end=true"));
 		});
