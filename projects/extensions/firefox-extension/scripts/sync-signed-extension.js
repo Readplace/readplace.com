@@ -5,8 +5,11 @@ const { execSync } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
+const { HutchLogger, consoleLogger } = require("@packages/hutch-logger");
 const { firefoxS3Config } = require("browser-extension-core/s3-config");
 const { getBucketName, getBucketBaseUrl } = firefoxS3Config;
+
+const logger = HutchLogger.from(consoleLogger);
 
 const AMO_API_BASE = "https://addons.mozilla.org/api/v5";
 
@@ -51,7 +54,7 @@ async function main() {
 	const updatesUrl = `${baseUrl}/updates.json`;
 	const updatesResponse = await fetch(updatesUrl);
 	if (updatesResponse.status === 404) {
-		console.log(`No updates.json on S3 yet (first run): ${updatesUrl} ${updatesResponse.status}`);
+		logger.info(`No updates.json on S3 yet (first run): ${updatesUrl} ${updatesResponse.status}`);
 	} else {
 		assert.ok(
 			updatesResponse.ok,
@@ -79,7 +82,7 @@ async function main() {
 	);
 
 	if (!signedVersion) {
-		console.log("No signed version found on AMO. Nothing to sync.");
+		logger.info("No signed version found on AMO. Nothing to sync.");
 		return;
 	}
 
@@ -88,17 +91,17 @@ async function main() {
 		`Unexpected version format from AMO: ${signedVersion.version}`,
 	);
 
-	console.log(`Latest signed version on AMO: ${signedVersion.version}`);
+	logger.info(`Latest signed version on AMO: ${signedVersion.version}`);
 
 	const signedFilename = `hutch-signed-${signedVersion.version}.xpi`;
 	const expectedLink = `${baseUrl}/${signedFilename}`;
 
 	if (currentUpdateLink === expectedLink) {
-		console.log("S3 already has the latest signed version. Nothing to do.");
+		logger.info("S3 already has the latest signed version. Nothing to do.");
 		return;
 	}
 
-	console.log("Downloading signed XPI from AMO...");
+	logger.info("Downloading signed XPI from AMO...");
 	const xpiResponse = await fetch(signedVersion.file.url, {
 		headers: { Authorization: `JWT ${token}` },
 	});
@@ -115,7 +118,7 @@ async function main() {
 			Buffer.from(await xpiResponse.arrayBuffer()),
 		);
 
-		console.log(`Uploading ${signedFilename} to S3...`);
+		logger.info(`Uploading ${signedFilename} to S3...`);
 		execSync(
 			`aws s3 cp "${tmpXpiPath}" "s3://${bucketName}/${signedFilename}" --content-type "application/x-xpinstall"`,
 			{ stdio: "inherit" },
@@ -155,7 +158,7 @@ async function main() {
 			{ stdio: "inherit" },
 		);
 
-		console.log(
+		logger.info(
 			`Successfully synced signed version ${signedVersion.version} to S3`,
 		);
 	} finally {
@@ -164,6 +167,6 @@ async function main() {
 }
 
 main().catch((error) => {
-	console.error("Sync failed:", error.message);
+	logger.error("Sync failed:", error.message);
 	process.exit(1);
 });
