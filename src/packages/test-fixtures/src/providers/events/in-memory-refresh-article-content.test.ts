@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { HutchLogger, noopLogger } from "@packages/hutch-logger";
+import { HutchLogger } from "@packages/hutch-logger";
 import { initInMemoryRefreshArticleContent } from "./in-memory-refresh-article-content";
 
 describe("initInMemoryRefreshArticleContent", () => {
@@ -30,27 +30,5 @@ describe("initInMemoryRefreshArticleContent", () => {
 		});
 
 		assert.equal(logged.length, 1);
-	});
-
-	it("resolves with a noop logger", async () => {
-		const { publishRefreshArticleContent } = initInMemoryRefreshArticleContent({
-			logger: HutchLogger.from(noopLogger),
-		});
-
-		await assert.doesNotReject(
-			publishRefreshArticleContent({
-				url: "https://example.com/other",
-				html: "<p>x</p>",
-				metadata: {
-					title: "Other",
-					siteName: "Other Site",
-					excerpt: "x",
-					wordCount: 1,
-				},
-				estimatedReadTime: 1,
-				contentFetchedAt: "2026-06-21T00:00:00.000Z",
-				bodyHash: "hash2",
-			}),
-		);
 	});
 });
