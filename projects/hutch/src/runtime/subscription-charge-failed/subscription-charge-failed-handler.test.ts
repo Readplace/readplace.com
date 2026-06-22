@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { Context } from "aws-lambda";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import type { PublishCancelSubscriptionCommand } from "@packages/test-fixtures/providers/events";
@@ -7,6 +8,21 @@ import { initSubscriptionChargeFailedHandler } from "./subscription-charge-faile
 import { initEmitSubscriptionEvent, type SubscriptionLogEvent } from "../observability/subscription-events";
 
 const USER_ID = UserIdSchema.parse("3".repeat(32));
+
+const stubContext: Context = {
+	callbackWaitsForEmptyEventLoop: true,
+	functionName: "test",
+	functionVersion: "1",
+	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
+	memoryLimitInMB: "128",
+	awsRequestId: "test-request-id",
+	logGroupName: "/aws/lambda/test",
+	logStreamName: "test-stream",
+	getRemainingTimeInMillis: () => 30000,
+	done: () => {},
+	fail: () => {},
+	succeed: () => {},
+};
 
 function makeEmit(): { emit: ReturnType<typeof initEmitSubscriptionEvent>; captured: SubscriptionLogEvent[] } {
 	const captured: SubscriptionLogEvent[] = [];
@@ -46,7 +62,7 @@ describe("subscription-charge-failed handler", () => {
 					}),
 				},
 			]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -83,7 +99,7 @@ describe("subscription-charge-failed handler", () => {
 					}),
 				},
 			]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -103,7 +119,7 @@ describe("subscription-charge-failed handler", () => {
 
 		const result = await handler(
 			buildSqsEvent([{ messageId: "msg-bad", body: "garbage" }]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -127,7 +143,7 @@ describe("subscription-charge-failed handler", () => {
 					body: JSON.stringify({ detail: { userId: USER_ID, reason: "made_up" } }),
 				},
 			]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -154,7 +170,7 @@ describe("subscription-charge-failed handler", () => {
 					}),
 				},
 			]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
