@@ -130,23 +130,45 @@ describe("renderExtensionSuggestionBanner", () => {
 			);
 		});
 
-		it("hides the install CTA button (the user already has it)", () => {
+		it("renders the installed variant, which has no install CTA button (the user already has it)", () => {
 			const doc = parse(
 				renderExtensionSuggestionBanner({ show: true, extensionInstalled: true }),
 			);
 
+			const banner = doc.querySelector(
+				"[data-test-extension-suggestion-banner]",
+			);
+			assert(banner, "banner must be rendered");
+			const message = banner.querySelector(
+				"[data-test-extension-suggestion-variant]",
+			);
+			assert(message, "message variant marker must be rendered");
 			expect(
-				doc.querySelector("[data-test-extension-suggestion-cta]"),
+				message.getAttribute("data-test-extension-suggestion-variant"),
+			).toBe("installed");
+			expect(
+				banner.querySelector("[data-test-extension-suggestion-cta]"),
 			).toBeNull();
 		});
 
-		it("hides the inline install link (the user already has it)", () => {
+		it("renders the installed variant, which has no inline install link (the user already has it)", () => {
 			const doc = parse(
 				renderExtensionSuggestionBanner({ show: true, extensionInstalled: true }),
 			);
 
+			const banner = doc.querySelector(
+				"[data-test-extension-suggestion-banner]",
+			);
+			assert(banner, "banner must be rendered");
+			const message = banner.querySelector(
+				"[data-test-extension-suggestion-variant]",
+			);
+			assert(message, "message variant marker must be rendered");
 			expect(
-				doc.querySelector("[data-test-extension-suggestion-inline]"),
+				message.getAttribute("data-test-extension-suggestion-variant"),
+			).toBe("installed");
+			expect(
+				banner.querySelector("[data-test-extension-suggestion-inline]"),
 			).toBeNull();
 		});
 
