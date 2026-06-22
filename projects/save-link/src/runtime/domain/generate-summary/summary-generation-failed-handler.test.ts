@@ -1,28 +1,14 @@
 import { noopLogger, type HutchLogger } from "@packages/hutch-logger";
 import type { ParseErrorEvent } from "@packages/hutch-infra-components";
 import { initSummaryGenerationFailedHandler } from "./summary-generation-failed-handler";
-import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
+import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
 	SentTimestamp: "1620000000000",
 	SenderId: "TESTID",
 	ApproximateFirstReceiveTimestamp: "1620000000001",
-};
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
 };
 
 function createSqsEvent(detail: { url: string; reason: string; receiveCount: number }): SQSEvent {
@@ -55,7 +41,7 @@ describe("initSummaryGenerationFailedHandler", () => {
 				reason: "deepseek timeout",
 				receiveCount: 3,
 			}),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -92,7 +78,7 @@ describe("initSummaryGenerationFailedHandler", () => {
 			}],
 		};
 
-		const result = await handler(invalid, stubContext, () => {});
+		const result = await handler(invalid, buildLambdaContext(), () => {});
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(infoSpy).not.toHaveBeenCalled();
 	});

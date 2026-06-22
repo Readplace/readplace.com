@@ -5,28 +5,14 @@ import {
 } from "@packages/domain/article-aggregate";
 import { initCanonicalContentChangedHandler } from "./canonical-content-changed-handler";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
-import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
+import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
 	SentTimestamp: "1620000000000",
 	SenderId: "TESTID",
 	ApproximateFirstReceiveTimestamp: "1620000000001",
-};
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
 };
 
 const FIXED_NOW = new Date("2026-05-31T10:00:00.000Z");
@@ -59,7 +45,7 @@ describe("initCanonicalContentChangedHandler", () => {
 			logger: noopLogger,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/article" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/article" }), buildLambdaContext(), () => {});
 
 		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
 		expect(transitionAndPersist).toHaveBeenCalledWith(markSummaryPending, {
@@ -81,7 +67,7 @@ describe("initCanonicalContentChangedHandler", () => {
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/no-content" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -114,7 +100,7 @@ describe("initCanonicalContentChangedHandler", () => {
 			}],
 		};
 
-		const result = await handler(invalidEvent, stubContext, () => {});
+		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});

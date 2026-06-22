@@ -1,5 +1,6 @@
 import { noopLogger, HutchLogger } from "@packages/hutch-logger";
-import type { Context, SQSBatchResponse, SQSEvent, SQSRecord, SQSRecordAttributes } from "aws-lambda";
+import type { SQSBatchResponse, SQSEvent, SQSRecord, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { z } from "zod";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { MinutesSchema } from "@packages/domain/article";
@@ -13,21 +14,6 @@ const stubAttributes: SQSRecordAttributes = {
 	SentTimestamp: "1620000000000",
 	SenderId: "TESTID",
 	ApproximateFirstReceiveTimestamp: "1620000000001",
-};
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
 };
 
 const ExportBodySchema = z.object({
@@ -104,7 +90,7 @@ async function invokeHandler(
 	harness: HandlerHarness,
 	detail: { userId: string; email: string; requestedAt: string },
 ): Promise<SQSBatchResponse> {
-	const result = harness.handler(createSqsEvent(detail), stubContext, () => {});
+	const result = harness.handler(createSqsEvent(detail), buildLambdaContext(), () => {});
 	const awaited = result instanceof Promise ? await result : result;
 	if (!awaited) throw new Error("handler returned void; expected SQSBatchResponse");
 	return awaited;
@@ -222,7 +208,7 @@ describe("initExportUserDataHandler", () => {
 			}],
 		};
 
-		const result = harness.handler(invalidEvent, stubContext, () => {});
+		const result = harness.handler(invalidEvent, buildLambdaContext(), () => {});
 		const response = result instanceof Promise ? await result : result;
 
 		expect(response).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
@@ -281,7 +267,7 @@ describe("initExportUserDataHandler", () => {
 				email: "user@example.com",
 				requestedAt: "2026-04-30T11:59:00.000Z",
 			}),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 		if (result instanceof Promise) await result;

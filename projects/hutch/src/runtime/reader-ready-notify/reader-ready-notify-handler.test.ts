@@ -1,4 +1,5 @@
-import type { Context, SQSEvent } from "aws-lambda";
+import type { SQSEvent } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { noopLogger } from "@packages/hutch-logger";
 import { ReaderArticleHashId } from "@packages/domain/article";
 import { ReaderReadyEmailSentEvent } from "@packages/hutch-infra-components";
@@ -11,21 +12,6 @@ const VIEWED_AT = new Date("2026-05-30T12:01:00.000Z"); // viewed while loading
 const SUCCEEDED_AT = "2026-05-30T12:02:00.000Z"; // 2 min after save -> generation > 60s
 const NOW = new Date("2026-05-30T12:07:00.000Z");
 const COOLDOWN_MS = 6 * 60 * 60 * 1000;
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
-};
 
 function sqsEvent(detail: unknown, messageId = "msg-1"): SQSEvent {
 	return {
@@ -92,7 +78,7 @@ describe("initReaderReadyNotifyHandler", () => {
 		it("claims the cooldown, sends the email, stamps emailSentAt, and publishes ReaderReadyEmailSent", async () => {
 			const { handler, deps } = createHandler();
 
-			const result = await handler(command(), stubContext, () => {});
+			const result = await handler(command(), buildLambdaContext(), () => {});
 
 			expect(result).toEqual({ batchItemFailures: [] });
 			expect(deps.claimReaderReadyEmailSlot).toHaveBeenCalledWith({ userId: USER_ID, now: NOW, cooldownMs: COOLDOWN_MS });
@@ -115,7 +101,7 @@ describe("initReaderReadyNotifyHandler", () => {
 
 	describe("gates (skip without sending)", () => {
 		async function expectSkipped(deps: ReturnType<typeof createHandler>["deps"], handler: ReturnType<typeof createHandler>["handler"]) {
-			const result = await handler(command(), stubContext, () => {});
+			const result = await handler(command(), buildLambdaContext(), () => {});
 			expect(result).toEqual({ batchItemFailures: [] });
 			expect(deps.sendEmail).not.toHaveBeenCalled();
 			expect(deps.markReaderReadyEmailSent).not.toHaveBeenCalled();
@@ -163,7 +149,7 @@ describe("initReaderReadyNotifyHandler", () => {
 			});
 			const result = await handler(
 				command({ succeededAt: "2026-05-30T12:00:30.000Z" }),
-				stubContext,
+				buildLambdaContext(),
 				() => {},
 			);
 			expect(result).toEqual({ batchItemFailures: [] });
@@ -213,7 +199,7 @@ describe("initReaderReadyNotifyHandler", () => {
 			const { handler, deps } = createHandler({
 				claimReaderReadyEmailSlot: jest.fn().mockResolvedValue(false),
 			});
-			const result = await handler(command(), stubContext, () => {});
+			const result = await handler(command(), buildLambdaContext(), () => {});
 			expect(result).toEqual({ batchItemFailures: [] });
 			expect(deps.sendEmail).not.toHaveBeenCalled();
 			expect(deps.markReaderReadyEmailSent).not.toHaveBeenCalled();
@@ -226,7 +212,7 @@ describe("initReaderReadyNotifyHandler", () => {
 				sendEmail: jest.fn().mockRejectedValue(new Error("resend down")),
 			});
 
-			const result = await handler(command(), stubContext, () => {});
+			const result = await handler(command(), buildLambdaContext(), () => {});
 
 			expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 			expect(deps.releaseReaderReadyEmailSlot).toHaveBeenCalledWith({ userId: USER_ID, claimedAt: NOW });
@@ -236,7 +222,7 @@ describe("initReaderReadyNotifyHandler", () => {
 		it("reports a batch item failure on an invalid command detail", async () => {
 			const { handler, deps } = createHandler();
 
-			const result = await handler(sqsEvent({ url: URL }), stubContext, () => {});
+			const result = await handler(sqsEvent({ url: URL }), buildLambdaContext(), () => {});
 
 			expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 			expect(deps.findUserArticleNotificationState).not.toHaveBeenCalled();

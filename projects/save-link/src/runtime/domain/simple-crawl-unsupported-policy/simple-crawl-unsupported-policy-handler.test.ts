@@ -1,28 +1,14 @@
 import { noopLogger } from "@packages/hutch-logger";
 import { ComprehensiveCrawlCommand } from "@packages/hutch-infra-components";
 import { initSimpleCrawlUnsupportedPolicyHandler } from "./simple-crawl-unsupported-policy-handler";
-import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
+import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
 	SentTimestamp: "1620000000000",
 	SenderId: "TESTID",
 	ApproximateFirstReceiveTimestamp: "1620000000001",
-};
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
 };
 
 function createSqsEvent(detail: {
@@ -58,7 +44,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 
 		await handler(
 			createSqsEvent({ url: "https://example.com/doc.pdf", userId: "user-1" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -82,7 +68,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 
 		await handler(
 			createSqsEvent({ url: "https://example.com/doc.pdf", recrawl: true }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -105,7 +91,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 
 		await handler(
 			createSqsEvent({ url: "https://example.com/doc.pdf", refresh: true }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -132,7 +118,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 				refresh: true,
 				previousBodyHash: "h".repeat(64),
 			}),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -155,7 +141,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 
 		await handler(
 			createSqsEvent({ url: "https://example.com/blob" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -178,7 +164,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/doc.pdf" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -207,7 +193,7 @@ describe("initSimpleCrawlUnsupportedPolicyHandler", () => {
 			}],
 		};
 
-		const result = await handler(invalidEvent, stubContext, () => {});
+		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(publishEvent).not.toHaveBeenCalled();
 	});

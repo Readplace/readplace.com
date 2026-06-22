@@ -4,7 +4,8 @@ import {
 	markSummarySkipped,
 } from "@packages/domain/article-aggregate";
 import { noopLogger } from "@packages/hutch-logger";
-import type { Context, SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initGenerateSummaryHandler } from "./generate-summary-handler";
 import type { SummarizeArticle } from "./link-summariser";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
@@ -15,21 +16,6 @@ const stubAttributes: SQSRecordAttributes = {
 	SentTimestamp: "1620000000000",
 	SenderId: "TESTID",
 	ApproximateFirstReceiveTimestamp: "1620000000001",
-};
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
 };
 
 function createSqsEvent(detail: { url: string }): SQSEvent {
@@ -93,7 +79,7 @@ describe("initGenerateSummaryHandler", () => {
 			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
 		});
 
-		const result = await handler(createSqsEvent({ url: URL }), stubContext, () => {});
+		const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummaryReady, {
@@ -119,7 +105,7 @@ describe("initGenerateSummaryHandler", () => {
 			loadArticle: jest.fn().mockResolvedValue(cached),
 		});
 
-		const result = await handler(createSqsEvent({ url: URL }), stubContext, () => {});
+		const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.summarizeArticle).not.toHaveBeenCalled();
@@ -137,7 +123,7 @@ describe("initGenerateSummaryHandler", () => {
 			loadArticle: jest.fn().mockResolvedValue(cached),
 		});
 
-		await handler(createSqsEvent({ url: URL }), stubContext, () => {});
+		await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
 
 		expect(deps.summarizeArticle).not.toHaveBeenCalled();
 		expect(deps.findArticleContent).not.toHaveBeenCalled();
@@ -161,7 +147,7 @@ describe("initGenerateSummaryHandler", () => {
 			loadArticle: jest.fn().mockResolvedValue(cached),
 		});
 
-		await handler(createSqsEvent({ url: URL }), stubContext, () => {});
+		await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
 
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummaryReady, expect.objectContaining({ url: URL }));
 	});
@@ -176,7 +162,7 @@ describe("initGenerateSummaryHandler", () => {
 			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
 		});
 
-		const result = await handler(createSqsEvent({ url: URL }), stubContext, () => {});
+		const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
@@ -195,7 +181,7 @@ describe("initGenerateSummaryHandler", () => {
 			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
 		});
 
-		await handler(createSqsEvent({ url: URL }), stubContext, () => {});
+		await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
 
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(markSummarySkipped, {
 			url: URL,
@@ -210,7 +196,7 @@ describe("initGenerateSummaryHandler", () => {
 			loadArticle: jest.fn().mockResolvedValue(pendingArticle(URL)),
 		});
 
-		const result = await handler(createSqsEvent({ url: URL }), stubContext, () => {});
+		const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
@@ -225,7 +211,7 @@ describe("initGenerateSummaryHandler", () => {
 			logger: { ...noopLogger, error },
 		});
 
-		const result = await handler(createSqsEvent({ url: URL }), stubContext, () => {});
+		const result = await handler(createSqsEvent({ url: URL }), buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(deps.summarizeArticle).not.toHaveBeenCalled();
@@ -258,7 +244,7 @@ describe("initGenerateSummaryHandler", () => {
 			}],
 		};
 
-		const result = await handler(invalidEvent, stubContext, () => {});
+		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(deps.transitionAndPersist).not.toHaveBeenCalled();

@@ -11,7 +11,8 @@ import type {
 	PublishSaveAnonymousLink,
 	PublishUpdateFetchTimestamp,
 } from "@packages/test-fixtures/providers/events";
-import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
+import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import type {
 	CrawlAndFinalizeArticle,
 	CrawlAndFinalizeResult,
@@ -33,21 +34,6 @@ const stubAttributes: SQSRecordAttributes = {
 	SentTimestamp: "1620000000000",
 	SenderId: "TESTID",
 	ApproximateFirstReceiveTimestamp: "1620000000001",
-};
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
 };
 
 function createSqsEvent(detail: { url: string }): SQSEvent {
@@ -99,7 +85,7 @@ describe("initStaleCheckHandler", () => {
 
 		const handler = createHandler({ findArticleFreshness, publishSaveAnonymousLink });
 
-		await handler(createSqsEvent({ url: URL_UNDER_TEST }), stubContext, () => {});
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(publishSaveAnonymousLink).toHaveBeenCalledTimes(1);
 		expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: URL_UNDER_TEST });
@@ -125,7 +111,7 @@ describe("initStaleCheckHandler", () => {
 			publishSaveAnonymousLink,
 		});
 
-		await handler(createSqsEvent({ url: URL_UNDER_TEST }), stubContext, () => {});
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(crawlAndFinalizeArticle).not.toHaveBeenCalled();
 		expect(publishSaveAnonymousLink).not.toHaveBeenCalled();
@@ -144,7 +130,7 @@ describe("initStaleCheckHandler", () => {
 			crawlAndFinalizeArticle,
 		});
 
-		await handler(createSqsEvent({ url: URL_UNDER_TEST }), stubContext, () => {});
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(crawlAndFinalizeArticle).not.toHaveBeenCalled();
 	});
@@ -167,7 +153,7 @@ describe("initStaleCheckHandler", () => {
 			publishUpdateFetchTimestamp,
 		});
 
-		await handler(createSqsEvent({ url: URL_UNDER_TEST }), stubContext, () => {});
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(publishUpdateFetchTimestamp).toHaveBeenCalledTimes(1);
 		expect(publishUpdateFetchTimestamp).toHaveBeenCalledWith({
@@ -194,7 +180,7 @@ describe("initStaleCheckHandler", () => {
 			crawlAndFinalizeArticle,
 		});
 
-		await handler(createSqsEvent({ url: URL_UNDER_TEST }), stubContext, () => {});
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(crawlAndFinalizeArticle).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
@@ -225,7 +211,7 @@ describe("initStaleCheckHandler", () => {
 			emitSimpleCrawlUnsupported,
 		});
 
-		await handler(createSqsEvent({ url: URL_UNDER_TEST }), stubContext, () => {});
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
@@ -250,7 +236,7 @@ describe("initStaleCheckHandler", () => {
 			crawlAndFinalizeArticle,
 		});
 
-		await handler(createSqsEvent({ url: URL_UNDER_TEST }), stubContext, () => {});
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(crawlAndFinalizeArticle).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
@@ -285,7 +271,7 @@ describe("initStaleCheckHandler", () => {
 			publishRefreshArticleContent,
 		});
 
-		await handler(createSqsEvent({ url: URL_UNDER_TEST }), stubContext, () => {});
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(markCrawlStage).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
@@ -323,7 +309,7 @@ describe("initStaleCheckHandler", () => {
 			emitSimpleCrawlUnsupported,
 		});
 
-		await handler(createSqsEvent({ url: URL_UNDER_TEST }), stubContext, () => {});
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(publishRefreshArticleContent).not.toHaveBeenCalled();
 		expect(publishUpdateFetchTimestamp).not.toHaveBeenCalled();
@@ -364,7 +350,7 @@ describe("initStaleCheckHandler", () => {
 			publishRefreshArticleContent,
 		});
 
-		await handler(createSqsEvent({ url: URL_UNDER_TEST }), stubContext, () => {});
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(publishRefreshArticleContent).toHaveBeenCalledWith({
 			url: URL_UNDER_TEST,
@@ -419,7 +405,7 @@ describe("initStaleCheckHandler", () => {
 			],
 		};
 
-		const result = await handler(batch, stubContext, () => {});
+		const result = await handler(batch, buildLambdaContext(), () => {});
 
 		expect(publishSaveAnonymousLink).toHaveBeenNthCalledWith(1, { url: "https://a.example.com/" });
 		expect(publishSaveAnonymousLink).toHaveBeenNthCalledWith(2, { url: "https://b.example.com/" });
@@ -467,7 +453,7 @@ describe("initStaleCheckHandler", () => {
 			],
 		};
 
-		const result = await handler(batch, stubContext, () => {});
+		const result = await handler(batch, buildLambdaContext(), () => {});
 
 		expect(publishSaveAnonymousLink).toHaveBeenCalledTimes(1);
 		expect(publishSaveAnonymousLink).toHaveBeenCalledWith({ url: "https://a.example.com/" });
@@ -491,7 +477,7 @@ describe("initStaleCheckHandler", () => {
 			}],
 		};
 
-		const result = await handler(invalidEvent, stubContext, () => {});
+		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
@@ -519,7 +505,7 @@ describe("initStaleCheckHandler", () => {
 			transitionAndPersist,
 		});
 
-		await handler(createSqsEvent({ url: URL_UNDER_TEST }), stubContext, () => {});
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(transitionAndPersist).toHaveBeenCalledTimes(1);
 		expect(transitionAndPersist).toHaveBeenCalledWith(
@@ -554,7 +540,7 @@ describe("initStaleCheckHandler", () => {
 			transitionAndPersist,
 		});
 
-		await handler(createSqsEvent({ url: URL_UNDER_TEST }), stubContext, () => {});
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 	});
@@ -570,7 +556,7 @@ describe("initStaleCheckHandler", () => {
 			transitionAndPersist,
 		});
 
-		await handler(createSqsEvent({ url: URL_UNDER_TEST }), stubContext, () => {});
+		await handler(createSqsEvent({ url: URL_UNDER_TEST }), buildLambdaContext(), () => {});
 
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 	});

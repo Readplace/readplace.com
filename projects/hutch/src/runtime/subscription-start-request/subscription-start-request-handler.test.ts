@@ -8,6 +8,7 @@ import type {
 	PublishSubscriptionChargeSucceeded,
 } from "@packages/test-fixtures/providers/events";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { initSubscriptionStartRequestHandler } from "./subscription-start-request-handler";
 
 const USER_ID = UserIdSchema.parse("1".repeat(32));
@@ -59,7 +60,7 @@ describe("subscription-start-request handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-missing", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -80,7 +81,7 @@ describe("subscription-start-request handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-active", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -102,7 +103,7 @@ describe("subscription-start-request handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-cancelled", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -125,7 +126,7 @@ describe("subscription-start-request handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-pc", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -145,7 +146,7 @@ describe("subscription-start-request handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-no-card", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -175,7 +176,7 @@ describe("subscription-start-request handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-charge", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -210,7 +211,7 @@ describe("subscription-start-request handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-stripe-fail", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -230,7 +231,7 @@ describe("subscription-start-request handler", () => {
 				{ messageId: "msg-bad", body: "not-json" },
 				{ messageId: "msg-good", body: buildEventBridgeBody(USER_ID) },
 			]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -246,7 +247,7 @@ describe("subscription-start-request handler", () => {
 			buildSqsEvent([
 				{ messageId: "msg-schema", body: JSON.stringify({ detail: {} }) },
 			]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 

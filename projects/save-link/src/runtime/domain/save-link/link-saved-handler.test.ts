@@ -1,28 +1,14 @@
 import { noopLogger } from "@packages/hutch-logger";
 import { initLinkSavedHandler } from "./link-saved-handler";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
-import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
+import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
 	SentTimestamp: "1620000000000",
 	SenderId: "TESTID",
 	ApproximateFirstReceiveTimestamp: "1620000000001",
-};
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
 };
 
 function createSqsEvent(detail: { url: string; userId: string }): SQSEvent {
@@ -52,7 +38,7 @@ describe("initLinkSavedHandler", () => {
 			logger: noopLogger,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(dispatchGenerateSummary).toHaveBeenCalledTimes(1);
 		expect(dispatchGenerateSummary).toHaveBeenCalledWith({ url: "https://example.com/article" });
@@ -70,7 +56,7 @@ describe("initLinkSavedHandler", () => {
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/no-content", userId: "user-1" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -102,7 +88,7 @@ describe("initLinkSavedHandler", () => {
 			}],
 		};
 
-		const result = await handler(invalidEvent, stubContext, () => {});
+		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

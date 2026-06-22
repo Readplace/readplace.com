@@ -108,6 +108,10 @@
     "./sqs": {
       "types": "./dist/sqs/index.d.ts",
       "default": "./dist/sqs/index.js"
+    },
+    "./lambda-context": {
+      "types": "./dist/lambda-context/index.d.ts",
+      "default": "./dist/lambda-context/index.js"
     }
   },
   "typesVersions": {
@@ -136,7 +140,8 @@
       "providers/oauth": ["./dist/providers/oauth/index.d.ts"],
       "providers/events": ["./dist/providers/events/index.d.ts"],
       "providers/google-auth": ["./dist/providers/google-auth/index.d.ts"],
-      "sqs": ["./dist/sqs/index.d.ts"]
+      "sqs": ["./dist/sqs/index.d.ts"],
+      "lambda-context": ["./dist/lambda-context/index.d.ts"]
     }
   },
   "private": true,
@@ -161,6 +166,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@types/aws-lambda": "8.10.161",
     "@types/jest": "30.0.0",
     "c8": "11.0.0",
     "concurrently": "10.0.0",

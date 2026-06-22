@@ -2,7 +2,8 @@ import { noopLogger } from "@packages/hutch-logger";
 import type { TransitionAndPersist } from "@packages/domain/article-aggregate";
 import { markCrawlExhausted } from "@packages/domain/article-aggregate";
 import { initSaveLinkRawHtmlDlqHandler } from "./save-link-raw-html-dlq-handler";
-import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
+import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 
 function attributes(receiveCount: number): SQSRecordAttributes {
 	return {
@@ -12,21 +13,6 @@ function attributes(receiveCount: number): SQSRecordAttributes {
 		ApproximateFirstReceiveTimestamp: "1620000000001",
 	};
 }
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
-};
 
 function createSqsEvent(
 	detail: { url: string; userId: string; title?: string },
@@ -60,7 +46,7 @@ describe("initSaveLinkRawHtmlDlqHandler", () => {
 
 		await handler(
 			createSqsEvent({ url: "https://example.com/failed", userId: "user-1" }, 4),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -96,7 +82,7 @@ describe("initSaveLinkRawHtmlDlqHandler", () => {
 			}],
 		};
 
-		const result = await handler(invalidEvent, stubContext, () => {});
+		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 	});
@@ -113,7 +99,7 @@ describe("initSaveLinkRawHtmlDlqHandler", () => {
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/failed", userId: "user-1" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 

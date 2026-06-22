@@ -1,26 +1,12 @@
 import { initSummaryGeneratedHandler } from "./summary-generated-handler";
-import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
+import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
 	SentTimestamp: "1620000000000",
 	SenderId: "TESTID",
 	ApproximateFirstReceiveTimestamp: "1620000000001",
-};
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
 };
 
 function createSqsEvent(detail: { url: string; inputTokens: number; outputTokens: number }): SQSEvent {
@@ -54,7 +40,7 @@ describe("initSummaryGeneratedHandler", () => {
 			url: "https://example.com/article",
 			inputTokens: 150,
 			outputTokens: 42,
-		}), stubContext, () => {});
+		}), buildLambdaContext(), () => {});
 
 		expect(logger.info).toHaveBeenCalledWith("[GlobalSummaryGenerated]", {
 			url: "https://example.com/article",
@@ -87,7 +73,7 @@ describe("initSummaryGeneratedHandler", () => {
 			}],
 		};
 
-		const result = await handler(invalidEvent, stubContext, () => {});
+		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

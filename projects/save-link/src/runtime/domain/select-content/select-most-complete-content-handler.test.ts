@@ -11,28 +11,14 @@ import type { WriteCanonicalContent } from "../../providers/article-store/promot
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import type { TierSource, TierSourceMetadata } from "./tier-source.types";
-import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
+import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
 	SentTimestamp: "1620000000000",
 	SenderId: "TESTID",
 	ApproximateFirstReceiveTimestamp: "1620000000001",
-};
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
 };
 
 const FIXED_NOW = new Date("2026-05-12T10:00:00.000Z");
@@ -110,7 +96,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/a", tier: "tier-1" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -134,7 +120,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(selectMostCompleteContent).not.toHaveBeenCalled();
 		expect(writeCanonicalContent).toHaveBeenCalledWith({
@@ -173,7 +159,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1" }), buildLambdaContext(), () => {});
 
 		expect(callOrder).toEqual(["writeCanonicalContent", "transitionAndPersist"]);
 	});
@@ -188,7 +174,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			findContentSourceTier: jest.fn().mockResolvedValue("tier-1"),
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(deps.writeCanonicalContent).toHaveBeenCalledWith({
 			url: "https://example.com/a",
@@ -219,7 +205,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			findContentSourceTier: jest.fn().mockResolvedValue("tier-0"),
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1" }), buildLambdaContext(), () => {});
 
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(promoteTier, {
 			url: "https://example.com/a",
@@ -246,7 +232,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(
 			promoteTier,
@@ -267,7 +253,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		const expectedHash = computeCanonicalContentHash(tier1.html);
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(
@@ -297,7 +283,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			publishEvent,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-0", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-0", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(deps.writeCanonicalContent).not.toHaveBeenCalled();
 		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
@@ -318,7 +304,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 		});
 
 		// Event raised for the freshly re-saved tier-0 (extension re-save after editing an image upstream).
-		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-0", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-0", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(publishEvent).not.toHaveBeenCalled();
 		expect(deps.writeCanonicalContent).toHaveBeenCalledWith({
@@ -351,7 +337,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			publishEvent,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(publishEvent).not.toHaveBeenCalled();
 		expect(deps.writeCanonicalContent).toHaveBeenCalledWith({
@@ -391,7 +377,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			publishEvent,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-0", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-0", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(deps.writeCanonicalContent).not.toHaveBeenCalled();
 		expect(deps.transitionAndPersist).not.toHaveBeenCalled();
@@ -409,7 +395,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(deps.writeCanonicalContent).toHaveBeenCalledWith({
 			url: "https://example.com/a",
@@ -440,7 +426,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-0", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-0", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(deps.writeCanonicalContent).toHaveBeenCalledWith({
 			url: "https://example.com/a",
@@ -465,7 +451,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			findContentSourceTier: jest.fn().mockResolvedValue("tier-0"),
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-1", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(deps.writeCanonicalContent).toHaveBeenCalledWith({
 			url: "https://example.com/a",
@@ -494,7 +480,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-0", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a", tier: "tier-0", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(
 			promoteTier,
@@ -511,7 +497,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			selectMostCompleteContent: jest.fn(), // unreachable on length 1
 			findContentSourceTier: jest.fn().mockResolvedValue(undefined),
 		});
-		await handler2.handler(createSqsEvent({ url: "https://example.com/x", tier: "tier-1" }), stubContext, () => {});
+		await handler2.handler(createSqsEvent({ url: "https://example.com/x", tier: "tier-1" }), buildLambdaContext(), () => {});
 		expect(handler2.deps.selectMostCompleteContent).not.toHaveBeenCalled();
 		expect(handler2.deps.writeCanonicalContent).toHaveBeenCalledWith({
 			url: "https://example.com/x",
@@ -542,7 +528,7 @@ describe("initSelectMostCompleteContentHandler", () => {
 			}],
 		};
 
-		const result = await handler(invalidEvent, stubContext, () => {});
+		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 });

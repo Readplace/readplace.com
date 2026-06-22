@@ -1,25 +1,11 @@
-import type { Context, SQSEvent } from "aws-lambda";
+import type { SQSEvent } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import { noopLogger } from "@packages/hutch-logger";
 import { UserIdSchema } from "@packages/domain/user";
 import { initReaderReadyUsersNotificationFanoutHandler, type ReaderReadyUsersNotificationFanoutDeps } from "./reader-ready-fanout-handler";
 
 const URL = "https://example.com/article";
 const SUCCEEDED_AT = "2026-05-30T12:00:00.000Z";
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
-};
 
 function sqsEvent(detail: unknown, messageId = "msg-1"): SQSEvent {
 	return {
@@ -63,7 +49,7 @@ describe("initReaderReadyUsersNotificationFanoutHandler", () => {
 
 		const result = await handler(
 			sqsEvent({ url: URL, succeededAt: SUCCEEDED_AT, hasSummary: true }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -81,7 +67,7 @@ describe("initReaderReadyUsersNotificationFanoutHandler", () => {
 			findUserArticlesByUrl: jest.fn().mockResolvedValue([viewedSaver]),
 		});
 
-		await handler(sqsEvent({ url: URL, succeededAt: SUCCEEDED_AT, hasSummary: false }), stubContext, () => {});
+		await handler(sqsEvent({ url: URL, succeededAt: SUCCEEDED_AT, hasSummary: false }), buildLambdaContext(), () => {});
 
 		expect(deps.markReaderViewSucceeded).toHaveBeenCalledTimes(1);
 		expect(deps.dispatchNotifyReaderViewReady).not.toHaveBeenCalled();
@@ -94,7 +80,7 @@ describe("initReaderReadyUsersNotificationFanoutHandler", () => {
 
 		const result = await handler(
 			sqsEvent({ url: URL, succeededAt: SUCCEEDED_AT, hasSummary: true }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -104,7 +90,7 @@ describe("initReaderReadyUsersNotificationFanoutHandler", () => {
 	it("reports a batch item failure on an invalid event detail", async () => {
 		const { handler, deps } = createHandler();
 
-		const result = await handler(sqsEvent({ url: URL }), stubContext, () => {});
+		const result = await handler(sqsEvent({ url: URL }), buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(deps.findUserArticlesByUrl).not.toHaveBeenCalled();

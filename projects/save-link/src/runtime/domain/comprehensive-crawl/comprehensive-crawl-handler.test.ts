@@ -9,28 +9,14 @@ import {
 import { initComprehensiveCrawlHandler } from "./comprehensive-crawl-handler";
 import type { FinalizeArticle, FinalizedArticle } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
-import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
+import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
 	SentTimestamp: "1620000000000",
 	SenderId: "TESTID",
 	ApproximateFirstReceiveTimestamp: "1620000000001",
-};
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
 };
 
 function createSqsEvent(
@@ -110,7 +96,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 		const handler = createHandler({ putTierSource, publishEvent });
 
-		await handler(createSqsEvent({ url: "https://example.com/doc.pdf", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/doc.pdf", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(putTierSource).toHaveBeenCalledWith({
 			url: "https://example.com/doc.pdf",
@@ -142,7 +128,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 		const handler = createHandler({ crawlArticle, finalizeArticle });
 
-		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), buildLambdaContext(), () => {});
 
 		expect(finalizeArticle).toHaveBeenCalledWith({
 			url: "https://example.com/doc.pdf",
@@ -156,7 +142,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 		const handler = createHandler({ publishEvent });
 
-		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), buildLambdaContext(), () => {});
 
 		expect(publishEvent).toHaveBeenCalledWith(TierContentExtractedEvent, {
 			url: "https://example.com/doc.pdf",
@@ -170,7 +156,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 		const handler = createHandler({ publishEvent });
 
-		await handler(createSqsEvent({ url: "https://example.com/doc.pdf", recrawl: true }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/doc.pdf", recrawl: true }), buildLambdaContext(), () => {});
 
 		expect(publishEvent).toHaveBeenCalledTimes(1);
 		expect(publishEvent).toHaveBeenCalledWith(RecrawlContentExtractedEvent, {
@@ -197,7 +183,7 @@ describe("initComprehensiveCrawlHandler", () => {
 				refresh: true,
 				previousBodyHash: "h".repeat(64),
 			}),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -226,7 +212,7 @@ describe("initComprehensiveCrawlHandler", () => {
 				refresh: true,
 				previousBodyHash: "h".repeat(64),
 			}),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -248,7 +234,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 		const handler = createHandler({ publishEvent, updateFetchTimestamp, crawlArticle });
 
-		await handler(createSqsEvent({ url: "https://example.com/doc.pdf", refresh: true }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/doc.pdf", refresh: true }), buildLambdaContext(), () => {});
 
 		expect(updateFetchTimestamp).not.toHaveBeenCalled();
 		expect(publishEvent).toHaveBeenCalledTimes(1);
@@ -279,7 +265,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/scan.pdf", userId: "user-1" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -310,7 +296,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			readTierSnapshot,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/scan.pdf" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/scan.pdf" }), buildLambdaContext(), () => {});
 
 		expect(logCrawlOutcome).toHaveBeenCalledWith({
 			url: "https://example.com/scan.pdf",
@@ -334,7 +320,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/doc.pdf" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -351,7 +337,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/bad.pdf" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -378,7 +364,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			markCrawlStage,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), buildLambdaContext(), () => {});
 		await new Promise((resolve) => setImmediate(resolve));
 
 		const extractingWrites = markCrawlStage.mock.calls.filter(
@@ -405,7 +391,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			logger,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), buildLambdaContext(), () => {});
 
 		expect(warn).toHaveBeenCalledWith(
 			"[ComprehensiveCrawlCommand] comprehensive-extracting stage write failed",
@@ -425,7 +411,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 		const handler = createHandler({ crawlArticle, markCrawlProgress });
 
-		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), buildLambdaContext(), () => {});
 
 		expect(markCrawlProgress).toHaveBeenCalledWith({
 			url: "https://example.com/doc.pdf",
@@ -452,7 +438,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			progressIntervalMs: 10_000,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), buildLambdaContext(), () => {});
 
 		const lastCall = markCrawlProgress.mock.calls[markCrawlProgress.mock.calls.length - 1];
 		expect(lastCall[0]).toEqual({
@@ -474,7 +460,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 		const handler = createHandler({ crawlArticle, updateFetchTimestamp });
 
-		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/doc.pdf" }), buildLambdaContext(), () => {});
 
 		expect(updateFetchTimestamp).toHaveBeenCalledWith({
 			url: "https://example.com/doc.pdf",
@@ -502,7 +488,7 @@ describe("initComprehensiveCrawlHandler", () => {
 			}],
 		};
 
-		const result = await handler(invalidEvent, stubContext, () => {});
+		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});
 
@@ -523,7 +509,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 			const result = await handler(
 				createSqsEvent({ url: "https://example.com/doc.pdf" }),
-				stubContext,
+				buildLambdaContext(),
 				() => {},
 			);
 
@@ -563,7 +549,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 			await handler(
 				createSqsEvent({ url: "https://example.com/doc.pdf" }),
-				stubContext,
+				buildLambdaContext(),
 				() => {},
 			);
 
@@ -590,7 +576,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 			const result = await handler(
 				createSqsEvent({ url: "https://example.com/doc.pdf", refresh: true }),
-				stubContext,
+				buildLambdaContext(),
 				() => {},
 			);
 
@@ -608,7 +594,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 			const result = await handler(
 				createSqsEvent({ url: "https://example.com/doc.pdf" }),
-				stubContext,
+				buildLambdaContext(),
 				() => {},
 			);
 
@@ -634,7 +620,7 @@ describe("initComprehensiveCrawlHandler", () => {
 
 			const result = await handler(
 				createSqsEvent({ url: "https://example.com/doc.pdf" }, { receiveCount: 2 }),
-				stubContext,
+				buildLambdaContext(),
 				() => {},
 			);
 
@@ -661,7 +647,7 @@ describe("initComprehensiveCrawlHandler", () => {
 					refresh: true,
 					previousBodyHash: "h".repeat(64),
 				}, { receiveCount: 2 }),
-				stubContext,
+				buildLambdaContext(),
 				() => {},
 			);
 
@@ -681,7 +667,7 @@ describe("initComprehensiveCrawlHandler", () => {
 					refresh: true,
 					previousBodyHash: "h".repeat(64),
 				}),
-				stubContext,
+				buildLambdaContext(),
 				() => {},
 			);
 
@@ -702,7 +688,7 @@ describe("initComprehensiveCrawlHandler", () => {
 					refresh: true,
 					previousBodyHash: "h".repeat(64),
 				}),
-				stubContext,
+				buildLambdaContext(),
 				() => {},
 			);
 
