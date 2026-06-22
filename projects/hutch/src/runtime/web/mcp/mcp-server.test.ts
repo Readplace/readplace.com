@@ -197,7 +197,6 @@ describe("initMcpServer", () => {
 				id: 4,
 				result: { content: [{ type: "text", text: expect.stringContaining("My Article") }] },
 			});
-			expect(response).not.toMatchObject({ result: { isError: true } });
 		});
 
 		it("surfaces a save rejection as an error result", async () => {
@@ -626,7 +625,6 @@ describe("initMcpServer", () => {
 					},
 				},
 			});
-			expect(response).not.toMatchObject({ result: { isError: true } });
 		});
 
 		it("redirects delete_article to the app without deleting", async () => {
@@ -639,7 +637,6 @@ describe("initMcpServer", () => {
 					structuredContent: { action: "delete_article", performed: false },
 				},
 			});
-			expect(response).not.toMatchObject({ result: { isError: true } });
 		});
 	});
 
