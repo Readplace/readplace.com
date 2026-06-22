@@ -1,4 +1,3 @@
-import assert from 'node:assert'
 import { test } from '@playwright/test'
 import { createBannerOnReaderActions, type BannerOnReaderProgress } from './banner-on-reader-actions'
 import { createCleanupActions, type CleanupProgress } from './cleanup-actions'
@@ -11,9 +10,9 @@ import { createSeedActions, type SeedProgress } from './seed-actions'
 import { createAnonymousViewPageActions, type ViewPageProgress } from './view-page-actions'
 import { createLocalTestArticles, type QueueProgress } from './queue-actions'
 import { runQueueFlow } from './queue-flow'
+import { requireEnv } from '../../runtime/domain/require-env'
 
-assert(process.env.E2E_PORT, "E2E_PORT is required")
-const BASE_URL = `http://localhost:${process.env.E2E_PORT}`
+const BASE_URL = `http://localhost:${requireEnv('E2E_PORT')}`
 
 test.describe('Queue management flow (local)', () => {
   test('signup, logout, reset password, login, add articles, pagination, sort, read, delete, verify tabs', async ({ page }) => {
