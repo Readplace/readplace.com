@@ -275,6 +275,11 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				);
 			}
 			({ page, pageSize, status, sort, order } = decoded);
+			if (sort === "readAt" && status !== "read") {
+				return toolError(
+					'Sorting by read date (`sort:"read"`) only applies to read articles — pass `status:"read"` as well.',
+				);
+			}
 		} else {
 			sort =
 				a.sort === "read" ? "readAt" : a.sort === "saved" ? "savedAt" : undefined;
