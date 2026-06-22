@@ -6,17 +6,17 @@ const KNOWN_BANNED_HASH = "836d77f3df16e15f";
 
 function run(hashIp: HashIp): { status?: number; nextCalled: boolean } {
 	let status: number | undefined;
-	const res = {
+	const res: Partial<Response> = {
 		status: (code: number) => {
 			status = code;
-			return res;
+			return res as Response;
 		},
 		end: jest.fn(),
-	} as unknown as Response;
-	const req = { ip: "1.2.3.4" } as unknown as Request;
-	const next = jest.fn() as unknown as NextFunction;
-	createBanMiddleware({ salt: "salt", hashIp })(req, res, next);
-	return { status, nextCalled: (next as jest.Mock).mock.calls.length > 0 };
+	};
+	const req: Partial<Request> = { ip: "1.2.3.4" };
+	const next = jest.fn();
+	createBanMiddleware({ salt: "salt", hashIp })(req as Request, res as Response, next as NextFunction);
+	return { status, nextCalled: next.mock.calls.length > 0 };
 }
 
 describe("createBanMiddleware", () => {
