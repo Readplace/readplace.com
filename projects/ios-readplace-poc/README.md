@@ -140,7 +140,8 @@ run `make ipa-staging` (or `nx run ios-readplace-poc:compile-test`). It sets the
 `build/Readplace-staging-unsigned.ipa`, so a tester signs in against staging
 without typing a URL. Same bundle id, so it replaces the prod app on a device.
 
-Run the tests with `make test` (boots a simulator).
+Run the tests with `make test` (boots a simulator); it also recompiles the
+`STAGING` condition as a smoke pass — run that alone with `make test-staging`.
 
 ---
 
@@ -219,6 +220,14 @@ cases:
   degrading to URL-only when the capture is empty or the HTML is over the cap,
   short-circuiting before any network call when logged out or when there's no
   link, and reporting no-op when the server advertises no save action.
+
+`make test` then runs a **staging smoke pass** (`make test-staging`): it
+recompiles the app, extension and tests with the `STAGING` condition and runs
+`AppConfigTests` under it. The full suite can't run under `STAGING` — the OAuth
+tests pin the production redirect URI — but compiling everything proves the
+staging build stays green, and the smoke test asserts the `#if STAGING` server
+selection resolves to the staging stack. CI runs `make test`, so this path is
+exercised on every run, not only when someone builds `make ipa-staging` by hand.
 
 ## Notes & caveats
 
