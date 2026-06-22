@@ -26,12 +26,12 @@ interface MockReqOverrides {
 	visitorId?: string;
 }
 
-function createReq(overrides: MockReqOverrides = {}): Request {
+function createReq(overrides: MockReqOverrides = {}): Partial<Request> {
 	const headers: Record<string, string | undefined> = {
 		"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/145.0",
 		...overrides.headers,
 	};
-	const base = {
+	return {
 		method: overrides.method ?? "GET",
 		path: overrides.path ?? "/",
 		ip: overrides.ip ?? "1.2.3.4",
@@ -39,8 +39,7 @@ function createReq(overrides: MockReqOverrides = {}): Request {
 		headers,
 		visitorId: overrides.visitorId,
 		get(name: string): string | undefined { return headers[name.toLowerCase()]; },
-	};
-	return base as unknown as Request;
+	} as Partial<Request>;
 }
 
 function createRes(statusCode = 200): Response & EventEmitter {
@@ -49,7 +48,7 @@ function createRes(statusCode = 200): Response & EventEmitter {
 	return emitter;
 }
 
-function captureEvents(req: Request, res: Response & EventEmitter): AnalyticsEvent[] {
+function captureEvents(req: Partial<Request>, res: Response & EventEmitter): AnalyticsEvent[] {
 	const { captured, logger } = createCapturingLogger();
 	const middleware = createAnalyticsMiddleware({
 		logger,
@@ -57,16 +56,16 @@ function captureEvents(req: Request, res: Response & EventEmitter): AnalyticsEve
 		now: () => new Date("2026-04-21T10:00:00.000Z"),
 	});
 	const next: NextFunction = () => {};
-	middleware(req, res, next);
+	middleware(req as Request, res, next);
 	res.emit("finish");
 	return captured;
 }
 
-function runMiddleware(req: Request, res: Response & EventEmitter): AnalyticsPageview[] {
+function runMiddleware(req: Partial<Request>, res: Response & EventEmitter): AnalyticsPageview[] {
 	return captureEvents(req, res).filter((e): e is AnalyticsPageview => e.event === "pageview");
 }
 
-function runMiddlewareClicks(req: Request, res: Response & EventEmitter): AnalyticsClick[] {
+function runMiddlewareClicks(req: Partial<Request>, res: Response & EventEmitter): AnalyticsClick[] {
 	return captureEvents(req, res).filter((e): e is AnalyticsClick => e.event === "click");
 }
 
