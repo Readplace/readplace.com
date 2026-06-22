@@ -43,10 +43,6 @@ export type MarkSubscriptionPendingCancellation = (input: {
 	cancellationEffectiveAt: string;
 }) => Promise<void>;
 
-export type MarkSubscriptionCancelled = (input: {
-	subscriptionId: string;
-}) => Promise<void>;
-
 export type MarkSubscriptionCancelledByUserId = (input: {
 	userId: UserId;
 }) => Promise<void>;

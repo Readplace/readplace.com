@@ -4,7 +4,6 @@ import { initInMemorySubscriptionProviders } from "./in-memory-subscription-prov
 
 describe("initInMemorySubscriptionProviders", () => {
 	const userId = UserIdSchema.parse("u-1");
-	const otherUserId = UserIdSchema.parse("u-2");
 
 	function fixedNow(iso: string) {
 		return () => new Date(iso);
@@ -89,28 +88,6 @@ describe("initInMemorySubscriptionProviders", () => {
 		await expect(
 			subs.markPendingCancellation({ userId, cancellationEffectiveAt: "2026-06-22T00:00:00.000Z" }),
 		).rejects.toThrow(/No subscription row/);
-	});
-
-	it("marks a subscription as cancelled by subscriptionId", async () => {
-		const clock = { iso: "2026-05-22T00:00:00.000Z" };
-		const subs = initInMemorySubscriptionProviders({ now: () => new Date(clock.iso) });
-		await subs.upsertActive({ userId, subscriptionId: "sub_a", customerId: "cus_a" });
-		await subs.upsertActive({ userId: otherUserId, subscriptionId: "sub_b", customerId: "cus_b" });
-
-		clock.iso = "2026-06-01T00:00:00.000Z";
-		await subs.markCancelled({ subscriptionId: "sub_a" });
-
-		const a = await subs.findByUserId(userId);
-		const b = await subs.findByUserId(otherUserId);
-		assert(a && b, "both rows must exist");
-		expect(a.status).toBe("cancelled");
-		expect(a.updatedAt).toBe("2026-06-01T00:00:00.000Z");
-		expect(b.status).toBe("active");
-	});
-
-	it("throws when markCancelled cannot find the subscriptionId", async () => {
-		const subs = initInMemorySubscriptionProviders({ now: fixedNow("2026-05-22T00:00:00.000Z") });
-		await expect(subs.markCancelled({ subscriptionId: "sub_missing" })).rejects.toThrow(/No subscription row/);
 	});
 
 	it("marks a trialing subscription as cancelled by userId and clears trialEndsAt", async () => {

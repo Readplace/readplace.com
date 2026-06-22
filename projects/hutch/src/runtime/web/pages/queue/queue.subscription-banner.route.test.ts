@@ -140,7 +140,7 @@ describe("Queue page banner state", () => {
 			subscriptionId: "sub_cancelled",
 			customerId: "cus_cancelled",
 		});
-		await subscriptionProviders.markCancelled({ subscriptionId: "sub_cancelled" });
+		await subscriptionProviders.markCancelledByUserId({ userId });
 
 		const response = await agent.get("/queue");
 		const doc = new JSDOM(response.text).window.document;
@@ -161,7 +161,7 @@ describe("POST /queue/save read-only gating", () => {
 			subscriptionId: "sub_locked",
 			customerId: "cus_locked",
 		});
-		await subscriptionProviders.markCancelled({ subscriptionId: "sub_locked" });
+		await subscriptionProviders.markCancelledByUserId({ userId });
 
 		const response = await agent
 			.post("/queue/save")

@@ -2,7 +2,6 @@ export type {
 	FindSubscriptionBySubscriptionId,
 	FindSubscriptionByUserId,
 	MarkSubscriptionActive,
-	MarkSubscriptionCancelled,
 	MarkSubscriptionCancelledByUserId,
 	MarkSubscriptionPendingCancellation,
 	MarkTrialFeedbackEmailSent,
