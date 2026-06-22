@@ -39,8 +39,6 @@ interface FakeState {
 	summary: GeneratedSummary | undefined;
 	content: string | undefined;
 	article: GlobalArticleData | null;
-	markCrawlPendingCalls: number;
-	markSummaryPendingCalls: number;
 }
 
 const FIXED_NOW = new Date("2026-04-25T12:00:00.000Z");
@@ -75,10 +73,6 @@ function initFakeDeps(initial: {
 		summary: initial.summary,
 		content: initial.content,
 		article: initial.article === undefined ? defaultFakeArticle() : initial.article,
-		// Auto-heal was removed: the reader no longer marks anything pending.
-		// The counters stay so the regression test can assert they don't tick.
-		markCrawlPendingCalls: 0,
-		markSummaryPendingCalls: 0,
 	};
 	const deps: ArticleReaderDeps = {
 		findArticleCrawlStatus: async () => state.crawl,
@@ -372,7 +366,7 @@ describe("initArticleReader", () => {
 		});
 
 		it("does NOT re-prime a legacy stub from the reader path (auto-heal removed; recovery is operator-driven via /admin/recrawl)", async () => {
-			const { state, deps } = initFakeDeps({
+			const { deps } = initFakeDeps({
 				crawl: undefined,
 				summary: undefined,
 				content: undefined,
@@ -384,8 +378,6 @@ describe("initArticleReader", () => {
 				pollUrlBuilder: makePollUrlBuilder(),
 			});
 
-			expect(state.markCrawlPendingCalls).toBe(0);
-			expect(state.markSummaryPendingCalls).toBe(0);
 			// crawl + summary stay undefined; the read-after-write race branch in
 			// shouldKeepPollingReader still emits a poll URL so the page keeps
 			// asking while the stale-check Lambda decides what to do.
@@ -393,40 +385,6 @@ describe("initArticleReader", () => {
 			expect(result.summary).toBeUndefined();
 			expect(result.readerPollUrl).toBe("/test/reader?poll=1");
 			expect(result.summaryPollUrl).toBe("/test/summary?poll=1");
-		});
-
-		it("does not re-prime when crawl is present but summary is missing", async () => {
-			const { state, deps } = initFakeDeps({
-				crawl: { status: "ready" },
-				summary: undefined,
-				content: "<p>body</p>",
-			});
-			const reader = initArticleReader(deps);
-
-			await reader.resolveReaderState({
-				article: makeSnapshot(),
-				pollUrlBuilder: makePollUrlBuilder(),
-			});
-
-			expect(state.markCrawlPendingCalls).toBe(0);
-			expect(state.markSummaryPendingCalls).toBe(0);
-		});
-
-		it("does not re-prime when summary is present but crawl is missing", async () => {
-			const { state, deps } = initFakeDeps({
-				crawl: undefined,
-				summary: { status: "ready", summary: "TL;DR" },
-				content: "<p>body</p>",
-			});
-			const reader = initArticleReader(deps);
-
-			await reader.resolveReaderState({
-				article: makeSnapshot(),
-				pollUrlBuilder: makePollUrlBuilder(),
-			});
-
-			expect(state.markCrawlPendingCalls).toBe(0);
-			expect(state.markSummaryPendingCalls).toBe(0);
 		});
 
 		it("emits readerPollUrl when crawl is undefined with no content (read-after-write race)", async () => {
@@ -610,7 +568,7 @@ describe("initArticleReader", () => {
 			expect(slot.getAttribute("hx-get")).toBe("/test/reader?poll=3");
 		});
 
-		it("stops polling at MAX_POLLS=40 and swaps to the 'Your link is saved' slow reframe", async () => {
+		it("stops polling at MAX_POLLS and swaps to the 'Your link is saved' slow reframe", async () => {
 			const { deps } = initFakeDeps({
 				crawl: { status: "pending" },
 			});
@@ -887,10 +845,13 @@ describe("initArticleReader", () => {
 			});
 
 			const doc = parse(toHtml(component));
-			expect(doc.querySelector("#article-header")).toBeNull();
-			expect(doc.querySelector("title#document-title")).toBeNull();
+			// Anchor on a positive: the reader-slot fragment must render even with
+			// no article row. Only then are the absence checks below meaningful (a
+			// typo'd selector would otherwise also return null and pass silently).
 			const slot = doc.querySelector("[data-test-reader-slot]");
 			assert(slot, "reader-slot fragment must still be emitted even with no article row");
+			expect(doc.querySelector("#article-header")).toBeNull();
+			expect(doc.querySelector("title#document-title")).toBeNull();
 		});
 	});
 
