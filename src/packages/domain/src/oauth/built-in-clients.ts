@@ -30,6 +30,12 @@ const BUILT_IN_OAUTH_CLIENTS: Record<string, OAuthClient> = {
 			"https://hkncrxpii6.execute-api.ap-southeast-2.amazonaws.com/oauth/callback",
 			"http://127.0.0.1:3000/oauth/callback",
 			"http://127.0.0.1:3001/oauth/callback",
+			// iOS Sign up opens /oauth/authorize in external Chrome (to reuse the
+			// browser session) and gets the code back via this native custom scheme,
+			// which the OS routes to the app — the in-app WKWebView login keeps using
+			// the https callback above. Mirrors AppConfig.nativeCallbackURL in
+			// ios-readplace-poc; keep both in sync.
+			"readplace://oauth-callback",
 		],
 		grants: ["authorization_code", "refresh_token"],
 	},

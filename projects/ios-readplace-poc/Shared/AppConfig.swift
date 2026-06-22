@@ -56,6 +56,19 @@ enum AppConfig {
 	/// Path appended to the base URL to form the registered redirect URI.
 	static let callbackPath = "/oauth/callback"
 
+	/// Custom URL scheme the OS routes back to this app. Declared in
+	/// `Info.plist`'s `CFBundleURLTypes`; used by the external-browser "Sign up"
+	/// flow, which (unlike the in-app WKWebView login) can't observe an https
+	/// redirect in another app's tab.
+	static let callbackURLScheme = "readplace"
+
+	/// Native redirect URI for the external-browser Sign up flow. Registered on
+	/// the `hutch-chrome-extension` client in the server's
+	/// `src/packages/domain/src/oauth/built-in-clients.ts`; it must match there
+	/// exactly because the OAuth server checks `redirect_uri` by exact string at
+	/// both authorize and token time.
+	static let nativeCallbackURL = "\(callbackURLScheme)://oauth-callback"
+
 	/// A Safari-like user agent. Embedded WKWebViews are sometimes refused by
 	/// Google's sign-in ("disallowed_useragent"); presenting a stock Safari UA
 	/// avoids that. Email/password sign-in works regardless.

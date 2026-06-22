@@ -24,6 +24,7 @@ const authorizeQuerySchema = z.object({
 	code_challenge: z.string().min(43).max(128),
 	code_challenge_method: z.literal("S256"),
 	state: z.string().optional(),
+	screen_hint: z.enum(["login", "signup"]).optional(),
 });
 
 const denyBodySchema = z.object({
@@ -192,7 +193,8 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 
 		if (!req.userId) {
 			const returnUrl = encodeURIComponent(req.originalUrl);
-			res.redirect(303, `/login?return=${returnUrl}`);
+			const authPath = parsed.data.screen_hint === "signup" ? "/signup" : "/login";
+			res.redirect(303, `${authPath}?return=${returnUrl}`);
 			return;
 		}
 

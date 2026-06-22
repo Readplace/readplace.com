@@ -19,10 +19,33 @@ final class AppSession: ObservableObject {
 		isLoggedIn = store.isLoggedIn
 	}
 
+	/// Completes the in-app WKWebView login: forwards to the redirect-aware
+	/// overload with the https callback, so the token exchange's `redirect_uri`
+	/// matches the one the WKWebView flow authorized with.
+	func completeSignIn(
+		callbackURL: URL,
+		verifier: String,
+		expectedState: String,
+		onExchangeStarted: () -> Void
+	) async -> Result<Void, Error> {
+		await completeSignIn(
+			callbackURL: callbackURL,
+			verifier: verifier,
+			expectedState: expectedState,
+			redirectURI: makeOAuth().redirectURI,
+			onExchangeStarted: onExchangeStarted
+		)
+	}
+
 	/// Completes sign-in after the authorization web flow redirects to the
 	/// callback URL: validate the callback, exchange the code for tokens, flip
 	/// the session to logged-in. The deterministic half of the OAuth flow — the
-	/// preceding WKWebView redirect is the OS boundary, exercised by hand.
+	/// preceding web redirect (WKWebView for login, external browser for signup)
+	/// is the OS boundary, exercised by hand.
+	///
+	/// `redirectURI` must equal the one the authorize request used, because the
+	/// OAuth server checks it by exact string at token time: the https callback
+	/// for WKWebView login, the native custom scheme for external-browser signup.
 	///
 	/// `onExchangeStarted` fires once, only after the callback validates and the
 	/// network code exchange begins — never for a rejected callback — so the
@@ -31,6 +54,7 @@ final class AppSession: ObservableObject {
 		callbackURL: URL,
 		verifier: String,
 		expectedState: String,
+		redirectURI: String,
 		onExchangeStarted: () -> Void
 	) async -> Result<Void, Error> {
 		let items = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?.queryItems ?? []
@@ -42,7 +66,7 @@ final class AppSession: ObservableObject {
 
 		do {
 			onExchangeStarted()
-			try await makeOAuth().exchangeCode(code, verifier: verifier)
+			try await makeOAuth().exchangeCode(code, verifier: verifier, redirectURI: redirectURI)
 			refreshLoginState()
 			return .success(())
 		} catch {

@@ -45,6 +45,18 @@ describe("isBuiltInRedirectUri", () => {
 		);
 	});
 
+	it("accepts the iOS native custom-scheme callback on the Chrome extension client", () => {
+		const chromeClient = getBuiltInClient("hutch-chrome-extension");
+		assert(chromeClient, "Chrome client must exist");
+		assert.equal(
+			isBuiltInRedirectUri({
+				client: chromeClient,
+				redirectUri: "readplace://oauth-callback",
+			}),
+			true,
+		);
+	});
+
 	it("accepts any 127.0.0.1 port on the loopback callback path", () => {
 		assert.equal(
 			isBuiltInRedirectUri({ client, redirectUri: "http://127.0.0.1:49999/oauth/callback" }),
