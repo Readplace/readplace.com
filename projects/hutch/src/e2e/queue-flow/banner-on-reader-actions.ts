@@ -125,7 +125,7 @@ export function createBannerOnReaderActions(
 				// confirm the close button removes it and persists the dismiss
 				// flag so it doesn't re-appear on subsequent visits.
 				await banner.locator('[data-extension-suggestion-close]').click()
-				await expect(banner).not.toHaveClass(/extension-suggestion-banner--visible/)
+				await expect(banner).toHaveClass('extension-suggestion-banner')
 				const dismissed = await page.evaluate(() =>
 					window.localStorage.getItem('readplace.extension-suggestion-dismissed'),
 				)
