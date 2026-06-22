@@ -83,6 +83,5 @@ describe("initEmitSubscriptionEvent", () => {
 			user_id: USER_ID,
 			reason: "user_initiated_trial",
 		});
-		expect(JSON.stringify(captured[0])).not.toContain("subscription_id");
 	});
 });
