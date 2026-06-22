@@ -694,7 +694,7 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	/** Same-origin dismissal endpoint for the site-wide changelog banner; served
 	 * here on $default even when the close button is clicked on a /blog page. */
-	app.use(initChangelogDismissRoute({ appOrigin, secureCookies }));
+	app.use(initChangelogDismissRoute({ secureCookies }));
 
 	const authRouter = initAuthRoutes({
 		hashPassword: deps.hashPassword,

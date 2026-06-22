@@ -27,6 +27,16 @@ describe("bannerStateFromRequest", () => {
 		expect(bannerStateFromRequest({ emailVerified: false }).emailVerified).toBe(false);
 		expect(bannerStateFromRequest({}).emailVerified).toBeUndefined();
 	});
+
+	it("copies originalUrl to currentPath so the changelog dismiss form can post a return path", () => {
+		expect(
+			bannerStateFromRequest({ originalUrl: "/blog/x?utm_source=changelog-banner" }).currentPath,
+		).toBe("/blog/x?utm_source=changelog-banner");
+	});
+
+	it("leaves currentPath undefined when the source carries no originalUrl", () => {
+		expect(bannerStateFromRequest({}).currentPath).toBeUndefined();
+	});
 });
 
 describe("buildGuestNavItems", () => {

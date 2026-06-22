@@ -28,6 +28,13 @@ export interface BannerStateSource {
 	 * equals the live banner's version the banner is suppressed; a newer post
 	 * carries a different version and reappears. */
 	dismissedChangelogVersion?: string;
+	/** The request's `originalUrl` (path + query). Express populates it on every
+	 * request, so a consuming site that passes the request as the source supplies
+	 * it structurally; `bannerStateFromRequest` copies it to
+	 * `BannerState.currentPath` so the changelog banner's no-JS dismiss form can
+	 * post the page the reader is on (the dismiss route cannot rely on `Referer`,
+	 * which helmet's default `no-referrer` policy strips). */
+	originalUrl?: string;
 }
 
 export type NavItemKey =
@@ -142,6 +149,12 @@ export interface BannerState {
 	 * the reader has dismissed the current one; the shell then renders the
 	 * hidden, empty banner shell. */
 	changelogBanner?: ChangelogBanner;
+	/** Path (+ query) of the page this banner is rendered on, echoed into the
+	 * changelog dismiss form's hidden `returnTo` field so dismissing returns the
+	 * reader to where they were rather than the homepage. Undefined when the
+	 * rendering site supplies no request URL; the dismiss route then falls back
+	 * to "/". */
+	currentPath?: string;
 }
 
 const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method: "GET", icon: "fa-solid fa-inbox" });
@@ -187,5 +200,6 @@ export function bannerStateFromRequest(source: BannerStateSource): BannerState {
 		isAuthenticated: Boolean(source.userId),
 		emailVerified: source.emailVerified,
 		verification: source.verificationStatus,
+		currentPath: source.originalUrl,
 	};
 }

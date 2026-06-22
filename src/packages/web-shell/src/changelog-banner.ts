@@ -90,16 +90,20 @@ export function parseChangelogBannerFragment(html: string): ChangelogBanner | un
  * shell. Always emits the `.changelog-banner` element — `--visible` with content
  * when a banner is present, `--hidden` and empty otherwise — so the markup is
  * stable for tests and SSR (no client JS decides visibility). The close control
- * is a no-JS POST form carrying the rendered version, so the dismissal records
- * exactly the announcement the reader saw. */
-const CHANGELOG_SHELL_TEMPLATE = `<div class="changelog-banner {{#if visible}}changelog-banner--visible{{else}}changelog-banner--hidden{{/if}}" role="status" aria-live="polite" data-test-changelog-banner>{{#if visible}}<div class="changelog-banner__inner"><span class="changelog-banner__chip" aria-hidden="true">NEW</span><span class="changelog-banner__hook">{{hook}}</span><a class="changelog-banner__link" href="{{href}}">Read more <span class="changelog-banner__arrow" aria-hidden="true">&rarr;</span></a><form class="changelog-banner__dismiss" method="POST" action="/banner/changelog/dismiss"><input type="hidden" name="version" value="{{version}}"><button type="submit" class="changelog-banner__close" aria-label="Dismiss changelog banner"><span aria-hidden="true">&times;</span></button></form></div>{{/if}}</div>`;
+ * is a no-JS POST form carrying the rendered version (so the dismissal records
+ * exactly the announcement the reader saw) and the page's own path as `returnTo`
+ * (so the dismiss route sends the reader back where they were rather than the
+ * homepage — it cannot read `Referer`, which helmet's default `no-referrer`
+ * policy strips from the POST). */
+const CHANGELOG_SHELL_TEMPLATE = `<div class="changelog-banner {{#if visible}}changelog-banner--visible{{else}}changelog-banner--hidden{{/if}}" role="status" aria-live="polite" data-test-changelog-banner>{{#if visible}}<div class="changelog-banner__inner"><span class="changelog-banner__chip" aria-hidden="true">NEW</span><span class="changelog-banner__hook">{{hook}}</span><a class="changelog-banner__link" href="{{href}}">Read more <span class="changelog-banner__arrow" aria-hidden="true">&rarr;</span></a><form class="changelog-banner__dismiss" method="POST" action="/banner/changelog/dismiss"><input type="hidden" name="version" value="{{version}}"><input type="hidden" name="returnTo" value="{{returnTo}}"><button type="submit" class="changelog-banner__close" aria-label="Dismiss changelog banner"><span aria-hidden="true">&times;</span></button></form></div>{{/if}}</div>`;
 
-export function renderChangelogBannerShell(banner?: ChangelogBanner): string {
+export function renderChangelogBannerShell(banner?: ChangelogBanner, returnTo?: string): string {
 	return render(CHANGELOG_SHELL_TEMPLATE, {
 		visible: Boolean(banner),
 		hook: banner?.hook,
 		href: banner?.href,
 		version: banner?.version,
+		returnTo,
 	});
 }
 

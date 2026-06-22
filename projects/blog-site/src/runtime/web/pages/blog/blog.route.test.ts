@@ -335,7 +335,7 @@ describe("changelog banner on /blog pages", () => {
 		expect(banner?.classList.contains("changelog-banner--visible")).toBe(true);
 	});
 
-	it("renders the banner on a post page too (same shell, every page)", async () => {
+	it("renders the banner on a post page too and posts that post's path so dismissing stays on the post", async () => {
 		const slug = firstPost.slug;
 		const blogPostsStub: BlogPosts = {
 			getAllPosts: () => [firstPost],
@@ -350,10 +350,11 @@ describe("changelog banner on /blog pages", () => {
 		expressApp.use("/blog", initBlogRoutes({ blogPosts: blogPostsStub, base }));
 
 		const response = await request(expressApp).get(`/blog/${slug}`);
-		const banner = new JSDOM(response.text).window.document.querySelector(
-			"[data-test-changelog-banner]",
-		);
+		const doc = new JSDOM(response.text).window.document;
+		const banner = doc.querySelector("[data-test-changelog-banner]");
 		expect(banner?.classList.contains("changelog-banner--visible")).toBe(true);
+		const returnTo = doc.querySelector('.changelog-banner__dismiss input[name="returnTo"]');
+		expect(returnTo?.getAttribute("value")).toBe(`/blog/${slug}`);
 	});
 });
 
