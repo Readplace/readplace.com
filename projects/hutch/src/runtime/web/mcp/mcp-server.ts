@@ -197,10 +197,17 @@ function notFoundResult(id: string): ToolResult {
 	});
 }
 
+/** The text block shows a friendlier date-only value; structuredContent keeps
+ * the full ISO timestamp. McpArticle dates are ISO 8601 in UTC, so the first
+ * ten characters are the calendar date. */
+function formatDate(iso: string): string {
+	return iso.slice(0, 10);
+}
+
 function formatArticle(article: McpArticle): string {
 	const dates = article.readAt
-		? `Saved ${article.savedAt}; read ${article.readAt}`
-		: `Saved ${article.savedAt}`;
+		? `Saved ${formatDate(article.savedAt)}; read ${formatDate(article.readAt)}`
+		: `Saved ${formatDate(article.savedAt)}`;
 	const excerpt = article.excerpt ? `\n${article.excerpt}` : "";
 	return `"${article.title || article.url}" [${article.status}] — ${article.url}\n${article.siteName} · ~${article.estimatedReadTime} min read · ${article.wordCount} words\n${dates}${excerpt}`;
 }
