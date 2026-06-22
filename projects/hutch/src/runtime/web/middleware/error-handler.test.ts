@@ -5,13 +5,26 @@ import { logAndRespondOnError } from "./error-handler";
 describe("logAndRespondOnError", () => {
 	it("logs the error and responds with 500 JSON", () => {
 		const errorCalls: string[] = [];
-		const logger = { error: (msg: string) => errorCalls.push(msg) } as unknown as HutchLogger;
+		const logger: HutchLogger = {
+			info: () => {},
+			error: (...args) => {
+				errorCalls.push(String(args[0]));
+			},
+			warn: () => {},
+			debug: () => {},
+		};
 		const statusMock = jest.fn().mockReturnThis();
 		const jsonMock = jest.fn();
-		const res = { status: statusMock, json: jsonMock } as unknown as Response;
-		const next = jest.fn() as unknown as NextFunction;
+		const res: Partial<Response> = { status: statusMock, json: jsonMock };
+		const req: Partial<Request> = {};
+		const next: NextFunction = jest.fn();
 
-		logAndRespondOnError(logger)(new Error("boom"), {} as Request, res, next);
+		logAndRespondOnError(logger)(
+			new Error("boom"),
+			req as Request,
+			res as Response,
+			next,
+		);
 
 		expect(errorCalls).toHaveLength(1);
 		const parsed = JSON.parse(errorCalls[0]);
