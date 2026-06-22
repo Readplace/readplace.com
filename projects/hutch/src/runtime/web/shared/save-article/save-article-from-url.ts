@@ -73,9 +73,12 @@ async function saveByFreshness(
 	return { saved: await markUnreadIfRead(deps.updateArticleStatus, saved) };
 }
 
-export function saveArticleFromUrl(
+export function initSaveArticleFromUrl(
 	deps: SaveArticleFromUrlDependencies,
-	params: { userId: UserId; url: SaveableUrl; freshness: ContentFreshnessResult },
-): Promise<{ saved: SavedArticle }> {
-	return saveByFreshness(deps, params);
+): (params: {
+	userId: UserId;
+	url: SaveableUrl;
+	freshness: ContentFreshnessResult;
+}) => Promise<{ saved: SavedArticle }> {
+	return (params) => saveByFreshness(deps, params);
 }

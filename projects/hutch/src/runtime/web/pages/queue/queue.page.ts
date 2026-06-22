@@ -54,7 +54,7 @@ import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.
 import type { PublishLinkSaved } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts/events";
 import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
-import { saveArticleFromUrl } from "../../shared/save-article/save-article-from-url";
+import { initSaveArticleFromUrl } from "../../shared/save-article/save-article-from-url";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "@packages/web-shell";
@@ -226,6 +226,7 @@ const SAVE_INTENT_PATH = {
 
 export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
+	const saveArticleFromUrl = initSaveArticleFromUrl(deps);
 
 	/** Records a save-intent for an authenticated save surface. The save has
 	 * already happened (or failed) by the time this is called, so `outcome` is
@@ -483,7 +484,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		try {
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-			const result = await saveArticleFromUrl(deps, { userId, url: validation.url, freshness });
+			const result = await saveArticleFromUrl({ userId, url: validation.url, freshness });
 			markExtensionSavedArticle(res);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
@@ -568,7 +569,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 						`[SaveHtmlOversize] falling back to URL-only url=${urlOnlyValidation.url} userId=${userId} sizeBytes=${sizeBytes}`,
 					);
 					const freshness = await deps.refreshArticleIfStale({ url: urlOnlyValidation.url });
-					const result = await saveArticleFromUrl(deps, { userId, url: urlOnlyValidation.url, freshness });
+					const result = await saveArticleFromUrl({ userId, url: urlOnlyValidation.url, freshness });
 					markExtensionSavedArticle(res);
 					emitSaveIntent({ req, url: urlOnlyValidation.url, path: SAVE_INTENT_PATH.saveHtml, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 					res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
@@ -599,7 +600,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				title: parsed.data.title,
 			});
 
-			const result = await saveArticleFromUrl(deps, { userId, url: articleUrl, freshness });
+			const result = await saveArticleFromUrl({ userId, url: articleUrl, freshness });
 			markExtensionSavedArticle(res);
 			emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveHtml, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
@@ -747,7 +748,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					return;
 				}
 
-				const result = await saveArticleFromUrl(deps, { userId, url: articleUrl, freshness });
+				const result = await saveArticleFromUrl({ userId, url: articleUrl, freshness });
 				markExtensionSavedArticle(res);
 				emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 				res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
@@ -788,7 +789,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		try {
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-			await saveArticleFromUrl(deps, { userId, url: validation.url, freshness });
+			await saveArticleFromUrl({ userId, url: validation.url, freshness });
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.saved });
 			res.redirect(303, `${QUEUE_PATH}#latest-saved`);
 		} catch (error) {

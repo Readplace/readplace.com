@@ -3,7 +3,7 @@ import { MinutesSchema } from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
 import { UserIdSchema } from "@packages/domain/user";
 import {
-	saveArticleFromUrl,
+	initSaveArticleFromUrl,
 	type SaveArticleFromUrlDependencies,
 } from "./save-article-from-url";
 
@@ -72,7 +72,7 @@ describe("saveArticleFromUrl", () => {
 	it("primes the crawl + summary pipeline on a 'new' freshness verdict", async () => {
 		const tracker = makeTracker();
 
-		await saveArticleFromUrl(tracker.deps, {
+		await initSaveArticleFromUrl(tracker.deps)({
 			userId,
 			url: exampleUrl,
 			freshness: { action: "new" },
@@ -90,7 +90,7 @@ describe("saveArticleFromUrl", () => {
 	it("publishes a link saved event when 'refreshed' has fresh content", async () => {
 		const tracker = makeTracker();
 
-		await saveArticleFromUrl(tracker.deps, {
+		await initSaveArticleFromUrl(tracker.deps)({
 			userId,
 			url: exampleUrl,
 			freshness: {
@@ -116,7 +116,7 @@ describe("saveArticleFromUrl", () => {
 	it("does not publish on 'refreshed' verdicts whose article has no content", async () => {
 		const tracker = makeTracker();
 
-		await saveArticleFromUrl(tracker.deps, {
+		await initSaveArticleFromUrl(tracker.deps)({
 			userId,
 			url: exampleUrl,
 			freshness: {
@@ -141,7 +141,7 @@ describe("saveArticleFromUrl", () => {
 	it("does not publish or re-prime on 'skip' or 'unchanged' verdicts", async () => {
 		const tracker = makeTracker();
 
-		await saveArticleFromUrl(tracker.deps, {
+		await initSaveArticleFromUrl(tracker.deps)({
 			userId,
 			url: exampleUrl,
 			freshness: { action: "skip" },
@@ -155,7 +155,7 @@ describe("saveArticleFromUrl", () => {
 		const previouslyRead = makeSaved({ status: "read", readAt: new Date() });
 		const tracker = makeTracker(previouslyRead);
 
-		const result = await saveArticleFromUrl(tracker.deps, {
+		const result = await initSaveArticleFromUrl(tracker.deps)({
 			userId,
 			url: exampleUrl,
 			freshness: { action: "new" },
