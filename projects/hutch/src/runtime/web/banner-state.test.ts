@@ -230,6 +230,7 @@ describe("initBuildBannerState", () => {
 			getEffectiveAccess: jest.fn(),
 			getChangelogBanner: noChangelogBanner,
 			now: () => FIXED_NOW,
+			offerPaymentLink: OFFER_LINK,
 		});
 
 		const result = await build({ originalUrl: "/queue?filter=unread" });
