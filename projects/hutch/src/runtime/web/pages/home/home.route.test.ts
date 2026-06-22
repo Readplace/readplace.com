@@ -41,12 +41,14 @@ describe("GET /", () => {
 		expect(rotator?.textContent).toBe("articles");
 	});
 
-	it("should include the headline word-swap client script", async () => {
+	it("should load the home client bundle via a same-origin script src", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
-		expect(response.text).toContain("hero-headline__rotator");
-		expect(response.text).toContain("newsletters");
-		expect(response.text).toContain("longreads");
+		const doc = new JSDOM(response.text).window.document;
+
+		const script = doc.querySelector('script[src="/client-dist/home.client.js"]');
+		assert(script, "home.client.js bundle must be loaded on the home page");
+		expect(script.hasAttribute("defer")).toBe(true);
 	});
 
 	it("should render a generic install CTA when browser is unrecognized", async () => {
