@@ -177,11 +177,12 @@ export async function parsePdfFromBuffer(input: {
 	bodyHash: string;
 	response: Response | undefined;
 	url: string;
+	maxPdfBytes: number;
 	extractPdf: ExtractPdf;
 	onProgress?: ComprehensiveCrawlProgress;
 	logError: (message: string, error?: Error) => void;
 }): Promise<CrawlArticleResult> {
-	if (input.buffer.length > MAX_PDF_BYTES.bytes) {
+	if (input.buffer.length > input.maxPdfBytes) {
 		input.logError(`[CrawlArticle] PDF body too large (${input.buffer.length} bytes) for ${input.url}`);
 		return { status: "unsupported", reason: `pdf body too large: ${input.buffer.length} bytes` };
 	}
@@ -278,6 +279,7 @@ export function initCrawlArticle(deps: {
 					bodyHash,
 					response,
 					url: params.url,
+					maxPdfBytes: MAX_PDF_BYTES.bytes,
 					extractPdf,
 					onProgress: params.onProgress,
 					logError,
