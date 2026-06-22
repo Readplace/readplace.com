@@ -14,7 +14,7 @@ interface TrialCountdownController {
 	stop(): void;
 }
 
-const SELECTOR = "[data-test-trial-countdown]";
+const SELECTOR = ".trial-countdown";
 const TICK_INTERVAL_MS = 1000;
 const ESCALATIONS: readonly TrialEscalation[] = [
 	"soft",

@@ -26,9 +26,11 @@ function createTestPageBody(overrides: Partial<PageBody> = {}): PageBody {
 const GUEST_STATE: BannerState = { isAuthenticated: false, emailVerified: undefined };
 
 function loadedClientScripts(doc: Document): string[] {
-	return Array.from(doc.querySelectorAll('script[src*="/client-dist/"]')).map(
-		(el) => el.getAttribute("src") ?? "",
-	);
+	return Array.from(doc.querySelectorAll('script[src*="/client-dist/"]')).map((el) => {
+		const src = el.getAttribute("src");
+		assert(src, "a script matched by [src*='/client-dist/'] must carry a src");
+		return src;
+	});
 }
 
 describe("Base component", () => {
