@@ -440,6 +440,29 @@ describe("initMcpServer", () => {
 			}
 		});
 
+		it("shows date-only in the text block but keeps the ISO timestamps in structuredContent", async () => {
+			const article = mcpArticle({
+				savedAt: "2026-01-01T12:34:56.000Z",
+				status: "read",
+				readAt: "2026-03-03T08:09:10.000Z",
+			});
+			const server = initMcpServer(fakeDeps({ getArticle: async () => article }));
+			const response = await call(server, 35, "get_article", { id: article.id });
+			expect(response).toMatchObject({
+				result: {
+					content: [
+						{ text: expect.stringContaining("Saved 2026-01-01; read 2026-03-03") },
+					],
+					structuredContent: {
+						article: {
+							savedAt: "2026-01-01T12:34:56.000Z",
+							readAt: "2026-03-03T08:09:10.000Z",
+						},
+					},
+				},
+			});
+		});
+
 		it("reports not found for an id that does not resolve", async () => {
 			const server = initMcpServer(fakeDeps({ getArticle: async () => null }));
 			const response = await call(server, 31, "get_article", { id: "x".repeat(32) });
