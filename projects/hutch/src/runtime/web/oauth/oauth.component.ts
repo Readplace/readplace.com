@@ -45,13 +45,13 @@ const OAUTH_AUTHORIZE_STYLES = `
 .oauth-authorize__btn {
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
 .oauth-authorize__btn--approve {
   background: var(--primary);
-  color: white;
+  color: var(--primary-foreground);
   border: none;
 }
 

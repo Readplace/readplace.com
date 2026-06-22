@@ -9,6 +9,7 @@ import type {
 	PublishSubscriptionCancelled,
 } from "@packages/test-fixtures/providers/events";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
+import type { Context } from "aws-lambda";
 import { initCancelSubscriptionHandler } from "./cancel-subscription-handler";
 
 const USER_ID = UserIdSchema.parse("4".repeat(32));
@@ -16,6 +17,23 @@ const STRIPE_PERIOD_END = "2026-06-22T10:00:00.000Z";
 
 function buildEventBridgeBody(userId: string): string {
 	return JSON.stringify({ detail: { userId } });
+}
+
+function buildLambdaContext(): Context {
+	return {
+		callbackWaitsForEmptyEventLoop: false,
+		functionName: "cancel-subscription",
+		functionVersion: "$LATEST",
+		invokedFunctionArn: "arn:aws:lambda:us-east-1:123456789012:function:cancel-subscription",
+		memoryLimitInMB: "128",
+		awsRequestId: "test-request-id",
+		logGroupName: "/aws/lambda/cancel-subscription",
+		logStreamName: "test-log-stream",
+		getRemainingTimeInMillis: () => 0,
+		done: () => {},
+		fail: () => {},
+		succeed: () => {},
+	};
 }
 
 interface Subject {
@@ -81,13 +99,12 @@ describe("cancel-subscription handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-active", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
 		assert(result);
 		assert.equal(result.batchItemFailures.length, 0);
-		// No immediate Stripe DELETE — that's the regression we're fixing.
 		assert.deepEqual(subject.stripeSubscriptions.cancelledSubscriptionIds(), []);
 		// Stripe PATCH cancel_at_period_end=true was issued.
 		assert.deepEqual(subject.stripeSubscriptions.scheduledCancellations(), [
@@ -119,7 +136,7 @@ describe("cancel-subscription handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-trial", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -157,7 +174,7 @@ describe("cancel-subscription handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-pc", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -189,7 +206,7 @@ describe("cancel-subscription handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-pc-trial", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -212,7 +229,7 @@ describe("cancel-subscription handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-cancelled", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -231,7 +248,7 @@ describe("cancel-subscription handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-founding", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -267,7 +284,7 @@ describe("cancel-subscription handler", () => {
 
 		const result = await handler(
 			buildSqsEvent([{ messageId: "msg-fail", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -284,7 +301,7 @@ describe("cancel-subscription handler", () => {
 				{ messageId: "msg-bad", body: "not-json" },
 				{ messageId: "msg-good", body: buildEventBridgeBody(USER_ID) },
 			]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -300,7 +317,7 @@ describe("cancel-subscription handler", () => {
 			buildSqsEvent([
 				{ messageId: "msg-schema", body: JSON.stringify({ detail: {} }) },
 			]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 

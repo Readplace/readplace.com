@@ -1,20 +1,22 @@
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
+import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initSirenReadingList } from "../reading-list/siren-reading-list";
 
 /**
  * Pinned OAuth client for the e2e PDF scenario. The Chrome extension registers
- * under the same id, and the test-fixtures provider has a corresponding entry
- * (src/packages/test-fixtures/src/providers/oauth/oauth-clients.ts).
+ * under the same id, which is a built-in client in the domain registry
+ * (src/packages/domain/src/oauth/built-in-clients.ts).
  */
 const CLIENT_ID = "hutch-chrome-extension";
 
 /**
- * Any 127.0.0.1:* callback passes validateRedirectUri (oauth-clients.ts:40), so
- * a fixed port works against both the local e2e server (which binds 127.0.0.1)
- * and staging (which never sees the callback — we extract the code from the
- * authorize response's Location header without following the redirect).
+ * Any 127.0.0.1:* callback passes isBuiltInRedirectUri (built-in loopback
+ * exception), so a fixed port works against both the local e2e server (which
+ * binds 127.0.0.1) and staging (which never sees the callback — we extract the
+ * code from the authorize response's Location header without following the
+ * redirect).
  */
 const REDIRECT_URI = "http://127.0.0.1:3000/oauth/callback";
 
@@ -187,6 +189,7 @@ export async function runPdfSaveScenario(
 		onUnauthorized: async () => {
 			throw new Error("Unauthorized while running pdf-save scenario");
 		},
+		logger: HutchLogger.from(consoleLogger),
 	});
 
 	const saveResult = await saveUrl({

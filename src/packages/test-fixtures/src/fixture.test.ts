@@ -1,4 +1,5 @@
 import { calculateReadTime } from "@packages/domain/article";
+import { UserIdSchema } from "@packages/domain/user";
 import {
 	createFakeSummaryProvider,
 	createDefaultTestAppFixture,
@@ -58,17 +59,6 @@ describe("createFakeSummaryProvider", () => {
 		const { findGeneratedSummary } = createFakeSummaryProvider({ readyAfterReads: 1 });
 
 		expect(await findGeneratedSummary("https://example.com/never-saved")).toBeUndefined();
-	});
-
-	it("forceMarkSummaryPending overrides a ready row back to pending", async () => {
-		const { findGeneratedSummary, markSummaryReady, forceMarkSummaryPending } =
-			createFakeSummaryProvider();
-		const url = "https://example.com/article";
-
-		markSummaryReady({ url, summary: "X", excerpt: "Y" });
-		await forceMarkSummaryPending({ url });
-
-		expect(await findGeneratedSummary(url)).toEqual({ status: "pending" });
 	});
 
 	it("markSummaryReady writes the supplied summary and excerpt", async () => {
@@ -289,7 +279,7 @@ describe("createFakePublishLinkSaved", () => {
 		};
 		const publish = createFakePublishLinkSaved(apply);
 
-		await publish({ url: "https://example.com/x", userId: "user-1" });
+		await publish({ url: "https://example.com/x", userId: UserIdSchema.parse("user-1") });
 
 		expect(calls).toEqual(["https://example.com/x"]);
 	});

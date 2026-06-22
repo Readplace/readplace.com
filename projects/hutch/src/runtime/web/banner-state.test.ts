@@ -239,4 +239,16 @@ describe("initBuildBannerState", () => {
 			expect(result.changelogBanner).toBeUndefined();
 		});
 	});
+
+	it("threads the request's originalUrl onto currentPath so the changelog dismiss form returns the reader to where they were", async () => {
+		const build = initBuildBannerState({
+			getEffectiveAccess: jest.fn(),
+			getChangelogBanner: noChangelogBanner,
+			now: () => FIXED_NOW,
+		});
+
+		const result = await build({ originalUrl: "/queue?filter=unread" });
+
+		expect(result.currentPath).toBe("/queue?filter=unread");
+	});
 });

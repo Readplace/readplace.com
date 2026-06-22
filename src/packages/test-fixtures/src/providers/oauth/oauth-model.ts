@@ -7,12 +7,17 @@ import type {
 	User,
 	Falsey,
 } from "@node-oauth/oauth2-server";
-import type { OAuthModel } from "@packages/provider-contracts/oauth";
+import type {
+	MarkOAuthClientActive,
+	FindOAuthClient,
+	OAuthModel,
+} from "@packages/provider-contracts/oauth";
 import type { FindUserById } from "@packages/provider-contracts/auth";
 import type { UserId } from "@packages/domain/user";
 import type {
 	AccessToken as AccessTokenBrand,
 	AuthorizationCode as AuthorizationCodeBrand,
+	OAuthClient,
 	OAuthClientId,
 	RefreshToken as RefreshTokenBrand,
 } from "@packages/domain/oauth";
@@ -21,9 +26,9 @@ import {
 	AccessTokenSchema,
 	AuthorizationCodeSchema,
 	RefreshTokenSchema,
+	getBuiltInClient,
 } from "@packages/domain/oauth";
 import { UserIdSchema } from "@packages/domain/user";
-import { getClient } from "./oauth-clients";
 import { generateToken } from "./generate-token";
 
 interface StoredAuthorizationCode {
@@ -69,23 +74,39 @@ export type { OAuthModel };
 
 export function createOAuthModel(
 	deps: OAuthModelDeps,
-	options?: { appOrigin?: string; findUserById?: FindUserById },
+	options?: {
+		appOrigin?: string;
+		findUserById?: FindUserById;
+		findClient?: FindOAuthClient;
+		markClientActive?: MarkOAuthClientActive;
+	},
 ): OAuthModel {
 	const findUserById = options?.findUserById;
+	const findClient = options?.findClient;
+	const markClientActive = options?.markClientActive;
 
-	function resolveClient(clientId: string) {
-		const client = getClient(clientId);
-		if (!client) return null;
-		if (!options?.appOrigin?.includes("127.0.0.1")) return client;
-		return {
-			...client,
-			redirectUris: [...client.redirectUris, `${options.appOrigin}/oauth/callback`],
-		};
+	async function resolveClient(clientId: string): Promise<OAuthClient | null> {
+		const resolved = findClient
+			? (await findClient(clientId)) ?? null
+			: getBuiltInClient(clientId) ?? null;
+		if (!resolved) return null;
+		// A dev/e2e server binds a dynamic loopback port, but built-in clients only
+		// register fixed ports; oauth2-server exact-matches redirect_uri at both
+		// authorize and token time, so add this origin's callback for built-ins on a
+		// 127.0.0.1 appOrigin. Dynamically-registered clients already carry their
+		// exact redirect_uri, so they are never augmented.
+		if (getBuiltInClient(clientId) && options?.appOrigin?.includes("127.0.0.1")) {
+			return {
+				...resolved,
+				redirectUris: [...resolved.redirectUris, `${options.appOrigin}/oauth/callback`],
+			};
+		}
+		return resolved;
 	}
 
 	return {
 		async getClient(clientId: string, _clientSecret: string): Promise<Client | Falsey> {
-			const client = resolveClient(clientId);
+			const client = await resolveClient(clientId);
 			if (!client) return null;
 
 			return {
@@ -131,7 +152,7 @@ export function createOAuthModel(
 				return null;
 			}
 
-			const client = resolveClient(stored.clientId);
+			const client = await resolveClient(stored.clientId);
 			if (!client) return null;
 
 			return {
@@ -183,6 +204,8 @@ export function createOAuthModel(
 			userTokens.add(token.accessToken);
 			deps.userIdIndex.set(user.id, userTokens);
 
+			if (markClientActive) await markClientActive(client.id);
+
 			return {
 				...token,
 				client,
@@ -198,7 +221,7 @@ export function createOAuthModel(
 				return null;
 			}
 
-			const client = resolveClient(stored.clientId);
+			const client = await resolveClient(stored.clientId);
 			if (!client) return null;
 
 			return {
@@ -227,7 +250,7 @@ export function createOAuthModel(
 				return null;
 			}
 
-			const client = resolveClient(stored.clientId);
+			const client = await resolveClient(stored.clientId);
 			if (!client) return null;
 
 			// Re-resolve the standing on refresh so a token authorized while
@@ -271,9 +294,6 @@ export function createOAuthModel(
 			return true;
 		},
 
-		// TODO: Update this function when scopes are added. Currently returns true
-		// because no scopes are implemented. Once scopes are added, this must
-		// validate that the token has the requested scope(s).
 		async verifyScope(_token: Token, _scope: string | string[]): Promise<boolean> {
 			return true;
 		},

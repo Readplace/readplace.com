@@ -14,6 +14,7 @@
     "check": "nx run blog-site:check"
   },
   "dependencies": {
+    "@packages/hutch-logger": "workspace:*",
     "@packages/web-shell": "workspace:*",
     "compression": "1.8.1",
     "express": "5.2.1",

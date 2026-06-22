@@ -98,7 +98,13 @@ import type {
 	ConsumeRateLimit,
 	RateLimitRules,
 } from "@packages/provider-contracts/rate-limit";
-import type { OAuthModel, ValidateAccessToken } from "@packages/provider-contracts/oauth";
+import type {
+	FindOAuthClient,
+	OAuthModel,
+	RegisterOAuthClient,
+	ValidateAccessToken,
+	ValidateOAuthRedirectUri,
+} from "@packages/provider-contracts/oauth";
 import { HutchLogger } from "@packages/hutch-logger";
 import type { AnalyticsEvent } from "./web/middleware/analytics";
 import { initAuthRoutes } from "./web/auth/auth.page";
@@ -111,6 +117,7 @@ import { SESSION_COOKIE_NAME } from "./web/auth/session-cookie";
 import { isHttpsOrigin } from "./web/cookie-options";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initQueueRoutes } from "./web/pages/queue/queue.page";
+import { QUEUE_PATH } from "./web/pages/queue/queue.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
@@ -124,10 +131,11 @@ import { initExportRoutes } from "./web/pages/export/export.page";
 import { initAccountRoutes } from "./web/pages/account/account.page";
 import { initAgentSkills } from "./web/agent-skills/agent-skills";
 import { initMcpServer } from "./web/mcp/mcp-server";
+import { initMcpArticleOperations } from "./web/mcp/article-operations";
 import { initMcpRoutes } from "./web/mcp/mcp.routes";
 import { buildMcpServerCard } from "./web/mcp/server-card";
 import { initResolveSaveAccess } from "./web/mcp/save-access";
-import { saveArticleFromUrl } from "./web/shared/save-article/save-article-from-url";
+import { initSaveArticleFromUrl } from "./web/shared/save-article/save-article-from-url";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
 import { initMarkExtensionInstalled } from "./web/mark-extension-installed.middleware";
@@ -144,6 +152,7 @@ import { linkHeaderMiddleware } from "./web/link-header.middleware";
 import { AGENT_SCOPES_SUPPORTED, buildAgentAuthMetadata, renderAuthMarkdown } from "./web/agent-auth";
 import { QuerystringFeatureToggle } from "./web/feature-toggle";
 import { HomePage } from "./web/pages/home";
+import { McpConnectPage } from "./web/pages/mcp";
 import { PrivacyPage } from "./web/pages/privacy";
 import { TermsPage } from "./web/pages/terms";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
@@ -157,7 +166,7 @@ import { requireNotLocked } from "./web/middleware/require-not-locked.middleware
 import { requireEnv, getEnv } from "./domain/require-env";
 import "./web/session.types";
 
-export const PORT = requireEnv("PORT", { defaultValue: "3000" });
+export const PORT = requireEnv("PORT");
 
 const noop = () => {};
 
@@ -205,6 +214,9 @@ interface AppDependencies {
 	logError: (message: string, error?: Error) => void;
 	oauthModel: OAuthModel;
 	validateAccessToken: ValidateAccessToken;
+	findOAuthClient: FindOAuthClient;
+	validateOAuthRedirectUri: ValidateOAuthRedirectUri;
+	registerOAuthClient: RegisterOAuthClient;
 	publishLinkSaved: PublishLinkSaved;
 	publishRecrawlLinkInitiated: PublishRecrawlLinkInitiated;
 	publishSaveAnonymousLink: PublishSaveAnonymousLink;
@@ -316,7 +328,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			}
 			try {
 				const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-				const { saved } = await saveArticleFromUrl(deps, {
+				const { saved } = await initSaveArticleFromUrl(deps)({
 					userId,
 					url: validation.url,
 					freshness,
@@ -330,21 +342,12 @@ export function createApp(dependencies: AppDependencies): Express {
 				return { ok: false, message: "Could not save the link right now." };
 			}
 		},
-		listQueue: async ({ userId, status }) => {
-			const result = await deps.findArticlesByUser({
-				userId,
-				status,
-				excludeContent: true,
-			});
-			return {
-				total: result.total,
-				articles: result.articles.map((article) => ({
-					url: article.url,
-					title: article.metadata.title,
-					status: article.status,
-				})),
-			};
-		},
+		...initMcpArticleOperations({
+			findArticleById: deps.findArticleById,
+			findArticlesByUser: deps.findArticlesByUser,
+			readArticleContent: deps.readArticleContent,
+			findGeneratedSummary: deps.findGeneratedSummary,
+		}),
 	});
 
 	const secureCookies = isHttpsOrigin(appOrigin);
@@ -413,7 +416,7 @@ export function createApp(dependencies: AppDependencies): Express {
 				"User-agent: *",
 				`Content-Signal: ${CONTENT_SIGNAL_VALUE}`,
 				"Allow: /",
-				"Disallow: /queue",
+				`Disallow: ${QUEUE_PATH}`,
 				"Disallow: /export",
 				"Disallow: /oauth",
 				"Disallow: /forgot-password",
@@ -490,6 +493,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			issuer: dependencies.baseUrl,
 			authorization_endpoint: `${dependencies.baseUrl}/oauth/authorize`,
 			token_endpoint: `${dependencies.baseUrl}/oauth/token`,
+			registration_endpoint: `${dependencies.baseUrl}/oauth/register`,
 			revocation_endpoint: `${dependencies.baseUrl}/oauth/revoke`,
 			response_types_supported: ["code"],
 			grant_types_supported: ["authorization_code", "refresh_token"],
@@ -550,6 +554,18 @@ export function createApp(dependencies: AppDependencies): Express {
 		res.json(buildMcpServerCard(dependencies.baseUrl));
 	});
 
+	// Browsers visiting /mcp get the human connection guide; MCP clients (which
+	// send Accept: application/json, text/event-stream — never text/html) fall
+	// through to the Streamable-HTTP transport below, preserving its 405/POST
+	// and 401 bootstrap behaviour unchanged.
+	app.get("/mcp", async (req: Request, res: Response, next: NextFunction) => {
+		if (!(req.headers.accept ?? "").includes("text/html")) {
+			next();
+			return;
+		}
+		sendComponent(req, res, Base(McpConnectPage(), await buildBannerState(req)));
+	});
+
 	app.use(
 		"/mcp",
 		initMcpRoutes({
@@ -581,7 +597,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	app.options("/", extensionCors);
 	app.get("/", extensionCors, async (req: Request, res: Response) => {
 		if (wantsSiren(req) && !wantsMarkdown(req)) {
-			res.redirect(303, "/queue");
+			res.redirect(303, QUEUE_PATH);
 			return;
 		}
 
@@ -670,7 +686,7 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	/** Same-origin dismissal endpoint for the site-wide changelog banner; served
 	 * here on $default even when the close button is clicked on a /blog page. */
-	app.use(initChangelogDismissRoute({ appOrigin, secureCookies }));
+	app.use(initChangelogDismissRoute({ secureCookies }));
 
 	const authRouter = initAuthRoutes({
 		hashPassword: deps.hashPassword,
@@ -799,7 +815,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * stay publicly reachable. Shared reader permalinks (people copy them from
 	 * the browser URL bar) redirect non-owners and anonymous visitors to
 	 * `/view/<url>` instead of bouncing them to /login. */
-	app.use("/queue", extensionCors, queueRouter);
+	app.use(QUEUE_PATH, extensionCors, queueRouter);
 
 	const importRouter = initImportSessionRoutes({
 		validateSaveableUrl: deps.validateSaveableUrl,
@@ -908,6 +924,11 @@ export function createApp(dependencies: AppDependencies): Express {
 	const oauthRouter = initOAuthRoutes({
 		model: deps.oauthModel,
 		buildBannerState,
+		findClient: deps.findOAuthClient,
+		validateRedirectUri: deps.validateOAuthRedirectUri,
+		registerClient: deps.registerOAuthClient,
+		consumeRateLimit: deps.consumeRateLimit,
+		registerRateLimitRule: deps.rateLimitRules.oauthRegister,
 	});
 	app.use("/oauth/token", extensionCors);
 	app.use("/oauth/revoke", extensionCors);

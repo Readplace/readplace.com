@@ -27,8 +27,9 @@ describe("Queue routes", () => {
 
 			const queueResponse = await agent.get("/queue");
 			const doc = new JSDOM(queueResponse.text).window.document;
-			expect(doc.querySelectorAll(".queue-article").length).toBe(1);
-			expect(doc.querySelector("[data-test-empty-queue]")).toBeNull();
+			const list = doc.querySelector("[data-test-article-list]");
+			assert(list, "article list region must render after a save");
+			expect(list.querySelectorAll(".queue-article").length).toBe(1);
 		});
 
 		it("should show error for invalid URL", async () => {
@@ -328,6 +329,61 @@ describe("Queue routes", () => {
 			await agent.post(`/queue/${articleId}/status`).type("form").send({ status: "unread" });
 			const restoredResponse = await agent.get("/queue");
 			expect(new JSDOM(restoredResponse.text).window.document.querySelectorAll(".queue-article").length).toBe(1);
+		});
+
+		it("lands the user on the last valid page after reading the final item on an out-of-bounds page", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			for (let i = 0; i < 21; i++) {
+				await agent
+					.post("/queue/save")
+					.type("form")
+					.send({ url: `https://example.com/article-${i}` });
+			}
+
+			const page2 = await agent.get("/queue?page=2");
+			const page2Cards = new JSDOM(page2.text).window.document.querySelectorAll(
+				"[data-test-article-list] .queue-article",
+			);
+			assert.equal(page2Cards.length, 1, "page 2 holds the lone 21st unread item");
+			const lastId = page2Cards[0].getAttribute("data-test-article");
+			assert.ok(lastId, "the lone card carries an article id");
+
+			const statusResponse = await agent
+				.post(`/queue/${lastId}/status?page=2`)
+				.type("form")
+				.send({ status: "read" });
+
+			assert.equal(statusResponse.status, 303);
+			assert.equal(
+				statusResponse.headers.location,
+				`/queue?page=2&status_changed=read&status_article=${lastId}`,
+			);
+
+			const clamp = await agent.get(statusResponse.headers.location);
+			assert.equal(clamp.status, 302);
+			assert.equal(
+				clamp.headers.location,
+				`/queue?status_changed=read&status_article=${lastId}`,
+			);
+
+			const landing = await agent.get(clamp.headers.location);
+			assert.equal(landing.status, 200);
+			const landingDoc = new JSDOM(landing.text).window.document;
+			const renderedIds = Array.from(
+				landingDoc.querySelectorAll("[data-test-article-list] .queue-article"),
+			).map((el) => el.getAttribute("data-test-article"));
+			assert.equal(renderedIds.length, 20, "page 1 now shows the full 20 unread items");
+			assert.ok(!renderedIds.includes(lastId), "the just-read item left the unread list");
+
+			const toast = landingDoc.querySelector("[data-test-toast]");
+			assert.ok(toast, "the Undo toast survives the clamp redirect");
+			assert.equal(
+				toast.querySelector("[data-test-toast-message]")?.textContent,
+				"Marked as read",
+			);
 		});
 
 		it("should redirect to queue when status value is invalid", async () => {

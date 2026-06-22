@@ -1,5 +1,5 @@
+import assert from "node:assert/strict";
 import http from "node:http";
-import type { AddressInfo } from "node:net";
 import { Agent } from "undici";
 import { initDefaultFetchAia } from "./aia-fetch";
 import {
@@ -70,7 +70,9 @@ async function startRedirectServer(location: string): Promise<{ origin: string; 
 		res.end();
 	});
 	await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-	const { port } = server.address() as AddressInfo;
+	const address = server.address();
+	assert(address && typeof address === "object", "expected an AddressInfo from a listening TCP server");
+	const { port } = address;
 	return {
 		origin: `http://127.0.0.1:${port}`,
 		close: () => new Promise((resolve) => server.close(() => resolve())),

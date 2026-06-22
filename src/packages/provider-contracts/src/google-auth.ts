@@ -1,6 +1,8 @@
-import type { $brand } from "zod";
+import { z } from "zod";
 
-export type GoogleId = string & $brand<"GoogleId">;
+export const GoogleIdSchema = z.string().brand<"GoogleId">();
+
+export type GoogleId = z.infer<typeof GoogleIdSchema>;
 
 export interface GoogleTokenResult {
 	googleId: GoogleId;

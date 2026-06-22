@@ -1,4 +1,4 @@
-import type { UserId } from "@packages/domain/user";
+import { UserIdSchema } from "@packages/domain/user";
 import { bannerStateFromRequest } from "@packages/web-shell";
 import type { BannerState, BannerStateSource } from "@packages/web-shell";
 import type {
@@ -27,8 +27,8 @@ export function initBuildBannerState(deps: {
 		const changelogBanner =
 			banner && banner.version !== source.dismissedChangelogVersion ? banner : undefined;
 		const withBanner: BannerState = changelogBanner ? { ...base, changelogBanner } : base;
-		const userId: UserId | undefined = source.userId;
-		if (!userId) return withBanner;
+		if (!source.userId) return withBanner;
+		const userId = UserIdSchema.parse(source.userId);
 		const access =
 			options?.preFetchedAccess ?? (await deps.getEffectiveAccess(userId));
 		const trial = toTrialDisplay(access, deps.now());

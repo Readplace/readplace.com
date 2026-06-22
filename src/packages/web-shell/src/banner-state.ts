@@ -2,13 +2,6 @@ import type { ChangelogBanner } from "./changelog-banner";
 import { withInternalTracking } from "./internal-link-tracking";
 import type { TrialDisplay } from "./trial-countdown.format";
 
-/** Local brand for the authenticated user's identifier. Inlined (rather than
- * imported from @packages/domain) so the shell carries no dependency on the
- * domain package — a domain change must not invalidate the content sites that
- * consume this shell. The brand is structural: any UserId from elsewhere
- * assigns to it without a cast. */
-type UserId = string & { readonly __brand: "UserId" };
-
 /** Presentational standing of an *unverified* account, mirroring TrialDisplay:
  * the consuming site computes it from its own domain and hands it to the shell,
  * which only renders copy. Inlined (rather than imported from the domain) so the
@@ -23,7 +16,11 @@ type VerificationStatus =
 	| { state: "locked" };
 
 export interface BannerStateSource {
-	userId?: UserId;
+	/** The authenticated user's id as a plain string. The shell reads it only for
+	 * truthiness (isAuthenticated) and carries no @packages/domain dependency, so
+	 * it deliberately does not reconstruct the domain's branded UserId here — a
+	 * domain change must not invalidate the content sites that consume this shell. */
+	userId?: string;
 	emailVerified?: boolean;
 	verificationStatus?: VerificationStatus;
 	/** The changelog version the reader has dismissed, lifted from the dismissal
@@ -31,6 +28,13 @@ export interface BannerStateSource {
 	 * equals the live banner's version the banner is suppressed; a newer post
 	 * carries a different version and reappears. */
 	dismissedChangelogVersion?: string;
+	/** The request's `originalUrl` (path + query). Express populates it on every
+	 * request, so a consuming site that passes the request as the source supplies
+	 * it structurally; `bannerStateFromRequest` copies it to
+	 * `BannerState.currentPath` so the changelog banner's no-JS dismiss form can
+	 * post the page the reader is on (the dismiss route cannot rely on `Referer`,
+	 * which helmet's default `no-referrer` policy strips). */
+	originalUrl?: string;
 }
 
 export type NavItemKey =
@@ -145,6 +149,12 @@ export interface BannerState {
 	 * the reader has dismissed the current one; the shell then renders the
 	 * hidden, empty banner shell. */
 	changelogBanner?: ChangelogBanner;
+	/** Path (+ query) of the page this banner is rendered on, echoed into the
+	 * changelog dismiss form's hidden `returnTo` field so dismissing returns the
+	 * reader to where they were rather than the homepage. Undefined when the
+	 * rendering site supplies no request URL; the dismiss route then falls back
+	 * to "/". */
+	currentPath?: string;
 }
 
 const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method: "GET", icon: "fa-solid fa-inbox" });
@@ -190,5 +200,6 @@ export function bannerStateFromRequest(source: BannerStateSource): BannerState {
 		isAuthenticated: Boolean(source.userId),
 		emailVerified: source.emailVerified,
 		verification: source.verificationStatus,
+		currentPath: source.originalUrl,
 	};
 }

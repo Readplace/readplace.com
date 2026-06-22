@@ -1,3 +1,5 @@
+import type { Request } from "express";
+
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
 	save_failed: "Could not save article. Please try again.",
 };
@@ -31,6 +33,16 @@ export const statusFlashMapping = (
 		undoStatus: changed === "read" ? "unread" : "read",
 	};
 };
+
+/** Pulls the one-shot status flash params off the query so an intervening
+ * redirect — e.g. the out-of-bounds page clamp in GET /queue — carries the Undo
+ * toast across the extra hop. statusFlashMapping renders them. */
+export function collectStatusFlashParams(query: Request["query"]): [string, string][] {
+	return (["status_changed", "status_article"] as const).flatMap((key): [string, string][] => {
+		const value = query[key];
+		return typeof value === "string" ? [[key, value]] : [];
+	});
+}
 
 export type ImportFlashMapping = (query: Record<string, unknown>) => string | undefined;
 

@@ -3,10 +3,10 @@ import { AGENT_SCOPES_SUPPORTED, buildAgentAuthMetadata, renderAuthMarkdown } fr
 const BASE_URL = "https://readplace.com";
 
 describe("buildAgentAuthMetadata", () => {
-	it("advertises the auth.md skill and the concierge registration channel", () => {
+	it("advertises the auth.md skill and the dynamic registration endpoint", () => {
 		const metadata = buildAgentAuthMetadata(BASE_URL);
 		expect(metadata.skill).toBe("https://readplace.com/auth.md");
-		expect(metadata.register_uri).toBe("mailto:readplace+agents@readplace.com");
+		expect(metadata.register_uri).toBe("https://readplace.com/oauth/register");
 	});
 
 	it("declares the delegated-user identity and OAuth token credential types", () => {
@@ -61,7 +61,7 @@ describe("renderAuthMarkdown", () => {
 		expect(markdown).toContain("`queue`");
 	});
 
-	it("points agents at the concierge address for client_id provisioning", () => {
-		expect(renderAuthMarkdown(BASE_URL)).toContain("readplace+agents@readplace.com");
+	it("documents the dynamic client registration endpoint for client_id provisioning", () => {
+		expect(renderAuthMarkdown(BASE_URL)).toContain("https://readplace.com/oauth/register");
 	});
 });

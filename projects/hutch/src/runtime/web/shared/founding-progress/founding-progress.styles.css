@@ -2,7 +2,6 @@
   max-width: 480px;
   margin: 0 auto 32px;
   text-align: center;
-  /* tag-based publish probe (test 1/4): hutch-only edit must not publish either extension */
 }
 
 .founding-progress__bar {

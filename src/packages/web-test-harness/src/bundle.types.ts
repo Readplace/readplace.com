@@ -47,7 +47,6 @@ import type {
 	FindUserByEmail,
 	FindUserById,
 	ForceMarkCrawlPending,
-	ForceMarkSummaryPending,
 	GetSessionUserId,
 	InMemoryMarkCrawlFailed,
 	InMemoryMarkCrawlReady,
@@ -64,6 +63,9 @@ import type {
 	MarkSubscriptionPendingCancellation,
 	MarkSummaryPending,
 	OAuthModel,
+	FindOAuthClient,
+	RegisterOAuthClient,
+	ValidateOAuthRedirectUri,
 	PublishCancelSubscriptionCommand,
 	PublishExportUserDataCommand,
 	PublishLinkSaved,
@@ -240,7 +242,6 @@ export interface PendingPdfBundle {
 export interface SummaryBundle {
 	findGeneratedSummary: FindGeneratedSummary;
 	markSummaryPending: MarkSummaryPending;
-	forceMarkSummaryPending: ForceMarkSummaryPending;
 }
 
 export interface FreshnessBundle {
@@ -250,6 +251,9 @@ export interface FreshnessBundle {
 export interface OAuthBundle {
 	oauthModel: OAuthModel;
 	validateAccessToken: ValidateAccessToken;
+	findClient: FindOAuthClient;
+	validateRedirectUri: ValidateOAuthRedirectUri;
+	registerClient: RegisterOAuthClient;
 }
 
 export interface EmailBundle {

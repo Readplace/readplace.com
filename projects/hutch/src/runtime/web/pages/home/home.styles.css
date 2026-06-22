@@ -496,6 +496,15 @@ hr::before {
   line-height: 1.7;
 }
 
+.feature-card__link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+}
+
 /**
  * Compact features use a two-column grid with minimal vertical
  * space — name and description on a single line each.
@@ -1039,6 +1048,22 @@ hr::before {
 }
 
 .pricing-grid--hidden {
+  display: none;
+}
+
+.home-pricing__title--visible {
+  display: block;
+}
+
+.home-pricing__title--hidden {
+  display: none;
+}
+
+.home-pricing__progress--visible {
+  display: block;
+}
+
+.home-pricing__progress--hidden {
   display: none;
 }
 

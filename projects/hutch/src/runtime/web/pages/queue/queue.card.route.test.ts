@@ -125,7 +125,9 @@ describe("Queue routes", () => {
 
 			const response = await agent.get("/queue");
 			const doc = new JSDOM(response.text).window.document;
-			expect(doc.querySelector(".queue-article__thumbnail")).toBeNull();
+			const card = doc.querySelector(".queue-article");
+			assert(card, "card must be rendered");
+			expect(card.querySelectorAll(".queue-article__thumbnail-link").length).toBe(0);
 		});
 
 		it("should hide thumbnail wrapper until image loads successfully", async () => {
@@ -279,11 +281,15 @@ describe("Queue routes", () => {
 				},
 			});
 			const thumbnail = dom.window.document.querySelector<HTMLImageElement>(".queue-article__thumbnail");
-			expect(thumbnail?.closest("a")).not.toBeNull();
+			const link = thumbnail?.closest("a");
+			assert(link, "thumbnail link must be rendered before the error event");
+			expect(link.classList.contains("queue-article__thumbnail-link")).toBe(true);
 
 			thumbnail?.dispatchEvent(new dom.window.Event("error"));
 
-			expect(dom.window.document.querySelector(".queue-article__thumbnail-link")).toBeNull();
+			const card = dom.window.document.querySelector(".queue-article");
+			assert(card, "card must remain rendered after the thumbnail error event");
+			expect(card.querySelectorAll(".queue-article__thumbnail-link").length).toBe(0);
 
 			dom.window.close();
 		});
@@ -332,7 +338,6 @@ describe("Queue routes", () => {
 				summary: {
 					findGeneratedSummary,
 					markSummaryPending: fixture.summary.markSummaryPending,
-					forceMarkSummaryPending: fixture.summary.forceMarkSummaryPending,
 				},
 			});
 		}

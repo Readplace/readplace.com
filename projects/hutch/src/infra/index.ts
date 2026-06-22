@@ -63,6 +63,7 @@ const rateLimitRules = {
 	login: config.require("rateLimitLogin"),
 	signup: config.require("rateLimitSignup"),
 	forgotPassword: config.require("rateLimitForgotPassword"),
+	oauthRegister: config.require("rateLimitOauthRegister"),
 };
 
 /* Blunt TOTAL-rate ceiling (all clients combined) applied by API Gateway before
@@ -275,8 +276,12 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 	memorySize: 512,
 	timeout: 30,
 	environment: {
-		NODE_ENV: stage === "production" ? "production" : "development",
+		NODE_ENV: config.require("nodeEnv"),
 		PERSISTENCE: "prod",
+		/** server.ts reads PORT at module load (it is imported transitively by the
+		 * Lambda handler via createHutchApp). requireEnv no longer defaults it, so
+		 * it must be present even though serverless-http does not bind a port. */
+		PORT: "3000",
 		APP_ORIGIN: appOrigin,
 		/** Same-origin fragment endpoint served by blog-site behind this same API
 		 * Gateway (/blog/{proxy+} routes there). The banner source is cached and
@@ -297,6 +302,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		RATE_LIMIT_LOGIN: rateLimitRules.login,
 		RATE_LIMIT_SIGNUP: rateLimitRules.signup,
 		RATE_LIMIT_FORGOT_PASSWORD: rateLimitRules.forgotPassword,
+		RATE_LIMIT_OAUTH_REGISTER: rateLimitRules.oauthRegister,
 		GOOGLE_LOGIN_CLIENT_ID: requireEnv("GOOGLE_LOGIN_CLIENT_ID"),
 		GOOGLE_LOGIN_CLIENT_SECRET: requireEnv("GOOGLE_LOGIN_CLIENT_SECRET"),
 		RESEND_API_KEY: requireEnv("RESEND_API_KEY"),

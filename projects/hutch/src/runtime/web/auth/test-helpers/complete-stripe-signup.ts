@@ -14,15 +14,9 @@ interface StripeBundle {
 	markPaid: (id: CheckoutSessionId) => void;
 }
 
-/** Drives `GET /auth/checkout/success` directly: creates a Stripe checkout
- * session via the in-memory fake, stores a pending signup keyed by that
- * session id, marks the session paid, then GETs the success URL using a shared
- * agent so the resulting session cookie persists.
- *
- * Phase 1 removed Stripe checkout from `POST /signup` (it's a no-card trial
- * now), so this helper no longer drives through the signup form. The
- * `/auth/checkout/success` endpoint remains live — Phase 2 will create
- * pending signups via `POST /account/subscribe` to feed it again. */
+/** Hits `GET /auth/checkout/success` directly rather than through the signup
+ * form, using a shared supertest agent so the session cookie the success
+ * handler sets persists across the test's later requests. */
 export async function completeStripeSignup(params: {
 	server: Server;
 	auth: AuthBundle;

@@ -15,8 +15,11 @@ import type {
 } from "@node-oauth/oauth2-server";
 import type { UserId } from "@packages/domain/user";
 import { UserIdSchema } from "@packages/domain/user";
-import { getClient } from "@packages/test-fixtures/providers/oauth";
-import type { OAuthModel } from "@packages/provider-contracts/oauth";
+import type {
+	FindOAuthClient,
+	MarkOAuthClientActive,
+	OAuthModel,
+} from "@packages/provider-contracts/oauth";
 import type { FindUserById } from "@packages/provider-contracts/auth";
 import { generateToken } from "@packages/test-fixtures/providers/oauth";
 
@@ -33,7 +36,7 @@ const AuthCodeRow = z.object({
 	codeChallenge: z.string(),
 	codeChallengeMethod: z.enum(["S256", "plain"]),
 	scope: z.array(z.string()).optional(),
-	emailVerified: z.boolean().optional(),
+	emailVerified: z.boolean(),
 });
 
 const TokenRow = z.object({
@@ -55,30 +58,28 @@ const RefreshIndexRow = z.object({
 
 const RevokeItemRow = z.object({ pk: z.string(), refreshToken: z.string().optional() });
 
-function rebuildClient(clientId: string): Client | null {
-	const client = getClient(clientId);
-	if (!client) return null;
-	return {
-		id: client.id,
-		grants: client.grants,
-		redirectUris: client.redirectUris,
-	};
-}
-
 export function initDynamoDbOAuthModel(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
 	findUserById: FindUserById;
+	findClient: FindOAuthClient;
+	markClientActive: MarkOAuthClientActive;
 }): OAuthModel {
-	const { client, tableName, findUserById } = deps;
+	const { client, tableName, findUserById, findClient, markClientActive } = deps;
 	const authCodes = defineDynamoTable({ client, tableName, schema: AuthCodeRow });
 	const tokens = defineDynamoTable({ client, tableName, schema: TokenRow });
 	const refreshIndex = defineDynamoTable({ client, tableName, schema: RefreshIndexRow });
 	const revokeView = defineDynamoTable({ client, tableName, schema: RevokeItemRow });
 
+	async function resolveClient(clientId: string): Promise<Client | null> {
+		const found = await findClient(clientId);
+		if (!found) return null;
+		return { id: found.id, grants: found.grants, redirectUris: found.redirectUris };
+	}
+
 	return {
 		async getClient(clientId: string, _clientSecret: string): Promise<Client | Falsey> {
-			return rebuildClient(clientId);
+			return resolveClient(clientId);
 		},
 
 		async saveAuthorizationCode(
@@ -117,7 +118,7 @@ export function initDynamoDbOAuthModel(deps: {
 				return null;
 			}
 
-			const oauthClient = rebuildClient(row.clientId);
+			const oauthClient = await resolveClient(row.clientId);
 			if (!oauthClient) return null;
 
 			return {
@@ -178,6 +179,10 @@ export function initDynamoDbOAuthModel(deps: {
 				});
 			}
 
+			// Token issuance is the "used" signal that extends a dynamic client's
+			// sliding TTL past the refresh-token lifetime; no-op for built-ins.
+			await markClientActive(oauthClient.id);
+
 			return { ...token, client: oauthClient, user };
 		},
 
@@ -188,7 +193,7 @@ export function initDynamoDbOAuthModel(deps: {
 			const accessTokenExpiresAt = new Date(row.accessTokenExpiresAt * 1000);
 			if (accessTokenExpiresAt < new Date()) return null;
 
-			const oauthClient = rebuildClient(row.clientId);
+			const oauthClient = await resolveClient(row.clientId);
 			if (!oauthClient) return null;
 
 			return {
@@ -212,7 +217,7 @@ export function initDynamoDbOAuthModel(deps: {
 			const refreshTokenExpiresAt = new Date(row.refreshTokenExpiresAt * 1000);
 			if (refreshTokenExpiresAt < new Date()) return null;
 
-			const oauthClient = rebuildClient(row.clientId);
+			const oauthClient = await resolveClient(row.clientId);
 			if (!oauthClient) return null;
 
 			// Re-resolve the standing on refresh so a token authorized while

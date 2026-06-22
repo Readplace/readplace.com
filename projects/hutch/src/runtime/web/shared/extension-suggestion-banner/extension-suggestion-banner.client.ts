@@ -1,3 +1,9 @@
+/** Inline assertion — esbuild bundles this module for the browser, where
+ * `node:assert` is not resolvable (same constraint as progress-bar.client.ts). */
+function assert(condition: unknown, message: string): asserts condition {
+	if (!condition) throw new Error(message);
+}
+
 interface ExtensionSuggestionBannerStorage {
 	getItem(key: string): string | null;
 	setItem(key: string, value: string): void;
@@ -21,9 +27,10 @@ export function initExtensionSuggestionBanner(
 	deps: ExtensionSuggestionBannerDeps,
 ): ExtensionSuggestionBannerController {
 	function ensure<T>(value: T | null | undefined, description: string): T {
-		if (value === null || value === undefined) {
-			throw new Error(`extension-suggestion-banner: ${description}`);
-		}
+		assert(
+			value !== null && value !== undefined,
+			`extension-suggestion-banner: ${description}`,
+		);
 		return value;
 	}
 

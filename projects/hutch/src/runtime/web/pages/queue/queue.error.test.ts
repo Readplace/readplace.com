@@ -1,4 +1,4 @@
-import { httpErrorMessageMapping, statusFlashMapping } from "./queue.error";
+import { collectStatusFlashParams, httpErrorMessageMapping, statusFlashMapping } from "./queue.error";
 
 describe("httpErrorMessageMapping", () => {
 	it("returns undefined when error_code is absent", () => {
@@ -49,5 +49,18 @@ describe("statusFlashMapping", () => {
 			undoArticleId: "abc",
 			undoStatus: "read",
 		});
+	});
+});
+
+describe("collectStatusFlashParams", () => {
+	it("returns both status flash pairs when present", () => {
+		expect(collectStatusFlashParams({ status_changed: "read", status_article: "abc" })).toEqual([
+			["status_changed", "read"],
+			["status_article", "abc"],
+		]);
+	});
+
+	it("returns an empty list when the status flash params are absent", () => {
+		expect(collectStatusFlashParams({})).toEqual([]);
 	});
 });

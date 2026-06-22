@@ -10,6 +10,7 @@ import express from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
+import type { UserId } from "@packages/domain/user";
 import { SaveArticleInputSchema, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
 import { buildSaveIntentEvent, hashIp, type AnalyticsEvent } from "../../middleware/analytics";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
@@ -53,7 +54,7 @@ import type { PollUrlBuilder } from "../../shared/article-reader/article-reader.
 import type { PublishLinkSaved } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts/events";
 import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
-import { saveArticleFromUrl } from "../../shared/save-article/save-article-from-url";
+import { initSaveArticleFromUrl } from "../../shared/save-article/save-article-from-url";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "@packages/web-shell";
@@ -67,11 +68,11 @@ import type { QuerystringFeatureToggle } from "../../feature-toggle";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { toArticleEntity } from "../../api/article-siren";
-import { parseQueueUrl, buildQueueUrl } from "./queue.url";
+import { parseQueueUrl, buildQueueUrl, QUEUE_PATH, canonicalQueuePageRedirect } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
 import { tabQuery } from "./queue.tabs";
 import type { HttpErrorMessageMapping } from "./queue.error";
-import { importFlashMapping, statusFlashMapping } from "./queue.error";
+import { collectStatusFlashParams, importFlashMapping, statusFlashMapping } from "./queue.error";
 import { MAX_POLLS } from "../../shared/article-reader/article-reader";
 import { toQueueArticleViewModel, toQueueViewModel } from "./queue.viewmodel";
 import { QueuePage } from "./queue.component";
@@ -98,7 +99,7 @@ function readImportSkippedFlash(
 	if (!decoded || decoded.entries.length === 0) return undefined;
 	/** Cookie is read-once: clear it so a refresh of /queue doesn't keep
 	 * surfacing the "couldn't import" banner. */
-	res.clearCookie(IMPORT_SKIPPED_COOKIE_NAME, { path: "/queue" });
+	res.clearCookie(IMPORT_SKIPPED_COOKIE_NAME, { path: QUEUE_PATH });
 	return {
 		entries: decoded.entries.map((e) => ({
 			url: e.url,
@@ -125,7 +126,7 @@ type SaveContentMediaHandler = (input: {
 	url: string;
 	bytes: Buffer;
 	title?: string;
-	userId: string;
+	userId: UserId;
 }) => Promise<SaveContentResult>;
 
 function normalizeMediaType(mediaType: string): string {
@@ -205,8 +206,27 @@ async function loadCrawls(
 	}));
 }
 
+const SAVE_ROUTE = {
+	saveArticle: "/",
+	save: "/save",
+	saveHtml: "/save-html",
+	saveContent: "/save-content",
+} as const;
+
+/** Root ("/") maps to QUEUE_PATH alone; appending it would record a spurious "/queue/" trailing slash. */
+const saveIntentPath = (route: string): string =>
+	route === "/" ? QUEUE_PATH : `${QUEUE_PATH}${route}`;
+
+const SAVE_INTENT_PATH = {
+	saveArticle: saveIntentPath(SAVE_ROUTE.saveArticle),
+	save: saveIntentPath(SAVE_ROUTE.save),
+	saveHtml: saveIntentPath(SAVE_ROUTE.saveHtml),
+	saveContent: saveIntentPath(SAVE_ROUTE.saveContent),
+} as const;
+
 export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
+	const saveArticleFromUrl = initSaveArticleFromUrl(deps);
 
 	/** Records a save-intent for an authenticated save surface. The save has
 	 * already happened (or failed) by the time this is called, so `outcome` is
@@ -228,7 +248,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		findArticleByUrl: deps.findArticleByUrl,
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatReaderDocumentTitle,
-		backLink: { href: "/queue", label: "← Back to queue" },
+		backLink: { href: QUEUE_PATH, label: "← Back to queue" },
 		markReadAction: (articleId) => ({
 			postUrl: markReadPostUrl(articleId, "top"),
 			label: "Mark as read",
@@ -243,8 +263,8 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 	function pollUrlBuilderForId(articleId: string): PollUrlBuilder {
 		return {
-			summary: (n) => `/queue/${articleId}/summary?poll=${n}`,
-			reader: (n) => `/queue/${articleId}/reader?poll=${n}`,
+			summary: (n) => `${QUEUE_PATH}/${articleId}/summary?poll=${n}`,
+			reader: (n) => `${QUEUE_PATH}/${articleId}/reader?poll=${n}`,
 		};
 	}
 
@@ -265,7 +285,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	router.get("/:id/read", (req: Request, res: Response) => {
 		const queryIndex = req.originalUrl.indexOf("?");
 		const queryString = queryIndex !== -1 ? req.originalUrl.slice(queryIndex) : "";
-		res.redirect(301, `/queue/${req.params.id}/view${queryString}`);
+		res.redirect(301, `${QUEUE_PATH}/${req.params.id}/view${queryString}`);
 	});
 
 	router.get("/:id/view", async (req: Request<{ id: string }>, res: Response) => {
@@ -364,6 +384,23 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			return;
 		}
 
+		/** Marking the last item on a page read (or deleting it, or a stale
+		 * bookmark) leaves the requested page beyond the new last page, which the
+		 * store answers with zero rows. Clamp at this read boundary so the empty
+		 * out-of-bounds render is unreachable by navigation; mutation handlers
+		 * stay unchanged because they all redirect back through here. 302 not
+		 * 301/308 — the page becomes valid again once the list refills. */
+		const pageRedirect = canonicalQueuePageRedirect({
+			state: urlState,
+			total: result.total,
+			pageSize: result.pageSize,
+			extraParams: [...collectUtmParams(req.query), ...collectStatusFlashParams(req.query)],
+		});
+		if (pageRedirect) {
+			res.redirect(302, pageRedirect);
+			return;
+		}
+
 		const saveError = deps.httpErrorMessageMapping(req.query);
 		const importFlash = importFlashMapping(req.query);
 		const statusFlash = statusFlashMapping(req.query);
@@ -407,10 +444,10 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 	router.post("/dismiss-onboarding", (_req: Request, res: Response) => {
 		res.cookie(DISMISS_COOKIE_NAME, ONBOARDING_VERSION, { path: "/", maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax", httpOnly: true });
-		res.redirect(303, "/queue");
+		res.redirect(303, QUEUE_PATH);
 	});
 
-	router.post("/", requireNotLocked, deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
+	router.post(SAVE_ROUTE.saveArticle, requireNotLocked, deps.requireWriteAccess, express.json(), async (req: Request, res: Response) => {
 		if (!wantsSiren(req)) {
 			res.status(406).send("Not Acceptable");
 			return;
@@ -447,13 +484,13 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		try {
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-			const result = await saveArticleFromUrl(deps, { userId, url: validation.url, freshness });
+			const result = await saveArticleFromUrl({ userId, url: validation.url, freshness });
 			markExtensionSavedArticle(res);
-			emitSaveIntent({ req, url: validation.url, path: "/queue", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
+			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
-			emitSaveIntent({ req, url: validation.url, path: "/queue", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
+			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 			res.status(500).type(SIREN_MEDIA_TYPE).json(
 				sirenError({ code: "save-failed", message: "Could not save article" }),
 			);
@@ -482,7 +519,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					actions: [
 						{
 							name: "save-article",
-							href: "/queue",
+							href: QUEUE_PATH,
 							method: "POST",
 							type: "application/json",
 							fields: [{ name: "url", type: "url" }],
@@ -495,7 +532,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		next(err);
 	};
 
-	router.post("/save-html", requireNotLocked, deps.requireWriteAccess, express.json({ limit: MAX_RAW_HTML_REQUEST_BYTES }), saveHtmlLimitHandler, async (req: Request, res: Response) => {
+	router.post(SAVE_ROUTE.saveHtml, requireNotLocked, deps.requireWriteAccess, express.json({ limit: MAX_RAW_HTML_REQUEST_BYTES }), saveHtmlLimitHandler, async (req: Request, res: Response) => {
 		if (!wantsSiren(req)) {
 			res.status(406).send("Not Acceptable");
 			return;
@@ -532,9 +569,9 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 						`[SaveHtmlOversize] falling back to URL-only url=${urlOnlyValidation.url} userId=${userId} sizeBytes=${sizeBytes}`,
 					);
 					const freshness = await deps.refreshArticleIfStale({ url: urlOnlyValidation.url });
-					const result = await saveArticleFromUrl(deps, { userId, url: urlOnlyValidation.url, freshness });
+					const result = await saveArticleFromUrl({ userId, url: urlOnlyValidation.url, freshness });
 					markExtensionSavedArticle(res);
-					emitSaveIntent({ req, url: urlOnlyValidation.url, path: "/queue/save-html", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
+					emitSaveIntent({ req, url: urlOnlyValidation.url, path: SAVE_INTENT_PATH.saveHtml, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 					res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 					return;
 				}
@@ -563,14 +600,14 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				title: parsed.data.title,
 			});
 
-			const result = await saveArticleFromUrl(deps, { userId, url: articleUrl, freshness });
+			const result = await saveArticleFromUrl({ userId, url: articleUrl, freshness });
 			markExtensionSavedArticle(res);
-			emitSaveIntent({ req, url: articleUrl, path: "/queue/save-html", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
+			emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveHtml, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
 			deps.logError("Failed to save article from html", error instanceof Error ? error : undefined);
 			assert(validatedArticleUrl, "save-html reaches the save pipeline only after the article URL is validated");
-			emitSaveIntent({ req, url: validatedArticleUrl, path: "/queue/save-html", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
+			emitSaveIntent({ req, url: validatedArticleUrl, path: SAVE_INTENT_PATH.saveHtml, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 			res.status(500).type(SIREN_MEDIA_TYPE).json(
 				sirenError({ code: "save-failed", message: "Could not save article" }),
 			);
@@ -604,7 +641,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	};
 
 	router.post(
-		"/save-content",
+		SAVE_ROUTE.saveContent,
 		requireNotLocked,
 		deps.requireWriteAccess,
 		contentUpload.rawBodyParser,
@@ -620,7 +657,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 			const buildFallbackAction = () => ({
 				name: "save-article",
-				href: "/queue",
+				href: QUEUE_PATH,
 				method: "POST",
 				type: "application/json",
 				fields: [{ name: "url", type: "url" }],
@@ -711,13 +748,13 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					return;
 				}
 
-				const result = await saveArticleFromUrl(deps, { userId, url: articleUrl, freshness });
+				const result = await saveArticleFromUrl({ userId, url: articleUrl, freshness });
 				markExtensionSavedArticle(res);
-				emitSaveIntent({ req, url: articleUrl, path: "/queue/save-content", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
+				emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 				res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 			} catch (error) {
 				deps.logError("Failed to save article from content", error instanceof Error ? error : undefined);
-				emitSaveIntent({ req, url: validation.url, path: "/queue/save-content", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
+				emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 				res.status(500).type(SIREN_MEDIA_TYPE).json(
 					sirenError({ code: "save-failed", message: "Could not save article" }),
 				);
@@ -725,7 +762,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		},
 	);
 
-	router.post("/save", requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
+	router.post(SAVE_ROUTE.save, requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
 		const submittedUrl = typeof req.body?.url === "string" ? req.body.url : "";
@@ -752,13 +789,13 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 		try {
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
-			await saveArticleFromUrl(deps, { userId, url: validation.url, freshness });
-			emitSaveIntent({ req, url: validation.url, path: "/queue/save", surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.saved });
-			res.redirect(303, "/queue#latest-saved");
+			await saveArticleFromUrl({ userId, url: validation.url, freshness });
+			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.saved });
+			res.redirect(303, `${QUEUE_PATH}#latest-saved`);
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
-			emitSaveIntent({ req, url: validation.url, path: "/queue/save", surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.error });
-			res.redirect(303, "/queue?error_code=save_failed");
+			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.save, surface: SAVE_SURFACES.queueSaveBar, outcome: SAVE_OUTCOMES.error });
+			res.redirect(303, `${QUEUE_PATH}?error_code=save_failed`);
 		}
 	});
 

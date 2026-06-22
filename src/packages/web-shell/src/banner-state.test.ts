@@ -1,15 +1,13 @@
 import assert from "node:assert/strict";
 import {
-	type BannerStateSource,
 	bannerStateFromRequest,
 	buildGuestNavItems,
 	buildNavGroups,
 } from "./banner-state";
 
-/** The shell carries no @packages/domain dependency, so there is no UserId
- * schema to parse here. The truthiness of `userId` is all bannerStateFromRequest
- * reads, so a plain branded fixture is sufficient. */
-const USER_ID = "user-1" as unknown as NonNullable<BannerStateSource["userId"]>;
+/** The shell carries no @packages/domain dependency and reads `userId` only for
+ * truthiness, so a plain string id is sufficient — there is no brand to parse. */
+const USER_ID = "user-1";
 
 describe("bannerStateFromRequest", () => {
 	it("maps a present userId to isAuthenticated=true", () => {
@@ -28,6 +26,16 @@ describe("bannerStateFromRequest", () => {
 		expect(bannerStateFromRequest({ emailVerified: true }).emailVerified).toBe(true);
 		expect(bannerStateFromRequest({ emailVerified: false }).emailVerified).toBe(false);
 		expect(bannerStateFromRequest({}).emailVerified).toBeUndefined();
+	});
+
+	it("copies originalUrl to currentPath so the changelog dismiss form can post a return path", () => {
+		expect(
+			bannerStateFromRequest({ originalUrl: "/blog/x?utm_source=changelog-banner" }).currentPath,
+		).toBe("/blog/x?utm_source=changelog-banner");
+	});
+
+	it("leaves currentPath undefined when the source carries no originalUrl", () => {
+		expect(bannerStateFromRequest({}).currentPath).toBeUndefined();
 	});
 });
 

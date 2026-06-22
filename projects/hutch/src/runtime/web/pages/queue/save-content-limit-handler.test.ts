@@ -8,25 +8,28 @@ function fakeResponse(): {
 	calls: FakeJsonCalls;
 } {
 	const calls: FakeJsonCalls = {};
-	const res = {
+	const fake: Partial<Response> = {};
+	const res = fake as Response;
+	Object.assign(fake, {
 		status(s: number) { calls.status = s; return res; },
 		type(t: string) { calls.type = t; return res; },
 		json(body: unknown) { calls.body = body; return res; },
-	} as unknown as Response;
+	} satisfies Partial<Response>);
 	return { res, calls };
 }
 
 function fakeRequest(headers: Record<string, string>): Request {
-	return {
+	const fake = {
 		headers,
-		get(name: string) { return headers[name.toLowerCase()]; },
-		accepts(_type: string) {
+		get(name: string): string | undefined { return headers[name.toLowerCase()]; },
+		accepts(_type: string): string | false {
 			const accept = headers.accept ?? "";
 			return accept.includes("application/vnd.siren+json")
 				? "application/vnd.siren+json"
 				: false;
 		},
-	} as unknown as Request;
+	} as Partial<Request>;
+	return fake as Request;
 }
 
 describe("initSaveContentLimitHandler", () => {

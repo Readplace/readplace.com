@@ -1,17 +1,28 @@
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import {
+	ConditionalCheckFailedException,
+	type DynamoDBDocumentClient,
+} from "@packages/hutch-storage-client";
 import { initDynamoDbGeneratedSummary } from "./dynamodb-generated-summary";
 
-function createFakeClient(item: Record<string, unknown> | undefined): Partial<DynamoDBDocumentClient> {
+type SendFn = DynamoDBDocumentClient["send"];
+
+function createSendingClient(
+	impl: (input: unknown) => unknown,
+): DynamoDBDocumentClient {
 	return {
-		send: async () => ({ Item: item }),
-	};
+		send: (async (input: unknown) => impl(input)) as unknown as SendFn,
+	} as Partial<DynamoDBDocumentClient> as DynamoDBDocumentClient;
 }
+
+const createFakeClient = (
+	item: Record<string, unknown> | undefined,
+): DynamoDBDocumentClient => createSendingClient(() => ({ Item: item }));
 
 describe("initDynamoDbGeneratedSummary", () => {
 	it("returns undefined when no row exists", async () => {
 		const client = createFakeClient(undefined);
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -27,7 +38,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 		// re-prime the pipeline rather than polling forever.
 		const client = createFakeClient({ url: "https://example.com/article" });
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -42,7 +53,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summary: "Legacy summary",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -58,7 +69,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summaryStatus: "ready",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -83,7 +94,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summaryStatus: "ready",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -100,7 +111,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summaryStatus: "ready",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -119,7 +130,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summaryStatus: "pending",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -135,7 +146,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summaryStage: "summary-generating",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -151,7 +162,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summaryFailureReason: "deepseek timeout",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -166,7 +177,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summaryStatus: "failed",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -181,7 +192,7 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summaryStatus: "skipped",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
@@ -197,12 +208,77 @@ describe("initDynamoDbGeneratedSummary", () => {
 			summarySkippedReason: "content-too-short",
 		});
 		const { findGeneratedSummary } = initDynamoDbGeneratedSummary({
-			client: client as typeof client & DynamoDBDocumentClient,
+			client,
 			tableName: "test-table",
 		});
 
 		const result = await findGeneratedSummary("https://example.com/article");
 
 		expect(result).toEqual({ status: "skipped", reason: "content-too-short" });
+	});
+
+	describe("markSummaryPending", () => {
+		it("issues an UpdateItem that sets summaryStatus=pending with a guard against ready rows", async () => {
+			let received: unknown;
+			const client = createSendingClient((input) => {
+				received = input;
+				return {};
+			});
+			const { markSummaryPending } = initDynamoDbGeneratedSummary({
+				client,
+				tableName: "test-table",
+			});
+
+			await markSummaryPending({ url: "https://example.com/article" });
+
+			const command = received as {
+				input: {
+					UpdateExpression?: string;
+					ConditionExpression?: string;
+					ExpressionAttributeValues?: Record<string, unknown>;
+				};
+			};
+			expect(command.input.UpdateExpression).toContain(
+				"SET summaryStatus = :pending",
+			);
+			expect(command.input.ConditionExpression).toContain(
+				"attribute_not_exists(summaryStatus) OR summaryStatus <> :ready",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":pending"]).toBe(
+				"pending",
+			);
+			expect(command.input.ExpressionAttributeValues?.[":ready"]).toBe("ready");
+		});
+
+		it("swallows ConditionalCheckFailedException so ready rows stay ready", async () => {
+			const client = createSendingClient(() => {
+				throw new ConditionalCheckFailedException({
+					$metadata: {},
+					message: "condition failed",
+				});
+			});
+			const { markSummaryPending } = initDynamoDbGeneratedSummary({
+				client,
+				tableName: "test-table",
+			});
+
+			await expect(
+				markSummaryPending({ url: "https://example.com/article" }),
+			).resolves.toBeUndefined();
+		});
+
+		it("rethrows non-ConditionalCheck errors", async () => {
+			const client = createSendingClient(() => {
+				throw new Error("throttled");
+			});
+			const { markSummaryPending } = initDynamoDbGeneratedSummary({
+				client,
+				tableName: "test-table",
+			});
+
+			await expect(
+				markSummaryPending({ url: "https://example.com/article" }),
+			).rejects.toThrow("throttled");
+		});
 	});
 });

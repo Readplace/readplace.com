@@ -152,7 +152,7 @@ describe("renderChangelogBannerShell", () => {
 		assert(banner, "the banner element must always render so layout stays stable");
 		expect(banner.classList.contains("changelog-banner--hidden")).toBe(true);
 		expect(banner.classList.contains("changelog-banner--visible")).toBe(false);
-		expect(banner.querySelector(".changelog-banner__hook")).toBeNull();
+		expect(banner.children.length).toBe(0);
 	});
 
 	it("uses role=status with a polite live region for assistive tech", () => {
@@ -201,6 +201,31 @@ describe("renderChangelogBannerShell", () => {
 		const close = doc.querySelector(".changelog-banner__close");
 		assert(close, "the close button must render");
 		expect(close.getAttribute("aria-label")).toBe("Dismiss changelog banner");
+	});
+
+	it("carries the return path as a hidden field so dismissing returns the reader to the page they were on", () => {
+		const doc = parse(
+			renderChangelogBannerShell(BANNER, "/blog/keyboard-shortcuts?utm_source=changelog-banner"),
+		);
+		const returnTo = doc.querySelector('.changelog-banner__dismiss input[name="returnTo"]');
+		assert(returnTo, "the dismiss form must post the return path");
+		expect(returnTo.getAttribute("value")).toBe(
+			"/blog/keyboard-shortcuts?utm_source=changelog-banner",
+		);
+	});
+
+	it("escapes the return path in the hidden field so a crafted path cannot break out of the attribute", () => {
+		const doc = parse(renderChangelogBannerShell(BANNER, '/x?a="1"&b=<2>'));
+		const returnTo = doc.querySelector('.changelog-banner__dismiss input[name="returnTo"]');
+		assert(returnTo, "the dismiss form must post the return path");
+		expect(returnTo.getAttribute("value")).toBe('/x?a="1"&b=<2>');
+	});
+
+	it("renders an empty return path when none is supplied so the dismiss route falls back to /", () => {
+		const doc = parse(renderChangelogBannerShell(BANNER));
+		const returnTo = doc.querySelector('.changelog-banner__dismiss input[name="returnTo"]');
+		assert(returnTo, "the dismiss form must always carry the return-path input");
+		expect(returnTo.getAttribute("value")).toBe("");
 	});
 });
 

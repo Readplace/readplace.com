@@ -12,7 +12,7 @@ import {
   createFakePublishSaveAnonymousLink,
   createFakeSummaryProvider,
 } from '@packages/test-fixtures'
-import { requireEnv } from '../runtime/domain/require-env'
+import { getEnv, requireEnv } from '../runtime/domain/require-env'
 import { initRefreshArticleIfStale } from '@packages/test-fixtures/providers/article-freshness'
 import type { ExtractPdf, IsBlockedAddress } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initCrawlArticle, initCrawlFetch } from '@packages/crawl-article'
@@ -31,7 +31,7 @@ const PORT = Number(requireEnv('E2E_PORT'))
 const origin = `http://127.0.0.1:${PORT}`
 const logger = HutchLogger.from(consoleLogger)
 
-const logError = (message: string, error?: Error) => console.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }))
+const logError = (message: string, error?: Error) => logger.error(message, error)
 /** The e2e harness crawls its own fixtures, all served from the loopback server
  * below, so block nothing — otherwise the SSRF guard refuses every loopback
  * address. Mirrors e2eValidateSaveableUrl relaxing the string-level
@@ -90,7 +90,7 @@ const summary = createFakeSummaryProvider({ readyAfterReads: 3 })
 // and publishUpdateFetchTimestamp) end-to-end. In CI, swap to noopLogger so
 // per-request "in-memory no-op" lines don't flood the build log; locally keep
 // the consoleLogger so the lines are visible for debugging.
-const eventLogger = process.env.CI === 'true' ? noopLogger : logger
+const eventLogger = getEnv('CI') === 'true' ? noopLogger : logger
 const { publishRefreshArticleContent } = initInMemoryRefreshArticleContent({ logger: eventLogger })
 const { publishUpdateFetchTimestamp } = initInMemoryUpdateFetchTimestamp({ logger: eventLogger })
 const { refreshArticleIfStale } = initRefreshArticleIfStale({

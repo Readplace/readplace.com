@@ -1,4 +1,4 @@
-/* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
+import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import {
 	ConditionalCheckFailedException,
@@ -10,9 +10,9 @@ import type {
 	CreatePasswordResetToken,
 	VerifyPasswordResetToken,
 } from "@packages/provider-contracts/password-reset";
-import { PasswordResetTokenSchema } from "@packages/test-fixtures/providers/password-reset";
+import { PasswordResetTokenSchema } from "@packages/provider-contracts/password-reset";
 
-const TOKEN_TTL_SECONDS = 60 * 60; // 1 hour
+const TOKEN_TTL_SECONDS = 60 * 60;
 
 const PasswordResetRow = z.object({
 	token: z.string(),
@@ -51,9 +51,7 @@ export function initDynamoDbPasswordReset(deps: {
 				ReturnValues: "ALL_OLD",
 			});
 
-			if (!Attributes) {
-				return { ok: false, reason: "invalid-token" };
-			}
+			assert(Attributes, "a conditional delete with ReturnValues ALL_OLD always returns the prior item");
 
 			if (Attributes.expiresAt < Math.floor(Date.now() / 1000)) {
 				return { ok: false, reason: "invalid-token" };
@@ -70,4 +68,3 @@ export function initDynamoDbPasswordReset(deps: {
 
 	return { createPasswordResetToken, verifyPasswordResetToken };
 }
-/* c8 ignore stop */

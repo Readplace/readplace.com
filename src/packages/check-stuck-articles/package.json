@@ -5,7 +5,7 @@
   "main": "dist/scripts/check-stuck-articles.js",
   "private": true,
   "scripts": {
-    "compile": "tsc",
+    "compile": "rm -rf dist && tsc",
     "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint scripts\" \"knip\"",
     "test": "node --test dist/scripts/classify-row.test.js dist/scripts/check-reachable.test.js dist/scripts/check-terminal-state.test.js dist/scripts/collect-stuck-rows.test.js",
     "check": "pnpm lint && pnpm test",

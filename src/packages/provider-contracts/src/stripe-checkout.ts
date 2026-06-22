@@ -1,4 +1,8 @@
-export type CheckoutSessionId = string & { readonly __brand: "CheckoutSessionId" };
+import { z, type $brand } from "zod";
+
+export type CheckoutSessionId = string & $brand<"CheckoutSessionId">;
+
+export const CheckoutSessionIdSchema = z.string().min(1).brand<"CheckoutSessionId">();
 
 export interface CheckoutSession {
 	id: CheckoutSessionId;

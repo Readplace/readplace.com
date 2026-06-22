@@ -1,8 +1,15 @@
 import { LoginSchema, SignupSchema } from "./auth.schema";
+import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
 
 describe("LoginSchema", () => {
 	it("accepts valid email and password", () => {
 		const result = LoginSchema.safeParse({ email: "user@example.com", password: "secret123" });
+
+		expect(result.success).toBe(true);
+	});
+
+	it("accepts a disposable email domain (the disposable rule is signup-only)", () => {
+		const result = LoginSchema.safeParse({ email: "user@slmail.me", password: "secret123" });
 
 		expect(result.success).toBe(true);
 	});
@@ -69,5 +76,18 @@ describe("SignupSchema", () => {
 		});
 
 		expect(result.success).toBe(false);
+	});
+
+	it("rejects a disposable email domain with the disposable message", () => {
+		const result = SignupSchema.safeParse({
+			email: "user@slmail.me",
+			password: "longpassword",
+			confirmPassword: "longpassword",
+		});
+
+		expect(result.success).toBe(false);
+		if (result.success) return;
+		const emailIssue = result.error.issues.find((issue) => issue.path.includes("email"));
+		expect(emailIssue?.message).toBe(DISPOSABLE_EMAIL_MESSAGE);
 	});
 });

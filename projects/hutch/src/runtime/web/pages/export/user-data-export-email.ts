@@ -21,7 +21,7 @@ export function buildUserDataExportEmailHtml(params: {
 <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background-color:${EMAIL_COLORS.surface};border-radius:8px;padding:40px;">
 <tr><td>
 <h1 style="margin:0 0 16px;font-size:24px;color:${EMAIL_COLORS.heading};">Your export is ready</h1>
-<p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:${EMAIL_COLORS.body};">We've packaged ${articleCount} article${articleCount === 1 ? "" : "s"} as a single JSON file. Click the button below to download it. The link expires in ${ttlDays} days.</p>
+<p style="margin:0 0 24px;font-size:16px;line-height:1.6;color:${EMAIL_COLORS.body};">I've packaged ${articleCount} article${articleCount === 1 ? "" : "s"} as a single JSON file. Click the button below to download it. The link expires in ${ttlDays} days.</p>
 <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:6px;background-color:${EMAIL_COLORS.brand};">
 <a href="${safeDownloadUrl}" style="display:inline-block;padding:12px 24px;font-size:16px;color:${EMAIL_COLORS.brandText};text-decoration:none;border-radius:6px;">Download my data</a>
 </td></tr></table>

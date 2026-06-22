@@ -1,7 +1,4 @@
-export type OAuthClientId = string & { readonly __brand: "OAuthClientId" };
-export type AuthorizationCode = string & { readonly __brand: "AuthorizationCode" };
-export type AccessToken = string & { readonly __brand: "AccessToken" };
-export type RefreshToken = string & { readonly __brand: "RefreshToken" };
+import type { OAuthClientId } from "./oauth.schema";
 
 export interface OAuthClient {
 	id: OAuthClientId;

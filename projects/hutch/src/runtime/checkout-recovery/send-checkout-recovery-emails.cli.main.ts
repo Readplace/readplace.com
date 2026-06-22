@@ -1,4 +1,3 @@
-/* c8 ignore start -- composition root, no logic to test */
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initDynamoDbPendingSignup } from "../providers/pending-signup/dynamodb-pending-signup";
@@ -9,6 +8,8 @@ import { buildSignupResumeUrl } from "../web/auth/signup-resume-url";
 import { requireEnv } from "../domain/require-env";
 import { selectRecipients } from "../domain/checkout-recovery/select-recipients";
 
+const logger = HutchLogger.from(consoleLogger);
+
 async function main(): Promise<void> {
 	const tableName = requireEnv("DYNAMODB_PENDING_SIGNUPS_TABLE");
 	const stripeApiKey = requireEnv("STRIPE_SECRET_KEY");
@@ -18,8 +19,6 @@ async function main(): Promise<void> {
 	const from = requireEnv("RECOVERY_EMAIL_FROM");
 	const replyTo = requireEnv("RECOVERY_EMAIL_REPLY_TO");
 	const bcc = requireEnv("RECOVERY_EMAIL_BCC");
-
-	const logger = HutchLogger.from(consoleLogger);
 
 	const dynamoClient = createDynamoDocumentClient();
 	const pendingSignup = initDynamoDbPendingSignup({ client: dynamoClient, tableName });
@@ -90,7 +89,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-	console.error("[recovery] Fatal:", err);
+	logger.error("[recovery] Fatal:", err);
 	process.exit(1);
 });
-/* c8 ignore stop */

@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -5,7 +6,8 @@ import {
 	buildLanguageFlag,
 	discoverInstalledScripts,
 	initTesseractOcr,
-	resolveTessdataDir,
+	type SpawnTesseractProcess,
+	type TesseractChildProcess,
 } from "./init-tesseract-ocr";
 
 function makeFakeTessdataDir(scriptTraineddataNames: string[]): string {
@@ -18,15 +20,45 @@ function makeFakeTessdataDir(scriptTraineddataNames: string[]): string {
 	return dir;
 }
 
-describe("resolveTessdataDir", () => {
-	it("returns TESSDATA_PREFIX when the env var is set", () => {
-		expect(resolveTessdataDir({ TESSDATA_PREFIX: "/custom/tessdata" })).toBe("/custom/tessdata");
-	});
+function failingSpawn(): TesseractChildProcess {
+	throw new Error("spawn must not be called");
+}
 
-	it("falls back to the Lambda container's bundled path when TESSDATA_PREFIX is unset", () => {
-		expect(resolveTessdataDir({})).toBe("/opt/tesseract/tessdata");
-	});
-});
+/** A fake `tesseract` child whose stdout/stderr/close are driven on the next
+ * microtask so the wrapper's listeners are registered before they fire. */
+function makeFakeSpawn(
+	outcome: {
+		stdout?: string;
+		stderr?: string;
+		exitCode?: number | null;
+		error?: Error;
+	},
+	onSpawn?: (args: readonly string[]) => void,
+): SpawnTesseractProcess {
+	return (args) => {
+		onSpawn?.(args);
+		const child = new EventEmitter();
+		const stdout = new EventEmitter();
+		const stderr = new EventEmitter();
+		const fake: TesseractChildProcess = {
+			stdout: { on: (event, listener) => stdout.on(event, listener) },
+			stderr: { on: (event, listener) => stderr.on(event, listener) },
+			on: (event, listener) => {
+				child.on(event, listener);
+			},
+		};
+		queueMicrotask(() => {
+			if (outcome.error) {
+				child.emit("error", outcome.error);
+				return;
+			}
+			if (outcome.stdout) stdout.emit("data", Buffer.from(outcome.stdout, "utf8"));
+			if (outcome.stderr) stderr.emit("data", Buffer.from(outcome.stderr, "utf8"));
+			child.emit("close", outcome.exitCode ?? 0);
+		});
+		return fake;
+	};
+}
 
 describe("discoverInstalledScripts", () => {
 	let dir: string;
@@ -106,21 +138,83 @@ describe("initTesseractOcr", () => {
 	it("initialises against an injected tessdata directory without requiring TESSDATA_PREFIX to be set", () => {
 		dir = makeFakeTessdataDir(["Latin.traineddata", "Arabic.traineddata"]);
 
-		expect(() => initTesseractOcr({ tessdataDir: dir })).not.toThrow();
+		expect(() =>
+			initTesseractOcr({ tessdataDir: dir, spawnTesseractProcess: failingSpawn }),
+		).not.toThrow();
 	});
 
 	it("throws at init time when the injected tessdata script directory is empty", () => {
 		dir = makeFakeTessdataDir([]);
 
-		expect(() => initTesseractOcr({ tessdataDir: dir })).toThrow(/Required tessdata script pack missing/);
+		expect(() =>
+			initTesseractOcr({ tessdataDir: dir, spawnTesseractProcess: failingSpawn }),
+		).toThrow(/Required tessdata script pack missing/);
 	});
 
 	it("returns an empty fragment when invoked with no images (no tesseract spawn)", async () => {
 		dir = makeFakeTessdataDir(["Latin.traineddata"]);
-		const runPageOcr = initTesseractOcr({ tessdataDir: dir });
+		const runPageOcr = initTesseractOcr({ tessdataDir: dir, spawnTesseractProcess: failingSpawn });
 
 		const result = await runPageOcr({ images: [] });
 
 		expect(result).toBe("");
+	});
+
+	it("wraps each recognised paragraph in an ocr-tesseract <p>, escaping HTML and dropping blank blocks", async () => {
+		dir = makeFakeTessdataDir(["Latin.traineddata"]);
+		let capturedArgs: readonly string[] | undefined;
+		const runPageOcr = initTesseractOcr({
+			tessdataDir: dir,
+			spawnTesseractProcess: makeFakeSpawn({ stdout: "First & <b>bold</b>\n\n   \n\nSecond\n\n" }, (args) => {
+				capturedArgs = args;
+			}),
+		});
+
+		const result = await runPageOcr({ images: [{ pngBuffer: Buffer.from("png") }] });
+
+		expect(result).toBe(
+			'<p class="ocr-tesseract">First &amp; &lt;b&gt;bold&lt;/b&gt;</p><p class="ocr-tesseract">Second</p>',
+		);
+		const pngPath = capturedArgs?.[0];
+		expect(pngPath).toMatch(/page\.png$/);
+		expect(capturedArgs).toEqual([pngPath, "-", "--psm", "1", "--oem", "1", "-l", "script/Latin"]);
+	});
+
+	it("concatenates one fragment per image in order", async () => {
+		dir = makeFakeTessdataDir(["Latin.traineddata"]);
+		const runPageOcr = initTesseractOcr({
+			tessdataDir: dir,
+			spawnTesseractProcess: makeFakeSpawn({ stdout: "page" }),
+		});
+
+		const result = await runPageOcr({
+			images: [{ pngBuffer: Buffer.from("a") }, { pngBuffer: Buffer.from("b") }],
+		});
+
+		expect(result).toBe('<p class="ocr-tesseract">page</p><p class="ocr-tesseract">page</p>');
+	});
+
+	it("rejects with the captured stderr when tesseract exits non-zero", async () => {
+		dir = makeFakeTessdataDir(["Latin.traineddata"]);
+		const runPageOcr = initTesseractOcr({
+			tessdataDir: dir,
+			spawnTesseractProcess: makeFakeSpawn({ stderr: "boom", exitCode: 2 }),
+		});
+
+		await expect(runPageOcr({ images: [{ pngBuffer: Buffer.from("png") }] })).rejects.toThrow(
+			"tesseract exited 2: boom",
+		);
+	});
+
+	it("rejects when the tesseract process fails to spawn", async () => {
+		dir = makeFakeTessdataDir(["Latin.traineddata"]);
+		const runPageOcr = initTesseractOcr({
+			tessdataDir: dir,
+			spawnTesseractProcess: makeFakeSpawn({ error: new Error("ENOENT tesseract") }),
+		});
+
+		await expect(runPageOcr({ images: [{ pngBuffer: Buffer.from("png") }] })).rejects.toThrow(
+			"ENOENT tesseract",
+		);
 	});
 });

@@ -149,7 +149,7 @@ export function initOcrPdf(deps: {
 			return { kind: "failed", reason: "unsupported-large-file" };
 		}
 
-		const chunks = chunkPages(metadata.numPages, batchSize);
+		const chunks = chunkPages({ numPages: metadata.numPages, batchSize });
 		const partCount = chunks.length;
 		if (partCount === 0) {
 			return { kind: "failed", reason: "OCR returned no text across all batches" };
@@ -359,7 +359,7 @@ function renderFailedChunkPlaceholder(pageIndices: readonly number[]): string {
 		.join("");
 }
 
-function chunkPages(numPages: number, batchSize: number): number[][] {
+function chunkPages({ numPages, batchSize }: { numPages: number; batchSize: number }): number[][] {
 	const chunks: number[][] = [];
 	for (let start = 0; start < numPages; start += batchSize) {
 		const end = Math.min(start + batchSize, numPages);

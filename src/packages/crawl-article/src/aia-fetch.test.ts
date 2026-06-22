@@ -102,10 +102,12 @@ describe("derOrPemToPem", () => {
 });
 
 describe("withAiaChasing", () => {
+	type FetchAia = ReturnType<typeof initFetchAia>;
+
 	it("passes responses through unchanged when baseFetch succeeds", async () => {
 		const baseFetch: typeof fetch = async () => new Response("ok", { status: 200 });
-		const fetchAia = jest.fn();
-		const wrapped = withAiaChasing(baseFetch, fetchAia as unknown as ReturnType<typeof initFetchAia>);
+		const fetchAia = jest.fn<ReturnType<FetchAia>, Parameters<FetchAia>>();
+		const wrapped = withAiaChasing(baseFetch, fetchAia);
 
 		const response = await wrapped("https://example.com");
 
@@ -118,8 +120,8 @@ describe("withAiaChasing", () => {
 		const baseFetch: typeof fetch = async () => {
 			throw new Error("network boom");
 		};
-		const fetchAia = jest.fn();
-		const wrapped = withAiaChasing(baseFetch, fetchAia as unknown as ReturnType<typeof initFetchAia>);
+		const fetchAia = jest.fn<ReturnType<FetchAia>, Parameters<FetchAia>>();
+		const wrapped = withAiaChasing(baseFetch, fetchAia);
 
 		await expect(wrapped("https://example.com")).rejects.toThrow("network boom");
 		expect(fetchAia).not.toHaveBeenCalled();
@@ -130,8 +132,8 @@ describe("withAiaChasing", () => {
 			const cause = Object.assign(new Error("leaf"), { code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE" });
 			throw Object.assign(new TypeError("fetch failed"), { cause });
 		};
-		const fetchAia = jest.fn(async () => new Response("<html>real</html>", { status: 200 }));
-		const wrapped = withAiaChasing(baseFetch, fetchAia as unknown as ReturnType<typeof initFetchAia>);
+		const fetchAia = jest.fn<ReturnType<FetchAia>, Parameters<FetchAia>>(async () => new Response("<html>real</html>", { status: 200 }));
+		const wrapped = withAiaChasing(baseFetch, fetchAia);
 
 		const response = await wrapped("https://example.com", {
 			headers: { "user-agent": "Test/1.0" },
@@ -150,8 +152,8 @@ describe("withAiaChasing", () => {
 			const cause = Object.assign(new Error("x"), { code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE" });
 			throw Object.assign(new TypeError("fetch failed"), { cause });
 		};
-		const fetchAia = jest.fn(async () => new Response("ok"));
-		const wrapped = withAiaChasing(baseFetch, fetchAia as unknown as ReturnType<typeof initFetchAia>);
+		const fetchAia = jest.fn<ReturnType<FetchAia>, Parameters<FetchAia>>(async () => new Response("ok"));
+		const wrapped = withAiaChasing(baseFetch, fetchAia);
 
 		await wrapped(new URL("https://example.com/a?b=1"));
 
@@ -163,8 +165,8 @@ describe("withAiaChasing", () => {
 			const cause = Object.assign(new Error("x"), { code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE" });
 			throw Object.assign(new TypeError("fetch failed"), { cause });
 		};
-		const fetchAia = jest.fn(async () => new Response("ok"));
-		const wrapped = withAiaChasing(baseFetch, fetchAia as unknown as ReturnType<typeof initFetchAia>);
+		const fetchAia = jest.fn<ReturnType<FetchAia>, Parameters<FetchAia>>(async () => new Response("ok"));
+		const wrapped = withAiaChasing(baseFetch, fetchAia);
 
 		await wrapped(new Request("https://example.com/r"));
 
@@ -176,8 +178,8 @@ describe("withAiaChasing", () => {
 			const cause = Object.assign(new Error("x"), { code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE" });
 			throw Object.assign(new TypeError("fetch failed"), { cause });
 		};
-		const fetchAia = jest.fn(async () => new Response("ok"));
-		const wrapped = withAiaChasing(baseFetch, fetchAia as unknown as ReturnType<typeof initFetchAia>);
+		const fetchAia = jest.fn<ReturnType<FetchAia>, Parameters<FetchAia>>(async () => new Response("ok"));
+		const wrapped = withAiaChasing(baseFetch, fetchAia);
 
 		const headers = new Headers({ "user-agent": "T", "accept-language": "en" });
 		await wrapped("https://example.com", { headers });
@@ -193,8 +195,8 @@ describe("withAiaChasing", () => {
 			const cause = Object.assign(new Error("x"), { code: "UNABLE_TO_VERIFY_LEAF_SIGNATURE" });
 			throw Object.assign(new TypeError("fetch failed"), { cause });
 		};
-		const fetchAia = jest.fn(async () => new Response("ok"));
-		const wrapped = withAiaChasing(baseFetch, fetchAia as unknown as ReturnType<typeof initFetchAia>);
+		const fetchAia = jest.fn<ReturnType<FetchAia>, Parameters<FetchAia>>(async () => new Response("ok"));
+		const wrapped = withAiaChasing(baseFetch, fetchAia);
 
 		await wrapped("https://example.com");
 

@@ -36,7 +36,7 @@
   },
   "private": true,
   "scripts": {
-    "compile": "tsc",
+    "compile": "rm -rf dist && tsc",
     "check-unused-css": "node scripts/check-unused-css.js",
     "lint": "tsc --project tsconfig.lint.json && concurrently --kill-others-on-fail \"biome lint src\" \"knip\" \"pnpm check-unused-css\"",
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",

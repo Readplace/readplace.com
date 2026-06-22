@@ -173,7 +173,16 @@ describe("GET /", () => {
 
 		const coreSection = doc.querySelector('[data-test-section="core-features"]');
 		const features = coreSection?.querySelectorAll("[data-test-feature]");
-		expect(features?.length).toBe(5);
+		expect(features?.length).toBe(6);
+	});
+
+	it("links the MCP feature to the /mcp connection guide", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/");
+		const doc = new JSDOM(response.text).window.document;
+
+		const mcpLink = doc.querySelector('[data-test-feature-link="Connect Your AI Assistant"]');
+		expect(mcpLink?.getAttribute("href")).toBe("/mcp");
 	});
 
 	it("should render two demo videos: Desktop and Browser Extension", async () => {
@@ -193,7 +202,11 @@ describe("GET /", () => {
 		const doc = new JSDOM(response.text).window.document;
 
 		const backstory = doc.querySelector('[data-test-section="backstory"]');
-		expect(backstory).not.toBeNull();
+		assert(backstory, "backstory section must be rendered");
+		expect(backstory.getAttribute("aria-label")).toBe("About the creator");
+		expect(backstory.querySelector(".home-backstory__title")?.textContent).toBe(
+			"I believe we can fix the web",
+		);
 	});
 
 	it("should render the founding pricing card and hide the fallback when under the limit", async () => {
@@ -295,11 +308,15 @@ describe("GET /", () => {
 		expect(section.querySelector(".home-cost__heading")?.textContent).toContain("$49");
 		const items = section.querySelectorAll("[data-test-cost-list] .home-cost__item");
 		expect(items.length).toBe(3);
+		const providerNames = Array.from(
+			section.querySelectorAll("[data-test-cost-list] .home-cost__item strong"),
+		).map((el) => el.textContent?.trim());
+		expect(providerNames).toEqual([
+			"Mozilla Readability",
+			"Real Tesseract OCR",
+			"DeepSeek V3.2",
+		]);
 		const text = section.textContent ?? "";
-		expect(text).toContain("Mozilla Readability");
-		expect(text).toContain("DeepSeek");
-		expect(text).toContain("Tesseract");
-		expect(text).not.toContain("Deep Infra");
 		expect(text).toContain("no data resale");
 	});
 
@@ -394,8 +411,16 @@ describe("GET /", () => {
 		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
-		const twitterSite = doc.querySelector('meta[name="twitter:site"]');
-		expect(twitterSite).toBeNull();
+		const twitterMetaNames = Array.from(
+			doc.querySelectorAll('meta[name^="twitter:"]'),
+		).map((meta) => meta.getAttribute("name"));
+		expect(twitterMetaNames).toEqual([
+			"twitter:card",
+			"twitter:title",
+			"twitter:description",
+			"twitter:image",
+			"twitter:creator",
+		]);
 	});
 
 	it("should include multiple structured data schemas", async () => {

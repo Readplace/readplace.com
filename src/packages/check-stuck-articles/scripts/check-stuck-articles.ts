@@ -30,9 +30,13 @@ import {
 } from "./collect-stuck-rows";
 
 function requireEnv(name: string): string {
-	const value = process.env[name];
+	const value = getEnv(name);
 	assert(value, `${name} env var is required`);
 	return value;
+}
+
+function getEnv(name: string): string | undefined {
+	return process.env[name];
 }
 
 /**
@@ -57,7 +61,7 @@ const REACHABILITY_CONCURRENCY = 8;
  * unset and skip the write.
  */
 async function writeReportIfRequested(stuck: StuckRow[]): Promise<void> {
-	const reportPath = process.env.STUCK_ARTICLES_REPORT_PATH;
+	const reportPath = getEnv("STUCK_ARTICLES_REPORT_PATH");
 	if (reportPath === undefined) return;
 	await writeFile(reportPath, `${JSON.stringify({ stuck }, null, 2)}\n`, "utf8");
 }

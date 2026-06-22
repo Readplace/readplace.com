@@ -70,7 +70,7 @@ describe("theInformationPreParser.extract", () => {
 
 		const result = theInformationPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("Photo by");
+		expect(result?.bodyHtml?.startsWith("<p>Lead.</p>")).toBe(true);
 		expect(result?.bodyHtml).toContain("Lead.");
 	});
 
@@ -86,9 +86,7 @@ describe("theInformationPreParser.extract", () => {
 
 		const result = theInformationPreParser.extract({ html });
 
-		expect(result?.bodyHtml).not.toContain("<tag>");
-		expect(result?.bodyHtml).toContain("&lt;tag&gt;");
-		expect(result?.bodyHtml).toContain("&amp; ampersand");
+		expect(result?.bodyHtml).toContain("<p>Caption with &lt;tag&gt; and &amp; ampersand inside.</p>");
 	});
 
 	it("returns undefined when the Article script tag is absent", () => {

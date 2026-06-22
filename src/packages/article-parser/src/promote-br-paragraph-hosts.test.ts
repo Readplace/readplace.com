@@ -158,12 +158,15 @@ describe("promoteBrParagraphHosts end-to-end through parseHtml", () => {
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
-		const content = result.article.content;
-		expect(content).toContain("underestimated threat.</p>");
-		expect(content).toContain("Over the last six months");
-		expect((content.match(/<p[\s>]/g) ?? []).length).toBeGreaterThanOrEqual(3);
-		expect(content).toContain("<br>");
-		expect(content).not.toContain("<br><br>");
+		expect(result.article.content).toBe(
+			'<div class="page" id="readability-page-1"><div dir="ltr">' +
+				"<p>AI security is the new frontier and prompt injection is its most underestimated threat.</p>" +
+				"<p>Over the last six months I have been auditing LLM-powered products and the same failure modes keep coming up.</p>" +
+				"<p><strong>1. Prompt injection is not a bug, it is a class of attack.</strong><br>Treat untrusted text the same way you treat untrusted SQL.</p>" +
+				"<p><strong>2. Defence in depth still applies.</strong><br>Input validation and human-in-the-loop approvals each catch a different slice.</p>" +
+				"<p>If you are building agents this year, threat-model the tool layer first.</p>" +
+				"</div></div>",
+		);
 	});
 
 	it("extracts the real article, not a <br><br> footer address (in-place never discards the page)", () => {
@@ -181,8 +184,13 @@ describe("promoteBrParagraphHosts end-to-end through parseHtml", () => {
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
-		expect(result.article.content).toContain("first substantial paragraph");
-		expect(result.article.content).not.toContain("123 Example Street");
+		expect(result.article.content).toBe(
+			'<div class="page" id="readability-page-1"><article>\n\t\t\t\t\n\t\t\t\t' +
+				"<p>The first substantial paragraph carries enough genuine prose for Readability to score this as the article body.</p>\n\t\t\t\t" +
+				"<p>The second substantial paragraph continues that prose so the scorer is confident the article is the dominant block.</p>\n\t\t\t\t" +
+				"<p>The third substantial paragraph adds yet more real content to outweigh anything in the page chrome and footer.</p>\n\t\t\t" +
+				"</article></div>",
+		);
 	});
 
 	it("still extracts the article when a <br><br> email signature is present (does no harm)", () => {

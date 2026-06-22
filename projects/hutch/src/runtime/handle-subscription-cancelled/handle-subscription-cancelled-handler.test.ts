@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { SQSEvent } from "aws-lambda";
+import type { Context, SQSEvent } from "aws-lambda";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initHandleSubscriptionCancelledHandler } from "./handle-subscription-cancelled-handler";
@@ -24,6 +24,21 @@ function makeNoopEmit(): EmitSubscriptionEvent {
 }
 
 const USER_ID = UserIdSchema.parse("user-cancel");
+
+const stubContext: Context = {
+	callbackWaitsForEmptyEventLoop: true,
+	functionName: "test",
+	functionVersion: "1",
+	invokedFunctionArn: "arn:aws:lambda:us-east-1:123456789:function:test",
+	memoryLimitInMB: "128",
+	awsRequestId: "test-request-id",
+	logGroupName: "/aws/lambda/test",
+	logStreamName: "test-stream",
+	getRemainingTimeInMillis: () => 30000,
+	done: () => {},
+	fail: () => {},
+	succeed: () => {},
+};
 
 function buildSqsEvent(records: Array<{ messageId: string; body: string }>): SQSEvent {
 	return {
@@ -77,7 +92,7 @@ describe("handle-subscription-cancelled-handler", () => {
 					body: buildEventBridgeBody({ userId: USER_ID, subscriptionId: "sub_x", reason: "stripe_webhook" }),
 				},
 			]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -109,7 +124,7 @@ describe("handle-subscription-cancelled-handler", () => {
 					body: buildEventBridgeBody({ userId: USER_ID, reason: "user_initiated_trial" }),
 				},
 			]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -127,7 +142,7 @@ describe("handle-subscription-cancelled-handler", () => {
 
 		const result = await handler(
 			buildSqsEvent([{ messageId: "msg-fail", body: buildEventBridgeBody({ userId: USER_ID }) }]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -145,7 +160,7 @@ describe("handle-subscription-cancelled-handler", () => {
 
 		const result = await handler(
 			buildSqsEvent([{ messageId: "msg-bad", body: "not-json" }]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -163,7 +178,7 @@ describe("handle-subscription-cancelled-handler", () => {
 
 		const result = await handler(
 			buildSqsEvent([{ messageId: "msg-schema", body: JSON.stringify({ detail: { reason: "stripe_webhook" } }) }]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -190,7 +205,7 @@ describe("handle-subscription-cancelled-handler", () => {
 				{ messageId: "msg-boom", body: buildEventBridgeBody({ userId: "user-boom" }) },
 				{ messageId: "msg-ok-2", body: buildEventBridgeBody({ userId: "user-ok-2" }) },
 			]),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 

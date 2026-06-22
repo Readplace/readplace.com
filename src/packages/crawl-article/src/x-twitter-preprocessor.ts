@@ -1,8 +1,16 @@
 import { createHash } from "node:crypto";
+import { z } from "zod";
 import type { CrawlArticleResult } from "./crawl-article.types";
 import type { CrawlFetch } from "./crawl-fetch";
 
 const FETCH_TIMEOUT_MS = 10000;
+
+const OembedResponse = z
+	.object({
+		author_name: z.string().catch(""),
+		html: z.string().catch(""),
+	})
+	.catch({ author_name: "", html: "" });
 const X_TWITTER_PATTERN = /^https?:\/\/(x\.com|twitter\.com)\//;
 const TWEET_STATUS_PATH = /^(\/[^/]+\/status\/\d+)/;
 
@@ -42,9 +50,7 @@ export function initFetchTweetViaOembed(deps: {
 			}
 			const text = await response.text();
 			const bodyHash = createHash("sha256").update(text).digest("hex");
-			const data = JSON.parse(text) as Record<string, unknown>;
-			const authorName = typeof data.author_name === "string" ? data.author_name : "";
-			const embed = typeof data.html === "string" ? data.html : "";
+			const { author_name: authorName, html: embed } = OembedResponse.parse(JSON.parse(text));
 			const html = `<html><head><title>${authorName}</title></head><body>${embed}</body></html>`;
 			return { status: "fetched", html, bodyHash };
 		} catch (error) {

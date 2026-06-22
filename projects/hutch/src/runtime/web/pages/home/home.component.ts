@@ -118,6 +118,12 @@ export function HomePage(params: {
 	const fallbackStateClass = foundingAllocationAvailable
 		? "home-pricing__fallback--hidden"
 		: "home-pricing__fallback--visible";
+	const pricingTitleStateClass = foundingAllocationAvailable
+		? "home-pricing__title--visible"
+		: "home-pricing__title--hidden";
+	const progressStateClass = foundingAllocationAvailable
+		? "home-pricing__progress--visible"
+		: "home-pricing__progress--hidden";
 	return {
 		seo: {
 			title: "Readplace — Read the web, not the slop. | Read-It-Later App",
@@ -312,7 +318,8 @@ export function HomePage(params: {
 			founderAvatarUrl: `${staticBaseUrl}/fayner-brack.jpg`,
 			foundingProgressHtml,
 			foundingMemberLimit,
-			foundingAllocationAvailable,
+			pricingTitleStateClass,
+			progressStateClass,
 			pricingGridStateClass,
 			fallbackStateClass,
 			featuredFeatures: [
@@ -330,6 +337,13 @@ export function HomePage(params: {
 					name: "Browser Extensions",
 					description:
 						"Save any page with one click, Ctrl/Cmd+D, or right-click. The extension captures the full rendered page — picking the most complete version of the content over what a URL-only crawl would see. Available for Firefox and Chrome.",
+				},
+				{
+					name: "Connect Your AI Assistant",
+					description:
+						"Readplace runs an MCP server, so Claude, ChatGPT, Perplexity, and other AI assistants can save links to your queue and read your list back — right inside the conversation. One OAuth login and your assistant does the rest.",
+					linkHref: "/mcp",
+					linkLabel: "How to connect",
 				},
 			],
 			compactFeatures: [

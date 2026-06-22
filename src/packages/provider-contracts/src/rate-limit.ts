@@ -2,7 +2,12 @@ import type { RateLimitDecision, RateLimitRule } from "@packages/domain/rate-lim
 
 /** Each bucket carries an independent counter per client key, so exhausting
  * the crawl allowance never locks the same visitor out of logging in. */
-export type RateLimitBucket = "view-crawl" | "login" | "signup" | "forgot-password";
+export type RateLimitBucket =
+	| "view-crawl"
+	| "login"
+	| "signup"
+	| "forgot-password"
+	| "oauth-register";
 
 /**
  * Atomically count one request against `(bucket, key)` for the rule's current
@@ -21,4 +26,5 @@ export interface RateLimitRules {
 	login: RateLimitRule;
 	signup: RateLimitRule;
 	forgotPassword: RateLimitRule;
+	oauthRegister: RateLimitRule;
 }

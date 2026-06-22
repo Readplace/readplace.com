@@ -271,6 +271,24 @@ describe("Base component", () => {
 		);
 	});
 
+	it("threads currentPath into the changelog dismiss form so dismissing stays on the current page", () => {
+		const page = createTestPageBody();
+		const result = Base(page, {
+			...GUEST_STATE,
+			currentPath: "/blog/keyboard-shortcuts",
+			changelogBanner: {
+				hook: "I added keyboard shortcuts to the reader",
+				href: "/blog/keyboard-shortcuts?utm_source=changelog-banner&utm_medium=internal&utm_content=read-more",
+				version: CHANGELOG_VERSION,
+			},
+		}).to("text/html");
+		const doc = new JSDOM(result.body).window.document;
+
+		const returnTo = doc.querySelector('.changelog-banner__dismiss input[name="returnTo"]');
+		assert(returnTo, "the dismiss form must carry the return path");
+		expect(returnTo.getAttribute("value")).toBe("/blog/keyboard-shortcuts");
+	});
+
 	it("should set meta description from seo", () => {
 		const page = createTestPageBody({ seo: { title: "T", description: "My desc", canonicalUrl: "https://readplace.com" } });
 		const result = Base(page, GUEST_STATE).to("text/html");

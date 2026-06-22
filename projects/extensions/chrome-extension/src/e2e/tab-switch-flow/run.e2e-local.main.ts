@@ -23,6 +23,7 @@ import {
 	createLoginActions,
 } from "browser-extension-core/e2e-actions";
 import { initSirenReadingList } from "browser-extension-core";
+import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 const EXTENSION_DIR = path.resolve(__dirname, "../../../dist-extension-compiled");
 const CFT_PATH_FILE = path.resolve(__dirname, "../../../.cache/chrome/binary-path");
@@ -253,6 +254,7 @@ async function assertSavedContentIsPageA(): Promise<void> {
 		onUnauthorized: async () => {
 			throw new Error("Unauthorized while walking the saved queue");
 		},
+		logger: HutchLogger.from(consoleLogger),
 	});
 
 	const deadline = Date.now() + 60_000;

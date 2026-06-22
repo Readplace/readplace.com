@@ -1,6 +1,11 @@
 import { UserIdSchema } from "@packages/domain/user";
 import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
-import { initMcpServer, type McpServerDeps } from "./mcp-server";
+import { encodeQueueCursor } from "./cursor";
+import {
+	initMcpServer,
+	type McpArticle,
+	type McpServerDeps,
+} from "./mcp-server";
 
 const userId = UserIdSchema.parse("00000000000000000000000000000001");
 const context = { userId };
@@ -8,9 +13,44 @@ const context = { userId };
 function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 	return {
 		saveLink: async () => ({ ok: true, title: "Example", url: "https://example.com/" }),
-		listQueue: async () => ({ total: 0, articles: [] }),
+		listQueue: async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }),
+		getArticle: async () => null,
+		getArticleContent: async () => ({ status: "not_found" }),
+		getArticleSummary: async () => ({ status: "not_found" }),
 		...overrides,
 	};
+}
+
+function mcpArticle(overrides: Partial<McpArticle> = {}): McpArticle {
+	return {
+		id: "0".repeat(32),
+		url: "https://a.test/",
+		title: "A",
+		siteName: "Example",
+		excerpt: "",
+		wordCount: 10,
+		estimatedReadTime: 1,
+		status: "unread",
+		savedAt: "2026-01-01T00:00:00.000Z",
+		...overrides,
+	};
+}
+
+function call(
+	server: ReturnType<typeof initMcpServer>,
+	id: number,
+	name: string,
+	args?: unknown,
+) {
+	return server.handle(
+		{
+			jsonrpc: "2.0",
+			id,
+			method: "tools/call",
+			params: { name, ...(args !== undefined ? { arguments: args } : {}) },
+		},
+		context,
+	);
 }
 
 describe("initMcpServer", () => {
@@ -31,6 +71,17 @@ describe("initMcpServer", () => {
 		});
 	});
 
+	it("instructs that marking read and deleting are app-only", async () => {
+		const server = initMcpServer(fakeDeps());
+		const response = await server.handle(
+			{ jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
+			context,
+		);
+		expect(response).toMatchObject({
+			result: { instructions: expect.stringContaining("Readplace app") },
+		});
+	});
+
 	it("answers ping with an empty result", async () => {
 		const server = initMcpServer(fakeDeps());
 		const response = await server.handle(
@@ -40,7 +91,7 @@ describe("initMcpServer", () => {
 		expect(response).toEqual({ jsonrpc: "2.0", id: "p", result: {} });
 	});
 
-	it("lists both tools, in order, with their JSON Schemas", async () => {
+	it("lists every tool, in order, with schemas and annotations", async () => {
 		const server = initMcpServer(fakeDeps());
 		const response = await server.handle(
 			{ jsonrpc: "2.0", id: 2, method: "tools/list" },
@@ -50,8 +101,13 @@ describe("initMcpServer", () => {
 			id: 2,
 			result: {
 				tools: [
-					{ name: "save_link", inputSchema: { required: ["url"] } },
-					{ name: "list_queue", inputSchema: { type: "object" } },
+					{ name: "save_link", annotations: { openWorldHint: true } },
+					{ name: "list_queue", annotations: { readOnlyHint: true } },
+					{ name: "get_article", annotations: { readOnlyHint: true } },
+					{ name: "get_article_content" },
+					{ name: "get_article_summary" },
+					{ name: "set_article_status", annotations: { readOnlyHint: true } },
+					{ name: "delete_article", annotations: { readOnlyHint: true } },
 				],
 			},
 		});
@@ -133,15 +189,9 @@ describe("initMcpServer", () => {
 				url: "https://example.com/a",
 			}));
 			const server = initMcpServer(fakeDeps({ saveLink }));
-			const response = await server.handle(
-				{
-					jsonrpc: "2.0",
-					id: 4,
-					method: "tools/call",
-					params: { name: "save_link", arguments: { url: "https://example.com/a" } },
-				},
-				context,
-			);
+			const response = await call(server, 4, "save_link", {
+				url: "https://example.com/a",
+			});
 			expect(saveLink).toHaveBeenCalledWith({ userId, url: "https://example.com/a" });
 			expect(response).toMatchObject({
 				id: 4,
@@ -153,15 +203,7 @@ describe("initMcpServer", () => {
 		it("surfaces a save rejection as an error result", async () => {
 			const saveLink = jest.fn(async () => ({ ok: false as const, message: "Not a saveable URL" }));
 			const server = initMcpServer(fakeDeps({ saveLink }));
-			const response = await server.handle(
-				{
-					jsonrpc: "2.0",
-					id: 5,
-					method: "tools/call",
-					params: { name: "save_link", arguments: { url: "chrome://x" } },
-				},
-				context,
-			);
+			const response = await call(server, 5, "save_link", { url: "chrome://x" });
 			expect(response).toMatchObject({
 				id: 5,
 				result: { content: [{ type: "text", text: "Not a saveable URL" }], isError: true },
@@ -170,10 +212,7 @@ describe("initMcpServer", () => {
 
 		it("returns an error result when the url argument is missing", async () => {
 			const server = initMcpServer(fakeDeps());
-			const response = await server.handle(
-				{ jsonrpc: "2.0", id: 6, method: "tools/call", params: { name: "save_link" } },
-				context,
-			);
+			const response = await call(server, 6, "save_link");
 			expect(response).toMatchObject({
 				id: 6,
 				result: { isError: true, content: [{ text: expect.stringContaining("url") }] },
@@ -185,15 +224,7 @@ describe("initMcpServer", () => {
 				throw new Error("boom");
 			});
 			const server = initMcpServer(fakeDeps({ saveLink }));
-			const response = await server.handle(
-				{
-					jsonrpc: "2.0",
-					id: 7,
-					method: "tools/call",
-					params: { name: "save_link", arguments: { url: "https://example.com/a" } },
-				},
-				context,
-			);
+			const response = await call(server, 7, "save_link", { url: "https://example.com/a" });
 			expect(response).toMatchObject({
 				id: 7,
 				result: { isError: true, content: [{ text: expect.stringContaining("boom") }] },
@@ -202,42 +233,44 @@ describe("initMcpServer", () => {
 	});
 
 	describe("tools/call list_queue", () => {
-		it("reports an empty queue", async () => {
+		it("reports an empty queue with the exact legacy text", async () => {
 			const server = initMcpServer(fakeDeps());
-			const response = await server.handle(
-				{ jsonrpc: "2.0", id: 8, method: "tools/call", params: { name: "list_queue" } },
-				context,
-			);
+			const response = await call(server, 8, "list_queue");
 			expect(response).toMatchObject({
 				id: 8,
 				result: { content: [{ type: "text", text: "Your Readplace queue is empty." }] },
 			});
 		});
 
-		it("formats saved articles and forwards the status filter", async () => {
+		it("formats saved articles, exposes ids in structuredContent, and forwards the status filter", async () => {
 			const listQueue = jest.fn(async () => ({
 				total: 2,
+				page: 1,
+				pageSize: 20,
 				articles: [
-					{ url: "https://a.test/", title: "A", status: "unread" as const },
-					{ url: "https://b.test/", title: "", status: "read" as const },
+					mcpArticle({ id: "a".repeat(32), url: "https://a.test/", title: "A", status: "unread" }),
+					mcpArticle({ id: "b".repeat(32), url: "https://b.test/", title: "", status: "read" }),
 				],
 			}));
 			const server = initMcpServer(fakeDeps({ listQueue }));
-			const response = await server.handle(
-				{
-					jsonrpc: "2.0",
-					id: 9,
-					method: "tools/call",
-					params: { name: "list_queue", arguments: { status: "unread" } },
-				},
-				context,
-			);
-			expect(listQueue).toHaveBeenCalledWith({ userId, status: "unread" });
-			expect(response).toMatchObject({
-				result: { content: [{ text: expect.stringContaining("You have 2 saved article(s)") }] },
+			const response = await call(server, 9, "list_queue", { status: "unread" });
+			expect(listQueue).toHaveBeenCalledWith({
+				userId,
+				status: "unread",
+				page: 1,
+				sort: undefined,
+				order: undefined,
+				pageSize: undefined,
 			});
 			expect(response).toMatchObject({
-				result: { content: [{ text: expect.stringContaining("https://a.test/") }] },
+				result: {
+					content: [{ text: expect.stringContaining("You have 2 saved article(s)") }],
+					structuredContent: {
+						total: 2,
+						count: 2,
+						articles: [{ id: "a".repeat(32) }, { id: "b".repeat(32) }],
+					},
+				},
 			});
 			// Falls back to the url when the title is still empty (content loading).
 			expect(response).toMatchObject({
@@ -248,16 +281,12 @@ describe("initMcpServer", () => {
 		it("flags that only the first page is shown when the total exceeds the listed articles", async () => {
 			const listQueue = jest.fn(async () => ({
 				total: 5,
-				articles: [
-					{ url: "https://a.test/", title: "A", status: "unread" as const },
-					{ url: "https://b.test/", title: "B", status: "unread" as const },
-				],
+				page: 1,
+				pageSize: 20,
+				articles: [mcpArticle({ title: "A" }), mcpArticle({ title: "B" })],
 			}));
 			const server = initMcpServer(fakeDeps({ listQueue }));
-			const response = await server.handle(
-				{ jsonrpc: "2.0", id: 14, method: "tools/call", params: { name: "list_queue" } },
-				context,
-			);
+			const response = await call(server, 14, "list_queue");
 			expect(response).toMatchObject({
 				result: {
 					content: [
@@ -267,17 +296,104 @@ describe("initMcpServer", () => {
 			});
 		});
 
+		it("emits a nextCursor when more pages remain", async () => {
+			const listQueue = jest.fn(async () => ({
+				total: 5,
+				page: 1,
+				pageSize: 2,
+				articles: [mcpArticle({ title: "A" }), mcpArticle({ title: "B" })],
+			}));
+			const server = initMcpServer(fakeDeps({ listQueue }));
+			const response = await call(server, 20, "list_queue", { limit: 2 });
+			expect(response).toMatchObject({
+				result: { structuredContent: { nextCursor: expect.any(String) } },
+			});
+		});
+
+		it("continues from a cursor at the next page", async () => {
+			const cursor = encodeQueueCursor({ page: 2, pageSize: 2 });
+			const listQueue = jest.fn(async () => ({
+				total: 5,
+				page: 2,
+				pageSize: 2,
+				articles: [mcpArticle({ title: "C" }), mcpArticle({ title: "D" })],
+			}));
+			const server = initMcpServer(fakeDeps({ listQueue }));
+			const response = await call(server, 21, "list_queue", { cursor });
+			expect(listQueue).toHaveBeenCalledWith({
+				userId,
+				page: 2,
+				pageSize: 2,
+				status: undefined,
+				sort: undefined,
+				order: undefined,
+			});
+			expect(response).toMatchObject({
+				result: { content: [{ text: expect.stringContaining("Showing 2 more of your 5 saved article(s):") }] },
+			});
+		});
+
+		it("reports no-more-articles for a page past the end", async () => {
+			const cursor = encodeQueueCursor({ page: 9, pageSize: 2 });
+			const listQueue = jest.fn(async () => ({
+				total: 5,
+				page: 9,
+				pageSize: 2,
+				articles: [],
+			}));
+			const server = initMcpServer(fakeDeps({ listQueue }));
+			const response = await call(server, 22, "list_queue", { cursor });
+			expect(response).toMatchObject({
+				result: { content: [{ text: "No more saved articles." }] },
+			});
+		});
+
+		it("rejects an invalid cursor with a restart instruction", async () => {
+			const server = initMcpServer(fakeDeps());
+			const response = await call(server, 23, "list_queue", { cursor: "garbage" });
+			expect(response).toMatchObject({
+				id: 23,
+				result: { isError: true, content: [{ text: expect.stringContaining("without a cursor") }] },
+			});
+		});
+
+		it("maps sort:read to the readAt index when status is read", async () => {
+			const listQueue = jest.fn(async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }));
+			const server = initMcpServer(fakeDeps({ listQueue }));
+			await call(server, 24, "list_queue", { status: "read", sort: "read", order: "asc" });
+			expect(listQueue).toHaveBeenCalledWith({
+				userId,
+				status: "read",
+				sort: "readAt",
+				order: "asc",
+				page: 1,
+				pageSize: undefined,
+			});
+		});
+
+		it("maps sort:saved to the savedAt index", async () => {
+			const listQueue = jest.fn(async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }));
+			const server = initMcpServer(fakeDeps({ listQueue }));
+			await call(server, 25, "list_queue", { sort: "saved" });
+			expect(listQueue).toHaveBeenCalledWith(
+				expect.objectContaining({ sort: "savedAt" }),
+			);
+		});
+
+		it("refuses sort:read without status:read", async () => {
+			const listQueue = jest.fn(async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }));
+			const server = initMcpServer(fakeDeps({ listQueue }));
+			const response = await call(server, 26, "list_queue", { sort: "read" });
+			expect(response).toMatchObject({
+				id: 26,
+				result: { isError: true, content: [{ text: expect.stringContaining('status:"read"') }] },
+			});
+			expect(listQueue).not.toHaveBeenCalled();
+		});
+
 		it("returns an error result for an invalid status", async () => {
 			const server = initMcpServer(fakeDeps());
-			const response = await server.handle(
-				{
-					jsonrpc: "2.0",
-					id: 10,
-					method: "tools/call",
-					params: { name: "list_queue", arguments: { status: "archived" } },
-				},
-				context,
-			);
+			const response = await call(server, 10, "list_queue", { status: "archived" });
 			expect(response).toMatchObject({ id: 10, result: { isError: true } });
 		});
 
@@ -286,14 +402,244 @@ describe("initMcpServer", () => {
 				throw new Error("db down");
 			});
 			const server = initMcpServer(fakeDeps({ listQueue }));
-			const response = await server.handle(
-				{ jsonrpc: "2.0", id: 11, method: "tools/call", params: { name: "list_queue" } },
-				context,
-			);
+			const response = await call(server, 11, "list_queue");
 			expect(response).toMatchObject({
 				id: 11,
 				result: { isError: true, content: [{ text: expect.stringContaining("db down") }] },
 			});
+		});
+	});
+
+	describe("tools/call get_article", () => {
+		it("returns the article's metadata and structured payload", async () => {
+			const article = mcpArticle({ title: "Deep Work", url: "https://a.test/dw" });
+			const server = initMcpServer(fakeDeps({ getArticle: async () => article }));
+			const response = await call(server, 30, "get_article", { id: article.id });
+			expect(response).toMatchObject({
+				result: {
+					content: [{ text: expect.stringContaining("Deep Work") }],
+					structuredContent: { found: true, article: { id: article.id } },
+				},
+			});
+		});
+
+		it("falls back to the url and shows read date and excerpt when present", async () => {
+			const article = mcpArticle({
+				title: "",
+				url: "https://a.test/x",
+				excerpt: "A short take",
+				status: "read",
+				readAt: "2026-03-03T00:00:00.000Z",
+			});
+			const server = initMcpServer(fakeDeps({ getArticle: async () => article }));
+			const response = await call(server, 34, "get_article", { id: article.id });
+			for (const fragment of ["https://a.test/x", "A short take", "read 2026-03-03"]) {
+				expect(response).toMatchObject({
+					result: { content: [{ text: expect.stringContaining(fragment) }] },
+				});
+			}
+		});
+
+		it("reports not found for an id that does not resolve", async () => {
+			const server = initMcpServer(fakeDeps({ getArticle: async () => null }));
+			const response = await call(server, 31, "get_article", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: {
+					content: [{ text: expect.stringContaining("No saved article") }],
+					structuredContent: { found: false },
+				},
+			});
+		});
+
+		it("rejects a missing id", async () => {
+			const server = initMcpServer(fakeDeps());
+			const response = await call(server, 32, "get_article", {});
+			expect(response).toMatchObject({
+				id: 32,
+				result: { isError: true, content: [{ text: expect.stringContaining("id") }] },
+			});
+		});
+
+		it("returns an error result when the lookup throws", async () => {
+			const server = initMcpServer(
+				fakeDeps({
+					getArticle: async () => {
+						throw new Error("kaboom");
+					},
+				}),
+			);
+			const response = await call(server, 33, "get_article", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: { isError: true, content: [{ text: expect.stringContaining("kaboom") }] },
+			});
+		});
+	});
+
+	describe("tools/call get_article_content", () => {
+		it("returns the cleaned HTML when ready", async () => {
+			const server = initMcpServer(
+				fakeDeps({ getArticleContent: async () => ({ status: "ready", content: "<p>hi</p>" }) }),
+			);
+			const response = await call(server, 40, "get_article_content", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: {
+					content: [{ text: "<p>hi</p>" }],
+					structuredContent: { status: "ready", content: "<p>hi</p>" },
+				},
+			});
+		});
+
+		it("reports that the reader view is still loading", async () => {
+			const server = initMcpServer(
+				fakeDeps({ getArticleContent: async () => ({ status: "pending" }) }),
+			);
+			const response = await call(server, 41, "get_article_content", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: {
+					content: [{ text: expect.stringContaining("isn't ready yet") }],
+					structuredContent: { status: "pending" },
+				},
+			});
+		});
+
+		it("reports not found", async () => {
+			const server = initMcpServer(
+				fakeDeps({ getArticleContent: async () => ({ status: "not_found" }) }),
+			);
+			const response = await call(server, 42, "get_article_content", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: { content: [{ text: expect.stringContaining("No saved article") }] },
+			});
+		});
+
+		it("rejects a missing id", async () => {
+			const server = initMcpServer(fakeDeps());
+			const response = await call(server, 43, "get_article_content", {});
+			expect(response).toMatchObject({ result: { isError: true } });
+		});
+
+		it("returns an error result when the lookup throws", async () => {
+			const server = initMcpServer(
+				fakeDeps({
+					getArticleContent: async () => {
+						throw new Error("read fail");
+					},
+				}),
+			);
+			const response = await call(server, 44, "get_article_content", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: { isError: true, content: [{ text: expect.stringContaining("read fail") }] },
+			});
+		});
+	});
+
+	describe("tools/call get_article_summary", () => {
+		it("returns the summary when ready", async () => {
+			const server = initMcpServer(
+				fakeDeps({ getArticleSummary: async () => ({ status: "ready", summary: "The gist." }) }),
+			);
+			const response = await call(server, 50, "get_article_summary", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: {
+					content: [{ text: "The gist." }],
+					structuredContent: { status: "ready", summary: "The gist." },
+				},
+			});
+		});
+
+		it("reports a pending summary", async () => {
+			const server = initMcpServer(
+				fakeDeps({ getArticleSummary: async () => ({ status: "pending" }) }),
+			);
+			const response = await call(server, 51, "get_article_summary", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: { content: [{ text: expect.stringContaining("still being generated") }] },
+			});
+		});
+
+		it("reports a failed summary with its reason", async () => {
+			const server = initMcpServer(
+				fakeDeps({ getArticleSummary: async () => ({ status: "failed", reason: "model error" }) }),
+			);
+			const response = await call(server, 52, "get_article_summary", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: { content: [{ text: expect.stringContaining("model error") }] },
+			});
+		});
+
+		it("reports a skipped summary", async () => {
+			const server = initMcpServer(
+				fakeDeps({ getArticleSummary: async () => ({ status: "skipped" }) }),
+			);
+			const response = await call(server, 53, "get_article_summary", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: { content: [{ text: expect.stringContaining("No summary was generated") }] },
+			});
+		});
+
+		it("reports not found", async () => {
+			const server = initMcpServer(
+				fakeDeps({ getArticleSummary: async () => ({ status: "not_found" }) }),
+			);
+			const response = await call(server, 54, "get_article_summary", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: { content: [{ text: expect.stringContaining("No saved article") }] },
+			});
+		});
+
+		it("rejects a missing id", async () => {
+			const server = initMcpServer(fakeDeps());
+			const response = await call(server, 55, "get_article_summary", {});
+			expect(response).toMatchObject({ result: { isError: true } });
+		});
+
+		it("returns an error result when the lookup throws", async () => {
+			const server = initMcpServer(
+				fakeDeps({
+					getArticleSummary: async () => {
+						throw new Error("summary fail");
+					},
+				}),
+			);
+			const response = await call(server, 56, "get_article_summary", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				result: { isError: true, content: [{ text: expect.stringContaining("summary fail") }] },
+			});
+		});
+	});
+
+	describe("tools/call app-only write tools", () => {
+		it("redirects set_article_status to the app without mutating", async () => {
+			const server = initMcpServer(fakeDeps());
+			const response = await call(server, 60, "set_article_status", {
+				id: "x".repeat(32),
+				status: "read",
+			});
+			expect(response).toMatchObject({
+				id: 60,
+				result: {
+					content: [{ text: expect.stringContaining("Readplace app") }],
+					structuredContent: {
+						action: "set_article_status",
+						performed: false,
+						completeInApp: "https://readplace.com/queue",
+					},
+				},
+			});
+			expect(response).not.toMatchObject({ result: { isError: true } });
+		});
+
+		it("redirects delete_article to the app without deleting", async () => {
+			const server = initMcpServer(fakeDeps());
+			const response = await call(server, 61, "delete_article", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				id: 61,
+				result: {
+					content: [{ text: expect.stringContaining("Readplace app") }],
+					structuredContent: { action: "delete_article", performed: false },
+				},
+			});
+			expect(response).not.toMatchObject({ result: { isError: true } });
 		});
 	});
 
@@ -308,10 +654,7 @@ describe("initMcpServer", () => {
 
 	it("rejects tools/call for an unknown tool", async () => {
 		const server = initMcpServer(fakeDeps());
-		const response = await server.handle(
-			{ jsonrpc: "2.0", id: 13, method: "tools/call", params: { name: "delete_everything" } },
-			context,
-		);
+		const response = await call(server, 13, "delete_everything");
 		expect(response).toMatchObject({
 			id: 13,
 			error: { code: -32602, message: "Unknown tool: delete_everything" },

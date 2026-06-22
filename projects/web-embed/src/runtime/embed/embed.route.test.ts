@@ -4,6 +4,7 @@ import { JSDOM } from "jsdom";
 import request from "supertest";
 import express from "express";
 import { initEmbedRoutes } from "./embed.page";
+import { renderCanonicalSnippet } from "./snippet.component";
 
 const servers: Server[] = [];
 afterEach(async () => {
@@ -112,9 +113,24 @@ describe("GET /embed", () => {
 		expect(doc.querySelectorAll("button[data-copy]")).toHaveLength(4);
 	});
 
-	it("should include the copy-to-clipboard inline script", async () => {
+	it("should reference the copy-to-clipboard script same-origin, not inline", async () => {
 		const response = await request(makeServer()).get("/embed");
+		const doc = new JSDOM(response.text).window.document;
+		const script = doc.querySelector('script[src$="/embed/embed.client.js"]');
+		expect(script).not.toBeNull();
+		expect(response.text).not.toContain("navigator.clipboard");
+	});
+
+	it("should serve the copy-to-clipboard script same-origin as JavaScript", async () => {
+		const response = await request(makeServer()).get("/embed/embed.client.js");
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toContain("text/javascript");
 		expect(response.text).toContain("navigator.clipboard");
+	});
+
+	it("should serve the copy-to-clipboard script with a revalidating cache so it can never go stale against the per-request HTML", async () => {
+		const response = await request(makeServer()).get("/embed/embed.client.js");
+		expect(response.headers["cache-control"]).toBe("public, max-age=0, must-revalidate");
 	});
 
 	it("should register / with the default indexable robots directive", async () => {
@@ -146,9 +162,7 @@ describe("GET /embed", () => {
 		const doc = new JSDOM(response.text).window.document;
 		const source = doc.querySelector('[data-test="source-b"]');
 		assert(source, "source-b must be rendered");
-		expect(source.textContent).toContain("https://readplace.com/save?url=PAGE_URL");
-		expect(source.textContent).toContain("https://readplace.com/embed/icon.svg");
-		expect(source.textContent).not.toContain("http://127.0.0.1:9999");
+		expect(source.textContent).toBe(renderCanonicalSnippet("b"));
 	});
 
 	it("should link the footer back to the Readplace app origin", async () => {

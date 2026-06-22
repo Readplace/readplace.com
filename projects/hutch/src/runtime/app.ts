@@ -21,9 +21,12 @@ import { initReadabilityParser, linkedinPreParser, mediumPreParser, theInformati
 import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 import {
 	createOAuthModel,
+	initInMemoryOAuthClients,
 	initInMemoryOAuthModel,
 } from "@packages/test-fixtures/providers/oauth";
 import { initDynamoDbOAuthModel } from "./providers/oauth/dynamodb-oauth-model";
+import { initDynamoDbOAuthClients } from "./providers/oauth/dynamodb-oauth-clients";
+import { initOAuthClientLookup } from "@packages/domain/oauth";
 import { createValidateAccessToken } from "@packages/test-fixtures/providers/oauth";
 import { initLogEmail } from "./providers/email/log-email";
 import { initResendEmail } from "./providers/email/resend-email";
@@ -117,7 +120,8 @@ function createPdfDeferralStub(publishStaleCheckRequested: PublishStaleCheckRequ
 
 function initProviders() {
 	const persistence = requireEnv<"prod" | "development">("PERSISTENCE");
-	const logError = (message: string, error?: Error) => console.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
+	const logger = HutchLogger.from(consoleLogger);
+	const logError = (message: string, error?: Error) => logger.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack }));
 
 	const crawlFetch = initCrawlFetch({ fetch: globalThis.fetch, personas: CRAWL_PERSONAS, isBlocked: isBlockedIpAddress });
 	const staleTtlMs = 86400000;
@@ -160,7 +164,15 @@ function initProviders() {
 			],
 			logError,
 		});
-		const oauthModel = initDynamoDbOAuthModel({ client, tableName: oauthTable, findUserById: auth.findUserById });
+		const oauthClients = initDynamoDbOAuthClients({ client, tableName: oauthTable, now: () => new Date() });
+		const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });
+		const oauthModel = initDynamoDbOAuthModel({
+			client,
+			tableName: oauthTable,
+			findUserById: auth.findUserById,
+			findClient: oauthClientLookup.findClient,
+			markClientActive: oauthClientLookup.markClientActive,
+		});
 		const summaryStore = initDynamoDbGeneratedSummary({ client, tableName: articlesTable });
 		const crawlStore = initDynamoDbArticleCrawl({ client, tableName: articlesTable });
 		const { publishEvent } = initEventBridgePublisher({
@@ -249,6 +261,7 @@ function initProviders() {
 			login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
 			signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
 			forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
+			oauthRegister: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_REGISTER")),
 		};
 
 		return {
@@ -271,6 +284,9 @@ function initProviders() {
 			googleAuth,
 			oauthModel,
 			validateAccessToken: createValidateAccessToken(oauthModel),
+			findOAuthClient: oauthClientLookup.findClient,
+			validateOAuthRedirectUri: oauthClientLookup.validateRedirectUri,
+			registerOAuthClient: oauthClients.registerClient,
 			publishLinkSaved,
 			publishRecrawlLinkInitiated,
 			publishSaveAnonymousLink,
@@ -296,7 +312,13 @@ function initProviders() {
 
 	const auth = initInMemoryAuth({ hashPassword, verifyPassword });
 	const articleStore = initInMemoryArticleStore();
-	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), { findUserById: auth.findUserById });
+	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });
+	const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });
+	const oauthModel = createOAuthModel(initInMemoryOAuthModel(), {
+		findUserById: auth.findUserById,
+		findClient: oauthClientLookup.findClient,
+		markClientActive: oauthClientLookup.markClientActive,
+	});
 	const devStripe = initInMemoryStripeCheckout({ checkoutBaseUrl: "https://checkout.stripe.test", now: () => new Date() });
 	const devStripeSubscriptions = initInMemoryStripeSubscriptions();
 	const devPendingSignup = initInMemoryPendingSignup();
@@ -414,10 +436,11 @@ function initProviders() {
 	// so prod-strength per-IP limits would throttle a full e2e run.
 	const { consumeRateLimit } = initInMemoryRateLimit({ now: () => new Date() });
 	const rateLimitRules: RateLimitRules = {
-		viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL", { defaultValue: "1000/3600" })),
-		login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN", { defaultValue: "1000/900" })),
-		signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP", { defaultValue: "1000/3600" })),
-		forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD", { defaultValue: "1000/3600" })),
+		viewCrawl: parseRateLimitRule(requireEnv("RATE_LIMIT_VIEW_CRAWL")),
+		login: parseRateLimitRule(requireEnv("RATE_LIMIT_LOGIN")),
+		signup: parseRateLimitRule(requireEnv("RATE_LIMIT_SIGNUP")),
+		forgotPassword: parseRateLimitRule(requireEnv("RATE_LIMIT_FORGOT_PASSWORD")),
+		oauthRegister: parseRateLimitRule(requireEnv("RATE_LIMIT_OAUTH_REGISTER")),
 	};
 
 	return {
@@ -435,7 +458,7 @@ function initProviders() {
 		reverseScheduledCancellation: devStripeSubscriptions.reverseScheduledCancellation,
 		stripePriceId: "price_dev_default",
 
-		...initLogEmail(),
+		...initLogEmail({ logger: HutchLogger.from(consoleLogger) }),
 		...initInMemoryEmailVerification(),
 		...initInMemoryPasswordReset(),
 		createCheckoutSession: devStripe.createCheckoutSession,
@@ -445,6 +468,9 @@ function initProviders() {
 		googleAuth,
 		oauthModel,
 		validateAccessToken: createValidateAccessToken(oauthModel),
+		findOAuthClient: oauthClientLookup.findClient,
+		validateOAuthRedirectUri: oauthClientLookup.validateRedirectUri,
+		registerOAuthClient: oauthClients.registerClient,
 		publishLinkSaved,
 		publishRecrawlLinkInitiated,
 		publishSaveAnonymousLink,
@@ -480,7 +506,7 @@ export function createHutchApp(deps?: {
 }) {
 	const { auth, articleStore, oauthModel, validateAccessToken, importSessionStore, ...providers } = initProviders();
 
-	const appOrigin = deps?.appOrigin ?? requireEnv("APP_ORIGIN", { defaultValue: `http://localhost:${getEnv("PORT") || "3000"}` });
+	const appOrigin = deps?.appOrigin ?? requireEnv("APP_ORIGIN");
 	const staticBaseUrl = requireEnv("STATIC_BASE_URL");
 	const expiryCountdown = requireEnv<"enabled" | "disabled">("EXPIRY_COUNTDOWN");
 	const foundingMemberLimit = Number.parseInt(requireEnv("FOUNDING_MEMBER_LIMIT"), 10);
@@ -522,7 +548,7 @@ export function createHutchApp(deps?: {
 		adminEmails,
 		recrawlServiceToken,
 		baseUrl: appOrigin,
-		logError: (message, error) => console.error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack })),
+		logError: (message, error) => HutchLogger.from(consoleLogger).error(JSON.stringify({ level: "ERROR", timestamp: new Date().toISOString(), message, stack: error?.stack })),
 		oauthModel,
 		validateAccessToken,
 		httpErrorMessageMapping,

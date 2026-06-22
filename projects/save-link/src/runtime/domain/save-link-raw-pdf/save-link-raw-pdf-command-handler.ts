@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import type { Handler, SQSBatchItemFailure, SQSBatchResponse, SQSEvent } from "aws-lambda";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { ExtractPdf } from "@packages/crawl-article";
-import { parsePdfFromBuffer } from "@packages/crawl-article";
+import { MAX_PDF_BYTES, parsePdfFromBuffer } from "@packages/crawl-article";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import {
 	markCrawlFailed,
@@ -76,6 +76,7 @@ export function initSaveLinkRawPdfCommandHandler(deps: {
 					 * those fields from the result accordingly. */
 					response: undefined,
 					url: detail.url,
+					maxPdfBytes: MAX_PDF_BYTES.bytes,
 					extractPdf,
 					logError: (msg, err) => logger.error(msg, { error: err }),
 				});

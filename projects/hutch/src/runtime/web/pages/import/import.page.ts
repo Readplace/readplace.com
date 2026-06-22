@@ -17,7 +17,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "@packages/web-shell";
-import { saveArticleFromUrl, type SaveArticleFromUrlDependencies } from "../../shared/save-article/save-article-from-url";
+import { initSaveArticleFromUrl, type SaveArticleFromUrlDependencies } from "../../shared/save-article/save-article-from-url";
 import type { AnalyticsEvent } from "../../middleware/analytics";
 import { hashIp } from "../../middleware/analytics";
 import { ANALYTICS_EVENTS, STREAMS } from "../../../observability/events";
@@ -25,6 +25,7 @@ import {
 	IMPORT_SKIPPED_COOKIE_NAME,
 	encodeImportSkippedCookie,
 } from "./import-skipped-cookie";
+import { QUEUE_PATH } from "../queue/queue.url";
 import { ImportAcquirePage, ImportPage } from "./import.component";
 import { importErrorMessageMapping } from "./import.error";
 import { toImportAcquireViewModel, toImportViewModel } from "./import.viewmodel";
@@ -173,7 +174,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const parsedId = ImportSessionIdSchema.safeParse(req.params.id);
 		if (!parsedId.success) {
-			res.redirect(303, "/queue");
+			res.redirect(303, QUEUE_PATH);
 			return;
 		}
 
@@ -277,7 +278,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 				batch.map((url) =>
 					deps
 						.refreshArticleIfStale({ url })
-						.then((freshness) => saveArticleFromUrl(deps, { userId, url, freshness }))
+						.then((freshness) => initSaveArticleFromUrl(deps)({ userId, url, freshness }))
 						.catch((error: unknown) => {
 							deps.logError(
 								`Failed to import url=${url}`,
@@ -296,7 +297,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 			 * queue render. Capped at MAX_COOKIE_ITEMS to stay under the 4 KiB
 			 * cookie limit on large skip volumes. */
 			res.cookie(IMPORT_SKIPPED_COOKIE_NAME, encodeImportSkippedCookie(skipped), {
-				path: "/queue",
+				path: QUEUE_PATH,
 				maxAge: 5 * 60 * 1000,
 				sameSite: "lax",
 				httpOnly: true,
@@ -319,7 +320,7 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 		});
 		res.redirect(
 			303,
-			`/queue?import_imported=${saveable.length}&import_total=${session.totalUrls}&import_skipped=${skipped.length}`,
+			`${QUEUE_PATH}?import_imported=${saveable.length}&import_total=${session.totalUrls}&import_skipped=${skipped.length}`,
 		);
 	});
 
