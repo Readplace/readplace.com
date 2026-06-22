@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { UserIdSchema } from "@packages/domain/user";
 import { initInMemoryStripeSubscriptions } from "./in-memory-stripe-subscriptions";
+
+const USER_ID = UserIdSchema.parse("usr_inmem_test");
 
 describe("initInMemoryStripeSubscriptions", () => {
 	it("records each cancelImmediately call for assertion", async () => {
@@ -34,16 +37,28 @@ describe("initInMemoryStripeSubscriptions", () => {
 		const first = await stripe.createSubscriptionOnExistingCustomer({
 			customerId: "cus_existing",
 			priceId: "price_abc",
+			userId: USER_ID,
 		});
 		const second = await stripe.createSubscriptionOnExistingCustomer({
 			customerId: "cus_existing",
 			priceId: "price_abc",
+			userId: USER_ID,
 		});
 
 		assert.notEqual(first.subscriptionId, second.subscriptionId);
 		assert.deepEqual(stripe.createdSubscriptions(), [
-			{ customerId: "cus_existing", priceId: "price_abc", subscriptionId: first.subscriptionId },
-			{ customerId: "cus_existing", priceId: "price_abc", subscriptionId: second.subscriptionId },
+			{
+				customerId: "cus_existing",
+				priceId: "price_abc",
+				userId: USER_ID,
+				subscriptionId: first.subscriptionId,
+			},
+			{
+				customerId: "cus_existing",
+				priceId: "price_abc",
+				userId: USER_ID,
+				subscriptionId: second.subscriptionId,
+			},
 		]);
 	});
 
@@ -51,7 +66,12 @@ describe("initInMemoryStripeSubscriptions", () => {
 		const stripe = initInMemoryStripeSubscriptions({ createSubscriptionFails: true });
 
 		await assert.rejects(
-			() => stripe.createSubscriptionOnExistingCustomer({ customerId: "cus_x", priceId: "price_y" }),
+			() =>
+				stripe.createSubscriptionOnExistingCustomer({
+					customerId: "cus_x",
+					priceId: "price_y",
+					userId: USER_ID,
+				}),
 			/In-memory Stripe createSubscription failure/,
 		);
 		assert.deepEqual(stripe.createdSubscriptions(), []);

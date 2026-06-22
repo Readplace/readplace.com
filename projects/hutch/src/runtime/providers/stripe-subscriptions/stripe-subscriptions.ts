@@ -83,10 +83,13 @@ export function initStripeSubscriptions(deps: {
 	const createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer = async ({
 		customerId,
 		priceId,
+		userId,
 	}) => {
 		const body = new URLSearchParams();
 		body.set("customer", customerId);
 		body.set("items[0][price]", priceId);
+		// Traces the subscription back to its account when the customer paid under a different email.
+		body.set("metadata[userId]", userId);
 
 		const response = await deps.fetch(`${STRIPE_API}/subscriptions`, {
 			method: "POST",

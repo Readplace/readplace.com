@@ -170,7 +170,12 @@ export interface StripeSubscriptionsBundle {
 	createSubscriptionOnExistingCustomer: CreateSubscriptionOnExistingCustomer;
 	scheduleCancellationAtPeriodEnd: ScheduleCancellationAtPeriodEnd;
 	reverseScheduledCancellation: ReverseScheduledCancellation;
-	createdSubscriptions: () => readonly { customerId: string; priceId: string; subscriptionId: string }[];
+	createdSubscriptions: () => readonly {
+		customerId: string;
+		priceId: string;
+		userId: UserId;
+		subscriptionId: string;
+	}[];
 	scheduledCancellations: () => readonly { subscriptionId: string; cancellationEffectiveAt: string }[];
 	reversedCancellations: () => readonly string[];
 }

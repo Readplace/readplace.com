@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { UserIdSchema } from "@packages/domain/user";
 import { initStripeSubscriptions } from "./stripe-subscriptions";
+
+const USER_ID = UserIdSchema.parse("usr_test_abc123");
 
 function jsonResponse(status: number, body: object): Response {
 	return new Response(JSON.stringify(body), {
@@ -94,7 +97,7 @@ describe("initStripeSubscriptions", () => {
 	});
 
 	describe("createSubscriptionOnExistingCustomer", () => {
-		it("issues POST /v1/subscriptions with customer + items[0][price] and returns the new id", async () => {
+		it("issues POST /v1/subscriptions with customer + items[0][price] + userId metadata and returns the new id", async () => {
 			let receivedUrl: string | undefined;
 			let receivedInit: RequestInit | undefined;
 			const fakeFetch: typeof globalThis.fetch = async (input, init) => {
@@ -108,6 +111,7 @@ describe("initStripeSubscriptions", () => {
 			const result = await stripe.createSubscriptionOnExistingCustomer({
 				customerId: "cus_existing",
 				priceId: "price_abc",
+				userId: USER_ID,
 			});
 
 			assert.equal(result.subscriptionId, "sub_freshly_created");
@@ -119,6 +123,7 @@ describe("initStripeSubscriptions", () => {
 			const body = String(receivedInit?.body ?? "");
 			assert.ok(body.includes("customer=cus_existing"));
 			assert.ok(body.includes("items%5B0%5D%5Bprice%5D=price_abc"));
+			assert.ok(body.includes("metadata%5BuserId%5D=usr_test_abc123"));
 		});
 
 		it("throws with the Stripe error message when the API returns a non-2xx", async () => {
@@ -132,6 +137,7 @@ describe("initStripeSubscriptions", () => {
 					stripe.createSubscriptionOnExistingCustomer({
 						customerId: "cus_declined",
 						priceId: "price_abc",
+						userId: USER_ID,
 					}),
 				/Stripe createSubscriptionOnExistingCustomer failed \(402\): Your card was declined\./,
 			);
@@ -148,6 +154,7 @@ describe("initStripeSubscriptions", () => {
 					stripe.createSubscriptionOnExistingCustomer({
 						customerId: "cus_x",
 						priceId: "price_y",
+						userId: USER_ID,
 					}),
 				/Stripe createSubscriptionOnExistingCustomer failed \(500\): Stripe error/,
 			);
@@ -164,6 +171,7 @@ describe("initStripeSubscriptions", () => {
 					stripe.createSubscriptionOnExistingCustomer({
 						customerId: "cus_y",
 						priceId: "price_z",
+						userId: USER_ID,
 					}),
 				/Stripe createSubscriptionOnExistingCustomer failed \(400\): Stripe error/,
 			);

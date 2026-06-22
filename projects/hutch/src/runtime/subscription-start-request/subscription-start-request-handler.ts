@@ -50,6 +50,7 @@ export function initSubscriptionStartRequestHandler(
 			const { subscriptionId } = await deps.createSubscriptionOnExistingCustomer({
 				customerId: row.customerId,
 				priceId: deps.stripePriceId,
+				userId,
 			});
 			await deps.publishSubscriptionChargeSucceeded({
 				userId,

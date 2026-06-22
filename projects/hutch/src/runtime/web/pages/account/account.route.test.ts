@@ -391,6 +391,8 @@ describe("POST /account/subscribe", () => {
 		expect(created).toHaveLength(1);
 		expect(created[0].customerId).toBe("cus_was_paid");
 		expect(created[0].priceId).toBe("price_test_default");
+		// userId rides into Stripe metadata so the subscription is traceable to this account.
+		expect(created[0].userId).toBe(userId);
 
 		// Row is now active with the NEW subscriptionId, replacing sub_was_paid.
 		const row = await subscriptionProviders.findByUserId(userId);

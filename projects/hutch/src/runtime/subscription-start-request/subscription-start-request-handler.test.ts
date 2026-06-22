@@ -190,6 +190,7 @@ describe("subscription-start-request handler", () => {
 			{
 				customerId: "cus_with_card",
 				priceId: STRIPE_PRICE_ID,
+				userId: USER_ID,
 				subscriptionId: subject.succeededEvents[0].subscriptionId,
 			},
 		]);
