@@ -21,7 +21,7 @@
       "cache": false,
       "dependsOn": ["generate"]
     },
-    "compile-test": {
+    "compile-dev": {
       "command": "READPLACE_ENV=staging bash scripts/build-unsigned-ipa.sh",
       "options": { "cwd": "{projectRoot}" },
       "outputs": ["{projectRoot}/build/Readplace-staging-unsigned.ipa"],

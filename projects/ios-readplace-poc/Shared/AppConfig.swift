@@ -27,9 +27,9 @@ enum ServerEnvironment {
 /// callback listed in the server's
 /// `src/packages/domain/src/oauth/built-in-clients.ts`.
 enum AppConfig {
-	/// The server this build targets, fixed at compile time. The `compile-test`
-	/// build sets the `STAGING` Swift compilation condition to select staging;
-	/// every other build is production. There is no runtime override.
+	/// The server this build targets, fixed at compile time. Builds with the
+	/// `STAGING` Swift compilation condition select staging; every other build
+	/// is production. There is no runtime override.
 	#if STAGING
 	static let serverEnvironment: ServerEnvironment = .staging
 	#else
