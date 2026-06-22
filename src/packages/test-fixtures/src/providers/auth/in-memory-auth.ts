@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import type { UserId } from "@packages/domain/user";
-import { UserIdSchema, userIdPrefixFrom } from "@packages/domain/user";
+import { UserIdSchema, authenticatedUserIdFrom, userIdPrefixFrom } from "@packages/domain/user";
 import type {
 	CountUsers,
 	CreateGoogleUser,
@@ -161,7 +161,12 @@ export function initInMemoryAuth(opts: {
 	};
 
 	const getSessionUserId: GetSessionUserId = async (sessionId) => {
-		return sessions.get(sessionId) ?? null;
+		const session = sessions.get(sessionId);
+		if (!session) return null;
+		return {
+			userId: authenticatedUserIdFrom(session.userId),
+			emailVerified: session.emailVerified,
+		};
 	};
 
 	const destroySession: DestroySession = async (sessionId) => {

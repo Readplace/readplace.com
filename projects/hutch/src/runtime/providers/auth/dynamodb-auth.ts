@@ -7,7 +7,7 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import { UserIdSchema, userIdPrefixFrom } from "@packages/domain/user";
+import { UserIdSchema, authenticatedUserIdFrom, userIdPrefixFrom } from "@packages/domain/user";
 import type {
 	CountUsers,
 	CreateGoogleUser,
@@ -199,7 +199,7 @@ export function initDynamoDbAuth(deps: {
 		if (!row) return null;
 		if (row.expiresAt < Math.floor(Date.now() / 1000)) return null;
 		return {
-			userId: row.userId,
+			userId: authenticatedUserIdFrom(row.userId),
 			emailVerified: row.emailVerified === true,
 		};
 	};

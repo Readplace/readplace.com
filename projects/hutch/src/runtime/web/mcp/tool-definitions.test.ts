@@ -126,4 +126,28 @@ describe("MCP tool definitions", () => {
 			});
 		});
 	});
+
+	describe("no tool can accept a caller-supplied user identity", () => {
+		// The principal is bound server-side from the OAuth token (mcp.routes.ts),
+		// never from arguments. A tool that declared a userId-like field — or left
+		// additionalProperties open — would reopen the cross-user door the transport
+		// closes, so this guard fails the moment such a field is added.
+		const FORBIDDEN = ["userId", "user_id", "user", "owner", "ownerId", "accountId"];
+
+		it.each(TOOL_DEFINITIONS.map((tool) => [tool.name, tool] as const))(
+			"%s declares no principal field and forbids unknown properties",
+			(_name, tool) => {
+				for (const key of FORBIDDEN) {
+					expect(tool.inputSchema.properties).not.toHaveProperty(key);
+				}
+				expect(tool.inputSchema.additionalProperties).toBe(false);
+			},
+		);
+
+		it("strips an injected userId from every validator instead of forwarding it", () => {
+			expect(ListQueueArgs.parse({ status: "unread", userId: "victim" })).not.toHaveProperty("userId");
+			expect(ArticleIdArgs.parse({ id: "abc", userId: "victim" })).not.toHaveProperty("userId");
+			expect(SaveLinkArgs.parse({ url: "https://example.com/", userId: "victim" })).not.toHaveProperty("userId");
+		});
+	});
 });

@@ -1,11 +1,11 @@
 import express, { type Express } from "express";
 import request from "supertest";
-import { UserIdSchema } from "@packages/domain/user";
+import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
 import { initMcpRoutes } from "./mcp.routes";
 import { initMcpServer } from "./mcp-server";
 
-const userId = UserIdSchema.parse("00000000000000000000000000000001");
+const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
 
 const validateAccessToken: ValidateAccessToken = async (token) =>
 	token === "good-token" ? { userId, emailVerified: true } : null;

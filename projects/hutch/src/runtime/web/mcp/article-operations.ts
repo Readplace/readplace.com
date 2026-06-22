@@ -1,6 +1,6 @@
 import { ReaderArticleHashIdSchema } from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
-import type { UserId } from "@packages/domain/user";
+import type { AuthenticatedUserId } from "@packages/domain/user";
 import type {
 	FindArticleById,
 	FindArticlesByUser,
@@ -46,6 +46,10 @@ export function toMcpArticle(article: SavedArticle): McpArticle {
 export function toSummaryResult(
 	summary: GeneratedSummary | undefined,
 ): ArticleSummaryResult {
+	// An absent summary row maps to `pending`, the same state the reader UI shows
+	// for `undefined` (article-reader.ts: `summary?.status ?? "pending"`). Every
+	// save primes a pending row, so `undefined` is the pre-priming window — the
+	// MCP tool reports what the user's own reader would, not a separate verdict.
 	if (!summary) return { status: "pending" };
 	switch (summary.status) {
 		case "pending":
@@ -81,7 +85,7 @@ export function initMcpArticleOperations(
 	"listQueue" | "getArticle" | "getArticleContent" | "getArticleSummary"
 > {
 	async function resolveOwned(
-		userId: UserId,
+		userId: AuthenticatedUserId,
 		id: string,
 	): Promise<SavedArticle | null> {
 		const parsed = ReaderArticleHashIdSchema.safeParse(id);

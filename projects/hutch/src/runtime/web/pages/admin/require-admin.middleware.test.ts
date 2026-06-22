@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import type { UserId } from "@packages/domain/user";
+import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type { FindUserByEmail } from "@packages/test-fixtures/providers/auth";
 import { initRequireAdmin } from "./require-admin.middleware";
 
@@ -34,8 +34,8 @@ function makeRes(): { res: Response; recorded: RecordedRes } {
 }
 
 describe("initRequireAdmin", () => {
-	const ADMIN_ID = "user-alice" as UserId;
-	const OTHER_ID = "user-bob" as UserId;
+	const ADMIN_ID = authenticatedUserIdFrom("user-alice");
+	const OTHER_ID = authenticatedUserIdFrom("user-bob");
 	const SERVICE_TOKEN = "test-service-token-abc123";
 	const adminEmails = ["alice@example.com", "carol@example.com"];
 	const findUserByEmail: FindUserByEmail = async (email) => {
