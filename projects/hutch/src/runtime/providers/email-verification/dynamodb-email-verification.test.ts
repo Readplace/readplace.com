@@ -1,9 +1,9 @@
 import { ConditionalCheckFailedException, type DynamoDBDocumentClient } from "@packages/hutch-storage-client";
-import type { UserId } from "@packages/domain/user";
+import { UserIdSchema } from "@packages/domain/user";
 import { VerificationTokenSchema } from "@packages/test-fixtures/providers/email-verification";
 import { initDynamoDbEmailVerification } from "./dynamodb-email-verification";
 
-const USER = "abc123" as UserId;
+const USER = UserIdSchema.parse("abc123");
 const TOKEN = VerificationTokenSchema.parse("a".repeat(64));
 
 interface CapturedCommand {
