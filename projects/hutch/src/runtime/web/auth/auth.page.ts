@@ -30,8 +30,10 @@ import type {
 	CreateTrialEndSchedule,
 	DeleteTrialEndSchedule,
 } from "@packages/provider-contracts/trial-scheduler";
-import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
-import type { RetrieveCheckoutSession } from "@packages/provider-contracts/stripe-checkout";
+import {
+	CheckoutSessionIdSchema,
+	type RetrieveCheckoutSession,
+} from "@packages/provider-contracts/stripe-checkout";
 import type {
 	ConsumeRateLimit,
 	RateLimitRules,

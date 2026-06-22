@@ -1,9 +1,9 @@
 import assert from "node:assert";
 import { z } from "zod";
-import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
-import type {
-	CreateCheckoutSession,
-	RetrieveCheckoutSession,
+import {
+	CheckoutSessionIdSchema,
+	type CreateCheckoutSession,
+	type RetrieveCheckoutSession,
 } from "@packages/provider-contracts/stripe-checkout";
 
 const STRIPE_API = "https://api.stripe.com/v1";

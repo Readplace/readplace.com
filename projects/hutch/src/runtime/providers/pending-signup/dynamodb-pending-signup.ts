@@ -1,4 +1,3 @@
-/* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
 import {
 	type DynamoDBDocumentClient,
 	defineDynamoTable,
@@ -6,7 +5,7 @@ import {
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
-import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
+import { CheckoutSessionIdSchema } from "@packages/provider-contracts/stripe-checkout";
 import type {
 	ConsumePendingSignup,
 	ListAllPendingSignups,
@@ -154,4 +153,3 @@ export function initDynamoDbPendingSignup(deps: {
 		markCheckoutRecoveryEmailSent,
 	};
 }
-/* c8 ignore stop */
