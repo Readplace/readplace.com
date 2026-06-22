@@ -1,33 +1,74 @@
 import { z } from "zod";
 import type { UserId } from "@packages/domain/user";
 import type { ArticleStatus } from "@packages/domain/article";
+import type {
+	SortField,
+	SortOrder,
+} from "@packages/provider-contracts/article-store";
 import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
+import { decodeQueueCursor, encodeQueueCursor } from "./cursor";
 import {
+	ArticleIdArgs,
+	DELETE_ARTICLE_TOOL,
+	GET_ARTICLE_CONTENT_TOOL,
+	GET_ARTICLE_SUMMARY_TOOL,
+	GET_ARTICLE_TOOL,
 	LIST_QUEUE_TOOL,
 	ListQueueArgs,
 	SAVE_LINK_TOOL,
+	SET_ARTICLE_STATUS_TOOL,
 	SaveLinkArgs,
 	TOOL_DEFINITIONS,
 } from "./tool-definitions";
+
+/** The user's queue in the Readplace app. Status changes and deletions happen
+ * here, not over MCP — the redirect tools point the user at this URL. */
+const APP_QUEUE_URL = "https://readplace.com/queue";
 
 type SaveLinkResult =
 	| { readonly ok: true; readonly title: string; readonly url: string }
 	| { readonly ok: false; readonly message: string };
 
-interface QueueArticle {
+/** One saved article as the read tools expose it: metadata only (the reader
+ * HTML is fetched separately by `get_article_content`). Dates are ISO strings
+ * so the structured payload is plain JSON. */
+export interface McpArticle {
+	readonly id: string;
 	readonly url: string;
 	readonly title: string;
+	readonly siteName: string;
+	readonly excerpt: string;
+	readonly wordCount: number;
+	readonly imageUrl?: string;
+	readonly estimatedReadTime: number;
 	readonly status: ArticleStatus;
+	readonly savedAt: string;
+	readonly readAt?: string;
 }
 
-interface ListQueueResult {
+export type ArticleContentResult =
+	| { readonly status: "ready"; readonly content: string }
+	| { readonly status: "pending" }
+	| { readonly status: "not_found" };
+
+export type ArticleSummaryResult =
+	| { readonly status: "not_found" }
+	| { readonly status: "pending" }
+	| { readonly status: "ready"; readonly summary: string; readonly excerpt?: string }
+	| { readonly status: "failed"; readonly reason: string }
+	| { readonly status: "skipped"; readonly reason?: string };
+
+export interface ListQueueResult {
 	readonly total: number;
-	readonly articles: readonly QueueArticle[];
+	readonly page: number;
+	readonly pageSize: number;
+	readonly articles: readonly McpArticle[];
 }
 
 /** The domain operations the tools delegate to. The composition root wires
- * these to the same save/list pipeline the hypermedia `/queue` API uses, so an
- * MCP `save_link` and an extension save are the identical write. */
+ * these to the same save/list/read pipeline the hypermedia `/queue` API uses,
+ * so an MCP `save_link` and an extension save are the identical write, and the
+ * read tools see exactly what the user's own queue shows. */
 export interface McpServerDeps {
 	saveLink: (params: {
 		userId: UserId;
@@ -36,7 +77,23 @@ export interface McpServerDeps {
 	listQueue: (params: {
 		userId: UserId;
 		status?: ArticleStatus;
+		sort?: SortField;
+		order?: SortOrder;
+		page?: number;
+		pageSize?: number;
 	}) => Promise<ListQueueResult>;
+	getArticle: (params: {
+		userId: UserId;
+		id: string;
+	}) => Promise<McpArticle | null>;
+	getArticleContent: (params: {
+		userId: UserId;
+		id: string;
+	}) => Promise<ArticleContentResult>;
+	getArticleSummary: (params: {
+		userId: UserId;
+		id: string;
+	}) => Promise<ArticleSummaryResult>;
 }
 
 /** The authenticated caller a request runs as. Resolved from the OAuth bearer
@@ -68,6 +125,7 @@ interface TextContent {
 
 interface ToolResult {
 	readonly content: readonly TextContent[];
+	readonly structuredContent?: unknown;
 	readonly isError?: boolean;
 }
 
@@ -118,12 +176,33 @@ function text(value: string): ToolResult {
 	return { content: [{ type: "text", text: value }] };
 }
 
+/** A successful tool result that carries both a human-readable text block (for
+ * clients that only render text) and the machine-readable `structuredContent`
+ * (for clients that consume structured output). */
+function data(textValue: string, structuredContent: unknown): ToolResult {
+	return { content: [{ type: "text", text: textValue }], structuredContent };
+}
+
 function toolError(value: string): ToolResult {
 	return { content: [{ type: "text", text: value }], isError: true };
 }
 
 function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
+}
+
+function notFoundResult(id: string): ToolResult {
+	return data(`No saved article with id ${id} is in your queue.`, {
+		found: false,
+	});
+}
+
+function formatArticle(article: McpArticle): string {
+	const dates = article.readAt
+		? `Saved ${article.savedAt}; read ${article.readAt}`
+		: `Saved ${article.savedAt}`;
+	const excerpt = article.excerpt ? `\n${article.excerpt}` : "";
+	return `"${article.title || article.url}" [${article.status}] — ${article.url}\n${article.siteName} · ~${article.estimatedReadTime} min read · ${article.wordCount} words\n${dates}${excerpt}`;
 }
 
 export function initMcpServer(deps: McpServerDeps): McpServer {
@@ -133,7 +212,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			capabilities: { tools: { listChanged: false } },
 			serverInfo: MCP_SERVER_INFO,
 			instructions:
-				"Use save_link to add a URL to the user's Readplace reading queue, and list_queue to see what they have saved.",
+				"save_link adds a URL to the user's Readplace reading queue; list_queue lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), and get_article_summary (AI TL;DR). Marking an article read/unread or deleting it is intentionally NOT available to the assistant — the set_article_status and delete_article tools only return instructions for the user to do it in the Readplace app.",
 		};
 	}
 
@@ -144,6 +223,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				title: tool.title,
 				description: tool.description,
 				inputSchema: tool.inputSchema,
+				annotations: tool.annotations,
 			})),
 		};
 	}
@@ -176,29 +256,206 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 	): Promise<ToolResult> {
 		const args = ListQueueArgs.safeParse(rawArgs);
 		if (!args.success) {
-			return toolError('list_queue `status` must be "unread" or "read".');
+			return toolError(
+				'list_queue arguments are invalid: `status` must be "unread" or "read", `sort` "saved" or "read", `order` "asc" or "desc".',
+			);
 		}
+		const a = args.data;
+
+		let page: number;
+		let pageSize: number | undefined;
+		let status: ArticleStatus | undefined;
+		let sort: SortField | undefined;
+		let order: SortOrder | undefined;
+		if (a.cursor !== undefined) {
+			const decoded = decodeQueueCursor(a.cursor);
+			if (!decoded) {
+				return toolError(
+					"That pagination cursor is invalid or expired. Call list_queue again without a cursor to start from the first page.",
+				);
+			}
+			({ page, pageSize, status, sort, order } = decoded);
+		} else {
+			sort =
+				a.sort === "read" ? "readAt" : a.sort === "saved" ? "savedAt" : undefined;
+			if (sort === "readAt" && a.status !== "read") {
+				return toolError(
+					'Sorting by read date (`sort:"read"`) only applies to read articles — pass `status:"read"` as well.',
+				);
+			}
+			page = 1;
+			pageSize = a.limit;
+			status = a.status;
+			order = a.order;
+		}
+
 		try {
 			const outcome = await deps.listQueue({
 				userId: context.userId,
-				status: args.data.status,
+				status,
+				sort,
+				order,
+				page,
+				pageSize,
 			});
-			if (outcome.total === 0) {
-				return text("Your Readplace queue is empty.");
+			const hasMore = outcome.page * outcome.pageSize < outcome.total;
+			const nextCursor = hasMore
+				? encodeQueueCursor({
+						page: outcome.page + 1,
+						pageSize: outcome.pageSize,
+						status,
+						sort,
+						order,
+					})
+				: undefined;
+			const structuredContent = {
+				articles: outcome.articles,
+				total: outcome.total,
+				count: outcome.articles.length,
+				...(nextCursor ? { nextCursor } : {}),
+			};
+
+			if (outcome.articles.length === 0) {
+				return data(
+					outcome.total === 0
+						? "Your Readplace queue is empty."
+						: "No more saved articles.",
+					structuredContent,
+				);
 			}
+
 			const lines = outcome.articles.map(
 				(article) =>
 					`- ${article.title || article.url} [${article.status}] ${article.url}`,
 			);
 			const shown = outcome.articles.length;
-			const header =
-				shown < outcome.total
-					? `You have ${outcome.total} saved article(s); showing the first ${shown}:`
-					: `You have ${outcome.total} saved article(s):`;
-			return text(`${header}\n${lines.join("\n")}`);
+			let header: string;
+			if (outcome.page > 1) {
+				header = `Showing ${shown} more of your ${outcome.total} saved article(s):`;
+			} else if (shown < outcome.total) {
+				header = `You have ${outcome.total} saved article(s); showing the first ${shown}:`;
+			} else {
+				header = `You have ${outcome.total} saved article(s):`;
+			}
+			return data(`${header}\n${lines.join("\n")}`, structuredContent);
 		} catch (error) {
 			return toolError(`Could not list your queue. ${errorMessage(error)}`);
 		}
+	}
+
+	async function runGetArticle(
+		rawArgs: unknown,
+		context: McpRequestContext,
+	): Promise<ToolResult> {
+		const args = ArticleIdArgs.safeParse(rawArgs);
+		if (!args.success) return toolError("get_article requires an `id` string.");
+		try {
+			const article = await deps.getArticle({
+				userId: context.userId,
+				id: args.data.id,
+			});
+			if (!article) return notFoundResult(args.data.id);
+			return data(formatArticle(article), { found: true, article });
+		} catch (error) {
+			return toolError(`Could not load the article. ${errorMessage(error)}`);
+		}
+	}
+
+	async function runGetArticleContent(
+		rawArgs: unknown,
+		context: McpRequestContext,
+	): Promise<ToolResult> {
+		const args = ArticleIdArgs.safeParse(rawArgs);
+		if (!args.success) {
+			return toolError("get_article_content requires an `id` string.");
+		}
+		try {
+			const result = await deps.getArticleContent({
+				userId: context.userId,
+				id: args.data.id,
+			});
+			switch (result.status) {
+				case "not_found":
+					return notFoundResult(args.data.id);
+				case "pending":
+					return data(
+						"That article is still being fetched; its reader view isn't ready yet. Try again shortly.",
+						result,
+					);
+				case "ready":
+					return data(result.content, result);
+			}
+		} catch (error) {
+			return toolError(
+				`Could not load the article content. ${errorMessage(error)}`,
+			);
+		}
+	}
+
+	async function runGetArticleSummary(
+		rawArgs: unknown,
+		context: McpRequestContext,
+	): Promise<ToolResult> {
+		const args = ArticleIdArgs.safeParse(rawArgs);
+		if (!args.success) {
+			return toolError("get_article_summary requires an `id` string.");
+		}
+		try {
+			const result = await deps.getArticleSummary({
+				userId: context.userId,
+				id: args.data.id,
+			});
+			switch (result.status) {
+				case "not_found":
+					return notFoundResult(args.data.id);
+				case "pending":
+					return data(
+						"The AI summary for that article is still being generated. Try again shortly.",
+						result,
+					);
+				case "ready":
+					return data(result.summary, result);
+				case "failed":
+					return data(
+						`The summary for that article could not be generated: ${result.reason}`,
+						result,
+					);
+				case "skipped":
+					return data(
+						"No summary was generated for that article (it may be too short or an unsupported type).",
+						result,
+					);
+			}
+		} catch (error) {
+			return toolError(
+				`Could not load the article summary. ${errorMessage(error)}`,
+			);
+		}
+	}
+
+	/** Both write actions are app-only. The handler never touches the store; it
+	 * returns the same wording the user would see if they asked the assistant to
+	 * do it, so the assistant relays "do it in the app" instead of inventing a
+	 * capability it doesn't have. */
+	function appOnlyResult(
+		action: "set_article_status" | "delete_article",
+		message: string,
+	): ToolResult {
+		return data(message, { action, performed: false, completeInApp: APP_QUEUE_URL });
+	}
+
+	function runSetArticleStatus(): ToolResult {
+		return appOnlyResult(
+			"set_article_status",
+			`Marking an article read or unread is done in the Readplace app, not by your assistant, so changes to your queue stay under your control. Open your queue at ${APP_QUEUE_URL} to change an article's status.`,
+		);
+	}
+
+	function runDeleteArticle(): ToolResult {
+		return appOnlyResult(
+			"delete_article",
+			`Deleting a saved article is done in the Readplace app, not by your assistant, so nothing is removed by mistake. Open your queue at ${APP_QUEUE_URL} to delete an article.`,
+		);
 	}
 
 	async function handleToolsCall(
@@ -216,6 +473,16 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				return success(id, await runSaveLink(rawArgs, context));
 			case LIST_QUEUE_TOOL.name:
 				return success(id, await runListQueue(rawArgs, context));
+			case GET_ARTICLE_TOOL.name:
+				return success(id, await runGetArticle(rawArgs, context));
+			case GET_ARTICLE_CONTENT_TOOL.name:
+				return success(id, await runGetArticleContent(rawArgs, context));
+			case GET_ARTICLE_SUMMARY_TOOL.name:
+				return success(id, await runGetArticleSummary(rawArgs, context));
+			case SET_ARTICLE_STATUS_TOOL.name:
+				return success(id, runSetArticleStatus());
+			case DELETE_ARTICLE_TOOL.name:
+				return success(id, runDeleteArticle());
 			default:
 				return failure(id, -32602, `Unknown tool: ${parsed.data.name}`);
 		}

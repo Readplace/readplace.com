@@ -131,6 +131,7 @@ import { initExportRoutes } from "./web/pages/export/export.page";
 import { initAccountRoutes } from "./web/pages/account/account.page";
 import { initAgentSkills } from "./web/agent-skills/agent-skills";
 import { initMcpServer } from "./web/mcp/mcp-server";
+import { initMcpArticleOperations } from "./web/mcp/article-operations";
 import { initMcpRoutes } from "./web/mcp/mcp.routes";
 import { buildMcpServerCard } from "./web/mcp/server-card";
 import { initResolveSaveAccess } from "./web/mcp/save-access";
@@ -341,21 +342,12 @@ export function createApp(dependencies: AppDependencies): Express {
 				return { ok: false, message: "Could not save the link right now." };
 			}
 		},
-		listQueue: async ({ userId, status }) => {
-			const result = await deps.findArticlesByUser({
-				userId,
-				status,
-				excludeContent: true,
-			});
-			return {
-				total: result.total,
-				articles: result.articles.map((article) => ({
-					url: article.url,
-					title: article.metadata.title,
-					status: article.status,
-				})),
-			};
-		},
+		...initMcpArticleOperations({
+			findArticleById: deps.findArticleById,
+			findArticlesByUser: deps.findArticlesByUser,
+			readArticleContent: deps.readArticleContent,
+			findGeneratedSummary: deps.findGeneratedSummary,
+		}),
 	});
 
 	const secureCookies = isHttpsOrigin(appOrigin);
