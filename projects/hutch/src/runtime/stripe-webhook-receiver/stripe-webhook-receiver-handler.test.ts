@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { APIGatewayProxyEventV2 } from "aws-lambda";
+import type { APIGatewayProxyEventV2, Context } from "aws-lambda";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import type { StripeEventType } from "@packages/hutch-infra-components";
 import {
@@ -10,6 +10,21 @@ import { UnconfiguredStripeEventError } from "./unconfigured-stripe-event-error"
 import { signStripeWebhookHeader } from "./sign-stripe-webhook-header.test-helper";
 
 const TEST_SECRET = "whsec_test_handler_secret";
+
+const stubContext: Context = {
+	callbackWaitsForEmptyEventLoop: true,
+	functionName: "test",
+	functionVersion: "1",
+	invokedFunctionArn: "arn:aws:lambda:us-east-1:123456789:function:test",
+	memoryLimitInMB: "128",
+	awsRequestId: "test-request-id",
+	logGroupName: "/aws/lambda/test",
+	logStreamName: "test-stream",
+	getRemainingTimeInMillis: () => 30000,
+	done: () => {},
+	fail: () => {},
+	succeed: () => {},
+};
 
 function buildApiGatewayEvent(params: {
 	body: string;
@@ -76,7 +91,7 @@ describe("stripe-webhook-receiver-handler", () => {
 		});
 
 		const body = buildStripeEvent({ type: "customer.subscription.deleted", subscriptionId: "sub_1" });
-		const result = await handler(buildApiGatewayEvent({ body }), {} as never, () => {});
+		const result = await handler(buildApiGatewayEvent({ body }), stubContext, () => {});
 
 		assert(result);
 		assert.equal(result.statusCode, 400);
@@ -97,7 +112,7 @@ describe("stripe-webhook-receiver-handler", () => {
 				body,
 				signatureHeader: buildSignature(rawBody, { secret: "whsec_wrong" }),
 			}),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -122,7 +137,7 @@ describe("stripe-webhook-receiver-handler", () => {
 		const rawBody = Buffer.from(body);
 		const result = await handler(
 			buildApiGatewayEvent({ body, signatureHeader: buildSignature(rawBody) }),
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
@@ -146,7 +161,7 @@ describe("stripe-webhook-receiver-handler", () => {
 			async () => {
 				await handler(
 					buildApiGatewayEvent({ body, signatureHeader: buildSignature(rawBody) }),
-					{} as never,
+					stubContext,
 					() => {},
 				);
 			},
@@ -175,7 +190,7 @@ describe("stripe-webhook-receiver-handler", () => {
 			async () => {
 				await handler(
 					buildApiGatewayEvent({ body, signatureHeader: buildSignature(rawBody) }),
-					{} as never,
+					stubContext,
 					() => {},
 				);
 			},
@@ -201,7 +216,7 @@ describe("stripe-webhook-receiver-handler", () => {
 		const b64Body = rawBody.toString("base64");
 		const result = await handler(
 			{ ...buildApiGatewayEvent({ body: b64Body, signatureHeader: buildSignature(rawBody) }), isBase64Encoded: true },
-			{} as never,
+			stubContext,
 			() => {},
 		);
 
