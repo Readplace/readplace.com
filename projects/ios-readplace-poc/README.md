@@ -135,7 +135,7 @@ app stores. The free-account signature lasts 7 days; re-run `make ipa` and
 re-install to renew.
 
 For a build that targets the deployed **staging** stack instead of production,
-run `make ipa-staging` (or `nx run ios-readplace-poc:compile-test`). It sets the
+run `make ipa-staging` (or `nx run ios-readplace-poc:compile-dev`). It sets the
 `STAGING` Swift compilation condition and writes a separate
 `build/Readplace-staging-unsigned.ipa`, so a tester signs in against staging
 without typing a URL. Same bundle id, so it replaces the prod app on a device.
