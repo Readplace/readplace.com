@@ -391,23 +391,6 @@ describe("initMcpServer", () => {
 			expect(listQueue).not.toHaveBeenCalled();
 		});
 
-		it("refuses a forged cursor that pairs sort:readAt with a non-read status", async () => {
-			const cursor = encodeQueueCursor({
-				page: 2,
-				pageSize: 2,
-				status: "unread",
-				sort: "readAt",
-			});
-			const listQueue = jest.fn(async () => ({ total: 0, page: 1, pageSize: 20, articles: [] }));
-			const server = initMcpServer(fakeDeps({ listQueue }));
-			const response = await call(server, 27, "list_queue", { cursor });
-			expect(response).toMatchObject({
-				id: 27,
-				result: { isError: true, content: [{ text: expect.stringContaining('status:"read"') }] },
-			});
-			expect(listQueue).not.toHaveBeenCalled();
-		});
-
 		it("returns an error result for an invalid status", async () => {
 			const server = initMcpServer(fakeDeps());
 			const response = await call(server, 10, "list_queue", { status: "archived" });

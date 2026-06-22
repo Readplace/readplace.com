@@ -35,4 +35,12 @@ describe("queue cursor codec", () => {
 		).toString("base64url");
 		expect(decodeQueueCursor(token)).toBeNull();
 	});
+
+	it("returns null for a cursor that sorts by read date without a read status", () => {
+		const token = Buffer.from(
+			JSON.stringify({ page: 1, pageSize: 10, status: "unread", sort: "readAt" }),
+			"utf8",
+		).toString("base64url");
+		expect(decodeQueueCursor(token)).toBeNull();
+	});
 });
