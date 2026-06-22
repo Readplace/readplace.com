@@ -5,6 +5,14 @@ import {
 	withPersonaFallback,
 } from "./persona-fallback";
 
+function recordHeaders(init: Parameters<typeof fetch>[1]): Record<string, string> {
+	const out: Record<string, string> = {};
+	new Headers(init?.headers).forEach((value, key) => {
+		out[key] = value;
+	});
+	return out;
+}
+
 const personaPrimary: Persona = {
 	name: "primary",
 	headers: { "user-agent": "Primary/1.0", accept: "text/html" },
@@ -57,7 +65,7 @@ describe("withPersonaFallback", () => {
 	it("returns the first persona's response when it isn't block-class", async () => {
 		const calls: { headers: Record<string, string> }[] = [];
 		const inner: typeof fetch = async (_input, init) => {
-			calls.push({ headers: { ...(init?.headers as Record<string, string>) } });
+			calls.push({ headers: recordHeaders(init) });
 			return new Response("ok", { status: 200 });
 		};
 		const wrapped = withPersonaFallback(inner, [personaPrimary, personaFallback]);
@@ -73,7 +81,7 @@ describe("withPersonaFallback", () => {
 	it("advances to the next persona when the response is a block-class status", async () => {
 		const calls: { headers: Record<string, string> }[] = [];
 		const inner: typeof fetch = async (_input, init) => {
-			calls.push({ headers: { ...(init?.headers as Record<string, string>) } });
+			calls.push({ headers: recordHeaders(init) });
 			if (calls.length === 1) return new Response("blocked", { status: 403 });
 			return new Response("ok", { status: 200 });
 		};
@@ -90,7 +98,7 @@ describe("withPersonaFallback", () => {
 	it("advances to the next persona when the inner fetch throws a block-class error", async () => {
 		const calls: { headers: Record<string, string> }[] = [];
 		const inner: typeof fetch = async (_input, init) => {
-			calls.push({ headers: { ...(init?.headers as Record<string, string>) } });
+			calls.push({ headers: recordHeaders(init) });
 			if (calls.length === 1) {
 				throw new Error(
 					"fetchCurl failed for https://example.com: HTTP/2 stream 1 was not closed cleanly: INTERNAL_ERROR (err 2)",
@@ -143,7 +151,7 @@ describe("withPersonaFallback", () => {
 	it("merges per-request headers on top of persona headers (caller wins)", async () => {
 		const calls: { headers: Record<string, string> }[] = [];
 		const inner: typeof fetch = async (_input, init) => {
-			calls.push({ headers: { ...(init?.headers as Record<string, string>) } });
+			calls.push({ headers: recordHeaders(init) });
 			return new Response("ok", { status: 200 });
 		};
 		const wrapped = withPersonaFallback(inner, [personaPrimary]);
@@ -158,7 +166,7 @@ describe("withPersonaFallback", () => {
 	it("preserves the caller's per-request headers across persona iterations", async () => {
 		const calls: { headers: Record<string, string> }[] = [];
 		const inner: typeof fetch = async (_input, init) => {
-			calls.push({ headers: { ...(init?.headers as Record<string, string>) } });
+			calls.push({ headers: recordHeaders(init) });
 			if (calls.length === 1) return new Response("blocked", { status: 403 });
 			return new Response("ok", { status: 200 });
 		};
