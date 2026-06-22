@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { Context } from "aws-lambda";
 import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemoryEmail } from "@packages/test-fixtures/providers/email";
@@ -9,6 +10,23 @@ import {
 	initSendTrialFeedbackEmailHandler,
 	type SendTrialFeedbackEmailDeps,
 } from "./send-trial-feedback-email-handler";
+
+/** The SQS handler ignores the Lambda Context; a single typed value satisfies
+ * the Handler signature without an `as` assertion at every call site. */
+const lambdaContext = {
+	callbackWaitsForEmptyEventLoop: false,
+	functionName: "send-trial-feedback-email",
+	functionVersion: "$LATEST",
+	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:000000000000:function:test",
+	memoryLimitInMB: "128",
+	awsRequestId: "test-request-id",
+	logGroupName: "test-log-group",
+	logStreamName: "test-log-stream",
+	getRemainingTimeInMillis: () => 30_000,
+	done: () => {},
+	fail: () => {},
+	succeed: () => {},
+} satisfies Context;
 
 const USER_ID = UserIdSchema.parse("6".repeat(32));
 const FOUNDER_AVATAR_URL = "https://static.readplace.com/fayner-brack.jpg";
@@ -69,7 +87,7 @@ describe("send-trial-feedback-email handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-ok", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			lambdaContext,
 			() => {},
 		);
 
@@ -98,7 +116,7 @@ describe("send-trial-feedback-email handler", () => {
 
 		await subject.handler(
 			buildSqsEvent([{ messageId: "msg-zero", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			lambdaContext,
 			() => {},
 		);
 
@@ -119,7 +137,7 @@ describe("send-trial-feedback-email handler", () => {
 			buildSqsEvent([
 				{ messageId: "msg-reactivated", body: buildEventBridgeBody(USER_ID) },
 			]),
-			{} as never,
+			lambdaContext,
 			() => {},
 		);
 
@@ -141,7 +159,7 @@ describe("send-trial-feedback-email handler", () => {
 
 		await subject.handler(
 			buildSqsEvent([{ messageId: "msg-active", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			lambdaContext,
 			() => {},
 		);
 
@@ -160,7 +178,7 @@ describe("send-trial-feedback-email handler", () => {
 			buildSqsEvent([
 				{ messageId: "msg-dup", body: buildEventBridgeBody(USER_ID) },
 			]),
-			{} as never,
+			lambdaContext,
 			() => {},
 		);
 
@@ -174,7 +192,7 @@ describe("send-trial-feedback-email handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-missing", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			lambdaContext,
 			() => {},
 		);
 
@@ -192,7 +210,7 @@ describe("send-trial-feedback-email handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-no-email", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			lambdaContext,
 			() => {},
 		);
 
@@ -210,7 +228,7 @@ describe("send-trial-feedback-email handler", () => {
 
 		await subject.handler(
 			buildSqsEvent([{ messageId: "msg-one", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			lambdaContext,
 			() => {},
 		);
 
@@ -245,7 +263,7 @@ describe("send-trial-feedback-email handler", () => {
 
 		const result = await handler(
 			buildSqsEvent([{ messageId: "msg-fail", body: buildEventBridgeBody(USER_ID) }]),
-			{} as never,
+			lambdaContext,
 			() => {},
 		);
 
@@ -262,7 +280,7 @@ describe("send-trial-feedback-email handler", () => {
 
 		const result = await subject.handler(
 			buildSqsEvent([{ messageId: "msg-bad", body: "not-json" }]),
-			{} as never,
+			lambdaContext,
 			() => {},
 		);
 
@@ -278,7 +296,7 @@ describe("send-trial-feedback-email handler", () => {
 			buildSqsEvent([
 				{ messageId: "msg-schema", body: JSON.stringify({ detail: {} }) },
 			]),
-			{} as never,
+			lambdaContext,
 			() => {},
 		);
 
