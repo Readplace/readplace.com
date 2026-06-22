@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { UserIdSchema } from "@packages/domain/user";
+import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type {
 	FindUserById,
 	MarkSessionEmailVerified,
@@ -7,7 +7,7 @@ import type {
 import { initResolveVerificationStatus } from "./resolve-verification-status.middleware";
 import { SESSION_COOKIE_NAME } from "../auth/session-cookie";
 
-const USER_ID = UserIdSchema.parse("user-1");
+const USER_ID = authenticatedUserIdFrom("user-1");
 const NOW = new Date("2026-01-08T00:00:00.000Z");
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 

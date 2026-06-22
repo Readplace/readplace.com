@@ -1,6 +1,6 @@
 import { MinutesSchema, ReaderArticleHashId } from "@packages/domain/article";
 import type { SavedArticle } from "@packages/domain/article";
-import { UserIdSchema } from "@packages/domain/user";
+import { authenticatedUserIdFrom } from "@packages/domain/user";
 import type {
 	FindArticleById,
 	FindArticlesByUser,
@@ -13,7 +13,7 @@ import {
 	toSummaryResult,
 } from "./article-operations";
 
-const userId = UserIdSchema.parse("00000000000000000000000000000001");
+const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
 
 function buildArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 	const url = overrides.url ?? "https://example.com/a";
@@ -92,7 +92,7 @@ describe("toMcpArticle", () => {
 });
 
 describe("toSummaryResult", () => {
-	it("treats a missing summary row as pending", () => {
+	it("treats a missing summary row as pending, mirroring the reader UI", () => {
 		expect(toSummaryResult(undefined)).toEqual({ status: "pending" });
 	});
 

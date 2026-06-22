@@ -37,11 +37,12 @@ export function encodeQueueCursor(cursor: QueueCursor): string {
 }
 
 /** Decode a token produced by {@link encodeQueueCursor}. Returns `null` for any
- * token that doesn't base64url-decode to JSON of the expected shape — a forged,
- * truncated, or stale cursor, or one that pairs `sort:"readAt"` with a non-read
- * status (a pairing the mint-time guard never produces, so its presence means
- * tampering) — so the caller can ask the agent to restart from the first page
- * instead of trusting attacker-controlled pagination. */
+ * token that doesn't base64url-decode to JSON of the expected shape (garbage,
+ * truncated, or wrong-shape — including a cursor that pairs `sort:"readAt"` with
+ * a non-read status, which the mint-time guard never produces), so the caller
+ * can ask the agent to restart from the first page. The cursor is not signed or
+ * scoped to a user; pagination safety comes from `list_queue` always querying
+ * `context.userId`, never from anything decoded here. */
 export function decodeQueueCursor(token: string): QueueCursor | null {
 	let parsed: unknown;
 	try {

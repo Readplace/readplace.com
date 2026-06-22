@@ -1,2 +1,2 @@
-export type { UserId } from "./user.schema";
+export type { UserId, AuthenticatedUserId } from "./user.schema";
 

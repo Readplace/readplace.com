@@ -1,15 +1,15 @@
 import express, { type Request, type RequestHandler } from "express";
 import request from "supertest";
-import { UserIdSchema, type UserId } from "@packages/domain/user";
+import { authenticatedUserIdFrom, type AuthenticatedUserId } from "@packages/domain/user";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
 import { initGetEffectiveAccess } from "../../domain/access/effective-access";
 import { initRequireWriteAccess } from "./require-write-access.middleware";
 
-const TEST_USER_ID = UserIdSchema.parse("11112222333344445555666677778888");
+const TEST_USER_ID = authenticatedUserIdFrom("11112222333344445555666677778888");
 const NOW = new Date("2026-05-23T12:00:00.000Z");
 const ONE_DAY_MS = 86_400_000;
 
-function buildApp(userId: UserId, now: Date = NOW) {
+function buildApp(userId: AuthenticatedUserId, now: Date = NOW) {
 	const providers = initInMemorySubscriptionProviders({ now: () => now });
 	const getEffectiveAccess = initGetEffectiveAccess({
 		findSubscriptionByUserId: providers.findByUserId,

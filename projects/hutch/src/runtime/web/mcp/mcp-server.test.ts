@@ -1,4 +1,4 @@
-import { UserIdSchema } from "@packages/domain/user";
+import { authenticatedUserIdFrom } from "@packages/domain/user";
 import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
 import { encodeQueueCursor } from "./cursor";
 import {
@@ -7,7 +7,7 @@ import {
 	type McpServerDeps,
 } from "./mcp-server";
 
-const userId = UserIdSchema.parse("00000000000000000000000000000001");
+const userId = authenticatedUserIdFrom("00000000000000000000000000000001");
 const context = { userId };
 
 function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {

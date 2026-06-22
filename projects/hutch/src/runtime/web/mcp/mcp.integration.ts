@@ -207,7 +207,7 @@ describe("MCP server over the real app", () => {
 		expect(typeof summary.body.result.structuredContent.status).toBe("string");
 	});
 
-	it("reports not found for an id the caller does not own", async () => {
+	it("reports not found across every read tool for an id the caller does not own", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const ownerToken = await obtainAccessToken(harness);
 		const id = await saveAndGetFirstId(harness, ownerToken);
@@ -215,6 +215,12 @@ describe("MCP server over the real app", () => {
 		const otherToken = await obtainAccessToken(harness, "other@example.com");
 		const article = await callTool(harness, otherToken, tool("get_article", { id }));
 		expect(article.body.result.structuredContent).toEqual({ found: false });
+
+		const content = await callTool(harness, otherToken, tool("get_article_content", { id }));
+		expect(content.body.result.structuredContent).toEqual({ found: false });
+
+		const summary = await callTool(harness, otherToken, tool("get_article_summary", { id }));
+		expect(summary.body.result.structuredContent).toEqual({ found: false });
 
 		const list = await callTool(harness, otherToken, tool("list_queue"));
 		expect(list.body.result.structuredContent.total).toBe(0);
@@ -225,15 +231,36 @@ describe("MCP server over the real app", () => {
 		const accessToken = await obtainAccessToken(harness);
 		const id = await saveAndGetFirstId(harness, accessToken);
 
+		const before = await callTool(harness, accessToken, tool("get_article", { id }));
+		const articleBefore = before.body.result.structuredContent.article;
+
 		const del = await callTool(harness, accessToken, tool("delete_article", { id }));
 		expect(del.body.result.structuredContent.performed).toBe(false);
 		const status = await callTool(harness, accessToken, tool("set_article_status", { id, status: "read" }));
 		expect(status.body.result.structuredContent.performed).toBe(false);
 
-		// The article is still present and still unread — the writes did nothing.
-		const article = await callTool(harness, accessToken, tool("get_article", { id }));
-		expect(article.body.result.structuredContent.article.status).toBe("unread");
+		// The whole article — not just status/count — is byte-for-byte unchanged.
+		const after = await callTool(harness, accessToken, tool("get_article", { id }));
+		expect(after.body.result.structuredContent.article).toEqual(articleBefore);
 		const list = await callTool(harness, accessToken, tool("list_queue"));
 		expect(list.body.result.structuredContent.total).toBe(1);
+	});
+
+	it("does not mutate another user's article through the write tools", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const ownerToken = await obtainAccessToken(harness);
+		const id = await saveAndGetFirstId(harness, ownerToken);
+
+		const otherToken = await obtainAccessToken(harness, "other@example.com");
+		const del = await callTool(harness, otherToken, tool("delete_article", { id }));
+		expect(del.body.result.structuredContent.performed).toBe(false);
+		const status = await callTool(harness, otherToken, tool("set_article_status", { id, status: "read" }));
+		expect(status.body.result.structuredContent.performed).toBe(false);
+
+		// The owner's queue is untouched by another user's write-tool calls.
+		const owner = await callTool(harness, ownerToken, tool("get_article", { id }));
+		expect(owner.body.result.structuredContent.article.status).toBe("unread");
+		const ownerList = await callTool(harness, ownerToken, tool("list_queue"));
+		expect(ownerList.body.result.structuredContent.total).toBe(1);
 	});
 });

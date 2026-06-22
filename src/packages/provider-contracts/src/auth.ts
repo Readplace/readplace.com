@@ -1,4 +1,4 @@
-import type { UserId, UserIdPrefix } from "@packages/domain/user";
+import type { AuthenticatedUserId, UserId, UserIdPrefix } from "@packages/domain/user";
 
 export type CreateUserResult =
 	| { ok: true; userId: UserId }
@@ -30,7 +30,7 @@ export type CreateSession = (session: {
 
 export type GetSessionUserId = (
 	sessionId: string,
-) => Promise<{ userId: UserId; emailVerified: boolean } | null>;
+) => Promise<{ userId: AuthenticatedUserId; emailVerified: boolean } | null>;
 
 export type DestroySession = (sessionId: string) => Promise<void>;
 

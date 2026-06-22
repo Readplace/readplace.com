@@ -3,7 +3,7 @@ import type {
 	RefreshTokenModel,
 } from "@node-oauth/oauth2-server";
 import type { AccessToken, OAuthClient } from "@packages/domain/oauth";
-import type { UserId } from "@packages/domain/user";
+import type { AuthenticatedUserId, UserId } from "@packages/domain/user";
 
 export type OAuthModel = AuthorizationCodeModel &
 	RefreshTokenModel & {
@@ -12,7 +12,7 @@ export type OAuthModel = AuthorizationCodeModel &
 
 export type ValidateAccessToken = (
 	accessToken: AccessToken,
-) => Promise<{ userId: UserId; emailVerified: boolean } | null>;
+) => Promise<{ userId: AuthenticatedUserId; emailVerified: boolean } | null>;
 
 export interface RegisterOAuthClientInput {
 	redirectUris: string[];

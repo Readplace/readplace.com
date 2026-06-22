@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { UserId } from "@packages/domain/user";
+import type { AuthenticatedUserId } from "@packages/domain/user";
 import type { ArticleStatus } from "@packages/domain/article";
 import type {
 	SortField,
@@ -71,11 +71,11 @@ export interface ListQueueResult {
  * read tools see exactly what the user's own queue shows. */
 export interface McpServerDeps {
 	saveLink: (params: {
-		userId: UserId;
+		userId: AuthenticatedUserId;
 		url: string;
 	}) => Promise<SaveLinkResult>;
 	listQueue: (params: {
-		userId: UserId;
+		userId: AuthenticatedUserId;
 		status?: ArticleStatus;
 		sort?: SortField;
 		order?: SortOrder;
@@ -83,15 +83,15 @@ export interface McpServerDeps {
 		pageSize?: number;
 	}) => Promise<ListQueueResult>;
 	getArticle: (params: {
-		userId: UserId;
+		userId: AuthenticatedUserId;
 		id: string;
 	}) => Promise<McpArticle | null>;
 	getArticleContent: (params: {
-		userId: UserId;
+		userId: AuthenticatedUserId;
 		id: string;
 	}) => Promise<ArticleContentResult>;
 	getArticleSummary: (params: {
-		userId: UserId;
+		userId: AuthenticatedUserId;
 		id: string;
 	}) => Promise<ArticleSummaryResult>;
 }
@@ -99,7 +99,7 @@ export interface McpServerDeps {
 /** The authenticated caller a request runs as. Resolved from the OAuth bearer
  * token by the transport before a message reaches the server. */
 interface McpRequestContext {
-	readonly userId: UserId;
+	readonly userId: AuthenticatedUserId;
 }
 
 type JsonRpcId = string | number | null;
@@ -278,7 +278,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			const decoded = decodeQueueCursor(a.cursor);
 			if (!decoded) {
 				return toolError(
-					"That pagination cursor is invalid or expired. Call list_queue again without a cursor to start from the first page.",
+					"That pagination cursor is invalid. Call list_queue again without a cursor to start from the first page.",
 				);
 			}
 			({ page, pageSize, status, sort, order } = decoded);
