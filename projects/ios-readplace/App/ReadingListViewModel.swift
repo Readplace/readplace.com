@@ -8,9 +8,8 @@ final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var hasMore = false
 	@Published var errorText: String?
 	@Published var warningText: String?
-	/// Server-authored messages surfaced to the UI (e.g. a locked-account
-	/// refusal). The client renders them generically; it owns no per-feature
-	/// knowledge of what they mean.
+	/// Server-authored messages surfaced to the UI (e.g. a locked-account refusal),
+	/// rendered generically — the client owns no per-feature knowledge of them.
 	@Published var messages: [ServerMessage] = []
 
 	private var nextHref: String?

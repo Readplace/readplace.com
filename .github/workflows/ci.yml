@@ -188,10 +188,10 @@ jobs:
           # changes — a path diff over NX_BASE..NX_HEAD is what keeps a build from
           # shipping when "the code itself" didn't change.
           IOS_CHANGED=$(git diff --name-only "$NX_BASE" "$NX_HEAD" -- \
-            projects/ios-readplace-poc/App \
-            projects/ios-readplace-poc/Shared \
-            projects/ios-readplace-poc/ShareExtension \
-            projects/ios-readplace-poc/project.yml)
+            projects/ios-readplace/App \
+            projects/ios-readplace/Shared \
+            projects/ios-readplace/ShareExtension \
+            projects/ios-readplace/project.yml)
           echo "ios-affected=$([ -n "$IOS_CHANGED" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
           # iOS test gate: a superset of ios-affected that also fires on test
@@ -199,11 +199,11 @@ jobs:
           # change and gates the publish; publish itself stays scoped to
           # shipping code via ios-affected, so a test-only change never ships.
           IOS_TEST_CHANGED=$(git diff --name-only "$NX_BASE" "$NX_HEAD" -- \
-            projects/ios-readplace-poc/App \
-            projects/ios-readplace-poc/Shared \
-            projects/ios-readplace-poc/ShareExtension \
-            projects/ios-readplace-poc/Tests \
-            projects/ios-readplace-poc/project.yml)
+            projects/ios-readplace/App \
+            projects/ios-readplace/Shared \
+            projects/ios-readplace/ShareExtension \
+            projects/ios-readplace/Tests \
+            projects/ios-readplace/project.yml)
           echo "ios-test-affected=$([ -n "$IOS_TEST_CHANGED" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
   # Platform (EventBridge bus, shared infra) must deploy before any other project
@@ -275,7 +275,7 @@ jobs:
     runs-on: macos-15
     defaults:
       run:
-        working-directory: projects/ios-readplace-poc
+        working-directory: projects/ios-readplace
     steps:
       - uses: actions/checkout@v6
 

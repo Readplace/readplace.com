@@ -1,8 +1,8 @@
 import UIKit
 
 /// The browser seam the UI-free `WebAuthFlow` core opens through, kept in the App
-/// target so the tested core stays free of UIKit. `.system` is backed by the
-/// live `UIApplication`; tests inject their own closures.
+/// target so the tested core stays free of UIKit. `.system` uses the live
+/// `UIApplication`; tests inject their own closures.
 ///
 /// `canOpen` needs the queried schemes (`googlechrome`/`googlechromes`) declared
 /// in `Info.plist`'s `LSApplicationQueriesSchemes`, or it silently returns false
@@ -19,11 +19,9 @@ struct ExternalBrowser {
 
 /// Composition root for the external-browser auth flow shared by Login and Sign
 /// up: resolves the shared App Group store and wires the live browser + session
-/// into a `WebAuthFlow`. Both buttons (`start`) and the deep-link callback
-/// (`complete`) build the flow this way; they share state only through the
-/// persisted store, so a cold relaunch on the callback still finds the pending
-/// record. The login-vs-signup difference is the authorize request the caller
-/// hands to `start`, so this root stays oblivious to which one it is.
+/// into a `WebAuthFlow`. `start` and the deep-link `complete` share state only
+/// through the persisted store, so a cold relaunch on the callback still finds the
+/// pending record.
 @MainActor
 func makeWebAuthFlow(session: AppSession) -> WebAuthFlow {
 	let group = TokenStore.resolvedAppGroupId

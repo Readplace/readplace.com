@@ -2,9 +2,8 @@ import SwiftUI
 
 struct LoginView: View {
 	@EnvironmentObject private var session: AppSession
-	/// Owned by `RootView`, which handles the `readplace://oauth-callback` deep
-	/// link, so a failed external-browser Login or Sign up can surface here while
-	/// this view is still on screen.
+	/// Owned by `RootView` (which handles the OAuth deep link) so a failed Login or
+	/// Sign up can surface here while this view is still on screen.
 	@Binding var authErrorText: String?
 
 	var body: some View {
@@ -18,7 +17,7 @@ struct LoginView: View {
 						.foregroundStyle(.tint)
 					Text("Readplace")
 						.font(.largeTitle.bold())
-					Text("Reading-list POC")
+					Text("Your reading list")
 						.font(.subheadline)
 						.foregroundStyle(.secondary)
 				}
@@ -61,19 +60,17 @@ struct LoginView: View {
 		}
 	}
 
-	/// Opens `/oauth/authorize` for **login** in the external browser (Chrome if
-	/// installed, to reuse its session) through the same flow as Sign up. The
-	/// result arrives later via the `readplace://oauth-callback` deep link
-	/// (`RootView`).
+	/// Opens `/oauth/authorize` for login in the external browser (Chrome if
+	/// installed, to reuse its session); the result returns via the deep link.
 	@MainActor
 	private func startLogin() {
 		authErrorText = nil
 		makeWebAuthFlow(session: session).start(session.makeOAuth().makeNativeLoginAuthorizationRequest())
 	}
 
-	/// Opens `/oauth/authorize` for **sign up** in the external browser. A fresh
-	/// `start` overwrites any prior pending record, so an abandoned earlier attempt
-	/// can't strand stale secrets. The result arrives via the deep link.
+	/// Opens `/oauth/authorize` for sign up in the external browser. A fresh
+	/// `start` overwrites any prior pending record so an abandoned attempt can't
+	/// strand stale secrets.
 	@MainActor
 	private func startSignup() {
 		authErrorText = nil

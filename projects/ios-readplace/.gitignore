@@ -9,7 +9,7 @@ build/
 # The .xcodeproj is generated from project.yml by XcodeGen, so it is not
 # committed (it churns on every `compile`/`make generate` and CI-injected
 # signing leaks into the diff). Regenerate it any time with `make generate`.
-ReadplacePOC.xcodeproj/
+Readplace.xcodeproj/
 
 # --- Secrets (NEVER commit) ---
 fastlane/.env

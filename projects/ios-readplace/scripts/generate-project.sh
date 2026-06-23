@@ -12,5 +12,5 @@ cd "$(dirname "$0")/.."
 
 xcodegen generate
 
-PBXPROJ="ReadplacePOC.xcodeproj/project.pbxproj"
+PBXPROJ="Readplace.xcodeproj/project.pbxproj"
 /usr/bin/sed -i '' 's/objectVersion = [0-9]\{1,\};/objectVersion = 56;/' "$PBXPROJ"
