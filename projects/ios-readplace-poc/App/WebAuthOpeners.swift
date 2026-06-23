@@ -41,8 +41,7 @@ func makeWebAuthFlow(session: AppSession) -> WebAuthFlow {
 				callbackURL: callbackURL,
 				verifier: pending.verifier,
 				expectedState: pending.state,
-				redirectURI: pending.redirectURI,
-				onExchangeStarted: {}
+				redirectURI: pending.redirectURI
 			)
 		}
 	))

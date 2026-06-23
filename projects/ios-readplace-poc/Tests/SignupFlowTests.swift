@@ -55,8 +55,7 @@ final class SignupFlowTests: XCTestCase {
 					callbackURL: callbackURL,
 					verifier: pending.verifier,
 					expectedState: pending.state,
-					redirectURI: pending.redirectURI,
-					onExchangeStarted: {}
+					redirectURI: pending.redirectURI
 				)
 			}
 		))

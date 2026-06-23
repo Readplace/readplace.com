@@ -224,8 +224,8 @@ cases:
 - **Login & share-save journeys**: the two orchestration seams end-to-end through
   the real session/API types. Sign-in — `completeSignIn` exchanging the code and
   flipping the session to logged-in (and rejecting a state-mismatched callback
-  without exchanging the code or raising the "Signing in…" overlay), then a
-  reading-list load preserving the bearer token across the entry-point `303`.
+  without exchanging the code), then a reading-list load preserving the bearer
+  token across the entry-point `303`.
   Share-save — `SaveSharedPage` saving rendered HTML when it's under the cap,
   degrading to URL-only when the capture is empty or the HTML is over the cap,
   short-circuiting before any network call when logged out or when there's no

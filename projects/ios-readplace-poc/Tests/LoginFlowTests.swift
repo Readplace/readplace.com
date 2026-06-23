@@ -47,17 +47,14 @@ final class LoginFlowTests: XCTestCase {
 			return .json(200, Fixtures.tokenResponse(access: "fresh-access", refresh: "fresh-refresh"))
 		}
 
-		var exchangeStarts = 0
 		let result = await session.completeSignIn(
 			callbackURL: URL(string: "\(AppConfig.nativeCallbackURL)?code=abc&state=S")!,
 			verifier: "v",
 			expectedState: "S",
-			redirectURI: AppConfig.nativeCallbackURL,
-			onExchangeStarted: { exchangeStarts += 1 }
+			redirectURI: AppConfig.nativeCallbackURL
 		)
 
 		guard case .success = result else { return XCTFail("Expected .success, got \(result)") }
-		XCTAssertEqual(exchangeStarts, 1, "the Signing-in overlay is raised once, when the exchange begins")
 		XCTAssertTrue(session.isLoggedIn, "RootView keys off isLoggedIn to show the reading list")
 		XCTAssertEqual(store.tokens?.accessToken, "fresh-access", "token must be persisted for the share extension")
 		XCTAssertEqual(store.tokens?.refreshToken, "fresh-refresh")
@@ -70,22 +67,19 @@ final class LoginFlowTests: XCTestCase {
 		XCTAssertEqual(body["redirect_uri"], AppConfig.nativeCallbackURL)
 	}
 
-	func testRejectedCallbackNeitherRaisesOverlayNorExchanges() async throws {
+	func testRejectedCallbackDoesNotExchange() async throws {
 		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
 		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
 
-		var exchangeStarts = 0
 		let result = await session.completeSignIn(
 			callbackURL: URL(string: "\(AppConfig.nativeCallbackURL)?code=abc&state=WRONG")!,
 			verifier: "v",
 			expectedState: "S",
-			redirectURI: AppConfig.nativeCallbackURL,
-			onExchangeStarted: { exchangeStarts += 1 }
+			redirectURI: AppConfig.nativeCallbackURL
 		)
 
 		guard case .failure(let error) = result else { return XCTFail("Expected .failure for a state mismatch, got \(result)") }
 		XCTAssertEqual((error as? AuthFlowError)?.errorDescription, AuthFlowError.stateMismatch.errorDescription)
-		XCTAssertEqual(exchangeStarts, 0, "a rejected callback must not raise the Signing-in overlay")
 		XCTAssertFalse(session.isLoggedIn)
 		XCTAssertTrue(StubURLProtocol.records.isEmpty, "a rejected callback must not exchange the code")
 	}
