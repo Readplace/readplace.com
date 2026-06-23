@@ -74,9 +74,18 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
   relaunch via the deep link can still finish the token exchange. **Login uses
   this identical flow**, differing only in the `screen_hint`.
 - **List** your reading list by walking the Siren API: `GET /` → `303` → `/queue`
-  collection, rendering each article (title, site, excerpt, thumbnail, read
-  state), with pull-to-refresh, infinite scroll via the `next` link, and
-  swipe-to-delete via each item's server-declared `delete` action.
+  collection (unread only), rendering each article (title, site, excerpt,
+  thumbnail, read state), with pull-to-refresh, infinite scroll via the `next`
+  link, and swipe-to-**mark-read** via each item's server-declared
+  `update-status` action (the marked row leaves the unread list; the article is
+  kept, not deleted).
+- **Read in-app**: tapping a row opens the server's authenticated reader
+  (`/queue/{id}/view` — Readplace reader content + AI summary) in a `WKWebView`,
+  not the original source site. The reader and its htmx XHRs are cookie-session
+  authenticated, so the app first mints a `hutch_sid` cookie from its bearer
+  token via `POST /auth/session` and injects it into the web view. Pressing the
+  reader's own **Mark as read** closes the sheet and drops the row; **View
+  original** stays reachable from inside the reader.
 - **Save by sharing**: a **Share Extension** appears in the iOS share sheet for
   URLs/web pages. It loads the page in an off-screen `WKWebView`, captures
   `document.documentElement.outerHTML`, and POSTs `{url, rawHtml, title}` to
@@ -107,7 +116,7 @@ projects/ios-readplace/
 │   ├── OAuthService.swift       #   authorize URL + token exchange/refresh/revoke
 │   ├── TokenStore.swift         #   tokens in the shared App Group
 │   ├── SirenModels.swift        #   Siren ⇄ Article decoding
-│   ├── ReadplaceAPI.swift       #   the Siren client (list/save/delete)
+│   ├── ReadplaceAPI.swift       #   the Siren client (list/save/update-status/session)
 │   ├── URLDetection.swift       #   first http(s) URL in shared text
 │   ├── HTMLCaptor.swift         #   WKWebView → document.documentElement.outerHTML
 │   └── SaveSharedPage.swift     #   share-save orchestration (testable, no UIKit)
@@ -217,8 +226,10 @@ cases:
 - **API**: entry-point `303` redirect with the `Authorization` header preserved,
   `401` → single refresh → retry (and no retry loop when refresh fails),
   `save-html` body + fallback to URL-only on an error action, `save-article`,
-  delete returning the refreshed collection with the `Prefer` header, `404` →
-  not-found, and missing-token handling.
+  `update-status` posting urlencoded `status=read` and following the `303` to the
+  refreshed collection (`404` → not-found), `bootstrapSession` parsing the
+  `hutch_sid` cookie from `Set-Cookie` (refreshing the bearer once if expired),
+  and missing-token handling.
 - **TokenStore / URL detection**: persistence and partial-token edge cases;
   http(s)-only link extraction that ignores `mailto:`/`tel:`.
 - **Login & share-save journeys**: the two orchestration seams end-to-end through
@@ -262,9 +273,17 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
   the `iphoneos` SDK without needing the iOS *platform* registered for a
   destination. Verified building against Xcode 15.4 (iOS 17.5 SDK).
 
-- **Tapping an item** opens the original article URL in an in-app Safari view.
-  The server's reader (`/queue/{id}/view`) needs a cookie session this
-  token-based client doesn't hold, so it isn't used.
+- **Tapping an item** opens the server's authenticated reader
+  (`/queue/{id}/view`) in an in-app `WKWebView`. That page and its htmx XHRs are
+  cookie-session authenticated, so the app mints a `hutch_sid` cookie from its
+  bearer token via `POST /auth/session` and injects it into the web view before
+  loading. **This needs the server change deployed first** — see "Server
+  dependency" below.
+- **Server dependency / deploy ordering.** The swipe-to-mark-read and in-app
+  reader both rely on two additive server surfaces — the entity-level
+  `update-status` action and `POST /auth/session` — that must be **deployed
+  before** this build ships to TestFlight. They are additive and non-breaking, so
+  the server can deploy independently; an older app simply wouldn't see them.
 - **Both Login and Sign up use one small additive server change.** They
   authenticate as the existing `hutch-chrome-extension` client. The
   external-browser flow can't observe an HTTPS redirect in another app's tab, so

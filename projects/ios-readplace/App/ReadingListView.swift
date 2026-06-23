@@ -1,15 +1,9 @@
 import SwiftUI
 
-private struct IdentifiableURL: Identifiable {
-	let id = UUID()
-	let url: URL
-}
-
 struct ReadingListView: View {
 	@ObservedObject var session: AppSession
 	@StateObject private var viewModel: ReadingListViewModel
 
-	@State private var openURL: IdentifiableURL?
 	@State private var showingSaveDialog = false
 	@State private var saveText = ""
 
@@ -41,8 +35,12 @@ struct ReadingListView: View {
 				}
 				.refreshable { await viewModel.refresh() }
 				.task { await viewModel.loadIfNeeded() }
-				.sheet(item: $openURL) { item in
-					SafariView(url: item.url).ignoresSafeArea()
+				.sheet(item: $viewModel.readerPresentation) { presentation in
+					ReaderWebView(presentation: presentation) {
+						viewModel.removeArticle(id: presentation.articleId)
+						viewModel.readerPresentation = nil
+					}
+					.ignoresSafeArea()
 				}
 				.alert("Save a URL", isPresented: $showingSaveDialog) {
 					TextField("https://example.com/article", text: $saveText)
@@ -93,14 +91,18 @@ struct ReadingListView: View {
 				ArticleRow(article: article)
 					.contentShape(Rectangle())
 					.onTapGesture {
-						if let url = URL(string: article.url) { openURL = IdentifiableURL(url: url) }
+						Task { await viewModel.prepareReader(for: article) }
 					}
 					.swipeActions(edge: .trailing) {
-						Button(role: .destructive) {
-							Task { await viewModel.delete(article) }
+						Button {
+							Task { await viewModel.markAsRead(article) }
 						} label: {
-							Label("Delete", systemImage: "trash")
+							Label("Mark as read", systemImage: "checkmark.circle")
 						}
+						.tint(.green)
+					}
+					.accessibilityAction(named: "Mark as read") {
+						Task { await viewModel.markAsRead(article) }
 					}
 			}
 

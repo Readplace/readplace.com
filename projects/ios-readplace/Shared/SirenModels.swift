@@ -7,9 +7,11 @@ struct SirenLink: Decodable {
 	let href: String
 }
 
+/// `value` is the server's pre-filled default for the field, when present.
 struct SirenField: Decodable {
 	let name: String
 	let type: String?
+	let value: String?
 }
 
 /// A Siren action — the server tells us the href/method/fields; we never
@@ -188,6 +190,13 @@ struct SirenError: Decodable {
 
 // MARK: - Domain model for the UI
 
+/// The reading status of an article. Matches the server's `ArticleStatus`
+/// (`"unread" | "read"`); the raw value is what the `update-status` action posts.
+enum ArticleStatus: String {
+	case unread
+	case read
+}
+
 /// A saved article, flattened from a Siren entity for display and actions.
 struct Article: Identifiable, Hashable {
 	let id: String
@@ -199,8 +208,10 @@ struct Article: Identifiable, Hashable {
 	let readTimeMinutes: Int?
 	let isRead: Bool
 	let savedAt: Date?
-	/// Server-declared action href for deleting this item (`/queue/{id}/delete`).
-	let deleteHref: String?
+	/// Server-declared action for changing this item's status (`POST
+	/// /queue/{id}/status`). Stored whole so its href/method/fields are followed
+	/// rather than hand-built.
+	let updateStatusAction: SirenAction?
 	/// Server-declared link for reading this item (`/queue/{id}/view`).
 	let readHref: String?
 
@@ -226,7 +237,7 @@ extension Article {
 		readTimeMinutes = props.estimatedReadTimeMinutes
 		isRead = props.status == "read" || props.readAt != nil
 		savedAt = props.savedAt.flatMap(SirenDate.parse)
-		deleteHref = entity.actions?.first { $0.name == "delete" }?.href
+		updateStatusAction = entity.actions?.first { $0.name == "update-status" }
 		readHref = entity.links?.first { $0.rel.contains("read") }?.href
 	}
 }

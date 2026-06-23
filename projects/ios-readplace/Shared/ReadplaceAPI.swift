@@ -87,12 +87,14 @@ final class ReadplaceAPI {
 		return QueuePage(collection: try decode(SirenCollection.self, data))
 	}
 
-	/// Deletes an item via its server-declared `delete` href and returns the
-	/// refreshed collection the server redirects back to.
-	func delete(href: String) async throws -> QueuePage {
-		guard let url = URL(string: absolute(href)) else { throw APIError.decoding }
-		var request = URLRequest(url: url)
-		request.httpMethod = "POST"
+	/// Changes an item's status via its server-declared `update-status` action
+	/// (e.g. mark read) and returns the refreshed collection the server redirects
+	/// back to. The action posts `status` as urlencoded; the redirect-preserving
+	/// delegate re-attaches auth across the 303.
+	func updateStatus(action: SirenAction, status: ArticleStatus) async throws -> QueuePage {
+		var request = try formRequest(absolute(action.href), method: action.method,
+			contentType: action.type ?? "application/x-www-form-urlencoded",
+			fields: ["status": status.rawValue])
 		request.setValue("return=representation", forHTTPHeaderField: "Prefer")
 		let (data, http) = try await send(request)
 		if http.statusCode == 404 { throw APIError.notFound }
@@ -100,6 +102,28 @@ final class ReadplaceAPI {
 			throw apiError(from: data, status: http.statusCode)
 		}
 		return QueuePage(collection: try decode(SirenCollection.self, data))
+	}
+
+	// MARK: - Reader session
+
+	/// Mints a browser session cookie from the current bearer token via
+	/// `POST /auth/session` and returns the `hutch_sid` cookie. The in-app reader
+	/// webview injects it so the cookie-authenticated reader page (and its htmx
+	/// poll/mutation XHRs) load without bouncing to /login. Reuses `send()`, so a
+	/// stale bearer is refreshed once before the cookie is minted.
+	func bootstrapSession() async throws -> HTTPCookie {
+		guard let url = URL(string: "\(baseURL)/auth/session") else { throw APIError.decoding }
+		var request = URLRequest(url: url)
+		request.httpMethod = "POST"
+		let (data, http) = try await send(request)
+		guard (200...299).contains(http.statusCode) else {
+			throw apiError(from: data, status: http.statusCode)
+		}
+		guard let headers = http.allHeaderFields as? [String: String] else { throw APIError.decoding }
+		let cookie = HTTPCookie.cookies(withResponseHeaderFields: headers, for: url)
+			.first { $0.name == AppConfig.sessionCookieName }
+		guard let cookie else { throw APIError.decoding }
+		return cookie
 	}
 
 	// MARK: - Saving
@@ -180,6 +204,22 @@ final class ReadplaceAPI {
 		request.httpMethod = method
 		request.setValue(contentType, forHTTPHeaderField: "Content-Type")
 		request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+		return request
+	}
+
+	private func formRequest(
+		_ urlString: String,
+		method: String,
+		contentType: String,
+		fields: [String: String]
+	) throws -> URLRequest {
+		guard let url = URL(string: urlString) else { throw APIError.decoding }
+		var request = URLRequest(url: url)
+		request.httpMethod = method
+		request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+		var components = URLComponents()
+		components.queryItems = fields.map { URLQueryItem(name: $0.key, value: $0.value) }
+		request.httpBody = components.percentEncodedQuery.map { Data($0.utf8) }
 		return request
 	}
 

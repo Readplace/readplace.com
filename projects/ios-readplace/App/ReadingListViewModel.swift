@@ -11,6 +11,8 @@ final class ReadingListViewModel: ObservableObject {
 	/// Server-authored messages surfaced to the UI (e.g. a locked-account refusal),
 	/// rendered generically — the client owns no per-feature knowledge of them.
 	@Published var messages: [ServerMessage] = []
+	/// Set once a tapped row's reader session is ready; drives the reader sheet.
+	@Published var readerPresentation: ReaderPresentation?
 
 	private var nextHref: String?
 	private var isLoadingMore = false
@@ -61,17 +63,37 @@ final class ReadingListViewModel: ObservableObject {
 		isLoadingMore = false
 	}
 
-	func delete(_ article: Article) async {
-		guard let href = article.deleteHref else { return }
+	func markAsRead(_ article: Article) async {
+		guard let action = article.updateStatusAction else { return }
 		let snapshot = articles
+		// Optimistically drop the row. Unlike the old delete, the refreshed page
+		// the server returns is discarded so pagination state (nextHref/hasMore)
+		// survives instead of collapsing the list back to page 1.
 		articles.removeAll { $0.id == article.id }
 		do {
-			let page = try await api.delete(href: href)
-			apply(page, replacing: true)
+			_ = try await api.updateStatus(action: action, status: .read)
 		} catch APIError.notFound {
-			// Already gone server-side; keep it removed.
+			// Already read or gone server-side; keep it removed.
 		} catch {
 			articles = snapshot
+			handle(error)
+		}
+	}
+
+	/// Removes a row after the reader marked it read, so it leaves the
+	/// unread-only list without a round trip.
+	func removeArticle(id: String) {
+		articles.removeAll { $0.id == id }
+	}
+
+	/// Prefetches the session cookie the reader webview needs, then publishes the
+	/// presentation that opens the reader sheet for this article.
+	func prepareReader(for article: Article) async {
+		guard let readHref = article.readHref else { return }
+		do {
+			let cookie = try await api.bootstrapSession()
+			readerPresentation = ReaderPresentation(cookie: cookie, readHref: readHref, articleId: article.id)
+		} catch {
 			handle(error)
 		}
 	}
@@ -114,4 +136,14 @@ final class ReadingListViewModel: ObservableObject {
 			errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
 		}
 	}
+}
+
+/// What the reader sheet needs to present one article: the prefetched session
+/// cookie, the server-declared read href, and the article id (so its row can be
+/// removed if the reader marks it read). `Identifiable` drives `.sheet(item:)`.
+struct ReaderPresentation: Identifiable {
+	let cookie: HTTPCookie
+	let readHref: String
+	let articleId: String
+	var id: String { articleId }
 }

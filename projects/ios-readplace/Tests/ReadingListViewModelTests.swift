@@ -96,4 +96,80 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertTrue(viewModel.messages.isEmpty, "saveURL resets messages before the next attempt")
 	}
+
+	// MARK: - Mark as read
+
+	/// A two-item queue whose `/queue/{id}/status` POST behaves per `statusStub`.
+	private func markReadHandler(
+		statusStub: @escaping (String) -> StubURLProtocol.Stub
+	) -> (URLRequest, Data) -> StubURLProtocol.Stub {
+		return { request, _ in
+			let path = request.url?.path ?? ""
+			if path.hasSuffix("/status") { return statusStub(path) }
+			switch path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1"), Fixtures.article(id: "a2")],
+					total: 2
+				))
+			default:
+				return .json(404, "{}")
+			}
+		}
+	}
+
+	func testMarkAsReadOptimisticallyRemovesAndKeepsRemovedOnSuccess() async {
+		StubURLProtocol.setHandler(markReadHandler { _ in .redirect(to: "/queue") })
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"])
+
+		await viewModel.markAsRead(viewModel.articles[0])
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a2"],
+			"the marked row is removed and the discarded refresh never re-adds it"
+		)
+		XCTAssertNil(viewModel.errorText)
+	}
+
+	func testMarkAsReadKeepsRowRemovedOn404() async {
+		StubURLProtocol.setHandler(markReadHandler { _ in .json(404, "{}") })
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+
+		await viewModel.markAsRead(viewModel.articles[0])
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a2"], "a 404 means already gone; keep it removed")
+		XCTAssertNil(viewModel.errorText)
+	}
+
+	func testMarkAsReadRestoresRowOnServerError() async {
+		StubURLProtocol.setHandler(markReadHandler { _ in
+			.json(500, Fixtures.sirenError(code: "boom", message: "nope", withSaveArticleFallback: false))
+		})
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+
+		await viewModel.markAsRead(viewModel.articles[0])
+
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a1", "a2"],
+			"a failed mark-read rolls the optimistic removal back"
+		)
+		XCTAssertNotNil(viewModel.errorText)
+	}
+
+	func testRemoveArticleDropsTheRowWithoutANetworkCall() async {
+		StubURLProtocol.setHandler(markReadHandler { _ in .redirect(to: "/queue") })
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+
+		viewModel.removeArticle(id: "a1")
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a2"])
+		XCTAssertTrue(StubURLProtocol.records(path: "/queue/a1/status").isEmpty, "removeArticle is local-only")
+	}
 }
