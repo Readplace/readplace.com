@@ -1,14 +1,16 @@
 import assert from "node:assert";
 import type { RequestHandler } from "express";
-import type { GetEffectiveAccess } from "../../domain/access/effective-access";
+import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
+import { resolveWriteAccess } from "@packages/subscription-access";
 
 export function initRequireWriteAccess(deps: {
-	getEffectiveAccess: GetEffectiveAccess;
+	findSubscriptionByUserId: FindSubscriptionByUserId;
+	now: () => Date;
 }): RequestHandler {
 	return async (req, res, next) => {
 		assert(req.userId, "requireWriteAccess must run after an authentication middleware");
-		const result = await deps.getEffectiveAccess(req.userId);
-		if (result.access === "full") {
+		const subscription = await deps.findSubscriptionByUserId(req.userId);
+		if (resolveWriteAccess(subscription, deps.now()) === "full") {
 			next();
 			return;
 		}

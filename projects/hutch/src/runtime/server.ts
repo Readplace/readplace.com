@@ -313,7 +313,7 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * while locked, matching `requireNotLocked`, so only `save_link` is gated. */
 	const resolveSaveAccess = initResolveSaveAccess({
 		findUserById: deps.findUserById,
-		getEffectiveAccess,
+		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
 		now: deps.now,
 	});
 	const mcpServer = initMcpServer({
@@ -394,7 +394,10 @@ export function createApp(dependencies: AppDependencies): Express {
 	const markExtensionInstalled = initMarkExtensionInstalled();
 	app.use(markExtensionInstalled);
 
-	const requireWriteAccess = initRequireWriteAccess({ getEffectiveAccess });
+	const requireWriteAccess = initRequireWriteAccess({
+		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
+		now: deps.now,
+	});
 	const buildBannerState = initBuildBannerState({
 		getEffectiveAccess,
 		getChangelogBanner: deps.getChangelogBanner,
