@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import type { UserId } from "@packages/domain/user";
-import { UserIdSchema } from "@packages/domain/user";
+import { UserIdSchema, hashPassword, verifyPassword } from "@packages/domain/user";
 import { initInMemoryAuth } from "./in-memory-auth";
-import { hashPassword, verifyPassword } from "./password";
 
 const makeAuth = () => initInMemoryAuth({ hashPassword, verifyPassword });
 

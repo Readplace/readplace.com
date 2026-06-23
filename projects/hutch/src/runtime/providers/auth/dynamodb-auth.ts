@@ -7,7 +7,14 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import { UserIdSchema, authenticatedUserIdFrom, userIdPrefixFrom, normalizeEmail } from "@packages/domain/user";
+import {
+	UserIdSchema,
+	authenticatedUserIdFrom,
+	userIdPrefixFrom,
+	normalizeEmail,
+	hashPassword,
+	verifyPassword,
+} from "@packages/domain/user";
 import type {
 	CountUsers,
 	CreateGoogleUser,
@@ -27,7 +34,6 @@ import type {
 	UserExistsByEmail,
 	VerifyCredentials,
 } from "@packages/provider-contracts/auth";
-import { hashPassword, verifyPassword } from "@packages/test-fixtures/providers/auth";
 
 const UserRow = z.object({
 	email: z.string(),
