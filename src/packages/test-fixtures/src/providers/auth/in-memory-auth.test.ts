@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import type { UserId } from "@packages/domain/user";
-import { UserIdSchema } from "@packages/domain/user";
+import { UserIdSchema, hashPassword, verifyPassword } from "@packages/domain/user";
 import { initInMemoryAuth } from "./in-memory-auth";
-import { hashPassword, verifyPassword } from "./password";
 
 const makeAuth = () => initInMemoryAuth({ hashPassword, verifyPassword });
 
@@ -47,6 +46,88 @@ describe("initInMemoryAuth", () => {
 			const auth = makeAuth();
 			await auth.createUser({ email: "user@example.com", password: "password123" });
 			const result = await auth.createUser({ email: "user+tag@example.com", password: "password456" });
+
+			expect(result.ok).toBe(true);
+		});
+	});
+
+	describe("Gmail mailbox identity", () => {
+		it("treats dotted and +tagged Gmail spellings as one mailbox", async () => {
+			const auth = makeAuth();
+			await auth.createUser({ email: "john.doe@gmail.com", password: "password123" });
+			const result = await auth.createUser({ email: "johndoe@gmail.com", password: "password456" });
+
+			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
+		});
+
+		it("treats googlemail.com as gmail.com", async () => {
+			const auth = makeAuth();
+			await auth.createUser({ email: "johndoe@gmail.com", password: "password123" });
+			const result = await auth.createUser({ email: "john.doe@googlemail.com", password: "password456" });
+
+			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
+		});
+
+		it("shares the Gmail claim across signup methods", async () => {
+			const auth = makeAuth();
+			await auth.createUser({ email: "john.doe@gmail.com", password: "password123" });
+			const result = await auth.createGoogleUser({
+				email: "johndoe+promo@gmail.com",
+				userId: UserIdSchema.parse("google-dupe"),
+			});
+
+			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
+		});
+
+		it("still allows distinct Gmail mailboxes", async () => {
+			const auth = makeAuth();
+			await auth.createUser({ email: "john.doe@gmail.com", password: "password123" });
+			const result = await auth.createUser({ email: "jane.doe@gmail.com", password: "password456" });
+
+			expect(result.ok).toBe(true);
+		});
+	});
+
+	describe("createUserWithPasswordHash", () => {
+		it("creates a user from a precomputed hash", async () => {
+			const auth = makeAuth();
+			const passwordHash = await hashPassword("password123");
+
+			const result = await auth.createUserWithPasswordHash({ email: "hashed@example.com", passwordHash });
+
+			expect(result.ok).toBe(true);
+			const verified = await auth.verifyCredentials({ email: "hashed@example.com", password: "password123" });
+			expect(verified.ok).toBe(true);
+		});
+
+		it("rejects a duplicate Gmail mailbox", async () => {
+			const auth = makeAuth();
+			const passwordHash = await hashPassword("password123");
+			await auth.createUser({ email: "john.doe@gmail.com", password: "password123" });
+
+			const result = await auth.createUserWithPasswordHash({ email: "johndoe@gmail.com", passwordHash });
+
+			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
+		});
+	});
+
+	describe("deleteUser", () => {
+		it("frees a non-Gmail address for reuse", async () => {
+			const auth = makeAuth();
+			await auth.createUser({ email: "temp@example.com", password: "password123" });
+			await auth.deleteUser("temp@example.com");
+
+			const result = await auth.createUser({ email: "temp@example.com", password: "password456" });
+
+			expect(result.ok).toBe(true);
+		});
+
+		it("releases the Gmail claim so the mailbox can be recreated", async () => {
+			const auth = makeAuth();
+			await auth.createUser({ email: "john.doe@gmail.com", password: "password123" });
+			await auth.deleteUser("john.doe@gmail.com");
+
+			const result = await auth.createUser({ email: "johndoe@gmail.com", password: "password456" });
 
 			expect(result.ok).toBe(true);
 		});

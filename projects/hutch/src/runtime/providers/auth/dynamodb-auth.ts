@@ -1,13 +1,27 @@
 /* c8 ignore start -- thin AWS SDK wrapper, tested via integration */
+import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
+	TransactWriteCommand,
+	TransactionCanceledException,
 	defineDynamoTable,
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import { UserIdSchema, authenticatedUserIdFrom, userIdPrefixFrom } from "@packages/domain/user";
+import {
+	UserIdSchema,
+	authenticatedUserIdFrom,
+	userIdPrefixFrom,
+	normalizeEmail,
+	canonicalizeEmail,
+	gmailIdentityKey,
+	hashPassword,
+	verifyPassword,
+	type UserId,
+	type CanonicalEmail,
+} from "@packages/domain/user";
 import type {
 	CountUsers,
 	CreateGoogleUser,
@@ -27,8 +41,6 @@ import type {
 	UserExistsByEmail,
 	VerifyCredentials,
 } from "@packages/provider-contracts/auth";
-import { normalizeEmail } from "@packages/test-fixtures/providers/auth";
-import { hashPassword, verifyPassword } from "@packages/test-fixtures/providers/auth";
 
 const UserRow = z.object({
 	email: z.string(),
@@ -39,6 +51,8 @@ const UserRow = z.object({
 	registeredAt: dynamoField(z.string()),
 	/* Optional so reads of pre-backfill rows don't throw; new writes always set it. */
 	userIdPrefix: dynamoField(z.string()),
+	/* Optional so reads of pre-backfill rows don't throw; new writes always set it. */
+	canonicalEmail: dynamoField(z.string()),
 });
 
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -49,6 +63,12 @@ const SessionRow = z.object({
 	expiresAt: z.number(),
 	emailVerified: dynamoField(z.boolean()),
 });
+
+/* Gmail uniqueness claims live in the users table under this PK prefix. Zod
+ * rejects "#" in emails, so a claim PK can never collide with a delivery-email
+ * PK. Claim items carry ownerUserId (never userId/userIdPrefix), keeping them
+ * out of both GSIs and out of countUsers' attribute_exists(userId) filter. */
+const CLAIM_PK_PREFIX = "canonical#";
 
 export function initDynamoDbAuth(deps: {
 	client: DynamoDBDocumentClient;
@@ -84,78 +104,126 @@ export function initDynamoDbAuth(deps: {
 		schema: SessionRow,
 	});
 
-	const createUser: CreateUser = async ({ email, password }) => {
-		const normalizedEmail = normalizeEmail(email);
-		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
-		const passwordHash = await hashPassword(password);
-
+	/** Persists a new user row, guarded by attribute_not_exists(email). For Gmail
+	 * mailboxes it also writes the canonical claim item in the same transaction so
+	 * the two-key uniqueness commit is atomic; a lost race on either key cancels
+	 * the whole write and surfaces as email-already-exists. */
+	const writeNewUserRow = async (params: {
+		userRow: Record<string, unknown>;
+		userId: UserId;
+		gmailClaimKey: CanonicalEmail | null;
+	}): Promise<{ ok: true } | { ok: false; reason: "email-already-exists" }> => {
+		const { userRow, userId, gmailClaimKey } = params;
 		try {
-			await users.put({
-				Item: {
-					email: normalizedEmail,
-					userId,
-					passwordHash,
-					emailVerified: false,
-					registeredAt: new Date().toISOString(),
-					userIdPrefix: userIdPrefixFrom(userId),
-				},
-				ConditionExpression: "attribute_not_exists(email)",
-			});
-			return { ok: true, userId };
+			if (gmailClaimKey === null) {
+				await users.put({
+					Item: userRow,
+					ConditionExpression: "attribute_not_exists(email)",
+				});
+			} else {
+				await deps.client.send(
+					new TransactWriteCommand({
+						TransactItems: [
+							{
+								Put: {
+									TableName: deps.usersTableName,
+									Item: userRow,
+									ConditionExpression: "attribute_not_exists(email)",
+								},
+							},
+							{
+								Put: {
+									TableName: deps.usersTableName,
+									Item: { email: `${CLAIM_PK_PREFIX}${gmailClaimKey}`, ownerUserId: userId },
+									ConditionExpression: "attribute_not_exists(email)",
+								},
+							},
+						],
+					}),
+				);
+			}
+			return { ok: true };
 		} catch (error) {
 			if (error instanceof ConditionalCheckFailedException) {
 				return { ok: false, reason: "email-already-exists" };
 			}
+			if (error instanceof TransactionCanceledException) {
+				// Both puts in the Gmail two-key commit are conditioned on
+				// attribute_not_exists, so a lost race on either the delivery email or
+				// the canonical claim cancels with ConditionalCheckFailed. Any other
+				// cancellation (throttling, conflict, validation) is a distinct,
+				// often-retryable failure that must propagate, not read as a duplicate.
+				const reasons = error.CancellationReasons;
+				const rowRejected = reasons?.[0]?.Code === "ConditionalCheckFailed";
+				const claimRejected = reasons?.[1]?.Code === "ConditionalCheckFailed";
+				if (rowRejected || claimRejected) {
+					return { ok: false, reason: "email-already-exists" };
+				}
+			}
 			throw error;
 		}
+	};
+
+	const createUser: CreateUser = async ({ email, password }) => {
+		const normalizedEmail = normalizeEmail(email);
+		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
+		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
+		const passwordHash = await hashPassword(password);
+
+		const result = await writeNewUserRow({
+			userRow: {
+				email: normalizedEmail,
+				userId,
+				passwordHash,
+				emailVerified: false,
+				registeredAt: new Date().toISOString(),
+				userIdPrefix: userIdPrefixFrom(userId),
+				canonicalEmail: canonicalizeEmail(email),
+			},
+			userId,
+			gmailClaimKey: gmailIdentityKey(email),
+		});
+		return result.ok ? { ok: true, userId } : result;
 	};
 
 	const createUserWithPasswordHash: CreateUserWithPasswordHash = async ({ email, passwordHash }) => {
 		const normalizedEmail = normalizeEmail(email);
+		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
 		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
 
-		try {
-			await users.put({
-				Item: {
-					email: normalizedEmail,
-					userId,
-					passwordHash,
-					emailVerified: false,
-					registeredAt: new Date().toISOString(),
-					userIdPrefix: userIdPrefixFrom(userId),
-				},
-				ConditionExpression: "attribute_not_exists(email)",
-			});
-			return { ok: true, userId };
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) {
-				return { ok: false, reason: "email-already-exists" };
-			}
-			throw error;
-		}
+		const result = await writeNewUserRow({
+			userRow: {
+				email: normalizedEmail,
+				userId,
+				passwordHash,
+				emailVerified: false,
+				registeredAt: new Date().toISOString(),
+				userIdPrefix: userIdPrefixFrom(userId),
+				canonicalEmail: canonicalizeEmail(email),
+			},
+			userId,
+			gmailClaimKey: gmailIdentityKey(email),
+		});
+		return result.ok ? { ok: true, userId } : result;
 	};
 
 	const createGoogleUser: CreateGoogleUser = async ({ email, userId }) => {
 		const normalizedEmail = normalizeEmail(email);
+		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
 
-		try {
-			await users.put({
-				Item: {
-					email: normalizedEmail,
-					userId,
-					emailVerified: true,
-					registeredAt: new Date().toISOString(),
-					userIdPrefix: userIdPrefixFrom(userId),
-				},
-				ConditionExpression: "attribute_not_exists(email)",
-			});
-			return { ok: true, userId };
-		} catch (error) {
-			if (error instanceof ConditionalCheckFailedException) {
-				return { ok: false, reason: "email-already-exists" };
-			}
-			throw error;
-		}
+		const result = await writeNewUserRow({
+			userRow: {
+				email: normalizedEmail,
+				userId,
+				emailVerified: true,
+				registeredAt: new Date().toISOString(),
+				userIdPrefix: userIdPrefixFrom(userId),
+				canonicalEmail: canonicalizeEmail(email),
+			},
+			userId,
+			gmailClaimKey: gmailIdentityKey(email),
+		});
+		return result.ok ? { ok: true, userId } : result;
 	};
 
 	const findUserByEmail: FindUserByEmail = async (email) => {
@@ -209,7 +277,12 @@ export function initDynamoDbAuth(deps: {
 	};
 
 	const countUsers: CountUsers = async () => {
-		const { count } = await users.scan({ Select: "COUNT" });
+		// Claim items share the table but carry ownerUserId, not userId, so this
+		// filter counts only real user rows (the founding-member gate reads this).
+		const { count } = await users.scan({
+			Select: "COUNT",
+			FilterExpression: "attribute_exists(userId)",
+		});
 		return count;
 	};
 

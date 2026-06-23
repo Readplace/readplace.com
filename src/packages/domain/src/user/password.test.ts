@@ -37,4 +37,10 @@ describe("verifyPassword", () => {
 
 		expect(result).toBe(false);
 	});
+
+	it("returns false when no password is stored", async () => {
+		const result = await verifyPassword("any-password", undefined);
+
+		expect(result).toBe(false);
+	});
 });

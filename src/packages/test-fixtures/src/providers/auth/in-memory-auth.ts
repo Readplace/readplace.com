@@ -1,7 +1,13 @@
 import assert from "node:assert";
 import { randomBytes } from "node:crypto";
 import type { UserId } from "@packages/domain/user";
-import { UserIdSchema, authenticatedUserIdFrom, userIdPrefixFrom } from "@packages/domain/user";
+import {
+	UserIdSchema,
+	authenticatedUserIdFrom,
+	userIdPrefixFrom,
+	normalizeEmail,
+	gmailIdentityKey,
+} from "@packages/domain/user";
 import type {
 	CountUsers,
 	CreateGoogleUser,
@@ -21,7 +27,6 @@ import type {
 	UserExistsByEmail,
 	VerifyCredentials,
 } from "@packages/provider-contracts/auth";
-import { normalizeEmail } from "./normalize-email";
 
 interface StoredUser {
 	id: UserId;
@@ -64,15 +69,29 @@ export function initInMemoryAuth(opts: {
 	const users = new Map<string, StoredUser>();
 	const sessions = new Map<string, StoredSession>();
 	const userIdPrefixes = new Set<string>();
+	const gmailClaims = new Map<string, UserId>();
+
+	/** Mirrors the DynamoDB claim-item transaction: rejects when either the
+	 * delivery key or the Gmail identity claim is already taken, and reserves the
+	 * claim on success. Returns the normalized (delivery) email, or null if taken. */
+	const reserveIdentity = (email: string, userId: UserId): string | null => {
+		const normalizedEmail = normalizeEmail(email);
+		const claimKey = gmailIdentityKey(email);
+		if (users.has(normalizedEmail) || (claimKey !== null && gmailClaims.has(claimKey))) {
+			return null;
+		}
+		if (claimKey !== null) {
+			gmailClaims.set(claimKey, userId);
+		}
+		return normalizedEmail;
+	};
 
 	const createUser: CreateUser = async ({ email, password }) => {
-		const normalizedEmail = normalizeEmail(email);
-
-		if (users.has(normalizedEmail)) {
+		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
+		const normalizedEmail = reserveIdentity(email, userId);
+		if (normalizedEmail === null) {
 			return { ok: false, reason: "email-already-exists" };
 		}
-
-		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
 		const passwordHash = await _hashPassword(password);
 
 		users.set(normalizedEmail, {
@@ -88,13 +107,11 @@ export function initInMemoryAuth(opts: {
 	};
 
 	const createUserWithPasswordHash: CreateUserWithPasswordHash = async ({ email, passwordHash }) => {
-		const normalizedEmail = normalizeEmail(email);
-
-		if (users.has(normalizedEmail)) {
+		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
+		const normalizedEmail = reserveIdentity(email, userId);
+		if (normalizedEmail === null) {
 			return { ok: false, reason: "email-already-exists" };
 		}
-
-		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
 
 		users.set(normalizedEmail, {
 			id: userId,
@@ -109,9 +126,8 @@ export function initInMemoryAuth(opts: {
 	};
 
 	const createGoogleUser: CreateGoogleUser = async ({ email, userId }) => {
-		const normalizedEmail = normalizeEmail(email);
-
-		if (users.has(normalizedEmail)) {
+		const normalizedEmail = reserveIdentity(email, userId);
+		if (normalizedEmail === null) {
 			return { ok: false, reason: "email-already-exists" };
 		}
 
@@ -238,6 +254,10 @@ export function initInMemoryAuth(opts: {
 
 	const deleteUser = async (email: string): Promise<void> => {
 		users.delete(normalizeEmail(email));
+		const claimKey = gmailIdentityKey(email);
+		if (claimKey !== null) {
+			gmailClaims.delete(claimKey);
+		}
 	};
 
 	return {
