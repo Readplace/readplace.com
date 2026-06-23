@@ -16,7 +16,8 @@
   "dependencies": {
     "@packages/crawl-article": "workspace:*",
     "@packages/domain": "workspace:*",
-    "linkedom": "0.18.12"
+    "linkedom": "0.18.12",
+    "tldts": "6.1.86"
   },
   "devDependencies": {
     "@types/jest": "30.0.0",

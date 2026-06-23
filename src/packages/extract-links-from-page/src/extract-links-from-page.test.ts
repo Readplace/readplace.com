@@ -91,6 +91,59 @@ describe("initExtractLinksFromPageUrl", () => {
 		expect(result.links.urls).toEqual(["https://outside.com/article"]);
 	});
 
+	it("drops links sharing the source's registrable domain (parent and sibling subdomains)", async () => {
+		const html = `
+			<a href="https://www.ycombinator.com/legal">Legal</a>
+			<a href="https://ycombinator.com/faq">FAQ</a>
+			<a href="https://news.ycombinator.com/newest">Newest</a>
+			<a href="https://other-site.com/article">Article</a>
+		`;
+		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
+			crawlFetch: fakeFetch(async () => htmlResponse(html, { url: "https://news.ycombinator.com/" })),
+		});
+
+		const result = await extract("https://news.ycombinator.com/");
+
+		expect(result.status).toBe("OK");
+		if (result.status !== "OK") throw new Error("expected OK");
+		expect(result.links.urls).toEqual(["https://other-site.com/article"]);
+	});
+
+	it("keeps a different registrable domain that shares a multi-part public suffix", async () => {
+		const html = `
+			<a href="https://bar.bbc.co.uk/page">Sibling</a>
+			<a href="https://theguardian.co.uk/news">External</a>
+		`;
+		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
+			crawlFetch: fakeFetch(async () => htmlResponse(html, { url: "https://foo.bbc.co.uk/" })),
+		});
+
+		const result = await extract("https://foo.bbc.co.uk/");
+
+		expect(result.status).toBe("OK");
+		if (result.status !== "OK") throw new Error("expected OK");
+		expect(result.links.urls).toEqual(["https://theguardian.co.uk/news"]);
+	});
+
+	it("falls back to host-only matching when the source host is an IP with no registrable domain", async () => {
+		const html = `
+			<a href="https://93.184.216.34/other">Same host</a>
+			<a href="https://other-site.com/article">External</a>
+		`;
+		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
+			crawlFetch: fakeFetch(async () => htmlResponse(html, { url: "https://93.184.216.34/" })),
+		});
+
+		const result = await extract("https://93.184.216.34/");
+
+		expect(result.status).toBe("OK");
+		if (result.status !== "OK") throw new Error("expected OK");
+		expect(result.links.urls).toEqual(["https://other-site.com/article"]);
+	});
+
 	it("drops the source URL itself if it appears in the page", async () => {
 		const html =
 			'<a href="https://news.example/issues/42">Permalink</a><a href="https://news.example/">Home</a><a href="https://outside.com/a">Article</a>';

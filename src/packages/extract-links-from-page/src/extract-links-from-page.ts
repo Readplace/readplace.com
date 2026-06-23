@@ -1,5 +1,6 @@
 import assert from "node:assert";
 import { parseHTML } from "linkedom";
+import { getDomain } from "tldts";
 import type { CrawlFetch } from "@packages/crawl-article";
 import type { ValidateSaveableUrl } from "@packages/domain/article";
 import {
@@ -42,15 +43,27 @@ function resolveHref(href: string | null, base: URL): string | undefined {
 	}
 }
 
+/** Same site means the same registrable (eTLD+1) domain, not just the same
+ * host, so a subdomain page also drops its parent and sibling subdomains. The
+ * Public Suffix List keeps the boundary correct under multi-part suffixes
+ * (bbc.co.uk stays distinct from theguardian.co.uk). IP literals have no
+ * registrable domain, so they fall back to exact-host matching. */
+function isSameSite(linkHost: string, pageHost: string, pageDomain: string | null): boolean {
+	if (linkHost === pageHost) return true;
+	if (pageDomain === null) return false;
+	return getDomain(linkHost) === pageDomain;
+}
+
 function harvestLinks(html: string, baseUrl: string, sourceUrl: string): ImportLinksResult {
 	const { document } = parseHTML(html);
 	const base = new URL(baseUrl);
+	const pageDomain = getDomain(base.host);
 	const sourceNormalized = new URL(sourceUrl).toString();
 	const anchors = Array.from(document.querySelectorAll("a[href]"));
 	const raw = anchors
 		.map((anchor) => resolveHref(anchor.getAttribute("href"), base))
 		.filter((url): url is string => url !== undefined)
-		.filter((url) => new URL(url).host !== base.host)
+		.filter((url) => !isSameSite(new URL(url).host, base.host, pageDomain))
 		.filter((url) => url !== sourceNormalized);
 	return collectImportLinks(raw);
 }
