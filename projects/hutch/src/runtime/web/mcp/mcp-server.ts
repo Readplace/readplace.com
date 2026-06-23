@@ -15,8 +15,9 @@ import {
 	GET_ARTICLE_TOOL,
 	LIST_QUEUE_TOOL,
 	ListQueueArgs,
+	MARK_AS_READ_TOOL,
+	MARK_AS_UNREAD_TOOL,
 	SAVE_LINK_TOOL,
-	SET_ARTICLE_STATUS_TOOL,
 	SaveLinkArgs,
 	TOOL_DEFINITIONS,
 } from "./tool-definitions";
@@ -219,7 +220,7 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			capabilities: { tools: { listChanged: false } },
 			serverInfo: MCP_SERVER_INFO,
 			instructions:
-				"save_link adds a URL to the user's Readplace reading queue; list_queue lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), and get_article_summary (AI TL;DR). Marking an article read/unread or deleting it is intentionally NOT available to the assistant — the set_article_status and delete_article tools only return instructions for the user to do it in the Readplace app.",
+				"save_link adds a URL to the user's Readplace reading queue; list_queue lists saved articles, each with an id you pass to get_article (metadata), get_article_content (reader HTML), and get_article_summary (AI TL;DR). Marking an article read/unread or deleting it is intentionally NOT available to the assistant — the mark_as_read, mark_as_unread, and delete_article tools only return instructions for the user to do it in the Readplace app, because reading a piece is the reader's own act and a summary is not the same as reading it.",
 		};
 	}
 
@@ -440,21 +441,28 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		}
 	}
 
-	/** Both write actions are app-only. The handler never touches the store; it
+	/** The write actions are app-only. The handler never touches the store; it
 	 * returns the same wording the user would see if they asked the assistant to
 	 * do it, so the assistant relays "do it in the app" instead of inventing a
 	 * capability it doesn't have. */
 	function appOnlyResult(
-		action: "set_article_status" | "delete_article",
+		action: "mark_as_read" | "mark_as_unread" | "delete_article",
 		message: string,
 	): ToolResult {
 		return data(message, { action, performed: false, completeInApp: APP_QUEUE_URL });
 	}
 
-	function runSetArticleStatus(): ToolResult {
+	function runMarkAsRead(): ToolResult {
 		return appOnlyResult(
-			"set_article_status",
-			`Marking an article read or unread is done in the Readplace app, not by your assistant, so changes to your queue stay under your control. Open your queue at ${APP_QUEUE_URL} to change an article's status.`,
+			"mark_as_read",
+			`Reading an article is your own act, so marking one read is done by you in the Readplace app, not by your assistant — a summary here is not the same as reading the piece. Open your queue at ${APP_QUEUE_URL} to mark an article read once you have read it.`,
+		);
+	}
+
+	function runMarkAsUnread(): ToolResult {
+		return appOnlyResult(
+			"mark_as_unread",
+			`Marking an article unread is done by you in the Readplace app, not by your assistant, so changes to your queue stay under your control. Open your queue at ${APP_QUEUE_URL} to mark an article unread.`,
 		);
 	}
 
@@ -486,8 +494,10 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 				return success(id, await runGetArticleContent(rawArgs, context));
 			case GET_ARTICLE_SUMMARY_TOOL.name:
 				return success(id, await runGetArticleSummary(rawArgs, context));
-			case SET_ARTICLE_STATUS_TOOL.name:
-				return success(id, runSetArticleStatus());
+			case MARK_AS_READ_TOOL.name:
+				return success(id, runMarkAsRead());
+			case MARK_AS_UNREAD_TOOL.name:
+				return success(id, runMarkAsUnread());
 			case DELETE_ARTICLE_TOOL.name:
 				return success(id, runDeleteArticle());
 			default:

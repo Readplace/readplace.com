@@ -106,7 +106,8 @@ describe("initMcpServer", () => {
 					{ name: "get_article", annotations: { readOnlyHint: true } },
 					{ name: "get_article_content" },
 					{ name: "get_article_summary" },
-					{ name: "set_article_status", annotations: { readOnlyHint: true } },
+					{ name: "mark_as_read", annotations: { readOnlyHint: true } },
+					{ name: "mark_as_unread", annotations: { readOnlyHint: true } },
 					{ name: "delete_article", annotations: { readOnlyHint: true } },
 				],
 			},
@@ -631,18 +632,34 @@ describe("initMcpServer", () => {
 	});
 
 	describe("tools/call app-only write tools", () => {
-		it("redirects set_article_status to the app without mutating", async () => {
+		it("redirects mark_as_read to the app without mutating, telling the reader to read it first", async () => {
 			const server = initMcpServer(fakeDeps());
-			const response = await call(server, 60, "set_article_status", {
-				id: "x".repeat(32),
-				status: "read",
-			});
+			const response = await call(server, 60, "mark_as_read", { id: "x".repeat(32) });
 			expect(response).toMatchObject({
 				id: 60,
 				result: {
+					content: [{ text: expect.stringContaining("once you have read it") }],
+					structuredContent: {
+						action: "mark_as_read",
+						performed: false,
+						completeInApp: "https://readplace.com/queue",
+					},
+				},
+			});
+			expect(response).toMatchObject({
+				result: { content: [{ text: expect.stringContaining("Readplace app") }] },
+			});
+		});
+
+		it("redirects mark_as_unread to the app without mutating", async () => {
+			const server = initMcpServer(fakeDeps());
+			const response = await call(server, 62, "mark_as_unread", { id: "x".repeat(32) });
+			expect(response).toMatchObject({
+				id: 62,
+				result: {
 					content: [{ text: expect.stringContaining("Readplace app") }],
 					structuredContent: {
-						action: "set_article_status",
+						action: "mark_as_unread",
 						performed: false,
 						completeInApp: "https://readplace.com/queue",
 					},

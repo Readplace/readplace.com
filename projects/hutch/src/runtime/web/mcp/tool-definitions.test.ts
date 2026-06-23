@@ -6,8 +6,9 @@ import {
 	GET_ARTICLE_TOOL,
 	LIST_QUEUE_TOOL,
 	ListQueueArgs,
+	MARK_AS_READ_TOOL,
+	MARK_AS_UNREAD_TOOL,
 	SAVE_LINK_TOOL,
-	SET_ARTICLE_STATUS_TOOL,
 	SaveLinkArgs,
 	TOOL_DEFINITIONS,
 } from "./tool-definitions";
@@ -20,7 +21,8 @@ describe("MCP tool definitions", () => {
 			"get_article",
 			"get_article_content",
 			"get_article_summary",
-			"set_article_status",
+			"mark_as_read",
+			"mark_as_unread",
 			"delete_article",
 		]);
 	});
@@ -105,12 +107,16 @@ describe("MCP tool definitions", () => {
 	});
 
 	describe("app-only write tools", () => {
-		it("advertises set_article_status as a read-only, non-destructive redirect", () => {
-			expect(SET_ARTICLE_STATUS_TOOL.inputSchema).toMatchObject({
-				required: ["id", "status"],
-				properties: { status: { enum: ["read", "unread"] } },
+		it.each([
+			["mark_as_read", MARK_AS_READ_TOOL],
+			["mark_as_unread", MARK_AS_UNREAD_TOOL],
+		])("advertises %s as a read-only, non-destructive id-only redirect", (_name, tool) => {
+			expect(tool.inputSchema).toMatchObject({
+				required: ["id"],
+				properties: { id: { type: "string" } },
 			});
-			expect(SET_ARTICLE_STATUS_TOOL.annotations).toMatchObject({
+			expect(tool.inputSchema.properties).not.toHaveProperty("status");
+			expect(tool.annotations).toMatchObject({
 				readOnlyHint: true,
 				destructiveHint: false,
 			});

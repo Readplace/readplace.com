@@ -161,27 +161,42 @@ export const GET_ARTICLE_SUMMARY_TOOL: McpToolDefinition = {
 	annotations: { readOnlyHint: true, openWorldHint: false },
 };
 
-/** `set_article_status` and `delete_article` are deliberately app-only: an
- * assistant must not flip an article's read state or delete it on the user's
- * behalf. They are advertised (so the assistant maps the user's intent to a
- * clear answer instead of an empty "I can't") but their handlers never mutate —
- * they return instructions to do it in the app. Hence `readOnlyHint: true`. */
-export const SET_ARTICLE_STATUS_TOOL: McpToolDefinition = {
-	name: "set_article_status",
-	title: "Mark an article read or unread (in the app)",
+/** `mark_as_read`, `mark_as_unread`, and `delete_article` are deliberately
+ * app-only: an assistant must not flip an article's read state or delete it on
+ * the user's behalf. Marking an article read is the reader's own act — asking
+ * the assistant to summarise a piece is not the same as reading it — so it
+ * stays a deliberate step the user takes in the app. The tools are advertised
+ * (so the assistant maps the user's intent to a clear answer instead of an
+ * empty "I can't") but their handlers never mutate; they return instructions to
+ * do it in the app. Hence `readOnlyHint: true`. */
+export const MARK_AS_READ_TOOL: McpToolDefinition = {
+	name: "mark_as_read",
+	title: "Mark an article read (in the app)",
 	description:
-		"Marking a saved article read or unread is done by the user in the Readplace app, not by the assistant. Calling this does NOT change anything — it returns instructions to open the app.",
+		"Marking a saved article read is done by the user in the Readplace app, not by the assistant: reading a piece is the reader's own act, and a summary is not the same as reading it. Calling this does NOT change anything — it returns instructions to open the app.",
 	inputSchema: {
 		type: "object",
-		properties: {
-			...ID_PROPERTY,
-			status: {
-				type: "string",
-				enum: ["read", "unread"],
-				description: "The status the user wants to set.",
-			},
-		},
-		required: ["id", "status"],
+		properties: { ...ID_PROPERTY },
+		required: ["id"],
+		additionalProperties: false,
+	},
+	annotations: {
+		readOnlyHint: true,
+		destructiveHint: false,
+		idempotentHint: true,
+		openWorldHint: false,
+	},
+};
+
+export const MARK_AS_UNREAD_TOOL: McpToolDefinition = {
+	name: "mark_as_unread",
+	title: "Mark an article unread (in the app)",
+	description:
+		"Marking a saved article unread is done by the user in the Readplace app, not by the assistant. Calling this does NOT change anything — it returns instructions to open the app.",
+	inputSchema: {
+		type: "object",
+		properties: { ...ID_PROPERTY },
+		required: ["id"],
 		additionalProperties: false,
 	},
 	annotations: {
@@ -217,6 +232,7 @@ export const TOOL_DEFINITIONS: readonly McpToolDefinition[] = [
 	GET_ARTICLE_TOOL,
 	GET_ARTICLE_CONTENT_TOOL,
 	GET_ARTICLE_SUMMARY_TOOL,
-	SET_ARTICLE_STATUS_TOOL,
+	MARK_AS_READ_TOOL,
+	MARK_AS_UNREAD_TOOL,
 	DELETE_ARTICLE_TOOL,
 ];
