@@ -61,6 +61,7 @@
     "@packages/onboarding-extension-signal": "workspace:*",
     "@packages/provider-contracts": "workspace:*",
     "@packages/refresh-article-content": "workspace:*",
+    "@packages/require-env": "workspace:*",
     "@packages/retriable": "workspace:*",
     "@packages/subscription-access": "workspace:*",
     "@packages/time-left": "workspace:*",

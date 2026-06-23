@@ -101,7 +101,7 @@ import type { ConversionEvent } from "./conversions";
 import type { AnalyticsEvent } from "./web/middleware/analytics";
 import { httpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { initFoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
-import { getEnv, requireEnv } from "./domain/require-env";
+import { getEnv, requireEnv } from "@packages/require-env";
 
 /**
  * Hutch SSR does not run PDF extraction in-process — the

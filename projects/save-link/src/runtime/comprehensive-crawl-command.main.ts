@@ -8,7 +8,7 @@ import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { extractPdfMetadata } from "@packages/crawl-article";
 import { parseRateLimitRule } from "@packages/domain/rate-limit";
-import { requireEnv } from "../require-env";
+import { requireEnv } from "@packages/require-env";
 import { initComprehensiveCrawlHandler } from "./domain/comprehensive-crawl/comprehensive-crawl-handler";
 import { initDynamoDbPaidCrawlBudget } from "./providers/paid-crawl-budget/dynamodb-paid-crawl-budget";
 import { initSaveLinkPdfExtract } from "./domain/article-parser/init-save-link-pdf-extract";

@@ -9,7 +9,7 @@ import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
 import { initArticleAggregateDepBundle } from "./dep-bundles/article-aggregate";
 import { initEventsDepBundle } from "./dep-bundles/events";
 import { initSelectContentDepBundle } from "./dep-bundles/select-content";
-import { requireEnv } from "../require-env";
+import { requireEnv } from "@packages/require-env";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const contentBucketName = requireEnv("CONTENT_BUCKET_NAME");

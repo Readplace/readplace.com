@@ -35,7 +35,7 @@ import { test } from "node:test";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { type FailedRow, collectFailedRows } from "./collect-failed-rows";
 import { EXCLUDE_PATTERNS } from "./exclude-patterns";
-import { getEnv, requireEnv } from "./require-env";
+import { getEnv, requireEnv } from "@packages/require-env";
 
 function parseLookbackDays(): number {
 	const raw = getEnv("FAILED_ARTICLES_LOOKBACK_DAYS");

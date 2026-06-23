@@ -14,6 +14,7 @@
     "check": "nx run web-embed:check"
   },
   "dependencies": {
+    "@packages/require-env": "workspace:*",
     "@packages/web-shell": "workspace:*",
     "express": "5.2.1",
     "helmet": "8.2.0",

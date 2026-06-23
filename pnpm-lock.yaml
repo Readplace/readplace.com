@@ -47,6 +47,9 @@ importers:
       '@packages/hutch-logger':
         specifier: workspace:*
         version: link:../../src/packages/hutch-logger
+      '@packages/require-env':
+        specifier: workspace:*
+        version: link:../../src/packages/require-env
       '@packages/web-shell':
         specifier: workspace:*
         version: link:../../src/packages/web-shell
@@ -330,6 +333,9 @@ importers:
       '@packages/refresh-article-content':
         specifier: workspace:*
         version: link:../../src/packages/refresh-article-content
+      '@packages/require-env':
+        specifier: workspace:*
+        version: link:../../src/packages/require-env
       '@packages/retriable':
         specifier: workspace:*
         version: link:../../src/packages/retriable
@@ -530,6 +536,9 @@ importers:
       '@packages/refresh-article-content':
         specifier: workspace:*
         version: link:../../src/packages/refresh-article-content
+      '@packages/require-env':
+        specifier: workspace:*
+        version: link:../../src/packages/require-env
       '@packages/retriable':
         specifier: workspace:*
         version: link:../../src/packages/retriable
@@ -649,6 +658,9 @@ importers:
 
   projects/web-embed:
     dependencies:
+      '@packages/require-env':
+        specifier: workspace:*
+        version: link:../../src/packages/require-env
       '@packages/web-shell':
         specifier: workspace:*
         version: link:../../src/packages/web-shell
@@ -833,6 +845,9 @@ importers:
       '@packages/hutch-storage-client':
         specifier: workspace:*
         version: link:../hutch-storage-client
+      '@packages/require-env':
+        specifier: workspace:*
+        version: link:../require-env
       zod:
         specifier: 4.4.3
         version: 4.4.3

@@ -10,7 +10,7 @@ import { createSeedActions, type SeedProgress } from './seed-actions'
 import { createAnonymousViewPageActions, type ViewPageProgress } from './view-page-actions'
 import { createLocalTestArticles, type QueueProgress } from './queue-actions'
 import { runQueueFlow } from './queue-flow'
-import { requireEnv } from '../../runtime/domain/require-env'
+import { requireEnv } from "@packages/require-env"
 
 const BASE_URL = `http://localhost:${requireEnv('E2E_PORT')}`
 

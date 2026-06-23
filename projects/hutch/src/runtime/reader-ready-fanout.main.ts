@@ -6,7 +6,7 @@ import { NotifyReaderViewReadyCommand } from "@packages/hutch-infra-components";
 import { initSqsCommandDispatcher } from "@packages/hutch-infra-components/runtime";
 import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
 import { initReaderReadyUsersNotificationFanoutHandler } from "./reader-ready-fanout/reader-ready-fanout-handler";
-import { requireEnv } from "./domain/require-env";
+import { requireEnv } from "@packages/require-env";
 
 /** ~5 min so a present user's final in-reader poll lands before the notify gate
  * runs (viewedAt ≥ succeededAt ⇒ suppressed). Below the 900s SQS maximum. */

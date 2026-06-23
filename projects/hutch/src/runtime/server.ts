@@ -163,7 +163,7 @@ import { initGetEffectiveAccess } from "./domain/access/effective-access";
 import { initRequireWriteAccess } from "./web/middleware/require-write-access.middleware";
 import { initResolveVerificationStatus } from "./web/middleware/resolve-verification-status.middleware";
 import { requireNotLocked } from "./web/middleware/require-not-locked.middleware";
-import { requireEnv, getEnv } from "./domain/require-env";
+import { requireEnv, getEnv } from "@packages/require-env";
 import "./web/session.types";
 
 export const PORT = requireEnv("PORT");

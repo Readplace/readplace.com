@@ -1,6 +1,6 @@
 import express from "express";
 import { initEmbedRoutes } from "./embed/embed.page";
-import { requireEnv } from "./require-env";
+import { requireEnv } from "@packages/require-env";
 
 const PORT = Number(requireEnv("E2E_PORT"));
 const appOrigin = `http://localhost:${PORT}`;

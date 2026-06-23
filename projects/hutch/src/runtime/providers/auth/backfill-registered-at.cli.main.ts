@@ -7,7 +7,7 @@ import {
 	dynamoField,
 } from "@packages/hutch-storage-client";
 import { z } from "zod";
-import { requireEnv } from "../../domain/require-env";
+import { requireEnv } from "@packages/require-env";
 
 const logger = HutchLogger.from(consoleLogger);
 

@@ -10,7 +10,7 @@ import { consoleLogger } from "@packages/hutch-logger";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
-import { requireEnv } from "../require-env";
+import { requireEnv } from "@packages/require-env";
 import { initSelectMostCompleteContentDlqHandler } from "./domain/select-content/select-most-complete-content-dlq-handler";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");

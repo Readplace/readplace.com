@@ -3,7 +3,7 @@ import { EventBridgeClient, initEventBridgePublisher } from "@packages/hutch-inf
 import { consoleLogger } from "@packages/hutch-logger";
 import { initPutTierSource } from "./providers/article-store/put-tier-source";
 import { initReadRefreshHtml } from "./providers/refresh-html/read-refresh-html";
-import { requireEnv } from "../require-env";
+import { requireEnv } from "@packages/require-env";
 import { initRefreshArticleContentHandler } from "./domain/save-link/refresh-article-content-handler";
 
 const eventBusName = requireEnv("EVENT_BUS_NAME");

@@ -4,7 +4,7 @@ import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initEventBridgeCancelSubscriptionCommand } from "./providers/events/eventbridge-cancel-subscription-command";
 import { initSubscriptionChargeFailedHandler } from "./subscription-charge-failed/subscription-charge-failed-handler";
 import { initEmitSubscriptionEvent, type SubscriptionLogEvent } from "./observability/subscription-events";
-import { requireEnv } from "./domain/require-env";
+import { requireEnv } from "@packages/require-env";
 
 const eventBusName = requireEnv("EVENT_BUS_NAME");
 
