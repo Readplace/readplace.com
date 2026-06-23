@@ -1,17 +1,52 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import type { Token } from "@node-oauth/oauth2-server";
 import { useTestServer } from "../../test-app";
+import type { TestAppHarness } from "../../test-app";
 
 import { CheckoutSessionIdSchema } from "@packages/test-fixtures/providers/stripe-checkout";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+import { UserIdSchema } from "@packages/domain/user";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
+import { SESSION_COOKIE_NAME } from "./session-cookie";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
+
+const TEST_USER_ID = UserIdSchema.parse("test-user-123");
+
+function createTestToken(): Token {
+	return {
+		accessToken: "test-access-token",
+		accessTokenExpiresAt: new Date(Date.now() + 3600000),
+		refreshToken: "test-refresh-token",
+		refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
+		client: {
+			id: "hutch-firefox-extension",
+			grants: ["authorization_code", "refresh_token"],
+			redirectUris: ["http://127.0.0.1:3000/oauth/callback"],
+		},
+		user: { id: TEST_USER_ID },
+	};
+}
+
+async function createAccessToken(harness: TestAppHarness): Promise<string> {
+	const client = await harness.oauthModel.getClient("hutch-firefox-extension", "");
+	assert(client, "Test client must exist");
+	const token = await harness.oauthModel.saveToken(createTestToken(), client, { id: TEST_USER_ID });
+	assert(token, "Token should be saved");
+	return token.accessToken;
+}
+
+function sessionCookie(response: request.Response): string | undefined {
+	const setCookie = response.headers["set-cookie"];
+	const cookies = Array.isArray(setCookie) ? setCookie : [];
+	return cookies.find((c) => c.startsWith(`${SESSION_COOKIE_NAME}=`));
+}
 
 /** A loadedAt value safely older than the bot-defense minimum submit window
  * (2.5s), so the form submission passes the timing gate. */
@@ -999,6 +1034,65 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/");
+		});
+	});
+
+	describe("POST /auth/session", () => {
+		it("mints an httpOnly session cookie from a valid bearer token and returns 204", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const accessToken = await createAccessToken(harness);
+
+			const response = await request(harness.server)
+				.post("/auth/session")
+				.set("Authorization", `Bearer ${accessToken}`);
+
+			expect(response.status).toBe(204);
+			const cookie = sessionCookie(response);
+			assert(cookie, "expected the hutch_sid session cookie");
+			expect(cookie).toContain("HttpOnly");
+			expect(cookie).toContain("Path=/");
+			expect(cookie).toContain("SameSite=Lax");
+		});
+
+		it("returns 401 and mints no session cookie when no Authorization header is present", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).post("/auth/session");
+
+			expect(response.status).toBe(401);
+			expect(sessionCookie(response)).toBeUndefined();
+		});
+
+		it("returns 401 and mints no session cookie for an invalid bearer token", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.post("/auth/session")
+				.set("Authorization", "Bearer not-a-real-token");
+
+			expect(response.status).toBe(401);
+			expect(sessionCookie(response)).toBeUndefined();
+		});
+
+		it("mints a session that authenticates a subsequent browser request", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const created = await harness.auth.createUser({ email: "webview@example.com", password: "password123" });
+			assert(created.ok, "user must be created");
+			const client = await harness.oauthModel.getClient("hutch-firefox-extension", "");
+			assert(client, "Test client must exist");
+			const userToken = createTestToken();
+			userToken.user = { id: created.userId };
+			const token = await harness.oauthModel.saveToken(userToken, client, { id: created.userId });
+			assert(token, "Token should be saved");
+
+			const agent = request.agent(harness.server);
+			const sessionResponse = await agent
+				.post("/auth/session")
+				.set("Authorization", `Bearer ${token.accessToken}`);
+			expect(sessionResponse.status).toBe(204);
+
+			const queueResponse = await agent.get("/queue").set("Accept", "text/html");
+			expect(queueResponse.status).toBe(200);
 		});
 	});
 

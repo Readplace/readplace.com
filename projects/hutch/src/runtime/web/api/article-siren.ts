@@ -30,6 +30,13 @@ export function toArticleSubEntity(article: SavedArticle): SirenSubEntity {
 				href: `/queue/${id}/delete`,
 				method: "POST",
 			},
+			{
+				name: "update-status",
+				href: `/queue/${id}/status`,
+				method: "POST",
+				type: "application/x-www-form-urlencoded",
+				fields: [{ name: "status", type: "text" }],
+			},
 		],
 	};
 }

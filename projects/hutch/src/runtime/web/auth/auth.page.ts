@@ -13,6 +13,8 @@ import type {
 	VerifyCredentials,
 } from "@packages/provider-contracts/auth";
 import type { UserId } from "@packages/domain/user";
+import type { ValidateAccessToken } from "@packages/provider-contracts/oauth";
+import { AccessTokenSchema } from "@packages/domain/oauth";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import type {
 	CreateVerificationToken,
@@ -75,6 +77,7 @@ interface AuthDependencies {
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	findUserByEmail: FindUserByEmail;
 	verifyCredentials: VerifyCredentials;
+	validateAccessToken: ValidateAccessToken;
 	createSession: CreateSession;
 	destroySession: DestroySession;
 	countUsers: CountUsers;
@@ -438,6 +441,33 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		}
 
 		sendComponent(req, res, Base(VerifyEmailPage({ success: true }), await deps.buildBannerState(req)));
+	});
+
+	/** Mints a browser session cookie from a valid OAuth bearer token so a native
+	 * client's in-app webview can reach cookie-authenticated pages — the reader at
+	 * /queue/:id/view and its htmx poll/mutation XHRs resolve ownership from the
+	 * hutch_sid session, never from a bearer. Grants no new privilege (the bearer
+	 * already authorizes the full API) and is CSRF-safe because browsers never
+	 * auto-attach bearer tokens. The auth router is not behind dualAuth, so the
+	 * endpoint validates the bearer itself; 204 with no redirect keeps it free of
+	 * an open-redirect surface and reusable for any future authenticated webview. */
+	router.post("/auth/session", async (req: Request, res: Response) => {
+		const header = req.headers.authorization;
+		if (!header?.startsWith("Bearer ")) {
+			res.status(401).set("WWW-Authenticate", "Bearer").end();
+			return;
+		}
+		const validated = await deps.validateAccessToken(AccessTokenSchema.parse(header.slice(7)));
+		if (!validated) {
+			res.status(401).set("WWW-Authenticate", 'Bearer error="invalid_token"').end();
+			return;
+		}
+		const sessionId = await deps.createSession({
+			userId: validated.userId,
+			emailVerified: validated.emailVerified,
+		});
+		res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
+		res.status(204).end();
 	});
 
 	router.post("/logout", async (req: Request, res: Response) => {

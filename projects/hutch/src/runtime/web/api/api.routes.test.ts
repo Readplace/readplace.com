@@ -689,6 +689,33 @@ describe("Article sub-entity actions", () => {
 		expect(deleteAction.method).toBe("POST");
 		expect(deleteAction.href).toContain("/delete");
 	});
+
+	it("includes update-status action on article sub-entities in collection", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+
+		await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.set("Content-Type", "application/json")
+			.send({ url: "https://example.com/article" });
+
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		const entity = response.body.entities[0];
+		const updateStatus = entity.actions?.find(
+			(a: { name: string }) => a.name === "update-status",
+		);
+		assert(updateStatus, "expected update-status action on sub-entity");
+		expect(updateStatus.method).toBe("POST");
+		expect(updateStatus.href).toContain("/status");
+		expect(updateStatus.type).toBe("application/x-www-form-urlencoded");
+		expect(updateStatus.fields).toEqual([{ name: "status", type: "text" }]);
+	});
 });
 
 describe("Content negotiation", () => {
