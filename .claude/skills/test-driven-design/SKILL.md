@@ -60,9 +60,12 @@ const failure: CoreError =
 		? { reason: "not-logged-in" }
 		: { reason: "error", error: result.error };
 
-// ✅ GOOD - Each input arm already satisfies CoreError; pass it through
-const failure: CoreError = result;
+// ✅ GOOD - Strip the discriminant once; every arm flows through the same path
+const { ok: _ok, ...failure } = result;
+eventBus.emit(event, "failure", failure satisfies CoreError);
 ```
+
+A plain pass-through (`const failure: CoreError = result`) is tempting but wrong when `result` carries extra own-enumerable fields beyond `CoreError` — here the `ok` discriminant. The type checks, but those fields leak through at runtime and break a strict `toEqual` on the emitted value. Rest-destructure the discriminant away so the runtime shape matches the type.
 
 ### Dependency Injection Over Mocks
 
