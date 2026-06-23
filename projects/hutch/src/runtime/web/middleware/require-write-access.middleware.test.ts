@@ -2,7 +2,6 @@ import express, { type Request, type RequestHandler } from "express";
 import request from "supertest";
 import { authenticatedUserIdFrom, type AuthenticatedUserId } from "@packages/domain/user";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
-import { initGetEffectiveAccess } from "../../domain/access/effective-access";
 import { initRequireWriteAccess } from "./require-write-access.middleware";
 
 const TEST_USER_ID = authenticatedUserIdFrom("11112222333344445555666677778888");
@@ -11,11 +10,10 @@ const ONE_DAY_MS = 86_400_000;
 
 function buildApp(userId: AuthenticatedUserId, now: Date = NOW) {
 	const providers = initInMemorySubscriptionProviders({ now: () => now });
-	const getEffectiveAccess = initGetEffectiveAccess({
+	const requireWriteAccess = initRequireWriteAccess({
 		findSubscriptionByUserId: providers.findByUserId,
 		now: () => now,
 	});
-	const requireWriteAccess = initRequireWriteAccess({ getEffectiveAccess });
 
 	const app = express();
 	const attachUser: RequestHandler = (req: Request, _res, next) => {

@@ -1,7 +1,8 @@
 import type { UserId } from "@packages/domain/user";
 import type { FindUserById } from "@packages/provider-contracts/auth";
+import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
+import { resolveWriteAccess } from "@packages/subscription-access";
 import { VERIFICATION_CONTACT_EMAIL } from "@packages/web-shell";
-import type { GetEffectiveAccess } from "../../domain/access/effective-access";
 import { computeVerificationStatus } from "../../domain/access/verification-deadline";
 
 /**
@@ -25,7 +26,7 @@ type SaveAccess =
 
 export function initResolveSaveAccess(deps: {
 	findUserById: FindUserById;
-	getEffectiveAccess: GetEffectiveAccess;
+	findSubscriptionByUserId: FindSubscriptionByUserId;
 	now: () => Date;
 }): (userId: UserId) => Promise<SaveAccess> {
 	return async (userId) => {
@@ -45,8 +46,8 @@ export function initResolveSaveAccess(deps: {
 			}
 		}
 
-		const access = await deps.getEffectiveAccess(userId);
-		if (access.access !== "full") {
+		const subscription = await deps.findSubscriptionByUserId(userId);
+		if (resolveWriteAccess(subscription, deps.now()) !== "full") {
 			return {
 				allowed: false,
 				message:
