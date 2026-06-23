@@ -53,13 +53,10 @@ enum AppConfig {
 	/// extension cannot read the token the app stores.
 	static let appGroupId = "group.com.readplace"
 
-	/// Path appended to the base URL to form the registered redirect URI.
-	static let callbackPath = "/oauth/callback"
-
 	/// Custom URL scheme the OS routes back to this app. Declared in
-	/// `Info.plist`'s `CFBundleURLTypes`; used by the external-browser "Sign up"
-	/// flow, which (unlike the in-app WKWebView login) can't observe an https
-	/// redirect in another app's tab.
+	/// `Info.plist`'s `CFBundleURLTypes`; used by the external-browser auth flow
+	/// (both Login and Sign up) to receive the OAuth redirect, since a web flow
+	/// running in another app's browser can't be observed in-process.
 	static let callbackURLScheme = "readplace"
 
 	/// Host component of `nativeCallbackURL`. `RootView.onOpenURL` matches the

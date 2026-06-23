@@ -1,6 +1,6 @@
 import UIKit
 
-/// The browser seam the UI-free `WebSignup` core opens through, kept in the App
+/// The browser seam the UI-free `WebAuthFlow` core opens through, kept in the App
 /// target so the tested core stays free of UIKit. `.system` is backed by the
 /// live `UIApplication`; tests inject their own closures.
 ///
@@ -17,22 +17,22 @@ struct ExternalBrowser {
 	)
 }
 
-/// Composition root for the external-browser Sign up flow: resolves the shared
-/// App Group store and wires the live browser + session into a `SignupFlow`.
-/// Both the Sign up button (`start`) and the deep-link callback (`complete`)
-/// build the flow this way; they share state only through the persisted store,
-/// so a cold relaunch on the callback still finds the pending record.
+/// Composition root for the external-browser auth flow shared by Login and Sign
+/// up: resolves the shared App Group store and wires the live browser + session
+/// into a `WebAuthFlow`. Both buttons (`start`) and the deep-link callback
+/// (`complete`) build the flow this way; they share state only through the
+/// persisted store, so a cold relaunch on the callback still finds the pending
+/// record. The login-vs-signup difference is the authorize request the caller
+/// hands to `start`, so this root stays oblivious to which one it is.
 @MainActor
-func makeSignupFlow(session: AppSession) -> SignupFlow {
+func makeWebAuthFlow(session: AppSession) -> WebAuthFlow {
 	let group = TokenStore.resolvedAppGroupId
 	guard let defaults = UserDefaults(suiteName: group) else {
-		preconditionFailure("App Group \(group) is required for the Sign up flow")
+		preconditionFailure("App Group \(group) is required for the web auth flow")
 	}
-	let store = SignupPendingStore(defaults: defaults)
-	let oauth = session.makeOAuth()
+	let store = PendingAuthStore(defaults: defaults)
 	let browser = ExternalBrowser.system
-	return initWebSignup(deps: WebSignupDependencies(
-		makeAuthorizationRequest: oauth.makeSignupAuthorizationRequest,
+	return initWebAuthFlow(deps: WebAuthFlowDependencies(
 		pendingStore: store,
 		canOpenURL: browser.canOpen,
 		openURL: browser.open,

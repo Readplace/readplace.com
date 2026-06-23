@@ -59,19 +59,20 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
 ## What it does
 
 - **Sign in** with OAuth 2.0 + PKCE against `https://readplace.com`, reusing the
-  extension's public client (`hutch-chrome-extension`) and its registered
-  `https://readplace.com/oauth/callback` redirect. The authorize page is shown
-  in an in-app `WKWebView`; the redirect is intercepted to grab the code — the
-  native analogue of the extension opening a tab and waiting for the redirect.
+  extension's public client (`hutch-chrome-extension`). The authorize page opens
+  in the **external browser** via the same flow as **Sign up** (below), carrying
+  `screen_hint=login` so a logged-out user lands on the web `/login` page and
+  returns authenticated through the native `readplace://oauth-callback` deep link.
 - **Sign up** by opening `/oauth/authorize` in the **external browser** — Chrome
   if installed (`googlechromes://`), else the default — so an existing Chrome
   session is reused. The redirect is a native `readplace://oauth-callback` deep
   link and the request carries `screen_hint=signup`: an already-logged-in Chrome
   passes straight to consent, while a new/logged-out user lands on the web
   `/signup` page and returns authenticated. This mirrors the browser extension's
-  tab-based flow (which the WKWebView login can't, since it can't see Chrome's
+  tab-based flow (which an in-app web view can't, since it can't see Chrome's
   cookies); the in-flight PKCE secrets are persisted to the App Group so a cold
-  relaunch via the deep link can still finish the token exchange.
+  relaunch via the deep link can still finish the token exchange. **Login uses
+  this identical flow**, differing only in the `screen_hint`.
 - **List** your reading list by walking the Siren API: `GET /` → `303` → `/queue`
   collection, rendering each article (title, site, excerpt, thumbnail, read
   state), with pull-to-refresh, infinite scroll via the `next` link, and
@@ -229,18 +230,19 @@ cases:
   degrading to URL-only when the capture is empty or the HTML is over the cap,
   short-circuiting before any network call when logged out or when there's no
   link, and reporting no-op when the server advertises no save action.
-- **Sign up flow**: the native authorize request (`readplace://oauth-callback`
-  redirect + `screen_hint=signup`, same PKCE shape as login), the deep-link
-  callback exchanging the code with the native `redirect_uri` and flipping the
-  session logged-in, the Chrome-scheme selection (rewrite to `googlechromes://`
-  when Chrome is available, byte-equal HTTPS fallback otherwise), the
-  `SignupPendingStore` save/load/clear round-trip, and the flow persisting the
-  PKCE secrets before opening the browser (so a kill mid-hop can't lose them).
+- **Web-auth flow (shared by Login & Sign up)**: the native authorize requests
+  (`readplace://oauth-callback` redirect + `screen_hint=login`/`signup`), the
+  deep-link callback exchanging the code with the native `redirect_uri` and
+  flipping the session logged-in, the Chrome-scheme selection (rewrite to
+  `googlechromes://` when Chrome is available, byte-equal HTTPS fallback
+  otherwise), the `PendingAuthStore` save/load/clear round-trip, and the flow
+  persisting the PKCE secrets before opening the browser (so a kill mid-hop can't
+  lose them).
 
 `make test` then runs a **staging smoke pass** (`make test-staging`): it
 recompiles the app, extension and tests with the `STAGING` condition and runs
 `AppConfigTests` under it. The full suite can't run under `STAGING` — the OAuth
-and Sign-up tests pin the production redirect URI/host — but compiling everything proves the
+and login/sign-up tests pin the production authorize host — but compiling everything proves the
 staging build stays green, and the smoke test asserts the `#if STAGING` server
 selection resolves to the staging stack. CI runs `make test`, so this path is
 exercised on every run, not only when someone builds `make ipa-staging` by hand.
@@ -260,26 +262,21 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
   the `iphoneos` SDK without needing the iOS *platform* registered for a
   destination. Verified building against Xcode 15.4 (iOS 17.5 SDK).
 
-- **Google sign-in inside the web view** may be refused by Google
-  ("disallowed_useragent"). The app presents a Safari-like user agent to reduce
-  this, but if Google blocks it, sign in with **email/password** instead — both
-  reach the same OAuth consent screen.
 - **Tapping an item** opens the original article URL in an in-app Safari view.
   The server's reader (`/queue/{id}/view`) needs a cookie session this
   token-based POC doesn't hold, so it isn't used.
-- **Login needs no server change; Sign up adds a small additive one.** Both
-  authenticate as the existing `hutch-chrome-extension` client. The WKWebView
-  **login** intercepts that client's registered HTTPS callback. The
-  external-browser **Sign up** can't observe an HTTPS redirect in another app's
-  tab, so it returns via a native `readplace://oauth-callback` deep link — that
-  scheme is now registered on the same client, and `/oauth/authorize` accepts an
-  optional `screen_hint=signup` (both changes are additive in
-  `built-in-clients.ts` / `oauth.routes.ts`; they don't affect the extension or
-  the login flow). (Staging sign-in needs the staging callback registered for
-  that client — see the `make ipa-staging` note above.)
+- **Both Login and Sign up use one small additive server change.** They
+  authenticate as the existing `hutch-chrome-extension` client. The
+  external-browser flow can't observe an HTTPS redirect in another app's tab, so
+  it returns via a native `readplace://oauth-callback` deep link — that scheme is
+  registered on the same client, and `/oauth/authorize` accepts an optional
+  `screen_hint` (`login`/`signup`). Both changes are additive in
+  `built-in-clients.ts` / `oauth.routes.ts` and don't affect the extension. The
+  native scheme is identical across production and staging, so sign-in needs no
+  per-environment callback registration.
 - **The server URL is fixed at build time** in `AppConfig.serverBaseURL` — there
   is no Server field on the sign-in screen. `make ipa` targets production;
-  `make ipa-staging` compiles with the `STAGING` condition to target staging. The
-  OAuth redirect allowlist must contain the build's callback (`callbackPath` on
-  the base URL); both the production and staging callbacks are registered for
-  `hutch-chrome-extension` in `built-in-clients.ts`.
+  `make ipa-staging` compiles with the `STAGING` condition to target staging.
+  Sign-in returns through the native `readplace://oauth-callback` deep link
+  (`AppConfig.nativeCallbackURL`), registered for `hutch-chrome-extension` in
+  `built-in-clients.ts` and identical across production and staging.

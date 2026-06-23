@@ -37,8 +37,8 @@ final class SignupFlowTests: XCTestCase {
 	func testCallbackDeepLinkCompletesSignInWithNativeRedirect() async throws {
 		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
 		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
-		let pendingStore = SignupPendingStore(defaults: TestSupport.ephemeralDefaults())
-		pendingStore.save(PendingSignup(verifier: "v", state: "S", redirectURI: AppConfig.nativeCallbackURL))
+		let pendingStore = PendingAuthStore(defaults: TestSupport.ephemeralDefaults())
+		pendingStore.save(PendingAuth(verifier: "v", state: "S", redirectURI: AppConfig.nativeCallbackURL))
 		XCTAssertFalse(session.isLoggedIn)
 
 		StubURLProtocol.setHandler { request, _ in
@@ -46,8 +46,7 @@ final class SignupFlowTests: XCTestCase {
 			return .json(200, Fixtures.tokenResponse(access: "fresh-access", refresh: "fresh-refresh"))
 		}
 
-		let flow = initWebSignup(deps: WebSignupDependencies(
-			makeAuthorizationRequest: makeService(store: store).makeSignupAuthorizationRequest,
+		let flow = initWebAuthFlow(deps: WebAuthFlowDependencies(
 			pendingStore: pendingStore,
 			canOpenURL: { _ in false },
 			openURL: { _ in },
@@ -98,11 +97,11 @@ final class SignupFlowTests: XCTestCase {
 		XCTAssertEqual(fallback.absoluteString, https.absoluteString)
 	}
 
-	func testSignupPendingStoreRoundTrip() {
-		let store = SignupPendingStore(defaults: TestSupport.ephemeralDefaults())
+	func testPendingAuthStoreRoundTrip() {
+		let store = PendingAuthStore(defaults: TestSupport.ephemeralDefaults())
 		XCTAssertNil(store.load())
 
-		let pending = PendingSignup(verifier: "ver", state: "st", redirectURI: AppConfig.nativeCallbackURL)
+		let pending = PendingAuth(verifier: "ver", state: "st", redirectURI: AppConfig.nativeCallbackURL)
 		store.save(pending)
 		XCTAssertEqual(store.load(), pending)
 
@@ -111,13 +110,12 @@ final class SignupFlowTests: XCTestCase {
 	}
 
 	func testSignupFlowPersistsSecretsBeforeOpeningBrowser() throws {
-		let store = SignupPendingStore(defaults: TestSupport.ephemeralDefaults())
+		let store = PendingAuthStore(defaults: TestSupport.ephemeralDefaults())
 		let oauth = makeService(store: TestSupport.loggedInStore())
 
 		var openedURL: URL?
-		var pendingWhenOpened: PendingSignup?
-		let flow = initWebSignup(deps: WebSignupDependencies(
-			makeAuthorizationRequest: oauth.makeSignupAuthorizationRequest,
+		var pendingWhenOpened: PendingAuth?
+		let flow = initWebAuthFlow(deps: WebAuthFlowDependencies(
 			pendingStore: store,
 			canOpenURL: { _ in false },
 			openURL: { url in
@@ -127,7 +125,7 @@ final class SignupFlowTests: XCTestCase {
 			exchange: { _, _ in .success(()) }
 		))
 
-		flow.start()
+		flow.start(oauth.makeSignupAuthorizationRequest())
 
 		let pending = try XCTUnwrap(pendingWhenOpened, "secrets must be persisted before the browser opens — a kill mid-hop must not lose them")
 		XCTAssertEqual(store.load(), pending, "the persisted record must outlive start()")

@@ -1,5 +1,22 @@
 import Foundation
 
+/// Why the authorization callback was rejected before any token exchange. Raised
+/// by `AppSession.completeSignIn` while validating the `readplace://oauth-callback`
+/// deep link the external-browser auth flow returns through.
+enum AuthFlowError: LocalizedError {
+	case denied(String)
+	case missingCode
+	case stateMismatch
+
+	var errorDescription: String? {
+		switch self {
+		case .denied(let reason): return "Authorization was denied (\(reason))."
+		case .missingCode: return "No authorization code was returned."
+		case .stateMismatch: return "Security check failed (state mismatch)."
+		}
+	}
+}
+
 /// App-wide auth/session state. Exposes factories for the API and OAuth
 /// services so views never construct them with stale config.
 @MainActor
@@ -19,33 +36,15 @@ final class AppSession: ObservableObject {
 		isLoggedIn = store.isLoggedIn
 	}
 
-	/// Completes the in-app WKWebView login: forwards to the redirect-aware
-	/// overload with the https callback, so the token exchange's `redirect_uri`
-	/// matches the one the WKWebView flow authorized with.
-	func completeSignIn(
-		callbackURL: URL,
-		verifier: String,
-		expectedState: String,
-		onExchangeStarted: () -> Void
-	) async -> Result<Void, Error> {
-		await completeSignIn(
-			callbackURL: callbackURL,
-			verifier: verifier,
-			expectedState: expectedState,
-			redirectURI: makeOAuth().redirectURI,
-			onExchangeStarted: onExchangeStarted
-		)
-	}
-
 	/// Completes sign-in after the authorization web flow redirects to the
 	/// callback URL: validate the callback, exchange the code for tokens, flip
 	/// the session to logged-in. The deterministic half of the OAuth flow — the
-	/// preceding web redirect (WKWebView for login, external browser for signup)
-	/// is the OS boundary, exercised by hand.
+	/// preceding external-browser web redirect (for both Login and Sign up) is the
+	/// OS boundary, exercised by hand.
 	///
 	/// `redirectURI` must equal the one the authorize request used, because the
-	/// OAuth server checks it by exact string at token time: the https callback
-	/// for WKWebView login, the native custom scheme for external-browser signup.
+	/// OAuth server checks it by exact string at token time: the native custom
+	/// scheme the external-browser flow authorized with.
 	///
 	/// `onExchangeStarted` fires once, only after the callback validates and the
 	/// network code exchange begins — never for a rejected callback — so the

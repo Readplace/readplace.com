@@ -1,9 +1,11 @@
 import XCTest
 @testable import Readplace
 
-/// End-to-end coverage of the sign-in journey through the real production types,
-/// with the network faked by `StubURLProtocol`. After the OS-owned web redirect,
-/// `completeSignIn` exchanges the code and the session flips to logged-in; then a
+/// End-to-end coverage of the login journey through the real production types,
+/// with the network faked by `StubURLProtocol`. Login opens `/oauth/authorize`
+/// in the external browser (carrying `screen_hint=login`) and returns through the
+/// native `readplace://oauth-callback` deep link; after that OS-owned redirect,
+/// `completeSignIn` exchanges the code and the session flips to logged-in, then a
 /// reading-list load renders the queue with the bearer token preserved across the
 /// entry-point 303.
 @MainActor
@@ -11,6 +13,28 @@ final class LoginFlowTests: XCTestCase {
 	nonisolated override func setUp() {
 		super.setUp()
 		StubURLProtocol.reset()
+	}
+
+	private func makeService(store: TokenStore) -> OAuthService {
+		OAuthService(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
+	}
+
+	func testLoginAuthorizationRequestUsesNativeRedirectAndLoginHint() {
+		let request = makeService(store: TestSupport.loggedInStore()).makeNativeLoginAuthorizationRequest()
+
+		let components = URLComponents(url: request.url, resolvingAgainstBaseURL: false)!
+		XCTAssertEqual(components.host, "readplace.com")
+		XCTAssertEqual(components.path, "/oauth/authorize")
+		let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+		XCTAssertEqual(items["client_id"], "hutch-chrome-extension")
+		XCTAssertEqual(items["redirect_uri"], AppConfig.nativeCallbackURL)
+		XCTAssertEqual(items["response_type"], "code")
+		XCTAssertEqual(items["code_challenge_method"], "S256")
+		XCTAssertEqual(items["screen_hint"], "login")
+		XCTAssertEqual(items["code_challenge"], PKCE.challenge(for: request.codeVerifier))
+		XCTAssertFalse((items["state"] ?? "").isEmpty)
+		XCTAssertGreaterThanOrEqual(request.codeVerifier.count, 43)
+		XCTAssertEqual(request.redirectURI, AppConfig.nativeCallbackURL)
 	}
 
 	func testCompleteSignInExchangesCodeAndFlipsSessionToLoggedIn() async throws {
@@ -25,9 +49,10 @@ final class LoginFlowTests: XCTestCase {
 
 		var exchangeStarts = 0
 		let result = await session.completeSignIn(
-			callbackURL: URL(string: "https://readplace.com/oauth/callback?code=abc&state=S")!,
+			callbackURL: URL(string: "\(AppConfig.nativeCallbackURL)?code=abc&state=S")!,
 			verifier: "v",
 			expectedState: "S",
+			redirectURI: AppConfig.nativeCallbackURL,
 			onExchangeStarted: { exchangeStarts += 1 }
 		)
 
@@ -42,7 +67,7 @@ final class LoginFlowTests: XCTestCase {
 		XCTAssertEqual(body["code"], "abc")
 		XCTAssertEqual(body["code_verifier"], "v")
 		XCTAssertEqual(body["client_id"], "hutch-chrome-extension")
-		XCTAssertEqual(body["redirect_uri"], "https://readplace.com/oauth/callback")
+		XCTAssertEqual(body["redirect_uri"], AppConfig.nativeCallbackURL)
 	}
 
 	func testRejectedCallbackNeitherRaisesOverlayNorExchanges() async throws {
@@ -51,9 +76,10 @@ final class LoginFlowTests: XCTestCase {
 
 		var exchangeStarts = 0
 		let result = await session.completeSignIn(
-			callbackURL: URL(string: "https://readplace.com/oauth/callback?code=abc&state=WRONG")!,
+			callbackURL: URL(string: "\(AppConfig.nativeCallbackURL)?code=abc&state=WRONG")!,
 			verifier: "v",
 			expectedState: "S",
+			redirectURI: AppConfig.nativeCallbackURL,
 			onExchangeStarted: { exchangeStarts += 1 }
 		)
 

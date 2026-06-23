@@ -11,24 +11,6 @@ final class OAuthServiceTests: XCTestCase {
 		OAuthService(baseURL: AppConfig.serverBaseURL, store: store, sessionConfiguration: TestSupport.stubbedConfiguration())
 	}
 
-	func testAuthorizationRequestHasCorrectParams() {
-		let store = TestSupport.loggedInStore()
-		let request = makeService(store: store).makeAuthorizationRequest()
-
-		let components = URLComponents(url: request.url, resolvingAgainstBaseURL: false)!
-		XCTAssertEqual(components.host, "readplace.com")
-		XCTAssertEqual(components.path, "/oauth/authorize")
-		let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
-		XCTAssertEqual(items["client_id"], "hutch-chrome-extension")
-		XCTAssertEqual(items["redirect_uri"], "https://readplace.com/oauth/callback")
-		XCTAssertEqual(items["response_type"], "code")
-		XCTAssertEqual(items["code_challenge_method"], "S256")
-		XCTAssertEqual(items["code_challenge"], PKCE.challenge(for: request.codeVerifier))
-		XCTAssertFalse((items["state"] ?? "").isEmpty)
-		XCTAssertGreaterThanOrEqual(request.codeVerifier.count, 43)
-		XCTAssertEqual(request.redirectURI, "https://readplace.com/oauth/callback")
-	}
-
 	func testExchangeCodeStoresTokensAndSendsCorrectBody() async throws {
 		let store = TestSupport.loggedInStore(access: "old", refresh: "old-r")
 		StubURLProtocol.setHandler { request, _ in
@@ -37,7 +19,7 @@ final class OAuthServiceTests: XCTestCase {
 			return .json(200, Fixtures.tokenResponse(access: "new-access", refresh: "new-refresh"))
 		}
 
-		let tokens = try await makeService(store: store).exchangeCode("AUTH_CODE", verifier: "VERIFIER")
+		let tokens = try await makeService(store: store).exchangeCode("AUTH_CODE", verifier: "VERIFIER", redirectURI: AppConfig.nativeCallbackURL)
 
 		XCTAssertEqual(tokens.accessToken, "new-access")
 		XCTAssertEqual(tokens.refreshToken, "new-refresh")
@@ -49,14 +31,14 @@ final class OAuthServiceTests: XCTestCase {
 		XCTAssertEqual(body["code"], "AUTH_CODE")
 		XCTAssertEqual(body["code_verifier"], "VERIFIER")
 		XCTAssertEqual(body["client_id"], "hutch-chrome-extension")
-		XCTAssertEqual(body["redirect_uri"], "https://readplace.com/oauth/callback")
+		XCTAssertEqual(body["redirect_uri"], AppConfig.nativeCallbackURL)
 	}
 
 	func testExchangeCodeFailureThrows() async {
 		let store = TestSupport.loggedInStore()
 		StubURLProtocol.setHandler { _, _ in .json(400, "{\"error\":\"invalid_grant\"}") }
 		do {
-			_ = try await makeService(store: store).exchangeCode("BAD", verifier: "V")
+			_ = try await makeService(store: store).exchangeCode("BAD", verifier: "V", redirectURI: AppConfig.nativeCallbackURL)
 			XCTFail("Expected exchange to throw")
 		} catch {
 			// expected
