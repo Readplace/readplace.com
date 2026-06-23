@@ -23,7 +23,7 @@ const TEST_USER_ID = UserIdSchema.parse("1234567890abcdef1234567890abcdef");
 const TEST_NOW = () => new Date("2026-05-13T10:00:00.000Z");
 
 describe("emitUserCreated", () => {
-	it("emits a free signup event with the lowercased-email sha256 prefix and no stripe id", () => {
+	it("emits a free signup event with the lowercased-email sha256 prefix", () => {
 		const { logger, captured } = createCapturingLogger();
 
 		emitUserCreated(
@@ -49,7 +49,7 @@ describe("emitUserCreated", () => {
 		});
 	});
 
-	it("emits a trial signup event without a stripe checkout session id", () => {
+	it("emits a trial signup event", () => {
 		const { logger, captured } = createCapturingLogger();
 
 		emitUserCreated(
@@ -71,28 +71,6 @@ describe("emitUserCreated", () => {
 			email_hash: "63f6f5c42a8bfcdb",
 			method: "email",
 			tier: "trial",
-		});
-	});
-
-	it("includes stripe_checkout_session_id for paid signups so the event can be joined to Stripe payment data downstream", () => {
-		const { logger, captured } = createCapturingLogger();
-
-		emitUserCreated(
-			{ logger, now: TEST_NOW },
-			{
-				userId: TEST_USER_ID,
-				email: "bob@example.com",
-				method: "google",
-				tier: "paid",
-				stripeCheckoutSessionId: "cs_test_123",
-				attribution: undefined,
-			},
-		);
-
-		expect(captured[0]).toMatchObject({
-			tier: "paid",
-			stripe_checkout_session_id: "cs_test_123",
-			method: "google",
 		});
 	});
 

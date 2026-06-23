@@ -3,6 +3,7 @@ import {
 	defineDynamoTable,
 	dynamoField,
 } from "@packages/hutch-storage-client";
+import type { HutchLogger } from "@packages/hutch-logger";
 import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import { CheckoutSessionIdSchema } from "@packages/provider-contracts/stripe-checkout";
@@ -16,9 +17,13 @@ import type {
 
 const PendingSignupRow = z.object({
 	checkoutSessionId: CheckoutSessionIdSchema,
-	method: z.enum(["email", "google", "existing-user-subscribe"]),
+	/** z.string(), not the live `existing-user-subscribe` literal: table.delete()
+	 * parses ALL_OLD *after* the DeleteCommand removes the row, so a literal
+	 * mismatch on a leftover pre-Phase-1 email/google row would throw post-delete
+	 * (HTTP 500 + a silently destroyed paid customer). consumePendingSignup
+	 * narrows to the contract and skips anything else. */
+	method: z.string(),
 	email: z.string(),
-	passwordHash: dynamoField(z.string()),
 	userId: dynamoField(UserIdSchema),
 	returnUrl: dynamoField(z.string()),
 	createdAt: dynamoField(z.number()),
@@ -35,6 +40,7 @@ const PendingSignupSummaryRow = z.object({
 export function initDynamoDbPendingSignup(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;
+	logger: HutchLogger;
 }): {
 	storePendingSignup: StorePendingSignup;
 	consumePendingSignup: ConsumePendingSignup;
@@ -60,9 +66,7 @@ export function initDynamoDbPendingSignup(deps: {
 				method: signup.method,
 				email: signup.email,
 				createdAt,
-				...(signup.method === "email" ? { passwordHash: signup.passwordHash } : {}),
-				...(signup.method === "google" ? { userId: signup.userId } : {}),
-				...(signup.method === "existing-user-subscribe" ? { userId: signup.userId } : {}),
+				userId: signup.userId,
 				...(signup.returnUrl ? { returnUrl: signup.returnUrl } : {})
 			},
 		});
@@ -75,35 +79,18 @@ export function initDynamoDbPendingSignup(deps: {
 		});
 		if (!Attributes) return null;
 
-		const returnUrl = Attributes.returnUrl ?? undefined;
-		if (Attributes.method === "email") {
-			const passwordHash = Attributes.passwordHash;
-			if (!passwordHash) return null;
-			const signup: PendingSignup = {
-				method: "email",
-				email: Attributes.email,
-				passwordHash,
-				...(returnUrl ? { returnUrl } : {}),
-			};
-			return signup;
-		}
-
-		if (Attributes.method === "existing-user-subscribe") {
-			const userId = Attributes.userId;
-			if (!userId) return null;
-			const signup: PendingSignup = {
-				method: "existing-user-subscribe",
-				email: Attributes.email,
-				userId,
-				...(returnUrl ? { returnUrl } : {}),
-			};
-			return signup;
+		if (Attributes.method !== "existing-user-subscribe") {
+			deps.logger.warn(
+				`[pending-signup] discarded legacy '${Attributes.method}' row for checkout session ${checkoutSessionId}; the DeleteCommand has already removed it, so this warning is the only remaining trace`,
+			);
+			return null;
 		}
 
 		const userId = Attributes.userId;
 		if (!userId) return null;
+		const returnUrl = Attributes.returnUrl ?? undefined;
 		const signup: PendingSignup = {
-			method: "google",
+			method: "existing-user-subscribe",
 			email: Attributes.email,
 			userId,
 			...(returnUrl ? { returnUrl } : {}),

@@ -21,7 +21,7 @@ async function main(): Promise<void> {
 	const bcc = requireEnv("RECOVERY_EMAIL_BCC");
 
 	const dynamoClient = createDynamoDocumentClient();
-	const pendingSignup = initDynamoDbPendingSignup({ client: dynamoClient, tableName });
+	const pendingSignup = initDynamoDbPendingSignup({ client: dynamoClient, tableName, logger });
 	const stripe = initStripeCheckout({
 		apiKey: stripeApiKey,
 		priceId: stripePriceId,

@@ -97,7 +97,7 @@ export interface ConversionEvent {
 	user_id: UserId;
 	email_hash: string;
 	method: "email" | "google";
-	tier: "free" | "paid" | "trial";
+	tier: "free" | "trial";
 	utm_source?: string;
 	utm_medium?: string;
 	utm_campaign?: string;
@@ -105,7 +105,6 @@ export interface ConversionEvent {
 	referrer_host?: string;
 	first_seen_at?: string;
 	landing_path?: string;
-	stripe_checkout_session_id?: string;
 	visitor_id?: string;
 	/** The id minted when an anonymous save was held behind the sign-in wall
 	 * (carried on the matching `view_save_intent`), so a signup-blocked save can

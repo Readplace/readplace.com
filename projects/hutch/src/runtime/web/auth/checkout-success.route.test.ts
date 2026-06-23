@@ -30,21 +30,12 @@ describe("GET /auth/checkout/success", () => {
 
 	it("renders 402 when the checkout has not been paid yet", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { stripe, pendingSignup } = harness;
+		const { stripe } = harness;
 
 		const checkout = await stripe.createCheckoutSession({
 			customerEmail: "unpaid@example.com",
 			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 			cancelUrl: "http://localhost:3000/signup",
-		});
-		await pendingSignup.storePendingSignup({
-			checkoutSessionId: checkout.id,
-			signup: {
-				method: "email",
-				email: "unpaid@example.com",
-				passwordHash: "plain:password123",
-			},
-			createdAt: 1735000000,
 		});
 
 		const response = await request(harness.server).get(
@@ -78,9 +69,9 @@ describe("GET /auth/checkout/success", () => {
 		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("already been used");
 	});
 
-	it("creates the user, sets a session cookie, and redirects to /queue on first paid visit", async () => {
+	it("marks the pre-existing user active and redirects to /queue on first paid visit", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth, stripe, pendingSignup } = harness;
+		const { auth, stripe, subscriptionProviders, pendingSignup } = harness;
 
 		const { successResponse } = await completeStripeSignup({
 			server: harness.server,
@@ -93,17 +84,12 @@ describe("GET /auth/checkout/success", () => {
 
 		expect(successResponse.status).toBe(303);
 		expect(successResponse.headers.location).toBe("/queue");
-		expect(successResponse.headers["set-cookie"].length).toBeGreaterThan(0);
 
 		const lookup = await auth.findUserByEmail("buyer@example.com");
-		assert(lookup, "expected user to be persisted after Stripe success");
-		expect(lookup.emailVerified).toBe(false);
-
-		const credentials = await auth.verifyCredentials({
-			email: "buyer@example.com",
-			password: "password123",
-		});
-		expect(credentials.ok).toBe(true);
+		assert(lookup, "expected the pre-existing user to remain after checkout");
+		const subRow = await subscriptionProviders.findByUserId(lookup.userId);
+		assert(subRow, "subscription row must exist after paid checkout");
+		expect(subRow.status).toBe("active");
 	});
 
 	it("writes an active subscription_providers row with the Stripe ids on first paid visit", async () => {
@@ -148,180 +134,5 @@ describe("GET /auth/checkout/success", () => {
 		// Schedule delete is idempotent so it's safe to call even when no
 		// schedule exists (first-time-paid signup).
 		expect(trialScheduler.deleteCalls()).toContain(lookup.userId);
-	});
-
-	it("renders 409 when the email has been claimed since the Stripe redirect started", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const { auth, stripe, pendingSignup } = harness;
-
-		const checkout = await stripe.createCheckoutSession({
-			customerEmail: "race@example.com",
-			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
-			cancelUrl: "http://localhost:3000/signup",
-		});
-		await pendingSignup.storePendingSignup({
-			checkoutSessionId: checkout.id,
-			signup: {
-				method: "email",
-				email: "race@example.com",
-				passwordHash: "plain:password123",
-			},
-			createdAt: 1735000000,
-		});
-		stripe.markPaid(checkout.id);
-
-		await auth.createUser({ email: "race@example.com", password: "different-password" });
-
-		const response = await request(harness.server).get(
-			`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
-		);
-
-		expect(response.status).toBe(409);
-		const doc = new JSDOM(response.text).window.document;
-		expect(doc.querySelector("[data-test-global-error]")?.textContent).toContain("already exists");
-	});
-
-	it("creates a Google user with a verified email after Stripe success", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp(fixture);
-		const { auth, stripe, pendingSignup } = harness;
-		const { UserIdSchema } = await import("@packages/domain/user");
-
-		const checkout = await stripe.createCheckoutSession({
-			customerEmail: "google-buyer@example.com",
-			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
-			cancelUrl: "http://localhost:3000/login",
-		});
-		await pendingSignup.storePendingSignup({
-			checkoutSessionId: checkout.id,
-			signup: {
-				method: "google",
-				email: "google-buyer@example.com",
-				userId: UserIdSchema.parse("u-google-checkout-1"),
-			},
-			createdAt: 1735000000,
-		});
-		stripe.markPaid(checkout.id);
-
-		const response = await request(harness.server).get(
-			`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
-		);
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue");
-		const lookup = await auth.findUserByEmail("google-buyer@example.com");
-		assert(lookup, "google user should exist after success");
-		expect(lookup.emailVerified).toBe(true);
-		expect(lookup.userId).toBe("u-google-checkout-1");
-	});
-
-	it("sends a welcome email after a new Google user completes Stripe checkout", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp(fixture);
-		const { email, stripe, pendingSignup } = harness;
-		const { UserIdSchema } = await import("@packages/domain/user");
-
-		const checkout = await stripe.createCheckoutSession({
-			customerEmail: "google-welcome@example.com",
-			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
-			cancelUrl: "http://localhost:3000/login",
-		});
-		await pendingSignup.storePendingSignup({
-			checkoutSessionId: checkout.id,
-			signup: {
-				method: "google",
-				email: "google-welcome@example.com",
-				userId: UserIdSchema.parse("u-google-welcome-1"),
-			},
-			createdAt: 1735000000,
-		});
-		stripe.markPaid(checkout.id);
-
-		await request(harness.server).get(
-			`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
-		);
-
-		const sent = email.getSentEmails();
-		expect(sent).toHaveLength(1);
-		expect(sent[0].to).toBe("google-welcome@example.com");
-		expect(sent[0].from).toContain("fayner@readplace.com");
-		expect(sent[0].bcc).toBe("readplace+welcome@readplace.com");
-		expect(sent[0].subject).toBe("Welcome to Readplace");
-		expect(sent[0].html).toContain("/install");
-	});
-
-	it("logs the existing user in when a Google sign-up arrives for an email that already exists", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp(fixture);
-		const { auth, stripe, pendingSignup } = harness;
-		const { UserIdSchema } = await import("@packages/domain/user");
-
-		const existing = await auth.createUser({
-			email: "preexisting@example.com",
-			password: "password123",
-		});
-		assert(existing.ok, "setup");
-
-		const checkout = await stripe.createCheckoutSession({
-			customerEmail: "preexisting@example.com",
-			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
-			cancelUrl: "http://localhost:3000/login",
-		});
-		await pendingSignup.storePendingSignup({
-			checkoutSessionId: checkout.id,
-			signup: {
-				method: "google",
-				email: "preexisting@example.com",
-				userId: UserIdSchema.parse("u-google-different"),
-			},
-			createdAt: 1735000000,
-		});
-		stripe.markPaid(checkout.id);
-
-		const response = await request(harness.server).get(
-			`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
-		);
-
-		expect(response.status).toBe(303);
-		expect(response.headers.location).toBe("/queue");
-		const lookup = await auth.findUserByEmail("preexisting@example.com");
-		assert(lookup, "user should still exist");
-		expect(lookup.userId).toBe(existing.userId);
-		expect(lookup.emailVerified).toBe(true);
-	});
-
-	it("does not send a welcome email when a Google sign-up falls back to an existing email/password account", async () => {
-		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
-		const harness = useApp(fixture);
-		const { auth, email, stripe, pendingSignup } = harness;
-		const { UserIdSchema } = await import("@packages/domain/user");
-
-		const existing = await auth.createUser({
-			email: "existing-welcome@example.com",
-			password: "password123",
-		});
-		assert(existing.ok, "setup");
-
-		const checkout = await stripe.createCheckoutSession({
-			customerEmail: "existing-welcome@example.com",
-			successUrl: "http://localhost:3000/auth/checkout/success?session_id={CHECKOUT_SESSION_ID}",
-			cancelUrl: "http://localhost:3000/login",
-		});
-		await pendingSignup.storePendingSignup({
-			checkoutSessionId: checkout.id,
-			signup: {
-				method: "google",
-				email: "existing-welcome@example.com",
-				userId: UserIdSchema.parse("u-google-existing-welcome"),
-			},
-			createdAt: 1735000000,
-		});
-		stripe.markPaid(checkout.id);
-
-		await request(harness.server).get(
-			`/auth/checkout/success?session_id=${encodeURIComponent(checkout.id)}`,
-		);
-
-		expect(email.getSentEmails()).toHaveLength(0);
 	});
 });

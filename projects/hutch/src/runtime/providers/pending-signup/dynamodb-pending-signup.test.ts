@@ -1,6 +1,7 @@
 import { CheckoutSessionIdSchema } from "@packages/provider-contracts/stripe-checkout";
 import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
+import { type HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initDynamoDbPendingSignup } from "./dynamodb-pending-signup";
 
 type SendFn = DynamoDBDocumentClient["send"];
@@ -35,61 +36,41 @@ const USER_ID = UserIdSchema.parse("user-abc");
 
 describe("initDynamoDbPendingSignup", () => {
 	describe("storePendingSignup", () => {
-		it("persists an email signup with passwordHash and returnUrl", async () => {
+		it("persists an existing-user-subscribe signup with userId and returnUrl", async () => {
 			const { client, inputs } = createClient(() => ({}));
 			const { storePendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
+				logger: noopLogger,
 			});
 
 			await storePendingSignup({
 				checkoutSessionId: SESSION_ID,
 				signup: {
-					method: "email",
-					email: "a@b.com",
-					passwordHash: "hash-1",
+					method: "existing-user-subscribe",
+					email: "e@b.com",
+					userId: USER_ID,
 					returnUrl: "/queue",
 				},
-				createdAt: 100,
+				createdAt: 300,
 			});
 
 			expect(inputs[0]?.Item).toEqual({
 				checkoutSessionId: SESSION_ID,
-				method: "email",
-				email: "a@b.com",
-				createdAt: 100,
-				passwordHash: "hash-1",
+				method: "existing-user-subscribe",
+				email: "e@b.com",
+				createdAt: 300,
+				userId: USER_ID,
 				returnUrl: "/queue",
 			});
 		});
 
-		it("persists a google signup with userId and omits returnUrl when absent", async () => {
+		it("omits returnUrl when absent", async () => {
 			const { client, inputs } = createClient(() => ({}));
 			const { storePendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
-			});
-
-			await storePendingSignup({
-				checkoutSessionId: SESSION_ID,
-				signup: { method: "google", email: "g@b.com", userId: USER_ID },
-				createdAt: 200,
-			});
-
-			expect(inputs[0]?.Item).toEqual({
-				checkoutSessionId: SESSION_ID,
-				method: "google",
-				email: "g@b.com",
-				createdAt: 200,
-				userId: USER_ID,
-			});
-		});
-
-		it("persists an existing-user-subscribe signup with userId", async () => {
-			const { client, inputs } = createClient(() => ({}));
-			const { storePendingSignup } = initDynamoDbPendingSignup({
-				client,
-				tableName: TABLE,
+				logger: noopLogger,
 			});
 
 			await storePendingSignup({
@@ -118,6 +99,7 @@ describe("initDynamoDbPendingSignup", () => {
 			const { consumePendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
+				logger: noopLogger,
 			});
 
 			const result = await consumePendingSignup(SESSION_ID);
@@ -125,50 +107,33 @@ describe("initDynamoDbPendingSignup", () => {
 			expect(result).toBeNull();
 		});
 
-		it("reconstructs an email signup including returnUrl", async () => {
+		it("reconstructs an existing-user-subscribe signup including returnUrl", async () => {
 			const { client } = createClient(() => ({
 				Attributes: {
 					checkoutSessionId: SESSION_ID,
-					method: "email",
-					email: "a@b.com",
-					passwordHash: "hash-1",
-					returnUrl: "/queue",
+					method: "existing-user-subscribe",
+					email: "e@b.com",
+					userId: USER_ID,
+					returnUrl: "/account",
 				},
 			}));
 			const { consumePendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
+				logger: noopLogger,
 			});
 
 			const result = await consumePendingSignup(SESSION_ID);
 
 			expect(result).toEqual({
-				method: "email",
-				email: "a@b.com",
-				passwordHash: "hash-1",
-				returnUrl: "/queue",
+				method: "existing-user-subscribe",
+				email: "e@b.com",
+				userId: USER_ID,
+				returnUrl: "/account",
 			});
 		});
 
-		it("returns null for an email row missing its passwordHash", async () => {
-			const { client } = createClient(() => ({
-				Attributes: {
-					checkoutSessionId: SESSION_ID,
-					method: "email",
-					email: "a@b.com",
-				},
-			}));
-			const { consumePendingSignup } = initDynamoDbPendingSignup({
-				client,
-				tableName: TABLE,
-			});
-
-			const result = await consumePendingSignup(SESSION_ID);
-
-			expect(result).toBeNull();
-		});
-
-		it("reconstructs an existing-user-subscribe signup", async () => {
+		it("reconstructs an existing-user-subscribe signup without returnUrl", async () => {
 			const { client } = createClient(() => ({
 				Attributes: {
 					checkoutSessionId: SESSION_ID,
@@ -180,6 +145,7 @@ describe("initDynamoDbPendingSignup", () => {
 			const { consumePendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
+				logger: noopLogger,
 			});
 
 			const result = await consumePendingSignup(SESSION_ID);
@@ -202,6 +168,7 @@ describe("initDynamoDbPendingSignup", () => {
 			const { consumePendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
+				logger: noopLogger,
 			});
 
 			const result = await consumePendingSignup(SESSION_ID);
@@ -209,47 +176,32 @@ describe("initDynamoDbPendingSignup", () => {
 			expect(result).toBeNull();
 		});
 
-		it("reconstructs a google signup with returnUrl", async () => {
+		it("discards a leftover legacy email/google row, warns, and returns null", async () => {
 			const { client } = createClient(() => ({
 				Attributes: {
 					checkoutSessionId: SESSION_ID,
-					method: "google",
-					email: "g@b.com",
-					userId: USER_ID,
-					returnUrl: "/account",
+					method: "email",
+					email: "a@b.com",
 				},
 			}));
+			const warnings: string[] = [];
+			const logger: HutchLogger = {
+				...noopLogger,
+				warn: (...args: unknown[]) => {
+					warnings.push(args.map(String).join(" "));
+				},
+			};
 			const { consumePendingSignup } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
-			});
-
-			const result = await consumePendingSignup(SESSION_ID);
-
-			expect(result).toEqual({
-				method: "google",
-				email: "g@b.com",
-				userId: USER_ID,
-				returnUrl: "/account",
-			});
-		});
-
-		it("returns null for a google row missing its userId", async () => {
-			const { client } = createClient(() => ({
-				Attributes: {
-					checkoutSessionId: SESSION_ID,
-					method: "google",
-					email: "g@b.com",
-				},
-			}));
-			const { consumePendingSignup } = initDynamoDbPendingSignup({
-				client,
-				tableName: TABLE,
+				logger,
 			});
 
 			const result = await consumePendingSignup(SESSION_ID);
 
 			expect(result).toBeNull();
+			expect(warnings).toHaveLength(1);
+			expect(warnings[0]).toMatch(/discarded legacy 'email' row/);
 		});
 	});
 
@@ -276,6 +228,7 @@ describe("initDynamoDbPendingSignup", () => {
 			const { listAllPendingSignups } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
+				logger: noopLogger,
 			});
 
 			const result = await listAllPendingSignups();
@@ -301,6 +254,7 @@ describe("initDynamoDbPendingSignup", () => {
 			const { markCheckoutRecoveryEmailSent } = initDynamoDbPendingSignup({
 				client,
 				tableName: TABLE,
+				logger: noopLogger,
 			});
 
 			await markCheckoutRecoveryEmailSent({

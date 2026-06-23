@@ -691,7 +691,6 @@ export function createApp(dependencies: AppDependencies): Express {
 	const authRouter = initAuthRoutes({
 		hashPassword: deps.hashPassword,
 		createUserWithPasswordHash: deps.createUserWithPasswordHash,
-		createGoogleUser: deps.createGoogleUser,
 		findUserByEmail: deps.findUserByEmail,
 		verifyCredentials: deps.verifyCredentials,
 		createSession: deps.createSession,

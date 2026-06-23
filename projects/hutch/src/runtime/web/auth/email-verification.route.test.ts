@@ -1,30 +1,32 @@
 import assert from "node:assert/strict";
+import type { Server } from "node:http";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import type { Test } from "supertest";
 import { useTestServer } from "../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 
-import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
-
 const useApp = useTestServer();
 
-describe("Email verification", () => {
-	describe("POST /signup → Stripe → success", () => {
-		it("should send a verification email after successful Stripe checkout", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, email, stripe, pendingSignup } = harness;
+function signup(server: Server, email: string): Test {
+	return request(server).post("/signup").type("form").send({
+		email,
+		password: "password123",
+		confirmPassword: "password123",
+		loadedAt: String(Date.now() - 5000),
+	});
+}
 
-			await completeStripeSignup({
-				server: harness.server,
-				auth,
-				stripe,
-				pendingSignup,
-				email: "new@example.com",
-				password: "password123",
-			});
+describe("Email verification", () => {
+	describe("POST /signup", () => {
+		it("sends a verification email after a successful signup", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { email } = harness;
+
+			await signup(harness.server, "new@example.com");
 
 			const sent = email.getSentEmails();
 			expect(sent).toHaveLength(1);
@@ -34,7 +36,7 @@ describe("Email verification", () => {
 			expect(sent[0].html).toContain("verify-email?token&#x3D;");
 		});
 
-		it("should complete signup even when email sending fails", async () => {
+		it("completes signup even when the verification email fails to send", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			let resolveErrorLogged: () => void;
 			const errorLogged = new Promise<void>((resolve) => {
@@ -51,18 +53,10 @@ describe("Email verification", () => {
 					logError: () => { resolveErrorLogged(); },
 				},
 			});
-			const { auth, stripe, pendingSignup } = harness;
 
-			const { successResponse } = await completeStripeSignup({
-				server: harness.server,
-				auth,
-				stripe,
-				pendingSignup,
-				email: "fail-email@example.com",
-				password: "password123",
-			});
+			const response = await signup(harness.server, "fail-email@example.com");
 
-			expect(successResponse.status).toBe(303);
+			expect(response.status).toBe(303);
 			await errorLogged;
 		});
 
@@ -71,12 +65,7 @@ describe("Email verification", () => {
 			const { auth, email } = harness;
 			await auth.createUser({ email: "existing@example.com", password: "password123" });
 
-			await request(harness.server).post("/signup").type("form").send({
-				email: "existing@example.com",
-				password: "password123",
-				confirmPassword: "password123",
-				loadedAt: String(Date.now() - 5000),
-			});
+			await signup(harness.server, "existing@example.com");
 
 			expect(email.getSentEmails()).toHaveLength(0);
 		});
@@ -85,16 +74,9 @@ describe("Email verification", () => {
 	describe("GET /verify-email", () => {
 		it("should verify email with a valid token", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, email, stripe, pendingSignup } = harness;
+			const { email } = harness;
 
-			await completeStripeSignup({
-				server: harness.server,
-				auth,
-				stripe,
-				pendingSignup,
-				email: "verify@example.com",
-				password: "password123",
-			});
+			await signup(harness.server, "verify@example.com");
 
 			const sent = email.getSentEmails();
 			const tokenMatch = sent[0].html.match(/token&#x3D;([a-f0-9]+)/);
@@ -130,16 +112,9 @@ describe("Email verification", () => {
 
 		it("should reject a token that has already been used", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, email, stripe, pendingSignup } = harness;
+			const { email } = harness;
 
-			await completeStripeSignup({
-				server: harness.server,
-				auth,
-				stripe,
-				pendingSignup,
-				email: "once@example.com",
-				password: "password123",
-			});
+			await signup(harness.server, "once@example.com");
 
 			const sent = email.getSentEmails();
 			const tokenMatch = sent[0].html.match(/token&#x3D;([a-f0-9]+)/);
@@ -156,18 +131,11 @@ describe("Email verification", () => {
 
 		it("should mark email as verified after successful verification", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, email, stripe, pendingSignup } = harness;
+			const { auth, email } = harness;
 
-			const { successResponse } = await completeStripeSignup({
-				server: harness.server,
-				auth,
-				stripe,
-				pendingSignup,
-				email: "flag@example.com",
-				password: "password123",
-			});
+			const signupResponse = await signup(harness.server, "flag@example.com");
 
-			const cookies = successResponse.headers["set-cookie"];
+			const cookies = signupResponse.headers["set-cookie"];
 			const cookieList = Array.isArray(cookies) ? cookies : [cookies];
 			const sessionMatch = cookieList.map((c) => c.match(/hutch_sid=([^;]+)/)).find((m) => m);
 			assert(sessionMatch, "Expected session cookie");
@@ -191,18 +159,11 @@ describe("Email verification", () => {
 
 		it("should not mark email as verified when token is invalid", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, stripe, pendingSignup } = harness;
+			const { auth } = harness;
 
-			const { successResponse } = await completeStripeSignup({
-				server: harness.server,
-				auth,
-				stripe,
-				pendingSignup,
-				email: "noverify@example.com",
-				password: "password123",
-			});
+			const signupResponse = await signup(harness.server, "noverify@example.com");
 
-			const cookies = successResponse.headers["set-cookie"];
+			const cookies = signupResponse.headers["set-cookie"];
 			const cookieList = Array.isArray(cookies) ? cookies : [cookies];
 			const sessionMatch = cookieList.map((c) => c.match(/hutch_sid=([^;]+)/)).find((m) => m);
 			assert(sessionMatch, "Expected session cookie");
@@ -217,16 +178,9 @@ describe("Email verification", () => {
 
 		it("should send a welcome email after successful verification", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, email, stripe, pendingSignup } = harness;
+			const { email } = harness;
 
-			await completeStripeSignup({
-				server: harness.server,
-				auth,
-				stripe,
-				pendingSignup,
-				email: "welcome@example.com",
-				password: "password123",
-			});
+			await signup(harness.server, "welcome@example.com");
 
 			const sentBeforeVerify = email.getSentEmails();
 			expect(sentBeforeVerify).toHaveLength(1);
@@ -248,16 +202,9 @@ describe("Email verification", () => {
 
 		it("should not send a welcome email when the verification token is invalid", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const { auth, email, stripe, pendingSignup } = harness;
+			const { email } = harness;
 
-			await completeStripeSignup({
-				server: harness.server,
-				auth,
-				stripe,
-				pendingSignup,
-				email: "nowelcome@example.com",
-				password: "password123",
-			});
+			await signup(harness.server, "nowelcome@example.com");
 
 			await request(harness.server).get("/verify-email?token=invalidtoken");
 

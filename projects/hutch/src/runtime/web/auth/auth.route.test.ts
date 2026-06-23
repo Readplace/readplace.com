@@ -523,7 +523,7 @@ describe("Auth routes", () => {
 			expect(verification.subject).toBe("Verify your email — Readplace");
 		}, 30000);
 
-		it("should create the account on successful Stripe checkout and redirect to /queue", async () => {
+		it("should activate the subscription on successful Stripe checkout and redirect to /queue", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const { auth, stripe, pendingSignup } = harness;
 
@@ -538,7 +538,6 @@ describe("Auth routes", () => {
 
 			expect(successResponse.status).toBe(303);
 			expect(successResponse.headers.location).toBe("/queue");
-			expect(successResponse.headers["set-cookie"].length).toBeGreaterThan(0);
 		}, 30000);
 
 		it("should redirect to return URL after successful Stripe checkout", async () => {
