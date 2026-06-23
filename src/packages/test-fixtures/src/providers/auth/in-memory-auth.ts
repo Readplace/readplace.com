@@ -160,33 +160,31 @@ export function initInMemoryAuth(opts: {
 		};
 	};
 
-	const findUserByCanonicalEmail: FindUserByCanonicalEmail = async (email) => {
+	// Resolve a stored user by exact delivery email, or — for a Gmail variant
+	// spelling — via the canonical claim to its owner row.
+	const resolveStoredUser = (email: string): StoredUser | undefined => {
 		const exact = users.get(normalizeEmail(email));
-		if (exact) {
-			return {
-				userId: exact.id,
-				email: exact.email,
-				emailVerified: exact.emailVerified,
-				hasPassword: exact.passwordHash !== undefined,
-			};
-		}
+		if (exact) return exact;
 		const claimKey = gmailIdentityKey(email);
-		if (claimKey === null) return null;
+		if (claimKey === null) return undefined;
 		const ownerUserId = gmailClaims.get(claimKey);
-		if (ownerUserId === undefined) return null;
-		const owner = [...users.values()].find((u) => u.id === ownerUserId);
-		assert(owner, `Gmail claim ${claimKey} has no matching user`);
+		if (ownerUserId === undefined) return undefined;
+		return [...users.values()].find((u) => u.id === ownerUserId);
+	};
+
+	const findUserByCanonicalEmail: FindUserByCanonicalEmail = async (email) => {
+		const user = resolveStoredUser(email);
+		if (!user) return null;
 		return {
-			userId: owner.id,
-			email: owner.email,
-			emailVerified: owner.emailVerified,
-			hasPassword: owner.passwordHash !== undefined,
+			userId: user.id,
+			email: user.email,
+			emailVerified: user.emailVerified,
+			hasPassword: user.passwordHash !== undefined,
 		};
 	};
 
 	const verifyCredentials: VerifyCredentials = async ({ email, password }) => {
-		const normalizedEmail = normalizeEmail(email);
-		const user = users.get(normalizedEmail);
+		const user = resolveStoredUser(email);
 
 		if (!user) {
 			return { ok: false, reason: "invalid-credentials" };

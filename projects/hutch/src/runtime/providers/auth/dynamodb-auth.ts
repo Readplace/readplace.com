@@ -244,29 +244,27 @@ export function initDynamoDbAuth(deps: {
 		};
 	};
 
-	const findUserByCanonicalEmail: FindUserByCanonicalEmail = async (email) => {
-		// Exact delivery PK first — covers the common case and every non-Gmail address.
+	// Resolve a delivery row by its exact PK, or — for a Gmail variant spelling —
+	// via the canonical claim to its owner row. Returns the full row (with the
+	// password hash) so it can back both canonical lookup and credential checks.
+	const resolveByCanonical = async (email: string) => {
 		const exact = await users.get({ email: normalizeEmail(email) });
-		if (exact) {
-			return {
-				userId: exact.userId,
-				email: exact.email,
-				emailVerified: exact.emailVerified === true,
-				hasPassword: exact.passwordHash !== undefined,
-			};
-		}
-		// Otherwise resolve the Gmail canonical claim to its owner row.
+		if (exact) return exact;
 		const claimKey = gmailIdentityKey(email);
-		if (claimKey === null) return null;
+		if (claimKey === null) return undefined;
 		const claim = await claims.get({ email: gmailClaimPk(claimKey) });
-		if (!claim) return null;
+		if (!claim) return undefined;
 		const { items } = await users.query({
 			IndexName: "userId-index",
 			KeyConditionExpression: "userId = :userId",
 			ExpressionAttributeValues: { ":userId": claim.ownerUserId },
 			Limit: 1,
 		});
-		const row = items[0];
+		return items[0];
+	};
+
+	const findUserByCanonicalEmail: FindUserByCanonicalEmail = async (email) => {
+		const row = await resolveByCanonical(email);
 		if (!row) return null;
 		return {
 			userId: row.userId,
@@ -277,8 +275,7 @@ export function initDynamoDbAuth(deps: {
 	};
 
 	const verifyCredentials: VerifyCredentials = async ({ email, password }) => {
-		const normalizedEmail = normalizeEmail(email);
-		const row = await users.get({ email: normalizedEmail });
+		const row = await resolveByCanonical(email);
 		if (!row) return { ok: false, reason: "invalid-credentials" };
 
 		const valid = await verifyPassword(password, row.passwordHash);

@@ -181,6 +181,15 @@ describe("initInMemoryAuth", () => {
 
 			expect(result.ok).toBe(true);
 		});
+
+		it("verifies a Gmail account logged in under a different spelling", async () => {
+			const auth = makeAuth();
+			await auth.createUser({ email: "john.doe@gmail.com", password: "password123" });
+
+			const result = await auth.verifyCredentials({ email: "johndoe@gmail.com", password: "password123" });
+
+			expect(result.ok).toBe(true);
+		});
 	});
 
 	describe("countUsers", () => {
