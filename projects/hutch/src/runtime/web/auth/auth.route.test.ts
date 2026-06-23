@@ -9,9 +9,17 @@ import {
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
+import { createAccessToken, saveAccessTokenForUser } from "../test-helpers/oauth-token";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
+import { SESSION_COOKIE_NAME } from "./session-cookie";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
+
+function sessionCookie(response: request.Response): string | undefined {
+	const setCookie = response.headers["set-cookie"];
+	const cookies = Array.isArray(setCookie) ? setCookie : [];
+	return cookies.find((c) => c.startsWith(`${SESSION_COOKIE_NAME}=`));
+}
 
 /** A loadedAt value safely older than the bot-defense minimum submit window
  * (2.5s), so the form submission passes the timing gate. */
@@ -999,6 +1007,60 @@ describe("Auth routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/");
+		});
+	});
+
+	describe("POST /auth/session", () => {
+		it("mints an httpOnly session cookie from a valid bearer token and returns 204", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const accessToken = await createAccessToken(harness);
+
+			const response = await request(harness.server)
+				.post("/auth/session")
+				.set("Authorization", `Bearer ${accessToken}`);
+
+			expect(response.status).toBe(204);
+			const cookie = sessionCookie(response);
+			assert(cookie, "expected the hutch_sid session cookie");
+			expect(cookie).toContain("HttpOnly");
+			expect(cookie).toContain("Path=/");
+			expect(cookie).toContain("SameSite=Lax");
+		});
+
+		it("returns 401 and mints no session cookie when no Authorization header is present", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).post("/auth/session");
+
+			expect(response.status).toBe(401);
+			expect(sessionCookie(response)).toBeUndefined();
+		});
+
+		it("returns 401 and mints no session cookie for an invalid bearer token", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server)
+				.post("/auth/session")
+				.set("Authorization", "Bearer not-a-real-token");
+
+			expect(response.status).toBe(401);
+			expect(sessionCookie(response)).toBeUndefined();
+		});
+
+		it("mints a session that authenticates a subsequent browser request", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const created = await harness.auth.createUser({ email: "webview@example.com", password: "password123" });
+			assert(created.ok, "user must be created");
+			const accessToken = await saveAccessTokenForUser(harness, created.userId);
+
+			const agent = request.agent(harness.server);
+			const sessionResponse = await agent
+				.post("/auth/session")
+				.set("Authorization", `Bearer ${accessToken}`);
+			expect(sessionResponse.status).toBe(204);
+
+			const queueResponse = await agent.get("/queue").set("Accept", "text/html");
+			expect(queueResponse.status).toBe(200);
 		});
 	});
 

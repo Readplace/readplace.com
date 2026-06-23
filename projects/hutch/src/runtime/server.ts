@@ -696,6 +696,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		createUserWithPasswordHash: deps.createUserWithPasswordHash,
 		findUserByEmail: deps.findUserByEmail,
 		verifyCredentials: deps.verifyCredentials,
+		validateAccessToken: deps.validateAccessToken,
 		createSession: deps.createSession,
 		destroySession: deps.destroySession,
 		countUsers,

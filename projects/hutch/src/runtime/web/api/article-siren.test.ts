@@ -55,7 +55,38 @@ describe("toArticleSubEntity", () => {
 			links: [
 				{ rel: ["read"], href: `/queue/${ARTICLE_ID}/view` },
 			],
-			actions: [{ name: "delete", href: `/queue/${ARTICLE_ID}/delete`, method: "POST" }],
+			actions: [
+				{ name: "delete", href: `/queue/${ARTICLE_ID}/delete`, method: "POST" },
+				{
+					name: "update-status",
+					href: `/queue/${ARTICLE_ID}/status`,
+					method: "POST",
+					type: "application/x-www-form-urlencoded",
+					fields: [{ name: "status", type: "text" }],
+				},
+			],
+		});
+	});
+
+	it("retains the delete action the browser extension consumes", () => {
+		const subEntity = toArticleSubEntity(makeArticle());
+		const deleteAction = subEntity.actions?.find((a) => a.name === "delete");
+		expect(deleteAction).toEqual({
+			name: "delete",
+			href: `/queue/${ARTICLE_ID}/delete`,
+			method: "POST",
+		});
+	});
+
+	it("emits an update-status action posting the status field as urlencoded", () => {
+		const subEntity = toArticleSubEntity(makeArticle());
+		const updateStatus = subEntity.actions?.find((a) => a.name === "update-status");
+		expect(updateStatus).toEqual({
+			name: "update-status",
+			href: `/queue/${ARTICLE_ID}/status`,
+			method: "POST",
+			type: "application/x-www-form-urlencoded",
+			fields: [{ name: "status", type: "text" }],
 		});
 	});
 
