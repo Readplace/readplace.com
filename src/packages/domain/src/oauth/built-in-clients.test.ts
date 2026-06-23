@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { getBuiltInClient, isBuiltInRedirectUri } from "./built-in-clients";
+import {
+	IOS_NATIVE_OAUTH_CALLBACK_URI,
+	getBuiltInClient,
+	isBuiltInRedirectUri,
+} from "./built-in-clients";
 
 describe("getBuiltInClient", () => {
 	it("returns the registered Firefox extension client", () => {
@@ -43,6 +47,27 @@ describe("isBuiltInRedirectUri", () => {
 			}),
 			true,
 		);
+	});
+
+	it("accepts the iOS native custom-scheme callback on the Chrome extension client", () => {
+		const chromeClient = getBuiltInClient("hutch-chrome-extension");
+		assert(chromeClient, "Chrome client must exist");
+		assert.equal(
+			isBuiltInRedirectUri({
+				client: chromeClient,
+				redirectUri: IOS_NATIVE_OAUTH_CALLBACK_URI,
+			}),
+			true,
+		);
+	});
+
+	it("pins the iOS native callback URI string the iOS app must send verbatim", () => {
+		// The iOS app derives this same value from AppConfig.callbackURLScheme +
+		// nativeCallbackHost and sends it as redirect_uri at authorize AND token
+		// time, where the OAuth server matches by exact string. Pinning the literal
+		// makes a server-side edit fail here instead of only breaking the (network-
+		// stubbed) iOS signup path at runtime; mirror any change in AppConfig.swift.
+		assert.equal(IOS_NATIVE_OAUTH_CALLBACK_URI, "readplace://oauth-callback");
 	});
 
 	it("accepts any 127.0.0.1 port on the loopback callback path", () => {

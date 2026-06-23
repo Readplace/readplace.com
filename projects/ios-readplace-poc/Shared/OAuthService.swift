@@ -41,14 +41,31 @@ struct OAuthService {
 	private var revokeEndpoint: URL { URL(string: "\(baseURL)/oauth/revoke")! }
 	var redirectURI: String { "\(baseURL)\(AppConfig.callbackPath)" }
 
-	/// Builds the `/oauth/authorize` URL with a fresh PKCE verifier + state.
+	/// The custom-scheme redirect used by the external-browser Sign up flow. The
+	/// in-app WKWebView login keeps using the https `redirectURI`.
+	var nativeRedirectURI: String { AppConfig.nativeCallbackURL }
+
+	/// Builds the in-app WKWebView `/oauth/authorize` URL (https callback) with a
+	/// fresh PKCE verifier + state.
 	func makeAuthorizationRequest() -> AuthorizationRequest {
+		makeAuthorizationRequest(redirectURI: redirectURI, screenHint: nil)
+	}
+
+	/// Builds the external-browser Sign up `/oauth/authorize` URL: the native
+	/// custom-scheme callback plus `screen_hint=signup`, which routes an
+	/// unauthenticated user to `/signup` (an already-authenticated Chrome session
+	/// passes straight through to consent, ignoring the hint).
+	func makeSignupAuthorizationRequest() -> AuthorizationRequest {
+		makeAuthorizationRequest(redirectURI: nativeRedirectURI, screenHint: "signup")
+	}
+
+	private func makeAuthorizationRequest(redirectURI: String, screenHint: String?) -> AuthorizationRequest {
 		let verifier = PKCE.makeCodeVerifier()
 		let challenge = PKCE.challenge(for: verifier)
 		let state = PKCE.makeState()
 
 		var components = URLComponents(string: "\(baseURL)/oauth/authorize")!
-		components.queryItems = [
+		var items = [
 			URLQueryItem(name: "client_id", value: AppConfig.clientId),
 			URLQueryItem(name: "redirect_uri", value: redirectURI),
 			URLQueryItem(name: "response_type", value: "code"),
@@ -56,6 +73,8 @@ struct OAuthService {
 			URLQueryItem(name: "code_challenge_method", value: "S256"),
 			URLQueryItem(name: "state", value: state),
 		]
+		if let screenHint { items.append(URLQueryItem(name: "screen_hint", value: screenHint)) }
+		components.queryItems = items
 		return AuthorizationRequest(
 			url: components.url!,
 			redirectURI: redirectURI,
@@ -64,9 +83,19 @@ struct OAuthService {
 		)
 	}
 
-	/// Exchanges the authorization code for tokens and persists them.
+	/// Exchanges the authorization code for tokens and persists them, against the
+	/// in-app WKWebView login's https callback.
 	@discardableResult
 	func exchangeCode(_ code: String, verifier: String) async throws -> OAuthTokens {
+		try await exchangeCode(code, verifier: verifier, redirectURI: redirectURI)
+	}
+
+	/// Token exchange with an explicit `redirect_uri`, so the external-browser
+	/// Sign up flow can send the native custom scheme. The OAuth server checks
+	/// `redirect_uri` by exact string against the authorize request, so this must
+	/// equal the `redirect_uri` that minted the code.
+	@discardableResult
+	func exchangeCode(_ code: String, verifier: String, redirectURI: String) async throws -> OAuthTokens {
 		let body = formBody([
 			"grant_type": "authorization_code",
 			"code": code,

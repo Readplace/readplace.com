@@ -56,6 +56,25 @@ enum AppConfig {
 	/// Path appended to the base URL to form the registered redirect URI.
 	static let callbackPath = "/oauth/callback"
 
+	/// Custom URL scheme the OS routes back to this app. Declared in
+	/// `Info.plist`'s `CFBundleURLTypes`; used by the external-browser "Sign up"
+	/// flow, which (unlike the in-app WKWebView login) can't observe an https
+	/// redirect in another app's tab.
+	static let callbackURLScheme = "readplace"
+
+	/// Host component of `nativeCallbackURL`. `RootView.onOpenURL` matches the
+	/// incoming deep link's host against this constant, so the registered URI and
+	/// the deep-link parse site share one source instead of two equal literals.
+	static let nativeCallbackHost = "oauth-callback"
+
+	/// Native redirect URI for the external-browser Sign up flow, composed from
+	/// the scheme + host above so what we register can't disagree with what the
+	/// deep-link handler accepts. Must equal `IOS_NATIVE_OAUTH_CALLBACK_URI` in
+	/// the server's `src/packages/domain/src/oauth/built-in-clients.ts` — the
+	/// OAuth server matches `redirect_uri` by exact string at authorize and token
+	/// time — and `SignupFlowTests` pins the value so a change fails a test.
+	static let nativeCallbackURL = "\(callbackURLScheme)://\(nativeCallbackHost)"
+
 	/// A Safari-like user agent. Embedded WKWebViews are sometimes refused by
 	/// Google's sign-in ("disallowed_useragent"); presenting a stock Safari UA
 	/// avoids that. Email/password sign-in works regardless.

@@ -2,6 +2,10 @@ import SwiftUI
 
 struct LoginView: View {
 	@EnvironmentObject private var session: AppSession
+	/// Owned by `RootView`, which handles the `readplace://oauth-callback` deep
+	/// link, so a failed external-browser Sign up can surface here while this
+	/// view is still on screen.
+	@Binding var signupErrorText: String?
 	@State private var showingAuth = false
 	@State private var errorText: String?
 
@@ -21,19 +25,38 @@ struct LoginView: View {
 						.foregroundStyle(.secondary)
 				}
 
-				Button {
-					errorText = nil
-					showingAuth = true
-				} label: {
-					Text("Login")
-						.font(.headline)
-						.frame(maxWidth: .infinity)
-						.padding(.vertical, 14)
+				VStack(spacing: 14) {
+					Button {
+						errorText = nil
+						signupErrorText = nil
+						showingAuth = true
+					} label: {
+						Text("Login")
+							.font(.headline)
+							.frame(maxWidth: .infinity)
+							.padding(.vertical, 14)
+					}
+					.buttonStyle(.borderedProminent)
+
+					Button {
+						startSignup()
+					} label: {
+						Text("Don't have an account? Sign up")
+							.font(.footnote)
+					}
+					.buttonStyle(.plain)
+					.foregroundStyle(.tint)
 				}
-				.buttonStyle(.borderedProminent)
 
 				if let errorText {
 					Text(errorText)
+						.font(.footnote)
+						.foregroundStyle(.red)
+						.multilineTextAlignment(.center)
+				}
+
+				if let signupErrorText {
+					Text(signupErrorText)
 						.font(.footnote)
 						.foregroundStyle(.red)
 						.multilineTextAlignment(.center)
@@ -55,5 +78,16 @@ struct LoginView: View {
 				.environmentObject(session)
 			}
 		}
+	}
+
+	/// Opens `/oauth/authorize` in the external browser (Chrome if installed, to
+	/// reuse its session). A fresh `start()` overwrites any prior pending record,
+	/// so an abandoned earlier attempt can't strand stale secrets. The result
+	/// arrives later via the `readplace://oauth-callback` deep link (`RootView`).
+	@MainActor
+	private func startSignup() {
+		errorText = nil
+		signupErrorText = nil
+		makeSignupFlow(session: session).start()
 	}
 }

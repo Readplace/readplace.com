@@ -2,6 +2,18 @@ import type { OAuthClient } from "./oauth.types";
 import { OAuthClientIdSchema } from "./oauth.schema";
 
 /**
+ * Custom-scheme redirect URI for the iOS app's external-browser "Sign up" flow:
+ * the OS routes `readplace://oauth-callback` back to the app with the auth code.
+ * The OAuth server matches `redirect_uri` by exact string at both authorize and
+ * token time, so this single constant — not a loose literal — is the server-side
+ * source of truth. The iOS app composes the identical value from
+ * `AppConfig.callbackURLScheme`/`nativeCallbackHost`; both sides pin it in tests
+ * (`built-in-clients.test.ts` here, `SignupFlowTests` there) so a change fails a
+ * test instead of silently breaking the signup token exchange.
+ */
+export const IOS_NATIVE_OAUTH_CALLBACK_URI = "readplace://oauth-callback";
+
+/**
  * Readplace's own browser extensions are first-party OAuth clients with fixed,
  * pre-provisioned identities — they are not self-registered through Dynamic
  * Client Registration, so the authorization server always knows them as
@@ -30,6 +42,7 @@ const BUILT_IN_OAUTH_CLIENTS: Record<string, OAuthClient> = {
 			"https://hkncrxpii6.execute-api.ap-southeast-2.amazonaws.com/oauth/callback",
 			"http://127.0.0.1:3000/oauth/callback",
 			"http://127.0.0.1:3001/oauth/callback",
+			IOS_NATIVE_OAUTH_CALLBACK_URI,
 		],
 		grants: ["authorization_code", "refresh_token"],
 	},

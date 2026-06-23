@@ -24,6 +24,7 @@ const authorizeQuerySchema = z.object({
 	code_challenge: z.string().min(43).max(128),
 	code_challenge_method: z.literal("S256"),
 	state: z.string().optional(),
+	screen_hint: z.enum(["login", "signup"]).optional(),
 });
 
 const denyBodySchema = z.object({
@@ -35,6 +36,18 @@ const denyBodySchema = z.object({
 const revokeBodySchema = z.object({
 	token: z.string().min(1),
 });
+
+/**
+ * Turns a Zod parse failure into an `error_description` that names the offending
+ * parameter(s), so an unsupported value (e.g. `screen_hint=register`) is easy to
+ * identify in the 400 response instead of a generic "invalid parameters".
+ */
+function describeInvalidParams(error: z.ZodError): string {
+	const detail = error.issues
+		.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+		.join("; ");
+	return `Invalid request parameters — ${detail}`;
+}
 
 const SUPPORTED_GRANTS = new Set(["authorization_code", "refresh_token"]);
 
@@ -166,7 +179,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 		if (!parsed.success) {
 			res.status(400).json({
 				error: "invalid_request",
-				error_description: "Missing or invalid parameters",
+				error_description: describeInvalidParams(parsed.error),
 			});
 			return;
 		}
@@ -192,7 +205,8 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 
 		if (!req.userId) {
 			const returnUrl = encodeURIComponent(req.originalUrl);
-			res.redirect(303, `/login?return=${returnUrl}`);
+			const authPath = parsed.data.screen_hint === "signup" ? "/signup" : "/login";
+			res.redirect(303, `${authPath}?return=${returnUrl}`);
 			return;
 		}
 

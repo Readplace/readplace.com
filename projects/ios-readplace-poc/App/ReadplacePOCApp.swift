@@ -14,12 +14,27 @@ struct ReadplacePOCApp: App {
 
 struct RootView: View {
 	@EnvironmentObject private var session: AppSession
+	@State private var signupErrorText: String?
 
 	var body: some View {
-		if session.isLoggedIn {
-			ReadingListView(session: session)
-		} else {
-			LoginView()
+		Group {
+			if session.isLoggedIn {
+				ReadingListView(session: session)
+			} else {
+				LoginView(signupErrorText: $signupErrorText)
+			}
+		}
+		.onOpenURL { url in
+			guard url.scheme == AppConfig.callbackURLScheme, url.host == AppConfig.nativeCallbackHost else { return }
+			Task { @MainActor in
+				// `nil` means no pending Sign up — an unexpected deep link, ignored.
+				// A malformed or hijacked callback (wrong/absent state or code) is
+				// rejected inside completeSignIn against the pending record's state.
+				guard let result = await makeSignupFlow(session: session).complete(url) else { return }
+				if case .failure(let error) = result {
+					signupErrorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+				}
+			}
 		}
 	}
 }
