@@ -62,11 +62,11 @@ function createWriteFakeClient(opts: { fail?: Error } = {}): {
 	return { client: client as typeof client & DynamoDBDocumentClient, commands };
 }
 
-function cancelledTransaction(): TransactionCanceledException {
+function cancelled(codes: (string | undefined)[]): TransactionCanceledException {
 	return new TransactionCanceledException({
 		$metadata: {},
 		message: "transaction cancelled",
-		CancellationReasons: [{ Code: "ConditionalCheckFailed" }, { Code: "None" }],
+		CancellationReasons: codes.map((Code) => ({ Code })),
 	});
 }
 
@@ -239,8 +239,8 @@ describe("initDynamoDbAuth", () => {
 			});
 		});
 
-		it("maps a cancelled Gmail transaction to email-already-exists", async () => {
-			const { client } = createWriteFakeClient({ fail: cancelledTransaction() });
+		it("maps a Gmail transaction cancelled on the delivery-email key to email-already-exists", async () => {
+			const { client } = createWriteFakeClient({ fail: cancelled(["ConditionalCheckFailed", "None"]) });
 
 			const result = await initAuth(client).createUser({
 				email: "john.doe@gmail.com",
@@ -248,6 +248,28 @@ describe("initDynamoDbAuth", () => {
 			});
 
 			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
+		});
+
+		it("maps a Gmail transaction cancelled on the canonical-claim key to email-already-exists", async () => {
+			const { client } = createWriteFakeClient({ fail: cancelled(["None", "ConditionalCheckFailed"]) });
+
+			const result = await initAuth(client).createUser({
+				email: "john.doe@gmail.com",
+				password: "password123",
+			});
+
+			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
+		});
+
+		it("rethrows a Gmail transaction cancelled for a non-conditional reason (e.g. throttling)", async () => {
+			const { client } = createWriteFakeClient({ fail: cancelled(["ThrottlingError", "None"]) });
+
+			await expect(
+				initAuth(client).createUser({
+					email: "john.doe@gmail.com",
+					password: "password123",
+				}),
+			).rejects.toThrow(TransactionCanceledException);
 		});
 
 		it("maps a conditional-check failure on a non-Gmail put to email-already-exists", async () => {

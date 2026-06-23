@@ -144,11 +144,21 @@ export function initDynamoDbAuth(deps: {
 			}
 			return { ok: true };
 		} catch (error) {
-			if (
-				error instanceof ConditionalCheckFailedException ||
-				error instanceof TransactionCanceledException
-			) {
+			if (error instanceof ConditionalCheckFailedException) {
 				return { ok: false, reason: "email-already-exists" };
+			}
+			if (error instanceof TransactionCanceledException) {
+				// Both puts in the Gmail two-key commit are conditioned on
+				// attribute_not_exists, so a lost race on either the delivery email or
+				// the canonical claim cancels with ConditionalCheckFailed. Any other
+				// cancellation (throttling, conflict, validation) is a distinct,
+				// often-retryable failure that must propagate, not read as a duplicate.
+				const reasons = error.CancellationReasons;
+				const rowRejected = reasons?.[0]?.Code === "ConditionalCheckFailed";
+				const claimRejected = reasons?.[1]?.Code === "ConditionalCheckFailed";
+				if (rowRejected || claimRejected) {
+					return { ok: false, reason: "email-already-exists" };
+				}
 			}
 			throw error;
 		}
