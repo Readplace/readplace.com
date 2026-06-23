@@ -22,7 +22,12 @@ const GMAIL_DOMAINS = new Set(["gmail.com", "googlemail.com"]);
 
 const GMAIL_PLAINTEXT_BASE = /^[A-Za-z0-9.]+$/;
 
-export function canonicalizeEmail(raw: string): CanonicalEmail {
+interface Identity {
+	canonical: CanonicalEmail;
+	gmailCollapsed: boolean;
+}
+
+function parseIdentity(raw: string): Identity {
 	const trimmed = raw.trim();
 	const at = trimmed.lastIndexOf("@");
 	assert(at > 0, "Email is missing a local part");
@@ -33,18 +38,34 @@ export function canonicalizeEmail(raw: string): CanonicalEmail {
 	const domain = loweredDomain.endsWith(".") ? loweredDomain.slice(0, -1) : loweredDomain;
 
 	if (!GMAIL_DOMAINS.has(domain)) {
-		return CanonicalEmailSchema.parse(`${local}@${domain}`);
+		return { canonical: CanonicalEmailSchema.parse(`${local}@${domain}`), gmailCollapsed: false };
 	}
 
 	const plusIndex = local.indexOf("+");
 	const base = plusIndex === -1 ? local : local.slice(0, plusIndex);
 
 	if (base.length > 0 && !GMAIL_PLAINTEXT_BASE.test(base)) {
-		return CanonicalEmailSchema.parse(`${local}@gmail.com`);
+		return { canonical: CanonicalEmailSchema.parse(`${local}@gmail.com`), gmailCollapsed: false };
 	}
 
 	const canonical = base.toLowerCase().replaceAll(".", "");
 	assert(canonical.length > 0, "Gmail address has no local part before the tag");
 
-	return CanonicalEmailSchema.parse(`${canonical}@gmail.com`);
+	return { canonical: CanonicalEmailSchema.parse(`${canonical}@gmail.com`), gmailCollapsed: true };
+}
+
+export function canonicalizeEmail(raw: string): CanonicalEmail {
+	return parseIdentity(raw).canonical;
+}
+
+/**
+ * The uniqueness-claim key for a Gmail mailbox, or null for any address whose
+ * lower-cased delivery key already enforces uniqueness on its own (every
+ * non-Gmail address, and quoted/non-ASCII Gmail locals). Returns a key only
+ * where the canonical form is stronger than the delivery key, so one account is
+ * claimed per Gmail mailbox across its dotted/+tagged/googlemail spellings.
+ */
+export function gmailIdentityKey(raw: string): CanonicalEmail | null {
+	const { canonical, gmailCollapsed } = parseIdentity(raw);
+	return gmailCollapsed ? canonical : null;
 }

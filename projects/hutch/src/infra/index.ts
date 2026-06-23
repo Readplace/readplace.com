@@ -168,6 +168,9 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		"dynamodb:PutItem",
 		"dynamodb:UpdateItem",
 		"dynamodb:DeleteItem",
+		// Atomic two-key write of a Gmail account row + its canonical uniqueness
+		// claim item (see dynamodb-auth.ts writeNewUserRow).
+		"dynamodb:TransactWriteItems",
 		"dynamodb:Query",
 		"dynamodb:Scan",
 	],

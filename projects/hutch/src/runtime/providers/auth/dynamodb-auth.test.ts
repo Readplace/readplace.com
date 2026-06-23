@@ -1,4 +1,9 @@
-import type { DynamoDBDocumentClient } from "@packages/hutch-storage-client";
+import assert from "node:assert/strict";
+import {
+	ConditionalCheckFailedException,
+	type DynamoDBDocumentClient,
+	TransactionCanceledException,
+} from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbAuth } from "./dynamodb-auth";
 
@@ -38,6 +43,31 @@ function createQueryFakeClient(opts: {
 		}) as DynamoDBDocumentClient["send"],
 	};
 	return { client: client as typeof client & DynamoDBDocumentClient, commands };
+}
+
+/** Records write commands and optionally fails every send with a given error. */
+function createWriteFakeClient(opts: { fail?: Error } = {}): {
+	client: DynamoDBDocumentClient;
+	commands: CapturedCommand[];
+} {
+	const commands: CapturedCommand[] = [];
+	const client = {
+		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+			commands.push({ name: command.constructor.name, input: command.input });
+			if (opts.fail) throw opts.fail;
+			if (command.constructor.name === "ScanCommand") return { Count: 3 };
+			return {};
+		}) as DynamoDBDocumentClient["send"],
+	};
+	return { client: client as typeof client & DynamoDBDocumentClient, commands };
+}
+
+function cancelledTransaction(): TransactionCanceledException {
+	return new TransactionCanceledException({
+		$metadata: {},
+		message: "transaction cancelled",
+		CancellationReasons: [{ Code: "ConditionalCheckFailed" }, { Code: "None" }],
+	});
 }
 
 function initAuth(client: DynamoDBDocumentClient) {
@@ -156,6 +186,96 @@ describe("initDynamoDbAuth", () => {
 			const user = await initAuth(client).findUserById(USER);
 
 			expect(user).toBeNull();
+		});
+	});
+
+	describe("createUser", () => {
+		it("writes the user row and canonical claim in one transaction for Gmail", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			const result = await initAuth(client).createUser({
+				email: "John.Doe+promo@gmail.com",
+				password: "password123",
+			});
+
+			assert(result.ok, "create should succeed");
+			const tx = commands.find((c) => c.name === "TransactWriteCommand");
+			expect(tx?.input).toMatchObject({
+				TransactItems: [
+					{
+						Put: {
+							Item: {
+								email: "john.doe+promo@gmail.com",
+								userId: result.userId,
+								canonicalEmail: "johndoe@gmail.com",
+							},
+							ConditionExpression: "attribute_not_exists(email)",
+						},
+					},
+					{
+						Put: {
+							Item: { email: "canonical#johndoe@gmail.com", ownerUserId: result.userId },
+							ConditionExpression: "attribute_not_exists(email)",
+						},
+					},
+				],
+			});
+		});
+
+		it("writes a single conditional put (no transaction) for a non-Gmail address", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			const result = await initAuth(client).createUser({
+				email: "user@example.com",
+				password: "password123",
+			});
+
+			expect(result.ok).toBe(true);
+			expect(commands.some((c) => c.name === "TransactWriteCommand")).toBe(false);
+			const put = commands.find((c) => c.name === "PutCommand");
+			expect(put?.input).toMatchObject({
+				Item: { email: "user@example.com", canonicalEmail: "user@example.com" },
+				ConditionExpression: "attribute_not_exists(email)",
+			});
+		});
+
+		it("maps a cancelled Gmail transaction to email-already-exists", async () => {
+			const { client } = createWriteFakeClient({ fail: cancelledTransaction() });
+
+			const result = await initAuth(client).createUser({
+				email: "john.doe@gmail.com",
+				password: "password123",
+			});
+
+			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
+		});
+
+		it("maps a conditional-check failure on a non-Gmail put to email-already-exists", async () => {
+			const { client } = createWriteFakeClient({
+				fail: new ConditionalCheckFailedException({ $metadata: {}, message: "exists" }),
+			});
+
+			const result = await initAuth(client).createUser({
+				email: "user@example.com",
+				password: "password123",
+			});
+
+			expect(result).toEqual({ ok: false, reason: "email-already-exists" });
+		});
+	});
+
+	describe("countUsers", () => {
+		it("counts only delivery rows, filtering out claim items", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			const count = await initAuth(client).countUsers();
+
+			expect(count).toBe(3);
+			const scan = commands.find((c) => c.name === "ScanCommand");
+			expect(scan?.input).toMatchObject({
+				Select: "COUNT",
+				FilterExpression: "attribute_exists(userId)",
+			});
 		});
 	});
 });

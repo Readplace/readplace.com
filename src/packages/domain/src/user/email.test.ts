@@ -1,4 +1,4 @@
-import { canonicalizeEmail, normalizeEmail } from "./email";
+import { canonicalizeEmail, gmailIdentityKey, normalizeEmail } from "./email";
 import type { CanonicalEmail } from "./email";
 
 describe("normalizeEmail (delivery address)", () => {
@@ -122,5 +122,24 @@ describe("canonicalizeEmail (identity key)", () => {
 	it("returns a branded CanonicalEmail", () => {
 		const key: CanonicalEmail = canonicalizeEmail("john.doe@gmail.com");
 		expect(key).toBe("johndoe@gmail.com");
+	});
+});
+
+describe("gmailIdentityKey (uniqueness claim)", () => {
+	it("returns the collapsed key for every Gmail spelling of one mailbox", () => {
+		expect(gmailIdentityKey("john.doe@gmail.com")).toBe("johndoe@gmail.com");
+		expect(gmailIdentityKey("johndoe+my_tag@gmail.com")).toBe("johndoe@gmail.com");
+		expect(gmailIdentityKey("John.Doe@googlemail.com")).toBe("johndoe@gmail.com");
+		expect(gmailIdentityKey("johndoe@gmail.com")).toBe("johndoe@gmail.com");
+	});
+
+	it("returns null off-Gmail, where the lower-cased delivery key already enforces uniqueness", () => {
+		expect(gmailIdentityKey("first.last@fastmail.com")).toBeNull();
+		expect(gmailIdentityKey("j.smith@acme.com")).toBeNull();
+	});
+
+	it("returns null for quoted/non-ASCII Gmail locals, which are left untouched", () => {
+		expect(gmailIdentityKey('"john.doe"@gmail.com')).toBeNull();
+		expect(gmailIdentityKey("jöhn.doe@gmail.com")).toBeNull();
 	});
 });
