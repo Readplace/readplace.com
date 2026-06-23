@@ -1,3 +1,4 @@
+import { getDomain } from "tldts";
 import type { CrawlFetch } from "@packages/crawl-article";
 import { validateSaveableUrl } from "@packages/domain/article";
 import { initExtractLinksFromPageUrl } from "./extract-links-from-page";
@@ -85,6 +86,93 @@ describe("initExtractLinksFromPageUrl", () => {
 		});
 
 		const result = await extract("https://news.example/issues/42");
+
+		expect(result.status).toBe("OK");
+		if (result.status !== "OK") throw new Error("expected OK");
+		expect(result.links.urls).toEqual(["https://outside.com/article"]);
+	});
+
+	it("drops links sharing the source's registrable domain (parent and sibling subdomains)", async () => {
+		const html = `
+			<a href="https://www.ycombinator.com/legal">Legal</a>
+			<a href="https://ycombinator.com/faq">FAQ</a>
+			<a href="https://news.ycombinator.com/newest">Newest</a>
+			<a href="https://other-site.com/article">Article</a>
+		`;
+		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
+			crawlFetch: fakeFetch(async () => htmlResponse(html, { url: "https://news.ycombinator.com/" })),
+		});
+
+		const result = await extract("https://news.ycombinator.com/");
+
+		expect(result.status).toBe("OK");
+		if (result.status !== "OK") throw new Error("expected OK");
+		expect(result.links.urls).toEqual(["https://other-site.com/article"]);
+	});
+
+	it("keeps a different registrable domain that shares a multi-part public suffix", async () => {
+		const html = `
+			<a href="https://bar.bbc.co.uk/page">Sibling</a>
+			<a href="https://theguardian.co.uk/news">External</a>
+		`;
+		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
+			crawlFetch: fakeFetch(async () => htmlResponse(html, { url: "https://foo.bbc.co.uk/" })),
+		});
+
+		const result = await extract("https://foo.bbc.co.uk/");
+
+		expect(result.status).toBe("OK");
+		if (result.status !== "OK") throw new Error("expected OK");
+		expect(result.links.urls).toEqual(["https://theguardian.co.uk/news"]);
+	});
+
+	it("falls back to host-only matching when the source host is an IP with no registrable domain", async () => {
+		const html = `
+			<a href="https://93.184.216.34/other">Same host</a>
+			<a href="https://other-site.com/article">External</a>
+		`;
+		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
+			crawlFetch: fakeFetch(async () => htmlResponse(html, { url: "https://93.184.216.34/" })),
+		});
+
+		const result = await extract("https://93.184.216.34/");
+
+		expect(result.status).toBe("OK");
+		if (result.status !== "OK") throw new Error("expected OK");
+		expect(result.links.urls).toEqual(["https://other-site.com/article"]);
+	});
+
+	it("keeps sibling tenants of a Public Suffix List private-section platform (github.io)", async () => {
+		const html = `
+			<a href="https://other-user.github.io/their-project">Other tenant</a>
+			<a href="https://this-user.github.io/about">Own page</a>
+		`;
+		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
+			crawlFetch: fakeFetch(async () => htmlResponse(html, { url: "https://this-user.github.io/links" })),
+		});
+
+		const result = await extract("https://this-user.github.io/links");
+
+		expect(result.status).toBe("OK");
+		if (result.status !== "OK") throw new Error("expected OK");
+		expect(result.links.urls).toEqual(["https://other-user.github.io/their-project"]);
+	});
+
+	it("drops sibling subdomains sharing a registrable domain outside the PSL private section (substack)", async () => {
+		const html = `
+			<a href="https://another-author.substack.com/p/post">Another author</a>
+			<a href="https://outside.com/article">External</a>
+		`;
+		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
+			crawlFetch: fakeFetch(async () => htmlResponse(html, { url: "https://this-author.substack.com/" })),
+		});
+
+		const result = await extract("https://this-author.substack.com/");
 
 		expect(result.status).toBe("OK");
 		if (result.status !== "OK") throw new Error("expected OK");
@@ -370,5 +458,31 @@ describe("initExtractLinksFromPageUrl", () => {
 		expect(result.status).toBe("OK");
 		if (result.status !== "OK") throw new Error("expected OK");
 		expect(result.links.urls).toEqual(["https://outside.com/x"]);
+	});
+});
+
+describe("registrable-domain rule: getDomain({ allowPrivateDomains: true }) over a hand-crafted label rule", () => {
+	const lastTwoLabels = (host: string) => host.split(".").slice(-2).join(".");
+	const lastThreeLabels = (host: string) => host.split(".").slice(-3).join(".");
+
+	it("a last-two-labels rule merges bbc.co.uk with theguardian.co.uk; getDomain keeps them distinct", () => {
+		expect(lastTwoLabels("foo.bbc.co.uk")).toBe(lastTwoLabels("theguardian.co.uk"));
+		expect(getDomain("foo.bbc.co.uk", { allowPrivateDomains: true })).not.toBe(
+			getDomain("theguardian.co.uk", { allowPrivateDomains: true }),
+		);
+	});
+
+	it("a last-three-labels rule splits ycombinator.com subdomains; getDomain groups them", () => {
+		expect(lastThreeLabels("news.ycombinator.com")).not.toBe(lastThreeLabels("www.ycombinator.com"));
+		expect(getDomain("news.ycombinator.com", { allowPrivateDomains: true })).toBe(
+			getDomain("www.ycombinator.com", { allowPrivateDomains: true }),
+		);
+	});
+
+	it("allowPrivateDomains keeps github.io tenants distinct that the default getDomain merges", () => {
+		expect(getDomain("this-user.github.io")).toBe(getDomain("other-user.github.io"));
+		expect(getDomain("this-user.github.io", { allowPrivateDomains: true })).not.toBe(
+			getDomain("other-user.github.io", { allowPrivateDomains: true }),
+		);
 	});
 });
