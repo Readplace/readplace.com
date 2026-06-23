@@ -22,6 +22,7 @@ import {
 	type UserId,
 	type CanonicalEmail,
 } from "@packages/domain/user";
+import { gmailClaimPk, isClaimPk } from "./canonical-claim";
 import type {
 	CountUsers,
 	CreateGoogleUser,
@@ -63,12 +64,6 @@ const SessionRow = z.object({
 	expiresAt: z.number(),
 	emailVerified: dynamoField(z.boolean()),
 });
-
-/* Gmail uniqueness claims live in the users table under this PK prefix. Zod
- * rejects "#" in emails, so a claim PK can never collide with a delivery-email
- * PK. Claim items carry ownerUserId (never userId/userIdPrefix), keeping them
- * out of both GSIs and out of countUsers' attribute_exists(userId) filter. */
-const CLAIM_PK_PREFIX = "canonical#";
 
 export function initDynamoDbAuth(deps: {
 	client: DynamoDBDocumentClient;
@@ -134,7 +129,8 @@ export function initDynamoDbAuth(deps: {
 							{
 								Put: {
 									TableName: deps.usersTableName,
-									Item: { email: `${CLAIM_PK_PREFIX}${gmailClaimKey}`, ownerUserId: userId },
+									// ownerUserId (not userId) keeps claim items out of both GSIs.
+									Item: { email: gmailClaimPk(gmailClaimKey), ownerUserId: userId },
 									ConditionExpression: "attribute_not_exists(email)",
 								},
 							},
@@ -156,7 +152,7 @@ export function initDynamoDbAuth(deps: {
 
 	const createUser: CreateUser = async ({ email, password }) => {
 		const normalizedEmail = normalizeEmail(email);
-		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
+		assert(!isClaimPk(normalizedEmail), `Email collides with the claim namespace: ${email}`);
 		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
 		const passwordHash = await hashPassword(password);
 
@@ -178,7 +174,7 @@ export function initDynamoDbAuth(deps: {
 
 	const createUserWithPasswordHash: CreateUserWithPasswordHash = async ({ email, passwordHash }) => {
 		const normalizedEmail = normalizeEmail(email);
-		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
+		assert(!isClaimPk(normalizedEmail), `Email collides with the claim namespace: ${email}`);
 		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
 
 		const result = await writeNewUserRow({
@@ -199,7 +195,7 @@ export function initDynamoDbAuth(deps: {
 
 	const createGoogleUser: CreateGoogleUser = async ({ email, userId }) => {
 		const normalizedEmail = normalizeEmail(email);
-		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
+		assert(!isClaimPk(normalizedEmail), `Email collides with the claim namespace: ${email}`);
 
 		const result = await writeNewUserRow({
 			userRow: {

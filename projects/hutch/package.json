@@ -23,6 +23,8 @@
     "dev:lambda": "tsx watch src/runtime/lambda.main.ts",
     "permalink": "tsx src/runtime/web/pages/save/save-permalink.cli.main.ts",
     "backfill-registered-at": "tsx src/runtime/providers/auth/backfill-registered-at.cli.main.ts",
+    "detect-gmail-duplicates": "tsx src/runtime/providers/auth/detect-gmail-duplicates.cli.main.ts",
+    "backfill-canonical-claims": "tsx src/runtime/providers/auth/backfill-canonical-claims.cli.main.ts",
     "send-checkout-recovery-emails": "tsx src/runtime/checkout-recovery/send-checkout-recovery-emails.cli.main.ts",
     "e2e-server": "node dist/e2e/e2e-server.main.js",
     "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
