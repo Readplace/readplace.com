@@ -21,11 +21,13 @@ enum ServerEnvironment {
 /// Central configuration for the Readplace iOS POC.
 ///
 /// The app reuses the existing public OAuth/PKCE client registered on the
-/// server (`hutch-chrome-extension`) and a registered HTTPS callback URL, so it
-/// talks to the server exactly like the browser extension does. The production
-/// build needs no server-side change; the staging build relies on the staging
-/// callback listed in the server's
-/// `src/packages/domain/src/oauth/built-in-clients.ts`.
+/// server (`hutch-chrome-extension`), so it talks to the Siren API like the
+/// browser extension does. Login and Sign up run in the external browser and
+/// return through the native `readplace://oauth-callback` deep link — that
+/// scheme is registered on the same client in the server's
+/// `src/packages/domain/src/oauth/built-in-clients.ts` and is identical across
+/// production and staging, so sign-in needs no per-environment callback
+/// registration.
 enum AppConfig {
 	/// The server this build targets, fixed at compile time. Builds with the
 	/// `STAGING` Swift compilation condition select staging; every other build
@@ -37,9 +39,9 @@ enum AppConfig {
 	#endif
 	static let serverBaseURL = serverEnvironment.baseURL
 
-	/// A registered public PKCE client. `https://readplace.com/oauth/callback`
-	/// is one of its allow-listed redirect URIs, which is what makes the
-	/// in-app WKWebView interception strategy work without a server change.
+	/// A registered public PKCE client. The native `readplace://oauth-callback`
+	/// deep link is one of its allow-listed redirect URIs, which is what lets the
+	/// external-browser auth flow (both Login and Sign up) return to the app.
 	static let clientId = "hutch-chrome-extension"
 
 	/// The Siren hypermedia media type the API speaks.
@@ -72,9 +74,10 @@ enum AppConfig {
 	/// time — and `SignupFlowTests` pins the value so a change fails a test.
 	static let nativeCallbackURL = "\(callbackURLScheme)://\(nativeCallbackHost)"
 
-	/// A Safari-like user agent. Embedded WKWebViews are sometimes refused by
-	/// Google's sign-in ("disallowed_useragent"); presenting a stock Safari UA
-	/// avoids that. Email/password sign-in works regardless.
+	/// A Safari-like user agent for the off-screen `WKWebView` that `HTMLCaptor`
+	/// uses to render article pages for capture. A stock Safari UA gets sites to
+	/// serve their normal page rather than refusing or degrading content for an
+	/// unrecognised embedded web view.
 	static let webViewUserAgent =
 		"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
 		+ "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"

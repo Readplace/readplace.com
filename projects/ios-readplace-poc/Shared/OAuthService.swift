@@ -16,7 +16,8 @@ enum OAuthError: LocalizedError {
 	}
 }
 
-/// The parameters needed to launch the in-app authorization web flow.
+/// The parameters needed to launch the external-browser authorization flow
+/// (shared by Login and Sign up).
 struct AuthorizationRequest {
 	let url: URL
 	let redirectURI: String
