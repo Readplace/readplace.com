@@ -88,20 +88,20 @@ final class ReadplaceAPI {
 	}
 
 	/// Changes an item's status via its server-declared `update-status` action
-	/// (e.g. mark read) and returns the refreshed collection the server redirects
-	/// back to. The action posts `status` as urlencoded; the redirect-preserving
-	/// delegate re-attaches auth across the 303.
-	func updateStatus(action: SirenAction, status: ArticleStatus) async throws -> QueuePage {
-		var request = try formRequest(absolute(action.href), method: action.method,
+	/// (e.g. mark read). The action posts `status` as urlencoded; the
+	/// redirect-preserving delegate re-attaches auth across the 303 back to the
+	/// queue. Verifies the HTTP status only (404 → `.notFound`); the redirected-to
+	/// body is deliberately not decoded, so a caller's optimistic update is never
+	/// rolled back by a 2xx whose response shape this method doesn't consume.
+	func updateStatus(action: SirenAction, status: ArticleStatus) async throws {
+		let request = try formRequest(absolute(action.href), method: action.method,
 			contentType: action.type ?? "application/x-www-form-urlencoded",
 			fields: ["status": status.rawValue])
-		request.setValue("return=representation", forHTTPHeaderField: "Prefer")
 		let (data, http) = try await send(request)
 		if http.statusCode == 404 { throw APIError.notFound }
-		guard (200...299).contains(http.statusCode) else {
+		guard (200...399).contains(http.statusCode) else {
 			throw apiError(from: data, status: http.statusCode)
 		}
-		return QueuePage(collection: try decode(SirenCollection.self, data))
 	}
 
 	// MARK: - Reader session

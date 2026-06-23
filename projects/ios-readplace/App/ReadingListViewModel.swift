@@ -66,12 +66,12 @@ final class ReadingListViewModel: ObservableObject {
 	func markAsRead(_ article: Article) async {
 		guard let action = article.updateStatusAction else { return }
 		let snapshot = articles
-		// Optimistically drop the row. Unlike the old delete, the refreshed page
-		// the server returns is discarded so pagination state (nextHref/hasMore)
-		// survives instead of collapsing the list back to page 1.
+		// Optimistically drop the row, then confirm server-side. Unlike the old
+		// delete — which reloaded and collapsed the list back to page 1 — nothing
+		// is re-applied on success, so pagination state (nextHref/hasMore) survives.
 		articles.removeAll { $0.id == article.id }
 		do {
-			_ = try await api.updateStatus(action: action, status: .read)
+			try await api.updateStatus(action: action, status: .read)
 		} catch APIError.notFound {
 			// Already read or gone server-side; keep it removed.
 		} catch {

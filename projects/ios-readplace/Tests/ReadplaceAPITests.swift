@@ -312,20 +312,24 @@ final class ReadplaceAPITests: XCTestCase {
 			}
 		}
 
-		let page = try await makeAPI(store: store).updateStatus(action: updateStatusAction(), status: .read)
+		try await makeAPI(store: store).updateStatus(action: updateStatusAction(), status: .read)
 
-		XCTAssertEqual(page.articles.map(\.id), ["remaining"])
 		let statusRecord = try XCTUnwrap(StubURLProtocol.records(path: "/queue/a1/status").first)
 		XCTAssertEqual(statusRecord.request.httpMethod, "POST")
 		XCTAssertEqual(statusRecord.request.value(forHTTPHeaderField: "Content-Type"), "application/x-www-form-urlencoded")
 		XCTAssertEqual(TestSupport.formFields(statusRecord.body)["status"], "read")
+		XCTAssertNil(
+			statusRecord.request.value(forHTTPHeaderField: "Prefer"),
+			"success is decoupled from the response body, so no representation is requested"
+		)
+		XCTAssertEqual(StubURLProtocol.records(path: "/queue").count, 1, "the 303 to /queue is followed")
 	}
 
 	func testUpdateStatus404ThrowsNotFound() async {
 		let store = TestSupport.loggedInStore()
 		StubURLProtocol.setHandler { _, _ in .json(404, "{}") }
 		do {
-			_ = try await makeAPI(store: store).updateStatus(action: updateStatusAction(id: "gone"), status: .read)
+			try await makeAPI(store: store).updateStatus(action: updateStatusAction(id: "gone"), status: .read)
 			XCTFail("Expected notFound")
 		} catch let error as APIError {
 			guard case .notFound = error else { return XCTFail("Expected .notFound, got \(error)") }

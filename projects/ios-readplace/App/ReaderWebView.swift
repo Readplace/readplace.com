@@ -31,6 +31,11 @@ struct ReaderWebView: UIViewControllerRepresentable {
 
 		let configuration = WKWebViewConfiguration()
 		configuration.userContentController = userContent
+		// Scope the minted session cookie to this sheet. The default store is the
+		// process-wide, on-disk WKWebsiteDataStore.default() (shared with
+		// AuthWebView); a non-persistent store keeps the freshly-minted hutch_sid
+		// off disk so it never outlives the reader sheet or survives a sign-out.
+		configuration.websiteDataStore = .nonPersistent()
 
 		let webView = WKWebView(frame: .zero, configuration: configuration)
 		webView.customUserAgent = AppConfig.webViewUserAgent
@@ -40,10 +45,10 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		guard let url = readerURL(baseURL: AppConfig.serverBaseURL, readHref: presentation.readHref) else {
 			return controller
 		}
-		// Inject the prefetched session cookie before the first navigation, so the
-		// reader page and its in-reader poll XHRs are authenticated and never
-		// bounce to /login.
-		configuration.websiteDataStore.httpCookieStore.setCookie(presentation.cookie) {
+		// Inject the prefetched session cookie into the web view's own store before
+		// the first navigation, so the reader page and its in-reader poll XHRs are
+		// authenticated and never bounce to /login.
+		webView.configuration.websiteDataStore.httpCookieStore.setCookie(presentation.cookie) {
 			webView.load(URLRequest(url: url))
 		}
 		return controller

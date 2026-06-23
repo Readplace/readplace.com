@@ -226,8 +226,8 @@ cases:
 - **API**: entry-point `303` redirect with the `Authorization` header preserved,
   `401` → single refresh → retry (and no retry loop when refresh fails),
   `save-html` body + fallback to URL-only on an error action, `save-article`,
-  `update-status` posting urlencoded `status=read` and following the `303` to the
-  refreshed collection (`404` → not-found), `bootstrapSession` parsing the
+  `update-status` posting urlencoded `status=read`, following the `303` back to
+  the queue and verifying the status only (`404` → not-found), `bootstrapSession` parsing the
   `hutch_sid` cookie from `Set-Cookie` (refreshing the bearer once if expired),
   and missing-token handling.
 - **TokenStore / URL detection**: persistence and partial-token edge cases;
