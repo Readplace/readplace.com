@@ -38,13 +38,13 @@ The account comes due at a single button, Import selected. Press it while logged
 
 That return is the part worth opening up. A half-built import has no owner. Readplace reaches it by capability instead: the review lives at a long, unguessable address, and holding that address is what grants access. A private share link works the same way. When you finish signing up, your new account adopts the review at that address, and the selections travel with it.
 
-So there is no anonymous account left holding your links, and no migration step that moves them over later. The review was reachable by its link the whole time. Signing up only attaches an owner to it. The database keeps the same rule one layer down. An import with no owner is open to whoever holds the link. An import with an owner is closed to anyone but its owner.
+So there is no anonymous account left holding your links, and no migration step that moves them over later. The review was reachable by its link the whole time, and it stays ownerless to the end. Signing up does not change that. It only lets you commit, and the owner attaches to the links you save. The review itself is discarded once those links are under your account. The database keeps the same rule one layer down. An import with no owner is open to whoever holds the link. An import with an owner is closed to anyone but its owner.
 
 On commit, the links you kept save under your account at once, showing just the site name at first. The reader text, the title, and the short summary fill in over the next moments. That is the same pipeline that runs when you save one link by hand, so the cards show up right away and finish on their own.
 
 ## Where the self-serve path stops
 
-Two limits sit on the edge of this. A file over 5 MB, or an import past 2,000 links, hands off to a slower path: you email the export to readplace+migrate@readplace.com and it gets brought in by hand. Under those bounds, the whole thing runs start to finish without anyone else touching it.
+Two limits sit on the edge of this. A file over 5 MiB, or an import past 2,000 links, hands off to a slower path: you email the export to readplace+migrate@readplace.com and it gets brought in by hand. Under those bounds, the whole thing runs start to finish without anyone else touching it.
 
 ## Ask for trust too early and people leave
 
