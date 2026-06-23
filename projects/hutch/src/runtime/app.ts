@@ -88,7 +88,8 @@ import { initStripeCheckout } from "./providers/stripe-checkout/stripe-checkout"
 import { initInMemoryPendingSignup } from "@packages/test-fixtures/providers/pending-signup";
 import { initDynamoDbPendingSignup } from "./providers/pending-signup/dynamodb-pending-signup";
 import { initInMemorySubscriptionProviders } from "@packages/test-fixtures/providers/subscription-providers";
-import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
+import { initDynamoDbSubscriptionRead } from "./providers/subscription-providers/dynamodb-subscription-read";
+import { initDynamoDbSubscriptionWrites } from "./providers/subscription-providers/dynamodb-subscription-writes";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { initLogParseError, type ParseErrorEvent } from "@packages/hutch-infra-components";
 import { isBlockedIpAddress, validateSaveableUrl } from "@packages/domain/article";
@@ -232,11 +233,14 @@ function initProviders() {
 			fetch: globalThis.fetch,
 		});
 		const pendingSignup = initDynamoDbPendingSignup({ client, tableName: pendingSignupsTable, logger: consoleLogger });
-		const subscriptionProviders = initDynamoDbSubscriptionProviders({
-			client,
-			tableName: subscriptionProvidersTable,
-			now: () => new Date(),
-		});
+		const subscriptionProviders = {
+			...initDynamoDbSubscriptionRead({ client, tableName: subscriptionProvidersTable }),
+			...initDynamoDbSubscriptionWrites({
+				client,
+				tableName: subscriptionProvidersTable,
+				now: () => new Date(),
+			}),
+		};
 		const trialScheduler = initAwsTrialScheduler({
 			client: schedulerClient,
 			scheduleGroupName: trialSchedulerGroupName,
