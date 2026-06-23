@@ -1,3 +1,4 @@
+import { getDomain } from "tldts";
 import type { CrawlFetch } from "@packages/crawl-article";
 import { validateSaveableUrl } from "@packages/domain/article";
 import { initExtractLinksFromPageUrl } from "./extract-links-from-page";
@@ -457,5 +458,31 @@ describe("initExtractLinksFromPageUrl", () => {
 		expect(result.status).toBe("OK");
 		if (result.status !== "OK") throw new Error("expected OK");
 		expect(result.links.urls).toEqual(["https://outside.com/x"]);
+	});
+});
+
+describe("registrable-domain rule: getDomain({ allowPrivateDomains: true }) over a hand-crafted label rule", () => {
+	const lastTwoLabels = (host: string) => host.split(".").slice(-2).join(".");
+	const lastThreeLabels = (host: string) => host.split(".").slice(-3).join(".");
+
+	it("a last-two-labels rule merges bbc.co.uk with theguardian.co.uk; getDomain keeps them distinct", () => {
+		expect(lastTwoLabels("foo.bbc.co.uk")).toBe(lastTwoLabels("theguardian.co.uk"));
+		expect(getDomain("foo.bbc.co.uk", { allowPrivateDomains: true })).not.toBe(
+			getDomain("theguardian.co.uk", { allowPrivateDomains: true }),
+		);
+	});
+
+	it("a last-three-labels rule splits ycombinator.com subdomains; getDomain groups them", () => {
+		expect(lastThreeLabels("news.ycombinator.com")).not.toBe(lastThreeLabels("www.ycombinator.com"));
+		expect(getDomain("news.ycombinator.com", { allowPrivateDomains: true })).toBe(
+			getDomain("www.ycombinator.com", { allowPrivateDomains: true }),
+		);
+	});
+
+	it("allowPrivateDomains keeps github.io tenants distinct that the default getDomain merges", () => {
+		expect(getDomain("this-user.github.io")).toBe(getDomain("other-user.github.io"));
+		expect(getDomain("this-user.github.io", { allowPrivateDomains: true })).not.toBe(
+			getDomain("other-user.github.io", { allowPrivateDomains: true }),
+		);
 	});
 });
