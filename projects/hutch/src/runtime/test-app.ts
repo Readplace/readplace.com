@@ -152,6 +152,8 @@ function flattenFixtureToAppDependencies(
 		verifyPasswordResetToken: fixture.passwordReset.verifyPasswordResetToken,
 		consumeRateLimit: fixture.rateLimit.consumeRateLimit,
 		rateLimitRules: fixture.rateLimit.rules,
+		getIosAppSignals: fixture.iosOnboardingSignal.getIosAppSignals,
+		recordIosAppActivity: fixture.iosOnboardingSignal.recordIosAppActivity,
 		googleAuth: fixture.google,
 		adminEmails: fixture.admin.adminEmails,
 		recrawlServiceToken: fixture.admin.recrawlServiceToken,

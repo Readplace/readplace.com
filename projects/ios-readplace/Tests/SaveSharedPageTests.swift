@@ -40,6 +40,11 @@ final class SaveSharedPageTests: XCTestCase {
 
 		let saveHtmlRecords = StubURLProtocol.records(path: "/queue/save-html")
 		XCTAssertEqual(saveHtmlRecords.count, 1)
+		XCTAssertEqual(
+			try XCTUnwrap(saveHtmlRecords.first).request.value(forHTTPHeaderField: "X-Readplace-Client"),
+			"ios",
+			"the share-extension save must carry the iOS client header so the server records onboarding step 2"
+		)
 		let body = TestSupport.jsonObject(try XCTUnwrap(saveHtmlRecords.first).body)
 		XCTAssertEqual(body["url"] as? String, "https://example.com/post")
 		XCTAssertEqual(body["rawHtml"] as? String, "<html><body>hi</body></html>")

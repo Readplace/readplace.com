@@ -40,6 +40,10 @@ final class ReadplaceAPITests: XCTestCase {
 		let queueRequest = try XCTUnwrap(StubURLProtocol.records(path: "/queue").first?.request)
 		XCTAssertEqual(queueRequest.value(forHTTPHeaderField: "Authorization"), "Bearer access-1")
 		XCTAssertEqual(queueRequest.value(forHTTPHeaderField: "Accept"), "application/vnd.siren+json")
+		XCTAssertEqual(
+			queueRequest.value(forHTTPHeaderField: "X-Readplace-Client"), "ios",
+			"the iOS client header must survive the GET / → /queue redirect so the server records onboarding"
+		)
 	}
 
 	func testLoadQueueRefreshesOnceAndRetriesOn401() async throws {
@@ -131,6 +135,8 @@ final class ReadplaceAPITests: XCTestCase {
 		)
 
 		XCTAssertEqual(article.id, "saved")
+		let saveRequest = try XCTUnwrap(StubURLProtocol.records(path: "/queue/save-html").first?.request)
+		XCTAssertEqual(saveRequest.value(forHTTPHeaderField: "X-Readplace-Client"), "ios")
 		let body = TestSupport.jsonObject(StubURLProtocol.records(path: "/queue/save-html").first!.body)
 		XCTAssertEqual(body["url"] as? String, "https://example.com/x")
 		XCTAssertEqual(body["rawHtml"] as? String, "<html><body>hi</body></html>")

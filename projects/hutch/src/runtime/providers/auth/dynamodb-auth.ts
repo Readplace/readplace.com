@@ -53,6 +53,11 @@ const UserRow = z.object({
 	userIdPrefix: dynamoField(z.string()),
 	/* Optional so reads of pre-backfill rows don't throw; new writes always set it. */
 	canonicalEmail: dynamoField(z.string()),
+	/* Written set-once by the iOS onboarding-signal provider, never by auth. Declared
+	 * here so the canonical users-table schema documents every column; optional because
+	 * only users who have used the iPhone app ever have them. */
+	iosAppActivatedAt: dynamoField(z.string()),
+	iosAppSavedAt: dynamoField(z.string()),
 });
 
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;

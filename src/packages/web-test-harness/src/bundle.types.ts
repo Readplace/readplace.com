@@ -48,6 +48,7 @@ import type {
 	FindUserByEmail,
 	FindUserById,
 	ForceMarkCrawlPending,
+	GetIosAppSignals,
 	GetSessionUserId,
 	InMemoryMarkCrawlFailed,
 	InMemoryMarkCrawlReady,
@@ -81,6 +82,7 @@ import type {
 	PutPendingPdf,
 	RateLimitRules,
 	ReadArticleContent,
+	RecordIosAppActivity,
 	RefreshArticleIfStale,
 	RetrieveCheckoutSession,
 	ReverseScheduledCancellation,
@@ -282,6 +284,11 @@ export interface RateLimitBundle {
 	rules: RateLimitRules;
 }
 
+export interface IosOnboardingSignalBundle {
+	recordIosAppActivity: RecordIosAppActivity;
+	getIosAppSignals: GetIosAppSignals;
+}
+
 export interface GoogleAuthBundle {
 	exchangeGoogleCode: ExchangeGoogleCode;
 	clientId: string;
@@ -347,6 +354,7 @@ export interface TestAppFixture {
 	emailVerification: EmailVerificationBundle;
 	passwordReset: PasswordResetBundle;
 	rateLimit: RateLimitBundle;
+	iosOnboardingSignal: IosOnboardingSignalBundle;
 	google: GoogleAuthBundle | undefined;
 	admin: AdminBundle;
 	importSession: ImportSessionBundle;

@@ -6,6 +6,8 @@ import type { Logger } from "./domain/logger";
 import { initInMemoryAuth } from "@packages/test-fixtures/providers/auth";
 import { hashPassword, verifyPassword } from "@packages/domain/user";
 import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
+import { initInMemoryIosOnboardingSignal } from "@packages/test-fixtures/providers/ios-onboarding-signal";
+import { initIosOnboardingSignal } from "./providers/ios-onboarding-signal/dynamodb-ios-onboarding-signal";
 import { initInMemoryArticleStore } from "@packages/test-fixtures/providers/article-store";
 import { initDynamoDbArticleStore } from "./providers/article-store/dynamodb-article-store";
 import type { ExtractPdf } from "@packages/crawl-article";
@@ -162,6 +164,7 @@ function initProviders() {
 		const schedulerClient = new SchedulerClient({});
 
 		const auth = initDynamoDbAuth({ client, usersTableName: usersTable, sessionsTableName: sessionsTable });
+		const iosOnboardingSignal = initIosOnboardingSignal({ client, usersTableName: usersTable, now: () => new Date() });
 		const articleStore = initDynamoDbArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable });
 		const readArticleContent = initReadArticleContent({
 			storageProviderQueryOrder: [
@@ -321,12 +324,15 @@ function initProviders() {
 			markCrawlPending: crawlStore.markCrawlPending,
 			forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 			refreshArticleIfStale,
+			getIosAppSignals: iosOnboardingSignal.getIosAppSignals,
+			recordIosAppActivity: iosOnboardingSignal.recordIosAppActivity,
 			consumeRateLimit,
 			rateLimitRules,
 		};
 	}
 
 	const auth = initInMemoryAuth({ hashPassword, verifyPassword });
+	const iosOnboardingSignal = initInMemoryIosOnboardingSignal();
 	const articleStore = initInMemoryArticleStore();
 	const oauthClients = initInMemoryOAuthClients({ now: () => new Date() });
 	const oauthClientLookup = initOAuthClientLookup({ dynamic: oauthClients });
@@ -509,6 +515,8 @@ function initProviders() {
 		markCrawlPending: crawlStore.markCrawlPending,
 		forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 		refreshArticleIfStale,
+		getIosAppSignals: iosOnboardingSignal.getIosAppSignals,
+		recordIosAppActivity: iosOnboardingSignal.recordIosAppActivity,
 		consumeRateLimit,
 		rateLimitRules,
 	};

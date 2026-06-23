@@ -84,11 +84,13 @@ import { computeQueueCardEtag, etagMatches } from "./queue-card/queue-card.etag"
 import { ReaderPage, formatReaderDocumentTitle, markReadPostUrl } from "../reader/reader.component";
 import { ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
 import {
-	detectBrowser,
+	detectPlatform,
 	extensionInstallUrlIfMissing,
 	isExtensionInstalled,
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
+import { isIosClient } from "../../onboarding/ios-client";
+import type { GetIosAppSignals, RecordIosAppActivity } from "@packages/provider-contracts/ios-onboarding-signal";
 import type { GetEffectiveAccess } from "../../../domain/access/effective-access";
 function readImportSkippedFlash(
 	req: Request,
@@ -160,6 +162,14 @@ interface QueueDependencies {
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
 	readArticleContent: ReadArticleContent;
 	httpErrorMessageMapping: HttpErrorMessageMapping;
+	/** Reads the per-user iOS onboarding signals for the Safari `/queue` render
+	 * when the visitor is on an iPhone (where completion can't come from cookies
+	 * because Safari can't see the app's cookie jar). */
+	getIosAppSignals: GetIosAppSignals;
+	/** Writes the per-user iOS onboarding signal when the request carries the iOS
+	 * client header — the cross-app-cookie-jar substitute for the extension's
+	 * liveness/save cookies. */
+	recordIosAppActivity: RecordIosAppActivity;
 	/** Auth middleware applied to every queue route except the public
 	 * `GET /:id/read` permalink. Owned by the composition root so the same
 	 * middleware applies to all other authenticated mounts. */
@@ -227,6 +237,17 @@ const SAVE_INTENT_PATH = {
 export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
 	const saveArticleFromUrl = initSaveArticleFromUrl(deps);
+
+	/** Records that the user saved their first article. From the iOS app (client
+	 * header present) this is a per-user server-side write so Safari's `/queue`
+	 * can read it; from the extension it is the same-browser-jar liveness cookie. */
+	const recordSaveSignal = async (req: Request, res: Response, userId: UserId): Promise<void> => {
+		if (isIosClient(req)) {
+			await deps.recordIosAppActivity({ userId, savedArticle: true });
+			return;
+		}
+		markExtensionSavedArticle(res);
+	};
 
 	/** Records a save-intent for an authenticated save surface. The save has
 	 * already happened (or failed) by the time this is called, so `outcome` is
@@ -351,6 +372,12 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const userId = req.userId;
+		/* The iOS app loads the queue over Siren on launch; record that authed
+		 * request as the "app installed + signed in" signal so step 1 ticks before
+		 * any save. Header-gated, so Safari (no header) only ever reads, never writes. */
+		if (isIosClient(req)) {
+			await deps.recordIosAppActivity({ userId, savedArticle: false });
+		}
 		const urlState = parseQueueUrl(req.query);
 		const tab = tabQuery(urlState.tab);
 		const filterUrl = typeof req.query.url === "string" ? req.query.url : undefined;
@@ -424,19 +451,23 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			effectiveAccess,
 			now: deps.now(),
 		});
-		const extensionInstalled = isExtensionInstalled(req);
-		const extensionSavedArticle = isExtensionSavedArticle(req);
-		/** Dismissal only counts when the extension is also installed in *this* browser.
-		 * The dismiss button only appears once every step (including install-extension)
-		 * is complete, so a dismiss without the install cookie means the user is in a
-		 * different browser context (or has lost the install cookie) — show the popup
-		 * again so they can install the extension here. */
-		const onboardingDismissed = extensionInstalled && req.cookies?.[DISMISS_COOKIE_NAME] === ONBOARDING_VERSION;
-		const browser = detectBrowser(req);
+		/* Resolve the completion source by platform: iPhone reads the per-user
+		 * server-side iOS signal (Safari can't see the app's cookies); every other
+		 * platform reads the same-browser extension liveness/save cookies. */
+		const platform = detectPlatform(req);
+		const { installed, savedArticle } = platform === "iphone"
+			? await deps.getIosAppSignals({ userId })
+			: { installed: isExtensionInstalled(req), savedArticle: isExtensionSavedArticle(req) };
+		/** Dismissal only counts when the install step is also complete in *this*
+		 * context. The dismiss button only appears once every step is complete, so a
+		 * dismiss without `installed` means the user is in a different context (a
+		 * different browser, or a phone whose app isn't signed in) — show the popup
+		 * again so they can complete onboarding here. */
+		const onboardingDismissed = installed && req.cookies?.[DISMISS_COOKIE_NAME] === ONBOARDING_VERSION;
 		sendComponent(
 			req, res,
 			Base(
-				QueuePage(vm, { saveUrl: filterUrl, extensionInstalled, extensionSavedArticle, browser, onboardingDismissed }),
+				QueuePage(vm, { saveUrl: filterUrl, platform, installed, savedArticle, onboardingDismissed }),
 				await deps.buildBannerState(req, { preFetchedAccess: effectiveAccess }),
 			),
 		);
@@ -485,7 +516,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		try {
 			const freshness = await deps.refreshArticleIfStale({ url: validation.url });
 			const result = await saveArticleFromUrl({ userId, url: validation.url, freshness });
-			markExtensionSavedArticle(res);
+			await recordSaveSignal(req, res, userId);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
@@ -570,7 +601,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					);
 					const freshness = await deps.refreshArticleIfStale({ url: urlOnlyValidation.url });
 					const result = await saveArticleFromUrl({ userId, url: urlOnlyValidation.url, freshness });
-					markExtensionSavedArticle(res);
+					await recordSaveSignal(req, res, userId);
 					emitSaveIntent({ req, url: urlOnlyValidation.url, path: SAVE_INTENT_PATH.saveHtml, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 					res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 					return;
@@ -601,7 +632,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			});
 
 			const result = await saveArticleFromUrl({ userId, url: articleUrl, freshness });
-			markExtensionSavedArticle(res);
+			await recordSaveSignal(req, res, userId);
 			emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveHtml, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 		} catch (error) {
@@ -749,7 +780,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				}
 
 				const result = await saveArticleFromUrl({ userId, url: articleUrl, freshness });
-				markExtensionSavedArticle(res);
+				await recordSaveSignal(req, res, userId);
 				emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 				res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
 			} catch (error) {
