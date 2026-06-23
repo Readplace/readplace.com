@@ -8,7 +8,7 @@ const TEST_USER_ID = UserIdSchema.parse("test-user-123");
 
 function createTestToken(userId: UserId): Token {
 	return {
-		accessToken: "test-access-token",
+		accessToken: `test-access-token-${userId}`,
 		accessTokenExpiresAt: new Date(Date.now() + 3600000),
 		refreshToken: "test-refresh-token",
 		refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
