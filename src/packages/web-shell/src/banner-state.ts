@@ -166,9 +166,11 @@ const NAV_INSTALL = navItem({ key: "install", label: "Install", path: "/install"
 const NAV_FEATURES = navItem({ key: "features", label: "Features", path: "/#what-works", method: "GET", icon: "fa-solid fa-wand-magic-sparkles" });
 const NAV_SIGNUP = navItem({ key: "signup", label: "Sign up", path: "/signup", method: "GET", icon: "fa-solid fa-user-plus" });
 
-/** Guest nav items rendered as a flat list without group structure. */
+/** Guest nav items rendered as a flat list without group structure. Import sits
+ * before signup so a logged-out visitor can start a migration from the menu; the
+ * import flow defers account creation until they commit their selection. */
 export function buildGuestNavItems(): NavItem[] {
-	return [NAV_INSTALL, NAV_FEATURES, NAV_SIGNUP];
+	return [NAV_INSTALL, NAV_FEATURES, NAV_IMPORT, NAV_SIGNUP];
 }
 
 /** Builds the grouped header nav for authenticated users. The template

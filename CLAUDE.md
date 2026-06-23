@@ -8,9 +8,11 @@
 
 ## Product Constraints
 
-### Imports are self-serve from /queue, with email as fallback
+### Imports are self-serve and public, with email as fallback
 
-The CTA lives next to the save bar on `/queue` only — do **not** restore the removed "Import Your Data" landing-page card. Flow: the user uploads any file (≤ 5 MiB), the server best-effort-decodes it as text and extracts `http(s)://…` URLs, the user reviews a paginated list with every link checked by default, then clicks "Import N selected". Selected URLs are stub-saved synchronously (hostname-only metadata at t=0) and the existing `SaveLinkCommand` pipeline fills in title/excerpt/content asynchronously, so cards appear immediately and progressively populate. Files larger than 5 MiB or imports above the 2,000-URL cap fall back to the concierge email path (`readplace+migrate@readplace.com`); keep that documented in [pocket-migration.md](./projects/hutch/src/runtime/web/pages/blog/posts/pocket-migration.md).
+Importing is a top-of-funnel acquisition path: it is reachable **logged out**, not gated behind auth. Entry points are the **Import Links** nav item (present for guests and authenticated users via `buildGuestNavItems` in [banner-state.ts](./src/packages/web-shell/src/banner-state.ts), so it also appears on the same-origin blog header) and the CTA next to the save bar on `/queue` — do **not** restore the removed "Import Your Data" landing-page card.
+
+Flow: the visitor uploads any file (≤ 5 MiB) or pastes a link, the server best-effort-decodes it as text and extracts `http(s)://…` URLs, then reviews a paginated list (every link checked by default, selections persisted server-side). Auth is required only at **commit** ("Import N selected" → `POST /import/:id/commit`); an anonymous visitor is redirected to `/signup?return=/import/:id` and returns to the same review with selections intact, because anonymous sessions are reached by **capability** (the unguessable id), not by owner. Only the commit route carries the save gates (`requireNotLocked`, `requireWriteAccess`) — see [import.page.ts](./projects/hutch/src/runtime/web/pages/import/import.page.ts). On commit the selected URLs are stub-saved under the authenticated user (hostname-only metadata at t=0) and the existing `SaveLinkCommand` pipeline fills in title/excerpt/content asynchronously, so cards appear immediately and progressively populate. Files larger than 5 MiB or imports above the 2,000-URL cap fall back to the concierge email path (`readplace+migrate@readplace.com`); keep that documented in [pocket-migration.md](./projects/blog-site/src/runtime/web/pages/blog/posts/pocket-migration.md).
 
 ### Crawler Health Canary Is Load-Bearing
 

@@ -39,6 +39,93 @@ describe("initInMemoryImportSession", () => {
 		expect(peek).toBeUndefined();
 	});
 
+	describe("anonymous sessions (capability access)", () => {
+		it("creates an anonymous session with no userId", async () => {
+			const store = initInMemoryImportSession({ now: () => new Date() });
+
+			const session = await store.createImportSession({
+				userId: undefined,
+				urls: ["https://example.com/a"],
+				truncated: false,
+				totalFound: 1,
+			});
+
+			expect(session.userId).toBeUndefined();
+		});
+
+		it("stores the owner's id when created while authenticated", async () => {
+			const store = initInMemoryImportSession({ now: () => new Date() });
+
+			const session = await store.createImportSession({
+				userId: owner,
+				urls: ["https://example.com/a"],
+				truncated: false,
+				totalFound: 1,
+			});
+
+			expect(session.userId).toBe(owner);
+		});
+
+		it("lets an anonymous caller read an anonymous session", async () => {
+			const store = initInMemoryImportSession({ now: () => new Date() });
+			const session = await store.createImportSession({
+				userId: undefined,
+				urls: ["https://example.com/a"],
+				truncated: false,
+				totalFound: 1,
+			});
+
+			const peek = await store.findImportSession({ id: session.id, userId: undefined });
+
+			expect(peek?.id).toBe(session.id);
+		});
+
+		it("lets a just-authenticated caller adopt an anonymous session (post-signup)", async () => {
+			const store = initInMemoryImportSession({ now: () => new Date() });
+			const session = await store.createImportSession({
+				userId: undefined,
+				urls: ["https://example.com/a", "https://example.com/b"],
+				truncated: false,
+				totalFound: 2,
+			});
+			await store.toggleImportSelection({ id: session.id, userId: undefined, index: 0, checked: false });
+
+			const peek = await store.findImportSession({ id: session.id, userId: owner });
+
+			assert(peek, "authenticated caller must reach an anonymous session by capability");
+			expect([...peek.deselected]).toEqual([0]);
+		});
+
+		it("refuses an anonymous caller access to an owned session", async () => {
+			const store = initInMemoryImportSession({ now: () => new Date() });
+			const session = await store.createImportSession({
+				userId: owner,
+				urls: ["https://example.com/a"],
+				truncated: false,
+				totalFound: 1,
+			});
+
+			const peek = await store.findImportSession({ id: session.id, userId: undefined });
+
+			expect(peek).toBeUndefined();
+		});
+
+		it("expires an anonymous session once its TTL elapses", async () => {
+			let now = new Date("2026-05-01T00:00:00Z");
+			const store = initInMemoryImportSession({ now: () => now });
+			const session = await store.createImportSession({
+				userId: undefined,
+				urls: ["https://example.com/a"],
+				truncated: false,
+				totalFound: 1,
+			});
+
+			now = new Date(now.getTime() + (IMPORT_SESSION_TTL_SECONDS + 1) * 1000);
+
+			expect(await store.findImportSession({ id: session.id, userId: undefined })).toBeUndefined();
+		});
+	});
+
 	it("returns undefined for a non-existent id", async () => {
 		const store = initInMemoryImportSession({ now: () => new Date() });
 		const ghost = ImportSessionIdSchema.parse("00000000000000000000000000000000");

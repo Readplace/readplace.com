@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { ImportSessionIdSchema } from "@packages/domain/import-session";
 import { useTestServer, loginAgent } from "../../../test-app";
 import type { ImportUploadedEvent, ImportCommittedEvent } from "../../middleware/analytics";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+
+function sessionIdFromLocation(location: string): ReturnType<typeof ImportSessionIdSchema.parse> {
+	return ImportSessionIdSchema.parse(location.replace("/import/", ""));
+}
 
 function summaryText(doc: Document): string {
 	return doc.querySelector("[data-test-import-summary]")?.textContent?.replace(/\s+/g, " ").trim() ?? "";
@@ -31,14 +36,32 @@ function multipartBody(filename: string, content: Buffer): { body: Buffer; conte
 }
 
 const useApp = useTestServer();
+const ONE_DAY_MS = 86_400_000;
 
 describe("Import routes", () => {
 	describe("GET /import (unauthenticated)", () => {
-		it("redirects to /login", async () => {
+		it("renders the acquire page with both tabs for a logged-out visitor", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const response = await request(harness.server).get("/import");
-			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/login");
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const tabKeys = Array.from(doc.querySelectorAll("[data-test-import-tab]")).map(
+				(el) => el.getAttribute("data-test-import-tab"),
+			);
+			expect(tabKeys).toEqual(["upload", "from-url"]);
+		});
+
+		it("renders the guest nav with an Import Links entry", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const response = await request(harness.server).get("/import");
+			const doc = new JSDOM(response.text).window.document;
+			const nav = doc.querySelector("[data-test-nav-variant]");
+			assert(nav, "nav must render");
+			expect(nav.getAttribute("data-test-nav-variant")).toBe("guest");
+			const navKeys = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
+				(el) => el.getAttribute("data-test-nav-item"),
+			);
+			expect(navKeys).toContain("import");
 		});
 	});
 
@@ -145,11 +168,27 @@ describe("Import routes", () => {
 	});
 
 	describe("POST /import (unauthenticated)", () => {
-		it("redirects to /login", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).post("/import");
+		it("creates an anonymous session (no userId) and redirects to the review page", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const { body, contentType } = multipartBody(
+				"urls.txt",
+				Buffer.from("https://example.com/a https://example.com/b"),
+			);
+
+			const response = await request(harness.server)
+				.post("/import")
+				.set("Content-Type", contentType)
+				.send(body);
+
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/login");
+			assert(response.headers.location.startsWith("/import/"), "expected redirect to /import/:id");
+			const session = await fixture.importSession.importSessionStore.findImportSession({
+				id: sessionIdFromLocation(response.headers.location),
+				userId: undefined,
+			});
+			assert(session, "anonymous session must exist");
+			expect(session.userId).toBeUndefined();
 		});
 	});
 
@@ -679,6 +718,165 @@ describe("Import routes", () => {
 		});
 	});
 
+	describe("POST /import/:id/commit write-access gating", () => {
+		it("keeps the upload+review public but redirects the commit to /queue?inactive=1 for a trial-expired account", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "seeded login user must exist");
+			// A trial past its window leaves the account read-only: the commit
+			// (the bulk save) is gated by requireWriteAccess while the upload and
+			// review pages stay public — the read-only mirror of the locked case.
+			await harness.subscriptionProviders.upsertTrialing({
+				userId,
+				trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+			});
+
+			const acquire = await agent.get("/import");
+			expect(acquire.status).toBe(200);
+
+			const create = await agent
+				.post("/import/from-url")
+				.type("form")
+				.send({ url: "https://news.example/issues/7" });
+			expect(create.status).toBe(303);
+			const reviewPath = create.headers.location;
+
+			const review = await agent.get(reviewPath);
+			expect(review.status).toBe(200);
+
+			const commit = await agent.post(`${reviewPath}/commit`).set("Accept", "text/html");
+			expect(commit.status).toBe(303);
+			expect(commit.headers.location).toBe("/queue?inactive=1");
+		});
+	});
+
+	describe("Anonymous self-serve flow", () => {
+		async function anonUpload(server: Parameters<typeof request>[0], content: string) {
+			const { body, contentType } = multipartBody("urls.txt", Buffer.from(content));
+			const create = await request(server)
+				.post("/import")
+				.set("Content-Type", contentType)
+				.send(body);
+			return create.headers.location;
+		}
+
+		it("renders the review screen with all URLs checked for an anonymous visitor", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const sessionPath = await anonUpload(
+				harness.server,
+				"https://example.com/a https://example.com/b https://example.com/c",
+			);
+
+			const response = await request(harness.server).get(sessionPath);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			const checkboxes = doc.querySelectorAll<HTMLInputElement>("[data-test-import-checkbox]");
+			expect(checkboxes).toHaveLength(3);
+			for (const cb of checkboxes) {
+				expect(cb.hasAttribute("checked")).toBe(true);
+			}
+		});
+
+		it("persists an anonymous toggle across requests (server-side selection state)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const sessionPath = await anonUpload(harness.server, "https://example.com/a https://example.com/b");
+
+			const toggle = await request(harness.server)
+				.post(`${sessionPath}/toggle`)
+				.type("form")
+				.send({ index: 0, checked: "false" });
+			expect(toggle.status).toBe(303);
+
+			const review = await request(harness.server).get(sessionPath);
+			const doc = new JSDOM(review.text).window.document;
+			const first = doc.querySelector<HTMLInputElement>('[data-test-import-checkbox="0"]');
+			assert(first, "first checkbox must exist");
+			expect(first.hasAttribute("checked")).toBe(false);
+			expect(summaryText(doc)).toContain("1 of 2 selected");
+		});
+
+		it("redirects an anonymous commit to /signup carrying the session id in ?return=, without saving or deleting", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const sessionPath = await anonUpload(harness.server, "https://example.com/a https://example.com/b");
+			const id = sessionIdFromLocation(sessionPath);
+
+			const commit = await request(harness.server).post(`${sessionPath}/commit`);
+
+			expect(commit.status).toBe(303);
+			expect(commit.headers.location).toBe(`/signup?return=${encodeURIComponent(`/import/${id}`)}`);
+			const stillThere = await fixture.importSession.importSessionStore.findImportSession({
+				id,
+				userId: undefined,
+			});
+			expect(stillThere).toBeDefined();
+		});
+
+		it("redirects an anonymous commit with an unparseable id to a bare /signup", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const commit = await request(harness.server).post("/import/not-an-id/commit");
+
+			expect(commit.status).toBe(303);
+			expect(commit.headers.location).toBe("/signup");
+		});
+
+		it("lets a just-signed-up user reach the anonymous review with selections intact and commit it", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth, articleStore } = harness;
+			const sessionPath = await anonUpload(
+				harness.server,
+				"https://example.com/a https://example.com/b https://example.com/c",
+			);
+			await request(harness.server)
+				.post(`${sessionPath}/toggle`)
+				.type("form")
+				.send({ index: 1, checked: "false" });
+
+			// Simulate the post-signup return: the same session id, now reached by an
+			// authenticated identity (capability access).
+			const agent = await loginAgent(harness.server, auth);
+
+			const review = await agent.get(sessionPath);
+			expect(review.status).toBe(200);
+			const doc = new JSDOM(review.text).window.document;
+			const second = doc.querySelector<HTMLInputElement>('[data-test-import-checkbox="1"]');
+			assert(second, "deselected checkbox must persist into the authenticated review");
+			expect(second.hasAttribute("checked")).toBe(false);
+			expect(summaryText(doc)).toContain("2 of 3 selected");
+
+			const commit = await agent.post(`${sessionPath}/commit`);
+			expect(commit.status).toBe(303);
+			expect(commit.headers.location).toBe("/queue?import_imported=2&import_total=3&import_skipped=0");
+
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "user must exist");
+			const stored = await articleStore.findArticlesByUser({ userId });
+			expect(stored.articles.map((a) => a.url).sort()).toEqual([
+				"https://example.com/a",
+				"https://example.com/c",
+			]);
+
+			const reuse = await agent.get(sessionPath);
+			expect(reuse.status).toBe(303);
+			expect(reuse.headers.location).toBe("/import?error_code=import_session_not_found");
+		});
+
+		it("refuses an anonymous caller access to a session owned by an authenticated user", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const owner = await loginAgent(harness.server, harness.auth);
+			const { body, contentType } = multipartBody("urls.txt", Buffer.from("https://example.com/owned"));
+			const create = await owner.post("/import").set("Content-Type", contentType).send(body);
+
+			const response = await request(harness.server).get(create.headers.location);
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/import?error_code=import_session_not_found");
+		});
+	});
+
 	describe("Analytics events", () => {
 		it("emits import_uploaded event with url_count after a successful upload", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -697,6 +895,20 @@ describe("Import routes", () => {
 			assert.equal(uploaded[0].utm_medium, "form");
 			assert.equal(uploaded[0].utm_campaign, "file-upload");
 			assert.equal(uploaded[0].is_authenticated, 1);
+		});
+
+		it("emits import_uploaded with is_authenticated=0 for an anonymous upload", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const file = Buffer.from("https://example.com/post-1 https://example.com/post-2");
+			const { body, contentType } = multipartBody("urls.txt", file);
+
+			await request(harness.server).post("/import").set("Content-Type", contentType).send(body);
+
+			const uploaded = harness.analytics.events.filter(
+				(e): e is ImportUploadedEvent => e.event === "import_uploaded",
+			);
+			assert.equal(uploaded.length, 1, "exactly one import_uploaded event");
+			assert.equal(uploaded[0].is_authenticated, 0);
 		});
 
 		it("emits import_committed event with correct counts after a successful commit", async () => {

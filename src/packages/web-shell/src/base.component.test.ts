@@ -133,15 +133,19 @@ describe("Base component", () => {
 		expect(url.searchParams.get("utm_content")).toBe("import");
 	});
 
-	it("hides the Import Links nav item for unauthenticated requests", () => {
+	it("renders the Import Links nav item for unauthenticated requests so guests can start a migration", () => {
 		const page = createTestPageBody();
 		const result = Base(page, { isAuthenticated: false, emailVerified: undefined }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
-		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
-			(el) => el.getAttribute("data-test-nav-item"),
-		);
-		expect(navItems).toEqual(["install", "features", "signup"]);
+		const button = doc.querySelector('[data-test-nav-item="import"]');
+		assert(button, "Import Links nav item must be rendered for guests");
+		expect(button.textContent).toBe("Import Links");
+		const form = button.closest("form");
+		assert(form, "Import Links nav item must be wrapped in a form");
+		const action = form.getAttribute("action");
+		assert(action, "Import Links form must have an action");
+		expect(new URL(action, "https://readplace.com").pathname).toBe("/import");
 	});
 
 	it("renders the Account nav item for authenticated full-access users", () => {
@@ -166,7 +170,7 @@ describe("Base component", () => {
 		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
 			(el) => el.getAttribute("data-test-nav-item"),
 		);
-		expect(navItems).toEqual(["install", "features", "signup"]);
+		expect(navItems).toEqual(["install", "features", "import", "signup"]);
 	});
 
 	it("renders the full nav (queue + import + export + account + logout) for an authenticated full-access user", () => {

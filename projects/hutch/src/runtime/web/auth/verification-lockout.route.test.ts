@@ -146,14 +146,28 @@ describe("Email verification lockout", () => {
 		expect(remaining.articles).toHaveLength(0);
 	});
 
-	it("locks /import (a bulk-save tool) but reopens /export and /account for a lapsed account", async () => {
+	it("keeps the /import upload+review public but locks the commit (the bulk save) for a lapsed account", async () => {
 		const harness = useApp(fixtureClockedDaysAhead(8));
 		const agent = await loginAgent(harness.server, harness.auth);
 
-		const importResponse = await agent.get("/import");
-		expect(importResponse.status).toBe(403);
+		// The acquire/review pages are public so a lapsed account still sees the
+		// flow; only the commit, which writes new saves, is gated.
+		const acquire = await agent.get("/import");
+		expect(acquire.status).toBe(200);
 		expect(
-			new JSDOM(importResponse.text).window.document.querySelector("h1")?.textContent,
+			new JSDOM(acquire.text).window.document.querySelector("h1")?.textContent,
+		).not.toBe("Your account is locked");
+
+		const create = await agent
+			.post("/import/from-url")
+			.type("form")
+			.send({ url: "https://news.example/issues/42" });
+		expect(create.status).toBe(303);
+
+		const commit = await agent.post(`${create.headers.location}/commit`);
+		expect(commit.status).toBe(403);
+		expect(
+			new JSDOM(commit.text).window.document.querySelector("h1")?.textContent,
 		).toBe("Your account is locked");
 
 		for (const path of ["/export", "/account"]) {

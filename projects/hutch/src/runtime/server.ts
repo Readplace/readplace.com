@@ -832,8 +832,14 @@ export function createApp(dependencies: AppDependencies): Express {
 		salt: deps.salt,
 		now: deps.now,
 		buildBannerState,
+		requireNotLocked,
+		requireWriteAccess,
 	});
-	app.use("/import", requireAuth, requireNotLocked, requireWriteAccess, importRouter);
+	/** Public on purpose: a logged-out visitor can upload, review, and toggle a
+	 * selection before being asked to sign up. Auth is enforced only at commit
+	 * (the sole content-creating route), where `redirectAnonymousToSignup` and the
+	 * `requireNotLocked`/`requireWriteAccess` gates run as route middleware. */
+	app.use("/import", importRouter);
 
 	const saveRouter = initSaveRoutes({ buildBannerState, analytics: deps.analytics, salt: deps.salt, now: deps.now, secureCookies, generatePendingSaveId: randomUUID });
 	app.use("/save", saveRouter);
