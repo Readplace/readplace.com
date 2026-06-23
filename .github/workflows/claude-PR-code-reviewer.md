@@ -93,23 +93,14 @@ When reviewing code, apply these skills based on the files being changed:
 - If HIGH_PRIORITY_COUNT is 0 AND MEDIUM_PRIORITY_COUNT is 0: End with "cc @FagnerMartinsBrack - No high or medium priority issues found. This PR is ready for human review."
 - If HIGH_PRIORITY_COUNT > 0 OR MEDIUM_PRIORITY_COUNT > 0: End with "This PR has issues that should be addressed before merging."
 
-## CRITICAL: Posting the Review
+## CRITICAL: Emit the review as your FINAL message
 
-You MUST use `gh pr comment <PR_NUMBER>` with your Bash tool to post the review as a NEW comment.
+Output the complete `<!-- CLAUDE_REVIEW_START -->` … `<!-- CLAUDE_REVIEW_END -->` block (with the HIGH/MEDIUM counts and all sections) as your FINAL message. Do NOT post a PR comment yourself — the auto-fix workflow reads your final message from the run output and posts the review comment. Posting it yourself creates a duplicate.
 
-**DO NOT use MCP tools like `mcp__github_comment__update_claude_comment` to post the review.** Using MCP tools updates an existing comment, which triggers an `edited` event instead of a `created` event. The downstream automation only triggers on NEW comments (`created` events).
+## Pre-Output Checklist
 
-**Correct approach:**
-```bash
-gh pr comment <PR_NUMBER> --body "<!-- CLAUDE_REVIEW_START -->
-<!-- HIGH_PRIORITY_COUNT: N -->
-..."
-```
-
-## Pre-Post Checklist
-
-Before posting, verify your comment includes:
-- [ ] `<!-- CLAUDE_REVIEW_START -->` at the very beginning
-- [ ] `<!-- HIGH_PRIORITY_COUNT: N -->` with correct count
-- [ ] `<!-- MEDIUM_PRIORITY_COUNT: N -->` with correct count
+Before finishing, verify your FINAL message includes:
+- [ ] `<!-- CLAUDE_REVIEW_START -->` at the very beginning of the block
+- [ ] `<!-- HIGH_PRIORITY_COUNT: N -->` with the correct count
+- [ ] `<!-- MEDIUM_PRIORITY_COUNT: N -->` with the correct count
 - [ ] `<!-- CLAUDE_REVIEW_END -->` after all review sections

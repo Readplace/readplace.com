@@ -4,7 +4,7 @@ on:
   issue_comment:
     types: [created]
   workflow_run:
-    workflows: ["CI"]
+    workflows: ["CI", "Claude Code"]
     types:
       - completed
 
@@ -142,3 +142,121 @@ jobs:
             });
 
             console.log(`Posted @claude auto-fix request for PR #${prNumber} (attempt ${newAttempt})`);
+
+  # ┌─────────────────────────────────────────────────────────────────┐
+  # │ REVIEW RUN DONE: Post the review comment from the saved output │
+  # └─────────────────────────────────────────────────────────────────┘
+  # The review marker comment must be a NEW, unsanitized comment for request-fix (above)
+  # to trigger. The agent intermittently routed the review through the action's sticky
+  # comment instead of `gh pr comment`; that path strips HTML markers (sanitizeContent)
+  # and fires an `edited`, not `created`, event — so request-fix silently never ran. The
+  # review run ("Claude Code") now saves its raw execution_file as a review-output-<pr>
+  # artifact; here we read the agent's final message from it, lift the CLAUDE_REVIEW block
+  # verbatim (markers intact), and post it ourselves — the trigger is workflow-authored,
+  # not dependent on the agent's choice of channel. request-fix then consumes it unchanged.
+  post-review-comment:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Claude Code' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Locate the review-output artifact
+        id: locate
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.PAT_TOKEN }}
+          script: |
+            const assert = require("assert");
+            const { data } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.payload.workflow_run.id,
+              per_page: 100,
+            });
+            // Only review runs upload this artifact, so its presence is the review-run signal.
+            const art = data.artifacts.find((a) => a.name.startsWith("review-output-"));
+            if (!art) {
+              core.info("No review-output artifact: not a review run, nothing to do.");
+              core.setOutput("found", "false");
+              return;
+            }
+            const pr = parseInt(art.name.slice("review-output-".length), 10);
+            assert(Number.isInteger(pr), `Unexpected artifact name: ${art.name}`);
+            core.setOutput("found", "true");
+            core.setOutput("pr", String(pr));
+            core.setOutput("artifact_name", art.name);
+
+      - name: Download the review output
+        if: steps.locate.outputs.found == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.locate.outputs.artifact_name }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.PAT_TOKEN }}
+          path: review-output
+
+      - name: Post the review comment
+        if: steps.locate.outputs.found == 'true'
+        uses: actions/github-script@v8
+        env:
+          PR_NUMBER: ${{ steps.locate.outputs.pr }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        with:
+          github-token: ${{ secrets.PAT_TOKEN }}
+          script: |
+            const fs = require("fs");
+            const path = require("path");
+            const assert = require("assert");
+            const { owner, repo } = context.repo;
+            const issue_number = parseInt(process.env.PR_NUMBER, 10);
+            const START = "<!-- CLAUDE_REVIEW_START -->";
+            const END = "<!-- CLAUDE_REVIEW_END -->";
+            const runMarker = `<!-- REVIEW_RUN: ${process.env.RUN_ID} -->`;
+
+            // Drift: a review ran but produced no usable block. Fail loud (no silent drop)
+            // and leave a notice. Keep the literal START marker out of the notice so this
+            // comment does not itself trip the request-fix trigger.
+            const skip = async (reason) => {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number,
+                body: `⚠️ Auto-fix skipped: the review run produced no parseable review block (missing CLAUDE_REVIEW_START/END): ${reason}. The full review is in the run's tracking comment — address any high/medium findings manually.`,
+              });
+              core.setFailed(`Review run produced no usable marker block: ${reason}`);
+            };
+
+            const dir = "review-output";
+            const jsonFiles = fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
+            if (jsonFiles.length === 0) return skip("execution output missing from artifact");
+
+            let msgs;
+            try {
+              msgs = JSON.parse(fs.readFileSync(path.join(dir, jsonFiles[0]), "utf8"));
+            } catch (e) {
+              return skip(`execution output unreadable: ${e.message}`);
+            }
+            assert(Array.isArray(msgs), "execution output is not a messages array");
+
+            const result = [...msgs].reverse().find((m) => m.type === "result" && m.subtype === "success");
+            const finalText = result?.result ?? "";
+            const start = finalText.indexOf(START);
+            const end = finalText.indexOf(END);
+            if (start === -1 || end === -1) return skip("agent final message lacked the block");
+
+            // Idempotency: at most one review comment per review run.
+            const { data: comments } = await github.rest.issues.listComments({
+              owner, repo, issue_number, per_page: 100,
+            });
+            if (comments.some((c) => c.body.includes(runMarker))) {
+              core.info("Review comment already posted for this run; skipping.");
+              return;
+            }
+
+            const block = finalText.slice(start, end + END.length);
+            await github.rest.issues.createComment({
+              owner, repo, issue_number,
+              body: `${runMarker}\n${block}`,
+            });
+            core.info(`Posted review comment for PR #${issue_number}.`);

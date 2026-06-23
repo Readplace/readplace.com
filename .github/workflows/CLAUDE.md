@@ -25,7 +25,7 @@ Inspect the `.yml` files in this directory for implementation details. Summary:
 | `claude-listener.yml` | Central hub - ONLY workflow that runs Claude | `@claude` comments |
 | `claude-PR-CI-failure-fixer.yml` | Auto-fix CI failures (max 5 attempts) | CI fails on PR |
 | `claude-PR-code-reviewer.yml` | Automated code review | CI succeeds on PR |
-| `claude-PR-code-review-auto-apply.yml` | Fix HIGH/MEDIUM priority issues | Claude review comment |
+| `claude-PR-code-review-auto-apply.yml` | Post the review comment from the review run's saved output, then fix HIGH/MEDIUM issues | Review run completes (`workflow_run`) + the posted review comment |
 | `claude-PR-conflict-fixer.yml` | Resolve merge conflicts | CI succeeds + conflicts detected |
 | `claude-PR-crash-retry.yml` | Re-run `claude-listener.yml` on the intermittent agent-SDK startup crash (#852); fast failures only, ≤4 attempts | `claude-listener.yml` run fails |
 | `tier-1-plus-crawl-pipeline-health.yml` | Tier 1+ crawl pipeline canary; opens a tracking issue on failure for an operator to debug and close manually | Schedule (06:00 AEST daily) / manual |
@@ -59,7 +59,8 @@ Each workflow has a corresponding `.md` file containing detailed instructions fo
 | HTML Marker | Purpose |
 |-------------|---------|
 | `<!-- CLAUDE_REVIEW_REQUEST -->` | Code review request |
-| `<!-- CLAUDE_REVIEW_START/END -->` | Review content boundaries |
+| `<!-- CLAUDE_REVIEW_START/END -->` | Review content boundaries; posted by `claude-PR-code-review-auto-apply.yml` from the review run's saved `execution_file` artifact (unsanitized), not by the agent |
+| `<!-- REVIEW_RUN: <run-id> -->` | Dedup marker on the workflow-authored review comment (one per review run) |
 | `<!-- HIGH/MEDIUM_PRIORITY_COUNT: N -->` | Issue counts |
 | `<!-- CLAUDE_CONFLICT_FIX -->` | Conflict fix request |
 | `<!-- CLAUDE_TIER_1_PLUS_FIX -->` | Tier 1+ canary tracking-issue dedup marker (detection only; no Claude handoff) |
