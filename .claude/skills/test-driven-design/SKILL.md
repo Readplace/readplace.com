@@ -49,6 +49,21 @@ Two refactors that almost always pay for themselves before adding a new case:
 
 If none of these shapes fit and the new case genuinely requires editing existing logic, that is a signal that MUST surface as a report to the user — not silently absorbing as line edits.
 
+### Uniform Interface Over Conditionals
+
+Prefer one path that treats every case alike over a conditional that branches to reconstruct per-case shapes. When the input already satisfies the output type, pass it through rather than re-discriminating it.
+
+```typescript
+// ❌ BAD - Branches on a discriminant to rebuild each arm by hand
+const failure: CoreError =
+	result.reason === "not-logged-in"
+		? { reason: "not-logged-in" }
+		: { reason: "error", error: result.error };
+
+// ✅ GOOD - Each input arm already satisfies CoreError; pass it through
+const failure: CoreError = result;
+```
+
 ### Dependency Injection Over Mocks
 
 Prefer dependency injection over `jest.mock()`. Mocks couple tests to implementation details.

@@ -75,7 +75,8 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 	function emitResult<T>(event: string, guardedResult: GuardedResult<Promise<T>>): void;
 	function emitResult<T>(event: string, guardedResult: GuardedResult<T | Promise<T>>): void {
 		if (!guardedResult.ok) {
-			eventBus.emit(event, "failure", { reason: guardedResult.reason } as CoreError);
+			const { ok: _ok, ...failure } = guardedResult;
+			eventBus.emit(event, "failure", failure satisfies CoreError);
 			return;
 		}
 		const value = guardedResult.value;
@@ -84,11 +85,11 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 				.then((resolved) => eventBus.emit(event, "success", resolved))
 				.catch((err: unknown) => {
 					if (err instanceof UnauthorizedError) {
-						eventBus.emit(event, "failure", { reason: "not-logged-in" } as CoreError);
+						eventBus.emit(event, "failure", { reason: "not-logged-in" } satisfies CoreError);
 						return;
 					}
 					const error = err instanceof Error ? err : new Error(String(err));
-					eventBus.emit(event, "failure", { reason: "error", error } as CoreError);
+					eventBus.emit(event, "failure", { reason: "error", error } satisfies CoreError);
 				});
 		} else {
 			eventBus.emit(event, "success", value);
@@ -140,7 +141,7 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 				})
 				.catch((err: unknown) => {
 					const error = err instanceof Error ? err : new Error(String(err));
-					eventBus.emit("logged-in", "failure", { reason: "error", error } as CoreError);
+					eventBus.emit("logged-in", "failure", { reason: "error", error } satisfies CoreError);
 				});
 		},
 
@@ -199,12 +200,11 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 			if (typeof handler === "function") {
 				eventBus.on(event, handler);
 			} else {
-				const resultHandler = handler as ResultCallbacks<unknown>;
 				eventBus.on(event, (type: unknown, value: unknown) => {
 					if (type === "success") {
-						resultHandler.success(value);
+						handler.success(value);
 					} else if (type === "failure") {
-						resultHandler.failure(value as CoreError);
+						handler.failure(value);
 					}
 				});
 			}
@@ -212,12 +212,11 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 
 		// biome-ignore lint/suspicious/noExplicitAny: implementation signature must accept all overloaded handler shapes
 		once(event: string, handler: any) {
-			const resultHandler = handler as ResultCallbacks<unknown>;
 			eventBus.once(event, (type: unknown, value: unknown) => {
 				if (type === "success") {
-					resultHandler.success(value);
+					handler.success(value);
 				} else if (type === "failure") {
-					resultHandler.failure(value as CoreError);
+					handler.failure(value);
 				}
 			});
 		},
