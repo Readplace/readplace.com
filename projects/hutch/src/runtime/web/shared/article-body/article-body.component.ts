@@ -67,6 +67,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		summary: input.summary,
 		summaryPollUrl: input.summaryPollUrl,
 		summaryOpen: input.summaryOpen,
+		content: input.content,
 	});
 
 	const progressBarHtml = renderProgressBar({ progress: input.progress });
