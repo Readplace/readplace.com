@@ -56,6 +56,14 @@ export function initDynamoDbInboxAddress(deps: {
 			);
 		},
 		listAddressesByUserId: async (userId) => {
+			// The userId-index GSI is replicated asynchronously and DynamoDB offers no
+			// ConsistentRead for secondary indexes, so this read is unavoidably eventually
+			// consistent: an address written moments earlier can be absent, which lets the
+			// create → redirect → list flow briefly render the empty state right after a
+			// successful create. The design absorbs the lag rather than fighting it — the
+			// never-delete + conditional-put invariants bound the worst case to a redundant
+			// address the user owns (a second valid row), never a lost or cross-user-leaked
+			// one, and a reload reconciles once replication catches up.
 			const { items } = await table.query({
 				IndexName: "userId-index",
 				KeyConditionExpression: "userId = :uid",

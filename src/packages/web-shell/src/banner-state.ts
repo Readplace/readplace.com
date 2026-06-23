@@ -92,6 +92,14 @@ export interface NavItem {
 	icon: string;
 	trackSource: string;
 	trackContent: string;
+	/** Extra query params the entry must deliver to its target, rendered as
+	 * hidden inputs beside the UTM trio. A GET submit serializes the form's
+	 * fields into the target's query string and discards the action's own query
+	 * (the same browser behaviour the UTM dual-transmission above works around),
+	 * so these inputs are how NAV_INBOX carries `feature=email` to the
+	 * flag-gated /inbox route — without them the gate 404s. Undefined for
+	 * entries that need no extra params. */
+	hiddenParams?: Record<string, string>;
 }
 
 const NAV_SOURCE = "header-nav";
@@ -105,6 +113,7 @@ function navItem(input: {
 	path: string;
 	method: "GET" | "POST";
 	icon: string;
+	hiddenParams?: Record<string, string>;
 }): NavItem {
 	return {
 		key: input.key,
@@ -114,6 +123,7 @@ function navItem(input: {
 		icon: input.icon,
 		trackSource: NAV_SOURCE,
 		trackContent: input.key,
+		hiddenParams: input.hiddenParams,
 	};
 }
 
@@ -176,7 +186,7 @@ export interface BannerState {
 const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method: "GET", icon: "fa-solid fa-inbox" });
 const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/import", method: "GET", icon: "fa-solid fa-file-import" });
 const NAV_EXPORT = navItem({ key: "export", label: "Export", path: "/export", method: "GET", icon: "fa-solid fa-file-export" });
-const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", icon: "fa-solid fa-envelope" });
+const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", icon: "fa-solid fa-envelope", hiddenParams: { feature: EMAIL_FEATURE } });
 const NAV_ACCOUNT = navItem({ key: "account", label: "Account", path: "/account", method: "GET", icon: "fa-solid fa-user" });
 const NAV_LOGOUT = navItem({ key: "logout", label: "Sign out", path: "/logout", method: "POST", icon: "fa-solid fa-right-from-bracket" });
 const NAV_INSTALL = navItem({ key: "install", label: "Install", path: "/install", method: "GET", icon: "fa-solid fa-download" });

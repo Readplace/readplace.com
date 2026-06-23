@@ -28,6 +28,30 @@ function addressFieldValue(html: string): string | null | undefined {
 		?.getAttribute("value");
 }
 
+/** Emulates a browser submitting a nav entry's GET form: the action's own query
+ * string is discarded and replaced by the serialized form controls (the hidden
+ * inputs), so the resulting URL is the action path plus the hidden-input query.
+ * This is the only faithful way to assert the entry reaches its target — asserting
+ * the entry is merely present misses a dropped gate flag. */
+function navFormSubmissionTarget(html: string, key: string): string {
+	const form = new JSDOM(html).window.document
+		.querySelector(`[data-test-nav-item="${key}"]`)
+		?.closest("form");
+	assert(form, `nav item ${key} must render inside a form`);
+	assert.equal(form.getAttribute("method"), "GET", "this helper emulates a GET submit");
+	const action = form.getAttribute("action");
+	assert(action, "nav form must declare an action");
+	const params = new URLSearchParams();
+	for (const input of form.querySelectorAll('input[type="hidden"]')) {
+		const name = input.getAttribute("name");
+		const value = input.getAttribute("value");
+		assert(name, "hidden input must declare a name");
+		assert(value !== null, "hidden input must declare a value");
+		params.set(name, value);
+	}
+	return `${new URL(action, "https://internal.invalid").pathname}?${params}`;
+}
+
 describe("Inbox routes", () => {
 	describe("GET /inbox (gating)", () => {
 		it("redirects an unauthenticated visitor to /login", async () => {
@@ -71,6 +95,21 @@ describe("Inbox routes", () => {
 
 			const withoutFlag = await agent.get("/queue");
 			expect(navItemKeys(withoutFlag.text)).not.toContain("inbox");
+		});
+
+		it("reaches the inbox (200) when the Inbox nav entry's GET form is followed", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const page = await agent.get("/queue?feature=email");
+			const target = navFormSubmissionTarget(page.text, "inbox");
+
+			const response = await agent.get(target);
+
+			expect(response.status).toBe(200);
+			expect(
+				new JSDOM(response.text).window.document.querySelector("[data-test-inbox-empty]"),
+			).not.toBeNull();
 		});
 	});
 

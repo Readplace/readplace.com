@@ -150,6 +150,23 @@ describe("Nav component", () => {
 		expect(libraryItems).toEqual(["queue", "import", "export", "inbox"]);
 	});
 
+	it("carries feature=email as a hidden input on the Inbox entry so its GET form keeps the gate flag", () => {
+		const doc = parse(
+			Nav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, emailFeatureEnabled: true }),
+		);
+
+		const inboxForm = doc.querySelector('[data-test-nav-item="inbox"]')?.closest("form");
+		assert(inboxForm, "inbox nav item must be inside a form");
+		expect(inboxForm.getAttribute("method")).toBe("GET");
+		const feature = inboxForm.querySelector('input[type="hidden"][name="feature"]');
+		assert(feature, "inbox form must carry the feature flag as a hidden input");
+		expect(feature.getAttribute("value")).toBe("email");
+
+		const queueForm = doc.querySelector('[data-test-nav-item="queue"]')?.closest("form");
+		assert(queueForm, "queue nav item must be inside a form");
+		expect(queueForm.querySelector('input[type="hidden"][name="feature"]')).toBeNull();
+	});
+
 	it("renders an aria-hidden Font Awesome icon alongside each label without polluting the accessible name", () => {
 		const doc = parse(
 			Nav({
