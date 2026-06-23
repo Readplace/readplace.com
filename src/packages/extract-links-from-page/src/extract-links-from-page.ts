@@ -55,10 +55,9 @@ const GET_DOMAIN_OPTIONS = { allowPrivateDomains: true };
  * Public Suffix List keeps the boundary correct under multi-part suffixes
  * (bbc.co.uk stays distinct from theguardian.co.uk). IP literals have no
  * registrable domain, so they fall back to exact-host matching. */
-function isSameSite(linkHost: string, pageHost: string, pageDomain: string | null): boolean {
-	if (linkHost === pageHost) return true;
-	if (pageDomain === null) return false;
-	return getDomain(linkHost, GET_DOMAIN_OPTIONS) === pageDomain;
+function isSameSite(linkHost: string, page: { host: string; domain: string | null }): boolean {
+	if (page.domain === null) return linkHost === page.host;
+	return getDomain(linkHost, GET_DOMAIN_OPTIONS) === page.domain;
 }
 
 function harvestLinks(html: string, baseUrl: string, sourceUrl: string): ImportLinksResult {
@@ -70,7 +69,7 @@ function harvestLinks(html: string, baseUrl: string, sourceUrl: string): ImportL
 	const raw = anchors
 		.map((anchor) => resolveHref(anchor.getAttribute("href"), base))
 		.filter((url): url is string => url !== undefined)
-		.filter((url) => !isSameSite(new URL(url).host, base.host, pageDomain))
+		.filter((url) => !isSameSite(new URL(url).host, { host: base.host, domain: pageDomain }))
 		.filter((url) => url !== sourceNormalized);
 	return collectImportLinks(raw);
 }
