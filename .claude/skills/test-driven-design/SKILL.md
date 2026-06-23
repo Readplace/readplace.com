@@ -51,7 +51,7 @@ If none of these shapes fit and the new case genuinely requires editing existing
 
 ### Uniform Interface Over Conditionals
 
-Prefer one path that treats every case alike over a conditional that branches to reconstruct per-case shapes. When the input already satisfies the output type, pass it through rather than re-discriminating it.
+Prefer one path that treats every case alike over a conditional that branches to reconstruct per-case shapes. When every input arm already carries the output type's fields, strip any extra discriminant rather than re-discriminating each arm by hand.
 
 ```typescript
 // ❌ BAD - Branches on a discriminant to rebuild each arm by hand
