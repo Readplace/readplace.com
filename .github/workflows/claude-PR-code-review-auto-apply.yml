@@ -9,7 +9,11 @@ on:
       - completed
 
 concurrency:
-  group: auto-fix-${{ github.event.issue.number || github.event.workflow_run.head_branch }}
+  # workflow_run events from the listener report head_branch=main, so keying the group on
+  # head_branch collapsed every review run into one group and cancelled the queued ones
+  # under load. Use the unique run id for the workflow_run path; issue_comment keeps the
+  # per-PR group so request-fix still serialises per PR.
+  group: auto-fix-${{ github.event.issue.number || github.event.workflow_run.id }}
   cancel-in-progress: false
 
 jobs:
@@ -239,22 +243,52 @@ jobs:
             }
             assert(Array.isArray(msgs), "execution output is not a messages array");
 
+            // Extract the CLAUDE_REVIEW block from the run output. Prefer the terminal
+            // result message, but fall back to the last assistant message containing it —
+            // the agent does not always repeat the block in its final sign-off, so keying
+            // only on the terminal result drift-failed reviews whose block was a turn earlier.
+            const sliceBlock = (t) => {
+              const s = (t ?? "").indexOf(START);
+              const e = (t ?? "").indexOf(END);
+              return s !== -1 && e !== -1 && e > s ? t.slice(s, e + END.length) : null;
+            };
             const result = [...msgs].reverse().find((m) => m.type === "result" && m.subtype === "success");
-            const finalText = result?.result ?? "";
-            const start = finalText.indexOf(START);
-            const end = finalText.indexOf(END);
-            if (start === -1 || end === -1) return skip("agent final message lacked the block");
-
-            // Idempotency: at most one review comment per review run.
+            let block = sliceBlock(result?.result);
+            if (!block) {
+              for (const m of msgs) {
+                if (m.type !== "assistant") continue;
+                const text = (m.message?.content ?? [])
+                  .filter((c) => c.type === "text")
+                  .map((c) => c.text)
+                  .join("\n");
+                const b = sliceBlock(text);
+                if (b) block = b; // last match wins
+              }
+            }
+            // Fetch comments once for both the coexistence and idempotency checks.
             const { data: comments } = await github.rest.issues.listComments({
               owner, repo, issue_number, per_page: 100,
             });
+
+            if (!block) {
+              // The run output carried no block. If a review comment already exists — e.g.
+              // the agent posted it directly via gh pr comment (the legacy path still present
+              // on PR branches that predate this change, since the listener reviews the PR
+              // head) — the review->fix hop is already handled, so no-op rather than fail.
+              // Only a genuine absence of any review comment is drift.
+              if (comments.some((c) => c.body.includes(START))) {
+                core.info("No block in run output, but a review comment already exists; nothing to do.");
+                return;
+              }
+              return skip("no CLAUDE_REVIEW block found in the run output");
+            }
+
+            // Idempotency: at most one review comment per review run.
             if (comments.some((c) => c.body.includes(runMarker))) {
               core.info("Review comment already posted for this run; skipping.");
               return;
             }
 
-            const block = finalText.slice(start, end + END.length);
             await github.rest.issues.createComment({
               owner, repo, issue_number,
               body: `${runMarker}\n${block}`,
