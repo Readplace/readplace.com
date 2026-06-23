@@ -30,7 +30,11 @@ describe("initBuildBannerState", () => {
 
 		const result = await buildBannerState({});
 
-		expect(result).toEqual({ isAuthenticated: false, emailVerified: undefined });
+		expect(result).toEqual({
+			isAuthenticated: false,
+			emailVerified: undefined,
+			emailFeatureEnabled: false,
+		});
 		expect(getEffectiveAccess).not.toHaveBeenCalled();
 	});
 
@@ -178,6 +182,7 @@ describe("initBuildBannerState", () => {
 			expect(result).toEqual({
 				isAuthenticated: false,
 				emailVerified: undefined,
+				emailFeatureEnabled: false,
 				changelogBanner: CHANGELOG,
 			});
 			expect(getEffectiveAccess).not.toHaveBeenCalled();

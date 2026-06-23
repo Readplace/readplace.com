@@ -46,6 +46,18 @@ const BUNDLES = [
 		].join("\n"),
 	},
 	{
+		entry: path.join(PROJECT_ROOT, "src/runtime/web/pages/inbox/inbox.client.ts"),
+		outfile: path.join(OUT_DIR, "inbox.client.js"),
+		globalName: "InboxCopy",
+		footer: [
+			"InboxCopy.initInboxCopy({",
+			"  document: window.document,",
+			"  navigator: window.navigator,",
+			"  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); }",
+			"}).attach();",
+		].join("\n"),
+	},
+	{
 		entry: path.join(
 			PROJECT_ROOT,
 			"src/runtime/web/shared/article-body/progress-bar.client.ts",

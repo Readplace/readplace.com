@@ -93,6 +93,10 @@
       "types": "./dist/providers/import-session/index.d.ts",
       "default": "./dist/providers/import-session/index.js"
     },
+    "./providers/inbox-address": {
+      "types": "./dist/providers/inbox-address/index.d.ts",
+      "default": "./dist/providers/inbox-address/index.js"
+    },
     "./providers/oauth": {
       "types": "./dist/providers/oauth/index.d.ts",
       "default": "./dist/providers/oauth/index.js"
@@ -137,6 +141,7 @@
       "providers/subscription-providers": ["./dist/providers/subscription-providers/index.d.ts"],
       "providers/trial-scheduler": ["./dist/providers/trial-scheduler/index.d.ts"],
       "providers/import-session": ["./dist/providers/import-session/index.d.ts"],
+      "providers/inbox-address": ["./dist/providers/inbox-address/index.d.ts"],
       "providers/oauth": ["./dist/providers/oauth/index.d.ts"],
       "providers/events": ["./dist/providers/events/index.d.ts"],
       "providers/google-auth": ["./dist/providers/google-auth/index.d.ts"],

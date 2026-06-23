@@ -35,17 +35,29 @@ export interface BannerStateSource {
 	 * post the page the reader is on (the dismiss route cannot rely on `Referer`,
 	 * which helmet's default `no-referrer` policy strips). */
 	originalUrl?: string;
+	/** The request's parsed query string. Express populates it on every request,
+	 * so passing the request as the source supplies it structurally;
+	 * `bannerStateFromRequest` reads `query.feature` to gate the email-feature
+	 * nav entry without the shell importing the host's feature toggle. */
+	query?: Record<string, unknown>;
 }
 
 export type NavItemKey =
 	| "queue"
 	| "import"
 	| "export"
+	| "inbox"
 	| "account"
 	| "logout"
 	| "install"
 	| "features"
 	| "signup";
+
+/** The querystring feature flag that reveals the email-forwarding surface. The
+ * single source of truth for the string, shared so the consuming site's route
+ * gate (`featureToggle.isEnabled(req, EMAIL_FEATURE)`) and this shell's nav
+ * derivation agree without the shell importing the host's feature toggle. */
+export const EMAIL_FEATURE = "email";
 
 /** Logical section a nav item belongs to. The header renders one section per
  * group so related destinations sit together and new destinations slot into an
@@ -155,11 +167,16 @@ export interface BannerState {
 	 * rendering site supplies no request URL; the dismiss route then falls back
 	 * to "/". */
 	currentPath?: string;
+	/** True when the request carries `?feature=email`. Reveals the Inbox nav
+	 * entry; the per-request querystring toggle keeps the surface hidden by
+	 * default until the flag is flipped on a request. */
+	emailFeatureEnabled?: boolean;
 }
 
 const NAV_QUEUE = navItem({ key: "queue", label: "Queue", path: "/queue", method: "GET", icon: "fa-solid fa-inbox" });
 const NAV_IMPORT = navItem({ key: "import", label: "Import Links", path: "/import", method: "GET", icon: "fa-solid fa-file-import" });
 const NAV_EXPORT = navItem({ key: "export", label: "Export", path: "/export", method: "GET", icon: "fa-solid fa-file-export" });
+const NAV_INBOX = navItem({ key: "inbox", label: "Inbox", path: "/inbox", method: "GET", icon: "fa-solid fa-envelope" });
 const NAV_ACCOUNT = navItem({ key: "account", label: "Account", path: "/account", method: "GET", icon: "fa-solid fa-user" });
 const NAV_LOGOUT = navItem({ key: "logout", label: "Sign out", path: "/logout", method: "POST", icon: "fa-solid fa-right-from-bracket" });
 const NAV_INSTALL = navItem({ key: "install", label: "Install", path: "/install", method: "GET", icon: "fa-solid fa-download" });
@@ -180,12 +197,16 @@ export function buildGuestNavItems(): NavItem[] {
  * rendered order stays queue → import → export → account → logout. */
 export function buildNavGroups(input: {
 	accessIsReadOnly: boolean;
+	emailFeatureEnabled: boolean;
 }): NavGroup[] {
 	const library: NavItem[] = [NAV_QUEUE];
 	if (!input.accessIsReadOnly) {
 		library.push(NAV_IMPORT);
 	}
 	library.push(NAV_EXPORT);
+	if (input.emailFeatureEnabled) {
+		library.push(NAV_INBOX);
+	}
 	const account: NavItem[] = [];
 	if (!input.accessIsReadOnly) {
 		account.push(NAV_ACCOUNT);
@@ -203,5 +224,6 @@ export function bannerStateFromRequest(source: BannerStateSource): BannerState {
 		emailVerified: source.emailVerified,
 		verification: source.verificationStatus,
 		currentPath: source.originalUrl,
+		emailFeatureEnabled: source.query?.feature === EMAIL_FEATURE,
 	};
 }

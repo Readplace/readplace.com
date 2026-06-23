@@ -1,0 +1,39 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { EMAIL_FEATURE, render } from "@packages/web-shell";
+import type { PageBody } from "@packages/web-shell";
+import type { InboxAddressEntry } from "@packages/domain/inbox";
+import { INBOX_STYLES } from "./inbox.styles";
+
+const INBOX_TEMPLATE = readFileSync(join(__dirname, "inbox.template.html"), "utf-8");
+
+const INBOX_SCRIPT = `<script src="/client-dist/inbox.client.js" defer></script>`;
+
+/** The create/disable forms must carry the per-request flag in their action so
+ * the gated POST routes stay reachable when submitted from the flagged page. */
+const INBOX_QUERY = `?feature=${EMAIL_FEATURE}`;
+
+export function InboxPage(params: { addresses: InboxAddressEntry[] }): PageBody {
+	const content = render(INBOX_TEMPLATE, {
+		hasAddresses: params.addresses.length > 0,
+		addresses: params.addresses.map((entry) => ({
+			address: entry.address,
+			enabled: entry.disabledAt === undefined,
+		})),
+		createAction: `/inbox/create${INBOX_QUERY}`,
+		disableAction: `/inbox/disable${INBOX_QUERY}`,
+	});
+
+	return {
+		seo: {
+			title: "Your forwarding addresses — Readplace",
+			description: "Your personal email forwarding addresses for Readplace.",
+			canonicalUrl: "/inbox",
+			robots: "noindex, nofollow",
+		},
+		styles: INBOX_STYLES,
+		bodyClass: "page-inbox",
+		content: { html: content },
+		scripts: INBOX_SCRIPT,
+	};
+}

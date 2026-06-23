@@ -39,6 +39,7 @@ const contentBucketName = config.require("contentBucketName");
 const pendingHtmlBucketName = config.require("pendingHtmlBucketName");
 const pendingPdfBucketName = config.require("pendingPdfBucketName");
 const userExportBucketName = config.require("userExportBucketName");
+const inboxAddressDomain = config.require("inboxAddressDomain");
 const alertEmail = config.require("alertEmail");
 const tableNames = {
 	articles: config.require("dynamodbArticlesTable"),
@@ -51,6 +52,7 @@ const tableNames = {
 	passwordResetTokens: config.require("dynamodbPasswordResetTokensTable"),
 	pendingSignups: config.require("dynamodbPendingSignupsTable"),
 	importSessions: config.require("dynamodbImportSessionsTable"),
+	inboxAddresses: config.require("dynamodbInboxAddressesTable"),
 	subscriptionProviders: config.require("dynamodbSubscriptionProvidersTable"),
 	rateLimits: config.require("dynamodbRateLimitsTable"),
 };
@@ -159,6 +161,7 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.passwordResetTokensTable.arn, includeIndexes: false },
 		{ arn: storage.pendingSignupsTable.arn, includeIndexes: false },
 		{ arn: storage.importSessionsTable.arn, includeIndexes: false },
+		{ arn: storage.inboxAddressesTable.arn, includeIndexes: true },
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
 		{ arn: storage.rateLimitsTable.arn, includeIndexes: false },
 	],
@@ -296,6 +299,8 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		DYNAMODB_PASSWORD_RESET_TOKENS_TABLE: storage.passwordResetTokensTable.name,
 		DYNAMODB_PENDING_SIGNUPS_TABLE: storage.pendingSignupsTable.name,
 		DYNAMODB_IMPORT_SESSIONS_TABLE: storage.importSessionsTable.name,
+		DYNAMODB_INBOX_ADDRESSES_TABLE: storage.inboxAddressesTable.name,
+		INBOX_ADDRESS_DOMAIN: inboxAddressDomain,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		DYNAMODB_RATE_LIMITS_TABLE: storage.rateLimitsTable.name,
 		RATE_LIMIT_VIEW_CRAWL: rateLimitRules.viewCrawl,
