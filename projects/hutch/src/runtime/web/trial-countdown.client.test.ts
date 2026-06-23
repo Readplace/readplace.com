@@ -30,6 +30,27 @@ function buildFixture(opts: {
 	</body></html>`;
 }
 
+/** Same markup as buildFixture but WITHOUT the data-test-trial-countdown hook,
+ * so the only handle on the element is the semantic .trial-countdown class. This
+ * is what pins SELECTOR=".trial-countdown"; a fixture carrying the test attribute
+ * would pass identically against the old [data-test-trial-countdown] selector. */
+function buildSemanticOnlyFixture(opts: {
+	endsAtIso: string;
+	serverNowIso: string;
+	state: "active" | "expired" | "cancellation-scheduled";
+	escalation: string;
+	text: string;
+}): string {
+	return `<!DOCTYPE html><html><body>
+		<p class="trial-countdown trial-countdown--${opts.escalation}"
+		   data-trial-ends-at-iso="${opts.endsAtIso}"
+		   data-server-now-iso="${opts.serverNowIso}"
+		   data-trial-state="${opts.state}"
+		   role="timer"
+		   aria-live="off">${opts.text}</p>
+	</body></html>`;
+}
+
 function createDom(html: string) {
 	const dom = new JSDOM(html, { url: "https://readplace.com/queue" });
 	return { window: dom.window, document: dom.window.document };
@@ -88,6 +109,12 @@ function advanceClock(clock: FakeClock, ms: number): void {
 
 function getCountdownElement(doc: Document): Element {
 	const el = doc.querySelector("[data-test-trial-countdown]");
+	assert(el, "trial countdown element must exist in fixture");
+	return el;
+}
+
+function getCountdownElementByRole(doc: Document): Element {
+	const el = doc.querySelector("[role=timer]");
 	assert(el, "trial countdown element must exist in fixture");
 	return el;
 }
@@ -480,5 +507,30 @@ describe("initTrialCountdown — stop()", () => {
 		Object.defineProperty(document, "hidden", { configurable: true, value: false });
 		document.dispatchEvent(new (document.defaultView as Window & typeof globalThis).Event("visibilitychange"));
 		expect(clock.timers.size).toBe(0);
+	});
+});
+
+describe("initTrialCountdown — locates the element by its semantic class", () => {
+	it("ticks an element that carries only .trial-countdown (no data-test hook), pinning SELECTOR to the semantic class", () => {
+		const serverNow = "2026-01-01T00:00:00.000Z";
+		const endsAt = new Date(Date.parse(serverNow) + 5 * ONE_MINUTE_MS).toISOString();
+		const { document } = createDom(
+			buildSemanticOnlyFixture({
+				endsAtIso: endsAt,
+				serverNowIso: serverNow,
+				state: "active",
+				escalation: "critical",
+				text: "placeholder",
+			}),
+		);
+
+		const clock = createFakeClock(document, Date.parse(serverNow));
+		initTrialCountdown(clock.deps).attach();
+
+		const el = getCountdownElementByRole(document);
+		expect(el.textContent).toBe("5m 0s left in your free trial");
+
+		advanceClock(clock, ONE_SECOND_MS);
+		expect(el.textContent).toBe("4m 59s left in your free trial");
 	});
 });
