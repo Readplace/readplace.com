@@ -1,8 +1,6 @@
 import assert from "node:assert";
 import request from "supertest";
-import type { Token } from "@node-oauth/oauth2-server";
 import { useTestServer } from "../../test-app";
-import type { TestAppHarness } from "../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -14,37 +12,8 @@ import {
 } from "@packages/test-fixtures";
 import { initReadabilityParser } from "@packages/article-parser";
 
-import { UserIdSchema } from "@packages/domain/user";
 import { SIREN_MEDIA_TYPE } from "./siren";
-
-const TEST_USER_ID = UserIdSchema.parse("test-user-123");
-
-function createTestToken(): Token {
-	return {
-		accessToken: "test-access-token",
-		accessTokenExpiresAt: new Date(Date.now() + 3600000),
-		refreshToken: "test-refresh-token",
-		refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
-		client: {
-			id: "hutch-firefox-extension",
-			grants: ["authorization_code", "refresh_token"],
-			redirectUris: ["http://127.0.0.1:3000/oauth/callback"],
-		},
-		user: { id: TEST_USER_ID },
-	};
-}
-
-async function createAccessToken(
-	harness: TestAppHarness,
-): Promise<string> {
-	const client = await harness.oauthModel.getClient("hutch-firefox-extension", "");
-	assert(client, "Test client must exist");
-
-	const testToken = createTestToken();
-	const token = await harness.oauthModel.saveToken(testToken, client, { id: TEST_USER_ID });
-	assert(token, "Token should be saved");
-	return token.accessToken;
-}
+import { createAccessToken, saveAccessTokenForUser } from "../test-helpers/oauth-token";
 
 const useApp = useTestServer();
 
@@ -96,17 +65,12 @@ describe("GET /queue (Siren content negotiation)", () => {
 		assert(loginResult.ok);
 		const userId = loginResult.userId;
 
-		const client = await harness.oauthModel.getClient("hutch-firefox-extension", "");
-		assert(client);
-		const userToken = createTestToken();
-		userToken.user = { id: userId };
-		const token = await harness.oauthModel.saveToken(userToken, client, { id: userId });
-		assert(token);
+		const accessToken = await saveAccessTokenForUser(harness, userId);
 
 		const response = await request(harness.server)
 			.get("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
-			.set("Authorization", `Bearer ${token.accessToken}`);
+			.set("Authorization", `Bearer ${accessToken}`);
 
 		expect(response.status).toBe(200);
 		expect(response.body.properties.total).toBe(1);
@@ -359,16 +323,12 @@ describe("POST /queue (Siren save article)", () => {
 					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
 			},
 		});
-		const client = await harness.oauthModel.getClient("hutch-firefox-extension", "");
-		assert(client);
-		const testToken = createTestToken();
-		const token = await harness.oauthModel.saveToken(testToken, client, { id: TEST_USER_ID });
-		assert(token);
+		const accessToken = await createAccessToken(harness);
 
 		const response = await request(harness.server)
 			.post("/queue")
 			.set("Accept", SIREN_MEDIA_TYPE)
-			.set("Authorization", `Bearer ${token.accessToken}`)
+			.set("Authorization", `Bearer ${accessToken}`)
 			.set("Content-Type", "application/json")
 			.send({ url: "https://example.com/broken" });
 
@@ -393,6 +353,27 @@ describe("POST /queue (Siren save article)", () => {
 		assert(deleteAction, "expected delete action");
 		expect(deleteAction.method).toBe("POST");
 		expect(deleteAction.href).toContain("/delete");
+	});
+
+	it("includes update-status action on saved article", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const accessToken = await createAccessToken(harness);
+
+		const response = await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.set("Content-Type", "application/json")
+			.send({ url: "https://example.com/article" });
+
+		const updateStatus = response.body.actions?.find(
+			(a: { name: string }) => a.name === "update-status",
+		);
+		assert(updateStatus, "expected update-status action");
+		expect(updateStatus.method).toBe("POST");
+		expect(updateStatus.href).toContain("/status");
+		expect(updateStatus.type).toBe("application/x-www-form-urlencoded");
+		expect(updateStatus.fields).toEqual([{ name: "status", type: "text" }]);
 	});
 });
 
