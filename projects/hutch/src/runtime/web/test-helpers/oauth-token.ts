@@ -10,7 +10,7 @@ function createTestToken(userId: UserId): Token {
 	return {
 		accessToken: `test-access-token-${userId}`,
 		accessTokenExpiresAt: new Date(Date.now() + 3600000),
-		refreshToken: "test-refresh-token",
+		refreshToken: `test-refresh-token-${userId}`,
 		refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
 		client: {
 			id: EXTENSION_CLIENT_ID,
