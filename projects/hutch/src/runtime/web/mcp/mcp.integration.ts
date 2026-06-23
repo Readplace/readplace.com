@@ -181,7 +181,8 @@ describe("MCP server over the real app", () => {
 			"get_article",
 			"get_article_content",
 			"get_article_summary",
-			"set_article_status",
+			"mark_as_read",
+			"mark_as_unread",
 			"delete_article",
 		]);
 	});
@@ -236,8 +237,10 @@ describe("MCP server over the real app", () => {
 
 		const del = await callTool(harness, accessToken, tool("delete_article", { id }));
 		expect(del.body.result.structuredContent.performed).toBe(false);
-		const status = await callTool(harness, accessToken, tool("set_article_status", { id, status: "read" }));
-		expect(status.body.result.structuredContent.performed).toBe(false);
+		const read = await callTool(harness, accessToken, tool("mark_as_read", { id }));
+		expect(read.body.result.structuredContent.performed).toBe(false);
+		const unread = await callTool(harness, accessToken, tool("mark_as_unread", { id }));
+		expect(unread.body.result.structuredContent.performed).toBe(false);
 
 		// The whole article — not just status/count — is byte-for-byte unchanged.
 		const after = await callTool(harness, accessToken, tool("get_article", { id }));
@@ -254,8 +257,8 @@ describe("MCP server over the real app", () => {
 		const otherToken = await obtainAccessToken(harness, "other@example.com");
 		const del = await callTool(harness, otherToken, tool("delete_article", { id }));
 		expect(del.body.result.structuredContent.performed).toBe(false);
-		const status = await callTool(harness, otherToken, tool("set_article_status", { id, status: "read" }));
-		expect(status.body.result.structuredContent.performed).toBe(false);
+		const read = await callTool(harness, otherToken, tool("mark_as_read", { id }));
+		expect(read.body.result.structuredContent.performed).toBe(false);
 
 		// The owner's queue is untouched by another user's write-tool calls.
 		const owner = await callTool(harness, ownerToken, tool("get_article", { id }));
