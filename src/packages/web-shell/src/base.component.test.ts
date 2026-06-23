@@ -138,7 +138,10 @@ describe("Base component", () => {
 		const result = Base(page, { isAuthenticated: false, emailVerified: undefined }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
-		expect(doc.querySelector('[data-test-nav-item="import"]')).toBeNull();
+		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
+			(el) => el.getAttribute("data-test-nav-item"),
+		);
+		expect(navItems).toEqual(["install", "features", "signup"]);
 	});
 
 	it("renders the Account nav item for authenticated full-access users", () => {
@@ -160,7 +163,10 @@ describe("Base component", () => {
 		const result = Base(page, { isAuthenticated: false, emailVerified: undefined }).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
-		expect(doc.querySelector('[data-test-nav-item="account"]')).toBeNull();
+		const navItems = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map(
+			(el) => el.getAttribute("data-test-nav-item"),
+		);
+		expect(navItems).toEqual(["install", "features", "signup"]);
 	});
 
 	it("renders the full nav (queue + import + export + account + logout) for an authenticated full-access user", () => {
