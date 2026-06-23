@@ -15,37 +15,36 @@ func chromeURLForHTTPS(_ httpsURL: URL, canOpen: (URL) -> Bool) -> URL {
 	return components?.url ?? httpsURL
 }
 
-/// The seams the UI-free Sign up core needs, injected so tests never launch a
-/// browser or hit the network: how to build the authorize request, where to
-/// persist the in-flight secrets, how to detect/open the browser, and how to
-/// exchange the returned code.
-struct WebSignupDependencies {
-	let makeAuthorizationRequest: () -> AuthorizationRequest
-	let pendingStore: SignupPendingStore
+/// The seams the UI-free web-auth core needs, injected so tests never launch a
+/// browser or hit the network: where to persist the in-flight secrets, how to
+/// detect/open the browser, and how to exchange the returned code.
+struct WebAuthFlowDependencies {
+	let pendingStore: PendingAuthStore
 	let canOpenURL: (URL) -> Bool
 	let openURL: (URL) -> Void
-	let exchange: (_ callbackURL: URL, _ pending: PendingSignup) async -> Result<Void, Error>
+	let exchange: (_ callbackURL: URL, _ pending: PendingAuth) async -> Result<Void, Error>
 }
 
-/// The UI-free core of the external-browser Sign up flow. `start` is invoked
-/// from the Sign up button; `complete` from the `readplace://oauth-callback`
-/// deep link (possibly in a fresh process after a cold relaunch).
-struct SignupFlow {
-	let start: () -> Void
+/// The UI-free core of the external-browser auth flow, shared by Login and Sign
+/// up (which differ only in the authorize request handed to `start`). `start` is
+/// invoked from a button with a freshly-built request; `complete` from the
+/// `readplace://oauth-callback` deep link (possibly in a fresh process after a
+/// cold relaunch).
+struct WebAuthFlow {
+	let start: (AuthorizationRequest) -> Void
 	/// Returns `nil` when there is no pending record (an unexpected deep link),
 	/// otherwise the result of exchanging the returned code.
 	let complete: (URL) async -> Result<Void, Error>?
 }
 
-/// Partial application (`init*`) wiring the injected seams into a `SignupFlow`.
-func initWebSignup(deps: WebSignupDependencies) -> SignupFlow {
-	SignupFlow(
-		start: {
-			let request = deps.makeAuthorizationRequest()
+/// Partial application (`init*`) wiring the injected seams into a `WebAuthFlow`.
+func initWebAuthFlow(deps: WebAuthFlowDependencies) -> WebAuthFlow {
+	WebAuthFlow(
+		start: { request in
 			// Persist BEFORE opening the browser: the app may be killed during the
 			// external-browser hop, so the deep-link callback must be able to read
 			// these back from a cold launch.
-			deps.pendingStore.save(PendingSignup(
+			deps.pendingStore.save(PendingAuth(
 				verifier: request.codeVerifier,
 				state: request.state,
 				redirectURI: request.redirectURI

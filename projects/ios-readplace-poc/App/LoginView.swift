@@ -3,11 +3,9 @@ import SwiftUI
 struct LoginView: View {
 	@EnvironmentObject private var session: AppSession
 	/// Owned by `RootView`, which handles the `readplace://oauth-callback` deep
-	/// link, so a failed external-browser Sign up can surface here while this
-	/// view is still on screen.
-	@Binding var signupErrorText: String?
-	@State private var showingAuth = false
-	@State private var errorText: String?
+	/// link, so a failed external-browser Login or Sign up can surface here while
+	/// this view is still on screen.
+	@Binding var authErrorText: String?
 
 	var body: some View {
 		NavigationStack {
@@ -27,9 +25,7 @@ struct LoginView: View {
 
 				VStack(spacing: 14) {
 					Button {
-						errorText = nil
-						signupErrorText = nil
-						showingAuth = true
+						startLogin()
 					} label: {
 						Text("Login")
 							.font(.headline)
@@ -48,15 +44,8 @@ struct LoginView: View {
 					.foregroundStyle(.tint)
 				}
 
-				if let errorText {
-					Text(errorText)
-						.font(.footnote)
-						.foregroundStyle(.red)
-						.multilineTextAlignment(.center)
-				}
-
-				if let signupErrorText {
-					Text(signupErrorText)
+				if let authErrorText {
+					Text(authErrorText)
 						.font(.footnote)
 						.foregroundStyle(.red)
 						.multilineTextAlignment(.center)
@@ -69,25 +58,25 @@ struct LoginView: View {
 					.multilineTextAlignment(.center)
 			}
 			.padding(24)
-			.sheet(isPresented: $showingAuth) {
-				AuthFlowView { result in
-					if case .failure(let error) = result {
-						errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-					}
-				}
-				.environmentObject(session)
-			}
 		}
 	}
 
-	/// Opens `/oauth/authorize` in the external browser (Chrome if installed, to
-	/// reuse its session). A fresh `start()` overwrites any prior pending record,
-	/// so an abandoned earlier attempt can't strand stale secrets. The result
-	/// arrives later via the `readplace://oauth-callback` deep link (`RootView`).
+	/// Opens `/oauth/authorize` for **login** in the external browser (Chrome if
+	/// installed, to reuse its session) through the same flow as Sign up. The
+	/// result arrives later via the `readplace://oauth-callback` deep link
+	/// (`RootView`).
+	@MainActor
+	private func startLogin() {
+		authErrorText = nil
+		makeWebAuthFlow(session: session).start(session.makeOAuth().makeNativeLoginAuthorizationRequest())
+	}
+
+	/// Opens `/oauth/authorize` for **sign up** in the external browser. A fresh
+	/// `start` overwrites any prior pending record, so an abandoned earlier attempt
+	/// can't strand stale secrets. The result arrives via the deep link.
 	@MainActor
 	private func startSignup() {
-		errorText = nil
-		signupErrorText = nil
-		makeSignupFlow(session: session).start()
+		authErrorText = nil
+		makeWebAuthFlow(session: session).start(session.makeOAuth().makeSignupAuthorizationRequest())
 	}
 }

@@ -16,7 +16,8 @@ enum OAuthError: LocalizedError {
 	}
 }
 
-/// The parameters needed to launch the in-app authorization web flow.
+/// The parameters needed to launch the external-browser authorization flow
+/// (shared by Login and Sign up).
 struct AuthorizationRequest {
 	let url: URL
 	let redirectURI: String
@@ -39,16 +40,18 @@ struct OAuthService {
 
 	private var tokenEndpoint: URL { URL(string: "\(baseURL)/oauth/token")! }
 	private var revokeEndpoint: URL { URL(string: "\(baseURL)/oauth/revoke")! }
-	var redirectURI: String { "\(baseURL)\(AppConfig.callbackPath)" }
 
-	/// The custom-scheme redirect used by the external-browser Sign up flow. The
-	/// in-app WKWebView login keeps using the https `redirectURI`.
+	/// The custom-scheme redirect used by the external-browser auth flow (both
+	/// Login and Sign up), so the OS routes `readplace://oauth-callback` back to
+	/// the app after the web redirect.
 	var nativeRedirectURI: String { AppConfig.nativeCallbackURL }
 
-	/// Builds the in-app WKWebView `/oauth/authorize` URL (https callback) with a
-	/// fresh PKCE verifier + state.
-	func makeAuthorizationRequest() -> AuthorizationRequest {
-		makeAuthorizationRequest(redirectURI: redirectURI, screenHint: nil)
+	/// Builds the external-browser Login `/oauth/authorize` URL: the native
+	/// custom-scheme callback plus `screen_hint=login`, which routes an
+	/// unauthenticated user to `/login` (an already-authenticated Chrome session
+	/// passes straight through to consent, ignoring the hint).
+	func makeNativeLoginAuthorizationRequest() -> AuthorizationRequest {
+		makeAuthorizationRequest(redirectURI: nativeRedirectURI, screenHint: "login")
 	}
 
 	/// Builds the external-browser Sign up `/oauth/authorize` URL: the native
@@ -83,17 +86,10 @@ struct OAuthService {
 		)
 	}
 
-	/// Exchanges the authorization code for tokens and persists them, against the
-	/// in-app WKWebView login's https callback.
-	@discardableResult
-	func exchangeCode(_ code: String, verifier: String) async throws -> OAuthTokens {
-		try await exchangeCode(code, verifier: verifier, redirectURI: redirectURI)
-	}
-
-	/// Token exchange with an explicit `redirect_uri`, so the external-browser
-	/// Sign up flow can send the native custom scheme. The OAuth server checks
-	/// `redirect_uri` by exact string against the authorize request, so this must
-	/// equal the `redirect_uri` that minted the code.
+	/// Exchanges the authorization code for tokens and persists them. The OAuth
+	/// server checks `redirect_uri` by exact string against the authorize request,
+	/// so this must equal the `redirect_uri` that minted the code — the native
+	/// custom scheme used by the external-browser auth flow.
 	@discardableResult
 	func exchangeCode(_ code: String, verifier: String, redirectURI: String) async throws -> OAuthTokens {
 		let body = formBody([
