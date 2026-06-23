@@ -5,10 +5,12 @@ import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type {
+	ClearPasswordHash,
 	CountUsers,
 	CreateGoogleUser,
 	CreateSession,
-	FindUserByEmail,
+	DestroyUserSessions,
+	FindUserByCanonicalEmail,
 	MarkEmailVerified,
 } from "@packages/provider-contracts/auth";
 import type { SendEmail } from "@packages/provider-contracts/email";
@@ -24,6 +26,7 @@ import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { baseCookieOptions } from "../cookie-options";
 import { SESSION_COOKIE_NAME } from "./session-cookie";
+import { linkVerifiedGoogleIdentity } from "./link-google-identity";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
 import { readClickAttribution } from "../click-attribution.middleware";
@@ -54,7 +57,9 @@ interface GoogleAuthDependencies {
 	secureCookies: boolean;
 	createSession: CreateSession;
 	createGoogleUser: CreateGoogleUser;
-	findUserByEmail: FindUserByEmail;
+	findUserByCanonicalEmail: FindUserByCanonicalEmail;
+	clearPasswordHash: ClearPasswordHash;
+	destroyUserSessions: DestroyUserSessions;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	exchangeGoogleCode: ExchangeGoogleCode;
@@ -172,12 +177,9 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			return;
 		}
 
-		const existing = await deps.findUserByEmail(tokenResult.email);
+		const existing = await deps.findUserByCanonicalEmail(tokenResult.email);
 		if (existing) {
-			if (!existing.emailVerified) {
-				await deps.markEmailVerified(tokenResult.email);
-			}
-			const sessionId = await deps.createSession({ userId: existing.userId, emailVerified: true });
+			const sessionId = await linkVerifiedGoogleIdentity(deps, existing);
 			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 			res.redirect(303, parseReturnUrl({ return: stateData.returnUrl }));
 			return;
@@ -193,12 +195,9 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 				userId: newUserId,
 			});
 			if (!created.ok) {
-				const lookup = await deps.findUserByEmail(tokenResult.email);
+				const lookup = await deps.findUserByCanonicalEmail(tokenResult.email);
 				if (lookup) {
-					if (!lookup.emailVerified) {
-						await deps.markEmailVerified(tokenResult.email);
-					}
-					const sessionId = await deps.createSession({ userId: lookup.userId, emailVerified: true });
+					const sessionId = await linkVerifiedGoogleIdentity(deps, lookup);
 					res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 					res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 					return;
@@ -231,12 +230,9 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 			userId: newUserId,
 		});
 		if (!created.ok) {
-			const lookup = await deps.findUserByEmail(tokenResult.email);
+			const lookup = await deps.findUserByCanonicalEmail(tokenResult.email);
 			if (lookup) {
-				if (!lookup.emailVerified) {
-					await deps.markEmailVerified(tokenResult.email);
-				}
-				const sessionIdRace = await deps.createSession({ userId: lookup.userId, emailVerified: true });
+				const sessionIdRace = await linkVerifiedGoogleIdentity(deps, lookup);
 				res.cookie(SESSION_COOKIE_NAME, sessionIdRace, sessionCookieOptions);
 				res.redirect(303, parseReturnUrl({ return: safeReturnUrl }));
 				return;

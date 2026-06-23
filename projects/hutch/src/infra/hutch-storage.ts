@@ -128,7 +128,19 @@ export class HutchStorage extends pulumi.ComponentResource {
 			name: args.tableNames.sessions,
 			billingMode: "PAY_PER_REQUEST",
 			hashKey: "sessionId",
-			attributes: [{ name: "sessionId", type: "S" }],
+			attributes: [
+				{ name: "sessionId", type: "S" },
+				{ name: "userId", type: "S" },
+			],
+			/* Enumerate a user's sessions to revoke them on password reset / identity
+			 * link. ALL projection so the row parses through the session schema. */
+			globalSecondaryIndexes: [
+				{
+					name: "userId-index",
+					hashKey: "userId",
+					projectionType: "ALL",
+				},
+			],
 			ttl: {
 				attributeName: "expiresAt",
 				enabled: true,

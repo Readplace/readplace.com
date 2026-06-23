@@ -278,4 +278,79 @@ describe("initDynamoDbAuth", () => {
 			});
 		});
 	});
+
+	describe("findUserByCanonicalEmail", () => {
+		it("resolves an account by its exact delivery email", async () => {
+			const client: Partial<DynamoDBDocumentClient> = {
+				send: (async () => ({
+					Item: {
+						email: "user@example.com",
+						userId: "abc123",
+						passwordHash: "hashed",
+						emailVerified: true,
+						registeredAt: "2026-04-20T00:00:00.000Z",
+					},
+				})) as DynamoDBDocumentClient["send"],
+			};
+
+			const result = await initDynamoDbAuth({
+				client: client as typeof client & DynamoDBDocumentClient,
+				usersTableName: "users",
+				sessionsTableName: "sessions",
+			}).findUserByCanonicalEmail("user@example.com");
+
+			expect(result).toEqual({
+				userId: "abc123",
+				email: "user@example.com",
+				emailVerified: true,
+				hasPassword: true,
+			});
+		});
+	});
+
+	describe("clearPasswordHash", () => {
+		it("issues a REMOVE passwordHash update keyed on the delivery email", async () => {
+			const { client, commands } = createWriteFakeClient();
+
+			await initAuth(client).clearPasswordHash("john.doe@gmail.com");
+
+			const update = commands.find((c) => c.name === "UpdateCommand");
+			expect(update?.input).toMatchObject({
+				Key: { email: "john.doe@gmail.com" },
+				UpdateExpression: "REMOVE passwordHash",
+				ConditionExpression: "attribute_exists(email)",
+			});
+		});
+	});
+
+	describe("destroyUserSessions", () => {
+		it("queries the sessions userId-index and deletes each session", async () => {
+			const commands: CapturedCommand[] = [];
+			const client = {
+				send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+					commands.push({ name: command.constructor.name, input: command.input });
+					if (command.constructor.name === "QueryCommand") {
+						return {
+							Items: [
+								{ sessionId: "s1", userId: "u1", expiresAt: 9_999_999_999, emailVerified: true },
+								{ sessionId: "s2", userId: "u1", expiresAt: 9_999_999_999, emailVerified: true },
+							],
+							Count: 2,
+						};
+					}
+					return {};
+				}) as DynamoDBDocumentClient["send"],
+			};
+
+			await initAuth(client as typeof client & DynamoDBDocumentClient).destroyUserSessions(
+				UserIdSchema.parse("u1"),
+			);
+
+			expect(commands.find((c) => c.name === "QueryCommand")?.input).toMatchObject({
+				IndexName: "userId-index",
+			});
+			const deletes = commands.filter((c) => c.name === "DeleteCommand");
+			expect(deletes.map((d) => d.input.Key)).toEqual([{ sessionId: "s1" }, { sessionId: "s2" }]);
+		});
+	});
 });

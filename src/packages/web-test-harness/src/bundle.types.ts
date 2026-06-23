@@ -20,6 +20,7 @@ import type {
 	CreateGoogleUser,
 	CreatePasswordResetToken,
 	CreateSession,
+	ClearPasswordHash,
 	CreateSubscriptionOnExistingCustomer,
 	CreateTrialEndSchedule,
 	CreateUser,
@@ -29,6 +30,7 @@ import type {
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DestroySession,
+	DestroyUserSessions,
 	EmailMessage,
 	ExchangeGoogleCode,
 	ExistsUserByIdPrefix,
@@ -44,6 +46,7 @@ import type {
 	FindSubscriptionByUserId,
 	FindUserArticleNotificationState,
 	FindUserArticlesByUrl,
+	FindUserByCanonicalEmail,
 	FindUserByEmail,
 	FindUserById,
 	ForceMarkCrawlPending,
@@ -125,6 +128,9 @@ export interface AuthBundle {
 	updatePassword: UpdatePassword;
 	findEmailByUserId: FindEmailByUserId;
 	findUserById: FindUserById;
+	findUserByCanonicalEmail: FindUserByCanonicalEmail;
+	clearPasswordHash: ClearPasswordHash;
+	destroyUserSessions: DestroyUserSessions;
 	deleteUser: (email: string) => Promise<void>;
 }
 

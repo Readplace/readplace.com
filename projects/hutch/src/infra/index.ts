@@ -153,7 +153,7 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.articlesTable.arn, includeIndexes: true },
 		{ arn: storage.userArticlesTable.arn, includeIndexes: true },
 		{ arn: storage.usersTable.arn, includeIndexes: true },
-		{ arn: storage.sessionsTable.arn, includeIndexes: false },
+		{ arn: storage.sessionsTable.arn, includeIndexes: true },
 		{ arn: storage.oauthTable.arn, includeIndexes: true },
 		{ arn: storage.verificationTokensTable.arn, includeIndexes: false },
 		{ arn: storage.passwordResetTokensTable.arn, includeIndexes: false },

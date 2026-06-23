@@ -1,7 +1,13 @@
+import assert from "node:assert";
 import type { Request, Response, Router } from "express";
 import express from "express";
 import type { SendEmail } from "@packages/provider-contracts/email";
-import type { UserExistsByEmail, UpdatePassword } from "@packages/provider-contracts/auth";
+import type {
+	DestroyUserSessions,
+	FindUserByEmail,
+	UpdatePassword,
+	UserExistsByEmail,
+} from "@packages/provider-contracts/auth";
 import type {
 	CreatePasswordResetToken,
 	VerifyPasswordResetToken,
@@ -27,6 +33,8 @@ interface ForgotPasswordDependencies {
 	sendEmail: SendEmail;
 	userExistsByEmail: UserExistsByEmail;
 	updatePassword: UpdatePassword;
+	findUserByEmail: FindUserByEmail;
+	destroyUserSessions: DestroyUserSessions;
 	createPasswordResetToken: CreatePasswordResetToken;
 	verifyPasswordResetToken: VerifyPasswordResetToken;
 	baseUrl: string;
@@ -144,6 +152,10 @@ export function initForgotPasswordRoutes(deps: ForgotPasswordDependencies): Rout
 		}
 
 		await deps.updatePassword({ email: verifyResult.email, password: parsed.data.password });
+		// Revoke any sessions minted before the reset so a stolen cookie can't outlive it.
+		const user = await deps.findUserByEmail(verifyResult.email);
+		assert(user, "reset target must exist after a successful password update");
+		await deps.destroyUserSessions(user.userId);
 
 		sendComponent(req, res, Base(ResetPasswordPage({ success: true }), bannerStateFromRequest(req)));
 	});

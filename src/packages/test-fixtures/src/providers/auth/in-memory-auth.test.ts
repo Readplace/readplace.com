@@ -483,4 +483,86 @@ describe("initInMemoryAuth", () => {
 			expect(resolved).toBeNull();
 		});
 	});
+
+	describe("findUserByCanonicalEmail", () => {
+		it("resolves an account by its exact delivery email", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "person@example.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			const found = await auth.findUserByCanonicalEmail("person@example.com");
+
+			expect(found).toEqual({
+				userId: created.userId,
+				email: "person@example.com",
+				emailVerified: false,
+				hasPassword: true,
+			});
+		});
+
+		it("resolves a Gmail account stored under a different spelling", async () => {
+			const auth = makeAuth();
+			const created = await auth.createUser({ email: "john.doe@gmail.com", password: "password123" });
+			assert(created.ok, "User creation failed");
+
+			const found = await auth.findUserByCanonicalEmail("johndoe+promo@gmail.com");
+
+			expect(found).toEqual({
+				userId: created.userId,
+				email: "john.doe@gmail.com",
+				emailVerified: false,
+				hasPassword: true,
+			});
+		});
+
+		it("reports hasPassword=false for a Google-only account", async () => {
+			const auth = makeAuth();
+			await auth.createGoogleUser({ email: "g@example.com", userId: UserIdSchema.parse("g-user") });
+
+			const found = await auth.findUserByCanonicalEmail("g@example.com");
+
+			expect(found?.hasPassword).toBe(false);
+		});
+
+		it("returns null for a non-Gmail address with no account", async () => {
+			const auth = makeAuth();
+
+			expect(await auth.findUserByCanonicalEmail("nobody@example.com")).toBeNull();
+		});
+
+		it("returns null for a Gmail address with no account", async () => {
+			const auth = makeAuth();
+
+			expect(await auth.findUserByCanonicalEmail("ghost@gmail.com")).toBeNull();
+		});
+	});
+
+	describe("clearPasswordHash", () => {
+		it("removes the password so the account can no longer log in with it", async () => {
+			const auth = makeAuth();
+			await auth.createUser({ email: "person@example.com", password: "password123" });
+
+			await auth.clearPasswordHash("person@example.com");
+
+			const result = await auth.verifyCredentials({ email: "person@example.com", password: "password123" });
+			expect(result).toEqual({ ok: false, reason: "invalid-credentials" });
+		});
+	});
+
+	describe("destroyUserSessions", () => {
+		it("deletes only the target user's sessions", async () => {
+			const auth = makeAuth();
+			const victim = UserIdSchema.parse("victim-1");
+			const other = UserIdSchema.parse("other-1");
+			const s1 = await auth.createSession({ userId: victim, emailVerified: true });
+			const s2 = await auth.createSession({ userId: victim, emailVerified: true });
+			const s3 = await auth.createSession({ userId: other, emailVerified: true });
+
+			await auth.destroyUserSessions(victim);
+
+			expect(await auth.getSessionUserId(s1)).toBeNull();
+			expect(await auth.getSessionUserId(s2)).toBeNull();
+			expect(await auth.getSessionUserId(s3)).not.toBeNull();
+		});
+	});
 });

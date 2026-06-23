@@ -50,6 +50,26 @@ export type FindUserByEmailResult =
 
 export type FindUserByEmail = (email: string) => Promise<FindUserByEmailResult>;
 
+/** Resolves an account by its Gmail canonical identity, regardless of the
+ * dotted/+tagged/googlemail spelling the row was stored under. `email` is the
+ * row's delivery address (its PK), needed to mark it verified or clear its
+ * password when linking. */
+export type FindUserByCanonicalEmailResult =
+	| { userId: UserId; email: string; emailVerified: boolean; hasPassword: boolean }
+	| null;
+
+export type FindUserByCanonicalEmail = (
+	email: string,
+) => Promise<FindUserByCanonicalEmailResult>;
+
+/** Removes a row's password hash so an unproven credential can no longer log
+ * in (used when a verified Google sign-in claims a pre-registered account). */
+export type ClearPasswordHash = (email: string) => Promise<void>;
+
+/** Deletes every session for a user — used after a password reset or an
+ * identity link so a pre-existing cookie can't outlive the credential change. */
+export type DestroyUserSessions = (userId: UserId) => Promise<void>;
+
 export type FindUserByIdResult =
 	| { userId: UserId; emailVerified: boolean; registeredAt?: string }
 	| null;

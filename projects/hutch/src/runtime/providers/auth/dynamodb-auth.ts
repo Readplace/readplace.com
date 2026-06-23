@@ -24,15 +24,18 @@ import {
 } from "@packages/domain/user";
 import { gmailClaimPk, isClaimPk } from "./canonical-claim";
 import type {
+	ClearPasswordHash,
 	CountUsers,
 	CreateGoogleUser,
 	CreateSession,
 	CreateUser,
 	CreateUserWithPasswordHash,
 	DestroySession,
+	DestroyUserSessions,
 	ExistsUserByIdPrefix,
 	FindEmailByUserId,
 	FindUserById,
+	FindUserByCanonicalEmail,
 	FindUserByEmail,
 	FindUserContactByUserId,
 	GetSessionUserId,
@@ -65,6 +68,13 @@ const SessionRow = z.object({
 	emailVerified: dynamoField(z.boolean()),
 });
 
+/* Claim items share the users table but have a distinct shape (no userId), so
+ * they read through their own schema rather than UserRow. */
+const ClaimRow = z.object({
+	email: z.string(),
+	ownerUserId: UserIdSchema,
+});
+
 export function initDynamoDbAuth(deps: {
 	client: DynamoDBDocumentClient;
 	usersTableName: string;
@@ -87,11 +97,19 @@ export function initDynamoDbAuth(deps: {
 	findEmailByUserId: FindEmailByUserId;
 	findUserContactByUserId: FindUserContactByUserId;
 	findUserById: FindUserById;
+	findUserByCanonicalEmail: FindUserByCanonicalEmail;
+	clearPasswordHash: ClearPasswordHash;
+	destroyUserSessions: DestroyUserSessions;
 } {
 	const users = defineDynamoTable({
 		client: deps.client,
 		tableName: deps.usersTableName,
 		schema: UserRow,
+	});
+	const claims = defineDynamoTable({
+		client: deps.client,
+		tableName: deps.usersTableName,
+		schema: ClaimRow,
 	});
 	const sessions = defineDynamoTable({
 		client: deps.client,
@@ -223,6 +241,38 @@ export function initDynamoDbAuth(deps: {
 			userId: row.userId,
 			emailVerified: row.emailVerified === true,
 			registeredAt: row.registeredAt,
+		};
+	};
+
+	const findUserByCanonicalEmail: FindUserByCanonicalEmail = async (email) => {
+		// Exact delivery PK first — covers the common case and every non-Gmail address.
+		const exact = await users.get({ email: normalizeEmail(email) });
+		if (exact) {
+			return {
+				userId: exact.userId,
+				email: exact.email,
+				emailVerified: exact.emailVerified === true,
+				hasPassword: exact.passwordHash !== undefined,
+			};
+		}
+		// Otherwise resolve the Gmail canonical claim to its owner row.
+		const claimKey = gmailIdentityKey(email);
+		if (claimKey === null) return null;
+		const claim = await claims.get({ email: gmailClaimPk(claimKey) });
+		if (!claim) return null;
+		const { items } = await users.query({
+			IndexName: "userId-index",
+			KeyConditionExpression: "userId = :userId",
+			ExpressionAttributeValues: { ":userId": claim.ownerUserId },
+			Limit: 1,
+		});
+		const row = items[0];
+		if (!row) return null;
+		return {
+			userId: row.userId,
+			email: row.email,
+			emailVerified: row.emailVerified === true,
+			hasPassword: row.passwordHash !== undefined,
 		};
 	};
 
@@ -362,6 +412,25 @@ export function initDynamoDbAuth(deps: {
 		});
 	};
 
+	const clearPasswordHash: ClearPasswordHash = async (email) => {
+		await users.update({
+			Key: { email: normalizeEmail(email) },
+			UpdateExpression: "REMOVE passwordHash",
+			ConditionExpression: "attribute_exists(email)",
+		});
+	};
+
+	const destroyUserSessions: DestroyUserSessions = async (userId) => {
+		const { items } = await sessions.query({
+			IndexName: "userId-index",
+			KeyConditionExpression: "userId = :userId",
+			ExpressionAttributeValues: { ":userId": userId },
+		});
+		for (const session of items) {
+			await sessions.delete({ Key: { sessionId: session.sessionId } });
+		}
+	};
+
 	return {
 		createUser,
 		createUserWithPasswordHash,
@@ -380,6 +449,9 @@ export function initDynamoDbAuth(deps: {
 		findEmailByUserId,
 		findUserContactByUserId,
 		findUserById,
+		findUserByCanonicalEmail,
+		clearPasswordHash,
+		destroyUserSessions,
 	};
 }
 /* c8 ignore stop */

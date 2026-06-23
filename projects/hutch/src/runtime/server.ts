@@ -7,14 +7,17 @@ import type { Express, NextFunction, Request, Response } from "express";
 import express from "express";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type {
+	ClearPasswordHash,
 	CountUsers,
 	CreateGoogleUser,
 	CreateSession,
 	CreateUser,
 	CreateUserWithPasswordHash,
 	DestroySession,
+	DestroyUserSessions,
 	FindEmailByUserId,
 	FindUserById,
+	FindUserByCanonicalEmail,
 	FindUserByEmail,
 	GetSessionUserId,
 	MarkEmailVerified,
@@ -187,6 +190,9 @@ interface AppDependencies {
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
 	findUserById: FindUserById;
+	findUserByCanonicalEmail: FindUserByCanonicalEmail;
+	clearPasswordHash: ClearPasswordHash;
+	destroyUserSessions: DestroyUserSessions;
 	googleAuth?: {
 		exchangeGoogleCode: ExchangeGoogleCode;
 		clientId: string;
@@ -693,6 +699,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		createUserWithPasswordHash: deps.createUserWithPasswordHash,
 		createGoogleUser: deps.createGoogleUser,
 		findUserByEmail: deps.findUserByEmail,
+		findUserByCanonicalEmail: deps.findUserByCanonicalEmail,
+		clearPasswordHash: deps.clearPasswordHash,
+		destroyUserSessions: deps.destroyUserSessions,
 		verifyCredentials: deps.verifyCredentials,
 		createSession: deps.createSession,
 		destroySession: deps.destroySession,
@@ -739,7 +748,9 @@ export function createApp(dependencies: AppDependencies): Express {
 			secureCookies,
 			createSession: deps.createSession,
 			createGoogleUser: deps.createGoogleUser,
-			findUserByEmail: deps.findUserByEmail,
+			findUserByCanonicalEmail: deps.findUserByCanonicalEmail,
+			clearPasswordHash: deps.clearPasswordHash,
+			destroyUserSessions: deps.destroyUserSessions,
 			countUsers,
 			markEmailVerified: deps.markEmailVerified,
 			exchangeGoogleCode: deps.googleAuth.exchangeGoogleCode,
@@ -758,6 +769,8 @@ export function createApp(dependencies: AppDependencies): Express {
 		sendEmail: deps.sendEmail,
 		userExistsByEmail: deps.userExistsByEmail,
 		updatePassword: deps.updatePassword,
+		findUserByEmail: deps.findUserByEmail,
+		destroyUserSessions: deps.destroyUserSessions,
 		createPasswordResetToken: deps.createPasswordResetToken,
 		verifyPasswordResetToken: deps.verifyPasswordResetToken,
 		baseUrl: deps.baseUrl,

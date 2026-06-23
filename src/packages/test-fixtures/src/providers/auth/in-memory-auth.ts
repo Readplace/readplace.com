@@ -9,15 +9,18 @@ import {
 	gmailIdentityKey,
 } from "@packages/domain/user";
 import type {
+	ClearPasswordHash,
 	CountUsers,
 	CreateGoogleUser,
 	CreateSession,
 	CreateUser,
 	CreateUserWithPasswordHash,
 	DestroySession,
+	DestroyUserSessions,
 	ExistsUserByIdPrefix,
 	FindEmailByUserId,
 	FindUserById,
+	FindUserByCanonicalEmail,
 	FindUserByEmail,
 	FindUserContactByUserId,
 	GetSessionUserId,
@@ -62,6 +65,9 @@ export function initInMemoryAuth(opts: {
 	findEmailByUserId: FindEmailByUserId;
 	findUserContactByUserId: FindUserContactByUserId;
 	findUserById: FindUserById;
+	findUserByCanonicalEmail: FindUserByCanonicalEmail;
+	clearPasswordHash: ClearPasswordHash;
+	destroyUserSessions: DestroyUserSessions;
 	deleteUser: (email: string) => Promise<void>;
 } {
 	const _hashPassword = opts.hashPassword;
@@ -151,6 +157,30 @@ export function initInMemoryAuth(opts: {
 			userId: user.id,
 			emailVerified: user.emailVerified,
 			registeredAt: user.registeredAt,
+		};
+	};
+
+	const findUserByCanonicalEmail: FindUserByCanonicalEmail = async (email) => {
+		const exact = users.get(normalizeEmail(email));
+		if (exact) {
+			return {
+				userId: exact.id,
+				email: exact.email,
+				emailVerified: exact.emailVerified,
+				hasPassword: exact.passwordHash !== undefined,
+			};
+		}
+		const claimKey = gmailIdentityKey(email);
+		if (claimKey === null) return null;
+		const ownerUserId = gmailClaims.get(claimKey);
+		if (ownerUserId === undefined) return null;
+		const owner = [...users.values()].find((u) => u.id === ownerUserId);
+		assert(owner, `Gmail claim ${claimKey} has no matching user`);
+		return {
+			userId: owner.id,
+			email: owner.email,
+			emailVerified: owner.emailVerified,
+			hasPassword: owner.passwordHash !== undefined,
 		};
 	};
 
@@ -252,6 +282,21 @@ export function initInMemoryAuth(opts: {
 		user.passwordHash = await _hashPassword(password);
 	};
 
+	const clearPasswordHash: ClearPasswordHash = async (email) => {
+		const normalizedEmail = normalizeEmail(email);
+		const user = users.get(normalizedEmail);
+		assert(user, `Cannot clear password: no user found for ${normalizedEmail}`);
+		user.passwordHash = undefined;
+	};
+
+	const destroyUserSessions: DestroyUserSessions = async (userId) => {
+		for (const [sessionId, session] of sessions) {
+			if (session.userId === userId) {
+				sessions.delete(sessionId);
+			}
+		}
+	};
+
 	const deleteUser = async (email: string): Promise<void> => {
 		users.delete(normalizeEmail(email));
 		const claimKey = gmailIdentityKey(email);
@@ -278,6 +323,9 @@ export function initInMemoryAuth(opts: {
 		findEmailByUserId,
 		findUserContactByUserId,
 		findUserById,
+		findUserByCanonicalEmail,
+		clearPasswordHash,
+		destroyUserSessions,
 		deleteUser,
 	};
 }

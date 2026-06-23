@@ -3,11 +3,14 @@ import express from "express";
 import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type {
+	ClearPasswordHash,
 	CountUsers,
 	CreateGoogleUser,
 	CreateSession,
 	CreateUserWithPasswordHash,
 	DestroySession,
+	DestroyUserSessions,
+	FindUserByCanonicalEmail,
 	FindUserByEmail,
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
@@ -47,6 +50,7 @@ import type { BuildBannerState } from "../banner-state";
 import type { ComponentError } from "../shared/component-error.types";
 import { LoginSchema } from "./auth.schema";
 import { LoginPage, SignupPage, VerifyEmailPage } from "./auth.component";
+import { linkVerifiedGoogleIdentity } from "./link-google-identity";
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { baseCookieOptions } from "../cookie-options";
 import { SESSION_COOKIE_NAME } from "./session-cookie";
@@ -76,6 +80,9 @@ interface AuthDependencies {
 	createUserWithPasswordHash: CreateUserWithPasswordHash;
 	createGoogleUser: CreateGoogleUser;
 	findUserByEmail: FindUserByEmail;
+	findUserByCanonicalEmail: FindUserByCanonicalEmail;
+	clearPasswordHash: ClearPasswordHash;
+	destroyUserSessions: DestroyUserSessions;
 	verifyCredentials: VerifyCredentials;
 	createSession: CreateSession;
 	destroySession: DestroySession;
@@ -444,17 +451,14 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 			userId: pending.userId,
 		});
 		if (!created.ok) {
-			const lookup = await deps.findUserByEmail(pending.email);
+			const lookup = await deps.findUserByCanonicalEmail(pending.email);
 			if (!lookup) {
 				await renderFailure(500, "Account creation failed. Please contact support.");
 				return;
 			}
-			if (!lookup.emailVerified) {
-				await deps.markEmailVerified(pending.email);
-			}
+			const sessionId = await linkVerifiedGoogleIdentity(deps, lookup);
 			await deps.subscriptionProviders.upsertActive({ userId: lookup.userId, subscriptionId, customerId });
 			await deps.trialScheduler.deleteTrialEndSchedule({ userId: lookup.userId });
-			const sessionId = await deps.createSession({ userId: lookup.userId, emailVerified: true });
 			res.cookie(SESSION_COOKIE_NAME, sessionId, sessionCookieOptions);
 			res.redirect(303, returnPath);
 			return;

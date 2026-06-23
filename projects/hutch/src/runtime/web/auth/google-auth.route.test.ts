@@ -474,7 +474,7 @@ describe("Google auth routes", () => {
 			expect(passwordCheck.ok).toBe(true);
 		});
 
-		it("should upgrade an unverified email/password account to verified", async () => {
+		it("should verify an unverified email/password account and clear its unproven password", async () => {
 			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 			const harness = useApp({
 				...fixture,
@@ -498,8 +498,39 @@ describe("Google auth routes", () => {
 			const afterLookup = await auth.findUserByEmail("unverified@example.com");
 			expect(afterLookup?.emailVerified).toBe(true);
 
+			// The unproven password is cleared on link — a pre-registered account
+			// cannot retain a known password after the real owner's Google sign-in.
 			const passwordCheck = await auth.verifyCredentials({ email: "unverified@example.com", password: "password123" });
-			expect(passwordCheck.ok).toBe(true);
+			expect(passwordCheck.ok).toBe(false);
+		});
+
+		it("links a verified Google sign-in to a Gmail account stored under a different spelling", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp({
+				...fixture,
+				google: {
+					exchangeGoogleCode: stubExchange({ email: "johndoe@gmail.com" }),
+					clientId: "test-google-client-id",
+					clientSecret: "test-google-client-secret",
+				},
+			});
+			const { auth } = harness;
+			// Pre-registered (unverified) under a dotted spelling with a known password.
+			const created = await auth.createUser({ email: "john.doe@gmail.com", password: "password123" });
+			expect(created.ok).toBe(true);
+			const state = signState(freshState());
+
+			const response = await request(harness.server)
+				.get(`/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`)
+				.set("Cookie", `hutch_gstate=${encodeURIComponent(state)}`);
+
+			expect(response.status).toBe(303);
+			// No second account was created; the existing dotted row was claimed.
+			expect(await auth.countUsers()).toBe(1);
+			const afterLookup = await auth.findUserByEmail("john.doe@gmail.com");
+			expect(afterLookup?.emailVerified).toBe(true);
+			const passwordCheck = await auth.verifyCredentials({ email: "john.doe@gmail.com", password: "password123" });
+			expect(passwordCheck.ok).toBe(false);
 		});
 	});
 });
