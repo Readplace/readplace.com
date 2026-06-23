@@ -12,11 +12,16 @@
     "check": "nx run subscriptions:check"
   },
   "dependencies": {
+    "@packages/hutch-logger": "workspace:*",
+    "@packages/require-env": "workspace:*",
+    "compression": "1.8.1",
     "express": "5.2.1",
+    "helmet": "8.2.0",
     "serverless-http": "4.0.0"
   },
   "devDependencies": {
     "@types/aws-lambda": "8.10.161",
+    "@types/compression": "1.8.1",
     "@types/express": "5.0.6",
     "@types/jest": "30.0.0",
     "@types/node": "22.19.19",

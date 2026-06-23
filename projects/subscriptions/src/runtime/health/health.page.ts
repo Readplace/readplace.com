@@ -1,8 +1,7 @@
 import express, { type Router } from "express";
 
-/** A liveness probe for the subscription service. The fragment and webhook
- * routes land here in later steps; this exists so the project boots and the
- * deploy has something to smoke-test. */
+/** A dependency-free liveness probe: it returns 200 so the deployable boots
+ * with at least one mounted route and the deploy has something to smoke-test. */
 export function initHealthRoutes(): Router {
 	const router = express.Router();
 

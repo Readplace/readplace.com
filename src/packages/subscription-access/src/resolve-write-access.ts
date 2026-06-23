@@ -19,9 +19,9 @@ type SubscriptionWriteState = {
  * cancellation all keep "full"; an elapsed trial, an elapsed cancellation
  * window, and an outright cancellation are "read-only".
  *
- * This is the only subscription edge whose change is allowed to invalidate
- * hutch-web, so it stays pure: it depends on the row's status plus the two
- * window dates and the clock, nothing else.
+ * The decision stays pure — it reads the row's status plus the two window
+ * dates and the clock, nothing else — so hutch's save gates re-derive "can this
+ * user save?" without reaching for the wider render model.
  */
 export function resolveWriteAccess(
 	subscription: SubscriptionWriteState | undefined,

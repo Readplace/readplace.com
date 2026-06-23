@@ -10,11 +10,11 @@ import type {
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
-import { SubscriptionProviderRow } from "@packages/subscription-row";
+import { SubscriptionProviderRow } from "@packages/subscription-access";
 
-/** The write half of the subscription table. Every mutation lives here so it
- * can move to the subscription service as a unit, leaving the read half (which
- * the save gate depends on) in hutch. */
+/** The write half of the subscription table — the six mutations, wired
+ * independently from the read half. The save gate composes write access from
+ * the read half alone, so no save path ever depends on a mutation. */
 export function initDynamoDbSubscriptionWrites(deps: {
 	client: DynamoDBDocumentClient;
 	tableName: string;

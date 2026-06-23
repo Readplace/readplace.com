@@ -1,14 +1,11 @@
-import express from "express";
-import { initHealthRoutes } from "./health/health.page";
-import { requireEnv } from "./require-env";
+import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+import { requireEnv } from "@packages/require-env";
+import { createSubscriptionsApp } from "./app";
 
-const PORT = Number(requireEnv("SUBSCRIPTIONS_PORT"));
+const logger = HutchLogger.from(consoleLogger);
+const port = Number(requireEnv("SUBSCRIPTIONS_PORT"));
 
-const app = express();
-app.disable("x-powered-by");
-app.use("/subscriptions", initHealthRoutes());
-
-process.on("SIGTERM", () => process.exit(0));
-process.on("SIGINT", () => process.exit(0));
-
-app.listen(PORT);
+const app = createSubscriptionsApp();
+app.listen(port, () => {
+	logger.info(`subscriptions is running on http://localhost:${port}`);
+});

@@ -1,5 +1,5 @@
 {
-  "name": "@packages/subscription-access",
+  "name": "@packages/require-env",
   "targets": {
     "check": {
       "command": "pnpm lint && pnpm test-with-coverage",
