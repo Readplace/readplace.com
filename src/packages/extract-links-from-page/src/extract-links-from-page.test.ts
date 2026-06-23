@@ -144,6 +144,40 @@ describe("initExtractLinksFromPageUrl", () => {
 		expect(result.links.urls).toEqual(["https://other-site.com/article"]);
 	});
 
+	it("keeps sibling tenants of a Public Suffix List private-section platform (github.io)", async () => {
+		const html = `
+			<a href="https://other-user.github.io/their-project">Other tenant</a>
+			<a href="https://this-user.github.io/about">Own page</a>
+		`;
+		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
+			crawlFetch: fakeFetch(async () => htmlResponse(html, { url: "https://this-user.github.io/links" })),
+		});
+
+		const result = await extract("https://this-user.github.io/links");
+
+		expect(result.status).toBe("OK");
+		if (result.status !== "OK") throw new Error("expected OK");
+		expect(result.links.urls).toEqual(["https://other-user.github.io/their-project"]);
+	});
+
+	it("drops sibling subdomains sharing a registrable domain outside the PSL private section (substack)", async () => {
+		const html = `
+			<a href="https://another-author.substack.com/p/post">Another author</a>
+			<a href="https://outside.com/article">External</a>
+		`;
+		const extract = initExtractLinksFromPageUrl({
+			validateUrl: validateSaveableUrl,
+			crawlFetch: fakeFetch(async () => htmlResponse(html, { url: "https://this-author.substack.com/" })),
+		});
+
+		const result = await extract("https://this-author.substack.com/");
+
+		expect(result.status).toBe("OK");
+		if (result.status !== "OK") throw new Error("expected OK");
+		expect(result.links.urls).toEqual(["https://outside.com/article"]);
+	});
+
 	it("drops the source URL itself if it appears in the page", async () => {
 		const html =
 			'<a href="https://news.example/issues/42">Permalink</a><a href="https://news.example/">Home</a><a href="https://outside.com/a">Article</a>';

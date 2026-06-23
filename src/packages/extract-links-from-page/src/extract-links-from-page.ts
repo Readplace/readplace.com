@@ -43,6 +43,13 @@ function resolveHref(href: string | null, base: URL): string | undefined {
 	}
 }
 
+/** allowPrivateDomains stops the registrable domain at Public Suffix List
+ * private-section boundaries (github.io, blogspot.com, vercel.app, …) so two
+ * tenants of one shared-hosting platform stay distinct sites instead of
+ * collapsing into one. Platforms absent from that section (substack.com,
+ * medium.com, …) still collapse — an inherent limit of an eTLD+1 rule. */
+const GET_DOMAIN_OPTIONS = { allowPrivateDomains: true };
+
 /** Same site means the same registrable (eTLD+1) domain, not just the same
  * host, so a subdomain page also drops its parent and sibling subdomains. The
  * Public Suffix List keeps the boundary correct under multi-part suffixes
@@ -51,13 +58,13 @@ function resolveHref(href: string | null, base: URL): string | undefined {
 function isSameSite(linkHost: string, pageHost: string, pageDomain: string | null): boolean {
 	if (linkHost === pageHost) return true;
 	if (pageDomain === null) return false;
-	return getDomain(linkHost) === pageDomain;
+	return getDomain(linkHost, GET_DOMAIN_OPTIONS) === pageDomain;
 }
 
 function harvestLinks(html: string, baseUrl: string, sourceUrl: string): ImportLinksResult {
 	const { document } = parseHTML(html);
 	const base = new URL(baseUrl);
-	const pageDomain = getDomain(base.host);
+	const pageDomain = getDomain(base.host, GET_DOMAIN_OPTIONS);
 	const sourceNormalized = new URL(sourceUrl).toString();
 	const anchors = Array.from(document.querySelectorAll("a[href]"));
 	const raw = anchors
