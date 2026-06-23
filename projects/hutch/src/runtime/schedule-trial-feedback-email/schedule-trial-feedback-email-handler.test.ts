@@ -3,6 +3,7 @@ import { UserIdSchema } from "@packages/domain/user";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemoryTrialScheduler } from "@packages/test-fixtures/providers/trial-scheduler";
 import { buildSqsEvent } from "@packages/test-fixtures/sqs";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import {
 	initScheduleTrialFeedbackEmailHandler,
 	TRIAL_FEEDBACK_EMAIL_DELAY_MS,
@@ -57,7 +58,7 @@ describe("schedule-trial-feedback-email handler", () => {
 					}),
 				},
 			]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -82,7 +83,7 @@ describe("schedule-trial-feedback-email handler", () => {
 					}),
 				},
 			]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -108,7 +109,7 @@ describe("schedule-trial-feedback-email handler", () => {
 					}),
 				},
 			]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -133,7 +134,7 @@ describe("schedule-trial-feedback-email handler", () => {
 					}),
 				},
 			]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 		await subject.handler(
@@ -146,7 +147,7 @@ describe("schedule-trial-feedback-email handler", () => {
 					}),
 				},
 			]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -176,7 +177,7 @@ describe("schedule-trial-feedback-email handler", () => {
 					}),
 				},
 			]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -199,7 +200,7 @@ describe("schedule-trial-feedback-email handler", () => {
 					}),
 				},
 			]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -223,7 +224,7 @@ describe("schedule-trial-feedback-email handler", () => {
 					}),
 				},
 			]),
-			{} as never,
+			buildLambdaContext(),
 			() => {},
 		);
 

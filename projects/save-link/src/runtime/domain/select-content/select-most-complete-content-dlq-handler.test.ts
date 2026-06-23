@@ -4,7 +4,8 @@ import {
 	type TransitionAndPersist,
 } from "@packages/domain/article-aggregate";
 import { initSelectMostCompleteContentDlqHandler } from "./select-most-complete-content-dlq-handler";
-import type { SQSEvent, SQSRecord, SQSRecordAttributes, Context } from "aws-lambda";
+import type { SQSEvent, SQSRecord, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 
 function attributes(receiveCount: number): SQSRecordAttributes {
 	return {
@@ -14,21 +15,6 @@ function attributes(receiveCount: number): SQSRecordAttributes {
 		ApproximateFirstReceiveTimestamp: "1620000000001",
 	};
 }
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
-};
 
 function createRecord(detail: unknown, receiveCount: number, messageId = "msg-1"): SQSRecord {
 	return {
@@ -62,7 +48,7 @@ describe("initSelectMostCompleteContentDlqHandler", () => {
 
 		await handler(
 			createSqsEvent({ url: "https://example.com/failed", tier: "tier-1", userId: "user-1" }, 4),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -84,7 +70,7 @@ describe("initSelectMostCompleteContentDlqHandler", () => {
 			logger: noopLogger,
 		});
 
-		const result = await handler({ Records: [] }, stubContext, () => {});
+		const result = await handler({ Records: [] }, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [] });
 		expect(transitionAndPersist).not.toHaveBeenCalled();
@@ -100,7 +86,7 @@ describe("initSelectMostCompleteContentDlqHandler", () => {
 
 		const invalid: SQSEvent = { Records: [createRecord({ invalid: true }, 3)] };
 
-		const result = await handler(invalid, stubContext, () => {});
+		const result = await handler(invalid, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(transitionAndPersist).not.toHaveBeenCalled();
@@ -118,7 +104,7 @@ describe("initSelectMostCompleteContentDlqHandler", () => {
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/failed", tier: "tier-1" }, 4),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -146,7 +132,7 @@ describe("initSelectMostCompleteContentDlqHandler", () => {
 			],
 		};
 
-		const result = await handler(event, stubContext, () => {});
+		const result = await handler(event, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-bad" }] });
 		expect(transitionAndPersist).toHaveBeenCalledTimes(2);

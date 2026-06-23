@@ -9,28 +9,14 @@ import type { ParseHtml } from "@packages/article-parser";
 import type { ExtractPdf } from "@packages/crawl-article";
 import type { DownloadMedia } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
-import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
+import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
 	SentTimestamp: "1620000000000",
 	SenderId: "TESTID",
 	ApproximateFirstReceiveTimestamp: "1620000000001",
-};
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
 };
 
 function createSqsEvent(detail: { url: string; userId: string }): SQSEvent {
@@ -108,7 +94,7 @@ describe("initSaveLinkRawPdfCommandHandler", () => {
 
 		await handler(
 			createSqsEvent({ url: "https://example.com/x.pdf", userId: "user-1" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -142,7 +128,7 @@ describe("initSaveLinkRawPdfCommandHandler", () => {
 
 		await handler(
 			createSqsEvent({ url: "https://example.com/x.pdf", userId: "user-1" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -167,7 +153,7 @@ describe("initSaveLinkRawPdfCommandHandler", () => {
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/bad.pdf", userId: "user-1" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -206,7 +192,7 @@ describe("initSaveLinkRawPdfCommandHandler", () => {
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/bad.pdf", userId: "user-1" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 

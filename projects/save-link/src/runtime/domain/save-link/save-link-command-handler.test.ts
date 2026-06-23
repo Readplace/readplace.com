@@ -9,28 +9,14 @@ import type {
 } from "@packages/finalize-article";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import type { EmitSimpleCrawlUnsupported } from "../../dep-bundles/events";
-import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
+import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
 	SentTimestamp: "1620000000000",
 	SenderId: "TESTID",
 	ApproximateFirstReceiveTimestamp: "1620000000001",
-};
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
 };
 
 function createSqsEvent(detail: { url: string; userId: string }): SQSEvent {
@@ -100,7 +86,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 		const handler = createHandler({ putTierSource, publishEvent });
 
-		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(putTierSource).toHaveBeenCalledWith({
 			url: "https://example.com/article",
@@ -122,7 +108,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 		const handler = createHandler({ publishEvent, putTierSource });
 
-		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(calls).toEqual(["putTierSource", "publishEvent"]);
 	});
@@ -138,7 +124,7 @@ describe("initSaveLinkCommandHandler", () => {
 		});
 		const handler = createHandler({ crawlAndFinalizeArticle, updateFetchTimestamp });
 
-		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(updateFetchTimestamp).toHaveBeenCalledWith({
 			url: "https://example.com/article",
@@ -158,7 +144,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/article", userId: "user-1" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -173,7 +159,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 		const handler = createHandler({ crawlAndFinalizeArticle, logParseError });
 
-		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(logParseError).toHaveBeenCalledWith({
 			url: "https://example.com/article",
@@ -191,7 +177,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 		const handler = createHandler({ logCrawlOutcome, readTierSnapshot });
 
-		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(logCrawlOutcome).toHaveBeenCalledWith({
 			url: "https://example.com/article",
@@ -213,7 +199,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 		const handler = createHandler({ crawlAndFinalizeArticle, logCrawlOutcome, readTierSnapshot });
 
-		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(logCrawlOutcome).toHaveBeenCalledWith({
 			url: "https://example.com/article",
@@ -230,7 +216,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist });
 
-		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(transitionAndPersist).toHaveBeenCalledWith(markCrawlFailed, {
 			url: "https://example.com/article",
@@ -244,7 +230,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 		const handler = createHandler({ crawlAndFinalizeArticle, transitionAndPersist });
 
-		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(transitionAndPersist).not.toHaveBeenCalled();
 	});
@@ -256,7 +242,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 		const handler = createHandler({ crawlAndFinalizeArticle, emitSimpleCrawlUnsupported, publishEvent });
 
-		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(emitSimpleCrawlUnsupported).toHaveBeenCalledWith({
 			url: "https://example.com/article",
@@ -274,7 +260,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 		const handler = createHandler({ crawlAndFinalizeArticle, markCrawlStage, emitSimpleCrawlUnsupported });
 
-		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/article", userId: "user-1" }), buildLambdaContext(), () => {});
 
 		expect(calls).toEqual([
 			"stage:crawl-fetching",
@@ -291,7 +277,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/article", userId: "user-1" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -306,7 +292,7 @@ describe("initSaveLinkCommandHandler", () => {
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/article", userId: "user-1" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -330,7 +316,7 @@ describe("initSaveLinkCommandHandler", () => {
 			}],
 		};
 
-		const result = await handler(invalidEvent, stubContext, () => {});
+		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 	});

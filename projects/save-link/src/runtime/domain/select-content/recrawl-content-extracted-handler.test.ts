@@ -12,28 +12,14 @@ import type { WriteCanonicalContent } from "../../providers/article-store/promot
 import type { FindContentSourceTier } from "../../providers/article-store/find-content-source-tier";
 import { computeCanonicalContentHash } from "../../providers/article-store/compute-canonical-content-hash";
 import type { TierSource, TierSourceMetadata } from "./tier-source.types";
-import type { SQSEvent, SQSRecordAttributes, Context } from "aws-lambda";
+import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 
 const stubAttributes: SQSRecordAttributes = {
 	ApproximateReceiveCount: "1",
 	SentTimestamp: "1620000000000",
 	SenderId: "TESTID",
 	ApproximateFirstReceiveTimestamp: "1620000000001",
-};
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
 };
 
 const FIXED_NOW = new Date("2026-05-12T10:00:00.000Z");
@@ -110,7 +96,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 
 		const result = await handler(
 			createSqsEvent({ url: "https://example.com/a" }),
-			stubContext,
+			buildLambdaContext(),
 			() => {},
 		);
 
@@ -138,7 +124,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 			transitionAndPersist,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
 
 		expect(writeCanonicalContent).toHaveBeenCalledWith({
 			url: "https://example.com/a",
@@ -166,7 +152,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 			transitionAndPersist,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
 
 		const expectedHash = computeCanonicalContentHash(tier1.html);
 		expect(transitionAndPersist).toHaveBeenCalledWith(
@@ -194,7 +180,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 			transitionAndPersist,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
 
 		expect(transitionAndPersist).toHaveBeenCalledWith(
 			recrawlPromoteTier,
@@ -228,7 +214,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 			transitionAndPersist,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
 
 		expect(callOrder).toEqual(["writeCanonicalContent", "transitionAndPersist"]);
 	});
@@ -253,7 +239,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 			transitionAndPersist,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
 
 		expect(writeCanonicalContent).not.toHaveBeenCalled();
 		expect(transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, {
@@ -282,7 +268,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 			transitionAndPersist,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
 
 		expect(writeCanonicalContent).toHaveBeenCalledWith({
 			url: "https://example.com/a",
@@ -321,7 +307,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 			transitionAndPersist,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
 
 		expect(writeCanonicalContent).not.toHaveBeenCalled();
 		expect(transitionAndPersist).toHaveBeenCalledWith(recrawlTieKeptCanonical, {
@@ -349,7 +335,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 			writeCanonicalContent,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
 
 		expect(findContentSourceTier).not.toHaveBeenCalled();
 		expect(writeCanonicalContent).toHaveBeenCalledWith({
@@ -372,7 +358,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 			transitionAndPersist,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
 
 		expect(writeCanonicalContent).toHaveBeenCalledWith({
 			url: "https://example.com/a",
@@ -403,7 +389,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 			writeCanonicalContent,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
 
 		expect(writeCanonicalContent).toHaveBeenCalledWith({
 			url: "https://example.com/a",
@@ -424,7 +410,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 			transitionAndPersist,
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
 
 		expect(writeCanonicalContent).toHaveBeenCalledWith({
 			url: "https://example.com/a",
@@ -452,7 +438,7 @@ describe("initRecrawlContentExtractedHandler", () => {
 			selectMostCompleteContent: jest.fn().mockResolvedValue({ winner: "tier-0", reason: "tier-0 body wins" }),
 		});
 
-		await handler(createSqsEvent({ url: "https://example.com/a" }), stubContext, () => {});
+		await handler(createSqsEvent({ url: "https://example.com/a" }), buildLambdaContext(), () => {});
 
 		expect(deps.transitionAndPersist).toHaveBeenCalledWith(
 			recrawlPromoteTier,

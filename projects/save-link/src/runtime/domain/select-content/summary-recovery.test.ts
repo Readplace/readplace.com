@@ -12,13 +12,8 @@ import { computeCanonicalContentHash } from "../../providers/article-store/compu
 import type { SummarizeArticle } from "../generate-summary/link-summariser";
 import type { FindArticleContent } from "../../providers/article-store/find-article-content";
 import type { TierSource } from "./tier-source.types";
-import type {
-	Handler,
-	SQSBatchResponse,
-	SQSEvent,
-	SQSRecordAttributes,
-	Context,
-} from "aws-lambda";
+import type { Handler, SQSBatchResponse, SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 
 /**
  * In-process replay of the production incident: a row whose summary is
@@ -41,21 +36,6 @@ const stubAttributes: SQSRecordAttributes = {
 	SentTimestamp: "1620000000000",
 	SenderId: "TESTID",
 	ApproximateFirstReceiveTimestamp: "1620000000001",
-};
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
 };
 
 function sqsEvent(detail: Record<string, unknown>): SQSEvent {
@@ -127,9 +107,9 @@ describe("summary recovery on canonical content change", () => {
 		 * User-facing / pipeline-settling effects are intentionally not routed. */
 		const dispatchEffect: DispatchEffect = async (effect) => {
 			if (effect.kind === "publish-canonical-content-changed") {
-				await canonicalContentChangedHandler(sqsEvent({ url: effect.url }), stubContext, () => {});
+				await canonicalContentChangedHandler(sqsEvent({ url: effect.url }), buildLambdaContext(), () => {});
 			} else if (effect.kind === "generate-summary") {
-				await generateSummaryHandler(sqsEvent({ url: effect.url }), stubContext, () => {});
+				await generateSummaryHandler(sqsEvent({ url: effect.url }), buildLambdaContext(), () => {});
 			}
 		};
 
@@ -167,7 +147,7 @@ describe("summary recovery on canonical content change", () => {
 		const seeded = await store.load(URL);
 		expect(seeded?.summary.kind).toBe("skipped");
 
-		await selectHandler(sqsEvent({ url: URL, tier: "tier-1" }), stubContext, () => {});
+		await selectHandler(sqsEvent({ url: URL, tier: "tier-1" }), buildLambdaContext(), () => {});
 
 		const recovered = await store.load(URL);
 		expect(recovered?.summary.kind).toBe("ready");

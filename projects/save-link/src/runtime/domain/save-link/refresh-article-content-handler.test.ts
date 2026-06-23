@@ -1,7 +1,8 @@
 import { noopLogger } from "@packages/hutch-logger";
 import { RefreshContentExtractedEvent } from "@packages/hutch-infra-components";
 import type { ReadRefreshHtml } from "@packages/test-fixtures/providers/refresh-html";
-import type { Context, SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import type { SQSEvent, SQSRecordAttributes } from "aws-lambda";
+import { buildLambdaContext } from "@packages/test-fixtures/lambda-context";
 import type { PutTierSource } from "../../providers/article-store/put-tier-source";
 import { initRefreshArticleContentHandler } from "./refresh-article-content-handler";
 
@@ -10,21 +11,6 @@ const stubAttributes: SQSRecordAttributes = {
 	SentTimestamp: "1620000000000",
 	SenderId: "TESTID",
 	ApproximateFirstReceiveTimestamp: "1620000000001",
-};
-
-const stubContext: Context = {
-	callbackWaitsForEmptyEventLoop: true,
-	functionName: "test",
-	functionVersion: "1",
-	invokedFunctionArn: "arn:aws:lambda:ap-southeast-2:123456789:function:test",
-	memoryLimitInMB: "128",
-	awsRequestId: "test-request-id",
-	logGroupName: "/aws/lambda/test",
-	logStreamName: "test-stream",
-	getRemainingTimeInMillis: () => 30000,
-	done: () => {},
-	fail: () => {},
-	succeed: () => {},
 };
 
 interface RefreshDetail {
@@ -91,7 +77,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 			logger: noopLogger,
 		});
 
-		await handler(createSqsEvent(DETAIL), stubContext, () => {});
+		await handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
 
 		expect(readRefreshHtml).toHaveBeenCalledWith(URL);
 		expect(putTierSource).toHaveBeenCalledWith({
@@ -120,7 +106,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 			logger: noopLogger,
 		});
 
-		await handler(createSqsEvent(DETAIL), stubContext, () => {});
+		await handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
 
 		expect(publishEvent).toHaveBeenCalledTimes(1);
 		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, {
@@ -144,7 +130,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 			logger: noopLogger,
 		});
 
-		await handler(createSqsEvent({ ...DETAIL, bodyHash: "deadbeef".repeat(8) }), stubContext, () => {});
+		await handler(createSqsEvent({ ...DETAIL, bodyHash: "deadbeef".repeat(8) }), buildLambdaContext(), () => {});
 
 		expect(publishEvent).toHaveBeenCalledWith(RefreshContentExtractedEvent, {
 			url: URL,
@@ -175,7 +161,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 			logger: noopLogger,
 		});
 
-		await handler(createSqsEvent(DETAIL), stubContext, () => {});
+		await handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
 
 		expect(order).toEqual(["readRefreshHtml", "putTierSource", "publishEvent"]);
 	});
@@ -208,7 +194,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 			],
 		};
 
-		const result = await handler(invalidEvent, stubContext, () => {});
+		const result = await handler(invalidEvent, buildLambdaContext(), () => {});
 
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
 		expect(readRefreshHtml).not.toHaveBeenCalled();
@@ -230,7 +216,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 			logger: noopLogger,
 		});
 
-		const result = await handler(createSqsEvent(DETAIL), stubContext, () => {});
+		const result = await handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
 
 		expect(putTierSource).not.toHaveBeenCalled();
 		expect(publishEvent).not.toHaveBeenCalled();
@@ -251,7 +237,7 @@ describe("initRefreshArticleContentHandler (S3 read + tier-write + publish)", ()
 			logger: noopLogger,
 		});
 
-		const result = await handler(createSqsEvent(DETAIL), stubContext, () => {});
+		const result = await handler(createSqsEvent(DETAIL), buildLambdaContext(), () => {});
 
 		expect(publishEvent).not.toHaveBeenCalled();
 		expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "msg-1" }] });
