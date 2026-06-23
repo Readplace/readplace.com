@@ -461,7 +461,7 @@ describe("initExtractLinksFromPageUrl", () => {
 	});
 });
 
-describe("registrable-domain rule: getDomain({ allowPrivateDomains: true }) over a hand-crafted label rule", () => {
+describe("documents why a Public Suffix List, not label-slicing, decides the registrable domain (production guarded by the bbc.co.uk, ycombinator, and github.io behavioral tests above)", () => {
 	const lastTwoLabels = (host: string) => host.split(".").slice(-2).join(".");
 	const lastThreeLabels = (host: string) => host.split(".").slice(-3).join(".");
 
