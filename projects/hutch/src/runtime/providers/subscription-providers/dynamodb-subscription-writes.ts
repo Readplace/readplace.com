@@ -10,7 +10,7 @@ import type {
 	UpsertActiveSubscription,
 	UpsertTrialingSubscription,
 } from "@packages/provider-contracts/subscription-providers";
-import { SubscriptionProviderRow } from "./subscription-provider-row";
+import { SubscriptionProviderRow } from "@packages/subscription-row";
 
 /** The write half of the subscription table. Every mutation lives here so it
  * can move to the subscription service as a unit, leaving the read half (which

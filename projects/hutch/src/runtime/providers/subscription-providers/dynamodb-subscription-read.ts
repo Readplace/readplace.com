@@ -6,7 +6,7 @@ import type {
 	FindSubscriptionBySubscriptionId,
 	FindSubscriptionByUserId,
 } from "@packages/provider-contracts/subscription-providers";
-import { SubscriptionProviderRow, toRecord } from "./subscription-provider-row";
+import { SubscriptionProviderRow, toRecord } from "@packages/subscription-row";
 
 /** The read half of the subscription table. It stays in hutch because the save
  * gate composes the write-access decision locally from this lookup — the gate

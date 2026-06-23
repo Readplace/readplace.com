@@ -63,6 +63,7 @@
     "@packages/refresh-article-content": "workspace:*",
     "@packages/retriable": "workspace:*",
     "@packages/subscription-access": "workspace:*",
+    "@packages/subscription-row": "workspace:*",
     "@packages/time-left": "workspace:*",
     "@packages/web-shell": "workspace:*",
     "browser-extension-core": "workspace:*",

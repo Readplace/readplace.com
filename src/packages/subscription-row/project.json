@@ -1,0 +1,9 @@
+{
+  "name": "@packages/subscription-row",
+  "targets": {
+    "check": {
+      "command": "pnpm lint",
+      "options": { "cwd": "{projectRoot}" }
+    }
+  }
+}
