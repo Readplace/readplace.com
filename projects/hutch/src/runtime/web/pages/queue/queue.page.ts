@@ -238,12 +238,32 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
 	const saveArticleFromUrl = initSaveArticleFromUrl(deps);
 
+	/** The iOS onboarding signal is non-essential bookkeeping that sits on the
+	 * critical path of the app's queue load and every save. Unlike the extension's
+	 * equivalent — a Set-Cookie header that cannot fail — this write hits DynamoDB
+	 * and can throw (a transient error, or `assert(row)` firing for a token that
+	 * outlived a deleted account). Swallow and log so the bookkeeping can never
+	 * turn a successful save into a 500 or break the iPhone app's queue load; the
+	 * signal is allowed to lag a render and catch up on the next request. */
+	const recordIosAppActivityBestEffort = async (
+		args: { userId: UserId; savedArticle: boolean },
+	): Promise<void> => {
+		try {
+			await deps.recordIosAppActivity(args);
+		} catch (error) {
+			deps.logError(
+				"Failed to record iOS onboarding signal",
+				error instanceof Error ? error : undefined,
+			);
+		}
+	};
+
 	/** Records that the user saved their first article. From the iOS app (client
 	 * header present) this is a per-user server-side write so Safari's `/queue`
 	 * can read it; from the extension it is the same-browser-jar liveness cookie. */
 	const recordSaveSignal = async (req: Request, res: Response, userId: UserId): Promise<void> => {
 		if (isIosClient(req)) {
-			await deps.recordIosAppActivity({ userId, savedArticle: true });
+			await recordIosAppActivityBestEffort({ userId, savedArticle: true });
 			return;
 		}
 		markExtensionSavedArticle(res);
@@ -374,9 +394,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		const userId = req.userId;
 		/* The iOS app loads the queue over Siren on launch; record that authed
 		 * request as the "app installed + signed in" signal so step 1 ticks before
-		 * any save. Header-gated, so Safari (no header) only ever reads, never writes. */
+		 * any save. Header-gated, so Safari (no header) only ever reads, never writes.
+		 * Best-effort: the app's main screen loads over this request, so the signal
+		 * write must never be able to fail it. */
 		if (isIosClient(req)) {
-			await deps.recordIosAppActivity({ userId, savedArticle: false });
+			await recordIosAppActivityBestEffort({ userId, savedArticle: false });
 		}
 		const urlState = parseQueueUrl(req.query);
 		const tab = tabQuery(urlState.tab);

@@ -374,4 +374,62 @@ describe("Queue onboarding — iPhone", () => {
 
 		expect(stepComplete(response.text, "install-extension")).toBe("false");
 	});
+
+	/** The iOS onboarding signal is non-essential bookkeeping; recording it must
+	 * never convert a successful save into a 500 or fail the app's queue load. The
+	 * write hits DynamoDB and can throw (transient error, or the missing-user-row
+	 * assert for a token that outlived a deleted account), so it is best-effort. */
+	it("returns 201 for a save even when recording the iOS save signal throws", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const loggedErrors: Error[] = [];
+		const harness = useApp({
+			...fixture,
+			iosOnboardingSignal: {
+				...fixture.iosOnboardingSignal,
+				recordIosAppActivity: async () => { throw new Error("dynamo down"); },
+			},
+			shared: {
+				...fixture.shared,
+				logError: (_msg, err) => { if (err) loggedErrors.push(err); },
+			},
+		});
+		await loginAgent(harness.server, harness.auth);
+		const token = await bearerForLoggedInUser(harness);
+
+		const save = await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE)
+			.send({ url: "https://example.com/article" });
+
+		expect(save.status).toBe(201);
+		expect(loggedErrors).toHaveLength(1);
+	});
+
+	it("returns 200 for the queue load even when recording the iOS activation signal throws a non-Error", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const errorArgs: unknown[] = [];
+		const harness = useApp({
+			...fixture,
+			iosOnboardingSignal: {
+				...fixture.iosOnboardingSignal,
+				// biome-ignore lint/suspicious/noExplicitAny: deliberately throws a non-Error to exercise the `instanceof Error ? … : undefined` branch
+				recordIosAppActivity: async () => { throw "dynamo down" as any; },
+			},
+			shared: {
+				...fixture.shared,
+				logError: (msg, err) => { errorArgs.push([msg, err]); },
+			},
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent
+			.get("/queue")
+			.set("User-Agent", IPHONE_UA)
+			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE);
+
+		expect(response.status).toBe(200);
+		expect(errorArgs).toEqual([["Failed to record iOS onboarding signal", undefined]]);
+	});
 });
