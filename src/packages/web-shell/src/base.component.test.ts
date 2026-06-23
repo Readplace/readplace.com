@@ -135,7 +135,7 @@ describe("Base component", () => {
 
 	it("renders the Import Links nav item for unauthenticated requests so guests can start a migration", () => {
 		const page = createTestPageBody();
-		const result = Base(page, { isAuthenticated: false, emailVerified: undefined }).to("text/html");
+		const result = Base(page, GUEST_STATE).to("text/html");
 		const doc = new JSDOM(result.body).window.document;
 
 		const button = doc.querySelector('[data-test-nav-item="import"]');
