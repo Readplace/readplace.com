@@ -867,6 +867,9 @@ importers:
       '@packages/hutch-storage-client':
         specifier: workspace:*
         version: link:../hutch-storage-client
+      '@packages/require-env':
+        specifier: workspace:*
+        version: link:../require-env
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -889,6 +892,9 @@ importers:
       '@packages/article-state-types':
         specifier: workspace:*
         version: link:../article-state-types
+      '@packages/require-env':
+        specifier: workspace:*
+        version: link:../require-env
       escape-html:
         specifier: 1.0.3
         version: 1.0.3
