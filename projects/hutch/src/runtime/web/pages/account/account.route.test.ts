@@ -63,7 +63,10 @@ describe("GET /account (founding member, no subscription row)", () => {
 		expect(card.classList.contains("account-card--founding")).toBe(true);
 		expect(card.getAttribute("data-test-account-state")).toBe("founding");
 		expect(actionKeys(doc)).toEqual([]);
-		expect(doc.querySelector("[data-test-trial-countdown]")).toBeNull();
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "trial countdown element must always be in the DOM");
+		expect(countdown.classList.contains("trial-countdown--hidden")).toBe(true);
+		expect(countdown.getAttribute("data-trial-state")).toBe("");
 	});
 });
 
@@ -91,7 +94,10 @@ describe("GET /account (active paid subscription)", () => {
 		expect(cancelForm.tagName.toLowerCase()).toBe("form");
 		expect(cancelForm.getAttribute("action")).toBe("/account/cancel?utm_source=account&utm_medium=internal&utm_content=cancel-form");
 		expect(cancelForm.getAttribute("method")?.toUpperCase()).toBe("POST");
-		expect(doc.querySelector("[data-test-trial-countdown]")).toBeNull();
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "trial countdown element must always be in the DOM");
+		expect(countdown.classList.contains("trial-countdown--hidden")).toBe(true);
+		expect(countdown.getAttribute("data-trial-state")).toBe("");
 	});
 });
 

@@ -37,7 +37,7 @@ export function Nav(props: NavProps): string {
 	const trial = props.trialCounter;
 	return render(NAV_TEMPLATE, {
 		transparent: props.variant === "transparent",
-		trial: Boolean(trial),
+		trialVisibility: trial ? "visible" : "hidden",
 		trialDisplayText: trial ? formatTrialDisplay(trial) : "",
 		trialState: trial?.state ?? "",
 		trialEscalationClass: escalationClassFor(trial),

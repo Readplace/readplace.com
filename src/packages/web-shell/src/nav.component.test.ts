@@ -16,7 +16,7 @@ const ACTIVE_TRIAL: TrialDisplay = {
 };
 
 describe("Nav component", () => {
-	it("omits the trial countdown when trialCounter is undefined", () => {
+	it("renders the trial countdown hidden (via state class) when trialCounter is undefined", () => {
 		const doc = parse(
 			Nav({
 				variant: "default",
@@ -25,12 +25,11 @@ describe("Nav component", () => {
 			}),
 		);
 
-		const brand = doc.querySelector(".header__brand");
-		assert(brand, "header brand must render");
-		const afterBrand = brand.nextElementSibling;
-		assert(afterBrand, "an element must follow the brand inside .header__content");
-		expect(afterBrand.tagName).toBe("NAV");
-		expect(afterBrand.classList.contains("nav")).toBe(true);
+		const countdown = doc.querySelector("[data-test-trial-countdown]");
+		assert(countdown, "trial countdown element must always be in the DOM");
+		expect(countdown.classList.contains("trial-countdown--hidden")).toBe(true);
+		expect(countdown.getAttribute("data-trial-state")).toBe("");
+		expect(countdown.textContent).toBe("");
 	});
 
 	it("renders the trial countdown with active state, escalation class, and data attributes", () => {
@@ -47,6 +46,7 @@ describe("Nav component", () => {
 		assert(countdown, "trial countdown must be present for an active trial");
 		expect(countdown.textContent).toBe("13d 12h left in your free trial");
 		expect(countdown.classList.contains("trial-countdown--moderate")).toBe(true);
+		expect(countdown.classList.contains("trial-countdown--visible")).toBe(true);
 		expect(countdown.getAttribute("data-trial-state")).toBe("active");
 		expect(countdown.getAttribute("data-trial-ends-at-iso")).toBe("2026-01-15T00:00:00.000Z");
 		expect(countdown.getAttribute("data-server-now-iso")).toBe("2026-01-01T00:00:00.000Z");
