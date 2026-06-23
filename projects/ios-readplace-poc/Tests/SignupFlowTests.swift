@@ -25,13 +25,13 @@ final class SignupFlowTests: XCTestCase {
 		XCTAssertEqual(components.path, "/oauth/authorize")
 		let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 		XCTAssertEqual(items["client_id"], "hutch-chrome-extension")
-		XCTAssertEqual(items["redirect_uri"], "readplace://oauth-callback")
+		XCTAssertEqual(items["redirect_uri"], AppConfig.nativeCallbackURL)
 		XCTAssertEqual(items["response_type"], "code")
 		XCTAssertEqual(items["code_challenge_method"], "S256")
 		XCTAssertEqual(items["screen_hint"], "signup")
 		XCTAssertEqual(items["code_challenge"], PKCE.challenge(for: request.codeVerifier))
 		XCTAssertFalse((items["state"] ?? "").isEmpty)
-		XCTAssertEqual(request.redirectURI, "readplace://oauth-callback")
+		XCTAssertEqual(request.redirectURI, AppConfig.nativeCallbackURL)
 	}
 
 	func testCallbackDeepLinkCompletesSignInWithNativeRedirect() async throws {
@@ -62,7 +62,7 @@ final class SignupFlowTests: XCTestCase {
 			}
 		))
 
-		let result = await flow.complete(URL(string: "readplace://oauth-callback?code=abc&state=S")!)
+		let result = await flow.complete(URL(string: "\(AppConfig.nativeCallbackURL)?code=abc&state=S")!)
 
 		guard case .success? = result else { return XCTFail("Expected .success, got \(String(describing: result))") }
 		XCTAssertTrue(session.isLoggedIn, "RootView keys off isLoggedIn to show the reading list")
@@ -74,7 +74,7 @@ final class SignupFlowTests: XCTestCase {
 		XCTAssertEqual(body["code"], "abc")
 		XCTAssertEqual(body["code_verifier"], "v")
 		XCTAssertEqual(body["client_id"], "hutch-chrome-extension")
-		XCTAssertEqual(body["redirect_uri"], "readplace://oauth-callback")
+		XCTAssertEqual(body["redirect_uri"], AppConfig.nativeCallbackURL)
 	}
 
 	func testChromeURLForHTTPSRewritesSchemeWhenChromeAvailable() {
@@ -131,12 +131,23 @@ final class SignupFlowTests: XCTestCase {
 
 		let pending = try XCTUnwrap(pendingWhenOpened, "secrets must be persisted before the browser opens — a kill mid-hop must not lose them")
 		XCTAssertEqual(store.load(), pending, "the persisted record must outlive start()")
-		XCTAssertEqual(pending.redirectURI, "readplace://oauth-callback")
+		XCTAssertEqual(pending.redirectURI, AppConfig.nativeCallbackURL)
 
 		let opened = try XCTUnwrap(openedURL)
 		let items = Dictionary(uniqueKeysWithValues: (URLComponents(url: opened, resolvingAgainstBaseURL: false)?.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 		XCTAssertEqual(items["state"], pending.state, "the opened authorize URL carries the persisted state")
-		XCTAssertEqual(items["redirect_uri"], "readplace://oauth-callback")
+		XCTAssertEqual(items["redirect_uri"], AppConfig.nativeCallbackURL)
 		XCTAssertEqual(items["screen_hint"], "signup")
+	}
+
+	func testNativeCallbackURLPinnedToServerRegisteredValue() {
+		// Pinned cross-language contract: the server registers this exact string as
+		// a redirect_uri for the hutch-chrome-extension client
+		// (IOS_NATIVE_OAUTH_CALLBACK_URI in built-in-clients.ts) and matches it by
+		// exact string at token time. A change here must be mirrored there, and
+		// composing the URI from scheme + host keeps the deep-link parser in step.
+		XCTAssertEqual(AppConfig.nativeCallbackURL, "readplace://oauth-callback")
+		XCTAssertEqual(AppConfig.callbackURLScheme, "readplace")
+		XCTAssertEqual(AppConfig.nativeCallbackHost, "oauth-callback")
 	}
 }

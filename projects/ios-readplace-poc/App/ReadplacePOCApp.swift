@@ -25,7 +25,7 @@ struct RootView: View {
 			}
 		}
 		.onOpenURL { url in
-			guard url.scheme == AppConfig.callbackURLScheme, url.host == "oauth-callback" else { return }
+			guard url.scheme == AppConfig.callbackURLScheme, url.host == AppConfig.nativeCallbackHost else { return }
 			Task { @MainActor in
 				// `nil` means no pending Sign up — an unexpected deep link, ignored.
 				// A malformed or hijacked callback (wrong/absent state or code) is

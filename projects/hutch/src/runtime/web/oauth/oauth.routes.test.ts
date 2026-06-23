@@ -147,6 +147,23 @@ describe("OAuth routes", () => {
 			expect(response.status).toBe(400);
 			expect(response.body.error).toBe("invalid_request");
 		});
+
+		it("names the offending parameter for an unsupported screen_hint value", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+
+			const response = await request(harness.server).get("/oauth/authorize").query({
+				client_id: TEST_CLIENT_ID,
+				redirect_uri: TEST_REDIRECT_URI,
+				response_type: "code",
+				code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+				code_challenge_method: "S256",
+				screen_hint: "register",
+			});
+
+			expect(response.status).toBe(400);
+			expect(response.body.error).toBe("invalid_request");
+			expect(response.body.error_description).toContain("screen_hint");
+		});
 	});
 
 	describe("POST /oauth/authorize", () => {

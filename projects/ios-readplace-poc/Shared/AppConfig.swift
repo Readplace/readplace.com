@@ -62,12 +62,18 @@ enum AppConfig {
 	/// redirect in another app's tab.
 	static let callbackURLScheme = "readplace"
 
-	/// Native redirect URI for the external-browser Sign up flow. Registered on
-	/// the `hutch-chrome-extension` client in the server's
-	/// `src/packages/domain/src/oauth/built-in-clients.ts`; it must match there
-	/// exactly because the OAuth server checks `redirect_uri` by exact string at
-	/// both authorize and token time.
-	static let nativeCallbackURL = "\(callbackURLScheme)://oauth-callback"
+	/// Host component of `nativeCallbackURL`. `RootView.onOpenURL` matches the
+	/// incoming deep link's host against this constant, so the registered URI and
+	/// the deep-link parse site share one source instead of two equal literals.
+	static let nativeCallbackHost = "oauth-callback"
+
+	/// Native redirect URI for the external-browser Sign up flow, composed from
+	/// the scheme + host above so what we register can't disagree with what the
+	/// deep-link handler accepts. Must equal `IOS_NATIVE_OAUTH_CALLBACK_URI` in
+	/// the server's `src/packages/domain/src/oauth/built-in-clients.ts` — the
+	/// OAuth server matches `redirect_uri` by exact string at authorize and token
+	/// time — and `SignupFlowTests` pins the value so a change fails a test.
+	static let nativeCallbackURL = "\(callbackURLScheme)://\(nativeCallbackHost)"
 
 	/// A Safari-like user agent. Embedded WKWebViews are sometimes refused by
 	/// Google's sign-in ("disallowed_useragent"); presenting a stock Safari UA

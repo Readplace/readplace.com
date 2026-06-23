@@ -37,6 +37,18 @@ const revokeBodySchema = z.object({
 	token: z.string().min(1),
 });
 
+/**
+ * Turns a Zod parse failure into an `error_description` that names the offending
+ * parameter(s), so an unsupported value (e.g. `screen_hint=register`) is easy to
+ * identify in the 400 response instead of a generic "invalid parameters".
+ */
+function describeInvalidParams(error: z.ZodError): string {
+	const detail = error.issues
+		.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+		.join("; ");
+	return `Invalid request parameters — ${detail}`;
+}
+
 const SUPPORTED_GRANTS = new Set(["authorization_code", "refresh_token"]);
 
 const registerBodySchema = z.object({
@@ -167,7 +179,7 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 		if (!parsed.success) {
 			res.status(400).json({
 				error: "invalid_request",
-				error_description: "Missing or invalid parameters",
+				error_description: describeInvalidParams(parsed.error),
 			});
 			return;
 		}
