@@ -592,6 +592,46 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  projects/subscriptions:
+    dependencies:
+      express:
+        specifier: 5.2.1
+        version: 5.2.1
+      serverless-http:
+        specifier: 4.0.0
+        version: 4.0.0
+    devDependencies:
+      '@types/aws-lambda':
+        specifier: 8.10.161
+        version: 8.10.161
+      '@types/express':
+        specifier: 5.0.6
+        version: 5.0.6
+      '@types/jest':
+        specifier: 30.0.0
+        version: 30.0.0
+      '@types/node':
+        specifier: 22.19.19
+        version: 22.19.19
+      '@types/supertest':
+        specifier: 7.2.0
+        version: 7.2.0
+      c8:
+        specifier: 11.0.0
+        version: 11.0.0
+      concurrently:
+        specifier: 10.0.0
+        version: 10.0.0
+      jest:
+        specifier: 30.4.2
+        version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
+      supertest:
+        specifier: 7.2.2
+        version: 7.2.2
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   projects/web-embed:
     dependencies:
       '@packages/web-shell':
@@ -9951,7 +9991,7 @@ snapshots:
       chalk: 4.1.2
       graceful-fs: 4.2.11
       jest-util: 30.4.1
-      picomatch: 4.0.3
+      picomatch: 4.0.4
       pretty-format: 30.4.1
       slash: 3.0.0
       stack-utils: 2.0.6
@@ -10073,7 +10113,7 @@ snapshots:
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11
-      picomatch: 4.0.3
+      picomatch: 4.0.4
 
   jest-validate@30.4.1:
     dependencies:
