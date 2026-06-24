@@ -123,6 +123,16 @@ export async function initOAuthAuth(deps: OAuthAuthDeps): Promise<Auth> {
 		return storedTokens?.accessToken ?? null;
 	};
 
+	const ensureWebSession = async (): Promise<void> => {
+		const token = await getAccessToken();
+		if (!token) return;
+		await deps.fetchFn(`${deps.serverUrl}/auth/session`, {
+			method: "POST",
+			headers: { Authorization: `Bearer ${token}` },
+			credentials: "include",
+		});
+	};
+
 	const logout = async (): Promise<void> => {
 		const serverUrl = deps.serverUrl;
 		const tokens = await deps.tokenStorage.getTokens();
@@ -158,5 +168,5 @@ export async function initOAuthAuth(deps: OAuthAuthDeps): Promise<Auth> {
 		await refreshTokens().catch(() => {});
 	}
 
-	return { login, logout, refreshTokens, getAccessToken, whenLoggedIn };
+	return { login, logout, refreshTokens, getAccessToken, ensureWebSession, whenLoggedIn };
 }

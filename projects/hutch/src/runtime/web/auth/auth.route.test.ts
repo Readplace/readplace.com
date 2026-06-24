@@ -1062,6 +1062,37 @@ describe("Auth routes", () => {
 			const queueResponse = await agent.get("/queue").set("Accept", "text/html");
 			expect(queueResponse.status).toBe(200);
 		});
+
+		it("answers the extension's credentialed CORS preflight", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const extensionOrigin = "chrome-extension://abcdefghijklmnopabcdefghijklmnop";
+
+			const response = await request(harness.server)
+				.options("/auth/session")
+				.set("Origin", extensionOrigin)
+				.set("Access-Control-Request-Method", "POST")
+				.set("Access-Control-Request-Headers", "authorization");
+
+			expect(response.status).toBe(204);
+			expect(response.headers["access-control-allow-origin"]).toBe(extensionOrigin);
+			expect(response.headers["access-control-allow-credentials"]).toBe("true");
+		});
+
+		it("returns credentialed CORS headers so the extension can store the minted cookie", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const accessToken = await createAccessToken(harness);
+			const extensionOrigin = "moz-extension://d3b07384-d113-4ec6-a7b8-5f7e3b4c9a12";
+
+			const response = await request(harness.server)
+				.post("/auth/session")
+				.set("Origin", extensionOrigin)
+				.set("Authorization", `Bearer ${accessToken}`);
+
+			expect(response.status).toBe(204);
+			expect(response.headers["access-control-allow-origin"]).toBe(extensionOrigin);
+			expect(response.headers["access-control-allow-credentials"]).toBe("true");
+			assert(sessionCookie(response), "expected the hutch_sid session cookie");
+		});
 	});
 
 	describe("Google sign-in button", () => {

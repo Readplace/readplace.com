@@ -1,4 +1,4 @@
-import type { Auth, GetAccessToken, Login, Logout, RefreshTokens, WhenLoggedIn } from "./auth.types";
+import type { Auth, EnsureWebSession, GetAccessToken, Login, Logout, RefreshTokens, WhenLoggedIn } from "./auth.types";
 
 export function initInMemoryAuth(): Auth {
 	let loggedIn = false;
@@ -20,6 +20,8 @@ export function initInMemoryAuth(): Auth {
 		return loggedIn ? "in-memory-token" : null;
 	};
 
+	const ensureWebSession: EnsureWebSession = async () => {};
+
 	const whenLoggedIn: WhenLoggedIn = (fn) => {
 		if (!loggedIn) {
 			return { ok: false, reason: "not-logged-in" };
@@ -39,6 +41,7 @@ export function initInMemoryAuth(): Auth {
 		logout,
 		refreshTokens,
 		getAccessToken,
+		ensureWebSession,
 		whenLoggedIn,
 	};
 }

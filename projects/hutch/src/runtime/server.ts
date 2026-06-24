@@ -583,21 +583,29 @@ export function createApp(dependencies: AppDependencies): Express {
 		}),
 	);
 
+	const isAllowedExtensionOrigin = (origin: string | undefined): boolean =>
+		!origin ||
+		origin === appOrigin ||
+		origin === "https://hutch-app.com" ||
+		/^(moz|chrome)-extension:\/\//.test(origin);
+
 	const extensionCors = cors({
-		origin: (origin, callback) => {
-			if (
-				!origin ||
-				origin === appOrigin ||
-				origin === "https://hutch-app.com" ||
-				/^(moz|chrome)-extension:\/\//.test(origin)
-			) {
-				callback(null, true);
-			} else {
-				callback(null, false);
-			}
-		},
+		origin: (origin, callback) => callback(null, isAllowedExtensionOrigin(origin)),
 		methods: ["GET", "POST", "PUT", "DELETE"],
 		allowedHeaders: ["Authorization", "Content-Type", "Accept", "Prefer"],
+		maxAge: 86400,
+	});
+
+	/** The session-cookie bridge is the only extension endpoint that needs
+	 * credentialed CORS: the extension POSTs with credentials:"include" so the
+	 * browser stores the Set-Cookie hutch_sid. credentials:true (which also
+	 * reflects the specific Origin instead of "*") stays scoped to this route
+	 * rather than loosening the bearer-only endpoints. */
+	const sessionBridgeCors = cors({
+		origin: (origin, callback) => callback(null, isAllowedExtensionOrigin(origin)),
+		methods: ["POST"],
+		allowedHeaders: ["Authorization", "Content-Type"],
+		credentials: true,
 		maxAge: 86400,
 	});
 
@@ -761,6 +769,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			signup: deps.rateLimitRules.signup,
 		},
 	});
+	app.use("/auth/session", sessionBridgeCors);
 	app.use(authRouter);
 
 	if (deps.googleAuth) {
