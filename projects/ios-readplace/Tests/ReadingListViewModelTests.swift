@@ -17,84 +17,46 @@ final class ReadingListViewModelTests: XCTestCase {
 		return ReadingListViewModel(api: api, onSessionExpired: {})
 	}
 
-	/// A locked account: the queue loads (so the `save-article` action is
-	/// discovered) but every save POST is refused with a server-authored message.
-	private func lockedAccountHandler() -> (URLRequest, Data) -> StubURLProtocol.Stub {
+	// MARK: - Add-links help discovery
+
+	/// A single-page `/queue` whose collection carries the given extra links.
+	private func queueHandler(extraLinks: String = "") -> (URLRequest, Data) -> StubURLProtocol.Stub {
 		return { request, _ in
-			let path = request.url?.path ?? ""
-			let method = request.httpMethod ?? "GET"
-			switch (path, method) {
-			case ("/", _):
+			switch request.url?.path ?? "" {
+			case "/":
 				return .redirect(to: "/queue")
-			case ("/queue", "POST"):
-				return .json(403, Fixtures.accountLockedError())
-			case ("/queue", _):
-				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
+			case "/queue":
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1")],
+					extraLinks: extraLinks
+				))
 			default:
 				return .json(404, "{}")
 			}
 		}
 	}
 
-	func testRefusedSaveSurfacesServerMessages() async {
-		StubURLProtocol.setHandler(lockedAccountHandler())
+	func testRefreshDiscoversAddLinksHelpURL() async {
+		StubURLProtocol.setHandler(queueHandler(
+			extraLinks: ", { \"rel\": [\"add-links-help\"], \"href\": \"/help/add-links\" }"
+		))
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
 		await viewModel.refresh()
-		await viewModel.saveURL("https://example.com/x")
 
-		XCTAssertEqual(viewModel.messages.first?.type, "warning")
-		XCTAssertEqual(viewModel.messages.first?.content.type, "text/html")
-		XCTAssertTrue(
-			viewModel.messages.first?.content.body.contains("readplace+verification@readplace.com") ?? false,
-			"the refusal message names the address to email"
+		XCTAssertEqual(
+			viewModel.addLinksHelpURL?.absoluteString,
+			"\(AppConfig.serverBaseURL)/help/add-links"
 		)
 	}
 
-	func testSuccessfulRefreshClearsStaleRefusalBanner() async {
-		StubURLProtocol.setHandler(lockedAccountHandler())
+	func testAddLinksHelpURLIsNilWhenCollectionOmitsTheLink() async {
+		StubURLProtocol.setHandler(queueHandler())
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
 		await viewModel.refresh()
-		await viewModel.saveURL("https://example.com/x")
-		XCTAssertFalse(viewModel.messages.isEmpty, "precondition: a refused save shows the banner")
 
-		await viewModel.refresh()
-
-		XCTAssertTrue(
-			viewModel.messages.isEmpty,
-			"a locked account's reads still succeed, so a fresh load reconciles the stale banner"
-		)
-	}
-
-	func testSaveResetsMessagesSoASucceedingSaveClearsTheBanner() async {
-		var savePOSTs = 0
-		StubURLProtocol.setHandler { request, _ in
-			let path = request.url?.path ?? ""
-			let method = request.httpMethod ?? "GET"
-			switch (path, method) {
-			case ("/", _):
-				return .redirect(to: "/queue")
-			case ("/queue", "POST"):
-				savePOSTs += 1
-				return savePOSTs == 1
-					? .json(403, Fixtures.accountLockedError())
-					: .json(201, Fixtures.article(id: "saved"))
-			case ("/queue", _):
-				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
-			default:
-				return .json(404, "{}")
-			}
-		}
-		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
-
-		await viewModel.refresh()
-		await viewModel.saveURL("https://example.com/x")
-		XCTAssertFalse(viewModel.messages.isEmpty, "precondition: the first save is refused")
-
-		await viewModel.saveURL("https://example.com/y")
-
-		XCTAssertTrue(viewModel.messages.isEmpty, "saveURL resets messages before the next attempt")
+		XCTAssertNil(viewModel.addLinksHelpURL)
 	}
 
 	// MARK: - Mark as read
@@ -149,6 +111,27 @@ final class ReadingListViewModelTests: XCTestCase {
 			"a failed mark-read rolls the optimistic removal back"
 		)
 		XCTAssertNotNil(viewModel.errorText)
+	}
+
+	func testRefusedMarkAsReadSurfacesServerMessages() async {
+		StubURLProtocol.setHandler(markReadHandler { _ in
+			.json(403, Fixtures.accountLockedError())
+		})
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+		await viewModel.refresh()
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"])
+
+		await viewModel.markAsRead(viewModel.articles[0])
+
+		XCTAssertEqual(viewModel.messages.first?.type, "warning")
+		XCTAssertTrue(
+			viewModel.messages.first?.content.body.contains("readplace+verification@readplace.com") ?? false,
+			"the refusal message names the address to email"
+		)
+		XCTAssertEqual(
+			viewModel.articles.map(\.id), ["a1", "a2"],
+			"a refused mark-read restores the optimistically-removed row"
+		)
 	}
 
 	func testRemoveArticleDropsTheRowWithoutANetworkCall() async {

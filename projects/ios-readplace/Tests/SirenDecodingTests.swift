@@ -131,6 +131,18 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertNil(lastPage.prevHref)
 	}
 
+	func testAddLinksHelpLinkDecodes() throws {
+		let withHelp = Fixtures.collection(
+			entitiesJSON: [Fixtures.article()],
+			extraLinks: ", { \"rel\": [\"add-links-help\"], \"href\": \"/help/add-links\" }"
+		)
+		let page = QueuePage(collection: try decodeCollection(withHelp))
+		XCTAssertEqual(page.addLinksHelpHref, "/help/add-links")
+
+		let withoutHelp = Fixtures.collection(entitiesJSON: [Fixtures.article()])
+		XCTAssertNil(QueuePage(collection: try decodeCollection(withoutHelp)).addLinksHelpHref)
+	}
+
 	func testEmptyCollection() throws {
 		let json = """
 		{ "class": ["collection", "articles"], "properties": { "total": 0, "page": 1, "pageSize": 20 }, "links": [{ "rel": ["self"], "href": "/queue" }], "actions": [] }

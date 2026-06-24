@@ -29,6 +29,9 @@ struct QueuePage {
 	let selfHref: String?
 	let nextHref: String?
 	let prevHref: String?
+	/// Href of the server's "add links via Share" help page, advertised on the
+	/// collection so the iOS client discovers it rather than hardcoding the path.
+	let addLinksHelpHref: String?
 	let total: Int?
 	let saveArticleAction: SirenAction?
 	let saveHtmlAction: SirenAction?
@@ -39,6 +42,7 @@ struct QueuePage {
 		selfHref = collection.links?.first { $0.rel.contains("self") }?.href
 		nextHref = collection.links?.first { $0.rel.contains("next") }?.href
 		prevHref = collection.links?.first { $0.rel.contains("prev") }?.href
+		addLinksHelpHref = collection.links?.first { $0.rel.contains("add-links-help") }?.href
 		total = collection.properties?.total
 		saveArticleAction = collection.actions?.first { $0.name == "save-article" }
 		saveHtmlAction = collection.actions?.first { $0.name == "save-html" }

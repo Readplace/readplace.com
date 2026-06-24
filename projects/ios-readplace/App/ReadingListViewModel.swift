@@ -4,7 +4,6 @@ import Foundation
 final class ReadingListViewModel: ObservableObject {
 	@Published private(set) var articles: [Article] = []
 	@Published private(set) var isLoading = false
-	@Published private(set) var isSaving = false
 	@Published private(set) var hasMore = false
 	@Published var errorText: String?
 	@Published var warningText: String?
@@ -14,10 +13,12 @@ final class ReadingListViewModel: ObservableObject {
 	/// Set when a readable row is tapped; drives the reader sheet. The session
 	/// cookie is minted inside the sheet, so the sheet opens without waiting.
 	@Published var readerPresentation: ReaderPresentation?
+	/// The server's "add links via Share" help page, discovered from the queue's
+	/// Siren links. Drives the + sheet's webview; nil until the queue advertises it.
+	@Published private(set) var addLinksHelpURL: URL?
 
 	private var nextHref: String?
 	private var isLoadingMore = false
-	private var saveArticleAction: SirenAction?
 
 	private let api: ReadplaceAPI
 	private let onSessionExpired: () -> Void
@@ -41,7 +42,7 @@ final class ReadingListViewModel: ObservableObject {
 		errorText = nil
 		// A locked account's reads still succeed, so a fresh load reconciles a
 		// stale refusal banner (e.g. after verifying elsewhere): clear it here,
-		// then re-surface it only if the next save is refused again.
+		// then re-surface it only if a later write (e.g. mark-as-read) is refused.
 		messages = []
 		do {
 			let page = try await api.loadQueue()
@@ -107,21 +108,6 @@ final class ReadingListViewModel: ObservableObject {
 		}
 	}
 
-	func saveURL(_ rawURL: String) async {
-		let trimmed = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
-		guard !trimmed.isEmpty, let action = saveArticleAction else { return }
-		isSaving = true
-		errorText = nil
-		messages = []
-		do {
-			_ = try await api.saveArticle(action: action, url: trimmed)
-			await fetchFirstPage()
-		} catch {
-			handle(error)
-		}
-		isSaving = false
-	}
-
 	private func apply(_ page: QueuePage, replacing: Bool) {
 		if replacing {
 			articles = page.articles
@@ -131,7 +117,11 @@ final class ReadingListViewModel: ObservableObject {
 		}
 		nextHref = page.nextHref
 		hasMore = page.nextHref != nil
-		if let save = page.saveArticleAction { saveArticleAction = save }
+		// Mirror the conditional assignment of other discovered links: a later page
+		// that omits the help link must not clear a URL we already resolved.
+		if let href = page.addLinksHelpHref, let url = Href.resolve(href, baseURL: api.baseURL) {
+			addLinksHelpURL = url
+		}
 		warningText = page.warning?.message
 	}
 
