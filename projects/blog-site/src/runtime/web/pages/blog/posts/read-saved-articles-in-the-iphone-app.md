@@ -52,7 +52,7 @@ The reader has its own Mark as read control. Tapping it did the right thing on t
 
 The app knows what the web view is up to by watching it move from page to page. Mark as read is not a move. It is a small request that swaps one piece of the page in place and changes no address. To the part of the app watching for navigation, marking an article read looked like nothing at all happened. The reader updated itself and the app stayed blind to it.
 
-I closed that gap with a short script injected into the page. It listens for the swap the reader makes when you mark an article read, cancels it so the underlying list never flashes on screen, and posts a message back to the native code. The app catches the message, closes the reader, and drops the row. The gesture inside the web page reaches the app around it.
+I closed that gap with a short script injected into the page. It listens for the swap the reader makes when you mark an article read, cancels it so the underlying list does not flash on screen, and posts a message back to the native code. The app catches the message, closes the reader, and drops the row. The gesture inside the web page reaches the app around it.
 
 ## What the app does now
 
