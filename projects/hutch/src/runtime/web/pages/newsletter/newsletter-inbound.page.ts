@@ -15,7 +15,7 @@ import {
 import type { SaveableUrl, ValidateSaveableUrl } from "@packages/domain/article";
 import type { ResolveSaveAccess } from "../../mcp/save-access";
 import {
-	saveArticleFromUrl,
+	initSaveArticleFromUrl,
 	type SaveArticleFromUrlDependencies,
 } from "../../shared/save-article/save-article-from-url";
 import { verifyInboundSignature } from "./verify-inbound-signature";
@@ -141,7 +141,7 @@ export function initNewsletterInboundRoutes(deps: NewsletterInboundRouteDeps): R
 						batch.map((url) =>
 							deps
 								.refreshArticleIfStale({ url })
-								.then((freshness) => saveArticleFromUrl(deps, { userId, url, freshness }))
+								.then((freshness) => initSaveArticleFromUrl(deps)({ userId, url, freshness }))
 								.then(({ saved }): NewsletterMessageLink | undefined => ({
 									url,
 									articleId: saved.id,
