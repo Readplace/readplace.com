@@ -28,7 +28,7 @@ struct LoginView: View {
 					Button {
 						startLogin()
 					} label: {
-						Text("Login")
+						Label("Login", systemImage: "rectangle.portrait.and.arrow.right")
 							.font(.headline)
 							.frame(maxWidth: .infinity)
 							.padding(.vertical, 14)
@@ -38,11 +38,12 @@ struct LoginView: View {
 					Button {
 						startSignup()
 					} label: {
-						Text("Don't have an account? Sign up")
-							.font(.footnote)
+						Label("Sign up", systemImage: "person.badge.plus")
+							.font(.headline)
+							.frame(maxWidth: .infinity)
+							.padding(.vertical, 14)
 					}
-					.buttonStyle(.plain)
-					.foregroundStyle(.tint)
+					.buttonStyle(.bordered)
 				}
 
 				if let authErrorText {
