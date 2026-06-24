@@ -12,9 +12,11 @@ struct LoginView: View {
 				Spacer()
 
 				VStack(spacing: 10) {
-					Image(systemName: "books.vertical.fill")
-						.font(.system(size: 56))
-						.foregroundStyle(.tint)
+					Image("BrandMark")
+						.resizable()
+						.scaledToFit()
+						.frame(width: 72, height: 72)
+						.accessibilityHidden(true)
 					Text("Readplace")
 						.font(.largeTitle.bold())
 					Text("Your reading list")

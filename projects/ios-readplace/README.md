@@ -278,6 +278,11 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
   **platform/simulator runtime** installed (`xcodebuild -downloadPlatform iOS`),
   the same prerequisite as device archiving; on a partial Xcode with only the
   device SDK the build fails at `actool` until the platform is installed.
+- **Login brand mark.** The logged-out `LoginView` shows the same mark — the
+  serif ampersand and amber dot — above the title, as the `BrandMark` image set in
+  the asset catalog. It has light (navy ampersand) and dark (white ampersand)
+  variants so it stays legible on both login backgrounds, rendered from the brand
+  geometry by `scripts/make-brandmark.sh`.
 - **Builds from the repo's devbox shell.** `build-unsigned-ipa.sh` scrubs the
   nix toolchain env (`CC`/`CXX`/`LD`/`SDKROOT`/…) and points at the real Xcode,
   and builds the app target with `-target` (not `-scheme`) so it links against
