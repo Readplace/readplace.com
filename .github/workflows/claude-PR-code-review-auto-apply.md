@@ -28,7 +28,7 @@ When fixing review issues, apply these skills based on the files being changed:
 - **ai-agent-editor** (`.claude/skills/ai-agent-editor/SKILL.md`): When fixing issues in skills, `CLAUDE.md`, or other AI-agent documentation
 - **blog-post-editor** (`.claude/skills/blog-post-editor/SKILL.md`): When fixing issues in blog post markdown files
 - **crawl-pipeline-rca** (`.claude/skills/crawl-pipeline-rca/SKILL.md`): When fixing issues in the article crawl pipeline (command/event/handler chain over Lambda + EventBridge + SQS)
-- **extension-api-design** (`.claude/skills/extension-api-design/SKILL.md`): When fixing issues in the Siren contract between the browser extension and the server
+- **hypermedia-api-design** (`.claude/skills/hypermedia-api-design/SKILL.md`): When fixing issues in the Siren/MCP hypermedia contract between the hutch server and any client (chrome/firefox extensions, iOS app, MCP)
 - **infrastructure-design** (`.claude/skills/infrastructure-design/SKILL.md`): When fixing Pulumi infrastructure issues
 
 ## Git Push Instructions

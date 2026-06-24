@@ -85,7 +85,7 @@ When reviewing code, apply these skills based on the files being changed:
 - **ai-agent-editor** (`.claude/skills/ai-agent-editor/SKILL.md`): Review changes to skills, `CLAUDE.md`, or other AI-agent documentation — flag duplicated code, time-bound/plan-bound comments, and prose that should be a reference or table
 - **blog-post-editor** (`.claude/skills/blog-post-editor/SKILL.md`): Review changes to blog post markdown files for authoring conventions
 - **crawl-pipeline-rca** (`.claude/skills/crawl-pipeline-rca/SKILL.md`): Review changes to the command → event → handler chain in the article crawl pipeline — watch for missing terminal-state writes, divergent entry points, and timeout/visibility bumps used as a shortcut
-- **extension-api-design** (`.claude/skills/extension-api-design/SKILL.md`): Review changes to the Siren hypermedia contract between the browser extension and the server (action names, navigation flows, request/response shapes) — server owns the protocol, the extension reads it
+- **hypermedia-api-design** (`.claude/skills/hypermedia-api-design/SKILL.md`): Review changes to the Siren/MCP hypermedia contract between the hutch server and any client (chrome/firefox extensions, iOS app, MCP) — action names, navigation flows, request/response shapes; server owns the protocol, clients read it
 - **infrastructure-design** (`.claude/skills/infrastructure-design/SKILL.md`): Review Pulumi infrastructure changes — flag environment-name branching, hard-coded values that belong in per-stage YAML, and other infra-config drift
 
 ## Summary Guidelines

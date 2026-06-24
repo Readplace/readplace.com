@@ -1,15 +1,15 @@
 ---
-name: extension-api-design
-description: Hypermedia contract between browser-extension-core (client) and hutch (server). Use when adding, renaming, or removing API capabilities that the extension consumes, when the server emits or parses Siren responses, or when the extension's navigation/action flow changes.
+name: hypermedia-api-design
+description: Hypermedia contract between Readplace's hutch server and every client that consumes it — the chrome and firefox extensions, the iOS app, the MCP server, and future clients. Use when adding, renaming, or removing an API capability a client consumes, when the server emits or parses Siren responses, or when any client's navigation/action flow changes.
 ---
 
-# Extension ↔ Hutch API Design
+# Client ↔ Hutch Hypermedia API Design
 
-The extension talks to hutch over a Siren (`application/vnd.siren+json`) hypermedia API. The same URLs serve browsers (`text/html`) via content negotiation. The contract is **the message format plus a stable vocabulary of action names** — not a catalogue of URLs, methods, or request shapes.
+Clients talk to hutch over a Siren (`application/vnd.siren+json`) hypermedia API; the same URLs serve browsers (`text/html`) via content negotiation. This doctrine governs **every** client surface — the chrome and firefox extensions, the iOS app, the MCP server, and any future client — so a server-side view change never forces a client redeploy. The contract is **the message format plus a stable vocabulary of action names** — not a catalogue of URLs, methods, or request shapes.
 
 ## Core Principle: The Server Owns the Protocol
 
-The client knows exactly one URL: the entry point (`/`). From there, the server tells the client:
+A client knows exactly one URL: the entry point (`/`). From there, the server tells the client:
 - Where to navigate next (`links[rel=self]`)
 - What actions are possible (`actions[].name`, `.href`, `.method`, `.fields`)
 - How items relate (`entities[].rel`, entity-level actions/links)
@@ -20,12 +20,12 @@ The client's job is to interpret the Siren format and follow what the server say
 - Server schemas: [projects/hutch/src/runtime/web/api/siren.ts](../../../projects/hutch/src/runtime/web/api/siren.ts)
 - Collection emission: [projects/hutch/src/runtime/web/api/collection-siren.ts](../../../projects/hutch/src/runtime/web/api/collection-siren.ts)
 - Entity emission: [projects/hutch/src/runtime/web/api/article-siren.ts](../../../projects/hutch/src/runtime/web/api/article-siren.ts)
-- Client walker: [projects/browser-extension-core/src/reading-list/siren-reading-list.ts](../../../projects/browser-extension-core/src/reading-list/siren-reading-list.ts)
 - Content negotiation: [projects/hutch/src/runtime/web/content-negotiation.ts](../../../projects/hutch/src/runtime/web/content-negotiation.ts)
+- Client implementations: see [Per-Client Implementations](#per-client-implementations)
 
 ## Content Negotiation, Not Parallel APIs
 
-One URL per capability serves both the browser (HTML) and the extension (Siren) based on `Accept`. Do not add a `/api/*` tree or version prefix — that creates two independent evolutions of the same concept.
+One URL per capability serves both the browser (HTML) and a programmatic client (Siren) based on `Accept`. Do not add a `/api/*` tree or version prefix — that creates two independent evolutions of the same concept.
 
 - `GET /` with `Accept: application/vnd.siren+json` → `303 See Other` → `/queue` (the Siren entry point)
 - `GET /` with `Accept: text/html` → home page
@@ -33,7 +33,7 @@ One URL per capability serves both the browser (HTML) and the extension (Siren) 
 
 Why 303 over the entry point: the server decides where the collection lives; renaming `/queue` to something else is a server-internal change because the client only followed the redirect.
 
-## What the Extension Must Know vs Discover
+## What a Client Must Know vs Discover
 
 | Must know (client code) | Must discover (from server response) |
 |---|---|
@@ -77,29 +77,19 @@ When a breaking change is necessary, add the new capability alongside the old on
 
 ## State Lives in the Network
 
-HTTP caching (`ETag` + `If-None-Match`) is the authoritative cache layer. Do not build a parallel in-client cache of "what articles exist" as the source of truth. The client may keep a short-lived cache of *bound actions* (items the server returned with their `delete` action attached) as a performance optimisation, but the canonical state is always whatever the server returns next.
+HTTP caching (`ETag` + `If-None-Match`) is the authoritative cache layer. Do not build a parallel in-client cache of "what articles exist" as the source of truth. A client may keep a short-lived cache of *bound actions* (items the server returned with their `delete` action attached) as a performance optimisation, but the canonical state is always whatever the server returns next.
 
-- Cache wrapper: `httpCacheable(understanding)` in `siren-reading-list.ts`
+- Cache wrapper: `httpCacheable(understanding)` in the browser extension's `siren-reading-list.ts`
 - Short-lived action cache: `knownItems` in `initSirenReadingList` (cleared on every mutation)
 
 After a mutation, the server drives the client back to the collection via `303 See Other`. `fetch` follows the redirect automatically; the client parses the new collection and that becomes the new truth. Do not synthesise "the new list after delete" client-side — read it from the response.
 
-## The Client Walker Pattern
-
-The client separates three concerns:
-
-1. **Understandings** (`init*Understanding` functions) — one handler per action name the client knows how to invoke. Each handler receives the Siren action descriptor and a context, returns a bound callable.
-2. **Composition** — `groupOf(...)` merges multiple understandings; `httpCacheable(...)` wraps them with ETag caching.
-3. **Walker** — `initExtension(handlers, deps)` returns a no-arg function that fetches the entry point, resolves the `self` link, and parses collections into `{items, actions}` where every item has its own action map.
-
-For the full flow see the JSDoc-free source — it is the spec. The adapter `initSirenReadingList` exists only to bridge this walker to the legacy `SaveUrl`/`RemoveUrl`/`FindByUrl`/`GetAllItems` interface that the popup consumes. New consumers should call the walker directly.
-
 ## Form Fields Are Declared, Not Assumed
 
-The server declares what an action needs via `action.fields`. The client's understanding for a given action asserts the fields it expects and builds the request body from them. When adding a new required input to an action:
+The server declares what an action needs via `action.fields`. A client's handler for a given action asserts the fields it expects and builds the request body from them. When adding a new required input to an action:
 
 1. Server: add a new entry to `fields` and validate it in the route handler.
-2. Client: update the understanding to assert/pass the new field. Old clients will fail loudly (the field is required server-side), which is correct — a client that can't provide required inputs should not silently succeed.
+2. Client: update the handler to assert/pass the new field. Old clients will fail loudly (the field is required server-side), which is correct — a client that can't provide required inputs should not silently succeed.
 
 When adding an optional input, only the server changes; old clients keep working.
 
@@ -135,13 +125,13 @@ The client-side render decisions (per-`type` variant class, the `role` politenes
 | Collection-level | `entity.actions` on the collection | `save-article`, `search` |
 | Entity-level | `entities[].actions` | `delete` |
 
-The client's walker binds both: `result.actions["save-article"]` (collection) and `result.items[i].actions.delete` (entity). Put an action at the level where it makes sense — "delete this article" belongs on the article entity, not the collection.
+A client binds both levels: collection-level actions (e.g. `save-article`, `search`) and the per-entity actions on each item (e.g. `delete`). Put an action at the level where it makes sense — "delete this article" belongs on the article entity, not the collection.
 
 ## Anti-Patterns
 
 | Avoid | Why |
 |---|---|
-| Hard-coding URLs in the extension (e.g. `\`${serverUrl}/queue/${id}/delete\``) | Makes URL changes a coordinated deploy |
+| Hard-coding URLs in a client (e.g. `\`${serverUrl}/queue/${id}/delete\``) | Makes URL changes a coordinated deploy |
 | A `/api/v1/...` route tree parallel to the HTML pages | Two things to keep in sync; versioning creep |
 | Returning JSON with a bespoke shape (`{items: [...], nextPage: ...}`) | Forces every client to re-implement Siren badly |
 | Client-owned pagination URLs (`?page=${current+1}`) | Server can't change pagination without breaking clients; follow the `next` link instead |
@@ -151,12 +141,26 @@ The client's walker binds both: `result.actions["save-article"]` (collection) an
 | Exporting an `/api` SDK that knows resource URLs | Becomes another versioned surface; expose only the walker and the entry point |
 | Interpolating unescaped user data into a `messages[].content.body` | The client injects it via `innerHTML`; unescaped server output is markup injection (see "Server-Driven Messages Are Trusted HTML") |
 
-## Checklist — Adding a New Capability to the Extension API
+## Per-Client Implementations
+
+Every client interprets the same Siren contract above; only the mechanics differ. The contract is shared; the notes below are client-specific.
+
+### Browser extension (the walker pattern)
+
+The browser-extension client separates three concerns:
+
+1. **Understandings** (`init*Understanding` functions) — one handler per action name the client knows how to invoke. Each handler receives the Siren action descriptor and a context, returns a bound callable.
+2. **Composition** — `groupOf(...)` merges multiple understandings; `httpCacheable(...)` wraps them with ETag caching.
+3. **Walker** — `initExtension(handlers, deps)` returns a no-arg function that fetches the entry point, resolves the `self` link, and parses collections into `{items, actions}` where every item has its own action map.
+
+For the full flow see the source — it is the spec: [projects/browser-extension-core/src/reading-list/siren-reading-list.ts](../../../projects/browser-extension-core/src/reading-list/siren-reading-list.ts). The adapter `initSirenReadingList` exists only to bridge this walker to the legacy `SaveUrl`/`RemoveUrl`/`FindByUrl`/`GetAllItems` interface that the popup consumes. New consumers should call the walker directly.
+
+When adding a capability the extension supports: add an `init*Understanding` keyed by the action name, compose it via `groupOf(...)`, wrap with `httpCacheable(...)` for cacheable GETs, and drive the walker directly rather than adding a method to `initSirenReadingList`.
+
+## Checklist — Adding a New Capability to the API
 
 1. **Name the action as a capability**, not a domain fact. Check the Evolvability table before picking a name.
 2. **Emit the action on the server** in `collection-siren.ts` (collection-level) or `article-siren.ts` (entity-level). Declare its `fields` with Siren field types.
 3. **Implement the route handler** behind `wantsSiren(req)`; return `303` for mutations that should land the client back on a collection.
-4. **Add an understanding on the client** — one `init*Understanding` map keyed by the action name.
-5. **Compose it** into the handler set via `groupOf(...)`; wrap with `httpCacheable(...)` if it's a GET that benefits from ETag validation.
-6. **Do not** add a method to `initSirenReadingList` unless the popup's legacy interface needs it. New code should drive the walker directly.
-7. **Test server and client independently** — server integration tests in `api.routes.test.ts`, client walker tests in `siren-reading-list.test.ts`. The contract surface (action name + fields + method + response class) is what both tests pin down.
+4. **Add a handler for the action name on each client** that should expose the capability — see [Per-Client Implementations](#per-client-implementations).
+5. **Test server and client independently** — server integration tests, plus each client's own tests. The contract surface (action name + fields + method + response class) is what both sides pin down.
