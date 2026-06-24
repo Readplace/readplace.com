@@ -146,7 +146,7 @@ describe("MCP server over the real app", () => {
 		expect(response.body.result.isError).toBe(true);
 	});
 
-	it("refuses save_link with a tool error when the caller's subscription is inactive", async () => {
+	it("refuses save_link but keeps the read tools open when the caller's subscription is inactive", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const accessToken = await obtainAccessToken(harness);
 		const user = await harness.auth.findUserByEmail("mcp@example.com");
@@ -156,15 +156,21 @@ describe("MCP server over the real app", () => {
 			trialEndsAt: new Date(Date.now() - 86_400_000).toISOString(),
 		});
 
-		const response = await callTool(harness, accessToken, {
+		const save = await callTool(harness, accessToken, {
 			jsonrpc: "2.0",
 			id: 4,
 			method: "tools/call",
 			params: { name: "save_link", arguments: { url: "https://example.com/blocked" } },
 		});
-		expect(response.status).toBe(200);
-		expect(response.body.result.isError).toBe(true);
-		expect(response.body.result.content[0].text).toContain("subscription");
+		expect(save.status).toBe(200);
+		expect(save.body.result.isError).toBe(true);
+		expect(save.body.result.content[0].text).toContain("subscription");
+
+		// The Terms keep view and export open for a lapsed account: list_queue runs.
+		const list = await callTool(harness, accessToken, tool("list_queue"));
+		expect(list.status).toBe(200);
+		expect(list.body.result.isError).toBeUndefined();
+		expect(list.body.result.structuredContent.total).toBe(0);
 	});
 
 	it("advertises the read tools and the app-only write tools", async () => {

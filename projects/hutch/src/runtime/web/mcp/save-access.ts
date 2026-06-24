@@ -13,9 +13,9 @@ import { computeVerificationStatus } from "../../domain/access/verification-dead
  * locked, so this gates only `save_link`.
  *
  * The subscription paywall (`requireWriteAccess`) is NOT re-decided here: the
- * server-wide tool-access gate refuses every MCP tool for a read-only
- * subscription before `save_link` ever runs, so the single subscription
- * decision lives there. This resolver owns only the lockout.
+ * tool-access gate refuses a new save for a read-only subscription before
+ * `save_link` ever runs, so the single subscription decision lives there. This
+ * resolver owns only the lockout.
  */
 type SaveAccess =
 	| { readonly allowed: true }

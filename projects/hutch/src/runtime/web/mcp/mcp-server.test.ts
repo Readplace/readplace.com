@@ -684,21 +684,40 @@ describe("initMcpServer", () => {
 	describe("subscription gating", () => {
 		const UPSELL =
 			"Your subscription isn't active. Reactivate at https://readplace.com/account.";
+		const inactive: McpServerDeps["resolveToolAccess"] = async () => ({
+			state: "inactive",
+			message: UPSELL,
+		});
 
-		it("refuses every tool with the renewal upsell when the subscription is inactive", async () => {
+		it("refuses save_link with the renewal upsell when inactive, before the save runs", async () => {
 			const saveLink = jest.fn(async () => ({
 				ok: true as const,
 				title: "x",
 				url: "https://e.test/",
 			}));
 			const server = initMcpServer(
-				fakeDeps({
-					saveLink,
-					resolveToolAccess: async () => ({ state: "inactive", message: UPSELL }),
-				}),
+				fakeDeps({ saveLink, resolveToolAccess: inactive }),
+			);
+			const response = await call(server, 70, "save_link", { url: "https://e.test/" });
+			expect(response).toMatchObject({
+				id: 70,
+				result: { isError: true, content: [{ type: "text", text: UPSELL }] },
+			});
+			// The gate refuses before the save pipeline runs.
+			expect(saveLink).not.toHaveBeenCalled();
+		});
+
+		it("leaves the read and app-only tools open when inactive (the Terms keep view and export available)", async () => {
+			const listQueue = jest.fn(async () => ({
+				total: 1,
+				page: 1,
+				pageSize: 20,
+				articles: [mcpArticle({ title: "Still readable" })],
+			}));
+			const server = initMcpServer(
+				fakeDeps({ resolveToolAccess: inactive, listQueue }),
 			);
 			for (const tool of [
-				"save_link",
 				"list_queue",
 				"get_article",
 				"get_article_content",
@@ -707,14 +726,35 @@ describe("initMcpServer", () => {
 				"mark_as_unread",
 				"delete_article",
 			]) {
-				const response = await call(server, 70, tool, {});
-				expect(response).toMatchObject({
-					id: 70,
-					result: { isError: true, content: [{ type: "text", text: UPSELL }] },
-				});
+				const response = await call(server, 71, tool, { id: "x".repeat(32) });
+				// Each tool returns its own result, never the renewal upsell error.
+				expect(response).not.toMatchObject({ result: { isError: true } });
+				expect(response).not.toMatchObject({ result: { content: [{ text: UPSELL }] } });
 			}
-			// The gate refuses before any tool runs — the save pipeline is untouched.
-			expect(saveLink).not.toHaveBeenCalled();
+			expect(listQueue).toHaveBeenCalled();
+		});
+
+		it("fails open to full access when the subscription store read throws, so a blip never blocks a save", async () => {
+			const saveLink = jest.fn(async () => ({
+				ok: true as const,
+				title: "Saved",
+				url: "https://e.test/a",
+			}));
+			const server = initMcpServer(
+				fakeDeps({
+					saveLink,
+					resolveToolAccess: async () => {
+						throw new Error("subscription store unavailable");
+					},
+				}),
+			);
+			const response = await call(server, 72, "save_link", { url: "https://e.test/a" });
+			expect(saveLink).toHaveBeenCalled();
+			expect(response).toMatchObject({
+				id: 72,
+				result: { content: [{ text: expect.stringContaining("Saved") }] },
+			});
+			expect(response).not.toMatchObject({ result: { isError: true } });
 		});
 	});
 

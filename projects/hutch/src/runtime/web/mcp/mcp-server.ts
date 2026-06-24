@@ -27,6 +27,12 @@ import {
  * here, not over MCP — the redirect tools point the user at this URL. */
 const APP_QUEUE_URL = "https://readplace.com/queue";
 
+/** The tools a read-only (lapsed) subscription pauses. The Terms keep view and
+ * export open for a lapsed account and scope the pause to "new saves", so only
+ * save_link — the one tool that writes — is gated; the read tools and the
+ * app-only redirects (which never mutate) stay open. */
+const PAYWALLED_TOOLS: ReadonlySet<string> = new Set([SAVE_LINK_TOOL.name]);
+
 type SaveLinkResult =
 	| { readonly ok: true; readonly title: string; readonly url: string }
 	| { readonly ok: false; readonly message: string };
@@ -96,10 +102,11 @@ export interface McpServerDeps {
 		userId: AuthenticatedUserId;
 		id: string;
 	}) => Promise<ArticleSummaryResult>;
-	/** The subscription gate for the whole tool surface, resolved once per
-	 * `tools/call`: it decides whether to refuse every tool with a renewal
-	 * upsell (inactive) or to append a trial-ending nudge to a successful
-	 * result. Reads the same effective access the web banner does. */
+	/** The subscription gate for the tool surface, resolved once per
+	 * `tools/call`: it decides whether to refuse a new save (save_link) with a
+	 * renewal upsell (inactive) or to append a trial-ending nudge to a successful
+	 * result. The read tools stay open for a lapsed account. Reads the same
+	 * effective access the web banner does. */
 	resolveToolAccess: (userId: AuthenticatedUserId) => Promise<ToolAccess>;
 }
 
@@ -532,10 +539,22 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 			return failure(id, -32602, "Invalid params: expected { name, arguments }");
 		}
 
-		// A read-only (lapsed) subscription gates every tool uniformly: the
-		// renewal upsell is returned as a tool error before any tool runs.
-		const access = await deps.resolveToolAccess(context.userId);
-		if (access.state === "inactive") {
+		// The subscription store read is the gate's only IO. A transient failure
+		// must neither escape handle() (the transport awaits it bare, so a throw
+		// would hang the request) nor block reads, so a store blip fails open to
+		// full access rather than refusing a paying user or a lapsed reader.
+		let access: ToolAccess;
+		try {
+			access = await deps.resolveToolAccess(context.userId);
+		} catch {
+			access = { state: "ok" };
+		}
+
+		// A read-only (lapsed) subscription pauses only a new save: save_link is
+		// refused with the renewal upsell before it runs, while every read tool
+		// (and the app-only redirects, which never mutate) stays open — matching
+		// the Terms' promise that a lapsed account can still view and export.
+		if (access.state === "inactive" && PAYWALLED_TOOLS.has(parsed.data.name)) {
 			return success(id, toolError(access.message));
 		}
 

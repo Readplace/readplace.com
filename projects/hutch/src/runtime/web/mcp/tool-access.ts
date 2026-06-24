@@ -18,19 +18,20 @@ import type { GetEffectiveAccess } from "../../domain/access/effective-access";
  * resolver the web banner reads) and the trial-countdown escalation buckets, so
  * "lapsed" and "trial nearly over" mean exactly what they mean on the web. The
  * caller (`mcp-server`) owns the envelope: it returns `message` as a tool error
- * for every tool when inactive, and appends `nudge` as a second text block to a
- * successful result when the trial is ending.
+ * when an inactive caller tries to save (the read tools stay open), and appends
+ * `nudge` as a second text block to a successful result when the trial is ending.
  */
 
 /** The account page where a renewal is completed. Hard-coded prod URL, mirroring
  * `APP_QUEUE_URL` in mcp-server.ts; co-located with the copy that embeds it. */
 const APP_ACCOUNT_URL = "https://readplace.com/account";
 
-/** Shown for every tool when the subscription is read-only. The voice mirrors
- * the checkout-recovery email — a coffee a month, no investor money, each
+/** Shown when a read-only subscription tries to save a new link; the read tools
+ * stay open, so the copy pauses only saving. The voice mirrors the
+ * checkout-recovery email — a coffee a month, no investor money, each
  * subscription keeps Readplace running another year. */
 const INACTIVE_UPSELL =
-	"Your Readplace subscription isn't active, so saving, reading, and summaries are paused here. " +
+	"Your Readplace subscription isn't active, so saving new links is paused — you can still read and export everything already in your queue. " +
 	`Readplace is ${ANNUAL_PRICE_DISPLAY}/year — about a coffee a month — and it's what pays for the AI summary on every link you save. ` +
 	"There's no investor money behind it; each subscription keeps Readplace running another year. " +
 	`Reactivate in a minute at ${APP_ACCOUNT_URL} — your queue is right where you left it.`;

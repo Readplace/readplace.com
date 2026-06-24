@@ -323,10 +323,11 @@ export function createApp(dependencies: AppDependencies): Express {
 		now: deps.now,
 	});
 	/** The subscription paywall on the MCP surface: a read-only (lapsed)
-	 * subscription gets every tool refused with a renewal upsell, and a trial in
-	 * its final week gets a convert-to-annual nudge on successful results. Reads
-	 * the same effective access the web banner does, so "lapsed" means the same
-	 * thing to an agent as it does in the browser. */
+	 * subscription has a new save (save_link) refused with a renewal upsell while
+	 * the read tools stay open, and a trial in its final week gets a
+	 * convert-to-annual nudge on successful results. Reads the same effective
+	 * access the web banner does, so "lapsed" means the same thing to an agent as
+	 * it does in the browser. */
 	const resolveToolAccess = initResolveToolAccess({
 		getEffectiveAccess,
 		now: deps.now,
