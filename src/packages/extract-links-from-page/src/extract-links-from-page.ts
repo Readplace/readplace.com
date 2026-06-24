@@ -51,10 +51,9 @@ function resolveHref(href: string | null, base: URL): string | undefined {
 const GET_DOMAIN_OPTIONS = { allowPrivateDomains: true };
 
 /** Same site means the same registrable (eTLD+1) domain, not just the same
- * host, so a subdomain page also drops its parent and sibling subdomains. The
- * Public Suffix List keeps the boundary correct under multi-part suffixes
- * (bbc.co.uk stays distinct from theguardian.co.uk). IP literals have no
- * registrable domain, so they fall back to exact-host matching. */
+ * host, so a subdomain page also drops its parent and sibling subdomains. IP
+ * literals have no registrable domain, so they fall back to exact-host
+ * matching. */
 function isSameSite(linkHost: string, page: { host: string; domain: string | null }): boolean {
 	if (page.domain === null) return linkHost === page.host;
 	return getDomain(linkHost, GET_DOMAIN_OPTIONS) === page.domain;
