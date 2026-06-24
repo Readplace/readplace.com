@@ -12,7 +12,7 @@ import {
   createFakePublishSaveAnonymousLink,
   createFakeSummaryProvider,
 } from '@packages/test-fixtures'
-import { getEnv, requireEnv } from '../runtime/domain/require-env'
+import { getEnv, requireEnv } from "@packages/require-env"
 import { initRefreshArticleIfStale } from '@packages/test-fixtures/providers/article-freshness'
 import type { ExtractPdf, IsBlockedAddress } from '@packages/crawl-article'
 import { CRAWL_PERSONAS, initCrawlArticle, initCrawlFetch } from '@packages/crawl-article'

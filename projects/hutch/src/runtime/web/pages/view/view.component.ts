@@ -9,7 +9,7 @@ import type { ArticleCrawl } from "@packages/provider-contracts/article-crawl";
 import { decomposeTimeLeft, formatCounter } from "@packages/time-left";
 import { pickExcerpt, truncateForSeo } from "../../../providers/article-summary/article-summary.helpers";
 import type { GeneratedSummary } from "@packages/provider-contracts/article-summary";
-import { requireEnv } from "../../../domain/require-env";
+import { requireEnv } from "@packages/require-env";
 import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 

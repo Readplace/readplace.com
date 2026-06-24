@@ -34,7 +34,7 @@ import {
 	RecrawlContentExtractedEvent,
 	RefreshContentExtractedEvent,
 } from "@packages/hutch-infra-components";
-import { requireEnv } from "../require-env";
+import { requireEnv } from "@packages/require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
 import { SELECT_CONTENT_TIMEOUTS } from "../runtime/domain/select-content/timeouts";
 import { OCR_LLM_CLEANUP_TIMEOUTS } from "../runtime/domain/pdf-page-llm-cleanup/timeouts";

@@ -5,7 +5,7 @@ import { initResendEmail } from "../providers/email/resend-email";
 import { initStripeCheckout } from "../providers/stripe-checkout/stripe-checkout";
 import { CheckoutRecoveryEmail } from "../web/auth/checkout-recovery-email";
 import { buildSignupResumeUrl } from "../web/auth/signup-resume-url";
-import { requireEnv } from "../domain/require-env";
+import { requireEnv } from "@packages/require-env";
 import { selectRecipients } from "../domain/checkout-recovery/select-recipients";
 
 const logger = HutchLogger.from(consoleLogger);

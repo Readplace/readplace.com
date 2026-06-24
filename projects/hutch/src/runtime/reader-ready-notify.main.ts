@@ -10,7 +10,7 @@ import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initDynamoDbReaderReadyState } from "./providers/reader-ready-state/dynamodb-reader-ready-state";
 import { initResendEmail } from "./providers/email/resend-email";
 import { initReaderReadyNotifyHandler } from "./reader-ready-notify/reader-ready-notify-handler";
-import { requireEnv } from "./domain/require-env";
+import { requireEnv } from "@packages/require-env";
 
 /** Hard cap: at most one reader-ready email per user per 6 hours, claimed
  * atomically on the per-user reader-ready-notifications row. Extras are dropped

@@ -1,6 +1,6 @@
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 import { createBlogApp, PORT } from "./app";
-import { getEnv, requireEnv } from "./require-env";
+import { getEnv, requireEnv } from "@packages/require-env";
 
 const logger = HutchLogger.from(consoleLogger);
 

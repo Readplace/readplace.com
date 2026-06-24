@@ -9,7 +9,7 @@ import { initEventBridgeSubscriptionCancellationScheduled } from "./providers/ev
 import { initEventBridgeSubscriptionCancelled } from "./providers/events/eventbridge-subscription-cancelled";
 import { initAwsTrialScheduler } from "./providers/trial-scheduler/aws-trial-scheduler";
 import { initCancelSubscriptionHandler } from "./cancel-subscription/cancel-subscription-handler";
-import { requireEnv } from "./domain/require-env";
+import { requireEnv } from "@packages/require-env";
 
 const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
 const stripeApiKey = requireEnv("STRIPE_SECRET_KEY");

@@ -4,7 +4,7 @@ import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
 import OpenAI from "openai";
-import { requireEnv } from "../require-env";
+import { requireEnv } from "@packages/require-env";
 import { initRecrawlContentExtractedHandler } from "./domain/select-content/recrawl-content-extracted-handler";
 import { SELECT_CONTENT_TIMEOUTS } from "./domain/select-content/timeouts";
 import { initEventsDepBundle } from "./dep-bundles/events";

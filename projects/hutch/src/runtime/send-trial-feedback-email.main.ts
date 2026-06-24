@@ -6,7 +6,7 @@ import { initDynamoDbAuth } from "./providers/auth/dynamodb-auth";
 import { initDynamoDbSubscriptionProviders } from "./providers/subscription-providers/dynamodb-subscription-providers";
 import { initResendEmail } from "./providers/email/resend-email";
 import { initSendTrialFeedbackEmailHandler } from "./send-trial-feedback-email/send-trial-feedback-email-handler";
-import { requireEnv } from "./domain/require-env";
+import { requireEnv } from "@packages/require-env";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");
 const userArticlesTable = requireEnv("DYNAMODB_USER_ARTICLES_TABLE");

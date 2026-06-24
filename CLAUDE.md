@@ -67,7 +67,7 @@ E2E tests have ~11s startup overhead per test (browser, server, navigation). Int
 
 ### Environment Variable Access
 
-Use `requireEnv` and `getEnv` from [projects/hutch/src/require-env.ts](projects/hutch/src/require-env.ts). Never use `process.env` directly.
+Use `requireEnv` and `getEnv` from [`@packages/require-env`](src/packages/require-env/src/index.ts). Never use `process.env` directly.
 
 ```typescript
 // BAD - Direct process.env access
@@ -82,7 +82,7 @@ const proxyUrl = getEnv('HTTPS_PROXY');
 
 **Never default missing environment variables.** Always use `requireEnv` and let the process fail if a variable is not set. Do not use `getEnv` with a fallback (e.g., `getEnv("KEY") ?? ""`) to work around CI environments missing secrets. Instead, ensure the CI environment provides the variable. Silent defaults complicate debugging and create behaviour that takes longer to diagnose.
 
-**Exception:** Playwright config files (`playwright.config.*.ts`) must use `process.env` directly. Importing `getEnv`/`requireEnv` causes the playwright process to load `require-env.ts` outside V8 coverage instrumentation, creating uncovered function entries that break the 100% function coverage threshold.
+**Exception:** Playwright config files (`playwright.config.*.ts`) must use `process.env` directly. Importing `getEnv`/`requireEnv` causes the playwright process to load `@packages/require-env` outside V8 coverage instrumentation, creating uncovered function entries that break the 100% function coverage threshold.
 
 ### Logging
 

@@ -1,5 +1,5 @@
 import { initBase } from "@packages/web-shell";
-import { getEnv, requireEnv } from "../domain/require-env";
+import { getEnv, requireEnv } from "@packages/require-env";
 
 /** Loaded on every page so an in-browser AI agent discovers Readplace's
  * WebMCP tools (save_link) on load, regardless of which page it landed on. */

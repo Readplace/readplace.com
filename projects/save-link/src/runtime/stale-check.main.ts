@@ -23,7 +23,7 @@ import { initEmitSimpleCrawlUnsupported, initEventsDepBundle } from "./dep-bundl
 import { initEventBridgeRefreshArticleContent, initPutRefreshHtml } from "@packages/refresh-article-content";
 import { initFindArticleCrawlStatus } from "./providers/article-crawl/find-article-crawl-status";
 import { initFindArticleFreshness } from "./providers/article-crawl/find-article-freshness";
-import { requireEnv } from "../require-env";
+import { requireEnv } from "@packages/require-env";
 
 // 24h: mirrors hutch app.ts's staleTtlMs. Reads of an article older than this
 // trigger a conditional GET against the source (304 → noop, 200 → re-extract).

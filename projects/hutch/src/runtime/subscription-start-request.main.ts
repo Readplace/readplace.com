@@ -7,7 +7,7 @@ import { initStripeSubscriptions } from "./providers/stripe-subscriptions/stripe
 import { initEventBridgeSubscriptionChargeSucceeded } from "./providers/events/eventbridge-subscription-charge-succeeded";
 import { initEventBridgeSubscriptionChargeFailed } from "./providers/events/eventbridge-subscription-charge-failed";
 import { initSubscriptionStartRequestHandler } from "./subscription-start-request/subscription-start-request-handler";
-import { requireEnv } from "./domain/require-env";
+import { requireEnv } from "@packages/require-env";
 
 const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
 const stripeApiKey = requireEnv("STRIPE_SECRET_KEY");

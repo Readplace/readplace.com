@@ -2,7 +2,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { spawn } from "node:child_process";
 import { consoleLogger } from "@packages/hutch-logger";
 import { renderPdfPageToPng } from "@packages/crawl-article";
-import { requireEnv } from "../require-env";
+import { requireEnv } from "@packages/require-env";
 import { initPdfPageOcrHandler } from "./domain/pdf-page-ocr/pdf-page-ocr-handler";
 import { initDownloadStagedPdf } from "./providers/pdf-page-ocr/init-download-staged-pdf";
 import { initLastPdfCache } from "./providers/pdf-page-ocr/init-last-pdf-cache";

@@ -12,7 +12,7 @@ import {
 	type StripeEventHandler,
 	initStripeWebhookReceiverHandler,
 } from "./stripe-webhook-receiver/stripe-webhook-receiver-handler";
-import { requireEnv } from "./domain/require-env";
+import { requireEnv } from "@packages/require-env";
 
 const webhookSecret = requireEnv("STRIPE_WEBHOOK_SECRET");
 const eventBusName = requireEnv("EVENT_BUS_NAME");

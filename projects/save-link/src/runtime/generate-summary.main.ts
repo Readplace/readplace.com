@@ -19,7 +19,7 @@ import { initLinkSummariser } from "./domain/generate-summary/link-summariser";
 import { MAX_SUMMARY_LENGTH } from "@packages/provider-contracts/article-summary";
 import { stripHtml } from "./domain/generate-summary/strip-html";
 import { GENERATE_SUMMARY_TIMEOUTS } from "./domain/generate-summary/timeouts";
-import { requireEnv } from "../require-env";
+import { requireEnv } from "@packages/require-env";
 import { initFindArticleContent } from "./providers/article-store/find-article-content";
 
 const articlesTable = requireEnv("DYNAMODB_ARTICLES_TABLE");

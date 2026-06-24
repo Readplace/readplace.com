@@ -25,16 +25,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { type ReaderStatus, ReaderStatusSchema } from "@packages/article-state-types";
+import { requireEnv } from "@packages/require-env";
 import { HEALTH_SOURCES } from "./health-sources";
 
-function requireEnv(name: string): string {
-	const value = process.env[name];
-	assert(value, `${name} env var is required`);
-	return value;
-}
-
 const ORIGIN = requireEnv("READPLACE_ORIGIN");
+assert(ORIGIN, "READPLACE_ORIGIN env var must not be empty");
 const SERVICE_TOKEN = requireEnv("RECRAWL_SERVICE_TOKEN");
+assert(SERVICE_TOKEN, "RECRAWL_SERVICE_TOKEN env var must not be empty");
 
 // 3s poll interval × 800 polls = 2400s (40 min) budget per source. A
 // successful Lambda cold start + crawl + parse + write still lands in a

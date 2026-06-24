@@ -3,7 +3,7 @@ import { SQSClient } from "@aws-sdk/client-sqs";
 import { consoleLogger } from "@packages/hutch-logger";
 import { EventBridgeClient } from "@packages/hutch-infra-components/runtime";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
-import { requireEnv } from "../require-env";
+import { requireEnv } from "@packages/require-env";
 import { initSaveLinkCommandHandler } from "./domain/save-link/save-link-command-handler";
 import { initObservabilityDepBundle } from "./dep-bundles/observability";
 import { initParserDepBundle } from "./dep-bundles/parser";

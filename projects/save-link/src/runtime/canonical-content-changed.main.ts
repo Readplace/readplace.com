@@ -11,7 +11,7 @@ import {
 } from "@packages/hutch-infra-components/runtime";
 import { initDynamoDbArticleStore } from "@packages/article-store";
 import { initLambdaEffectDispatcher } from "./domain/article-aggregate/lambda-effect-dispatcher";
-import { requireEnv } from "../require-env";
+import { requireEnv } from "@packages/require-env";
 import { initFindArticleContent } from "./providers/article-store/find-article-content";
 import { initCanonicalContentChangedHandler } from "./domain/save-link/canonical-content-changed-handler";
 

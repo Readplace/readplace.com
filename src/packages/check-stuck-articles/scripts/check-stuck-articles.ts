@@ -21,6 +21,7 @@ import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
 import { test } from "node:test";
 import { createDynamoDocumentClient } from "@packages/hutch-storage-client";
+import { getEnv, requireEnv } from "@packages/require-env";
 import { filterReachable } from "./check-reachable";
 import {
 	CRAWL_MIN_AGE_MS,
@@ -28,16 +29,6 @@ import {
 	type StuckRow,
 	collectStuckRows,
 } from "./collect-stuck-rows";
-
-function requireEnv(name: string): string {
-	const value = getEnv(name);
-	assert(value, `${name} env var is required`);
-	return value;
-}
-
-function getEnv(name: string): string | undefined {
-	return process.env[name];
-}
 
 /**
  * Reachability ping budget per stuck row. Matches the production crawler's
@@ -68,8 +59,11 @@ async function writeReportIfRequested(stuck: StuckRow[]): Promise<void> {
 
 test("Stuck articles canary", async (t) => {
 	const region = requireEnv("AWS_REGION");
+	assert(region, "AWS_REGION env var must not be empty");
 	const tableName = requireEnv("DYNAMODB_ARTICLES_TABLE");
+	assert(tableName, "DYNAMODB_ARTICLES_TABLE env var must not be empty");
 	const origin = requireEnv("READPLACE_ORIGIN");
+	assert(origin, "READPLACE_ORIGIN env var must not be empty");
 	const client = createDynamoDocumentClient({ region });
 	process.stderr.write(
 		`[info] min-age gate: crawl-pending ≥ ${CRAWL_MIN_AGE_MS / 60_000}min, summary-pending ≥ ${SUMMARY_MIN_AGE_MS / 60_000}min\n`,

@@ -6,7 +6,7 @@ import {
 	GenerateSummaryCommand,
 } from "@packages/hutch-infra-components";
 import { initSqsCommandDispatcher } from "@packages/hutch-infra-components/runtime";
-import { requireEnv } from "../require-env";
+import { requireEnv } from "@packages/require-env";
 import { initFindArticleContent } from "./providers/article-store/find-article-content";
 import { initAnonymousLinkSavedHandler } from "./domain/save-link/anonymous-link-saved-handler";
 

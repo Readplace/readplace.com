@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { UserIdPrefix } from "@packages/domain/user";
-import { requireEnv } from "../../../domain/require-env";
+import { requireEnv } from "@packages/require-env";
 import { render } from "@packages/web-shell";
 import { COPY_ICON_SVG } from "./copy-icon";
 import { SHARE_ICON_SVG } from "./share-icon";

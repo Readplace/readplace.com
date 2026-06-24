@@ -25,7 +25,7 @@ import { DomainRedirect } from "./domain-redirect";
 import { AgentDiscoveryDns } from "./agent-discovery-dns";
 import { HutchStorage } from "./hutch-storage";
 import { HutchStaticAssets } from "./hutch-static-assets";
-import { requireEnv } from "../runtime/domain/require-env";
+import { requireEnv } from "@packages/require-env";
 
 const config = new pulumi.Config();
 const stage = config.require("stage");

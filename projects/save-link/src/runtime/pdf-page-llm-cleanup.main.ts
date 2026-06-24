@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import { initCleanupPageWithDeepseek } from "./domain/pdf-page-llm-cleanup/init-cleanup-page-with-deepseek";
 import { initPdfPageLlmCleanupHandler } from "./domain/pdf-page-llm-cleanup/pdf-page-llm-cleanup-handler";
 import { OCR_LLM_CLEANUP_TIMEOUTS } from "./domain/pdf-page-llm-cleanup/timeouts";
-import { requireEnv } from "../require-env";
+import { requireEnv } from "@packages/require-env";
 
 const deepseekApiKey = requireEnv("DEEPSEEK_API_KEY");
 
