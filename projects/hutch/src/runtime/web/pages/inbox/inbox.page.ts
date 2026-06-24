@@ -23,6 +23,7 @@ const DisableAddressSchema = z.object({ address: InboxAddressSchema });
 export function initInboxRoutes(deps: InboxDependencies): Router {
 	const router = express.Router();
 	const inboxPath = `/inbox?feature=${EMAIL_FEATURE}`;
+	const inboxCreateFailedPath = `${inboxPath}&error=create`;
 
 	/** Hidden by default: without the per-request flag the whole surface 404s, so
 	 * production traffic never sees it until the flag is flipped on a request. */
@@ -37,7 +38,12 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const addresses = await deps.inboxAddressStore.listAddressesByUserId(req.userId);
-		sendComponent(req, res, Base(InboxPage({ addresses }), await deps.buildBannerState(req)));
+		const createFailed = req.query.error === "create";
+		sendComponent(
+			req,
+			res,
+			Base(InboxPage({ addresses, createFailed }), await deps.buildBannerState(req)),
+		);
 	});
 
 	router.post("/create", async (req: Request, res: Response) => {
@@ -52,6 +58,8 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				"[Inbox] Failed to create a forwarding address",
 				error instanceof Error ? error : new Error(String(error)),
 			);
+			res.redirect(303, inboxCreateFailedPath);
+			return;
 		}
 		res.redirect(303, inboxPath);
 	});
