@@ -108,8 +108,12 @@ struct ReadingListView: View {
 							.tint(.green)
 						}
 					}
-					.accessibilityAction(named: "Mark as read") {
-						Task { await viewModel.markAsRead(article) }
+					.accessibilityActions {
+						if article.canMarkRead {
+							Button("Mark as read") {
+								Task { await viewModel.markAsRead(article) }
+							}
+						}
 					}
 			}
 
