@@ -6,6 +6,7 @@ export {
 	TRANSITIONING_VIEW,
 	ELEMENT_IDS,
 	CSS_SELECTORS,
+	READER_PERMALINK_PATTERN,
 } from "./extension-views";
 export type { ExtensionViewId } from "./extension-views";
 export type {

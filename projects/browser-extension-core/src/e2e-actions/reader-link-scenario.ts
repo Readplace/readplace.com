@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { By, until } from "selenium-webdriver";
 import type { WebDriver } from "selenium-webdriver";
+import { CSS_SELECTORS, READER_PERMALINK_PATTERN } from "../e2e";
 
 /** hutch's session cookie (projects/hutch/src/runtime/web/auth/session-cookie.ts).
  * The reader at /queue/:id/view resolves its owner from this cookie, never from
@@ -14,11 +15,6 @@ const SESSION_COOKIE_NAME = "hutch_sid";
  * /view and lands on `page-view`. */
 const PRIVATE_READER_BODY_CLASS = "page-reader";
 const PUBLIC_VIEW_BODY_CLASS = "page-view";
-
-/** The popup renders each saved article as `<a class="list-view__item">` whose
- * href is the reader permalink (readUrl), not the original article URL. */
-const READER_LINK_SELECTOR = "#link-list .list-view__item";
-const READER_PERMALINK = /\/queue\/[a-f0-9]+\/view$/;
 
 export interface ReaderLinkScenarioConfig {
 	/** Origin the extension was built against (HUTCH_SERVER_URL); the reader
@@ -49,12 +45,12 @@ export async function assertReaderLinkOpensPrivateReader(
 	const popupWindowHandle = await driver.getWindowHandle();
 
 	const anchor = await driver.wait(
-		until.elementLocated(By.css(READER_LINK_SELECTOR)),
+		until.elementLocated(By.css(CSS_SELECTORS.listItem)),
 		15_000,
 	);
 	const readerHref = await anchor.getAttribute("href");
 	assert.ok(
-		readerHref !== null && READER_PERMALINK.test(readerHref),
+		readerHref !== null && READER_PERMALINK_PATTERN.test(readerHref),
 		`popup reading-list link must target the private reader permalink, got: ${readerHref}`,
 	);
 
@@ -66,7 +62,7 @@ export async function assertReaderLinkOpensPrivateReader(
 	// SameSite=Strict, masking the very regression this guards. A click from the
 	// extension origin is the genuine cross-site top-level navigation.
 	const handlesBeforeClick = await driver.getAllWindowHandles();
-	await driver.findElement(By.css(READER_LINK_SELECTOR)).click();
+	await driver.findElement(By.css(CSS_SELECTORS.listItem)).click();
 	let readerWindowHandle: string | undefined;
 	await driver.wait(async () => {
 		const opened = (await driver.getAllWindowHandles()).filter(
