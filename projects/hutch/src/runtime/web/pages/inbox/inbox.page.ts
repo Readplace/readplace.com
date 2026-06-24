@@ -3,7 +3,11 @@ import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
 import { EMAIL_FEATURE, sendComponent } from "@packages/web-shell";
-import { InboxAddressLimitReachedError, InboxAddressSchema } from "@packages/domain/inbox";
+import {
+	INBOX_ADDRESS_MAX_PER_USER,
+	InboxAddressLimitReachedError,
+	InboxAddressSchema,
+} from "@packages/domain/inbox";
 import type { InboxAddressStore } from "@packages/domain/inbox";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
@@ -47,7 +51,11 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const addresses = await deps.inboxAddressStore.listAddressesByUserId(req.userId);
 		const createFailed = req.query.error === "create";
-		const limitReached = req.query.error === "limit";
+		// Derive from the live count, not the &error=limit flag, so the banner
+		// shows whenever the cap is genuinely reached — not only right after a
+		// rejected create.
+		const limitReached =
+			addresses.filter((a) => a.disabledAt === undefined).length >= INBOX_ADDRESS_MAX_PER_USER;
 		sendComponent(
 			req,
 			res,
