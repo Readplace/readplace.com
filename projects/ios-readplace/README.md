@@ -73,19 +73,23 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
   cookies); the in-flight PKCE secrets are persisted to the App Group so a cold
   relaunch via the deep link can still finish the token exchange. **Login uses
   this identical flow**, differing only in the `screen_hint`.
-- **List** your reading list by walking the Siren API: `GET /` → `303` → `/queue`
-  collection (unread only), rendering each article (title, site, excerpt,
-  thumbnail, read state), with pull-to-refresh, infinite scroll via the `next`
-  link, and swipe-to-**mark-read** via each item's server-declared
-  `update-status` action (the marked row leaves the unread list; the article is
-  kept, not deleted).
+- **List** your reading list by walking the Siren API from the one entry point
+  it knows, following whatever the server hands back: the collection (unread
+  only), each article (title, site, excerpt, thumbnail, read state), with
+  pull-to-refresh, infinite scroll via the `next` link, and swipe-to-**mark-read**
+  via each item's server-declared status action (the marked row leaves the unread
+  list; the article is kept, not deleted). The client follows the server's hrefs,
+  link `rel`s and action/field names — never hard-coded URLs — so a server view
+  change needs no app release. A link or action advertised without an href is
+  treated as read-only.
 - **Read in-app**: tapping a row opens the server's authenticated reader
-  (`/queue/{id}/view` — Readplace reader content + AI summary) in a `WKWebView`,
-  not the original source site. The reader and its htmx XHRs are cookie-session
-  authenticated, so the app first mints a `hutch_sid` cookie from its bearer
-  token via `POST /auth/session` and injects it into the web view. Pressing the
-  reader's own **Mark as read** closes the sheet and drops the row; **View
-  original** stays reachable from inside the reader.
+  (Readplace reader content + AI summary) in a `WKWebView`, not the original
+  source site. The sheet opens immediately on a skeleton while the app mints a
+  browser session cookie from its bearer token and injects it into the web view;
+  the reader and its in-reader XHRs are then authenticated. Pressing the reader's
+  own **Mark as read** closes the sheet and drops the row; **View original** stays
+  reachable from inside the reader. The reader's mark-read is detected by the
+  `status` field on its request, not its URL, so the endpoint can move freely.
 - **Save by sharing**: a **Share Extension** appears in the iOS share sheet for
   URLs/web pages. It loads the page in an off-screen `WKWebView`, captures
   `document.documentElement.outerHTML`, and POSTs `{url, rawHtml, title}` to
@@ -215,9 +219,13 @@ cases:
 
 - **Siren decoding**: rich vs. minimal entities, JSON `null` image/`readAt`,
   read-state from `status`/`readAt`, title fallback to URL, entities without
-  properties dropped, empty collections, `next`/`prev` pagination, collection
-  warnings, ISO-8601 dates with/without fractional seconds, error bodies with and
-  without a fallback action.
+  properties dropped, a link/action advertised without an href tolerated and left
+  unactionable, empty collections, `next`/`prev` pagination, collection warnings,
+  ISO-8601 dates with/without fractional seconds, error bodies with and without a
+  fallback action.
+- **Href resolution**: scheme-less hrefs resolved against the origin, `http(s)`
+  and the app's own deep-link scheme passed through, any other scheme treated as
+  absent.
 - **PKCE**: the RFC 7636 verifier→challenge vector, verifier length/alphabet,
   URL-safe challenge, uniqueness.
 - **OAuth**: authorize-URL parameters, code exchange body + token storage,
@@ -226,10 +234,11 @@ cases:
 - **API**: entry-point `303` redirect with the `Authorization` header preserved,
   `401` → single refresh → retry (and no retry loop when refresh fails),
   `save-html` body + fallback to URL-only on an error action, `save-article`,
-  `update-status` posting urlencoded `status=read`, following the `303` back to
-  the queue and verifying the status only (`404` → not-found), `bootstrapSession` parsing the
-  `hutch_sid` cookie from `Set-Cookie` (refreshing the bearer once if expired),
-  and missing-token handling.
+  the status action posting the urlencoded `status` field, following the `303`
+  back to the collection and verifying the status at the protocol level only (any
+  non-2xx/3xx surfaces a generic server error — no per-code special-casing),
+  `bootstrapSession` reading the session cookie from the store URLSession parsed
+  (refreshing the bearer once if expired), and missing-token handling.
 - **TokenStore / URL detection**: persistence and partial-token edge cases;
   http(s)-only link extraction that ignores `mailto:`/`tel:`.
 - **Login & share-save journeys**: the two orchestration seams end-to-end through
@@ -273,12 +282,11 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
   the `iphoneos` SDK without needing the iOS *platform* registered for a
   destination. Verified building against Xcode 15.4 (iOS 17.5 SDK).
 
-- **Tapping an item** opens the server's authenticated reader
-  (`/queue/{id}/view`) in an in-app `WKWebView`. That page and its htmx XHRs are
-  cookie-session authenticated, so the app mints a `hutch_sid` cookie from its
-  bearer token via `POST /auth/session` and injects it into the web view before
-  loading. **This needs the server change deployed first** — see "Server
-  dependency" below.
+- **Tapping an item** opens the server's authenticated reader in an in-app
+  `WKWebView`. The sheet opens immediately on a skeleton; the app mints a browser
+  session cookie from its bearer token and injects it into the web view before the
+  first navigation, so the reader and its in-reader XHRs are authenticated.
+  **This needs the server change deployed first** — see "Server dependency" below.
 - **Server dependency / deploy ordering.** The swipe-to-mark-read and in-app
   reader both rely on two additive server surfaces — the entity-level
   `update-status` action and `POST /auth/session` — that must be **deployed

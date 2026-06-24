@@ -1,23 +1,34 @@
 import XCTest
 @testable import Readplace
 
-/// Tests the reader's pure helpers — URL resolution and the mark-read message
+/// Tests the reader's pure helpers — href resolution and the mark-read message
 /// parser. The WKWebView/cookie/script glue around them is an OS boundary and is
-/// exercised by hand, like `SafariView`/`AuthFlowView` before it.
+/// exercised by hand, like `AuthWebView`/`AuthFlowView` before it.
 final class ReaderBridgeTests: XCTestCase {
-	func testReaderURLResolvesRootRelativeHref() {
-		let url = readerURL(baseURL: "https://readplace.com", readHref: "/queue/a1/view")
+	func testHrefResolvesRootRelative() {
+		let url = Href.resolve("/queue/a1/view", baseURL: "https://readplace.com")
 		XCTAssertEqual(url?.absoluteString, "https://readplace.com/queue/a1/view")
 	}
 
-	func testReaderURLPassesThroughAbsoluteHref() {
-		let url = readerURL(baseURL: "https://readplace.com", readHref: "https://example.com/queue/a1/view")
+	func testHrefPassesThroughAbsoluteHTTPS() {
+		let url = Href.resolve("https://example.com/queue/a1/view", baseURL: "https://readplace.com")
 		XCTAssertEqual(url?.absoluteString, "https://example.com/queue/a1/view")
 	}
 
-	func testReaderURLResolvesRelativeHrefWithoutLeadingSlash() {
-		let url = readerURL(baseURL: "https://readplace.com", readHref: "queue/a1/view")
+	func testHrefResolvesRelativeWithoutLeadingSlash() {
+		let url = Href.resolve("queue/a1/view", baseURL: "https://readplace.com")
 		XCTAssertEqual(url?.absoluteString, "https://readplace.com/queue/a1/view")
+	}
+
+	func testHrefPassesThroughAppDeepLinkScheme() {
+		let url = Href.resolve("readplace://oauth-callback", baseURL: "https://readplace.com")
+		XCTAssertEqual(url?.scheme, "readplace", "the client's own deep-link scheme is actionable, not foreign")
+	}
+
+	func testHrefTreatsForeignSchemeAsAbsent() {
+		XCTAssertNil(Href.resolve("mailto:hi@example.com", baseURL: "https://readplace.com"))
+		XCTAssertNil(Href.resolve("ftp://example.com/x", baseURL: "https://readplace.com"))
+		XCTAssertNil(Href.resolve("javascript:alert(1)", baseURL: "https://readplace.com"))
 	}
 
 	func testIsMarkedReadAcceptsMarkedReadPayloadOnBridgeChannel() {

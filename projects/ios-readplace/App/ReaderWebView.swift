@@ -1,17 +1,18 @@
 import SwiftUI
 import WebKit
 
-/// Presents the server's authenticated reader (`/queue/{id}/view`) — Readplace
-/// reader content plus the AI summary — in a WKWebView. The reader page and its
-/// htmx poll/mutation XHRs are cookie-session authenticated, so the prefetched
-/// `hutch_sid` cookie is injected into the web view's cookie store before the
-/// first navigation. A small injected script reports back when the reader's own
-/// "Mark as read" htmx request completes, so the sheet can close and the row can
-/// leave the unread list. WKWebView (in-process) is required over
-/// SFSafariViewController because only it allows cookie injection and a JS
-/// bridge; `AuthWebView` is the existing precedent.
+/// Presents the server's authenticated reader in a WKWebView — the app acting as
+/// a browser over the server's HTML. The reader page and its in-reader XHRs are
+/// cookie-session authenticated, so the prefetched session cookie is injected
+/// into the web view's cookie store before the first navigation. A small injected
+/// script reports back when the reader's own mark-read request completes (an XHR
+/// a navigation delegate can't observe), so the sheet can close and the row can
+/// leave the list. WKWebView (in-process) is required over SFSafariViewController
+/// because only it allows cookie injection and a JS bridge; `AuthWebView` is the
+/// existing precedent.
 struct ReaderWebView: UIViewControllerRepresentable {
-	let presentation: ReaderPresentation
+	let url: URL
+	let cookie: HTTPCookie
 	let onMarkedRead: () -> Void
 
 	func makeCoordinator() -> Coordinator {
@@ -31,10 +32,9 @@ struct ReaderWebView: UIViewControllerRepresentable {
 
 		let configuration = WKWebViewConfiguration()
 		configuration.userContentController = userContent
-		// Scope the minted session cookie to this sheet. The default store is the
-		// process-wide, on-disk WKWebsiteDataStore.default() (shared with
-		// AuthWebView); a non-persistent store keeps the freshly-minted hutch_sid
-		// off disk so it never outlives the reader sheet or survives a sign-out.
+		// Scope the minted session cookie to this sheet: a non-persistent store
+		// keeps it off disk so it never outlives the reader or survives a sign-out
+		// (the default store is process-wide and on-disk).
 		configuration.websiteDataStore = .nonPersistent()
 
 		let webView = WKWebView(frame: .zero, configuration: configuration)
@@ -42,13 +42,10 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		webView.allowsBackForwardNavigationGestures = true
 		controller.view = webView
 
-		guard let url = readerURL(baseURL: AppConfig.serverBaseURL, readHref: presentation.readHref) else {
-			return controller
-		}
 		// Inject the prefetched session cookie into the web view's own store before
-		// the first navigation, so the reader page and its in-reader poll XHRs are
-		// authenticated and never bounce to /login.
-		webView.configuration.websiteDataStore.httpCookieStore.setCookie(presentation.cookie) {
+		// the first navigation, so the reader and its in-reader XHRs are
+		// authenticated from the first request.
+		webView.configuration.websiteDataStore.httpCookieStore.setCookie(cookie) {
 			webView.load(URLRequest(url: url))
 		}
 		return controller
@@ -72,37 +69,35 @@ struct ReaderWebView: UIViewControllerRepresentable {
 	}
 }
 
-/// Builds the reader URL from the server-declared read href, which may be
-/// absolute or root-relative. Pure and unit-tested; mirrors `ReadplaceAPI`'s
-/// href resolution.
-func readerURL(baseURL: String, readHref: String) -> URL? {
-	if readHref.hasPrefix("http") { return URL(string: readHref) }
-	if readHref.hasPrefix("/") { return URL(string: "\(baseURL)\(readHref)") }
-	return URL(string: "\(baseURL)/\(readHref)")
-}
-
-/// The JS↔native bridge for the reader. The reader's "Mark as read" control is
-/// an `hx-boost` form (an htmx XHR), which never triggers a navigation, so a
-/// `WKNavigationDelegate` can't observe it — the script listens for htmx's swap
-/// event instead. The pure message parser is unit-tested; the WKWebView glue
-/// that registers and receives the message is left untested (OS boundary).
+/// The JS↔native bridge for the reader. The reader's mark-read control is an
+/// htmx form whose XHR never triggers a navigation, so a `WKNavigationDelegate`
+/// can't observe it — the script listens for htmx's swap event instead. The pure
+/// message parser is unit-tested; the WKWebView glue that registers and receives
+/// the message is left untested (OS boundary), like `AuthWebView` before it.
 enum ReaderBridge {
 	static let messageName = "readplaceReader"
 
-	/// Cancels the htmx swap for a successful mark-read POST (so the queue HTML
-	/// this request redirects to never flashes into the reader sheet) and signals
-	/// the native side, which closes the sheet and drops the row from the list.
+	/// Cancels the htmx swap for a successful status-change POST (so the page it
+	/// redirects to never flashes into the sheet) and signals the native side,
+	/// which closes the sheet and drops the row. The detector keys on the protocol
+	/// vocabulary — a successful POST carrying the `status` field — not on the
+	/// request URL, so the server can move the endpoint without breaking the app.
 	static let script = """
 	(function () {
-	  function isMarkRead(detail) {
+	  function hasStatusField(params) {
+	    if (!params) { return false; }
+	    if (typeof params.has === 'function') { return params.has('status'); }
+	    if (typeof params.get === 'function') { return params.get('status') != null; }
+	    return Object.prototype.hasOwnProperty.call(params, 'status');
+	  }
+	  function isStatusChange(detail) {
 	    var cfg = (detail && detail.requestConfig) || {};
 	    var verb = (cfg.verb || '').toString().toUpperCase();
-	    var path = (cfg.path || '').toString().split('?')[0];
 	    var xhr = (detail && detail.xhr) || {};
-	    return verb === 'POST' && /\\/status$/.test(path) && xhr.status >= 200 && xhr.status < 400;
+	    return verb === 'POST' && hasStatusField(cfg.parameters) && xhr.status >= 200 && xhr.status < 400;
 	  }
 	  document.body.addEventListener('htmx:beforeSwap', function (event) {
-	    if (!isMarkRead(event.detail)) { return; }
+	    if (!isStatusChange(event.detail)) { return; }
 	    event.detail.shouldSwap = false;
 	    window.webkit.messageHandlers.readplaceReader.postMessage({ type: 'markedRead' });
 	  });

@@ -3,12 +3,10 @@ import Foundation
 enum APIError: LocalizedError {
 	case noToken
 	case unauthorized
-	case notFound
 	case server(status: Int, code: String?, message: String?)
-	/// The server refused the request with messages for the client to render
-	/// (e.g. a locked account). Carries the server-authored messages; the refusal
-	/// models no action — there is nothing for the client to invoke, only
-	/// something for the user to read.
+	/// The server refused the request with messages for the client to render.
+	/// Carries the server-authored messages; the refusal models no action — there
+	/// is nothing for the client to invoke, only something for the user to read.
 	case refused(messages: [ServerMessage])
 	case decoding
 
@@ -16,7 +14,6 @@ enum APIError: LocalizedError {
 		switch self {
 		case .noToken: return "Not signed in. Open Readplace and sign in first."
 		case .unauthorized: return "Your session expired. Please sign in again."
-		case .notFound: return "That item no longer exists."
 		case .server(let status, let code, let message):
 			return message ?? "Server error \(status)\(code.map { " (\($0))" } ?? "")."
 		case .refused(let messages): return messages.map(\.plainText).joined(separator: "\n")
@@ -74,12 +71,18 @@ final class ReadplaceAPI {
 
 	// MARK: - Reading list
 
-	/// Loads a collection page. With no `path`, starts at the entry point `/`
-	/// (the server 303-redirects to `/queue`); otherwise follows a declared
-	/// link href (e.g. the `next` link).
+	/// Loads a collection page. With no `path`, starts at the entry point — the
+	/// one URL the client knows — and follows wherever the server redirects;
+	/// otherwise it follows a link href the server already handed back (e.g. the
+	/// `next` link).
 	func loadQueue(path: String? = nil) async throws -> QueuePage {
-		let target = path.map(absolute) ?? "\(baseURL)/"
-		guard let url = URL(string: target) else { throw APIError.decoding }
+		let url: URL
+		if let path {
+			url = try absoluteURL(path)
+		} else {
+			guard let entry = URL(string: "\(baseURL)/") else { throw APIError.decoding }
+			url = entry
+		}
 		var request = URLRequest(url: url)
 		request.httpMethod = "GET"
 		let (data, http) = try await send(request)
@@ -87,18 +90,19 @@ final class ReadplaceAPI {
 		return QueuePage(collection: try decode(SirenCollection.self, data))
 	}
 
-	/// Changes an item's status via its server-declared `update-status` action
-	/// (e.g. mark read). The action posts `status` as urlencoded; the
-	/// redirect-preserving delegate re-attaches auth across the 303 back to the
-	/// queue. Verifies the HTTP status only (404 → `.notFound`); the redirected-to
-	/// body is deliberately not decoded, so a caller's optimistic update is never
-	/// rolled back by a 2xx whose response shape this method doesn't consume.
+	/// Changes an item's reading status via its server-declared action — the
+	/// action carries the href, method and field set the client follows rather
+	/// than hand-building. The status is sent as the `status` field. The response
+	/// is verified at the protocol level only: a successful follow (a 2xx/3xx,
+	/// after the redirect-preserving delegate re-attaches auth across any
+	/// redirect) confirms the change; anything else surfaces as a server error.
+	/// The body is deliberately not consumed, so a caller's optimistic update is
+	/// never rolled back by a 2xx whose shape this method doesn't read.
 	func updateStatus(action: SirenAction, status: ArticleStatus) async throws {
-		let request = try formRequest(absolute(action.href), method: action.method,
+		let request = formRequest(try absoluteURL(action.href), method: action.method,
 			contentType: action.type ?? "application/x-www-form-urlencoded",
 			fields: ["status": status.rawValue])
 		let (data, http) = try await send(request)
-		if http.statusCode == 404 { throw APIError.notFound }
 		guard (200...399).contains(http.statusCode) else {
 			throw apiError(from: data, status: http.statusCode)
 		}
@@ -106,11 +110,11 @@ final class ReadplaceAPI {
 
 	// MARK: - Reader session
 
-	/// Mints a browser session cookie from the current bearer token via
-	/// `POST /auth/session` and returns the `hutch_sid` cookie. The in-app reader
-	/// webview injects it so the cookie-authenticated reader page (and its htmx
-	/// poll/mutation XHRs) load without bouncing to /login. Reuses `send()`, so a
-	/// stale bearer is refreshed once before the cookie is minted.
+	/// Mints a browser session cookie from the current bearer token via the
+	/// session-bootstrap endpoint and returns it. The in-app reader injects the
+	/// cookie so the cookie-authenticated reader page (and its in-reader XHRs)
+	/// load without bouncing to a sign-in page. Reuses `send()`, so a stale bearer
+	/// is refreshed once before the cookie is minted.
 	func bootstrapSession() async throws -> HTTPCookie {
 		guard let url = URL(string: "\(baseURL)/auth/session") else { throw APIError.decoding }
 		var request = URLRequest(url: url)
@@ -119,11 +123,26 @@ final class ReadplaceAPI {
 		guard (200...299).contains(http.statusCode) else {
 			throw apiError(from: data, status: http.statusCode)
 		}
-		guard let headers = http.allHeaderFields as? [String: String] else { throw APIError.decoding }
-		let cookie = HTTPCookie.cookies(withResponseHeaderFields: headers, for: url)
-			.first { $0.name == AppConfig.sessionCookieName }
-		guard let cookie else { throw APIError.decoding }
+		guard let cookie = sessionCookie(from: http, url: url) else { throw APIError.decoding }
 		return cookie
+	}
+
+	/// Reads the session cookie by name from the store URLSession parsed it into.
+	/// The cookie spec forbids folding repeated `Set-Cookie` headers into one
+	/// comma-joined value, so re-splitting `allHeaderFields` is unsafe once a
+	/// response sets more than one cookie; reading the already-parsed cookie back
+	/// by name sidesteps that. Falls back to the response's own `Set-Cookie`
+	/// header (reliable for a single cookie) for environments that don't populate
+	/// the store.
+	private func sessionCookie(from response: HTTPURLResponse, url: URL) -> HTTPCookie? {
+		if let stored = session.configuration.httpCookieStorage?
+			.cookies(for: url)?
+			.first(where: { $0.name == AppConfig.sessionCookieName }) {
+			return stored
+		}
+		guard let headers = response.allHeaderFields as? [String: String] else { return nil }
+		return HTTPCookie.cookies(withResponseHeaderFields: headers, for: url)
+			.first { $0.name == AppConfig.sessionCookieName }
 	}
 
 	// MARK: - Saving
@@ -140,7 +159,7 @@ final class ReadplaceAPI {
 	) async throws -> Article {
 		var body: [String: String] = ["url": url, "rawHtml": rawHtml]
 		if let title, !title.isEmpty { body["title"] = title }
-		let request = try jsonRequest(absolute(action.href), method: action.method,
+		let request = jsonRequest(try absoluteURL(action.href), method: action.method,
 			contentType: action.type ?? "application/json", body: body)
 		let (data, http) = try await send(request)
 		if http.statusCode == 201 || http.statusCode == 200 {
@@ -154,7 +173,7 @@ final class ReadplaceAPI {
 			let fallback = sirenError.actions?.first {
 			var fallbackBody: [String: String] = ["url": url]
 			if let title, !title.isEmpty { fallbackBody["title"] = title }
-			let fallbackRequest = try jsonRequest(absolute(fallback.href), method: fallback.method,
+			let fallbackRequest = jsonRequest(try absoluteURL(fallback.href), method: fallback.method,
 				contentType: fallback.type ?? "application/json", body: fallbackBody)
 			let (fbData, fbHTTP) = try await send(fallbackRequest)
 			guard fbHTTP.statusCode == 201 || fbHTTP.statusCode == 200 else {
@@ -167,7 +186,7 @@ final class ReadplaceAPI {
 
 	/// Saves a URL only (no captured HTML) via the `save-article` action.
 	func saveArticle(action: SirenAction, url: String) async throws -> Article {
-		var request = try jsonRequest(absolute(action.href), method: action.method,
+		var request = jsonRequest(try absoluteURL(action.href), method: action.method,
 			contentType: action.type ?? "application/json", body: ["url": url])
 		request.setValue("return=representation", forHTTPHeaderField: "Prefer")
 		let (data, http) = try await send(request)
@@ -194,12 +213,11 @@ final class ReadplaceAPI {
 	}
 
 	private func jsonRequest(
-		_ urlString: String,
+		_ url: URL,
 		method: String,
 		contentType: String,
 		body: [String: String]
-	) throws -> URLRequest {
-		guard let url = URL(string: urlString) else { throw APIError.decoding }
+	) -> URLRequest {
 		var request = URLRequest(url: url)
 		request.httpMethod = method
 		request.setValue(contentType, forHTTPHeaderField: "Content-Type")
@@ -208,12 +226,11 @@ final class ReadplaceAPI {
 	}
 
 	private func formRequest(
-		_ urlString: String,
+		_ url: URL,
 		method: String,
 		contentType: String,
 		fields: [String: String]
-	) throws -> URLRequest {
-		guard let url = URL(string: urlString) else { throw APIError.decoding }
+	) -> URLRequest {
 		var request = URLRequest(url: url)
 		request.httpMethod = method
 		request.setValue(contentType, forHTTPHeaderField: "Content-Type")
@@ -223,10 +240,12 @@ final class ReadplaceAPI {
 		return request
 	}
 
-	private func absolute(_ href: String) -> String {
-		if href.hasPrefix("http") { return href }
-		if href.hasPrefix("/") { return "\(baseURL)\(href)" }
-		return "\(baseURL)/\(href)"
+	/// Resolves a server-declared href to an absolute URL, throwing when the href
+	/// is missing or names a scheme the client doesn't act on — an action the
+	/// client can't follow is a decode-level failure, not a silent no-op.
+	private func absoluteURL(_ href: String?) throws -> URL {
+		guard let href, let url = Href.resolve(href, baseURL: baseURL) else { throw APIError.decoding }
+		return url
 	}
 
 	private func decode<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {

@@ -135,17 +135,6 @@ final class ReadingListViewModelTests: XCTestCase {
 		XCTAssertNil(viewModel.errorText)
 	}
 
-	func testMarkAsReadKeepsRowRemovedOn404() async {
-		StubURLProtocol.setHandler(markReadHandler { _ in .json(404, "{}") })
-		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
-		await viewModel.refresh()
-
-		await viewModel.markAsRead(viewModel.articles[0])
-
-		XCTAssertEqual(viewModel.articles.map(\.id), ["a2"], "a 404 means already gone; keep it removed")
-		XCTAssertNil(viewModel.errorText)
-	}
-
 	func testMarkAsReadRestoresRowOnServerError() async {
 		StubURLProtocol.setHandler(markReadHandler { _ in
 			.json(500, Fixtures.sirenError(code: "boom", message: "nope", withSaveArticleFallback: false))
@@ -175,74 +164,62 @@ final class ReadingListViewModelTests: XCTestCase {
 
 	// MARK: - Reader
 
-	/// A queue whose `POST /auth/session` mints the session cookie `prepareReader`
-	/// needs. `sessionStub` lets a test model the bootstrap succeeding or failing.
-	private func readerHandler(
-		sessionStub: @escaping () -> StubURLProtocol.Stub
-	) -> (URLRequest, Data) -> StubURLProtocol.Stub {
-		return { request, _ in
-			let path = request.url?.path ?? ""
-			let method = request.httpMethod ?? "GET"
-			switch (path, method) {
-			case ("/auth/session", "POST"):
-				return sessionStub()
-			case ("/", _):
-				return .redirect(to: "/queue")
-			case ("/queue", _):
-				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
-			default:
-				return .json(404, "{}")
-			}
-		}
+	private func article(readHref: String?, id: String = "a1") -> Article {
+		Article(
+			id: id, url: "https://example.com/x", title: "X", siteName: nil, excerpt: nil,
+			imageURL: nil, readTimeMinutes: nil, isRead: false, savedAt: nil,
+			updateStatusAction: nil, readHref: readHref
+		)
 	}
 
-	func testPrepareReaderPublishesPresentationWithCookieAndArticleId() async throws {
-		StubURLProtocol.setHandler(readerHandler {
-			StubURLProtocol.Stub(status: 204, headers: ["Set-Cookie": "hutch_sid=sess-xyz; Path=/; HttpOnly"])
-		})
+	func testOpenReaderPublishesPresentationWithResolvedURL() {
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
-		await viewModel.refresh()
-		let article = try XCTUnwrap(viewModel.articles.first)
 
-		await viewModel.prepareReader(for: article)
+		viewModel.openReader(for: article(readHref: "/queue/a1/view"))
 
-		let presentation = try XCTUnwrap(viewModel.readerPresentation, "a prepared reader drives the sheet")
-		XCTAssertEqual(presentation.articleId, "a1")
-		XCTAssertEqual(presentation.readHref, "/queue/a1/view")
-		XCTAssertEqual(presentation.cookie.name, "hutch_sid")
-		XCTAssertEqual(presentation.cookie.value, "sess-xyz")
+		let presentation = viewModel.readerPresentation
+		XCTAssertEqual(presentation?.articleId, "a1")
+		XCTAssertEqual(presentation?.readerURL.absoluteString, "\(AppConfig.serverBaseURL)/queue/a1/view")
+	}
+
+	func testOpenReaderIsANoOpWhenArticleHasNoReadHref() {
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		viewModel.openReader(for: article(readHref: nil))
+
+		XCTAssertNil(viewModel.readerPresentation, "a row with no read link is read-only")
+	}
+
+	func testOpenReaderIsANoOpForForeignSchemeReadHref() {
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		viewModel.openReader(for: article(readHref: "mailto:hi@example.com"))
+
+		XCTAssertNil(viewModel.readerPresentation, "an href the client can't act on is treated as absent")
+	}
+
+	func testMintReaderSessionReturnsCookieOnSuccess() async {
+		StubURLProtocol.setHandler { _, _ in
+			StubURLProtocol.Stub(status: 204, headers: ["Set-Cookie": "hutch_sid=sess-xyz; Path=/; HttpOnly"])
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		let cookie = await viewModel.mintReaderSession()
+
+		XCTAssertEqual(cookie?.name, "hutch_sid")
+		XCTAssertEqual(cookie?.value, "sess-xyz")
 		XCTAssertNil(viewModel.errorText)
 	}
 
-	func testPrepareReaderFailsClosedWhenSessionBootstrapFails() async throws {
-		StubURLProtocol.setHandler(readerHandler {
+	func testMintReaderSessionReturnsNilAndSurfacesErrorOnFailure() async {
+		StubURLProtocol.setHandler { _, _ in
 			.json(500, Fixtures.sirenError(code: "boom", message: "nope", withSaveArticleFallback: false))
-		})
+		}
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
-		await viewModel.refresh()
-		let article = try XCTUnwrap(viewModel.articles.first)
 
-		await viewModel.prepareReader(for: article)
+		let cookie = await viewModel.mintReaderSession()
 
-		XCTAssertNil(viewModel.readerPresentation, "a failed session bootstrap must not open the reader sheet")
+		XCTAssertNil(cookie, "a failed bootstrap mints no session, so the sheet shows its unavailable view")
 		XCTAssertNotNil(viewModel.errorText)
-	}
-
-	func testPrepareReaderIsANoOpWhenArticleHasNoReadHref() async {
-		StubURLProtocol.setHandler { _, _ in .json(404, "{}") }
-		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
-		let article = Article(
-			id: "a1", url: "https://example.com/x", title: "X", siteName: nil, excerpt: nil,
-			imageURL: nil, readTimeMinutes: nil, isRead: false, savedAt: nil,
-			updateStatusAction: nil, readHref: nil
-		)
-
-		await viewModel.prepareReader(for: article)
-
-		XCTAssertNil(viewModel.readerPresentation)
-		XCTAssertTrue(
-			StubURLProtocol.records(path: "/auth/session").isEmpty,
-			"with no read href there is nothing to read, so no session is minted"
-		)
 	}
 }

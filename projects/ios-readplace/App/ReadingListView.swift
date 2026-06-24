@@ -36,10 +36,15 @@ struct ReadingListView: View {
 				.refreshable { await viewModel.refresh() }
 				.task { await viewModel.loadIfNeeded() }
 				.sheet(item: $viewModel.readerPresentation) { presentation in
-					ReaderWebView(presentation: presentation) {
-						viewModel.removeArticle(id: presentation.articleId)
-						viewModel.readerPresentation = nil
-					}
+					ReaderSheet(
+						presentation: presentation,
+						mintSession: { await viewModel.mintReaderSession() },
+						onMarkedRead: {
+							viewModel.removeArticle(id: presentation.articleId)
+							viewModel.readerPresentation = nil
+						},
+						onClose: { viewModel.readerPresentation = nil }
+					)
 					.ignoresSafeArea()
 				}
 				.alert("Save a URL", isPresented: $showingSaveDialog) {
@@ -91,15 +96,17 @@ struct ReadingListView: View {
 				ArticleRow(article: article)
 					.contentShape(Rectangle())
 					.onTapGesture {
-						Task { await viewModel.prepareReader(for: article) }
+						viewModel.openReader(for: article)
 					}
 					.swipeActions(edge: .trailing) {
-						Button {
-							Task { await viewModel.markAsRead(article) }
-						} label: {
-							Label("Mark as read", systemImage: "checkmark.circle")
+						if article.canMarkRead {
+							Button {
+								Task { await viewModel.markAsRead(article) }
+							} label: {
+								Label("Mark as read", systemImage: "checkmark.circle")
+							}
+							.tint(.green)
 						}
-						.tint(.green)
 					}
 					.accessibilityAction(named: "Mark as read") {
 						Task { await viewModel.markAsRead(article) }

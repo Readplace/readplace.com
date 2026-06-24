@@ -82,6 +82,19 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertNil(Article(entity: try decodeEntity(json)))
 	}
 
+	func testHrefLessLinkAndActionDecodeAndAreUnactionable() throws {
+		// A link or action the server advertises without an href must not fail the
+		// decode; it is simply kept and treated as unactionable.
+		let json = """
+		{ "properties": { "id": "x", "url": "https://example.com/x" },
+		  "links": [{ "rel": ["read"] }],
+		  "actions": [{ "name": "update-status", "method": "POST" }] }
+		"""
+		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
+		XCTAssertNil(article.readHref, "a read link with no href leaves the row unopenable")
+		XCTAssertFalse(article.canMarkRead, "an action with no href offers no mark-read affordance")
+	}
+
 	func testCollectionDropsUnusableEntities() throws {
 		let json = Fixtures.collection(entitiesJSON: [
 			Fixtures.article(id: "good"),

@@ -325,16 +325,23 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertEqual(StubURLProtocol.records(path: "/queue").count, 1, "the 303 to /queue is followed")
 	}
 
-	func testUpdateStatus404ThrowsNotFound() async {
+	func testUpdateStatusSurfacesServerErrorOnFailureStatus() async {
 		let store = TestSupport.loggedInStore()
-		StubURLProtocol.setHandler { _, _ in .json(404, "{}") }
+		StubURLProtocol.setHandler { _, _ in
+			.json(500, Fixtures.sirenError(code: "boom", message: "nope", withSaveArticleFallback: false))
+		}
 		do {
-			try await makeAPI(store: store).updateStatus(action: updateStatusAction(id: "gone"), status: .read)
-			XCTFail("Expected notFound")
+			try await makeAPI(store: store).updateStatus(action: updateStatusAction(), status: .read)
+			XCTFail("Expected a server error")
 		} catch let error as APIError {
-			guard case .notFound = error else { return XCTFail("Expected .notFound, got \(error)") }
+			// The client verifies the protocol-level outcome only: any non-2xx/3xx
+			// is a generic server error, with no special-casing of a status code.
+			guard case .server(let status, _, _) = error else {
+				return XCTFail("Expected .server, got \(error)")
+			}
+			XCTAssertEqual(status, 500)
 		} catch {
-			XCTFail("Expected APIError.notFound, got \(error)")
+			XCTFail("Expected APIError.server, got \(error)")
 		}
 	}
 

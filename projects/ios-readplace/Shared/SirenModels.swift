@@ -2,23 +2,30 @@ import Foundation
 
 // MARK: - Wire format (Siren)
 
+/// A hypermedia link. `href` is optional: a link advertised without one is kept
+/// but unactionable — the client follows only the hrefs it is given — so a
+/// partial or evolving link never fails the surrounding decode.
 struct SirenLink: Decodable {
 	let rel: [String]
-	let href: String
+	let href: String?
 }
 
-/// `value` is the server's pre-filled default for the field, when present.
+/// One field of an action. `value` is the server's pre-filled default, when
+/// present; the field `name` is part of the protocol vocabulary the client keys
+/// on (e.g. `status`).
 struct SirenField: Decodable {
 	let name: String
 	let type: String?
 	let value: String?
 }
 
-/// A Siren action — the server tells us the href/method/fields; we never
-/// hard-code them. e.g. `save-html` → `POST /queue/save-html`.
+/// A Siren action: the server declares its href, method, type and fields and the
+/// client follows them rather than constructing a request. `href` is optional so
+/// an action advertised without one decodes and is simply treated as
+/// unactionable.
 struct SirenAction: Decodable {
 	let name: String
-	let href: String
+	let href: String?
 	let method: String
 	let type: String?
 	let fields: [SirenField]?
@@ -190,8 +197,8 @@ struct SirenError: Decodable {
 
 // MARK: - Domain model for the UI
 
-/// The reading status of an article. Matches the server's `ArticleStatus`
-/// (`"unread" | "read"`); the raw value is what the `update-status` action posts.
+/// A reading status the client can set. The raw value is sent as the `status`
+/// field of the server-declared status action.
 enum ArticleStatus: String {
 	case unread
 	case read
@@ -208,11 +215,12 @@ struct Article: Identifiable, Hashable {
 	let readTimeMinutes: Int?
 	let isRead: Bool
 	let savedAt: Date?
-	/// Server-declared action for changing this item's status (`POST
-	/// /queue/{id}/status`). Stored whole so its href/method/fields are followed
-	/// rather than hand-built.
+	/// The server-declared action for changing this item's reading status, stored
+	/// whole so its href/method/fields are followed rather than hand-built. Absent
+	/// or href-less ⇒ the item is read-only (see `canMarkRead`).
 	let updateStatusAction: SirenAction?
-	/// Server-declared link for reading this item (`/queue/{id}/view`).
+	/// The href of the server-declared link for reading this item. Absent ⇒ the
+	/// row is not openable.
 	let readHref: String?
 
 	static func == (lhs: Article, rhs: Article) -> Bool { lhs.id == rhs.id }
@@ -220,6 +228,11 @@ struct Article: Identifiable, Hashable {
 }
 
 extension Article {
+	/// Whether the server left a usable status-change action on this item. A
+	/// missing action — or one advertised without an href — is unactionable, so
+	/// the row offers no mark-read affordance.
+	var canMarkRead: Bool { updateStatusAction?.href != nil }
+
 	/// Builds a display model from a Siren entity, or returns nil when the
 	/// entity has no usable properties.
 	init?(entity: SirenEntity) {
@@ -253,5 +266,28 @@ enum SirenDate {
 
 	static func parse(_ string: String) -> Date? {
 		withFraction.date(from: string) ?? plain.date(from: string)
+	}
+}
+
+/// Resolves a server-declared href to an absolute URL the client can act on, or
+/// nil when the href is unactionable. The client speaks two schemes — the web
+/// origin (`http`/`https`) and its own deep-link scheme — and resolves a
+/// scheme-less href against the server origin. A href carrying any other scheme
+/// is a protocol the client doesn't understand, so it is treated as absent (the
+/// element is read-only). One rule in one place keeps every caller — the API
+/// client and the reader — resolving hrefs identically.
+enum Href {
+	static func resolve(_ href: String, baseURL: String) -> URL? {
+		guard let parsed = URL(string: href) else { return nil }
+		guard let scheme = parsed.scheme?.lowercased() else {
+			let path = href.hasPrefix("/") ? href : "/\(href)"
+			return URL(string: "\(baseURL)\(path)")
+		}
+		switch scheme {
+		case "http", "https", AppConfig.callbackURLScheme:
+			return parsed
+		default:
+			return nil
+		}
 	}
 }
