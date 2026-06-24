@@ -11,9 +11,10 @@ export type MessageId = z.infer<typeof MessageIdSchema>;
 /** The terminal state of a received email. Data-state words (never "pending"
  * /"staging"): every row is already at rest in one of these states.
  *  - `received`  — fully parsed, body sanitized and stored in S3 (happy path).
- *  - `unparsed`  — postal-mime could not decode the raw bytes; the immutable
- *                  `.eml` is kept and the View tab shows a "couldn't render"
- *                  state. No body pointer.
+ *  - `unparsed`  — no renderable body: postal-mime could not decode the raw
+ *                  bytes, or it decoded but the sanitizer stripped the body to
+ *                  nothing. The immutable `.eml` is kept and the View tab shows a
+ *                  "couldn't render" state. No body pointer.
  *  - `rejected`  — oversize (over the byte cap) or an unknown/disabled
  *                  recipient; recorded as an audit row. No body pointer. */
 export const InboxEmailStatusSchema = z.enum(["received", "unparsed", "rejected"]);

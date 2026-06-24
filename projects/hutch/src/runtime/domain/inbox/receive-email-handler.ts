@@ -21,9 +21,10 @@ import {
 import { type UserId, UserIdSchema } from "@packages/domain/user";
 import type { StoreEmailBody } from "./store-email-body";
 
-/** Mail to an address that resolves to no user (a guessed/mistyped forwarding
- * address the open inbox still accepts) is recorded under this synthetic
- * partition: an auditable row that never leaks into a real user's list. */
+/** Mail that can't be delivered to an active user — a guessed/mistyped forwarding
+ * address the open inbox still accepts, or one the owner has disabled — is
+ * recorded under this synthetic partition: an auditable row that never leaks into
+ * a real user's list. */
 const UNROUTED_USER_ID = UserIdSchema.parse("__unrouted__");
 
 /** The SES "Received" notification SES publishes (via the S3 action's topic) for
@@ -80,9 +81,11 @@ export function initReceiveEmailHandler(deps: {
 				// recipient, so one forwarded newsletter can be addressed to several of
 				// the domain's forwarding addresses at once — each gets its own row.
 				// Non-forwarding `@domain` recipients (postmaster, a typo) are dropped
-				// here; the raw .eml kept forever is their audit trail.
+				// here; the raw .eml kept forever is their audit trail. Each candidate is
+				// lowercased first: minted addresses are all-lowercase and the lookup is
+				// exact, but an upstream MTA may preserve a differently-cased local part.
 				const recipients = receipt.recipients.flatMap((candidate) => {
-					const parsed = InboxAddressSchema.safeParse(candidate);
+					const parsed = InboxAddressSchema.safeParse(candidate.toLowerCase());
 					return parsed.success ? [parsed.data] : [];
 				});
 				if (recipients.length === 0) {
@@ -95,8 +98,11 @@ export function initReceiveEmailHandler(deps: {
 					continue;
 				}
 
-				// Resolve each recipient exactly once so the unrouted-vs-owner partition
-				// choice has a single nullish-coalesce that every branch below reuses.
+				// Resolve each recipient exactly once. A row is attributed to the owner
+				// only when the address is actually deliverable to them; mail to a
+				// disabled address (the user opted out) or an unknown address is audited
+				// under the synthetic unrouted partition so it never clutters a real
+				// user's list. Every branch below reuses this single partition choice.
 				const resolvedRecipients: {
 					recipientAddress: InboxAddress;
 					resolved: InboxAddressEntry | undefined;
@@ -107,7 +113,10 @@ export function initReceiveEmailHandler(deps: {
 					resolvedRecipients.push({
 						recipientAddress,
 						resolved,
-						userId: resolved?.userId ?? UNROUTED_USER_ID,
+						userId:
+							resolved !== undefined && resolved.disabledAt === undefined
+								? resolved.userId
+								: UNROUTED_USER_ID,
 					});
 				}
 
@@ -183,7 +192,8 @@ export function initReceiveEmailHandler(deps: {
 					}
 					if (resolved.disabledAt !== undefined) {
 						// The user turned this address off but senders still have it: recurring,
-						// not a fault. Auditable row under the owner, then ACK.
+						// not a fault. Audited under the unrouted partition (the owner opted
+						// out — keep it out of their list), then ACK.
 						logger.warn("[receive-email] disabled recipient", { recipientAddress });
 						await putEmail(auditRow(recipientAddress, userId));
 						continue;

@@ -8,8 +8,9 @@
  * `allow-same-origin`, so no script runs and the document cannot read
  * `document.cookie`/storage. This document adds a restrictive per-iframe CSP:
  * `default-src 'none'` blocks every fetch/script/frame; `img-src 'self' data:`
- * permits only our rehosted CDN images (belt-and-suspenders with Layer 1's
- * remote-image stripping); `style-src 'unsafe-inline'` keeps the email's own
+ * permits only the inline `cid:` images the sanitizer rewrote to `data:` URIs
+ * (belt-and-suspenders with Layer 1's remote-image stripping); `style-src
+ * 'unsafe-inline'` keeps the email's own
  * inline styling. `<base target="_top">` makes any surviving link open the top
  * tab. `bodyHtml` is already allowlist-sanitized.
  */

@@ -166,7 +166,7 @@ describe("initReceiveEmailHandler", () => {
 		expect(published).toHaveLength(0);
 	});
 
-	it("records a disabled recipient under the owner and ACKs (no page)", async () => {
+	it("records a disabled recipient under the unrouted partition and ACKs (no page)", async () => {
 		const { addressStore, emailStore, rawMap, published, run } = makeHarness();
 		const address = await mintAddress(addressStore);
 		await addressStore.disableAddress({ userId: OWNER, address });
@@ -176,10 +176,13 @@ describe("initReceiveEmailHandler", () => {
 
 		assert(result);
 		// Mail to a turned-off address recurs while senders still have it — audit,
-		// don't page.
+		// don't page. The owner opted out, so the row lands under the unrouted
+		// partition rather than cluttering their list with "Rejected" rows.
 		expect(result.batchItemFailures).toHaveLength(0);
-		const [row] = await emailStore.listEmailsByUserId(OWNER);
+		expect(await emailStore.listEmailsByUserId(OWNER)).toHaveLength(0);
+		const [row] = await emailStore.listEmailsByUserId(UNROUTED);
 		expect(row.status).toBe("rejected");
+		expect(row.recipientAddress).toBe(address);
 		expect(published).toHaveLength(0);
 	});
 
@@ -237,6 +240,22 @@ describe("initReceiveEmailHandler", () => {
 		expect(published[0].detail.userId).toBe(OWNER);
 	});
 
+	it("matches a recipient case-insensitively when an MTA upper-cases the local part", async () => {
+		const { addressStore, emailStore, rawMap, published, run } = makeHarness();
+		const address = await mintAddress(addressStore);
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		// Minted addresses are lowercase and the lookup is exact; an MTA that
+		// preserves a differently-cased local part must still reach the owner.
+		const result = await run(address.toUpperCase());
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		const [row] = await emailStore.listEmailsByUserId(OWNER);
+		expect(row.status).toBe("received");
+		expect(published).toHaveLength(1);
+	});
+
 	it("persists 'unparsed' (no body, no event) and ACKs when the body sanitizes to nothing", async () => {
 		const { addressStore, emailStore, rawMap, published, run } = makeHarness({
 			// An all-<style>/<script> newsletter parses fine but the sanitizer strips it
@@ -280,6 +299,26 @@ describe("initReceiveEmailHandler", () => {
 		const [secondRow] = await emailStore.listEmailsByUserId(SECOND);
 		expect(ownerRow.status).toBe("received");
 		expect(secondRow.status).toBe("received");
+		expect(published).toHaveLength(2);
+	});
+
+	it("collapses an envelope addressed to two of the SAME user's addresses to one row", async () => {
+		const { addressStore, emailStore, rawMap, published, runMany } = makeHarness();
+		const first = await mintAddress(addressStore);
+		const { address: secondOfSameUser } = await addressStore.createAddress({
+			userId: OWNER,
+			domain: "read.place",
+		});
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		const result = await runMany([first, secondOfSameUser]);
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		// One physical email = one row: the sort key is the (recipient-independent)
+		// message id, so the second address's put is a no-op duplicate under the same
+		// partition. The event is re-published, which the consumer absorbs idempotently.
+		expect(await emailStore.listEmailsByUserId(OWNER)).toHaveLength(1);
 		expect(published).toHaveLength(2);
 	});
 

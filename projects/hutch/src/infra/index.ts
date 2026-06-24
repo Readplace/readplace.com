@@ -488,16 +488,20 @@ eventBus.subscribe(ExportUserDataCommand, exportUserDataLambdaWithSQS);
 
 // --- Inbound email receive worker Lambda ---
 // Drains the SES→SNS receipt notifications: fetches the raw .eml from the raw
-// bucket, resolves the recipient, parses + sanitizes the body into the content
-// bucket, writes the row, and publishes EmailReceivedEvent. Oversize / unknown /
-// disabled / unparseable mail records an audit row then fails to the DLQ so the
-// HutchSQSBackedLambda alarm pages the operator (★15 degrade-with-alert).
+// bucket, resolves each recipient, parses + sanitizes the body into the content
+// bucket, writes a row per recipient, and publishes EmailReceivedEvent. Expected
+// catch-all-MX conditions (unknown or disabled recipient) record an audit row and
+// ACK — never paging. Oversize / unparseable mail also records an audit row, but
+// only pages (fails to the DLQ so the HutchSQSBackedLambda alarm fires) when a
+// real, enabled recipient is affected; junk to guessed addresses just ACKs. The
+// immutable raw .eml is kept forever as the audit trail (★15 degrade-with-alert).
 const receiveEmailDynamodb = new HutchDynamoDBAccess("receive-email-dynamodb", {
 	tables: [
 		{ arn: storage.inboxEmailsTable.arn, includeIndexes: false },
 		{ arn: storage.inboxAddressesTable.arn, includeIndexes: false },
 	],
-	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"],
+	// findByAddress is a GetItem and putEmail a (conditional) PutItem — no Query.
+	actions: ["dynamodb:GetItem", "dynamodb:PutItem"],
 });
 
 const receiveEmailQueue = new HutchSQS("receive-email", {
@@ -522,8 +526,9 @@ const receiveEmailLambda = new HutchLambda("receive-email", {
 	},
 	policies: [
 		...receiveEmailDynamodb.policies,
+		// Reads the raw bucket (the .eml) and only writes the content bucket (the
+		// sanitized body) — no content-bucket read.
 		...HutchS3ReadWrite.readPoliciesForBucket("receive-email-raw-read", rawEmailBucketName),
-		...HutchS3ReadWrite.readPoliciesForBucket("receive-email-content-read", contentBucketName),
 		...HutchS3ReadWrite.writePoliciesForBucket("receive-email-content-write", contentBucketName),
 	],
 });

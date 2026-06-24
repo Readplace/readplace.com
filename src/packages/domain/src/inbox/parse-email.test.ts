@@ -177,6 +177,39 @@ describe("parseEmail", () => {
 		expect(result.email.inlineImages[0].body.byteLength).toBeGreaterThan(0);
 	});
 
+	it("rewrites a cid: image whose Content-ID contains a $ without expanding it as a replacement pattern", async () => {
+		const result = await parse(
+			eml(
+				"From: a@b.com",
+				"Subject: DollarCid",
+				"Message-ID: <dollar@x>",
+				"MIME-Version: 1.0",
+				'Content-Type: multipart/related; boundary="r1"',
+				"",
+				"--r1",
+				"Content-Type: text/html; charset=utf-8",
+				"",
+				'<p><img src="cid:logo$&img@x"></p>',
+				"--r1",
+				"Content-Type: image/png",
+				"Content-Transfer-Encoding: base64",
+				"Content-ID: <logo$&img@x>",
+				'Content-Disposition: inline; filename="logo.png"',
+				"",
+				PNG_1X1,
+				"--r1--",
+			),
+		);
+
+		assert(result.ok);
+		// A string replacement would treat the `$&` as "the matched text" and corrupt
+		// the URL; the function replacement keeps the cid literal, so it still matches
+		// the inline-image key the receive path inlines.
+		expect(result.email.inlineImages[0].cid).toBe("logo$&img@x");
+		expect(result.email.html).toContain("email://cid/logo$&img@x");
+		expect(result.email.html).not.toContain("cid:logo");
+	});
+
 	it("tolerates a non-inline attachment with no Content-ID without treating it as an image", async () => {
 		const result = await parse(
 			eml(
