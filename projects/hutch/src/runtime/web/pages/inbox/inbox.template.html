@@ -4,6 +4,10 @@
         <p class="inbox__subtitle">Forward any newsletter to one of these addresses and it lands in Readplace. I'll pull out the links and queue them up for you to read later.</p>
       </div>
 
+      {{#if createFailed}}
+      <p class="inbox__error" role="alert" data-test-inbox-error>We couldn't create a forwarding address just now. Please try again in a moment.</p>
+      {{/if}}
+
       {{#if hasAddresses}}
       <ul class="inbox__list" data-test-inbox-list>
         {{#each addresses}}

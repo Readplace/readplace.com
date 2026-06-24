@@ -150,8 +150,37 @@ describe("Inbox routes", () => {
 			const response = await agent.post("/inbox/create?feature=email");
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox?feature=email");
+			expect(response.headers.location).toBe("/inbox?feature=email&error=create");
 			expect(errors.some((m) => m.includes("[Inbox] Failed to create"))).toBe(true);
+		});
+
+		it("renders a graceful error indicator on the redirect target after a failed create", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			fixture.shared.logError = () => {};
+			fixture.inboxAddress.inboxAddressStore.createAddress = async () => {
+				throw new Error("dynamo down");
+			};
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const created = await agent.post("/inbox/create?feature=email");
+			const landing = await agent.get(created.headers.location);
+
+			expect(landing.status).toBe(200);
+			expect(
+				new JSDOM(landing.text).window.document.querySelector("[data-test-inbox-error]"),
+			).not.toBeNull();
+		});
+
+		it("does not render the error indicator on a normal visit", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/inbox?feature=email");
+
+			expect(
+				new JSDOM(response.text).window.document.querySelector("[data-test-inbox-error]"),
+			).toBeNull();
 		});
 	});
 

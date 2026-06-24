@@ -13,8 +13,12 @@ const INBOX_SCRIPT = `<script src="/client-dist/inbox.client.js" defer></script>
  * the gated POST routes stay reachable when submitted from the flagged page. */
 const INBOX_QUERY = `?feature=${EMAIL_FEATURE}`;
 
-export function InboxPage(params: { addresses: InboxAddressEntry[] }): PageBody {
+export function InboxPage(params: {
+	addresses: InboxAddressEntry[];
+	createFailed?: boolean;
+}): PageBody {
 	const content = render(INBOX_TEMPLATE, {
+		createFailed: params.createFailed === true,
 		hasAddresses: params.addresses.length > 0,
 		addresses: params.addresses.map((entry) => ({
 			address: entry.address,
