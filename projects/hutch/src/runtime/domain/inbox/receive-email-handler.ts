@@ -188,6 +188,16 @@ export function initReceiveEmailHandler(deps: {
 						await putEmail(auditRow(recipientAddress, userId));
 						continue;
 					}
+					const base = {
+						userId,
+						receivedAtMessageId,
+						messageId: parsed.email.messageId,
+						recipientAddress,
+						senderEmail: parsed.email.from,
+						subject: parsed.email.subject,
+						receivedAt,
+						rawEmailS3Key: s3Key,
+					};
 					// Body (and its inline images) to S3 BEFORE the row, and the row BEFORE
 					// the event: a crash anywhere re-delivers and replays idempotently. The
 					// body key is user-scoped so co-addressed recipients never collide.
@@ -197,18 +207,18 @@ export function initReceiveEmailHandler(deps: {
 						html: parsed.email.html,
 						inlineImages: parsed.email.inlineImages,
 					});
-					const outcome = await putEmail({
-						userId,
-						receivedAtMessageId,
-						messageId: parsed.email.messageId,
-						recipientAddress,
-						senderEmail: parsed.email.from,
-						subject: parsed.email.subject,
-						status: "received",
-						receivedAt,
-						rawEmailS3Key: s3Key,
-						bodyS3Key,
-					});
+					if (bodyS3Key === undefined) {
+						// Parsed fine but sanitized to nothing — a body composed entirely of
+						// stripped tags (`<style>`/`<script>`). There is nothing to render, so
+						// persist `unparsed` (no body pointer, no event): the detail page shows
+						// its graceful unavailable panel — never a blank iframe — and the list
+						// surfaces the "Couldn't render" badge. The sanitizer did its job, so
+						// this is not a fault — ACK, with the immutable raw .eml as the record.
+						await putEmail({ ...base, status: "unparsed", bodyS3Key: undefined });
+						logger.warn("[receive-email] empty body after sanitize", { receivedAtMessageId });
+						continue;
+					}
+					const outcome = await putEmail({ ...base, status: "received", bodyS3Key });
 					// Re-publish even on a duplicate row: a crash between the row write and
 					// the publish would otherwise lose the event. The consumer is
 					// idempotent, so a redundant publish is safe.

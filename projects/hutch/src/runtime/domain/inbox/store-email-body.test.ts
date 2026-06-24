@@ -51,4 +51,26 @@ describe("initStoreEmailBody", () => {
 		expect(written).toContain("<p>Just text</p>");
 		expect(written).not.toContain("<script");
 	});
+
+	it("returns undefined and writes nothing when sanitizing leaves no renderable body", async () => {
+		const writes: { key: string; html: string }[] = [];
+		const store = initStoreEmailBody({
+			putContent: async (input) => {
+				writes.push(input);
+			},
+		});
+
+		const key = await store({
+			userId: USER,
+			receivedAtMessageId: "2026-06-24T09:00:00.000Z#<empty@x>",
+			html: "<style>p{color:red}</style><script>alert(1)</script>",
+			inlineImages: [],
+		});
+
+		// A body the sanitizer empties (only stripped tags) must NOT become a
+		// zero-byte object that reads back as "" and renders a blank iframe — signal
+		// "no body" so the caller persists `unparsed` and shows the unavailable panel.
+		expect(key).toBeUndefined();
+		expect(writes).toHaveLength(0);
+	});
 });

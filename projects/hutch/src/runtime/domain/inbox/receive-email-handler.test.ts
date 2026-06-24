@@ -237,6 +237,33 @@ describe("initReceiveEmailHandler", () => {
 		expect(published[0].detail.userId).toBe(OWNER);
 	});
 
+	it("persists 'unparsed' (no body, no event) and ACKs when the body sanitizes to nothing", async () => {
+		const { addressStore, emailStore, rawMap, published, run } = makeHarness({
+			// An all-<style>/<script> newsletter parses fine but the sanitizer strips it
+			// to "" — storeBody writes no zero-byte object and reports no body.
+			storeBody: async () => undefined,
+		});
+		const address = await mintAddress(addressStore);
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		const result = await run(address);
+
+		assert(result);
+		// The sanitizer did its job (nothing renderable survived) — not a fault, so
+		// ACK rather than page; the immutable raw .eml stays the record.
+		expect(result.batchItemFailures).toHaveLength(0);
+		const [row] = await emailStore.listEmailsByUserId(OWNER);
+		// `unparsed` (not `received`) so the list shows the "Couldn't render" badge and
+		// the detail page shows the unavailable panel, never a blank iframe.
+		expect(row.status).toBe("unparsed");
+		expect(row.bodyS3Key).toBeUndefined();
+		// Parsed subject/sender are still recorded; only the body is absent.
+		expect(row.subject).toBe("Digest");
+		expect(row.senderEmail).toBe("news@example.com");
+		// No renderable body and nothing for M3 to extract — publish nothing.
+		expect(published).toHaveLength(0);
+	});
+
 	it("stores a row and publishes for EVERY forwarding recipient in one envelope", async () => {
 		const { addressStore, emailStore, rawMap, published, runMany } = makeHarness();
 		const ownerAddress = await mintAddress(addressStore);
