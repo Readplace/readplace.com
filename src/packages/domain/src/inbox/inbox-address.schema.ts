@@ -31,6 +31,25 @@ const INBOX_TOKEN_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
  * silently. */
 export const INBOX_ADDRESS_MAX_CREATE_ATTEMPTS = 5;
 
+/** Upper bound on the *live* addresses one user may hold. Without it a create
+ * loop — e.g. an account hammering POST /inbox/create — mints rows without
+ * limit, and every row is permanent (a freed hash could be re-minted for
+ * another user and leak their mail, so disabling stamps `disabledAt` rather
+ * than deleting). Counting only live rows caps the active footprint while
+ * leaving a recovery path: disable one you no longer need to free a slot.
+ * Generous enough that honest one-per-newsletter use never reaches it. */
+export const INBOX_ADDRESS_MAX_PER_USER = 25;
+
+/** Raised when a user is already at {@link INBOX_ADDRESS_MAX_PER_USER}. Distinct
+ * from a minting fault so callers can surface a friendly limit message without
+ * logging an alerting-worthy error. */
+export class InboxAddressLimitReachedError extends Error {
+	constructor(readonly limit: number) {
+		super(`Inbox address limit of ${limit} reached`);
+		this.name = "InboxAddressLimitReachedError";
+	}
+}
+
 /** randomInt is unbiased (rejection-sampled), so each character is drawn
  * uniformly from the 36-symbol alphabet — no modulo skew. */
 export function generateInboxToken(): InboxToken {

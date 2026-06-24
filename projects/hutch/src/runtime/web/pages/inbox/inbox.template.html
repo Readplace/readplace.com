@@ -31,6 +31,10 @@
       <p class="inbox__empty" data-test-inbox-empty>You don't have a forwarding address yet. Create one to get started.</p>
       {{/if}}
 
+      {{#if limitReached}}
+      <p class="inbox__error" data-test-inbox-limit role="alert">You've reached the maximum of {{maxAddresses}} forwarding addresses. Disable any you no longer need before creating more.</p>
+      {{/if}}
+
       <form action="{{createAction}}" method="POST" class="inbox__create">
         <button type="submit" class="inbox__create-btn" data-test-inbox-create>Create Inbox Email</button>
       </form>

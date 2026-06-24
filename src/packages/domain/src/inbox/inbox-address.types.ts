@@ -15,8 +15,10 @@ export interface InboxAddressEntry {
 
 export interface InboxAddressStore {
 	/** Mints a fresh address for the user. A user may hold many (one per
-	 * newsletter). Guards global uniqueness with a conditional put + bounded
-	 * retry; throws on retry exhaustion so the failure surfaces to alerting. */
+	 * newsletter) up to `INBOX_ADDRESS_MAX_PER_USER`; at the cap it throws
+	 * `InboxAddressLimitReachedError` so callers can surface a friendly limit
+	 * message. Guards global uniqueness with a conditional put + bounded retry;
+	 * throws on retry exhaustion so the failure surfaces to alerting. */
 	createAddress: (input: { userId: UserId; domain: string }) => Promise<InboxAddressEntry>;
 	/** Every address the user owns (1:N). The production adapter reads a DynamoDB
 	 * GSI, which is eventually consistent — an address created moments earlier may

@@ -120,6 +120,11 @@
   margin: 0 0 24px;
 }
 
+.inbox__error {
+  color: var(--error);
+  margin: 0 0 16px;
+}
+
 .inbox__create {
   margin: 0 0 32px;
 }

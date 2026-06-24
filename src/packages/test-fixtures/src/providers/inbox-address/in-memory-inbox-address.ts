@@ -2,6 +2,8 @@ import { ConditionalCheckFailedException } from "@packages/hutch-storage-client"
 import {
 	buildInboxAddress,
 	generateInboxToken,
+	INBOX_ADDRESS_MAX_PER_USER,
+	InboxAddressLimitReachedError,
 	type InboxAddressEntry,
 	type InboxAddressStore,
 } from "@packages/domain/inbox";
@@ -11,6 +13,12 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 
 	return {
 		createAddress: async ({ userId, domain }) => {
+			const live = [...rows.values()].filter(
+				(row) => row.userId === userId && row.disabledAt === undefined,
+			);
+			if (live.length >= INBOX_ADDRESS_MAX_PER_USER) {
+				throw new InboxAddressLimitReachedError(INBOX_ADDRESS_MAX_PER_USER);
+			}
 			const token = generateInboxToken();
 			const address = buildInboxAddress({ token, domain });
 			const entry: InboxAddressEntry = {
