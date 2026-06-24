@@ -3,11 +3,11 @@ import WebKit
 
 /// A minimal WKWebView wrapper that loads a single public URL — no cookie
 /// injection and no JS bridge, unlike the reader-specific `ReaderWebView`. A
-/// navigation delegate reports first-load completion and failure through
-/// closures so the presenting view can drive its loading and error overlays.
-/// Per the `ReaderWebView`/web-auth precedent, this WKWebView glue is an OS
-/// boundary left untested; the URL it loads is discovered by the view model,
-/// which is.
+/// navigation delegate reports first-load completion, and failure — a transport
+/// error or an HTTP error status — through closures so the presenting view can
+/// drive its loading and error overlays. Per the `ReaderWebView`/web-auth
+/// precedent, this WKWebView glue is an OS boundary left untested; the URL it
+/// loads is discovered by the view model, which is.
 struct WebPageView: UIViewControllerRepresentable {
 	let url: URL
 	let onFinish: () -> Void
@@ -39,6 +39,23 @@ struct WebPageView: UIViewControllerRepresentable {
 		init(onFinish: @escaping () -> Void, onFail: @escaping () -> Void) {
 			self.onFinish = onFinish
 			self.onFail = onFail
+		}
+
+		/// WKWebView delivers a 4xx/5xx through `didFinish`, not `didFail`, so without
+		/// rejecting the response here the sheet would paint the server's error body.
+		/// Cancelling routes an error status to `onFail`, surfacing the native Share
+		/// fallback instead.
+		func webView(
+			_ webView: WKWebView,
+			decidePolicyFor navigationResponse: WKNavigationResponse,
+			decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
+		) {
+			if let http = navigationResponse.response as? HTTPURLResponse, http.statusCode >= 400 {
+				decisionHandler(.cancel)
+				onFail()
+				return
+			}
+			decisionHandler(.allow)
 		}
 
 		func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

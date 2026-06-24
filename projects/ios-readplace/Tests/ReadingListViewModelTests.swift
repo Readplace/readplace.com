@@ -36,6 +36,33 @@ final class ReadingListViewModelTests: XCTestCase {
 		}
 	}
 
+	/// A two-page `/queue`: the first page advertises both a `next` link and the
+	/// `add-links-help` link; the second page (followed via `next`) omits the help
+	/// link, modelling a server that stops advertising it on a later page.
+	private func twoPageHelpHandler() -> (URLRequest, Data) -> StubURLProtocol.Stub {
+		return { request, _ in
+			switch (request.url?.path ?? "", request.url?.query ?? "") {
+			case ("/", _):
+				return .redirect(to: "/queue")
+			case ("/queue", "page=2"):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a2")],
+					page: 2,
+					total: 2
+				))
+			case ("/queue", _):
+				return .json(200, Fixtures.collection(
+					entitiesJSON: [Fixtures.article(id: "a1")],
+					extraLinks: ", { \"rel\": [\"next\"], \"href\": \"/queue?page=2\" }"
+						+ ", { \"rel\": [\"add-links-help\"], \"href\": \"/help/add-links\" }",
+					total: 2
+				))
+			default:
+				return .json(404, "{}")
+			}
+		}
+	}
+
 	func testRefreshDiscoversAddLinksHelpURL() async {
 		StubURLProtocol.setHandler(queueHandler(
 			extraLinks: ", { \"rel\": [\"add-links-help\"], \"href\": \"/help/add-links\" }"
@@ -57,6 +84,37 @@ final class ReadingListViewModelTests: XCTestCase {
 		await viewModel.refresh()
 
 		XCTAssertNil(viewModel.addLinksHelpURL)
+	}
+
+	func testAddLinksHelpURLSurvivesALaterPageThatOmitsTheLink() async {
+		StubURLProtocol.setHandler(twoPageHelpHandler())
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.refresh()
+		let resolved = viewModel.addLinksHelpURL
+		XCTAssertNotNil(resolved, "the first page advertises the help link")
+
+		await viewModel.loadMore()
+
+		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"], "the next page is appended")
+		XCTAssertEqual(
+			viewModel.addLinksHelpURL, resolved,
+			"a later page that omits the help link must not clear an already-resolved URL"
+		)
+	}
+
+	func testAddLinksHelpURLStaysNilForAnUnresolvableHelpHref() async {
+		StubURLProtocol.setHandler(queueHandler(
+			extraLinks: ", { \"rel\": [\"add-links-help\"], \"href\": \"mailto:help@example.com\" }"
+		))
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.refresh()
+
+		XCTAssertNil(
+			viewModel.addLinksHelpURL,
+			"a help href the client can't resolve (foreign scheme) is treated as absent"
+		)
 	}
 
 	// MARK: - Mark as read

@@ -2,12 +2,12 @@ import SwiftUI
 
 /// The sheet shown when the user taps + on the reading list. Rather than an
 /// in-app paste box (removed), it teaches adding links through the iOS Share
-/// menu by rendering the server's `GET /help/add-links` page in a webview, so
-/// the copy ships via a hutch deploy rather than an App Store release. The help
-/// URL is discovered from the queue's Siren links; when it is missing (the queue
-/// hasn't loaded, or the link wasn't advertised) or the page fails to load, the
-/// sheet shows a local fallback that still teaches Share rather than a blank or
-/// dead-end page.
+/// menu by rendering the server's help page in a webview, so the copy ships via
+/// a hutch deploy rather than an App Store release. The help URL is discovered
+/// from the queue's `add-links-help` link `rel` (never a hard-coded route); when
+/// it is missing (the queue hasn't loaded, or the link wasn't advertised) or the
+/// page fails to load, the sheet shows a local fallback that still teaches Share
+/// rather than a blank or dead-end page.
 struct AddLinkInstructionsView: View {
 	let helpURL: URL?
 	let onClose: () -> Void
