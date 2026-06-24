@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { InboxAddressLimitReachedError } from "@packages/domain/inbox";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 import {
@@ -9,6 +10,7 @@ import {
 } from "@packages/test-fixtures";
 
 const useApp = useTestServer();
+const ONE_DAY_MS = 86_400_000;
 
 /** Older than the bot-defense minimum submit window (2.5s) so signup passes. */
 function freshLoadedAt(): string {
@@ -97,6 +99,21 @@ describe("Inbox routes", () => {
 			expect(navItemKeys(withoutFlag.text)).not.toContain("inbox");
 		});
 
+		it("hides the Inbox nav entry from a read-only user even with the flag present", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "seeded login user must exist");
+			await harness.subscriptionProviders.upsertTrialing({
+				userId,
+				trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+			});
+
+			const page = await agent.get("/queue?feature=email");
+
+			expect(navItemKeys(page.text)).not.toContain("inbox");
+		});
+
 		it("reaches the inbox (200) when the Inbox nav entry's GET form is followed", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
@@ -133,6 +150,47 @@ describe("Inbox routes", () => {
 			const response = await agent.post("/inbox/create");
 
 			expect(response.status).toBe(404);
+		});
+
+		it("redirects a read-only user to /queue?inactive=1 and mints nothing", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "seeded login user must exist");
+			await harness.subscriptionProviders.upsertTrialing({
+				userId,
+				trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
+			});
+
+			const response = await agent.post("/inbox/create?feature=email").set("Accept", "text/html");
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/queue?inactive=1");
+			const listed = await agent.get("/inbox?feature=email");
+			expect(addressFieldValue(listed.text)).toBeUndefined();
+		});
+
+		it("surfaces the per-user limit message without logging an error when the cap is reached", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const errors: string[] = [];
+			fixture.shared.logError = (message) => {
+				errors.push(message);
+			};
+			fixture.inboxAddress.inboxAddressStore.createAddress = async () => {
+				throw new InboxAddressLimitReachedError(25);
+			};
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.post("/inbox/create?feature=email");
+
+			expect(response.status).toBe(303);
+			expect(response.headers.location).toBe("/inbox?feature=email&error=limit");
+			expect(errors.some((m) => m.includes("[Inbox] Failed to create"))).toBe(false);
+
+			const listed = await agent.get("/inbox?feature=email&error=limit");
+			const doc = new JSDOM(listed.text).window.document;
+			expect(doc.querySelector("[data-test-inbox-limit]")).not.toBeNull();
 		});
 
 		it("redirects gracefully and logs when address creation fails", async () => {

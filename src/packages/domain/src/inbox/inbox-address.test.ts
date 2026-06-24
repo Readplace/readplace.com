@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import {
 	buildInboxAddress,
 	generateInboxToken,
+	INBOX_ADDRESS_MAX_PER_USER,
 	INBOX_TOKEN_LENGTH,
+	InboxAddressLimitReachedError,
 	InboxTokenSchema,
 } from "./inbox-address.schema";
 
@@ -39,5 +41,15 @@ describe("buildInboxAddress", () => {
 	it("accepts a freshly generated token", () => {
 		const address = buildInboxAddress({ token: generateInboxToken(), domain: "read.place" });
 		assert.match(address, /^in-[0-9a-z]{6}@read\.place$/);
+	});
+});
+
+describe("InboxAddressLimitReachedError", () => {
+	it("carries the cap it was raised against and names it in the message", () => {
+		const error = new InboxAddressLimitReachedError(INBOX_ADDRESS_MAX_PER_USER);
+		assert.ok(error instanceof Error);
+		assert.equal(error.name, "InboxAddressLimitReachedError");
+		assert.equal(error.limit, INBOX_ADDRESS_MAX_PER_USER);
+		assert.match(error.message, new RegExp(String(INBOX_ADDRESS_MAX_PER_USER)));
 	});
 });

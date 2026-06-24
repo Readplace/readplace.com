@@ -943,6 +943,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		inboxAddressDomain: deps.inboxAddressDomain,
 		logError: deps.logError,
 		buildBannerState,
+		requireWriteAccess,
 	});
 	app.use("/inbox", requireAuth, inboxRouter);
 

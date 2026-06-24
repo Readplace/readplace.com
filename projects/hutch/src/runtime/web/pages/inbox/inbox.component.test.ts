@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import {
+	INBOX_ADDRESS_MAX_PER_USER,
 	type InboxAddressEntry,
 	InboxAddressSchema,
 	InboxTokenSchema,
@@ -25,21 +26,21 @@ function parse(html: string): Document {
 
 describe("InboxPage", () => {
 	it("noindexes the page and ships the copy-enhancement script", () => {
-		const page = InboxPage({ addresses: [] });
+		const page = InboxPage({ addresses: [], limitReached: false });
 		assert.equal(page.seo.robots, "noindex, nofollow");
 		assert.equal(page.bodyClass, "page-inbox");
 		assert.match(page.scripts ?? "", /inbox\.client\.js/);
 	});
 
 	it("shows an empty state with a create CTA and no list when the user has no addresses", () => {
-		const doc = parse(InboxPage({ addresses: [] }).content.html);
+		const doc = parse(InboxPage({ addresses: [], limitReached: false }).content.html);
 		assert.ok(doc.querySelector("[data-test-inbox-empty]"), "empty state must render");
 		assert.ok(doc.querySelector("[data-test-inbox-create]"), "create CTA must render");
 		assert.equal(doc.querySelector("[data-test-inbox-list]"), null);
 	});
 
 	it("renders each address into a selectable read-only field with a copy button", () => {
-		const doc = parse(InboxPage({ addresses: [entry()] }).content.html);
+		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
 		const field = doc.querySelector(".inbox__address-field");
 		assert.equal(field?.getAttribute("value"), "in-3f9a2c@read.place");
 		assert.equal(field?.getAttribute("readonly"), "");
@@ -60,6 +61,7 @@ describe("InboxPage", () => {
 						disabledAt: "2026-06-22T00:00:00.000Z",
 					}),
 				],
+				limitReached: false,
 			}).content.html,
 		);
 
@@ -101,6 +103,7 @@ describe("InboxPage", () => {
 						disabledAt: "2026-06-22T00:00:00.000Z",
 					}),
 				],
+				limitReached: false,
 			}).content.html,
 		);
 		assert.equal(doc.querySelectorAll("[data-test-inbox-item]").length, 2);
@@ -112,7 +115,7 @@ describe("InboxPage", () => {
 	});
 
 	it("points the create and disable forms at the flag-carrying routes", () => {
-		const doc = parse(InboxPage({ addresses: [entry()] }).content.html);
+		const doc = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
 		assert.equal(
 			doc.querySelector(".inbox__create")?.getAttribute("action"),
 			"/inbox/create?feature=email",
@@ -121,5 +124,15 @@ describe("InboxPage", () => {
 			doc.querySelector(".inbox__disable")?.getAttribute("action"),
 			"/inbox/disable?feature=email",
 		);
+	});
+
+	it("shows the per-user limit message naming the cap only when the limit is reached", () => {
+		const without = parse(InboxPage({ addresses: [entry()], limitReached: false }).content.html);
+		assert.equal(without.querySelector("[data-test-inbox-limit]"), null);
+
+		const withLimit = parse(InboxPage({ addresses: [entry()], limitReached: true }).content.html);
+		const message = withLimit.querySelector("[data-test-inbox-limit]");
+		assert.ok(message, "limit message must render when the cap is reached");
+		assert.match(message.textContent ?? "", new RegExp(String(INBOX_ADDRESS_MAX_PER_USER)));
 	});
 });

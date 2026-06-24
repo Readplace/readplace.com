@@ -1,6 +1,10 @@
 import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
-import { InboxAddressSchema } from "@packages/domain/inbox";
+import {
+	INBOX_ADDRESS_MAX_PER_USER,
+	InboxAddressLimitReachedError,
+	InboxAddressSchema,
+} from "@packages/domain/inbox";
 import { initInMemoryInboxAddress } from "./in-memory-inbox-address";
 
 const owner = UserIdSchema.parse("00000000000000000000000000000001");
@@ -32,6 +36,36 @@ describe("initInMemoryInboxAddress", () => {
 
 		expect(ownerAddresses).toHaveLength(2);
 		expect(otherAddresses).toHaveLength(1);
+	});
+
+	it("throws InboxAddressLimitReachedError once the user holds the per-user cap of live addresses", async () => {
+		const store = initInMemoryInboxAddress({ now: () => new Date() });
+		for (let i = 0; i < INBOX_ADDRESS_MAX_PER_USER; i++) {
+			await store.createAddress({ userId: owner, domain: DOMAIN });
+		}
+
+		await expect(store.createAddress({ userId: owner, domain: DOMAIN })).rejects.toThrow(
+			InboxAddressLimitReachedError,
+		);
+		// The cap is per-user: a different user is unaffected.
+		await expect(
+			store.createAddress({ userId: otherUser, domain: DOMAIN }),
+		).resolves.toBeDefined();
+	});
+
+	it("frees a slot when a live address is disabled, since only live addresses count toward the cap", async () => {
+		const store = initInMemoryInboxAddress({ now: () => new Date() });
+		const first = await store.createAddress({ userId: owner, domain: DOMAIN });
+		for (let i = 1; i < INBOX_ADDRESS_MAX_PER_USER; i++) {
+			await store.createAddress({ userId: owner, domain: DOMAIN });
+		}
+		await expect(store.createAddress({ userId: owner, domain: DOMAIN })).rejects.toThrow(
+			InboxAddressLimitReachedError,
+		);
+
+		await store.disableAddress({ userId: owner, address: first.address });
+
+		await expect(store.createAddress({ userId: owner, domain: DOMAIN })).resolves.toBeDefined();
 	});
 
 	it("disables an owned address by stamping disabledAt", async () => {

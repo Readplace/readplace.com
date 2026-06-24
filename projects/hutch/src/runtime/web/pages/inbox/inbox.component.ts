@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EMAIL_FEATURE, render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
-import type { InboxAddressEntry } from "@packages/domain/inbox";
+import { INBOX_ADDRESS_MAX_PER_USER, type InboxAddressEntry } from "@packages/domain/inbox";
 import { INBOX_STYLES } from "./inbox.styles";
 
 const INBOX_TEMPLATE = readFileSync(join(__dirname, "inbox.template.html"), "utf-8");
@@ -16,6 +16,7 @@ const INBOX_QUERY = `?feature=${EMAIL_FEATURE}`;
 export function InboxPage(params: {
 	addresses: InboxAddressEntry[];
 	createFailed?: boolean;
+	limitReached: boolean;
 }): PageBody {
 	const content = render(INBOX_TEMPLATE, {
 		createFailed: params.createFailed === true,
@@ -24,6 +25,8 @@ export function InboxPage(params: {
 			address: entry.address,
 			enabled: entry.disabledAt === undefined,
 		})),
+		limitReached: params.limitReached,
+		maxAddresses: INBOX_ADDRESS_MAX_PER_USER,
 		createAction: `/inbox/create${INBOX_QUERY}`,
 		disableAction: `/inbox/disable${INBOX_QUERY}`,
 	});

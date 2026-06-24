@@ -1,9 +1,9 @@
 import assert from "node:assert";
-import type { Request, Response, Router } from "express";
+import type { Request, RequestHandler, Response, Router } from "express";
 import express from "express";
 import { z } from "zod";
 import { EMAIL_FEATURE, sendComponent } from "@packages/web-shell";
-import { InboxAddressSchema } from "@packages/domain/inbox";
+import { InboxAddressLimitReachedError, InboxAddressSchema } from "@packages/domain/inbox";
 import type { InboxAddressStore } from "@packages/domain/inbox";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
@@ -16,6 +16,11 @@ interface InboxDependencies {
 	inboxAddressDomain: string;
 	logError: (message: string, error?: Error) => void;
 	buildBannerState: BuildBannerState;
+	/** Gates address minting to full-access accounts. A read-only / trial-expired
+	 * user is blocked from the save flow, and a forwarding address is a save-flow
+	 * input, so creating one is a write action — applied only to /create, mirroring
+	 * the import commit gate. Viewing and disabling existing addresses stay open. */
+	requireWriteAccess: RequestHandler;
 }
 
 const DisableAddressSchema = z.object({ address: InboxAddressSchema });
@@ -39,14 +44,15 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const addresses = await deps.inboxAddressStore.listAddressesByUserId(req.userId);
 		const createFailed = req.query.error === "create";
+		const limitReached = req.query.error === "limit";
 		sendComponent(
 			req,
 			res,
-			Base(InboxPage({ addresses, createFailed }), await deps.buildBannerState(req)),
+			Base(InboxPage({ addresses, createFailed, limitReached }), await deps.buildBannerState(req)),
 		);
 	});
 
-	router.post("/create", async (req: Request, res: Response) => {
+	router.post("/create", deps.requireWriteAccess, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		try {
 			await deps.inboxAddressStore.createAddress({
@@ -54,6 +60,12 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				domain: deps.inboxAddressDomain,
 			});
 		} catch (error) {
+			// Hitting the per-user cap is expected user behaviour, not a fault — echo
+			// it back as a friendly message instead of logging an alerting-worthy error.
+			if (error instanceof InboxAddressLimitReachedError) {
+				res.redirect(303, `${inboxPath}&error=limit`);
+				return;
+			}
 			deps.logError(
 				"[Inbox] Failed to create a forwarding address",
 				error instanceof Error ? error : new Error(String(error)),

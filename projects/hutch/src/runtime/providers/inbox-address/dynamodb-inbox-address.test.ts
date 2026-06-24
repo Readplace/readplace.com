@@ -2,7 +2,11 @@ import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
 } from "@packages/hutch-storage-client";
-import { InboxAddressSchema } from "@packages/domain/inbox";
+import {
+	INBOX_ADDRESS_MAX_PER_USER,
+	InboxAddressLimitReachedError,
+	InboxAddressSchema,
+} from "@packages/domain/inbox";
 import { UserIdSchema } from "@packages/domain/user";
 import { initDynamoDbInboxAddress } from "./dynamodb-inbox-address";
 
@@ -39,11 +43,29 @@ function conditionalCheckFailed(): ConditionalCheckFailedException {
 
 describe("initDynamoDbInboxAddress", () => {
 	describe("createAddress", () => {
+		// createAddress first reads the user's rows off the GSI to enforce the
+		// per-user cap, then conditionally puts. Tests branch the fake on the query
+		// (IndexName) vs the put (Item) so the cap-count read stays out of the way of
+		// the put-retry assertions.
+		function liveRows(count: number): Record<string, unknown>[] {
+			return Array.from({ length: count }, (_, i) => {
+				const token = String(i).padStart(6, "0");
+				return {
+					address: `in-${token}@read.place`,
+					userId: USER,
+					token,
+					createdAt: NOW.toISOString(),
+					disabledAt: null,
+				};
+			});
+		}
+
 		it("conditionally puts a new row guarded on address uniqueness", async () => {
 			const commands: CapturedCommand[] = [];
 			const store = initDynamoDbInboxAddress({
 				client: createFakeClient((cmd) => {
 					commands.push(cmd as CapturedCommand);
+					if ((cmd as CapturedCommand).input.IndexName) return { Items: [], Count: 0 };
 					return {};
 				}) as DynamoDBDocumentClient,
 				tableName: TABLE,
@@ -52,25 +74,25 @@ describe("initDynamoDbInboxAddress", () => {
 
 			const entry = await store.createAddress({ userId: USER, domain: DOMAIN });
 
-			expect(commands).toHaveLength(1);
-			expect(commands[0].input.ConditionExpression).toBe(
-				"attribute_not_exists(address)",
-			);
-			expect(commands[0].input.Item?.address).toBe(entry.address);
-			expect(commands[0].input.Item?.userId).toBe(USER);
-			expect(commands[0].input.Item?.token).toBe(entry.token);
-			expect(commands[0].input.Item?.createdAt).toBe(NOW.toISOString());
+			const puts = commands.filter((c) => c.input.Item);
+			expect(puts).toHaveLength(1);
+			expect(puts[0].input.ConditionExpression).toBe("attribute_not_exists(address)");
+			expect(puts[0].input.Item?.address).toBe(entry.address);
+			expect(puts[0].input.Item?.userId).toBe(USER);
+			expect(puts[0].input.Item?.token).toBe(entry.token);
+			expect(puts[0].input.Item?.createdAt).toBe(NOW.toISOString());
 			expect(entry.address).toMatch(/^in-[0-9a-z]{6}@read\.place$/);
 			expect(entry.createdAt).toBe(NOW.toISOString());
 			expect(entry.disabledAt).toBeUndefined();
 		});
 
 		it("regenerates and retries when the address collides, then succeeds", async () => {
-			let calls = 0;
+			let puts = 0;
 			const store = initDynamoDbInboxAddress({
-				client: createFakeClient(() => {
-					calls++;
-					if (calls === 1) throw conditionalCheckFailed();
+				client: createFakeClient((cmd) => {
+					if ((cmd as CapturedCommand).input.IndexName) return { Items: [], Count: 0 };
+					puts++;
+					if (puts === 1) throw conditionalCheckFailed();
 					return {};
 				}) as DynamoDBDocumentClient,
 				tableName: TABLE,
@@ -79,13 +101,14 @@ describe("initDynamoDbInboxAddress", () => {
 
 			const entry = await store.createAddress({ userId: USER, domain: DOMAIN });
 
-			expect(calls).toBe(2);
+			expect(puts).toBe(2);
 			expect(entry.address).toMatch(/^in-[0-9a-z]{6}@read\.place$/);
 		});
 
 		it("throws after exhausting retries on persistent collisions", async () => {
 			const store = initDynamoDbInboxAddress({
-				client: createFakeClient(() => {
+				client: createFakeClient((cmd) => {
+					if ((cmd as CapturedCommand).input.IndexName) return { Items: [], Count: 0 };
 					throw conditionalCheckFailed();
 				}) as DynamoDBDocumentClient,
 				tableName: TABLE,
@@ -99,7 +122,8 @@ describe("initDynamoDbInboxAddress", () => {
 
 		it("rethrows errors that are not conditional-check failures", async () => {
 			const store = initDynamoDbInboxAddress({
-				client: createFakeClient(() => {
+				client: createFakeClient((cmd) => {
+					if ((cmd as CapturedCommand).input.IndexName) return { Items: [], Count: 0 };
 					throw new Error("throttled");
 				}) as DynamoDBDocumentClient,
 				tableName: TABLE,
@@ -109,6 +133,51 @@ describe("initDynamoDbInboxAddress", () => {
 			await expect(store.createAddress({ userId: USER, domain: DOMAIN })).rejects.toThrow(
 				"throttled",
 			);
+		});
+
+		it("throws InboxAddressLimitReachedError and issues no put once the user holds the live cap", async () => {
+			const commands: CapturedCommand[] = [];
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient((cmd) => {
+					commands.push(cmd as CapturedCommand);
+					if ((cmd as CapturedCommand).input.IndexName) {
+						const Items = liveRows(INBOX_ADDRESS_MAX_PER_USER);
+						return { Items, Count: Items.length };
+					}
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+
+			await expect(store.createAddress({ userId: USER, domain: DOMAIN })).rejects.toThrow(
+				InboxAddressLimitReachedError,
+			);
+			expect(commands.some((c) => c.input.Item)).toBe(false);
+		});
+
+		it("counts only live rows toward the cap: a user whose cap-worth of rows are all disabled can still create", async () => {
+			const commands: CapturedCommand[] = [];
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient((cmd) => {
+					commands.push(cmd as CapturedCommand);
+					if ((cmd as CapturedCommand).input.IndexName) {
+						const Items = liveRows(INBOX_ADDRESS_MAX_PER_USER).map((row) => ({
+							...row,
+							disabledAt: "2026-06-22T00:00:00.000Z",
+						}));
+						return { Items, Count: Items.length };
+					}
+					return {};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+
+			const entry = await store.createAddress({ userId: USER, domain: DOMAIN });
+
+			expect(entry.address).toMatch(/^in-[0-9a-z]{6}@read\.place$/);
+			expect(commands.some((c) => c.input.Item)).toBe(true);
 		});
 	});
 
