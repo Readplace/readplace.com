@@ -120,6 +120,8 @@ import { initQueueRoutes } from "./web/pages/queue/queue.page";
 import { QUEUE_PATH } from "./web/pages/queue/queue.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
+import type { InboxAddressStore } from "@packages/domain/inbox";
+import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
 import { initSaveRoutes } from "./web/pages/save/save.page";
@@ -128,6 +130,7 @@ import { initViewRoutes } from "./web/pages/view/view.page";
 import type { ExpiryCountdown } from "./web/pages/view/view-expiry";
 import { initAdminRecrawlRoutes } from "./web/pages/admin/recrawl.page";
 import { initExportRoutes } from "./web/pages/export/export.page";
+import { initInboxRoutes } from "./web/pages/inbox/inbox.page";
 import { initAccountRoutes } from "./web/pages/account/account.page";
 import { initAgentSkills } from "./web/agent-skills/agent-skills";
 import { initMcpServer } from "./web/mcp/mcp-server";
@@ -241,6 +244,8 @@ interface AppDependencies {
 	logParseError: LogParseError;
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
+	inboxAddressStore: InboxAddressStore;
+	inboxAddressDomain: string;
 	getChangelogBanner: GetChangelogBanner;
 	now: () => Date;
 	retrieveCheckoutSession: RetrieveCheckoutSession;
@@ -691,9 +696,35 @@ export function createApp(dependencies: AppDependencies): Express {
 	 * here on $default even when the close button is clicked on a /blog page. */
 	app.use(initChangelogDismissRoute({ secureCookies }));
 
+	/** Every account-creation path (password, trial, checkout, Google) funnels
+	 * its user creation through these two deps, so wrapping them here provisions
+	 * exactly one forwarding address per new account at the single composition
+	 * seam. Best-effort: a failure is logged for alerting but never blocks
+	 * signup — the inbox page's "Create Inbox Email" CTA is the recovery path. */
+	const provisionInboxAddressOnSignup = async (userId: UserId): Promise<void> => {
+		try {
+			await deps.inboxAddressStore.createAddress({ userId, domain: deps.inboxAddressDomain });
+		} catch (error) {
+			deps.logError(
+				"[Inbox] Failed to provision a forwarding address at signup",
+				error instanceof Error ? error : new Error(String(error)),
+			);
+		}
+	};
+	const createUserWithPasswordHash: CreateUserWithPasswordHash = async (input) => {
+		const result = await deps.createUserWithPasswordHash(input);
+		if (result.ok) await provisionInboxAddressOnSignup(result.userId);
+		return result;
+	};
+	const createGoogleUser: CreateGoogleUser = async (input) => {
+		const result = await deps.createGoogleUser(input);
+		if (result.ok) await provisionInboxAddressOnSignup(result.userId);
+		return result;
+	};
+
 	const authRouter = initAuthRoutes({
 		hashPassword: deps.hashPassword,
-		createUserWithPasswordHash: deps.createUserWithPasswordHash,
+		createUserWithPasswordHash,
 		findUserByEmail: deps.findUserByEmail,
 		verifyCredentials: deps.verifyCredentials,
 		validateAccessToken: deps.validateAccessToken,
@@ -741,7 +772,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			staticBaseUrl,
 			secureCookies,
 			createSession: deps.createSession,
-			createGoogleUser: deps.createGoogleUser,
+			createGoogleUser,
 			findUserByEmail: deps.findUserByEmail,
 			countUsers,
 			markEmailVerified: deps.markEmailVerified,
@@ -896,6 +927,15 @@ export function createApp(dependencies: AppDependencies): Express {
 		buildBannerState,
 	});
 	app.use("/export", requireAuth, exportRouter);
+
+	const inboxRouter = initInboxRoutes({
+		featureToggle,
+		inboxAddressStore: deps.inboxAddressStore,
+		inboxAddressDomain: deps.inboxAddressDomain,
+		logError: deps.logError,
+		buildBannerState,
+	});
+	app.use("/inbox", requireAuth, inboxRouter);
 
 	const accountRouter = initAccountRoutes({
 		getEffectiveAccess,

@@ -22,6 +22,7 @@ describe("Nav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				emailFeatureEnabled: false,
 			}),
 		);
 
@@ -38,6 +39,7 @@ describe("Nav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				emailFeatureEnabled: false,
 				trialCounter: ACTIVE_TRIAL,
 			}),
 		);
@@ -59,6 +61,7 @@ describe("Nav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				emailFeatureEnabled: false,
 				trialCounter: { state: "expired" },
 			}),
 		);
@@ -78,6 +81,7 @@ describe("Nav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				emailFeatureEnabled: false,
 			}),
 		);
 
@@ -101,6 +105,7 @@ describe("Nav component", () => {
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				emailFeatureEnabled: false,
 			}),
 		);
 
@@ -126,12 +131,49 @@ describe("Nav component", () => {
 		expect(accountItems).toEqual(["account", "logout"]);
 	});
 
+	it("omits the Inbox entry by default and appends it after Export when the email feature is enabled", () => {
+		const withoutFlag = Array.from(
+			parse(
+				Nav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, emailFeatureEnabled: false }),
+			).querySelectorAll("[data-test-nav-item]"),
+		).map((el) => el.getAttribute("data-test-nav-item"));
+		expect(withoutFlag).not.toContain("inbox");
+
+		const withFlag = parse(
+			Nav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, emailFeatureEnabled: true }),
+		);
+		const libraryItems = Array.from(
+			withFlag
+				.querySelector('[data-test-nav-group="library"]')
+				?.querySelectorAll("[data-test-nav-item]") ?? [],
+		).map((el) => el.getAttribute("data-test-nav-item"));
+		expect(libraryItems).toEqual(["queue", "import", "export", "inbox"]);
+	});
+
+	it("carries feature=email as a hidden input on the Inbox entry so its GET form keeps the gate flag", () => {
+		const doc = parse(
+			Nav({ variant: "default", isAuthenticated: true, accessIsReadOnly: false, emailFeatureEnabled: true }),
+		);
+
+		const inboxForm = doc.querySelector('[data-test-nav-item="inbox"]')?.closest("form");
+		assert(inboxForm, "inbox nav item must be inside a form");
+		expect(inboxForm.getAttribute("method")).toBe("GET");
+		const feature = inboxForm.querySelector('input[type="hidden"][name="feature"]');
+		assert(feature, "inbox form must carry the feature flag as a hidden input");
+		expect(feature.getAttribute("value")).toBe("email");
+
+		const queueForm = doc.querySelector('[data-test-nav-item="queue"]')?.closest("form");
+		assert(queueForm, "queue nav item must be inside a form");
+		expect(queueForm.querySelector('input[type="hidden"][name="feature"]')).toBeNull();
+	});
+
 	it("renders an aria-hidden Font Awesome icon alongside each label without polluting the accessible name", () => {
 		const doc = parse(
 			Nav({
 				variant: "default",
 				isAuthenticated: true,
 				accessIsReadOnly: false,
+				emailFeatureEnabled: false,
 			}),
 		);
 
@@ -150,6 +192,7 @@ describe("Nav component", () => {
 				variant: "default",
 				isAuthenticated: false,
 				accessIsReadOnly: false,
+				emailFeatureEnabled: false,
 			}),
 		);
 
@@ -174,6 +217,7 @@ describe("Nav component", () => {
 				variant: "transparent",
 				isAuthenticated: false,
 				accessIsReadOnly: false,
+				emailFeatureEnabled: false,
 			}),
 		);
 

@@ -7,6 +7,9 @@ export interface NavProps {
 	variant: "default" | "transparent";
 	isAuthenticated: boolean;
 	accessIsReadOnly: boolean;
+	/** When true, the authenticated nav includes the Inbox entry. Gated by the
+	 * per-request `?feature=email` toggle so the surface stays hidden by default. */
+	emailFeatureEnabled: boolean;
 	/** Absence means the user is not on a trial — no countdown rendered.
 	 * Pre-auth pages (login, signup, forgot-password) build banner state from
 	 * the request synchronously and never populate this field, which is correct:
@@ -44,7 +47,10 @@ export function Nav(props: NavProps): string {
 		trialEndsAtIso: endsAtIsoFor(trial),
 		serverNowIso: serverNowIsoFor(trial),
 		navGroups: props.isAuthenticated
-			? buildNavGroups({ accessIsReadOnly: props.accessIsReadOnly })
+			? buildNavGroups({
+					accessIsReadOnly: props.accessIsReadOnly,
+					emailFeatureEnabled: props.emailFeatureEnabled,
+				})
 			: undefined,
 		navItems: props.isAuthenticated ? undefined : buildGuestNavItems(),
 		navVariant: props.isAuthenticated ? "authenticated" : "guest",

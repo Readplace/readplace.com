@@ -269,6 +269,7 @@ export function initBase(config: BaseConfig): RenderBase {
 				variant: headerVariant,
 				isAuthenticated: state.isAuthenticated,
 				accessIsReadOnly: state.accessIsReadOnly ?? false,
+				emailFeatureEnabled: state.emailFeatureEnabled ?? false,
 				trialCounter: state.trial,
 			}),
 			content: injectPageStylesIntoMain(body.content.html, body.styles),

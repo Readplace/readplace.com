@@ -83,6 +83,8 @@ import { initInMemoryPendingHtml } from "@packages/test-fixtures/providers/pendi
 import { initInMemoryPendingPdf } from "@packages/test-fixtures/providers/pending-pdf";
 import { initInMemoryImportSession } from "@packages/test-fixtures/providers/import-session";
 import { initDynamoDbImportSession } from "./providers/import-session/dynamodb-import-session";
+import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
+import { initDynamoDbInboxAddress } from "./providers/inbox-address/dynamodb-inbox-address";
 import { initExchangeGoogleCode } from "./providers/google-auth/google-token";
 import { initInMemoryStripeCheckout } from "@packages/test-fixtures/providers/stripe-checkout";
 import { initStripeCheckout } from "./providers/stripe-checkout/stripe-checkout";
@@ -148,6 +150,8 @@ function initProviders() {
 		const pendingHtmlBucketName = requireEnv("PENDING_HTML_BUCKET_NAME");
 		const pendingPdfBucketName = requireEnv("PENDING_PDF_BUCKET_NAME");
 		const importSessionsTable = requireEnv("DYNAMODB_IMPORT_SESSIONS_TABLE");
+		const inboxAddressesTable = requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE");
+		const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
 		const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
 		const rateLimitsTable = requireEnv("DYNAMODB_RATE_LIMITS_TABLE");
 		const trialSchedulerGroupName = requireEnv("TRIAL_SCHEDULER_GROUP_NAME");
@@ -253,6 +257,11 @@ function initProviders() {
 			tableName: importSessionsTable,
 			now: () => new Date(),
 		});
+		const inboxAddressStore = initDynamoDbInboxAddress({
+			client,
+			tableName: inboxAddressesTable,
+			now: () => new Date(),
+		});
 		const { consumeRateLimit } = initDynamoDbRateLimit({
 			client,
 			tableName: rateLimitsTable,
@@ -275,6 +284,8 @@ function initProviders() {
 			readArticleContent,
 			importSessionStore,
 			extractLinksFromPageUrl,
+			inboxAddressStore,
+			inboxAddressDomain,
 			subscriptionProviders,
 			trialScheduler,
 			createSubscriptionOnExistingCustomer: stripeSubscriptions.createSubscriptionOnExistingCustomer,
@@ -435,6 +446,8 @@ function initProviders() {
 	});
 
 	const importSessionStore = initInMemoryImportSession({ now: () => new Date() });
+	const inboxAddressStore = initInMemoryInboxAddress({ now: () => new Date() });
+	const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
 
 	// In-process counters are valid here because dev runs a single long-lived
 	// server. Defaults are liberal — every local/e2e request shares 127.0.0.1,
@@ -457,6 +470,8 @@ function initProviders() {
 		}),
 		importSessionStore,
 		extractLinksFromPageUrl,
+		inboxAddressStore,
+		inboxAddressDomain,
 		subscriptionProviders: devSubscriptionProviders,
 		trialScheduler: devTrialScheduler,
 		createSubscriptionOnExistingCustomer: devStripeSubscriptions.createSubscriptionOnExistingCustomer,

@@ -13,6 +13,7 @@ export type {
 	GoogleAuthBundle,
 	HttpErrorMessageMapping,
 	ImportSessionBundle,
+	InboxAddressBundle,
 	OAuthBundle,
 	ParserBundle,
 	PasswordResetBundle,

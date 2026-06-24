@@ -1,0 +1,42 @@
+    <main class="inbox">
+      <div class="inbox__header">
+        <h1 class="inbox__title">Your forwarding addresses</h1>
+        <p class="inbox__subtitle">Forward any newsletter to one of these addresses and it lands in Readplace. I'll pull out the links and queue them up for you to read later.</p>
+      </div>
+
+      {{#if hasAddresses}}
+      <ul class="inbox__list" data-test-inbox-list>
+        {{#each addresses}}
+        <li class="inbox__item" data-test-inbox-item>
+          <input class="inbox__address-field" type="text" value="{{this.address}}" readonly aria-label="Forwarding address" data-inbox-address="{{this.address}}" />
+          <button type="button" class="inbox__copy-btn" data-inbox-copy data-inbox-address="{{this.address}}" hidden>Copy</button>
+          {{#if this.enabled}}
+          <span class="inbox__status inbox__status--enabled" data-test-inbox-status="enabled">Active</span>
+          <form action="{{../disableAction}}" method="POST" class="inbox__disable">
+            <input type="hidden" name="address" value="{{this.address}}" />
+            <button type="submit" class="inbox__disable-btn" data-test-inbox-disable>Disable</button>
+          </form>
+          {{else}}
+          <span class="inbox__status inbox__status--disabled" data-test-inbox-status="disabled">Disabled</span>
+          {{/if}}
+        </li>
+        {{/each}}
+      </ul>
+      {{else}}
+      <p class="inbox__empty" data-test-inbox-empty>You don't have a forwarding address yet. Create one to get started.</p>
+      {{/if}}
+
+      <form action="{{createAction}}" method="POST" class="inbox__create">
+        <button type="submit" class="inbox__create-btn" data-test-inbox-create>Create Inbox Email</button>
+      </form>
+
+      <section class="inbox__instructions">
+        <h2 class="inbox__instructions-title">How it works</h2>
+        <ol class="inbox__steps">
+          <li>Create a forwarding address and copy it.</li>
+          <li>In your email app, forward a newsletter (or set up forwarding) to it.</li>
+          <li>New issues show up here automatically.</li>
+        </ol>
+        <p class="inbox__note">This is new — right now it just gives you the address. Reading forwarded mail in Readplace is coming next.</p>
+      </section>
+    </main>

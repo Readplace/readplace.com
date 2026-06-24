@@ -1,0 +1,149 @@
+.inbox {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+.inbox__header {
+  margin-bottom: 32px;
+}
+
+.inbox__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--foreground);
+  margin: 0 0 4px;
+}
+
+.inbox__subtitle {
+  font-size: 1rem;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+
+.inbox__list {
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.inbox__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.inbox__address-field {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 8px 12px;
+  font-size: 0.95rem;
+  color: var(--foreground);
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.inbox__copy-btn {
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--primary-foreground);
+  background: var(--primary);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.inbox__copy-btn:hover {
+  opacity: 0.9;
+}
+
+.inbox__status {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.inbox__status--enabled {
+  color: var(--success);
+}
+
+.inbox__status--disabled {
+  color: var(--muted-foreground);
+}
+
+.inbox__disable {
+  margin: 0;
+}
+
+.inbox__disable-btn {
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  color: var(--muted-foreground);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.inbox__disable-btn:hover {
+  color: var(--foreground);
+}
+
+.inbox__empty {
+  color: var(--muted-foreground);
+  margin: 0 0 24px;
+}
+
+.inbox__create {
+  margin: 0 0 32px;
+}
+
+.inbox__create-btn {
+  display: inline-block;
+  padding: 12px 32px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.inbox__create-btn:hover {
+  opacity: 0.9;
+}
+
+.inbox__instructions {
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+
+.inbox__instructions-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--foreground);
+  margin: 0 0 8px;
+}
+
+.inbox__steps {
+  margin: 0 0 16px;
+  padding-left: 24px;
+  color: var(--muted-foreground);
+  line-height: 1.8;
+}
+
+.inbox__note {
+  color: var(--muted-foreground);
+  font-size: 0.9rem;
+  margin: 0;
+}

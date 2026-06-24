@@ -37,6 +37,12 @@ describe("bannerStateFromRequest", () => {
 	it("leaves currentPath undefined when the source carries no originalUrl", () => {
 		expect(bannerStateFromRequest({}).currentPath).toBeUndefined();
 	});
+
+	it("sets emailFeatureEnabled only when the query carries feature=email", () => {
+		expect(bannerStateFromRequest({ query: { feature: "email" } }).emailFeatureEnabled).toBe(true);
+		expect(bannerStateFromRequest({ query: { feature: "audio" } }).emailFeatureEnabled).toBe(false);
+		expect(bannerStateFromRequest({}).emailFeatureEnabled).toBe(false);
+	});
 });
 
 describe("buildGuestNavItems", () => {
@@ -66,7 +72,7 @@ describe("buildGuestNavItems", () => {
 
 describe("buildNavGroups", () => {
 	it("groups full-access items into Library (queue, import, export) and Account (account, sign out)", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: false });
+		const groups = buildNavGroups({ accessIsReadOnly: false, emailFeatureEnabled: false });
 		expect(groups.map((g) => g.key)).toEqual(["library", "account"]);
 		const [library, account] = groups;
 		expect(library?.label).toBe("Library");
@@ -76,14 +82,22 @@ describe("buildNavGroups", () => {
 	});
 
 	it("omits import and account for a read-only user, leaving Library (queue, export) and Account (sign out)", () => {
-		const groups = buildNavGroups({ accessIsReadOnly: true });
+		const groups = buildNavGroups({ accessIsReadOnly: true, emailFeatureEnabled: false });
 		const [library, account] = groups;
 		expect(library?.items.map((i) => i.key)).toEqual(["queue", "export"]);
 		expect(account?.items.map((i) => i.key)).toEqual(["logout"]);
 	});
 
+	it("appends the Inbox entry to Library when the email feature is enabled", () => {
+		const groups = buildNavGroups({ accessIsReadOnly: false, emailFeatureEnabled: true });
+		const [library] = groups;
+		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "export", "inbox"]);
+	});
+
 	it("assigns a Font Awesome solid icon to every nav item", () => {
-		const items = buildNavGroups({ accessIsReadOnly: false }).flatMap((g) => g.items);
+		const items = buildNavGroups({ accessIsReadOnly: false, emailFeatureEnabled: true }).flatMap(
+			(g) => g.items,
+		);
 		for (const item of items) {
 			expect(item.icon).toMatch(/^fa-solid fa-[a-z-]+$/);
 		}

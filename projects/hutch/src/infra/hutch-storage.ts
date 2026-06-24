@@ -12,6 +12,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly passwordResetTokensTable: aws.dynamodb.Table;
 	public readonly pendingSignupsTable: aws.dynamodb.Table;
 	public readonly importSessionsTable: aws.dynamodb.Table;
+	public readonly inboxAddressesTable: aws.dynamodb.Table;
 	public readonly subscriptionProvidersTable: aws.dynamodb.Table;
 	public readonly rateLimitsTable: aws.dynamodb.Table;
 
@@ -26,6 +27,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		passwordResetTokens: string;
 		pendingSignups: string;
 		importSessions: string;
+		inboxAddresses: string;
 		subscriptionProviders: string;
 		rateLimits: string;
 	} }, opts?: pulumi.ComponentResourceOptions) {
@@ -191,6 +193,31 @@ export class HutchStorage extends pulumi.ComponentResource {
 				enabled: true,
 			},
 		}, { parent: this, aliases: [{ parent: pulumi.rootStackResource }] });
+
+		/* Per-user email forwarding addresses (in-<token>@<domain>). The address
+		 * is the PK so the M2 receive path can resolve address → userId and so
+		 * creation can guarantee global uniqueness with a conditional put; the
+		 * userId GSI answers the inbox page's "list my addresses" query. Kept
+		 * forever (no TTL) and disable-only — a freed hash could be re-minted for
+		 * another user and leak their mail — so deletion protection + PITR are on. */
+		this.inboxAddressesTable = new aws.dynamodb.Table(`hutch-inbox-addresses`, {
+			name: args.tableNames.inboxAddresses,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "address",
+			attributes: [
+				{ name: "address", type: "S" },
+				{ name: "userId", type: "S" },
+			],
+			globalSecondaryIndexes: [
+				{
+					name: "userId-index",
+					hashKey: "userId",
+					projectionType: "ALL",
+				},
+			],
+		}, { parent: this });
 
 		/* Fixed-window throttle counters (per-IP buckets + the global paid-crawl
 		 * budget), each row one window. Ephemeral by definition — no deletion
