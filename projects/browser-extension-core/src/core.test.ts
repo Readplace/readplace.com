@@ -194,6 +194,36 @@ describe("BrowserExtensionCore save", () => {
 		expect(showSavedCalls).toEqual([]);
 		expect(showDefaultCalls).toEqual([7]);
 	});
+
+	it("mints a web session when a save is not saveable and drops into the reader list", async () => {
+		const auth = loggedInAuth();
+		let mintCalls = 0;
+		auth.ensureWebSession = async () => {
+			mintCalls += 1;
+		};
+		const readingList = createRecordingReadingList({
+			saveResult: { ok: false, reason: "not-saveable", items: [] },
+		});
+		const { shell, iconUpdated } = createFakeShell({
+			id: 7,
+			url: "https://active.example",
+			title: "Active",
+		});
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		core.save("current-tab", {
+			url: "https://example.com/article",
+			title: "Article",
+			tabId: 42,
+		});
+
+		await iconUpdated;
+		expect(mintCalls).toBe(1);
+	});
 });
 
 type ShortcutHandler = () => void;
@@ -276,6 +306,7 @@ function loggedInAuth(): Auth {
 		logout: async () => {},
 		refreshTokens: async () => ({ ok: true }),
 		getAccessToken: async () => "token",
+		ensureWebSession: async () => {},
 		whenLoggedIn,
 	};
 }
@@ -535,6 +566,71 @@ describe("BrowserExtensionCore remove/fetch/check", () => {
 
 		expect(results).toHaveLength(1);
 		expect(results[0]).toHaveLength(1);
+	});
+
+	it("mints a web session when fetching the reading list while logged in", async () => {
+		const readingList = initInMemoryReadingList();
+		await readingList.saveUrl({ url: "https://w.example", title: "W" });
+		const cap = createCapturingShell();
+		const auth = loggedInAuth();
+		let mintCalls = 0;
+		auth.ensureWebSession = async () => {
+			mintCalls += 1;
+		};
+		const core = BrowserExtensionCore(cap.shell, { auth, logger, readingList });
+
+		core.fetch("reading-list");
+		await flush();
+
+		expect(mintCalls).toBe(1);
+	});
+
+	it("does not mint a web session when fetching the reading list while logged out", async () => {
+		const cap = createCapturingShell();
+		const auth = loggedInAuth();
+		auth.whenLoggedIn = (() => ({ ok: false, reason: "not-logged-in" })) as WhenLoggedIn;
+		let mintCalls = 0;
+		auth.ensureWebSession = async () => {
+			mintCalls += 1;
+		};
+		const core = BrowserExtensionCore(cap.shell, {
+			auth,
+			logger,
+			readingList: initInMemoryReadingList(),
+		});
+
+		core.fetch("reading-list");
+		await flush();
+
+		expect(mintCalls).toBe(0);
+	});
+
+	it("serves the list and logs when minting the web session fails", async () => {
+		const readingList = initInMemoryReadingList();
+		await readingList.saveUrl({ url: "https://e.example", title: "E" });
+		const cap = createCapturingShell();
+		const auth = loggedInAuth();
+		auth.ensureWebSession = async () => {
+			throw new Error("mint failed");
+		};
+		const warns: unknown[][] = [];
+		const capturingLogger = HutchLogger.from({
+			...noopLogger,
+			warn: (...args) => warns.push(args),
+		});
+		const core = BrowserExtensionCore(cap.shell, {
+			auth,
+			logger: capturingLogger,
+			readingList,
+		});
+		const results: ReadingListItem[][] = [];
+		core.on("fetched-reading-list", { success: (v) => results.push(v), failure: () => {} });
+
+		core.fetch("reading-list");
+		await flush();
+
+		expect(results).toHaveLength(1);
+		expect(warns).toHaveLength(1);
 	});
 
 	it("checks a url", async () => {

@@ -88,6 +88,14 @@ describe("initInMemoryAuth", () => {
 		});
 	});
 
+	describe("ensureWebSession", () => {
+		it("should resolve without error", async () => {
+			const auth = initInMemoryAuth();
+
+			await expect(auth.ensureWebSession()).resolves.toBeUndefined();
+		});
+	});
+
 	describe("logout", () => {
 		it("should return not-logged-in after logout", async () => {
 			const auth = initInMemoryAuth();

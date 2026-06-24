@@ -23,6 +23,12 @@ export type RefreshTokens = () => Promise<RefreshResult>;
 
 export type GetAccessToken = () => Promise<string | null>;
 
+/** Mints a browser session cookie from the stored bearer. The reader at
+ * /queue/:id/view authorizes the owner from the hutch_sid cookie, never a
+ * bearer, so a list link followed into a normal tab needs that cookie to land
+ * on the private reader instead of the public /view fallback. */
+export type EnsureWebSession = () => Promise<void>;
+
 export type WhenLoggedIn = <T>(fn: () => T) => GuardedResult<T>;
 
 export interface Auth {
@@ -30,6 +36,7 @@ export interface Auth {
 	logout: Logout;
 	refreshTokens: RefreshTokens;
 	getAccessToken: GetAccessToken;
+	ensureWebSession: EnsureWebSession;
 	whenLoggedIn: WhenLoggedIn;
 }
 
@@ -45,7 +52,7 @@ export interface OAuthAuthDeps {
 	openTab(url: string): Promise<number>;
 	waitForRedirect(params: { tabId: number; urlPrefix: string }): Promise<string>;
 	closeTab(tabId: number): Promise<void>;
-	fetchFn(url: string, init: { method: string; headers: Record<string, string>; body: string }): Promise<{ ok: boolean; status: number; json(): Promise<Record<string, string>> }>;
+	fetchFn(url: string, init: { method: string; headers: Record<string, string>; body?: string; credentials?: "include" }): Promise<{ ok: boolean; status: number; json(): Promise<Record<string, string>> }>;
 	tokenStorage: TokenStorage;
 	logger: HutchLogger;
 }

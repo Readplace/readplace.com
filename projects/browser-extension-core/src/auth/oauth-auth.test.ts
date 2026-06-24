@@ -222,7 +222,7 @@ describe("initOAuthAuth", () => {
 		it("should revoke tokens on the server", async () => {
 			const tokenStorage = createInMemoryTokenStorage();
 			let revokeUrl = "";
-			let revokeOptions: { method: string; headers: Record<string, string>; body: string } | undefined;
+			let revokeOptions: { method: string; headers: Record<string, string>; body?: string } | undefined;
 			const deps = createInMemoryOAuthDeps({
 				tokenStorage,
 				fetchFn: async (url, init) => {
@@ -268,6 +268,50 @@ describe("initOAuthAuth", () => {
 
 			const result = auth.whenLoggedIn(() => "value");
 			expect(result).toEqual({ ok: false, reason: "not-logged-in" });
+		});
+	});
+
+	describe("ensureWebSession", () => {
+		it("posts the bearer token to /auth/session with credentials to mint the reader cookie", async () => {
+			let sessionUrl = "";
+			let sessionInit:
+				| { method: string; headers: Record<string, string>; body?: string; credentials?: string }
+				| undefined;
+			const deps = createInMemoryOAuthDeps({
+				fetchFn: async (url, init) => {
+					if (url.endsWith("/auth/session")) {
+						sessionUrl = url;
+						sessionInit = init;
+					}
+					return { ok: true, status: 200, json: async () => ({ access_token: "access-123", refresh_token: "refresh-456" }) };
+				},
+			});
+			const auth = await initOAuthAuth(deps);
+			await auth.login();
+
+			await auth.ensureWebSession();
+
+			expect(sessionUrl).toBe("http://localhost:3000/auth/session");
+			expect(sessionInit).toEqual({
+				method: "POST",
+				headers: { Authorization: "Bearer access-123" },
+				credentials: "include",
+			});
+		});
+
+		it("does nothing when there is no stored token", async () => {
+			let sessionCalled = false;
+			const deps = createInMemoryOAuthDeps({
+				fetchFn: async (url) => {
+					if (url.endsWith("/auth/session")) sessionCalled = true;
+					return { ok: true, status: 200, json: async () => ({ access_token: "access-123", refresh_token: "refresh-456" }) };
+				},
+			});
+			const auth = await initOAuthAuth(deps);
+
+			await auth.ensureWebSession();
+
+			expect(sessionCalled).toBe(false);
 		});
 	});
 
@@ -330,7 +374,7 @@ describe("initOAuthAuth", () => {
 			const deps = createInMemoryOAuthDeps({
 				tokenStorage,
 				fetchFn: async (_url, init) => {
-					if (init.body.includes("grant_type=refresh_token")) {
+					if (init.body?.includes("grant_type=refresh_token")) {
 						return {
 							ok: true as boolean,
 							status: 200,
@@ -400,7 +444,7 @@ describe("initOAuthAuth", () => {
 				tokenStorage,
 				fetchFn: async (url, init) => {
 					capturedUrl = url;
-					capturedBody = init.body;
+					capturedBody = init.body ?? "";
 					return {
 						ok: true as boolean,
 						status: 200,
@@ -427,7 +471,7 @@ describe("initOAuthAuth", () => {
 			const deps = createInMemoryOAuthDeps({
 				tokenStorage,
 				fetchFn: async (_url, init) => {
-					if (init.body.includes("grant_type=refresh_token")) {
+					if (init.body?.includes("grant_type=refresh_token")) {
 						return {
 							ok: true as boolean,
 							status: 200,
@@ -463,7 +507,7 @@ describe("initOAuthAuth", () => {
 			const deps = createInMemoryOAuthDeps({
 				tokenStorage,
 				fetchFn: async (_url, init) => {
-					if (init.body.includes("grant_type=refresh_token")) {
+					if (init.body?.includes("grant_type=refresh_token")) {
 						return {
 							ok: true as boolean,
 							status: 200,
@@ -529,7 +573,7 @@ describe("initOAuthAuth", () => {
 			const deps = createInMemoryOAuthDeps({
 				tokenStorage,
 				fetchFn: async (_url, init) => {
-					if (init.body.includes("grant_type=refresh_token")) {
+					if (init.body?.includes("grant_type=refresh_token")) {
 						return { ok: false as boolean, status: 400, json: async () => ({}) };
 					}
 					return {
@@ -555,7 +599,7 @@ describe("initOAuthAuth", () => {
 			const deps = createInMemoryOAuthDeps({
 				tokenStorage,
 				fetchFn: async (_url, init) => {
-					if (init.body.includes("grant_type=refresh_token")) {
+					if (init.body?.includes("grant_type=refresh_token")) {
 						return { ok: false as boolean, status: 400, json: async () => ({}) };
 					}
 					return {
@@ -583,7 +627,7 @@ describe("initOAuthAuth", () => {
 			const deps = createInMemoryOAuthDeps({
 				tokenStorage,
 				fetchFn: async (_url, init) => {
-					if (init.body.includes("grant_type=refresh_token")) {
+					if (init.body?.includes("grant_type=refresh_token")) {
 						return {
 							ok: true as boolean,
 							status: 200,
@@ -615,8 +659,8 @@ describe("initOAuthAuth", () => {
 			const deps = createInMemoryOAuthDeps({
 				tokenStorage,
 				fetchFn: async (_url, init) => {
-					capturedBody = init.body;
-					if (init.body.includes("grant_type=refresh_token")) {
+					capturedBody = init.body ?? "";
+					if (init.body?.includes("grant_type=refresh_token")) {
 						return {
 							ok: true as boolean,
 							status: 200,
@@ -670,7 +714,7 @@ describe("initOAuthAuth", () => {
 			const deps = createInMemoryOAuthDeps({
 				tokenStorage,
 				fetchFn: async (_url, init) => {
-					if (init.body.includes("grant_type=refresh_token")) {
+					if (init.body?.includes("grant_type=refresh_token")) {
 						return {
 							ok: true as boolean,
 							status: 200,
