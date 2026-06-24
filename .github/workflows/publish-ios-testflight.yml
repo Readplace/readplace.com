@@ -23,12 +23,13 @@ jobs:
       contents: write
     defaults:
       run:
-        working-directory: projects/ios-readplace-poc
+        working-directory: projects/ios-readplace
     steps:
       - uses: actions/checkout@v6
         with:
           # Full history + tags: the next build number is derived from the latest
-          # ios-readplace-poc@v* tag, and the published commit is tagged back.
+          # ios-readplace@v* tag (the legacy ios-readplace-poc@v* namespace is also
+          # read for counter continuity), and the published commit is tagged back.
           fetch-depth: 0
           fetch-tags: true
           token: ${{ secrets.TAG_PUSH_TOKEN }}
@@ -62,13 +63,18 @@ jobs:
         with:
           ruby-version: '3.3'
           bundler-cache: true
-          working-directory: projects/ios-readplace-poc
+          working-directory: projects/ios-readplace
 
       - name: Compute next build number and marketing version from the latest tag
         id: version
         if: steps.preflight.outputs.configured == 'true'
         run: |
-          LATEST=$(git tag --list 'ios-readplace-poc@v*' --sort=-v:refname | head -n1 | sed 's/^ios-readplace-poc@v//')
+          # New builds use the ios-readplace@v* tag namespace; the legacy
+          # ios-readplace-poc@v* tags are still read so the build counter continues
+          # unbroken across the rename (CFBundleVersion must only ever increase).
+          # Extract the numeric build from both namespaces and take the max.
+          LATEST=$(git tag --list 'ios-readplace@v*' 'ios-readplace-poc@v*' \
+            | sed -E 's/^ios-readplace(-poc)?@v//' | sort -n | tail -n1)
           [ -z "$LATEST" ] && LATEST=0
           BUILD=$((LATEST + 1))
           # major.minor is the human-controlled line in project.yml; the patch is the
@@ -89,7 +95,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          TAG="ios-readplace-poc@v${{ steps.version.outputs.build }}"
+          TAG="ios-readplace@v${{ steps.version.outputs.build }}"
           git tag "$TAG"
           for i in 1 2 3 4 5; do
             if git push origin "$TAG"; then exit 0; fi

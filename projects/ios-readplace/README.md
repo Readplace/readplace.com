@@ -1,13 +1,13 @@
-# Readplace iOS POC
+# Readplace iOS
 
-A throwaway, dev-only iPhone app that behaves like the Readplace **browser
+An iPhone app that behaves like the Readplace **browser
 extension**: it lists your saved links and lets you save new ones by **sharing a
 URL to it** from any app. When you share a link, the app renders the page in a
 hidden `WKWebView` first and uploads the **rendered HTML** (not just the URL) via
 the server's `save-html` Siren action — exactly what the extension does.
 
-This is a proof of concept that lives under `projects/` as an nx project
-(`ios-readplace-poc`). It builds with its own Swift/fastlane toolchain rather
+It lives under `projects/` as an nx project
+(`ios-readplace`). It builds with its own Swift/fastlane toolchain rather
 than pnpm, and its code touches no other project. The production build needs
 **no server-side change**: it reuses the existing public OAuth client and Siren API.
 
@@ -30,7 +30,7 @@ way around installing it once). One-time setup, then one command, then install.
 **The command — build the app (run in this folder):**
 
 ```sh
-cd projects/ios-readplace-poc
+cd projects/ios-readplace
 make ipa
 ```
 
@@ -95,7 +95,7 @@ extension uses. See [`../../.claude/skills/extension-api-design/SKILL.md`](../..
 ## Layout
 
 ```
-projects/ios-readplace-poc/
+projects/ios-readplace/
 ├── project.yml                  # XcodeGen spec (source of truth for the project)
 ├── Makefile                     # make ipa / ipa-staging / generate / open / test / clean
 ├── scripts/build-unsigned-ipa.sh  # one command → installable unsigned .ipa
@@ -125,7 +125,7 @@ convenience; regenerate anytime with `make generate` (`brew install xcodegen`).
 From a Mac with Xcode's command-line tools and `brew install xcodegen`:
 
 ```sh
-cd projects/ios-readplace-poc
+cd projects/ios-readplace
 make ipa
 ```
 
@@ -145,7 +145,7 @@ app stores. The free-account signature lasts 7 days; re-run `make ipa` and
 re-install to renew.
 
 For a build that targets the deployed **staging** stack instead of production,
-run `make ipa-staging` (or `nx run ios-readplace-poc:compile-dev`). It sets the
+run `make ipa-staging` (or `nx run ios-readplace:compile-dev`). It sets the
 `STAGING` Swift compilation condition and writes a separate
 `build/Readplace-staging-unsigned.ipa`, so a tester signs in against staging
 without typing a URL. Same bundle id, so it replaces the prod app on a device.
@@ -161,22 +161,22 @@ You need a Mac with **Xcode 15+** and an Apple ID (a free personal team is fine)
 
 1. **Open the project**
    ```sh
-   cd projects/ios-readplace-poc
-   make open          # or: open ReadplacePOC.xcodeproj
+   cd projects/ios-readplace
+   make open          # or: open Readplace.xcodeproj
    ```
 
 2. **Set a unique bundle id + your team** (both targets). Bundle ids are globally
-   unique on Apple's side, so the placeholder `com.example.readplacepoc` will
+   unique on Apple's side, so the placeholder `com.example.readplace` will
    likely need changing:
-   - Select the **ReadplacePOC** target → **Signing & Capabilities** → set
+   - Select the **Readplace** target → **Signing & Capabilities** → set
      **Team** to your Apple ID and change the **Bundle Identifier** to something
-     unique, e.g. `com.<you>.readplacepoc`.
+     unique, e.g. `com.<you>.readplace`.
    - Select the **ShareExtension** target and do the same, keeping it a child of
-     the app id, e.g. `com.<you>.readplacepoc.ShareExtension`.
+     the app id, e.g. `com.<you>.readplace.ShareExtension`.
 
 3. **Confirm the App Group** (both targets share one). Under **Signing &
    Capabilities** both targets list an **App Groups** entry
-   `group.com.example.readplacepoc`. Keep them identical on both targets. If
+   `group.com.example.readplace`. Keep them identical on both targets. If
    Xcode flags it, click to register it (App Groups work with a free personal
    team). If you change the id, also update `AppConfig.appGroupId` in
    `Shared/AppConfig.swift` to match.
@@ -192,8 +192,8 @@ You need a Mac with **Xcode 15+** and an Apple ID (a free personal team is fine)
    the app to see it appear.
 
 > Free personal teams give a 7-day provisioning profile, so the app stops
-> launching after a week until you re-run it from Xcode. That's expected for a
-> dev POC.
+> launching after a week until you re-run it from Xcode. That's expected with a
+> free personal team.
 
 ---
 
@@ -264,7 +264,7 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
 
 - **Tapping an item** opens the original article URL in an in-app Safari view.
   The server's reader (`/queue/{id}/view`) needs a cookie session this
-  token-based POC doesn't hold, so it isn't used.
+  token-based client doesn't hold, so it isn't used.
 - **Both Login and Sign up use one small additive server change.** They
   authenticate as the existing `hutch-chrome-extension` client. The
   external-browser flow can't observe an HTTPS redirect in another app's tab, so

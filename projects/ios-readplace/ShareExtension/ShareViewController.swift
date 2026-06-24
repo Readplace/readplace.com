@@ -19,11 +19,8 @@ final class ShareViewController: UIViewController {
 	}
 
 	private func run() async {
-		NSLog("[ReadplacePOC] ShareExt start: group=\(TokenStore.resolvedAppGroupId) loggedIn=\(store.isLoggedIn) baseURL=\(AppConfig.serverBaseURL)")
-
 		setStatus("Saving…")
 		let shared = await ShareURLExtractor.extract(from: extensionContext)
-		if let shared { NSLog("[ReadplacePOC] ShareExt: extracted url=\(shared.url.absoluteString)") }
 
 		let captor = LazyHTMLCaptor { [weak self] webView in self?.attachHidden(webView) }
 		let saver = SaveSharedPage(store: store, api: ReadplaceAPI(baseURL: AppConfig.serverBaseURL, store: store), captor: captor)
@@ -33,7 +30,6 @@ final class ShareViewController: UIViewController {
 		case .savedLinkOnly:
 			finish(message: "Saved (link only)", symbol: "checkmark.circle.fill", success: true)
 		case .notLoggedIn:
-			NSLog("[ReadplacePOC] ShareExt: no token visible in the App Group — not logged in")
 			finish(message: "Open Readplace and sign in first.",
 				symbol: "person.crop.circle.badge.exclamationmark", success: false)
 		case .noLink:

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build an UNSIGNED .ipa of the Readplace POC (app + embedded share extension)
+# Build an UNSIGNED .ipa of Readplace (app + embedded share extension)
 # that you can install on your own iPhone with a sideloader (Sideloadly or
 # AltStore), which re-signs it with your free Apple ID at install time.
 #
@@ -17,7 +17,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-TARGET="ReadplacePOC"
+TARGET="Readplace"
 SYM="$(pwd)/build/sym"
 OBJ="$(pwd)/build/obj"
 
@@ -86,7 +86,7 @@ rm -rf "$SYM" "$OBJ" build/Payload "$OUT"
 # destination — which matters on partial Xcode installs missing the platform.
 echo "==> Building $TARGET for device ($READPLACE_ENV, code signing disabled)…"
 xc xcodebuild \
-	-project ReadplacePOC.xcodeproj \
+	-project Readplace.xcodeproj \
 	-target "$TARGET" \
 	-sdk iphoneos \
 	-configuration Release \

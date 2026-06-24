@@ -1,7 +1,7 @@
 default_platform(:ios)
 
-PROJECT     = "ReadplacePOC.xcodeproj"
-SCHEME      = "ReadplacePOC"
+PROJECT     = "Readplace.xcodeproj"
+SCHEME      = "Readplace"
 APP_ID      = "com.readplace"
 EXT_ID      = "com.readplace.ShareExtension"
 OUTPUT_NAME = "Readplace.ipa"
@@ -24,7 +24,7 @@ OUTPUT_DIR   = File.join(PROJECT_ROOT, "build", "output")
 # Targets that ship in the App Store build and therefore need distribution
 # signing. The test target is intentionally excluded.
 SIGNED_TARGETS = [
-  { target: "ReadplacePOC",   bundle_id: APP_ID },
+  { target: "Readplace",   bundle_id: APP_ID },
   { target: "ShareExtension", bundle_id: EXT_ID },
 ].freeze
 

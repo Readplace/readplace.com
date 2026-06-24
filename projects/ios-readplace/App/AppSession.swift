@@ -1,8 +1,6 @@
 import Foundation
 
-/// Why the authorization callback was rejected before any token exchange. Raised
-/// by `AppSession.completeSignIn` while validating the `readplace://oauth-callback`
-/// deep link the external-browser auth flow returns through.
+/// Why an authorization callback was rejected before any token exchange.
 enum AuthFlowError: LocalizedError {
 	case denied(String)
 	case missingCode
@@ -17,8 +15,8 @@ enum AuthFlowError: LocalizedError {
 	}
 }
 
-/// App-wide auth/session state. Exposes factories for the API and OAuth
-/// services so views never construct them with stale config.
+/// App-wide auth/session state, plus factories so views reach the API and OAuth
+/// with current config rather than constructing them with stale values.
 @MainActor
 final class AppSession: ObservableObject {
 	@Published private(set) var isLoggedIn: Bool
@@ -36,15 +34,11 @@ final class AppSession: ObservableObject {
 		isLoggedIn = store.isLoggedIn
 	}
 
-	/// Completes sign-in after the authorization web flow redirects to the
-	/// callback URL: validate the callback, exchange the code for tokens, flip
-	/// the session to logged-in. The deterministic half of the OAuth flow — the
-	/// preceding external-browser web redirect (for both Login and Sign up) is the
-	/// OS boundary, exercised by hand.
+	/// Completes sign-in: validate the callback, exchange the code for tokens, flip
+	/// the session to logged-in.
 	///
-	/// `redirectURI` must equal the one the authorize request used, because the
-	/// OAuth server checks it by exact string at token time: the native custom
-	/// scheme the external-browser flow authorized with.
+	/// `redirectURI` must equal the one the authorize request used — the OAuth
+	/// server checks it by exact string at token time.
 	func completeSignIn(
 		callbackURL: URL,
 		verifier: String,
@@ -67,7 +61,7 @@ final class AppSession: ObservableObject {
 		}
 	}
 
-	/// Graceful sign-out: revoke server-side, then clear and flip state.
+	/// Graceful sign-out: revoke server-side, then clear local state.
 	func logout() async {
 		await makeOAuth().revoke()
 		isLoggedIn = false

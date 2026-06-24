@@ -2,13 +2,11 @@ import Foundation
 
 // MARK: - Wire format (Siren)
 
-/// A Siren link, e.g. `{ "rel": ["self"], "href": "/queue?page=2" }`.
 struct SirenLink: Decodable {
 	let rel: [String]
 	let href: String
 }
 
-/// A declared form field on a Siren action, e.g. `{ "name": "url", "type": "url" }`.
 struct SirenField: Decodable {
 	let name: String
 	let type: String?
@@ -41,7 +39,6 @@ struct ArticleProperties: Decodable {
 	let readAt: String?
 }
 
-/// A sub-entity inside a collection (one saved article).
 struct SirenEntity: Decodable {
 	let `class`: [String]?
 	let rel: [String]?
@@ -50,7 +47,6 @@ struct SirenEntity: Decodable {
 	let actions: [SirenAction]?
 }
 
-/// Collection-level properties (`/queue`).
 struct CollectionProperties: Decodable {
 	let total: Int?
 	let page: Int?
@@ -65,7 +61,6 @@ struct SirenWarning: Decodable {
 	let message: String
 }
 
-/// A Siren collection response (the queue).
 struct SirenCollection: Decodable {
 	let `class`: [String]?
 	let properties: CollectionProperties?

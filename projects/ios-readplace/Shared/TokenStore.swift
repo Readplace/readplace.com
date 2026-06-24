@@ -9,9 +9,6 @@ struct OAuthTokens: Equatable {
 /// Persists OAuth tokens in the shared App Group so the app (which signs in)
 /// and the share extension (which saves) agree on identity. The server they
 /// target is fixed at compile time in `AppConfig.serverBaseURL`, not stored here.
-///
-/// A POC-grade store: UserDefaults in the shared container. (A production app
-/// would keep tokens in the Keychain with a shared access group.)
 struct TokenStore {
 	private let defaults: UserDefaults
 
@@ -22,11 +19,10 @@ struct TokenStore {
 
 	init() {
 		let group = TokenStore.resolvedAppGroupId
-		/// Falls back to standard defaults so the app still runs where the App
-		/// Group entitlement is missing — the share extension simply won't see
-		/// the token until the group is enabled.
-		defaults = UserDefaults(suiteName: group) ?? .standard
-		NSLog("[ReadplacePOC] TokenStore group=\(group) shared=\(UserDefaults(suiteName: group) != nil)")
+		guard let defaults = UserDefaults(suiteName: group) else {
+			preconditionFailure("App Group \(group) is required for the token store")
+		}
+		self.defaults = defaults
 	}
 
 	/// Injectable backing store for tests.

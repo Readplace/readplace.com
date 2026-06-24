@@ -16,7 +16,7 @@ generate:
 
 # Generate (if needed) and open in Xcode.
 open: generate
-	open ReadplacePOC.xcodeproj
+	open Readplace.xcodeproj
 
 # Run the unit tests on a simulator. The runner image's device set varies, so
 # default to the first available numbered iPhone; override for a specific one,
@@ -26,7 +26,7 @@ open: generate
 # someone builds `make ipa-staging` by hand.
 SIM ?= platform=iOS Simulator,name=$(shell xcrun simctl list devices available | grep -m1 -oE 'iPhone [0-9]+')
 test: generate
-	xcodebuild test -project ReadplacePOC.xcodeproj -scheme ReadplacePOC -destination '$(SIM)'
+	xcodebuild test -project Readplace.xcodeproj -scheme Readplace -destination '$(SIM)'
 	$(MAKE) test-staging SIM='$(SIM)'
 
 # Compile the STAGING condition and smoke-test it. The full suite can't run under
@@ -36,10 +36,10 @@ test: generate
 # testServerBaseURLMatchesActiveCompilationCondition asserts the `#if STAGING`
 # server selection resolves to the staging stack.
 test-staging: generate
-	xcodebuild test -project ReadplacePOC.xcodeproj -scheme ReadplacePOC -destination '$(SIM)' \
-		-only-testing:ReadplacePOCTests/AppConfigTests \
+	xcodebuild test -project Readplace.xcodeproj -scheme Readplace -destination '$(SIM)' \
+		-only-testing:ReadplaceTests/AppConfigTests \
 		SWIFT_ACTIVE_COMPILATION_CONDITIONS=STAGING
 
 # Remove generated project + build artifacts; sources are the source of truth.
 clean:
-	rm -rf ReadplacePOC.xcodeproj build
+	rm -rf Readplace.xcodeproj build

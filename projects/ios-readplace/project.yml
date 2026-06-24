@@ -1,4 +1,4 @@
-name: ReadplacePOC
+name: Readplace
 options:
   bundleIdPrefix: com.readplace
   deploymentTarget:
@@ -14,7 +14,7 @@ settings:
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.9"
-    # Pin the permissive (default) concurrency checking so the POC compiles
+    # Pin the permissive (default) concurrency checking so the app compiles
     # cleanly regardless of the Xcode version's default.
     SWIFT_STRICT_CONCURRENCY: minimal
     # Manual signing: the GUI Signing & Capabilities tab is unavailable on this
@@ -27,7 +27,7 @@ settings:
     TARGETED_DEVICE_FAMILY: "1"
 
 targets:
-  ReadplacePOC:
+  Readplace:
     type: application
     platform: iOS
     sources:
@@ -35,10 +35,6 @@ targets:
       - Shared
     settings:
       base:
-        # Product/.app stays "ReadplacePOC" (keeps TEST_HOST consistent); the
-        # home-screen name is "Readplace" via CFBundleDisplayName. The module is
-        # named "Readplace" purely for a clean `@testable import Readplace`.
-        PRODUCT_MODULE_NAME: Readplace
         PRODUCT_BUNDLE_IDENTIFIER: com.readplace
         INFOPLIST_FILE: App/Info.plist
         CODE_SIGN_ENTITLEMENTS: App/App.entitlements
@@ -48,7 +44,7 @@ targets:
       - target: ShareExtension
     scheme:
       testTargets:
-        - ReadplacePOCTests
+        - ReadplaceTests
 
   ShareExtension:
     type: app-extension
@@ -64,13 +60,13 @@ targets:
         CODE_SIGN_ENTITLEMENTS: ShareExtension/ShareExtension.entitlements
         GENERATE_INFOPLIST_FILE: NO
 
-  ReadplacePOCTests:
+  ReadplaceTests:
     type: bundle.unit-test
     platform: iOS
     sources:
       - Tests
     dependencies:
-      - target: ReadplacePOC
+      - target: Readplace
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.readplace.Tests

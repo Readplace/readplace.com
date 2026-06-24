@@ -1,13 +1,13 @@
 # TestFlight via fastlane (CLI-only, no Xcode GUI)
 
-Build, sign, and upload the Readplace POC (app **and** its share extension) to
+Build, sign, and upload Readplace (app **and** its share extension) to
 TestFlight for **internal** testers, entirely from the terminal. fastlane drives
 `xcodebuild` under the hood; the Xcode GUI is never opened.
 
 ## The command
 
 ```sh
-cd projects/ios-readplace-poc
+cd projects/ios-readplace
 ./scripts/fastlane.sh beta
 ```
 
@@ -65,7 +65,7 @@ The first `beta` run populates it with the encrypted cert + profiles.
 # and fails ("couldn't set additional authenticated data"), so use the Homebrew
 # Ruby (OpenSSL 3) — scripts/fastlane.sh expects it at /opt/homebrew/opt/ruby.
 brew install ruby
-cd projects/ios-readplace-poc
+cd projects/ios-readplace
 /opt/homebrew/opt/ruby/bin/bundle config set --local path vendor/bundle
 /opt/homebrew/opt/ruby/bin/bundle install
 
@@ -74,7 +74,7 @@ cd projects/ios-readplace-poc
 xcodebuild -downloadPlatform iOS
 ```
 
-> Verify the platform installed: `xcodebuild -showdestinations -project ReadplacePOC.xcodeproj -scheme ReadplacePOC`
+> Verify the platform installed: `xcodebuild -showdestinations -project Readplace.xcodeproj -scheme Readplace`
 > must list **Any iOS Device** without an "iOS … is not installed" error. Until it
 > does, `build_app` cannot archive.
 
@@ -160,13 +160,15 @@ the chrome/firefox publish workflows it's a reusable workflow invoked by
 changes never ship a build). It's also runnable manually from the **Actions** tab
 (`Publish iOS to TestFlight` → *Run workflow*) for the first publish.
 
-Each run derives a single **build counter** `<N>` from the latest
-`ios-readplace-poc@v*` git tag (latest + 1) and drives **both** version numbers
-from it: the **build number** (`CFBundleVersion`) is `<N>`, and the **marketing
+Each run derives a single **build counter** `<N>` (latest + 1) from the most
+recent `ios-readplace@v*` git tag — the legacy `ios-readplace-poc@v*` tags are
+also read, so the counter continues unbroken across the project rename — and
+drives **both** version numbers from it: the **build number**
+(`CFBundleVersion`) is `<N>`, and the **marketing
 version** (`CFBundleShortVersionString`) is `<major.minor>.<N>`, where
 `<major.minor>` is read from `MARKETING_VERSION` in `project.yml`. So with the
 spec at `0.1`, TestFlight shows e.g. `0.1.4 (4)`, then `0.1.5 (5)`. The run
-**tags the commit `ios-readplace-poc@v<N>` to reserve the counter before the
+**tags the commit `ios-readplace@v<N>` to reserve the counter before the
 irreversible upload**, then builds and uploads. Runs are serialized (a
 `concurrency` group) so two runs can't claim the same counter.
 
