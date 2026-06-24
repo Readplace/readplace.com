@@ -158,6 +158,7 @@ import { HomePage } from "./web/pages/home";
 import { McpConnectPage } from "./web/pages/mcp";
 import { PrivacyPage } from "./web/pages/privacy";
 import { TermsPage } from "./web/pages/terms";
+import { HelpAddLinksPage } from "./web/pages/help";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes } from "./web/pages/install";
@@ -637,6 +638,14 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	app.get("/terms", async (req: Request, res: Response) => {
 		sendComponent(req, res, Base(TermsPage(), await buildBannerState(req)));
+	});
+
+	// Bare (HtmlPage, not Base) so the iOS Share-help sheet can render it in a
+	// WKWebView without site chrome; public like /privacy. The iOS client reaches
+	// it via the add-links-help link rel in the /queue Siren collection, so the
+	// copy ships via a hutch deploy rather than an App Store review.
+	app.get("/help/add-links", (req: Request, res: Response) => {
+		sendComponent(req, res, HelpAddLinksPage());
 	});
 
 	// Path-uniqued article fixture for staging e2e tests. The :id segment is

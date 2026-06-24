@@ -112,6 +112,22 @@ describe("toArticleCollectionEntity", () => {
 		expect(entity.links).toContainEqual({ rel: ["root"], href: "/queue" });
 	});
 
+	it("advertises the add-links-help link", () => {
+		const result: FindArticlesResult = {
+			articles: [],
+			total: 0,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, {});
+
+		expect(entity.links).toContainEqual({
+			rel: ["add-links-help"],
+			href: "/help/add-links",
+		});
+	});
+
 	it("includes next link when more pages exist", () => {
 		const result: FindArticlesResult = {
 			articles: Array.from({ length: 20 }, (_, i) => makeArticle(`${i}`)),
@@ -140,7 +156,7 @@ describe("toArticleCollectionEntity", () => {
 		expect(prevLink?.href).toContain("page=1");
 	});
 
-	it("last page has only self and root links", () => {
+	it("last page omits the next link", () => {
 		const result: FindArticlesResult = {
 			articles: [makeArticle("1"), makeArticle("2")],
 			total: 22,
@@ -151,10 +167,10 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, { page: 2, pageSize: 20 });
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
-		expect(linkRels).toEqual(["self", "root", "prev"]);
+		expect(linkRels).toEqual(["self", "root", "add-links-help", "prev"]);
 	});
 
-	it("first page has only self and root links", () => {
+	it("single page omits both pagination links", () => {
 		const result: FindArticlesResult = {
 			articles: [makeArticle("1")],
 			total: 1,
@@ -165,7 +181,7 @@ describe("toArticleCollectionEntity", () => {
 		const entity = toArticleCollectionEntity(result, {});
 
 		const linkRels = entity.links?.map((l) => l.rel[0]);
-		expect(linkRels).toEqual(["self", "root"]);
+		expect(linkRels).toEqual(["self", "root", "add-links-help"]);
 	});
 
 	it("preserves query params in pagination links", () => {
