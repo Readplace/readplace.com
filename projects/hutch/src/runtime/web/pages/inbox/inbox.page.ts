@@ -9,15 +9,23 @@ import {
 	InboxAddressLimitReachedError,
 	InboxAddressSchema,
 } from "@packages/domain/inbox";
-import type { InboxAddressStore } from "@packages/domain/inbox";
+import type { InboxAddressStore, InboxEmailStore } from "@packages/domain/inbox";
+import type { ContentProvider } from "@packages/provider-contracts/article-store";
+import { emailContentResourceId } from "../../../domain/inbox/email-content-id";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import type { QuerystringFeatureToggle } from "../../feature-toggle";
+import { InboxEmailDetailPage } from "./inbox-email-detail.component";
+import { toInboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
+import { InboxEmailsPage } from "./inbox-emails.component";
+import { toInboxEmailsViewModel } from "./inbox-emails.viewmodel";
 import { InboxPage } from "./inbox.component";
 
 interface InboxDependencies {
 	featureToggle: QuerystringFeatureToggle;
 	inboxAddressStore: InboxAddressStore;
+	inboxEmailStore: InboxEmailStore;
+	readEmailContent: ContentProvider;
 	inboxAddressDomain: string;
 	logError: (message: string, error?: Error) => void;
 	buildBannerState: BuildBannerState;
@@ -29,14 +37,15 @@ interface InboxDependencies {
 	 * addresses stay open — disabling reduces footprint and is harmless. */
 	requireNotLocked: RequestHandler;
 	requireWriteAccess: RequestHandler;
+	now: () => Date;
 }
 
 const DisableAddressSchema = z.object({ address: InboxAddressSchema });
 
 export function initInboxRoutes(deps: InboxDependencies): Router {
 	const router = express.Router();
-	const inboxPath = `/inbox?feature=${EMAIL_FEATURE}`;
-	const inboxCreateFailedPath = `${inboxPath}&error=create`;
+	const addressesPath = `/inbox/addresses?feature=${EMAIL_FEATURE}`;
+	const addressesCreateFailedPath = `${addressesPath}&error=create`;
 
 	/** Hidden by default: without the per-request flag the whole surface 404s, so
 	 * production traffic never sees it until the flag is flipped on a request. */
@@ -49,6 +58,13 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 	});
 
 	router.get("/", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const emails = await deps.inboxEmailStore.listEmailsByUserId(req.userId);
+		const vm = toInboxEmailsViewModel(emails, { now: deps.now() });
+		sendComponent(req, res, Base(InboxEmailsPage(vm), await deps.buildBannerState(req)));
+	});
+
+	router.get("/addresses", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const addresses = await deps.inboxAddressStore.listAddressesByUserId(req.userId);
 		const createFailed = req.query.error === "create";
@@ -65,6 +81,27 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		);
 	});
 
+	// Registered after the literal `/addresses` route so that path is never
+	// captured as an email id. `id` is the URL-encoded `receivedAtMessageId`.
+	router.get("/:id", async (req: Request<{ id: string }>, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const receivedAtMessageId = req.params.id;
+		const entry = await deps.inboxEmailStore.getEmail({
+			userId: req.userId,
+			receivedAtMessageId,
+		});
+		if (entry === undefined) {
+			res.status(404).type("html").send("");
+			return;
+		}
+		const bodyHtml =
+			entry.status === "received"
+				? await deps.readEmailContent(emailContentResourceId(receivedAtMessageId))
+				: undefined;
+		const vm = toInboxEmailDetailViewModel({ entry, bodyHtml });
+		sendComponent(req, res, Base(InboxEmailDetailPage(vm), await deps.buildBannerState(req)));
+	});
+
 	router.post("/create", deps.requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		try {
@@ -76,17 +113,17 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			// Hitting the per-user cap is expected user behaviour, not a fault — echo
 			// it back as a friendly message instead of logging an alerting-worthy error.
 			if (error instanceof InboxAddressLimitReachedError) {
-				res.redirect(303, `${inboxPath}&error=limit`);
+				res.redirect(303, `${addressesPath}&error=limit`);
 				return;
 			}
 			deps.logError(
 				"[Inbox] Failed to create a forwarding address",
 				error instanceof Error ? error : new Error(String(error)),
 			);
-			res.redirect(303, inboxCreateFailedPath);
+			res.redirect(303, addressesCreateFailedPath);
 			return;
 		}
-		res.redirect(303, inboxPath);
+		res.redirect(303, addressesPath);
 	});
 
 	router.post("/disable", async (req: Request, res: Response) => {
@@ -101,7 +138,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 				await deps.inboxAddressStore.disableAddress({ userId, address: parsed.data.address });
 			}
 		}
-		res.redirect(303, inboxPath);
+		res.redirect(303, addressesPath);
 	});
 
 	return router;

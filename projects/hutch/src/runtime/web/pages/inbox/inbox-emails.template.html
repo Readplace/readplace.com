@@ -1,0 +1,34 @@
+<main class="inbox-emails" data-test-inbox-emails>
+	<header class="inbox-emails__header">
+		<h1 class="inbox-emails__title">Inbox</h1>
+		<a
+			class="inbox-emails__manage"
+			href="/inbox/addresses?feature=email"
+			data-test-inbox-manage-addresses
+			>Manage addresses</a
+		>
+	</header>
+
+	{{#if isEmpty}}
+	<div class="inbox-emails__empty" data-test-inbox-emails-empty>
+		<p>No forwarded emails yet — forward a newsletter to one of your addresses and it’ll appear here.</p>
+	</div>
+	{{else}}
+	<ul class="inbox-emails__list" data-test-inbox-emails-list>
+		{{#each rows}}
+		<li class="inbox-emails__row" data-test-inbox-emails-row>
+			<a class="inbox-emails__link" href="{{href}}">
+				<span class="inbox-emails__sender" data-test-inbox-email-sender>{{sender}}</span>
+				<span class="inbox-emails__subject" data-test-inbox-email-subject>{{subject}}</span>
+				{{#if needsBadge}}<span
+					class="inbox-emails__badge"
+					data-test-inbox-email-status="{{status}}"
+					>{{statusLabel}}</span
+				>{{/if}}
+				<span class="inbox-emails__time" data-test-inbox-email-time>{{receivedAgo}}</span>
+			</a>
+		</li>
+		{{/each}}
+	</ul>
+	{{/if}}
+</main>

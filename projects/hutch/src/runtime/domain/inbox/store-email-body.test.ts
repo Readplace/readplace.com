@@ -1,0 +1,47 @@
+import { initStoreEmailBody } from "./store-email-body";
+
+describe("initStoreEmailBody", () => {
+	it("inlines cid images as data URIs, strips remote images, and writes to the content key", async () => {
+		const writes: { key: string; html: string }[] = [];
+		const store = initStoreEmailBody({
+			putContent: async (input) => {
+				writes.push(input);
+			},
+		});
+
+		const key = await store({
+			receivedAtMessageId: "2026-06-24T09:00:00.000Z#<m@x>",
+			html: '<p><img src="email://cid/logo@x"></p><img src="https://tracker.test/p.gif">',
+			inlineImages: [
+				{ cid: "logo@x", contentType: "image/png", body: Buffer.from([1, 2, 3]) },
+			],
+		});
+
+		expect(writes).toHaveLength(1);
+		expect(writes[0].key).toBe(key);
+		expect(key).toContain("content/");
+		// The cid image is inlined; the remote tracker is stripped; no parser-local
+		// URL leaks into stored HTML.
+		expect(writes[0].html).toContain("data:image/png;base64,AQID");
+		expect(writes[0].html).not.toContain("tracker.test");
+		expect(writes[0].html).not.toContain("email://cid");
+	});
+
+	it("writes sanitized HTML for an email with no inline images", async () => {
+		let written: string | undefined;
+		const store = initStoreEmailBody({
+			putContent: async ({ html }) => {
+				written = html;
+			},
+		});
+
+		await store({
+			receivedAtMessageId: "2026-06-24T09:00:00.000Z#<plain@x>",
+			html: "<p>Just text</p><script>alert(1)</script>",
+			inlineImages: [],
+		});
+
+		expect(written).toContain("<p>Just text</p>");
+		expect(written).not.toContain("<script");
+	});
+});

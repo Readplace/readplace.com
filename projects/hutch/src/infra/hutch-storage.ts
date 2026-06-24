@@ -13,6 +13,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly pendingSignupsTable: aws.dynamodb.Table;
 	public readonly importSessionsTable: aws.dynamodb.Table;
 	public readonly inboxAddressesTable: aws.dynamodb.Table;
+	public readonly inboxEmailsTable: aws.dynamodb.Table;
 	public readonly subscriptionProvidersTable: aws.dynamodb.Table;
 	public readonly rateLimitsTable: aws.dynamodb.Table;
 
@@ -28,6 +29,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		pendingSignups: string;
 		importSessions: string;
 		inboxAddresses: string;
+		inboxEmails: string;
 		subscriptionProviders: string;
 		rateLimits: string;
 	} }, opts?: pulumi.ComponentResourceOptions) {
@@ -216,6 +218,25 @@ export class HutchStorage extends pulumi.ComponentResource {
 					hashKey: "userId",
 					projectionType: "ALL",
 				},
+			],
+		}, { parent: this });
+
+		/* Received emails, one row per forwarded message. PK=userId + a
+		 * `${receivedAt}#${messageId}` sort key answers both web reads — the
+		 * newest-first list (descending query) and the single-email detail (get) —
+		 * off the base table with no GSI. Emails are kept forever (no TTL); the body
+		 * never lives here (always S3), so the 400 KB item limit is unreachable.
+		 * Deletion protection + PITR guard the only durable copy of receipt metadata. */
+		this.inboxEmailsTable = new aws.dynamodb.Table(`hutch-inbox-emails`, {
+			name: args.tableNames.inboxEmails,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "userId",
+			rangeKey: "receivedAtMessageId",
+			attributes: [
+				{ name: "userId", type: "S" },
+				{ name: "receivedAtMessageId", type: "S" },
 			],
 		}, { parent: this });
 

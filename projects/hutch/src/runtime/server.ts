@@ -65,7 +65,7 @@ import type {
 	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
-import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type { ContentProvider, ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	FindArticleCrawlStatus,
@@ -120,7 +120,7 @@ import { initQueueRoutes } from "./web/pages/queue/queue.page";
 import { QUEUE_PATH } from "./web/pages/queue/queue.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
-import type { InboxAddressStore } from "@packages/domain/inbox";
+import type { InboxAddressStore, InboxEmailStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
@@ -247,6 +247,8 @@ interface AppDependencies {
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	inboxAddressStore: InboxAddressStore;
+	inboxEmailStore: InboxEmailStore;
+	readEmailContent: ContentProvider;
 	inboxAddressDomain: string;
 	getChangelogBanner: GetChangelogBanner;
 	now: () => Date;
@@ -961,11 +963,14 @@ export function createApp(dependencies: AppDependencies): Express {
 	const inboxRouter = initInboxRoutes({
 		featureToggle,
 		inboxAddressStore: deps.inboxAddressStore,
+		inboxEmailStore: deps.inboxEmailStore,
+		readEmailContent: deps.readEmailContent,
 		inboxAddressDomain: deps.inboxAddressDomain,
 		logError: deps.logError,
 		buildBannerState,
 		requireNotLocked,
 		requireWriteAccess,
+		now: deps.now,
 	});
 	app.use("/inbox", requireAuth, inboxRouter);
 

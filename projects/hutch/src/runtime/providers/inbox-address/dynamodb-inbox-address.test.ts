@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import {
 	ConditionalCheckFailedException,
 	type DynamoDBDocumentClient,
@@ -245,6 +246,47 @@ describe("initDynamoDbInboxAddress", () => {
 			expect(captured?.input.ExpressionAttributeValues?.[":now"]).toBe(
 				NOW.toISOString(),
 			);
+		});
+	});
+
+	describe("findByAddress", () => {
+		it("resolves an address with a single GetItem on the address key", async () => {
+			let captured: CapturedCommand | undefined;
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient((cmd) => {
+					captured = cmd as CapturedCommand;
+					return {
+						Item: {
+							address: "in-3f9a2c@read.place",
+							userId: "user-1",
+							token: "3f9a2c",
+							createdAt: "2026-06-20T00:00:00.000Z",
+							disabledAt: null,
+						},
+					};
+				}) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+			const address = InboxAddressSchema.parse("in-3f9a2c@read.place");
+
+			const entry = await store.findByAddress(address);
+
+			expect(captured?.input.Key).toEqual({ address });
+			assert(entry, "expected the row to be returned");
+			expect(entry.userId).toBe(USER);
+			expect(entry.address).toBe(address);
+		});
+
+		it("returns undefined for an unknown address", async () => {
+			const store = initDynamoDbInboxAddress({
+				client: createFakeClient(() => ({})) as DynamoDBDocumentClient,
+				tableName: TABLE,
+				now: () => NOW,
+			});
+			const address = InboxAddressSchema.parse("in-zzzzzz@read.place");
+
+			expect(await store.findByAddress(address)).toBeUndefined();
 		});
 	});
 });

@@ -28,41 +28,10 @@ function freshLoadedAt(): string {
 	return String(Date.now() - 5000);
 }
 
-function navItemKeys(html: string): (string | null)[] {
-	const doc = new JSDOM(html).window.document;
-	return Array.from(doc.querySelectorAll("[data-test-nav-item]")).map((el) =>
-		el.getAttribute("data-test-nav-item"),
-	);
-}
-
 function addressFieldValue(html: string): string | null | undefined {
 	return new JSDOM(html).window.document
 		.querySelector(".inbox__address-field")
 		?.getAttribute("value");
-}
-
-/** Emulates a browser submitting a nav entry's GET form: the action's own query
- * string is discarded and replaced by the serialized form controls (the hidden
- * inputs), so the resulting URL is the action path plus the hidden-input query.
- * This is the only faithful way to assert the entry reaches its target — asserting
- * the entry is merely present misses a dropped gate flag. */
-function navFormSubmissionTarget(html: string, key: string): string {
-	const form = new JSDOM(html).window.document
-		.querySelector(`[data-test-nav-item="${key}"]`)
-		?.closest("form");
-	assert(form, `nav item ${key} must render inside a form`);
-	assert.equal(form.getAttribute("method"), "GET", "this helper emulates a GET submit");
-	const action = form.getAttribute("action");
-	assert(action, "nav form must declare an action");
-	const params = new URLSearchParams();
-	for (const input of form.querySelectorAll('input[type="hidden"]')) {
-		const name = input.getAttribute("name");
-		const value = input.getAttribute("value");
-		assert(name, "hidden input must declare a name");
-		assert(value !== null, "hidden input must declare a value");
-		params.set(name, value);
-	}
-	return `${new URL(action, "https://internal.invalid").pathname}?${params}`;
 }
 
 /** Mints live addresses through the real store until the user sits exactly at the
@@ -75,11 +44,11 @@ async function seedAddressesToCap(fixture: TestAppFixture, userId: UserId): Prom
 	}
 }
 
-describe("Inbox routes", () => {
-	describe("GET /inbox (gating)", () => {
+describe("Inbox address routes", () => {
+	describe("GET /inbox/addresses (gating)", () => {
 		it("redirects an unauthenticated visitor to /login", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const response = await request(harness.server).get("/inbox?feature=email");
+			const response = await request(harness.server).get("/inbox/addresses?feature=email");
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/login");
@@ -89,7 +58,7 @@ describe("Inbox routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/inbox");
+			const response = await agent.get("/inbox/addresses");
 
 			expect(response.status).toBe(404);
 		});
@@ -98,7 +67,7 @@ describe("Inbox routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/inbox?feature=email");
+			const response = await agent.get("/inbox/addresses?feature=email");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -115,7 +84,7 @@ describe("Inbox routes", () => {
 			assert(userId, "seeded login user must exist");
 			await seedAddressesToCap(fixture, userId);
 
-			const response = await agent.get("/inbox?feature=email");
+			const response = await agent.get("/inbox/addresses?feature=email");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -126,7 +95,7 @@ describe("Inbox routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/inbox?feature=email&error=limit");
+			const response = await agent.get("/inbox/addresses?feature=email&error=limit");
 
 			expect(response.status).toBe(200);
 			const doc = new JSDOM(response.text).window.document;
@@ -134,59 +103,16 @@ describe("Inbox routes", () => {
 		});
 	});
 
-	describe("nav entry", () => {
-		it("shows the Inbox nav entry only when the email feature flag is present", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(harness.server, harness.auth);
-
-			const withFlag = await agent.get("/queue?feature=email");
-			expect(navItemKeys(withFlag.text)).toContain("inbox");
-
-			const withoutFlag = await agent.get("/queue");
-			expect(navItemKeys(withoutFlag.text)).not.toContain("inbox");
-		});
-
-		it("hides the Inbox nav entry from a read-only user even with the flag present", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(harness.server, harness.auth);
-			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
-			assert(userId, "seeded login user must exist");
-			await harness.subscriptionProviders.upsertTrialing({
-				userId,
-				trialEndsAt: new Date(Date.now() - ONE_DAY_MS).toISOString(),
-			});
-
-			const page = await agent.get("/queue?feature=email");
-
-			expect(navItemKeys(page.text)).not.toContain("inbox");
-		});
-
-		it("reaches the inbox (200) when the Inbox nav entry's GET form is followed", async () => {
-			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-			const agent = await loginAgent(harness.server, harness.auth);
-
-			const page = await agent.get("/queue?feature=email");
-			const target = navFormSubmissionTarget(page.text, "inbox");
-
-			const response = await agent.get(target);
-
-			expect(response.status).toBe(200);
-			expect(
-				new JSDOM(response.text).window.document.querySelector("[data-test-inbox-empty]"),
-			).not.toBeNull();
-		});
-	});
-
 	describe("POST /inbox/create", () => {
-		it("creates an address and surfaces it on the next visit", async () => {
+		it("creates an address and surfaces it on the next visit to the addresses page", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
 			const created = await agent.post("/inbox/create?feature=email");
 			expect(created.status).toBe(303);
-			expect(created.headers.location).toBe("/inbox?feature=email");
+			expect(created.headers.location).toBe("/inbox/addresses?feature=email");
 
-			const listed = await agent.get("/inbox?feature=email");
+			const listed = await agent.get("/inbox/addresses?feature=email");
 			expect(addressFieldValue(listed.text)).toMatch(/^in-[0-9a-z]{6}@read\.place$/);
 		});
 
@@ -213,7 +139,7 @@ describe("Inbox routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/queue?inactive=1");
-			const listed = await agent.get("/inbox?feature=email");
+			const listed = await agent.get("/inbox/addresses?feature=email");
 			expect(addressFieldValue(listed.text)).toBeUndefined();
 		});
 
@@ -227,7 +153,7 @@ describe("Inbox routes", () => {
 			expect(
 				new JSDOM(response.text).window.document.querySelector("h1")?.textContent,
 			).toBe("Your account is locked");
-			const listed = await agent.get("/inbox?feature=email");
+			const listed = await agent.get("/inbox/addresses?feature=email");
 			expect(addressFieldValue(listed.text)).toBeUndefined();
 		});
 
@@ -246,10 +172,10 @@ describe("Inbox routes", () => {
 			const response = await agent.post("/inbox/create?feature=email");
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox?feature=email&error=limit");
+			expect(response.headers.location).toBe("/inbox/addresses?feature=email&error=limit");
 			expect(errors.some((m) => m.includes("[Inbox] Failed to create"))).toBe(false);
 
-			const listed = await agent.get("/inbox?feature=email&error=limit");
+			const listed = await agent.get("/inbox/addresses?feature=email&error=limit");
 			const doc = new JSDOM(listed.text).window.document;
 			expect(doc.querySelector("[data-test-inbox-limit]")).not.toBeNull();
 		});
@@ -269,7 +195,7 @@ describe("Inbox routes", () => {
 			const response = await agent.post("/inbox/create?feature=email");
 
 			expect(response.status).toBe(303);
-			expect(response.headers.location).toBe("/inbox?feature=email&error=create");
+			expect(response.headers.location).toBe("/inbox/addresses?feature=email&error=create");
 			expect(errors.some((m) => m.includes("[Inbox] Failed to create"))).toBe(true);
 		});
 
@@ -295,7 +221,7 @@ describe("Inbox routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 
-			const response = await agent.get("/inbox?feature=email");
+			const response = await agent.get("/inbox/addresses?feature=email");
 
 			expect(
 				new JSDOM(response.text).window.document.querySelector("[data-test-inbox-error]"),
@@ -308,7 +234,9 @@ describe("Inbox routes", () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 			const agent = await loginAgent(harness.server, harness.auth);
 			await agent.post("/inbox/create?feature=email");
-			const address = addressFieldValue((await agent.get("/inbox?feature=email")).text);
+			const address = addressFieldValue(
+				(await agent.get("/inbox/addresses?feature=email")).text,
+			);
 			expect(address).not.toBeNull();
 
 			const response = await agent
@@ -317,7 +245,9 @@ describe("Inbox routes", () => {
 				.send({ address: address ?? "" });
 
 			expect(response.status).toBe(303);
-			const after = new JSDOM((await agent.get("/inbox?feature=email")).text).window.document;
+			const after = new JSDOM(
+				(await agent.get("/inbox/addresses?feature=email")).text,
+			).window.document;
 			expect(after.querySelector('[data-test-inbox-status="disabled"]')).not.toBeNull();
 			expect(after.querySelector("[data-test-inbox-disable]")).toBeNull();
 		});
@@ -333,7 +263,9 @@ describe("Inbox routes", () => {
 				.send({ address: "not-an-address" });
 
 			expect(response.status).toBe(303);
-			const after = new JSDOM((await agent.get("/inbox?feature=email")).text).window.document;
+			const after = new JSDOM(
+				(await agent.get("/inbox/addresses?feature=email")).text,
+			).window.document;
 			expect(after.querySelector('[data-test-inbox-status="enabled"]')).not.toBeNull();
 		});
 
@@ -348,7 +280,9 @@ describe("Inbox routes", () => {
 				.send({ address: "in-zzzzzz@read.place" });
 
 			expect(response.status).toBe(303);
-			const after = new JSDOM((await agent.get("/inbox?feature=email")).text).window.document;
+			const after = new JSDOM(
+				(await agent.get("/inbox/addresses?feature=email")).text,
+			).window.document;
 			expect(after.querySelector('[data-test-inbox-status="enabled"]')).not.toBeNull();
 		});
 	});

@@ -25,6 +25,7 @@ import { DomainRedirect } from "./domain-redirect";
 import { AgentDiscoveryDns } from "./agent-discovery-dns";
 import { HutchStorage } from "./hutch-storage";
 import { HutchStaticAssets } from "./hutch-static-assets";
+import { InboxMail } from "./inbox-mail";
 import { requireEnv } from "@packages/require-env";
 
 const config = new pulumi.Config();
@@ -41,6 +42,8 @@ const pendingPdfBucketName = config.require("pendingPdfBucketName");
 const userExportBucketName = config.require("userExportBucketName");
 const inboxAddressDomain = config.require("inboxAddressDomain");
 const alertEmail = config.require("alertEmail");
+const rawEmailBucketName = config.require("rawEmailBucketName");
+const inboxMailParentZone = config.require("inboxMailParentZone");
 const tableNames = {
 	articles: config.require("dynamodbArticlesTable"),
 	userArticles: config.require("dynamodbUserArticlesTable"),
@@ -53,6 +56,7 @@ const tableNames = {
 	pendingSignups: config.require("dynamodbPendingSignupsTable"),
 	importSessions: config.require("dynamodbImportSessionsTable"),
 	inboxAddresses: config.require("dynamodbInboxAddressesTable"),
+	inboxEmails: config.require("dynamodbInboxEmailsTable"),
 	subscriptionProviders: config.require("dynamodbSubscriptionProvidersTable"),
 	rateLimits: config.require("dynamodbRateLimitsTable"),
 };
@@ -162,6 +166,7 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.pendingSignupsTable.arn, includeIndexes: false },
 		{ arn: storage.importSessionsTable.arn, includeIndexes: false },
 		{ arn: storage.inboxAddressesTable.arn, includeIndexes: true },
+		{ arn: storage.inboxEmailsTable.arn, includeIndexes: false },
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
 		{ arn: storage.rateLimitsTable.arn, includeIndexes: false },
 	],
@@ -300,6 +305,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		DYNAMODB_PENDING_SIGNUPS_TABLE: storage.pendingSignupsTable.name,
 		DYNAMODB_IMPORT_SESSIONS_TABLE: storage.importSessionsTable.name,
 		DYNAMODB_INBOX_ADDRESSES_TABLE: storage.inboxAddressesTable.name,
+		DYNAMODB_INBOX_EMAILS_TABLE: storage.inboxEmailsTable.name,
 		INBOX_ADDRESS_DOMAIN: inboxAddressDomain,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
 		DYNAMODB_RATE_LIMITS_TABLE: storage.rateLimitsTable.name,
@@ -414,6 +420,17 @@ new aws.s3.BucketLifecycleConfigurationV2("user-export-bucket-lifecycle", {
 	],
 });
 
+// --- Inbound email (SES receiving) ---
+// Provisions the SES domain identity + DKIM, MX/TXT/CNAME records into the
+// existing read.place zone, the immutable raw-email bucket (kept forever), and
+// the receipt rule that stores each .eml to S3 and publishes the receipt to SNS.
+// The receive Lambda's queue subscribes to inboxMail.notificationTopicArn (PR7).
+const inboxMail = new InboxMail("inbox-mail", {
+	mailDomain: inboxAddressDomain,
+	inboxMailParentZone,
+	rawEmailBucketName,
+});
+
 // --- ExportUserData worker Lambda ---
 // Subscribes to ExportUserDataCommand published by the web Lambda when a logged-in
 // user clicks "Email Me My Data". Paginates the user's articles, streams a JSON
@@ -468,6 +485,92 @@ const exportUserDataLambdaWithSQS = new HutchSQSBackedLambda("export-user-data",
 });
 
 eventBus.subscribe(ExportUserDataCommand, exportUserDataLambdaWithSQS);
+
+// --- Inbound email receive worker Lambda ---
+// Drains the SES→SNS receipt notifications: fetches the raw .eml from the raw
+// bucket, resolves the recipient, parses + sanitizes the body into the content
+// bucket, writes the row, and publishes EmailReceivedEvent. Oversize / unknown /
+// disabled / unparseable mail records an audit row then fails to the DLQ so the
+// HutchSQSBackedLambda alarm pages the operator (★15 degrade-with-alert).
+const receiveEmailDynamodb = new HutchDynamoDBAccess("receive-email-dynamodb", {
+	tables: [
+		{ arn: storage.inboxEmailsTable.arn, includeIndexes: false },
+		{ arn: storage.inboxAddressesTable.arn, includeIndexes: false },
+	],
+	actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"],
+});
+
+const receiveEmailQueue = new HutchSQS("receive-email", {
+	// Matches the worker timeout so an in-flight parse cannot be redelivered.
+	visibilityTimeoutSeconds: 120,
+});
+
+const receiveEmailLambda = new HutchLambda("receive-email", {
+	entryPoint: "./src/runtime/receive-email.main.ts",
+	outputDir: ".lib/receive-email",
+	assetDir: "./src/runtime",
+	memorySize: 1024,
+	timeout: 120,
+	environment: {
+		DYNAMODB_INBOX_EMAILS_TABLE: storage.inboxEmailsTable.name,
+		DYNAMODB_INBOX_ADDRESSES_TABLE: storage.inboxAddressesTable.name,
+		RAW_EMAIL_BUCKET_NAME: rawEmailBucketName,
+		CONTENT_BUCKET_NAME: contentBucketName,
+		EVENT_BUS_NAME: eventBus.eventBusName,
+		// 20 MiB — half SES's ~40 MB hard inbound cap; bounds parse memory.
+		INBOX_MAX_EMAIL_BYTES: String(20 * 1024 * 1024),
+	},
+	policies: [
+		...receiveEmailDynamodb.policies,
+		...HutchS3ReadWrite.readPoliciesForBucket("receive-email-raw-read", rawEmailBucketName),
+		...HutchS3ReadWrite.readPoliciesForBucket("receive-email-content-read", contentBucketName),
+		...HutchS3ReadWrite.writePoliciesForBucket("receive-email-content-write", contentBucketName),
+	],
+});
+
+eventBus.grantPublish(receiveEmailLambda);
+
+new HutchSQSBackedLambda("receive-email", {
+	lambda: receiveEmailLambda,
+	queue: receiveEmailQueue,
+	alertEmailDLQEntry: alertEmail,
+	batchSize: 1,
+});
+
+// SES → SNS → SQS bridge: SES cannot target SQS directly, so the receipt rule
+// publishes to inboxMail's topic and the receive queue subscribes here with raw
+// message delivery, so the SQS body is the SES notification JSON the handler
+// parses. The queue policy lets only this topic enqueue.
+const receiveEmailQueuePolicy = new aws.sqs.QueuePolicy("receive-email-sns-policy", {
+	queueUrl: receiveEmailQueue.queueUrl,
+	policy: pulumi
+		.all([receiveEmailQueue.queueArn, inboxMail.notificationTopicArn])
+		.apply(([queueArn, topicArn]) =>
+			JSON.stringify({
+				Version: "2012-10-17",
+				Statement: [
+					{
+						Effect: "Allow",
+						Principal: { Service: "sns.amazonaws.com" },
+						Action: "sqs:SendMessage",
+						Resource: queueArn,
+						Condition: { ArnEquals: { "aws:SourceArn": topicArn } },
+					},
+				],
+			}),
+		),
+});
+
+new aws.sns.TopicSubscription(
+	"receive-email-subscription",
+	{
+		topic: inboxMail.notificationTopicArn,
+		protocol: "sqs",
+		endpoint: receiveEmailQueue.queueArn,
+		rawMessageDelivery: true,
+	},
+	{ dependsOn: [receiveEmailQueuePolicy] },
+);
 
 // --- Reader-ready notification (fan-out + notify) ---
 // When an article's clean reader view reaches the successful terminal state,
