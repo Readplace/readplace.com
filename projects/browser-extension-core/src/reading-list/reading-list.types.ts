@@ -24,7 +24,7 @@ export interface SaveWarning {
  * authored, server-side-escaped HTML. The client injects it as HTML, so a body
  * that interpolates any untrusted/user-derived value (a saved URL, a title, an
  * email) without escaping it server-side is markup injection. See the
- * extension-api-design skill, "Server-Driven Messages Are Trusted HTML". */
+ * hypermedia-api-design skill, "Server-Driven Messages Are Trusted HTML". */
 export interface Message {
 	readonly type: "warning" | "error";
 	readonly content: { readonly type: string; readonly body: string };

@@ -31,7 +31,7 @@ When fixing CI failures, apply these skills based on the type of failure:
 - **ai-agent-editor** (`.claude/skills/ai-agent-editor/SKILL.md`): When CI fails on skills, `CLAUDE.md`, or other AI-agent documentation (broken links, format checks)
 - **blog-post-editor** (`.claude/skills/blog-post-editor/SKILL.md`): When CI fails on blog post markdown files
 - **crawl-pipeline-rca** (`.claude/skills/crawl-pipeline-rca/SKILL.md`): When CI fails on the article crawl pipeline (state-machine rows stuck non-terminal, multi-Lambda chain timeouts, canary or SLO failures) — apply before bumping Lambda timeouts, SQS visibility, or `maxReceiveCount`
-- **extension-api-design** (`.claude/skills/extension-api-design/SKILL.md`): When CI fails on the Siren contract between the browser extension and the server (action-name mismatches, missing navigation links, malformed entities)
+- **hypermedia-api-design** (`.claude/skills/hypermedia-api-design/SKILL.md`): When CI fails on the Siren/MCP hypermedia contract between the hutch server and any client (chrome/firefox extensions, iOS app, MCP) — action-name mismatches, missing navigation links, malformed entities
 - **infrastructure-design** (`.claude/skills/infrastructure-design/SKILL.md`): When CI fails on Pulumi preview/deploy
 
 ## Diagnosing GitHub Actions Failures

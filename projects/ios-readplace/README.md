@@ -101,7 +101,7 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
 
 It speaks `application/vnd.siren+json`, sends `Authorization: Bearer <token>` on
 every request, and refreshes the token once on a `401` — the same contract the
-extension uses. See [`../../.claude/skills/extension-api-design/SKILL.md`](../../.claude/skills/extension-api-design/SKILL.md).
+extension uses. See [`../../.claude/skills/hypermedia-api-design/SKILL.md`](../../.claude/skills/hypermedia-api-design/SKILL.md).
 
 ---
 
