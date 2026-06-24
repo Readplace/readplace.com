@@ -6,6 +6,7 @@ import {
 	InboxAddressLimitReachedError,
 	type InboxAddressEntry,
 	type InboxAddressStore,
+	isLiveAddress,
 } from "@packages/domain/inbox";
 
 export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddressStore {
@@ -14,7 +15,7 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 	return {
 		createAddress: async ({ userId, domain }) => {
 			const live = [...rows.values()].filter(
-				(row) => row.userId === userId && row.disabledAt === undefined,
+				(row) => row.userId === userId && isLiveAddress(row),
 			);
 			if (live.length >= INBOX_ADDRESS_MAX_PER_USER) {
 				throw new InboxAddressLimitReachedError(INBOX_ADDRESS_MAX_PER_USER);

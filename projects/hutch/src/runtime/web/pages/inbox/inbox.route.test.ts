@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { INBOX_ADDRESS_MAX_PER_USER } from "@packages/domain/inbox";
+import type { UserId } from "@packages/domain/user";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
+	type TestAppFixture,
 } from "@packages/test-fixtures";
 
 const useApp = useTestServer();
@@ -63,6 +65,16 @@ function navFormSubmissionTarget(html: string, key: string): string {
 	return `${new URL(action, "https://internal.invalid").pathname}?${params}`;
 }
 
+/** Mints live addresses through the real store until the user sits exactly at the
+ * per-user cap, so the next create is rejected the way production rejects it (the
+ * in-memory fixture faithfully throws at the limit) instead of by stubbing the
+ * throw. */
+async function seedAddressesToCap(fixture: TestAppFixture, userId: UserId): Promise<void> {
+	for (let i = 0; i < INBOX_ADDRESS_MAX_PER_USER; i++) {
+		await fixture.inboxAddress.inboxAddressStore.createAddress({ userId, domain: "read.place" });
+	}
+}
+
 describe("Inbox routes", () => {
 	describe("GET /inbox (gating)", () => {
 		it("redirects an unauthenticated visitor to /login", async () => {
@@ -101,9 +113,7 @@ describe("Inbox routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
 			assert(userId, "seeded login user must exist");
-			for (let i = 0; i < INBOX_ADDRESS_MAX_PER_USER; i++) {
-				await fixture.inboxAddress.inboxAddressStore.createAddress({ userId, domain: "read.place" });
-			}
+			await seedAddressesToCap(fixture, userId);
 
 			const response = await agent.get("/inbox?feature=email");
 
@@ -231,9 +241,7 @@ describe("Inbox routes", () => {
 			const agent = await loginAgent(harness.server, harness.auth);
 			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
 			assert(userId, "seeded login user must exist");
-			for (let i = 0; i < INBOX_ADDRESS_MAX_PER_USER; i++) {
-				await fixture.inboxAddress.inboxAddressStore.createAddress({ userId, domain: "read.place" });
-			}
+			await seedAddressesToCap(fixture, userId);
 
 			const response = await agent.post("/inbox/create?feature=email");
 

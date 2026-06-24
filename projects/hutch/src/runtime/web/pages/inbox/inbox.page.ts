@@ -4,6 +4,7 @@ import express from "express";
 import { z } from "zod";
 import { EMAIL_FEATURE, sendComponent } from "@packages/web-shell";
 import {
+	countLiveAddresses,
 	INBOX_ADDRESS_MAX_PER_USER,
 	InboxAddressLimitReachedError,
 	InboxAddressSchema,
@@ -56,8 +57,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		// still shows it even when the eventually-consistent live read
 		// (listAddressesByUserId) briefly undercounts and would otherwise drop it.
 		const limitReached =
-			req.query.error === "limit" ||
-			addresses.filter((a) => a.disabledAt === undefined).length >= INBOX_ADDRESS_MAX_PER_USER;
+			req.query.error === "limit" || countLiveAddresses(addresses) >= INBOX_ADDRESS_MAX_PER_USER;
 		sendComponent(
 			req,
 			res,
