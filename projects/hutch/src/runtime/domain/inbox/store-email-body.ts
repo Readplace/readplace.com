@@ -1,8 +1,10 @@
 import { sanitizeEmailHtml } from "@packages/domain/inbox";
 import type { ParsedEmailInlineImage } from "@packages/domain/inbox";
+import type { UserId } from "@packages/domain/user";
 import { emailContentResourceId } from "./email-content-id";
 
 export type StoreEmailBody = (input: {
+	userId: UserId;
 	receivedAtMessageId: string;
 	html: string;
 	inlineImages: ParsedEmailInlineImage[];
@@ -20,14 +22,14 @@ export type StoreEmailBody = (input: {
 export function initStoreEmailBody(deps: {
 	putContent: (input: { key: string; html: string }) => Promise<void>;
 }): StoreEmailBody {
-	return async ({ receivedAtMessageId, html, inlineImages }) => {
+	return async ({ userId, receivedAtMessageId, html, inlineImages }) => {
 		const rehostedImages: Record<string, string> = {};
 		for (const image of inlineImages) {
 			rehostedImages[`email://cid/${image.cid}`] =
 				`data:${image.contentType};base64,${image.body.toString("base64")}`;
 		}
 		const safeHtml = sanitizeEmailHtml({ html, rehostedImages });
-		const key = emailContentResourceId(receivedAtMessageId).toS3ContentKey();
+		const key = emailContentResourceId({ userId, receivedAtMessageId }).toS3ContentKey();
 		await deps.putContent({ key, html: safeHtml });
 		return key;
 	};

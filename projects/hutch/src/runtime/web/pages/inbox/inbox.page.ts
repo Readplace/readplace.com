@@ -96,7 +96,9 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		}
 		const bodyHtml =
 			entry.status === "received"
-				? await deps.readEmailContent(emailContentResourceId(receivedAtMessageId))
+				? await deps.readEmailContent(
+						emailContentResourceId({ userId: req.userId, receivedAtMessageId }),
+					)
 				: undefined;
 		const vm = toInboxEmailDetailViewModel({ entry, bodyHtml });
 		sendComponent(req, res, Base(InboxEmailDetailPage(vm), await deps.buildBannerState(req)));

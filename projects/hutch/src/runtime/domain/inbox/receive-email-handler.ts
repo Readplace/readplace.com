@@ -9,6 +9,8 @@ import { EmailReceivedEvent } from "@packages/hutch-infra-components";
 import type { PublishEvent } from "@packages/hutch-infra-components/runtime";
 import type { HutchLogger } from "@packages/hutch-logger";
 import {
+	type InboxAddress,
+	type InboxAddressEntry,
 	InboxAddressSchema,
 	type InboxAddressStore,
 	type InboxEmailEntry,
@@ -16,7 +18,7 @@ import {
 	MessageIdSchema,
 	type ParseEmailResult,
 } from "@packages/domain/inbox";
-import { UserIdSchema } from "@packages/domain/user";
+import { type UserId, UserIdSchema } from "@packages/domain/user";
 import type { StoreEmailBody } from "./store-email-body";
 
 /** Mail to an address that resolves to no user (a guessed/mistyped forwarding
@@ -74,21 +76,42 @@ export function initReceiveEmailHandler(deps: {
 					continue;
 				}
 
-				const recipient = InboxAddressSchema.safeParse(receipt.recipients[0]);
-				if (!recipient.success) {
-					// A non-forwarding `@domain` recipient (postmaster, a typo). The raw
-					// .eml is kept forever; surface via DLQ, no user-facing row.
-					logger.error("[receive-email] recipient is not a forwarding address", {
+				// SES runs the catch-all rule ONCE per message and lists EVERY matching
+				// recipient, so one forwarded newsletter can be addressed to several of
+				// the domain's forwarding addresses at once — each gets its own row.
+				// Non-forwarding `@domain` recipients (postmaster, a typo) are dropped
+				// here; the raw .eml kept forever is their audit trail.
+				const recipients = receipt.recipients.flatMap((candidate) => {
+					const parsed = InboxAddressSchema.safeParse(candidate);
+					return parsed.success ? [parsed.data] : [];
+				});
+				if (recipients.length === 0) {
+					// No forwarding recipient — an expected, recurring condition on a public
+					// catch-all MX (spam, bots, bounces). The raw .eml is kept; ACK rather
+					// than fail to the DLQ so genuine faults don't drown in alert noise.
+					logger.warn("[receive-email] no forwarding recipient", {
 						messageId: record.messageId,
 					});
-					batchItemFailures.push({ itemIdentifier: record.messageId });
 					continue;
 				}
-				const recipientAddress = recipient.data;
-				const resolved = await findByAddress(recipientAddress);
-				const userId = resolved?.userId ?? UNROUTED_USER_ID;
 
-				const auditRow: InboxEmailEntry = {
+				// Resolve each recipient exactly once so the unrouted-vs-owner partition
+				// choice has a single nullish-coalesce that every branch below reuses.
+				const resolvedRecipients: {
+					recipientAddress: InboxAddress;
+					resolved: InboxAddressEntry | undefined;
+					userId: UserId;
+				}[] = [];
+				for (const recipientAddress of recipients) {
+					const resolved = await findByAddress(recipientAddress);
+					resolvedRecipients.push({
+						recipientAddress,
+						resolved,
+						userId: resolved?.userId ?? UNROUTED_USER_ID,
+					});
+				}
+
+				const auditRow = (recipientAddress: InboxAddress, userId: UserId): InboxEmailEntry => ({
 					userId,
 					receivedAtMessageId: `${receivedAt}#${sesMessageId}`,
 					messageId: sesMessageId,
@@ -99,67 +122,80 @@ export function initReceiveEmailHandler(deps: {
 					receivedAt,
 					rawEmailS3Key: s3Key,
 					bodyS3Key: undefined,
-				};
+				});
 
 				if (raw.byteLength > deps.maxEmailBytes) {
-					logger.error("[receive-email] oversize email rejected", {
-						bytes: raw.byteLength,
-						recipientAddress,
-					});
-					await putEmail(auditRow);
-					batchItemFailures.push({ itemIdentifier: record.messageId });
-					continue;
-				}
-				if (resolved === undefined) {
-					logger.error("[receive-email] unknown recipient", { recipientAddress });
-					await putEmail(auditRow);
-					batchItemFailures.push({ itemIdentifier: record.messageId });
-					continue;
-				}
-				if (resolved.disabledAt !== undefined) {
-					logger.error("[receive-email] disabled recipient", { recipientAddress });
-					await putEmail(auditRow);
+					// Oversize is one fact about the whole message: reject every addressed
+					// recipient and fail to the DLQ — a real degradation worth paging on.
+					logger.error("[receive-email] oversize email rejected", { bytes: raw.byteLength });
+					for (const { recipientAddress, userId } of resolvedRecipients) {
+						await putEmail(auditRow(recipientAddress, userId));
+					}
 					batchItemFailures.push({ itemIdentifier: record.messageId });
 					continue;
 				}
 
 				const parsed = await parseEmail({ raw, receivedAt });
 				if (!parsed.ok) {
+					// A newsletter that won't parse is a real parser gap (every failure is a
+					// user hitting a broken format), so record an audit row per recipient
+					// and keep the DLQ page.
 					logger.error("[receive-email] unparseable email", { s3Key });
-					await putEmail({ ...auditRow, status: "unparsed" });
+					for (const { recipientAddress, userId } of resolvedRecipients) {
+						await putEmail({ ...auditRow(recipientAddress, userId), status: "unparsed" });
+					}
 					batchItemFailures.push({ itemIdentifier: record.messageId });
 					continue;
 				}
 
 				const receivedAtMessageId = `${receivedAt}#${parsed.email.messageId}`;
-				// Body (and its inline images) to S3 BEFORE the row, and the row BEFORE
-				// the event: a crash anywhere re-delivers and replays idempotently.
-				const bodyS3Key = await storeBody({
-					receivedAtMessageId,
-					html: parsed.email.html,
-					inlineImages: parsed.email.inlineImages,
-				});
-				const outcome = await putEmail({
-					userId,
-					receivedAtMessageId,
-					messageId: parsed.email.messageId,
-					recipientAddress,
-					senderEmail: parsed.email.from,
-					subject: parsed.email.subject,
-					status: "received",
-					receivedAt,
-					rawEmailS3Key: s3Key,
-					bodyS3Key,
-				});
-				// Re-publish even on a duplicate row: a crash between the row write and
-				// the publish would otherwise lose the event. The consumer is
-				// idempotent, so a redundant publish is safe.
-				await publishEvent(EmailReceivedEvent, {
-					userId,
-					receivedAtMessageId,
-					recipientAddress,
-				});
-				logger.info("[receive-email] stored", { receivedAtMessageId, outcome });
+				for (const { recipientAddress, resolved, userId } of resolvedRecipients) {
+					if (resolved === undefined) {
+						// Unknown address — a guessed/mistyped `in-xxxxxx@`, expected on a
+						// public MX. Auditable row under the unrouted partition, then ACK so
+						// it never pages the operator.
+						logger.warn("[receive-email] unknown recipient", { recipientAddress });
+						await putEmail(auditRow(recipientAddress, userId));
+						continue;
+					}
+					if (resolved.disabledAt !== undefined) {
+						// The user turned this address off but senders still have it: recurring,
+						// not a fault. Auditable row under the owner, then ACK.
+						logger.warn("[receive-email] disabled recipient", { recipientAddress });
+						await putEmail(auditRow(recipientAddress, userId));
+						continue;
+					}
+					// Body (and its inline images) to S3 BEFORE the row, and the row BEFORE
+					// the event: a crash anywhere re-delivers and replays idempotently. The
+					// body key is user-scoped so co-addressed recipients never collide.
+					const bodyS3Key = await storeBody({
+						userId,
+						receivedAtMessageId,
+						html: parsed.email.html,
+						inlineImages: parsed.email.inlineImages,
+					});
+					const outcome = await putEmail({
+						userId,
+						receivedAtMessageId,
+						messageId: parsed.email.messageId,
+						recipientAddress,
+						senderEmail: parsed.email.from,
+						subject: parsed.email.subject,
+						status: "received",
+						receivedAt,
+						rawEmailS3Key: s3Key,
+						bodyS3Key,
+					});
+					// Re-publish even on a duplicate row: a crash between the row write and
+					// the publish would otherwise lose the event. The consumer is
+					// idempotent, so a redundant publish is safe.
+					await publishEvent(EmailReceivedEvent, {
+						userId,
+						receivedAtMessageId,
+						recipientAddress,
+					});
+					logger.info("[receive-email] stored", { receivedAtMessageId, outcome });
+				}
 			} catch (error) {
 				logger.error("[receive-email] record failed", {
 					messageId: record.messageId,

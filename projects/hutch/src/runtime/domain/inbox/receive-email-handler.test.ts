@@ -10,16 +10,17 @@ import { initReceiveEmailHandler } from "./receive-email-handler";
 import type { StoreEmailBody } from "./store-email-body";
 
 const OWNER = UserIdSchema.parse("00000000000000000000000000000001");
+const SECOND = UserIdSchema.parse("00000000000000000000000000000002");
 const UNROUTED = UserIdSchema.parse("__unrouted__");
 const RECEIVED_AT = "2026-06-24T09:00:00.000Z";
 const RAW_KEY = "inbound/ses-msg-1";
 
-function sesNotification(recipient: string): string {
+function sesNotification(recipients: string[]): string {
 	return JSON.stringify({
 		mail: { messageId: "ses-msg-1" },
 		receipt: {
 			timestamp: RECEIVED_AT,
-			recipients: [recipient],
+			recipients,
 			action: { objectKey: RAW_KEY },
 		},
 	});
@@ -63,14 +64,15 @@ function makeHarness(opts?: {
 		maxEmailBytes: opts?.maxEmailBytes ?? 20 * 1024 * 1024,
 	});
 
-	const run = (recipient: string) =>
+	const runMany = (recipients: string[]) =>
 		handler(
-			buildSqsEvent([{ messageId: "rec-1", body: sesNotification(recipient) }]),
+			buildSqsEvent([{ messageId: "rec-1", body: sesNotification(recipients) }]),
 			buildLambdaContext(),
 			() => {},
 		);
+	const run = (recipient: string) => runMany([recipient]);
 
-	return { addressStore, emailStore, rawMap, published, handler, run };
+	return { addressStore, emailStore, rawMap, published, handler, run, runMany };
 }
 
 async function mintAddress(addressStore: ReturnType<typeof initInMemoryInboxAddress>) {
@@ -106,14 +108,15 @@ describe("initReceiveEmailHandler", () => {
 		expect(published).toHaveLength(0);
 	});
 
-	it("fails the record for a non-forwarding recipient, writing no user row", async () => {
+	it("ACKs a non-forwarding recipient (raw kept, no row, no operator page)", async () => {
 		const { emailStore, rawMap, published, run } = makeHarness();
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 
 		const result = await run("postmaster@read.place");
 
 		assert(result);
-		expect(result.batchItemFailures).toHaveLength(1);
+		// Expected on a public catch-all MX — ACK rather than page the operator.
+		expect(result.batchItemFailures).toHaveLength(0);
 		expect(await emailStore.listEmailsByUserId(OWNER)).toHaveLength(0);
 		expect(published).toHaveLength(0);
 	});
@@ -133,21 +136,22 @@ describe("initReceiveEmailHandler", () => {
 		expect(published).toHaveLength(0);
 	});
 
-	it("rejects an unknown recipient under the unrouted partition, never a user list", async () => {
+	it("records an unknown recipient under the unrouted partition and ACKs (no page)", async () => {
 		const { emailStore, rawMap, published, run } = makeHarness();
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
 
 		const result = await run("in-zzzzzz@read.place");
 
 		assert(result);
-		expect(result.batchItemFailures).toHaveLength(1);
+		// A guessed/mistyped address is expected on a public MX — audit, don't page.
+		expect(result.batchItemFailures).toHaveLength(0);
 		expect(await emailStore.listEmailsByUserId(OWNER)).toHaveLength(0);
 		const [row] = await emailStore.listEmailsByUserId(UNROUTED);
 		expect(row.status).toBe("rejected");
 		expect(published).toHaveLength(0);
 	});
 
-	it("rejects a disabled recipient under the owner with a DLQ failure", async () => {
+	it("records a disabled recipient under the owner and ACKs (no page)", async () => {
 		const { addressStore, emailStore, rawMap, published, run } = makeHarness();
 		const address = await mintAddress(addressStore);
 		await addressStore.disableAddress({ userId: OWNER, address });
@@ -156,7 +160,9 @@ describe("initReceiveEmailHandler", () => {
 		const result = await run(address);
 
 		assert(result);
-		expect(result.batchItemFailures).toHaveLength(1);
+		// Mail to a turned-off address recurs while senders still have it — audit,
+		// don't page.
+		expect(result.batchItemFailures).toHaveLength(0);
 		const [row] = await emailStore.listEmailsByUserId(OWNER);
 		expect(row.status).toBe("rejected");
 		expect(published).toHaveLength(0);
@@ -197,6 +203,42 @@ describe("initReceiveEmailHandler", () => {
 		expect(published).toHaveLength(1);
 		expect(published[0].detail.receivedAtMessageId).toBe(`${RECEIVED_AT}#<real@x>`);
 		expect(published[0].detail.userId).toBe(OWNER);
+	});
+
+	it("stores a row and publishes for EVERY forwarding recipient in one envelope", async () => {
+		const { addressStore, emailStore, rawMap, published, runMany } = makeHarness();
+		const ownerAddress = await mintAddress(addressStore);
+		const second = await addressStore.createAddress({ userId: SECOND, domain: "read.place" });
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		const result = await runMany([ownerAddress, second.address]);
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		// Both addressees get their own row under their own partition — neither is
+		// silently dropped, and each gets its own delivered event.
+		const [ownerRow] = await emailStore.listEmailsByUserId(OWNER);
+		const [secondRow] = await emailStore.listEmailsByUserId(SECOND);
+		expect(ownerRow.status).toBe("received");
+		expect(secondRow.status).toBe("received");
+		expect(published).toHaveLength(2);
+	});
+
+	it("delivers the known recipient and audits the unknown one, ACKing the batch", async () => {
+		const { addressStore, emailStore, rawMap, published, runMany } = makeHarness();
+		const ownerAddress = await mintAddress(addressStore);
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		const result = await runMany([ownerAddress, "in-zzzzzz@read.place"]);
+
+		assert(result);
+		expect(result.batchItemFailures).toHaveLength(0);
+		const [ownerRow] = await emailStore.listEmailsByUserId(OWNER);
+		expect(ownerRow.status).toBe("received");
+		const [unrouted] = await emailStore.listEmailsByUserId(UNROUTED);
+		expect(unrouted.status).toBe("rejected");
+		// Only the deliverable recipient produces an event.
+		expect(published).toHaveLength(1);
 	});
 
 	it("collapses an at-least-once redelivery to one row, re-publishing the event", async () => {

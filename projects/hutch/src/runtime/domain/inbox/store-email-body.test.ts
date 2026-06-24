@@ -1,7 +1,10 @@
+import { UserIdSchema } from "@packages/domain/user";
 import { initStoreEmailBody } from "./store-email-body";
 
+const USER = UserIdSchema.parse("00000000000000000000000000000001");
+
 describe("initStoreEmailBody", () => {
-	it("inlines cid images as data URIs, strips remote images, and writes to the content key", async () => {
+	it("inlines cid images as data URIs, strips remote images, and writes to a user-scoped key", async () => {
 		const writes: { key: string; html: string }[] = [];
 		const store = initStoreEmailBody({
 			putContent: async (input) => {
@@ -10,6 +13,7 @@ describe("initStoreEmailBody", () => {
 		});
 
 		const key = await store({
+			userId: USER,
 			receivedAtMessageId: "2026-06-24T09:00:00.000Z#<m@x>",
 			html: '<p><img src="email://cid/logo@x"></p><img src="https://tracker.test/p.gif">',
 			inlineImages: [
@@ -20,6 +24,8 @@ describe("initStoreEmailBody", () => {
 		expect(writes).toHaveLength(1);
 		expect(writes[0].key).toBe(key);
 		expect(key).toContain("content/");
+		// The key is partitioned by the owning user so two users' bodies never collide.
+		expect(key).toContain(USER);
 		// The cid image is inlined; the remote tracker is stripped; no parser-local
 		// URL leaks into stored HTML.
 		expect(writes[0].html).toContain("data:image/png;base64,AQID");
@@ -36,6 +42,7 @@ describe("initStoreEmailBody", () => {
 		});
 
 		await store({
+			userId: USER,
 			receivedAtMessageId: "2026-06-24T09:00:00.000Z#<plain@x>",
 			html: "<p>Just text</p><script>alert(1)</script>",
 			inlineImages: [],
