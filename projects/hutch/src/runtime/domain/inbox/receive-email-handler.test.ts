@@ -136,6 +136,21 @@ describe("initReceiveEmailHandler", () => {
 		expect(published).toHaveLength(0);
 	});
 
+	it("ACKs an oversize email addressed only to unknown recipients (no page)", async () => {
+		const { emailStore, rawMap, published, run } = makeHarness({ maxEmailBytes: 8 });
+		rawMap.set(RAW_KEY, Buffer.from("this is definitely longer than eight bytes"));
+
+		const result = await run("in-zzzzzz@read.place");
+
+		assert(result);
+		// Oversize spam to a guessed address on the public MX has no victim — audit
+		// under the unrouted partition and ACK rather than page the operator.
+		expect(result.batchItemFailures).toHaveLength(0);
+		const [row] = await emailStore.listEmailsByUserId(UNROUTED);
+		expect(row.status).toBe("rejected");
+		expect(published).toHaveLength(0);
+	});
+
 	it("records an unknown recipient under the unrouted partition and ACKs (no page)", async () => {
 		const { emailStore, rawMap, published, run } = makeHarness();
 		rawMap.set(RAW_KEY, Buffer.from("raw"));
@@ -182,6 +197,23 @@ describe("initReceiveEmailHandler", () => {
 		const [row] = await emailStore.listEmailsByUserId(OWNER);
 		expect(row.status).toBe("unparsed");
 		expect(row.bodyS3Key).toBeUndefined();
+		expect(published).toHaveLength(0);
+	});
+
+	it("ACKs an unparseable email addressed only to unknown recipients (no page)", async () => {
+		const { emailStore, rawMap, published, run } = makeHarness({
+			parseEmail: async () => ({ ok: false, reason: "unparseable" }),
+		});
+		rawMap.set(RAW_KEY, Buffer.from("raw"));
+
+		const result = await run("in-zzzzzz@read.place");
+
+		assert(result);
+		// Malformed spam to a guessed address is not a parser gap worth paging on —
+		// audit under the unrouted partition and ACK.
+		expect(result.batchItemFailures).toHaveLength(0);
+		const [row] = await emailStore.listEmailsByUserId(UNROUTED);
+		expect(row.status).toBe("unparsed");
 		expect(published).toHaveLength(0);
 	});
 

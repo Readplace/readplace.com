@@ -111,6 +111,15 @@ export function initReceiveEmailHandler(deps: {
 					});
 				}
 
+				// A whole-message fault (oversize/unparseable) is worth paging on only when
+				// it costs a real, enabled recipient their mail. Addressed ONLY to
+				// unknown/disabled addresses — dictionary-guessed spam on the public
+				// catch-all MX — there is no victim, so audit and ACK like the other
+				// expected conditions; the immutable raw .eml stays the audit trail.
+				const hasDeliverable = resolvedRecipients.some(
+					({ resolved }) => resolved !== undefined && resolved.disabledAt === undefined,
+				);
+
 				const auditRow = (recipientAddress: InboxAddress, userId: UserId): InboxEmailEntry => ({
 					userId,
 					receivedAtMessageId: `${receivedAt}#${sesMessageId}`,
@@ -126,25 +135,39 @@ export function initReceiveEmailHandler(deps: {
 
 				if (raw.byteLength > deps.maxEmailBytes) {
 					// Oversize is one fact about the whole message: reject every addressed
-					// recipient and fail to the DLQ — a real degradation worth paging on.
-					logger.error("[receive-email] oversize email rejected", { bytes: raw.byteLength });
+					// recipient with an audit row.
 					for (const { recipientAddress, userId } of resolvedRecipients) {
 						await putEmail(auditRow(recipientAddress, userId));
 					}
-					batchItemFailures.push({ itemIdentifier: record.messageId });
+					if (hasDeliverable) {
+						// A real, enabled recipient just lost a (too-big) newsletter — page.
+						logger.error("[receive-email] oversize email rejected", { bytes: raw.byteLength });
+						batchItemFailures.push({ itemIdentifier: record.messageId });
+					} else {
+						logger.warn("[receive-email] oversize email, no deliverable recipient", {
+							bytes: raw.byteLength,
+						});
+					}
 					continue;
 				}
 
 				const parsed = await parseEmail({ raw, receivedAt });
 				if (!parsed.ok) {
-					// A newsletter that won't parse is a real parser gap (every failure is a
-					// user hitting a broken format), so record an audit row per recipient
-					// and keep the DLQ page.
-					logger.error("[receive-email] unparseable email", { s3Key });
+					// Record an audit row per recipient. A parse failure that reaches a real,
+					// enabled recipient is a parser gap worth paging on (every failure is a
+					// user hitting a broken format); addressed only to unknown/disabled
+					// addresses it is just malformed spam — audit and ACK.
 					for (const { recipientAddress, userId } of resolvedRecipients) {
 						await putEmail({ ...auditRow(recipientAddress, userId), status: "unparsed" });
 					}
-					batchItemFailures.push({ itemIdentifier: record.messageId });
+					if (hasDeliverable) {
+						logger.error("[receive-email] unparseable email", { s3Key });
+						batchItemFailures.push({ itemIdentifier: record.messageId });
+					} else {
+						logger.warn("[receive-email] unparseable email, no deliverable recipient", {
+							s3Key,
+						});
+					}
 					continue;
 				}
 
