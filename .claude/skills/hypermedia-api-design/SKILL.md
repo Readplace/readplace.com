@@ -140,6 +140,23 @@ A client binds both levels: collection-level actions (e.g. `save-article`, `sear
 | Synthesising state after a mutation (`allItems.filter(i => i.id !== deletedId)`) | Server is the source of truth; follow the 303 and read the new collection |
 | Exporting an `/api` SDK that knows resource URLs | Becomes another versioned surface; expose only the walker and the entry point |
 | Interpolating unescaped user data into a `messages[].content.body` | The client injects it via `innerHTML`; unescaped server output is markup injection (see "Server-Driven Messages Are Trusted HTML") |
+| Naming a concrete server route or method in client code or comments (`POST /queue/save-html`, "303s to `/queue`") | The client reads `href`/`method` from the response; a route baked into a comment rots and reintroduces the URL coupling the contract removes |
+| Asserting a specific server response body/URL/shape in a client test | A client test should exercise generic protocol handling — follow whatever action/link the response carries — not pin the server's current URLs or shapes |
+
+## Client Conformance
+
+These rules make any client (extension, iOS, MCP, future) behave like a browser over the contract above — "the app is a browser, Siren is HTML." Each prevents a real cross-client failure mode.
+
+| Rule | Why |
+|---|---|
+| Render a control (button, swipe, menu item, tap target) **only if the current response advertised** the matching action/link; hide or disable it otherwise. | A browser shows a Delete button only when the HTML has one. A control for an absent action is a phantom affordance that fails silently — the worst HATEOAS failure mode. |
+| Navigate by the server-supplied link (`rel`), not by a domain property. | Opening a raw `url` property instead of following the `read` link discards the server's chosen destination; if the server re-points the link, the client never follows it. |
+| Resolve every href through one helper: use an `http(s)://` href verbatim, resolve a scheme-less href against the base, treat any other scheme as no href (unactionable). | Per-call-site `base + href` concatenation corrupts an absolute href and mis-resolves other schemes — yet the Evolvability table promises changing an `href` is non-breaking. |
+| Verify the response `Content-Type` is the negotiated media type before parsing; render a standard "unsupported media type" view for anything else. | Negotiating with `Accept` but blind-decoding any 200 body turns a proxy HTML page or a future media type into an opaque "couldn't read the response" instead of an honest "I don't understand this type." The message-content gate already does this — apply it to the response envelope too. |
+| Parse leniently: one malformed link/action must degrade to unactionable, never fail the whole response decode. | An atomic decode that rejects a single odd control blanks the entire page — extend the same tolerance the entity `properties` already get. (Note: Siren requires `href` on links/actions, so a hrefless control is a malformed control, not a valid one.) |
+| Drive search, filter, sort, and pagination from the server's `fields` and links — never client-built params or client-side re-paging. | Hardcoding `?page=` or re-paginating one fetched page client-side hides items past the first page and breaks when the server changes paging; hardcoding a filter field name breaks on a rename. |
+| Don't duplicate server policy (size caps, validation thresholds) in the client; attempt the action and follow the server's fallback/refusal. | A client copy of a server constant goes stale on a server change and mis-routes; the server already advertises the fallback action to follow. |
+| Bind a response's actions through one generic path; don't cherry-pick named affordances into per-operation code with hardcoded shapes. | Per-operation bespoke handling means each new server capability needs new client code and a redeploy; a generic action map exposes whatever the server offers. |
 
 ## Per-Client Implementations
 
@@ -157,10 +174,30 @@ For the full flow see the source — it is the spec: [projects/browser-extension
 
 When adding a capability the extension supports: add an `init*Understanding` keyed by the action name, compose it via `groupOf(...)`, wrap with `httpCacheable(...)` for cacheable GETs, and drive the walker directly rather than adding a method to `initSirenReadingList`.
 
+### MCP: the same doctrine over a different transport
+
+Readplace also exposes its domain over MCP (Model Context Protocol) at `/mcp`; the external AI assistant is the client. MCP shares this skill's core stance — **the server owns the protocol; the client hardcodes one connection and discovers everything else** — so the Client Conformance rules apply to an MCP client too. It diverges in transport and statefulness, so the mapping is partial, not 1:1.
+
+| Siren / HATEOAS | MCP |
+|---|---|
+| Single entry point `/` (the one hardcoded URL) | The server connection — one Streamable HTTP endpoint or stdio command |
+| `Accept` content negotiation, per request | `initialize` capability + protocol-version handshake, once per stateful session |
+| `actions[]` (`name`, `href`, `method`, `fields`); `name` is the contract | Tools (`tools/list` → `name`, `inputSchema`; invoked via `tools/call`); tool `name` is the contract |
+| `action.fields` (declared inputs) | `inputSchema` (JSON Schema) + optional `outputSchema` the client validates the result against |
+| `links[]` by `rel`/`href`, followed not built | Resources (`resources/list` → `uri`; read via `resources/read`); RFC 6570 `uriTemplate` for parameterized access |
+| Opaque `next` link; never build `?page=` | Opaque pagination `cursor`/`nextCursor`; echo unchanged, never parse or persist |
+| `303` back to the collection after a mutation | Server-pushed `notifications/*/list_changed` and `resources/updated` → re-list / re-read |
+| Generic `messages[]` channel; render media types you understand | JSON-RPC error object (the call failed) vs `isError:true` in a result (the operation refused); typed content blocks |
+| (no analog) | Prompts (`prompts/list` / `prompts/get`) — user-initiated; MCP-only |
+
+Divergences a client must respect: MCP fixes the invocation verb (`tools/call`, `resources/read`) instead of declaring a `method` per affordance; capabilities are three flat global registries (tools/resources/prompts), not actions bound to an entity, so a per-item operation is a tool taking the item's id/uri as an argument; and staleness signals are asynchronous server pushes, not a synchronous redirect.
+
+In this repo, hutch is the MCP **server**: the tool set is the single source of truth in `tool-definitions.ts` (`TOOL_DEFINITIONS`), advertised via `tools/list` in `mcp-server.ts`, with no client copy to drift. The WebMCP surface (`webmcp.client.ts`) is a **provider** that registers one local `save_link` tool for an in-browser agent — a provider declares its own shape, so discover-don't-hardcode does not apply to it. Spec: [modelcontextprotocol.io](https://modelcontextprotocol.io).
+
 ## Checklist — Adding a New Capability to the API
 
 1. **Name the action as a capability**, not a domain fact. Check the Evolvability table before picking a name.
-2. **Emit the action on the server** in `collection-siren.ts` (collection-level) or `article-siren.ts` (entity-level). Declare its `fields` with Siren field types.
+2. **Emit the capability on the server** — Siren: an action in `collection-siren.ts` (collection-level) or `article-siren.ts` (entity-level), with its `fields` declared as Siren field types; MCP: a tool in `tool-definitions.ts`, with its `inputSchema`.
 3. **Implement the route handler** behind `wantsSiren(req)`; return `303` for mutations that should land the client back on a collection.
 4. **Add a handler for the action name on each client** that should expose the capability — see [Per-Client Implementations](#per-client-implementations).
 5. **Test server and client independently** — server integration tests, plus each client's own tests. The contract surface (action name + fields + method + response class) is what both sides pin down.
