@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { By, until } from "selenium-webdriver";
 import type { WebDriver } from "selenium-webdriver";
-import { CSS_SELECTORS, type FlowAction } from "../e2e";
+import { CSS_SELECTORS, READER_PERMALINK_PATTERN, type FlowAction } from "../e2e";
 import { initSaveProgress } from "../popup/save-progress";
 
 export interface SaveLinkProgress {
@@ -118,9 +118,8 @@ export function createSaveLinkActions(config: {
 			);
 			const items = await driver.findElements(By.css(CSS_SELECTORS.listItem));
 			const hrefs = await Promise.all(items.map(el => el.getAttribute("href")));
-			const readUrlPattern = /\/queue\/[a-f0-9]+\/view$/;
 			assert.ok(
-				hrefs.some(href => href !== null && (href === config.testUrl || readUrlPattern.test(href))),
+				hrefs.some(href => href !== null && (href === config.testUrl || READER_PERMALINK_PATTERN.test(href))),
 				`Expected "${config.testUrl}" or a reader URL in list hrefs, but found: ${hrefs.join(", ")}`,
 			);
 			config.progress.listVerified = true;
