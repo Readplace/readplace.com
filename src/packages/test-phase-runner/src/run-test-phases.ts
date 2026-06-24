@@ -200,10 +200,18 @@ export function initTestPhaseRunner(deps: TestPhaseRunnerDeps) {
 		if (isCI) {
 			deps.log("Installing browsers (output suppressed in CI; errors still shown)...");
 		}
-		deps.execSync(phase.browserInstallCommand, {
-			cwd: projectRoot,
-			stdio: isCI ? ["inherit", "ignore", "inherit"] : "inherit",
-		});
+		const installStdio: ExecSyncOptions["stdio"] = isCI ? ["inherit", "ignore", "inherit"] : "inherit";
+		try {
+			deps.execSync(phase.browserInstallCommand, { cwd: projectRoot, stdio: installStdio });
+		} catch {
+			// `--with-deps` shells out to apt-get, which races the runner's dpkg
+			// frontend lock against other background apt processes (e.g. a sibling
+			// project's concurrent browser install). One clean retry absorbs that
+			// transient lock contention, matching the single-retry cushion the e2e
+			// command phases already get.
+			deps.log(`\n=== ${displayName} - retrying browser install once after failure ===\n`);
+			deps.execSync(phase.browserInstallCommand, { cwd: projectRoot, stdio: installStdio });
+		}
 
 		deps.execSync(phase.testCommand, {
 			cwd: projectRoot,

@@ -500,6 +500,58 @@ describe("e2e command phase retry", () => {
 	});
 });
 
+describe("playwright browser install retry", () => {
+	const playwrightPhase = {
+		type: "playwright" as const,
+		name: "E2E tests",
+		config: "playwright.config.local-dev.ts",
+		browsers: ["chromium"],
+	};
+
+	it("retries the browser install once when it fails then succeeds", async () => {
+		let installCalls = 0;
+		const { deps } = createInMemoryDeps({
+			execSync: (command: string) => {
+				if (command.includes("playwright install")) {
+					installCalls += 1;
+					if (installCalls === 1) throw new Error("dpkg lock contention");
+				}
+				return Buffer.from("");
+			},
+		});
+		const runner = createRunner(deps);
+		const plan = runner.createTestPlan({
+			config: { projectName: "Readplace", phases: [playwrightPhase] },
+			projectRoot: "/projects/hutch",
+		});
+
+		await plan.runAllPhases();
+
+		expect(installCalls).toBe(2);
+	});
+
+	it("re-throws when the browser install fails on both attempts", async () => {
+		let installCalls = 0;
+		const { deps } = createInMemoryDeps({
+			execSync: (command: string) => {
+				if (command.includes("playwright install")) {
+					installCalls += 1;
+					throw new Error("persistent dpkg lock contention");
+				}
+				return Buffer.from("");
+			},
+		});
+		const runner = createRunner(deps);
+		const plan = runner.createTestPlan({
+			config: { projectName: "Readplace", phases: [playwrightPhase] },
+			projectRoot: "/projects/hutch",
+		});
+
+		await expect(plan.runAllPhases()).rejects.toThrow("persistent dpkg lock contention");
+		expect(installCalls).toBe(2);
+	});
+});
+
 describe("e2e phase skipping", () => {
 	it("skips phases marked e2e when shouldSkipE2E returns true", async () => {
 		const { deps, executedCommands } = createInMemoryDeps({ shouldSkipE2E: () => true });
