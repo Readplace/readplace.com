@@ -16,10 +16,13 @@ interface InboxDependencies {
 	inboxAddressDomain: string;
 	logError: (message: string, error?: Error) => void;
 	buildBannerState: BuildBannerState;
-	/** Gates address minting to full-access accounts. A read-only / trial-expired
-	 * user is blocked from the save flow, and a forwarding address is a save-flow
-	 * input, so creating one is a write action — applied only to /create, mirroring
-	 * the import commit gate. Viewing and disabling existing addresses stay open. */
+	/** Save gates applied only to /create, the sole route that mints an address —
+	 * a forwarding address is a save-flow input, so creating one is a write action.
+	 * Mirrors the import commit gate, which runs both: `requireNotLocked` blocks a
+	 * locked (unverified-past-window) account, `requireWriteAccess` blocks a
+	 * read-only (trial-expired / cancelled) account. Viewing and disabling existing
+	 * addresses stay open — disabling reduces footprint and is harmless. */
+	requireNotLocked: RequestHandler;
 	requireWriteAccess: RequestHandler;
 }
 
@@ -52,7 +55,7 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		);
 	});
 
-	router.post("/create", deps.requireWriteAccess, async (req: Request, res: Response) => {
+	router.post("/create", deps.requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		try {
 			await deps.inboxAddressStore.createAddress({

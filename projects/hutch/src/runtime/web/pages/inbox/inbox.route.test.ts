@@ -12,6 +12,15 @@ import {
 const useApp = useTestServer();
 const ONE_DAY_MS = 86_400_000;
 
+/** A fixture whose server clock runs `days` ahead of real time, so a freshly
+ * created user lands past the 7-day verification window — i.e. locked — with no
+ * way to backdate `registeredAt` directly. */
+function fixtureClockedDaysAhead(days: number) {
+	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+	fixture.shared.now = () => new Date(Date.now() + days * ONE_DAY_MS);
+	return fixture;
+}
+
 /** Older than the bot-defense minimum submit window (2.5s) so signup passes. */
 function freshLoadedAt(): string {
 	return String(Date.now() - 5000);
@@ -166,6 +175,20 @@ describe("Inbox routes", () => {
 
 			expect(response.status).toBe(303);
 			expect(response.headers.location).toBe("/queue?inactive=1");
+			const listed = await agent.get("/inbox?feature=email");
+			expect(addressFieldValue(listed.text)).toBeUndefined();
+		});
+
+		it("blocks a locked user with the account-locked screen and mints nothing", async () => {
+			const harness = useApp(fixtureClockedDaysAhead(8));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.post("/inbox/create?feature=email").set("Accept", "text/html");
+
+			expect(response.status).toBe(403);
+			expect(
+				new JSDOM(response.text).window.document.querySelector("h1")?.textContent,
+			).toBe("Your account is locked");
 			const listed = await agent.get("/inbox?feature=email");
 			expect(addressFieldValue(listed.text)).toBeUndefined();
 		});
