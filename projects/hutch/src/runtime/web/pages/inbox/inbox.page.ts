@@ -51,10 +51,12 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
 		const addresses = await deps.inboxAddressStore.listAddressesByUserId(req.userId);
 		const createFailed = req.query.error === "create";
-		// Derive from the live count, not the &error=limit flag, so the banner
-		// shows whenever the cap is genuinely reached — not only right after a
-		// rejected create.
+		// Banner shows whenever the cap is genuinely reached, not only after a
+		// rejected create. &error=limit stays OR'd in so a just-rejected create
+		// still shows it even when the eventually-consistent live read
+		// (listAddressesByUserId) briefly undercounts and would otherwise drop it.
 		const limitReached =
+			req.query.error === "limit" ||
 			addresses.filter((a) => a.disabledAt === undefined).length >= INBOX_ADDRESS_MAX_PER_USER;
 		sendComponent(
 			req,

@@ -111,6 +111,17 @@ describe("Inbox routes", () => {
 			const doc = new JSDOM(response.text).window.document;
 			expect(doc.querySelector("[data-test-inbox-limit]")).not.toBeNull();
 		});
+
+		it("shows the limit banner from the &error=limit flag even when the live count is below the cap", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/inbox?feature=email&error=limit");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-inbox-limit]")).not.toBeNull();
+		});
 	});
 
 	describe("nav entry", () => {
