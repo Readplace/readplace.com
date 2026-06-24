@@ -18,6 +18,17 @@ enum TestSupport {
 		return config
 	}
 
+	/// A `hutch_sid` session cookie scoped to the server host, for seeding a
+	/// cookie jar before asserting sign-out clears it.
+	static func sessionCookie(value: String) -> HTTPCookie {
+		HTTPCookie(properties: [
+			.name: AppConfig.sessionCookieName,
+			.value: value,
+			.domain: URL(string: AppConfig.serverBaseURL)!.host!,
+			.path: "/",
+		])!
+	}
+
 	/// A token store pre-seeded with a logged-in session.
 	static func loggedInStore(
 		access: String = "access-1",

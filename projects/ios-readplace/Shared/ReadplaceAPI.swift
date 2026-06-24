@@ -56,7 +56,11 @@ final class ReadplaceAPI {
 	private let oauth: OAuthService
 	private let session: URLSession
 
-	init(baseURL: String, store: TokenStore, sessionConfiguration: URLSessionConfiguration = .default) {
+	// Defaults to an ephemeral configuration so the session's cookie jar is its
+	// own isolated, in-memory store rather than process-wide `HTTPCookieStorage.shared`:
+	// the `hutch_sid` cookie minted by `bootstrapSession` must not linger in the
+	// shared jar where it would outlive the session and leak across sign-outs.
+	init(baseURL: String, store: TokenStore, sessionConfiguration: URLSessionConfiguration = .ephemeral) {
 		self.baseURL = baseURL
 		self.store = store
 		self.oauth = OAuthService(baseURL: baseURL, store: store, sessionConfiguration: sessionConfiguration)
@@ -127,7 +131,9 @@ final class ReadplaceAPI {
 		return cookie
 	}
 
-	/// Reads the session cookie by name from the store URLSession parsed it into.
+	/// Reads the session cookie by name from the session's own cookie jar, which
+	/// the configuration isolates (an ephemeral store, not `HTTPCookieStorage.shared`)
+	/// so the cookie URLSession just parsed never touches the process-wide jar.
 	/// The cookie spec forbids folding repeated `Set-Cookie` headers into one
 	/// comma-joined value, so re-splitting `allHeaderFields` is unsafe once a
 	/// response sets more than one cookie; reading the already-parsed cookie back

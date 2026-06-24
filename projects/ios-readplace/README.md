@@ -238,14 +238,16 @@ cases:
   back to the collection and verifying the status at the protocol level only (any
   non-2xx/3xx surfaces a generic server error — no per-code special-casing),
   `bootstrapSession` reading the session cookie from the store URLSession parsed
-  (refreshing the bearer once if expired), and missing-token handling.
+  (refreshing the bearer once if expired) while keeping the minted `hutch_sid`
+  out of the process-wide shared cookie jar, and missing-token handling.
 - **TokenStore / URL detection**: persistence and partial-token edge cases;
   http(s)-only link extraction that ignores `mailto:`/`tel:`.
 - **Login & share-save journeys**: the two orchestration seams end-to-end through
   the real session/API types. Sign-in — `completeSignIn` exchanging the code and
   flipping the session to logged-in (and rejecting a state-mismatched callback
   without exchanging the code), then a reading-list load preserving the bearer
-  token across the entry-point `303`.
+  token across the entry-point `303`, and both sign-out paths (`logout` /
+  `forceLogout`) dropping the minted `hutch_sid` session cookie.
   Share-save — `SaveSharedPage` saving rendered HTML when it's under the cap,
   degrading to URL-only when the capture is empty or the HTML is over the cap,
   short-circuiting before any network call when logged out or when there's no

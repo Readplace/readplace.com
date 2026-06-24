@@ -24,7 +24,11 @@ final class AppSession: ObservableObject {
 	private let store: TokenStore
 	private let sessionConfiguration: URLSessionConfiguration
 
-	init(store: TokenStore = TokenStore(), sessionConfiguration: URLSessionConfiguration = .default) {
+	// Defaults to an ephemeral configuration so the API/OAuth sessions keep their
+	// cookie jar in an isolated, in-memory store rather than process-wide
+	// `HTTPCookieStorage.shared` — the minted `hutch_sid` reader cookie must not
+	// linger in the shared jar where it would outlive a sign-out.
+	init(store: TokenStore = TokenStore(), sessionConfiguration: URLSessionConfiguration = .ephemeral) {
 		self.store = store
 		self.sessionConfiguration = sessionConfiguration
 		self.isLoggedIn = store.isLoggedIn
@@ -64,13 +68,26 @@ final class AppSession: ObservableObject {
 	/// Graceful sign-out: revoke server-side, then clear local state.
 	func logout() async {
 		await makeOAuth().revoke()
+		clearSessionCookie()
 		isLoggedIn = false
 	}
 
 	/// Local sign-out used when the session is already invalid (refresh failed).
 	func forceLogout() {
 		store.clear()
+		clearSessionCookie()
 		isLoggedIn = false
+	}
+
+	/// Drops the minted browser session cookie (`hutch_sid`) on sign-out so it
+	/// doesn't linger in the API session's cookie jar for the next sign-in in the
+	/// same process. The jar is the configuration's own isolated store (never
+	/// `HTTPCookieStorage.shared`), so this clears only this app's copy.
+	private func clearSessionCookie() {
+		let storage = sessionConfiguration.httpCookieStorage
+		for cookie in storage?.cookies ?? [] where cookie.name == AppConfig.sessionCookieName {
+			storage?.deleteCookie(cookie)
+		}
 	}
 
 	func makeAPI() -> ReadplaceAPI {

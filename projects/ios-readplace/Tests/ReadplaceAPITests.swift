@@ -386,4 +386,21 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertEqual(sessionAttempts, 2, "should retry once after refreshing the bearer")
 		XCTAssertEqual(store.tokens?.accessToken, "fresh-access")
 	}
+
+	func testBootstrapSessionKeepsTheCookieOutOfTheSharedJar() async throws {
+		let host = try XCTUnwrap(URL(string: AppConfig.serverBaseURL)?.host)
+		for stale in HTTPCookieStorage.shared.cookies?.filter({ $0.name == AppConfig.sessionCookieName }) ?? [] {
+			HTTPCookieStorage.shared.deleteCookie(stale)
+		}
+		StubURLProtocol.setHandler { _, _ in
+			StubURLProtocol.Stub(status: 204, headers: ["Set-Cookie": "hutch_sid=isolated; Path=/; Domain=\(host)"])
+		}
+
+		_ = try await makeAPI(store: TestSupport.loggedInStore()).bootstrapSession()
+
+		XCTAssertNil(
+			HTTPCookieStorage.shared.cookies?.first { $0.name == AppConfig.sessionCookieName },
+			"the minted hutch_sid cookie must never land in the process-wide shared jar"
+		)
+	}
 }
