@@ -15,8 +15,11 @@ export interface ParsedEmail {
 	from: string;
 	subject: string;
 	text: string;
-	/** Full newsletter HTML with every `cid:` reference rewritten to a
-	 * parser-local `email://cid/<id>` URL the media-rehost step recognises. */
+	/** The renderable body as HTML. For a normal message this is the `text/html`
+	 * part with every `cid:` reference rewritten to a parser-local
+	 * `email://cid/<id>` URL the receive path resolves to its inline image; for a
+	 * `text/plain`-only message it is a `<pre>` wrapper around the HTML-escaped
+	 * text. Never empty when the parse succeeds. */
 	html: string;
 	messageId: MessageId;
 	/** Injected SES receipt time — never the (forgeable) `Date:` header. */
@@ -36,6 +39,17 @@ function escapeRegExp(value: string): string {
  * matches the bare token an HTML `cid:` URI uses (`cid:logo@x`). */
 function bareContentId(contentId: string): string {
 	return contentId.replace(/^</, "").replace(/>$/, "");
+}
+
+/** Escape the HTML-significant characters so a `text/plain` body embeds as inert
+ * element content — markup in the text renders literally instead of as nodes. */
+function escapeHtml(value: string): string {
+	return value
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
 }
 
 /**
@@ -78,6 +92,12 @@ export async function parseEmail(input: {
 			`email://cid/${cid}`,
 		);
 	}
+
+	// A text/plain-only message has no HTML part. Wrap its HTML-escaped text in
+	// <pre> so whitespace and line breaks survive, keeping every downstream stage
+	// (sanitizer → S3 body → iframe) on the single `html` contract — a `received`
+	// row therefore never stores an empty body that would render a blank View tab.
+	if (html === "") html = `<pre>${escapeHtml(text)}</pre>`;
 
 	const messageId = MessageIdSchema.parse(
 		parsed.messageId ?? `sha256:${createHash("sha256").update(input.raw).digest("hex")}`,

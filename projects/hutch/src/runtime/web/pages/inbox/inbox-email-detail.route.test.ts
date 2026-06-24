@@ -5,6 +5,8 @@ import {
 	type InboxEmailEntry,
 	type InboxEmailStatus,
 	MessageIdSchema,
+	parseEmail,
+	sanitizeEmailHtml,
 } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import {
@@ -103,6 +105,44 @@ describe("Inbox email detail route", () => {
 		expect(doc.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe(
 			"noindex, nofollow",
 		);
+	});
+
+	it("renders a text-only received email's plain text in the View tab, not a blank frame", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const parsed = await parseEmail({
+			raw: Buffer.from(
+				[
+					"From: news@example.com",
+					"Subject: Text digest",
+					"Message-ID: <view@x>",
+					"Content-Type: text/plain; charset=utf-8",
+					"",
+					"Plain-text newsletter body",
+				].join("\r\n"),
+				"utf8",
+			),
+			receivedAt: "2026-06-24T09:00:00.000Z",
+		});
+		assert(parsed.ok);
+		// Drive the real store pipeline (synthesize → sanitize) so a regression that
+		// re-empties a text-only body would resurface here as a blank View tab.
+		fixture.inboxEmail.readEmailContent = async () =>
+			sanitizeEmailHtml({ html: parsed.email.html, rehostedImages: {} });
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+
+		const response = await agent.get(detailPath);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const iframe = doc.querySelector("[data-test-inbox-email-iframe]");
+		assert(iframe, "a text-only received email must still render the View-tab iframe");
+		const srcdoc = iframe.getAttribute("srcdoc");
+		assert(srcdoc, "iframe must carry a srcdoc");
+		expect(srcdoc).toContain("Plain-text newsletter body");
+		expect(srcdoc).toContain("<pre>");
+		expect(doc.querySelector("[data-test-inbox-email-unavailable]")).toBeNull();
 	});
 
 	it("shows the graceful unavailable panel for an unparsed email instead of an empty frame", async () => {

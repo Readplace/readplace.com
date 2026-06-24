@@ -67,7 +67,7 @@ describe("parseEmail", () => {
 		expect(result.email.text).toBe("");
 	});
 
-	it("handles a text-only message with no HTML part", async () => {
+	it("synthesizes a <pre> HTML body from a text-only message so the View tab is never blank", async () => {
 		const result = await parse(
 			eml(
 				"From: a@b.com",
@@ -81,7 +81,31 @@ describe("parseEmail", () => {
 
 		assert(result.ok);
 		expect(result.email.text).toContain("Just text here");
-		expect(result.email.html).toBe("");
+		// No text/html part: the renderable body is synthesized from the plain text
+		// (wrapped in <pre>) instead of being left empty, which would render blank.
+		expect(result.email.html).toContain("<pre>");
+		expect(result.email.html).toContain("Just text here");
+	});
+
+	it("HTML-escapes a synthesized text-only body so markup in the text renders literally", async () => {
+		const result = await parse(
+			eml(
+				"From: a@b.com",
+				"Subject: TextWithMarkup",
+				"Message-ID: <txt-markup@x>",
+				"Content-Type: text/plain; charset=utf-8",
+				"",
+				`Tags <b> & "quotes" 'apostrophes' stay literal`,
+			),
+		);
+
+		assert(result.ok);
+		expect(result.email.html).toContain("&lt;b&gt;");
+		expect(result.email.html).toContain("&amp;");
+		expect(result.email.html).toContain("&quot;");
+		expect(result.email.html).toContain("&#39;");
+		// The raw tag never survives as real markup.
+		expect(result.email.html).not.toContain("<b>");
 	});
 
 	it("decodes a quoted-printable body with soft breaks and a Latin-1 subject, and tolerates a missing From", async () => {
