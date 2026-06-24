@@ -1,3 +1,4 @@
+import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import { InboxAddressSchema } from "@packages/domain/inbox";
 import { initInMemoryInboxAddress } from "./in-memory-inbox-address";
@@ -45,20 +46,24 @@ describe("initInMemoryInboxAddress", () => {
 		expect(refreshed.disabledAt).toBe("2026-06-23T12:00:00.000Z");
 	});
 
-	it("ignores a disable for an address that does not exist", async () => {
+	it("rejects a disable for an address that does not exist", async () => {
 		const store = initInMemoryInboxAddress({ now: () => new Date() });
 		const missing = InboxAddressSchema.parse("in-3f9a2c@read.place");
 
-		await store.disableAddress({ userId: owner, address: missing });
+		await expect(
+			store.disableAddress({ userId: owner, address: missing }),
+		).rejects.toThrow(ConditionalCheckFailedException);
 
 		expect(await store.listAddressesByUserId(owner)).toHaveLength(0);
 	});
 
-	it("ignores a disable requested by a non-owner", async () => {
+	it("rejects a disable requested by a non-owner", async () => {
 		const store = initInMemoryInboxAddress({ now: () => new Date() });
 		const entry = await store.createAddress({ userId: owner, domain: DOMAIN });
 
-		await store.disableAddress({ userId: otherUser, address: entry.address });
+		await expect(
+			store.disableAddress({ userId: otherUser, address: entry.address }),
+		).rejects.toThrow(ConditionalCheckFailedException);
 
 		const [refreshed] = await store.listAddressesByUserId(owner);
 		expect(refreshed.disabledAt).toBeUndefined();

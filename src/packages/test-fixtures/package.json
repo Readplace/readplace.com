@@ -166,6 +166,7 @@
     "@packages/domain": "workspace:*",
     "@packages/extract-links-from-page": "workspace:*",
     "@packages/hutch-logger": "workspace:*",
+    "@packages/hutch-storage-client": "workspace:*",
     "@packages/provider-contracts": "workspace:*",
     "@packages/web-test-harness": "workspace:*",
     "zod": "4.4.3"

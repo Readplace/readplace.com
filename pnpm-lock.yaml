@@ -1240,6 +1240,9 @@ importers:
       '@packages/hutch-logger':
         specifier: workspace:*
         version: link:../hutch-logger
+      '@packages/hutch-storage-client':
+        specifier: workspace:*
+        version: link:../hutch-storage-client
       '@packages/provider-contracts':
         specifier: workspace:*
         version: link:../provider-contracts

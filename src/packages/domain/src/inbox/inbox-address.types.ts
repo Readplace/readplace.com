@@ -23,5 +23,9 @@ export interface InboxAddressStore {
 	 * be absent from the result — so callers must not assume read-your-write. The
 	 * in-memory fixture is strongly consistent and so will not surface the lag. */
 	listAddressesByUserId: (userId: UserId) => Promise<InboxAddressEntry[]>;
+	/** Stamps `disabledAt` on an address the user owns. The write is
+	 * ownership-guarded: disabling an address that does not exist or belongs to
+	 * another user throws `ConditionalCheckFailedException` rather than silently
+	 * succeeding, so a forged address can never reach a foreign row. */
 	disableAddress: (input: { userId: UserId; address: InboxAddress }) => Promise<void>;
 }

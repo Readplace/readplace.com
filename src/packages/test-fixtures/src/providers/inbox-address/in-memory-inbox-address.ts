@@ -1,3 +1,4 @@
+import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
 import {
 	buildInboxAddress,
 	generateInboxToken,
@@ -26,8 +27,12 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 			[...rows.values()].filter((row) => row.userId === userId),
 		disableAddress: async ({ userId, address }) => {
 			const row = rows.get(address);
-			if (row === undefined) return;
-			if (row.userId !== userId) return;
+			if (row === undefined || row.userId !== userId) {
+				throw new ConditionalCheckFailedException({
+					$metadata: {},
+					message: "The conditional request failed",
+				});
+			}
 			rows.set(address, { ...row, disabledAt: deps.now().toISOString() });
 		},
 	};
