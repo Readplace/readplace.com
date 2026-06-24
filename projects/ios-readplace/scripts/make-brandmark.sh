@@ -13,15 +13,20 @@
 # kept so the mark's brand clear-space (>= the amber dot's diameter per side) is
 # preserved. Output is @1x/2x/3x for the 72pt frame in LoginView.
 #
-# Unlike the App Store icon (make-appicon.sh) the mark KEEPS its alpha — it sits
-# directly on the login background — so there is no CoreGraphics flatten step;
-# sips' RGBA output is written straight to the image set.
+# The mark KEEPS its alpha — it sits directly on the login background — so there
+# is no flatten step; rsvg-convert writes RGBA straight to the image set. (The
+# App Store icon in make-appicon.sh is the opposite case: it must drop alpha, and
+# does so on macOS via CoreGraphics.)
 #
-# 'Times New Roman' (the third family in the logo SVG's own font stack) is pinned
-# for the glyph so the committed PNGs — rasterised on a Linux host where the
-# metric-compatible Liberation Serif stands in for it — reproduce from this script.
+# Rasterised on the repo's Linux devbox shell with rsvg-convert (librsvg) — NOT
+# macOS sips, which is unavailable here and would also substitute Times New Roman
+# for the glyph and change the ampersand outline. The font is pinned to Liberation
+# Serif, the metric-compatible serif that stands in for the 'Times New Roman' in
+# the logo SVG's own font stack; both librsvg and the liberation_ttf font are
+# provided by devbox (see devbox.json) so the committed PNGs reproduce from this
+# script.
 #
-# Usage:  ./scripts/make-brandmark.sh
+# Usage:  ./scripts/make-brandmark.sh   (from the devbox shell)
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -33,11 +38,11 @@ mkdir -p "$OUT_DIR" build
 render() { # $1=ampersand fill  $2=size px  $3=output filename
 	cat > "$TMP_SVG" <<SVG
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="$2" height="$2">
-  <text x="240" y="400" text-anchor="middle" font-family="'Times New Roman', serif" font-size="400" font-weight="700" fill="$1">&amp;</text>
+  <text x="240" y="400" text-anchor="middle" font-family="Liberation Serif" font-size="400" font-weight="700" fill="$1">&amp;</text>
   <circle cx="339" cy="146" r="38" fill="#C8923C"/>
 </svg>
 SVG
-	sips -s format png --resampleHeightWidth "$2" "$2" "$TMP_SVG" --out "$OUT_DIR/$3" >/dev/null
+	rsvg-convert --width "$2" --height "$2" "$TMP_SVG" --output "$OUT_DIR/$3"
 }
 
 render "#2B3A55" 72  "BrandMark.png"
