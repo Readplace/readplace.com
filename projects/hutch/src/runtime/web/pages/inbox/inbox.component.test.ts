@@ -43,9 +43,51 @@ describe("InboxPage", () => {
 		const field = doc.querySelector(".inbox__address-field");
 		assert.equal(field?.getAttribute("value"), "in-3f9a2c@read.place");
 		assert.equal(field?.getAttribute("readonly"), "");
+		assert.equal(field?.hasAttribute("disabled"), false);
 		const copy = doc.querySelector("[data-inbox-copy]");
 		assert.equal(copy?.getAttribute("data-inbox-address"), "in-3f9a2c@read.place");
 		assert.equal(copy?.hasAttribute("hidden"), true);
+	});
+
+	it("renders a disabled address as a disabled field and drops its copy button, leaving the copy affordance only on the active one", () => {
+		const doc = parse(
+			InboxPage({
+				addresses: [
+					entry(),
+					entry({
+						address: InboxAddressSchema.parse("in-abc123@read.place"),
+						token: InboxTokenSchema.parse("abc123"),
+						disabledAt: "2026-06-22T00:00:00.000Z",
+					}),
+				],
+			}).content.html,
+		);
+
+		const fields = Array.from(doc.querySelectorAll(".inbox__address-field"));
+		assert.equal(fields.length, 2, "both addresses still render a field");
+
+		const [active, disabled] = fields;
+		assert.equal(active.getAttribute("value"), "in-3f9a2c@read.place");
+		assert.equal(active.hasAttribute("readonly"), true);
+		assert.equal(active.hasAttribute("disabled"), false);
+
+		assert.equal(disabled.getAttribute("value"), "in-abc123@read.place");
+		assert.equal(disabled.hasAttribute("disabled"), true);
+		assert.equal(disabled.hasAttribute("readonly"), false);
+		assert.equal(
+			disabled.classList.contains("inbox__address-field--disabled"),
+			true,
+			"disabled field carries the disabled modifier",
+		);
+
+		const copyableAddresses = Array.from(doc.querySelectorAll("[data-inbox-copy]")).map((el) =>
+			el.getAttribute("data-inbox-address"),
+		);
+		assert.deepEqual(
+			copyableAddresses,
+			["in-3f9a2c@read.place"],
+			"only the active address keeps a copy button",
+		);
 	});
 
 	it("shows a Disable action for enabled addresses and a Disabled marker (no action) for disabled ones", () => {

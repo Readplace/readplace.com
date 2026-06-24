@@ -12,15 +12,16 @@
       <ul class="inbox__list" data-test-inbox-list>
         {{#each addresses}}
         <li class="inbox__item" data-test-inbox-item>
+          {{#if this.enabled}}
           <input class="inbox__address-field" type="text" value="{{this.address}}" readonly aria-label="Forwarding address" data-inbox-address="{{this.address}}" />
           <button type="button" class="inbox__copy-btn" data-inbox-copy data-inbox-address="{{this.address}}" hidden>Copy</button>
-          {{#if this.enabled}}
           <span class="inbox__status inbox__status--enabled" data-test-inbox-status="enabled">Active</span>
           <form action="{{../disableAction}}" method="POST" class="inbox__disable">
             <input type="hidden" name="address" value="{{this.address}}" />
             <button type="submit" class="inbox__disable-btn" data-test-inbox-disable>Disable</button>
           </form>
           {{else}}
+          <input class="inbox__address-field inbox__address-field--disabled" type="text" value="{{this.address}}" disabled aria-label="Forwarding address" />
           <span class="inbox__status inbox__status--disabled" data-test-inbox-status="disabled">Disabled</span>
           {{/if}}
         </li>

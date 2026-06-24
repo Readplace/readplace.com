@@ -62,6 +62,13 @@
   border-radius: var(--radius);
 }
 
+.inbox__address-field--disabled {
+  color: var(--muted-foreground);
+  background: var(--muted);
+  cursor: not-allowed;
+  user-select: none;
+}
+
 .inbox__copy-btn {
   padding: 8px 16px;
   font-size: 0.9rem;
