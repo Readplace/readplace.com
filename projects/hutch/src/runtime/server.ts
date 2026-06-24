@@ -138,6 +138,7 @@ import { initMcpArticleOperations } from "./web/mcp/article-operations";
 import { initMcpRoutes } from "./web/mcp/mcp.routes";
 import { buildMcpServerCard } from "./web/mcp/server-card";
 import { initResolveSaveAccess } from "./web/mcp/save-access";
+import { initResolveToolAccess } from "./web/mcp/tool-access";
 import { initSaveArticleFromUrl } from "./web/shared/save-article/save-article-from-url";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
@@ -311,17 +312,27 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	/** The MCP server's tools are the same writes/reads the hypermedia `/queue`
 	 * API performs, so an agent acting over MCP and the browser extension take
-	 * the identical save and list paths — including the lockout and write-access
-	 * gates the extension save clears (resolved here from the bearer-derived
-	 * userId, since the request carries no session), so an MCP save is the
-	 * identical write rather than a back door around them. Listing stays open
-	 * while locked, matching `requireNotLocked`, so only `save_link` is gated. */
+	 * the identical save and list paths — including the lockout gate the
+	 * extension save clears (resolved here from the bearer-derived userId, since
+	 * the request carries no session), so an MCP save is the identical write
+	 * rather than a back door around it. Listing stays open while locked, matching
+	 * `requireNotLocked`, so only `save_link` is gated; the subscription paywall
+	 * is enforced one level up by `resolveToolAccess`. */
 	const resolveSaveAccess = initResolveSaveAccess({
 		findUserById: deps.findUserById,
-		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
+		now: deps.now,
+	});
+	/** The subscription paywall on the MCP surface: a read-only (lapsed)
+	 * subscription gets every tool refused with a renewal upsell, and a trial in
+	 * its final week gets a convert-to-annual nudge on successful results. Reads
+	 * the same effective access the web banner does, so "lapsed" means the same
+	 * thing to an agent as it does in the browser. */
+	const resolveToolAccess = initResolveToolAccess({
+		getEffectiveAccess,
 		now: deps.now,
 	});
 	const mcpServer = initMcpServer({
+		resolveToolAccess,
 		saveLink: async ({ userId, url }) => {
 			const access = await resolveSaveAccess(userId);
 			if (!access.allowed) {
@@ -475,7 +486,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			{ loc: "/login", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/signup", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/privacy", priority: "0.3", changefreq: "yearly", lastmod: "2026-03-01" },
-			{ loc: "/terms", priority: "0.3", changefreq: "yearly", lastmod: "2026-03-01" },
+			{ loc: "/terms", priority: "0.3", changefreq: "yearly", lastmod: "2026-06-24" },
 			{ loc: "/llms.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
 			{ loc: "/llms-full.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
 			{ loc: "/auth.md", priority: "0.3", changefreq: "monthly", lastmod: "2026-06-13" },

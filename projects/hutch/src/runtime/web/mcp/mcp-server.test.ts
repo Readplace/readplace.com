@@ -17,6 +17,7 @@ function fakeDeps(overrides?: Partial<McpServerDeps>): McpServerDeps {
 		getArticle: async () => null,
 		getArticleContent: async () => ({ status: "not_found" }),
 		getArticleSummary: async () => ({ status: "not_found" }),
+		resolveToolAccess: async () => ({ state: "ok" }),
 		...overrides,
 	};
 }
@@ -676,6 +677,102 @@ describe("initMcpServer", () => {
 					content: [{ text: expect.stringContaining("Readplace app") }],
 					structuredContent: { action: "delete_article", performed: false },
 				},
+			});
+		});
+	});
+
+	describe("subscription gating", () => {
+		const UPSELL =
+			"Your subscription isn't active. Reactivate at https://readplace.com/account.";
+
+		it("refuses every tool with the renewal upsell when the subscription is inactive", async () => {
+			const saveLink = jest.fn(async () => ({
+				ok: true as const,
+				title: "x",
+				url: "https://e.test/",
+			}));
+			const server = initMcpServer(
+				fakeDeps({
+					saveLink,
+					resolveToolAccess: async () => ({ state: "inactive", message: UPSELL }),
+				}),
+			);
+			for (const tool of [
+				"save_link",
+				"list_queue",
+				"get_article",
+				"get_article_content",
+				"get_article_summary",
+				"mark_as_read",
+				"mark_as_unread",
+				"delete_article",
+			]) {
+				const response = await call(server, 70, tool, {});
+				expect(response).toMatchObject({
+					id: 70,
+					result: { isError: true, content: [{ type: "text", text: UPSELL }] },
+				});
+			}
+			// The gate refuses before any tool runs — the save pipeline is untouched.
+			expect(saveLink).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("trial-ending nudge", () => {
+		const NUDGE = "PS — your trial ends soon. Renew at https://readplace.com/account.";
+		const trialEnding: McpServerDeps["resolveToolAccess"] = async () => ({
+			state: "trial-ending",
+			nudge: NUDGE,
+		});
+
+		it("appends the nudge as a second text block to a successful save_link", async () => {
+			const server = initMcpServer(
+				fakeDeps({
+					resolveToolAccess: trialEnding,
+					saveLink: async () => ({
+						ok: true,
+						title: "My Article",
+						url: "https://e.test/a",
+					}),
+				}),
+			);
+			const response = await call(server, 71, "save_link", { url: "https://e.test/a" });
+			expect(response).toMatchObject({
+				id: 71,
+				result: {
+					content: [
+						{ type: "text", text: expect.stringContaining("My Article") },
+						{ type: "text", text: NUDGE },
+					],
+				},
+			});
+		});
+
+		it("appends the nudge to a list_queue result and leaves structuredContent intact", async () => {
+			const server = initMcpServer(fakeDeps({ resolveToolAccess: trialEnding }));
+			const response = await call(server, 72, "list_queue");
+			expect(response).toMatchObject({
+				result: {
+					content: [
+						{ type: "text", text: "Your Readplace queue is empty." },
+						{ type: "text", text: NUDGE },
+					],
+					structuredContent: { total: 0, count: 0, articles: [] },
+				},
+			});
+		});
+
+		it("leaves an error result unchanged (no nudge on a failure)", async () => {
+			const server = initMcpServer(
+				fakeDeps({
+					resolveToolAccess: trialEnding,
+					saveLink: async () => ({ ok: false, message: "Not saveable" }),
+				}),
+			);
+			const response = await call(server, 73, "save_link", { url: "chrome://x" });
+			expect(response).toMatchObject({
+				id: 73,
+				result: { isError: true, content: [{ type: "text", text: "Not saveable" }] },
 			});
 		});
 	});
