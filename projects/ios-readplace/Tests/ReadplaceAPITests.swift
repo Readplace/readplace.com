@@ -19,6 +19,16 @@ final class ReadplaceAPITests: XCTestCase {
 		SirenAction(name: "save-article", href: "/queue", method: "POST", type: "application/json", fields: nil)
 	}
 
+	private func updateStatusAction(id: String = "a1") -> SirenAction {
+		SirenAction(
+			name: "update-status",
+			href: "/queue/\(id)/status",
+			method: "POST",
+			type: "application/x-www-form-urlencoded",
+			fields: [SirenField(name: "status", type: "text", value: nil)]
+		)
+	}
+
 	// MARK: - Listing
 
 	func testLoadQueueFollowsEntryPointRedirectAndPreservesAuthHeader() async throws {
@@ -287,13 +297,13 @@ final class ReadplaceAPITests: XCTestCase {
 		}
 	}
 
-	// MARK: - Deleting
+	// MARK: - Updating status
 
-	func testDeleteReturnsRefreshedCollectionAndSendsPreferHeader() async throws {
+	func testUpdateStatusPostsUrlencodedStatusAndFollowsRedirect() async throws {
 		let store = TestSupport.loggedInStore()
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
-			case "/queue/a1/delete":
+			case "/queue/a1/status":
 				return .redirect(to: "/queue")
 			case "/queue":
 				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "remaining")]))
@@ -302,24 +312,78 @@ final class ReadplaceAPITests: XCTestCase {
 			}
 		}
 
-		let page = try await makeAPI(store: store).delete(href: "/queue/a1/delete")
+		try await makeAPI(store: store).updateStatus(action: updateStatusAction(), status: .read)
 
-		XCTAssertEqual(page.articles.map(\.id), ["remaining"])
-		let deleteRequest = try XCTUnwrap(StubURLProtocol.records(path: "/queue/a1/delete").first?.request)
-		XCTAssertEqual(deleteRequest.httpMethod, "POST")
-		XCTAssertEqual(deleteRequest.value(forHTTPHeaderField: "Prefer"), "return=representation")
+		let statusRecord = try XCTUnwrap(StubURLProtocol.records(path: "/queue/a1/status").first)
+		XCTAssertEqual(statusRecord.request.httpMethod, "POST")
+		XCTAssertEqual(statusRecord.request.value(forHTTPHeaderField: "Content-Type"), "application/x-www-form-urlencoded")
+		XCTAssertEqual(TestSupport.formFields(statusRecord.body)["status"], "read")
+		XCTAssertNil(
+			statusRecord.request.value(forHTTPHeaderField: "Prefer"),
+			"success is decoupled from the response body, so no representation is requested"
+		)
+		XCTAssertEqual(StubURLProtocol.records(path: "/queue").count, 1, "the 303 to /queue is followed")
 	}
 
-	func testDelete404ThrowsNotFound() async {
+	func testUpdateStatusSurfacesServerErrorOnFailureStatus() async {
 		let store = TestSupport.loggedInStore()
-		StubURLProtocol.setHandler { _, _ in .json(404, "{}") }
-		do {
-			_ = try await makeAPI(store: store).delete(href: "/queue/gone/delete")
-			XCTFail("Expected notFound")
-		} catch let error as APIError {
-			guard case .notFound = error else { return XCTFail("Expected .notFound, got \(error)") }
-		} catch {
-			XCTFail("Expected APIError.notFound, got \(error)")
+		StubURLProtocol.setHandler { _, _ in
+			.json(500, Fixtures.sirenError(code: "boom", message: "nope", withSaveArticleFallback: false))
 		}
+		do {
+			try await makeAPI(store: store).updateStatus(action: updateStatusAction(), status: .read)
+			XCTFail("Expected a server error")
+		} catch let error as APIError {
+			// The client verifies the protocol-level outcome only: any non-2xx/3xx
+			// is a generic server error, with no special-casing of a status code.
+			guard case .server(let status, _, _) = error else {
+				return XCTFail("Expected .server, got \(error)")
+			}
+			XCTAssertEqual(status, 500)
+		} catch {
+			XCTFail("Expected APIError.server, got \(error)")
+		}
+	}
+
+	// MARK: - Reader session
+
+	func testBootstrapSessionParsesSessionCookieFromSetCookieHeader() async throws {
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { request, _ in
+			XCTAssertEqual(request.url?.path, "/auth/session")
+			XCTAssertEqual(request.httpMethod, "POST")
+			return StubURLProtocol.Stub(
+				status: 204,
+				headers: ["Set-Cookie": "hutch_sid=sess-abc; Path=/; HttpOnly"]
+			)
+		}
+
+		let cookie = try await makeAPI(store: store).bootstrapSession()
+
+		XCTAssertEqual(cookie.name, "hutch_sid")
+		XCTAssertEqual(cookie.value, "sess-abc")
+	}
+
+	func testBootstrapSessionRefreshesOnceWhenBearerExpired() async throws {
+		let store = TestSupport.loggedInStore(access: "stale", refresh: "r1")
+		var sessionAttempts = 0
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/auth/session":
+				sessionAttempts += 1
+				if sessionAttempts == 1 { return .json(401, "{}") }
+				return StubURLProtocol.Stub(status: 204, headers: ["Set-Cookie": "hutch_sid=fresh-sess; Path=/"])
+			case "/oauth/token":
+				return .json(200, Fixtures.tokenResponse(access: "fresh-access", refresh: "r2"))
+			default:
+				return .json(404, "{}")
+			}
+		}
+
+		let cookie = try await makeAPI(store: store).bootstrapSession()
+
+		XCTAssertEqual(cookie.value, "fresh-sess")
+		XCTAssertEqual(sessionAttempts, 2, "should retry once after refreshing the bearer")
+		XCTAssertEqual(store.tokens?.accessToken, "fresh-access")
 	}
 }

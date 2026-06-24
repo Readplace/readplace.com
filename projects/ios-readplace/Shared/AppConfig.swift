@@ -43,6 +43,12 @@ enum AppConfig {
 	/// The Siren hypermedia media type the API speaks.
 	static let sirenMediaType = "application/vnd.siren+json"
 
+	/// Name of the server's browser session cookie (`hutch_sid`). Minted from a
+	/// bearer token via `POST /auth/session` and injected into the in-app reader
+	/// webview so its cookie-authenticated pages load. Must match the server's
+	/// `SESSION_COOKIE_NAME`.
+	static let sessionCookieName = "hutch_sid"
+
 	/// Shared container so the app (which signs in) and the share extension
 	/// (which saves) can both read the OAuth tokens.
 	///

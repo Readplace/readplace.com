@@ -86,7 +86,9 @@ enum Fixtures {
 		    \(field("readAt", readAt))
 		  },
 		  "links": [{ "rel": ["read"], "href": "/queue/\(id)/view" }],
-		  "actions": [{ "name": "delete", "href": "/queue/\(id)/delete", "method": "POST" }]
+		  "actions": [
+		    { "name": "update-status", "href": "/queue/\(id)/status", "method": "POST", "type": "application/x-www-form-urlencoded", "fields": [{ "name": "status", "type": "text" }] }
+		  ]
 		}
 		"""
 	}

@@ -11,6 +11,9 @@ final class ReadingListViewModel: ObservableObject {
 	/// Server-authored messages surfaced to the UI (e.g. a locked-account refusal),
 	/// rendered generically — the client owns no per-feature knowledge of them.
 	@Published var messages: [ServerMessage] = []
+	/// Set when a readable row is tapped; drives the reader sheet. The session
+	/// cookie is minted inside the sheet, so the sheet opens without waiting.
+	@Published var readerPresentation: ReaderPresentation?
 
 	private var nextHref: String?
 	private var isLoadingMore = false
@@ -61,18 +64,46 @@ final class ReadingListViewModel: ObservableObject {
 		isLoadingMore = false
 	}
 
-	func delete(_ article: Article) async {
-		guard let href = article.deleteHref else { return }
+	func markAsRead(_ article: Article) async {
+		guard let action = article.updateStatusAction else { return }
 		let snapshot = articles
+		// Optimistically drop the row, then confirm with the server. Nothing is
+		// re-applied on success, so the pagination cursor (nextHref/hasMore)
+		// survives; a failure restores the snapshot and surfaces the error.
 		articles.removeAll { $0.id == article.id }
 		do {
-			let page = try await api.delete(href: href)
-			apply(page, replacing: true)
-		} catch APIError.notFound {
-			// Already gone server-side; keep it removed.
+			try await api.updateStatus(action: action, status: .read)
 		} catch {
 			articles = snapshot
 			handle(error)
+		}
+	}
+
+	/// Removes a row after the reader marked it read, so it leaves the
+	/// unread-only list without a round trip.
+	func removeArticle(id: String) {
+		articles.removeAll { $0.id == id }
+	}
+
+	/// Opens the reader for a tapped row. A row whose server response carries no
+	/// usable read link is read-only, so this is a no-op for it — no sheet opens.
+	/// The sheet is presented immediately; the session cookie is minted inside it.
+	func openReader(for article: Article) {
+		guard let href = article.readHref,
+			let url = Href.resolve(href, baseURL: api.baseURL)
+		else { return }
+		readerPresentation = ReaderPresentation(readerURL: url, articleId: article.id)
+	}
+
+	/// Mints the cookie session the reader webview needs from the current bearer.
+	/// Returns nil and surfaces the error when the bootstrap fails, so the reader
+	/// sheet can show its unavailable view instead of a blank page.
+	func mintReaderSession() async -> HTTPCookie? {
+		do {
+			return try await api.bootstrapSession()
+		} catch {
+			handle(error)
+			return nil
 		}
 	}
 
@@ -114,4 +145,13 @@ final class ReadingListViewModel: ObservableObject {
 			errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
 		}
 	}
+}
+
+/// What the reader sheet needs to present one article: the resolved reader URL
+/// and the article id (so its row can be dropped if the reader marks it read).
+/// `Identifiable` drives `.sheet(item:)`.
+struct ReaderPresentation: Identifiable {
+	let readerURL: URL
+	let articleId: String
+	var id: String { articleId }
 }
