@@ -18,16 +18,18 @@ describe("GET /help/add-links", () => {
 		expect(response.headers["content-type"]).toMatch(/text\/html/);
 
 		const doc = new JSDOM(response.text).window.document;
-		expect(doc.querySelector(".help__title")?.textContent).toBe("Add links with Share");
-		const steps = Array.from(doc.querySelectorAll(".help__step")).map(
-			(el) => el.textContent?.trim(),
+		expect(doc.querySelector("[data-test-help-title]")?.textContent).toBe(
+			"Add links with Share",
 		);
+		const steps = Array.from(
+			doc.querySelectorAll("[data-test-help-step]"),
+		).map((el) => el.textContent?.trim());
 		expect(steps).toEqual([
 			"Open a link in any app.",
 			"Tap Share.",
 			"Choose Readplace.",
 		]);
-		expect(doc.querySelector(".help__note")?.textContent).toContain(
+		expect(doc.querySelector("[data-test-help-note]")?.textContent).toContain(
 			"captures the full page",
 		);
 	});
