@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { InboxAddressLimitReachedError } from "@packages/domain/inbox";
+import { INBOX_ADDRESS_MAX_PER_USER } from "@packages/domain/inbox";
+import type { UserId } from "@packages/domain/user";
 import { loginAgent, useTestServer } from "../../../test-app";
 
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
+	type TestAppFixture,
 } from "@packages/test-fixtures";
 
 const useApp = useTestServer();
@@ -63,6 +65,16 @@ function navFormSubmissionTarget(html: string, key: string): string {
 	return `${new URL(action, "https://internal.invalid").pathname}?${params}`;
 }
 
+/** Mints live addresses through the real store until the user sits exactly at the
+ * per-user cap, so the next create is rejected the way production rejects it (the
+ * in-memory fixture faithfully throws at the limit) instead of by stubbing the
+ * throw. */
+async function seedAddressesToCap(fixture: TestAppFixture, userId: UserId): Promise<void> {
+	for (let i = 0; i < INBOX_ADDRESS_MAX_PER_USER; i++) {
+		await fixture.inboxAddress.inboxAddressStore.createAddress({ userId, domain: "read.place" });
+	}
+}
+
 describe("Inbox routes", () => {
 	describe("GET /inbox (gating)", () => {
 		it("redirects an unauthenticated visitor to /login", async () => {
@@ -93,6 +105,32 @@ describe("Inbox routes", () => {
 			expect(doc.querySelector("[data-test-inbox-empty]")).not.toBeNull();
 			expect(doc.querySelector("[data-test-inbox-create]")).not.toBeNull();
 			expect(doc.querySelector("[data-test-inbox-list]")).toBeNull();
+		});
+
+		it("shows the limit banner proactively at the cap without the &error=limit param", async () => {
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const harness = useApp(fixture);
+			const agent = await loginAgent(harness.server, harness.auth);
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "seeded login user must exist");
+			await seedAddressesToCap(fixture, userId);
+
+			const response = await agent.get("/inbox?feature=email");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-inbox-limit]")).not.toBeNull();
+		});
+
+		it("shows the limit banner from the &error=limit flag even when the live count is below the cap", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const agent = await loginAgent(harness.server, harness.auth);
+
+			const response = await agent.get("/inbox?feature=email&error=limit");
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-inbox-limit]")).not.toBeNull();
 		});
 	});
 
@@ -199,11 +237,11 @@ describe("Inbox routes", () => {
 			fixture.shared.logError = (message) => {
 				errors.push(message);
 			};
-			fixture.inboxAddress.inboxAddressStore.createAddress = async () => {
-				throw new InboxAddressLimitReachedError(25);
-			};
 			const harness = useApp(fixture);
 			const agent = await loginAgent(harness.server, harness.auth);
+			const userId = (await harness.auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId, "seeded login user must exist");
+			await seedAddressesToCap(fixture, userId);
 
 			const response = await agent.post("/inbox/create?feature=email");
 

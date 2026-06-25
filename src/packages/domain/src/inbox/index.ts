@@ -1,4 +1,5 @@
 export type { InboxAddressEntry, InboxAddressStore } from "./inbox-address.types";
+export { countLiveAddresses, isLiveAddress } from "./inbox-address.live";
 export {
 	InboxTokenSchema,
 	type InboxToken,

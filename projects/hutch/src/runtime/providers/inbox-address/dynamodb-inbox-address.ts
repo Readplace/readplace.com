@@ -8,6 +8,7 @@ import { z } from "zod";
 import { UserIdSchema } from "@packages/domain/user";
 import {
 	buildInboxAddress,
+	countLiveAddresses,
 	generateInboxToken,
 	INBOX_ADDRESS_MAX_CREATE_ATTEMPTS,
 	INBOX_ADDRESS_MAX_PER_USER,
@@ -61,10 +62,8 @@ export function initDynamoDbInboxAddress(deps: {
 			// soft guardrail (a racing pair of creates may briefly land one over the
 			// cap) — fine, since the cap exists to stop an unbounded create loop, not
 			// to enforce an exact-to-the-row ceiling.
-			const live = (await listAddressesByUserId(userId)).filter(
-				(entry) => entry.disabledAt === undefined,
-			);
-			if (live.length >= INBOX_ADDRESS_MAX_PER_USER) {
+			const liveCount = countLiveAddresses(await listAddressesByUserId(userId));
+			if (liveCount >= INBOX_ADDRESS_MAX_PER_USER) {
 				throw new InboxAddressLimitReachedError(INBOX_ADDRESS_MAX_PER_USER);
 			}
 			const createdAt = deps.now().toISOString();
