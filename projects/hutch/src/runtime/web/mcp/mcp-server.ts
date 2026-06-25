@@ -7,6 +7,7 @@ import type {
 } from "@packages/provider-contracts/article-store";
 import { MCP_PROTOCOL_VERSION, MCP_SERVER_INFO } from "./protocol";
 import { decodeQueueCursor, encodeQueueCursor } from "./cursor";
+import type { ToolAccess } from "./tool-access";
 import {
 	ArticleIdArgs,
 	DELETE_ARTICLE_TOOL,
@@ -25,6 +26,12 @@ import {
 /** The user's queue in the Readplace app. Status changes and deletions happen
  * here, not over MCP — the redirect tools point the user at this URL. */
 const APP_QUEUE_URL = "https://readplace.com/queue";
+
+/** The tools a read-only (lapsed) subscription pauses. The Terms keep view and
+ * export open for a lapsed account and scope the pause to "new saves", so only
+ * save_link — the one tool that writes — is gated; the read tools and the
+ * app-only redirects (which never mutate) stay open. */
+const PAYWALLED_TOOLS: ReadonlySet<string> = new Set([SAVE_LINK_TOOL.name]);
 
 type SaveLinkResult =
 	| { readonly ok: true; readonly title: string; readonly url: string }
@@ -95,6 +102,12 @@ export interface McpServerDeps {
 		userId: AuthenticatedUserId;
 		id: string;
 	}) => Promise<ArticleSummaryResult>;
+	/** The subscription gate for the tool surface, resolved once per
+	 * `tools/call`: it decides whether to refuse a new save (save_link) with a
+	 * renewal upsell (inactive) or to append a trial-ending nudge to a successful
+	 * result. The read tools stay open for a lapsed account. Reads the same
+	 * effective access the web banner does. */
+	resolveToolAccess: (userId: AuthenticatedUserId) => Promise<ToolAccess>;
 }
 
 /** The authenticated caller a request runs as. Resolved from the OAuth bearer
@@ -186,6 +199,18 @@ function data(textValue: string, structuredContent: unknown): ToolResult {
 
 function toolError(value: string): ToolResult {
 	return { content: [{ type: "text", text: value }], isError: true };
+}
+
+/** Append the trial-ending nudge as a second text block on a successful result.
+ * An error result is returned unchanged (a "your trial ends soon" note has no
+ * place on a failure), and `structuredContent` is left intact so structured
+ * consumers still see the tool's own payload rather than the nudge. */
+function appendNudge(result: ToolResult, nudge: string): ToolResult {
+	if (result.isError) return result;
+	return {
+		...result,
+		content: [...result.content, { type: "text", text: nudge }],
+	};
 }
 
 function errorMessage(error: unknown): string {
@@ -473,6 +498,37 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		);
 	}
 
+	/** Run one tool by name, or return `undefined` for an unknown name (which the
+	 * caller turns into a JSON-RPC method error). Kept separate from the access
+	 * gate and the JSON-RPC envelope so the gate wraps the dispatch rather than
+	 * threading through every case. */
+	async function dispatchTool(
+		name: string,
+		rawArgs: unknown,
+		context: McpRequestContext,
+	): Promise<ToolResult | undefined> {
+		switch (name) {
+			case SAVE_LINK_TOOL.name:
+				return runSaveLink(rawArgs, context);
+			case LIST_QUEUE_TOOL.name:
+				return runListQueue(rawArgs, context);
+			case GET_ARTICLE_TOOL.name:
+				return runGetArticle(rawArgs, context);
+			case GET_ARTICLE_CONTENT_TOOL.name:
+				return runGetArticleContent(rawArgs, context);
+			case GET_ARTICLE_SUMMARY_TOOL.name:
+				return runGetArticleSummary(rawArgs, context);
+			case MARK_AS_READ_TOOL.name:
+				return runMarkAsRead();
+			case MARK_AS_UNREAD_TOOL.name:
+				return runMarkAsUnread();
+			case DELETE_ARTICLE_TOOL.name:
+				return runDeleteArticle();
+			default:
+				return undefined;
+		}
+	}
+
 	async function handleToolsCall(
 		id: JsonRpcId,
 		params: unknown,
@@ -482,27 +538,39 @@ export function initMcpServer(deps: McpServerDeps): McpServer {
 		if (!parsed.success) {
 			return failure(id, -32602, "Invalid params: expected { name, arguments }");
 		}
-		const rawArgs = parsed.data.arguments ?? {};
-		switch (parsed.data.name) {
-			case SAVE_LINK_TOOL.name:
-				return success(id, await runSaveLink(rawArgs, context));
-			case LIST_QUEUE_TOOL.name:
-				return success(id, await runListQueue(rawArgs, context));
-			case GET_ARTICLE_TOOL.name:
-				return success(id, await runGetArticle(rawArgs, context));
-			case GET_ARTICLE_CONTENT_TOOL.name:
-				return success(id, await runGetArticleContent(rawArgs, context));
-			case GET_ARTICLE_SUMMARY_TOOL.name:
-				return success(id, await runGetArticleSummary(rawArgs, context));
-			case MARK_AS_READ_TOOL.name:
-				return success(id, runMarkAsRead());
-			case MARK_AS_UNREAD_TOOL.name:
-				return success(id, runMarkAsUnread());
-			case DELETE_ARTICLE_TOOL.name:
-				return success(id, runDeleteArticle());
-			default:
-				return failure(id, -32602, `Unknown tool: ${parsed.data.name}`);
+
+		// The subscription store read is the gate's only IO. A transient failure
+		// must neither escape handle() (the transport awaits it bare, so a throw
+		// would hang the request) nor block reads, so a store blip fails open to
+		// full access rather than refusing a paying user or a lapsed reader.
+		let access: ToolAccess;
+		try {
+			access = await deps.resolveToolAccess(context.userId);
+		} catch {
+			access = { state: "ok" };
 		}
+
+		// A read-only (lapsed) subscription pauses only a new save: save_link is
+		// refused with the renewal upsell before it runs, while every read tool
+		// (and the app-only redirects, which never mutate) stays open — matching
+		// the Terms' promise that a lapsed account can still view and export.
+		if (access.state === "inactive" && PAYWALLED_TOOLS.has(parsed.data.name)) {
+			return success(id, toolError(access.message));
+		}
+
+		const result = await dispatchTool(
+			parsed.data.name,
+			parsed.data.arguments ?? {},
+			context,
+		);
+		if (!result) {
+			return failure(id, -32602, `Unknown tool: ${parsed.data.name}`);
+		}
+
+		return success(
+			id,
+			access.state === "trial-ending" ? appendNudge(result, access.nudge) : result,
+		);
 	}
 
 	return {

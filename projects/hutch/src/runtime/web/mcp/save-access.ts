@@ -1,24 +1,21 @@
 import type { UserId } from "@packages/domain/user";
 import type { FindUserById } from "@packages/provider-contracts/auth";
-import type { FindSubscriptionByUserId } from "@packages/provider-contracts/subscription-providers";
-import { resolveWriteAccess } from "@packages/subscription-access";
 import { VERIFICATION_CONTACT_EMAIL } from "@packages/web-shell";
 import { computeVerificationStatus } from "../../domain/access/verification-deadline";
 
 /**
- * Whether an authenticated agent may save a new link right now. A save over MCP
- * has to clear the same two gates the hypermedia `/queue` save and `/import`
- * enforce — `requireNotLocked` (email unverified past its 7-day window) and
- * `requireWriteAccess` (subscription not `full`) — so an agent save and a
- * browser-extension save are the identical write rather than a back door around
- * the lockout and the paywall.
+ * Whether an authenticated agent's account is unlocked enough to save a new
+ * link. A save over MCP has to clear the same lockout the hypermedia `/queue`
+ * save and `/import` enforce — `requireNotLocked` (email unverified past its
+ * 7-day window) — so an agent save and a browser-extension save are the
+ * identical write rather than a back door around the lockout. A locked account
+ * can still co-occur with a full subscription, and listing stays open while
+ * locked, so this gates only `save_link`.
  *
- * Those gates are Express middleware keyed off `req`, but an MCP request only
- * has a `userId` after the bearer is validated inside the transport, so the
- * status is resolved here from the bearer-derived id instead. The refusal
- * carries an agent-facing sentence (the transport renders it as a tool error)
- * in place of the web's locked screen or the API's bare `subscription_inactive`.
- * Listing stays open while locked, so this gates only `save_link`.
+ * The subscription paywall (`requireWriteAccess`) is NOT re-decided here: the
+ * tool-access gate refuses a new save for a read-only subscription before
+ * `save_link` ever runs, so the single subscription decision lives there. This
+ * resolver owns only the lockout.
  */
 type SaveAccess =
 	| { readonly allowed: true }
@@ -26,7 +23,6 @@ type SaveAccess =
 
 export function initResolveSaveAccess(deps: {
 	findUserById: FindUserById;
-	findSubscriptionByUserId: FindSubscriptionByUserId;
 	now: () => Date;
 }): (userId: UserId) => Promise<SaveAccess> {
 	return async (userId) => {
@@ -44,16 +40,6 @@ export function initResolveSaveAccess(deps: {
 						`Email ${VERIFICATION_CONTACT_EMAIL} to restore access.`,
 				};
 			}
-		}
-
-		const subscription = await deps.findSubscriptionByUserId(userId);
-		if (resolveWriteAccess(subscription, deps.now()) !== "full") {
-			return {
-				allowed: false,
-				message:
-					"Saving is disabled because the Readplace subscription is not active. " +
-					"Reactivate it from the account page to save links again.",
-			};
 		}
 
 		return { allowed: true };

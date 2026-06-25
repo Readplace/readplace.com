@@ -17,6 +17,7 @@ function buildApp(): Express {
 		getArticle: async () => null,
 		getArticleContent: async () => ({ status: "not_found" }),
 		getArticleSummary: async () => ({ status: "not_found" }),
+		resolveToolAccess: async () => ({ state: "ok" }),
 	});
 	const app = express();
 	app.use(
