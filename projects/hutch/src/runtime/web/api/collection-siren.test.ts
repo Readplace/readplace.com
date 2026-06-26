@@ -216,6 +216,28 @@ describe("toArticleCollectionEntity", () => {
 		const saveAction = entity.actions?.find((a) => a.name === "save-article");
 		expect(saveAction?.method).toBe("POST");
 		expect(saveAction?.fields?.some((f) => f.name === "url")).toBe(true);
+		expect(saveAction?.title).toBe("Save a link");
+	});
+
+	it("gives every advertised action a human title", () => {
+		const result: FindArticlesResult = {
+			articles: [],
+			total: 0,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, {});
+
+		const titles = Object.fromEntries(
+			(entity.actions ?? []).map((a) => [a.name, a.title]),
+		);
+		expect(titles).toEqual({
+			"save-article": "Save a link",
+			"save-html": "Save a page",
+			"save-content": "Save a file",
+			search: "Search",
+		});
 	});
 
 	it("includes search action with filter fields", () => {

@@ -72,6 +72,7 @@ export function toArticleCollectionEntity(
 		actions: [
 			{
 				name: "save-article",
+				title: "Save a link",
 				href: "/queue",
 				method: "POST",
 				type: "application/json",
@@ -79,6 +80,7 @@ export function toArticleCollectionEntity(
 			},
 			{
 				name: "save-html",
+				title: "Save a page",
 				href: "/queue/save-html",
 				method: "POST",
 				type: "application/json",
@@ -90,6 +92,7 @@ export function toArticleCollectionEntity(
 			},
 			{
 				name: "save-content",
+				title: "Save a file",
 				href: "/queue/save-content",
 				method: "POST",
 				type: "multipart/form-data",
@@ -102,6 +105,7 @@ export function toArticleCollectionEntity(
 			},
 			{
 				name: "search",
+				title: "Search",
 				href: "/queue",
 				method: "GET",
 				fields: [

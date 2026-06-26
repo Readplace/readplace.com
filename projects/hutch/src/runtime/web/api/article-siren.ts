@@ -7,6 +7,9 @@ export function toArticleSubEntity(article: SavedArticle): SirenSubEntity {
 		{ rel: ["read"], href: `/queue/${id}/view` },
 	];
 
+	const isRead = article.status === "read";
+	const targetStatus = isRead ? "unread" : "read";
+
 	return {
 		class: ["article"],
 		rel: ["item"],
@@ -27,15 +30,17 @@ export function toArticleSubEntity(article: SavedArticle): SirenSubEntity {
 		actions: [
 			{
 				name: "delete",
+				title: "Delete",
 				href: `/queue/${id}/delete`,
 				method: "POST",
 			},
 			{
 				name: "update-status",
+				title: isRead ? "Mark as unread" : "Mark as read",
 				href: `/queue/${id}/status`,
 				method: "POST",
 				type: "application/x-www-form-urlencoded",
-				fields: [{ name: "status", type: "text" }],
+				fields: [{ name: "status", type: "text", value: targetStatus }],
 			},
 		],
 	};

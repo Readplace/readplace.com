@@ -373,7 +373,9 @@ describe("POST /queue (Siren save article)", () => {
 		expect(updateStatus.method).toBe("POST");
 		expect(updateStatus.href).toContain("/status");
 		expect(updateStatus.type).toBe("application/x-www-form-urlencoded");
-		expect(updateStatus.fields).toEqual([{ name: "status", type: "text" }]);
+		expect(updateStatus.fields).toEqual([
+			{ name: "status", type: "text", value: "read" },
+		]);
 	});
 });
 
@@ -695,7 +697,9 @@ describe("Article sub-entity actions", () => {
 		expect(updateStatus.method).toBe("POST");
 		expect(updateStatus.href).toContain("/status");
 		expect(updateStatus.type).toBe("application/x-www-form-urlencoded");
-		expect(updateStatus.fields).toEqual([{ name: "status", type: "text" }]);
+		expect(updateStatus.fields).toEqual([
+			{ name: "status", type: "text", value: "read" },
+		]);
 	});
 });
 
