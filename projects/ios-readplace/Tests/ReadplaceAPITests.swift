@@ -12,20 +12,21 @@ final class ReadplaceAPITests: XCTestCase {
 	}
 
 	private func saveHtmlAction() -> SirenAction {
-		SirenAction(name: "save-html", href: "/queue/save-html", method: "POST", type: "application/json", fields: nil)
+		SirenAction(name: "save-html", href: "/queue/save-html", method: "POST", title: nil, type: "application/json", fields: nil)
 	}
 
 	private func saveArticleAction() -> SirenAction {
-		SirenAction(name: "save-article", href: "/queue", method: "POST", type: "application/json", fields: nil)
+		SirenAction(name: "save-article", href: "/queue", method: "POST", title: nil, type: "application/json", fields: nil)
 	}
 
-	private func updateStatusAction(id: String = "a1") -> SirenAction {
+	private func updateStatusAction(id: String = "a1", statusValue: String? = "read") -> SirenAction {
 		SirenAction(
 			name: "update-status",
 			href: "/queue/\(id)/status",
 			method: "POST",
+			title: nil,
 			type: "application/x-www-form-urlencoded",
-			fields: [SirenField(name: "status", type: "text", value: nil)]
+			fields: [SirenField(name: "status", type: "text", value: statusValue)]
 		)
 	}
 
@@ -114,6 +115,58 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertEqual(StubURLProtocol.records(path: "/oauth/token").count, 1)
 	}
 
+	func testLoadQueueRejectsANonSirenBody() async {
+		// The client negotiated Siren with Accept; a 200 carrying a different media
+		// type (e.g. a proxy HTML login page) is surfaced as unsupportedMediaType
+		// rather than blind-decoded into a generic decode failure.
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			default:
+				return StubURLProtocol.Stub(
+					status: 200,
+					headers: ["Content-Type": "text/html"],
+					body: Data("<html><body>Sign in</body></html>".utf8)
+				)
+			}
+		}
+		do {
+			_ = try await makeAPI(store: store).loadQueue()
+			XCTFail("Expected unsupportedMediaType")
+		} catch let error as APIError {
+			guard case .unsupportedMediaType(let type) = error else {
+				return XCTFail("Expected .unsupportedMediaType, got \(error)")
+			}
+			XCTAssertEqual(type, "text/html")
+		} catch {
+			XCTFail("Expected APIError.unsupportedMediaType, got \(error)")
+		}
+	}
+
+	func testLoadQueueAcceptsSirenWithCharsetParameter() async throws {
+		// The negotiated type may arrive with a charset parameter; the essence still
+		// matches, so the body parses.
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			default:
+				return StubURLProtocol.Stub(
+					status: 200,
+					headers: ["Content-Type": "application/vnd.siren+json; charset=utf-8"],
+					body: Data(Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]).utf8)
+				)
+			}
+		}
+
+		let page = try await makeAPI(store: store).loadQueue()
+
+		XCTAssertEqual(page.articles.map(\.id), ["a1"])
+	}
+
 	func testNoTokenThrowsNoTokenError() async {
 		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
 		StubURLProtocol.setHandler { _, _ in .json(200, "{}") }
@@ -137,14 +190,15 @@ final class ReadplaceAPITests: XCTestCase {
 			return .json(201, Fixtures.article(id: "saved", url: "https://example.com/x"))
 		}
 
-		let article = try await makeAPI(store: store).saveHTML(
+		let result = try await makeAPI(store: store).saveHTML(
 			action: saveHtmlAction(),
 			url: "https://example.com/x",
 			rawHtml: "<html><body>hi</body></html>",
 			title: "Captured"
 		)
 
-		XCTAssertEqual(article.id, "saved")
+		XCTAssertEqual(result.article.id, "saved")
+		XCTAssertFalse(result.usedFallback, "a clean save-html does not use the fallback")
 		let saveRequest = try XCTUnwrap(StubURLProtocol.records(path: "/queue/save-html").first?.request)
 		XCTAssertEqual(saveRequest.value(forHTTPHeaderField: "X-Readplace-Client"), "ios")
 		let body = TestSupport.jsonObject(StubURLProtocol.records(path: "/queue/save-html").first!.body)
@@ -178,11 +232,12 @@ final class ReadplaceAPITests: XCTestCase {
 			}
 		}
 
-		let article = try await makeAPI(store: store).saveHTML(
+		let result = try await makeAPI(store: store).saveHTML(
 			action: saveHtmlAction(), url: "https://example.com/x", rawHtml: "<huge/>", title: "T"
 		)
 
-		XCTAssertEqual(article.id, "fallback-saved")
+		XCTAssertEqual(result.article.id, "fallback-saved")
+		XCTAssertTrue(result.usedFallback, "following the server's fallback action is reported as a fallback")
 		let fallbackBody = TestSupport.jsonObject(StubURLProtocol.records(path: "/queue").first!.body)
 		XCTAssertEqual(fallbackBody["url"] as? String, "https://example.com/x")
 		XCTAssertEqual(fallbackBody["title"] as? String, "T")
@@ -305,7 +360,10 @@ final class ReadplaceAPITests: XCTestCase {
 
 	// MARK: - Updating status
 
-	func testUpdateStatusPostsUrlencodedStatusAndFollowsRedirect() async throws {
+	func testInvokePostsTheFieldValueUrlencodedAndFollowsRedirect() async throws {
+		// The client supplies no field knowledge: it posts the server-declared
+		// field's own `value`, encoded per the action's `type` (urlencoded → form
+		// body). A bare invoke(action:) is sufficient — no hardcoded status.
 		let store = TestSupport.loggedInStore()
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
@@ -318,12 +376,15 @@ final class ReadplaceAPITests: XCTestCase {
 			}
 		}
 
-		try await makeAPI(store: store).updateStatus(action: updateStatusAction(), status: .read)
+		try await makeAPI(store: store).invoke(action: updateStatusAction(statusValue: "read"))
 
 		let statusRecord = try XCTUnwrap(StubURLProtocol.records(path: "/queue/a1/status").first)
 		XCTAssertEqual(statusRecord.request.httpMethod, "POST")
 		XCTAssertEqual(statusRecord.request.value(forHTTPHeaderField: "Content-Type"), "application/x-www-form-urlencoded")
-		XCTAssertEqual(TestSupport.formFields(statusRecord.body)["status"], "read")
+		XCTAssertEqual(
+			TestSupport.formFields(statusRecord.body)["status"], "read",
+			"the status comes from the declared field's value, not a client constant"
+		)
 		XCTAssertNil(
 			statusRecord.request.value(forHTTPHeaderField: "Prefer"),
 			"success is decoupled from the response body, so no representation is requested"
@@ -331,13 +392,59 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertEqual(StubURLProtocol.records(path: "/queue").count, 1, "the 303 to /queue is followed")
 	}
 
-	func testUpdateStatusSurfacesServerErrorOnFailureStatus() async {
+	func testInvokeTakesTheStatusFromTheFieldValueNotAClientConstant() async throws {
+		// A server that targets a different status drives that exact value into the
+		// body — proving the client never hardcodes "read".
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { _, _ in .redirect(to: "/queue") }
+
+		try await makeAPI(store: store).invoke(action: updateStatusAction(statusValue: "archived"))
+
+		XCTAssertEqual(
+			TestSupport.formFields(StubURLProtocol.records(path: "/queue/a1/status").first!.body)["status"],
+			"archived",
+			"whatever status the field value declares is what gets posted"
+		)
+	}
+
+	func testInvokeEncodesAGetActionsFieldValuesAsQueryItemsWithNoBody() async throws {
+		// A GET action (e.g. `search`) carries no body — the field values are the
+		// query string. The generic invoker must put the server-declared field value
+		// on the URL, not in the httpBody, and send no Content-Type.
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/queue"
+				? .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
+				: .json(404, "{}")
+		}
+		let search = SirenAction(
+			name: "search", href: "/queue", method: "GET", title: nil, type: nil,
+			fields: [SirenField(name: "status", type: "text", value: "unread")]
+		)
+
+		try await makeAPI(store: store).invoke(action: search)
+
+		let record = try XCTUnwrap(StubURLProtocol.records(path: "/queue").first)
+		XCTAssertEqual(record.request.httpMethod, "GET")
+		let query = try XCTUnwrap(URLComponents(url: try XCTUnwrap(record.request.url), resolvingAgainstBaseURL: false)?.queryItems)
+		XCTAssertEqual(
+			query.first { $0.name == "status" }?.value, "unread",
+			"a GET action's field value rides the URL query, not the body"
+		)
+		XCTAssertTrue(record.body.isEmpty, "a GET carries no body")
+		XCTAssertNil(
+			record.request.value(forHTTPHeaderField: "Content-Type"),
+			"a GET sets no Content-Type — there is nothing to encode in a body"
+		)
+	}
+
+	func testInvokeSurfacesServerErrorOnFailureStatus() async {
 		let store = TestSupport.loggedInStore()
 		StubURLProtocol.setHandler { _, _ in
 			.json(500, Fixtures.sirenError(code: "boom", message: "nope", withSaveArticleFallback: false))
 		}
 		do {
-			try await makeAPI(store: store).updateStatus(action: updateStatusAction(), status: .read)
+			try await makeAPI(store: store).invoke(action: updateStatusAction(), values: ["status": "read"])
 			XCTFail("Expected a server error")
 		} catch let error as APIError {
 			// The client verifies the protocol-level outcome only: any non-2xx/3xx

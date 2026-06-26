@@ -5,6 +5,25 @@ struct ReadingListView: View {
 	@StateObject private var viewModel: ReadingListViewModel
 
 	@State private var showingAddInstructions = false
+	@State private var saveText = ""
+	/// The `save-article` action whose toolbar control was tapped, driving the
+	/// native URL dialog. Non-nil presents the dialog; the action is carried
+	/// through so the save follows it rather than rediscovering it by name.
+	@State private var pendingSaveAction: SirenAction?
+	/// A destructive item action awaiting confirmation, carried with the row it acts
+	/// on. A destructive control (e.g. `delete`) is irreversible, so it routes here
+	/// for an explicit confirm before the invoke fires, rather than acting on the tap.
+	@State private var pendingDestructive: PendingDestructive?
+
+	/// A destructive affordance paired with the row it would act on, so the
+	/// confirmation dialog can invoke the exact action the swipe carried and label
+	/// itself from the affordance's `label` (the server `title`, or the humanized
+	/// fallback) rather than the raw wire name.
+	private struct PendingDestructive: Identifiable {
+		let affordance: Affordance
+		let article: Article
+		var id: String { "\(affordance.id):\(article.id)" }
+	}
 
 	init(session: AppSession) {
 		self.session = session
@@ -23,11 +42,15 @@ struct ReadingListView: View {
 					ToolbarItem(placement: .navigationBarLeading) {
 						Button("Sign out") { Task { await session.logout() } }
 					}
-					ToolbarItem(placement: .navigationBarTrailing) {
-						Button {
-							showingAddInstructions = true
-						} label: {
-							Image(systemName: "plus")
+					ToolbarItemGroup(placement: .navigationBarTrailing) {
+						ForEach(viewModel.collectionAffordances) { affordance in
+							Button {
+								dispatch(affordance)
+							} label: {
+								Image(systemName: affordance.presentation.systemImage)
+							}
+							.tint(affordance.presentation.tint)
+							.accessibilityLabel(affordance.label)
 						}
 					}
 				}
@@ -38,7 +61,7 @@ struct ReadingListView: View {
 						presentation: presentation,
 						mintSession: { await viewModel.mintReaderSession() },
 						onMarkedRead: {
-							viewModel.removeArticle(id: presentation.articleId)
+							if let id = presentation.articleId { viewModel.removeArticle(id: id) }
 							viewModel.readerPresentation = nil
 						},
 						onClose: { viewModel.readerPresentation = nil }
@@ -51,6 +74,65 @@ struct ReadingListView: View {
 						onClose: { showingAddInstructions = false }
 					)
 				}
+				.alert("Save a URL", isPresented: Binding(
+					get: { pendingSaveAction != nil },
+					set: { if !$0 { pendingSaveAction = nil } }
+				)) {
+					TextField("https://example.com/article", text: $saveText)
+						.textInputAutocapitalization(.never)
+						.autocorrectionDisabled()
+					Button("Save") {
+						if let action = pendingSaveAction {
+							Task { await viewModel.saveURL(saveText, action: action) }
+						}
+						pendingSaveAction = nil
+					}
+					Button("Cancel", role: .cancel) { pendingSaveAction = nil }
+				} message: {
+					Text("Saves the URL only. Use the iOS Share Sheet to save a page with its rendered content.")
+				}
+				.confirmationDialog(
+					pendingDestructive?.affordance.label ?? "Are you sure?",
+					isPresented: Binding(
+						get: { pendingDestructive != nil },
+						set: { if !$0 { pendingDestructive = nil } }
+					),
+					titleVisibility: .visible,
+					presenting: pendingDestructive
+				) { pending in
+					Button(pending.affordance.label, role: .destructive) {
+						if let action = pending.affordance.action {
+							Task { await viewModel.invoke(action, on: pending.article) }
+						}
+						pendingDestructive = nil
+					}
+					Button("Cancel", role: .cancel) { pendingDestructive = nil }
+				} message: { _ in
+					Text("This can't be undone.")
+				}
+		}
+	}
+
+	/// Routes a tapped collection control to the side effect its advertised
+	/// invocation calls for. The decision itself is pure (`ToolbarRoute.route`); this
+	/// only performs the resulting effect, so the routing is unit-testable without a
+	/// view.
+	private func dispatch(_ affordance: Affordance) {
+		// A navigable help link opens the server's add-links help sheet — a distinct
+		// presentation from the reader. Mapping a known rel to its sheet is a
+		// client presentation choice, not an availability gate.
+		if affordance.token == "add-links-help" {
+			showingAddInstructions = true
+			return
+		}
+		switch ToolbarRoute.route(for: affordance) {
+		case let .open(link):
+			viewModel.open(link: link)
+		case let .promptSave(action):
+			saveText = ""
+			pendingSaveAction = action
+		case let .invoke(action):
+			Task { await viewModel.invokeCollection(action) }
 		}
 	}
 
@@ -87,21 +169,14 @@ struct ReadingListView: View {
 					.onTapGesture {
 						viewModel.openReader(for: article)
 					}
-					.swipeActions(edge: .trailing) {
-						if article.canMarkRead {
-							Button {
-								Task { await viewModel.markAsRead(article) }
-							} label: {
-								Label("Mark as read", systemImage: "checkmark.circle")
-							}
-							.tint(.brandSuccess)
+					.swipeActions(edge: .trailing, allowsFullSwipe: false) {
+						ForEach(article.affordances) { affordance in
+							itemControl(affordance, on: article)
 						}
 					}
 					.accessibilityActions {
-						if article.canMarkRead {
-							Button("Mark as read") {
-								Task { await viewModel.markAsRead(article) }
-							}
+						ForEach(article.affordances) { affordance in
+							Button(affordance.label) { activate(affordance, on: article) }
 						}
 					}
 			}
@@ -117,6 +192,41 @@ struct ReadingListView: View {
 			}
 		}
 		.listStyle(.plain)
+	}
+
+	/// One per-item swipe control, rendered from an advertised affordance. The label
+	/// is the server's `title`; the icon, tint and destructive role are derived
+	/// client-side from the affordance's wire token. A full swipe can't fire it
+	/// (`allowsFullSwipe: false`), and a destructive control routes through a
+	/// confirmation before invoking; both guard the irreversible `delete`. Every
+	/// rendered control resolves to an effect in `activate` — an action invokes, a
+	/// link opens — so none silently no-ops.
+	private func itemControl(_ affordance: Affordance, on article: Article) -> some View {
+		Button(role: affordance.presentation.isDestructive ? .destructive : nil) {
+			activate(affordance, on: article)
+		} label: {
+			Label(affordance.label, systemImage: affordance.presentation.systemImage)
+		}
+		.tint(affordance.presentation.tint)
+	}
+
+	/// Routes an item control to its effect: a navigable link opens in the web view
+	/// (the same effect the toolbar gives a link), a destructive action awaits an
+	/// explicit confirmation (its invoke is irreversible), and any other action
+	/// invokes immediately through the view model's generic invoker. Which actions
+	/// are destructive is a client-side presentation decision, not a name check. Every
+	/// rendered item control resolves to an effect — a link-only affordance is opened,
+	/// not silently dropped.
+	private func activate(_ affordance: Affordance, on article: Article) {
+		guard let action = affordance.action else {
+			if let link = affordance.link { viewModel.open(link: link) }
+			return
+		}
+		if affordance.presentation.isDestructive {
+			pendingDestructive = PendingDestructive(affordance: affordance, article: article)
+		} else {
+			Task { await viewModel.invoke(action, on: article) }
+		}
 	}
 
 	private var emptyState: some View {

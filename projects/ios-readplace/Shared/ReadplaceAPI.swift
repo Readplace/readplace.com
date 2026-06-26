@@ -8,6 +8,11 @@ enum APIError: LocalizedError {
 	/// Carries the server-authored messages; the refusal models no action — there
 	/// is nothing for the client to invoke, only something for the user to read.
 	case refused(messages: [ServerMessage])
+	/// The response carried a body in a media type the client doesn't speak (not
+	/// the negotiated Siren type). Surfaced honestly rather than blind-decoded — a
+	/// proxy login page or a future media type is "I don't understand this," not a
+	/// generic "couldn't read the response."
+	case unsupportedMediaType(String?)
 	case decoding
 
 	var errorDescription: String? {
@@ -17,6 +22,7 @@ enum APIError: LocalizedError {
 		case .server(let status, let code, let message):
 			return message ?? "Server error \(status)\(code.map { " (\($0))" } ?? "")."
 		case .refused(let messages): return messages.map(\.plainText).joined(separator: "\n")
+		case .unsupportedMediaType: return "The server replied in a format this app doesn't understand."
 		case .decoding: return "Could not read the server response."
 		}
 	}
@@ -33,20 +39,41 @@ struct QueuePage {
 	/// collection so the iOS client discovers it rather than hardcoding the path.
 	let addLinksHelpHref: String?
 	let total: Int?
-	let saveArticleAction: SirenAction?
-	let saveHtmlAction: SirenAction?
+	/// Every collection-level action and navigable link the server advertised, in
+	/// wire order — the complete set, so the share-sheet save journey can still find
+	/// its bespoke action by name (`action(named:)`, below). The toolbar does not
+	/// render this set verbatim: it derives its own subset client-side
+	/// (`toolbarAffordances`) by mapping each affordance's wire token to its
+	/// presentation and dropping the ones it can't present as a toolbar control —
+	/// a structural navigation link the client follows itself, or a capture-only
+	/// save iOS can only reach through the Share Sheet.
+	let affordances: [Affordance]
 	let warning: SirenWarning?
 
 	init(collection: SirenCollection) {
 		articles = (collection.entities ?? []).compactMap(Article.init(entity:))
-		selfHref = collection.links?.first { $0.rel.contains("self") }?.href
-		nextHref = collection.links?.first { $0.rel.contains("next") }?.href
-		prevHref = collection.links?.first { $0.rel.contains("prev") }?.href
-		addLinksHelpHref = collection.links?.first { $0.rel.contains("add-links-help") }?.href
+		let links = collection.links ?? []
+		selfHref = links.first { $0.rel.contains("self") }?.href
+		nextHref = links.first { $0.rel.contains("next") }?.href
+		prevHref = links.first { $0.rel.contains("prev") }?.href
+		addLinksHelpHref = links.first { $0.rel.contains("add-links-help") }?.href
 		total = collection.properties?.total
-		saveArticleAction = collection.actions?.first { $0.name == "save-article" }
-		saveHtmlAction = collection.actions?.first { $0.name == "save-html" }
+		let actionAffordances = (collection.actions ?? []).compactMap(Affordance.init(action:))
+		let linkAffordances = links.compactMap(Affordance.init(link:))
+		affordances = actionAffordances + linkAffordances
 		warning = collection.properties?.warning
+	}
+
+	/// The advertised action with this name, when present and invokable. The
+	/// share-sheet save journey needs a specific action to build its bespoke body
+	/// (a captured-HTML or URL-only POST), which is the contract's sanctioned
+	/// exception for actions with special bodies — distinct from the looped
+	/// toolbar rendering, which never selects an affordance by name.
+	func action(named name: String) -> SirenAction? {
+		for affordance in affordances {
+			if let action = affordance.action, action.name == name { return action }
+		}
+		return nil
 	}
 }
 
@@ -95,21 +122,29 @@ final class ReadplaceAPI {
 		request.httpMethod = "GET"
 		let (data, http) = try await send(request)
 		guard http.statusCode == 200 else { throw apiError(from: data, status: http.statusCode) }
-		return QueuePage(collection: try decode(SirenCollection.self, data))
+		return QueuePage(collection: try decodeSiren(SirenCollection.self, data: data, response: http))
 	}
 
-	/// Changes an item's reading status via its server-declared action — the
-	/// action carries the href, method and field set the client follows rather
-	/// than hand-building. The status is sent as the `status` field. The response
-	/// is verified at the protocol level only: a successful follow (a 2xx/3xx,
-	/// after the redirect-preserving delegate re-attaches auth across any
-	/// redirect) confirms the change; anything else surfaces as a server error.
-	/// The body is deliberately not consumed, so a caller's optimistic update is
-	/// never rolled back by a 2xx whose shape this method doesn't read.
-	func updateStatus(action: SirenAction, status: ArticleStatus) async throws {
+	/// Invokes a simple entity action via its own server-declared href, method and
+	/// type — the single generic path for actions whose body is a flat field set
+	/// (e.g. `update-status`, `delete`), so a newly-advertised entity action is
+	/// invokable with no new per-operation code. The caller supplies values only
+	/// for the field names whose semantics the protocol fixes (`status`); the
+	/// action's own declared field defaults fill the rest, and a field the caller
+	/// neither supplies nor the server defaults is simply omitted. The body is
+	/// verified at the protocol level only: a successful follow (a 2xx/3xx, after
+	/// the redirect-preserving delegate re-attaches auth across any redirect)
+	/// confirms it; anything else surfaces as a server error. The response body is
+	/// deliberately not consumed, so a caller's optimistic update is never rolled
+	/// back by a 2xx whose shape this method doesn't read.
+	func invoke(action: SirenAction, values: [String: String] = [:]) async throws {
+		var fields = values
+		for declared in action.fields ?? [] where fields[declared.name] == nil {
+			if let value = declared.value { fields[declared.name] = value }
+		}
 		let request = formRequest(try absoluteURL(action.href), method: action.method,
 			contentType: action.type ?? "application/x-www-form-urlencoded",
-			fields: ["status": status.rawValue])
+			fields: fields)
 		let (data, http) = try await send(request)
 		guard (200...399).contains(http.statusCode) else {
 			throw apiError(from: data, status: http.statusCode)
@@ -157,23 +192,32 @@ final class ReadplaceAPI {
 
 	// MARK: - Saving
 
-	/// Saves a page using its pre-rendered HTML via the `save-html` action.
-	/// On an error body that carries a fallback action (e.g. the payload is too
-	/// large), it degrades to the URL-only path — dropping `rawHtml` — exactly
-	/// like the extension client does.
+	/// The article a save produced, plus whether the captured HTML reached the
+	/// server or the request fell back to the URL-only path the server advertised.
+	struct SaveResult {
+		let article: Article
+		let usedFallback: Bool
+	}
+
+	/// Saves a page using its pre-rendered HTML via the supplied action. On an
+	/// error body that carries a fallback action (the server's chosen URL-only
+	/// path, e.g. when the payload exceeds the server's cap), it follows that
+	/// action — dropping `rawHtml` — exactly like the extension client does. The
+	/// client never decides itself whether the HTML is acceptable; it attempts the
+	/// save and follows the server's refusal.
 	func saveHTML(
 		action: SirenAction,
 		url: String,
 		rawHtml: String,
 		title: String?
-	) async throws -> Article {
+	) async throws -> SaveResult {
 		var body: [String: String] = ["url": url, "rawHtml": rawHtml]
 		if let title, !title.isEmpty { body["title"] = title }
 		let request = jsonRequest(try absoluteURL(action.href), method: action.method,
 			contentType: action.type ?? "application/json", body: body)
 		let (data, http) = try await send(request)
 		if http.statusCode == 201 || http.statusCode == 200 {
-			return try decodeArticle(data)
+			return SaveResult(article: try decodeArticle(data, response: http), usedFallback: false)
 		}
 		// The server may refuse with messages for the client to render (e.g. a
 		// locked account). Surface them as .refused before the fallback below, so
@@ -189,7 +233,7 @@ final class ReadplaceAPI {
 			guard fbHTTP.statusCode == 201 || fbHTTP.statusCode == 200 else {
 				throw apiError(from: fbData, status: fbHTTP.statusCode)
 			}
-			return try decodeArticle(fbData)
+			return SaveResult(article: try decodeArticle(fbData, response: fbHTTP), usedFallback: true)
 		}
 		throw apiError(from: data, status: http.statusCode)
 	}
@@ -203,7 +247,7 @@ final class ReadplaceAPI {
 		guard http.statusCode == 201 || http.statusCode == 200 else {
 			throw apiError(from: data, status: http.statusCode)
 		}
-		return try decodeArticle(data)
+		return try decodeArticle(data, response: http)
 	}
 
 	// MARK: - Transport
@@ -245,11 +289,27 @@ final class ReadplaceAPI {
 		contentType: String,
 		fields: [String: String]
 	) -> URLRequest {
+		let queryItems = fields.map { URLQueryItem(name: $0.key, value: $0.value) }
+		// A GET carries no body — the field values are the query string, so encode
+		// them onto the URL and send no Content-Type. POST/other methods form-encode
+		// the same values into the body per the action's declared `type`.
+		if method.uppercased() == "GET" {
+			guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+				preconditionFailure("absoluteURL produced a URL that does not parse as components: \(url)")
+			}
+			components.queryItems = queryItems
+			guard let queried = components.url else {
+				preconditionFailure("query items did not produce a valid URL for: \(url)")
+			}
+			var request = URLRequest(url: queried)
+			request.httpMethod = method
+			return request
+		}
 		var request = URLRequest(url: url)
 		request.httpMethod = method
 		request.setValue(contentType, forHTTPHeaderField: "Content-Type")
 		var components = URLComponents()
-		components.queryItems = fields.map { URLQueryItem(name: $0.key, value: $0.value) }
+		components.queryItems = queryItems
 		request.httpBody = components.percentEncodedQuery.map { Data($0.utf8) }
 		return request
 	}
@@ -262,13 +322,27 @@ final class ReadplaceAPI {
 		return url
 	}
 
-	private func decode<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
+	/// Decodes a body the client negotiated as Siren, verifying the response's
+	/// media type first. A 200/201 carrying anything but the negotiated Siren type
+	/// (a proxy HTML page, a future media type) is surfaced as
+	/// `.unsupportedMediaType` rather than blind-decoded into a decode failure.
+	private func decodeSiren<T: Decodable>(_ type: T.Type, data: Data, response: HTTPURLResponse) throws -> T {
+		let contentType = response.value(forHTTPHeaderField: "Content-Type")
+		guard isSirenMediaType(contentType) else { throw APIError.unsupportedMediaType(contentType) }
 		guard let value = try? JSONDecoder().decode(type, from: data) else { throw APIError.decoding }
 		return value
 	}
 
-	private func decodeArticle(_ data: Data) throws -> Article {
-		let entity = try decode(SirenEntity.self, data)
+	/// Whether a `Content-Type` header is the negotiated Siren media type, ignoring
+	/// any `;charset=…` parameters and surrounding case.
+	private func isSirenMediaType(_ header: String?) -> Bool {
+		guard let header else { return false }
+		let essence = header.split(separator: ";").first.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+		return essence == AppConfig.sirenMediaType
+	}
+
+	private func decodeArticle(_ data: Data, response: HTTPURLResponse) throws -> Article {
+		let entity = try decodeSiren(SirenEntity.self, data: data, response: response)
 		guard let article = Article(entity: entity) else { throw APIError.decoding }
 		return article
 	}
@@ -302,9 +376,10 @@ final class ReadplaceAPI {
 
 /// Re-attaches `Authorization`, `Accept` and `X-Readplace-Client` to redirected
 /// requests. URLSession strips `Authorization` on cross-origin redirects and may
-/// drop custom headers generally; the entry point `GET /` → `303 /queue` needs
-/// them preserved (the client header so onboarding step 1 is recorded on the
-/// post-redirect `/queue` load).
+/// drop custom headers generally; the server bounces the client from the entry
+/// point to the collection, so the followed redirect must keep them to stay
+/// authenticated and keep negotiating Siren (the client header so onboarding
+/// step 1 is recorded on the post-redirect `/queue` load).
 private final class RedirectHeaderPreservingDelegate: NSObject, URLSessionTaskDelegate {
 	func urlSession(
 		_ session: URLSession,

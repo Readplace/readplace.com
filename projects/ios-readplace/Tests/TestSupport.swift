@@ -98,19 +98,22 @@ enum Fixtures {
 		  },
 		  "links": [{ "rel": ["read"], "href": "/queue/\(id)/view" }],
 		  "actions": [
-		    { "name": "update-status", "href": "/queue/\(id)/status", "method": "POST", "type": "application/x-www-form-urlencoded", "fields": [{ "name": "status", "type": "text" }] }
+		    { "name": "delete", "href": "/queue/\(id)/delete", "method": "POST" },
+		    { "name": "update-status", "href": "/queue/\(id)/status", "method": "POST", "type": "application/x-www-form-urlencoded", "fields": [{ "name": "status", "type": "text", "value": "read" }] }
 		  ]
 		}
 		"""
 	}
 
 	/// The collection-level actions a healthy `/queue` advertises (URL-only save,
-	/// HTML save, search). Overridable so a test can model a server that offers
-	/// neither save action.
+	/// HTML save, file save, search), each carrying the server's `title` label.
+	/// Mirrors `toArticleCollectionEntity`. Overridable so a test can model a
+	/// server that offers a different action set.
 	static let collectionActions = """
-		{ "name": "save-article", "href": "/queue", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] },
-		{ "name": "save-html", "href": "/queue/save-html", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }, { "name": "rawHtml", "type": "text" }, { "name": "title", "type": "text" }] },
-		{ "name": "search", "href": "/queue", "method": "GET" }
+		{ "name": "save-article", "title": "Save a link", "href": "/queue", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }] },
+		{ "name": "save-html", "title": "Save a page", "href": "/queue/save-html", "method": "POST", "type": "application/json", "fields": [{ "name": "url", "type": "url" }, { "name": "rawHtml", "type": "text" }, { "name": "title", "type": "text" }] },
+		{ "name": "save-content", "title": "Save a file", "href": "/queue/save-content", "method": "POST", "type": "multipart/form-data", "fields": [{ "name": "url", "type": "url" }, { "name": "content", "type": "file" }, { "name": "mediaType", "type": "text" }, { "name": "title", "type": "text" }] },
+		{ "name": "search", "title": "Search", "href": "/queue", "method": "GET", "fields": [{ "name": "status", "type": "text" }, { "name": "order", "type": "text" }, { "name": "page", "type": "number" }, { "name": "pageSize", "type": "number" }, { "name": "url", "type": "url" }] }
 		"""
 
 	static func collection(

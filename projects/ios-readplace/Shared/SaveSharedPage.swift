@@ -24,17 +24,15 @@ protocol HTMLCapturing {
 /// decision tree runs against the real API and token types under test — only the
 /// UIKit shell and the WKWebView are left behind in the extension target.
 ///
-/// Capture the page → list the queue → if HTML is present and under the server's
-/// cap, `save-html` (with content); otherwise `save-article` (URL only); if the
-/// server offered neither, give up.
+/// Capture the page → list the queue → when HTML was captured, attempt the
+/// content save and let the server decide (it routes an over-its-cap payload to
+/// the URL-only fallback it advertises); when no HTML was captured, save the URL
+/// only; if the server offered no save action, give up.
 @MainActor
 struct SaveSharedPage {
 	let store: TokenStore
 	let api: ReadplaceAPI
 	let captor: HTMLCapturing
-	/// Mirrors the server's `MAX_RAW_HTML_BYTES` (10 MiB). Above this the server
-	/// would reject the payload, so we skip straight to the URL-only path.
-	var maxRawHTMLBytes = 10 * 1024 * 1024
 
 	func run(url: URL?, fallbackTitle: String?) async -> SaveSharedOutcome {
 		guard store.isLoggedIn else { return .notLoggedIn }
@@ -47,11 +45,10 @@ struct SaveSharedPage {
 			let page = try await api.loadQueue()
 			let urlString = url.absoluteString
 
-			if let html = captured.rawHtml, html.utf8.count <= maxRawHTMLBytes,
-				let action = page.saveHtmlAction {
-				_ = try await api.saveHTML(action: action, url: urlString, rawHtml: html, title: title)
-				return .savedWithContent
-			} else if let action = page.saveArticleAction {
+			if let html = captured.rawHtml, let action = page.action(named: "save-html") {
+				let result = try await api.saveHTML(action: action, url: urlString, rawHtml: html, title: title)
+				return result.usedFallback ? .savedLinkOnly : .savedWithContent
+			} else if let action = page.action(named: "save-article") {
 				_ = try await api.saveArticle(action: action, url: urlString)
 				return .savedLinkOnly
 			} else {

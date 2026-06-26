@@ -21,13 +21,41 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertEqual(article.imageURL?.absoluteString, "https://example.com/img.png")
 		XCTAssertEqual(article.readTimeMinutes, 6)
 		XCTAssertFalse(article.isRead)
-		XCTAssertEqual(article.updateStatusAction?.name, "update-status")
-		XCTAssertEqual(article.updateStatusAction?.href, "/queue/a1/status")
-		XCTAssertEqual(article.updateStatusAction?.method, "POST")
-		XCTAssertEqual(article.updateStatusAction?.type, "application/x-www-form-urlencoded")
-		XCTAssertEqual(article.updateStatusAction?.fields?.first?.name, "status")
+		let updateStatus = try XCTUnwrap(article.actions.first { $0.name == "update-status" })
+		XCTAssertEqual(updateStatus.href, "/queue/a1/status")
+		XCTAssertEqual(updateStatus.method, "POST")
+		XCTAssertEqual(updateStatus.type, "application/x-www-form-urlencoded")
+		XCTAssertEqual(updateStatus.fields?.first?.name, "status")
 		XCTAssertEqual(article.readHref, "/queue/a1/view")
 		XCTAssertNotNil(article.savedAt)
+	}
+
+	func testArticleAffordancesIterateAdvertisedActionsInWireOrder() throws {
+		// One control per advertised, invokable action — built by iterating, never
+		// by matching a known name — so a newly-advertised item action renders.
+		let json = """
+		{ "properties": { "id": "x", "url": "https://example.com/x" },
+		  "actions": [
+		    { "name": "update-status", "title": "Mark read", "href": "/queue/x/status", "method": "POST" },
+		    { "name": "delete", "title": "Delete", "href": "/queue/x/delete", "method": "POST" },
+		    { "name": "archive", "title": "Archive", "href": "/queue/x/archive", "method": "POST" }
+		  ] }
+		"""
+		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
+		XCTAssertEqual(
+			article.affordances.map(\.token), ["update-status", "delete", "archive"],
+			"a never-before-seen action (archive) still becomes a control via the loop"
+		)
+		XCTAssertEqual(article.affordances.map(\.label), ["Mark read", "Delete", "Archive"])
+	}
+
+	func testAffordanceLabelFallsBackToHumanizedTokenWhenServerSendsNoTitle() throws {
+		let action = SirenAction(name: "update-status", href: "/x", method: "POST", title: nil, type: nil, fields: nil)
+		let affordance = try XCTUnwrap(Affordance(action: action))
+		XCTAssertEqual(
+			affordance.label, "Update Status",
+			"a title-less action renders a humanized token, not the raw wire slug"
+		)
 	}
 
 	func testNullImageAndReadAtAreTolerated() throws {
@@ -56,7 +84,7 @@ final class SirenDecodingTests: XCTestCase {
 		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
 		XCTAssertEqual(article.title, "https://example.com/x")
 		XCTAssertNil(article.siteName)
-		XCTAssertNil(article.updateStatusAction)
+		XCTAssertTrue(article.affordances.isEmpty, "no advertised actions ⇒ no item controls")
 		XCTAssertNil(article.readHref)
 	}
 
@@ -68,6 +96,41 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertEqual(action.name, "update-status")
 		XCTAssertEqual(action.fields?.first?.name, "status")
 		XCTAssertEqual(action.fields?.first?.value, "read")
+	}
+
+	func testFieldDecodesAStringValue() throws {
+		let json = """
+		{ "name": "status", "type": "text", "value": "read" }
+		"""
+		let field = try JSONDecoder().decode(SirenField.self, from: Data(json.utf8))
+		XCTAssertEqual(field.value, "read")
+	}
+
+	func testFieldCoercesAWholeNumberValueToAStringWithoutADecimalPoint() throws {
+		// A server may declare a numeric field value (e.g. "page": 2); coerce it to its
+		// string form so the generic invoker posts "2", not "2.0", and the value isn't
+		// dropped.
+		let json = """
+		{ "name": "page", "type": "number", "value": 2 }
+		"""
+		let field = try JSONDecoder().decode(SirenField.self, from: Data(json.utf8))
+		XCTAssertEqual(field.value, "2")
+	}
+
+	func testFieldCoercesAFractionalNumberValueToAString() throws {
+		let json = """
+		{ "name": "ratio", "type": "number", "value": 1.5 }
+		"""
+		let field = try JSONDecoder().decode(SirenField.self, from: Data(json.utf8))
+		XCTAssertEqual(field.value, "1.5")
+	}
+
+	func testFieldWithNoValueDecodesAsNil() throws {
+		let json = """
+		{ "name": "url", "type": "url" }
+		"""
+		let field = try JSONDecoder().decode(SirenField.self, from: Data(json.utf8))
+		XCTAssertNil(field.value)
 	}
 
 	func testEmptyTitleFallsBackToURL() throws {
@@ -92,7 +155,10 @@ final class SirenDecodingTests: XCTestCase {
 		"""
 		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
 		XCTAssertNil(article.readHref, "a read link with no href leaves the row unopenable")
-		XCTAssertFalse(article.canMarkRead, "an action with no href offers no mark-read affordance")
+		XCTAssertTrue(
+			article.affordances.isEmpty,
+			"an action with no href is kept but unactionable, so it produces no control"
+		)
 	}
 
 	func testCollectionDropsUnusableEntities() throws {
@@ -104,15 +170,47 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertEqual(page.articles.map(\.id), ["good"])
 	}
 
-	func testCollectionExposesActionsAndTotal() throws {
+	func testCollectionExposesAffordancesAndTotal() throws {
 		let json = Fixtures.collection(entitiesJSON: [Fixtures.article()], total: 7)
 		let page = QueuePage(collection: try decodeCollection(json))
 		XCTAssertEqual(page.total, 7)
-		XCTAssertEqual(page.saveHtmlAction?.href, "/queue/save-html")
-		XCTAssertEqual(page.saveHtmlAction?.method, "POST")
-		XCTAssertEqual(page.saveHtmlAction?.type, "application/json")
-		XCTAssertEqual(page.saveArticleAction?.href, "/queue")
 		XCTAssertEqual(page.selfHref, "/queue?page=1")
+		// The complete set of advertised collection actions, labelled by the server's
+		// title. The toolbar derives its own presentable subset from this client-side;
+		// the share-sheet save journey resolves its bespoke action from it by name.
+		let actionAffordances = page.affordances.filter { $0.action != nil }
+		XCTAssertEqual(
+			actionAffordances.compactMap(\.action).map(\.name),
+			["save-article", "save-html", "save-content", "search"]
+		)
+		XCTAssertEqual(
+			actionAffordances.map(\.label),
+			["Save a link", "Save a page", "Save a file", "Search"]
+		)
+	}
+
+	func testCollectionActionNamedSelectsTheBespokeSaveActionForTheShareSheet() throws {
+		// The share-sheet save journey still resolves a specific save action by name
+		// to build its bespoke body — the contract's sanctioned exception for
+		// special-body actions, distinct from the looped toolbar rendering.
+		let json = Fixtures.collection(entitiesJSON: [Fixtures.article()])
+		let page = QueuePage(collection: try decodeCollection(json))
+		XCTAssertEqual(page.action(named: "save-html")?.href, "/queue/save-html")
+		XCTAssertEqual(page.action(named: "save-article")?.href, "/queue")
+		XCTAssertNil(page.action(named: "no-such-action"))
+	}
+
+	func testCollectionAffordancesIncludeNavigableLinksWithUsableHref() throws {
+		// A navigable save link the server might advertise becomes a toolbar control
+		// too, keyed on its rel — opened, not invoked.
+		let withSave = Fixtures.collection(
+			entitiesJSON: [Fixtures.article()],
+			extraLinks: ", { \"rel\": [\"save\"], \"href\": \"/save\", \"title\": \"Save a link\" }"
+		)
+		let page = QueuePage(collection: try decodeCollection(withSave))
+		let saveLink = try XCTUnwrap(page.affordances.first { $0.link?.rel.first == "save" })
+		XCTAssertEqual(saveLink.label, "Save a link")
+		XCTAssertEqual(saveLink.link?.href, "/save")
 	}
 
 	func testPaginationLinks() throws {

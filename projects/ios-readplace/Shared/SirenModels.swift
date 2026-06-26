@@ -4,29 +4,60 @@ import Foundation
 
 /// A hypermedia link. `href` is optional: a link advertised without one is kept
 /// but unactionable — the client follows only the hrefs it is given — so a
-/// partial or evolving link never fails the surrounding decode.
+/// partial or evolving link never fails the surrounding decode. `title` is the
+/// server's human label for the link, which the client uses verbatim as the
+/// control's label and accessibility text.
 struct SirenLink: Decodable {
 	let rel: [String]
 	let href: String?
+	let title: String?
 }
 
 /// One field of an action. `value` is the server's pre-filled default, when
 /// present; the field `name` is part of the protocol vocabulary the client keys
-/// on (e.g. `status`).
+/// on (e.g. `status`). The value is always carried as a string because the generic
+/// invoker posts it form-/JSON-encoded, but the server may declare it as a JSON
+/// number (e.g. a numeric `page` or `limit`); such a value is coerced to its string
+/// form on decode so it isn't dropped.
 struct SirenField: Decodable {
 	let name: String
 	let type: String?
 	let value: String?
+
+	init(name: String, type: String?, value: String?) {
+		self.name = name
+		self.type = type
+		self.value = value
+	}
+
+	private enum CodingKeys: String, CodingKey { case name, type, value }
+
+	init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		name = try container.decode(String.self, forKey: .name)
+		type = try container.decodeIfPresent(String.self, forKey: .type)
+		if let string = try? container.decodeIfPresent(String.self, forKey: .value) {
+			value = string
+		} else if let number = try? container.decodeIfPresent(Double.self, forKey: .value) {
+			// A whole number decodes as a Double, so render it without a trailing
+			// ".0" — the server's "page": 2 must post as "2", not "2.0".
+			value = number == number.rounded() ? String(Int(number)) : String(number)
+		} else {
+			value = nil
+		}
+	}
 }
 
 /// A Siren action: the server declares its href, method, type and fields and the
 /// client follows them rather than constructing a request. `href` is optional so
 /// an action advertised without one decodes and is simply treated as
-/// unactionable.
+/// unactionable. `title` is the server's human label, which the client uses
+/// verbatim as the control's label and accessibility text.
 struct SirenAction: Decodable {
 	let name: String
 	let href: String?
 	let method: String
+	let title: String?
 	let type: String?
 	let fields: [SirenField]?
 }
@@ -197,13 +228,6 @@ struct SirenError: Decodable {
 
 // MARK: - Domain model for the UI
 
-/// A reading status the client can set. The raw value is sent as the `status`
-/// field of the server-declared status action.
-enum ArticleStatus: String {
-	case unread
-	case read
-}
-
 /// A saved article, flattened from a Siren entity for display and actions.
 struct Article: Identifiable, Hashable {
 	let id: String
@@ -215,12 +239,15 @@ struct Article: Identifiable, Hashable {
 	let readTimeMinutes: Int?
 	let isRead: Bool
 	let savedAt: Date?
-	/// The server-declared action for changing this item's reading status, stored
-	/// whole so its href/method/fields are followed rather than hand-built. Absent
-	/// or href-less ⇒ the item is read-only (see `canMarkRead`).
-	let updateStatusAction: SirenAction?
-	/// The href of the server-declared link for reading this item. Absent ⇒ the
-	/// row is not openable.
+	/// Every action the server advertised on this item (e.g. `update-status`,
+	/// `delete`), in the order the server listed them. The row renders one control
+	/// per actionable entry by iterating this — it never cherry-picks an action by
+	/// name — so a newly-advertised item action renders with no client change.
+	let actions: [SirenAction]
+	/// The href of the server-declared link for reading this item, followed when
+	/// the row is tapped. Absent ⇒ the row is not openable. This follows the
+	/// navigable `read` link (the row's primary tap target), distinct from the
+	/// action controls iterated above.
 	let readHref: String?
 
 	static func == (lhs: Article, rhs: Article) -> Bool { lhs.id == rhs.id }
@@ -228,10 +255,10 @@ struct Article: Identifiable, Hashable {
 }
 
 extension Article {
-	/// Whether the server left a usable status-change action on this item. A
-	/// missing action — or one advertised without an href — is unactionable, so
-	/// the row offers no mark-read affordance.
-	var canMarkRead: Bool { updateStatusAction?.href != nil }
+	/// The item's action controls, one per advertised action the client can
+	/// invoke (an action with a usable href). Built by iterating — not by matching
+	/// a known name — so the loop renders whatever the server offered.
+	var affordances: [Affordance] { actions.compactMap(Affordance.init(action:)) }
 
 	/// Builds a display model from a Siren entity, or returns nil when the
 	/// entity has no usable properties.
@@ -250,8 +277,80 @@ extension Article {
 		readTimeMinutes = props.estimatedReadTimeMinutes
 		isRead = props.status == "read" || props.readAt != nil
 		savedAt = props.savedAt.flatMap(SirenDate.parse)
-		updateStatusAction = entity.actions?.first { $0.name == "update-status" }
+		actions = entity.actions ?? []
 		readHref = entity.links?.first { $0.rel.contains("read") }?.href
+	}
+}
+
+/// One advertised control the client renders — either a Siren action it invokes
+/// (via the action's own href/method/fields) or a navigable link it opens. The
+/// client renders one of these per advertised affordance by iterating the
+/// response; it never gates a control behind a per-capability boolean. The label
+/// is the server's `title`; presentation (icon, tint, role) is derived entirely
+/// client-side from the action `name` / link `rel`, so an unknown affordance
+/// still renders with a default presentation rather than vanishing.
+struct Affordance: Identifiable {
+	/// How the client invokes the affordance: a Siren action it submits, or a
+	/// navigable link it opens.
+	enum Invocation {
+		case action(SirenAction)
+		case link(SirenLink)
+	}
+
+	let invocation: Invocation
+	/// The wire vocabulary the client maps to its own presentation — an action
+	/// `name` or a link's first `rel`. Never used as a style string verbatim.
+	let token: String
+	/// The server's human label, used verbatim as the control's text and
+	/// accessibility label. Falls back to a humanized token when the server sent no
+	/// `title`, so a label-less affordance still renders a readable control instead
+	/// of a raw wire slug.
+	let label: String
+	/// Stable across re-renders so SwiftUI can diff a list of controls.
+	let id: String
+
+	/// Builds a control from an action, or nil when the action has no usable href
+	/// (an unactionable action produces no control — no phantom affordance).
+	init?(action: SirenAction) {
+		guard action.href != nil else { return nil }
+		invocation = .action(action)
+		token = action.name
+		label = action.title ?? Affordance.humanize(action.name)
+		id = "action:\(action.name)"
+	}
+
+	/// Builds a control from a navigable link, or nil when the link has no href or
+	/// no rel the client can key its presentation on.
+	init?(link: SirenLink) {
+		guard link.href != nil, let rel = link.rel.first else { return nil }
+		invocation = .link(link)
+		token = rel
+		label = link.title ?? Affordance.humanize(rel)
+		id = "link:\(rel)"
+	}
+
+	/// Turns a wire token (`mark-read`, `archive_now`) into a human label when the
+	/// server advertised no `title`: split on `-`/`_`, drop empty segments, then
+	/// Title-Case each word so an unlabelled affordance renders a readable control
+	/// instead of a raw slug. Mirrors the browser extension's `humanize` so the same
+	/// token reads identically across clients.
+	static func humanize(_ token: String) -> String {
+		token
+			.split(whereSeparator: { $0 == "-" || $0 == "_" })
+			.map { $0.prefix(1).uppercased() + String($0.dropFirst()) }
+			.joined(separator: " ")
+	}
+
+	/// The action this control invokes, or nil when it is a navigable link.
+	var action: SirenAction? {
+		guard case let .action(action) = invocation else { return nil }
+		return action
+	}
+
+	/// The navigable link this control opens, or nil when it is an action.
+	var link: SirenLink? {
+		guard case let .link(link) = invocation else { return nil }
+		return link
 	}
 }
 
