@@ -479,6 +479,41 @@ body {
 }
 
 /**
+ * The default presentation the client maps an unknown action `name` (or a
+ * semantic link rel) to: a neutral utility control. A known `name` (e.g. delete)
+ * overrides it with its own variant; this is the fallback so a newly-advertised
+ * affordance still renders a usable control.
+ *
+ * 1. Hover-reveal, matching the delete control, so item controls have one
+ *    consistent visibility — a "Mark as read" control isn't permanently shown
+ *    while delete hides on the same row.
+ */
+.list-view__action {
+  background: transparent;
+  color: var(--popup-label);
+  font-size: 12px;
+  padding: 2px 8px;
+  margin-right: 10px;
+  line-height: 1;
+  border: 1px solid var(--popup-border);
+  border-radius: 4px;
+  flex-shrink: 0;
+  cursor: pointer;
+  opacity: 0; /* 1 */
+  transition: opacity 0.1s ease, background-color 0.1s ease, color 0.1s ease;
+}
+
+.list-view__row:hover .list-view__action,
+.list-view__row:focus-within .list-view__action {
+  opacity: 1; /* 1 */
+}
+
+.list-view__action:hover {
+  background: var(--popup-item-hover);
+  color: var(--popup-text);
+}
+
+/**
  * 1. Override the filled primary style — delete is a destructive utility action
  * 2. Hidden by default, shown on row hover
  */

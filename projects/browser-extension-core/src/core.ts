@@ -1,6 +1,6 @@
 import type { ReadingListItem, ReadingListItemId } from "./domain/reading-list-item.types";
 import type { Auth, GuardedResult } from "./auth/auth.types";
-import type { SaveUrlResult, RemoveUrlResult, SaveUrl, RemoveUrl, FindByUrl, GetAllItems } from "./reading-list/reading-list.types";
+import type { SaveUrlResult, InvokeActionResult, SaveUrl, InvokeAction, FindByUrl, GetAllItems } from "./reading-list/reading-list.types";
 import type { BrowserShell } from "./shell.types";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { createEventBus } from "./event-bus";
@@ -12,7 +12,7 @@ import { initGetShortcutTarget } from "./handle-shortcut-command";
 
 export interface ReadingList {
 	saveUrl: SaveUrl;
-	removeUrl: RemoveUrl;
+	invokeAction: InvokeAction;
 	findByUrl: FindByUrl;
 	getAllItems: GetAllItems;
 }
@@ -35,7 +35,7 @@ export interface Core {
 		resource: "current-tab",
 		data: { url: string; title: string; content?: { bytes: ArrayBuffer; mediaType: string }; tabId?: number },
 	): void;
-	remove(resource: "item", data: { id: ReadingListItemId }): void;
+	invoke(resource: "item-action", data: { id: ReadingListItemId; name: string }): void;
 	fetch(resource: "reading-list"): void;
 	check(resource: "url", data: { url: string }): void;
 
@@ -44,13 +44,13 @@ export interface Core {
 	on(event: "logged-in", handler: ResultCallbacks<void>): void;
 	on(event: "logged-out", handler: () => void): void;
 	on(event: "saved-current-tab", handler: ResultCallbacks<SaveUrlResult>): void;
-	on(event: "removed-item", handler: ResultCallbacks<RemoveUrlResult>): void;
+	on(event: "invoked-item-action", handler: ResultCallbacks<InvokeActionResult>): void;
 	on(event: "fetched-reading-list", handler: ResultCallbacks<ReadingListItem[]>): void;
 	on(event: "checked-url", handler: ResultCallbacks<ReadingListItem | null>): void;
 
 	once(event: "logged-in", handler: ResultCallbacks<void>): void;
 	once(event: "saved-current-tab", handler: ResultCallbacks<SaveUrlResult>): void;
-	once(event: "removed-item", handler: ResultCallbacks<RemoveUrlResult>): void;
+	once(event: "invoked-item-action", handler: ResultCallbacks<InvokeActionResult>): void;
 	once(event: "fetched-reading-list", handler: ResultCallbacks<ReadingListItem[]>): void;
 	once(event: "checked-url", handler: ResultCallbacks<ReadingListItem | null>): void;
 }
@@ -187,11 +187,11 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 			}
 		},
 
-		remove(_resource, data) {
+		invoke(_resource, data) {
 			const guarded = auth.whenLoggedIn(() =>
-				readingList.removeUrl(data.id),
+				readingList.invokeAction({ id: data.id, name: data.name }),
 			);
-			emitResult("removed-item", guarded);
+			emitResult("invoked-item-action", guarded);
 			if (guarded.ok) {
 				guarded.value.then(() => updateActiveTabIcon()).catch(() => {});
 			}

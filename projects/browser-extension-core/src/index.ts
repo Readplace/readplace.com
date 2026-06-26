@@ -5,12 +5,14 @@ export type { SetIcon } from "./icon-status";
 export type {
 	ReadingListItem,
 	ReadingListItemId,
+	ActionDescriptor,
+	LinkDescriptor,
 } from "./domain/reading-list-item.types";
 export type {
 	SaveUrlResult,
 	SaveWarning,
 	Message,
-	RemoveUrlResult,
+	InvokeActionResult,
 } from "./reading-list/reading-list.types";
 export type {
 	Auth,
@@ -32,6 +34,7 @@ export {
 	initSaveContentUnderstanding,
 	initDeleteArticleUnderstanding,
 	initListArticlesUnderstanding,
+	genericEntityAction,
 	groupOf,
 	httpCacheable,
 } from "./reading-list/siren-reading-list";
@@ -44,7 +47,7 @@ export type {
 } from "./reading-list/siren-reading-list";
 export type { ContentBodyBuilder } from "./reading-list/content-body-parsers";
 export { pdfContentBody, htmlContentBody } from "./reading-list/content-body-parsers";
-export type { SaveUrl, RemoveUrl, FindByUrl, GetAllItems } from "./reading-list/reading-list.types";
+export type { SaveUrl, InvokeAction, FindByUrl, GetAllItems } from "./reading-list/reading-list.types";
 export type { PopupMessage } from "./popup-message.types";
 export { filterByUrl } from "./popup/filter-by-url";
 export { paginateItems } from "./popup/paginate-items";
@@ -53,6 +56,10 @@ export { relativeTime } from "./popup/relative-time";
 export { buildMessageView } from "./popup/message-view";
 export type { MessageView } from "./popup/message-view";
 export { isAppUrl } from "./popup/is-app-url";
+export { itemDisplay } from "./popup/item-display";
+export type { ItemDisplay } from "./popup/item-display";
+export { actionIcon, actionLabel, actionVariant, humanize, linkLabel, linkPresentation } from "./popup/action-affordance";
+export type { ActionVariant, LinkPresentation } from "./popup/action-affordance";
 export { initSaveProgress } from "./popup/save-progress";
 export type { SavePhase, SaveProgress } from "./popup/save-progress";
 export { initSaveProgressSequencer } from "./popup/save-progress-sequencer";

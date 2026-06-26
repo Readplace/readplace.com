@@ -42,8 +42,8 @@ describe("initInMemoryReadingList", () => {
 		});
 	});
 
-	describe("removeUrl", () => {
-		it("should remove an item and return remaining items", async () => {
+	describe("invokeAction", () => {
+		it("invokes the advertised delete action and returns remaining items", async () => {
 			const list = initInMemoryReadingList();
 			const saveResult = await list.saveUrl({
 				url: "https://example.com/article",
@@ -51,21 +51,57 @@ describe("initInMemoryReadingList", () => {
 			});
 			if (!saveResult.ok) throw new Error("Save failed");
 
-			const removeResult = await list.removeUrl(saveResult.item.id);
+			const result = await list.invokeAction({
+				id: saveResult.item.id,
+				name: "delete",
+			});
 
-			expect(removeResult.ok).toBe(true);
-			if (removeResult.ok) expect(removeResult.items).toEqual([]);
-			expect(
-				await list.findByUrl("https://example.com/article"),
-			).toBeNull();
+			expect(result.ok).toBe(true);
+			if (result.ok) expect(result.items).toEqual([]);
 		});
 
-		it("should return not-found for unknown ID", async () => {
+		it("returns not-found for an unknown item id", async () => {
 			const list = initInMemoryReadingList();
 
-			const result = await list.removeUrl(
-				"nonexistent-id" as ReadingListItemId,
-			);
+			const result = await list.invokeAction({
+				id: "nonexistent-id" as ReadingListItemId,
+				name: "delete",
+			});
+
+			expect(result).toEqual({ ok: false, reason: "not-found" });
+		});
+
+		it("leaves the item in the list when a non-removing advertised action is invoked", async () => {
+			const list = initInMemoryReadingList();
+			const saveResult = await list.saveUrl({
+				url: "https://example.com/article",
+				title: "Example",
+			});
+			if (!saveResult.ok) throw new Error("Save failed");
+
+			const result = await list.invokeAction({
+				id: saveResult.item.id,
+				name: "update-status",
+			});
+
+			expect(result.ok).toBe(true);
+			if (result.ok) expect(result.items.map((i) => i.id)).toEqual([
+				saveResult.item.id,
+			]);
+		});
+
+		it("returns not-found for an action the item never advertised", async () => {
+			const list = initInMemoryReadingList();
+			const saveResult = await list.saveUrl({
+				url: "https://example.com/article",
+				title: "Example",
+			});
+			if (!saveResult.ok) throw new Error("Save failed");
+
+			const result = await list.invokeAction({
+				id: saveResult.item.id,
+				name: "mark-read",
+			});
 
 			expect(result).toEqual({ ok: false, reason: "not-found" });
 		});

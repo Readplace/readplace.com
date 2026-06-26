@@ -12,7 +12,7 @@ import {
 	captureActiveTabBytes,
 	type SavePhase,
 	type SaveUrlResult,
-	type RemoveUrlResult,
+	type InvokeActionResult,
 	type TokenStorage,
 } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
@@ -215,7 +215,7 @@ function broadcastSaveProgress(phase: SavePhase): void {
 const POPUP_MESSAGE_TYPES = new Set([
 	"save-current-tab",
 	"save-progress",
-	"remove-item",
+	"invoke-action",
 	"check-url",
 	"get-all-items",
 	"login",
@@ -296,15 +296,15 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 					pending.then(sendResponse);
 					break;
 				}
-				case "remove-item": {
+				case "invoke-action": {
 					const pending = new Promise<unknown>((resolve) => {
-						core.once("removed-item", {
-							success: (value: RemoveUrlResult) =>
+						core.once("invoked-item-action", {
+							success: (value: InvokeActionResult) =>
 								resolve({ ok: true, value }),
 							failure: (err) => resolve({ ok: false, ...err }),
 						});
 					});
-					core.remove("item", { id: message.id });
+					core.invoke("item-action", { id: message.id, name: message.name });
 					pending.then(sendResponse);
 					break;
 				}

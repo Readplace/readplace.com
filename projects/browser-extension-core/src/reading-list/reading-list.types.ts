@@ -43,7 +43,11 @@ export type SaveUrlResult =
 	  }
 	| { ok: false; messages: Message[] };
 
-export type RemoveUrlResult =
+/** The outcome of invoking one advertised per-item action by (id, name). A
+ * simple entity mutation lands the client back on the collection, so success
+ * carries the new items; `not-found` covers an item or action the server no
+ * longer advertises (the client re-renders the fresh list either way). */
+export type InvokeActionResult =
 	| { ok: true; items: ReadingListItem[] }
 	| { ok: false; reason: "not-found" };
 
@@ -53,9 +57,14 @@ export type SaveUrl = (params: {
 	content?: TabContent;
 }) => Promise<SaveUrlResult>;
 
-export type RemoveUrl = (
-	id: ReadingListItemId,
-) => Promise<RemoveUrlResult>;
+/** Invokes the named action the server advertised on the item with `id`. The
+ * popup learned the `name` from the item's descriptor list and echoes it back;
+ * the walker holds the bound callable and resolves (id, name) to it. Two
+ * same-typed strings, so a named-parameter object guards against a swap. */
+export type InvokeAction = (params: {
+	id: ReadingListItemId;
+	name: string;
+}) => Promise<InvokeActionResult>;
 
 export type FindByUrl = (
 	url: string,

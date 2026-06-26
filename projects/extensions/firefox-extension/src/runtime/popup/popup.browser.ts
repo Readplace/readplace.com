@@ -4,11 +4,21 @@ import type {
 	PopupMessage,
 	GuardedResult,
 	SaveUrlResult,
-	RemoveUrlResult,
+	InvokeActionResult,
 	Message,
+	ActionVariant,
 } from "browser-extension-core";
-import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, installShortcuts, isCmdD, initSaveProgress, initSaveProgressSequencer, buildMessageView } from "browser-extension-core";
+import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, itemDisplay, installShortcuts, isCmdD, initSaveProgress, initSaveProgressSequencer, buildMessageView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
+
+/** The client's own presentation map: an action variant -> the popup's CSS
+ * class. The server never sends a class; the variant comes from mapping the
+ * action `name` client-side (actionVariant), and an unknown name falls back to
+ * the default. */
+const ACTION_CLASS_BY_VARIANT: Record<ActionVariant, string> = {
+	danger: "list-view__delete",
+	default: "list-view__action",
+};
 
 declare const __APP_DOMAINS__: string[];
 
@@ -187,13 +197,12 @@ function renderLinks(items: ReadingListItem[]) {
 		const row = document.createElement("div");
 		row.className = "list-view__row";
 
+		const { hostname } = itemDisplay(item);
+
 		const itemLink = document.createElement("a");
 		itemLink.className = "list-view__item";
-		itemLink.href = item.readUrl ?? item.url;
 		itemLink.target = "_blank";
 		itemLink.rel = "noopener noreferrer";
-
-		const hostname = new URL(item.url).hostname;
 
 		const avatar = document.createElement("div");
 		avatar.className = "list-view__avatar";
@@ -222,36 +231,68 @@ function renderLinks(items: ReadingListItem[]) {
 		itemLink.appendChild(textContainer);
 		itemLink.appendChild(time);
 
-		const deleteButton = document.createElement("button");
-		deleteButton.className = "list-view__delete";
-		deleteButton.textContent = "\u00D7";
-		deleteButton.title = "Remove from list";
-		deleteButton.setAttribute("aria-label", "Remove from list");
-		deleteButton.addEventListener("click", async () => {
-			const overlay = document.getElementById("spinner-overlay");
-			if (overlay) overlay.hidden = false;
-			try {
-				const result = await send<GuardedResult<RemoveUrlResult>>({
-					type: "remove-item",
-					id: item.id,
-				});
-
-				if (isNotLoggedIn(result)) {
-					await performLogout();
-					return;
-				}
-
-				if (result.ok && result.value.ok) {
-					allItems = result.value.items;
-					renderLinks(filterItems());
-				}
-			} finally {
-				if (overlay) overlay.hidden = true;
-			}
-		});
-
 		row.appendChild(itemLink);
-		row.appendChild(deleteButton);
+
+		// One control per advertised SEMANTIC link \u2014 loop the item's link
+		// descriptors generically. `read` (row-anchor presentation) drives the
+		// row's primary open anchor; any other semantic rel renders as a standalone
+		// link control, so a future rel (e.g. `summary`) renders with no popup
+		// change. Presentation comes from the one client-side rel map, never a
+		// per-rel `if`.
+		for (const link of item.links) {
+			if (linkPresentation(link.rel) === "row-anchor") {
+				itemLink.href = link.href;
+				continue;
+			}
+			const label = linkLabel(link);
+			const control = document.createElement("a");
+			control.className = "list-view__action";
+			control.href = link.href;
+			control.target = "_blank";
+			control.rel = "noopener noreferrer";
+			control.textContent = label;
+			control.title = label;
+			control.setAttribute("aria-label", label);
+			row.appendChild(control);
+		}
+
+		// One control per advertised affordance \u2014 loop the item's action
+		// descriptors and render a button each. No per-capability boolean and no
+		// hardcoded "does the client know action X" check, so a newly-advertised
+		// server action renders here with no popup change.
+		for (const action of item.actions) {
+			const button = document.createElement("button");
+			button.className = ACTION_CLASS_BY_VARIANT[actionVariant(action.name)];
+			const label = actionLabel(action);
+			button.textContent = actionIcon(action.name) ?? label;
+			button.title = label;
+			button.setAttribute("aria-label", label);
+			button.addEventListener("click", async () => {
+				const overlay = document.getElementById("spinner-overlay");
+				if (overlay) overlay.hidden = false;
+				try {
+					const result = await send<GuardedResult<InvokeActionResult>>({
+						type: "invoke-action",
+						id: item.id,
+						name: action.name,
+					});
+
+					if (isNotLoggedIn(result)) {
+						await performLogout();
+						return;
+					}
+
+					if (result.ok && result.value.ok) {
+						allItems = result.value.items;
+						renderLinks(filterItems());
+					}
+				} finally {
+					if (overlay) overlay.hidden = true;
+				}
+			});
+			row.appendChild(button);
+		}
+
 		linkList.appendChild(row);
 	}
 

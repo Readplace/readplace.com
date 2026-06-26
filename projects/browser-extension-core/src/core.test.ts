@@ -64,7 +64,7 @@ function createRecordingReadingList(
 	return {
 		saveCalls,
 		saveUrl,
-		removeUrl: inner.removeUrl,
+		invokeAction: inner.invokeAction,
 		findByUrl: inner.findByUrl,
 		getAllItems: inner.getAllItems,
 	};
@@ -317,6 +317,8 @@ function makeItem(url: string): ReadingListItem {
 		url,
 		title: "Title",
 		savedAt: new Date(0),
+		actions: [],
+		links: [],
 	};
 }
 
@@ -525,14 +527,14 @@ describe("BrowserExtensionCore login/logout", () => {
 	});
 });
 
-describe("BrowserExtensionCore remove/fetch/check", () => {
-	it("removes an item and refreshes the icon", async () => {
+describe("BrowserExtensionCore invoke/fetch/check", () => {
+	it("invokes a per-item action and refreshes the icon", async () => {
 		const readingList = initInMemoryReadingList();
-		const saved = await readingList.saveUrl({ url: "https://r.example", title: "R" });
+		const saved = await readingList.saveUrl({ url: "https://i.example", title: "I" });
 		assert(saved.ok, "save should succeed for a fresh url");
 		const id = saved.item.id;
 		const cap = createCapturingShell({
-			activeTab: { id: 2, url: "https://r.example", title: "R" },
+			activeTab: { id: 3, url: "https://i.example", title: "I" },
 		});
 		const core = BrowserExtensionCore(cap.shell, {
 			auth: loggedInAuth(),
@@ -540,13 +542,35 @@ describe("BrowserExtensionCore remove/fetch/check", () => {
 			readingList,
 		});
 		const results: unknown[] = [];
-		core.on("removed-item", { success: (v) => results.push(v), failure: () => {} });
+		core.on("invoked-item-action", { success: (v) => results.push(v), failure: () => {} });
 
-		core.remove("item", { id });
+		core.invoke("item-action", { id, name: "delete" });
 		await flush();
 
 		expect(results).toHaveLength(1);
-		expect(cap.showDefaultCalls).toEqual([2]);
+		expect(cap.showDefaultCalls).toEqual([3]);
+	});
+
+	it("emits a failure and skips the icon refresh when invoking while logged out", async () => {
+		const cap = createCapturingShell();
+		const auth = loggedInAuth();
+		auth.whenLoggedIn = (() => ({ ok: false, reason: "not-logged-in" })) as WhenLoggedIn;
+		const core = BrowserExtensionCore(cap.shell, {
+			auth,
+			logger,
+			readingList: initInMemoryReadingList(),
+		});
+		const failures: unknown[] = [];
+		core.on("invoked-item-action", { success: () => {}, failure: (e) => failures.push(e) });
+
+		core.invoke("item-action", {
+			id: "any-id" as ReadingListItemId,
+			name: "delete",
+		});
+		await flush();
+
+		expect(failures).toEqual([{ reason: "not-logged-in" }]);
+		expect(cap.showDefaultCalls).toEqual([]);
 	});
 
 	it("fetches the reading list", async () => {
