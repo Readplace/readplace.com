@@ -33,6 +33,7 @@ config:
   hutch:dynamodbPendingSignupsTable: hutch-pending-signups
   hutch:dynamodbImportSessionsTable: hutch-import-sessions-prod
   hutch:dynamodbInboxAddressesTable: hutch-inbox-addresses-prod
+  hutch:dynamodbInboxEmailsTable: hutch-inbox-emails-prod
   hutch:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-prod
   hutch:dynamodbRateLimitsTable: hutch-rate-limits-prod
   hutch:rateLimitViewCrawl: 100/3600
@@ -48,6 +49,8 @@ config:
   hutch:pendingPdfBucketName: hutch-pending-pdf-prod
   hutch:userExportBucketName: hutch-user-exports-prod
   hutch:inboxAddressDomain: read.place
+  hutch:rawEmailBucketName: hutch-inbox-raw-email-prod
+  hutch:inboxMailParentZone: read.place
   hutch:alertEmail: readplace+devops@readplace.com
   hutch:expiryCountdown: enabled
   hutch:foundingMemberLimit: '50'

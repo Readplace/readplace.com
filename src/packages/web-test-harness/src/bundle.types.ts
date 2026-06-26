@@ -3,7 +3,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type { ArticleMetadata, Minutes, ValidateSaveableUrl } from "@packages/domain/article";
 import type { ImportSessionStore } from "@packages/domain/import-session";
-import type { InboxAddressStore } from "@packages/domain/inbox";
+import type { InboxAddressStore, InboxEmailStore } from "@packages/domain/inbox";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { ParseArticle } from "@packages/article-parser";
 import type {
@@ -313,6 +313,11 @@ export interface InboxAddressBundle {
 	inboxAddressDomain: string;
 }
 
+export interface InboxEmailBundle {
+	inboxEmailStore: InboxEmailStore;
+	readEmailContent: ContentProvider;
+}
+
 export interface BotDefenseBundle {
 	logger: HutchLogger.Typed<BotDefenseEvent>;
 	events: BotDefenseEvent[];
@@ -351,6 +356,7 @@ export interface TestAppFixture {
 	admin: AdminBundle;
 	importSession: ImportSessionBundle;
 	inboxAddress: InboxAddressBundle;
+	inboxEmail: InboxEmailBundle;
 	shared: SharedBundle;
 	stripe: StripeCheckoutBundle;
 	pendingSignup: PendingSignupBundle;

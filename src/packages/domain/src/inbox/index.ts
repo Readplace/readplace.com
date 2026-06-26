@@ -12,3 +12,17 @@ export {
 	generateInboxToken,
 	buildInboxAddress,
 } from "./inbox-address.schema";
+export type { InboxEmailEntry, InboxEmailStore } from "./inbox-email.types";
+export {
+	MessageIdSchema,
+	type MessageId,
+	InboxEmailStatusSchema,
+	type InboxEmailStatus,
+} from "./inbox-email.schema";
+export {
+	parseEmail,
+	type ParsedEmail,
+	type ParsedEmailInlineImage,
+	type ParseEmailResult,
+} from "./parse-email";
+export { sanitizeEmailHtml } from "./sanitize-email-html";

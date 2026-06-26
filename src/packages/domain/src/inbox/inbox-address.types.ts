@@ -30,4 +30,10 @@ export interface InboxAddressStore {
 	 * another user throws `ConditionalCheckFailedException` rather than silently
 	 * succeeding, so a forged address can never reach a foreign row. */
 	disableAddress: (input: { userId: UserId; address: InboxAddress }) => Promise<void>;
+	/** Resolve a forwarding address to its owner. A single strongly-consistent
+	 * GetItem on the `address` partition key — not the eventually-consistent GSI
+	 * that `listAddressesByUserId` reads — so the receive path never races a
+	 * just-minted address. Returns `undefined` for an unknown address; a returned
+	 * entry with `disabledAt !== undefined` means the caller must reject the mail. */
+	findByAddress: (address: InboxAddress) => Promise<InboxAddressEntry | undefined>;
 }

@@ -94,5 +94,6 @@ export function initDynamoDbInboxAddress(deps: {
 				ExpressionAttributeValues: { ":uid": userId, ":now": deps.now().toISOString() },
 			});
 		},
+		findByAddress: async (address) => table.get({ address }),
 	};
 }

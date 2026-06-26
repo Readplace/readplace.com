@@ -44,5 +44,6 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 			}
 			rows.set(address, { ...row, disabledAt: deps.now().toISOString() });
 		},
+		findByAddress: async (address) => rows.get(address),
 	};
 }

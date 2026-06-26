@@ -35,7 +35,7 @@ export function InboxPage(params: {
 		seo: {
 			title: "Your forwarding addresses — Readplace",
 			description: "Your personal email forwarding addresses for Readplace.",
-			canonicalUrl: "/inbox",
+			canonicalUrl: "/inbox/addresses",
 			robots: "noindex, nofollow",
 		},
 		styles: INBOX_STYLES,

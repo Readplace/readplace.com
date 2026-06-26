@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
 import { UserIdSchema } from "@packages/domain/user";
 import {
@@ -101,5 +102,38 @@ describe("initInMemoryInboxAddress", () => {
 
 		const [refreshed] = await store.listAddressesByUserId(owner);
 		expect(refreshed.disabledAt).toBeUndefined();
+	});
+
+	it("resolves a created address to its owner via findByAddress", async () => {
+		const store = initInMemoryInboxAddress({
+			now: () => new Date("2026-06-23T00:00:00.000Z"),
+		});
+		const created = await store.createAddress({ userId: owner, domain: DOMAIN });
+
+		const found = await store.findByAddress(created.address);
+
+		assert(found, "expected the created address to resolve");
+		expect(found.userId).toBe(owner);
+		expect(found.disabledAt).toBeUndefined();
+	});
+
+	it("returns undefined from findByAddress for an unknown address", async () => {
+		const store = initInMemoryInboxAddress({ now: () => new Date() });
+		const missing = InboxAddressSchema.parse("in-3f9a2c@read.place");
+
+		expect(await store.findByAddress(missing)).toBeUndefined();
+	});
+
+	it("surfaces disabledAt through findByAddress for a disabled address", async () => {
+		const store = initInMemoryInboxAddress({
+			now: () => new Date("2026-06-23T12:00:00.000Z"),
+		});
+		const created = await store.createAddress({ userId: owner, domain: DOMAIN });
+		await store.disableAddress({ userId: owner, address: created.address });
+
+		const found = await store.findByAddress(created.address);
+
+		assert(found, "expected the disabled address to resolve");
+		expect(found.disabledAt).toBe("2026-06-23T12:00:00.000Z");
 	});
 });
