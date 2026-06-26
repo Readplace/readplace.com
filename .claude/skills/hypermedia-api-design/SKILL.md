@@ -86,10 +86,14 @@ After a mutation, the server drives the client back to the collection via `303 S
 
 ## Form Fields Are Declared, Not Assumed
 
-The server declares what an action needs via `action.fields`. A client's handler for a given action asserts the fields it expects and builds the request body from them. When adding a new required input to an action:
+The server declares what an action needs via `action.fields`, and **the input VALUES come from the server too** — each field may carry a `value` (the server-suggested/target value). The generic invoker builds the request body by posting each declared field's `value`, ENCODED per the action's `type` (`application/x-www-form-urlencoded` → `URLSearchParams`; `application/json` → JSON). A bare `(id, name)` / `(entity, action)` invocation is therefore sufficient: the client supplies no field knowledge and never hardcodes a field value.
 
-1. Server: add a new entry to `fields` and validate it in the route handler.
-2. Client: update the handler to assert/pass the new field. Old clients will fail loudly (the field is required server-side), which is correct — a client that can't provide required inputs should not silently succeed.
+A field-requiring action whose field carries no server-provided `value` is **not invokable by a bare control** — only a bespoke handler that produces that value (e.g. a search box's typed query) can invoke it.
+
+When adding a new required input to an action:
+
+1. Server: add a new entry to `fields` (carrying its `value` when the value is server-known) and validate it in the route handler.
+2. Client: nothing for server-valued fields — the generic invoker already posts the declared `value`. Only an input the *user* must supply needs a bespoke handler.
 
 When adding an optional input, only the server changes; old clients keep working.
 
@@ -127,6 +131,24 @@ The client-side render decisions (per-`type` variant class, the `role` politenes
 
 A client binds both levels: collection-level actions (e.g. `save-article`, `search`) and the per-entity actions on each item (e.g. `delete`). Put an action at the level where it makes sense — "delete this article" belongs on the article entity, not the collection.
 
+## Rendering & Invoking Affordances
+
+A client loops over the current response's `actions` and renders **one control per action** — never a fixed set of named controls gated by booleans. The loop is the contract: a server affordance added later renders with zero client change, and one the client doesn't recognise still renders (default presentation) rather than vanishing.
+
+**Actions and links are symmetric affordances.** A client iterates **both** `actions` **and** semantic (non-structural) `links`, rendering **one control per affordance** from either collection — same loop, same rules. Both carry a Siren `title` for the label and a `name`/`rel` the client maps to its own presentation/placement (e.g. the `read` link becomes a row's primary open anchor). An action is invoked via its `href`/`method`/`fields`; a semantic link is opened/navigated via its `href`. The only asymmetry is structural rels (below), which links can carry but actions cannot.
+
+**Structural vs control affordances.** Not every link is a user control. **Structural** navigation link rels (`self`, `root`, `prev`, `next`, `item`) are followed by the client for its **own** navigation — pagination, identity, item resolution — and MUST NOT be rendered as tappable controls. Render controls for **actions** and for **semantic** (non-structural) links the client understands (e.g. `read`). An unrecognised link rel is neither structural nor a known control, so it produces no control.
+
+**Label** — comes from the affordance's Siren `title` (present on actions *and* links). The same string doubles as the control's `aria-label`/tooltip; the client never invents copy per action name. When an affordance carries no `title`, the client derives the label by humanizing the token (action `name` / link `rel`) consistently, so a title-less affordance renders the same human label across clients.
+
+**Presentation is one client-side mapping.** The server sends no style, class, icon, or placement. The client derives **both** style **and** icon/glyph from a single mapping of the action `name` (or a semantic link `rel`) to its **own** design tokens, with a default for any unknown name/rel. An inline `name === "delete"` branch chosen for presentation is the same smell as the gated booleans — forbidden; route every presentation decision through the one mapping. A server string is never used as a CSS class verbatim — that would couple styling to wire vocabulary and break on a rename.
+
+> Optional, not required: if a future server ever needs to hint *semantic* role for an action a client can't recognise by `name` (e.g. "this is destructive"), it would ride Siren's `class` array as a **semantic token** the client maps to its own tokens — still client-mapped, never emitted as a CSS class. Do not add this until a real client need exists.
+
+**Invocation** — invoke an action via **its own** `href`/`method`/`type`/`fields` through one generic invoker: post each declared field's server-provided `value`, encoded per the action's `type` (urlencoded → form-encoded body, json → JSON body). The bare `(id, name)` is sufficient because the value rides the field (see [Form Fields Are Declared, Not Assumed](#form-fields-are-declared-not-assumed)); keep bespoke handlers only for inputs the user supplies or special bodies (e.g. file uploads). **Follow** a structural navigation link (`self`/`root`/`prev`/`next`/`item`) for the client's own navigation; **open/navigate** a semantic link's `href` as a control. Resolve every href through the single scheme-aware resolver (see the resolver rule in [Client Conformance](#client-conformance)); never hardcode the host.
+
+**Extension popup ↔ background boundary** — the action descriptor can't always be passed live across the messaging boundary, so serialize a minimal descriptor (`{name, title}`) as plain data and invoke **by name** on the other side; the walker retains the full `href`/`method` and performs the actual request. This keeps the popup free of any hardcoded route while staying within the structured-clone limits of the messaging channel.
+
 ## Anti-Patterns
 
 | Avoid | Why |
@@ -142,6 +164,11 @@ A client binds both levels: collection-level actions (e.g. `save-article`, `sear
 | Interpolating unescaped user data into a `messages[].content.body` | The client injects it via `innerHTML`; unescaped server output is markup injection (see "Server-Driven Messages Are Trusted HTML") |
 | Naming a concrete server route or method in client code or comments (`POST /queue/save-html`, "303s to `/queue`") | The client reads `href`/`method` from the response; a route baked into a comment rots and reintroduces the URL coupling the contract removes |
 | Asserting a specific server response body/URL/shape in a client test | A client test should exercise generic protocol handling — follow whatever action/link the response carries — not pin the server's current URLs or shapes |
+| Gating controls behind per-capability boolean flags (`canSaveURL`/`canMarkRead`/`canDelete` consulted in an `if`) or otherwise conditionally loading controls by hardcoded action name | The boolean hardcodes which affordances exist, so a newly-added server affordance never renders without a client change; iterate the response's `actions`/`links` and render one control each instead |
+| Using a server `name`/`rel` string verbatim as a CSS class, or letting the server send style/class | Presentation is 100% client-side; the client maps `name`/`rel` to its own design tokens. A server-string class couples styling to wire vocabulary and breaks on a rename |
+| An inline `name === "delete"` (or any per-name) branch to pick a style/icon | The same smell as the gated booleans — it hardcodes one affordance's presentation; route style AND icon/glyph through the single name/rel→token mapping with a default |
+| Rendering structural navigation rels (`self`/`next`/`prev`/`root`/`item`) as tappable controls | These are the client's own navigation (pagination/identity/item resolution), not user affordances; follow them for navigation and render controls only for actions and semantic links |
+| Hardcoding a field's value in a client invocation (`body: { status: "read" }`) | The value rides the field's `value` from the server; the generic invoker posts it encoded per `type`. A client-baked value goes stale on a server change and defeats the bare `(id, name)` invocation |
 
 ## Client Conformance
 
@@ -149,18 +176,24 @@ These rules make any client (extension, iOS, MCP, future) behave like a browser 
 
 | Rule | Why |
 |---|---|
-| Render a control (button, swipe, menu item, tap target) **only if the current response advertised** the matching action/link; hide or disable it otherwise. | A browser shows a Delete button only when the HTML has one. A control for an absent action is a phantom affordance that fails silently — the worst HATEOAS failure mode. |
+| Render one control (button, swipe, menu item, tap target) **per advertised affordance** by **iterating** the current response's `actions` and `links` — one control each. Never gate a control behind a per-capability boolean (`canSaveURL`/`canMarkRead`/`canDelete`) or any "does the client know action X" `if`. | A boolean hardcodes which affordances exist, so a newly-added server affordance never renders without a client change; the loop renders whatever the server offered, and an absent action simply produces no control (no phantom affordance — the worst HATEOAS failure mode). |
+| Label a control from the affordance's Siren `title` (the same string doubles as `aria-label`/tooltip). Derive **all presentation** — style AND icon/glyph AND placement — client-side through **one** mapping of action `name` / link `rel` to the client's own design tokens, with a default for an unknown name/rel. Never branch on a single name (`name === "delete"`) to choose presentation. | The server owns the protocol, not the look. A server string used verbatim as a CSS class couples styling to wire vocabulary and breaks on a rename; a per-name presentation branch is the gated-boolean smell in disguise. One mapping keeps presentation a pure client concern and an unknown affordance still renders (default style) instead of vanishing. |
+| Treat structural navigation rels (`self`/`root`/`prev`/`next`/`item`) as the client's **own** navigation (pagination/identity/item resolution) — follow them, never render them as user controls. Render controls for actions and for semantic (non-structural) links the client understands. | A structural rel is how the server steers the client's paging and identity, not a thing the user taps; rendering `next` as a button turns plumbing into a phantom affordance and double-handles paging. |
 | Navigate by the server-supplied link (`rel`), not by a domain property. | Opening a raw `url` property instead of following the `read` link discards the server's chosen destination; if the server re-points the link, the client never follows it. |
 | Resolve every href through one helper: use an `http(s)://` href verbatim, resolve a scheme-less href against the base, treat any other scheme as no href (unactionable). | Per-call-site `base + href` concatenation corrupts an absolute href and mis-resolves other schemes — yet the Evolvability table promises changing an `href` is non-breaking. |
 | Verify the response `Content-Type` is the negotiated media type before parsing; render a standard "unsupported media type" view for anything else. | Negotiating with `Accept` but blind-decoding any 200 body turns a proxy HTML page or a future media type into an opaque "couldn't read the response" instead of an honest "I don't understand this type." The message-content gate already does this — apply it to the response envelope too. |
 | Parse leniently: one malformed link/action must degrade to unactionable, never fail the whole response decode. | An atomic decode that rejects a single odd control blanks the entire page — extend the same tolerance the entity `properties` already get. (Note: Siren requires `href` on links/actions, so a hrefless control is a malformed control, not a valid one.) |
 | Drive search, filter, sort, and pagination from the server's `fields` and links — never client-built params or client-side re-paging. | Hardcoding `?page=` or re-paginating one fetched page client-side hides items past the first page and breaks when the server changes paging; hardcoding a filter field name breaks on a rename. |
 | Don't duplicate server policy (size caps, validation thresholds) in the client; attempt the action and follow the server's fallback/refusal. | A client copy of a server constant goes stale on a server change and mis-routes; the server already advertises the fallback action to follow. |
-| Bind a response's actions through one generic path; don't cherry-pick named affordances into per-operation code with hardcoded shapes. | Per-operation bespoke handling means each new server capability needs new client code and a redeploy; a generic action map exposes whatever the server offers. |
+| Bind a response's actions through one generic path that posts each declared field's server-provided `value`, encoded per the action's `type` (urlencoded → form body, json → JSON body). Don't cherry-pick named affordances into per-operation code with hardcoded shapes or hardcoded field values. | The invocation values come from the server (the field `value`), so a bare `(id, name)` invocation suffices; per-operation bespoke handling or a client-baked value means each new server capability needs new client code and goes stale on a server change. |
 
 ## Per-Client Implementations
 
 Every client interprets the same Siren contract above; only the mechanics differ. The contract is shared; the notes below are client-specific.
+
+### Accepted client-shape differences
+
+A client surfaces the affordances relevant to **its** UX and may present them differently — clients are not required to render identical control sets. For example, the browser extension's save is current-tab-capture-driven (it does not render the collection's save actions as a toolbar), while the iOS app has a manual collection toolbar. This is allowed **provided** each client renders whatever it does surface by **looping advertised affordances** (`actions` + semantic `links`) — never per-capability booleans, never hardcoded action-name conditionals — and never hardcodes URLs/methods. The contract mandates the discovery+loop discipline, not an identical control set across clients.
 
 ### Browser extension (the walker pattern)
 
