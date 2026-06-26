@@ -173,6 +173,134 @@
         }
       }
     },
+    "liberation_ttf@latest": {
+      "last_modified": "2026-05-21T08:15:18Z",
+      "resolved": "github:NixOS/nixpkgs/4a29d733e8a7d5b824c3d8c958a946a9867b3eb2#liberation_ttf",
+      "source": "devbox-search",
+      "version": "2.1.5",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/y1gfdj5ar7c5spkismn4jb10rzydjcv5-liberation-fonts-2.1.5",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/y1gfdj5ar7c5spkismn4jb10rzydjcv5-liberation-fonts-2.1.5"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/fqpgw3v2x9vnv05mf0iaxx9q76cqkkpz-liberation-fonts-2.1.5",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/fqpgw3v2x9vnv05mf0iaxx9q76cqkkpz-liberation-fonts-2.1.5"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/46wiqi9wgw759mjpii53kx40war4gdj4-liberation-fonts-2.1.5",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/46wiqi9wgw759mjpii53kx40war4gdj4-liberation-fonts-2.1.5"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/iy810wj66dp7688sa0dwjb334ax3b97v-liberation-fonts-2.1.5",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/iy810wj66dp7688sa0dwjb334ax3b97v-liberation-fonts-2.1.5"
+        }
+      }
+    },
+    "librsvg@latest": {
+      "last_modified": "2026-06-14T16:21:05Z",
+      "resolved": "github:NixOS/nixpkgs/9eac87a12312b8f60dd52e1c6e1a265f6fc7f5fc#librsvg",
+      "source": "devbox-search",
+      "version": "2.62.1",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/a87mh5xvirgn6rd4n9hzc1il9xvi50mf-librsvg-2.62.1",
+              "default": true
+            },
+            {
+              "name": "dev",
+              "path": "/nix/store/rcir5zza56zq40392jh1f93g7w7fvrxa-librsvg-2.62.1-dev"
+            },
+            {
+              "name": "devdoc",
+              "path": "/nix/store/p69cd76pwgs73fa44g22l140vzz34zd5-librsvg-2.62.1-devdoc"
+            }
+          ],
+          "store_path": "/nix/store/a87mh5xvirgn6rd4n9hzc1il9xvi50mf-librsvg-2.62.1"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/s1r5zxk6ql9ynrs8ic4cw9w56z2nhh1a-librsvg-2.62.1",
+              "default": true
+            },
+            {
+              "name": "dev",
+              "path": "/nix/store/d2ycjykn21v0cpls3fj61gqh2b9prck7-librsvg-2.62.1-dev"
+            },
+            {
+              "name": "devdoc",
+              "path": "/nix/store/2b7g8rrz97s9xa97889cd23zwipplp6h-librsvg-2.62.1-devdoc"
+            }
+          ],
+          "store_path": "/nix/store/s1r5zxk6ql9ynrs8ic4cw9w56z2nhh1a-librsvg-2.62.1"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/xblfny06zsjmbd2acfcf3z15qjmam5js-librsvg-2.62.1",
+              "default": true
+            },
+            {
+              "name": "dev",
+              "path": "/nix/store/2bv2sp38vi99wy74w2b4k2rm2l19wn92-librsvg-2.62.1-dev"
+            },
+            {
+              "name": "devdoc",
+              "path": "/nix/store/ba83bhdzs6f1pvx160dmr3xnas89n1xn-librsvg-2.62.1-devdoc"
+            }
+          ],
+          "store_path": "/nix/store/xblfny06zsjmbd2acfcf3z15qjmam5js-librsvg-2.62.1"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/91lgsf2dixa2mni74pvy3k6rxp2m32dr-librsvg-2.62.1",
+              "default": true
+            },
+            {
+              "name": "dev",
+              "path": "/nix/store/fc49p5f37lazii33yk85dkhn136xnlzz-librsvg-2.62.1-dev"
+            },
+            {
+              "name": "devdoc",
+              "path": "/nix/store/063arcldy29hccxa3r6581xmiav5irfj-librsvg-2.62.1-devdoc"
+            }
+          ],
+          "store_path": "/nix/store/91lgsf2dixa2mni74pvy3k6rxp2m32dr-librsvg-2.62.1"
+        }
+      }
+    },
     "nodePackages.pnpm": {
       "resolved": "github:NixOS/nixpkgs/e3cb16bccd9facebae3ba29c6a76a4cc1b73462a?narHash=sha256-jpfPdBjKO232s5NueoNEvvVzpndiUzPLNYcH4%2FOv0gY%3D#nodePackages.pnpm",
       "source": "nixpkg"
