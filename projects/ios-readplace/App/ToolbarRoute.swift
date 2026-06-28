@@ -19,15 +19,23 @@ enum ToolbarRoute: Equatable {
 	/// the request needs (the server fills each declared field's `value`), so it is
 	/// submitted in place rather than opened as a GET web view of its href.
 	case invoke(SirenAction)
+	/// Present the native add-link instructions sheet. The `add-links-help` link is a
+	/// help affordance the client renders as its own sheet (reading the href from the
+	/// view model) rather than browsing to the page, so which sheet a control presents
+	/// is decided here, not by a name check in the view.
+	case presentAddLinksHelp
 
-	/// Routes an affordance: a navigable link opens; the `save-article` action prompts
-	/// for a URL (the field the server cannot value); any other action is invoked
-	/// through the generic invoker. An action is never opened as a GET web view of its
-	/// href — that would discard its method/type/fields and silently turn a capability
-	/// into navigation. The decision maps each affordance to an effect without gating
-	/// which controls exist.
+	/// Routes an affordance: the `add-links-help` link presents the native help sheet;
+	/// any other navigable link opens in the web view; the `save-article` action
+	/// prompts for a URL (the field the server cannot value); any other action is
+	/// invoked through the generic invoker. An action is never opened as a GET web view
+	/// of its href — that would discard its method/type/fields and silently turn a
+	/// capability into navigation. The decision maps each affordance to an effect
+	/// without gating which controls exist.
 	static func route(for affordance: Affordance) -> ToolbarRoute {
 		switch affordance.invocation {
+		case .link where Affordance.isAddLinksHelp(affordance.token):
+			return .presentAddLinksHelp
 		case let .link(link):
 			return .open(link)
 		case let .action(action) where Affordance.isBespokeFieldHandler(action.name):

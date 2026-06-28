@@ -114,18 +114,13 @@ struct ReadingListView: View {
 	}
 
 	/// Routes a tapped collection control to the side effect its advertised
-	/// invocation calls for. The decision itself is pure (`ToolbarRoute.route`); this
-	/// only performs the resulting effect, so the routing is unit-testable without a
-	/// view.
+	/// invocation calls for. The decision itself is pure (`ToolbarRoute.route`),
+	/// including which sheet a control presents; this only performs the resulting
+	/// effect, so the routing is unit-testable without a view.
 	private func dispatch(_ affordance: Affordance) {
-		// A navigable help link opens the server's add-links help sheet — a distinct
-		// presentation from the reader. Mapping a known rel to its sheet is a
-		// client presentation choice, not an availability gate.
-		if affordance.token == "add-links-help" {
-			showingAddInstructions = true
-			return
-		}
 		switch ToolbarRoute.route(for: affordance) {
+		case .presentAddLinksHelp:
+			showingAddInstructions = true
 		case let .open(link):
 			viewModel.open(link: link)
 		case let .promptSave(action):

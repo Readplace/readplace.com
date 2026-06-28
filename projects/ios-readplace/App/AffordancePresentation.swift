@@ -120,6 +120,16 @@ extension Affordance {
 		bespokeFieldHandlers.contains(name)
 	}
 
+	/// Whether a link `rel` is one the client renders through its own in-app
+	/// presentation rather than browsing to the href in the web view. The
+	/// `add-links-help` link opens the native add-link instructions sheet — a help
+	/// affordance the client presents itself — so the toolbar routes it to that
+	/// sheet instead of opening its href as a page. Single source for the routing
+	/// decision, mirroring `isBespokeFieldHandler` for actions.
+	static func isAddLinksHelp(_ rel: String) -> Bool {
+		rel == "add-links-help"
+	}
+
 	/// Whether the client can invoke this affordance from a bare toolbar control.
 	/// Per the contract, a field-requiring action whose fields carry no
 	/// server-provided `value` is not invokable by a bare control: the value must
