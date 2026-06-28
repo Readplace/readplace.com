@@ -32,8 +32,8 @@ struct AffordancePresentation {
 	/// that needs a captured page (`save-html`/`save-content`), which iOS can only reach through
 	/// the Share Sheet, not the toolbar. An unknown token is toolbar-presentable so a
 	/// newly-advertised affordance still renders. A third, field-dependent exclusion
-	/// (a field-requiring action with no server value and no bespoke handler) cannot
-	/// be decided from the token alone and lives in `Affordance.isToolbarControl`.
+	/// (a field-requiring action with no server value) cannot be decided from the
+	/// token alone and lives in `Affordance.isToolbarControl`.
 	let isToolbarControl: Bool
 
 	/// Derives the presentation for a wire token. The mapping is the client's own;
@@ -41,12 +41,6 @@ struct AffordancePresentation {
 	/// gets the neutral default so an unknown affordance still renders.
 	init(token: String) {
 		switch token {
-		case "save-article", "save":
-			systemImage = "plus"
-			tint = nil
-			isDestructive = false
-			removesItem = false
-			isToolbarControl = true
 		case "save-html", "save-content":
 			systemImage = "plus"
 			tint = nil
@@ -72,7 +66,7 @@ struct AffordancePresentation {
 			removesItem = false
 			isToolbarControl = true
 		case "add-links-help":
-			systemImage = "questionmark.circle"
+			systemImage = "plus"
 			tint = nil
 			isDestructive = false
 			removesItem = false
@@ -104,28 +98,12 @@ extension Affordance {
 	/// which rels are plumbing rather than affordances.
 	static let structuralRels: Set<String> = ["self", "root", "prev", "next", "item"]
 
-	/// Action names the client invokes through a bespoke handler that supplies a
-	/// field value the server did not (`save-article` reads a URL the user types in
-	/// the native dialog). Such an action is invokable from a bare toolbar control
-	/// even though its field carries no server `value`; every other field-requiring
-	/// action without a server value is not. This is the one place the client
-	/// declares which inputs it can produce itself, not a presentation name-gate.
-	private static let bespokeFieldHandlers: Set<String> = ["save-article"]
-
-	/// Whether an action `name` is one the client invokes through a bespoke handler
-	/// that supplies a field value the server did not. Single source for both the
-	/// bare-control invokability check below and the toolbar's routing decision, so
-	/// the two can't disagree on which actions get bespoke handling.
-	static func isBespokeFieldHandler(_ name: String) -> Bool {
-		bespokeFieldHandlers.contains(name)
-	}
-
 	/// Whether a link `rel` is one the client renders through its own in-app
 	/// presentation rather than browsing to the href in the web view. The
 	/// `add-links-help` link opens the native add-link instructions sheet — a help
 	/// affordance the client presents itself — so the toolbar routes it to that
 	/// sheet instead of opening its href as a page. Single source for the routing
-	/// decision, mirroring `isBespokeFieldHandler` for actions.
+	/// decision.
 	static func isAddLinksHelp(_ rel: String) -> Bool {
 		rel == "add-links-help"
 	}
@@ -133,16 +111,15 @@ extension Affordance {
 	/// Whether the client can invoke this affordance from a bare toolbar control.
 	/// Per the contract, a field-requiring action whose fields carry no
 	/// server-provided `value` is not invokable by a bare control: the value must
-	/// come from the server's field or from a bespoke client handler. A link, an
-	/// action with no fields, and an action whose declared fields all carry a server
-	/// `value` are bare-invokable; a field-requiring action with no server value and
-	/// no bespoke handler (e.g. `search`, which iOS has no query UI for) is not, so
-	/// the client never surfaces a control it cannot actually invoke. An unknown
-	/// field-less action stays invokable so a newly-advertised affordance still
-	/// renders.
+	/// come from the server's field. A link, an action with no fields, and an action
+	/// whose declared fields all carry a server `value` are bare-invokable; a
+	/// field-requiring action with no server value (e.g. `search`, which iOS has no
+	/// query UI for, or `save-article`, whose URL the toolbar does not prompt for —
+	/// it is a Share-Sheet capability, not a toolbar control) is not, so the client
+	/// never surfaces a control it cannot actually invoke. An unknown field-less
+	/// action stays invokable so a newly-advertised affordance still renders.
 	var isInvokableByBareControl: Bool {
 		guard case let .action(action) = invocation else { return true }
-		if Self.isBespokeFieldHandler(action.name) { return true }
 		let fields = action.fields ?? []
 		guard !fields.isEmpty else { return true }
 		return fields.allSatisfy { $0.value != nil }
@@ -151,8 +128,8 @@ extension Affordance {
 	/// Whether the toolbar should surface this affordance as a control: it must be
 	/// both presentable in the toolbar (a structural navigation link or a
 	/// capture-only save is excluded by its presentation) and actually invokable
-	/// from a bare control (a field-requiring action with no server value and no
-	/// bespoke handler is excluded).
+	/// from a bare control (a field-requiring action with no server value is
+	/// excluded).
 	var isToolbarControl: Bool {
 		presentation.isToolbarControl && isInvokableByBareControl
 	}
@@ -177,9 +154,9 @@ extension Affordance {
 extension Article {
 	/// The advertised item affordances a row surfaces as swipe and accessibility
 	/// controls, filtered to those a bare control can actually invoke. Like the
-	/// toolbar, the row drops a field-requiring action with no server value and no
-	/// bespoke handler so a future such item action is never rendered as a swipe that
-	/// errors on tap. The selection lives here, beside the symmetric toolbar rule
+	/// toolbar, the row drops a field-requiring action with no server value so a
+	/// future such item action is never rendered as a swipe that errors on tap. The
+	/// selection lives here, beside the symmetric toolbar rule
 	/// (`Affordance.isToolbarControl`) and the shared predicate it reuses
 	/// (`isInvokableByBareControl`), so the row's choice of controls is unit-testable
 	/// without standing up a view.

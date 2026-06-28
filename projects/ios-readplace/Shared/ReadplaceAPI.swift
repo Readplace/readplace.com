@@ -36,9 +36,6 @@ struct QueuePage {
 	let selfHref: String?
 	let nextHref: String?
 	let prevHref: String?
-	/// Href of the server's "add links via Share" help page, advertised on the
-	/// collection so the iOS client discovers it rather than hardcoding the path.
-	let addLinksHelpHref: String?
 	let total: Int?
 	/// Every collection-level action and navigable link the server advertised, in
 	/// wire order — the complete set, so the share-sheet save journey can still find
@@ -57,7 +54,6 @@ struct QueuePage {
 		selfHref = links.first { $0.rel.contains("self") }?.href
 		nextHref = links.first { $0.rel.contains("next") }?.href
 		prevHref = links.first { $0.rel.contains("prev") }?.href
-		addLinksHelpHref = links.first { $0.rel.contains("add-links-help") }?.href
 		total = collection.properties?.total
 		let actionAffordances = (collection.actions ?? []).compactMap(Affordance.init(action:))
 		let linkAffordances = links.compactMap(Affordance.init(link:))

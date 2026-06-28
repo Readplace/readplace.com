@@ -14,15 +14,17 @@ final class ReadingListViewModel: ObservableObject {
 	/// invoked; drives the reader/web sheet. The session cookie is minted inside
 	/// the sheet, so the sheet opens without waiting.
 	@Published var readerPresentation: ReaderPresentation?
-	/// The server's "add links via Share" help page, discovered from the queue's
-	/// Siren links. Drives the + sheet's webview; nil until the queue advertises it.
-	@Published private(set) var addLinksHelpURL: URL?
+	/// The "add links via Share" help page the reading list's + control opens in a
+	/// webview. A client-owned path resolved against the API base — the server no
+	/// longer advertises it — so the + control works before (and regardless of) a
+	/// queue load.
+	let addLinksHelpURL: URL?
 
-	/// The collection-level controls the toolbar renders, one per advertised
-	/// affordance (actions + navigable links) the server returned. The toolbar
-	/// iterates this — it never consults a per-capability boolean — so a
-	/// newly-advertised collection affordance renders with no client change.
-	@Published private(set) var collectionAffordances: [Affordance] = []
+	/// The collection-level controls the toolbar renders. The server's own collection
+	/// affordances are looped (each presentable one becomes a control), and the
+	/// client-side add (+) control that opens the Share help is always present — it is
+	/// injected by the client, never advertised by the server.
+	@Published private(set) var collectionAffordances: [Affordance] = [ReadingListViewModel.addLinksHelp]
 
 	private var nextHref: String?
 	private var isLoadingMore = false
@@ -30,9 +32,23 @@ final class ReadingListViewModel: ObservableObject {
 	private let api: ReadplaceAPI
 	private let onSessionExpired: () -> Void
 
+	/// The reading list's client-side add (+) control: a navigable `add-links-help`
+	/// affordance the client injects itself rather than discovering from the server.
+	/// Tapping it opens the native Share-help sheet (`ToolbarRoute.presentAddLinksHelp`);
+	/// the server advertises no such link, so the toolbar's add control is owned
+	/// entirely by the client. Built from constant inputs, so it always constructs.
+	private static let addLinksHelp: Affordance = {
+		let link = SirenLink(rel: ["add-links-help"], href: AppConfig.addLinksHelpPath, title: "How to add links")
+		guard let affordance = Affordance(link: link) else {
+			preconditionFailure("the client add-links-help affordance is built from constant inputs and must construct")
+		}
+		return affordance
+	}()
+
 	init(api: ReadplaceAPI, onSessionExpired: @escaping () -> Void) {
 		self.api = api
 		self.onSessionExpired = onSessionExpired
+		addLinksHelpURL = Href.resolve(AppConfig.addLinksHelpPath, baseURL: api.baseURL)
 	}
 
 	func loadIfNeeded() async {
@@ -152,25 +168,6 @@ final class ReadingListViewModel: ObservableObject {
 		}
 	}
 
-	/// Saves a user-typed URL via the supplied `save-article` action. This is the
-	/// sanctioned bespoke handler: the action's body carries a URL the user enters
-	/// in a native dialog, so the toolbar routes the `save-article` control here
-	/// rather than through the generic link-open path. The action is the one the
-	/// toolbar control carried, so it is followed (href/method) rather than
-	/// rediscovered by name.
-	func saveURL(_ rawURL: String, action: SirenAction) async {
-		let trimmed = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
-		guard !trimmed.isEmpty else { return }
-		errorText = nil
-		messages = []
-		do {
-			_ = try await api.saveArticle(action: action, url: trimmed)
-			await fetchFirstPage()
-		} catch {
-			handle(error)
-		}
-	}
-
 	private func apply(_ page: QueuePage, replacing: Bool) {
 		if replacing {
 			articles = page.articles
@@ -180,23 +177,19 @@ final class ReadingListViewModel: ObservableObject {
 		}
 		nextHref = page.nextHref
 		hasMore = page.nextHref != nil
-		// Mirror the conditional assignment of other discovered links: a later page
-		// that omits the help link must not clear a URL we already resolved.
-		if let href = page.addLinksHelpHref, let url = Href.resolve(href, baseURL: api.baseURL) {
-			addLinksHelpURL = url
-		}
 		// The toolbar renders a client-derived subset of the advertised affordances:
 		// each one the client can present as a toolbar control, dropping the rest by
 		// their presentation (a structural navigation link the client follows itself
 		// for pagination/identity, or a capture-only save reachable only via the
-		// Share Sheet) — not by name-gating a known capability. The toolbar is sourced
-		// from the replacing (first-page) load only: that load is the current
-		// collection, so its subset is the current toolbar. A paginated page only
-		// appends rows, so it neither clears the controls when it advertises none nor
-		// flaps them to a page-scoped set — the first page owns the toolbar for the
-		// whole scroll.
+		// Share Sheet) — not by name-gating a known capability. The client-side add
+		// (+) control is always appended so the reading list can reach the Share help
+		// regardless of what the server advertised. The toolbar is sourced from the
+		// replacing (first-page) load only: that load is the current collection, so
+		// its subset is the current toolbar. A paginated page only appends rows, so it
+		// neither clears the controls when it advertises none nor flaps them to a
+		// page-scoped set — the first page owns the toolbar for the whole scroll.
 		if replacing {
-			collectionAffordances = page.affordances.filter(\.isToolbarControl)
+			collectionAffordances = page.affordances.filter(\.isToolbarControl) + [Self.addLinksHelp]
 		}
 		warningText = page.warning?.message
 	}

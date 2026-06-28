@@ -43,6 +43,12 @@ enum AppConfig {
 	/// The Siren hypermedia media type the API speaks.
 	static let sirenMediaType = "application/vnd.siren+json"
 
+	/// Path of the server's "add links via Share" help page, opened by the reading
+	/// list's client-side add (+) control. The page is a real server route, but the
+	/// client holds the path itself so the control works without the server
+	/// advertising it as a Siren link.
+	static let addLinksHelpPath = "/help/add-links"
+
 	/// Name of the server's browser session cookie (`hutch_sid`). Minted from a
 	/// bearer token via `POST /auth/session` and injected into the in-app reader
 	/// webview so its cookie-authenticated pages load. Must match the server's

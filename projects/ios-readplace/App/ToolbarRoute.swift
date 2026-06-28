@@ -9,11 +9,6 @@ enum ToolbarRoute: Equatable {
 	/// acting as a browser over the contract. Reserved for navigable LINKS, never an
 	/// action: an action is a capability the client submits, not a page it browses to.
 	case open(SirenLink)
-	/// Prompt the user for a URL in the native dialog, then save via this action.
-	/// The `save-article` body is a URL the user types — a field with no server value
-	/// — so it routes to the sanctioned bespoke handler rather than the generic
-	/// invoker.
-	case promptSave(SirenAction)
 	/// Invoke the action through the generic invoker, honouring its own
 	/// method/type/fields/value. A bare-invokable collection action carries everything
 	/// the request needs (the server fills each declared field's `value`), so it is
@@ -26,20 +21,17 @@ enum ToolbarRoute: Equatable {
 	case presentAddLinksHelp
 
 	/// Routes an affordance: the `add-links-help` link presents the native help sheet;
-	/// any other navigable link opens in the web view; the `save-article` action
-	/// prompts for a URL (the field the server cannot value); any other action is
-	/// invoked through the generic invoker. An action is never opened as a GET web view
-	/// of its href — that would discard its method/type/fields and silently turn a
-	/// capability into navigation. The decision maps each affordance to an effect
-	/// without gating which controls exist.
+	/// any other navigable link opens in the web view; any action is invoked through
+	/// the generic invoker. An action is never opened as a GET web view of its href —
+	/// that would discard its method/type/fields and silently turn a capability into
+	/// navigation. The decision maps each affordance to an effect without gating which
+	/// controls exist.
 	static func route(for affordance: Affordance) -> ToolbarRoute {
 		switch affordance.invocation {
 		case .link where Affordance.isAddLinksHelp(affordance.token):
 			return .presentAddLinksHelp
 		case let .link(link):
 			return .open(link)
-		case let .action(action) where Affordance.isBespokeFieldHandler(action.name):
-			return .promptSave(action)
 		case let .action(action):
 			return .invoke(action)
 		}

@@ -96,11 +96,14 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
   `POST /queue/save-html`. If the token is missing, capture fails, or the HTML is
   over the 10 MiB server limit, it degrades to the URL-only `save-article` path —
   mirroring the extension's own fallback.
-- **Add links via Share**: the `+` button opens a sheet whose `WKWebView` renders
-  the server's help page — discovered from the `add-links-help` link `rel` on the
-  queue collection, never a hard-coded path — so the instructions ship via a hutch
-  deploy rather than an App Store release. A **Back to Queue** button dismisses it.
-  There is no in-app paste box; capturing a page is the Share Extension's job.
+- **Add links via Share**: the `+` button is a client-side control — an
+  `add-links-help` affordance the app injects itself, not one advertised by the
+  server. It opens a sheet whose `WKWebView` renders the server's help page at a
+  client-held path (`AppConfig.addLinksHelpPath`), so the instructions ship via a
+  hutch deploy rather than an App Store release. A **Back to Queue** button
+  dismisses it. There is no in-app paste box; capturing a page is the Share
+  Extension's job, and the server's `save-article` URL-only action is reached only
+  through that Share flow, never the toolbar.
 
 It speaks `application/vnd.siren+json`, sends `Authorization: Bearer <token>` on
 every request, and refreshes the token once on a `401` — the same contract the

@@ -3,8 +3,7 @@ import XCTest
 
 /// The toolbar maps each advertised control to a side effect without gating which
 /// controls exist: the `add-links-help` link presents the native help sheet, any
-/// other navigable link opens, the `save-article` action prompts for a URL (the
-/// sanctioned bespoke handler), and any other action is invoked through the generic
+/// other navigable link opens, and any action is invoked through the generic
 /// invoker — never opened as a GET web view of its href.
 final class ToolbarRouteTests: XCTestCase {
 	private func action(name: String, href: String? = "/queue", title: String? = nil) -> SirenAction {
@@ -26,13 +25,6 @@ final class ToolbarRouteTests: XCTestCase {
 		let affordance = try! XCTUnwrap(Affordance(link: link))
 
 		XCTAssertEqual(ToolbarRoute.route(for: affordance), .presentAddLinksHelp)
-	}
-
-	func testSaveArticleActionRoutesToTheNativeSaveDialog() {
-		let save = action(name: "save-article")
-		let affordance = try! XCTUnwrap(Affordance(action: save))
-
-		XCTAssertEqual(ToolbarRoute.route(for: affordance), .promptSave(save))
 	}
 
 	func testNonSaveActionRoutesToTheGenericInvoker() {
