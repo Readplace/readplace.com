@@ -5,13 +5,13 @@ import type {
 import type {
 	FindByUrl,
 	GetAllItems,
-	RemoveUrl,
+	InvokeAction,
 	SaveUrl,
 } from "./reading-list.types";
 
 export function initInMemoryReadingList(): {
 	saveUrl: SaveUrl;
-	removeUrl: RemoveUrl;
+	invokeAction: InvokeAction;
 	findByUrl: FindByUrl;
 	getAllItems: GetAllItems;
 } {
@@ -25,22 +25,36 @@ export function initInMemoryReadingList(): {
 		}
 
 		const id = crypto.randomUUID() as ReadingListItemId;
+		/** Mirrors the server's per-item affordances: a removing `delete` and a
+		 * non-removing `update-status`. Advertising both lets the fake exercise an
+		 * action-aware invoke — only `delete` removes — instead of deleting on any
+		 * advertised action, which would mask a walker bug. */
 		const item: ReadingListItem = {
 			id,
 			url,
 			title,
 			savedAt: new Date(),
+			actions: [{ name: "delete" }, { name: "update-status" }],
+			links: [],
 		};
 		items.set(id, item);
 		return { ok: true, item };
 	};
 
+	/** Action names this fake treats as removing the item from the list. Keeping
+	 * the set explicit makes the fake action-aware: only a removing action deletes,
+	 * so a non-removing advertised action (e.g. `update-status`) returns the list
+	 * unchanged rather than masking a bug by deleting on any advertised action. */
+	const REMOVING_ACTIONS = new Set(["delete"]);
 
-	const removeUrl: RemoveUrl = async (id) => {
-		if (!items.has(id)) {
+	const invokeAction: InvokeAction = async ({ id, name }) => {
+		const item = items.get(id);
+		/** The fake mirrors the Siren walker: an item or action the store no longer
+		 * advertises reports not-found. */
+		if (!item?.actions.some((action) => action.name === name)) {
 			return { ok: false, reason: "not-found" };
 		}
-		items.delete(id);
+		if (REMOVING_ACTIONS.has(name)) items.delete(id);
 		return { ok: true, items: Array.from(items.values()) };
 	};
 
@@ -59,7 +73,7 @@ export function initInMemoryReadingList(): {
 
 	return {
 		saveUrl,
-		removeUrl,
+		invokeAction,
 		findByUrl,
 		getAllItems,
 	};

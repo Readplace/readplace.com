@@ -10,6 +10,8 @@ function item(url: string): ReadingListItem {
 		url,
 		title: url,
 		savedAt: new Date(),
+		actions: [],
+		links: [],
 	};
 }
 

@@ -68,6 +68,8 @@ describe("initSaveCurrentTab", () => {
 				url: params.url,
 				title: params.title,
 				savedAt: new Date(),
+				actions: [],
+				links: [],
 			} };
 		};
 		const saveCurrentTab = initSaveCurrentTab({ saveUrl });

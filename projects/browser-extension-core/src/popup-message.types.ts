@@ -4,7 +4,7 @@ import type { SavePhase } from "./popup/save-progress";
 export type PopupMessage =
 	| { type: "save-current-tab"; url: string; title: string; rawHtml?: string; tabId?: number }
 	| { type: "save-progress"; phase: SavePhase }
-	| { type: "remove-item"; id: ReadingListItemId }
+	| { type: "invoke-action"; id: ReadingListItemId; name: string }
 	| { type: "check-url"; url: string }
 	| { type: "get-all-items" }
 	| { type: "login" }

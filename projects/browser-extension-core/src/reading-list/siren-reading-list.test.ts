@@ -143,9 +143,18 @@ function createRoutingFetch(routes: Record<string, RouteHandler>): {
 		const handler = routes[key];
 		if (!handler) throw new Error(`Unexpected fetch: ${key}`);
 		const route = typeof handler === "function" ? handler(init) : handler;
+		/** A conformant server replies in the negotiated Siren media type; default
+		 * it for any body-bearing route that doesn't override Content-Type so the
+		 * client's media-type gate passes. */
+		const headers: Record<string, string> = {
+			...(route.body !== undefined
+				? { "Content-Type": "application/vnd.siren+json" }
+				: {}),
+			...route.headers,
+		};
 		return new Response(route.body ?? null, {
 			status: route.status,
-			headers: route.headers,
+			headers,
 		});
 	};
 	return { fetchFn, calls };
@@ -205,8 +214,7 @@ describe("initExtension", () => {
 			expect(result.items[0].title).toBe("A");
 			expect(result.items[0].id).toBe("1");
 			expect(result.items[0].savedAt).toEqual(new Date("2026-01-15T10:00:00.000Z"));
-			expect(result.items[0].readUrl).toBe("http://localhost:3000/queue/1/view");
-			expect(result.items[0].actions.delete).toBeDefined();
+			expect(result.items[0].boundActions.delete).toBeDefined();
 		});
 
 		it("should bind collection-level actions", async () => {
@@ -337,7 +345,70 @@ describe("initExtension", () => {
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const result = await start();
-			expect(result.items[0].readUrl).toBeUndefined();
+			expect(result.items[0].links).toEqual([]);
+		});
+
+		it("serializes semantic links symmetrically with actions and excludes structural rels", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse([
+							articleEntity({
+								id: "1",
+								url: "https://example.com/a",
+								title: "A",
+								savedAt: "2026-01-15T10:00:00.000Z",
+								links: [
+									{ rel: ["self"], href: "/queue/1" },
+									{ rel: ["read"], href: "/queue/1/view" },
+									{ rel: ["summary"], href: "/queue/1/summary", title: "TL;DR" },
+								],
+							}),
+						]),
+					},
+				}),
+			);
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			const result = await start();
+			/** The structural `self` rel is dropped; the semantic `read` and `summary`
+			 * rels are serialized as descriptors carrying their resolved hrefs, and a
+			 * server-authored link title rides along. */
+			expect(result.items[0].links).toEqual([
+				{ rel: "read", href: "http://localhost:3000/queue/1/view" },
+				{
+					rel: "summary",
+					href: "http://localhost:3000/queue/1/summary",
+					title: "TL;DR",
+				},
+			]);
+		});
+
+		it("drops a semantic link whose href scheme is unactionable", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse([
+							articleEntity({
+								id: "1",
+								url: "https://example.com/a",
+								title: "A",
+								savedAt: "2026-01-15T10:00:00.000Z",
+								links: [
+									{ rel: ["read"], href: "/queue/1/view" },
+									{ rel: ["contact"], href: "mailto:ops@example.com" },
+								],
+							}),
+						]),
+					},
+				}),
+			);
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			const result = await start();
+			expect(result.items[0].links).toEqual([
+				{ rel: "read", href: "http://localhost:3000/queue/1/view" },
+			]);
 		});
 
 		it("should handle absolute URL in self link", async () => {
@@ -450,7 +521,7 @@ describe("initExtension", () => {
 			});
 			const start = initExtension(handlers, createDeps(fetchFn));
 			const result = await start();
-			const subResult = await result.items[0].actions.expand();
+			const subResult = await result.items[0].boundActions.expand();
 			expect(subResult.items[0].url).toBe("https://sub.com");
 			expect(subResult.items[0].id).toBe("sub-1");
 		});
@@ -475,10 +546,10 @@ describe("initExtension", () => {
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const result = await start();
-			expect(result.items[0].actions).toEqual({});
+			expect(result.items[0].boundActions).toEqual({});
 		});
 
-		it("should skip entity actions without matching understanding", async () => {
+		it("binds an entity action without a bespoke handler through the generic invoker", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({
 					"GET http://localhost:3000/queue": {
@@ -505,7 +576,7 @@ describe("initExtension", () => {
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const result = await start();
-			expect(result.items[0].actions["unknown-action"]).toBeUndefined();
+			expect(result.items[0].boundActions["unknown-action"]).toBeDefined();
 		});
 
 		it("should skip collection actions without matching understanding", async () => {
@@ -568,11 +639,11 @@ describe("initExtension", () => {
 			expect(result.items[0].title).toBe("Article");
 			expect(result.items[0].id).toBe("article-1");
 			expect(result.items[0].savedAt).toEqual(new Date(savedAt));
-			expect(result.items[0].actions.delete).toBeDefined();
+			expect(result.items[0].boundActions.delete).toBeDefined();
 			expect(calls).toContain("POST http://localhost:3000/queue");
 		});
 
-		it("should include readUrl when save response has read link", async () => {
+		it("includes the read link descriptor when the save response has a read link", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({
 					"GET http://localhost:3000/queue": {
@@ -608,9 +679,9 @@ describe("initExtension", () => {
 			const result = await collection.actions["save-article"]({
 				url: "https://example.com/article",
 			});
-			expect(result.items[0].readUrl).toBe(
-				"http://localhost:3000/queue/article-1/view",
-			);
+			expect(result.items[0].links).toEqual([
+				{ rel: "read", href: "http://localhost:3000/queue/article-1/view" },
+			]);
 		});
 
 		it("should throw when save fails", async () => {
@@ -751,7 +822,7 @@ describe("initExtension", () => {
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
-			const result = await collection.items[0].actions.delete();
+			const result = await collection.items[0].boundActions.delete();
 			expect(result.items).toEqual([]);
 			expect(result.actions["save-article"]).toBeDefined();
 			expect(result.actions.search).toBeDefined();
@@ -789,10 +860,10 @@ describe("initExtension", () => {
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
-			const result = await collection.items[0].actions.delete();
+			const result = await collection.items[0].boundActions.delete();
 			expect(result.items).toHaveLength(1);
 			expect(result.items[0].url).toBe("https://example.com/b");
-			expect(result.items[0].actions.delete).toBeDefined();
+			expect(result.items[0].boundActions.delete).toBeDefined();
 		});
 
 		it("should throw when delete fails", async () => {
@@ -817,8 +888,8 @@ describe("initExtension", () => {
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
 			await expect(
-				collection.items[0].actions.delete(),
-			).rejects.toThrow("Delete failed: 404");
+				collection.items[0].boundActions.delete(),
+			).rejects.toThrow("delete target not found");
 		});
 
 		it("sends Prefer: return=representation on delete (RFC 7240)", async () => {
@@ -845,8 +916,190 @@ describe("initExtension", () => {
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const collection = await start();
-			await collection.items[0].actions.delete();
+			await collection.items[0].boundActions.delete();
 			expect(observedPrefer).toBe("return=representation");
+		});
+	});
+
+	describe("generic entity action invoker", () => {
+		function withMarkReadEntity(markRead: RouteHandler) {
+			return createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse([
+							articleEntity({
+								id: "article-1",
+								url: "https://example.com/a",
+								title: "A",
+								savedAt: "2026-01-15T10:00:00.000Z",
+								actions: [
+									{
+										name: "mark-read",
+										href: "/queue/article-1/read",
+										method: "POST",
+										type: "application/x-www-form-urlencoded",
+										fields: [
+											{ name: "status", type: "text", value: "read" },
+										],
+									},
+								],
+							}),
+						]),
+					},
+					"POST http://localhost:3000/queue/article-1/read": markRead,
+				}),
+			);
+		}
+
+		it("POSTs the action's href and returns the refreshed collection", async () => {
+			const remaining = articleEntity({
+				id: "article-2",
+				url: "https://example.com/b",
+				title: "B",
+				savedAt: "2026-01-15T11:00:00.000Z",
+			});
+			const { fetchFn, calls } = withMarkReadEntity({
+				status: 200,
+				body: collectionResponse([remaining]),
+			});
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			const collection = await start();
+			const result = await collection.items[0].boundActions["mark-read"]();
+			expect(result.items.map((i) => i.url)).toEqual([
+				"https://example.com/b",
+			]);
+			expect(calls).toContain(
+				"POST http://localhost:3000/queue/article-1/read",
+			);
+		});
+
+		it("builds the body from each declared field's server-supplied value, encoded per type", async () => {
+			let observedBody = "";
+			let observedContentType: string | null = null;
+			const { fetchFn } = withMarkReadEntity((init) => {
+				observedBody = String(init?.body);
+				observedContentType = new Headers(init?.headers).get("Content-Type");
+				return { status: 200, body: collectionResponse() };
+			});
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			const collection = await start();
+			/** Invoked with no caller fields — the (id, name) path supplies none, so
+			 * the body must come from the declared field's `value`. */
+			await collection.items[0].boundActions["mark-read"]();
+			expect(observedContentType).toBe("application/x-www-form-urlencoded");
+			expect(observedBody).toBe("status=read");
+		});
+
+		it("coerces a numeric field value to its string form when building the body", async () => {
+			let observedBody = "";
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse([
+							articleEntity({
+								id: "article-1",
+								url: "https://example.com/a",
+								title: "A",
+								savedAt: "2026-01-15T10:00:00.000Z",
+								actions: [
+									{
+										name: "set-priority",
+										href: "/queue/article-1/priority",
+										method: "POST",
+										type: "application/x-www-form-urlencoded",
+										fields: [{ name: "priority", type: "number", value: 3 }],
+									},
+								],
+							}),
+						]),
+					},
+					"POST http://localhost:3000/queue/article-1/priority": (init) => {
+						observedBody = String(init?.body);
+						return { status: 200, body: collectionResponse() };
+					},
+				}),
+			);
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			const collection = await start();
+			/** A numeric server value must render/invoke (coerced to "3"), not fail
+			 * the whole-affordance parse and drop the control. */
+			await collection.items[0].boundActions["set-priority"]();
+			expect(observedBody).toBe("priority=3");
+		});
+
+		it("posts an empty body for an action that declares no fields", async () => {
+			let observedBody: unknown = null;
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse([
+							articleEntity({
+								id: "article-1",
+								url: "https://example.com/a",
+								title: "A",
+								savedAt: "2026-01-15T10:00:00.000Z",
+								actions: [
+									{
+										name: "archive",
+										href: "/queue/article-1/archive",
+										method: "POST",
+									},
+								],
+							}),
+						]),
+					},
+					"POST http://localhost:3000/queue/article-1/archive": (init) => {
+						observedBody = JSON.parse(String(init?.body));
+						return { status: 200, body: collectionResponse() };
+					},
+				}),
+			);
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			const collection = await start();
+			await collection.items[0].boundActions.archive();
+			expect(observedBody).toEqual({});
+		});
+
+		it("throws when the generic action fails", async () => {
+			const { fetchFn } = withMarkReadEntity({ status: 404 });
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			const collection = await start();
+			await expect(
+				collection.items[0].boundActions["mark-read"](),
+			).rejects.toThrow("mark-read target not found");
+		});
+
+		it("does not invoke an action whose href scheme is unactionable", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse([
+							articleEntity({
+								id: "article-1",
+								url: "https://example.com/a",
+								title: "A",
+								savedAt: "2026-01-15T10:00:00.000Z",
+								actions: [
+									{
+										name: "mailto-action",
+										href: "mailto:ops@example.com",
+										method: "POST",
+									},
+								],
+							}),
+						]),
+					},
+				}),
+			);
+			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+			const collection = await start();
+			await expect(
+				collection.items[0].boundActions["mailto-action"](),
+			).rejects.toThrow("mailto-action action href is not actionable");
 		});
 	});
 
@@ -878,7 +1131,7 @@ describe("initExtension", () => {
 				url: "https://example.com/article",
 			});
 			expect(result.items[0].url).toBe("https://example.com/article");
-			expect(result.items[0].actions.delete).toBeDefined();
+			expect(result.items[0].boundActions.delete).toBeDefined();
 			expect(calls).toContain(
 				"GET http://localhost:3000/queue?url=https%3A%2F%2Fexample.com%2Farticle",
 			);
@@ -2167,7 +2420,7 @@ describe("toReadingListItem error handling", () => {
 		);
 	});
 
-	it("throws when server response entity properties are missing required fields", async () => {
+	it("degrades an entity missing non-identity fields to a renderable item instead of failing the collection", async () => {
 		const { fetchFn } = createRoutingFetch(
 			withEntryPoint({
 				"GET http://localhost:3000/queue": {
@@ -2179,7 +2432,11 @@ describe("toReadingListItem error handling", () => {
 			}),
 		);
 		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
-		await expect(start()).rejects.toThrow();
+		const result = await start();
+		expect(result.items).toHaveLength(1);
+		expect(result.items[0].id).toBe("1");
+		expect(result.items[0].url).toBe("https://example.com");
+		expect(result.items[0].title).toBe("");
 	});
 });
 
@@ -2242,7 +2499,7 @@ describe("initSirenReadingList", () => {
 			expect(calls[0]).toBe("GET http://localhost:3000/");
 		});
 
-		it("should include readUrl when server returns a read link", async () => {
+		it("includes the read link descriptor when the server returns a read link", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({
 					"GET http://localhost:3000/queue": {
@@ -2279,9 +2536,9 @@ describe("initSirenReadingList", () => {
 				title: "Ignored",
 			});
 			const item = (result as Extract<typeof result, { ok: true }>).item;
-			expect(item.readUrl).toBe(
-				"http://localhost:3000/queue/article-1/view",
-			);
+			expect(item.links).toEqual([
+				{ rel: "read", href: "http://localhost:3000/queue/article-1/view" },
+			]);
 		});
 
 		it("should throw when server returns an error on save", async () => {
@@ -2535,9 +2792,10 @@ describe("initSirenReadingList", () => {
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.saveUrl({ url: "https://example.com/a", title: "A" });
-			const result = await list.removeUrl(
-				"article-1" as ReadingListItemId,
-			);
+			const result = await list.invokeAction({
+				id: "article-1" as ReadingListItemId,
+				name: "delete",
+			});
 			assert.equal(result.ok, true);
 			assert.deepEqual(
 				(result as Extract<typeof result, { ok: true }>).items.length,
@@ -2589,7 +2847,7 @@ describe("initSirenReadingList", () => {
 		});
 	});
 
-	describe("removeUrl", () => {
+	describe("invokeAction delete path", () => {
 		it("should return fresh items from server after delete", async () => {
 			const remaining = articleEntity({
 				id: "article-2",
@@ -2619,9 +2877,10 @@ describe("initSirenReadingList", () => {
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await list.getAllItems();
-			const result = await list.removeUrl(
-				"article-1" as ReadingListItemId,
-			);
+			const result = await list.invokeAction({
+				id: "article-1" as ReadingListItemId,
+				name: "delete",
+			});
 			assert.equal(result.ok, true);
 			const items = (result as Extract<typeof result, { ok: true }>).items;
 			expect(items).toHaveLength(1);
@@ -2652,9 +2911,10 @@ describe("initSirenReadingList", () => {
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			const result = await list.removeUrl(
-				"article-1" as ReadingListItemId,
-			);
+			const result = await list.invokeAction({
+				id: "article-1" as ReadingListItemId,
+				name: "delete",
+			});
 			assert.equal(result.ok, true);
 			expect(calls).toContain(
 				"POST http://localhost:3000/queue/article-1/delete",
@@ -2681,9 +2941,10 @@ describe("initSirenReadingList", () => {
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			const result = await list.removeUrl(
-				"article-1" as ReadingListItemId,
-			);
+			const result = await list.invokeAction({
+				id: "article-1" as ReadingListItemId,
+				name: "delete",
+			});
 			expect(result).toEqual({ ok: false, reason: "not-found" });
 		});
 
@@ -2708,8 +2969,8 @@ describe("initSirenReadingList", () => {
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(
-				list.removeUrl("article-1" as ReadingListItemId),
-			).rejects.toThrow("Delete failed: 500");
+				list.invokeAction({ id: "article-1" as ReadingListItemId, name: "delete" }),
+			).rejects.toThrow("delete failed: 500");
 		});
 
 		it("should propagate network errors from delete", async () => {
@@ -2732,16 +2993,19 @@ describe("initSirenReadingList", () => {
 							savedAt: "2026-01-15T10:00:00.000Z",
 						}),
 					]),
-					{ status: 200 },
+					{
+						status: 200,
+						headers: { "Content-Type": "application/vnd.siren+json" },
+					},
 				);
 			};
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(
-				list.removeUrl("article-1" as ReadingListItemId),
+				list.invokeAction({ id: "article-1" as ReadingListItemId, name: "delete" }),
 			).rejects.toThrow("Network unreachable");
 		});
 
-		it("should throw when entity has no delete action", async () => {
+		it("returns not-found when the entity advertises no delete action", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({
 					"GET http://localhost:3000/queue": {
@@ -2759,9 +3023,8 @@ describe("initSirenReadingList", () => {
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			await expect(
-				list.removeUrl("article-1" as ReadingListItemId),
-			).rejects.toThrow("No delete action found for item article-1");
+			const result = await list.invokeAction({ id: "article-1" as ReadingListItemId, name: "delete" });
+			expect(result).toEqual({ ok: false, reason: "not-found" });
 		});
 
 		it("should throw when fallback collection fetch fails", async () => {
@@ -2772,11 +3035,11 @@ describe("initSirenReadingList", () => {
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(
-				list.removeUrl("article-1" as ReadingListItemId),
+				list.invokeAction({ id: "article-1" as ReadingListItemId, name: "delete" }),
 			).rejects.toThrow("Navigation failed: 500");
 		});
 
-		it("should throw when fallback collection has no matching entity", async () => {
+		it("returns not-found when the fallback collection has no matching entity", async () => {
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({
 					"GET http://localhost:3000/queue": {
@@ -2789,9 +3052,128 @@ describe("initSirenReadingList", () => {
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			await expect(
-				list.removeUrl("article-1" as ReadingListItemId),
-			).rejects.toThrow("No delete action found for item article-1");
+			const result = await list.invokeAction({ id: "article-1" as ReadingListItemId, name: "delete" });
+			expect(result).toEqual({ ok: false, reason: "not-found" });
+		});
+
+		it("invokeAction invokes the named action and returns the refreshed list", async () => {
+			const remaining = articleEntity({
+				id: "article-2",
+				url: "https://example.com/b",
+				title: "B",
+				savedAt: "2026-01-15T11:00:00.000Z",
+			});
+			const { fetchFn, calls } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse([
+							articleEntity({
+								id: "article-1",
+								url: "https://example.com/a",
+								title: "A",
+								savedAt: "2026-01-15T10:00:00.000Z",
+								actions: [
+									{
+										name: "mark-read",
+										href: "/queue/article-1/read",
+										method: "POST",
+									},
+								],
+							}),
+							remaining,
+						]),
+					},
+					"POST http://localhost:3000/queue/article-1/read": {
+						status: 200,
+						body: collectionResponse([remaining]),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			await list.getAllItems();
+			const result = await list.invokeAction({
+				id: "article-1" as ReadingListItemId,
+				name: "mark-read",
+			});
+			assert.equal(result.ok, true);
+			const items = (result as Extract<typeof result, { ok: true }>).items;
+			expect(items.map((i) => i.url)).toEqual(["https://example.com/b"]);
+			expect(calls).toContain(
+				"POST http://localhost:3000/queue/article-1/read",
+			);
+		});
+
+		it("invokeAction applies update-status via the (id, name) path with the declared value as urlencoded form data", async () => {
+			let observedBody = "";
+			let observedContentType: string | null = null;
+			const remaining = articleEntity({
+				id: "article-2",
+				url: "https://example.com/b",
+				title: "B",
+				savedAt: "2026-01-15T11:00:00.000Z",
+			});
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse([
+							articleEntity({
+								id: "article-1",
+								url: "https://example.com/a",
+								title: "A",
+								savedAt: "2026-01-15T10:00:00.000Z",
+								actions: [
+									{
+										name: "update-status",
+										href: "/queue/article-1/status",
+										method: "POST",
+										type: "application/x-www-form-urlencoded",
+										fields: [
+											{ name: "status", type: "text", value: "read" },
+										],
+									},
+								],
+							}),
+							remaining,
+						]),
+					},
+					"POST http://localhost:3000/queue/article-1/status": (init) => {
+						observedBody = String(init?.body);
+						observedContentType = new Headers(init?.headers).get("Content-Type");
+						return { status: 200, body: collectionResponse([remaining]) };
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			await list.getAllItems();
+			/** The popup re-invokes by (id, name) only — no field knowledge crosses
+			 * the boundary — so the server must still receive status=read, sourced
+			 * from the action's declared field value and urlencoded per its type. */
+			const result = await list.invokeAction({
+				id: "article-1" as ReadingListItemId,
+				name: "update-status",
+			});
+			assert.equal(result.ok, true);
+			expect(observedContentType).toBe("application/x-www-form-urlencoded");
+			expect(observedBody).toBe("status=read");
+		});
+
+		it("invokeAction returns not-found for an item the server does not advertise", async () => {
+			const { fetchFn } = createRoutingFetch(
+				withEntryPoint({
+					"GET http://localhost:3000/queue": {
+						status: 200,
+						body: collectionResponse(),
+					},
+				}),
+			);
+			const list = initSirenReadingList(createAdapterDeps(fetchFn));
+			const result = await list.invokeAction({
+				id: "ghost" as ReadingListItemId,
+				name: "mark-read",
+			});
+			expect(result).toEqual({ ok: false, reason: "not-found" });
 		});
 	});
 
@@ -3004,5 +3386,479 @@ describe("initSirenReadingList", () => {
 				"No access token available",
 			);
 		});
+	});
+});
+
+describe("hypermedia conformance", () => {
+	it("renders an unsupported-media-type failure instead of blind-decoding a non-Siren response", async () => {
+		const { fetchFn } = createRoutingFetch({
+			"GET http://localhost:3000/": {
+				status: 200,
+				body: "<html>a proxy login page</html>",
+				headers: { "Content-Type": "text/html" },
+			},
+		});
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		await expect(start()).rejects.toThrow("Unsupported media type: text/html");
+	});
+
+	it("reports (none) when a 200 response carries no Content-Type at all", async () => {
+		const fetchFn: ExtensionDeps["fetchFn"] = async () =>
+			new Response(null, { status: 200 });
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		await expect(start()).rejects.toThrow("Unsupported media type: (none)");
+	});
+
+	it("treats a non-http(s) read href as no read URL (unactionable scheme)", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionResponse([
+						articleEntity({
+							id: "1",
+							url: "https://example.com/a",
+							title: "A",
+							savedAt: "2026-01-15T10:00:00.000Z",
+							links: [{ rel: ["read"], href: "mailto:reader@example.com" }],
+						}),
+					]),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		const result = await start();
+		expect(result.items[0].links).toEqual([]);
+	});
+
+	it("uses an absolute read href verbatim rather than concatenating it onto the base", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionResponse([
+						articleEntity({
+							id: "1",
+							url: "https://example.com/a",
+							title: "A",
+							savedAt: "2026-01-15T10:00:00.000Z",
+							links: [{ rel: ["read"], href: "https://cdn.example.com/read/1" }],
+						}),
+					]),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		const result = await start();
+		expect(result.items[0].links).toEqual([
+			{ rel: "read", href: "https://cdn.example.com/read/1" },
+		]);
+	});
+
+	it("degrades an entity whose properties omit url, title and savedAt", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionResponse([{ properties: { id: "stub" } }]),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		const result = await start();
+		expect(result.items[0].id).toBe("stub");
+		expect(result.items[0].url).toBe("");
+		expect(result.items[0].title).toBe("");
+		expect(result.items[0].savedAt).toEqual(new Date(0));
+	});
+
+	it("serializes no action descriptors for an entity with no actions", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionResponse([
+						articleEntity({
+							id: "1",
+							url: "https://example.com/a",
+							title: "A",
+							savedAt: "2026-01-15T10:00:00.000Z",
+							actions: [],
+						}),
+					]),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		const result = await start();
+		expect(result.items[0].actions).toEqual([]);
+	});
+
+	it("serializes each advertised action as a {name, title} descriptor on the item", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionResponse([
+						articleEntity({
+							id: "1",
+							url: "https://example.com/a",
+							title: "A",
+							savedAt: "2026-01-15T10:00:00.000Z",
+							actions: [
+								{
+									name: "delete",
+									title: "Remove from list",
+									href: "/queue/1/delete",
+									method: "POST",
+								},
+								{ name: "mark-read", href: "/queue/1/read", method: "POST" },
+							],
+						}),
+					]),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		const result = await start();
+		expect(result.items[0].actions).toEqual([
+			{ name: "delete", title: "Remove from list" },
+			{ name: "mark-read" },
+		]);
+	});
+
+	it("drops a malformed (hrefless) entity action but keeps the valid ones", async () => {
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionResponse([
+						articleEntity({
+							id: "1",
+							url: "https://example.com/a",
+							title: "A",
+							savedAt: "2026-01-15T10:00:00.000Z",
+							actions: [
+								{ name: "broken", method: "POST" },
+								{ name: "delete", href: "/queue/1/delete", method: "POST" },
+							],
+						}),
+					]),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		const result = await start();
+		expect(result.items[0].actions.map((a) => a.name)).toEqual(["delete"]);
+	});
+
+	it("follows the collection's next link so items past the first page are reachable", async () => {
+		const page1 = JSON.stringify({
+			class: ["collection", "articles"],
+			entities: [
+				articleEntity({
+					id: "1",
+					url: "https://example.com/a",
+					title: "A",
+					savedAt: "2026-01-15T10:00:00.000Z",
+				}),
+			],
+			links: [
+				{ rel: ["self"], href: "/queue" },
+				{ rel: ["next"], href: "/queue?page=2" },
+			],
+			actions: COLLECTION_ACTIONS,
+		});
+		const page2 = JSON.stringify({
+			class: ["collection", "articles"],
+			entities: [
+				articleEntity({
+					id: "2",
+					url: "https://example.com/b",
+					title: "B",
+					savedAt: "2026-01-15T11:00:00.000Z",
+				}),
+			],
+			links: [{ rel: ["self"], href: "/queue?page=2" }],
+			actions: COLLECTION_ACTIONS,
+		});
+		const { fetchFn } = createRoutingFetch({
+			"GET http://localhost:3000/": { status: 200, body: page1 },
+			"GET http://localhost:3000/queue": { status: 200, body: page1 },
+			"GET http://localhost:3000/queue?page=2": { status: 200, body: page2 },
+		});
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		const result = await start();
+		expect(result.items.map((i) => i.id)).toEqual(["1", "2"]);
+	});
+
+	it("stops following navigation pages when a next page errors", async () => {
+		const page1 = JSON.stringify({
+			class: ["collection", "articles"],
+			entities: [
+				articleEntity({
+					id: "1",
+					url: "https://example.com/a",
+					title: "A",
+					savedAt: "2026-01-15T10:00:00.000Z",
+				}),
+			],
+			links: [
+				{ rel: ["self"], href: "/queue" },
+				{ rel: ["next"], href: "/queue?page=2" },
+			],
+			actions: COLLECTION_ACTIONS,
+		});
+		const { fetchFn } = createRoutingFetch({
+			"GET http://localhost:3000/": { status: 200, body: page1 },
+			"GET http://localhost:3000/queue": { status: 200, body: page1 },
+			"GET http://localhost:3000/queue?page=2": { status: 500 },
+		});
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		const result = await start();
+		expect(result.items.map((i) => i.id)).toEqual(["1"]);
+	});
+
+	it("ignores a navigation next link whose scheme is unactionable", async () => {
+		const page1 = JSON.stringify({
+			class: ["collection", "articles"],
+			entities: [
+				articleEntity({
+					id: "1",
+					url: "https://example.com/a",
+					title: "A",
+					savedAt: "2026-01-15T10:00:00.000Z",
+				}),
+			],
+			links: [
+				{ rel: ["self"], href: "/queue" },
+				{ rel: ["next"], href: "mailto:more@example.com" },
+			],
+			actions: COLLECTION_ACTIONS,
+		});
+		const { fetchFn } = createRoutingFetch({
+			"GET http://localhost:3000/": { status: 200, body: page1 },
+			"GET http://localhost:3000/queue": { status: 200, body: page1 },
+		});
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		const result = await start();
+		expect(result.items.map((i) => i.id)).toEqual(["1"]);
+	});
+
+	it("aggregates every search page by following the search response's next link", async () => {
+		const searchPage1 = JSON.stringify({
+			class: ["collection", "articles"],
+			entities: [
+				articleEntity({
+					id: "1",
+					url: "https://example.com/a",
+					title: "A",
+					savedAt: "2026-01-15T10:00:00.000Z",
+				}),
+			],
+			links: [
+				{ rel: ["self"], href: "/queue?status=unread" },
+				{ rel: ["next"], href: "/queue?status=unread&page=2" },
+			],
+			actions: COLLECTION_ACTIONS,
+		});
+		const searchPage2 = JSON.stringify({
+			class: ["collection", "articles"],
+			entities: [
+				articleEntity({
+					id: "2",
+					url: "https://example.com/b",
+					title: "B",
+					savedAt: "2026-01-15T11:00:00.000Z",
+				}),
+			],
+			links: [{ rel: ["self"], href: "/queue?status=unread&page=2" }],
+			actions: COLLECTION_ACTIONS,
+		});
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionResponse(),
+				},
+				"GET http://localhost:3000/queue?status=unread": {
+					status: 200,
+					body: searchPage1,
+				},
+				"GET http://localhost:3000/queue?status=unread&page=2": {
+					status: 200,
+					body: searchPage2,
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		const collection = await start();
+		const result = await collection.actions.search({ status: "unread" });
+		expect(result.items.map((i) => i.id)).toEqual(["1", "2"]);
+	});
+
+	it("stops following search pages when a later page errors, returning what it has", async () => {
+		const searchPage1 = JSON.stringify({
+			class: ["collection", "articles"],
+			entities: [
+				articleEntity({
+					id: "1",
+					url: "https://example.com/a",
+					title: "A",
+					savedAt: "2026-01-15T10:00:00.000Z",
+				}),
+			],
+			links: [
+				{ rel: ["self"], href: "/queue?status=unread" },
+				{ rel: ["next"], href: "/queue?status=unread&page=2" },
+			],
+			actions: COLLECTION_ACTIONS,
+		});
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionResponse(),
+				},
+				"GET http://localhost:3000/queue?status=unread": {
+					status: 200,
+					body: searchPage1,
+				},
+				"GET http://localhost:3000/queue?status=unread&page=2": { status: 500 },
+			}),
+		);
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		const collection = await start();
+		const result = await collection.actions.search({ status: "unread" });
+		expect(result.items.map((i) => i.id)).toEqual(["1"]);
+	});
+
+	it("stops navigation when the next link points back to a page already visited", async () => {
+		const page = JSON.stringify({
+			class: ["collection", "articles"],
+			entities: [
+				articleEntity({
+					id: "1",
+					url: "https://example.com/a",
+					title: "A",
+					savedAt: "2026-01-15T10:00:00.000Z",
+				}),
+			],
+			links: [
+				{ rel: ["self"], href: "/queue" },
+				{ rel: ["next"], href: "/queue" },
+			],
+			actions: COLLECTION_ACTIONS,
+		});
+		const { fetchFn } = createRoutingFetch({
+			"GET http://localhost:3000/": { status: 200, body: page },
+			"GET http://localhost:3000/queue": { status: 200, body: page },
+		});
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		const result = await start();
+		expect(result.items.map((i) => i.id)).toEqual(["1"]);
+	});
+
+	it("stops navigation when the next links form a repeating cycle", async () => {
+		const page1 = JSON.stringify({
+			class: ["collection", "articles"],
+			entities: [
+				articleEntity({
+					id: "1",
+					url: "https://example.com/a",
+					title: "A",
+					savedAt: "2026-01-15T10:00:00.000Z",
+				}),
+			],
+			links: [
+				{ rel: ["self"], href: "/queue" },
+				{ rel: ["next"], href: "/queue?page=2" },
+			],
+			actions: COLLECTION_ACTIONS,
+		});
+		const page2 = JSON.stringify({
+			class: ["collection", "articles"],
+			entities: [
+				articleEntity({
+					id: "2",
+					url: "https://example.com/b",
+					title: "B",
+					savedAt: "2026-01-15T11:00:00.000Z",
+				}),
+			],
+			links: [
+				{ rel: ["self"], href: "/queue?page=2" },
+				{ rel: ["next"], href: "/queue?page=2" },
+			],
+			actions: COLLECTION_ACTIONS,
+		});
+		const { fetchFn } = createRoutingFetch({
+			"GET http://localhost:3000/": { status: 200, body: page1 },
+			"GET http://localhost:3000/queue": { status: 200, body: page1 },
+			"GET http://localhost:3000/queue?page=2": { status: 200, body: page2 },
+		});
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		const result = await start();
+		expect(result.items.map((i) => i.id)).toEqual(["1", "2"]);
+	});
+
+	it("stops a search whose next link points back to a page already fetched", async () => {
+		const searchPage = JSON.stringify({
+			class: ["collection", "articles"],
+			entities: [
+				articleEntity({
+					id: "1",
+					url: "https://example.com/a",
+					title: "A",
+					savedAt: "2026-01-15T10:00:00.000Z",
+				}),
+			],
+			links: [
+				{ rel: ["self"], href: "/queue?status=unread" },
+				{ rel: ["next"], href: "/queue?status=unread" },
+			],
+			actions: COLLECTION_ACTIONS,
+		});
+		const { fetchFn } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: collectionResponse(),
+				},
+				"GET http://localhost:3000/queue?status=unread": {
+					status: 200,
+					body: searchPage,
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		const collection = await start();
+		const result = await collection.actions.search({ status: "unread" });
+		expect(result.items.map((i) => i.id)).toEqual(["1"]);
+	});
+
+	it("sends no params for a search action that declares no fields", async () => {
+		const fieldlessSearch = [
+			COLLECTION_ACTIONS[0],
+			{ name: "search", href: "/queue", method: "GET" },
+		];
+		const { fetchFn, calls } = createRoutingFetch(
+			withEntryPoint({
+				"GET http://localhost:3000/queue": {
+					status: 200,
+					body: JSON.stringify({
+						class: ["collection", "articles"],
+						entities: [],
+						links: [{ rel: ["self"], href: "/queue" }],
+						actions: fieldlessSearch,
+					}),
+				},
+			}),
+		);
+		const start = initExtension(createUnderstandings(), createDeps(fetchFn));
+		const collection = await start();
+		const result = await collection.actions.search({ url: "https://example.com/x" });
+		expect(result.items).toEqual([]);
+		expect(calls).toContain("GET http://localhost:3000/queue");
 	});
 });
