@@ -5,6 +5,11 @@
 		<p class="inbox-email-detail__meta">
 			<span data-test-inbox-detail-sender>{{sender}}</span>
 			<time class="inbox-email-detail__received" datetime="{{received.iso}}" data-local-time="{{received.mode}}">{{received.label}}</time>
+			{{#if linkCountLabel}}<span
+				class="inbox-email-detail__link-count"
+				data-test-inbox-detail-link-count
+				>{{linkCountLabel}}</span
+			>{{/if}}
 		</p>
 	</header>
 

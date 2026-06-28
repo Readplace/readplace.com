@@ -26,7 +26,7 @@ import { renderInboxArticleCard } from "./inbox-article-card.component";
 import { InboxEmailDetailPage } from "./inbox-email-detail.component";
 import { toInboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
 import { InboxEmailsPage } from "./inbox-emails.component";
-import { toInboxEmailsViewModel } from "./inbox-emails.viewmodel";
+import { type InboxEmailLinkSummary, toInboxEmailsViewModel } from "./inbox-emails.viewmodel";
 import { computeInboxLinkCardEtag } from "./inbox-link-card.etag";
 import { toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
 import { InboxPage } from "./inbox.component";
@@ -70,8 +70,22 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 
 	router.get("/", async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");
-		const emails = await deps.inboxEmailStore.listEmailsByUserId(req.userId);
-		const vm = toInboxEmailsViewModel(emails, { now: deps.now() });
+		const userId = req.userId;
+		const emails = await deps.inboxEmailStore.listEmailsByUserId(userId);
+		// One cheap per-email partition Query each (no GSI, no scan) — the accepted
+		// cost of deriving the count instead of denormalising it onto the email row.
+		const linkSummaries = new Map<string, InboxEmailLinkSummary>();
+		for (const email of emails) {
+			const { links, meta } = await deps.inboxEmailLinkStore.listLinksByEmail({
+				userId,
+				receivedAtMessageId: email.receivedAtMessageId,
+			});
+			linkSummaries.set(email.receivedAtMessageId, {
+				count: links.length,
+				truncated: meta?.truncated === true,
+			});
+		}
+		const vm = toInboxEmailsViewModel(emails, { now: deps.now(), linkSummaries });
 		sendComponent(req, res, Base(InboxEmailsPage(vm), await deps.buildBannerState(req)));
 	});
 

@@ -4,6 +4,7 @@ import type {
 	InboxEmailLinkEntry,
 	InboxEmailLinksMeta,
 } from "@packages/domain/inbox";
+import { buildLinkCountLabel } from "./inbox-link-count-label";
 import { type InboxLinkCardViewModel, toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
 import { type MailTab, buildMailTabs } from "./mail-tabs";
 
@@ -30,6 +31,8 @@ export interface InboxEmailDetailViewModel {
 	canRenderBody: boolean;
 	bodyHtml: string;
 	unavailableMessage: string;
+	/** "12 links" in the header; omitted before extraction or when there are none. */
+	linkCountLabel: string | undefined;
 	articles: ArticlesPanelViewModel;
 }
 
@@ -60,6 +63,7 @@ export function toInboxEmailDetailViewModel(input: {
 		bodyHtml: input.bodyHtml ?? "",
 		unavailableMessage:
 			"This message couldn’t be displayed here; the original email is preserved.",
+		linkCountLabel: buildLinkCountLabel({ count: cards.length, truncated }),
 		articles: {
 			cards,
 			isEmpty: cards.length === 0,

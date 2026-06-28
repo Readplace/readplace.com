@@ -34,6 +34,10 @@
   color: var(--muted-foreground);
 }
 
+.inbox-email-detail__link-count {
+  color: var(--muted-foreground);
+}
+
 .inbox-email-detail__tabs {
   display: flex;
   gap: 4px;

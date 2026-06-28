@@ -126,6 +126,7 @@ describe("toInboxEmailDetailViewModel", () => {
 		});
 
 		expect(vm.articles.isEmpty).toBe(false);
+		expect(vm.linkCountLabel).toBe("2 links");
 		const [pending, crawled] = vm.articles.cards;
 		expect(pending.status).toBe("pending");
 		expect(pending.cardPollUrl).toContain("/inbox/");
@@ -144,5 +145,6 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.articles.cards[0].status).toBe("failed");
 		expect(vm.articles.cards[0].cardPollUrl).toBeUndefined();
 		expect(vm.articles.truncatedNotice).toBe("Showing the first 1 links found in this email.");
+		expect(vm.linkCountLabel).toBe("1+ links");
 	});
 });
