@@ -1,6 +1,8 @@
 import { firefoxS3Config } from "browser-extension-core/s3-config";
 import { JSDOM } from "jsdom";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import request from "supertest";
 import { useTestServer } from "../../../test-app";
 import {
@@ -117,16 +119,18 @@ describe("GET /install", () => {
 		}
 	});
 
-	it("should flag the iPhone tab as a beta", async () => {
+	it("should flag exactly the iPhone tab as a beta", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install");
 		const doc = load(response.text);
 
-		const iphoneTab = doc.querySelector('[data-test-tab="iphone"]');
-		expect(iphoneTab?.querySelector(".install-page__tab-beta")?.textContent).toBe("Beta");
+		const betaTabs = Array.from(doc.querySelectorAll("[data-test-tab]"))
+			.filter((tab) => tab.querySelector(".install-page__tab-beta"))
+			.map((tab) => tab.getAttribute("data-test-tab"));
+		expect(betaTabs).toEqual(["iphone"]);
 
-		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
-		expect(chromeTab?.querySelector(".install-page__tab-beta")).toBeNull();
+		const badge = doc.querySelector('[data-test-tab="iphone"] .install-page__tab-beta');
+		expect(badge?.textContent).toBe("Beta");
 	});
 
 	it("should default to the Chrome tab and browser panel when no client param is provided", async () => {
@@ -374,6 +378,27 @@ describe("GET /install", () => {
 		const response = await request(harness.server).get("/install?client=claude");
 
 		expect(response.text).toContain(INSTALL_CLIENT_SCRIPT);
+	});
+
+	it("should target the rendered AI copy buttons with the selectors its built bundle wires", async () => {
+		const bundleSource = readFileSync(
+			join(__dirname, "..", "..", "client-dist", "install.client.js"),
+			"utf-8",
+		);
+		const copySelector = bundleSource.match(/copySelector:\s*'([^']+)'/)?.[1];
+		const textAttr = bundleSource.match(/textAttr:\s*'([^']+)'/)?.[1];
+		assert(copySelector, "the install bundle footer must wire a copySelector");
+		assert(textAttr, "the install bundle footer must wire a textAttr");
+
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=claude");
+		const doc = load(response.text);
+
+		const targeted = Array.from(doc.querySelectorAll(copySelector));
+		expect(targeted).toHaveLength(2);
+		for (const button of targeted) {
+			assert(button.hasAttribute(textAttr), `copy button must carry ${textAttr}`);
+		}
 	});
 
 	it("should show ChatGPT-specific copy on the ChatGPT AI panel", async () => {

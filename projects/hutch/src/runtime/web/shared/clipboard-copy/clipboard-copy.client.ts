@@ -12,6 +12,7 @@ interface ClipboardCopyDeps {
 	document: Document;
 	navigator: CopyNavigator;
 	setTimeoutFn: (cb: () => void, ms: number) => CopyTimerId;
+	clearTimeoutFn: (id: CopyTimerId) => void;
 	copySelector: string;
 	textAttr: string;
 }
@@ -25,24 +26,28 @@ export function initClipboardCopy(deps: ClipboardCopyDeps): ClipboardCopyControl
 	const COPIED_LABEL = "Copied";
 	const FAILED_LABEL = "Press Ctrl+C";
 
-	function flash(button: HTMLButtonElement, message: string): void {
-		const original = button.textContent;
-		button.textContent = message;
-		deps.setTimeoutFn(() => {
-			button.textContent = original;
-		}, RESET_MS);
-	}
-
 	function wire(button: HTMLButtonElement, clipboard: CopyClipboard): void {
 		const text = button.getAttribute(deps.textAttr);
 		if (text === null) return;
+		const idleLabel = button.textContent;
+		let pendingReset: CopyTimerId | undefined;
+
+		function flash(message: string): void {
+			if (pendingReset !== undefined) deps.clearTimeoutFn(pendingReset);
+			button.textContent = message;
+			pendingReset = deps.setTimeoutFn(() => {
+				button.textContent = idleLabel;
+				pendingReset = undefined;
+			}, RESET_MS);
+		}
+
 		// Revealed only here: the no-JS baseline is the selectable source text,
 		// so the button stays hidden until the clipboard API is present.
 		button.hidden = false;
 		button.addEventListener("click", () => {
 			clipboard.writeText(text).then(
-				() => flash(button, COPIED_LABEL),
-				() => flash(button, FAILED_LABEL),
+				() => flash(COPIED_LABEL),
+				() => flash(FAILED_LABEL),
 			);
 		});
 	}

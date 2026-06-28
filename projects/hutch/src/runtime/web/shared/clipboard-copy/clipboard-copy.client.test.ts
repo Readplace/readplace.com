@@ -32,6 +32,7 @@ function setup(options: { navigator?: NavigatorStub; malformed?: boolean } = {})
 		document,
 		navigator,
 		setTimeoutFn: setTimeout,
+		clearTimeoutFn: clearTimeout,
 		copySelector: COPY_SELECTOR,
 		textAttr: TEXT_ATTR,
 	});
@@ -93,6 +94,31 @@ describe("initClipboardCopy", () => {
 		await flushPromises();
 
 		expect(btn.textContent).toBe("Press Ctrl+C");
+	});
+
+	it("holds the copied label for a full window across two clicks, then restores the original", async () => {
+		const writeText = jest.fn(() => Promise.resolve());
+		const { document, ctrl } = setup({ navigator: { clipboard: { writeText } } });
+		ctrl.attach();
+		const btn = copyButton(document);
+
+		fireEvent.click(btn);
+		await flushPromises();
+		expect(btn.textContent).toBe("Copied");
+
+		jest.advanceTimersByTime(1000);
+		fireEvent.click(btn);
+		await flushPromises();
+		expect(btn.textContent).toBe("Copied");
+
+		// The first click's reset was cancelled by the second flash, so the label
+		// must still read "Copied" at the point the first timer would have fired.
+		jest.advanceTimersByTime(1000);
+		expect(btn.textContent).toBe("Copied");
+
+		// Only the second flash's timer restores the original, a full window later.
+		jest.advanceTimersByTime(1000);
+		expect(btn.textContent).toBe("Copy");
 	});
 
 	it("skips a malformed copy button that carries no text attribute", () => {
