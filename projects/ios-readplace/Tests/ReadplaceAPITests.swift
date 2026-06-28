@@ -167,6 +167,35 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertEqual(page.articles.map(\.id), ["a1"])
 	}
 
+	func testLoadQueueSurfacesADecodeFailureForAMalformedSirenBody() async {
+		// A 200 carrying the negotiated Siren type but a body that fails a root decode
+		// (an array where the collection object is expected) is surfaced as the opaque
+		// .decoding — the underlying DecodingError is logged, never handed to the caller.
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			default:
+				return StubURLProtocol.Stub(
+					status: 200,
+					headers: ["Content-Type": AppConfig.sirenMediaType],
+					body: Data("[1,2,3]".utf8)
+				)
+			}
+		}
+		do {
+			_ = try await makeAPI(store: store).loadQueue()
+			XCTFail("Expected decoding")
+		} catch let error as APIError {
+			guard case .decoding = error else {
+				return XCTFail("Expected .decoding, got \(error)")
+			}
+		} catch {
+			XCTFail("Expected APIError.decoding, got \(error)")
+		}
+	}
+
 	func testNoTokenThrowsNoTokenError() async {
 		let store = TokenStore(defaults: TestSupport.ephemeralDefaults())
 		StubURLProtocol.setHandler { _, _ in .json(200, "{}") }

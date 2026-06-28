@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 enum APIError: LocalizedError {
 	case noToken
@@ -82,6 +83,8 @@ struct QueuePage {
 /// Bearer token, refreshes once on `401`, and follows server-declared hrefs
 /// rather than constructing them.
 final class ReadplaceAPI {
+	private static let logger = Logger(subsystem: "com.readplace", category: "ReadplaceAPI")
+
 	let baseURL: String
 	private let store: TokenStore
 	private let oauth: OAuthService
@@ -342,8 +345,15 @@ final class ReadplaceAPI {
 	private func decodeSiren<T: Decodable>(_ type: T.Type, data: Data, response: HTTPURLResponse) throws -> T {
 		let contentType = response.value(forHTTPHeaderField: "Content-Type")
 		guard isSirenMediaType(contentType) else { throw APIError.unsupportedMediaType(contentType) }
-		guard let value = try? JSONDecoder().decode(type, from: data) else { throw APIError.decoding }
-		return value
+		do {
+			return try JSONDecoder().decode(type, from: data)
+		} catch {
+			// The surfaced error stays the opaque `.decoding`; the underlying
+			// DecodingError (which key/type mismatched) is only ever for the logs.
+			// Marked private: a value-mismatch context can quote response bytes.
+			Self.logger.error("Siren decode failed: \(String(describing: error), privacy: .private)")
+			throw APIError.decoding
+		}
 	}
 
 	/// Whether a `Content-Type` header is the negotiated Siren media type, ignoring
