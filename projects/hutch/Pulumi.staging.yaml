@@ -5,6 +5,7 @@ config:
   hutch:stage: staging
   hutch:nodeEnv: development
   hutch:platformStack: organization/platform/staging
+  hutch:saveLinkStack: organization/save-link/staging
   hutch:domains:
     - readplace-staging.com
   hutch:redirectSubdomains:

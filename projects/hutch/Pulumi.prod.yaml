@@ -5,6 +5,7 @@ config:
   hutch:stage: production
   hutch:nodeEnv: production
   hutch:platformStack: organization/platform/prod
+  hutch:saveLinkStack: organization/save-link/prod
   hutch:domains:
     - hutch-app.com
     - readplace.com
