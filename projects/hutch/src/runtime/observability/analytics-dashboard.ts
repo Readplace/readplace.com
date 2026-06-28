@@ -462,6 +462,32 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
+	// --- Errors ---
+	// A standing table of the most recent error output across every wired log
+	// group, so surfacing "the latest logError occurrences" is a live view rather
+	// than an ad-hoc Logs Insights query. The three filter legs cover the three
+	// shapes error output takes: the structured logError JSON line (level =
+	// "ERROR"), the parse-errors stream emitted on save / summarise failure, and
+	// a best-effort substring match for raw logger.error text the Lambda runtime
+	// tags ERROR. coalesce(message, reason) folds the human-readable detail from
+	// the logError and parse-error shapes into a single column.
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "Recent errors (logError + parse-errors, all wired log groups)",
+			logGroupNames: [hutchLogGroupName, ...subscriptionLogGroupNames],
+			query: [
+				"fields @timestamp, level, source, url, coalesce(message, reason) as detail, @message, stack",
+				`| filter level = "ERROR" or stream = "${STREAMS.parseErrors}" or @message like "ERROR"`,
+				"| sort @timestamp desc",
+				"| limit 100",
+			].join(" "),
+			x: 0, y: 106, width: 24, height: 8,
+			view: "table",
+		}),
+	);
+
 	return { widgets };
 }
 

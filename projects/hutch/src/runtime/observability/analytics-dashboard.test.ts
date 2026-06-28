@@ -65,9 +65,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 22 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 3 save-funnel) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 23 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 3 save-funnel, 1 errors) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(22);
+		expect(body.widgets).toHaveLength(23);
 	});
 
 	it("the readers widget counts distinct user_ids from article_read events (not pageviews) — distinguishes opening the reader from explicitly marking-as-read", () => {
@@ -95,17 +95,36 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(clicks).toContain("stats count(*) as clicks by section, element");
 	});
 
+	it("the errors widget is a latest-first table that surfaces logError lines and the parse-errors stream across the hutch + every subscription log group", () => {
+		const queries = widgetQueries();
+		const errors = queries.find((q) => q.includes("coalesce(message, reason) as detail"));
+		expect(errors).toBeDefined();
+		expect(errors).toContain('filter level = "ERROR"');
+		expect(errors).toContain(`stream = "${STREAMS.parseErrors}"`);
+		expect(errors).toContain("| sort @timestamp desc");
+		expect(errors).toContain("| limit 100");
+		const expectedSource = [LOG_GROUPS.hutchHandler, ...SUBSCRIPTION_DASHBOARD_LOG_GROUPS]
+			.map((name) => `SOURCE '${name}'`)
+			.join(" | ");
+		expect(errors?.startsWith(`${expectedSource} | `)).toBe(true);
+
+		const errorWidget = buildBody().widgets.find(
+			(w) => typeof w.properties.query === "string" && w.properties.query.includes("coalesce(message, reason) as detail"),
+		);
+		expect(errorWidget?.properties.view).toBe("table");
+	});
+
 	it("every stream used by an emitter (STREAMS) is referenced by at least one widget query — adding a new stream without a widget fails CI", () => {
 		const referenced = collectReferencedStreams();
 		const declared = new Set(Object.values(STREAMS));
 		// Streams whose data is only inspected via ad-hoc Log Insights queries,
-		// not surfaced on the analytics dashboard. Updating the dashboard to
-		// include parse-error / crawl-outcome widgets would shrink this set.
+		// not surfaced on the analytics dashboard. The parse-errors stream is
+		// surfaced by the Recent-errors widget, so only crawl-outcomes remains;
+		// adding a crawl-outcome widget would empty this set.
 		const ignored = new Set<string>([
-			STREAMS.parseErrors,
 			STREAMS.crawlOutcomes,
 		]);
-		expect(ignored.size).toBe(2);
+		expect(ignored.size).toBe(1);
 		const missing = [...declared].filter((s) => !referenced.has(s) && !ignored.has(s));
 		expect(missing).toEqual([]);
 	});
