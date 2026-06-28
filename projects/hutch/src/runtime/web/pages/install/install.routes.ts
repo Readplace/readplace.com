@@ -22,7 +22,7 @@ export function initInstallRoutes(deps: { buildBannerState: BuildBannerState }):
 			res.status(400).type("html").send("");
 			return;
 		}
-		const firefox = await fetchFirefoxDownloadUrl();
+		const firefox = client === "firefox" ? await fetchFirefoxDownloadUrl() : null;
 		sendComponent(req, res, Base(InstallPage({ firefox, client }), await buildBannerState(req)));
 	});
 
