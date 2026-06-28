@@ -241,7 +241,7 @@ describe("POST /queue/save-html", () => {
 			(a: { name: string }) => a.name === "save-article",
 		);
 		expect(fallback).toEqual(
-			expect.objectContaining({ href: "/queue", method: "POST" }),
+			expect.objectContaining({ title: "Save a link", href: "/queue", method: "POST" }),
 		);
 		const fallbackFields = fallback.fields.map((f: { name: string }) => f.name);
 		expect(fallbackFields).toEqual(["url"]);

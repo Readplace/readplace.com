@@ -519,6 +519,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					actions: [
 						{
 							name: "save-article",
+							title: "Save a link",
 							href: QUEUE_PATH,
 							method: "POST",
 							type: "application/json",
@@ -657,6 +658,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 
 			const buildFallbackAction = () => ({
 				name: "save-article",
+				title: "Save a link",
 				href: QUEUE_PATH,
 				method: "POST",
 				type: "application/json",

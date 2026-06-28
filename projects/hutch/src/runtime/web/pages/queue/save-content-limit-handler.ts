@@ -35,6 +35,7 @@ export function initSaveContentLimitHandler(deps: {
 					actions: [
 						{
 							name: "save-article",
+							title: "Save a link",
 							href: "/queue",
 							method: "POST",
 							type: "application/json",
