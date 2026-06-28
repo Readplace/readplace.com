@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { SAVE_LINK_LOG_GROUPS } from "@packages/hutch-infra-components";
 import {
 	ANALYTICS_EVENTS,
 	CONVERSION_EVENTS,
@@ -27,6 +28,7 @@ export interface BuildAnalyticsDashboardDeps {
 	region: string;
 	hutchLogGroupName: string;
 	subscriptionLogGroupNames: readonly string[];
+	workerLogGroupNames: readonly string[];
 	excludedVisitorHashes: readonly string[];
 }
 
@@ -75,7 +77,7 @@ function logWidget(params: {
 }
 
 export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): DashboardBody {
-	const { region, hutchLogGroupName, subscriptionLogGroupNames, excludedVisitorHashes } = deps;
+	const { region, hutchLogGroupName, subscriptionLogGroupNames, workerLogGroupNames, excludedVisitorHashes } = deps;
 	const exclude = excludeVisitorHashesClause(excludedVisitorHashes);
 	const widgets: DashboardWidget[] = [];
 
@@ -465,7 +467,10 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 	// --- Errors ---
 	// A standing table of the most recent error output across every wired log
 	// group, so surfacing "the latest logError occurrences" is a live view rather
-	// than an ad-hoc Logs Insights query. The three filter legs cover the three
+	// than an ad-hoc Logs Insights query. The source spans the hutch handler, the
+	// subscription Lambdas, and the save-link async worker Lambdas
+	// (SAVE_LINK_LOG_GROUPS) so the crawl / save / summarise paths most likely to
+	// error are no longer invisible here. The three filter legs cover the three
 	// shapes error output takes: the structured logError JSON line (level =
 	// "ERROR"), the parse-errors stream emitted on save / summarise failure, and
 	// a best-effort substring match for raw logger.error text the Lambda runtime
@@ -476,7 +481,7 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		logWidget({
 			region,
 			title: "Recent errors (logError + parse-errors, all wired log groups)",
-			logGroupNames: [hutchLogGroupName, ...subscriptionLogGroupNames],
+			logGroupNames: [hutchLogGroupName, ...subscriptionLogGroupNames, ...workerLogGroupNames],
 			query: [
 				"fields @timestamp, level, source, url, coalesce(message, reason) as detail, @message, stack",
 				`| filter level = "ERROR" or stream = "${STREAMS.parseErrors}" or @message like "ERROR"`,
@@ -505,3 +510,11 @@ export const SUBSCRIPTION_DASHBOARD_LOG_GROUPS: readonly string[] = [
 	LOG_GROUPS.scheduleTrialFeedbackEmail,
 	LOG_GROUPS.sendTrialFeedbackEmail,
 ];
+
+/**
+ * The save-link async worker log groups the "Recent errors" widget queries.
+ * Every SAVE_LINK_LOG_GROUPS entry is surfaced (these Lambdas exist solely to
+ * run the error-prone crawl / save / summarise pipeline), so a new worker
+ * Lambda added to the shared constant flows onto the dashboard automatically.
+ */
+export const WORKER_DASHBOARD_LOG_GROUPS: readonly string[] = Object.values(SAVE_LINK_LOG_GROUPS);

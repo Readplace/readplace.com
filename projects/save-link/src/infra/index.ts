@@ -33,6 +33,7 @@ import {
 	RecrawlLinkInitiatedEvent,
 	RecrawlContentExtractedEvent,
 	RefreshContentExtractedEvent,
+	SAVE_LINK_LAMBDA_NAMES,
 } from "@packages/hutch-infra-components";
 import { requireEnv } from "@packages/require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
@@ -270,7 +271,7 @@ const saveLinkCommandDynamodb = new HutchDynamoDBAccess("save-link-command-dynam
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const saveLinkCommandLambda = new HutchLambda("save-link-command", {
+const saveLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkCommand, {
 	entryPoint: "./src/runtime/save-link-command.main.ts",
 	outputDir: ".lib/save-link-command",
 	assetDir: "./src",
@@ -327,7 +328,7 @@ const saveLinkRawHtmlCommandDynamodb = new HutchDynamoDBAccess("save-link-raw-ht
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const saveLinkRawHtmlCommandLambda = new HutchLambda("save-link-raw-html-command", {
+const saveLinkRawHtmlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkRawHtmlCommand, {
 	entryPoint: "./src/runtime/save-link-raw-html-command.main.ts",
 	outputDir: ".lib/save-link-raw-html-command",
 	assetDir: "./src",
@@ -387,7 +388,7 @@ const saveAnonymousLinkCommandDynamodb = new HutchDynamoDBAccess("save-anonymous
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const saveAnonymousLinkCommandLambda = new HutchLambda("save-anonymous-link-command", {
+const saveAnonymousLinkCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveAnonymousLinkCommand, {
 	entryPoint: "./src/runtime/save-anonymous-link-command.main.ts",
 	outputDir: ".lib/save-anonymous-link-command",
 	assetDir: "./src",
@@ -684,7 +685,7 @@ const comprehensiveCrawlCommandStagingDelete: LambdaPolicy = {
 	})),
 };
 
-const comprehensiveCrawlCommandLambda = new HutchLambda("comprehensive-crawl-command", {
+const comprehensiveCrawlCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.comprehensiveCrawlCommand, {
 	// Post-fan-out the orchestrator only runs pdfinfo, one S3 PutObject, up to
 	// 32 concurrent JSON Lambda responses, HTML join + sanitisation, and one
 	// tier-write — same workload shape as the simple-only save-link Lambdas at
@@ -806,7 +807,7 @@ const saveLinkRawPdfCommandStagingDelete: LambdaPolicy = {
 	})),
 };
 
-const saveLinkRawPdfCommandLambda = new HutchLambda("save-link-raw-pdf-command", {
+const saveLinkRawPdfCommandLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.saveLinkRawPdfCommand, {
 	// Mirrors comprehensive-crawl-command: pdfinfo + one S3 PutObject + fan-out
 	// JSON Lambda invokes + HTML join + tier-write. 900s is the Lambda ceiling for
 	// a worst-case many-page document.
@@ -881,7 +882,7 @@ const staleCheckRequestedDynamodb = new HutchDynamoDBAccess("stale-check-request
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const staleCheckRequestedLambda = new HutchLambda("stale-check-requested", {
+const staleCheckRequestedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.staleCheckRequested, {
 	entryPoint: "./src/runtime/stale-check.main.ts",
 	outputDir: ".lib/stale-check-requested",
 	assetDir: "./src",
@@ -1173,7 +1174,7 @@ const recrawlLinkInitiatedDynamodb = new HutchDynamoDBAccess("recrawl-link-initi
 	actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
 });
 
-const recrawlLinkInitiatedLambda = new HutchLambda("recrawl-link-initiated", {
+const recrawlLinkInitiatedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.recrawlLinkInitiated, {
 	entryPoint: "./src/runtime/recrawl-link-initiated.main.ts",
 	outputDir: ".lib/recrawl-link-initiated",
 	assetDir: "./src",
@@ -1306,7 +1307,7 @@ eventBus.subscribe(SummaryGeneratedEvent, summaryGeneratedLambdaWithSQS);
 
 // --- SummaryGenerationFailed handler ---
 
-const summaryGenerationFailedLambda = new HutchLambda("summary-generation-failed", {
+const summaryGenerationFailedLambda = new HutchLambda(SAVE_LINK_LAMBDA_NAMES.summaryGenerationFailed, {
 	entryPoint: "./src/runtime/summary-generation-failed.main.ts",
 	outputDir: ".lib/summary-generation-failed",
 	assetDir: "./src",
