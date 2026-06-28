@@ -97,10 +97,11 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
   over the 10 MiB server limit, it degrades to the URL-only `save-article` path —
   mirroring the extension's own fallback.
 - **Add links via Share**: the `+` button is a client-side control — an
-  `add-links-help` affordance the app injects itself, not one advertised by the
-  server. It opens a sheet whose `WKWebView` renders the server's help page at a
-  client-held path (`AppConfig.addLinksHelpPath`), so the instructions ship via a
-  hutch deploy rather than an App Store release. A **Back to Queue** button
+  `add-links-help` affordance the app injects itself and treats as canonical,
+  ignoring (deduping) any the server also advertises. It opens a sheet whose
+  `WKWebView` renders the server's help page at a client-held path
+  (`AppConfig.addLinksHelpPath`), so the instructions ship via a hutch deploy
+  rather than an App Store release. A **Back to Queue** button
   dismisses it. There is no in-app paste box; capturing a page is the Share
   Extension's job, and the server's `save-article` URL-only action is reached only
   through that Share flow, never the toolbar.

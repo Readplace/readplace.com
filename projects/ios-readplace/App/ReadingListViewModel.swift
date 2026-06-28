@@ -15,15 +15,16 @@ final class ReadingListViewModel: ObservableObject {
 	/// the sheet, so the sheet opens without waiting.
 	@Published var readerPresentation: ReaderPresentation?
 	/// The "add links via Share" help page the reading list's + control opens in a
-	/// webview. A client-owned path resolved against the API base — the server no
-	/// longer advertises it — so the + control works before (and regardless of) a
-	/// queue load.
+	/// webview. A client-owned path resolved against the API base — the client holds
+	/// it itself rather than reading it from the server's add-links-help link — so the
+	/// + control works before (and regardless of) a queue load.
 	let addLinksHelpURL: URL?
 
 	/// The collection-level controls the toolbar renders. The server's own collection
 	/// affordances are looped (each presentable one becomes a control), and the
 	/// client-side add (+) control that opens the Share help is always present — it is
-	/// injected by the client, never advertised by the server.
+	/// injected by the client and kept canonical, so any add-links-help the server
+	/// also advertises is deduped rather than rendered as a second +.
 	@Published private(set) var collectionAffordances: [Affordance] = [ReadingListViewModel.addLinksHelp]
 
 	private var nextHref: String?
@@ -35,8 +36,9 @@ final class ReadingListViewModel: ObservableObject {
 	/// The reading list's client-side add (+) control: a navigable `add-links-help`
 	/// affordance the client injects itself rather than discovering from the server.
 	/// Tapping it opens the native Share-help sheet (`ToolbarRoute.presentAddLinksHelp`);
-	/// the server advertises no such link, so the toolbar's add control is owned
-	/// entirely by the client. Built from constant inputs, so it always constructs.
+	/// the client ignores any add-links-help the server advertises and treats this one
+	/// as canonical, so the toolbar's add control is owned entirely by the client.
+	/// Built from constant inputs, so it always constructs.
 	private static let addLinksHelp: Affordance = {
 		let link = SirenLink(rel: ["add-links-help"], href: AppConfig.addLinksHelpPath, title: "How to add links")
 		guard let affordance = Affordance(link: link) else {
