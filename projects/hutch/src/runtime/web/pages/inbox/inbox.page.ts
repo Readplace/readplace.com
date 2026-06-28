@@ -23,6 +23,7 @@ import type { QuerystringFeatureToggle } from "../../feature-toggle";
 import { MAX_POLLS } from "../../shared/article-reader/article-reader";
 import { etagMatches } from "../queue/queue-card/queue-card.etag";
 import { renderInboxArticleCard } from "./inbox-article-card.component";
+import { renderInboxArticlesPanel } from "./inbox-articles-panel.component";
 import { InboxEmailDetailPage } from "./inbox-email-detail.component";
 import { toInboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
 import { InboxEmailsPage } from "./inbox-emails.component";
@@ -74,17 +75,20 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 		const emails = await deps.inboxEmailStore.listEmailsByUserId(userId);
 		// One cheap per-email partition Query each (no GSI, no scan) — the accepted
 		// cost of deriving the count instead of denormalising it onto the email row.
-		const linkSummaries = new Map<string, InboxEmailLinkSummary>();
-		for (const email of emails) {
-			const { links, meta } = await deps.inboxEmailLinkStore.listLinksByEmail({
-				userId,
-				receivedAtMessageId: email.receivedAtMessageId,
-			});
-			linkSummaries.set(email.receivedAtMessageId, {
-				count: links.length,
-				truncated: meta?.truncated === true,
-			});
-		}
+		// Fired concurrently so a heavy-newsletter user pays one round-trip, not N.
+		const summaries = await Promise.all(
+			emails.map(async (email): Promise<[string, InboxEmailLinkSummary]> => {
+				const { links, meta } = await deps.inboxEmailLinkStore.listLinksByEmail({
+					userId,
+					receivedAtMessageId: email.receivedAtMessageId,
+				});
+				return [
+					email.receivedAtMessageId,
+					{ count: links.length, truncated: meta?.truncated === true },
+				];
+			}),
+		);
+		const linkSummaries = new Map<string, InboxEmailLinkSummary>(summaries);
 		const vm = toInboxEmailsViewModel(emails, { now: deps.now(), linkSummaries });
 		sendComponent(req, res, Base(InboxEmailsPage(vm), await deps.buildBannerState(req)));
 	});
@@ -137,6 +141,36 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			maxPolls: MAX_POLLS,
 		});
 		sendComponent(req, res, Base(InboxEmailDetailPage(vm), await deps.buildBannerState(req)));
+	});
+
+	// Page-level poll for the Articles panel while extraction is still running.
+	// Until the extractor writes the per-email meta barrier there are no link rows
+	// to poll, so the panel polls itself here and swaps in the finished card set
+	// (or the terminal "no links" state) the instant extraction writes its meta.
+	// The literal `articles` suffix keeps `/:id` (single segment) from capturing it.
+	router.get("/:id/articles", async (req: Request<{ id: string }>, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const receivedAtMessageId = req.params.id;
+		const entry = await deps.inboxEmailStore.getEmail({ userId, receivedAtMessageId });
+		if (entry === undefined) {
+			res.status(404).type("html").send("");
+			return;
+		}
+		const { links, meta } = await deps.inboxEmailLinkStore.listLinksByEmail({
+			userId,
+			receivedAtMessageId,
+		});
+		const requestedPoll = Number(req.query.poll ?? "0");
+		const vm = toInboxEmailDetailViewModel({
+			entry,
+			bodyHtml: undefined,
+			links,
+			linksMeta: meta,
+			maxPolls: MAX_POLLS,
+			panelPollCount: requestedPoll + 1,
+		});
+		res.status(200).type("html").send(renderInboxArticlesPanel(vm.articles));
 	});
 
 	// The literal `links/:ordinal/card` suffix means `/:id` (single segment)

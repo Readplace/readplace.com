@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
-import { renderInboxArticleCard } from "./inbox-article-card.component";
+import { renderInboxArticlesPanel } from "./inbox-articles-panel.component";
 import { buildInboxEmailIframeSrcdoc } from "./inbox-email-iframe-srcdoc";
 import { INBOX_EMAIL_DETAIL_STYLES } from "./inbox-email-detail.styles";
 import type { InboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
@@ -16,7 +16,7 @@ export function InboxEmailDetailPage(vm: InboxEmailDetailViewModel): PageBody {
 	const viewSrcdoc = vm.canRenderBody
 		? buildInboxEmailIframeSrcdoc({ bodyHtml: vm.bodyHtml })
 		: "";
-	const articleHtmls = vm.articles.cards.map(renderInboxArticleCard);
+	const articlesPanelHtml = renderInboxArticlesPanel(vm.articles);
 	return {
 		seo: {
 			title: "Email — Readplace",
@@ -27,6 +27,6 @@ export function InboxEmailDetailPage(vm: InboxEmailDetailViewModel): PageBody {
 		},
 		styles: INBOX_EMAIL_DETAIL_STYLES,
 		bodyClass: "page-inbox",
-		content: { html: render(INBOX_EMAIL_DETAIL_TEMPLATE, { ...vm, viewSrcdoc, articleHtmls }) },
+		content: { html: render(INBOX_EMAIL_DETAIL_TEMPLATE, { ...vm, viewSrcdoc, articlesPanelHtml }) },
 	};
 }

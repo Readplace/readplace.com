@@ -113,16 +113,6 @@ export function initExtractEmailLinksHandler(deps: {
 				const extracted = extractUrls(Buffer.from(sanitizedHtml, "utf8"));
 				const { urls, truncated } = capEmailLinks(extracted, { maxLinks });
 
-				if (truncated) {
-					await putLinksMeta({ userId, receivedAtMessageId, meta: { truncated: true } });
-					await alertTruncated({ userId, receivedAtMessageId, found: extracted.totalFound });
-					logger.error("[extract-email-links] link cap hit, truncated", {
-						receivedAtMessageId,
-						found: extracted.totalFound,
-						kept: urls.length,
-					});
-				}
-
 				for (const [index, url] of urls.entries()) {
 					const ordinal = EmailLinkOrdinalSchema.parse(String(index).padStart(4, "0"));
 					// Put the pending row BEFORE publishing so the Articles tab shows N
@@ -141,6 +131,21 @@ export function initExtractEmailLinksHandler(deps: {
 						failureReason: undefined,
 					});
 					await publishCrawlPreview({ userId, receivedAtMessageId, ordinal, url });
+				}
+
+				// Write the per-email meta row LAST, after every link row is in place, so
+				// its presence is an "extraction finished" barrier: the detail view reads
+				// no-meta as "still extracting, keep polling" and meta-present-with-zero-rows
+				// as the genuinely terminal "no links found" — never collapsing the two.
+				await putLinksMeta({ userId, receivedAtMessageId, meta: { truncated } });
+
+				if (truncated) {
+					await alertTruncated({ userId, receivedAtMessageId, found: extracted.totalFound });
+					logger.error("[extract-email-links] link cap hit, truncated", {
+						receivedAtMessageId,
+						found: extracted.totalFound,
+						kept: urls.length,
+					});
 				}
 				logger.info("[extract-email-links] extracted", {
 					receivedAtMessageId,

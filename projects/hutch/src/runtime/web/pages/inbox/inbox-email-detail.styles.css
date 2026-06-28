@@ -83,7 +83,8 @@
 }
 
 .inbox-email-detail__articles-empty,
-.inbox-email-detail__articles-truncated {
+.inbox-email-detail__articles-truncated,
+.inbox-email-detail__articles-pending {
   color: var(--muted-foreground);
   font-size: 0.9rem;
 }

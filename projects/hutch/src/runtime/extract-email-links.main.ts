@@ -15,7 +15,7 @@ const inboxEmailsTable = requireEnv("DYNAMODB_INBOX_EMAILS_TABLE");
 const inboxEmailLinksTable = requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE");
 const rawEmailBucketName = requireEnv("RAW_EMAIL_BUCKET_NAME");
 const eventBusName = requireEnv("EVENT_BUS_NAME");
-const extractLinksDlqUrl = requireEnv("EXTRACT_LINKS_DLQ_URL");
+const truncationAlertQueueUrl = requireEnv("EXTRACT_LINKS_TRUNCATION_ALERT_QUEUE_URL");
 const maxLinks = Number.parseInt(requireEnv("INBOX_MAX_LINKS_PER_EMAIL"), 10);
 
 const s3Client = new S3Client({});
@@ -40,9 +40,11 @@ export const handler = initExtractEmailLinksHandler({
 	putLinksMeta: inboxEmailLinkStore.putLinksMeta,
 	publishCrawlPreview: (input) => publishEvent(CrawlEmailLinkPreview, input),
 	alertTruncated: async (input) => {
+		// Dedicated alert queue, not the failure DLQ: truncation is a successful
+		// degradation, so its depth alarm is a distinct signal from genuine faults.
 		await sqsClient.send(
 			new SendMessageCommand({
-				QueueUrl: extractLinksDlqUrl,
+				QueueUrl: truncationAlertQueueUrl,
 				MessageBody: JSON.stringify({ reason: "inbox-link-cap-truncated", ...input }),
 			}),
 		);

@@ -597,7 +597,7 @@ new aws.sns.TopicSubscription(
 // --- Inbox link previews (extract → crawl, M3) ---
 // EmailReceivedEvent → extract-email-links re-derives the body from the raw .eml,
 // extracts links, writes pending rows, and fans out one CrawlEmailLinkPreview per
-// link (★14 cap + truncate-degrade-with-DLQ-alert). Each CrawlEmailLinkPreview →
+// link (★14 cap + truncate-degrade-with-dedicated-alert-queue). Each CrawlEmailLinkPreview →
 // crawl-email-link-preview crawls a preview WITHOUT saving to /queue (★16 SSRF
 // guard inherited from crawlAndFinalize). Neither Lambda is granted the
 // articles/user-articles tables — the "nothing saved to the queue" invariant is
@@ -616,6 +616,43 @@ const extractEmailLinksQueue = new HutchSQS("extract-email-links", {
 	visibilityTimeoutSeconds: 120,
 });
 
+// Truncation is a successful degradation (the first N previews still shipped), not
+// a processing failure — so it must NOT land in the consumer's own failure DLQ.
+// There it would (a) make the DLQ depth alarm ambiguous between a genuine "email
+// never extracted" and a benign "email truncated", and (b) re-enter the source
+// queue on redrive and bounce straight back (the synthetic body has no `.detail`).
+// It gets a dedicated sink with its own depth alarm → SNS email instead, so the
+// failure DLQ's "messages awaiting redrive" contract stays unambiguous.
+const truncationAlertQueue = new aws.sqs.Queue("extract-email-links-truncated-alert", {
+	name: "extract-email-links-truncated-alert",
+	messageRetentionSeconds: 1209600, // 14 days — operators have time to notice
+});
+
+const truncationAlertTopic = new aws.sns.Topic("extract-email-links-truncated-alert-topic", {
+	name: "extract-email-links-truncated-alert-topic",
+});
+
+new aws.sns.TopicSubscription("extract-email-links-truncated-alert-email", {
+	topic: truncationAlertTopic.arn,
+	protocol: "email",
+	endpoint: alertEmail,
+});
+
+new aws.cloudwatch.MetricAlarm("extract-email-links-truncated-alarm", {
+	name: "extract-email-links-truncated-alarm",
+	comparisonOperator: "GreaterThanOrEqualToThreshold",
+	evaluationPeriods: 1,
+	metricName: "ApproximateNumberOfMessagesVisible",
+	namespace: "AWS/SQS",
+	period: 300,
+	statistic: "Sum",
+	threshold: 1,
+	alarmDescription:
+		"extract-email-links hit the per-email link cap and truncated an email (the first N previews still shipped)",
+	dimensions: { QueueName: truncationAlertQueue.name },
+	alarmActions: [truncationAlertTopic.arn],
+});
+
 const extractEmailLinksLambda = new HutchLambda("extract-email-links", {
 	entryPoint: "./src/runtime/extract-email-links.main.ts",
 	outputDir: ".lib/extract-email-links",
@@ -630,17 +667,17 @@ const extractEmailLinksLambda = new HutchLambda("extract-email-links", {
 		// A typical newsletter has < 30 links; 200 is generous headroom before the
 		// per-email cap truncates and the working path still ships the first 200.
 		INBOX_MAX_LINKS_PER_EMAIL: String(200),
-		EXTRACT_LINKS_DLQ_URL: extractEmailLinksQueue.dlqUrl,
+		EXTRACT_LINKS_TRUNCATION_ALERT_QUEUE_URL: truncationAlertQueue.url,
 	},
 	policies: [
 		...extractEmailLinksDynamodb.policies,
 		// Reads the raw .eml to re-derive the body; never writes any bucket.
 		...HutchS3ReadWrite.readPoliciesForBucket("extract-email-links-raw-read", rawEmailBucketName),
-		// The truncated-degrade alert is an explicit SendMessage to its own DLQ so
-		// the HutchSQSBackedLambda SNS alarm pages the operator.
+		// The truncated-degrade alert is an explicit SendMessage to the dedicated
+		// alert queue (NOT the failure DLQ), whose own depth alarm pages the operator.
 		{
-			name: "extract-email-links-dlq-send-pol",
-			policy: pulumi.output(extractEmailLinksQueue.dlqArn).apply((arn) =>
+			name: "extract-email-links-truncated-alert-send-pol",
+			policy: pulumi.output(truncationAlertQueue.arn).apply((arn) =>
 				JSON.stringify({
 					Version: "2012-10-17",
 					Statement: [{ Effect: "Allow", Action: ["sqs:SendMessage"], Resource: [arn] }],

@@ -37,9 +37,12 @@ raw → re-parse → re-sanitize through the shared `deriveSanitizedBody`), so a
 future parse/sanitize change applies to extraction too — never a body sanitized
 by stale logic. It extracts URLs, applies the per-email soft cap (200), writes
 one `pending` link row per URL, and fans out one `CrawlEmailLinkPreview` per link.
-A truncated email still ships the first N previews (the working path) while
-writing a `truncated` meta item and raising a DLQ alert (degrade-with-alert,
-deterministic count signal only).
+The per-email meta row is **always** written last as an "extraction finished"
+barrier (its presence is what the detail view polls against); `truncated` is just
+one field on it. A truncated email still ships the first N previews (the working
+path) while raising an alert on a **dedicated alert queue** — off the failure DLQ,
+so the DLQ's depth alarm stays unambiguous (degrade-with-alert, deterministic
+count signal only).
 
 ```mermaid
 flowchart TD
@@ -63,8 +66,9 @@ flowchart TD
 	derive[parseEmail + deriveSanitizedBody<br/>re-derive body from raw]:::system
 	extract[extractUrls + capEmailLinks<br/>soft cap 200]:::system
 	putLink[(inbox-email-links table<br/>putLink one pending row per url)]:::new
-	meta[(inbox-email-links table<br/>putLinksMeta truncated=true)]:::new
-	alert[alertTruncated<br/>SendMessage -> own DLQ]:::policy
+	meta[(inbox-email-links table<br/>putLinksMeta — always, extraction-finished barrier)]:::new
+	alert[alertTruncated<br/>SendMessage -> dedicated alert queue]:::policy
+	alertq[extract-email-links truncated-alert queue<br/>+ depth alarm -> SNS email]:::dlq
 	pub[publish CrawlEmailLinkPreview<br/>one per link]:::new
 
 	ERE --> rule --> q --> h
@@ -73,8 +77,8 @@ flowchart TD
 	h --> rawS3
 	h --> derive --> extract
 	extract -->|each url| putLink --> pub
-	extract -. if truncated .-> meta
-	extract -. if truncated .-> alert --> dlq
+	extract --> meta
+	extract -. if truncated .-> alert --> alertq
 	pub --> CELP[CrawlEmailLinkPreview]:::new
 ```
 
@@ -122,8 +126,12 @@ flowchart TD
 
 ## Read flow — Articles tab + per-card poll (behind ?feature=email)
 
-The detail page reads `inbox-email-links` in one partition Query: it renders the
-N `pending`/`crawled`/`failed` cards immediately and each `pending` card polls
+The detail page reads `inbox-email-links` in one partition Query. Before the
+extractor writes its meta barrier the Articles panel itself polls
+`GET /inbox/:id/articles` every 3 s (a "Looking for links…" state) and swaps in the
+finished card set the instant extraction completes — so a just-received email is
+never shown a terminal "No links found", and the card set is never frozen
+mid-extraction. Once the cards render, each `pending` card polls
 `GET /inbox/:id/links/:ordinal/card` every 3 s (etag + 304, shared `MAX_POLLS`
 budget) until terminal — reusing the `/queue` card machinery. The list and detail
 header show an "N links" badge derived from the same Query (no parent-row
@@ -142,16 +150,20 @@ flowchart TD
 	links[(inbox-email-links table<br/>listLinksByEmail — links + meta)]:::store
 	panel[Articles panel<br/>one card per link + N-links badge]:::new
 
+	panelpoll([GET /inbox/:id/articles every 3s while extracting]):::command
+	panelpollSys[inbox.page.ts /:id/articles<br/>poll until meta barrier present]:::new
+
 	poll([GET /inbox/:id/links/:ordinal/card every 3s]):::command
 	pollSys[inbox.page.ts poll route<br/>etag + 304, omit poll url when terminal]:::new
 	getLink[(inbox-email-links table getLink)]:::store
 	card[inbox-article-card fragment<br/>pending / crawled / failed]:::new
 
 	list([GET /inbox]):::command
-	listSys[inbox.page.ts GET /<br/>per-email count Query]:::system
+	listSys[inbox.page.ts GET /<br/>per-email count Query, fired concurrently]:::system
 	badge[N-links badge per row]:::new
 
 	detail --> detailSys --> links --> panel
+	panelpoll --> panelpollSys --> links
 	poll --> pollSys --> getLink --> card
 	list --> listSys --> links
 	listSys --> badge
@@ -162,7 +174,7 @@ flowchart TD
 | Command / trigger | System (handler) | Event(s) emitted | Next |
 |---|---|---|---|
 | `EmailReceivedEvent` | `extract-email-links` Lambda | **`CrawlEmailLinkPreview`** (one per link) | crawl consumer |
-| link cap hit | `extract-email-links` Lambda | none — `truncated` meta + DLQ alert | DLQ alarm → operator |
+| link cap hit | `extract-email-links` Lambda | none — `truncated` flag on the meta barrier + dedicated alert-queue message | alert-queue depth alarm → operator |
 | `CrawlEmailLinkPreview` | `crawl-email-link-preview` Lambda | none — `setLinkOutcome` write | — (nothing to /queue) |
 | `GET /inbox/:id` | `inbox.page.ts` `GET /:id` | none (read model) | per-card poll |
 | `GET /inbox/:id/links/:ordinal/card` | `inbox.page.ts` poll route | none (read model) | self until terminal |
@@ -184,7 +196,7 @@ CrawlEmailLinkPreview
 PK  userLinkGroup = `${userId}#${receivedAtMessageId}`   (all links of one email colocate)
 SK  ordinal       = "0000".."1999"  (link rows)  |  "meta"  (reserved per-email summary)
 link row:  url, status (pending|crawled|failed), title?, excerpt?, siteName?, imageUrl?, failureReason?
-meta row:  truncated
+meta row:  truncated   (always written once extraction finishes — its presence is the "extraction ran" barrier the detail view polls against)
 ```
 
 One partition Query answers every read (Articles tab, per-card poll, list/header

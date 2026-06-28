@@ -48,6 +48,7 @@ function build(input: {
 	bodyHtml?: string | undefined;
 	links?: InboxEmailLinkEntry[];
 	linksMeta?: { truncated: boolean } | undefined;
+	panelPollCount?: number;
 }) {
 	return toInboxEmailDetailViewModel({
 		entry: input.entry ?? entry(),
@@ -55,6 +56,7 @@ function build(input: {
 		links: input.links ?? [],
 		linksMeta: input.linksMeta,
 		maxPolls: 300,
+		panelPollCount: input.panelPollCount,
 	});
 }
 
@@ -68,7 +70,7 @@ describe("toInboxEmailDetailViewModel", () => {
 	});
 
 	it("exposes the received instant as a UTC-baselined datetime LocalTime", () => {
-		const vm = toInboxEmailDetailViewModel({
+		const vm = build({
 			entry: entry({ receivedAt: "2026-06-24T09:00:00.000Z" }),
 			bodyHtml: "<p>hi</p>",
 		});
@@ -102,16 +104,44 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.subject).toBe("(no subject)");
 	});
 
-	it("reports an empty articles panel when the email has no links", () => {
-		const vm = build({ links: [] });
+	it("treats a received email with no meta row as still extracting, not terminally empty", () => {
+		const vm = build({ links: [], linksMeta: undefined });
 
+		expect(vm.articles.isExtracting).toBe(true);
+		expect(vm.articles.isEmpty).toBe(true);
+		expect(vm.articles.panelPollUrl).toContain("/articles?feature=email&poll=1");
+		// The header count is held back until extraction writes its barrier.
+		expect(vm.linkCountLabel).toBeUndefined();
+	});
+
+	it("stops the page-level poll once the budget is spent but keeps the extracting state", () => {
+		const vm = build({ links: [], linksMeta: undefined, panelPollCount: 301 });
+
+		expect(vm.articles.isExtracting).toBe(true);
+		expect(vm.articles.panelPollUrl).toBeUndefined();
+	});
+
+	it("never polls a non-received email's articles panel", () => {
+		const vm = build({ entry: entry({ status: "rejected" }), links: [], linksMeta: undefined });
+
+		expect(vm.articles.isExtracting).toBe(false);
+		expect(vm.articles.isEmpty).toBe(true);
+		expect(vm.articles.panelPollUrl).toBeUndefined();
+	});
+
+	it("reports a genuinely empty panel once extraction wrote its meta with zero links", () => {
+		const vm = build({ links: [], linksMeta: { truncated: false } });
+
+		expect(vm.articles.isExtracting).toBe(false);
 		expect(vm.articles.isEmpty).toBe(true);
 		expect(vm.articles.cards).toHaveLength(0);
+		expect(vm.articles.panelPollUrl).toBeUndefined();
 		expect(vm.articles.truncatedNotice).toBeUndefined();
 	});
 
 	it("maps a pending link to a polling card and a crawled link to a terminal card", () => {
 		const vm = build({
+			linksMeta: { truncated: false },
 			links: [
 				link({ ordinal: EmailLinkOrdinalSchema.parse("0000"), status: "pending" }),
 				link({

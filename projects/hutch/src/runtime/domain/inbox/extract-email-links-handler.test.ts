@@ -112,7 +112,9 @@ describe("initExtractEmailLinksHandler", () => {
 			["0001", "https://b.test/y", "pending"],
 			["0002", "https://c.test/z", "pending"],
 		]);
-		expect(meta).toBeUndefined();
+		// Meta is always written once extraction finishes (the "extraction ran"
+			// barrier the detail view polls against); only `truncated` differs.
+			expect(meta).toEqual({ truncated: false });
 		expect(harness.published).toEqual([
 			{ ordinal: "0000", url: "https://a.test/x" },
 			{ ordinal: "0001", url: "https://b.test/y" },
@@ -201,11 +203,13 @@ describe("initExtractEmailLinksHandler", () => {
 		await harness.run(eventBody());
 		await harness.run(eventBody());
 
-		const { links } = await harness.linkStore.listLinksByEmail({
+		const { links, meta } = await harness.linkStore.listLinksByEmail({
 			userId: USER,
 			receivedAtMessageId: RAM,
 		});
 		expect(links).toHaveLength(2);
+		// Meta is an idempotent overwrite — re-delivery leaves a single barrier row.
+		expect(meta).toEqual({ truncated: false });
 		expect(harness.published).toHaveLength(4);
 	});
 });
