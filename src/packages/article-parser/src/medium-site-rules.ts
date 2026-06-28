@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import { parseHTML } from "linkedom";
-import type { SiteArticleContent, SitePreParser } from "./article-parser.types";
+import { noTransform, skipCrawl } from "@packages/site-rules";
+import type { SiteArticleContent, SiteRules } from "@packages/site-rules";
 
 type DomDocument = ReturnType<typeof parseHTML>["document"];
 type DomElement = NonNullable<ReturnType<DomDocument["querySelector"]>>;
@@ -28,12 +29,12 @@ const AUTHOR_PHOTO_SELECTOR =
 
 const TITLE_SUFFIX_REGEX = /\s+[|\-–—]\s+.+$/;
 
-/* Pre-parser for Medium-hosted articles.
+/* Site rules for Medium-hosted articles.
  *
  * Medium nests its byline / read-time / publish-date / image-tooltip block
  * inside the same content container as the article body when the article
  * has an <h2> subtitle dek. Mozilla Readability's scoring then keeps that
- * chrome as "article content." This pre-parser locates the article
+ * chrome as "article content." This rule locates the article
  * container, strips known noise nodes using a selector + text-fingerprint
  * check (so legitimate body content that coincidentally matches a phrase
  * isn't removed), and hands the cleaned body to the parser.
@@ -54,8 +55,9 @@ const TITLE_SUFFIX_REGEX = /\s+[|\-–—]\s+.+$/;
  * falls back to `document.body` before stripping. */
 const MIN_BODY_CHARS = 200;
 
-export const mediumPreParser = {
-	matches: (_params: { hostname: string }) => true,
+export const mediumSiteRules = {
+	matches: (_params: { url: string; hostname: string }) => true,
+	onCrawl: skipCrawl,
 	extract: ({ html }): SiteArticleContent | undefined => {
 		const { document } = parseHTML(html);
 
@@ -87,7 +89,8 @@ export const mediumPreParser = {
 		const title = extractTitle({ container, document });
 		return { title, bodyHtml };
 	},
-} satisfies SitePreParser;
+	transform: noTransform,
+} satisfies SiteRules;
 
 /* Medium-specific data-testid attributes used as secondary fingerprints
  * when the og:site_name / application-name meta tags are absent (e.g.
@@ -146,9 +149,8 @@ function stripChrome(container: DomElement): void {
 	stripPictureTooltip(container);
 	stripFooterSubscribeCta(container);
 }
-
-
-/* c8 ignore start -- V8 block coverage phantom on typed-parameter destructuring + iterator, see bcoe/c8#319 */
+/* c8 ignore start -- V8 block coverage phantom on typed-parameter destructuring + iterator, plus the
+ * preceding function's closing-brace block-end artifact at this ignore boundary, see bcoe/c8#319 */
 function stripWithEnclosingParagraph(params: {
 	container: DomElement;
 	testId: string;
@@ -184,7 +186,7 @@ function stripLeafElementsByText(params: {
 /* Medium's image-tooltip text lives in a <span> directly inside the
  * figure > [role=button] interactive wrapper (raw HTML). Readability later
  * wraps stray spans in <p>, so the post-Readability shape includes a <p>
- * — but the pre-parser runs BEFORE Readability so we target the <span>.
+ * — but the rule runs BEFORE Readability so we target the <span>.
  * We strip the span only; the sibling <picture> stays. */
 function stripPictureTooltip(container: DomElement): void {
 	const candidates = container.querySelectorAll('figure [role="button"] span');

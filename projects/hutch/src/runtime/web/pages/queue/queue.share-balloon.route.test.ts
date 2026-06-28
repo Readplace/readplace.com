@@ -30,7 +30,7 @@ async function saveAndOpenReader(appOrigin: string): Promise<Document> {
 	const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 	const { parseArticle } = initReadabilityParser({
 		crawlArticle,
-		sitePreParsers: [],
+		siteRules: [],
 		logError: createNoopLogError(),
 	});
 	const applyParseResult = createFakeApplyParseResult({

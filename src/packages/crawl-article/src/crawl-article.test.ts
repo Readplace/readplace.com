@@ -12,6 +12,9 @@ import { initCrawlFetch } from "./crawl-fetch";
 import type { CurlFetch } from "./curl-fetch";
 import type { fetchH2 } from "./h2-fetch";
 import type { ExtractPdf } from "./pdf-extract.types";
+import { initXTwitterSiteRules } from "./x-twitter-site-rules";
+import { noExtract, noTransform, skipCrawl } from "@packages/site-rules";
+import type { SiteRules } from "@packages/site-rules";
 
 const PDF_BYTES_CAP = 25 * 1024 * 1024;
 
@@ -52,11 +55,15 @@ function initCrawl(overrides: {
 	logError?: (message: string, error?: Error) => void;
 	fetchCurl?: CurlFetch;
 	fetchH2?: typeof fetchH2;
+	siteRules?: readonly SiteRules[];
 }) {
+	const crawlFetch = buildCrawlFetch(overrides);
+	const logError = overrides.logError ?? noopLogError;
 	return initCrawlArticle({
-		crawlFetch: buildCrawlFetch(overrides),
+		crawlFetch,
+		siteRules: overrides.siteRules ?? [initXTwitterSiteRules({ crawlFetch, logError })],
 		extractPdf: overrides.extractPdf,
-		logError: overrides.logError ?? noopLogError,
+		logError,
 	});
 }
 
@@ -95,6 +102,158 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 
 		assertFetched(result);
 		expect(requested).toEqual(["https://publish.twitter.com/oembed?url=https%3A%2F%2Fx.com%2Fuser%2Fstatus%2F123"]);
+	});
+
+	it("falls through to the normal fetch when a matching site declines the crawl (skip)", async () => {
+		const fetched: string[] = [];
+		const fakeFetch: typeof fetch = async (input) => {
+			const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+			fetched.push(url);
+			return new Response(
+				"<html><body><article><p>Real body fetched after the site declined the crawl override with enough words for readability.</p></article></body></html>",
+				{ status: 200, headers: { "content-type": "text/html" } },
+			);
+		};
+		const decliningSite: SiteRules = { matches: () => true, onCrawl: skipCrawl, extract: noExtract, transform: noTransform };
+		const crawlArticle = initCrawl({ fetch: fakeFetch, siteRules: [decliningSite] });
+
+		const result = await crawlArticle({ url: "https://example.com/post" });
+
+		assertFetched(result);
+		expect(fetched).toEqual(["https://example.com/post"]);
+	});
+
+	it("fails closed when a matching site's crawl override fails, without fetching the URL", async () => {
+		const fetched: string[] = [];
+		const fakeFetch: typeof fetch = async (input) => {
+			const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+			fetched.push(url);
+			return new Response("body", { status: 200, headers: { "content-type": "text/html" } });
+		};
+		const failingSite: SiteRules = {
+			matches: () => true,
+			onCrawl: async () => ({ kind: "failed" }),
+			extract: noExtract,
+			transform: noTransform,
+		};
+		const crawlArticle = initCrawl({ fetch: fakeFetch, siteRules: [failingSite] });
+
+		const result = await crawlArticle({ url: "https://example.com/post" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(fetched).toEqual([]);
+	});
+
+	it("fails closed without escaping or fetching when a matching site's onCrawl throws", async () => {
+		const onCrawlError = new Error("onCrawl boom");
+		const fetched: string[] = [];
+		const fakeFetch: typeof fetch = async (input) => {
+			const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+			fetched.push(url);
+			return new Response("body", { status: 200, headers: { "content-type": "text/html" } });
+		};
+		const throwingSite: SiteRules = {
+			matches: () => true,
+			onCrawl: async () => {
+				throw onCrawlError;
+			},
+			extract: noExtract,
+			transform: noTransform,
+		};
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, siteRules: [throwingSite], logError });
+
+		const result = await crawlArticle({ url: "https://example.com/post" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(fetched).toEqual([]);
+		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Site onCrawl threw for https://example.com/post", onCrawlError);
+	});
+
+	it("fails closed and logs undefined when a matching site's onCrawl throws a non-Error value", async () => {
+		const fakeFetch: typeof fetch = async () => {
+			throw new Error("fetch must not be invoked when a site has claimed the URL");
+		};
+		const throwingSite: SiteRules = {
+			matches: () => true,
+			onCrawl: async () => {
+				throw "boom";
+			},
+			extract: noExtract,
+			transform: noTransform,
+		};
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, siteRules: [throwingSite], logError });
+
+		const result = await crawlArticle({ url: "https://example.com/post" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Site onCrawl threw for https://example.com/post", undefined);
+	});
+
+	it("skips a site and falls through to the normal fetch when its matches throws, without escaping", async () => {
+		const matchesError = new Error("matches boom");
+		const fetched: string[] = [];
+		const fakeFetch: typeof fetch = async (input) => {
+			const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+			fetched.push(url);
+			return new Response(
+				"<html><body><article><p>Real body fetched after the throwing matches was skipped, with enough words for readability.</p></article></body></html>",
+				{ status: 200, headers: { "content-type": "text/html" } },
+			);
+		};
+		const throwingMatchSite: SiteRules = {
+			matches: () => {
+				throw matchesError;
+			},
+			onCrawl: skipCrawl,
+			extract: noExtract,
+			transform: noTransform,
+		};
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, siteRules: [throwingMatchSite], logError });
+
+		const result = await crawlArticle({ url: "https://example.com/post" });
+
+		assertFetched(result);
+		expect(fetched).toEqual(["https://example.com/post"]);
+		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Site matches threw for https://example.com/post", matchesError);
+	});
+
+	it("skips a site and logs undefined when its matches throws a non-Error value", async () => {
+		const fakeFetch: typeof fetch = async () =>
+			new Response(
+				"<html><body><article><p>Real body fetched after the non-Error matches throw was skipped, with enough words for readability.</p></article></body></html>",
+				{ status: 200, headers: { "content-type": "text/html" } },
+			);
+		const throwingMatchSite: SiteRules = {
+			matches: () => {
+				throw "boom";
+			},
+			onCrawl: skipCrawl,
+			extract: noExtract,
+			transform: noTransform,
+		};
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, siteRules: [throwingMatchSite], logError });
+
+		const result = await crawlArticle({ url: "https://example.com/post" });
+
+		assertFetched(result);
+		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Site matches threw for https://example.com/post", undefined);
+	});
+
+	it("fails closed without throwing or fetching when given a malformed URL", async () => {
+		const fakeFetch: typeof fetch = async () => {
+			throw new Error("fetch must not be invoked for a malformed URL");
+		};
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
+
+		const result = await crawlArticle({ url: "not a valid url" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Invalid URL not a valid url");
 	});
 
 	it("returns not-modified on 304 and forwards If-None-Match / If-Modified-Since", async () => {

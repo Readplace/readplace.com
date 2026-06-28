@@ -15,9 +15,9 @@ import {
 import { getEnv, requireEnv } from "@packages/require-env"
 import { initRefreshArticleIfStale } from '@packages/test-fixtures/providers/article-freshness'
 import type { ExtractPdf, IsBlockedAddress } from '@packages/crawl-article'
-import { CRAWL_PERSONAS, initCrawlArticle, initCrawlFetch } from '@packages/crawl-article'
+import { CRAWL_PERSONAS, initCrawlArticle, initCrawlFetch, initXTwitterSiteRules } from '@packages/crawl-article'
 import { initExtractLinksFromPageUrl } from '@packages/extract-links-from-page'
-import { initReadabilityParser, linkedinPreParser, mediumPreParser, theInformationPreParser } from '@packages/article-parser'
+import { initReadabilityParser, linkedinSiteRules, mediumSiteRules, theInformationSiteRules } from '@packages/article-parser'
 import { initInMemoryRefreshArticleContent } from '@packages/test-fixtures/providers/events'
 import { initInMemoryUpdateFetchTimestamp } from '@packages/test-fixtures/providers/events'
 import { initInMemoryStripeCheckout } from '@packages/test-fixtures/providers/stripe-checkout'
@@ -60,8 +60,9 @@ const extractPdf: ExtractPdf = async () => ({
   title: E2E_PDF_TITLE,
   html: `<!DOCTYPE html><html><head><title>${E2E_PDF_TITLE}</title></head><body><article><h1>${E2E_PDF_TITLE}</h1>${E2E_PDF_BODY_PARAGRAPHS}</article></body></html>`,
 })
-const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError })
-const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, sitePreParsers: [theInformationPreParser, mediumPreParser, linkedinPreParser], logError })
+const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, initXTwitterSiteRules({ crawlFetch, logError })]
+const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError })
+const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, siteRules, logError })
 
 /** E2E tests use localhost URLs because the test server IS localhost.
  * Skip private-network rejection so test articles can be saved and viewed. */

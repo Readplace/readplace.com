@@ -93,7 +93,7 @@ export const HEALTH_SOURCES: readonly HealthSource[] = [
 	{
 		// LinkedIn's logged-out post page renders the whole body inside one
 		// `white-space: pre-wrap` element with `\n\n` paragraph breaks (no
-		// `<br>`, no block markup). `linkedinPreParser` rebuilds those into
+		// `<br>`, no block markup). `linkedinSiteRules` rebuilds those into
 		// <p> blocks before Readability; without it the post collapses into a
 		// single run-on paragraph. forbiddenContent is the cross-paragraph
 		// `\n\n` run-on — present only when that paragraph split has regressed,

@@ -1,32 +1,24 @@
 {
-  "name": "@packages/article-parser",
+  "name": "@packages/site-rules",
   "version": "1.0.0",
-  "description": "Article HTML parsers (Readability + site-specific rules) shared between save-link and hutch",
+  "description": "SiteRules — the total per-site lifecycle contract (matches/onCrawl/extract/transform) shared by crawl-article and article-parser",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "private": true,
   "scripts": {
-    "compile": "rm -rf dist && tsc && node scripts/copy-static-assets.js",
+    "compile": "rm -rf dist && tsc",
     "lint": "concurrently --kill-others-on-fail \"tsc --project tsconfig.lint.json\" \"biome lint src\" \"knip\"",
-    "test": "jest --testMatch='**/dist/**/*.test.js' --testTimeout=10000",
+    "test": "jest --testMatch='**/dist/**/*.test.js'",
     "test-with-coverage": "c8 pnpm test && node enforce-coverage.config.js",
     "check": "pnpm lint && pnpm test-with-coverage",
     "check-infra": "echo 'No infrastructure — shared library'"
   },
-  "dependencies": {
-    "@mozilla/readability": "0.6.0",
-    "@packages/crawl-article": "workspace:*",
-    "@packages/site-rules": "workspace:*",
-    "linkedom": "0.18.12",
-    "parse-srcset": "1.0.2",
-    "zod": "4.4.3"
-  },
   "devDependencies": {
     "@types/jest": "30.0.0",
-    "@types/parse-srcset": "1.0.0",
     "c8": "11.0.0",
     "concurrently": "10.0.0",
     "jest": "30.4.2",
+    "linkedom": "0.18.12",
     "typescript": "6.0.3"
   }
 }

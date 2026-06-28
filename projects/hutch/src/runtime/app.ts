@@ -16,11 +16,12 @@ import {
 	initCrawlArticle,
 	initCrawlFetch,
 	initFetchThumbnailImage,
+	initXTwitterSiteRules,
 } from "@packages/crawl-article";
 import { initExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
 import type { PublishStaleCheckRequested } from "@packages/provider-contracts/events";
-import { initReadabilityParser, linkedinPreParser, mediumPreParser, theInformationPreParser } from "@packages/article-parser";
+import { initReadabilityParser, linkedinSiteRules, mediumSiteRules, theInformationSiteRules } from "@packages/article-parser";
 import { initRefreshArticleIfStale } from "@packages/test-fixtures/providers/article-freshness";
 import {
 	createOAuthModel,
@@ -207,11 +208,17 @@ function initProviders() {
 		const { putPendingHtml } = initPutPendingHtml({ client: new S3Client({}), bucketName: pendingHtmlBucketName });
 		const { putPendingPdf } = initPutPendingPdf({ client: new S3Client({}), bucketName: pendingPdfBucketName });
 		const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
-		const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
+		const siteRules = [
+			theInformationSiteRules,
+			mediumSiteRules,
+			linkedinSiteRules,
+			initXTwitterSiteRules({ crawlFetch, logError }),
+		];
+		const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError });
 		const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 		const { parseHtml } = initReadabilityParser({
 			crawlArticle,
-			sitePreParsers: [theInformationPreParser, mediumPreParser, linkedinPreParser],
+			siteRules,
 			logError,
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale({
@@ -380,11 +387,17 @@ function initProviders() {
 	const summaryStore = initInMemoryGeneratedSummary();
 	const { publishStaleCheckRequested } = initInMemoryStaleCheckRequested({ logger: consoleLogger });
 	const extractPdf = createPdfDeferralStub(publishStaleCheckRequested);
-	const crawlArticle = initCrawlArticle({ crawlFetch, extractPdf, logError });
+	const siteRules = [
+		theInformationSiteRules,
+		mediumSiteRules,
+		linkedinSiteRules,
+		initXTwitterSiteRules({ crawlFetch, logError }),
+	];
+	const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError });
 	const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
-		sitePreParsers: [theInformationPreParser, mediumPreParser],
+		siteRules,
 		logError,
 	});
 	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError });

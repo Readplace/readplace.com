@@ -1,6 +1,7 @@
 import { parseHTML } from "linkedom";
 import { z } from "zod";
-import type { SiteArticleContent, SitePreParser } from "./article-parser.types";
+import { noTransform, skipCrawl } from "@packages/site-rules";
+import type { SiteArticleContent, SiteRules } from "@packages/site-rules";
 
 const HOSTS = new Set(["www.theinformation.com", "theinformation.com"]);
 
@@ -20,19 +21,20 @@ const ArticleJson = z.object({
 const PAYWALL_NOTICE =
 	"This is the publicly available preview from The Information. The full article requires a subscription. Try to open the full article using a browser extension and save it from there.";
 
-/* Pre-parser for The Information.
+/* Site rules for The Information.
  *
  * Article bodies on theinformation.com are paywalled — the public DOM
  * contains only navigation and a "Subscribe to unlock" stub. The publicly
  * visible preview is embedded in a `<script data-component-name="Article">`
- * JSON island. This pre-parser reads that JSON and returns the preview as
+ * JSON island. This rule reads that JSON and returns the preview as
  * structured content. The parser then decides how to render it (today:
  * wraps it in a synthetic Document for Readability).
  *
  * Returns `undefined` when the expected JSON island is missing/empty/
  * malformed so the parser falls back to its default extraction. */
-export const theInformationPreParser = {
+export const theInformationSiteRules = {
 	matches: ({ hostname }) => HOSTS.has(hostname),
+	onCrawl: skipCrawl,
 	extract: ({ html }): SiteArticleContent | undefined => {
 		const { document } = parseHTML(html);
 		const script = document.querySelector('script[data-component-name="Article"]');
@@ -76,4 +78,5 @@ export const theInformationPreParser = {
 			bodyHtml: container.innerHTML,
 		};
 	},
-} satisfies SitePreParser;
+	transform: noTransform,
+} satisfies SiteRules;

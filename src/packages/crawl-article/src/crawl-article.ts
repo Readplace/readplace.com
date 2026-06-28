@@ -12,7 +12,7 @@ import { parseImageFromBuffer } from "./parse-image";
 import { parsePlainTextFromBuffer } from "./parse-plain-text";
 import { MAX_PDF_BYTES } from "./pdf-page-limits";
 import type { ExtractPdf } from "./pdf-extract.types";
-import { initFetchTweetViaOembed, isTweetUrl } from "./x-twitter-preprocessor";
+import type { SiteCrawlOutcome, SiteRules } from "@packages/site-rules";
 
 const FETCH_TIMEOUT_MS = 30000;
 
@@ -229,15 +229,52 @@ export async function parsePdfFromBuffer(input: {
  */
 export function initCrawlArticle(deps: {
 	crawlFetch: CrawlFetch;
+	siteRules: readonly SiteRules[];
 	extractPdf?: ExtractPdf;
 	logError: (message: string, error?: Error) => void;
 }): CrawlArticle {
-	const { crawlFetch, extractPdf, logError } = deps;
+	const { crawlFetch, siteRules, extractPdf, logError } = deps;
 	const conditionalGet = initConditionalGet({ crawlFetch, logError });
-	const fetchTweetViaOembed = initFetchTweetViaOembed({ crawlFetch, logError });
 	return async (params) => {
-		if (isTweetUrl(params.url)) {
-			return fetchTweetViaOembed({ url: params.url });
+		let hostname: string;
+		try {
+			hostname = new URL(params.url).hostname;
+		} catch {
+			logError(`[CrawlArticle] Invalid URL ${params.url}`);
+			return { status: "failed" };
+		}
+		/* Site-specific crawl override: the first matching site whose `onCrawl`
+		 * returns content (e.g. X/Twitter oembed) or fails closed wins; `skip`
+		 * falls through to the normal fetch cascade below. */
+		for (const site of siteRules) {
+			let claimed: boolean;
+			try {
+				claimed = site.matches({ url: params.url, hostname });
+			} catch (error) {
+				logError(
+					`[CrawlArticle] Site matches threw for ${params.url}`,
+					error instanceof Error ? error : undefined,
+				);
+				continue;
+			}
+			if (!claimed) continue;
+			let outcome: SiteCrawlOutcome;
+			try {
+				outcome = await site.onCrawl({ url: params.url });
+			} catch (error) {
+				logError(
+					`[CrawlArticle] Site onCrawl threw for ${params.url}`,
+					error instanceof Error ? error : undefined,
+				);
+				return { status: "failed" };
+			}
+			if (outcome.kind === "skip") continue;
+			if (outcome.kind === "failed") return { status: "failed" };
+			return {
+				status: "fetched",
+				html: outcome.html,
+				bodyHash: createHash("sha256").update(outcome.html).digest("hex"),
+			};
 		}
 		const fetched = await conditionalGet(params);
 		if (fetched.status !== "ok") return fetched;
