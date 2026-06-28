@@ -24,10 +24,9 @@ function isParseableIso(iso: string | null): iso is string {
 }
 
 export function initLocalTime(deps: LocalTimeDeps): { attach(): void } {
-	function localize(el: Element): void {
+	function localize(el: Element, timeZone: string): void {
 		const iso = el.getAttribute("datetime");
 		if (!isParseableIso(iso)) return;
-		const timeZone = deps.timeZone();
 		const mode = el.getAttribute("data-local-time");
 		if (mode === "relative") {
 			// Relative text ("5m ago") is timezone-neutral, so leave it visible and
@@ -40,9 +39,12 @@ export function initLocalTime(deps: LocalTimeDeps): { attach(): void } {
 	}
 
 	function scan(): void {
+		// The viewer's zone is constant for the page, so resolve it once per scan
+		// rather than per element — a polling queue re-scans every few seconds.
+		const timeZone = deps.timeZone();
 		const elements = deps.document.querySelectorAll(SELECTOR);
 		for (let i = 0; i < elements.length; i++) {
-			localize(elements[i]);
+			localize(elements[i], timeZone);
 		}
 	}
 

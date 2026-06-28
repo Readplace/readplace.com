@@ -19,8 +19,6 @@ describe("toAccountViewModel — state", () => {
 			{ cancelling: false, errorPaymentMethod: false },
 			now,
 		);
-		assert.equal(vm.trialDaysLeft, 1);
-		assert.equal(vm.trialDaysLeftWord, "day");
 		assert.equal(vm.statusLine, "Your free trial ends on ");
 		assert.deepEqual(vm.statusDate, {
 			iso: trialEndsAt,
@@ -44,8 +42,7 @@ describe("toAccountViewModel — state", () => {
 			{ cancelling: false, errorPaymentMethod: false },
 			now,
 		);
-		assert.equal(vm.trialDaysLeft, 1);
-		assert.equal(vm.trialDaysLeftWord, "day");
+		assert.equal(vm.statusDateTail, " — 1 day left.");
 	});
 });
 

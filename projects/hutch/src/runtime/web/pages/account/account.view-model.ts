@@ -37,21 +37,9 @@ export interface AccountViewModel {
 	statusLine: string;
 	statusDate?: LocalTime;
 	statusDateTail?: string;
-	trialEndsAtIso?: string;
-	trialEndsAtFormatted?: string;
-	trialDaysLeft?: number;
-	trialDaysLeftWord?: "day" | "days";
 	showCancellingNotice: boolean;
 	stateIsErrorPaymentMethod: boolean;
 	actions: AccountAction[];
-}
-
-function formatTrialEndsAt(iso: string): string {
-	return new Date(iso).toLocaleDateString("en-AU", {
-		day: "numeric",
-		month: "short",
-		year: "numeric",
-	});
 }
 
 function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number; daysLeftWord: "day" | "days" } {
@@ -163,10 +151,6 @@ export function toAccountViewModel(
 				statusLine: "Your free trial ends on ",
 				statusDate: toAbsoluteDate({ iso: trialEndsAt }),
 				statusDateTail: ` — ${daysLeft} ${daysLeftWord} left.`,
-				trialEndsAtIso: trialEndsAt,
-				trialEndsAtFormatted: formatTrialEndsAt(trialEndsAt),
-				trialDaysLeft: daysLeft,
-				trialDaysLeftWord: daysLeftWord,
 			};
 		}
 		case "cancellation-scheduled":
