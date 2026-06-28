@@ -19,6 +19,7 @@ import { ANALYTICS_EVENTS, LAMBDA_NAMES, LOG_GROUPS, METRICS, STREAMS } from "..
 import {
 	buildAnalyticsDashboardBody,
 	SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
+	WORKER_DASHBOARD_LOG_GROUPS,
 } from "../runtime/observability/analytics-dashboard";
 import { DomainRegistration } from "./domain-registration";
 import { DomainRedirect } from "./domain-redirect";
@@ -1144,6 +1145,7 @@ new aws.cloudwatch.Dashboard("readplace-analytics", {
 			region,
 			hutchLogGroupName,
 			subscriptionLogGroupNames: SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
+			workerLogGroupNames: WORKER_DASHBOARD_LOG_GROUPS,
 			excludedVisitorHashes,
 		})),
 	),

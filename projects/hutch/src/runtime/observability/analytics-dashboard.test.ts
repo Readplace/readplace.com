@@ -1,3 +1,4 @@
+import { SAVE_LINK_LOG_GROUPS } from "@packages/hutch-infra-components";
 import {
 	ANALYTICS_EVENTS,
 	CONVERSION_EVENTS,
@@ -10,6 +11,7 @@ import {
 import {
 	buildAnalyticsDashboardBody,
 	SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
+	WORKER_DASHBOARD_LOG_GROUPS,
 } from "./analytics-dashboard";
 
 const ANY_STREAM_RE = /\bstream\s*=\s*"([a-z][a-z0-9_-]*)"/g;
@@ -21,6 +23,7 @@ function buildBody() {
 		region: "ap-southeast-2",
 		hutchLogGroupName: LOG_GROUPS.hutchHandler,
 		subscriptionLogGroupNames: SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
+		workerLogGroupNames: WORKER_DASHBOARD_LOG_GROUPS,
 		excludedVisitorHashes: ["deadbeefcafef00d"],
 	});
 }
@@ -65,9 +68,9 @@ function collectReferencedEvents(): Set<string> {
 }
 
 describe("buildAnalyticsDashboardBody — drift prevention", () => {
-	it("emits 22 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 3 save-funnel) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
+	it("emits 23 widgets (7 traffic+audience, 3 conversions, 3 imports+medium, 3 subscriptions, 2 view-funnel, 1 internal-clicks, 3 save-funnel, 1 errors) — adding or dropping one without updating this count is a deliberate signal to review the dashboard's scope", () => {
 		const body = buildBody();
-		expect(body.widgets).toHaveLength(22);
+		expect(body.widgets).toHaveLength(23);
 	});
 
 	it("the readers widget counts distinct user_ids from article_read events (not pageviews) — distinguishes opening the reader from explicitly marking-as-read", () => {
@@ -95,17 +98,51 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(clicks).toContain("stats count(*) as clicks by section, element");
 	});
 
+	it("the errors widget is a latest-first table that surfaces logError lines and the parse-errors stream across the hutch, every subscription, and every async-worker log group", () => {
+		const errorWidget = buildBody().widgets.find(
+			(w) => typeof w.properties.query === "string" && w.properties.query.includes("coalesce(message, reason) as detail"),
+		);
+		expect(errorWidget).toBeDefined();
+		expect(errorWidget?.properties.view).toBe("table");
+		const query = errorWidget?.properties.query;
+		expect(query).toContain('filter level = "ERROR"');
+		expect(query).toContain(`stream = "${STREAMS.parseErrors}"`);
+		expect(query).toContain('@message like "ERROR"');
+		expect(query).toContain("| sort @timestamp desc");
+		expect(query).toContain("| limit 100");
+		const expectedSource = [
+			LOG_GROUPS.hutchHandler,
+			...SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
+			...WORKER_DASHBOARD_LOG_GROUPS,
+		]
+			.map((name) => `SOURCE '${name}'`)
+			.join(" | ");
+		expect(query).toContain(`${expectedSource} | fields @timestamp, level`);
+	});
+
+	it("every async-worker log group (SAVE_LINK_LOG_GROUPS) is surfaced by the errors widget — adding a worker Lambda to the shared constant without it flowing onto the dashboard fails CI", () => {
+		const errorWidget = buildBody().widgets.find(
+			(w) => typeof w.properties.query === "string" && w.properties.query.includes("coalesce(message, reason) as detail"),
+		);
+		const query = errorWidget?.properties.query;
+		const workerLogGroups = Object.values(SAVE_LINK_LOG_GROUPS);
+		expect(workerLogGroups.length).toBeGreaterThan(0);
+		for (const logGroup of workerLogGroups) {
+			expect(query).toContain(`SOURCE '${logGroup}'`);
+		}
+	});
+
 	it("every stream used by an emitter (STREAMS) is referenced by at least one widget query — adding a new stream without a widget fails CI", () => {
 		const referenced = collectReferencedStreams();
 		const declared = new Set(Object.values(STREAMS));
 		// Streams whose data is only inspected via ad-hoc Log Insights queries,
-		// not surfaced on the analytics dashboard. Updating the dashboard to
-		// include parse-error / crawl-outcome widgets would shrink this set.
+		// not surfaced on the analytics dashboard. The parse-errors stream is
+		// surfaced by the Recent-errors widget, so only crawl-outcomes remains;
+		// adding a crawl-outcome widget would empty this set.
 		const ignored = new Set<string>([
-			STREAMS.parseErrors,
 			STREAMS.crawlOutcomes,
 		]);
-		expect(ignored.size).toBe(2);
+		expect(ignored.size).toBe(1);
 		const missing = [...declared].filter((s) => !referenced.has(s) && !ignored.has(s));
 		expect(missing).toEqual([]);
 	});
@@ -203,6 +240,7 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 			region: "ap-southeast-2",
 			hutchLogGroupName: LOG_GROUPS.hutchHandler,
 			subscriptionLogGroupNames: SUBSCRIPTION_DASHBOARD_LOG_GROUPS,
+			workerLogGroupNames: WORKER_DASHBOARD_LOG_GROUPS,
 			excludedVisitorHashes: [],
 		});
 		expect(withoutExclusion.widgets).toHaveLength(withExclusion.widgets.length);
