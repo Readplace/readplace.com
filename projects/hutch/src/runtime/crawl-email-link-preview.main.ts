@@ -1,15 +1,16 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import {
-	linkedinPreParser,
 	initReadabilityParser,
-	mediumPreParser,
-	theInformationPreParser,
+	linkedinSiteRules,
+	mediumSiteRules,
+	theInformationSiteRules,
 } from "@packages/article-parser";
 import {
 	CRAWL_PERSONAS,
 	initCrawlArticle,
 	initCrawlFetch,
 	initFetchThumbnailImage,
+	initXTwitterSiteRules,
 } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import { initCrawlAndFinalizeArticle, initFinalizeArticle } from "@packages/finalize-article";
@@ -45,10 +46,16 @@ const crawlFetch = initCrawlFetch({
 	personas: CRAWL_PERSONAS,
 	isBlocked: isBlockedIpAddress,
 });
-const crawlArticle = initCrawlArticle({ crawlFetch, logError });
+const siteRules = [
+	theInformationSiteRules,
+	mediumSiteRules,
+	linkedinSiteRules,
+	initXTwitterSiteRules({ crawlFetch, logError }),
+];
+const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError });
 const { parseHtml } = initReadabilityParser({
 	crawlArticle,
-	sitePreParsers: [theInformationPreParser, mediumPreParser, linkedinPreParser],
+	siteRules,
 	logError,
 });
 const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError });
