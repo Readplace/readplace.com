@@ -210,6 +210,21 @@ const BUNDLES = [
 		].join("\n"),
 	},
 	{
+		entry: path.join(PROJECT_ROOT, "src/runtime/web/local-time.client.ts"),
+		outfile: path.join(OUT_DIR, "local-time.client.js"),
+		globalName: "LocalTime",
+		footer: [
+			// Loaded globally with `defer`, so the DOM is parsed before this runs
+			// and the initial scan sees every server-rendered baseline. The swap
+			// listener re-localises instants that arrive inside a swapped <main>.
+			"LocalTime.initLocalTime({",
+			"  document: window.document,",
+			"  timeZone: function () { return Intl.DateTimeFormat().resolvedOptions().timeZone; },",
+			"  addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); }",
+			"}).attach();",
+		].join("\n"),
+	},
+	{
 		entry: path.join(
 			PROJECT_ROOT,
 			"src/runtime/web/pages/view/expiry-counter.client.ts",

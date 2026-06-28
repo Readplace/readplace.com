@@ -21,6 +21,13 @@ describe("toAccountViewModel — state", () => {
 		);
 		assert.equal(vm.trialDaysLeft, 1);
 		assert.equal(vm.trialDaysLeftWord, "day");
+		assert.equal(vm.statusLine, "Your free trial ends on ");
+		assert.deepEqual(vm.statusDate, {
+			iso: trialEndsAt,
+			label: "24 May 2026",
+			mode: "date",
+		});
+		assert.equal(vm.statusDateTail, " — 1 day left.");
 	});
 
 	it("shows zero-remainder day boundary correctly", () => {
@@ -127,7 +134,13 @@ describe("toAccountViewModel — actions", () => {
 
 		assert.equal(vm.state, "cancellation-scheduled");
 		assert.equal(vm.stateClass, "account-card account-card--cancellation-scheduled");
-		assert.equal(vm.statusLine, `Your subscription ends on ${new Date("2026-06-22T10:00:00.000Z").toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}.`);
+		assert.equal(vm.statusLine, "Your subscription ends on ");
+		assert.deepEqual(vm.statusDate, {
+			iso: "2026-06-22T10:00:00.000Z",
+			label: "22 June 2026",
+			mode: "date",
+		});
+		assert.equal(vm.statusDateTail, ".");
 		const keys = vm.actions.map((a) => a.key);
 		assert.deepEqual(keys, ["reactivate-form"]);
 		assert.equal(vm.actions[0].variant, "primary");
@@ -149,7 +162,13 @@ describe("toAccountViewModel — actions", () => {
 		);
 
 		assert.equal(vm.state, "cancellation-scheduled");
-		assert.equal(vm.statusLine, `Your subscription ends on ${new Date("2026-06-05T00:00:00.000Z").toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}.`);
+		assert.equal(vm.statusLine, "Your subscription ends on ");
+		assert.deepEqual(vm.statusDate, {
+			iso: "2026-06-05T00:00:00.000Z",
+			label: "5 June 2026",
+			mode: "date",
+		});
+		assert.equal(vm.statusDateTail, ".");
 		const keys = vm.actions.map((a) => a.key);
 		assert.deepEqual(keys, ["reactivate-form"]);
 	});

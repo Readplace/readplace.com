@@ -25,7 +25,7 @@
 					data-test-inbox-email-status="{{status}}"
 					>{{statusLabel}}</span
 				>{{/if}}
-				<span class="inbox-emails__time" data-test-inbox-email-time>{{receivedAgo}}</span>
+				<time class="inbox-emails__time" data-test-inbox-email-time datetime="{{received.iso}}" data-local-time="{{received.mode}}">{{received.label}}</time>
 			</a>
 		</li>
 		{{/each}}

@@ -1,6 +1,6 @@
 import { decomposeTimeLeft } from "@packages/time-left";
 import type { EffectiveAccess } from "../../../domain/access/effective-access";
-import { withInternalTracking } from "@packages/web-shell";
+import { type LocalTime, toAbsoluteDate, withInternalTracking } from "@packages/web-shell";
 import {
 	ACCOUNT_CANCEL_URL,
 	ACCOUNT_REACTIVATE_URL,
@@ -31,7 +31,12 @@ export interface AccountViewModel {
 	state: AccountCardState;
 	stateClass: string;
 	heading: string;
+	/** Leading sentence text. For the trial-countdown and cancellation-scheduled
+	 * states this is only the text before the date — `statusDate`/`statusDateTail`
+	 * carry the rest so the date renders as a localisable `<time>` element. */
 	statusLine: string;
+	statusDate?: LocalTime;
+	statusDateTail?: string;
 	trialEndsAtIso?: string;
 	trialEndsAtFormatted?: string;
 	trialDaysLeft?: number;
@@ -155,7 +160,9 @@ export function toAccountViewModel(
 			const { daysLeft, daysLeftWord } = formatTrialDaysLeft(trialEndsAt, now);
 			return {
 				...baseFor("trial", [SUBSCRIBE_ACTION]),
-				statusLine: `Your free trial ends on ${formatTrialEndsAt(trialEndsAt)} — ${daysLeft} ${daysLeftWord} left.`,
+				statusLine: "Your free trial ends on ",
+				statusDate: toAbsoluteDate({ iso: trialEndsAt }),
+				statusDateTail: ` — ${daysLeft} ${daysLeftWord} left.`,
 				trialEndsAtIso: trialEndsAt,
 				trialEndsAtFormatted: formatTrialEndsAt(trialEndsAt),
 				trialDaysLeft: daysLeft,
@@ -165,7 +172,9 @@ export function toAccountViewModel(
 		case "cancellation-scheduled":
 			return {
 				...baseFor("cancellation-scheduled", [REACTIVATE_FORM_ACTION]),
-				statusLine: `Your subscription ends on ${formatTrialEndsAt(access.cancellationEffectiveAt)}.`,
+				statusLine: "Your subscription ends on ",
+				statusDate: toAbsoluteDate({ iso: access.cancellationEffectiveAt }),
+				statusDateTail: ".",
 			};
 		case "inactive":
 			return {

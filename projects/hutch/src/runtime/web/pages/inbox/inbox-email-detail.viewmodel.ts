@@ -1,11 +1,11 @@
-import { EMAIL_FEATURE } from "@packages/web-shell";
+import { EMAIL_FEATURE, type LocalTime, toAbsoluteDateTime } from "@packages/web-shell";
 import type { InboxEmailEntry } from "@packages/domain/inbox";
 import { type MailTab, buildMailTabs } from "./mail-tabs";
 
 export interface InboxEmailDetailViewModel {
 	subject: string;
 	sender: string;
-	receivedAtLabel: string;
+	received: LocalTime;
 	backHref: string;
 	tabs: MailTab[];
 	/** A `received` email with its body present renders in the iframe; every
@@ -25,10 +25,7 @@ export function toInboxEmailDetailViewModel(input: {
 	return {
 		subject: input.entry.subject === "" ? "(no subject)" : input.entry.subject,
 		sender: input.entry.senderEmail === "" ? "(unknown sender)" : input.entry.senderEmail,
-		receivedAtLabel: new Date(input.entry.receivedAt).toLocaleString("en-AU", {
-			dateStyle: "medium",
-			timeStyle: "short",
-		}),
+		received: toAbsoluteDateTime({ iso: input.entry.receivedAt }),
 		backHref: `/inbox?feature=${EMAIL_FEATURE}`,
 		tabs: buildMailTabs("view"),
 		canRenderBody,

@@ -158,6 +158,14 @@ describe("Inbox emails list route", () => {
 			"(no subject)",
 		);
 
+		// The received time renders as a localisable <time> baseline carrying the
+		// stored UTC ISO in datetime and an enhancement mode for the client script.
+		const time = rows[0].querySelector("[data-test-inbox-email-time]");
+		assert(time, "received time element must render");
+		expect(time.tagName).toBe("TIME");
+		expect(time.getAttribute("datetime")).toBe("2026-06-24T09:00:00.000Z");
+		expect(time.getAttribute("data-local-time")).not.toBeNull();
+
 		// Non-received rows surface a status badge; the received row does not.
 		expect(rows[0].querySelector("[data-test-inbox-email-status]")).toBeNull();
 		expect(
