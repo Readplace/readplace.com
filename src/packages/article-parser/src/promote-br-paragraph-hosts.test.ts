@@ -145,7 +145,7 @@ describe("promoteBrParagraphHosts end-to-end through parseHtml", () => {
 			html: "",
 			bodyHash: "a".repeat(64),
 		}),
-		sitePreParsers: [],
+		siteRules: [],
 		logError: () => {},
 	});
 

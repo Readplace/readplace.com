@@ -227,7 +227,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 	const crawlArticle = stubCrawlArticle;
 	const { parseArticle } = initReadabilityParser({
 		crawlArticle,
-		sitePreParsers: [],
+		siteRules: [],
 		logError: createNoopLogError(),
 	});
 	const applyParseResult = createFakeApplyParseResult({

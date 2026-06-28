@@ -1,4 +1,4 @@
-import { theInformationSiteRules } from "./the-information-pre-parser";
+import { theInformationSiteRules } from "./the-information-site-rules";
 
 function buildHtml(scriptContent: string | null, extraBody = "") {
 	const scriptTag =

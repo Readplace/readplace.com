@@ -247,7 +247,17 @@ export function initCrawlArticle(deps: {
 		 * returns content (e.g. X/Twitter oembed) or fails closed wins; `skip`
 		 * falls through to the normal fetch cascade below. */
 		for (const site of siteRules) {
-			if (!site.matches({ url: params.url, hostname })) continue;
+			let claimed: boolean;
+			try {
+				claimed = site.matches({ url: params.url, hostname });
+			} catch (error) {
+				logError(
+					`[CrawlArticle] Site matches threw for ${params.url}`,
+					error instanceof Error ? error : undefined,
+				);
+				continue;
+			}
+			if (!claimed) continue;
 			let outcome: SiteCrawlOutcome;
 			try {
 				outcome = await site.onCrawl({ url: params.url });

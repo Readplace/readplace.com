@@ -1,5 +1,5 @@
 import type { CrawlFetch } from "./crawl-fetch";
-import { initXTwitterSiteRules } from "./x-twitter-preprocessor";
+import { initXTwitterSiteRules } from "./x-twitter-site-rules";
 
 const noopLogError = () => {};
 

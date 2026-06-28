@@ -29,12 +29,12 @@ const AUTHOR_PHOTO_SELECTOR =
 
 const TITLE_SUFFIX_REGEX = /\s+[|\-–—]\s+.+$/;
 
-/* Pre-parser for Medium-hosted articles.
+/* Site rules for Medium-hosted articles.
  *
  * Medium nests its byline / read-time / publish-date / image-tooltip block
  * inside the same content container as the article body when the article
  * has an <h2> subtitle dek. Mozilla Readability's scoring then keeps that
- * chrome as "article content." This pre-parser locates the article
+ * chrome as "article content." This rule locates the article
  * container, strips known noise nodes using a selector + text-fingerprint
  * check (so legitimate body content that coincidentally matches a phrase
  * isn't removed), and hands the cleaned body to the parser.
@@ -186,7 +186,7 @@ function stripLeafElementsByText(params: {
 /* Medium's image-tooltip text lives in a <span> directly inside the
  * figure > [role=button] interactive wrapper (raw HTML). Readability later
  * wraps stray spans in <p>, so the post-Readability shape includes a <p>
- * — but the pre-parser runs BEFORE Readability so we target the <span>.
+ * — but the rule runs BEFORE Readability so we target the <span>.
  * We strip the span only; the sibling <picture> stays. */
 function stripPictureTooltip(container: DomElement): void {
 	const candidates = container.querySelectorAll('figure [role="button"] span');

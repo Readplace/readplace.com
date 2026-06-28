@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { noExtract, skipCrawl } from "@packages/site-rules";
 import type { SiteRules } from "@packages/site-rules";
 
-/* Pre-parser for LinkedIn posts.
+/* Site rules for LinkedIn posts.
  *
  * LinkedIn's logged-out post page renders the post body inside a single
  * `white-space: pre-wrap` element whose paragraph breaks are literal `\n\n`

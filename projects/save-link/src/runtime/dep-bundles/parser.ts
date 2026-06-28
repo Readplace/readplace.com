@@ -52,7 +52,7 @@ export function initParserDepBundle(deps: {
 	const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError: deps.logError });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
-		sitePreParsers: siteRules,
+		siteRules,
 		logError: deps.logError,
 	});
 	return { crawlFetch, crawlArticle, parseHtml };
@@ -94,7 +94,7 @@ export function initComprehensiveParserDepBundle(deps: {
 	});
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
-		sitePreParsers: siteRules,
+		siteRules,
 		logError: deps.logError,
 	});
 	return { crawlFetch, crawlArticle, parseHtml };

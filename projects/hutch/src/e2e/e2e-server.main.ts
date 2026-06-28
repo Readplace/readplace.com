@@ -62,7 +62,7 @@ const extractPdf: ExtractPdf = async () => ({
 })
 const siteRules = [theInformationSiteRules, mediumSiteRules, linkedinSiteRules, initXTwitterSiteRules({ crawlFetch, logError })]
 const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError })
-const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, sitePreParsers: siteRules, logError })
+const { parseArticle, parseHtml } = initReadabilityParser({ crawlArticle, siteRules, logError })
 
 /** E2E tests use localhost URLs because the test server IS localhost.
  * Skip private-network rejection so test articles can be saved and viewed. */

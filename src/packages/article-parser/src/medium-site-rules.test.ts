@@ -1,4 +1,4 @@
-import { mediumSiteRules } from "./medium-pre-parser";
+import { mediumSiteRules } from "./medium-site-rules";
 
 /** Filler body that survives MIN_BODY_CHARS so individual rule tests can
  * still assert on whatever the rule under test left behind. */

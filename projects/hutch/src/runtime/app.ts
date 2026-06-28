@@ -214,7 +214,7 @@ function initProviders() {
 		const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 		const { parseHtml } = initReadabilityParser({
 			crawlArticle,
-			sitePreParsers: siteRules,
+			siteRules,
 			logError,
 		});
 		const { refreshArticleIfStale } = initRefreshArticleIfStale({
@@ -382,13 +382,14 @@ function initProviders() {
 	const siteRules = [
 		theInformationSiteRules,
 		mediumSiteRules,
+		linkedinSiteRules,
 		initXTwitterSiteRules({ crawlFetch, logError }),
 	];
 	const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, extractPdf, logError });
 	const extractLinksFromPageUrl = initExtractLinksFromPageUrl({ crawlFetch, validateUrl: validateSaveableUrl });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
-		sitePreParsers: siteRules,
+		siteRules,
 		logError,
 	});
 	const fetchThumbnailImage = initFetchThumbnailImage({ crawlFetch, logError });

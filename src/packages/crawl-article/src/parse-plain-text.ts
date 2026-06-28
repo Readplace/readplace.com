@@ -24,7 +24,7 @@ function deriveTitleFromTextUrl(url: string): string {
  * Readability-friendly document — a `<title>`/`<h1>` derived from the URL plus
  * one `<p>` per blank-line-separated block — so the shared downstream
  * `parseHtml` (Readability) extracts it with no plain-text special case. Mirrors
- * the shape `buildSyntheticHtml` feeds Readability for site pre-parsers; prose
+ * the shape `buildSyntheticHtml` feeds Readability for site rules; prose
  * reflows to the reader's body width, which is the right default for a reader
  * view (intra-paragraph whitespace from monospaced sources is not preserved).
  */

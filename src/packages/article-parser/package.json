@@ -1,7 +1,7 @@
 {
   "name": "@packages/article-parser",
   "version": "1.0.0",
-  "description": "Article HTML parsers (Readability + site-specific pre-parsers) shared between save-link and hutch",
+  "description": "Article HTML parsers (Readability + site-specific rules) shared between save-link and hutch",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "private": true,

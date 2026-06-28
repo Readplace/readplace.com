@@ -1,5 +1,5 @@
 import { parseHTML } from "linkedom";
-import { linkedinSiteRules } from "./linkedin-pre-parser";
+import { linkedinSiteRules } from "./linkedin-site-rules";
 import { initReadabilityParser } from "./readability-parser";
 
 /* Parse a body fragment, run the in-place transform, and return the body HTML
@@ -130,14 +130,14 @@ function linkedinPostPage(commentary: string): string {
 }
 
 describe("linkedinSiteRules end-to-end through parseHtml", () => {
-	const parser = (preParsers: Parameters<typeof initReadabilityParser>[0]["sitePreParsers"]) =>
+	const parser = (siteRules: Parameters<typeof initReadabilityParser>[0]["siteRules"]) =>
 		initReadabilityParser({
 			crawlArticle: async () => ({
 				status: "fetched" as const,
 				html: "",
 				bodyHash: "a".repeat(64),
 			}),
-			sitePreParsers: preParsers,
+			siteRules,
 			logError: () => {},
 		});
 

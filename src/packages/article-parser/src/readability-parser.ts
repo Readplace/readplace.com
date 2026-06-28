@@ -10,7 +10,7 @@ import { resolveRelativeUrls } from "./resolve-relative-urls";
 
 export function initReadabilityParser(deps: {
 	crawlArticle: CrawlArticle;
-	sitePreParsers: readonly SiteRules[];
+	siteRules: readonly SiteRules[];
 	logError: (message: string, error?: Error) => void;
 }): { parseArticle: ParseArticle; parseHtml: ParseHtml } {
 	const parseHtml: ParseHtml = (params) => {
@@ -21,8 +21,8 @@ export function initReadabilityParser(deps: {
 			return { ok: false, reason: "Invalid URL" };
 		}
 
-		const extracted = tryExtractFromPreParsers({
-			preParsers: deps.sitePreParsers,
+		const extracted = tryExtractFromSiteRules({
+			siteRules: deps.siteRules,
 			hostname,
 			html: params.html,
 			url: params.url,
@@ -48,11 +48,11 @@ export function initReadabilityParser(deps: {
 				originalUrl: params.url,
 				renderPlaceholder: renderVideoPlaceholder,
 			});
-			/* Site pre-parsers may mutate the document in place (e.g. LinkedIn
+			/* Site rules may mutate the document in place (e.g. LinkedIn
 			 * rebuilding `\n\n` `white-space: pre-wrap` paragraphs) before
 			 * Readability scores it. */
 			applyTransforms({
-				preParsers: deps.sitePreParsers,
+				siteRules: deps.siteRules,
 				hostname,
 				document,
 				url: params.url,
@@ -128,21 +128,21 @@ export function initReadabilityParser(deps: {
 	return { parseArticle, parseHtml };
 }
 
-function tryExtractFromPreParsers(params: {
-	preParsers: readonly SiteRules[];
+function tryExtractFromSiteRules(params: {
+	siteRules: readonly SiteRules[];
 	hostname: string;
 	html: string;
 	url: string;
 	logError: (message: string, error?: Error) => void;
 }): SiteArticleContent | undefined {
-	for (const preParser of params.preParsers) {
+	for (const site of params.siteRules) {
 		try {
-			if (!preParser.matches({ url: params.url, hostname: params.hostname })) continue;
-			const extracted = preParser.extract({ html: params.html });
+			if (!site.matches({ url: params.url, hostname: params.hostname })) continue;
+			const extracted = site.extract({ html: params.html });
 			if (extracted) return extracted;
 		} catch (error) {
 			params.logError(
-				`[ReadabilityParser] Site pre-parser threw for ${params.url}`,
+				`[ReadabilityParser] Site extract threw for ${params.url}`,
 				toError(error),
 			);
 		}
@@ -150,24 +150,24 @@ function tryExtractFromPreParsers(params: {
 	return undefined;
 }
 
-/* Run every matching pre-parser's in-place `transform` against the parsed
+/* Run every matching site rule's in-place `transform` against the parsed
  * document before the default parser scores it. A transform that throws is
  * logged and swallowed so a faulty site-specific tweak can never drop the
  * article — the document is left as it was and Readability still scores it. */
 function applyTransforms(params: {
-	preParsers: readonly SiteRules[];
+	siteRules: readonly SiteRules[];
 	hostname: string;
 	document: Document;
 	url: string;
 	logError: (message: string, error?: Error) => void;
 }): void {
-	for (const preParser of params.preParsers) {
-		if (!preParser.matches({ url: params.url, hostname: params.hostname })) continue;
+	for (const site of params.siteRules) {
+		if (!site.matches({ url: params.url, hostname: params.hostname })) continue;
 		try {
-			preParser.transform({ document: params.document });
+			site.transform({ document: params.document });
 		} catch (error) {
 			params.logError(
-				`[ReadabilityParser] Site pre-parser transform threw for ${params.url}`,
+				`[ReadabilityParser] Site transform threw for ${params.url}`,
 				toError(error),
 			);
 		}
@@ -178,7 +178,7 @@ function toError(error: unknown): Error {
 	return error instanceof Error ? error : new Error(String(error));
 }
 
-/* Wrap the pre-parser's extracted content in a minimal HTML document so
+/* Wrap the site rule's extracted content in a minimal HTML document so
  * Readability has a clean, high-scoring `<article>` to pick from. The
  * title is set both in `<title>` (for Readability's title extraction) and
  * as an `<h1>` inside the article so Readability's heading heuristics

@@ -33,13 +33,13 @@ const ARTICLE_HTML = `
 
 function initParser(overrides: {
 	crawlArticle?: Parameters<typeof initReadabilityParser>[0]["crawlArticle"];
-	sitePreParsers?: readonly TestSite[];
+	siteRules?: readonly TestSite[];
 	logError?: (message: string, error?: Error) => void;
 } = {}) {
 	return initReadabilityParser({
 		crawlArticle:
 			overrides.crawlArticle ?? (async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) })),
-		sitePreParsers: (overrides.sitePreParsers ?? []).map(toSiteRules),
+		siteRules: (overrides.siteRules ?? []).map(toSiteRules),
 		logError: overrides.logError ?? (() => {}),
 	});
 }
@@ -276,7 +276,7 @@ describe("initReadabilityParser", () => {
 	describe("site pre-parser wiring", () => {
 		it("uses the content returned by the first matching pre-parser whose extract returns a result", () => {
 			const calls: string[] = [];
-			const matchingPreParser: TestSite = {
+			const matchingSite: TestSite = {
 				matches: ({ hostname }) => hostname === "matching.example.com",
 				extract: ({ html: _html }) => {
 					calls.push("matching.extract");
@@ -287,7 +287,7 @@ describe("initReadabilityParser", () => {
 					};
 				},
 			};
-			const nonMatchingPreParser: TestSite = {
+			const nonMatchingSite: TestSite = {
 				matches: () => false,
 				extract: () => {
 					calls.push("nonMatching.extract");
@@ -296,7 +296,7 @@ describe("initReadabilityParser", () => {
 			};
 
 			const { parseHtml } = initParser({
-				sitePreParsers: [matchingPreParser, nonMatchingPreParser],
+				siteRules: [matchingSite, nonMatchingSite],
 			});
 
 			const result = parseHtml({
@@ -315,14 +315,14 @@ describe("initReadabilityParser", () => {
 
 		it("falls through to the next pre-parser when extract returns undefined", () => {
 			const calls: string[] = [];
-			const firstPreParser: TestSite = {
+			const firstSite: TestSite = {
 				matches: () => true,
 				extract: () => {
 					calls.push("first.extract");
 					return undefined;
 				},
 			};
-			const secondPreParser: TestSite = {
+			const secondSite: TestSite = {
 				matches: () => true,
 				extract: () => {
 					calls.push("second.extract");
@@ -334,7 +334,7 @@ describe("initReadabilityParser", () => {
 			};
 
 			const { parseHtml } = initParser({
-				sitePreParsers: [firstPreParser, secondPreParser],
+				siteRules: [firstSite, secondSite],
 			});
 
 			const result = parseHtml({
@@ -357,7 +357,7 @@ describe("initReadabilityParser", () => {
 			};
 
 			const { parseHtml } = initParser({
-				sitePreParsers: [nonMatching],
+				siteRules: [nonMatching],
 			});
 
 			const result = parseHtml({
@@ -375,7 +375,7 @@ describe("initReadabilityParser", () => {
 
 		it("logs and swallows when a pre-parser throws, so parsing continues with the original HTML", () => {
 			const logged: { message: string; error?: Error }[] = [];
-			const throwingPreParser: TestSite = {
+			const throwingSite: TestSite = {
 				matches: () => true,
 				extract: () => {
 					throw new Error("pre-parser boom");
@@ -383,7 +383,7 @@ describe("initReadabilityParser", () => {
 			};
 
 			const { parseHtml } = initParser({
-				sitePreParsers: [throwingPreParser],
+				siteRules: [throwingSite],
 				logError: (message, error) => logged.push({ message, error }),
 			});
 
@@ -404,7 +404,7 @@ describe("initReadabilityParser", () => {
 
 		it("wraps non-Error throws into an Error before logging", () => {
 			const logged: { message: string; error?: Error }[] = [];
-			const throwingPreParser: TestSite = {
+			const throwingSite: TestSite = {
 				matches: () => true,
 				extract: () => {
 					throw "string-not-error";
@@ -412,7 +412,7 @@ describe("initReadabilityParser", () => {
 			};
 
 			const { parseHtml } = initParser({
-				sitePreParsers: [throwingPreParser],
+				siteRules: [throwingSite],
 				logError: (message, error) => logged.push({ message, error }),
 			});
 
@@ -436,7 +436,7 @@ describe("initReadabilityParser", () => {
 				},
 			};
 
-			const { parseHtml } = initParser({ sitePreParsers: [transforming] });
+			const { parseHtml } = initParser({ siteRules: [transforming] });
 			parseHtml({
 				url: "https://transform.example.com/article",
 				html: ARTICLE_HTML,
@@ -455,7 +455,7 @@ describe("initReadabilityParser", () => {
 				},
 			};
 
-			const { parseHtml } = initParser({ sitePreParsers: [transforming] });
+			const { parseHtml } = initParser({ siteRules: [transforming] });
 			parseHtml({
 				url: "https://example.com/article",
 				html: ARTICLE_HTML,
@@ -475,7 +475,7 @@ describe("initReadabilityParser", () => {
 			};
 
 			const { parseHtml } = initParser({
-				sitePreParsers: [throwingTransform],
+				siteRules: [throwingTransform],
 				logError: (message, error) => logged.push({ message, error }),
 			});
 
@@ -683,7 +683,7 @@ describe("initReadabilityParser", () => {
 		});
 
 		it("escapes HTML-significant characters in the extracted title", () => {
-			const preParser: TestSite = {
+			const site: TestSite = {
 				matches: () => true,
 				extract: () => ({
 					title: 'Weird <Title> with "quotes" & ampersand',
@@ -692,7 +692,7 @@ describe("initReadabilityParser", () => {
 				}),
 			};
 
-			const { parseHtml } = initParser({ sitePreParsers: [preParser] });
+			const { parseHtml } = initParser({ siteRules: [site] });
 			const result = parseHtml({
 				url: "https://example.com/article",
 				html: "<html><body></body></html>",
