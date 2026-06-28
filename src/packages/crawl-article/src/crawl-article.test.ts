@@ -144,6 +144,19 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		expect(fetched).toEqual([]);
 	});
 
+	it("fails closed without throwing or fetching when given a malformed URL", async () => {
+		const fakeFetch: typeof fetch = async () => {
+			throw new Error("fetch must not be invoked for a malformed URL");
+		};
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, logError });
+
+		const result = await crawlArticle({ url: "not a valid url" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Invalid URL not a valid url");
+	});
+
 	it("returns not-modified on 304 and forwards If-None-Match / If-Modified-Since", async () => {
 		let capturedInit: RequestInit | undefined;
 		const fakeFetch: typeof fetch = async (_input, init) => {

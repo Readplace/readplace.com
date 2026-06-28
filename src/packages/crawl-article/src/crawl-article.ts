@@ -236,10 +236,16 @@ export function initCrawlArticle(deps: {
 	const { crawlFetch, siteRules, extractPdf, logError } = deps;
 	const conditionalGet = initConditionalGet({ crawlFetch, logError });
 	return async (params) => {
+		let hostname: string;
+		try {
+			hostname = new URL(params.url).hostname;
+		} catch {
+			logError(`[CrawlArticle] Invalid URL ${params.url}`);
+			return { status: "failed" };
+		}
 		/* Site-specific crawl override: the first matching site whose `onCrawl`
 		 * returns content (e.g. X/Twitter oembed) or fails closed wins; `skip`
 		 * falls through to the normal fetch cascade below. */
-		const hostname = new URL(params.url).hostname;
 		for (const site of siteRules) {
 			if (!site.matches({ url: params.url, hostname })) continue;
 			const outcome = await site.onCrawl({ url: params.url });
