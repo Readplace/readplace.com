@@ -96,6 +96,25 @@ const UPLOAD_AUTO_SUBMIT_SCRIPT = `
 </script>
 `;
 
+const FROM_URL_AUTO_SUBMIT_SCRIPT = `
+<script>
+	(function () {
+		function wire() {
+			var form = document.querySelector('form.import__from-url-form');
+			if (!form) return;
+			var input = form.querySelector('input[name="url"]');
+			if (!input || input.value.trim() === '') return;
+			form.requestSubmit();
+		}
+		if (document.readyState === 'loading') {
+			document.addEventListener('DOMContentLoaded', wire, { once: true });
+		} else {
+			wire();
+		}
+	})();
+</script>
+`;
+
 export function ImportPage(vm: ImportViewModel): PageBody {
 	const content = render(IMPORT_TEMPLATE, {
 		...vm,
@@ -127,7 +146,7 @@ const PANEL_CONFIG: Record<ImportMode, PanelConfig> = {
 	"from-url": {
 		template: IMPORT_FROM_URL_PANEL_TEMPLATE,
 		canonicalUrl: "/import?mode=from-url",
-		scripts: IMPORT_CLIENT_SCRIPT,
+		scripts: `${IMPORT_CLIENT_SCRIPT}${FROM_URL_AUTO_SUBMIT_SCRIPT}`,
 	},
 };
 

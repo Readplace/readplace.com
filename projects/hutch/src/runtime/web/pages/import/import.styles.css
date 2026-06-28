@@ -290,17 +290,6 @@
   margin: 0 0 20px;
 }
 
-.import__fallback {
-  font-size: 0.875rem;
-  color: var(--muted-foreground);
-  margin: 0;
-}
-
-.import__fallback-link {
-  color: var(--primary);
-  text-decoration: underline;
-}
-
 /* ---------- Review page ---------- */
 
 .import--review .import__header {

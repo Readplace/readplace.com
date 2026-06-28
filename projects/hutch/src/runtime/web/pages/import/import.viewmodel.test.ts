@@ -203,4 +203,23 @@ describe("toImportAcquireViewModel", () => {
 		expect(vm.tabs[0].isActive).toBe(false);
 		expect(vm.tabs[1].isActive).toBe(true);
 	});
+
+	it("prefills the trimmed url on the from-url tab", () => {
+		const vm = toImportAcquireViewModel({
+			mode: "from-url",
+			url: "  https://news.ycombinator.com  ",
+		});
+		expect(vm.prefillUrl).toBe("https://news.ycombinator.com");
+	});
+
+	it("leaves the prefill empty on the from-url tab when no url is provided", () => {
+		const vm = toImportAcquireViewModel({ mode: "from-url" });
+		expect(vm.prefillUrl).toBe("");
+	});
+
+	it("ignores a url param on the upload tab", () => {
+		const vm = toImportAcquireViewModel({ url: "https://news.ycombinator.com" });
+		expect(vm.mode).toBe("upload");
+		expect(vm.prefillUrl).toBe("");
+	});
 });

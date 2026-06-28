@@ -98,8 +98,10 @@ export function initImportSessionRoutes(deps: ImportRouteDependencies): Router {
 	router.get("/", async (req: Request, res: Response) => {
 		const errorMessage = importErrorMessageMapping(req.query);
 		const mode = typeof req.query.mode === "string" ? req.query.mode : undefined;
+		const url = typeof req.query.url === "string" ? req.query.url : undefined;
 		const vm = toImportAcquireViewModel({
 			mode,
+			url,
 			errors: errorMessage ? [{ message: errorMessage }] : undefined,
 		});
 		sendComponent(req, res, Base(ImportAcquirePage(vm), await deps.buildBannerState(req)));

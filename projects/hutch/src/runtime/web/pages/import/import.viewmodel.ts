@@ -17,10 +17,15 @@ export interface ImportAcquireViewModel {
 	readonly uploadAction: string;
 	readonly fromUrlAction: string;
 	readonly tabs: readonly ImportTabViewModel[];
+	/** Pre-filled into the from-url input so a deep link like
+	 * `/import?mode=from-url&url=…` lands ready to auto-submit. Empty unless the
+	 * visitor arrived with a `url` query param on the from-url tab. */
+	readonly prefillUrl: string;
 }
 
 export function toImportAcquireViewModel(input: {
 	mode?: string;
+	url?: string;
 	errors?: readonly ComponentError[];
 }): ImportAcquireViewModel {
 	const mode: ImportMode = input.mode === "from-url" ? "from-url" : "upload";
@@ -34,6 +39,7 @@ export function toImportAcquireViewModel(input: {
 		uploadAction: "/import",
 		fromUrlAction: "/import/from-url",
 		tabs,
+		prefillUrl: mode === "from-url" ? (input.url?.trim() ?? "") : "",
 	};
 }
 
