@@ -438,6 +438,33 @@ final class ReadplaceAPITests: XCTestCase {
 		)
 	}
 
+	func testInvokeJSONTypedActionSendsAJSONBodyMatchingTheDeclaredType() async throws {
+		// An action whose declared type is application/json must post a JSON body —
+		// not a form-encoded body under a JSON Content-Type. The body encoding follows
+		// the action's own `type`, so a future JSON-bodied flat action invokes correctly.
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/queue/a1/status" ? .json(200, "{}") : .json(404, "{}")
+		}
+		let action = SirenAction(
+			name: "update-status", href: "/queue/a1/status", method: "POST",
+			title: nil, type: "application/json",
+			fields: [SirenField(name: "status", type: "text", value: "read")]
+		)
+
+		try await makeAPI(store: store).invoke(action: action)
+
+		let record = try XCTUnwrap(StubURLProtocol.records(path: "/queue/a1/status").first)
+		XCTAssertEqual(
+			record.request.value(forHTTPHeaderField: "Content-Type"), "application/json",
+			"the request is labelled with the action's declared JSON type"
+		)
+		XCTAssertEqual(
+			TestSupport.jsonObject(record.body)["status"] as? String, "read",
+			"a JSON-typed action posts a JSON body, not a form-encoded one under a JSON header"
+		)
+	}
+
 	func testInvokeSurfacesServerErrorOnFailureStatus() async {
 		let store = TestSupport.loggedInStore()
 		StubURLProtocol.setHandler { _, _ in

@@ -142,9 +142,7 @@ final class ReadplaceAPI {
 		for declared in action.fields ?? [] where fields[declared.name] == nil {
 			if let value = declared.value { fields[declared.name] = value }
 		}
-		let request = formRequest(try absoluteURL(action.href), method: action.method,
-			contentType: action.type ?? "application/x-www-form-urlencoded",
-			fields: fields)
+		let request = try invocationRequest(for: action, fields: fields)
 		let (data, http) = try await send(request)
 		guard (200...399).contains(http.statusCode) else {
 			throw apiError(from: data, status: http.statusCode)
@@ -314,6 +312,21 @@ final class ReadplaceAPI {
 		return request
 	}
 
+	/// Builds the request for a generic action invocation, keeping the body in step
+	/// with the action's declared `type`: a GET carries the fields as query items
+	/// (no body); an `application/json` action sends a JSON body; any other type
+	/// form-encodes the body. The contract ties the encoding to the declared
+	/// `type`, so a JSON action must not ship a form-encoded body under a JSON
+	/// `Content-Type` header.
+	private func invocationRequest(for action: SirenAction, fields: [String: String]) throws -> URLRequest {
+		let url = try absoluteURL(action.href)
+		let type = action.type ?? "application/x-www-form-urlencoded"
+		if action.method.uppercased() != "GET", mediaTypeEssence(type) == "application/json" {
+			return jsonRequest(url, method: action.method, contentType: type, body: fields)
+		}
+		return formRequest(url, method: action.method, contentType: type, fields: fields)
+	}
+
 	/// Resolves a server-declared href to an absolute URL, throwing when the href
 	/// is missing or names a scheme the client doesn't act on — an action the
 	/// client can't follow is a decode-level failure, not a silent no-op.
@@ -336,9 +349,15 @@ final class ReadplaceAPI {
 	/// Whether a `Content-Type` header is the negotiated Siren media type, ignoring
 	/// any `;charset=…` parameters and surrounding case.
 	private func isSirenMediaType(_ header: String?) -> Bool {
-		guard let header else { return false }
-		let essence = header.split(separator: ";").first.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
-		return essence == AppConfig.sirenMediaType
+		mediaTypeEssence(header) == AppConfig.sirenMediaType
+	}
+
+	/// The lowercased media type without parameters — `application/json; charset=utf-8`
+	/// → `application/json` — or nil when the header is absent. One parser keeps the
+	/// Siren-type check and the JSON-body routing comparing the same essence.
+	private func mediaTypeEssence(_ header: String?) -> String? {
+		guard let header else { return nil }
+		return header.split(separator: ";").first.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
 	}
 
 	private func decodeArticle(_ data: Data, response: HTTPURLResponse) throws -> Article {

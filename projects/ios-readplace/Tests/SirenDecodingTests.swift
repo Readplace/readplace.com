@@ -98,6 +98,16 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertEqual(action.fields?.first?.value, "read")
 	}
 
+	func testActionWithoutMethodDefaultsToGET() throws {
+		// Siren defaults an action's method to GET when omitted; a method-less but
+		// otherwise valid action must decode (as GET), never fail the surrounding decode.
+		let json = """
+		{ "name": "search", "href": "/queue" }
+		"""
+		let action = try JSONDecoder().decode(SirenAction.self, from: Data(json.utf8))
+		XCTAssertEqual(action.method, "GET")
+	}
+
 	func testFieldDecodesAStringValue() throws {
 		let json = """
 		{ "name": "status", "type": "text", "value": "read" }
@@ -168,6 +178,44 @@ final class SirenDecodingTests: XCTestCase {
 		], total: 2)
 		let page = QueuePage(collection: try decodeCollection(json))
 		XCTAssertEqual(page.articles.map(\.id), ["good"])
+	}
+
+	func testCollectionDropsAMalformedActionButKeepsValidOnes() throws {
+		// One malformed action (missing the required `name`) is dropped, not allowed
+		// to blank the whole page — every other advertised control still renders. The
+		// page loops all advertised actions, so atomic decoding would let one bad
+		// action take down the collection.
+		let valid = "{ \"name\": \"save-article\", \"title\": \"Save a link\", \"href\": \"/queue\", \"method\": \"POST\" }"
+		let malformed = "{ \"href\": \"/x\", \"method\": \"POST\" }"
+		let json = Fixtures.collection(entitiesJSON: [Fixtures.article()], actionsJSON: "\(valid), \(malformed)")
+		let page = QueuePage(collection: try decodeCollection(json))
+		XCTAssertEqual(
+			page.affordances.compactMap(\.action).map(\.name), ["save-article"],
+			"a malformed action is dropped; the valid ones still render"
+		)
+	}
+
+	func testCollectionDropsAMalformedEntityButKeepsValidOnes() throws {
+		// An entity whose properties are present but malformed (missing the required
+		// `id`) is dropped at decode rather than failing the whole collection —
+		// distinct from an entity with no properties at all (above), which decodes
+		// fine and is dropped later by Article.init?.
+		let malformedEntity = "{ \"properties\": { \"url\": \"https://example.com/x\" } }"
+		let json = Fixtures.collection(entitiesJSON: [Fixtures.article(id: "good"), malformedEntity], total: 2)
+		let page = QueuePage(collection: try decodeCollection(json))
+		XCTAssertEqual(page.articles.map(\.id), ["good"], "a malformed entity is dropped, not page-blanking")
+	}
+
+	func testCollectionDropsAMalformedLinkButKeepsPagination() throws {
+		// A malformed link (missing the required `rel`) is dropped while the valid
+		// navigation links still resolve, so one bad link can't break pagination.
+		let json = Fixtures.collection(
+			entitiesJSON: [Fixtures.article()],
+			extraLinks: ", { \"href\": \"/broken\" }, { \"rel\": [\"next\"], \"href\": \"/queue?page=2\" }",
+			page: 1
+		)
+		let page = QueuePage(collection: try decodeCollection(json))
+		XCTAssertEqual(page.nextHref, "/queue?page=2", "a malformed link is dropped; valid links still resolve")
 	}
 
 	func testCollectionExposesAffordancesAndTotal() throws {

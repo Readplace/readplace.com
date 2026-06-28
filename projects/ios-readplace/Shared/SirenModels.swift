@@ -1,5 +1,39 @@
 import Foundation
 
+// MARK: - Lenient decoding
+
+/// Decodes a single value, capturing `nil` instead of throwing when the value is
+/// malformed. Used to decode arrays element-by-element so one bad element is
+/// dropped rather than failing the whole array.
+private struct FailableDecodable<Wrapped: Decodable>: Decodable {
+	let wrapped: Wrapped?
+
+	init(from decoder: Decoder) throws {
+		let container = try decoder.singleValueContainer()
+		wrapped = try? container.decode(Wrapped.self)
+	}
+}
+
+private extension KeyedDecodingContainer {
+	/// Decodes the array under `key` leniently: a missing, null, or non-array value
+	/// yields `nil`, and each element is decoded independently so a single malformed
+	/// element is dropped rather than failing the whole array. The Siren contract
+	/// requires one malformed link/action/entity to degrade to unactionable, never
+	/// blank the whole response.
+	func decodeLossyArrayIfPresent<Element: Decodable>(
+		_ type: Element.Type,
+		forKey key: Key
+	) throws -> [Element]? {
+		guard var unkeyed = try? nestedUnkeyedContainer(forKey: key) else { return nil }
+		var elements: [Element] = []
+		while !unkeyed.isAtEnd {
+			let element = try unkeyed.decode(FailableDecodable<Element>.self)
+			if let value = element.wrapped { elements.append(value) }
+		}
+		return elements
+	}
+}
+
 // MARK: - Wire format (Siren)
 
 /// A hypermedia link. `href` is optional: a link advertised without one is kept
@@ -51,8 +85,10 @@ struct SirenField: Decodable {
 /// A Siren action: the server declares its href, method, type and fields and the
 /// client follows them rather than constructing a request. `href` is optional so
 /// an action advertised without one decodes and is simply treated as
-/// unactionable. `title` is the server's human label, which the client uses
-/// verbatim as the control's label and accessibility text.
+/// unactionable. `method` is optional on the wire — a method-less action defaults
+/// to `GET` (the Siren default) rather than failing the decode. `title` is the
+/// server's human label, which the client uses verbatim as the control's label
+/// and accessibility text.
 struct SirenAction: Decodable {
 	let name: String
 	let href: String?
@@ -60,6 +96,25 @@ struct SirenAction: Decodable {
 	let title: String?
 	let type: String?
 	let fields: [SirenField]?
+}
+
+extension SirenAction {
+	private enum CodingKeys: String, CodingKey {
+		case name, href, method, title, type, fields
+	}
+
+	/// Decoded leniently so an evolving action degrades rather than blanking the
+	/// surrounding collection: `method` defaults to `GET` (the Siren default) when
+	/// omitted, and a malformed field is dropped rather than failing the action.
+	init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		name = try container.decode(String.self, forKey: .name)
+		href = try container.decodeIfPresent(String.self, forKey: .href)
+		method = try container.decodeIfPresent(String.self, forKey: .method) ?? "GET"
+		title = try container.decodeIfPresent(String.self, forKey: .title)
+		type = try container.decodeIfPresent(String.self, forKey: .type)
+		fields = try container.decodeLossyArrayIfPresent(SirenField.self, forKey: .fields)
+	}
 }
 
 /// The properties of an article entity. Everything except `id`/`url` is
@@ -87,6 +142,24 @@ struct SirenEntity: Decodable {
 	let actions: [SirenAction]?
 }
 
+extension SirenEntity {
+	private enum CodingKeys: String, CodingKey {
+		case `class`, rel, properties, links, actions
+	}
+
+	/// Decodes the control arrays leniently so one malformed link or action drops
+	/// to unactionable instead of failing the whole entity (and, in turn, the
+	/// collection that contains it).
+	init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		`class` = try container.decodeIfPresent([String].self, forKey: .class)
+		rel = try container.decodeIfPresent([String].self, forKey: .rel)
+		properties = try container.decodeIfPresent(ArticleProperties.self, forKey: .properties)
+		links = try container.decodeLossyArrayIfPresent(SirenLink.self, forKey: .links)
+		actions = try container.decodeLossyArrayIfPresent(SirenAction.self, forKey: .actions)
+	}
+}
+
 struct CollectionProperties: Decodable {
 	let total: Int?
 	let page: Int?
@@ -107,6 +180,25 @@ struct SirenCollection: Decodable {
 	let entities: [SirenEntity]?
 	let links: [SirenLink]?
 	let actions: [SirenAction]?
+}
+
+extension SirenCollection {
+	private enum CodingKeys: String, CodingKey {
+		case `class`, properties, entities, links, actions
+	}
+
+	/// Decodes the entity and control arrays leniently so a single malformed
+	/// entity, link, or action is dropped rather than blanking the whole page —
+	/// the page now loops every advertised control, so atomic decoding would let
+	/// one bad element take down the entire collection.
+	init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		`class` = try container.decodeIfPresent([String].self, forKey: .class)
+		properties = try container.decodeIfPresent(CollectionProperties.self, forKey: .properties)
+		entities = try container.decodeLossyArrayIfPresent(SirenEntity.self, forKey: .entities)
+		links = try container.decodeLossyArrayIfPresent(SirenLink.self, forKey: .links)
+		actions = try container.decodeLossyArrayIfPresent(SirenAction.self, forKey: .actions)
+	}
 }
 
 /// A server-authored message a client renders generically — it carries no
