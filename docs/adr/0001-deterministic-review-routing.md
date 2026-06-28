@@ -1,10 +1,13 @@
-# ADR 0001 — Deterministic, model-agnostic review-result contract
+# ADR 0001 — Deterministic, model-agnostic review *routing* from a validated review-result contract
 
 - **Status:** Proposed (review-only — this PR is a draft and is not intended to merge as-is).
 - **Decision drivers:** future-proof the PR automation against model changes and prompt drift, remove manual intervention, align the CI automation with the repo's own engineering standards.
 - **Relates to:** the marker contract documented in [`.github/workflows/CLAUDE.md`](../../.github/workflows/CLAUDE.md).
+- **Scope of "model-agnostic":** the *routing decision* (auto-fix or not) becomes model-agnostic — derived from validated findings, never model-typed counts. The *findings* stay model-authored, now schema-validated JSON instead of free prose (§6); "model-agnostic" in the title qualifies routing, not the findings' authorship.
 
 > **Revision note (v0.2).** v0.1 proposed *removing* the `<!-- CLAUDE_REVIEW_REQUEST -->` trigger marker and moving routing onto the `workflow_run` path. A five-lens adversarial review (GH-Actions mechanics, failure-modes/loops, repo-conventions, migration safety, completeness) found that unsound and it has been corrected. The marker is **workflow-authored** (by `claude-PR-code-reviewer.yml`), not model prose — removing it would make review-run detection *more* model-dependent and would not fix the incident. This version keeps the marker and narrows the change to the one genuinely fragile thing: **the prose count contract the model hand-writes.** The findings that reshaped this doc are summarized in the appendix.
+
+> **Revision note (v0.3).** An automated review pass on this PR found that v0.2's corrections were all on the *producer* side, while the **consumer** (`request-fix`) still (a) substring-matched markers over a body that also carries model text, (b) had no executable home for the combined `decideNext`, and (c) located findings by an unmarked code fence with no unique key. v0.3 closes these: the render **escapes model text** so the markers are a render-only vocabulary (§3.5, §4.1); the routing decision is **decomposed** into a tested render-time threshold (`needsAutoFix`) plus a dispatch-time staleness/cap check in `request-fix`'s existing script step (§4.3–§4.4); and findings are wrapped in a unique `CLAUDE_REVIEW_FINDINGS_START/END` marker pair (§3.2, §4.2). It also re-anchors the trust model on the `author_association` gate (§8) and scopes "model-agnostic" to *routing* (title, §6). The corrections are tabulated in the appendix.
 
 ---
 
@@ -54,10 +57,10 @@ Out of scope (handled elsewhere, named here to avoid re-conflation): the crash/s
 **Keep the workflow-authored marker; replace only the model-authored prose-count contract with a schema-validated findings object; render the routing-critical comment deterministically.**
 
 1. **Keep `<!-- CLAUDE_REVIEW_REQUEST -->` as the workflow-authored review-run discriminator.** It is emitted by `claude-PR-code-reviewer.yml`, not the model, and is the only thing that tells the generic listener a given run is a review. The upload/render step stays gated on it. *(Reverses v0.1.)*
-2. **Model emits findings as JSON in its final message; counts are derived.** The review's deliverable becomes a single fenced ` ```json ` block carrying `high/medium/low/summary` only — captured by the already-uploaded `execution_file` transcript (the proven channel). `highCount = high.length`; the model never types a count.
+2. **Model emits findings as JSON, wrapped in a unique marker pair, in its final message; counts are derived.** The review's deliverable becomes a single fenced ` ```json ` block carrying `high/medium/low/summary` only — captured by the already-uploaded `execution_file` transcript (the proven channel). `highCount = high.length`; the model never types a count. The JSON sits inside a unique `<!-- CLAUDE_REVIEW_FINDINGS_START -->` … `<!-- CLAUDE_REVIEW_FINDINGS_END -->` marker pair so the render locates it deterministically (§4.2).
 3. **The workflow injects identity; the model never authors it.** `prNumber`, `headSha`, `runId` come from GH context (event payload / artifact name / run id), validated and **branded** per repo standard. The model-authored payload carries no identifiers.
-4. **A tested module renders the comment, run inside the listener.** The listener already checks out the **PR head** and has the Node/pnpm toolchain, so the render module runs at the *same ref as the prompt that produced the JSON* — eliminating producer/consumer schema skew. It parses+validates the transcript JSON (zod `.safeParse`), renders the deterministic review comment (including the derived `HIGH/MEDIUM_PRIORITY_COUNT` markers), and uploads the **rendered comment** as the artifact. `post-review-comment` posts it verbatim.
-5. **The existing comment-triggered `request-fix` is unchanged.** Because the posted comment is now workflow-rendered with *derived* counts, the existing `issue_comment` trigger (`CLAUDE_REVIEW_START` + non-zero count) becomes deterministic **with zero rewire**. The per-PR concurrency group and the `MAX_AUTO_FIX_ATTEMPTS = 5` cap stay exactly where they are. *(Reverses v0.1's `workflow_run` rewire.)*
+4. **A tested module renders the comment, run inside the listener.** The listener already checks out the **PR head** and has the Node/pnpm toolchain, so the render module runs at the *same ref as the prompt that produced the JSON* — eliminating producer/consumer schema skew. It slices the `CLAUDE_REVIEW_FINDINGS_START/END` block, validates it (zod `.safeParse`), renders the deterministic review comment — deriving the `HIGH/MEDIUM_PRIORITY_COUNT` markers, injecting a `REVIEW_HEAD_SHA` marker for the staleness guard (§4.4), and **escaping all model-authored text** so it cannot forge a marker (§4.1) — and uploads the **rendered comment** as the artifact. `post-review-comment` posts it verbatim.
+5. **The comment-triggered `request-fix` keeps its trigger, but its correctness now rests on a render invariant — it is not "untouched."** The `issue_comment` gate still substring-matches `CLAUDE_REVIEW_START` + non-zero count over the whole body (`contains()` is all a GH-Actions `if:` can do). That is only safe because the render **escapes all model-authored text**, so the reserved markers become a vocabulary only the render can mint (§4.1); without that invariant a finding that *quotes* a marker (e.g. a review of `claude-PR-code-reviewer.md`, whose "no issues" example carries both `…COUNT: 0…` markers) would suppress or trip auto-fix. So routing is deterministic with **no trigger rewire**, but §4.1's escaping is load-bearing and `request-fix`'s own script step gains a staleness check (§4.4) — honestly, the consumer is *narrowed and depended-upon*, not unchanged. The per-PR concurrency group and the `MAX_AUTO_FIX_ATTEMPTS = 5` cap stay exactly where they are. *(Still reverses v0.1's `workflow_run` rewire.)*
 6. **Deviation handling is bounded and human-terminating, with no LLM correction loop.** Invalid/absent JSON → deterministic salvage from the legacy block *during the dual-emit window only* → otherwise a dedicated, non-resetting `review-deviation-attempt-N` re-trigger (its own cap, distinct from `auto-fix-attempt-N` and from `crash-retry`'s `run_attempt`) → human escalation. Loud, never silent.
 7. **Deviation telemetry is a decision, not an open question.** Each violation appends a structured row to a long-lived tracking issue (the recurrence store); a defined deviation-rate threshold gates the migration's legacy-drop (§7). No second LLM call on the happy path.
 
@@ -97,33 +100,36 @@ export type ReviewFindings = z.infer<typeof ReviewFindings>;
 
 // WORKFLOW-INJECTED identity, branded per repo standard ("Branded Types for Domain IDs").
 const PrNumber = z.number().int().positive().brand<"PrNumber">();
-const HeadSha = z.string().regex(/^[0-9a-f]{40,64}$/).brand<"HeadSha">(); // admits SHA-1 and SHA-256
+const HeadSha = z.string().regex(/^([0-9a-f]{40}|[0-9a-f]{64})$/).brand<"HeadSha">(); // exactly SHA-1 (40) or SHA-256 (64) hex
 const RunId = z.number().int().positive().brand<"RunId">();
 
 export const needsAutoFix = (f: ReviewFindings) => f.high.length + f.medium.length > 0;
 ```
 
-`decideNext` is defined **in terms of** `needsAutoFix` (single source of the threshold), and additionally takes the PR's live head + attempt-label state, because the real routing decision depends on staleness and attempt count, not findings alone (§4.4).
+`needsAutoFix` is the single source of the count→route threshold and is the only routing input the **tested module** owns. The full route is deliberately *not* one function: the **content** decision (does the rendered comment carry the trip signal?) is `needsAutoFix`, evaluated at **render time** in the listener; the **staleness** and **attempt-cap** decisions are dispatch-time and live in `request-fix`'s existing script step (§4.4) — the head can move, and the attempt label only exists, *after* the comment is posted. v0.1's combined `decideNext(findings, liveHead, attempts)` is dropped: it implied one tested function ran the whole decision inside a job that has neither the toolchain nor the live state to do so (§4.3).
+
+The render also **HTML-escapes every model-authored string** (`title`/`detail`/`summary`) before interpolation, so the reserved markers (`CLAUDE_REVIEW_START/END`, `HIGH/MEDIUM_PRIORITY_COUNT`, `CLAUDE_REVIEW_FINDINGS_START/END`, `REVIEW_HEAD_SHA`) form a vocabulary only the render can mint. This is standard output-encoding applied to a routing channel: model text can no longer forge a marker, which is what makes `request-fix`'s substring gate safe (§3.5). The escape step is `escapeModelText`, part of the tested module.
 
 ### 4.2 Data channel: the transcript, not a workspace file
 
-The model emits the ` ```json ` findings block as its **final message**. The listener already uploads `steps.claude.outputs.execution_file` — the action-guaranteed transcript — so no new "did the agent write a file to disk" dependency is introduced. The render module extracts the fenced block from the transcript messages (the same slice `post-review-comment` does today for the legacy block) and `.safeParse`s it. This resolves v0.1's internal contradiction (committing to a workspace file while doubting it works).
+The model emits the ` ```json ` findings block, wrapped in a `<!-- CLAUDE_REVIEW_FINDINGS_START -->` … `<!-- CLAUDE_REVIEW_FINDINGS_END -->` marker pair, as its **final message**. The listener already uploads `steps.claude.outputs.execution_file` — the action-guaranteed transcript — so no new "did the agent write a file to disk" dependency is introduced. The render module slices that block by its **unique** markers — exactly how `post-review-comment` slices `CLAUDE_REVIEW_START/END` today, so it stays locatable during dual-emit and cannot be confused with a code fence the model quotes from the diff — then strips the fence and `.safeParse`s the payload. (A bare fence has no unique key; the marker pair is what makes the new channel *at least as* locatable as the legacy block it replaces.) This resolves v0.1's internal contradiction (committing to a workspace file while doubting it works).
 
 ### 4.3 Where the logic lives (and what stays untested YAML)
 
-- **Tested module** (`@packages/review-result`, covered by `pnpm check`): `parseFindings(transcript) → Result<ReviewFindings, Deviation>`, `renderReviewComment(findings, identity) → string`, `decideNext(findings, liveHead, attempts) → Route`. Pure, fixture-tested, 100 % branch coverage incl. the optional `file`/`line` and empty-section branches (no `c8 ignore`).
-- **Listener glue (YAML, review-run branch only, gated on the marker):** one `node` step that runs the built module over `execution_file`, writes `review-comment.md`, and uploads it. The listener already has checkout + node + pnpm, so no new heavy setup is added to the artifact-only `auto-apply` job.
-- **`post-review-comment` (YAML):** downloads `review-comment.md` and posts it verbatim. Honestly scoped: the artifact-download / `createComment` IO glue **remains untested YAML** — the win is that the *decision and rendering* are now covered, not that all YAML disappears.
+- **Tested module** (`@packages/review-result`, covered by `pnpm check`): `parseFindings(transcript) → Result<ReviewFindings, Deviation>`, `renderReviewComment(findings, identity) → string`, `needsAutoFix(findings) → boolean` (the count→route threshold), and `escapeModelText(s) → string` (marker neutralization, §4.1). Pure, fixture-tested, including the optional `file`/`line` and empty-section branches; coverage targets 100 % per the repo policy — residual V8 block-coverage phantoms (`||`/`??`/`for…of`/async artifacts the repo's `CLAUDE.md` documents as sometimes unavoidable) are restructured away where possible and otherwise annotated with a `bcoe/c8#319` reference, never blanket-ignored. Every exported function has a real caller (next bullet); there is no defined-but-unreachable routing function.
+- **Listener glue (YAML, review-run branch only, gated on the marker):** one `node` step that runs the built module over `execution_file`, calls `needsAutoFix` + `renderReviewComment`, writes `review-comment.md`, and uploads it — this is the caller for the tested module. The listener already has checkout + node + pnpm, so no new heavy setup is added to the artifact-only `auto-apply` job.
+- **`post-review-comment` (YAML):** downloads `review-comment.md` and posts it verbatim. Honestly scoped: the artifact-download / `createComment` IO glue **remains untested YAML**.
+- **`request-fix` script step (YAML):** keeps its trigger gate; its existing `github-script` step gains the dispatch-time **staleness** comparison (§4.4) beside the `MAX_AUTO_FIX_ATTEMPTS` cap it already enforces. This stays **untested inline YAML** — so the claim is precisely that the *threshold and rendering* are unit-tested, not that the whole dispatch decision is. No checkout/node is added; the comparison is a few lines over data `pulls.get()` already returns. The win is that the *decision and rendering* are now covered, not that all YAML disappears.
 
-### 4.4 Routing — unchanged trigger, with a staleness guard
+### 4.4 Routing — same trigger gate; staleness in the existing script step
 
-`request-fix` keeps firing on the workflow-rendered comment (now deterministic). The one addition: before honoring it, compare the review's `headSha` to the live PR head (`pulls.get().head.sha`); if stale, no-op (a newer review supersedes it). This closes the force-push / concurrent-run race that v0.1 left open while carrying `headSha` unused.
+`request-fix`'s `if:` trigger gate is unchanged — it fires on the workflow-rendered, now-deterministic comment. The render injects a `<!-- REVIEW_HEAD_SHA: <sha> -->` marker (workflow-injected, branded `HeadSha` upstream). Inside `request-fix`'s **existing** `github-script` step — the one that already calls `pulls.get()` and enforces `MAX_AUTO_FIX_ATTEMPTS` — we read that marker and compare it to the live PR head (`pr.data.head.sha`); if stale, no-op (a newer review supersedes it). This closes the force-push / concurrent-run race v0.1 left open while carrying `headSha` unused, **without** giving the job a checkout or node: it is a few lines over data the step already fetches. It is untested inline YAML, scoped like the rest of the IO glue (§4.3); the unit-tested surface is the threshold (`needsAutoFix`) and the render, not this comparison.
 
 ### 4.5 Fallback ladder (steady state is two rungs; salvage is dual-emit-only)
 
-1. **Valid JSON** → render + route. Zero LLM round-trips.
+1. **Valid JSON** (the `CLAUDE_REVIEW_FINDINGS_START/END` block parses) → render + route. Zero LLM round-trips.
 2. **Dual-emit window only:** invalid/absent JSON → salvage the legacy `CLAUDE_REVIEW_START…END` block from the transcript (today's behavior) and render from it. **This rung disappears once §7.4 removes the legacy block** — stated explicitly so it is not mistaken for a durable net.
-3. **No usable result** → append a deviation row (telemetry), bump a dedicated **non-resetting** `review-deviation-attempt-N` label, and re-post a fresh `<!-- CLAUDE_REVIEW_REQUEST -->` review request (a *new* mechanism — crash-retry and `auto-fix-attempt-N` provably cannot fire for a succeeded-with-bad-JSON run). At the cap → human escalation. Never silent.
+3. **No usable result** → append a deviation row (telemetry), bump a dedicated **non-resetting** `review-deviation-attempt-N` label, and re-post a fresh `<!-- CLAUDE_REVIEW_REQUEST -->` review request **authored with `PAT_TOKEN`** — a `GITHUB_TOKEN`-authored comment does not re-trigger the listener (§8), so the rung is inert without it. This is a *new* mechanism: crash-retry and `auto-fix-attempt-N` provably cannot fire for a succeeded-with-bad-JSON run. **Cap: 2 deviation re-triggers per PR**, non-resetting within the PR and reset only by a later clean (parseable, zero-deviation) review; rung 3 is the loop's only bound, so the cap is pinned here, not deferred to implementation (§8 OQ2). At the cap → human escalation. Never silent.
 
 ---
 
@@ -142,8 +148,8 @@ The model emits the ` ```json ` findings block as its **final message**. The lis
 
 ## 6. What this fixes, honestly
 
-- **Fixes (the count-trust class):** a new model, reworded prompt, or sticky-comment channel can no longer drop or mis-state the routing-critical counts — they are derived from validated findings and the comment is workflow-rendered. This is the durable, model-agnostic win.
-- **Fixes the #829 incident specifically:** case 2 (the manual re-trigger that referenced the reviewer prompt but dropped the HTML marker) is covered by the **stop-gap** below — broadening the upload gate to also accept a comment that references `claude-PR-code-reviewer.md` matches exactly that comment.
+- **Fixes (the count-trust class):** a new model, reworded prompt, or sticky-comment channel can no longer drop or mis-state the routing-critical counts — they are derived from validated findings, the comment is workflow-rendered, and model text is escaped so it cannot forge a marker (§4.1). This is the durable, model-agnostic routing win **this decision** delivers.
+- **What this decision does NOT, by itself, deliver — #829 case 2:** the data contract + deterministic render do *not* make a marker-less manual re-trigger route. Case 2 is fixed by the **independent stop-gap** below (broadening the upload gate to also accept a comment that references `claude-PR-code-reviewer.md`), which ships with no dependency on this ADR. It is listed here only so the incident's coverage is complete — attributed to the stop-gap, not to this decision.
 - **Does NOT fix, by itself:**
   - #829 **case 1** (listener crash) — orthogonal; owned by `claude-PR-crash-retry`. Residual dependency on its ≤240 s / 4-attempt bounds remains.
   - A *truly* bare `@claude` comment that carries neither the marker nor a reference to any reviewer prompt — the agent never produces findings, so nothing routes. That is a documentation concern (use the canonical re-trigger: re-run the failed listener run, or comment via the code-reviewer's exact marker-bearing format), not a contract bug.
@@ -154,8 +160,8 @@ The model emits the ` ```json ` findings block as its **final message**. The lis
 
 ## 7. Migration plan (atomic flips, explicit rollback)
 
-1. **Add `@packages/review-result`** (schema + render + decide + tests). No behavior change; not yet wired.
-2. **Dual-emit:** the reviewer prompt emits the ` ```json ` findings block *and* the legacy marker block. The listener's render step prefers JSON, salvages from the legacy block on failure (§4.5 rung 2). Observe the deviation rate in the telemetry issue.
+1. **Add `@packages/review-result`** (schema + render + `needsAutoFix` + `escapeModelText` + tests). No behavior change; not yet wired.
+2. **Dual-emit:** the reviewer prompt emits the ` ```json ` findings block (wrapped in the `CLAUDE_REVIEW_FINDINGS_START/END` markers) *and* the legacy marker block. The listener's render step prefers the findings markers, salvages from the legacy block on failure (§4.5 rung 2). Observe the deviation rate in the telemetry issue.
 3. **Atomic producer/trigger flip:** in **one** change, switch the posted comment to the workflow-rendered output **and** ensure exactly one routing path is live — the rendered comment keeps the count markers, so the existing `request-fix` trigger continues to fire; no second (artifact-based) route is added, so there is no double-fire. (This is why §3.5 keeps the trigger as-is rather than adding a parallel route.)
 4. **Drop the legacy block** from `claude-PR-code-reviewer.md` only after the telemetry deviation rate is below the defined threshold for a defined window. Note: this removes the §4.5-rung-2 salvage net; steady state is rungs 1 + 3.
 5. **Update `.github/workflows/CLAUDE.md`** to document the findings contract as the source of truth, and add a CODEOWNERS entry for `@packages/review-result`.
@@ -166,22 +172,22 @@ The model emits the ` ```json ` findings block as its **final message**. The lis
 
 ## 8. Risks, open questions, consequences
 
-> **Trust model.** GitHub PR access is restricted to contributors and contributors are trusted fully, so this design carries **no authenticity or permission controls**. The workflow-authored marker is kept purely as the review-run *discriminator*, not as a security boundary.
+> **Trust model.** The permission boundary is the `author_association` gate in `claude-listener.yml` — the run proceeds only for `OWNER`/`MEMBER`/`COLLABORATOR`. That gate is what makes "restricted to contributors" true, and the design trusts those contributors fully. The workflow-authored marker is **not** a security boundary; it is only the review-run *discriminator*. So the design adds no *new* authenticity controls — but it does not lack one either: if the gate is later loosened (e.g. to admit first-time contributors), the "contributors trusted fully" premise must be revisited.
 
 **Risks & mitigations**
 - *Model emits invalid JSON* → `.safeParse` + salvage (dual-emit) / bounded re-trigger (steady state); telemetry surfaces frequency.
 - *Schema skew* → render runs in the listener at the **PR-head ref**, same as the prompt; consumer uses `schemaVersion <= N`, never `z.literal`, so a bump never bricks in-flight PRs.
-- *Stale-commit race* → `headSha` staleness guard in `decideNext` (§4.4).
+- *Stale-commit race* → a `REVIEW_HEAD_SHA` marker compared to the live head in `request-fix`'s existing script step (§4.4).
 - *Build/install failure in the render step* → fail **loud** (the run fails), never silently skip routing.
-- *Re-trigger plumbing* (mechanism, not a security control) → the `@claude` fix comment must keep being posted via `PAT_TOKEN`; a `GITHUB_TOKEN`-authored comment does not re-trigger the listener. Unchanged from today.
+- *Re-trigger plumbing* (mechanism, not a security control) → every listener re-trigger must be posted via `PAT_TOKEN` — the `@claude` fix comment and the §4.5-rung-3 deviation re-request alike; a `GITHUB_TOKEN`-authored comment does not re-trigger the listener. Unchanged from today.
 
 **Open questions for the reviewer**
 1. **Telemetry sink shape:** a single long-lived tracking issue with appended rows (proposed) vs. a committed metrics file. Which, and what exact deviation-rate threshold + window gates §7.4?
-2. **`review-deviation-attempt-N` cap value** and its reset rule (proposed: non-resetting per PR; reset only on a clean green review).
+2. **`review-deviation-attempt-N` cap** — pinned to **2** per PR, non-resetting within the PR, reset only on a later clean (parseable, zero-deviation) review (§4.5 rung 3). Open only for confirmation, since rung 3 is the loop's sole bound.
 3. **Package boundary:** confirm `@packages/review-result` as a standalone nx project kept **out of** the hutch app's build/coverage graph (it is CI tooling — neither product `runtime` nor Pulumi `infra`; v0.1's "runtime, not infra" framing was a false dichotomy).
 
 **Consequences**
-- (+) Routing-critical counts are derived and the comment is workflow-rendered → model-agnostic; the decision/rendering is unit-tested; the per-PR serialization and 5× cap are preserved.
+- (+) Routing-critical counts are derived and the comment is workflow-rendered → model-agnostic routing; the threshold (`needsAutoFix`) and rendering are unit-tested (the dispatch-time staleness/cap check stays inline YAML); the per-PR serialization and 5× cap are preserved.
 - (−) One render step + built artifact in the listener; a dual-emit migration window; the reviewer prompt's deliverable changes from a marker block to a JSON block; the IO glue in `auto-apply` stays untested YAML.
 
 ---
@@ -200,6 +206,22 @@ A five-lens review of v0.1 produced 40+ grounded findings. The load-bearing corr
 | Fallback "reuses crash-retry + counter" | Neither fires for a succeeded-with-bad-JSON run. | New non-resetting deviation counter (§4.5 rung 3). |
 | "Thin glue → call the module" | `auto-apply` has no checkout/node. | Render in the listener; IO glue stays YAML, honestly scoped (§4.3). |
 | Telemetry "escalate on recurrence" | No recurrence store; circular migration gate. | Concrete sink + threshold (§3.7, §7.4, §8 OQ1). |
-| `decideNext` ignores `headSha` | Stale-commit race left open. | Staleness guard (§4.4). |
+| `decideNext` ignores `headSha` | Stale-commit race left open. | Staleness guard added (§4.4); in v0.3 it runs in `request-fix`'s script step, not a combined `decideNext`. |
 | `z.literal(1)` schemaVersion | Producer/consumer ref skew bricks PRs. | `<= N` + render-at-PR-head (§4.1, §8). |
 | `@packages/ci-orchestration` | "No Design Pattern Names" violation; runtime/infra false dichotomy. | `@packages/review-result`, standalone CI-tooling project (§4.1, §8 OQ3). |
+
+### v0.3 — corrections from the automated review pass
+
+A two-pass automated review of v0.2 surfaced that every v0.2 fix was producer-side, leaving the **consumer** (`request-fix`) still carrying the model-format dependence. The load-bearing corrections:
+
+| v0.2 gap | Finding | v0.3 |
+|---|---|---|
+| Counts derived, but `request-fix` still substring-matches markers over a body that also carries model `detail`/`summary` | A finding that quotes a count/START marker (e.g. a review of `claude-PR-code-reviewer.md`) suppresses or trips auto-fix | Render **escapes all model text**; markers are a render-only vocabulary (§3.5, §4.1). |
+| `decideNext(findings, liveHead, attempts)` listed as tested | No job can run it: auto-apply has no node, and staleness/attempts are dispatch-time state | Decomposed: `needsAutoFix` (tested, render-time) + staleness/cap in `request-fix`'s script step (untested YAML, honestly scoped) (§4.3–§4.4). |
+| Findings located by an unmarked code fence | A bare fence has no unique key; collides during dual-emit and with quoted JSON | Unique `CLAUDE_REVIEW_FINDINGS_START/END` marker pair, sliced like the legacy block (§3.2, §4.2). |
+| Trust note: "no authenticity or permission controls" | Contradicts the `author_association` gate the "contributors trusted" premise rests on | Re-anchored on the `OWNER/MEMBER/COLLABORATOR` gate; marker demoted to discriminator only (§8). |
+| `HeadSha` regex `/^[0-9a-f]{40,64}$/` | Admits invalid lengths 41–63 | `/^([0-9a-f]{40}\|[0-9a-f]{64})$/` (§4.1). |
+| "model-agnostic … review-result" | Overclaims: findings are still model-authored | Title/§6 scope the claim to *routing*; findings are validated, still model-authored. |
+| "100 % branch coverage, no `c8 ignore`" | The repo documents V8 phantoms as sometimes unavoidable | Softened to the repo coverage policy: minimize, annotate residuals with `bcoe/c8#319` (§4.3). |
+| Rung-3 deviation re-trigger under-specified | Must be `PAT_TOKEN`-authored; cap is the loop's only bound | `PAT_TOKEN` stated; cap pinned to 2, reset on a clean review (§4.5, §8 OQ2). |
+| #829 case 2 listed under "what this fixes" | The fix is the independent stop-gap, not this decision | Re-attributed to the stop-gap (§6). |
