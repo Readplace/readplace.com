@@ -396,7 +396,11 @@ final class ReadplaceAPITests: XCTestCase {
 		// A server that targets a different status drives that exact value into the
 		// body — proving the client never hardcodes "read".
 		let store = TestSupport.loggedInStore()
-		StubURLProtocol.setHandler { _, _ in .redirect(to: "/queue") }
+		StubURLProtocol.setHandler { request, _ in
+			request.url?.path == "/queue"
+				? .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "remaining")]))
+				: .redirect(to: "/queue")
+		}
 
 		try await makeAPI(store: store).invoke(action: updateStatusAction(statusValue: "archived"))
 
