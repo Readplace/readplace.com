@@ -58,6 +58,18 @@ const BUNDLES = [
 		].join("\n"),
 	},
 	{
+		entry: path.join(PROJECT_ROOT, "src/runtime/web/pages/install/install.client.ts"),
+		outfile: path.join(OUT_DIR, "install.client.js"),
+		globalName: "InstallCopy",
+		footer: [
+			"InstallCopy.initInstallCopy({",
+			"  document: window.document,",
+			"  navigator: window.navigator,",
+			"  setTimeoutFn: function (cb, ms) { return window.setTimeout(cb, ms); }",
+			"}).attach();",
+		].join("\n"),
+	},
+	{
 		entry: path.join(
 			PROJECT_ROOT,
 			"src/runtime/web/shared/article-body/progress-bar.client.ts",

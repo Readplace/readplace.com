@@ -1,27 +1,25 @@
   <main class="install-page">
     <div class="install-page__container">
       <h1 class="install-page__title">Install Readplace</h1>
-      <p class="install-page__subtitle">Save articles with a single click, keyboard shortcut, or the iPhone share sheet.</p>
+      <p class="install-page__subtitle">Save articles with a single click, a keyboard shortcut, the iPhone share sheet, or straight from your AI assistant.</p>
 
-      <nav class="install-page__tabs" aria-label="Platform" data-test-section="tabs">
-        {{#each tabs}}
-        <a href="{{href}}" class="install-page__tab{{activeClass}}"{{#if ariaCurrent}} aria-current="{{ariaCurrent}}"{{/if}} data-test-tab="{{key}}"><i class="install-page__tab-icon {{icon}}" aria-hidden="true"></i>{{label}}</a>
+      <nav class="install-page__groups" aria-label="Platform" data-test-section="tabs">
+        {{#each groups}}
+        <div class="install-page__group" data-test-group="{{label}}">
+          <span class="install-page__group-label">{{label}}</span>
+          <div class="install-page__group-tabs">
+            {{#each tabs}}
+            <a href="{{href}}" class="install-page__tab{{activeClass}}"{{#if ariaCurrent}} aria-current="{{ariaCurrent}}"{{/if}} data-test-tab="{{key}}">{{label}}{{#if beta}}<span class="install-page__tab-beta">Beta</span>{{/if}}</a>
+            {{/each}}
+          </div>
+        </div>
         {{/each}}
       </nav>
 
-      {{#switch client}}
-      {{#case "firefox"}}
-      <section class="install-page__panel" data-test-panel="firefox">
-        {{#if firefoxDownloadUrl}}
-        <a href="{{firefoxDownloadUrl}}" class="install-page__download" data-test-cta="download-firefox">Install Readplace for Firefox</a>
-        {{else}}
-        <p class="install-page__unavailable" data-test-section="firefox-unavailable">The Firefox extension is not available for download yet. Please check back soon.</p>
-        {{/if}}
-      </section>
-      {{/case}}
-
+      {{#switch panel.type}}
       {{#case "iphone"}}
       <section class="install-page__panel" data-test-panel="iphone">
+        <h2 class="install-page__panel-title">Readplace on iPhone</h2>
         <p class="install-page__lead">Save links from any browser on your iPhone. Open the page in Safari, Chrome, or anywhere else, tap the share button, and choose Readplace — the link drops straight into your reading queue. No copy-paste, no opening the app first.</p>
 
         <div class="install-page__beta" data-test-section="ios-beta-notice">
@@ -44,9 +42,45 @@
       </section>
       {{/case}}
 
+      {{#case "ai"}}
+      <section class="install-page__panel" data-test-panel="ai">
+        <h2 class="install-page__panel-title">Connect Readplace to {{panel.assistant.name}}</h2>
+        <p class="install-page__lead">{{panel.assistant.intro}}</p>
+
+        <div class="install-page__server-url" data-test-section="ai-server-url">
+          <span class="install-page__server-url-label">Server URL</span>
+          <code class="install-page__server-url-value">{{mcpServerUrl}}</code>
+          <button type="button" class="install-page__copy-btn" data-install-copy data-install-text="{{mcpServerUrl}}" hidden>Copy</button>
+        </div>
+
+        <div class="install-page__prompt" data-test-section="ai-prompt">
+          <span class="install-page__prompt-label">Or just ask {{panel.assistant.name}}</span>
+          <p class="install-page__prompt-text">{{panel.assistant.prompt}}</p>
+          <button type="button" class="install-page__copy-btn" data-install-copy data-install-text="{{panel.assistant.prompt}}" hidden>Copy</button>
+        </div>
+
+        <p class="install-page__ai-req">{{panel.assistant.requirement}}</p>
+
+        <p class="install-page__ai-note">You sign in once with OAuth — {{panel.assistant.name}} never sees your password, and you can revoke access at any time. <a href="{{mcpGuideUrl}}" class="install-page__ai-guide" data-test-cta="ai-full-guide">Full setup guide &rarr;</a></p>
+
+        <p class="install-page__foot-note" data-test-section="ai-other-clients">Perplexity, Claude Code, Cursor, VS Code, and other MCP clients connect the same way: paste the server URL above and sign in once. <a href="{{mcpGuideUrl}}" class="install-page__ai-guide">See the full guide</a>.</p>
+      </section>
+      {{/case}}
+
       {{#default}}
-      <section class="install-page__panel" data-test-panel="chrome">
-        <a href="{{chromeDownloadUrl}}" class="install-page__download" data-test-cta="download-chrome">Install Readplace for Chrome</a>
+      <section class="install-page__panel" data-test-panel="browser">
+        <h2 class="install-page__panel-title">Readplace for {{panel.browser.name}}</h2>
+        <p class="install-page__lead">{{panel.browser.intro}}</p>
+        {{#if panel.browser.downloadUrl}}
+        <a href="{{panel.browser.downloadUrl}}" class="install-page__download" data-test-cta="{{panel.browser.ctaTestId}}">{{panel.browser.ctaLabel}}</a>
+        {{else}}
+        <p class="install-page__unavailable" data-test-section="firefox-unavailable">The Firefox extension is not available for download yet. Please check back soon.</p>
+        {{/if}}
+        <ol class="install-page__steps" data-test-section="browser-steps">
+          {{#each browserSteps}}
+          <li class="install-page__step" data-test-browser-step><span class="install-page__step-title">{{this}}</span></li>
+          {{/each}}
+        </ol>
       </section>
       {{/default}}
       {{/switch}}

@@ -9,6 +9,7 @@ import {
 } from "@packages/test-fixtures";
 
 const TEST_XPI_FILENAME = "abc123-1.0.0.xpi";
+const INSTALL_CLIENT_SCRIPT = "/client-dist/install.client.js";
 
 function mockFirefoxAvailable() {
 	jest.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
@@ -30,6 +31,10 @@ afterEach(() => {
 
 const useApp = useTestServer();
 
+function load(text: string): Document {
+	return new JSDOM(text).window.document;
+}
+
 describe("GET /install", () => {
 	it("should return 200 and HTML content", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
@@ -41,47 +46,74 @@ describe("GET /install", () => {
 	it("should have page-install body class", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install");
-		const doc = new JSDOM(response.text).window.document;
+		const doc = load(response.text);
 
 		expect(doc.body.classList.contains("page-install")).toBe(true);
 	});
 
-	it("should render the full ordered set of platform tabs", async () => {
+	it("should render every client tab in order across both groups", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install");
-		const doc = new JSDOM(response.text).window.document;
+		const doc = load(response.text);
 
 		const tabs = Array.from(doc.querySelectorAll("[data-test-tab]")).map(
 			(el) => el.getAttribute("data-test-tab"),
 		);
-		expect(tabs).toEqual(["firefox", "chrome", "iphone"]);
+		expect(tabs).toEqual(["firefox", "chrome", "iphone", "claude", "chatgpt"]);
 	});
 
-	it("should render the platform brand logo as an aria-hidden icon on each tab", async () => {
+	it("should split tabs into a Browsers & Devices group and an AI Assistants group", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install");
-		const doc = new JSDOM(response.text).window.document;
+		const doc = load(response.text);
 
-		const expectedIcons: Record<string, string> = {
-			firefox: "fa-firefox-browser",
-			chrome: "fa-chrome",
-			iphone: "fa-apple",
-		};
-		for (const [client, iconClass] of Object.entries(expectedIcons)) {
-			const icon = doc.querySelector(
-				`[data-test-tab="${client}"] .install-page__tab-icon`,
-			);
-			assert(icon, `${client} tab must render a brand icon`);
-			expect(icon.classList.contains("fa-brands")).toBe(true);
-			expect(icon.classList.contains(iconClass)).toBe(true);
-			expect(icon.getAttribute("aria-hidden")).toBe("true");
-		}
+		const groups = Array.from(doc.querySelectorAll("[data-test-group]")).map(
+			(el) => el.getAttribute("data-test-group"),
+		);
+		expect(groups).toEqual(["Browsers & Devices", "AI Assistants"]);
+
+		const devices = doc.querySelector('[data-test-group="Browsers & Devices"]');
+		assert(devices, "Browsers & Devices group must render");
+		const deviceTabs = Array.from(devices.querySelectorAll("[data-test-tab]")).map(
+			(el) => el.getAttribute("data-test-tab"),
+		);
+		expect(deviceTabs).toEqual(["firefox", "chrome", "iphone"]);
+
+		const ai = doc.querySelector('[data-test-group="AI Assistants"]');
+		assert(ai, "AI Assistants group must render");
+		const aiTabs = Array.from(ai.querySelectorAll("[data-test-tab]")).map(
+			(el) => el.getAttribute("data-test-tab"),
+		);
+		expect(aiTabs).toEqual(["claude", "chatgpt"]);
 	});
 
-	it("should default to Chrome tab when no client param is provided", async () => {
+	it("should render the group labels visibly", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install");
-		const doc = new JSDOM(response.text).window.document;
+		const doc = load(response.text);
+
+		const labels = Array.from(
+			doc.querySelectorAll(".install-page__group-label"),
+		).map((el) => el.textContent);
+		expect(labels).toEqual(["Browsers & Devices", "AI Assistants"]);
+	});
+
+	it("should flag the iPhone tab as a beta", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install");
+		const doc = load(response.text);
+
+		const iphoneTab = doc.querySelector('[data-test-tab="iphone"]');
+		expect(iphoneTab?.querySelector(".install-page__tab-beta")?.textContent).toBe("Beta");
+
+		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
+		expect(chromeTab?.querySelector(".install-page__tab-beta")).toBeNull();
+	});
+
+	it("should default to the Chrome tab and browser panel when no client param is provided", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install");
+		const doc = load(response.text);
 
 		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
 		expect(chromeTab?.classList.contains("install-page__tab--active")).toBe(true);
@@ -89,6 +121,14 @@ describe("GET /install", () => {
 
 		const firefoxTab = doc.querySelector('[data-test-tab="firefox"]');
 		expect(firefoxTab?.classList.contains("install-page__tab--active")).toBe(false);
+
+		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
+			(el) => el.getAttribute("data-test-panel"),
+		);
+		expect(panels).toEqual(["browser"]);
+		expect(doc.querySelector('[data-test-cta="download-chrome"]')?.textContent).toBe(
+			"Install Readplace for Chrome",
+		);
 	});
 
 	it("should respond 400 when the client query param is not a known client", async () => {
@@ -98,105 +138,260 @@ describe("GET /install", () => {
 		expect(response.status).toBe(400);
 	});
 
-	it("should select Firefox tab when client=firefox", async () => {
+	it("should select the Firefox tab and browser panel when client=firefox", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=firefox");
-		const doc = new JSDOM(response.text).window.document;
+		const doc = load(response.text);
 
 		const firefoxTab = doc.querySelector('[data-test-tab="firefox"]');
 		expect(firefoxTab?.classList.contains("install-page__tab--active")).toBe(true);
 		expect(firefoxTab?.getAttribute("aria-current")).toBe("page");
 
-		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
-		expect(chromeTab?.classList.contains("install-page__tab--active")).toBe(false);
+		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
+			(el) => el.getAttribute("data-test-panel"),
+		);
+		expect(panels).toEqual(["browser"]);
+		expect(
+			doc.querySelector('[data-test-cta="download-firefox"]')?.textContent,
+		).toBe("Install Readplace for Firefox");
 	});
 
-	it("should select Chrome tab when client=chrome", async () => {
+	it("should select the Chrome tab and browser panel when client=chrome", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=chrome");
-		const doc = new JSDOM(response.text).window.document;
+		const doc = load(response.text);
 
 		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
 		expect(chromeTab?.classList.contains("install-page__tab--active")).toBe(true);
 
 		const firefoxTab = doc.querySelector('[data-test-tab="firefox"]');
 		expect(firefoxTab?.classList.contains("install-page__tab--active")).toBe(false);
-	});
 
-	it("should render only the Firefox panel when client=firefox", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=firefox");
-		const doc = new JSDOM(response.text).window.document;
-
-		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
-			(el) => el.getAttribute("data-test-panel"),
+		const cta = doc.querySelector('[data-test-cta="download-chrome"]');
+		expect(cta?.getAttribute("href")).toBe(
+			"https://chromewebstore.google.com/detail/hutch/klblengmhlfnmjoagchagfcdbpbocgbf",
 		);
-		expect(panels).toEqual(["firefox"]);
-
-		const firefoxPanel = doc.querySelector('[data-test-panel="firefox"]');
-		assert(firefoxPanel, "Firefox panel must be rendered");
-		expect(firefoxPanel.querySelector('[data-test-cta="download-firefox"]')?.textContent).toBe("Install Readplace for Firefox");
-	});
-
-	it("should render only the Chrome panel when client=chrome", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=chrome");
-		const doc = new JSDOM(response.text).window.document;
-
-		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
-			(el) => el.getAttribute("data-test-panel"),
-		);
-		expect(panels).toEqual(["chrome"]);
-
-		const chromePanel = doc.querySelector('[data-test-panel="chrome"]');
-		assert(chromePanel, "Chrome panel must be rendered");
-		expect(chromePanel.querySelector('[data-test-cta="download-chrome"]')?.textContent).toBe("Install Readplace for Chrome");
 	});
 
 	it("should render the Firefox download button linking to the S3 XPI", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=firefox");
-		const doc = new JSDOM(response.text).window.document;
+		const doc = load(response.text);
 
-		const cta = doc.querySelector(
-			'[data-test-cta="download-firefox"]',
+		const cta = doc.querySelector('[data-test-cta="download-firefox"]');
+		expect(cta?.getAttribute("href")).toBe(
+			firefoxS3Config.getExtensionDownloadUrl({ stage: "prod", filename: TEST_XPI_FILENAME }),
 		);
-		expect(cta?.getAttribute("href")).toBe(firefoxS3Config.getExtensionDownloadUrl({ stage: "prod", filename: TEST_XPI_FILENAME }));
 	});
 
-	it("should render the Chrome download button linking to the Chrome Web Store", async () => {
+	it("should list the browser setup steps on a browser panel", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install?client=chrome");
-		const doc = new JSDOM(response.text).window.document;
+		const doc = load(response.text);
 
-		const cta = doc.querySelector(
-			'[data-test-cta="download-chrome"]',
+		const steps = doc.querySelectorAll("[data-test-browser-step]");
+		expect(steps).toHaveLength(3);
+		const stepsText =
+			doc.querySelector('[data-test-section="browser-steps"]')?.textContent ?? "";
+		expect(stepsText).toContain("Sign in once");
+		expect(stepsText).toContain("Ctrl/Cmd+D");
+	});
+
+	it("should show the Firefox unavailable message when Firefox latest.txt returns 404", async () => {
+		jest.restoreAllMocks();
+		jest.spyOn(globalThis, "fetch").mockImplementation(async () => {
+			return new Response("Not Found", { status: 404 });
+		});
+
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=firefox");
+		const doc = load(response.text);
+
+		const unavailable = doc.querySelector('[data-test-section="firefox-unavailable"]');
+		expect(unavailable?.textContent).toBe(
+			"The Firefox extension is not available for download yet. Please check back soon.",
 		);
-		expect(cta?.getAttribute("href")).toBe("https://chromewebstore.google.com/detail/hutch/klblengmhlfnmjoagchagfcdbpbocgbf");
-		expect(cta?.textContent).toBe("Install Readplace for Chrome");
+		expect(doc.querySelector('[data-test-cta="download-firefox"]')).toBeNull();
+	});
+
+	it("should show the Firefox unavailable message when latest.txt returns empty body", async () => {
+		jest.restoreAllMocks();
+		jest.spyOn(globalThis, "fetch").mockImplementation(async () => {
+			return new Response("", { status: 200 });
+		});
+
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=firefox");
+		const doc = load(response.text);
+
+		const unavailable = doc.querySelector('[data-test-section="firefox-unavailable"]');
+		expect(unavailable?.textContent).toBe(
+			"The Firefox extension is not available for download yet. Please check back soon.",
+		);
+	});
+
+	it("should link tabs to their client URLs with internal tracking", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=firefox");
+		const doc = load(response.text);
+
+		expect(doc.querySelector('[data-test-tab="firefox"]')?.getAttribute("href")).toBe(
+			"/install?client=firefox&utm_source=install-tabs&utm_medium=internal&utm_content=firefox",
+		);
+		expect(doc.querySelector('[data-test-tab="claude"]')?.getAttribute("href")).toBe(
+			"/install?client=claude&utm_source=install-tabs&utm_medium=internal&utm_content=claude",
+		);
+	});
+
+	it("should select the iPhone tab and panel when client=iphone", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=iphone");
+		const doc = load(response.text);
+
+		const iphoneTab = doc.querySelector('[data-test-tab="iphone"]');
+		expect(iphoneTab?.classList.contains("install-page__tab--active")).toBe(true);
+		expect(iphoneTab?.getAttribute("aria-current")).toBe("page");
+
+		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
+			(el) => el.getAttribute("data-test-panel"),
+		);
+		expect(panels).toEqual(["iphone"]);
+		expect(doc.querySelector('[data-test-panel="iphone"]')?.textContent).toContain("share");
+	});
+
+	it("should show the beta notice, TestFlight CTA, steps and outro on the iPhone panel", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=iphone");
+		const doc = load(response.text);
+
+		const notice = doc.querySelector('[data-test-section="ios-beta-notice"]');
+		expect(notice?.textContent).toContain("beta");
+		expect(notice?.textContent).toContain("TestFlight");
+
+		const cta = doc.querySelector('[data-test-cta="join-ios-beta"]');
+		expect(cta?.getAttribute("href")).toBe("https://testflight.apple.com/join/5eng821W");
+		expect(cta?.textContent).toBe("Join the beta on TestFlight");
+
+		expect(doc.querySelectorAll("[data-test-beta-step]")).toHaveLength(6);
+
+		const outro = doc.querySelector('[data-test-section="ios-beta-outro"]');
+		assert(outro, "iPhone beta outro must be rendered");
+		expect(outro.textContent).toContain("I'll check in soon by email");
+		expect(outro.textContent).toContain("feedback is welcome in-app");
+	});
+
+	it("should not load the copy-button script on non-AI panels", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=iphone");
+
+		expect(response.text).not.toContain(INSTALL_CLIENT_SCRIPT);
+	});
+
+	it("should select the Claude tab and AI panel when client=claude", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=claude");
+		const doc = load(response.text);
+
+		const claudeTab = doc.querySelector('[data-test-tab="claude"]');
+		expect(claudeTab?.classList.contains("install-page__tab--active")).toBe(true);
+		expect(claudeTab?.getAttribute("aria-current")).toBe("page");
+
+		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
+			(el) => el.getAttribute("data-test-panel"),
+		);
+		expect(panels).toEqual(["ai"]);
+	});
+
+	it("should show the MCP server URL and full-setup-guide link on an AI panel", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=claude");
+		const doc = load(response.text);
+
+		const serverUrl = doc.querySelector(
+			'[data-test-section="ai-server-url"] .install-page__server-url-value',
+		);
+		expect(serverUrl?.textContent).toBe("https://readplace.com/mcp");
+
+		const guide = doc.querySelector('[data-test-cta="ai-full-guide"]');
+		expect(guide?.getAttribute("href")).toBe("/mcp");
+	});
+
+	it("should show the Claude connect prompt and copy buttons hidden by default", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=claude");
+		const doc = load(response.text);
+
+		const prompt = doc.querySelector(
+			'[data-test-section="ai-prompt"] .install-page__prompt-text',
+		);
+		expect(prompt?.textContent).toBe(
+			"Add readplace.com/mcp as a connector so you can save pages to and read my reading list.",
+		);
+
+		const copyButtons = Array.from(doc.querySelectorAll("[data-install-copy]"));
+		expect(copyButtons).toHaveLength(2);
+		for (const button of copyButtons) {
+			expect(button.hasAttribute("hidden")).toBe(true);
+		}
+		const copyTargets = copyButtons.map((b) => b.getAttribute("data-install-text"));
+		expect(copyTargets).toContain("https://readplace.com/mcp");
+	});
+
+	it("should load the copy-button script on an AI panel", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=claude");
+
+		expect(response.text).toContain(INSTALL_CLIENT_SCRIPT);
+	});
+
+	it("should show ChatGPT-specific copy on the ChatGPT AI panel", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=chatgpt");
+		const doc = load(response.text);
+
+		const chatgptTab = doc.querySelector('[data-test-tab="chatgpt"]');
+		expect(chatgptTab?.classList.contains("install-page__tab--active")).toBe(true);
+
+		expect(doc.querySelector('[data-test-panel="ai"] .install-page__panel-title')?.textContent).toBe(
+			"Connect Readplace to ChatGPT",
+		);
+		expect(
+			doc.querySelector('[data-test-section="ai-prompt"] .install-page__prompt-text')?.textContent,
+		).toBe("Connect to readplace.com so you can access my reading list.");
+	});
+
+	it("should land client=ai on the Claude tab as a convenience alias", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install?client=ai");
+		const doc = load(response.text);
+
+		const claudeTab = doc.querySelector('[data-test-tab="claude"]');
+		expect(claudeTab?.classList.contains("install-page__tab--active")).toBe(true);
+
+		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
+			(el) => el.getAttribute("data-test-panel"),
+		);
+		expect(panels).toEqual(["ai"]);
 	});
 
 	it("should set appropriate SEO metadata", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install");
-		const doc = new JSDOM(response.text).window.document;
+		const doc = load(response.text);
 
 		expect(doc.title).toContain("Install");
 		const description = doc.querySelector('meta[name="description"]');
 		expect(description?.getAttribute("content")).toContain("extension");
+		expect(description?.getAttribute("content")).toContain("AI assistant");
 	});
 
 	it("should have SoftwareApplication and BreadcrumbList structured data", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/install");
-		const doc = new JSDOM(response.text).window.document;
+		const doc = load(response.text);
 
-		const scripts = doc.querySelectorAll(
-			'script[type="application/ld+json"]',
-		);
-		const schemas = Array.from(scripts).map((s) =>
-			JSON.parse(s.textContent ?? "{}"),
-		);
+		const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
+		const schemas = Array.from(scripts).map((s) => JSON.parse(s.textContent ?? "{}"));
 		const software = schemas.find(
 			(s: { "@type": string }) => s["@type"] === "SoftwareApplication",
 		);
@@ -222,134 +417,6 @@ describe("GET /install", () => {
 				item: "https://readplace.com/install",
 			},
 		]);
-	});
-
-	it("should show Firefox unavailable message when Firefox latest.txt returns 404", async () => {
-		jest.restoreAllMocks();
-		jest.spyOn(globalThis, "fetch").mockImplementation(async () => {
-			return new Response("Not Found", { status: 404 });
-		});
-
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=firefox");
-		const doc = new JSDOM(response.text).window.document;
-
-		const unavailable = doc.querySelector('[data-test-section="firefox-unavailable"]');
-		expect(unavailable?.textContent).toBe(
-			"The Firefox extension is not available for download yet. Please check back soon.",
-		);
-	});
-
-	it("should show Firefox unavailable message when latest.txt returns empty body", async () => {
-		jest.restoreAllMocks();
-		jest.spyOn(globalThis, "fetch").mockImplementation(async () => {
-			return new Response("", { status: 200 });
-		});
-
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=firefox");
-		const doc = new JSDOM(response.text).window.document;
-
-		const unavailable = doc.querySelector('[data-test-section="firefox-unavailable"]');
-		expect(unavailable?.textContent).toBe(
-			"The Firefox extension is not available for download yet. Please check back soon.",
-		);
-	});
-
-	it("should link tabs to the correct URLs", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=firefox");
-		const doc = new JSDOM(response.text).window.document;
-
-		const firefoxTab = doc.querySelector('[data-test-tab="firefox"]');
-		expect(firefoxTab?.getAttribute("href")).toBe("/install?client=firefox&utm_source=install-tabs&utm_medium=internal&utm_content=firefox");
-
-		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
-		expect(chromeTab?.getAttribute("href")).toBe("/install?client=chrome&utm_source=install-tabs&utm_medium=internal&utm_content=chrome");
-	});
-
-	it("should render an iPhone tab linking to the iPhone panel on every view", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install");
-		const doc = new JSDOM(response.text).window.document;
-
-		const iphoneTab = doc.querySelector('[data-test-tab="iphone"]');
-		expect(iphoneTab?.getAttribute("href")).toBe("/install?client=iphone&utm_source=install-tabs&utm_medium=internal&utm_content=iphone");
-		expect(iphoneTab?.textContent).toBe("iPhone (beta)");
-		expect(iphoneTab?.classList.contains("install-page__tab--active")).toBe(false);
-	});
-
-	it("should select the iPhone tab when client=iphone", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=iphone");
-		const doc = new JSDOM(response.text).window.document;
-
-		const iphoneTab = doc.querySelector('[data-test-tab="iphone"]');
-		expect(iphoneTab?.classList.contains("install-page__tab--active")).toBe(true);
-		expect(iphoneTab?.getAttribute("aria-current")).toBe("page");
-
-		const chromeTab = doc.querySelector('[data-test-tab="chrome"]');
-		expect(chromeTab?.classList.contains("install-page__tab--active")).toBe(false);
-	});
-
-	it("should render only the iPhone panel explaining the share-sheet save when client=iphone", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=iphone");
-		const doc = new JSDOM(response.text).window.document;
-
-		const panels = Array.from(doc.querySelectorAll("[data-test-panel]")).map(
-			(el) => el.getAttribute("data-test-panel"),
-		);
-		expect(panels).toEqual(["iphone"]);
-
-		const iphonePanel = doc.querySelector('[data-test-panel="iphone"]');
-		assert(iphonePanel, "iPhone panel must be rendered");
-		expect(iphonePanel.textContent).toContain("share");
-	});
-
-	it("should show the beta notice on the iPhone tab", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=iphone");
-		const doc = new JSDOM(response.text).window.document;
-
-		const notice = doc.querySelector('[data-test-section="ios-beta-notice"]');
-		expect(notice?.textContent).toContain("beta");
-		expect(notice?.textContent).toContain("TestFlight");
-	});
-
-	it("should link the Join the beta button to TestFlight", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=iphone");
-		const doc = new JSDOM(response.text).window.document;
-
-		const cta = doc.querySelector('[data-test-cta="join-ios-beta"]');
-		expect(cta?.getAttribute("href")).toBe("https://testflight.apple.com/join/5eng821W");
-		expect(cta?.textContent).toBe("Join the beta on TestFlight");
-	});
-
-	it("should list the beta setup steps on the iPhone tab", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=iphone");
-		const doc = new JSDOM(response.text).window.document;
-
-		const steps = doc.querySelectorAll("[data-test-beta-step]");
-		expect(steps).toHaveLength(6);
-
-		const stepsText = doc.querySelector('[data-test-section="ios-beta-steps"]')?.textContent ?? "";
-		expect(stepsText).toContain("TestFlight");
-		expect(stepsText).toContain("Share");
-		expect(stepsText).toContain("readplace.com");
-	});
-
-	it("should tell beta testers check-ins come by email and feedback is welcome in-app", async () => {
-		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=iphone");
-		const doc = new JSDOM(response.text).window.document;
-
-		const outro = doc.querySelector('[data-test-section="ios-beta-outro"]');
-		assert(outro, "iPhone beta outro must be rendered");
-		expect(outro.textContent).toContain("I'll check in soon by email");
-		expect(outro.textContent).toContain("feedback is welcome in-app");
 	});
 
 	it("returns markdown when Accept: text/markdown is sent", async () => {

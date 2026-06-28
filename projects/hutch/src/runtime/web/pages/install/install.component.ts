@@ -13,20 +13,42 @@ const INSTALL_TEMPLATE = readFileSync(join(__dirname, "install.template.html"), 
 const FIREFOX_LATEST_POINTER_URL = firefoxS3Config.getLatestPointerUrl("prod");
 const CHROME_WEB_STORE_URL = "https://chromewebstore.google.com/detail/hutch/klblengmhlfnmjoagchagfcdbpbocgbf";
 const TESTFLIGHT_URL = "https://testflight.apple.com/join/5eng821W";
+const MCP_SERVER_URL = "https://readplace.com/mcp";
+const MCP_GUIDE_URL = "/mcp";
 
+const INSTALL_COPY_SCRIPT = `<script src="/client-dist/install.client.js" defer></script>`;
+
+/** Each tab is its own client, ordered within the labelled group it belongs to.
+ * The browser extensions (firefox/chrome) and the AI assistants (claude/chatgpt)
+ * share a panel shape each, differing only in data, so the rendered panel is
+ * resolved in buildPanel and the template switches on `panel.type`. */
 const TAB_DEFINITIONS = [
-	{ key: "firefox", label: "Firefox", icon: "fa-brands fa-firefox-browser" },
-	{ key: "chrome", label: "Chrome", icon: "fa-brands fa-chrome" },
-	{ key: "iphone", label: "iPhone (beta)", icon: "fa-brands fa-apple" },
+	{ key: "firefox", label: "Firefox", group: "Browsers & Devices", beta: false },
+	{ key: "chrome", label: "Chrome", group: "Browsers & Devices", beta: false },
+	{ key: "iphone", label: "iPhone", group: "Browsers & Devices", beta: true },
+	{ key: "claude", label: "Claude", group: "AI Assistants", beta: false },
+	{ key: "chatgpt", label: "ChatGPT", group: "AI Assistants", beta: false },
 ] as const;
 
 export type InstallClient = (typeof TAB_DEFINITIONS)[number]["key"];
 
+/** Inbound links use per-browser/per-assistant values; `ai` is accepted as a
+ * convenience entry that lands on the first AI tab. Anything else 400s — the
+ * route relies on parseClient throwing for unknown clients. */
+const CLIENT_ALIASES: Record<string, InstallClient> = {
+	firefox: "firefox",
+	chrome: "chrome",
+	iphone: "iphone",
+	claude: "claude",
+	chatgpt: "chatgpt",
+	ai: "claude",
+};
+
 export function parseClient(value: unknown): InstallClient {
 	if (value === undefined) return "chrome";
-	const tab = TAB_DEFINITIONS.find((definition) => definition.key === value);
-	assert(tab, `Unknown install client: ${String(value)}`);
-	return tab.key;
+	const client = CLIENT_ALIASES[String(value)];
+	assert(client, `Unknown install client: ${String(value)}`);
+	return client;
 }
 
 async function fetchDownloadUrl(latestPointerUrl: string, buildDownloadUrl: (filename: string) => string): Promise<string | null> {
@@ -46,30 +68,48 @@ export async function fetchFirefoxDownloadUrl(): Promise<string | null> {
 interface InstallTab {
 	key: InstallClient;
 	label: string;
-	icon: string;
+	beta: boolean;
 	href: string;
 	activeClass: string;
 	ariaCurrent?: "page";
 }
 
-function buildInstallTabs(active: InstallClient): InstallTab[] {
-	return TAB_DEFINITIONS.map(({ key, label, icon }) => {
+interface InstallTabGroup {
+	label: string;
+	tabs: InstallTab[];
+}
+
+function buildTabGroups(active: InstallClient): InstallTabGroup[] {
+	const groups: InstallTabGroup[] = [];
+	for (const { key, label, group, beta } of TAB_DEFINITIONS) {
+		let target = groups.find((candidate) => candidate.label === group);
+		if (!target) {
+			target = { label: group, tabs: [] };
+			groups.push(target);
+		}
 		const isActive = key === active;
-		return {
+		target.tabs.push({
 			key,
 			label,
-			icon,
+			beta,
 			href: withInternalTracking(`/install?client=${key}`, { source: "install-tabs", content: key }),
 			activeClass: isActive ? " install-page__tab--active" : "",
 			ariaCurrent: isActive ? "page" : undefined,
-		};
-	});
+		});
+	}
+	return groups;
 }
 
 interface BetaSetupStep {
 	title: string;
 	note?: string;
 }
+
+const BROWSER_STEPS: string[] = [
+	"Pin Readplace to your toolbar so it's one click away.",
+	"Sign in once, and your queue syncs across every browser and device.",
+	"Save the page you're reading from the toolbar button, the Ctrl/Cmd+D shortcut, or the right-click menu.",
+];
 
 const BETA_SETUP_STEPS: BetaSetupStep[] = [
 	{ title: "Install the free TestFlight app from the App Store." },
@@ -98,12 +138,83 @@ const BETA_SETUP_STEPS: BetaSetupStep[] = [
 const BETA_OUTRO =
 	"Use it for a few days or weeks: save the articles you want to read later, then open readplace.com when you have time to read them. I'll check in soon by email to see how it's going, and any feedback is welcome in-app.";
 
+interface AiAssistant {
+	name: string;
+	intro: string;
+	prompt: string;
+	requirement: string;
+}
+
+const AI_ASSISTANTS: Record<"claude" | "chatgpt", AiAssistant> = {
+	claude: {
+		name: "Claude",
+		intro:
+			"Readplace runs an MCP server. Connect it once and Claude can save pages to your queue and read your list back, right inside the conversation.",
+		prompt: "Add readplace.com/mcp as a connector so you can save pages to and read my reading list.",
+		requirement: "Works on Free, Pro, Max, Team, and Enterprise — the Free plan allows one custom connector.",
+	},
+	chatgpt: {
+		name: "ChatGPT",
+		intro:
+			"The same MCP server connects through ChatGPT's developer mode. Once it's on, ChatGPT can read your list and save links for you.",
+		prompt: "Connect to readplace.com so you can access my reading list.",
+		requirement:
+			"Needs a paid plan (Plus, Pro, Business, Enterprise, or Edu) with developer mode turned on from the web.",
+	},
+};
+
+interface BrowserExtension {
+	name: string;
+	intro: string;
+	downloadUrl: string | null;
+	ctaLabel: string;
+	ctaTestId: string;
+}
+
+const BROWSER_EXTENSIONS: Record<"firefox" | "chrome", Omit<BrowserExtension, "downloadUrl">> = {
+	firefox: {
+		name: "Firefox",
+		intro:
+			"The extension saves the full page you're reading — the rendered article, not just what a link-only fetch would see.",
+		ctaLabel: "Install Readplace for Firefox",
+		ctaTestId: "download-firefox",
+	},
+	chrome: {
+		name: "Chrome",
+		intro:
+			'Listed as "Hutch" on the Chrome Web Store. Works in Chrome, Edge, Brave, and other Chromium browsers.',
+		ctaLabel: "Install Readplace for Chrome",
+		ctaTestId: "download-chrome",
+	},
+};
+
+type PanelView =
+	| { type: "browser"; browser: BrowserExtension }
+	| { type: "iphone" }
+	| { type: "ai"; assistant: AiAssistant };
+
+function buildPanel(active: InstallClient, firefoxDownloadUrl: string | null): PanelView {
+	switch (active) {
+		case "firefox":
+			return { type: "browser", browser: { ...BROWSER_EXTENSIONS.firefox, downloadUrl: firefoxDownloadUrl } };
+		case "chrome":
+			return { type: "browser", browser: { ...BROWSER_EXTENSIONS.chrome, downloadUrl: CHROME_WEB_STORE_URL } };
+		case "iphone":
+			return { type: "iphone" };
+		case "claude":
+			return { type: "ai", assistant: AI_ASSISTANTS.claude };
+		case "chatgpt":
+			return { type: "ai", assistant: AI_ASSISTANTS.chatgpt };
+	}
+}
+
 export function InstallPage(params: { firefox: string | null; client: InstallClient }): PageBody {
+	const panel = buildPanel(params.client, params.firefox);
 	return {
 		seo: {
 			title: "Install Readplace Browser Extension",
 			description:
-				"Where reading still matters. Download the Readplace browser extension for Firefox or Chrome and save articles with one click.",
+				"Where reading still matters. Install the Readplace browser extension for Firefox or Chrome, save from your iPhone, or connect your AI assistant to save and read your reading list.",
 			canonicalUrl: "https://readplace.com/install",
 			structuredData: [
 				{
@@ -149,14 +260,22 @@ export function InstallPage(params: { firefox: string | null; client: InstallCli
 		},
 		styles: INSTALL_PAGE_STYLES,
 		bodyClass: "page-install",
-		content: { html: render(INSTALL_TEMPLATE, {
-			tabs: buildInstallTabs(params.client),
-			client: params.client,
-			firefoxDownloadUrl: params.firefox,
-			chromeDownloadUrl: CHROME_WEB_STORE_URL,
-			testflightUrl: TESTFLIGHT_URL,
-			betaSteps: BETA_SETUP_STEPS,
-			betaOutro: BETA_OUTRO,
-		}, { helpers: switchHelpers }) },
+		content: {
+			html: render(
+				INSTALL_TEMPLATE,
+				{
+					groups: buildTabGroups(params.client),
+					panel,
+					browserSteps: BROWSER_STEPS,
+					testflightUrl: TESTFLIGHT_URL,
+					betaSteps: BETA_SETUP_STEPS,
+					betaOutro: BETA_OUTRO,
+					mcpServerUrl: MCP_SERVER_URL,
+					mcpGuideUrl: MCP_GUIDE_URL,
+				},
+				{ helpers: switchHelpers },
+			),
+		},
+		scripts: panel.type === "ai" ? INSTALL_COPY_SCRIPT : undefined,
 	};
 }
