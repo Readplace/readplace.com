@@ -56,7 +56,6 @@ describe("toArticleSubEntity", () => {
 				{ rel: ["read"], title: "Read", href: `/queue/${ARTICLE_ID}/view` },
 			],
 			actions: [
-				{ name: "delete", title: "Delete", href: `/queue/${ARTICLE_ID}/delete`, method: "POST" },
 				{
 					name: "update-status",
 					title: "Mark as read",
@@ -69,15 +68,10 @@ describe("toArticleSubEntity", () => {
 		});
 	});
 
-	it("retains the delete action the browser extension consumes", () => {
+	it("does not advertise a delete action — deletion is website-only", () => {
 		const subEntity = toArticleSubEntity(makeArticle());
 		const deleteAction = subEntity.actions?.find((a) => a.name === "delete");
-		expect(deleteAction).toEqual({
-			name: "delete",
-			title: "Delete",
-			href: `/queue/${ARTICLE_ID}/delete`,
-			method: "POST",
-		});
+		expect(deleteAction).toBeUndefined();
 	});
 
 	it("toggles an unread item to a server-driven Mark as read with the target value", () => {

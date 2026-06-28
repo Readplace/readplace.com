@@ -336,7 +336,7 @@ describe("POST /queue (Siren save article)", () => {
 		expect(response.body.properties.title).toBe("Article from example.com");
 	});
 
-	it("includes delete action on saved article", async () => {
+	it("does not advertise a delete action on a saved article — deletion is website-only", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const accessToken = await createAccessToken(harness);
 
@@ -350,9 +350,7 @@ describe("POST /queue (Siren save article)", () => {
 		const deleteAction = response.body.actions?.find(
 			(a: { name: string }) => a.name === "delete",
 		);
-		assert(deleteAction, "expected delete action");
-		expect(deleteAction.method).toBe("POST");
-		expect(deleteAction.href).toContain("/delete");
+		expect(deleteAction).toBeUndefined();
 	});
 
 	it("includes update-status action on saved article", async () => {
@@ -648,7 +646,7 @@ describe("GET /queue?url= (Siren URL filter)", () => {
 });
 
 describe("Article sub-entity actions", () => {
-	it("includes delete action on article sub-entities in collection", async () => {
+	it("does not advertise a delete action on article sub-entities in collection — deletion is website-only", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const accessToken = await createAccessToken(harness);
 
@@ -668,9 +666,7 @@ describe("Article sub-entity actions", () => {
 		const deleteAction = entity.actions?.find(
 			(a: { name: string }) => a.name === "delete",
 		);
-		assert(deleteAction, "expected delete action on sub-entity");
-		expect(deleteAction.method).toBe("POST");
-		expect(deleteAction.href).toContain("/delete");
+		expect(deleteAction).toBeUndefined();
 	});
 
 	it("includes update-status action on article sub-entities in collection", async () => {

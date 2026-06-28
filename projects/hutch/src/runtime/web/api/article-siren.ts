@@ -29,12 +29,6 @@ export function toArticleSubEntity(article: SavedArticle): SirenSubEntity {
 		links,
 		actions: [
 			{
-				name: "delete",
-				title: "Delete",
-				href: `/queue/${id}/delete`,
-				method: "POST",
-			},
-			{
 				name: "update-status",
 				title: isRead ? "Mark as unread" : "Mark as read",
 				href: `/queue/${id}/status`,
