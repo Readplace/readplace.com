@@ -355,6 +355,7 @@ function setListError(message: string | null): void {
 		errorEl.textContent = message;
 		errorEl.hidden = false;
 	} else {
+		errorEl.textContent = "";
 		errorEl.hidden = true;
 	}
 }
@@ -537,7 +538,6 @@ if (shortcutHint) {
 saveAndShowList().catch((error) => {
 	logger.error("Failed to initialize popup:", error);
 	showView("list-view");
-	const listError = document.getElementById("list-error");
-	if (listError) listError.hidden = false;
+	setListError("Failed to load links");
 });
 /* c8 ignore stop */
