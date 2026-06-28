@@ -112,7 +112,7 @@ describe("toArticleCollectionEntity", () => {
 		expect(entity.links).toContainEqual({ rel: ["root"], href: "/queue" });
 	});
 
-	it("advertises the add-links-help link", () => {
+	it("advertises a titled add-links-help link so looping clients use a server-authored label", () => {
 		const result: FindArticlesResult = {
 			articles: [],
 			total: 0,
@@ -124,6 +124,7 @@ describe("toArticleCollectionEntity", () => {
 
 		expect(entity.links).toContainEqual({
 			rel: ["add-links-help"],
+			title: "How to add links",
 			href: "/help/add-links",
 		});
 	});
@@ -216,6 +217,28 @@ describe("toArticleCollectionEntity", () => {
 		const saveAction = entity.actions?.find((a) => a.name === "save-article");
 		expect(saveAction?.method).toBe("POST");
 		expect(saveAction?.fields?.some((f) => f.name === "url")).toBe(true);
+		expect(saveAction?.title).toBe("Save a link");
+	});
+
+	it("gives every advertised action a human title", () => {
+		const result: FindArticlesResult = {
+			articles: [],
+			total: 0,
+			page: 1,
+			pageSize: 20,
+		};
+
+		const entity = toArticleCollectionEntity(result, {});
+
+		const titles = Object.fromEntries(
+			(entity.actions ?? []).map((a) => [a.name, a.title]),
+		);
+		expect(titles).toEqual({
+			"save-article": "Save a link",
+			"save-html": "Save a page",
+			"save-content": "Save a file",
+			search: "Search",
+		});
 	});
 
 	it("includes search action with filter fields", () => {

@@ -45,7 +45,11 @@ export function toArticleCollectionEntity(
 
 	// The add-links-help rel is the client contract; the href stays
 	// server-internal so the bare help page can move without a client release.
-	links.push({ rel: ["add-links-help"], href: "/help/add-links" });
+	links.push({
+		rel: ["add-links-help"],
+		title: "How to add links",
+		href: "/help/add-links",
+	});
 
 	if (page > 1) {
 		links.push({
@@ -72,6 +76,7 @@ export function toArticleCollectionEntity(
 		actions: [
 			{
 				name: "save-article",
+				title: "Save a link",
 				href: "/queue",
 				method: "POST",
 				type: "application/json",
@@ -79,6 +84,7 @@ export function toArticleCollectionEntity(
 			},
 			{
 				name: "save-html",
+				title: "Save a page",
 				href: "/queue/save-html",
 				method: "POST",
 				type: "application/json",
@@ -90,6 +96,7 @@ export function toArticleCollectionEntity(
 			},
 			{
 				name: "save-content",
+				title: "Save a file",
 				href: "/queue/save-content",
 				method: "POST",
 				type: "multipart/form-data",
@@ -102,6 +109,7 @@ export function toArticleCollectionEntity(
 			},
 			{
 				name: "search",
+				title: "Search",
 				href: "/queue",
 				method: "GET",
 				fields: [

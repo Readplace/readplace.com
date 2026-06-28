@@ -53,16 +53,17 @@ describe("toArticleSubEntity", () => {
 				readAt: null,
 			},
 			links: [
-				{ rel: ["read"], href: `/queue/${ARTICLE_ID}/view` },
+				{ rel: ["read"], title: "Read", href: `/queue/${ARTICLE_ID}/view` },
 			],
 			actions: [
-				{ name: "delete", href: `/queue/${ARTICLE_ID}/delete`, method: "POST" },
+				{ name: "delete", title: "Delete", href: `/queue/${ARTICLE_ID}/delete`, method: "POST" },
 				{
 					name: "update-status",
+					title: "Mark as read",
 					href: `/queue/${ARTICLE_ID}/status`,
 					method: "POST",
 					type: "application/x-www-form-urlencoded",
-					fields: [{ name: "status", type: "text" }],
+					fields: [{ name: "status", type: "text", value: "read" }],
 				},
 			],
 		});
@@ -73,20 +74,37 @@ describe("toArticleSubEntity", () => {
 		const deleteAction = subEntity.actions?.find((a) => a.name === "delete");
 		expect(deleteAction).toEqual({
 			name: "delete",
+			title: "Delete",
 			href: `/queue/${ARTICLE_ID}/delete`,
 			method: "POST",
 		});
 	});
 
-	it("emits an update-status action posting the status field as urlencoded", () => {
-		const subEntity = toArticleSubEntity(makeArticle());
+	it("toggles an unread item to a server-driven Mark as read with the target value", () => {
+		const subEntity = toArticleSubEntity(makeArticle({ status: "unread" }));
 		const updateStatus = subEntity.actions?.find((a) => a.name === "update-status");
 		expect(updateStatus).toEqual({
 			name: "update-status",
+			title: "Mark as read",
 			href: `/queue/${ARTICLE_ID}/status`,
 			method: "POST",
 			type: "application/x-www-form-urlencoded",
-			fields: [{ name: "status", type: "text" }],
+			fields: [{ name: "status", type: "text", value: "read" }],
+		});
+	});
+
+	it("toggles a read item to a server-driven Mark as unread with the target value", () => {
+		const subEntity = toArticleSubEntity(
+			makeArticle({ status: "read", readAt: new Date("2026-03-04T12:00:00.000Z") }),
+		);
+		const updateStatus = subEntity.actions?.find((a) => a.name === "update-status");
+		expect(updateStatus).toEqual({
+			name: "update-status",
+			title: "Mark as unread",
+			href: `/queue/${ARTICLE_ID}/status`,
+			method: "POST",
+			type: "application/x-www-form-urlencoded",
+			fields: [{ name: "status", type: "text", value: "unread" }],
 		});
 	});
 
@@ -95,8 +113,18 @@ describe("toArticleSubEntity", () => {
 		const subEntity = toArticleSubEntity(article);
 
 		expect(subEntity.links).toEqual([
-			{ rel: ["read"], href: `/queue/${ARTICLE_ID}/view` },
+			{ rel: ["read"], title: "Read", href: `/queue/${ARTICLE_ID}/view` },
 		]);
+	});
+
+	it("titles the read link so looping clients use a server-authored label", () => {
+		const subEntity = toArticleSubEntity(makeArticle());
+		const readLink = subEntity.links?.find((l) => l.rel.includes("read"));
+		expect(readLink).toEqual({
+			rel: ["read"],
+			title: "Read",
+			href: `/queue/${ARTICLE_ID}/view`,
+		});
 	});
 
 	it("maps readAt when present", () => {

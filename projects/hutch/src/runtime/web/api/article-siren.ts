@@ -4,8 +4,11 @@ import type { SirenEntity, SirenLink, SirenSubEntity } from "./siren";
 export function toArticleSubEntity(article: SavedArticle): SirenSubEntity {
 	const id = article.id.value;
 	const links: SirenLink[] = [
-		{ rel: ["read"], href: `/queue/${id}/view` },
+		{ rel: ["read"], title: "Read", href: `/queue/${id}/view` },
 	];
+
+	const isRead = article.status === "read";
+	const targetStatus = isRead ? "unread" : "read";
 
 	return {
 		class: ["article"],
@@ -27,15 +30,17 @@ export function toArticleSubEntity(article: SavedArticle): SirenSubEntity {
 		actions: [
 			{
 				name: "delete",
+				title: "Delete",
 				href: `/queue/${id}/delete`,
 				method: "POST",
 			},
 			{
 				name: "update-status",
+				title: isRead ? "Mark as unread" : "Mark as read",
 				href: `/queue/${id}/status`,
 				method: "POST",
 				type: "application/x-www-form-urlencoded",
-				fields: [{ name: "status", type: "text" }],
+				fields: [{ name: "status", type: "text", value: targetStatus }],
 			},
 		],
 	};

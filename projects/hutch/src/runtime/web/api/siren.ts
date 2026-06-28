@@ -8,6 +8,7 @@ export interface SirenAction {
 	name: string;
 	href: string;
 	method: string;
+	title?: string;
 	type?: string;
 	fields?: SirenField[];
 }
@@ -15,6 +16,7 @@ export interface SirenAction {
 export interface SirenLink {
 	rel: string[];
 	href: string;
+	title?: string;
 }
 
 export interface SirenEntity {

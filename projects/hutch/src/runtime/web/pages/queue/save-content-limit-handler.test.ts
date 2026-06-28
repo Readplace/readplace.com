@@ -54,9 +54,9 @@ describe("initSaveContentLimitHandler", () => {
 			class: ["error"],
 			properties: expect.objectContaining({ code: "content-too-large" }),
 		}));
-		const body = calls.body as { actions: { name: string; href: string }[] };
+		const body = calls.body as { actions: { name: string; title: string; href: string }[] };
 		expect(body.actions[0]).toEqual(
-			expect.objectContaining({ name: "save-article", href: "/queue" }),
+			expect.objectContaining({ name: "save-article", title: "Save a link", href: "/queue" }),
 		);
 		expect(next).not.toHaveBeenCalled();
 	});

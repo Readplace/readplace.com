@@ -235,7 +235,9 @@ describe("POST /queue/save-content validation", () => {
 		const fallback = response.body.actions.find(
 			(a: { name: string }) => a.name === "save-article",
 		);
-		expect(fallback).toBeDefined();
+		expect(fallback).toEqual(
+			expect.objectContaining({ title: "Save a link", href: "/queue" }),
+		);
 	});
 
 	it("returns 422 when the content field is missing", async () => {
