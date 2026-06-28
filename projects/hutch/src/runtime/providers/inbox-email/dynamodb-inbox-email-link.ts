@@ -122,6 +122,10 @@ export function initDynamoDbInboxEmailLink(deps: {
 				}
 				await table.update({
 					Key,
+					// Fail closed if the pending row is gone: a bare UpdateItem would
+					// upsert a partial item with no url/userId, which then fails the read
+					// schema and breaks the whole email's link list.
+					ConditionExpression: "attribute_exists(ordinal)",
 					UpdateExpression: `SET ${sets.join(", ")} REMOVE ${removes.join(", ")}`,
 					ExpressionAttributeNames: names,
 					ExpressionAttributeValues: values,
@@ -130,6 +134,7 @@ export function initDynamoDbInboxEmailLink(deps: {
 			}
 			await table.update({
 				Key,
+				ConditionExpression: "attribute_exists(ordinal)",
 				UpdateExpression:
 					"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl",
 				ExpressionAttributeNames: {

@@ -133,6 +133,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 			});
 
 			expect(captured?.input.Key).toEqual({ userLinkGroup: GROUP, ordinal: "0003" });
+			expect(captured?.input.ConditionExpression).toBe("attribute_exists(ordinal)");
 			expect(captured?.input.UpdateExpression).toContain("#imageUrl = :imageUrl");
 			expect(captured?.input.UpdateExpression).toContain("REMOVE #failureReason");
 			expect(captured?.input.ExpressionAttributeValues?.[":status"]).toBe("crawled");
@@ -167,6 +168,7 @@ describe("initDynamoDbInboxEmailLink", () => {
 				outcome: { status: "failed", failureReason: "unsafe-url" },
 			});
 
+			expect(captured?.input.ConditionExpression).toBe("attribute_exists(ordinal)");
 			expect(captured?.input.UpdateExpression).toBe(
 				"SET #status = :status, #failureReason = :failureReason REMOVE #title, #excerpt, #siteName, #imageUrl",
 			);
