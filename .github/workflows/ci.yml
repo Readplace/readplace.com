@@ -70,8 +70,6 @@ jobs:
       has-non-platform: ${{ steps.detect.outputs.has-non-platform }}
       ff-affected: ${{ steps.detect.outputs.ff-affected }}
       chrome-affected: ${{ steps.detect.outputs.chrome-affected }}
-      ios-affected: ${{ steps.detect.outputs.ios-affected }}
-      ios-test-affected: ${{ steps.detect.outputs.ios-test-affected }}
     steps:
       # check-infra runs `pulumi preview` against each project's Pulumi program,
       # which evaluates top-level `requireEnv` calls (e.g. DEEPSEEK_API_KEY,
@@ -182,6 +180,27 @@ jobs:
           echo "ff-affected=$(echo "$COMPILE_AFFECTED" | jq -e 'index("firefox-extension")' > /dev/null 2>&1 && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "chrome-affected=$(echo "$COMPILE_AFFECTED" | jq -e 'index("chrome-extension")' > /dev/null 2>&1 && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
+  # iOS change detection. Unlike detect-projects (which needs AWS secrets + Pulumi
+  # to check infra drift and therefore only runs on main pushes), this job only
+  # diffs paths, so it is cheap and safe to run on PRs too — which is what lets
+  # ios-tests gate pre-merge, exactly like web-tests runs `pnpm check` on every
+  # PR. nx-set-shas anchors the diff: the PR's merge base on PRs, the last
+  # successful main run on pushes.
+  detect-ios:
+    runs-on: ubuntu-latest
+    outputs:
+      ios-affected: ${{ steps.detect.outputs.ios-affected }}
+      ios-test-affected: ${{ steps.detect.outputs.ios-test-affected }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history needed for nx-set-shas to resolve the diff base
+          fetch-depth: 0
+
+      - uses: nrwl/nx-set-shas@v4
+
+      - id: detect
+        run: |
           # iOS TestFlight gate: fire only when the app's SHIPPING source changed
           # (App/Shared/ShareExtension/project.yml). The iOS unit tests live in
           # the SAME nx project, so nx affected would also fire on test/doc/CI
@@ -195,9 +214,8 @@ jobs:
           echo "ios-affected=$([ -n "$IOS_CHANGED" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
           # iOS test gate: a superset of ios-affected that also fires on test
-          # changes. The macOS test job (below) runs whenever code OR tests
-          # change and gates the publish; publish itself stays scoped to
-          # shipping code via ios-affected, so a test-only change never ships.
+          # changes, so a test-only change still runs the macOS suite (which gates
+          # the publish) without shipping a build.
           IOS_TEST_CHANGED=$(git diff --name-only "$NX_BASE" "$NX_HEAD" -- \
             projects/ios-readplace/App \
             projects/ios-readplace/Shared \
@@ -266,12 +284,14 @@ jobs:
 
   # Run the iOS unit/integration test bundle on a macOS runner. Gates the
   # TestFlight publish below, so a red test blocks the build. Mirrors the publish
-  # job's toolchain (macos-15 + latest-stable Xcode + xcodegen). Fires whenever
+  # job's toolchain (macos-15 + latest-stable Xcode + xcodegen). Gated by
+  # detect-ios, which — unlike detect-projects — runs on PRs too, so iOS
+  # regressions are caught pre-merge like every other test suite. Fires whenever
   # iOS code OR tests change; publish stays scoped to shipping code via
   # ios-affected (⊆ ios-test-affected), so this always runs when publish would.
   ios-tests:
-    if: needs.detect-projects.outputs.ios-test-affected == 'true'
-    needs: [detect-projects]
+    if: needs.detect-ios.outputs.ios-test-affected == 'true'
+    needs: [detect-ios]
     runs-on: macos-15
     defaults:
       run:
@@ -310,8 +330,8 @@ jobs:
       && needs.web-tests.result == 'success'
       && needs.detect-projects.result == 'success'
       && needs.ios-tests.result == 'success'
-      && needs.detect-projects.outputs.ios-affected == 'true'
-    needs: [web-tests, detect-projects, ios-tests]
+      && needs.detect-ios.outputs.ios-affected == 'true'
+    needs: [web-tests, detect-projects, detect-ios, ios-tests]
     permissions:
       contents: write
     uses: ./.github/workflows/publish-ios-testflight.yml
