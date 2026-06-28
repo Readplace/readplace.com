@@ -86,6 +86,15 @@ describe("buildAnalyticsDashboardBody — drift prevention", () => {
 		expect(opens).toContain("\\/view$");
 	});
 
+	it("the internal-clicks widget surfaces utm_content as the element so the dashboard shows which tab/button was clicked (e.g. install-tabs → firefox), not just the section", () => {
+		const queries = widgetQueries();
+		const clicks = queries.find((q) => q.includes(`event = "${ANALYTICS_EVENTS.click}"`));
+		expect(clicks).toBeDefined();
+		expect(clicks).toContain('coalesce(utm_source, "-") as section');
+		expect(clicks).toContain('coalesce(utm_content, "-") as element');
+		expect(clicks).toContain("stats count(*) as clicks by section, element");
+	});
+
 	it("every stream used by an emitter (STREAMS) is referenced by at least one widget query — adding a new stream without a widget fails CI", () => {
 		const referenced = collectReferencedStreams();
 		const declared = new Set(Object.values(STREAMS));
