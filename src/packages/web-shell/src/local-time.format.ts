@@ -42,11 +42,10 @@ const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
 export function formatLocalInstant(input: {
 	iso: string;
 	style: LocalTimeStyle;
-	timeZone?: string;
+	timeZone: string;
 }): string {
 	const base = input.style === "datetime" ? DATETIME_OPTIONS : DATE_OPTIONS;
-	const options = input.timeZone ? { ...base, timeZone: input.timeZone } : base;
-	return new Date(input.iso).toLocaleString(LOCALE, options);
+	return new Date(input.iso).toLocaleString(LOCALE, { ...base, timeZone: input.timeZone });
 }
 
 export function toAbsoluteDateTime(input: { iso: string }): LocalTime {

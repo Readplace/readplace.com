@@ -34,18 +34,6 @@ describe("formatLocalInstant", () => {
 			"24 June 2026",
 		);
 	});
-
-	it("uses the runtime's resolved zone when no timeZone is passed", () => {
-		const withExplicitUtc = formatLocalInstant({
-			iso: ISO,
-			style: "datetime",
-			timeZone: "UTC",
-		});
-		const withResolvedZone = formatLocalInstant({ iso: ISO, style: "datetime" });
-		// The test process runs in UTC, so the resolved-zone path matches the
-		// explicit-UTC path — exercising the no-timeZone branch deterministically.
-		expect(withResolvedZone).toBe(withExplicitUtc);
-	});
 });
 
 describe("toAbsoluteDateTime", () => {
