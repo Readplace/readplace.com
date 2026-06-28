@@ -144,6 +144,53 @@ describe("initCrawlArticle — single-fetch orchestration", () => {
 		expect(fetched).toEqual([]);
 	});
 
+	it("fails closed without escaping or fetching when a matching site's onCrawl throws", async () => {
+		const onCrawlError = new Error("onCrawl boom");
+		const fetched: string[] = [];
+		const fakeFetch: typeof fetch = async (input) => {
+			const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+			fetched.push(url);
+			return new Response("body", { status: 200, headers: { "content-type": "text/html" } });
+		};
+		const throwingSite: SiteRules = {
+			matches: () => true,
+			onCrawl: async () => {
+				throw onCrawlError;
+			},
+			extract: noExtract,
+			transform: noTransform,
+		};
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, siteRules: [throwingSite], logError });
+
+		const result = await crawlArticle({ url: "https://example.com/post" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(fetched).toEqual([]);
+		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Site onCrawl threw for https://example.com/post", onCrawlError);
+	});
+
+	it("fails closed and logs undefined when a matching site's onCrawl throws a non-Error value", async () => {
+		const fakeFetch: typeof fetch = async () => {
+			throw new Error("fetch must not be invoked when a site has claimed the URL");
+		};
+		const throwingSite: SiteRules = {
+			matches: () => true,
+			onCrawl: async () => {
+				throw "boom";
+			},
+			extract: noExtract,
+			transform: noTransform,
+		};
+		const logError = jest.fn();
+		const crawlArticle = initCrawl({ fetch: fakeFetch, siteRules: [throwingSite], logError });
+
+		const result = await crawlArticle({ url: "https://example.com/post" });
+
+		expect(result).toEqual({ status: "failed" });
+		expect(logError).toHaveBeenCalledWith("[CrawlArticle] Site onCrawl threw for https://example.com/post", undefined);
+	});
+
 	it("fails closed without throwing or fetching when given a malformed URL", async () => {
 		const fakeFetch: typeof fetch = async () => {
 			throw new Error("fetch must not be invoked for a malformed URL");
