@@ -22,6 +22,7 @@ config:
   hutch:dynamodbInboxAddressesTable: hutch-inbox-addresses-staging
   hutch:dynamodbInboxEmailsTable: hutch-inbox-emails-staging
   hutch:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-staging
+  hutch:dynamodbOnboardingTable: hutch-onboarding-staging
   hutch:dynamodbRateLimitsTable: hutch-rate-limits-staging
   hutch:rateLimitViewCrawl: 10000/3600
   hutch:rateLimitLogin: 5000/900

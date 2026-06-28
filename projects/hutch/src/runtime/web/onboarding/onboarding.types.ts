@@ -1,9 +1,9 @@
-export type BrowserName = "firefox" | "chrome" | "other";
+export type Platform = "firefox" | "chrome" | "iphone" | "other";
 
 export interface OnboardingContext {
-	extensionInstalled: boolean;
-	extensionSavedArticle: boolean;
-	browser: BrowserName;
+	installed: boolean;
+	savedArticle: boolean;
+	platform: Platform;
 }
 
 export interface OnboardingAction {
@@ -14,7 +14,7 @@ export interface OnboardingAction {
 export interface OnboardingStep {
 	id: string;
 	title: (ctx: OnboardingContext) => string;
-	description: string;
+	description: (ctx: OnboardingContext) => string;
 	isComplete: (ctx: OnboardingContext) => boolean;
 	actions: (ctx: OnboardingContext) => OnboardingAction[];
 }

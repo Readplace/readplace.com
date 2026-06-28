@@ -15,6 +15,7 @@ export type {
 	ImportSessionBundle,
 	InboxAddressBundle,
 	InboxEmailBundle,
+	IosOnboardingSignalBundle,
 	OAuthBundle,
 	ParserBundle,
 	PasswordResetBundle,

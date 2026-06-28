@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { OnboardingChecklist, ONBOARDING_STYLES } from "../../onboarding/onboarding.component";
-import type { BrowserName } from "../../onboarding/onboarding.types";
+import type { Platform } from "../../onboarding/onboarding.types";
 import { render, withInternalTracking } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
 
@@ -73,7 +73,7 @@ export function emptyStateTitle(tab: TabId): string {
 	return EMPTY_STATE_TITLES[tab];
 }
 
-function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: boolean; extensionSavedArticle: boolean; browser: BrowserName; onboardingDismissed: boolean }): QueueDisplayModel {
+function toQueueDisplayModel(vm: QueueViewModel, options: { installed: boolean; savedArticle: boolean; platform: Platform; onboardingDismissed: boolean }): QueueDisplayModel {
 	const activeTab = vm.filters.tab;
 	const effectiveOrder = vm.filters.order ?? tabQuery(activeTab).defaultOrder;
 	const nextOrder = effectiveOrder === "desc" ? "asc" : "desc";
@@ -85,9 +85,9 @@ function toQueueDisplayModel(vm: QueueViewModel, options: { extensionInstalled: 
 
 	const onboardingHtml = OnboardingChecklist(
 		{
-			extensionInstalled: options.extensionInstalled,
-			extensionSavedArticle: options.extensionSavedArticle,
-			browser: options.browser,
+			installed: options.installed,
+			savedArticle: options.savedArticle,
+			platform: options.platform,
 		},
 		{ dismissed: options.onboardingDismissed },
 	);
@@ -167,9 +167,9 @@ const AUTO_SUBMIT_SCRIPT = `
 </script>
 `;
 
-export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; extensionInstalled?: boolean; extensionSavedArticle?: boolean; browser?: BrowserName; onboardingDismissed?: boolean; statusCode?: number }): PageBody {
+export function QueuePage(vm: QueueViewModel, options?: { saveUrl?: string; installed?: boolean; savedArticle?: boolean; platform?: Platform; onboardingDismissed?: boolean; statusCode?: number }): PageBody {
 	const saveUrl = options?.saveUrl;
-	const displayModel = toQueueDisplayModel(vm, { extensionInstalled: options?.extensionInstalled ?? false, extensionSavedArticle: options?.extensionSavedArticle ?? false, browser: options?.browser ?? "other", onboardingDismissed: options?.onboardingDismissed ?? false });
+	const displayModel = toQueueDisplayModel(vm, { installed: options?.installed ?? false, savedArticle: options?.savedArticle ?? false, platform: options?.platform ?? "other", onboardingDismissed: options?.onboardingDismissed ?? false });
 	const content = render(QUEUE_TEMPLATE, { ...displayModel, saveUrl });
 
 	const scriptParts: string[] = [];

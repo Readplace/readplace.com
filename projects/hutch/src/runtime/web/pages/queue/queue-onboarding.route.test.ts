@@ -7,8 +7,11 @@ import {
 	SAVE_COOKIE_NAME,
 	SAVE_COOKIE_VALUE,
 } from "@packages/onboarding-extension-signal";
+import request from "supertest";
 import { ONBOARDING_VERSION } from "../../onboarding/onboarding.steps";
-import { useTestServer, loginAgent } from "../../../test-app";
+import { IOS_CLIENT_HEADER, IOS_CLIENT_VALUE } from "../../onboarding/ios-client";
+import { SIREN_MEDIA_TYPE } from "../../api/siren";
+import { useTestServer, loginAgent, type TestAppHarness } from "../../../test-app";
 
 import {
 	TEST_APP_ORIGIN,
@@ -255,5 +258,178 @@ describe("Queue onboarding", () => {
 		assert(cookies, "set-cookie header must be present");
 		const cookieStr = Array.isArray(cookies) ? cookies.join("; ") : cookies;
 		expect(cookieStr).toContain(`${DISMISS_COOKIE_NAME}=${ONBOARDING_VERSION}`);
+	});
+});
+
+/** Mobile Safari on iPhone, the platform that reads the per-user iOS signal. */
+const IPHONE_UA =
+	"Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+
+function installTitle(html: string): string | null | undefined {
+	return new JSDOM(html).window.document
+		.querySelector('[data-test-onboarding-step="install-extension"] .onboarding__step-title')
+		?.textContent;
+}
+
+function stepComplete(html: string, stepId: string): string | null | undefined {
+	return new JSDOM(html).window.document
+		.querySelector(`[data-test-onboarding-step="${stepId}"]`)
+		?.getAttribute("data-test-onboarding-complete");
+}
+
+/** Mints a Bearer access token for the agent's logged-in user, so an app
+ * request (Bearer, like the real iOS app) and Safari (the session cookie) act
+ * as the same userId — the link the cross-app server-side signal depends on. */
+async function bearerForLoggedInUser(harness: TestAppHarness): Promise<string> {
+	const user = await harness.auth.findUserByEmail("test@example.com");
+	assert(user, "logged-in user must exist");
+	const client = await harness.oauthModel.getClient("hutch-firefox-extension", "");
+	assert(client, "oauth client must exist");
+	const token = await harness.oauthModel.saveToken(
+		{
+			accessToken: "ios-onboarding-access-token",
+			accessTokenExpiresAt: new Date(Date.now() + 3_600_000),
+			refreshToken: "ios-onboarding-refresh-token",
+			refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3_600_000),
+			client,
+			user: { id: user.userId },
+		},
+		client,
+		{ id: user.userId },
+	);
+	assert(token, "token must be saved");
+	return token.accessToken;
+}
+
+describe("Queue onboarding — iPhone", () => {
+	it("shows the iPhone-app steps incomplete by default for an iPhone visitor", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/queue").set("User-Agent", IPHONE_UA);
+
+		const doc = new JSDOM(response.text).window.document;
+		expect(installTitle(response.text)).toBe("Install the Readplace iPhone app");
+		expect(
+			doc
+				.querySelector('[data-test-onboarding-step="install-extension"] [data-test-onboarding-action]')
+				?.getAttribute("href"),
+		).toBe("/install?client=iphone");
+		expect(
+			doc
+				.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__step-title')
+				?.textContent,
+		).toBe("Save your first article using the iPhone app");
+		expect(stepComplete(response.text, "install-extension")).toBe("false");
+		expect(stepComplete(response.text, "save-first-article-via-extension")).toBe("false");
+	});
+
+	it("completes the install step once the app records an authenticated queue load", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		// The app loads the queue carrying its client header → records activation.
+		await agent.get("/queue").set("User-Agent", IPHONE_UA).set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE);
+
+		// Safari on the same phone (same user, no header) now sees step 1 complete.
+		const response = await agent.get("/queue").set("User-Agent", IPHONE_UA);
+
+		expect(stepComplete(response.text, "install-extension")).toBe("true");
+		expect(stepComplete(response.text, "save-first-article-via-extension")).toBe("false");
+	});
+
+	it("reaches the success state once the app records a save", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+		const token = await bearerForLoggedInUser(harness);
+
+		// A share-sheet save (Bearer-authed, client header) records both signals at once.
+		const save = await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE)
+			.send({ url: "https://example.com/article" });
+		expect(save.status).toBe(201);
+
+		// Safari on the same phone (same user, session cookie) now sees success.
+		const response = await agent.get("/queue").set("User-Agent", IPHONE_UA);
+
+		const doc = new JSDOM(response.text).window.document;
+		const onboarding = doc.querySelector("[data-test-onboarding]");
+		assert(onboarding, "onboarding container must be rendered");
+		expect(onboarding.classList.contains("onboarding--complete")).toBe(true);
+		const success = doc.querySelector("[data-test-onboarding-success]");
+		assert(success, "success section must be rendered once both iPhone steps are complete");
+		expect(success.querySelector(".onboarding__success-title")?.textContent).toMatch(/You did it!/);
+	});
+
+	it("does not record an iOS signal for a Safari queue load that lacks the client header", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		// Safari visits twice with no client header — neither load may record activation.
+		await agent.get("/queue").set("User-Agent", IPHONE_UA);
+		const response = await agent.get("/queue").set("User-Agent", IPHONE_UA);
+
+		expect(stepComplete(response.text, "install-extension")).toBe("false");
+	});
+
+	/** The iOS onboarding signal is non-essential bookkeeping; recording it must
+	 * never convert a successful save into a 500 or fail the app's queue load. The
+	 * write hits DynamoDB and can throw (transient error, or the missing-user-row
+	 * assert for a token that outlived a deleted account), so it is best-effort. */
+	it("returns 201 for a save even when recording the iOS save signal throws", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const loggedErrors: Error[] = [];
+		const harness = useApp({
+			...fixture,
+			iosOnboardingSignal: {
+				...fixture.iosOnboardingSignal,
+				recordIosSavedArticle: async () => { throw new Error("dynamo down"); },
+			},
+			shared: {
+				...fixture.shared,
+				logError: (_msg, err) => { if (err) loggedErrors.push(err); },
+			},
+		});
+		await loginAgent(harness.server, harness.auth);
+		const token = await bearerForLoggedInUser(harness);
+
+		const save = await request(harness.server)
+			.post("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${token}`)
+			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE)
+			.send({ url: "https://example.com/article" });
+
+		expect(save.status).toBe(201);
+		expect(loggedErrors).toHaveLength(1);
+	});
+
+	it("returns 200 for the queue load even when recording the iOS activation signal throws a non-Error", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const errorArgs: unknown[] = [];
+		const harness = useApp({
+			...fixture,
+			iosOnboardingSignal: {
+				...fixture.iosOnboardingSignal,
+				// biome-ignore lint/suspicious/noExplicitAny: deliberately throws a non-Error to exercise the `instanceof Error ? … : undefined` branch
+				recordIosAnyActivity: async () => { throw "dynamo down" as any; },
+			},
+			shared: {
+				...fixture.shared,
+				logError: (msg, err) => { errorArgs.push([msg, err]); },
+			},
+		});
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent
+			.get("/queue")
+			.set("User-Agent", IPHONE_UA)
+			.set(IOS_CLIENT_HEADER, IOS_CLIENT_VALUE);
+
+		expect(response.status).toBe(200);
+		expect(errorArgs).toEqual([["Failed to record iOS onboarding signal", undefined]]);
 	});
 });

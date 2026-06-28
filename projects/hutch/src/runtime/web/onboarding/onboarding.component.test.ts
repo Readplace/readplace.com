@@ -5,9 +5,9 @@ import type { OnboardingContext } from "./onboarding.types";
 
 function contextWith(overrides: Partial<OnboardingContext> = {}): OnboardingContext {
 	return {
-		extensionInstalled: false,
-		extensionSavedArticle: false,
-		browser: "chrome",
+		installed: false,
+		savedArticle: false,
+		platform: "chrome",
 		...overrides,
 	};
 }
@@ -52,32 +52,32 @@ describe("OnboardingChecklist", () => {
 		assert.equal(steps[1].getAttribute("data-test-onboarding-step"), "save-first-article-via-extension");
 	});
 
-	it("marks install-extension complete when extensionInstalled is true", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ extensionInstalled: true })));
+	it("marks install-extension complete when installed is true", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ installed: true })));
 
 		const step = doc.querySelector('[data-test-onboarding-step="install-extension"]');
 		assert(step, "install-extension step must be rendered");
 		assert.equal(step.getAttribute("data-test-onboarding-complete"), "true");
 	});
 
-	it("keeps install-extension incomplete when extensionInstalled is false", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ extensionInstalled: false, extensionSavedArticle: true })));
+	it("keeps install-extension incomplete when installed is false", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ installed: false, savedArticle: true })));
 
 		const step = doc.querySelector('[data-test-onboarding-step="install-extension"]');
 		assert(step, "install-extension step must be rendered");
 		assert.equal(step.getAttribute("data-test-onboarding-complete"), "false");
 	});
 
-	it("marks save-first-article complete when extensionSavedArticle is true", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ extensionSavedArticle: true })));
+	it("marks save-first-article complete when savedArticle is true", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true })));
 
 		const step = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"]');
 		assert(step, "save-first-article step must be rendered");
 		assert.equal(step.getAttribute("data-test-onboarding-complete"), "true");
 	});
 
-	it("keeps save-first-article incomplete when extensionSavedArticle is false", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ extensionSavedArticle: false })));
+	it("keeps save-first-article incomplete when savedArticle is false", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: false })));
 
 		const step = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"]');
 		assert(step, "save-first-article step must be rendered");
@@ -85,7 +85,7 @@ describe("OnboardingChecklist", () => {
 	});
 
 	it("shows container when only save-first-article is complete", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ extensionSavedArticle: true, extensionInstalled: false })));
+		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true, installed: false })));
 
 		const container = doc.querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
@@ -93,7 +93,7 @@ describe("OnboardingChecklist", () => {
 	});
 
 	it("shows container when only install-extension is complete", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ extensionSavedArticle: false, extensionInstalled: true })));
+		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: false, installed: true })));
 
 		const container = doc.querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
@@ -101,28 +101,35 @@ describe("OnboardingChecklist", () => {
 	});
 
 	it("shows 'Install the Chrome browser extension' for Chrome users", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ browser: "chrome" })));
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "chrome" })));
 		const title = doc.querySelector('[data-test-onboarding-step="install-extension"] .onboarding__step-title');
 		assert(title);
 		assert.equal(title.textContent, "Install the Chrome browser extension");
 	});
 
 	it("shows 'Install the Firefox browser extension' for Firefox users", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ browser: "firefox" })));
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "firefox" })));
 		const title = doc.querySelector('[data-test-onboarding-step="install-extension"] .onboarding__step-title');
 		assert(title);
 		assert.equal(title.textContent, "Install the Firefox browser extension");
 	});
 
-	it("shows 'Install a browser extension' for unrecognised browsers", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ browser: "other" })));
+	it("shows 'Install the Readplace iPhone app' for iPhone users", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "iphone" })));
+		const title = doc.querySelector('[data-test-onboarding-step="install-extension"] .onboarding__step-title');
+		assert(title);
+		assert.equal(title.textContent, "Install the Readplace iPhone app");
+	});
+
+	it("shows 'Install a browser extension' for unrecognised platforms", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "other" })));
 		const title = doc.querySelector('[data-test-onboarding-step="install-extension"] .onboarding__step-title');
 		assert(title);
 		assert.equal(title.textContent, "Install a browser extension");
 	});
 
 	it("shows an 'Install' action linking to /install?client=chrome for Chrome users", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ browser: "chrome" })));
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "chrome" })));
 		const action = doc.querySelector('[data-test-onboarding-step="install-extension"] [data-test-onboarding-action]');
 		assert(action, "action link must be rendered");
 		assert.equal(action.textContent, "Install");
@@ -130,15 +137,23 @@ describe("OnboardingChecklist", () => {
 	});
 
 	it("shows an 'Install' action linking to /install?client=firefox for Firefox users", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ browser: "firefox" })));
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "firefox" })));
 		const action = doc.querySelector('[data-test-onboarding-step="install-extension"] [data-test-onboarding-action]');
 		assert(action, "action link must be rendered");
 		assert.equal(action.textContent, "Install");
 		assert.equal(action.getAttribute("href"), "/install?client=firefox");
 	});
 
-	it("shows a 'Choose browser' action linking to /install for unrecognised browsers", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ browser: "other" })));
+	it("shows an 'Install' action linking to /install?client=iphone for iPhone users", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "iphone" })));
+		const action = doc.querySelector('[data-test-onboarding-step="install-extension"] [data-test-onboarding-action]');
+		assert(action, "action link must be rendered");
+		assert.equal(action.textContent, "Install");
+		assert.equal(action.getAttribute("href"), "/install?client=iphone");
+	});
+
+	it("shows a 'Choose browser' action linking to /install for unrecognised platforms", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "other" })));
 		const action = doc.querySelector('[data-test-onboarding-step="install-extension"] [data-test-onboarding-action]');
 		assert(action, "action link must be rendered");
 		assert.equal(action.textContent, "Choose browser");
@@ -146,42 +161,51 @@ describe("OnboardingChecklist", () => {
 	});
 
 	it("shows 'Save your first article using the browser extension' for Chrome users", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ browser: "chrome" })));
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "chrome" })));
 		const title = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__step-title');
 		assert(title);
 		assert.equal(title.textContent, "Save your first article using the browser extension");
 	});
 
 	it("shows 'Save your first article using the browser extension' for Firefox users", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ browser: "firefox" })));
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "firefox" })));
 		const title = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__step-title');
 		assert(title);
 		assert.equal(title.textContent, "Save your first article using the browser extension");
 	});
 
-	it("shows 'Save your first article using a browser extension' for unrecognised browsers", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ browser: "other" })));
+	it("shows 'Save your first article using the iPhone app' for iPhone users", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "iphone" })));
+		const title = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__step-title');
+		assert(title);
+		assert.equal(title.textContent, "Save your first article using the iPhone app");
+	});
+
+	it("shows 'Save your first article using a browser extension' for unrecognised platforms", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "other" })));
 		const title = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__step-title');
 		assert(title);
 		assert.equal(title.textContent, "Save your first article using a browser extension");
 	});
 
-	it("does not render actions on save-first-article for browsers with an extension", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ browser: "chrome" })));
-		const actions = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__actions');
-		assert.equal(actions, null);
+	it("does not render actions on save-first-article for platforms with their own client", () => {
+		for (const platform of ["chrome", "firefox", "iphone"] as const) {
+			const doc = parse(OnboardingChecklist(contextWith({ platform })));
+			const actions = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] .onboarding__actions');
+			assert.equal(actions, null, `${platform} save step must render no action`);
+		}
 	});
 
-	it("renders a 'Choose browser' action on save-first-article for unrecognised browsers", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ browser: "other" })));
+	it("renders a 'Choose browser' action on save-first-article for unrecognised platforms", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "other" })));
 		const action = doc.querySelector('[data-test-onboarding-step="save-first-article-via-extension"] [data-test-onboarding-action]');
-		assert(action, "fallback action must be rendered when no browser-specific extension exists");
+		assert(action, "fallback action must be rendered when no platform-specific client exists");
 		assert.equal(action.textContent, "Choose browser");
 		assert.equal(action.getAttribute("href"), "/install");
 	});
 
 	it("shows success message with avatar when both steps are complete", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ extensionSavedArticle: true, extensionInstalled: true })));
+		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true, installed: true })));
 
 		const container = doc.querySelector("[data-test-onboarding]");
 		assert(container, "onboarding container must be rendered");
@@ -203,8 +227,20 @@ describe("OnboardingChecklist", () => {
 		assert(avatar, "founder avatar must be shown in success state");
 	});
 
+	it("reaches success from the iPhone steps when both are complete", () => {
+		const doc = parse(OnboardingChecklist(contextWith({ platform: "iphone", savedArticle: true, installed: true })));
+
+		const container = doc.querySelector("[data-test-onboarding]");
+		assert(container, "onboarding container must be rendered");
+		assert(container.classList.contains("onboarding--complete"));
+
+		const success = doc.querySelector("[data-test-onboarding-success]");
+		assert(success, "success section must be rendered for iPhone too");
+		assert.match(success.querySelector(".onboarding__success-title")?.textContent ?? "", /You did it!/);
+	});
+
 	it("does not show steps list when all complete", () => {
-		const doc = parse(OnboardingChecklist(contextWith({ extensionSavedArticle: true, extensionInstalled: true })));
+		const doc = parse(OnboardingChecklist(contextWith({ savedArticle: true, installed: true })));
 
 		const steps = doc.querySelector("[data-test-onboarding-steps]");
 		assert.equal(steps, null);

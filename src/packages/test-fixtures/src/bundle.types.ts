@@ -13,6 +13,7 @@ export type {
 	GoogleAuthBundle,
 	HttpErrorMessageMapping,
 	ImportSessionBundle,
+	IosOnboardingSignalBundle,
 	OAuthBundle,
 	ParserBundle,
 	PasswordResetBundle,

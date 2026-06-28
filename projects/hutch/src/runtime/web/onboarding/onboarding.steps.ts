@@ -1,42 +1,80 @@
 import { createHash } from "node:crypto";
 import { buildExtensionInstallUrl } from "./extension-install";
-import type { OnboardingStep } from "./onboarding.types";
+import type { OnboardingAction, OnboardingStep, Platform } from "./onboarding.types";
 
-const BROWSER_LABELS: Record<string, string> = {
-	firefox: "Firefox",
-	chrome: "Chrome",
+interface StepCopy {
+	title: string;
+	description: string;
+	actions: OnboardingAction[];
+}
+
+const INSTALL_BROWSER_DESCRIPTION =
+	"Add Readplace to your browser and log-in so you can save any page with one click.";
+const SAVE_BROWSER_DESCRIPTION =
+	"Click the Readplace button in your browser toolbar on a page you want to read later. The save bar on this page doesn't count for this step.";
+
+const INSTALL_COPY: Record<Platform, StepCopy> = {
+	firefox: {
+		title: "Install the Firefox browser extension",
+		description: INSTALL_BROWSER_DESCRIPTION,
+		actions: [{ label: "Install", url: buildExtensionInstallUrl("firefox") }],
+	},
+	chrome: {
+		title: "Install the Chrome browser extension",
+		description: INSTALL_BROWSER_DESCRIPTION,
+		actions: [{ label: "Install", url: buildExtensionInstallUrl("chrome") }],
+	},
+	iphone: {
+		title: "Install the Readplace iPhone app",
+		description:
+			"Add the Readplace iPhone app and sign in so you can save any page from the iOS share sheet.",
+		actions: [{ label: "Install", url: buildExtensionInstallUrl("iphone") }],
+	},
+	other: {
+		title: "Install a browser extension",
+		description: INSTALL_BROWSER_DESCRIPTION,
+		actions: [{ label: "Choose browser", url: buildExtensionInstallUrl("other") }],
+	},
+};
+
+const SAVE_COPY: Record<Platform, StepCopy> = {
+	firefox: {
+		title: "Save your first article using the browser extension",
+		description: SAVE_BROWSER_DESCRIPTION,
+		actions: [],
+	},
+	chrome: {
+		title: "Save your first article using the browser extension",
+		description: SAVE_BROWSER_DESCRIPTION,
+		actions: [],
+	},
+	iphone: {
+		title: "Save your first article using the iPhone app",
+		description:
+			"Open any page in Safari, tap Share, and choose Readplace to save it to your queue.",
+		actions: [],
+	},
+	other: {
+		title: "Save your first article using a browser extension",
+		description: SAVE_BROWSER_DESCRIPTION,
+		actions: [{ label: "Choose browser", url: buildExtensionInstallUrl("other") }],
+	},
 };
 
 export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
 	{
 		id: "install-extension",
-		title: (ctx) => {
-			const label = BROWSER_LABELS[ctx.browser];
-			return label
-				? `Install the ${label} browser extension`
-				: "Install a browser extension";
-		},
-		description:
-			"Add Readplace to your browser and log-in so you can save any page with one click.",
-		isComplete: (ctx) => ctx.extensionInstalled,
-		actions: (ctx) => [{
-			label: BROWSER_LABELS[ctx.browser] ? "Install" : "Choose browser",
-			url: buildExtensionInstallUrl(ctx.browser),
-		}],
+		title: (ctx) => INSTALL_COPY[ctx.platform].title,
+		description: (ctx) => INSTALL_COPY[ctx.platform].description,
+		isComplete: (ctx) => ctx.installed,
+		actions: (ctx) => INSTALL_COPY[ctx.platform].actions,
 	},
 	{
 		id: "save-first-article-via-extension",
-		title: (ctx) =>
-			ctx.browser !== "other"
-				? "Save your first article using the browser extension"
-				: "Save your first article using a browser extension",
-		description:
-			"Click the Readplace button in your browser toolbar on a page you want to read later. The save bar on this page doesn't count for this step.",
-		isComplete: (ctx) => ctx.extensionSavedArticle,
-		actions: (ctx) =>
-			ctx.browser !== "other"
-				? []
-				: [{ label: "Choose browser", url: buildExtensionInstallUrl(ctx.browser) }],
+		title: (ctx) => SAVE_COPY[ctx.platform].title,
+		description: (ctx) => SAVE_COPY[ctx.platform].description,
+		isComplete: (ctx) => ctx.savedArticle,
+		actions: (ctx) => SAVE_COPY[ctx.platform].actions,
 	},
 ];
 

@@ -213,6 +213,10 @@ final class ReadplaceAPI {
 		var authed = request
 		authed.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 		authed.setValue(AppConfig.sirenMediaType, forHTTPHeaderField: "Accept")
+		// Identifies this request as coming from the iOS app so the server records
+		// onboarding completion per-user (Safari on the same phone can't see the
+		// app's cookies, so it can't rely on the extension's cookie signals).
+		authed.setValue("ios", forHTTPHeaderField: "X-Readplace-Client")
 		let (data, response) = try await session.data(for: authed)
 		guard let http = response as? HTTPURLResponse else { throw APIError.decoding }
 		if http.statusCode == 401 && retryOn401 {
@@ -296,9 +300,11 @@ final class ReadplaceAPI {
 	}
 }
 
-/// Re-attaches `Authorization` and `Accept` to redirected requests. URLSession
-/// strips `Authorization` on cross-origin redirects and may drop custom headers
-/// generally; the entry point `GET /` → `303 /queue` needs them preserved.
+/// Re-attaches `Authorization`, `Accept` and `X-Readplace-Client` to redirected
+/// requests. URLSession strips `Authorization` on cross-origin redirects and may
+/// drop custom headers generally; the entry point `GET /` → `303 /queue` needs
+/// them preserved (the client header so onboarding step 1 is recorded on the
+/// post-redirect `/queue` load).
 private final class RedirectHeaderPreservingDelegate: NSObject, URLSessionTaskDelegate {
 	func urlSession(
 		_ session: URLSession,
@@ -308,7 +314,7 @@ private final class RedirectHeaderPreservingDelegate: NSObject, URLSessionTaskDe
 		completionHandler: @escaping (URLRequest?) -> Void
 	) {
 		var updated = request
-		for header in ["Authorization", "Accept"] {
+		for header in ["Authorization", "Accept", "X-Readplace-Client"] {
 			if let value = task.originalRequest?.value(forHTTPHeaderField: header) {
 				updated.setValue(value, forHTTPHeaderField: header)
 			}

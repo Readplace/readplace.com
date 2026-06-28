@@ -1135,4 +1135,59 @@ describe("Queue routes", () => {
 			expect(response.status).toBe(404);
 		});
 	});
+
+	/** The reader-failed card carries an "Install the Readplace extension" CTA
+	 * gated on the extension-install URL. iPhone has no extension, so that URL —
+	 * and the CTA — must be suppressed there while staying for desktop browsers. */
+	describe("Reader-failed install CTA — platform suppression", () => {
+		const IPHONE_UA =
+			"Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+		const DESKTOP_UA =
+			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
+
+		async function openFailedReader(userAgent: string): Promise<string> {
+			const crawlArticle = async () => ({
+				status: "fetched" as const,
+				html: "<html><body><article><p>x</p></article></body></html>",
+				bodyHash: "a".repeat(64),
+			});
+			const parseArticle = async () => ({ ok: false as const, reason: "blocked" });
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const harness = useApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle },
+				events: {
+					...fixture.events,
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+				},
+			});
+			const agent = await loginAgent(harness.server, harness.auth);
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/blocked-post" });
+			const articleId = new JSDOM((await agent.get("/queue")).text).window.document
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "saved article must appear in the listing");
+			return (await agent.get(`/queue/${articleId}/view`).set("User-Agent", userAgent)).text;
+		}
+
+		it("offers the extension install CTA on a desktop browser", async () => {
+			const link = new JSDOM(await openFailedReader(DESKTOP_UA)).window.document
+				.querySelector("[data-test-reader-failed-install]");
+			assert(link, "desktop reader-failed card must offer the extension install CTA");
+			expect(link.getAttribute("href")).toBe("/install?client=chrome");
+		});
+
+		it("suppresses the extension install CTA on iPhone, which has no extension", async () => {
+			const link = new JSDOM(await openFailedReader(IPHONE_UA)).window.document
+				.querySelector("[data-test-reader-failed-install]");
+			assert.equal(link, null, "iPhone reader-failed card must not offer an extension install CTA");
+		});
+	});
 });

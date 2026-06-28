@@ -53,6 +53,7 @@ describe("createTestApp + createDefaultTestAppFixture", () => {
 			emailVerification: fixture.emailVerification,
 			passwordReset: fixture.passwordReset,
 			rateLimit: fixture.rateLimit,
+			iosOnboardingSignal: fixture.iosOnboardingSignal,
 			google: {
 				exchangeGoogleCode: async () => ({
 					googleId: GoogleIdSchema.parse("google-sub"),

@@ -34,7 +34,7 @@ function toStepDisplayModel(
 	return {
 		id: step.id,
 		title: step.title(ctx),
-		description: step.description,
+		description: step.description(ctx),
 		completeAttr: isComplete ? "true" : "false",
 		rowClass: isComplete
 			? "onboarding__step onboarding__step--complete"

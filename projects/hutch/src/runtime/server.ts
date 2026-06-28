@@ -52,6 +52,7 @@ import type {
 	ReverseScheduledCancellation,
 } from "@packages/provider-contracts/stripe-subscriptions";
 import type { ExchangeGoogleCode } from "@packages/provider-contracts/google-auth";
+import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
 import type {
 	CountArticlesByUser,
 	DeleteArticle,
@@ -238,6 +239,9 @@ interface AppDependencies {
 	markCrawlPending: MarkCrawlPending;
 	forceMarkCrawlPending: ForceMarkCrawlPending;
 	refreshArticleIfStale: RefreshArticleIfStale;
+	getIosAppSignals: GetIosAppSignals;
+	recordIosAnyActivity: RecordIosAnyActivity;
+	recordIosSavedArticle: RecordIosSavedArticle;
 	adminEmails: readonly string[];
 	recrawlServiceToken: string;
 	publishUpdateFetchTimestamp: PublishUpdateFetchTimestamp;
@@ -864,6 +868,9 @@ export function createApp(dependencies: AppDependencies): Express {
 		publishUpdateFetchTimestamp: deps.publishUpdateFetchTimestamp,
 		readArticleContent: deps.readArticleContent,
 		httpErrorMessageMapping: deps.httpErrorMessageMapping,
+		getIosAppSignals: deps.getIosAppSignals,
+		recordIosAnyActivity: deps.recordIosAnyActivity,
+		recordIosSavedArticle: deps.recordIosSavedArticle,
 		dualAuth: dualAuthMiddleware,
 		resolveVerificationStatus,
 		requireWriteAccess,

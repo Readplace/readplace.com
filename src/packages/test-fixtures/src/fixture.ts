@@ -17,6 +17,7 @@ import { initInMemoryEmail } from "./providers/email/in-memory-email";
 import { initInMemoryEmailVerification } from "./providers/email-verification/in-memory-email-verification";
 import { initInMemoryPasswordReset } from "./providers/password-reset/in-memory-password-reset";
 import { initInMemoryRateLimit } from "./providers/rate-limit/in-memory-rate-limit";
+import { initInMemoryIosOnboardingSignal } from "./providers/ios-onboarding-signal/in-memory-ios-onboarding-signal";
 import { initInMemoryPendingHtml } from "./providers/pending-html/in-memory-pending-html";
 import { initInMemoryPendingPdf } from "./providers/pending-pdf/in-memory-pending-pdf";
 import { initInMemoryPendingSignup } from "./providers/pending-signup/in-memory-pending-signup";
@@ -373,6 +374,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		emailVerification,
 		passwordReset,
 		rateLimit,
+		iosOnboardingSignal: initInMemoryIosOnboardingSignal(),
 		google: undefined,
 		admin: {
 			adminEmails: [],
