@@ -9,11 +9,15 @@ export function selectSaveableTabUrls(
 	tabs: readonly { url?: string }[],
 	appDomains: readonly string[],
 ): string[] {
-	return tabs
+	const saveable = tabs
 		.map((tab) => tab.url)
 		.filter((url): url is string => typeof url === "string")
 		.filter((url) => /^https?:/i.test(url))
 		.filter((url) => !isAppUrl({ tabUrl: url, appDomains }));
+	/** Dedupe: two tabs open on the same URL save once (the save is idempotent on
+	 * userId:url server-side), so sending both would only inflate the reported
+	 * Saved count and emit a duplicate save-intent for one article. */
+	return [...new Set(saveable)];
 }
 
 /** Folds the server's bulk-save summary into the popup's title + summary line.

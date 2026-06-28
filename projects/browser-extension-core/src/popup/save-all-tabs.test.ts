@@ -49,6 +49,19 @@ describe("selectSaveableTabUrls", () => {
 			"HTTPS://example.com/a",
 		]);
 	});
+
+	it("dedupes tabs open on the same url so it is saved and counted once", () => {
+		expect(
+			selectSaveableTabUrls(
+				[
+					{ url: "https://example.com/a" },
+					{ url: "https://example.com/a" },
+					{ url: "https://example.com/b" },
+				],
+				appDomains,
+			),
+		).toEqual(["https://example.com/a", "https://example.com/b"]);
+	});
 });
 
 describe("summarizeBulkSave", () => {
