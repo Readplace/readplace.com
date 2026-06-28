@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import type { NextFunction, Request, Response } from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
-import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, createAnalyticsMiddleware, hashIp } from "./analytics";
+import { type AnalyticsClick, type AnalyticsEvent, type AnalyticsPageview, classifyDeviceClass, createAnalyticsMiddleware, hashIp } from "./analytics";
 
 function createCapturingLogger(): {
 	logger: HutchLogger.Typed<AnalyticsEvent>;
@@ -251,5 +251,60 @@ describe("hashIp", () => {
 
 	it("returns a different hash when the salt changes", () => {
 		expect(hashIp({ ip: "1.2.3.4", salt: "a" })).not.toBe(hashIp({ ip: "1.2.3.4", salt: "b" }));
+	});
+});
+
+describe("classifyDeviceClass", () => {
+	it("returns 'other' for an absent or empty User-Agent (no signal)", () => {
+		expect(classifyDeviceClass(undefined)).toBe("other");
+		expect(classifyDeviceClass("")).toBe("other");
+	});
+
+	it("returns 'bot' for a crawler User-Agent", () => {
+		expect(classifyDeviceClass("Googlebot/2.1 (+http://www.google.com/bot.html)")).toBe("bot");
+	});
+
+	it("returns 'tablet' for an iPad", () => {
+		expect(
+			classifyDeviceClass(
+				"Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/604.1",
+			),
+		).toBe("tablet");
+	});
+
+	it("returns 'tablet' for an Android device whose UA omits the Mobile token", () => {
+		expect(
+			classifyDeviceClass(
+				"Mozilla/5.0 (Linux; Android 13; SM-X710) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+			),
+		).toBe("tablet");
+	});
+
+	it("returns 'mobile_ios' for an iPhone", () => {
+		expect(
+			classifyDeviceClass(
+				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+			),
+		).toBe("mobile_ios");
+	});
+
+	it("returns 'mobile_ios' for an iPod", () => {
+		expect(classifyDeviceClass("Mozilla/5.0 (iPod touch; CPU iPhone OS 16_0 like Mac OS X)")).toBe("mobile_ios");
+	});
+
+	it("returns 'mobile_android' for an Android phone (UA carries the Mobile token)", () => {
+		expect(
+			classifyDeviceClass(
+				"Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+			),
+		).toBe("mobile_android");
+	});
+
+	it("returns 'desktop' for a present UA matching no mobile/tablet/bot fingerprint", () => {
+		expect(
+			classifyDeviceClass(
+				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+			),
+		).toBe("desktop");
 	});
 });

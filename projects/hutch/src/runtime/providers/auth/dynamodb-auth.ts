@@ -53,6 +53,16 @@ const UserRow = z.object({
 	userIdPrefix: dynamoField(z.string()),
 	/* Optional so reads of pre-backfill rows don't throw; new writes always set it. */
 	canonicalEmail: dynamoField(z.string()),
+	/* Acquisition attribution captured from the hutch_click cookie at signup.
+	 * All optional via dynamoField: organic landings carry only first_seen_at /
+	 * landing_path, and legacy rows predate the columns entirely. */
+	utm_source: dynamoField(z.string()),
+	utm_medium: dynamoField(z.string()),
+	utm_campaign: dynamoField(z.string()),
+	utm_content: dynamoField(z.string()),
+	referrer_host: dynamoField(z.string()),
+	first_seen_at: dynamoField(z.string()),
+	landing_path: dynamoField(z.string()),
 });
 
 /* Gmail uniqueness claims live in the users table under this PK prefix. Zod
@@ -155,7 +165,7 @@ export function initDynamoDbAuth(deps: {
 		}
 	};
 
-	const createUser: CreateUser = async ({ email, password }) => {
+	const createUser: CreateUser = async ({ email, password, attribution }) => {
 		const normalizedEmail = normalizeEmail(email);
 		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
 		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
@@ -170,6 +180,7 @@ export function initDynamoDbAuth(deps: {
 				registeredAt: new Date().toISOString(),
 				userIdPrefix: userIdPrefixFrom(userId),
 				canonicalEmail: canonicalizeEmail(email),
+				...(attribution ?? {}),
 			},
 			userId,
 			gmailClaimKey: gmailIdentityKey(email),
@@ -177,7 +188,7 @@ export function initDynamoDbAuth(deps: {
 		return result.ok ? { ok: true, userId } : result;
 	};
 
-	const createUserWithPasswordHash: CreateUserWithPasswordHash = async ({ email, passwordHash }) => {
+	const createUserWithPasswordHash: CreateUserWithPasswordHash = async ({ email, passwordHash, attribution }) => {
 		const normalizedEmail = normalizeEmail(email);
 		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
 		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
@@ -191,6 +202,7 @@ export function initDynamoDbAuth(deps: {
 				registeredAt: new Date().toISOString(),
 				userIdPrefix: userIdPrefixFrom(userId),
 				canonicalEmail: canonicalizeEmail(email),
+				...(attribution ?? {}),
 			},
 			userId,
 			gmailClaimKey: gmailIdentityKey(email),
@@ -198,7 +210,7 @@ export function initDynamoDbAuth(deps: {
 		return result.ok ? { ok: true, userId } : result;
 	};
 
-	const createGoogleUser: CreateGoogleUser = async ({ email, userId }) => {
+	const createGoogleUser: CreateGoogleUser = async ({ email, userId, attribution }) => {
 		const normalizedEmail = normalizeEmail(email);
 		assert(!normalizedEmail.startsWith(CLAIM_PK_PREFIX), `Email collides with the claim namespace: ${email}`);
 
@@ -210,6 +222,7 @@ export function initDynamoDbAuth(deps: {
 				registeredAt: new Date().toISOString(),
 				userIdPrefix: userIdPrefixFrom(userId),
 				canonicalEmail: canonicalizeEmail(email),
+				...(attribution ?? {}),
 			},
 			userId,
 			gmailClaimKey: gmailIdentityKey(email),
