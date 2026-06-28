@@ -170,12 +170,12 @@ struct ReadingListView: View {
 						viewModel.openReader(for: article)
 					}
 					.swipeActions(edge: .trailing, allowsFullSwipe: false) {
-						ForEach(article.affordances) { affordance in
+						ForEach(rowControls(for: article)) { affordance in
 							itemControl(affordance, on: article)
 						}
 					}
 					.accessibilityActions {
-						ForEach(article.affordances) { affordance in
+						ForEach(rowControls(for: article)) { affordance in
 							Button(affordance.label) { activate(affordance, on: article) }
 						}
 					}
@@ -192,6 +192,14 @@ struct ReadingListView: View {
 			}
 		}
 		.listStyle(.plain)
+	}
+
+	/// The advertised affordances a row surfaces as swipe and accessibility controls,
+	/// filtered to those a bare control can actually invoke. Like the toolbar, the row
+	/// drops a field-requiring action with no server value and no bespoke handler so a
+	/// future such item action is never rendered as a swipe that errors on tap.
+	private func rowControls(for article: Article) -> [Affordance] {
+		article.affordances.filter(\.isInvokableByBareControl)
 	}
 
 	/// One per-item swipe control, rendered from an advertised affordance. The label
