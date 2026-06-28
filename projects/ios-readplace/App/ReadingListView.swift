@@ -165,12 +165,12 @@ struct ReadingListView: View {
 						viewModel.openReader(for: article)
 					}
 					.swipeActions(edge: .trailing, allowsFullSwipe: false) {
-						ForEach(article.affordances) { affordance in
+						ForEach(article.rowControls) { affordance in
 							itemControl(affordance, on: article)
 						}
 					}
 					.accessibilityActions {
-						ForEach(article.affordances) { affordance in
+						ForEach(article.rowControls) { affordance in
 							Button(affordance.label) { activate(affordance, on: article) }
 						}
 					}
