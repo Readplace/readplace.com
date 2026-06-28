@@ -183,13 +183,19 @@ final class ReadingListViewModel: ObservableObject {
 		// for pagination/identity, or a capture-only save reachable only via the
 		// Share Sheet) — not by name-gating a known capability. The client-side add
 		// (+) control is always appended so the reading list can reach the Share help
-		// regardless of what the server advertised. The toolbar is sourced from the
+		// regardless of what the server advertised. Because that + is now client-owned,
+		// a same-token server affordance is dropped first (via the single isAddLinksHelp
+		// source), so the injected control stays canonical and a server that re-advertises
+		// add-links-help never renders a duplicate +. The toolbar is sourced from the
 		// replacing (first-page) load only: that load is the current collection, so
 		// its subset is the current toolbar. A paginated page only appends rows, so it
 		// neither clears the controls when it advertises none nor flaps them to a
 		// page-scoped set — the first page owns the toolbar for the whole scroll.
 		if replacing {
-			collectionAffordances = page.affordances.filter(\.isToolbarControl) + [Self.addLinksHelp]
+			let serverControls = page.affordances.filter {
+				$0.isToolbarControl && !Affordance.isAddLinksHelp($0.token)
+			}
+			collectionAffordances = serverControls + [Self.addLinksHelp]
 		}
 		warningText = page.warning?.message
 	}

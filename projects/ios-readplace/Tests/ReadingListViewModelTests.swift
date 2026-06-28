@@ -115,6 +115,40 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
+	func testToolbarKeepsExactlyOneAddControlWhenTheServerAlsoAdvertisesAddLinksHelp() async {
+		// The + is now client-owned and always injected. Should the server ever
+		// re-advertise add-links-help (a rollback of the server change, or another
+		// surface re-adding it), the client drops the server's same-token affordance so
+		// the toolbar renders exactly one + — the client's canonical one — never a
+		// duplicate. The server's advertised href differs so the survivor is identifiable.
+		let serverAddLinksHelp = """
+			,{ "rel": ["add-links-help"], "href": "/help/legacy-add-links", "title": "Old help" }
+			"""
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")], extraLinks: serverAddLinksHelp))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.refresh()
+
+		let addControls = viewModel.collectionAffordances.filter { $0.token == "add-links-help" }
+		XCTAssertEqual(
+			addControls.count, 1,
+			"a server-advertised add-links-help is de-duped against the client-injected + — exactly one renders, never a duplicate"
+		)
+		XCTAssertEqual(
+			addControls.first?.link?.href, AppConfig.addLinksHelpPath,
+			"the surviving + is the client's canonical control (its own help path), not the server's advertised href"
+		)
+	}
+
 	func testToolbarDropsSearchBecauseItIsNotInvokableByABareControl() async {
 		// The real server advertises `search` with fields the user must fill and no
 		// pre-filled value; iOS has no query UI for it, so the client must not surface
