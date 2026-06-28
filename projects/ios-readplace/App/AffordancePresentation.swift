@@ -163,3 +163,15 @@ extension Affordance {
 		return status == "read"
 	}
 }
+
+extension Article {
+	/// The advertised item affordances a row surfaces as swipe and accessibility
+	/// controls, filtered to those a bare control can actually invoke. Like the
+	/// toolbar, the row drops a field-requiring action with no server value and no
+	/// bespoke handler so a future such item action is never rendered as a swipe that
+	/// errors on tap. The selection lives here, beside the symmetric toolbar rule
+	/// (`Affordance.isToolbarControl`) and the shared predicate it reuses
+	/// (`isInvokableByBareControl`), so the row's choice of controls is unit-testable
+	/// without standing up a view.
+	var rowControls: [Affordance] { affordances.filter(\.isInvokableByBareControl) }
+}

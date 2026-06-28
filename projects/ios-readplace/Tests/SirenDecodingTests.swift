@@ -49,6 +49,30 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertEqual(article.affordances.map(\.label), ["Mark read", "Delete", "Archive"])
 	}
 
+	func testRowControlsDropAFieldRequiringItemActionWithNoServerValue() throws {
+		// A future item action that requires a field the server didn't pre-fill — and
+		// that has no bespoke client handler — is not invokable from a bare control, so
+		// the row must not surface it as a swipe that would error on tap. `delete`
+		// (field-less) and `update-status` (its only field carries a server value) stay.
+		let json = """
+		{ "properties": { "id": "x", "url": "https://example.com/x" },
+		  "actions": [
+		    { "name": "update-status", "title": "Mark read", "href": "/queue/x/status", "method": "POST", "fields": [{ "name": "status", "type": "text", "value": "read" }] },
+		    { "name": "delete", "title": "Delete", "href": "/queue/x/delete", "method": "POST" },
+		    { "name": "annotate", "title": "Annotate", "href": "/queue/x/annotate", "method": "POST", "fields": [{ "name": "note", "type": "text" }] }
+		  ] }
+		"""
+		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
+		XCTAssertEqual(
+			article.affordances.map(\.token), ["update-status", "delete", "annotate"],
+			"every advertised item action with an href becomes an affordance"
+		)
+		XCTAssertEqual(
+			article.rowControls.map(\.token), ["update-status", "delete"],
+			"a field-requiring item action with no server value is not bare-invokable, so the row drops it"
+		)
+	}
+
 	func testAffordanceLabelFallsBackToHumanizedTokenWhenServerSendsNoTitle() throws {
 		let action = SirenAction(name: "update-status", href: "/x", method: "POST", title: nil, type: nil, fields: nil)
 		let affordance = try XCTUnwrap(Affordance(action: action))
