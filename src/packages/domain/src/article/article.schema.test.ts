@@ -1,5 +1,6 @@
 import {
 	SaveArticleInputSchema,
+	BulkSaveManifestSchema,
 	SaveHtmlInputSchema,
 	ArticleStatusSchema,
 	MinutesSchema,
@@ -20,6 +21,37 @@ describe("SaveArticleInputSchema", () => {
 
 	it("rejects an invalid URL string", () => {
 		const result = SaveArticleInputSchema.safeParse({ url: "not-a-url" });
+
+		expect(result.success).toBe(false);
+	});
+});
+
+describe("BulkSaveManifestSchema", () => {
+	it("accepts an array of url-only page entries", () => {
+		const result = BulkSaveManifestSchema.safeParse([
+			{ url: "https://example.com/a" },
+			{ url: "https://example.com/b" },
+		]);
+
+		expect(result.success).toBe(true);
+	});
+
+	it("accepts entries carrying an optional title and mediaType", () => {
+		const result = BulkSaveManifestSchema.safeParse([
+			{ url: "https://example.com/a", title: "A", mediaType: "text/html" },
+		]);
+
+		expect(result.success).toBe(true);
+	});
+
+	it("rejects an empty array", () => {
+		const result = BulkSaveManifestSchema.safeParse([]);
+
+		expect(result.success).toBe(false);
+	});
+
+	it("rejects an entry without a url", () => {
+		const result = BulkSaveManifestSchema.safeParse([{ title: "no url" }]);
 
 		expect(result.success).toBe(false);
 	});

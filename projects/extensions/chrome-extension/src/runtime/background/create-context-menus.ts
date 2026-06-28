@@ -1,6 +1,7 @@
 import {
 	MENU_ITEM_SAVE_PAGE,
 	MENU_ITEM_SAVE_LINK,
+	MENU_ITEM_SAVE_ALL_TABS,
 } from "browser-extension-core";
 
 type ContextMenusApi = {
@@ -20,6 +21,11 @@ export function initCreateContextMenus(contextMenus: ContextMenusApi) {
 			id: MENU_ITEM_SAVE_LINK,
 			title: "Save Link to Readplace",
 			contexts: ["link"],
+		});
+		contextMenus.create({
+			id: MENU_ITEM_SAVE_ALL_TABS,
+			title: "Save All Tabs to Readplace",
+			contexts: ["page"],
 		});
 	};
 }

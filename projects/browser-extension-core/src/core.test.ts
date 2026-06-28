@@ -1,20 +1,27 @@
 import assert from "node:assert/strict";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemoryAuth } from "./auth/in-memory-auth";
-import { BrowserExtensionCore } from "./core";
-import type { ReadingList } from "./core";
+import { UnauthorizedError } from "./auth/unauthorized-error";
+import { BrowserExtensionCore, BULK_SAVE_BATCH_SIZE } from "./core";
+import type { CoreError, ReadingList } from "./core";
 import { initInMemoryReadingList } from "./reading-list/in-memory-reading-list";
-import type { SaveUrl, SaveUrlResult } from "./reading-list/reading-list.types";
+import type { BulkSaveResult, BulkSavePage, SaveUrl, SavePages, SaveUrlResult } from "./reading-list/reading-list.types";
 import type { BrowserShell } from "./shell.types";
 import type { Auth, GuardedResult, WhenLoggedIn } from "./auth/auth.types";
-import { UnauthorizedError } from "./auth/unauthorized-error";
 import type { ReadingListItem, ReadingListItemId } from "./domain/reading-list-item.types";
+import { MENU_ITEM_SAVE_ALL_TABS } from "./get-context-menu-target";
 
 interface FakeShell {
 	shell: BrowserShell;
 	showSavedCalls: number[];
 	showDefaultCalls: number[];
 	iconUpdated: Promise<void>;
+	getOpenSaveAllTabsPopupCount: () => number;
+	triggerContextMenu: (
+		info: { menuItemId: string; linkUrl?: string; pageUrl?: string },
+		tab?: { url?: string; title?: string },
+	) => void;
+	triggerSaveAllTabsShortcut: () => void;
 }
 
 function createFakeShell(
@@ -22,6 +29,9 @@ function createFakeShell(
 ): FakeShell {
 	const showSavedCalls: number[] = [];
 	const showDefaultCalls: number[] = [];
+	let openSaveAllTabsPopupCount = 0;
+	let contextMenuHandler: Parameters<BrowserShell["onContextMenuClicked"]>[0] = () => {};
+	let saveAllTabsShortcutHandler: () => void = () => {};
 	let resolveIconUpdated!: () => void;
 	const iconUpdated = new Promise<void>((resolve) => {
 		resolveIconUpdated = resolve;
@@ -29,6 +39,12 @@ function createFakeShell(
 	const shell: BrowserShell = {
 		onShortcutPressed: () => {},
 		openPopup: () => {},
+		openSaveAllTabsPopup: () => {
+			openSaveAllTabsPopupCount += 1;
+		},
+		onSaveAllTabsShortcut: (handler) => {
+			saveAllTabsShortcutHandler = handler;
+		},
 		getActiveTab: async () => activeTab,
 		queryActiveTabs: async () => [],
 		setIcon: {
@@ -42,28 +58,56 @@ function createFakeShell(
 			},
 		},
 		createContextMenus: () => {},
-		onContextMenuClicked: () => {},
+		onContextMenuClicked: (handler) => {
+			contextMenuHandler = handler;
+		},
 		onTabActivated: () => {},
 		onTabUpdated: () => {},
 	};
-	return { shell, showSavedCalls, showDefaultCalls, iconUpdated };
+	return {
+		shell,
+		showSavedCalls,
+		showDefaultCalls,
+		iconUpdated,
+		getOpenSaveAllTabsPopupCount: () => openSaveAllTabsPopupCount,
+		triggerContextMenu: (info, tab) => contextMenuHandler(info, tab),
+		triggerSaveAllTabsShortcut: () => saveAllTabsShortcutHandler(),
+	};
 }
 
 type SaveArgs = { url: string; title: string; content?: { bytes: ArrayBuffer; mediaType: string } };
 
 function createRecordingReadingList(
-	options: { saveResult?: SaveUrlResult } = {},
-): ReadingList & { saveCalls: SaveArgs[] } {
+	options: {
+		saveResult?: SaveUrlResult;
+		savePagesResult?: BulkSaveResult;
+		failSavePagesOnCall?: { call: number; error: Error };
+	} = {},
+): ReadingList & { saveCalls: SaveArgs[]; savePagesCalls: { pages: BulkSavePage[] }[] } {
 	const inner = initInMemoryReadingList();
 	const saveCalls: SaveArgs[] = [];
+	const savePagesCalls: { pages: BulkSavePage[] }[] = [];
 	const saveUrl: SaveUrl = async (params) => {
 		saveCalls.push(params);
 		if (options.saveResult) return options.saveResult;
 		return inner.saveUrl(params);
 	};
+	const savePages: SavePages = async (params) => {
+		savePagesCalls.push(params);
+		if (
+			options.failSavePagesOnCall &&
+			savePagesCalls.length === options.failSavePagesOnCall.call
+		) {
+			throw options.failSavePagesOnCall.error;
+		}
+		if (options.savePagesResult) return options.savePagesResult;
+		return inner.savePages(params);
+	};
 	return {
 		saveCalls,
+		savePagesCalls,
 		saveUrl,
+		savePages,
 		invokeAction: inner.invokeAction,
 		findByUrl: inner.findByUrl,
 		getAllItems: inner.getAllItems,
@@ -265,6 +309,8 @@ function createCapturingShell(
 		openPopup: (params) => {
 			openPopupCalls.push(params);
 		},
+		openSaveAllTabsPopup: () => {},
+		onSaveAllTabsShortcut: () => {},
 		getActiveTab: async () => options.activeTab ?? null,
 		queryActiveTabs: async () => options.activeTabs ?? [],
 		setIcon: {
@@ -781,5 +827,249 @@ describe("BrowserExtensionCore result emission", () => {
 		});
 		core.once("checked-url", { success: () => {}, failure: () => {} });
 		expect(cap.openPopupCalls).toEqual([]);
+	});
+});
+
+describe("BrowserExtensionCore saveAll", () => {
+	it("emits saved-all-tabs with the bulk summary on success", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList();
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
+			core.once("saved-all-tabs", { success: resolve, failure: reject });
+			core.saveAll("tabs", {
+				pages: [{ url: "https://example.com/a" }, { url: "https://example.com/b" }],
+			});
+		});
+
+		expect(result).toEqual({ saved: 2, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] });
+		expect(readingList.savePagesCalls).toEqual([
+			{ pages: [{ url: "https://example.com/a" }, { url: "https://example.com/b" }] },
+		]);
+	});
+
+	it("folds an empty page list to a zero summary without calling the reading list", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList();
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
+			core.once("saved-all-tabs", { success: resolve, failure: reject });
+			core.saveAll("tabs", { pages: [] });
+		});
+
+		expect(result).toEqual({ saved: 0, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] });
+		expect(readingList.savePagesCalls).toEqual([]);
+	});
+
+	it("splits a window larger than the batch size into capped requests and aggregates the summary", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList();
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const pages = Array.from(
+			{ length: BULK_SAVE_BATCH_SIZE * 2 + 1 },
+			(_v, i) => ({ url: `https://example.com/${i}` }),
+		);
+
+		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
+			core.once("saved-all-tabs", { success: resolve, failure: reject });
+			core.saveAll("tabs", { pages });
+		});
+
+		expect(readingList.savePagesCalls.map((c) => c.pages.length)).toEqual([
+			BULK_SAVE_BATCH_SIZE,
+			BULK_SAVE_BATCH_SIZE,
+			1,
+		]);
+		expect(result.saved).toBe(BULK_SAVE_BATCH_SIZE * 2 + 1);
+		expect(result.skipped).toBe(0);
+		expect(result.failed).toBe(0);
+	});
+
+	it("aggregates the tooBig pages the reading list reports across batches", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList({
+			savePagesResult: { saved: 1, skipped: 0, failed: 0, tooBig: [{ url: "https://big.example", mb: 25 }], skippedUrls: [] },
+		});
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
+			core.once("saved-all-tabs", { success: resolve, failure: reject });
+			core.saveAll("tabs", {
+				pages: [{ url: "https://big.example", content: { bytes: new ArrayBuffer(4), mediaType: "text/html" } }],
+			});
+		});
+
+		expect(result.tooBig).toEqual([{ url: "https://big.example", mb: 25 }]);
+	});
+
+	it("folds a failing chunk into the failed count and keeps saving the remaining chunks", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList({
+			failSavePagesOnCall: { call: 2, error: new Error("network blip") },
+		});
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const pages = Array.from(
+			{ length: BULK_SAVE_BATCH_SIZE * 2 + 5 },
+			(_v, i) => ({ url: `https://example.com/${i}` }),
+		);
+
+		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
+			core.once("saved-all-tabs", { success: resolve, failure: reject });
+			core.saveAll("tabs", { pages });
+		});
+
+		expect(readingList.savePagesCalls.map((c) => c.pages.length)).toEqual([
+			BULK_SAVE_BATCH_SIZE,
+			BULK_SAVE_BATCH_SIZE,
+			5,
+		]);
+		expect(result.saved).toBe(BULK_SAVE_BATCH_SIZE + 5);
+		expect(result.failed).toBe(BULK_SAVE_BATCH_SIZE);
+		expect(result.skipped).toBe(0);
+	});
+
+	it("logs the user out when a chunk fails with a 401 instead of folding it into failed", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList({
+			failSavePagesOnCall: { call: 2, error: new UnauthorizedError() },
+		});
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const pages = Array.from(
+			{ length: BULK_SAVE_BATCH_SIZE + 5 },
+			(_v, i) => ({ url: `https://example.com/${i}` }),
+		);
+
+		const error = await new Promise<CoreError>((resolve) => {
+			core.once("saved-all-tabs", {
+				success: () =>
+					resolve({ reason: "error", error: new Error("unexpected success") }),
+				failure: resolve,
+			});
+			core.saveAll("tabs", { pages });
+		});
+
+		expect(error).toEqual({ reason: "not-logged-in" });
+	});
+
+	it("aggregates skipped urls reported by the reading list", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList();
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		/** The in-memory list reports a re-save of the same url as skipped, so a
+		 * list with a duplicate exercises the skippedUrls folding. */
+		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
+			core.once("saved-all-tabs", { success: resolve, failure: reject });
+			core.saveAll("tabs", { pages: [{ url: "https://example.com/a" }, { url: "https://example.com/a" }] });
+		});
+
+		expect(result.saved).toBe(1);
+		expect(result.skipped).toBe(1);
+		expect(result.skippedUrls).toEqual([
+			{ url: "https://example.com/a", code: "already-saved" },
+		]);
+	});
+
+	it("emits not-logged-in when saving all tabs while logged out", async () => {
+		const auth = initInMemoryAuth();
+		const readingList = createRecordingReadingList();
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const error = await new Promise<CoreError>((resolve) => {
+			core.once("saved-all-tabs", {
+				success: () => resolve({ reason: "error", error: new Error("unexpected success") }),
+				failure: resolve,
+			});
+			core.saveAll("tabs", { pages: [{ url: "https://example.com/a" }] });
+		});
+
+		expect(error).toEqual({ reason: "not-logged-in" });
+		expect(readingList.savePagesCalls).toEqual([]);
+	});
+
+	it("opens the save-all-tabs popup from the context menu item", () => {
+		const auth = initInMemoryAuth();
+		const readingList = createRecordingReadingList();
+		const { shell, getOpenSaveAllTabsPopupCount, triggerContextMenu } =
+			createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+		core.init();
+
+		triggerContextMenu({ menuItemId: MENU_ITEM_SAVE_ALL_TABS });
+
+		expect(getOpenSaveAllTabsPopupCount()).toBe(1);
+	});
+
+	it("opens the save-all-tabs popup from the keyboard shortcut", () => {
+		const auth = initInMemoryAuth();
+		const readingList = createRecordingReadingList();
+		const { shell, getOpenSaveAllTabsPopupCount, triggerSaveAllTabsShortcut } =
+			createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+		core.init();
+
+		triggerSaveAllTabsShortcut();
+
+		expect(getOpenSaveAllTabsPopupCount()).toBe(1);
 	});
 });

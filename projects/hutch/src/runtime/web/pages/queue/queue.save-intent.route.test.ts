@@ -197,4 +197,41 @@ describe("view_save_intent — authenticated save surfaces", () => {
 			expect(saveIntents(harness)[0]).toMatchObject({ surface: "extension", outcome: "error" });
 		});
 	});
+
+	describe("POST /queue/save-articles (extension bulk)", () => {
+		it("emits one extension / saved per saved url and nothing for skipped urls, tagged /queue/save-articles", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const token = await bearerToken(harness);
+
+			const response = await request(harness.server)
+				.post("/queue/save-articles")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${token}`)
+				.field("manifest", JSON.stringify([
+					{ url: "https://example.com/a" },
+					{ url: "https://fagnerbrack.com/b" },
+					{ url: "chrome://settings" },
+				]));
+
+			expect(response.status).toBe(200);
+			const intents = saveIntents(harness);
+			expect(intents).toHaveLength(2);
+			expect(intents.every((i) => i.surface === "extension" && i.outcome === "saved" && i.path === "/queue/save-articles")).toBe(true);
+			expect(intents.map((i) => i.content_class).sort()).toEqual(["own", "third_party"]);
+		});
+
+		it("emits extension / error for a url whose save throws", async () => {
+			const harness = useApp(failingSaveFixture());
+			const token = await bearerToken(harness);
+
+			const response = await request(harness.server)
+				.post("/queue/save-articles")
+				.set("Accept", SIREN_MEDIA_TYPE)
+				.set("Authorization", `Bearer ${token}`)
+				.field("manifest", JSON.stringify([{ url: "https://example.com/a" }]));
+
+			expect(response.status).toBe(200);
+			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-articles", surface: "extension", outcome: "error" });
+		});
+	});
 });

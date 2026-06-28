@@ -1,13 +1,13 @@
 import type { ReadingListItem, ReadingListItemId } from "./domain/reading-list-item.types";
 import type { Auth, GuardedResult } from "./auth/auth.types";
-import type { SaveUrlResult, InvokeActionResult, SaveUrl, InvokeAction, FindByUrl, GetAllItems } from "./reading-list/reading-list.types";
+import type { SaveUrlResult, InvokeActionResult, SaveUrl, InvokeAction, FindByUrl, GetAllItems, SavePages, BulkSavePage, BulkSaveResult } from "./reading-list/reading-list.types";
 import type { BrowserShell } from "./shell.types";
 import type { HutchLogger } from "@packages/hutch-logger";
 import { createEventBus } from "./event-bus";
 import { UnauthorizedError } from "./auth/unauthorized-error";
 import { initSaveCurrentTab } from "./save-current-tab";
 import { initIconStatus } from "./icon-status";
-import { initGetContextMenuTarget } from "./get-context-menu-target";
+import { initGetContextMenuTarget, MENU_ITEM_SAVE_ALL_TABS } from "./get-context-menu-target";
 import { initGetShortcutTarget } from "./handle-shortcut-command";
 
 export interface ReadingList {
@@ -15,7 +15,17 @@ export interface ReadingList {
 	invokeAction: InvokeAction;
 	findByUrl: FindByUrl;
 	getAllItems: GetAllItems;
+	savePages: SavePages;
 }
+
+/** A single save-articles request is capped server-side at
+ * MAX_PAGES_PER_BULK_SAVE (20). saveAll batches at the cap so a window with more
+ * saveable tabs than the cap saves across several requests instead of one the
+ * server rejects, an empty window makes zero requests and folds to a `Saved 0`
+ * summary, and the worst-case request body stays bounded. Must stay ≤ the server
+ * cap (the two packages share no dependency edge, so the value can't be imported
+ * directly). */
+export const BULK_SAVE_BATCH_SIZE = 20;
 
 export type ResultCallbacks<T> = {
 	success: (value: T) => void;
@@ -38,6 +48,7 @@ export interface Core {
 	invoke(resource: "item-action", data: { id: ReadingListItemId; name: string }): void;
 	fetch(resource: "reading-list"): void;
 	check(resource: "url", data: { url: string }): void;
+	saveAll(resource: "tabs", data: { pages: BulkSavePage[] }): void;
 
 	on(event: "pre-init", handler: () => void): void;
 	on(event: "post-init", handler: () => void): void;
@@ -47,12 +58,14 @@ export interface Core {
 	on(event: "invoked-item-action", handler: ResultCallbacks<InvokeActionResult>): void;
 	on(event: "fetched-reading-list", handler: ResultCallbacks<ReadingListItem[]>): void;
 	on(event: "checked-url", handler: ResultCallbacks<ReadingListItem | null>): void;
+	on(event: "saved-all-tabs", handler: ResultCallbacks<BulkSaveResult>): void;
 
 	once(event: "logged-in", handler: ResultCallbacks<void>): void;
 	once(event: "saved-current-tab", handler: ResultCallbacks<SaveUrlResult>): void;
 	once(event: "invoked-item-action", handler: ResultCallbacks<InvokeActionResult>): void;
 	once(event: "fetched-reading-list", handler: ResultCallbacks<ReadingListItem[]>): void;
 	once(event: "checked-url", handler: ResultCallbacks<ReadingListItem | null>): void;
+	once(event: "saved-all-tabs", handler: ResultCallbacks<BulkSaveResult>): void;
 }
 
 export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; logger: HutchLogger; readingList: ReadingList }): Core {
@@ -114,15 +127,40 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 			.catch((error) => logger.warn("Failed to mint web session for reader links", error));
 	}
 
+	async function savePagesInBatches(pages: BulkSavePage[]): Promise<BulkSaveResult> {
+		const summary: BulkSaveResult = { saved: 0, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] };
+		for (let i = 0; i < pages.length; i += BULK_SAVE_BATCH_SIZE) {
+			const batch = pages.slice(i, i + BULK_SAVE_BATCH_SIZE);
+			try {
+				const result = await readingList.savePages({ pages: batch });
+				summary.saved += result.saved;
+				summary.skipped += result.skipped;
+				summary.failed += result.failed;
+				summary.tooBig.push(...result.tooBig);
+				summary.skippedUrls.push(...result.skippedUrls);
+			} catch (err) {
+				if (err instanceof UnauthorizedError) throw err;
+				summary.failed += batch.length;
+			}
+		}
+		return summary;
+	}
+
 	return {
 		init() {
 			eventBus.emit("pre-init");
 
 			shell.onContextMenuClicked((info, tab) => {
+				if (info.menuItemId === MENU_ITEM_SAVE_ALL_TABS) {
+					shell.openSaveAllTabsPopup();
+					return;
+				}
 				const target = getContextMenuTarget(info, tab);
 				if (!target) return;
 				shell.openPopup({ url: target.url, title: target.title });
 			});
+
+			shell.onSaveAllTabsShortcut(() => shell.openSaveAllTabsPopup());
 
 			shell.onShortcutPressed(() => {
 				getShortcutTarget()
@@ -206,6 +244,11 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 		check(_resource, data) {
 			const guarded = auth.whenLoggedIn(() => readingList.findByUrl(data.url));
 			emitResult("checked-url", guarded);
+		},
+
+		saveAll(_resource, data) {
+			const guarded = auth.whenLoggedIn(() => savePagesInBatches(data.pages));
+			emitResult("saved-all-tabs", guarded);
 		},
 
 		// biome-ignore lint/suspicious/noExplicitAny: implementation signature must accept all overloaded handler shapes

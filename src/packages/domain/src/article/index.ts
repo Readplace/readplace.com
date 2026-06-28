@@ -20,6 +20,11 @@ export {
 } from "./progress-mapping";
 export {
 	SaveArticleInputSchema,
+	MAX_PAGES_PER_BULK_SAVE,
+	MAX_PAGE_CONTENT_BYTES,
+	MAX_BULK_CONTENT_REQUEST_BYTES,
+	BulkSavePageSchema,
+	BulkSaveManifestSchema,
 	MAX_RAW_HTML_BYTES,
 	MAX_RAW_HTML_REQUEST_BYTES,
 	SaveHtmlInputSchema,

@@ -9,9 +9,9 @@ import type { ErrorRequestHandler, Request, RequestHandler, Response, Router } f
 import express from "express";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
-import type { ValidateSaveableUrl } from "@packages/domain/article";
+import type { SaveableUrl, ValidateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
-import { SaveArticleInputSchema, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
+import { SaveArticleInputSchema, BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_PAGE_CONTENT_BYTES, MAX_BULK_CONTENT_REQUEST_BYTES, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
 import { buildSaveIntentEvent, hashIp, type AnalyticsEvent } from "../../middleware/analytics";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
 import {
@@ -38,6 +38,7 @@ import type { PutPendingPdf } from "@packages/provider-contracts/pending-pdf";
 import { MAX_PDF_BYTES, isPDF } from "@packages/crawl-article";
 import { initMultipartUpload } from "../import/multipart-upload";
 import { initSaveContentLimitHandler } from "./save-content-limit-handler";
+import { initSaveArticlesLimitHandler } from "./save-articles-limit-handler";
 import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type {
 	ArticleCrawl,
@@ -67,6 +68,7 @@ import { wantsSiren } from "../../content-negotiation";
 import type { QuerystringFeatureToggle } from "../../feature-toggle";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
+import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
 import { toArticleEntity } from "../../api/article-siren";
 import { parseQueueUrl, buildQueueUrl, QUEUE_PATH, canonicalQueuePageRedirect } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
@@ -135,6 +137,18 @@ function normalizeMediaType(mediaType: string): string {
 	const base = mediaType.split(";")[0].trim().toLowerCase();
 	if (isPDF({ contentType: base })) return "application/pdf";
 	return base;
+}
+
+function safeJsonParse(text: string): unknown {
+	try {
+		return JSON.parse(text);
+	} catch {
+		return undefined;
+	}
+}
+
+function bytesToMb(bytes: number): number {
+	return Math.round((bytes / (1024 * 1024)) * 10) / 10;
 }
 
 interface QueueDependencies {
@@ -221,6 +235,7 @@ async function loadCrawls(
 
 const SAVE_ROUTE = {
 	saveArticle: "/",
+	saveArticles: "/save-articles",
 	save: "/save",
 	saveHtml: "/save-html",
 	saveContent: "/save-content",
@@ -232,6 +247,7 @@ const saveIntentPath = (route: string): string =>
 
 const SAVE_INTENT_PATH = {
 	saveArticle: saveIntentPath(SAVE_ROUTE.saveArticle),
+	saveArticles: saveIntentPath(SAVE_ROUTE.saveArticles),
 	save: saveIntentPath(SAVE_ROUTE.save),
 	saveHtml: saveIntentPath(SAVE_ROUTE.saveHtml),
 	saveContent: saveIntentPath(SAVE_ROUTE.saveContent),
@@ -281,6 +297,26 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		outcome: SaveOutcome;
 	}): void => {
 		deps.analytics.info(buildSaveIntentEvent({ now: deps.now, salt: deps.salt }, params));
+	};
+
+	/** Stages captured bytes (HTML or PDF) into the pending store and dispatches
+	 * the matching save-link command, keyed by normalised media type. Shared by
+	 * the single-page save-content route and the bulk save-articles route. */
+	const saveContentHandlers: Record<string, SaveContentMediaHandler> = {
+		"application/pdf": async ({ url, bytes, userId }) => {
+			if (!isPDF({ bodyBytes: bytes })) {
+				return { ok: false, code: "not-a-pdf", message: "Uploaded bytes do not look like a PDF (missing %PDF- magic header)" };
+			}
+			await deps.putPendingPdf({ url, bytes });
+			await deps.publishSaveLinkRawPdfCommand({ url, userId });
+			return { ok: true };
+		},
+		"text/html": async ({ url, bytes, title, userId }) => {
+			const html = bytes.toString("utf8");
+			await deps.putPendingHtml({ url, html });
+			await deps.publishSaveLinkRawHtmlCommand({ url, userId, title });
+			return { ok: true };
+		},
 	};
 
 	const reader = initArticleReader({
@@ -551,6 +587,130 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		}
 	});
 
+	/** Bulk "Save All Tabs": the extension captures every open tab and hands the
+	 * server one multipart request — a JSON `manifest` part listing each page
+	 * (`{ url, title?, mediaType? }`) plus a `content-<index>` file part carrying
+	 * the captured bytes of every page whose entry declares a `mediaType`. Each
+	 * page is classified and saved best-effort:
+	 *   - unsaveable scheme (chrome://, file:, private host) → skipped;
+	 *   - captured content within MAX_PAGE_CONTENT_BYTES → staged via the shared
+	 *     save-content handlers, then stub-saved so the crawl enriches it;
+	 *   - captured content over the per-page cap → reported in `tooBig` and saved
+	 *     URL-only, the same degrade-to-URL-only path save-content takes for an
+	 *     oversize upload, so the link is kept;
+	 *   - no captured content (unscriptable or discarded tab) → saved URL-only.
+	 * The window is chunked client-side to MAX_PAGES_PER_BULK_SAVE; a request over
+	 * that count is rejected early, and saveArticlesLimitHandler turns a body over
+	 * the sized parser limit into a Siren 422 rather than an unhandled 413. */
+	const saveArticlesUpload = initMultipartUpload({ maxBytes: MAX_BULK_CONTENT_REQUEST_BYTES });
+	const saveArticlesLimitHandler = initSaveArticlesLimitHandler({
+		logError: deps.logError,
+		maxBytes: MAX_BULK_CONTENT_REQUEST_BYTES,
+	});
+	router.post(SAVE_ROUTE.saveArticles, requireNotLocked, deps.requireWriteAccess, saveArticlesUpload.rawBodyParser, saveArticlesLimitHandler, async (req: Request, res: Response) => {
+		if (!wantsSiren(req)) {
+			res.status(406).send("Not Acceptable");
+			return;
+		}
+
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+
+		const parsed = saveArticlesUpload.parseAllParts(req);
+		if (!parsed.ok) {
+			res.status(422).type(SIREN_MEDIA_TYPE).json(
+				sirenError({ code: "invalid-save-articles", message: "save-articles requires a multipart/form-data body" }),
+			);
+			return;
+		}
+
+		const manifestPart = parsed.parts.find((p) => p.name === "manifest" && !p.isFile);
+		const manifest = BulkSaveManifestSchema.safeParse(
+			manifestPart ? safeJsonParse(manifestPart.content.toString("utf8")) : undefined,
+		);
+		if (!manifest.success) {
+			res.status(422).type(SIREN_MEDIA_TYPE).json(
+				sirenError({ code: "invalid-save-articles", message: "Invalid save-articles manifest" }),
+			);
+			return;
+		}
+
+		if (manifest.data.length > MAX_PAGES_PER_BULK_SAVE) {
+			res.status(422).type(SIREN_MEDIA_TYPE).json(
+				sirenError({ code: "save-articles-too-many-pages", message: `Too many tabs to save in one request (max ${MAX_PAGES_PER_BULK_SAVE})` }),
+			);
+			return;
+		}
+
+		type PageJob =
+			| { kind: "content"; url: SaveableUrl; title?: string; mediaType: string; bytes: Buffer }
+			| { kind: "url-only"; url: SaveableUrl; title?: string };
+		const jobs: PageJob[] = [];
+		const skipped: { url: string; code: string }[] = [];
+		const tooBig: { url: string; mb: number }[] = [];
+
+		manifest.data.forEach((entry, index) => {
+			const validation = deps.validateSaveableUrl(entry.url);
+			if (validation.status !== "SUCCESS") {
+				skipped.push({ url: entry.url, code: validation.error.code });
+				return;
+			}
+			const url = validation.url;
+			const mediaType = entry.mediaType;
+			/** Only an entry that declares a mediaType carries a content part; a
+			 * declared-but-missing part (unscriptable/discarded tab) and an entry
+			 * with no mediaType both fall through to a URL-only save. */
+			const contentPart = mediaType
+				? parsed.parts.find((p) => p.name === `content-${index}` && p.isFile)
+				: undefined;
+			if (mediaType && contentPart) {
+				if (contentPart.content.length > MAX_PAGE_CONTENT_BYTES) {
+					tooBig.push({ url, mb: bytesToMb(contentPart.content.length) });
+					jobs.push({ kind: "url-only", url, title: entry.title });
+				} else {
+					jobs.push({ kind: "content", url, title: entry.title, mediaType, bytes: contentPart.content });
+				}
+			} else {
+				jobs.push({ kind: "url-only", url, title: entry.title });
+			}
+		});
+
+		const saveOnePage = async (job: PageJob): Promise<"saved" | "failed"> => {
+			try {
+				const freshness = await deps.refreshArticleIfStale({ url: job.url });
+				if (job.kind === "content") {
+					/** Stage the captured bytes when the media type is supported; an
+					 * unsupported type stages nothing and the page is saved URL-only,
+					 * so the crawl enriches it the ordinary way. */
+					const handler = saveContentHandlers[normalizeMediaType(job.mediaType)];
+					if (handler) await handler({ url: job.url, bytes: job.bytes, title: job.title, userId });
+				}
+				await saveArticleFromUrl({ userId, url: job.url, freshness });
+				emitSaveIntent({ req, url: job.url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
+				return "saved";
+			} catch (error) {
+				deps.logError(`Failed to bulk-save url=${job.url}`, error instanceof Error ? error : undefined);
+				emitSaveIntent({ req, url: job.url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
+				return "failed";
+			}
+		};
+
+		const outcomes = await Promise.all(jobs.map(saveOnePage));
+		const saved = outcomes.filter((o) => o === "saved").length;
+		const failed = outcomes.filter((o) => o === "failed").length;
+
+		if (saved > 0) markExtensionSavedArticle(res);
+		res.status(200).type(SIREN_MEDIA_TYPE).json(
+			toBulkSaveResultEntity({
+				saved,
+				skipped: skipped.length,
+				failed,
+				tooBig,
+				skippedUrls: skipped,
+			}),
+		);
+	});
+
 	/** Translates body-parser oversize errors (bodies above MAX_RAW_HTML_REQUEST_BYTES, where we can't reach req.body.url to salvage) into a Siren 500 carrying the save-article action, so the extension can drop the oversized rawHtml and degrade onto the URL-only tier. Also gated on err.limit as defense-in-depth against a future middleware in the chain raising entity.too.large for a different parser. */
 	const saveHtmlLimitHandler: ErrorRequestHandler = (err, req, res, next) => {
 		const bodyErr = err as { type?: string; limit?: number } | null;
@@ -677,23 +837,6 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		logError: deps.logError,
 		maxBytes: MAX_PDF_BYTES.bytes,
 	});
-
-	const saveContentHandlers: Record<string, SaveContentMediaHandler> = {
-		"application/pdf": async ({ url, bytes, userId }) => {
-			if (!isPDF({ bodyBytes: bytes })) {
-				return { ok: false, code: "not-a-pdf", message: "Uploaded bytes do not look like a PDF (missing %PDF- magic header)" };
-			}
-			await deps.putPendingPdf({ url, bytes });
-			await deps.publishSaveLinkRawPdfCommand({ url, userId });
-			return { ok: true };
-		},
-		"text/html": async ({ url, bytes, title, userId }) => {
-			const html = bytes.toString("utf8");
-			await deps.putPendingHtml({ url, html });
-			await deps.publishSaveLinkRawHtmlCommand({ url, userId, title });
-			return { ok: true };
-		},
-	};
 
 	router.post(
 		SAVE_ROUTE.saveContent,

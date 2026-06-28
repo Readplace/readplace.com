@@ -37,8 +37,8 @@ declare module "webextension-polyfill" {
 		}
 
 		function query(queryInfo: {
-			active: boolean;
-			currentWindow: boolean;
+			active?: boolean;
+			currentWindow?: boolean;
 		}): Promise<Tab[]>;
 
 		function get(tabId: number): Promise<Tab>;
@@ -107,6 +107,12 @@ declare module "webextension-polyfill" {
 		};
 	}
 
+	namespace Commands {
+		const onCommand: {
+			addListener(callback: (command: string) => void): void;
+		};
+	}
+
 	const storage: { local: typeof Storage.Local; session: typeof Storage.Session };
 	const runtime: typeof Runtime;
 	const tabs: typeof Tabs;
@@ -119,6 +125,7 @@ declare module "webextension-polyfill" {
 		tabs: typeof Tabs;
 		action: typeof Action;
 		contextMenus: typeof ContextMenus;
+		commands: typeof Commands;
 	};
 
 	export default browser;

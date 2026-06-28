@@ -30,6 +30,7 @@ export {
 	initSirenReadingList,
 	initExtension,
 	initSaveArticleUnderstanding,
+	initSaveArticlesUnderstanding,
 	initSaveHtmlUnderstanding,
 	initSaveContentUnderstanding,
 	initDeleteArticleUnderstanding,
@@ -47,7 +48,7 @@ export type {
 } from "./reading-list/siren-reading-list";
 export type { ContentBodyBuilder } from "./reading-list/content-body-parsers";
 export { pdfContentBody, htmlContentBody } from "./reading-list/content-body-parsers";
-export type { SaveUrl, InvokeAction, FindByUrl, GetAllItems } from "./reading-list/reading-list.types";
+export type { SaveUrl, InvokeAction, FindByUrl, GetAllItems, SavePages, BulkSavePage, BulkSaveResult } from "./reading-list/reading-list.types";
 export type { PopupMessage } from "./popup-message.types";
 export { filterByUrl } from "./popup/filter-by-url";
 export { paginateItems } from "./popup/paginate-items";
@@ -60,6 +61,8 @@ export { itemDisplay } from "./popup/item-display";
 export type { ItemDisplay } from "./popup/item-display";
 export { actionIcon, actionLabel, actionVariant, humanize, linkLabel, linkPresentation } from "./popup/action-affordance";
 export type { ActionVariant, LinkPresentation } from "./popup/action-affordance";
+export { selectSaveableTabs, summarizeBulkSave } from "./popup/save-all-tabs";
+export type { SaveableTab } from "./popup/save-all-tabs";
 export { initSaveProgress } from "./popup/save-progress";
 export type { SavePhase, SaveProgress } from "./popup/save-progress";
 export { initSaveProgressSequencer } from "./popup/save-progress-sequencer";
@@ -67,6 +70,7 @@ export type { SaveProgressSequencer, Scheduler } from "./popup/save-progress-seq
 export {
 	MENU_ITEM_SAVE_PAGE,
 	MENU_ITEM_SAVE_LINK,
+	MENU_ITEM_SAVE_ALL_TABS,
 } from "./get-context-menu-target";
 export { installShortcuts, isCmdD } from "./keydown-shortcuts";
 export type { Shortcut } from "./keydown-shortcuts";

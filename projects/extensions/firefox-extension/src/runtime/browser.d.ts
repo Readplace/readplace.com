@@ -37,8 +37,8 @@ declare namespace browser {
 		}
 
 		function query(queryInfo: {
-			active: boolean;
-			currentWindow: boolean;
+			active?: boolean;
+			currentWindow?: boolean;
 		}): Promise<Tab[]>;
 
 		function get(tabId: number): Promise<Tab>;
@@ -81,6 +81,12 @@ declare namespace browser {
 			imageData?: Record<number, ImageData>;
 		}): Promise<void>;
 		function openPopup(): Promise<void>;
+	}
+
+	namespace commands {
+		const onCommand: {
+			addListener(callback: (command: string) => void): void;
+		};
 	}
 
 	namespace menus {

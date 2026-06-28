@@ -9,14 +9,16 @@ import type {
 import { ReadingListItemIdSchema } from "../domain/reading-list-item-id";
 import { UnauthorizedError } from "../auth/unauthorized-error";
 import type {
+	BulkSaveResult,
 	FindByUrl,
 	GetAllItems,
 	InvokeAction,
 	Message,
 	SaveUrl,
+	SavePages,
 	SaveWarning,
 } from "./reading-list.types";
-import { pdfContentBody, htmlContentBody, type ContentBodyBuilder } from "./content-body-parsers";
+import { pdfContentBody, htmlContentBody, base64ToBytes, type ContentBodyBuilder } from "./content-body-parsers";
 
 const SIREN_MEDIA_TYPE = "application/vnd.siren+json";
 
@@ -215,6 +217,19 @@ const SirenWarningSchema = z.object({
 	message: z.string(),
 });
 
+/** The `save-articles-result` Siren entity the bulk-save route returns. Only
+ * `properties` is read; the surrounding `class`/`links` are ignored. The shape
+ * matches `BulkSaveResult`, which the popup renders as "Saved N · Skipped M". */
+const SaveArticlesResultSchema = z.object({
+	properties: z.object({
+		saved: z.number(),
+		skipped: z.number(),
+		failed: z.number(),
+		tooBig: z.array(z.object({ url: z.string(), mb: z.number() })),
+		skippedUrls: z.array(z.object({ url: z.string(), code: z.string() })),
+	}),
+});
+
 const SirenCollectionResponseSchema = z.object({
 	class: z.array(z.string()).optional(),
 	properties: z.record(z.string(), z.unknown()).optional(),
@@ -259,6 +274,9 @@ export type BoundAction = (
 export type NavigationResult = {
 	items: ArticleItem[];
 	actions: Record<string, BoundAction>;
+	/** Set only by the save-articles understanding; carries the bulk-save
+	 * summary so `saveUrls` can surface it. Other actions leave it undefined. */
+	bulk?: BulkSaveResult;
 };
 
 /** The walker's in-memory item. It keeps the cross-boundary `ReadingListItem`
@@ -355,6 +373,52 @@ export function initSaveArticleUnderstanding(): Map<string, ActionHandler> {
 			const body = SirenSubEntitySchema.parse(await readSirenBody(response));
 			const item = context.resolveItem(body);
 			return { items: [item], actions: {} };
+		};
+	});
+	return handlers;
+}
+
+const SaveArticlesManifestSchema = z.array(
+	z.object({
+		url: z.string(),
+		title: z.string().optional(),
+		mediaType: z.string().optional(),
+	}),
+);
+
+export function initSaveArticlesUnderstanding(): Map<string, ActionHandler> {
+	const handlers = new Map<string, ActionHandler>();
+	handlers.set("save-articles", (sirenAction, context) => {
+		return async (fields) => {
+			assert(fields?.manifest, "save-articles requires a manifest field");
+			/** Siren fields are strings, so the caller JSON-encodes the per-page
+			 * manifest and base64-encodes each captured page's bytes under a
+			 * `contentBase64-<index>` field. Rebuild the multipart body the server
+			 * expects: the manifest as a text part, each captured page as a binary
+			 * `content-<index>` file part. */
+			const manifest = SaveArticlesManifestSchema.parse(JSON.parse(fields.manifest));
+			const formData = new FormData();
+			formData.append("manifest", fields.manifest);
+			manifest.forEach((entry, index) => {
+				if (!entry.mediaType) return;
+				const base64 = fields[`contentBase64-${index}`];
+				assert(
+					base64 !== undefined,
+					`save-articles manifest entry ${index} declares a mediaType but carries no content`,
+				);
+				const bytes = base64ToBytes(base64);
+				formData.append(`content-${index}`, new Blob([bytes], { type: entry.mediaType }), `content-${index}`);
+			});
+			const response = await context.doFetch(
+				`${context.serverUrl}${sirenAction.href}`,
+				{
+					method: sirenAction.method,
+					body: formData,
+				},
+			);
+			assert(response.ok, `Bulk save failed: ${response.status}`);
+			const body = SaveArticlesResultSchema.parse(await response.json());
+			return { items: [], actions: {}, bulk: body.properties };
 		};
 	});
 	return handlers;
@@ -831,9 +895,11 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	invokeAction: InvokeAction;
 	findByUrl: FindByUrl;
 	getAllItems: GetAllItems;
+	savePages: SavePages;
 } {
 	const understandings = groupOf(
 		initSaveArticleUnderstanding(),
+		initSaveArticlesUnderstanding(),
 		initSaveHtmlUnderstanding({ logger: deps.logger }),
 		initSaveContentUnderstanding({
 			parsers: {
@@ -969,5 +1035,34 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		return collection.items;
 	};
 
-	return { saveUrl, invokeAction, findByUrl, getAllItems };
+	const savePages: SavePages = async ({ pages }) => {
+		const collection = await start();
+		const action = collection.actions["save-articles"];
+		assert(
+			action,
+			'Expected Siren action "save-articles" not found in response',
+		);
+		/** The bound action takes only string fields, so the manifest is JSON and
+		 * each captured page's bytes ride along base64-encoded under a
+		 * `contentBase64-<index>` field; the understanding rebuilds the multipart
+		 * body from them. */
+		const fields: Record<string, string> = {
+			manifest: JSON.stringify(
+				pages.map((page) => {
+					const entry: { url: string; title?: string; mediaType?: string } = { url: page.url };
+					if (page.title !== undefined) entry.title = page.title;
+					if (page.content) entry.mediaType = page.content.mediaType;
+					return entry;
+				}),
+			),
+		};
+		pages.forEach((page, index) => {
+			if (page.content) fields[`contentBase64-${index}`] = arrayBufferToBase64(page.content.bytes);
+		});
+		const result = await action(fields);
+		assert(result.bulk, "save-articles response missing bulk summary");
+		return result.bulk;
+	};
+
+	return { saveUrl, invokeAction, findByUrl, getAllItems, savePages };
 }
