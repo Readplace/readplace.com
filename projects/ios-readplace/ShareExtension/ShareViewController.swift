@@ -26,21 +26,22 @@ final class ShareViewController: UIViewController {
 		let saver = SaveSharedPage(store: store, api: ReadplaceAPI(baseURL: AppConfig.serverBaseURL, store: store), captor: captor)
 		switch await saver.run(url: shared?.url, fallbackTitle: shared?.title) {
 		case .savedWithContent:
-			finish(message: "Saved with content", symbol: "checkmark.circle.fill", success: true)
+			finish(message: "Saved with content", symbol: "checkmark.circle.fill", tint: .brandSuccess)
 		case .savedLinkOnly:
-			finish(message: "Saved (link only)", symbol: "checkmark.circle.fill", success: true)
+			finish(message: "Saved (link only)", symbol: "checkmark.circle.fill", tint: .brandSuccess)
 		case .notLoggedIn:
 			finish(message: "Open Readplace and sign in first.",
-				symbol: "person.crop.circle.badge.exclamationmark", success: false)
+				symbol: "person.crop.circle.badge.exclamationmark", tint: .brandWarning)
 		case .noLink:
-			finish(message: "No link found to save.", symbol: "link", success: false)
+			finish(message: "No link found to save.", symbol: "link", tint: .brandWarning)
 		case .noSaveAction:
 			finish(message: "The server offered no save action.",
-				symbol: "exclamationmark.triangle.fill", success: false)
+				symbol: "exclamationmark.triangle.fill", tint: .brandError)
 		case .refused(let messages):
-			finish(message: messages.map(\.plainText).joined(separator: "\n"), symbol: "lock.fill", success: false)
+			finish(message: messages.map(\.plainText).joined(separator: "\n"), symbol: "lock.fill",
+				tint: messages.contains { $0.kind == .error } ? .brandError : .brandWarning)
 		case .failed(let message):
-			finish(message: message, symbol: "exclamationmark.triangle.fill", success: false)
+			finish(message: message, symbol: "exclamationmark.triangle.fill", tint: .brandError)
 		}
 	}
 
@@ -105,11 +106,11 @@ final class ShareViewController: UIViewController {
 		spinner.startAnimating()
 	}
 
-	private func finish(message: String, symbol: String, success: Bool) {
+	private func finish(message: String, symbol: String, tint: UIColor) {
 		spinner.stopAnimating()
 		spinner.isHidden = true
 		iconView.image = UIImage(systemName: symbol)
-		iconView.tintColor = success ? .systemGreen : .systemOrange
+		iconView.tintColor = tint
 		iconView.isHidden = false
 		statusLabel.text = message
 

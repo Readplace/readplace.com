@@ -29,7 +29,7 @@ struct ArticleRow: View {
 
 			if article.isRead {
 				Image(systemName: "checkmark.circle.fill")
-					.foregroundStyle(.green)
+					.foregroundStyle(Color.brandSuccess)
 					.font(.footnote)
 			}
 		}

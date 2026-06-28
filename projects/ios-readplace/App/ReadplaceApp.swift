@@ -24,6 +24,7 @@ struct RootView: View {
 				LoginView(authErrorText: $authErrorText)
 			}
 		}
+		.tint(.brandAmber)
 		.onOpenURL { url in
 			guard url.scheme == AppConfig.callbackURLScheme, url.host == AppConfig.nativeCallbackHost else { return }
 			Task { @MainActor in

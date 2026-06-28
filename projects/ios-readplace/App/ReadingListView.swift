@@ -69,12 +69,12 @@ struct ReadingListView: View {
 			if !viewModel.messages.isEmpty {
 				banner(
 					viewModel.messages.map(\.plainText).joined(separator: "\n"),
-					color: viewModel.messages.contains { $0.kind == .error } ? .red : .orange
+					color: viewModel.messages.contains { $0.kind == .error } ? .brandError : .brandWarning
 				) { viewModel.messages = [] }
 			} else if let errorText = viewModel.errorText {
-				banner(errorText, color: .red) { viewModel.errorText = nil }
+				banner(errorText, color: .brandError) { viewModel.errorText = nil }
 			} else if let warningText = viewModel.warningText {
-				banner(warningText, color: .orange) { viewModel.warningText = nil }
+				banner(warningText, color: .brandWarning) { viewModel.warningText = nil }
 			}
 		}
 	}
@@ -94,7 +94,7 @@ struct ReadingListView: View {
 							} label: {
 								Label("Mark as read", systemImage: "checkmark.circle")
 							}
-							.tint(.green)
+							.tint(.brandSuccess)
 						}
 					}
 					.accessibilityActions {

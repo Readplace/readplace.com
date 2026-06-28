@@ -17,7 +17,7 @@ struct LoginView: View {
 						.scaledToFit()
 						.frame(width: 72, height: 72)
 						.accessibilityHidden(true)
-					Text("Readplace")
+					(Text("Read") + Text("place").foregroundColor(.brandHighlight))
 						.font(.largeTitle.bold())
 					Text("Your reading list")
 						.font(.subheadline)
@@ -49,15 +49,11 @@ struct LoginView: View {
 				if let authErrorText {
 					Text(authErrorText)
 						.font(.footnote)
-						.foregroundStyle(.red)
+						.foregroundStyle(Color.brandError)
 						.multilineTextAlignment(.center)
 				}
 
 				Spacer()
-				Text("Authenticates with OAuth (PKCE) using the same client as the browser extension.")
-					.font(.caption2)
-					.foregroundStyle(.tertiary)
-					.multilineTextAlignment(.center)
 			}
 			.padding(24)
 		}
