@@ -27,6 +27,22 @@ export interface ReadingList {
  * directly). */
 export const BULK_SAVE_BATCH_SIZE = 20;
 
+/** Per-page captured-content ceiling, mirroring the server's
+ * MAX_PAGE_CONTENT_BYTES (the two packages share no dependency edge, so the
+ * value can't be imported directly). A page whose captured bytes exceed this is
+ * sent URL-only and reported in the result's `tooBig` list — the same outcome
+ * the server produces for an oversize upload — so the client never uploads
+ * content the server would only reject, and a 20-page batch of such pages stays
+ * under MAX_BULK_CONTENT_REQUEST_BYTES and degrades per-page instead of failing
+ * wholesale. Must stay ≤ the server cap. */
+export const MAX_BULK_SAVE_PAGE_CONTENT_BYTES = 20 * 1024 * 1024;
+
+/** Mirrors the server's bytes→MB rounding so a client-dropped page reads with
+ * the same size in the popup's too-big line as a server-dropped one. */
+function bytesToMb(bytes: number): number {
+	return Math.round((bytes / (1024 * 1024)) * 10) / 10;
+}
+
 export type ResultCallbacks<T> = {
 	success: (value: T) => void;
 	failure: (error: CoreError) => void;
@@ -129,8 +145,16 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 
 	async function savePagesInBatches(pages: BulkSavePage[]): Promise<BulkSaveResult> {
 		const summary: BulkSaveResult = { saved: 0, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] };
-		for (let i = 0; i < pages.length; i += BULK_SAVE_BATCH_SIZE) {
-			const batch = pages.slice(i, i + BULK_SAVE_BATCH_SIZE);
+		const capped = pages.map((page) => {
+			if (page.content && page.content.bytes.byteLength > MAX_BULK_SAVE_PAGE_CONTENT_BYTES) {
+				summary.tooBig.push({ url: page.url, mb: bytesToMb(page.content.bytes.byteLength) });
+				const { content: _content, ...urlOnly } = page;
+				return urlOnly;
+			}
+			return page;
+		});
+		for (let i = 0; i < capped.length; i += BULK_SAVE_BATCH_SIZE) {
+			const batch = capped.slice(i, i + BULK_SAVE_BATCH_SIZE);
 			try {
 				const result = await readingList.savePages({ pages: batch });
 				summary.saved += result.saved;
