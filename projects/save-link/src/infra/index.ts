@@ -34,6 +34,7 @@ import {
 	RecrawlContentExtractedEvent,
 	RefreshContentExtractedEvent,
 	SAVE_LINK_LAMBDA_NAMES,
+	SAVE_LINK_LOG_GROUPS,
 } from "@packages/hutch-infra-components";
 import { requireEnv } from "@packages/require-env";
 import { GENERATE_SUMMARY_TIMEOUTS } from "../runtime/domain/generate-summary/timeouts";
@@ -1446,6 +1447,27 @@ const updateFetchTimestampWithSQS = new HutchSQSBackedLambda("update-fetch-times
 });
 
 eventBus.subscribe(UpdateFetchTimestampCommand, updateFetchTimestampWithSQS);
+
+// --- Worker log groups ---
+// AWS only auto-creates a Lambda's log group on its first invocation, but the
+// hutch analytics dashboard's "Recent errors" widget runs one Logs Insights
+// query spanning every save-link worker group (SAVE_LINK_LOG_GROUPS): a single
+// not-yet-created group fails that whole query with ResourceNotFoundException,
+// blanking the entire errors view — so a fresh stack, or a failure-path Lambda
+// (summary-generation-failed, recrawl-link-initiated, …) that has not fired
+// yet, would take the widget down. Provision them explicitly — mirroring the
+// subscription block in the hutch stack — so the widget renders an empty result
+// set instead of erroring, and the groups gain the 30-day retention the
+// auto-created ones lack. Names come from the shared SAVE_LINK_LOG_GROUPS
+// constant the dashboard reads, and iterating it means a worker later added to
+// SAVE_LINK_LAMBDA_NAMES is provisioned here automatically rather than silently
+// reopening the missing-group gap.
+for (const [name, logGroupName] of Object.entries(SAVE_LINK_LOG_GROUPS)) {
+	new aws.cloudwatch.LogGroup(`${name}-log-group`, {
+		name: logGroupName,
+		retentionInDays: 30,
+	});
+}
 
 // --- Exports ---
 
