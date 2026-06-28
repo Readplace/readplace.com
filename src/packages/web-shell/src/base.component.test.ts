@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { initBase } from "./base.component";
-import { isChangelogVersion } from "./changelog-banner";
+import { CHANGELOG_SEEN_SCRIPT, isChangelogVersion } from "./changelog-banner";
 import type { BannerState } from "./banner-state";
 import type { PageBody } from "./page-body.types";
 
@@ -287,6 +287,10 @@ describe("Base component", () => {
 		expect(banner.querySelector(".changelog-banner__hook")?.textContent).toBe(
 			"I added keyboard shortcuts to the reader",
 		);
+		expect(banner.getAttribute("data-changelog-version")).toBe(CHANGELOG_VERSION);
+		const seenScript = banner.querySelector("script");
+		assert(seenScript, "the visible banner must carry the inline seen-script");
+		expect(seenScript.textContent).toBe(CHANGELOG_SEEN_SCRIPT);
 	});
 
 	it("threads currentPath into the changelog dismiss form so dismissing stays on the current page", () => {

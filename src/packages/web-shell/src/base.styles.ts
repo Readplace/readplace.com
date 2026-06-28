@@ -598,7 +598,12 @@ export const CHANGELOG_BANNER_STYLES = `
 
   /**
    * 1. A label, not a pill — 6px radius (var(--radius-sm)) keeps it inside the
-   *    brand's "never fully rounded" rule while the brand fill carries novelty.
+   *    brand's "never fully rounded" rule while the navy fill carries novelty.
+   * 2. Navy (the secondary brand colour) so the chip reads as "unseen" against
+   *    the amber chrome that links and CTAs already own, without colliding with
+   *    --color-success (which means "saved"). The inline seen-script adds
+   *    --seen on a version this browser has already seen, dropping the chip so
+   *    NEW signals novelty rather than merely "not yet dismissed".
    */
   .changelog-banner__chip {
     flex: 0 0 auto;
@@ -608,10 +613,12 @@ export const CHANGELOG_BANNER_STYLES = `
     font-weight: 700;
     line-height: 1;
     padding: 4px 7px;
-    background: var(--color-brand);
+    background: var(--color-secondary); /* 2 */
     color: var(--color-on-brand);
     border-radius: var(--radius-sm); /* 1 */
   }
+
+  .changelog-banner--seen .changelog-banner__chip { display: none; }
 
   .changelog-banner__hook {
     flex: 1 1 auto;

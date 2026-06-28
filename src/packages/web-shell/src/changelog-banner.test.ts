@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import {
+	CHANGELOG_SEEN_SCRIPT,
+	CHANGELOG_SEEN_STORAGE_KEY,
 	type ChangelogBanner,
 	isChangelogVersion,
 	parseChangelogBannerFragment,
@@ -144,6 +146,23 @@ describe("renderChangelogBannerShell", () => {
 		expect(banner.classList.contains("changelog-banner--hidden")).toBe(false);
 	});
 
+	it("carries the rendered version on the visible banner so the seen-script can read it", () => {
+		const doc = parse(renderChangelogBannerShell(BANNER));
+		const banner = doc.querySelector(".changelog-banner");
+		assert(banner, "the banner element must render");
+		expect(banner.getAttribute("data-changelog-version")).toBe(VERSION);
+	});
+
+	it("emits the inline seen-script as the visible banner's last child", () => {
+		const doc = parse(renderChangelogBannerShell(BANNER));
+		const banner = doc.querySelector(".changelog-banner");
+		assert(banner, "the banner element must render");
+		const last = banner.lastElementChild;
+		assert(last, "the visible banner must have children");
+		expect(last.tagName).toBe("SCRIPT");
+		expect(last.textContent).toBe(CHANGELOG_SEEN_SCRIPT);
+	});
+
 	it("renders the hidden, empty banner when no banner is present", () => {
 		const doc = parse(renderChangelogBannerShell(undefined));
 		const banner = doc.querySelector(".changelog-banner");
@@ -151,6 +170,7 @@ describe("renderChangelogBannerShell", () => {
 		expect(banner.classList.contains("changelog-banner--hidden")).toBe(true);
 		expect(banner.classList.contains("changelog-banner--visible")).toBe(false);
 		expect(banner.children.length).toBe(0);
+		expect(banner.hasAttribute("data-changelog-version")).toBe(false);
 	});
 
 	it("uses role=status with a polite live region for assistive tech", () => {
@@ -227,3 +247,61 @@ describe("renderChangelogBannerShell", () => {
 	});
 });
 
+describe("CHANGELOG_SEEN_SCRIPT", () => {
+	function load(banner: ChangelogBanner): JSDOM {
+		return new JSDOM(`<!doctype html><html><body>${renderChangelogBannerShell(banner)}</body></html>`, {
+			url: "https://readplace.com/",
+			runScripts: "outside-only",
+		});
+	}
+
+	function seenClass(dom: JSDOM): boolean {
+		const banner = dom.window.document.querySelector(".changelog-banner");
+		assert(banner, "the banner must render");
+		return banner.classList.contains("changelog-banner--seen");
+	}
+
+	it("leaves NEW visible and records the version on the first sight", () => {
+		const dom = load(BANNER);
+		dom.window.eval(CHANGELOG_SEEN_SCRIPT);
+		expect(seenClass(dom)).toBe(false);
+		expect(dom.window.localStorage.getItem(CHANGELOG_SEEN_STORAGE_KEY)).toBe(VERSION);
+	});
+
+	it("hides NEW on a later load of the same version", () => {
+		const dom = load(BANNER);
+		dom.window.eval(CHANGELOG_SEEN_SCRIPT);
+		dom.window.document.body.innerHTML = renderChangelogBannerShell(BANNER);
+		dom.window.eval(CHANGELOG_SEEN_SCRIPT);
+		expect(seenClass(dom)).toBe(true);
+	});
+
+	it("re-shows NEW and records the new version when a newer post arrives", () => {
+		const newer = "ffffffff";
+		assert(isChangelogVersion(newer));
+		const dom = load(BANNER);
+		dom.window.eval(CHANGELOG_SEEN_SCRIPT);
+		dom.window.document.body.innerHTML = renderChangelogBannerShell({ ...BANNER, version: newer });
+		dom.window.eval(CHANGELOG_SEEN_SCRIPT);
+		expect(seenClass(dom)).toBe(false);
+		expect(dom.window.localStorage.getItem(CHANGELOG_SEEN_STORAGE_KEY)).toBe(newer);
+	});
+
+	it("does nothing when there is no visible banner to mark", () => {
+		const dom = new JSDOM(
+			`<!doctype html><html><body>${renderChangelogBannerShell(undefined)}</body></html>`,
+			{ url: "https://readplace.com/", runScripts: "outside-only" },
+		);
+		dom.window.eval(CHANGELOG_SEEN_SCRIPT);
+		expect(dom.window.localStorage.getItem(CHANGELOG_SEEN_STORAGE_KEY)).toBeNull();
+	});
+
+	it("swallows a throwing storage so NEW stays visible in private mode", () => {
+		const dom = load(BANNER);
+		dom.window.localStorage.getItem = () => {
+			throw new Error("storage blocked");
+		};
+		expect(() => dom.window.eval(CHANGELOG_SEEN_SCRIPT)).not.toThrow();
+		expect(seenClass(dom)).toBe(false);
+	});
+});
