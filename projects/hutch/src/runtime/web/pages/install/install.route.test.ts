@@ -72,17 +72,17 @@ describe("GET /install", () => {
 		const groups = Array.from(doc.querySelectorAll("[data-test-group]")).map(
 			(el) => el.getAttribute("data-test-group"),
 		);
-		expect(groups).toEqual(["Browsers & Devices", "AI Assistants"]);
+		expect(groups).toEqual(["browsers", "ai"]);
 
-		const devices = doc.querySelector('[data-test-group="Browsers & Devices"]');
-		assert(devices, "Browsers & Devices group must render");
+		const devices = doc.querySelector('[data-test-group="browsers"]');
+		assert(devices, "browsers group must render");
 		const deviceTabs = Array.from(devices.querySelectorAll("[data-test-tab]")).map(
 			(el) => el.getAttribute("data-test-tab"),
 		);
 		expect(deviceTabs).toEqual(["firefox", "chrome", "iphone"]);
 
-		const ai = doc.querySelector('[data-test-group="AI Assistants"]');
-		assert(ai, "AI Assistants group must render");
+		const ai = doc.querySelector('[data-test-group="ai"]');
+		assert(ai, "ai group must render");
 		const aiTabs = Array.from(ai.querySelectorAll("[data-test-tab]")).map(
 			(el) => el.getAttribute("data-test-tab"),
 		);
@@ -113,7 +113,7 @@ describe("GET /install", () => {
 			assert(labelledBy, "each group must reference its label via aria-labelledby");
 			const label = doc.getElementById(labelledBy);
 			assert(label, "aria-labelledby must resolve to the group's label element");
-			expect(label.textContent).toBe(group.getAttribute("data-test-group"));
+			expect(label).toBe(group.querySelector(".install-page__group-label"));
 		}
 	});
 
@@ -389,7 +389,7 @@ describe("GET /install", () => {
 		);
 		expect(
 			doc.querySelector('[data-test-section="ai-prompt"] .install-page__prompt-text')?.textContent,
-		).toBe("Connect to readplace.com so you can access my reading list.");
+		).toBe("Connect to readplace.com so you can save pages to and read my reading list.");
 	});
 
 	it("should land client=ai on the Claude tab as a convenience alias", async () => {
@@ -460,6 +460,17 @@ describe("GET /install", () => {
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
 		expect(response.text).toMatch(/^# /);
+		expect(response.text).not.toContain("<script");
+	});
+
+	it("does not leak the AI copy-button script into a markdown response", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server)
+			.get("/install?client=claude")
+			.set("Accept", "text/markdown");
+
+		expect(response.status).toBe(200);
+		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
 		expect(response.text).not.toContain("<script");
 	});
 });

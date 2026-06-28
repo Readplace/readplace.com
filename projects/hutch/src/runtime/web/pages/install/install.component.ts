@@ -18,16 +18,26 @@ const MCP_GUIDE_URL = "/mcp";
 
 const INSTALL_COPY_SCRIPT = `<script src="/client-dist/install.client.js" defer></script>`;
 
+/** Stable slugs keyed by group; the values are the display labels. The slug is
+ * what `data-test-group` and the aria-labelledby id are built from, so renaming
+ * a label can't silently break a selector. */
+const TAB_GROUPS = {
+	browsers: "Browsers & Devices",
+	ai: "AI Assistants",
+} as const;
+
+type GroupKey = keyof typeof TAB_GROUPS;
+
 /** Each tab is its own client, ordered within the labelled group it belongs to.
  * The browser extensions (firefox/chrome) and the AI assistants (claude/chatgpt)
  * share a panel shape each, differing only in data, so the rendered panel is
  * resolved in buildPanel and the template switches on `panel.type`. */
 const TAB_DEFINITIONS = [
-	{ key: "firefox", label: "Firefox", group: "Browsers & Devices", beta: false },
-	{ key: "chrome", label: "Chrome", group: "Browsers & Devices", beta: false },
-	{ key: "iphone", label: "iPhone", group: "Browsers & Devices", beta: true },
-	{ key: "claude", label: "Claude", group: "AI Assistants", beta: false },
-	{ key: "chatgpt", label: "ChatGPT", group: "AI Assistants", beta: false },
+	{ key: "firefox", label: "Firefox", group: "browsers", beta: false },
+	{ key: "chrome", label: "Chrome", group: "browsers", beta: false },
+	{ key: "iphone", label: "iPhone", group: "browsers", beta: true },
+	{ key: "claude", label: "Claude", group: "ai", beta: false },
+	{ key: "chatgpt", label: "ChatGPT", group: "ai", beta: false },
 ] as const;
 
 export type InstallClient = (typeof TAB_DEFINITIONS)[number]["key"];
@@ -75,6 +85,7 @@ interface InstallTab {
 }
 
 interface InstallTabGroup {
+	key: GroupKey;
 	label: string;
 	labelId: string;
 	tabs: InstallTab[];
@@ -83,9 +94,9 @@ interface InstallTabGroup {
 function buildTabGroups(active: InstallClient): InstallTabGroup[] {
 	const groups: InstallTabGroup[] = [];
 	for (const { key, label, group, beta } of TAB_DEFINITIONS) {
-		let target = groups.find((candidate) => candidate.label === group);
+		let target = groups.find((candidate) => candidate.key === group);
 		if (!target) {
-			target = { label: group, labelId: `install-group-${groups.length}`, tabs: [] };
+			target = { key: group, label: TAB_GROUPS[group], labelId: `install-group-${group}`, tabs: [] };
 			groups.push(target);
 		}
 		const isActive = key === active;
@@ -158,7 +169,7 @@ const AI_ASSISTANTS: Record<"claude" | "chatgpt", AiAssistant> = {
 		name: "ChatGPT",
 		intro:
 			"The same MCP server connects through ChatGPT's developer mode. Once it's on, ChatGPT can read your list and save links for you.",
-		prompt: "Connect to readplace.com so you can access my reading list.",
+		prompt: "Connect to readplace.com so you can save pages to and read my reading list.",
 		requirement:
 			"Needs a paid plan (Plus, Pro, Business, Enterprise, or Edu) with developer mode turned on from the web.",
 	},
