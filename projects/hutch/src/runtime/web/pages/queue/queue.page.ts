@@ -223,6 +223,7 @@ async function loadCrawls(
 
 const SAVE_ROUTE = {
 	saveArticle: "/",
+	saveArticles: "/save-articles",
 	save: "/save",
 	saveHtml: "/save-html",
 	saveContent: "/save-content",
@@ -234,6 +235,7 @@ const saveIntentPath = (route: string): string =>
 
 const SAVE_INTENT_PATH = {
 	saveArticle: saveIntentPath(SAVE_ROUTE.saveArticle),
+	saveArticles: saveIntentPath(SAVE_ROUTE.saveArticles),
 	save: saveIntentPath(SAVE_ROUTE.save),
 	saveHtml: saveIntentPath(SAVE_ROUTE.saveHtml),
 	saveContent: saveIntentPath(SAVE_ROUTE.saveContent),
@@ -568,7 +570,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		logError: deps.logError,
 		maxBytes: MAX_BULK_SAVE_REQUEST_BYTES,
 	});
-	router.post("/save-articles", requireNotLocked, deps.requireWriteAccess, express.json({ limit: MAX_BULK_SAVE_REQUEST_BYTES }), saveArticlesLimitHandler, async (req: Request, res: Response) => {
+	router.post(SAVE_ROUTE.saveArticles, requireNotLocked, deps.requireWriteAccess, express.json({ limit: MAX_BULK_SAVE_REQUEST_BYTES }), saveArticlesLimitHandler, async (req: Request, res: Response) => {
 		if (!wantsSiren(req)) {
 			res.status(406).send("Not Acceptable");
 			return;
@@ -606,7 +608,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 						.then((freshness) => saveArticleFromUrl({ userId, url, freshness }))
 						.then(() => {
 							saved += 1;
-							emitSaveIntent({ req, url, path: "/queue/save-articles", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
+							emitSaveIntent({ req, url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
 						})
 						.catch((error: unknown) => {
 							failed += 1;
@@ -614,7 +616,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 								`Failed to bulk-save url=${url}`,
 								error instanceof Error ? error : undefined,
 							);
-							emitSaveIntent({ req, url, path: "/queue/save-articles", surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
+							emitSaveIntent({ req, url, path: SAVE_INTENT_PATH.saveArticles, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
 						}),
 				),
 			);
