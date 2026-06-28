@@ -109,7 +109,7 @@ final class ShareViewController: UIViewController {
 		spinner.stopAnimating()
 		spinner.isHidden = true
 		iconView.image = UIImage(systemName: symbol)
-		iconView.tintColor = success ? .systemGreen : .systemOrange
+		iconView.tintColor = success ? UIColor.brandSuccess : UIColor.brandWarning
 		iconView.isHidden = false
 		statusLabel.text = message
 

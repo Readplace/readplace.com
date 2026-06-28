@@ -24,6 +24,7 @@ struct ReaderSheet: View {
 				ReaderSkeletonView()
 			}
 		}
+		.tint(.brandAmber)
 		.task {
 			guard cookie == nil, !bootstrapFailed else { return }
 			if let minted = await mintSession() {
