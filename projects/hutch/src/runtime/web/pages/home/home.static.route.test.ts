@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { useTestServer } from "../../../test-app";
+import { useTestServer, loginAgent } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -157,6 +157,17 @@ describe("GET / with Accept: text/markdown", () => {
 		expect(response.status).toBe(200);
 		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
 		expect(response.headers.location).toBeUndefined();
+	});
+
+	it("redirects a logged-in visitor to /queue instead of serving the markdown landing page", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth } = harness;
+		const agent = await loginAgent(harness.server, auth);
+
+		const response = await agent.get("/").set("Accept", "text/markdown");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue");
 	});
 
 	it("converts the comparison table into markdown table syntax", async () => {
