@@ -76,6 +76,7 @@ interface InstallTab {
 
 interface InstallTabGroup {
 	label: string;
+	labelId: string;
 	tabs: InstallTab[];
 }
 
@@ -84,7 +85,7 @@ function buildTabGroups(active: InstallClient): InstallTabGroup[] {
 	for (const { key, label, group, beta } of TAB_DEFINITIONS) {
 		let target = groups.find((candidate) => candidate.label === group);
 		if (!target) {
-			target = { label: group, tabs: [] };
+			target = { label: group, labelId: `install-group-${groups.length}`, tabs: [] };
 			groups.push(target);
 		}
 		const isActive = key === active;
@@ -212,7 +213,7 @@ export function InstallPage(params: { firefox: string | null; client: InstallCli
 	const panel = buildPanel(params.client, params.firefox);
 	return {
 		seo: {
-			title: "Install Readplace Browser Extension",
+			title: "Install Readplace — Browser, iPhone & AI Assistants",
 			description:
 				"Where reading still matters. Install the Readplace browser extension for Firefox or Chrome, save from your iPhone, or connect your AI assistant to save and read your reading list.",
 			canonicalUrl: "https://readplace.com/install",
@@ -220,11 +221,11 @@ export function InstallPage(params: { firefox: string | null; client: InstallCli
 				{
 					"@context": "https://schema.org",
 					"@type": "SoftwareApplication",
-					name: "Readplace Browser Extension",
+					name: "Readplace",
 					description:
-						"Save any article to your Readplace reading list with one click from Firefox or Chrome.",
-					applicationCategory: "BrowserApplication",
-					operatingSystem: "Windows, macOS, Linux, ChromeOS",
+						"Save any article to your Readplace reading list — from the Firefox or Chrome browser extension, the iPhone share sheet, or a connected AI assistant.",
+					applicationCategory: "ProductivityApplication",
+					operatingSystem: "Windows, macOS, Linux, ChromeOS, iOS",
 					url: "https://readplace.com/install",
 					downloadUrl: "https://readplace.com/install",
 					offers: {

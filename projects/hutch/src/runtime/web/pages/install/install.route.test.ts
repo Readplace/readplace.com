@@ -11,8 +11,10 @@ import {
 const TEST_XPI_FILENAME = "abc123-1.0.0.xpi";
 const INSTALL_CLIENT_SCRIPT = "/client-dist/install.client.js";
 
-function mockFirefoxAvailable() {
-	jest.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+let fetchSpy: jest.SpyInstance;
+
+function mockFirefoxAvailable(): jest.SpyInstance {
+	return jest.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
 		const urlStr = url.toString();
 		if (urlStr.includes("hutch-extension-prod")) {
 			return new Response(TEST_XPI_FILENAME, { status: 200 });
@@ -22,7 +24,7 @@ function mockFirefoxAvailable() {
 }
 
 beforeEach(() => {
-	mockFirefoxAvailable();
+	fetchSpy = mockFirefoxAvailable();
 });
 
 afterEach(() => {
@@ -96,6 +98,23 @@ describe("GET /install", () => {
 			doc.querySelectorAll(".install-page__group-label"),
 		).map((el) => el.textContent);
 		expect(labels).toEqual(["Browsers & Devices", "AI Assistants"]);
+	});
+
+	it("should expose each tab group to assistive tech via role=group and aria-labelledby", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).get("/install");
+		const doc = load(response.text);
+
+		const groups = Array.from(doc.querySelectorAll("[data-test-group]"));
+		expect(groups).toHaveLength(2);
+		for (const group of groups) {
+			expect(group.getAttribute("role")).toBe("group");
+			const labelledBy = group.getAttribute("aria-labelledby");
+			assert(labelledBy, "each group must reference its label via aria-labelledby");
+			const label = doc.getElementById(labelledBy);
+			assert(label, "aria-labelledby must resolve to the group's label element");
+			expect(label.textContent).toBe(group.getAttribute("data-test-group"));
+		}
 	});
 
 	it("should flag the iPhone tab as a beta", async () => {
@@ -182,6 +201,16 @@ describe("GET /install", () => {
 		expect(cta?.getAttribute("href")).toBe(
 			firefoxS3Config.getExtensionDownloadUrl({ stage: "prod", filename: TEST_XPI_FILENAME }),
 		);
+	});
+
+	it("should not request the Firefox latest-pointer on non-firefox panels", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		await request(harness.server).get("/install?client=claude");
+
+		const requestedFirefoxPointer = fetchSpy.mock.calls.some(([url]) =>
+			String(url).includes("hutch-extension-prod"),
+		);
+		expect(requestedFirefoxPointer).toBe(false);
 	});
 
 	it("should list the browser setup steps on a browser panel", async () => {
@@ -282,9 +311,12 @@ describe("GET /install", () => {
 
 	it("should not load the copy-button script on non-AI panels", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
-		const response = await request(harness.server).get("/install?client=iphone");
 
-		expect(response.text).not.toContain(INSTALL_CLIENT_SCRIPT);
+		const iphone = await request(harness.server).get("/install?client=iphone");
+		expect(iphone.text).not.toContain(INSTALL_CLIENT_SCRIPT);
+
+		const browser = await request(harness.server).get("/install");
+		expect(browser.text).not.toContain(INSTALL_CLIENT_SCRIPT);
 	});
 
 	it("should select the Claude tab and AI panel when client=claude", async () => {
@@ -396,7 +428,7 @@ describe("GET /install", () => {
 			(s: { "@type": string }) => s["@type"] === "SoftwareApplication",
 		);
 		expect(software).toBeDefined();
-		expect(software.applicationCategory).toBe("BrowserApplication");
+		expect(software.applicationCategory).toBe("ProductivityApplication");
 		expect(software.offers.price).toBe("0");
 
 		const breadcrumb = schemas.find(

@@ -1,24 +1,26 @@
-interface InstallClipboard {
+interface CopyClipboard {
 	writeText(text: string): Promise<void>;
 }
 
-interface InstallNavigator {
-	clipboard?: InstallClipboard;
+interface CopyNavigator {
+	clipboard?: CopyClipboard;
 }
 
-type InstallTimerId = ReturnType<typeof setTimeout>;
+type CopyTimerId = ReturnType<typeof setTimeout>;
 
-interface InstallCopyDeps {
+interface ClipboardCopyDeps {
 	document: Document;
-	navigator: InstallNavigator;
-	setTimeoutFn: (cb: () => void, ms: number) => InstallTimerId;
+	navigator: CopyNavigator;
+	setTimeoutFn: (cb: () => void, ms: number) => CopyTimerId;
+	copySelector: string;
+	textAttr: string;
 }
 
-interface InstallCopyController {
+interface ClipboardCopyController {
 	attach(): void;
 }
 
-export function initInstallCopy(deps: InstallCopyDeps): InstallCopyController {
+export function initClipboardCopy(deps: ClipboardCopyDeps): ClipboardCopyController {
 	const RESET_MS = 2000;
 	const COPIED_LABEL = "Copied";
 	const FAILED_LABEL = "Press Ctrl+C";
@@ -31,11 +33,11 @@ export function initInstallCopy(deps: InstallCopyDeps): InstallCopyController {
 		}, RESET_MS);
 	}
 
-	function wire(button: HTMLButtonElement, clipboard: InstallClipboard): void {
-		const text = button.getAttribute("data-install-text");
+	function wire(button: HTMLButtonElement, clipboard: CopyClipboard): void {
+		const text = button.getAttribute(deps.textAttr);
 		if (text === null) return;
-		// Revealed only here: the no-JS baseline is the selectable URL / prompt
-		// text, so the button stays hidden until the clipboard API is present.
+		// Revealed only here: the no-JS baseline is the selectable source text,
+		// so the button stays hidden until the clipboard API is present.
 		button.hidden = false;
 		button.addEventListener("click", () => {
 			clipboard.writeText(text).then(
@@ -49,7 +51,7 @@ export function initInstallCopy(deps: InstallCopyDeps): InstallCopyController {
 		const clipboard = deps.navigator.clipboard;
 		if (clipboard === undefined) return;
 		for (const button of Array.from(
-			deps.document.querySelectorAll<HTMLButtonElement>("[data-install-copy]"),
+			deps.document.querySelectorAll<HTMLButtonElement>(deps.copySelector),
 		)) {
 			wire(button, clipboard);
 		}

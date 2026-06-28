@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { fireEvent } from "@testing-library/dom";
 import { JSDOM } from "jsdom";
-import { initInstallCopy } from "./install.client";
+import { initClipboardCopy } from "./clipboard-copy.client";
 
 const TEXT = "https://readplace.com/mcp";
+const COPY_SELECTOR = "[data-copy]";
+const TEXT_ATTR = "data-copy-text";
 
 interface NavigatorStub {
 	clipboard?: { writeText(text: string): Promise<void> };
@@ -11,11 +13,11 @@ interface NavigatorStub {
 
 function buildDom(options: { malformed?: boolean } = {}): Document {
 	const malformed = options.malformed
-		? `<button type="button" data-install-copy hidden>Copy</button>`
+		? `<button type="button" data-copy hidden>Copy</button>`
 		: "";
 	const dom = new JSDOM(`<!DOCTYPE html><html><body>
 		<code>${TEXT}</code>
-		<button type="button" data-install-copy data-install-text="${TEXT}" hidden>Copy</button>
+		<button type="button" data-copy data-copy-text="${TEXT}" hidden>Copy</button>
 		${malformed}
 	</body></html>`);
 	return dom.window.document;
@@ -26,12 +28,18 @@ function setup(options: { navigator?: NavigatorStub; malformed?: boolean } = {})
 	const navigator: NavigatorStub = options.navigator ?? {
 		clipboard: { writeText: jest.fn(() => Promise.resolve()) },
 	};
-	const ctrl = initInstallCopy({ document, navigator, setTimeoutFn: setTimeout });
+	const ctrl = initClipboardCopy({
+		document,
+		navigator,
+		setTimeoutFn: setTimeout,
+		copySelector: COPY_SELECTOR,
+		textAttr: TEXT_ATTR,
+	});
 	return { document, navigator, ctrl };
 }
 
 function copyButton(doc: Document): HTMLButtonElement {
-	const btn = doc.querySelector<HTMLButtonElement>("[data-install-copy][data-install-text]");
+	const btn = doc.querySelector<HTMLButtonElement>(`[data-copy][${TEXT_ATTR}]`);
 	assert(btn, "well-formed copy button must exist in fixture");
 	return btn;
 }
@@ -49,7 +57,7 @@ afterEach(() => {
 	jest.useRealTimers();
 });
 
-describe("initInstallCopy", () => {
+describe("initClipboardCopy", () => {
 	it("leaves the copy button hidden when the clipboard API is unavailable", () => {
 		const { document, ctrl } = setup({ navigator: {} });
 
@@ -87,12 +95,12 @@ describe("initInstallCopy", () => {
 		expect(btn.textContent).toBe("Press Ctrl+C");
 	});
 
-	it("skips a malformed copy button that carries no text", () => {
+	it("skips a malformed copy button that carries no text attribute", () => {
 		const { document, ctrl } = setup({ malformed: true });
 
 		ctrl.attach();
 
-		const malformed = document.querySelector("[data-install-copy]:not([data-install-text])");
+		const malformed = document.querySelector(`[data-copy]:not([${TEXT_ATTR}])`);
 		expect(malformed?.hasAttribute("hidden")).toBe(true);
 	});
 });
