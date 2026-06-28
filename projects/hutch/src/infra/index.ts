@@ -58,6 +58,7 @@ const tableNames = {
 	inboxAddresses: config.require("dynamodbInboxAddressesTable"),
 	inboxEmails: config.require("dynamodbInboxEmailsTable"),
 	subscriptionProviders: config.require("dynamodbSubscriptionProvidersTable"),
+	onboarding: config.require("dynamodbOnboardingTable"),
 	rateLimits: config.require("dynamodbRateLimitsTable"),
 };
 
@@ -168,6 +169,7 @@ const dynamodb = new HutchDynamoDBAccess("hutch-dynamodb-access", {
 		{ arn: storage.inboxAddressesTable.arn, includeIndexes: true },
 		{ arn: storage.inboxEmailsTable.arn, includeIndexes: false },
 		{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: true },
+		{ arn: storage.onboardingTable.arn, includeIndexes: false },
 		{ arn: storage.rateLimitsTable.arn, includeIndexes: false },
 	],
 	actions: [
@@ -308,6 +310,7 @@ const lambda = new HutchLambda(LAMBDA_NAMES.hutchHandler, {
 		DYNAMODB_INBOX_EMAILS_TABLE: storage.inboxEmailsTable.name,
 		INBOX_ADDRESS_DOMAIN: inboxAddressDomain,
 		DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE: storage.subscriptionProvidersTable.name,
+		DYNAMODB_ONBOARDING_TABLE: storage.onboardingTable.name,
 		DYNAMODB_RATE_LIMITS_TABLE: storage.rateLimitsTable.name,
 		RATE_LIMIT_VIEW_CRAWL: rateLimitRules.viewCrawl,
 		RATE_LIMIT_LOGIN: rateLimitRules.login,

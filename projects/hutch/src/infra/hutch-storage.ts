@@ -15,6 +15,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly inboxAddressesTable: aws.dynamodb.Table;
 	public readonly inboxEmailsTable: aws.dynamodb.Table;
 	public readonly subscriptionProvidersTable: aws.dynamodb.Table;
+	public readonly onboardingTable: aws.dynamodb.Table;
 	public readonly rateLimitsTable: aws.dynamodb.Table;
 
 	constructor(name: string, args: { deletionProtection: boolean; tableNames: {
@@ -31,6 +32,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		inboxAddresses: string;
 		inboxEmails: string;
 		subscriptionProviders: string;
+		onboarding: string;
 		rateLimits: string;
 	} }, opts?: pulumi.ComponentResourceOptions) {
 		super("hutch:infra:HutchStorage", name, {}, opts);
@@ -271,6 +273,19 @@ export class HutchStorage extends pulumi.ComponentResource {
 					projectionType: "ALL",
 				},
 			],
+		}, { parent: this });
+
+		/* Per-user onboarding state, keyed by userId. Holds the iOS app signals
+		 * (activated/saved) the iPhone /queue render reads, kept off the users row
+		 * so onboarding bookkeeping doesn't couple to the auth aggregate; future
+		 * per-user onboarding state registers here too. */
+		this.onboardingTable = new aws.dynamodb.Table(`hutch-onboarding`, {
+			name: args.tableNames.onboarding,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "userId",
+			attributes: [{ name: "userId", type: "S" }],
 		}, { parent: this });
 
 		this.registerOutputs();

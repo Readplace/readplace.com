@@ -7,7 +7,7 @@ interface CapturedCommand {
 	input: Record<string, unknown>;
 }
 
-/** Records commands and replays a single queried user row (or none). */
+/** Records commands and replays a single fetched row (or none) for GetCommand. */
 function createFakeClient(opts: { row?: Record<string, unknown> }): {
 	client: DynamoDBDocumentClient;
 	commands: CapturedCommand[];
@@ -17,8 +17,8 @@ function createFakeClient(opts: { row?: Record<string, unknown> }): {
 		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
 			const name = command.constructor.name;
 			commands.push({ name, input: command.input });
-			if (name === "QueryCommand") {
-				return { Items: opts.row ? [opts.row] : [], Count: opts.row ? 1 : 0 };
+			if (name === "GetCommand") {
+				return { Item: opts.row };
 			}
 			return {};
 		}) as DynamoDBDocumentClient["send"],
@@ -28,10 +28,9 @@ function createFakeClient(opts: { row?: Record<string, unknown> }): {
 
 const USER = UserIdSchema.parse("user-1");
 const NOW = new Date("2026-06-23T10:00:00.000Z");
-const ROW = { email: "user@example.com", userId: "user-1" };
 
 function initSignal(client: DynamoDBDocumentClient) {
-	return initIosOnboardingSignal({ client, usersTableName: "users", now: () => NOW });
+	return initIosOnboardingSignal({ client, onboardingTableName: "onboarding", now: () => NOW });
 }
 
 function updateOf(commands: CapturedCommand[]): CapturedCommand | undefined {
@@ -39,22 +38,14 @@ function updateOf(commands: CapturedCommand[]): CapturedCommand | undefined {
 }
 
 describe("initIosOnboardingSignal", () => {
-	describe("recordIosAppActivity", () => {
-		it("resolves the row's email key via the userId-index", async () => {
-			const { client, commands } = createFakeClient({ row: ROW });
+	describe("recordIosAnyActivity", () => {
+		it("upserts the activation timestamp (set-once) keyed directly by userId", async () => {
+			const { client, commands } = createFakeClient({});
 
-			await initSignal(client).recordIosAppActivity({ userId: USER, savedArticle: false });
-
-			expect(commands.find((c) => c.name === "QueryCommand")?.input.IndexName).toBe("userId-index");
-			expect(updateOf(commands)?.input.Key).toEqual({ email: "user@example.com" });
-		});
-
-		it("sets only the activation timestamp (set-once) when savedArticle is false", async () => {
-			const { client, commands } = createFakeClient({ row: ROW });
-
-			await initSignal(client).recordIosAppActivity({ userId: USER, savedArticle: false });
+			await initSignal(client).recordIosAnyActivity({ userId: USER });
 
 			const update = updateOf(commands);
+			expect(update?.input.Key).toEqual({ userId: "user-1" });
 			expect(update?.input.UpdateExpression).toBe(
 				"SET iosAppActivatedAt = if_not_exists(iosAppActivatedAt, :now)",
 			);
@@ -62,30 +53,35 @@ describe("initIosOnboardingSignal", () => {
 				NOW.toISOString(),
 			);
 		});
+	});
 
-		it("also sets the saved timestamp (set-once) when savedArticle is true", async () => {
-			const { client, commands } = createFakeClient({ row: ROW });
+	describe("recordIosSavedArticle", () => {
+		it("sets both the activation and saved timestamps (set-once) keyed by userId", async () => {
+			const { client, commands } = createFakeClient({});
 
-			await initSignal(client).recordIosAppActivity({ userId: USER, savedArticle: true });
+			await initSignal(client).recordIosSavedArticle({ userId: USER });
 
-			expect(updateOf(commands)?.input.UpdateExpression).toBe(
+			const update = updateOf(commands);
+			expect(update?.input.Key).toEqual({ userId: "user-1" });
+			expect(update?.input.UpdateExpression).toBe(
 				"SET iosAppActivatedAt = if_not_exists(iosAppActivatedAt, :now), iosAppSavedAt = if_not_exists(iosAppSavedAt, :now)",
 			);
 		});
 	});
 
 	describe("getIosAppSignals", () => {
-		it("returns both false when no row exists for the user", async () => {
-			const { client } = createFakeClient({});
+		it("reads by userId and returns both false when no row exists for the user", async () => {
+			const { client, commands } = createFakeClient({});
 
 			const signals = await initSignal(client).getIosAppSignals({ userId: USER });
 
+			expect(commands.find((c) => c.name === "GetCommand")?.input.Key).toEqual({ userId: "user-1" });
 			expect(signals).toEqual({ installed: false, savedArticle: false });
 		});
 
 		it("returns installed=true and savedArticle=false once only activation is recorded", async () => {
 			const { client } = createFakeClient({
-				row: { ...ROW, iosAppActivatedAt: "2026-06-23T09:00:00.000Z" },
+				row: { userId: "user-1", iosAppActivatedAt: "2026-06-23T09:00:00.000Z" },
 			});
 
 			const signals = await initSignal(client).getIosAppSignals({ userId: USER });
@@ -96,7 +92,7 @@ describe("initIosOnboardingSignal", () => {
 		it("returns both true once a save has been recorded", async () => {
 			const { client } = createFakeClient({
 				row: {
-					...ROW,
+					userId: "user-1",
 					iosAppActivatedAt: "2026-06-23T09:00:00.000Z",
 					iosAppSavedAt: "2026-06-23T09:30:00.000Z",
 				},

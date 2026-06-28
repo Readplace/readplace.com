@@ -82,7 +82,8 @@ import type {
 	PutPendingPdf,
 	RateLimitRules,
 	ReadArticleContent,
-	RecordIosAppActivity,
+	RecordIosAnyActivity,
+	RecordIosSavedArticle,
 	RefreshArticleIfStale,
 	RetrieveCheckoutSession,
 	ReverseScheduledCancellation,
@@ -285,7 +286,8 @@ export interface RateLimitBundle {
 }
 
 export interface IosOnboardingSignalBundle {
-	recordIosAppActivity: RecordIosAppActivity;
+	recordIosAnyActivity: RecordIosAnyActivity;
+	recordIosSavedArticle: RecordIosSavedArticle;
 	getIosAppSignals: GetIosAppSignals;
 }
 

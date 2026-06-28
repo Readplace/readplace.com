@@ -1,19 +1,25 @@
 import type { UserId } from "@packages/domain/user";
 import type {
 	GetIosAppSignals,
-	RecordIosAppActivity,
+	RecordIosAnyActivity,
+	RecordIosSavedArticle,
 } from "@packages/provider-contracts/ios-onboarding-signal";
 
 export function initInMemoryIosOnboardingSignal(): {
-	recordIosAppActivity: RecordIosAppActivity;
+	recordIosAnyActivity: RecordIosAnyActivity;
+	recordIosSavedArticle: RecordIosSavedArticle;
 	getIosAppSignals: GetIosAppSignals;
 } {
 	const activated = new Set<UserId>();
 	const saved = new Set<UserId>();
 
-	const recordIosAppActivity: RecordIosAppActivity = async ({ userId, savedArticle }) => {
+	const recordIosAnyActivity: RecordIosAnyActivity = async ({ userId }) => {
 		activated.add(userId);
-		if (savedArticle) saved.add(userId);
+	};
+
+	const recordIosSavedArticle: RecordIosSavedArticle = async ({ userId }) => {
+		activated.add(userId);
+		saved.add(userId);
 	};
 
 	const getIosAppSignals: GetIosAppSignals = async ({ userId }) => ({
@@ -21,5 +27,5 @@ export function initInMemoryIosOnboardingSignal(): {
 		savedArticle: saved.has(userId),
 	});
 
-	return { recordIosAppActivity, getIosAppSignals };
+	return { recordIosAnyActivity, recordIosSavedArticle, getIosAppSignals };
 }

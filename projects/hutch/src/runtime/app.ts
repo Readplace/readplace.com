@@ -158,6 +158,7 @@ function initProviders() {
 		const inboxEmailsTable = requireEnv("DYNAMODB_INBOX_EMAILS_TABLE");
 		const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
 		const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
+		const onboardingTable = requireEnv("DYNAMODB_ONBOARDING_TABLE");
 		const rateLimitsTable = requireEnv("DYNAMODB_RATE_LIMITS_TABLE");
 		const trialSchedulerGroupName = requireEnv("TRIAL_SCHEDULER_GROUP_NAME");
 		const trialSchedulerRoleArn = requireEnv("TRIAL_SCHEDULER_ROLE_ARN");
@@ -167,7 +168,7 @@ function initProviders() {
 		const schedulerClient = new SchedulerClient({});
 
 		const auth = initDynamoDbAuth({ client, usersTableName: usersTable, sessionsTableName: sessionsTable });
-		const iosOnboardingSignal = initIosOnboardingSignal({ client, usersTableName: usersTable, now: () => new Date() });
+		const iosOnboardingSignal = initIosOnboardingSignal({ client, onboardingTableName: onboardingTable, now: () => new Date() });
 		const articleStore = initDynamoDbArticleStore({ client, tableName: articlesTable, userArticlesTableName: userArticlesTable });
 		const readArticleContent = initReadArticleContent({
 			storageProviderQueryOrder: [
@@ -335,7 +336,8 @@ function initProviders() {
 			forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 			refreshArticleIfStale,
 			getIosAppSignals: iosOnboardingSignal.getIosAppSignals,
-			recordIosAppActivity: iosOnboardingSignal.recordIosAppActivity,
+			recordIosAnyActivity: iosOnboardingSignal.recordIosAnyActivity,
+			recordIosSavedArticle: iosOnboardingSignal.recordIosSavedArticle,
 			consumeRateLimit,
 			rateLimitRules,
 		};
@@ -529,7 +531,8 @@ function initProviders() {
 		forceMarkCrawlPending: crawlStore.forceMarkCrawlPending,
 		refreshArticleIfStale,
 		getIosAppSignals: iosOnboardingSignal.getIosAppSignals,
-		recordIosAppActivity: iosOnboardingSignal.recordIosAppActivity,
+		recordIosAnyActivity: iosOnboardingSignal.recordIosAnyActivity,
+		recordIosSavedArticle: iosOnboardingSignal.recordIosSavedArticle,
 		consumeRateLimit,
 		rateLimitRules,
 	};

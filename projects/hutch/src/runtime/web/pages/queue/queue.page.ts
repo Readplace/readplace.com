@@ -90,7 +90,7 @@ import {
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
 import { isIosClient } from "../../onboarding/ios-client";
-import type { GetIosAppSignals, RecordIosAppActivity } from "@packages/provider-contracts/ios-onboarding-signal";
+import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
 import type { GetEffectiveAccess } from "../../../domain/access/effective-access";
 function readImportSkippedFlash(
 	req: Request,
@@ -166,10 +166,13 @@ interface QueueDependencies {
 	 * when the visitor is on an iPhone (where completion can't come from cookies
 	 * because Safari can't see the app's cookie jar). */
 	getIosAppSignals: GetIosAppSignals;
-	/** Writes the per-user iOS onboarding signal when the request carries the iOS
+	/** Marks the user "installed" when an authenticated iOS request carries the
 	 * client header — the cross-app-cookie-jar substitute for the extension's
-	 * liveness/save cookies. */
-	recordIosAppActivity: RecordIosAppActivity;
+	 * liveness cookie. */
+	recordIosAnyActivity: RecordIosAnyActivity;
+	/** Marks the user's first iOS save when a save request carries the client
+	 * header — the substitute for the extension's save cookie. */
+	recordIosSavedArticle: RecordIosSavedArticle;
 	/** Auth middleware applied to every queue route except the public
 	 * `GET /:id/read` permalink. Owned by the composition root so the same
 	 * middleware applies to all other authenticated mounts. */
@@ -245,11 +248,9 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * outlived a deleted account). Swallow and log so the bookkeeping can never
 	 * turn a successful save into a 500 or break the iPhone app's queue load; the
 	 * signal is allowed to lag a render and catch up on the next request. */
-	const recordIosAppActivityBestEffort = async (
-		args: { userId: UserId; savedArticle: boolean },
-	): Promise<void> => {
+	const recordIosSignalBestEffort = async (record: () => Promise<void>): Promise<void> => {
 		try {
-			await deps.recordIosAppActivity(args);
+			await record();
 		} catch (error) {
 			deps.logError(
 				"Failed to record iOS onboarding signal",
@@ -263,7 +264,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 	 * can read it; from the extension it is the same-browser-jar liveness cookie. */
 	const recordSaveSignal = async (req: Request, res: Response, userId: UserId): Promise<void> => {
 		if (isIosClient(req)) {
-			await recordIosAppActivityBestEffort({ userId, savedArticle: true });
+			await recordIosSignalBestEffort(() => deps.recordIosSavedArticle({ userId }));
 			return;
 		}
 		markExtensionSavedArticle(res);
@@ -398,7 +399,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		 * Best-effort: the app's main screen loads over this request, so the signal
 		 * write must never be able to fail it. */
 		if (isIosClient(req)) {
-			await recordIosAppActivityBestEffort({ userId, savedArticle: false });
+			await recordIosSignalBestEffort(() => deps.recordIosAnyActivity({ userId }));
 		}
 		const urlState = parseQueueUrl(req.query);
 		const tab = tabQuery(urlState.tab);

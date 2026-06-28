@@ -1,4 +1,5 @@
 export type {
 	GetIosAppSignals,
-	RecordIosAppActivity,
+	RecordIosAnyActivity,
+	RecordIosSavedArticle,
 } from "@packages/provider-contracts/ios-onboarding-signal";

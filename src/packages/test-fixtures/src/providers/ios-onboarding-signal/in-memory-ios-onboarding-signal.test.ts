@@ -13,10 +13,10 @@ describe("initInMemoryIosOnboardingSignal", () => {
 		});
 	});
 
-	it("marks installed but not saved when activity is recorded without a save", async () => {
+	it("marks installed but not saved when any activity is recorded", async () => {
 		const store = initInMemoryIosOnboardingSignal();
 
-		await store.recordIosAppActivity({ userId: USER, savedArticle: false });
+		await store.recordIosAnyActivity({ userId: USER });
 
 		expect(await store.getIosAppSignals({ userId: USER })).toEqual({
 			installed: true,
@@ -27,7 +27,7 @@ describe("initInMemoryIosOnboardingSignal", () => {
 	it("marks both installed and saved when a save is recorded (no prior activation)", async () => {
 		const store = initInMemoryIosOnboardingSignal();
 
-		await store.recordIosAppActivity({ userId: USER, savedArticle: true });
+		await store.recordIosSavedArticle({ userId: USER });
 
 		expect(await store.getIosAppSignals({ userId: USER })).toEqual({
 			installed: true,
@@ -38,7 +38,7 @@ describe("initInMemoryIosOnboardingSignal", () => {
 	it("tracks signals per user independently", async () => {
 		const store = initInMemoryIosOnboardingSignal();
 
-		await store.recordIosAppActivity({ userId: USER, savedArticle: true });
+		await store.recordIosSavedArticle({ userId: USER });
 
 		expect(await store.getIosAppSignals({ userId: "user-2" as UserId })).toEqual({
 			installed: false,

@@ -386,7 +386,7 @@ describe("Queue onboarding — iPhone", () => {
 			...fixture,
 			iosOnboardingSignal: {
 				...fixture.iosOnboardingSignal,
-				recordIosAppActivity: async () => { throw new Error("dynamo down"); },
+				recordIosSavedArticle: async () => { throw new Error("dynamo down"); },
 			},
 			shared: {
 				...fixture.shared,
@@ -415,7 +415,7 @@ describe("Queue onboarding — iPhone", () => {
 			iosOnboardingSignal: {
 				...fixture.iosOnboardingSignal,
 				// biome-ignore lint/suspicious/noExplicitAny: deliberately throws a non-Error to exercise the `instanceof Error ? … : undefined` branch
-				recordIosAppActivity: async () => { throw "dynamo down" as any; },
+				recordIosAnyActivity: async () => { throw "dynamo down" as any; },
 			},
 			shared: {
 				...fixture.shared,
