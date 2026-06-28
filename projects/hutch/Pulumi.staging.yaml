@@ -5,9 +5,14 @@ config:
   hutch:stage: staging
   hutch:nodeEnv: development
   hutch:platformStack: organization/platform/staging
+  hutch:domains:
+    - readplace-staging.com
+  hutch:redirectSubdomains:
+    - host: www.readplace-staging.com
+      zoneName: readplace-staging.com
   hutch:deletionProtection: false
   hutch:staticDomains:
-    - d2uoxssv1ey7em.cloudfront.net
+    - static.readplace-staging.com
   hutch:staticBucketName: hutch-static-assets-staging
   hutch:dynamodbArticlesTable: hutch-articles-cda0a08
   hutch:dynamodbUserArticlesTable: hutch-user-articles-8226beb

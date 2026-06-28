@@ -12,5 +12,6 @@ config:
   save-link:contentBucketName: hutch-article-content-staging
   save-link:pendingHtmlBucketName: hutch-pending-html-staging
   save-link:pendingPdfBucketName: hutch-pending-pdf-staging
+  save-link:contentMediaCdnDomain: cdn.readplace-staging.com
 
 encryptionsalt: v1:UOuPAPopzKA=:v1:R9v//2alhEYfLugF:HuZRBtgwdPawWU7VHPvdJ9bsYqJR9w==
