@@ -7,7 +7,7 @@ import UIKit
 /// the colour scheme themselves.
 enum BrandColor {
 	static let amber = dynamic(light: rgb(200, 112, 42), dark: rgb(212, 131, 58))
-	static let highlight = dynamic(light: rgb(200, 146, 60), dark: rgb(200, 146, 60))
+	static let highlight = dynamic(light: rgb(200, 146, 60), dark: rgb(212, 160, 74))
 	static let success = dynamic(light: rgb(61, 139, 110), dark: rgb(74, 159, 127))
 	static let warning = dynamic(light: rgb(200, 146, 60), dark: rgb(212, 160, 74))
 	static let error = dynamic(light: rgb(196, 92, 92), dark: rgb(212, 107, 107))
