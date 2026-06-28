@@ -1,6 +1,7 @@
 import { parseHTML } from "linkedom";
 import { z } from "zod";
-import type { SiteArticleContent, SitePreParser } from "./article-parser.types";
+import { noTransform, skipCrawl } from "@packages/site-rules";
+import type { SiteArticleContent, SiteRules } from "@packages/site-rules";
 
 const HOSTS = new Set(["www.theinformation.com", "theinformation.com"]);
 
@@ -31,8 +32,9 @@ const PAYWALL_NOTICE =
  *
  * Returns `undefined` when the expected JSON island is missing/empty/
  * malformed so the parser falls back to its default extraction. */
-export const theInformationPreParser = {
+export const theInformationSiteRules = {
 	matches: ({ hostname }) => HOSTS.has(hostname),
+	onCrawl: skipCrawl,
 	extract: ({ html }): SiteArticleContent | undefined => {
 		const { document } = parseHTML(html);
 		const script = document.querySelector('script[data-component-name="Article"]');
@@ -76,4 +78,5 @@ export const theInformationPreParser = {
 			bodyHtml: container.innerHTML,
 		};
 	},
-} satisfies SitePreParser;
+	transform: noTransform,
+} satisfies SiteRules;

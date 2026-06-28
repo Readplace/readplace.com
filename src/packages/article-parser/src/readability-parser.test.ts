@@ -2,7 +2,17 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Readability } from "@mozilla/readability";
 import { initReadabilityParser } from "./readability-parser";
-import type { SitePreParser } from "./article-parser.types";
+import { noExtract, noTransform, skipCrawl } from "@packages/site-rules";
+import type { SiteRules } from "@packages/site-rules";
+
+/* A test site specifies only the hooks a case exercises; the rest default to
+ * the shared noops, mirroring how a real site opts out of a stage. */
+type TestSite = Pick<SiteRules, "matches"> &
+	Partial<Pick<SiteRules, "onCrawl" | "extract" | "transform">>;
+
+function toSiteRules(site: TestSite): SiteRules {
+	return { onCrawl: skipCrawl, extract: noExtract, transform: noTransform, ...site };
+}
 
 const ARTICLE_HTML = `
 <html>
@@ -23,13 +33,13 @@ const ARTICLE_HTML = `
 
 function initParser(overrides: {
 	crawlArticle?: Parameters<typeof initReadabilityParser>[0]["crawlArticle"];
-	sitePreParsers?: readonly SitePreParser[];
+	sitePreParsers?: readonly TestSite[];
 	logError?: (message: string, error?: Error) => void;
 } = {}) {
 	return initReadabilityParser({
 		crawlArticle:
 			overrides.crawlArticle ?? (async () => ({ status: "fetched" as const, html: ARTICLE_HTML, bodyHash: "a".repeat(64) })),
-		sitePreParsers: overrides.sitePreParsers ?? [],
+		sitePreParsers: (overrides.sitePreParsers ?? []).map(toSiteRules),
 		logError: overrides.logError ?? (() => {}),
 	});
 }
@@ -266,11 +276,8 @@ describe("initReadabilityParser", () => {
 	describe("site pre-parser wiring", () => {
 		it("uses the content returned by the first matching pre-parser whose extract returns a result", () => {
 			const calls: string[] = [];
-			const matchingPreParser: SitePreParser = {
-				matches: ({ hostname }) => {
-					calls.push(`matching.matches(${hostname})`);
-					return hostname === "matching.example.com";
-				},
+			const matchingPreParser: TestSite = {
+				matches: ({ hostname }) => hostname === "matching.example.com",
 				extract: ({ html: _html }) => {
 					calls.push("matching.extract");
 					return {
@@ -280,11 +287,8 @@ describe("initReadabilityParser", () => {
 					};
 				},
 			};
-			const nonMatchingPreParser: SitePreParser = {
-				matches: ({ hostname }) => {
-					calls.push(`nonMatching.matches(${hostname})`);
-					return false;
-				},
+			const nonMatchingPreParser: TestSite = {
+				matches: () => false,
 				extract: () => {
 					calls.push("nonMatching.extract");
 					return undefined;
@@ -301,10 +305,7 @@ describe("initReadabilityParser", () => {
 				thumbnailUrl: null,
 			});
 
-			expect(calls).toEqual([
-				"matching.matches(matching.example.com)",
-				"matching.extract",
-			]);
+			expect(calls).toEqual(["matching.extract"]);
 			expect(result.ok).toBe(true);
 			if (result.ok) {
 				expect(result.article.title).toBe("Pre-parser Injected Title");
@@ -314,14 +315,14 @@ describe("initReadabilityParser", () => {
 
 		it("falls through to the next pre-parser when extract returns undefined", () => {
 			const calls: string[] = [];
-			const firstPreParser: SitePreParser = {
+			const firstPreParser: TestSite = {
 				matches: () => true,
 				extract: () => {
 					calls.push("first.extract");
 					return undefined;
 				},
 			};
-			const secondPreParser: SitePreParser = {
+			const secondPreParser: TestSite = {
 				matches: () => true,
 				extract: () => {
 					calls.push("second.extract");
@@ -350,7 +351,7 @@ describe("initReadabilityParser", () => {
 		});
 
 		it("leaves parsing to Readability when no pre-parser matches", () => {
-			const nonMatching: SitePreParser = {
+			const nonMatching: TestSite = {
 				matches: () => false,
 				extract: () => undefined,
 			};
@@ -374,7 +375,7 @@ describe("initReadabilityParser", () => {
 
 		it("logs and swallows when a pre-parser throws, so parsing continues with the original HTML", () => {
 			const logged: { message: string; error?: Error }[] = [];
-			const throwingPreParser: SitePreParser = {
+			const throwingPreParser: TestSite = {
 				matches: () => true,
 				extract: () => {
 					throw new Error("pre-parser boom");
@@ -403,7 +404,7 @@ describe("initReadabilityParser", () => {
 
 		it("wraps non-Error throws into an Error before logging", () => {
 			const logged: { message: string; error?: Error }[] = [];
-			const throwingPreParser: SitePreParser = {
+			const throwingPreParser: TestSite = {
 				matches: () => true,
 				extract: () => {
 					throw "string-not-error";
@@ -428,7 +429,7 @@ describe("initReadabilityParser", () => {
 
 		it("runs a matching transform pre-parser against the parsed document", () => {
 			const calls: string[] = [];
-			const transforming: SitePreParser = {
+			const transforming: TestSite = {
 				matches: ({ hostname }) => hostname === "transform.example.com",
 				transform: ({ document }) => {
 					calls.push(document.body ? "ran-with-document" : "ran");
@@ -447,7 +448,7 @@ describe("initReadabilityParser", () => {
 
 		it("skips a transform pre-parser whose host does not match", () => {
 			const calls: string[] = [];
-			const transforming: SitePreParser = {
+			const transforming: TestSite = {
 				matches: () => false,
 				transform: () => {
 					calls.push("ran");
@@ -466,7 +467,7 @@ describe("initReadabilityParser", () => {
 
 		it("logs and swallows when a transform pre-parser throws, leaving the document for Readability", () => {
 			const logged: { message: string; error?: Error }[] = [];
-			const throwingTransform: SitePreParser = {
+			const throwingTransform: TestSite = {
 				matches: () => true,
 				transform: () => {
 					throw new Error("transform boom");
@@ -682,7 +683,7 @@ describe("initReadabilityParser", () => {
 		});
 
 		it("escapes HTML-significant characters in the extracted title", () => {
-			const preParser: SitePreParser = {
+			const preParser: TestSite = {
 				matches: () => true,
 				extract: () => ({
 					title: 'Weird <Title> with "quotes" & ampersand',

@@ -1,4 +1,4 @@
-import { mediumPreParser } from "./medium-pre-parser";
+import { mediumSiteRules } from "./medium-pre-parser";
 
 /** Filler body that survives MIN_BODY_CHARS so individual rule tests can
  * still assert on whatever the rule under test left behind. */
@@ -38,28 +38,28 @@ function buildHtml(params: {
 	return `<html><head>${titleTag}${ogMeta}${appMeta}${canonicalLink}${androidMeta}</head><body>${body}</body></html>`;
 }
 
-describe("mediumPreParser.matches", () => {
+describe("mediumSiteRules.matches", () => {
 	it.each([
 		["medium.com"],
 		["fagnerbrack.com"],
 		["levelup.gitconnected.com"],
 		["random.example"],
 	])("returns true for %s (fingerprint check lives in extract)", (hostname) => {
-		expect(mediumPreParser.matches({ hostname })).toBe(true);
+		expect(mediumSiteRules.matches({ url: `https://${hostname}/article`, hostname })).toBe(true);
 	});
 });
 
-describe("mediumPreParser.extract — fingerprint gate", () => {
+describe("mediumSiteRules.extract — fingerprint gate", () => {
 	it("returns undefined when og:site_name is missing", () => {
 		const html = buildHtml({ articleInner: "<p>Body.</p>" });
 
-		expect(mediumPreParser.extract({ html })).toBeUndefined();
+		expect(mediumSiteRules.extract({ html })).toBeUndefined();
 	});
 
 	it("returns undefined when og:site_name is not 'Medium'", () => {
 		const html = buildHtml({ ogSiteName: "Substack", articleInner: "<p>Body.</p>" });
 
-		expect(mediumPreParser.extract({ html })).toBeUndefined();
+		expect(mediumSiteRules.extract({ html })).toBeUndefined();
 	});
 
 	it("accepts application-name=Medium as a fallback fingerprint", () => {
@@ -68,7 +68,7 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 			articleInner: "<h1>Headline</h1>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("This is filler body content");
 	});
@@ -79,7 +79,7 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 				'<h1>Headline</h1><div><img data-testid="authorPhoto" alt="Author"></div>',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<h1>Headline</h1><div></div>${FILLER_PARAGRAPH}`);
 	});
@@ -90,7 +90,7 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 				'<h1>Headline</h1><div data-testid="authorPhoto"><a href="/author"><img src="avatar.jpg"></a></div>',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<h1>Headline</h1>${FILLER_PARAGRAPH}`);
 	});
@@ -101,7 +101,7 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 			articleInner: "<h1>Headline</h1>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("This is filler body content");
 	});
@@ -112,7 +112,7 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 			articleInner: "<h1>Headline</h1>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("This is filler body content");
 	});
@@ -125,7 +125,7 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 			articleInner: "<h1>Headline</h1><p>Body.</p>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("Body.");
 		expect(result?.title).toBe("Headline");
@@ -138,7 +138,7 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 				'<h1>Headline</h1><span data-testid="storyReadTime">5 min read</span>',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<h1>Headline</h1>${FILLER_PARAGRAPH}`);
 	});
@@ -151,7 +151,7 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 			includeContainer: false,
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<div></div><p>Loose body</p>${FILLER_PARAGRAPH}`);
 	});
@@ -164,11 +164,11 @@ describe("mediumPreParser.extract — fingerprint gate", () => {
 				'<a href="/byline"><img data-testid="authorPhoto"></a><span data-testid="storyReadTime">5 min read</span>',
 		});
 
-		expect(mediumPreParser.extract({ html })).toBeUndefined();
+		expect(mediumSiteRules.extract({ html })).toBeUndefined();
 	});
 });
 
-describe("mediumPreParser.extract — author photo / read time / publish date", () => {
+describe("mediumSiteRules.extract — author photo / read time / publish date", () => {
 	it("strips the author <a> link that wraps the authorPhoto img and removes the read-time + publish-date spans", () => {
 		const html = buildHtml({
 			ogSiteName: "Medium",
@@ -176,7 +176,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 				'<div><a href="/author"><img data-testid="authorPhoto" alt="Author"></a><span data-testid="storyReadTime">5 min read</span><span data-testid="storyPublishDate">Jun 21, 2018</span></div>',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<div></div>${FILLER_PARAGRAPH}`);
 	});
@@ -188,7 +188,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 				'<div><a href="/author"><img data-testid="authorPhoto" alt="Author"></a></div>',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("This is filler body content");
 	});
@@ -200,7 +200,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 				'<p><span data-testid="storyReadTime">Not a duration phrase</span></p>',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("Not a duration phrase");
 	});
@@ -211,7 +211,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 			articleInner: "<p>The presentation will be 5 min read on the agenda.</p>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("The presentation will be 5 min read on the agenda.");
 	});
@@ -223,7 +223,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 				'<p><span data-testid="storyPublishDate">Jun 21, 2018</span></p>',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
@@ -234,7 +234,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 			articleInner: '<p><span data-testid="storyPublishDate">Jun 21</span></p>',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
@@ -245,7 +245,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 			articleInner: "<p>I visited Jun 21, 2018 to remember the date.</p>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("I visited Jun 21, 2018 to remember the date.");
 	});
@@ -256,7 +256,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 			articleInner: '<img data-testid="authorPhoto" alt="Author">',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
@@ -268,7 +268,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 				'<div data-testid="authorPhoto"><a href="/author"><img src="avatar.jpg" alt="Author"></a></div>',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
@@ -280,7 +280,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 				'<div data-testid="authorPhoto-v2"><a href="/author"><img src="avatar.jpg"></a></div>',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
@@ -291,7 +291,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 			articleInner: '<img data-testid="author-photo" alt="Author">',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
@@ -302,7 +302,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 			articleInner: "<p><span>5 min read</span></p>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
@@ -313,7 +313,7 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 			articleInner: "<p><span>Jun 21, 2018</span></p>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(FILLER_PARAGRAPH);
 	});
@@ -325,13 +325,13 @@ describe("mediumPreParser.extract — author photo / read time / publish date", 
 				'<div><a href="/author"><img data-testid="authorPhoto" alt="A"></a></div><p>Body.</p><div><img data-testid="authorPhoto" alt="B"></div>',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<div></div><p>Body.</p><div></div>${FILLER_PARAGRAPH}`);
 	});
 });
 
-describe("mediumPreParser.extract — picture tooltip", () => {
+describe("mediumSiteRules.extract — picture tooltip", () => {
 	it("strips the 'Press enter…' span inside figure > [role=button] and preserves the sibling picture", () => {
 		const html = buildHtml({
 			ogSiteName: "Medium",
@@ -339,7 +339,7 @@ describe("mediumPreParser.extract — picture tooltip", () => {
 				'<figure><div role="button"><span>Press enter or click to view image in full size</span><div><picture><img src="x.jpg"></picture></div></div></figure>',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(
 			`<figure><div role="button"><div><picture><img src="x.jpg"></picture></div></div></figure>${FILLER_PARAGRAPH}`,
@@ -353,14 +353,14 @@ describe("mediumPreParser.extract — picture tooltip", () => {
 				"<p>Press enter or click to view image in full size — this article is about accessibility.</p>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("this article is about accessibility");
 		expect(result?.bodyHtml).toContain("Press enter or click to view image in full size");
 	});
 });
 
-describe("mediumPreParser.extract — claps separator '--'", () => {
+describe("mediumSiteRules.extract — claps separator '--'", () => {
 	it("strips a <p><span>--</span></p> that follows the authorPhoto in document order", () => {
 		const html = buildHtml({
 			ogSiteName: "Medium",
@@ -368,7 +368,7 @@ describe("mediumPreParser.extract — claps separator '--'", () => {
 				'<div><img data-testid="authorPhoto" alt="A"></div><p><span>--</span></p>',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<div></div>${FILLER_PARAGRAPH}`);
 	});
@@ -379,7 +379,7 @@ describe("mediumPreParser.extract — claps separator '--'", () => {
 			articleInner: "<p><span>--</span></p>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("<span>--</span>");
 	});
@@ -391,13 +391,13 @@ describe("mediumPreParser.extract — claps separator '--'", () => {
 				'<div><img data-testid="authorPhoto" alt="A"></div><p>The point — really — is preserved.</p>',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("The point — really — is preserved.");
 	});
 });
 
-describe("mediumPreParser.extract — footer subscribe CTA", () => {
+describe("mediumSiteRules.extract — footer subscribe CTA", () => {
 	it("strips the 'Get X's stories in your inbox' section including following CTA paragraphs", () => {
 		const html = buildHtml({
 			ogSiteName: "Medium",
@@ -405,7 +405,7 @@ describe("mediumPreParser.extract — footer subscribe CTA", () => {
 				"<p>Body paragraph.</p><section><h2>Get Mary's stories in your inbox</h2><p>Join Medium for free to get updates from this writer.</p><p>Remember me for faster sign in</p></section>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(
 			`<p>Body paragraph.</p><section></section>${FILLER_PARAGRAPH}`,
@@ -418,7 +418,7 @@ describe("mediumPreParser.extract — footer subscribe CTA", () => {
 			articleInner: "<p>Get Mary's stories in your inbox if you want them in your email.</p>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("Get Mary's stories in your inbox");
 	});
@@ -430,7 +430,7 @@ describe("mediumPreParser.extract — footer subscribe CTA", () => {
 				"<p>You should join Medium for free to get updates if you can — it's worth trying.</p>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("You should join Medium for free");
 	});
@@ -442,7 +442,7 @@ describe("mediumPreParser.extract — footer subscribe CTA", () => {
 				"<section><h2>Get Fayner Brack’s stories in your inbox</h2></section><p>Body.</p>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<section></section><p>Body.</p>${FILLER_PARAGRAPH}`);
 	});
@@ -453,7 +453,7 @@ describe("mediumPreParser.extract — footer subscribe CTA", () => {
 			articleInner: "<p>Body.</p><h2>Get Mary's stories in your inbox</h2>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(`<p>Body.</p>${FILLER_PARAGRAPH}`);
 	});
@@ -465,7 +465,7 @@ describe("mediumPreParser.extract — footer subscribe CTA", () => {
 				"<section><h2>Get Mary's stories in your inbox</h2></section><p>Join Medium for free to get updates from this writer.</p><p>Remember me for faster sign in</p><p>Body.</p>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(
 			`<section></section><p>Body.</p>${FILLER_PARAGRAPH}`,
@@ -473,14 +473,14 @@ describe("mediumPreParser.extract — footer subscribe CTA", () => {
 	});
 });
 
-describe("mediumPreParser.extract — narrow container body fallback", () => {
+describe("mediumSiteRules.extract — narrow container body fallback", () => {
 	it("falls back to <body> when <article> contains only chrome and prose is a sibling", () => {
 		const html = `<html><head><meta property="og:site_name" content="Medium"></head><body>
 			<article><a href="/author"><img data-testid="authorPhoto" alt="A"></a><span data-testid="storyReadTime">5 min read</span></article>
 			<div><h1>Headline</h1>${FILLER_PARAGRAPH}</div>
 		</body></html>`;
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(
 			`\n\t\t\t<article></article>\n\t\t\t<div><h1>Headline</h1>${FILLER_PARAGRAPH}</div>\n\t\t`,
@@ -494,7 +494,7 @@ describe("mediumPreParser.extract — narrow container body fallback", () => {
 			<div><span data-testid="storyPublishDate">Jun 21, 2018</span>${FILLER_PARAGRAPH}</div>
 		</body></html>`;
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(
 			`\n\t\t\t<article></article>\n\t\t\t<div>${FILLER_PARAGRAPH}</div>\n\t\t`,
@@ -507,18 +507,18 @@ describe("mediumPreParser.extract — narrow container body fallback", () => {
 			<p>Short.</p>
 		</body></html>`;
 
-		expect(mediumPreParser.extract({ html })).toBeUndefined();
+		expect(mediumSiteRules.extract({ html })).toBeUndefined();
 	});
 });
 
-describe("mediumPreParser.extract — title and body preservation", () => {
+describe("mediumSiteRules.extract — title and body preservation", () => {
 	it("extracts the title from the first <h1> inside the container", () => {
 		const html = buildHtml({
 			ogSiteName: "Medium",
 			articleInner: "<h1>Article Headline</h1><p>Body.</p>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.title).toBe("Article Headline");
 	});
@@ -530,7 +530,7 @@ describe("mediumPreParser.extract — title and body preservation", () => {
 			articleInner: "<p>Body.</p>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.title).toBe("Title From Tag");
 	});
@@ -542,7 +542,7 @@ describe("mediumPreParser.extract — title and body preservation", () => {
 			articleInner: "<p>Body.</p>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.title).toBeUndefined();
 	});
@@ -554,7 +554,7 @@ describe("mediumPreParser.extract — title and body preservation", () => {
 				'<h1>Headline</h1><h2>The subtitle dek that triggered the chrome leak.</h2><div><img data-testid="authorPhoto"><span data-testid="storyReadTime">5 min read</span></div><p>Body.</p>',
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toBe(
 			`<h1>Headline</h1><h2>The subtitle dek that triggered the chrome leak.</h2><div></div><p>Body.</p>${FILLER_PARAGRAPH}`,
@@ -568,7 +568,7 @@ describe("mediumPreParser.extract — title and body preservation", () => {
 				"<p>First paragraph.</p><h2>A non-footer subheading</h2><p>Second paragraph.</p><p>Third paragraph.</p>",
 		});
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("First paragraph.");
 		expect(result?.bodyHtml).toContain("A non-footer subheading");
@@ -581,7 +581,7 @@ describe("mediumPreParser.extract — title and body preservation", () => {
 			"<h1>Headline</h1><p>First paragraph straight after the title.</p><p>Second paragraph.</p>";
 		const html = buildHtml({ ogSiteName: "Medium", articleInner: inner });
 
-		const result = mediumPreParser.extract({ html });
+		const result = mediumSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("First paragraph straight after the title.");
 		expect(result?.bodyHtml).toContain("Second paragraph.");

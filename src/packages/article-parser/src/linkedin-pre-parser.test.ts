@@ -1,5 +1,5 @@
 import { parseHTML } from "linkedom";
-import { linkedinPreParser } from "./linkedin-pre-parser";
+import { linkedinSiteRules } from "./linkedin-pre-parser";
 import { initReadabilityParser } from "./readability-parser";
 
 /* Parse a body fragment, run the in-place transform, and return the body HTML
@@ -10,25 +10,25 @@ function runTransform(bodyHtml: string): { before: string; after: string } {
 		`<!DOCTYPE html><html><head></head><body>${bodyHtml}</body></html>`,
 	);
 	const before = document.body.innerHTML;
-	linkedinPreParser.transform({ document });
+	linkedinSiteRules.transform({ document });
 	return { before, after: document.body.innerHTML };
 }
 
-describe("linkedinPreParser.matches", () => {
+describe("linkedinSiteRules.matches", () => {
 	it("matches www.linkedin.com", () => {
-		expect(linkedinPreParser.matches({ hostname: "www.linkedin.com" })).toBe(true);
+		expect(linkedinSiteRules.matches({ url: "https://www.linkedin.com/posts/x", hostname: "www.linkedin.com" })).toBe(true);
 	});
 
 	it("matches the bare linkedin.com apex", () => {
-		expect(linkedinPreParser.matches({ hostname: "linkedin.com" })).toBe(true);
+		expect(linkedinSiteRules.matches({ url: "https://linkedin.com/posts/x", hostname: "linkedin.com" })).toBe(true);
 	});
 
 	it("declines a non-LinkedIn host", () => {
-		expect(linkedinPreParser.matches({ hostname: "example.com" })).toBe(false);
+		expect(linkedinSiteRules.matches({ url: "https://example.com/x", hostname: "example.com" })).toBe(false);
 	});
 });
 
-describe("linkedinPreParser.transform", () => {
+describe("linkedinSiteRules.transform", () => {
 	it("splits a `\\n\\n` run in a pre-wrap host into separate <p> blocks", () => {
 		const { after } = runTransform(
 			'<p class="whitespace-pre-wrap" dir="ltr">Lead.\n\nSecond.</p>',
@@ -129,7 +129,7 @@ function linkedinPostPage(commentary: string): string {
 	</body></html>`;
 }
 
-describe("linkedinPreParser end-to-end through parseHtml", () => {
+describe("linkedinSiteRules end-to-end through parseHtml", () => {
 	const parser = (preParsers: Parameters<typeof initReadabilityParser>[0]["sitePreParsers"]) =>
 		initReadabilityParser({
 			crawlArticle: async () => ({
@@ -142,7 +142,7 @@ describe("linkedinPreParser end-to-end through parseHtml", () => {
 		});
 
 	it("rebuilds the LinkedIn pre-wrap post into multiple paragraphs", () => {
-		const { parseHtml } = parser([linkedinPreParser]);
+		const { parseHtml } = parser([linkedinSiteRules]);
 		const result = parseHtml({
 			url: "https://www.linkedin.com/posts/author_activity-123-AbC",
 			html: linkedinPostPage(LINKEDIN_POST),

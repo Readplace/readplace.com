@@ -1,5 +1,6 @@
 import assert from "node:assert";
-import type { SitePreParser } from "./article-parser.types";
+import { noExtract, skipCrawl } from "@packages/site-rules";
+import type { SiteRules } from "@packages/site-rules";
 
 /* Pre-parser for LinkedIn posts.
  *
@@ -20,15 +21,17 @@ import type { SitePreParser } from "./article-parser.types";
  * break; inline children (hashtag / mention `<a>`s) move across intact. Blocks
  * are found by their `white-space: pre-wrap` behaviour, not by any
  * LinkedIn-specific class, so the markup can change without breaking this. */
-export const linkedinPreParser = {
+export const linkedinSiteRules = {
 	matches: ({ hostname }) =>
 		hostname === "linkedin.com" || hostname.endsWith(".linkedin.com"),
+	onCrawl: skipCrawl,
+	extract: noExtract,
 	transform: ({ document }) => {
 		for (const host of findPreWrapHosts(document.body)) {
 			rebuildHostParagraphs({ host, document });
 		}
 	},
-} satisfies SitePreParser;
+} satisfies SiteRules;
 
 function findPreWrapHosts(root: Element): Element[] {
 	const hosts: Element[] = [];

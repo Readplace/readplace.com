@@ -2,19 +2,15 @@ import assert from "node:assert";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import type { CrawlArticle } from "@packages/crawl-article";
-import type {
-	ParseArticle,
-	ParseHtml,
-	SiteArticleContent,
-	SitePreParser,
-} from "./article-parser.types";
+import type { ParseArticle, ParseHtml } from "./article-parser.types";
+import type { SiteArticleContent, SiteRules } from "@packages/site-rules";
 import { promoteBrParagraphHosts } from "./promote-br-paragraph-hosts";
 import { replaceVideosWithPlaceholder } from "./replace-videos-with-placeholder";
 import { resolveRelativeUrls } from "./resolve-relative-urls";
 
 export function initReadabilityParser(deps: {
 	crawlArticle: CrawlArticle;
-	sitePreParsers: readonly SitePreParser[];
+	sitePreParsers: readonly SiteRules[];
 	logError: (message: string, error?: Error) => void;
 }): { parseArticle: ParseArticle; parseHtml: ParseHtml } {
 	const parseHtml: ParseHtml = (params) => {
@@ -133,18 +129,16 @@ export function initReadabilityParser(deps: {
 }
 
 function tryExtractFromPreParsers(params: {
-	preParsers: readonly SitePreParser[];
+	preParsers: readonly SiteRules[];
 	hostname: string;
 	html: string;
 	url: string;
 	logError: (message: string, error?: Error) => void;
 }): SiteArticleContent | undefined {
 	for (const preParser of params.preParsers) {
-		const extract = preParser.extract;
-		if (!extract) continue;
 		try {
-			if (!preParser.matches({ hostname: params.hostname })) continue;
-			const extracted = extract({ html: params.html });
+			if (!preParser.matches({ url: params.url, hostname: params.hostname })) continue;
+			const extracted = preParser.extract({ html: params.html });
 			if (extracted) return extracted;
 		} catch (error) {
 			params.logError(
@@ -161,18 +155,16 @@ function tryExtractFromPreParsers(params: {
  * logged and swallowed so a faulty site-specific tweak can never drop the
  * article — the document is left as it was and Readability still scores it. */
 function applyTransforms(params: {
-	preParsers: readonly SitePreParser[];
+	preParsers: readonly SiteRules[];
 	hostname: string;
 	document: Document;
 	url: string;
 	logError: (message: string, error?: Error) => void;
 }): void {
 	for (const preParser of params.preParsers) {
-		const transform = preParser.transform;
-		if (!transform) continue;
-		if (!preParser.matches({ hostname: params.hostname })) continue;
+		if (!preParser.matches({ url: params.url, hostname: params.hostname })) continue;
 		try {
-			transform({ document: params.document });
+			preParser.transform({ document: params.document });
 		} catch (error) {
 			params.logError(
 				`[ReadabilityParser] Site pre-parser transform threw for ${params.url}`,

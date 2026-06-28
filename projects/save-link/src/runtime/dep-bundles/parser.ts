@@ -6,14 +6,15 @@ import type {
 import {
 	initCrawlArticle,
 	initCrawlFetch,
+	initXTwitterSiteRules,
 	CRAWL_PERSONAS,
 } from "@packages/crawl-article";
 import { isBlockedIpAddress } from "@packages/domain/article";
 import {
 	initReadabilityParser,
-	linkedinPreParser,
-	mediumPreParser,
-	theInformationPreParser,
+	linkedinSiteRules,
+	mediumSiteRules,
+	theInformationSiteRules,
 } from "@packages/article-parser";
 import type { ParseHtml } from "@packages/article-parser";
 import type { LogError } from "./observability";
@@ -42,10 +43,16 @@ export function initParserDepBundle(deps: {
 		personas: CRAWL_PERSONAS,
 		isBlocked: isBlockedIpAddress,
 	});
-	const crawlArticle = initCrawlArticle({ crawlFetch, logError: deps.logError });
+	const siteRules = [
+		theInformationSiteRules,
+		mediumSiteRules,
+		linkedinSiteRules,
+		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
+	];
+	const crawlArticle = initCrawlArticle({ crawlFetch, siteRules, logError: deps.logError });
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
-		sitePreParsers: [theInformationPreParser, mediumPreParser, linkedinPreParser],
+		sitePreParsers: siteRules,
 		logError: deps.logError,
 	});
 	return { crawlFetch, crawlArticle, parseHtml };
@@ -73,14 +80,21 @@ export function initComprehensiveParserDepBundle(deps: {
 		personas: CRAWL_PERSONAS,
 		isBlocked: isBlockedIpAddress,
 	});
+	const siteRules = [
+		theInformationSiteRules,
+		mediumSiteRules,
+		linkedinSiteRules,
+		initXTwitterSiteRules({ crawlFetch, logError: deps.logError }),
+	];
 	const crawlArticle = initCrawlArticle({
 		crawlFetch,
+		siteRules,
 		extractPdf: deps.extractPdf,
 		logError: deps.logError,
 	});
 	const { parseHtml } = initReadabilityParser({
 		crawlArticle,
-		sitePreParsers: [theInformationPreParser, mediumPreParser, linkedinPreParser],
+		sitePreParsers: siteRules,
 		logError: deps.logError,
 	});
 	return { crawlFetch, crawlArticle, parseHtml };

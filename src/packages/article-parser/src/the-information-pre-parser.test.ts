@@ -1,4 +1,4 @@
-import { theInformationPreParser } from "./the-information-pre-parser";
+import { theInformationSiteRules } from "./the-information-pre-parser";
 
 function buildHtml(scriptContent: string | null, extraBody = "") {
 	const scriptTag =
@@ -12,21 +12,21 @@ function buildHtml(scriptContent: string | null, extraBody = "") {
 	</body></html>`;
 }
 
-describe("theInformationPreParser.matches", () => {
+describe("theInformationSiteRules.matches", () => {
 	it("matches the www subdomain", () => {
-		expect(theInformationPreParser.matches({ hostname: "www.theinformation.com" })).toBe(true);
+		expect(theInformationSiteRules.matches({ url: "https://www.theinformation.com/articles/x", hostname: "www.theinformation.com" })).toBe(true);
 	});
 
 	it("matches the apex hostname", () => {
-		expect(theInformationPreParser.matches({ hostname: "theinformation.com" })).toBe(true);
+		expect(theInformationSiteRules.matches({ url: "https://theinformation.com/articles/x", hostname: "theinformation.com" })).toBe(true);
 	});
 
 	it("does not match other hostnames", () => {
-		expect(theInformationPreParser.matches({ hostname: "example.com" })).toBe(false);
+		expect(theInformationSiteRules.matches({ url: "https://example.com/x", hostname: "example.com" })).toBe(false);
 	});
 });
 
-describe("theInformationPreParser.extract", () => {
+describe("theInformationSiteRules.extract", () => {
 	it("returns title and bodyHtml containing caption, freeBlurb and paywall notice", () => {
 		const html = buildHtml(
 			JSON.stringify({
@@ -38,7 +38,7 @@ describe("theInformationPreParser.extract", () => {
 			}),
 		);
 
-		const result = theInformationPreParser.extract({ html });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result?.title).toBe("Test Headline");
 		expect(result?.bodyHtml).toContain("Photo by Test Photographer.");
@@ -57,7 +57,7 @@ describe("theInformationPreParser.extract", () => {
 			JSON.stringify({ article: { freeBlurb: "<p>Just the lead paragraph here.</p>" } }),
 		);
 
-		const result = theInformationPreParser.extract({ html });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result?.title).toBeUndefined();
 		expect(result?.bodyHtml).toContain("Just the lead paragraph here.");
@@ -68,7 +68,7 @@ describe("theInformationPreParser.extract", () => {
 			JSON.stringify({ article: { title: "Has title", freeBlurb: "<p>Lead.</p>" } }),
 		);
 
-		const result = theInformationPreParser.extract({ html });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result?.bodyHtml?.startsWith("<p>Lead.</p>")).toBe(true);
 		expect(result?.bodyHtml).toContain("Lead.");
@@ -84,7 +84,7 @@ describe("theInformationPreParser.extract", () => {
 			}),
 		);
 
-		const result = theInformationPreParser.extract({ html });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result?.bodyHtml).toContain("<p>Caption with &lt;tag&gt; and &amp; ampersand inside.</p>");
 	});
@@ -92,7 +92,7 @@ describe("theInformationPreParser.extract", () => {
 	it("returns undefined when the Article script tag is absent", () => {
 		const html = buildHtml(null);
 
-		const result = theInformationPreParser.extract({ html });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result).toBeUndefined();
 	});
@@ -100,7 +100,7 @@ describe("theInformationPreParser.extract", () => {
 	it("returns undefined when the script tag is empty", () => {
 		const html = buildHtml("");
 
-		const result = theInformationPreParser.extract({ html });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result).toBeUndefined();
 	});
@@ -108,7 +108,7 @@ describe("theInformationPreParser.extract", () => {
 	it("returns undefined when the JSON is malformed", () => {
 		const html = buildHtml("{not-valid-json}");
 
-		const result = theInformationPreParser.extract({ html });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result).toBeUndefined();
 	});
@@ -116,7 +116,7 @@ describe("theInformationPreParser.extract", () => {
 	it("returns undefined when JSON shape does not match the schema", () => {
 		const html = buildHtml(JSON.stringify({ article: { freeBlurb: 12345 } }));
 
-		const result = theInformationPreParser.extract({ html });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result).toBeUndefined();
 	});
@@ -124,7 +124,7 @@ describe("theInformationPreParser.extract", () => {
 	it("returns undefined when the article object is absent from the JSON", () => {
 		const html = buildHtml(JSON.stringify({ unrelated: "data" }));
 
-		const result = theInformationPreParser.extract({ html });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result).toBeUndefined();
 	});
@@ -132,7 +132,7 @@ describe("theInformationPreParser.extract", () => {
 	it("returns undefined when the article object lacks freeBlurb", () => {
 		const html = buildHtml(JSON.stringify({ article: { title: "Has title but no blurb" } }));
 
-		const result = theInformationPreParser.extract({ html });
+		const result = theInformationSiteRules.extract({ html });
 
 		expect(result).toBeUndefined();
 	});

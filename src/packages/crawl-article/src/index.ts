@@ -31,3 +31,4 @@ export { MAX_IMAGE_BYTES, IMAGE_URL_EXTENSIONS } from "./image-detect";
 export { renderPdfPageToPng } from "./render-pdf-page";
 export type { RenderPdfPageToPng } from "./render-pdf-page";
 export { deriveTitleFromUrl, escapeHtmlText } from "./pdf-html-helpers";
+export { initXTwitterSiteRules } from "./x-twitter-preprocessor";
