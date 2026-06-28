@@ -58,6 +58,7 @@ const tableNames = {
 	importSessions: config.require("dynamodbImportSessionsTable"),
 	inboxAddresses: config.require("dynamodbInboxAddressesTable"),
 	inboxEmails: config.require("dynamodbInboxEmailsTable"),
+	inboxEmailLinks: config.require("dynamodbInboxEmailLinksTable"),
 	subscriptionProviders: config.require("dynamodbSubscriptionProvidersTable"),
 	onboarding: config.require("dynamodbOnboardingTable"),
 	rateLimits: config.require("dynamodbRateLimitsTable"),

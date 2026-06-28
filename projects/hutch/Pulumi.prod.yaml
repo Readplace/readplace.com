@@ -34,6 +34,7 @@ config:
   hutch:dynamodbImportSessionsTable: hutch-import-sessions-prod
   hutch:dynamodbInboxAddressesTable: hutch-inbox-addresses-prod
   hutch:dynamodbInboxEmailsTable: hutch-inbox-emails-prod
+  hutch:dynamodbInboxEmailLinksTable: hutch-inbox-email-links-prod
   hutch:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-prod
   hutch:dynamodbOnboardingTable: hutch-onboarding-prod
   hutch:dynamodbRateLimitsTable: hutch-rate-limits-prod
