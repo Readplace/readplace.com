@@ -4,19 +4,24 @@
         <p class="inbox__subtitle">Forward any newsletter to one of these addresses and it lands in Readplace. I'll pull out the links and queue them up for you to read later.</p>
       </div>
 
+      {{#if createFailed}}
+      <p class="inbox__error" role="alert" data-test-inbox-error>We couldn't create a forwarding address just now. Please try again in a moment.</p>
+      {{/if}}
+
       {{#if hasAddresses}}
       <ul class="inbox__list" data-test-inbox-list>
         {{#each addresses}}
         <li class="inbox__item" data-test-inbox-item>
+          {{#if this.enabled}}
           <input class="inbox__address-field" type="text" value="{{this.address}}" readonly aria-label="Forwarding address" data-inbox-address="{{this.address}}" />
           <button type="button" class="inbox__copy-btn" data-inbox-copy data-inbox-address="{{this.address}}" hidden>Copy</button>
-          {{#if this.enabled}}
           <span class="inbox__status inbox__status--enabled" data-test-inbox-status="enabled">Active</span>
           <form action="{{../disableAction}}" method="POST" class="inbox__disable">
             <input type="hidden" name="address" value="{{this.address}}" />
             <button type="submit" class="inbox__disable-btn" data-test-inbox-disable>Disable</button>
           </form>
           {{else}}
+          <input class="inbox__address-field inbox__address-field--disabled" type="text" value="{{this.address}}" disabled aria-label="Forwarding address" />
           <span class="inbox__status inbox__status--disabled" data-test-inbox-status="disabled">Disabled</span>
           {{/if}}
         </li>
@@ -24,6 +29,10 @@
       </ul>
       {{else}}
       <p class="inbox__empty" data-test-inbox-empty>You don't have a forwarding address yet. Create one to get started.</p>
+      {{/if}}
+
+      {{#if limitReached}}
+      <p class="inbox__error" data-test-inbox-limit role="alert">You've reached the maximum of {{maxAddresses}} forwarding addresses. Disable any you no longer need before creating more.</p>
       {{/if}}
 
       <form action="{{createAction}}" method="POST" class="inbox__create">

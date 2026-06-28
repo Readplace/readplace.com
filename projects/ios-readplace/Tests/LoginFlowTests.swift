@@ -84,6 +84,35 @@ final class LoginFlowTests: XCTestCase {
 		XCTAssertTrue(StubURLProtocol.records.isEmpty, "a rejected callback must not exchange the code")
 	}
 
+	func testForceLogoutClearsTheMintedSessionCookie() {
+		let config = TestSupport.stubbedConfiguration()
+		config.httpCookieStorage?.setCookie(TestSupport.sessionCookie(value: "sess-abc"))
+		let session = AppSession(store: TestSupport.loggedInStore(), sessionConfiguration: config)
+
+		session.forceLogout()
+
+		XCTAssertFalse(session.isLoggedIn)
+		XCTAssertNil(
+			config.httpCookieStorage?.cookies?.first { $0.name == AppConfig.sessionCookieName },
+			"the minted hutch_sid cookie must not survive a forced sign-out"
+		)
+	}
+
+	func testLogoutClearsTheMintedSessionCookie() async {
+		let config = TestSupport.stubbedConfiguration()
+		config.httpCookieStorage?.setCookie(TestSupport.sessionCookie(value: "sess-abc"))
+		StubURLProtocol.setHandler { _, _ in .json(200, "{}") }
+		let session = AppSession(store: TestSupport.loggedInStore(), sessionConfiguration: config)
+
+		await session.logout()
+
+		XCTAssertFalse(session.isLoggedIn)
+		XCTAssertNil(
+			config.httpCookieStorage?.cookies?.first { $0.name == AppConfig.sessionCookieName },
+			"the minted hutch_sid cookie must not survive sign-out"
+		)
+	}
+
 	func testLoggedInThenLoadQueueRendersArticles() async throws {
 		let store = TestSupport.loggedInStore(access: "access-1")
 		let session = AppSession(store: store, sessionConfiguration: TestSupport.stubbedConfiguration())

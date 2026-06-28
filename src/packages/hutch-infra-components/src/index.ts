@@ -73,6 +73,8 @@ export {
 	type NotifyReaderViewReadyDetail,
 	ReaderReadyEmailSentEvent,
 	type ReaderReadyEmailSentDetail,
+	EmailReceivedEvent,
+	type EmailReceivedDetail,
 	type HutchEvent,
 	type HutchCommand,
 } from "./events";

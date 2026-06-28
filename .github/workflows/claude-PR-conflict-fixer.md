@@ -30,5 +30,5 @@ When resolving conflicts, apply these skills based on the files involved:
 - **ai-agent-editor** (`.claude/skills/ai-agent-editor/SKILL.md`): When resolving conflicts in skills, `CLAUDE.md`, or other AI-agent documentation
 - **blog-post-editor** (`.claude/skills/blog-post-editor/SKILL.md`): When resolving conflicts in blog post markdown files
 - **crawl-pipeline-rca** (`.claude/skills/crawl-pipeline-rca/SKILL.md`): When resolving conflicts in the article crawl pipeline (command/event/handler chain) — use the methodology to confirm both sides' state-machine writes survive the merge
-- **extension-api-design** (`.claude/skills/extension-api-design/SKILL.md`): When resolving conflicts that touch the Siren contract between the browser extension and the server (action names, navigation flows, request/response shapes)
+- **hypermedia-api-design** (`.claude/skills/hypermedia-api-design/SKILL.md`): When resolving conflicts that touch the Siren/MCP hypermedia contract between the hutch server and any client (chrome/firefox extensions, iOS app, MCP) — action names, navigation flows, request/response shapes
 - **infrastructure-design** (`.claude/skills/infrastructure-design/SKILL.md`): When resolving conflicts in Pulumi infrastructure

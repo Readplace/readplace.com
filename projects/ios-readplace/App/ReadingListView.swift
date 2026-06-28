@@ -1,17 +1,10 @@
 import SwiftUI
 
-private struct IdentifiableURL: Identifiable {
-	let id = UUID()
-	let url: URL
-}
-
 struct ReadingListView: View {
 	@ObservedObject var session: AppSession
 	@StateObject private var viewModel: ReadingListViewModel
 
-	@State private var openURL: IdentifiableURL?
-	@State private var showingSaveDialog = false
-	@State private var saveText = ""
+	@State private var showingAddInstructions = false
 
 	init(session: AppSession) {
 		self.session = session
@@ -32,8 +25,7 @@ struct ReadingListView: View {
 					}
 					ToolbarItem(placement: .navigationBarTrailing) {
 						Button {
-							saveText = ""
-							showingSaveDialog = true
+							showingAddInstructions = true
 						} label: {
 							Image(systemName: "plus")
 						}
@@ -41,17 +33,23 @@ struct ReadingListView: View {
 				}
 				.refreshable { await viewModel.refresh() }
 				.task { await viewModel.loadIfNeeded() }
-				.sheet(item: $openURL) { item in
-					SafariView(url: item.url).ignoresSafeArea()
+				.sheet(item: $viewModel.readerPresentation) { presentation in
+					ReaderSheet(
+						presentation: presentation,
+						mintSession: { await viewModel.mintReaderSession() },
+						onMarkedRead: {
+							viewModel.removeArticle(id: presentation.articleId)
+							viewModel.readerPresentation = nil
+						},
+						onClose: { viewModel.readerPresentation = nil }
+					)
+					.ignoresSafeArea()
 				}
-				.alert("Save a URL", isPresented: $showingSaveDialog) {
-					TextField("https://example.com/article", text: $saveText)
-						.textInputAutocapitalization(.never)
-						.autocorrectionDisabled()
-					Button("Save") { Task { await viewModel.saveURL(saveText) } }
-					Button("Cancel", role: .cancel) {}
-				} message: {
-					Text("Saves the URL only. Use the iOS Share Sheet to save a page with its rendered content.")
+				.sheet(isPresented: $showingAddInstructions) {
+					AddLinkInstructionsView(
+						helpURL: viewModel.addLinksHelpURL,
+						onClose: { showingAddInstructions = false }
+					)
 				}
 		}
 	}
@@ -65,12 +63,6 @@ struct ReadingListView: View {
 				emptyState
 			} else {
 				list
-			}
-
-			if viewModel.isSaving {
-				ProgressView("Saving…")
-					.padding()
-					.background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
 			}
 		}
 		.overlay(alignment: .bottom) {
@@ -93,13 +85,23 @@ struct ReadingListView: View {
 				ArticleRow(article: article)
 					.contentShape(Rectangle())
 					.onTapGesture {
-						if let url = URL(string: article.url) { openURL = IdentifiableURL(url: url) }
+						viewModel.openReader(for: article)
 					}
 					.swipeActions(edge: .trailing) {
-						Button(role: .destructive) {
-							Task { await viewModel.delete(article) }
-						} label: {
-							Label("Delete", systemImage: "trash")
+						if article.canMarkRead {
+							Button {
+								Task { await viewModel.markAsRead(article) }
+							} label: {
+								Label("Mark as read", systemImage: "checkmark.circle")
+							}
+							.tint(.green)
+						}
+					}
+					.accessibilityActions {
+						if article.canMarkRead {
+							Button("Mark as read") {
+								Task { await viewModel.markAsRead(article) }
+							}
 						}
 					}
 			}
@@ -124,7 +126,7 @@ struct ReadingListView: View {
 				.foregroundStyle(.secondary)
 			Text("Nothing saved yet")
 				.font(.headline)
-			Text("Share a link to Readplace, or tap + to save a URL.")
+			Text("Open a link in any app, tap Share, and choose Readplace. Tap + for help.")
 				.font(.subheadline)
 				.foregroundStyle(.secondary)
 				.multilineTextAlignment(.center)

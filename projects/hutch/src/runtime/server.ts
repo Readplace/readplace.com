@@ -66,7 +66,7 @@ import type {
 	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
 import type { PublishUpdateFetchTimestamp } from "@packages/provider-contracts/events";
-import type { ReadArticleContent } from "@packages/provider-contracts/article-store";
+import type { ContentProvider, ReadArticleContent } from "@packages/provider-contracts/article-store";
 import type { RefreshArticleIfStale } from "@packages/provider-contracts/article-freshness";
 import type {
 	FindArticleCrawlStatus,
@@ -121,7 +121,7 @@ import { initQueueRoutes } from "./web/pages/queue/queue.page";
 import { QUEUE_PATH } from "./web/pages/queue/queue.url";
 import { initImportSessionRoutes } from "./web/pages/import/import.page";
 import type { ImportSessionStore } from "@packages/domain/import-session";
-import type { InboxAddressStore } from "@packages/domain/inbox";
+import type { InboxAddressStore, InboxEmailStore } from "@packages/domain/inbox";
 import type { UserId } from "@packages/domain/user";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { HttpErrorMessageMapping } from "./web/pages/queue/queue.error";
@@ -139,6 +139,7 @@ import { initMcpArticleOperations } from "./web/mcp/article-operations";
 import { initMcpRoutes } from "./web/mcp/mcp.routes";
 import { buildMcpServerCard } from "./web/mcp/server-card";
 import { initResolveSaveAccess } from "./web/mcp/save-access";
+import { initResolveToolAccess } from "./web/mcp/tool-access";
 import { initSaveArticleFromUrl } from "./web/shared/save-article/save-article-from-url";
 import type { FoundingAllocation } from "./web/shared/founding-progress/founding-allocation";
 import { initDualAuth } from "./web/dual-auth.middleware";
@@ -159,6 +160,7 @@ import { HomePage } from "./web/pages/home";
 import { McpConnectPage } from "./web/pages/mcp";
 import { PrivacyPage } from "./web/pages/privacy";
 import { TermsPage } from "./web/pages/terms";
+import { HelpAddLinksPage } from "./web/pages/help";
 import { E2EFixturePage } from "./web/pages/e2e-fixture";
 import { createE2EFixturePdf } from "./web/pages/e2e-fixture-pdf";
 import { initInstallRoutes } from "./web/pages/install";
@@ -248,6 +250,8 @@ interface AppDependencies {
 	importSessionStore: ImportSessionStore;
 	extractLinksFromPageUrl: ExtractLinksFromPageUrl;
 	inboxAddressStore: InboxAddressStore;
+	inboxEmailStore: InboxEmailStore;
+	readEmailContent: ContentProvider;
 	inboxAddressDomain: string;
 	getChangelogBanner: GetChangelogBanner;
 	now: () => Date;
@@ -314,17 +318,28 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	/** The MCP server's tools are the same writes/reads the hypermedia `/queue`
 	 * API performs, so an agent acting over MCP and the browser extension take
-	 * the identical save and list paths — including the lockout and write-access
-	 * gates the extension save clears (resolved here from the bearer-derived
-	 * userId, since the request carries no session), so an MCP save is the
-	 * identical write rather than a back door around them. Listing stays open
-	 * while locked, matching `requireNotLocked`, so only `save_link` is gated. */
+	 * the identical save and list paths — including the lockout gate the
+	 * extension save clears (resolved here from the bearer-derived userId, since
+	 * the request carries no session), so an MCP save is the identical write
+	 * rather than a back door around it. Listing stays open while locked, matching
+	 * `requireNotLocked`, so only `save_link` is gated; the subscription paywall
+	 * is enforced one level up by `resolveToolAccess`. */
 	const resolveSaveAccess = initResolveSaveAccess({
 		findUserById: deps.findUserById,
-		findSubscriptionByUserId: deps.subscriptionProviders.findByUserId,
+		now: deps.now,
+	});
+	/** The subscription paywall on the MCP surface: a read-only (lapsed)
+	 * subscription has a new save (save_link) refused with a renewal upsell while
+	 * the read tools stay open, and a trial in its final week gets a
+	 * convert-to-annual nudge on successful results. Reads the same effective
+	 * access the web banner does, so "lapsed" means the same thing to an agent as
+	 * it does in the browser. */
+	const resolveToolAccess = initResolveToolAccess({
+		getEffectiveAccess,
 		now: deps.now,
 	});
 	const mcpServer = initMcpServer({
+		resolveToolAccess,
 		saveLink: async ({ userId, url }) => {
 			const access = await resolveSaveAccess(userId);
 			if (!access.allowed) {
@@ -478,7 +493,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			{ loc: "/login", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/signup", priority: "0.5", changefreq: "yearly", lastmod: "2026-03-01" },
 			{ loc: "/privacy", priority: "0.3", changefreq: "yearly", lastmod: "2026-03-01" },
-			{ loc: "/terms", priority: "0.3", changefreq: "yearly", lastmod: "2026-03-01" },
+			{ loc: "/terms", priority: "0.3", changefreq: "yearly", lastmod: "2026-06-24" },
 			{ loc: "/llms.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
 			{ loc: "/llms-full.txt", priority: "0.3", changefreq: "monthly", lastmod: "2026-04-08" },
 			{ loc: "/auth.md", priority: "0.3", changefreq: "monthly", lastmod: "2026-06-13" },
@@ -586,21 +601,29 @@ export function createApp(dependencies: AppDependencies): Express {
 		}),
 	);
 
+	const isAllowedExtensionOrigin = (origin: string | undefined): boolean =>
+		!origin ||
+		origin === appOrigin ||
+		origin === "https://hutch-app.com" ||
+		/^(moz|chrome)-extension:\/\//.test(origin);
+
 	const extensionCors = cors({
-		origin: (origin, callback) => {
-			if (
-				!origin ||
-				origin === appOrigin ||
-				origin === "https://hutch-app.com" ||
-				/^(moz|chrome)-extension:\/\//.test(origin)
-			) {
-				callback(null, true);
-			} else {
-				callback(null, false);
-			}
-		},
+		origin: (origin, callback) => callback(null, isAllowedExtensionOrigin(origin)),
 		methods: ["GET", "POST", "PUT", "DELETE"],
 		allowedHeaders: ["Authorization", "Content-Type", "Accept", "Prefer"],
+		maxAge: 86400,
+	});
+
+	/** The session-cookie bridge is the only extension endpoint that needs
+	 * credentialed CORS: the extension POSTs with credentials:"include" so the
+	 * browser stores the Set-Cookie hutch_sid. credentials:true (which also
+	 * reflects the specific Origin instead of "*") stays scoped to this route
+	 * rather than loosening the bearer-only endpoints. */
+	const sessionBridgeCors = cors({
+		origin: (origin, callback) => callback(null, isAllowedExtensionOrigin(origin)),
+		methods: ["POST"],
+		allowedHeaders: ["Authorization", "Content-Type"],
+		credentials: true,
 		maxAge: 86400,
 	});
 
@@ -632,6 +655,14 @@ export function createApp(dependencies: AppDependencies): Express {
 
 	app.get("/terms", async (req: Request, res: Response) => {
 		sendComponent(req, res, Base(TermsPage(), await buildBannerState(req)));
+	});
+
+	// Bare (HtmlPage, not Base) so the iOS Share-help sheet can render it in a
+	// WKWebView without site chrome; public like /privacy. The iOS client reaches
+	// it via the add-links-help link rel in the /queue Siren collection, so the
+	// copy ships via a hutch deploy rather than an App Store review.
+	app.get("/help/add-links", (req: Request, res: Response) => {
+		sendComponent(req, res, HelpAddLinksPage());
 	});
 
 	// Path-uniqued article fixture for staging e2e tests. The :id segment is
@@ -764,6 +795,7 @@ export function createApp(dependencies: AppDependencies): Express {
 			signup: deps.rateLimitRules.signup,
 		},
 	});
+	app.use("/auth/session", sessionBridgeCors);
 	app.use(authRouter);
 
 	if (deps.googleAuth) {
@@ -936,9 +968,14 @@ export function createApp(dependencies: AppDependencies): Express {
 	const inboxRouter = initInboxRoutes({
 		featureToggle,
 		inboxAddressStore: deps.inboxAddressStore,
+		inboxEmailStore: deps.inboxEmailStore,
+		readEmailContent: deps.readEmailContent,
 		inboxAddressDomain: deps.inboxAddressDomain,
 		logError: deps.logError,
 		buildBannerState,
+		requireNotLocked,
+		requireWriteAccess,
+		now: deps.now,
 	});
 	app.use("/inbox", requireAuth, inboxRouter);
 

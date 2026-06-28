@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EMAIL_FEATURE, render } from "@packages/web-shell";
 import type { PageBody } from "@packages/web-shell";
-import type { InboxAddressEntry } from "@packages/domain/inbox";
+import { INBOX_ADDRESS_MAX_PER_USER, type InboxAddressEntry } from "@packages/domain/inbox";
 import { INBOX_STYLES } from "./inbox.styles";
 
 const INBOX_TEMPLATE = readFileSync(join(__dirname, "inbox.template.html"), "utf-8");
@@ -13,13 +13,20 @@ const INBOX_SCRIPT = `<script src="/client-dist/inbox.client.js" defer></script>
  * the gated POST routes stay reachable when submitted from the flagged page. */
 const INBOX_QUERY = `?feature=${EMAIL_FEATURE}`;
 
-export function InboxPage(params: { addresses: InboxAddressEntry[] }): PageBody {
+export function InboxPage(params: {
+	addresses: InboxAddressEntry[];
+	createFailed?: boolean;
+	limitReached: boolean;
+}): PageBody {
 	const content = render(INBOX_TEMPLATE, {
+		createFailed: params.createFailed === true,
 		hasAddresses: params.addresses.length > 0,
 		addresses: params.addresses.map((entry) => ({
 			address: entry.address,
 			enabled: entry.disabledAt === undefined,
 		})),
+		limitReached: params.limitReached,
+		maxAddresses: INBOX_ADDRESS_MAX_PER_USER,
 		createAction: `/inbox/create${INBOX_QUERY}`,
 		disableAction: `/inbox/disable${INBOX_QUERY}`,
 	});
@@ -28,7 +35,7 @@ export function InboxPage(params: { addresses: InboxAddressEntry[] }): PageBody 
 		seo: {
 			title: "Your forwarding addresses — Readplace",
 			description: "Your personal email forwarding addresses for Readplace.",
-			canonicalUrl: "/inbox",
+			canonicalUrl: "/inbox/addresses",
 			robots: "noindex, nofollow",
 		},
 		styles: INBOX_STYLES,

@@ -6,7 +6,7 @@ import type { Message } from "../reading-list/reading-list.types";
  * unit-testable without a DOM. The popup glue maps this onto elements verbatim.
  *
  * `html` is injected as-is by the glue: every rendered `Message.content.body` is
- * trusted, server-authored, server-escaped HTML (see the extension-api-design
+ * trusted, server-authored, server-escaped HTML (see the hypermedia-api-design
  * contract — "Server-Driven Messages Are Trusted HTML"). `role` upgrades to
  * `alert` (assertive) when any rendered message is an error, otherwise stays
  * `status` (polite). */

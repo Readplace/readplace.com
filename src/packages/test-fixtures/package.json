@@ -97,6 +97,10 @@
       "types": "./dist/providers/inbox-address/index.d.ts",
       "default": "./dist/providers/inbox-address/index.js"
     },
+    "./providers/inbox-email": {
+      "types": "./dist/providers/inbox-email/index.d.ts",
+      "default": "./dist/providers/inbox-email/index.js"
+    },
     "./providers/oauth": {
       "types": "./dist/providers/oauth/index.d.ts",
       "default": "./dist/providers/oauth/index.js"
@@ -146,6 +150,7 @@
       "providers/trial-scheduler": ["./dist/providers/trial-scheduler/index.d.ts"],
       "providers/import-session": ["./dist/providers/import-session/index.d.ts"],
       "providers/inbox-address": ["./dist/providers/inbox-address/index.d.ts"],
+      "providers/inbox-email": ["./dist/providers/inbox-email/index.d.ts"],
       "providers/oauth": ["./dist/providers/oauth/index.d.ts"],
       "providers/events": ["./dist/providers/events/index.d.ts"],
       "providers/google-auth": ["./dist/providers/google-auth/index.d.ts"],
@@ -171,6 +176,7 @@
     "@packages/domain": "workspace:*",
     "@packages/extract-links-from-page": "workspace:*",
     "@packages/hutch-logger": "workspace:*",
+    "@packages/hutch-storage-client": "workspace:*",
     "@packages/provider-contracts": "workspace:*",
     "@packages/web-test-harness": "workspace:*",
     "zod": "4.4.3"

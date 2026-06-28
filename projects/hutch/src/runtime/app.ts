@@ -86,7 +86,9 @@ import { initInMemoryPendingPdf } from "@packages/test-fixtures/providers/pendin
 import { initInMemoryImportSession } from "@packages/test-fixtures/providers/import-session";
 import { initDynamoDbImportSession } from "./providers/import-session/dynamodb-import-session";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
+import { initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
 import { initDynamoDbInboxAddress } from "./providers/inbox-address/dynamodb-inbox-address";
+import { initDynamoDbInboxEmail } from "./providers/inbox-email/dynamodb-inbox-email";
 import { initExchangeGoogleCode } from "./providers/google-auth/google-token";
 import { initInMemoryStripeCheckout } from "@packages/test-fixtures/providers/stripe-checkout";
 import { initStripeCheckout } from "./providers/stripe-checkout/stripe-checkout";
@@ -153,6 +155,7 @@ function initProviders() {
 		const pendingPdfBucketName = requireEnv("PENDING_PDF_BUCKET_NAME");
 		const importSessionsTable = requireEnv("DYNAMODB_IMPORT_SESSIONS_TABLE");
 		const inboxAddressesTable = requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE");
+		const inboxEmailsTable = requireEnv("DYNAMODB_INBOX_EMAILS_TABLE");
 		const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
 		const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
 		const rateLimitsTable = requireEnv("DYNAMODB_RATE_LIMITS_TABLE");
@@ -265,6 +268,11 @@ function initProviders() {
 			tableName: inboxAddressesTable,
 			now: () => new Date(),
 		});
+		const inboxEmailStore = initDynamoDbInboxEmail({ client, tableName: inboxEmailsTable });
+		const readEmailContent = initS3ReadContent({
+			send: (cmd) => s3Client.send(cmd),
+			bucketName: contentBucketName,
+		});
 		const { consumeRateLimit } = initDynamoDbRateLimit({
 			client,
 			tableName: rateLimitsTable,
@@ -288,6 +296,8 @@ function initProviders() {
 			importSessionStore,
 			extractLinksFromPageUrl,
 			inboxAddressStore,
+			inboxEmailStore,
+			readEmailContent,
 			inboxAddressDomain,
 			subscriptionProviders,
 			trialScheduler,
@@ -453,6 +463,7 @@ function initProviders() {
 
 	const importSessionStore = initInMemoryImportSession({ now: () => new Date() });
 	const inboxAddressStore = initInMemoryInboxAddress({ now: () => new Date() });
+	const inboxEmailStore = initInMemoryInboxEmail();
 	const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
 
 	// In-process counters are valid here because dev runs a single long-lived
@@ -477,6 +488,8 @@ function initProviders() {
 		importSessionStore,
 		extractLinksFromPageUrl,
 		inboxAddressStore,
+		inboxEmailStore,
+		readEmailContent: articleStore.readContent,
 		inboxAddressDomain,
 		subscriptionProviders: devSubscriptionProviders,
 		trialScheduler: devTrialScheduler,

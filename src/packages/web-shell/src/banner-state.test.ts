@@ -94,6 +94,12 @@ describe("buildNavGroups", () => {
 		expect(library?.items.map((i) => i.key)).toEqual(["queue", "import", "export", "inbox"]);
 	});
 
+	it("omits the Inbox entry for a read-only user even when the email feature is enabled", () => {
+		const groups = buildNavGroups({ accessIsReadOnly: true, emailFeatureEnabled: true });
+		const [library] = groups;
+		expect(library?.items.map((i) => i.key)).toEqual(["queue", "export"]);
+	});
+
 	it("assigns a Font Awesome solid icon to every nav item", () => {
 		const items = buildNavGroups({ accessIsReadOnly: false, emailFeatureEnabled: true }).flatMap(
 			(g) => g.items,

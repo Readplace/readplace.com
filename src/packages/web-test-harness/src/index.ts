@@ -14,6 +14,7 @@ export type {
 	HttpErrorMessageMapping,
 	ImportSessionBundle,
 	InboxAddressBundle,
+	InboxEmailBundle,
 	IosOnboardingSignalBundle,
 	OAuthBundle,
 	ParserBundle,

@@ -214,7 +214,10 @@ export function buildNavGroups(input: {
 		library.push(NAV_IMPORT);
 	}
 	library.push(NAV_EXPORT);
-	if (input.emailFeatureEnabled) {
+	// Minting an address is a write action gated by requireWriteAccess, so a
+	// read-only user gets no Inbox entry — matching Import, which is hidden the
+	// same way. They keep access to existing addresses by direct link.
+	if (input.emailFeatureEnabled && !input.accessIsReadOnly) {
 		library.push(NAV_INBOX);
 	}
 	const account: NavItem[] = [];

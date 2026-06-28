@@ -27,6 +27,7 @@ import { initInMemorySubscriptionProviders } from "./providers/subscription-prov
 import { initInMemoryTrialScheduler } from "./providers/trial-scheduler/in-memory-trial-scheduler";
 import { initInMemoryImportSession } from "./providers/import-session/in-memory-import-session";
 import { initInMemoryInboxAddress } from "./providers/inbox-address/in-memory-inbox-address";
+import { initInMemoryInboxEmail } from "./providers/inbox-email/in-memory-inbox-email";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initInMemorySaveLinkRawHtmlCommand } from "./providers/events/in-memory-save-link-raw-html-command";
 import { initInMemorySaveLinkRawPdfCommand } from "./providers/events/in-memory-save-link-raw-pdf-command";
@@ -386,6 +387,10 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		inboxAddress: {
 			inboxAddressStore: initInMemoryInboxAddress({ now: () => new Date() }),
 			inboxAddressDomain: "read.place",
+		},
+		inboxEmail: {
+			inboxEmailStore: initInMemoryInboxEmail(),
+			readEmailContent: async () => undefined,
 		},
 		shared: {
 			validateSaveableUrl,

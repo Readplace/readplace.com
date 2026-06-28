@@ -1,8 +1,12 @@
+import { ConditionalCheckFailedException } from "@packages/hutch-storage-client";
 import {
 	buildInboxAddress,
 	generateInboxToken,
+	INBOX_ADDRESS_MAX_PER_USER,
+	InboxAddressLimitReachedError,
 	type InboxAddressEntry,
 	type InboxAddressStore,
+	isLiveAddress,
 } from "@packages/domain/inbox";
 
 export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddressStore {
@@ -10,6 +14,12 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 
 	return {
 		createAddress: async ({ userId, domain }) => {
+			const live = [...rows.values()].filter(
+				(row) => row.userId === userId && isLiveAddress(row),
+			);
+			if (live.length >= INBOX_ADDRESS_MAX_PER_USER) {
+				throw new InboxAddressLimitReachedError(INBOX_ADDRESS_MAX_PER_USER);
+			}
 			const token = generateInboxToken();
 			const address = buildInboxAddress({ token, domain });
 			const entry: InboxAddressEntry = {
@@ -26,9 +36,14 @@ export function initInMemoryInboxAddress(deps: { now: () => Date }): InboxAddres
 			[...rows.values()].filter((row) => row.userId === userId),
 		disableAddress: async ({ userId, address }) => {
 			const row = rows.get(address);
-			if (row === undefined) return;
-			if (row.userId !== userId) return;
+			if (row === undefined || row.userId !== userId) {
+				throw new ConditionalCheckFailedException({
+					$metadata: {},
+					message: "The conditional request failed",
+				});
+			}
 			rows.set(address, { ...row, disabledAt: deps.now().toISOString() });
 		},
+		findByAddress: async (address) => rows.get(address),
 	};
 }

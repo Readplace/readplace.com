@@ -25,4 +25,18 @@ describe("GET /terms", () => {
 		expect(response.headers["content-type"]).toBe("text/markdown; charset=utf-8");
 		expect(response.text).toMatch(/^# /);
 	});
+
+	it("discloses subscriptions, AI-assistant payments, and consumer rights", async () => {
+		const { server } = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(server).get("/terms");
+
+		expect(response.text).toContain("Last updated: 24 June 2026");
+		for (const heading of [
+			"Subscriptions, billing and renewals",
+			"Using Readplace with AI assistants",
+			"Refunds and your consumer rights",
+		]) {
+			expect(response.text).toContain(heading);
+		}
+	});
 });

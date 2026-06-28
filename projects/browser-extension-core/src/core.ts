@@ -103,6 +103,17 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 		}
 	}
 
+	/** Mint the browser session cookie so a reader link (/queue/:id/view, whose
+	 * owner is resolved from the hutch_sid cookie, never the bearer) opens the
+	 * private reader instead of the public /view. Fired whenever the popup is about
+	 * to surface reader links — the list load and the not-saveable drop-into-list.
+	 * Fire-and-forget: a failure only degrades that one navigation to the public page. */
+	function establishWebSession(): void {
+		auth
+			.ensureWebSession()
+			.catch((error) => logger.warn("Failed to mint web session for reader links", error));
+	}
+
 	return {
 		init() {
 			eventBus.emit("pre-init");
@@ -166,11 +177,12 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 			if (guarded.ok) {
 				const { tabId } = data;
 				guarded.value
-					.then((result) =>
-						tabId != null && result.ok
+					.then((result) => {
+						if (!result.ok) establishWebSession();
+						return tabId != null && result.ok
 							? shell.setIcon.showSaved(tabId)
-							: updateActiveTabIcon(),
-					)
+							: updateActiveTabIcon();
+					})
 					.catch(() => {});
 			}
 		},
@@ -188,6 +200,7 @@ export function BrowserExtensionCore(shell: BrowserShell, deps: { auth: Auth; lo
 		fetch(_resource) {
 			const guarded = auth.whenLoggedIn(() => readingList.getAllItems());
 			emitResult("fetched-reading-list", guarded);
+			if (guarded.ok) establishWebSession();
 		},
 
 		check(_resource, data) {

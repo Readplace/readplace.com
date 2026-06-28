@@ -684,4 +684,20 @@ export type ReaderReadyEmailSentDetail = z.infer<
 	typeof ReaderReadyEmailSentEvent.detailSchema
 >;
 
+/** Published once a forwarded email is parsed, sanitized, stored, and a row
+ * written. The irreversible "an email arrived" fact. M2 has no consumer; M3
+ * subscribes to extract links from the stored body without touching this
+ * publisher (Open/Closed). */
+export const EmailReceivedEvent = defineEvent({
+	name: "email-received",
+	source: "hutch.inbox",
+	detailType: "EmailReceived",
+	detailSchema: z.object({
+		userId: z.string(),
+		receivedAtMessageId: z.string(),
+		recipientAddress: z.string(),
+	}),
+});
+export type EmailReceivedDetail = z.infer<typeof EmailReceivedEvent.detailSchema>;
+
 export type { HutchEvent, HutchCommand };

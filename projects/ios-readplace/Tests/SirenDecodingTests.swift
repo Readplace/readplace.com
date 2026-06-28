@@ -21,7 +21,11 @@ final class SirenDecodingTests: XCTestCase {
 		XCTAssertEqual(article.imageURL?.absoluteString, "https://example.com/img.png")
 		XCTAssertEqual(article.readTimeMinutes, 6)
 		XCTAssertFalse(article.isRead)
-		XCTAssertEqual(article.deleteHref, "/queue/a1/delete")
+		XCTAssertEqual(article.updateStatusAction?.name, "update-status")
+		XCTAssertEqual(article.updateStatusAction?.href, "/queue/a1/status")
+		XCTAssertEqual(article.updateStatusAction?.method, "POST")
+		XCTAssertEqual(article.updateStatusAction?.type, "application/x-www-form-urlencoded")
+		XCTAssertEqual(article.updateStatusAction?.fields?.first?.name, "status")
 		XCTAssertEqual(article.readHref, "/queue/a1/view")
 		XCTAssertNotNil(article.savedAt)
 	}
@@ -52,8 +56,18 @@ final class SirenDecodingTests: XCTestCase {
 		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
 		XCTAssertEqual(article.title, "https://example.com/x")
 		XCTAssertNil(article.siteName)
-		XCTAssertNil(article.deleteHref)
+		XCTAssertNil(article.updateStatusAction)
 		XCTAssertNil(article.readHref)
+	}
+
+	func testUpdateStatusActionDecodesWithFieldValue() throws {
+		let json = """
+		{ "name": "update-status", "href": "/queue/a1/status", "method": "POST", "type": "application/x-www-form-urlencoded", "fields": [{ "name": "status", "type": "text", "value": "read" }] }
+		"""
+		let action = try JSONDecoder().decode(SirenAction.self, from: Data(json.utf8))
+		XCTAssertEqual(action.name, "update-status")
+		XCTAssertEqual(action.fields?.first?.name, "status")
+		XCTAssertEqual(action.fields?.first?.value, "read")
 	}
 
 	func testEmptyTitleFallsBackToURL() throws {
@@ -66,6 +80,19 @@ final class SirenDecodingTests: XCTestCase {
 		{ "class": ["article"], "links": [] }
 		"""
 		XCTAssertNil(Article(entity: try decodeEntity(json)))
+	}
+
+	func testHrefLessLinkAndActionDecodeAndAreUnactionable() throws {
+		// A link or action the server advertises without an href must not fail the
+		// decode; it is simply kept and treated as unactionable.
+		let json = """
+		{ "properties": { "id": "x", "url": "https://example.com/x" },
+		  "links": [{ "rel": ["read"] }],
+		  "actions": [{ "name": "update-status", "method": "POST" }] }
+		"""
+		let article = try XCTUnwrap(Article(entity: try decodeEntity(json)))
+		XCTAssertNil(article.readHref, "a read link with no href leaves the row unopenable")
+		XCTAssertFalse(article.canMarkRead, "an action with no href offers no mark-read affordance")
 	}
 
 	func testCollectionDropsUnusableEntities() throws {
@@ -102,6 +129,18 @@ final class SirenDecodingTests: XCTestCase {
 		let lastPage = QueuePage(collection: try decodeCollection(noNext))
 		XCTAssertNil(lastPage.nextHref)
 		XCTAssertNil(lastPage.prevHref)
+	}
+
+	func testAddLinksHelpLinkDecodes() throws {
+		let withHelp = Fixtures.collection(
+			entitiesJSON: [Fixtures.article()],
+			extraLinks: ", { \"rel\": [\"add-links-help\"], \"href\": \"/help/add-links\" }"
+		)
+		let page = QueuePage(collection: try decodeCollection(withHelp))
+		XCTAssertEqual(page.addLinksHelpHref, "/help/add-links")
+
+		let withoutHelp = Fixtures.collection(entitiesJSON: [Fixtures.article()])
+		XCTAssertNil(QueuePage(collection: try decodeCollection(withoutHelp)).addLinksHelpHref)
 	}
 
 	func testEmptyCollection() throws {

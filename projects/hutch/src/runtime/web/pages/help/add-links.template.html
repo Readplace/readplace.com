@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>Add links with Share — Readplace</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --help-bg: #ffffff;
+        --help-text: #1a202c;
+        --help-text-secondary: #5a6170;
+        --help-brand: #c8702a;
+        --help-surface: #f7f8fa;
+        --help-border: #e2e5ea;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --help-bg: #121212;
+          --help-text: #e4e4e4;
+          --help-text-secondary: #9ba1ae;
+          --help-brand: #d4833a;
+          --help-surface: #1a1a1a;
+          --help-border: #2e2e2e;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--help-bg);
+        color: var(--help-text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .help {
+        max-width: 32rem;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem;
+      }
+
+      .help__title {
+        margin: 0 0 1.5rem;
+        font-size: 1.5rem;
+        font-weight: 700;
+        line-height: 1.3;
+      }
+
+      .help__steps {
+        margin: 0 0 1.5rem;
+        padding: 0;
+        list-style: none;
+        counter-reset: help-step;
+      }
+
+      .help__step {
+        counter-increment: help-step;
+        position: relative;
+        padding: 0.75rem 0 0.75rem 3rem;
+        font-size: 1.0625rem;
+        border-bottom: 1px solid var(--help-border);
+      }
+
+      .help__step:last-child {
+        border-bottom: 0;
+      }
+
+      .help__step::before {
+        content: counter(help-step);
+        position: absolute;
+        left: 0;
+        top: 0.65rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        background: var(--help-surface);
+        color: var(--help-brand);
+        border-radius: 6px;
+        font-weight: 600;
+      }
+
+      .help__note {
+        margin: 0;
+        padding: 1rem 1.25rem;
+        background: var(--help-surface);
+        border-radius: 8px;
+        color: var(--help-text-secondary);
+        font-size: 0.9375rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="help">
+      <h1 class="help__title" data-test-help-title>Add links with Share</h1>
+      <ol class="help__steps">
+        <li class="help__step" data-test-help-step>Open a link in any app.</li>
+        <li class="help__step" data-test-help-step>Tap Share.</li>
+        <li class="help__step" data-test-help-step>Choose Readplace.</li>
+      </ol>
+      <p class="help__note" data-test-help-note>Sharing captures the full page — even on sites that block crawlers.</p>
+    </main>
+  </body>
+</html>

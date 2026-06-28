@@ -6,7 +6,9 @@
     "pulumi-bin",
     "awscli2",
     "jq@latest",
-    "docker@latest"
+    "docker@latest",
+    "librsvg@latest",
+    "liberation_ttf@latest"
   ],
   "shell": {
     "init_hook": [
