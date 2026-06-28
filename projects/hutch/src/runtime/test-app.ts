@@ -163,6 +163,7 @@ function flattenFixtureToAppDependencies(
 		inboxAddressStore: fixture.inboxAddress.inboxAddressStore,
 		inboxAddressDomain: fixture.inboxAddress.inboxAddressDomain,
 		inboxEmailStore: fixture.inboxEmail.inboxEmailStore,
+		inboxEmailLinkStore: fixture.inboxEmail.inboxEmailLinkStore,
 		readEmailContent: fixture.inboxEmail.readEmailContent,
 		getChangelogBanner: async () => undefined,
 		now: fixture.shared.now,

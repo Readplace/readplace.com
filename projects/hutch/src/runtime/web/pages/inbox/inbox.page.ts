@@ -5,26 +5,37 @@ import { z } from "zod";
 import { EMAIL_FEATURE, sendComponent } from "@packages/web-shell";
 import {
 	countLiveAddresses,
+	EmailLinkOrdinalSchema,
 	INBOX_ADDRESS_MAX_PER_USER,
 	InboxAddressLimitReachedError,
 	InboxAddressSchema,
 } from "@packages/domain/inbox";
-import type { InboxAddressStore, InboxEmailStore } from "@packages/domain/inbox";
+import type {
+	InboxAddressStore,
+	InboxEmailLinkStore,
+	InboxEmailStore,
+} from "@packages/domain/inbox";
 import type { ContentProvider } from "@packages/provider-contracts/article-store";
 import { emailContentResourceId } from "../../../domain/inbox/email-content-id";
 import { Base } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import type { QuerystringFeatureToggle } from "../../feature-toggle";
+import { MAX_POLLS } from "../../shared/article-reader/article-reader";
+import { etagMatches } from "../queue/queue-card/queue-card.etag";
+import { renderInboxArticleCard } from "./inbox-article-card.component";
 import { InboxEmailDetailPage } from "./inbox-email-detail.component";
 import { toInboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
 import { InboxEmailsPage } from "./inbox-emails.component";
 import { toInboxEmailsViewModel } from "./inbox-emails.viewmodel";
+import { computeInboxLinkCardEtag } from "./inbox-link-card.etag";
+import { toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
 import { InboxPage } from "./inbox.component";
 
 interface InboxDependencies {
 	featureToggle: QuerystringFeatureToggle;
 	inboxAddressStore: InboxAddressStore;
 	inboxEmailStore: InboxEmailStore;
+	inboxEmailLinkStore: InboxEmailLinkStore;
 	readEmailContent: ContentProvider;
 	inboxAddressDomain: string;
 	logError: (message: string, error?: Error) => void;
@@ -100,9 +111,59 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 						emailContentResourceId({ userId: req.userId, receivedAtMessageId }),
 					)
 				: undefined;
-		const vm = toInboxEmailDetailViewModel({ entry, bodyHtml });
+		const { links, meta } = await deps.inboxEmailLinkStore.listLinksByEmail({
+			userId: req.userId,
+			receivedAtMessageId,
+		});
+		const vm = toInboxEmailDetailViewModel({
+			entry,
+			bodyHtml,
+			links,
+			linksMeta: meta,
+			maxPolls: MAX_POLLS,
+		});
 		sendComponent(req, res, Base(InboxEmailDetailPage(vm), await deps.buildBannerState(req)));
 	});
+
+	// The literal `links/:ordinal/card` suffix means `/:id` (single segment)
+	// never captures it. Renders one link-preview card fragment for the htmx
+	// poll; 304s when the link hasn't changed during the wait window.
+	router.get(
+		"/:id/links/:ordinal/card",
+		async (req: Request<{ id: string; ordinal: string }>, res: Response) => {
+			assert(req.userId, "userId required - route must be protected by requireAuth");
+			const userId = req.userId;
+			const receivedAtMessageId = req.params.id;
+			const parsedOrdinal = EmailLinkOrdinalSchema.safeParse(req.params.ordinal);
+			const link = parsedOrdinal.success
+				? await deps.inboxEmailLinkStore.getLink({
+						userId,
+						receivedAtMessageId,
+						ordinal: parsedOrdinal.data,
+					})
+				: undefined;
+			if (link === undefined) {
+				res.status(404).type("html").send("");
+				return;
+			}
+			const etag = computeInboxLinkCardEtag(link);
+			res.set("Cache-Control", "private, no-cache");
+			res.set("Vary", "Cookie");
+			res.set("ETag", etag);
+			if (etagMatches(req.get("If-None-Match"), etag)) {
+				res.status(304).end();
+				return;
+			}
+			const requestedPoll = Number(req.query.poll ?? "0");
+			const cardVm = toInboxLinkCardViewModel({
+				link,
+				emailId: receivedAtMessageId,
+				pollCount: requestedPoll + 1,
+				maxPolls: MAX_POLLS,
+			});
+			res.status(200).type("html").send(renderInboxArticleCard(cardVm));
+		},
+	);
 
 	router.post("/create", deps.requireNotLocked, deps.requireWriteAccess, async (req: Request, res: Response) => {
 		assert(req.userId, "userId required - route must be protected by requireAuth");

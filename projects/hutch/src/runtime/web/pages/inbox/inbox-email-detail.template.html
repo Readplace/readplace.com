@@ -40,8 +40,18 @@
 		class="inbox-email-detail__panel inbox-email-detail__panel--articles"
 		data-test-tab-panel="articles"
 	>
-		<div class="inbox-email-detail__placeholder" data-test-inbox-articles-placeholder>
-			<p>{{articlesPlaceholder}}</p>
+		{{#if articles.isEmpty}}
+		<p class="inbox-email-detail__articles-empty" data-test-articles-empty>
+			No links found in this email.
+		</p>
+		{{else}}
+		{{#if articles.truncatedNotice}}<p
+			class="inbox-email-detail__articles-truncated"
+			data-test-articles-truncated
+		>{{articles.truncatedNotice}}</p>{{/if}}
+		<div class="inbox-email-detail__articles" data-test-inbox-articles>
+			{{#each articleHtmls}}{{{this}}}{{/each}}
 		</div>
+		{{/if}}
 	</section>
 </main>
