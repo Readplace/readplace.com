@@ -285,6 +285,11 @@ function renderLinks(items: ReadingListItem[]) {
 					if (result.ok && result.value.ok) {
 						allItems = result.value.items;
 						renderLinks(filterItems());
+					} else if (result.ok) {
+						/** not-found: the item was removed elsewhere or the server no
+						 * longer advertises this action. Reload so the stale phantom row
+						 * drops instead of lingering until the popup is reopened. */
+						await loadAllItems();
 					}
 				} finally {
 					if (overlay) overlay.hidden = true;

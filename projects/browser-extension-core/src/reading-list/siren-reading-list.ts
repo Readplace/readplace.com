@@ -843,6 +843,10 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 			logger: deps.logger,
 		}),
 		initDeleteArticleUnderstanding(),
+		/** search carries its own `httpCacheable` ETag layer so the understanding is
+		 * cacheable on its own terms, not by silently relying on the walker's
+		 * navigation cache also seeing the GET. Both layers share one If-None-Match
+		 * path, so a search GET passing through both stays correct. */
 		httpCacheable(initListArticlesUnderstanding()),
 	);
 	const start = initExtension(understandings, deps);
