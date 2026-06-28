@@ -119,15 +119,18 @@ final class SaveSharedPageTests: XCTestCase {
 		XCTAssertTrue(StubURLProtocol.records(path: "/queue/save-html").isEmpty)
 	}
 
-	func testDegradesToLinkOnlyWhenHTMLOverCap() async throws {
-		// The capture produced HTML, but it exceeds the server's byte cap, so the
-		// orchestrator skips save-html and saves URL-only instead.
+	func testDegradesToLinkOnlyWhenServerRefusesHTMLWithAFallback() async throws {
+		// The orchestrator attempts save-html (no client-side cap), the server
+		// refuses the payload with a URL-only fallback action, and the journey
+		// follows it — surfacing the server-driven degradation as savedLinkOnly.
 		let store = TestSupport.loggedInStore()
 		let captor = FakeHTMLCaptor(page: CapturedPage(rawHtml: "<html><body>hi</body></html>", title: "Captured"))
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
 			case "/":
 				return .redirect(to: "/queue")
+			case "/queue/save-html":
+				return .json(500, Fixtures.sirenError(code: "html-too-large", message: "Too big", withSaveArticleFallback: true))
 			case "/queue":
 				return request.httpMethod == "POST"
 					? .json(201, Fixtures.article(id: "url-saved"))
@@ -137,19 +140,19 @@ final class SaveSharedPageTests: XCTestCase {
 			}
 		}
 
-		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor, maxRawHTMLBytes: 4)
+		let saver = SaveSharedPage(store: store, api: makeAPI(store: store), captor: captor)
 		let outcome = await saver.run(url: URL(string: "https://example.com/post")!, fallbackTitle: nil)
 
 		XCTAssertEqual(outcome, .savedLinkOnly)
+		XCTAssertEqual(
+			StubURLProtocol.records(path: "/queue/save-html").count, 1,
+			"the client attempts save-html and lets the server decide, rather than gating on a client-side cap"
+		)
 		let queuePosts = StubURLProtocol.records(path: "/queue").filter { $0.request.httpMethod == "POST" }
 		XCTAssertEqual(queuePosts.count, 1)
 		let body = TestSupport.jsonObject(try XCTUnwrap(queuePosts.first).body)
 		XCTAssertEqual(body["url"] as? String, "https://example.com/post")
-		XCTAssertNil(body["rawHtml"], "the over-cap save must fall back to URL-only without rawHtml")
-		XCTAssertTrue(
-			StubURLProtocol.records(path: "/queue/save-html").isEmpty,
-			"must not POST save-html when the captured HTML is over the cap"
-		)
+		XCTAssertNil(body["rawHtml"], "the fallback save must drop rawHtml")
 	}
 
 	func testGuardsWhenLoggedOut() async throws {
