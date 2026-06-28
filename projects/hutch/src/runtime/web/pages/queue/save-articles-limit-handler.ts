@@ -3,11 +3,12 @@ import { wantsSiren } from "../../content-negotiation";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 
 /**
- * Translates body-parser `entity.too.large` errors on the save-articles route
- * into a Siren 422, so a bulk request whose body exceeds the parser limit fails
- * cleanly instead of escaping to the global handler as an unhandled 413. The
- * extension chunks below the cap, so a well-behaved client never trips this; it
- * guards other callers and keeps the parser limit and the schema cap in step.
+ * Translates body-parser `entity.too.large` errors on the multipart
+ * save-articles route into a Siren 422, so a bulk request whose combined
+ * captured-page bodies exceed the parser limit fails cleanly instead of escaping
+ * to the global handler as an unhandled 413. The extension chunks below the
+ * page cap, so a well-behaved client never trips this; it guards other callers
+ * and keeps the parser limit and the per-page cap in step.
  */
 export function initSaveArticlesLimitHandler(deps: {
 	logError: (message: string, error?: Error) => void;
@@ -32,7 +33,7 @@ export function initSaveArticlesLimitHandler(deps: {
 			res.status(422).type(SIREN_MEDIA_TYPE).json(
 				sirenError({
 					code: "save-articles-too-large",
-					message: `Too many tabs to save in one request (over ${label})`,
+					message: `Captured tab content was too large to upload in one request (over ${label})`,
 				}),
 			);
 			return;

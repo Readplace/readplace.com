@@ -15,6 +15,8 @@ import {
 	type SaveUrlResult,
 	type InvokeActionResult,
 	type BulkSaveResult,
+	type BulkSavePage,
+	type SaveableTab,
 	type TokenStorage,
 } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
@@ -210,15 +212,12 @@ const corePromise = initCore();
 
 const CAPTURE_HTML_TIMEOUT_MS = 5000;
 
-async function captureActiveTabHtml(message: {
-	url: string;
-	tabId?: number;
-}): Promise<string | undefined> {
-	if (message.tabId == null) return undefined;
-	const tab = await browser.tabs.get(message.tabId).catch(() => undefined);
-	if (!tab || tab.url !== message.url) return undefined;
+async function captureTabHtml(tabId: number | undefined, url: string): Promise<string | undefined> {
+	if (tabId == null) return undefined;
+	const tab = await browser.tabs.get(tabId).catch(() => undefined);
+	if (!tab || tab.url !== url) return undefined;
 	const captured = await Promise.race([
-		browser.tabs.sendMessage(message.tabId, { type: "capture-html" }),
+		browser.tabs.sendMessage(tabId, { type: "capture-html" }),
 		new Promise<undefined>((resolve) =>
 			setTimeout(() => resolve(undefined), CAPTURE_HTML_TIMEOUT_MS),
 		),
@@ -228,6 +227,27 @@ async function captureActiveTabHtml(message: {
 		if (typeof rawHtml === "string" && rawHtml.length > 0) return rawHtml;
 	}
 	return undefined;
+}
+
+/** Best-effort content capture for one tab: the live DOM via the content script,
+ * else a byte fetch in the user's session, else undefined (a URL-only save). */
+async function captureTabContent(tab: { url: string; tabId?: number }): Promise<{ bytes: ArrayBuffer; mediaType: string } | undefined> {
+	const rawHtml = await captureTabHtml(tab.tabId, tab.url);
+	if (rawHtml) return { bytes: new TextEncoder().encode(rawHtml).buffer, mediaType: "text/html" };
+	return captureActiveTabBytes(tab.url, fetch);
+}
+
+/** Captures every saveable tab into a bulk page; a tab that can't be captured
+ * (unscriptable, discarded, fetch refused) becomes a URL-only page. */
+async function capturePages(tabs: SaveableTab[]): Promise<BulkSavePage[]> {
+	return Promise.all(
+		tabs.map(async (tab) => {
+			const content = await captureTabContent(tab).catch(() => undefined);
+			const page: BulkSavePage = { url: tab.url, title: tab.title };
+			if (content) page.content = content;
+			return page;
+		}),
+	);
 }
 
 function broadcastSaveProgress(phase: SavePhase): void {
@@ -240,6 +260,7 @@ const POPUP_MESSAGE_TYPES = new Set([
 	"save-progress",
 	"invoke-action",
 	"check-url",
+	"save-all-tabs",
 	"get-all-items",
 	"login",
 	"logout",
@@ -295,7 +316,7 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 						});
 					});
 					broadcastSaveProgress("capturing");
-					captureActiveTabHtml(message)
+					captureTabHtml(message.tabId, message.url)
 						.then(async (rawHtml) => {
 							broadcastSaveProgress("uploading");
 							const content = rawHtml
@@ -363,7 +384,12 @@ browser.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
 							failure: (err) => resolve({ ok: false, ...err }),
 						});
 					});
-					core.saveAll("tabs", { urls: message.urls });
+					const { tabs } = message;
+					capturePages(tabs)
+						.then((pages) => core.saveAll("tabs", { pages }))
+						.catch(() =>
+							core.saveAll("tabs", { pages: tabs.map((tab) => ({ url: tab.url, title: tab.title })) }),
+						);
 					pending.then(sendResponse);
 					break;
 				}

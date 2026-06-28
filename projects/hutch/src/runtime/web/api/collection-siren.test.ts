@@ -254,8 +254,8 @@ describe("toArticleCollectionEntity", () => {
 		const saveArticlesAction = entity.actions?.find((a) => a.name === "save-articles");
 		expect(saveArticlesAction?.href).toBe("/queue/save-articles");
 		expect(saveArticlesAction?.method).toBe("POST");
-		expect(saveArticlesAction?.type).toBe("application/json");
-		expect(saveArticlesAction?.fields?.map((f) => f.name)).toEqual(["urls"]);
+		expect(saveArticlesAction?.type).toBe("multipart/form-data");
+		expect(saveArticlesAction?.fields?.map((f) => f.name)).toEqual(["manifest", "content"]);
 	});
 
 	it("includes search action with filter fields", () => {

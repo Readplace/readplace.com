@@ -9,7 +9,7 @@ import type {
 	Message,
 	ActionVariant,
 } from "browser-extension-core";
-import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabUrls, summarizeBulkSave, installShortcuts, isCmdD, initSaveProgress, initSaveProgressSequencer, buildMessageView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation } from "browser-extension-core";
+import { filterByUrl, paginateItems, avatarColor, relativeTime, isAppUrl, itemDisplay, selectSaveableTabs, summarizeBulkSave, installShortcuts, isCmdD, initSaveProgress, initSaveProgressSequencer, buildMessageView, actionLabel, actionVariant, actionIcon, linkLabel, linkPresentation } from "browser-extension-core";
 import { HutchLogger, consoleLogger } from "@packages/hutch-logger";
 
 /** The client's own presentation map: an action variant -> the popup's CSS
@@ -477,15 +477,16 @@ async function saveAndShowList() {
 async function saveAllTabsFlow() {
 	showView("save-all-view");
 	const tabs = await browser.tabs.query({ currentWindow: true });
-	const urls = selectSaveableTabUrls(tabs, __APP_DOMAINS__);
+	const saveable = selectSaveableTabs(tabs, __APP_DOMAINS__);
 
 	const titleEl = document.querySelector("[data-test-save-all-title]");
 	const summaryEl = document.querySelector("[data-test-save-all-summary]");
+	const tooBigEl = document.querySelector<HTMLElement>("[data-test-save-all-too-big]");
 
-	const result = (await send({
+	const result = await send<GuardedResult<BulkSaveResult>>({
 		type: "save-all-tabs",
-		urls,
-	})) as GuardedResult<BulkSaveResult>;
+		tabs: saveable,
+	});
 
 	if (isNotLoggedIn(result)) {
 		await performLogout();
@@ -498,13 +499,17 @@ async function saveAllTabsFlow() {
 		return;
 	}
 
-	const { title, summary } = summarizeBulkSave({
+	const { title, summary, tooBig } = summarizeBulkSave({
 		result: result.value,
 		tabCount: tabs.length,
-		saveableCount: urls.length,
+		saveableCount: saveable.length,
 	});
 	if (titleEl) titleEl.textContent = title;
 	if (summaryEl) summaryEl.textContent = summary;
+	if (tooBigEl) {
+		tooBigEl.textContent = tooBig ?? "";
+		tooBigEl.hidden = tooBig === null;
+	}
 
 	const queueButton = document.getElementById("save-all-view-queue");
 	if (queueButton) queueButton.hidden = false;

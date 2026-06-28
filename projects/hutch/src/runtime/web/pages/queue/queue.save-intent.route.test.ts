@@ -207,7 +207,11 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.post("/queue/save-articles")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
-				.send({ urls: ["https://example.com/a", "https://fagnerbrack.com/b", "chrome://settings"] });
+				.field("manifest", JSON.stringify([
+					{ url: "https://example.com/a" },
+					{ url: "https://fagnerbrack.com/b" },
+					{ url: "chrome://settings" },
+				]));
 
 			expect(response.status).toBe(200);
 			const intents = saveIntents(harness);
@@ -224,7 +228,7 @@ describe("view_save_intent — authenticated save surfaces", () => {
 				.post("/queue/save-articles")
 				.set("Accept", SIREN_MEDIA_TYPE)
 				.set("Authorization", `Bearer ${token}`)
-				.send({ urls: ["https://example.com/a"] });
+				.field("manifest", JSON.stringify([{ url: "https://example.com/a" }]));
 
 			expect(response.status).toBe(200);
 			expect(saveIntents(harness)[0]).toMatchObject({ path: "/queue/save-articles", surface: "extension", outcome: "error" });

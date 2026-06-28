@@ -155,18 +155,22 @@ describe("initInMemoryReadingList", () => {
 		});
 	});
 
-	describe("saveUrls", () => {
-		it("saves all new urls and reports them as saved", async () => {
+	describe("savePages", () => {
+		it("saves all new pages (with and without a title) and reports them as saved", async () => {
 			const list = initInMemoryReadingList();
 
-			const result = await list.saveUrls({
-				urls: ["https://example.com/a", "https://example.com/b"],
+			const result = await list.savePages({
+				pages: [
+					{ url: "https://example.com/a", title: "A" },
+					{ url: "https://example.com/b" },
+				],
 			});
 
 			expect(result).toEqual({
 				saved: 2,
 				skipped: 0,
 				failed: 0,
+				tooBig: [],
 				skippedUrls: [],
 			});
 			const items = await list.getAllItems();
@@ -174,20 +178,22 @@ describe("initInMemoryReadingList", () => {
 				"https://example.com/a",
 				"https://example.com/b",
 			]);
+			expect(items.map((i) => i.title)).toEqual(["A", "https://example.com/b"]);
 		});
 
-		it("reports an already-saved url as skipped", async () => {
+		it("reports an already-saved page as skipped", async () => {
 			const list = initInMemoryReadingList();
 			await list.saveUrl({ url: "https://example.com/a", title: "A" });
 
-			const result = await list.saveUrls({
-				urls: ["https://example.com/a", "https://example.com/b"],
+			const result = await list.savePages({
+				pages: [{ url: "https://example.com/a" }, { url: "https://example.com/b" }],
 			});
 
 			expect(result).toEqual({
 				saved: 1,
 				skipped: 1,
 				failed: 0,
+				tooBig: [],
 				skippedUrls: [{ url: "https://example.com/a", code: "already-saved" }],
 			});
 		});

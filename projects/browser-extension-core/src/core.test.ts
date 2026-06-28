@@ -5,7 +5,7 @@ import { UnauthorizedError } from "./auth/unauthorized-error";
 import { BrowserExtensionCore, BULK_SAVE_BATCH_SIZE } from "./core";
 import type { CoreError, ReadingList } from "./core";
 import { initInMemoryReadingList } from "./reading-list/in-memory-reading-list";
-import type { BulkSaveResult, SaveUrl, SaveUrls, SaveUrlResult } from "./reading-list/reading-list.types";
+import type { BulkSaveResult, BulkSavePage, SaveUrl, SavePages, SaveUrlResult } from "./reading-list/reading-list.types";
 import type { BrowserShell } from "./shell.types";
 import type { Auth, GuardedResult, WhenLoggedIn } from "./auth/auth.types";
 import type { ReadingListItem, ReadingListItemId } from "./domain/reading-list-item.types";
@@ -80,32 +80,34 @@ type SaveArgs = { url: string; title: string; content?: { bytes: ArrayBuffer; me
 function createRecordingReadingList(
 	options: {
 		saveResult?: SaveUrlResult;
-		failSaveUrlsOnCall?: { call: number; error: Error };
+		savePagesResult?: BulkSaveResult;
+		failSavePagesOnCall?: { call: number; error: Error };
 	} = {},
-): ReadingList & { saveCalls: SaveArgs[]; saveUrlsCalls: { urls: string[] }[] } {
+): ReadingList & { saveCalls: SaveArgs[]; savePagesCalls: { pages: BulkSavePage[] }[] } {
 	const inner = initInMemoryReadingList();
 	const saveCalls: SaveArgs[] = [];
-	const saveUrlsCalls: { urls: string[] }[] = [];
+	const savePagesCalls: { pages: BulkSavePage[] }[] = [];
 	const saveUrl: SaveUrl = async (params) => {
 		saveCalls.push(params);
 		if (options.saveResult) return options.saveResult;
 		return inner.saveUrl(params);
 	};
-	const saveUrls: SaveUrls = async (params) => {
-		saveUrlsCalls.push(params);
+	const savePages: SavePages = async (params) => {
+		savePagesCalls.push(params);
 		if (
-			options.failSaveUrlsOnCall &&
-			saveUrlsCalls.length === options.failSaveUrlsOnCall.call
+			options.failSavePagesOnCall &&
+			savePagesCalls.length === options.failSavePagesOnCall.call
 		) {
-			throw options.failSaveUrlsOnCall.error;
+			throw options.failSavePagesOnCall.error;
 		}
-		return inner.saveUrls(params);
+		if (options.savePagesResult) return options.savePagesResult;
+		return inner.savePages(params);
 	};
 	return {
 		saveCalls,
-		saveUrlsCalls,
+		savePagesCalls,
 		saveUrl,
-		saveUrls,
+		savePages,
 		invokeAction: inner.invokeAction,
 		findByUrl: inner.findByUrl,
 		getAllItems: inner.getAllItems,
@@ -843,17 +845,17 @@ describe("BrowserExtensionCore saveAll", () => {
 		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
 			core.once("saved-all-tabs", { success: resolve, failure: reject });
 			core.saveAll("tabs", {
-				urls: ["https://example.com/a", "https://example.com/b"],
+				pages: [{ url: "https://example.com/a" }, { url: "https://example.com/b" }],
 			});
 		});
 
-		expect(result).toEqual({ saved: 2, skipped: 0, failed: 0, skippedUrls: [] });
-		expect(readingList.saveUrlsCalls).toEqual([
-			{ urls: ["https://example.com/a", "https://example.com/b"] },
+		expect(result).toEqual({ saved: 2, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] });
+		expect(readingList.savePagesCalls).toEqual([
+			{ pages: [{ url: "https://example.com/a" }, { url: "https://example.com/b" }] },
 		]);
 	});
 
-	it("folds an empty tab list to a zero summary without calling the reading list", async () => {
+	it("folds an empty page list to a zero summary without calling the reading list", async () => {
 		const auth = initInMemoryAuth();
 		await auth.login();
 		const readingList = createRecordingReadingList();
@@ -866,11 +868,11 @@ describe("BrowserExtensionCore saveAll", () => {
 
 		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
 			core.once("saved-all-tabs", { success: resolve, failure: reject });
-			core.saveAll("tabs", { urls: [] });
+			core.saveAll("tabs", { pages: [] });
 		});
 
-		expect(result).toEqual({ saved: 0, skipped: 0, failed: 0, skippedUrls: [] });
-		expect(readingList.saveUrlsCalls).toEqual([]);
+		expect(result).toEqual({ saved: 0, skipped: 0, failed: 0, tooBig: [], skippedUrls: [] });
+		expect(readingList.savePagesCalls).toEqual([]);
 	});
 
 	it("splits a window larger than the batch size into capped requests and aggregates the summary", async () => {
@@ -884,17 +886,17 @@ describe("BrowserExtensionCore saveAll", () => {
 			readingList,
 		});
 
-		const urls = Array.from(
+		const pages = Array.from(
 			{ length: BULK_SAVE_BATCH_SIZE * 2 + 1 },
-			(_v, i) => `https://example.com/${i}`,
+			(_v, i) => ({ url: `https://example.com/${i}` }),
 		);
 
 		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
 			core.once("saved-all-tabs", { success: resolve, failure: reject });
-			core.saveAll("tabs", { urls });
+			core.saveAll("tabs", { pages });
 		});
 
-		expect(readingList.saveUrlsCalls.map((c) => c.urls.length)).toEqual([
+		expect(readingList.savePagesCalls.map((c) => c.pages.length)).toEqual([
 			BULK_SAVE_BATCH_SIZE,
 			BULK_SAVE_BATCH_SIZE,
 			1,
@@ -904,11 +906,11 @@ describe("BrowserExtensionCore saveAll", () => {
 		expect(result.failed).toBe(0);
 	});
 
-	it("folds a failing chunk into the failed count and keeps saving the remaining chunks", async () => {
+	it("aggregates the tooBig pages the reading list reports across batches", async () => {
 		const auth = initInMemoryAuth();
 		await auth.login();
 		const readingList = createRecordingReadingList({
-			failSaveUrlsOnCall: { call: 2, error: new Error("network blip") },
+			savePagesResult: { saved: 1, skipped: 0, failed: 0, tooBig: [{ url: "https://big.example", mb: 25 }], skippedUrls: [] },
 		});
 		const { shell } = createFakeShell();
 		const core = BrowserExtensionCore(shell, {
@@ -917,22 +919,45 @@ describe("BrowserExtensionCore saveAll", () => {
 			readingList,
 		});
 
-		const urls = Array.from(
-			{ length: BULK_SAVE_BATCH_SIZE * 2 + 50 },
-			(_v, i) => `https://example.com/${i}`,
+		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
+			core.once("saved-all-tabs", { success: resolve, failure: reject });
+			core.saveAll("tabs", {
+				pages: [{ url: "https://big.example", content: { bytes: new ArrayBuffer(4), mediaType: "text/html" } }],
+			});
+		});
+
+		expect(result.tooBig).toEqual([{ url: "https://big.example", mb: 25 }]);
+	});
+
+	it("folds a failing chunk into the failed count and keeps saving the remaining chunks", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList({
+			failSavePagesOnCall: { call: 2, error: new Error("network blip") },
+		});
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const pages = Array.from(
+			{ length: BULK_SAVE_BATCH_SIZE * 2 + 5 },
+			(_v, i) => ({ url: `https://example.com/${i}` }),
 		);
 
 		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
 			core.once("saved-all-tabs", { success: resolve, failure: reject });
-			core.saveAll("tabs", { urls });
+			core.saveAll("tabs", { pages });
 		});
 
-		expect(readingList.saveUrlsCalls.map((c) => c.urls.length)).toEqual([
+		expect(readingList.savePagesCalls.map((c) => c.pages.length)).toEqual([
 			BULK_SAVE_BATCH_SIZE,
 			BULK_SAVE_BATCH_SIZE,
-			50,
+			5,
 		]);
-		expect(result.saved).toBe(BULK_SAVE_BATCH_SIZE + 50);
+		expect(result.saved).toBe(BULK_SAVE_BATCH_SIZE + 5);
 		expect(result.failed).toBe(BULK_SAVE_BATCH_SIZE);
 		expect(result.skipped).toBe(0);
 	});
@@ -941,7 +966,7 @@ describe("BrowserExtensionCore saveAll", () => {
 		const auth = initInMemoryAuth();
 		await auth.login();
 		const readingList = createRecordingReadingList({
-			failSaveUrlsOnCall: { call: 2, error: new UnauthorizedError() },
+			failSavePagesOnCall: { call: 2, error: new UnauthorizedError() },
 		});
 		const { shell } = createFakeShell();
 		const core = BrowserExtensionCore(shell, {
@@ -950,9 +975,9 @@ describe("BrowserExtensionCore saveAll", () => {
 			readingList,
 		});
 
-		const urls = Array.from(
-			{ length: BULK_SAVE_BATCH_SIZE + 50 },
-			(_v, i) => `https://example.com/${i}`,
+		const pages = Array.from(
+			{ length: BULK_SAVE_BATCH_SIZE + 5 },
+			(_v, i) => ({ url: `https://example.com/${i}` }),
 		);
 
 		const error = await new Promise<CoreError>((resolve) => {
@@ -961,7 +986,7 @@ describe("BrowserExtensionCore saveAll", () => {
 					resolve({ reason: "error", error: new Error("unexpected success") }),
 				failure: resolve,
 			});
-			core.saveAll("tabs", { urls });
+			core.saveAll("tabs", { pages });
 		});
 
 		expect(error).toEqual({ reason: "not-logged-in" });
@@ -982,7 +1007,7 @@ describe("BrowserExtensionCore saveAll", () => {
 		 * list with a duplicate exercises the skippedUrls folding. */
 		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
 			core.once("saved-all-tabs", { success: resolve, failure: reject });
-			core.saveAll("tabs", { urls: ["https://example.com/a", "https://example.com/a"] });
+			core.saveAll("tabs", { pages: [{ url: "https://example.com/a" }, { url: "https://example.com/a" }] });
 		});
 
 		expect(result.saved).toBe(1);
@@ -1007,11 +1032,11 @@ describe("BrowserExtensionCore saveAll", () => {
 				success: () => resolve({ reason: "error", error: new Error("unexpected success") }),
 				failure: resolve,
 			});
-			core.saveAll("tabs", { urls: ["https://example.com/a"] });
+			core.saveAll("tabs", { pages: [{ url: "https://example.com/a" }] });
 		});
 
 		expect(error).toEqual({ reason: "not-logged-in" });
-		expect(readingList.saveUrlsCalls).toEqual([]);
+		expect(readingList.savePagesCalls).toEqual([]);
 	});
 
 	it("opens the save-all-tabs popup from the context menu item", () => {

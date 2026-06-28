@@ -1,7 +1,6 @@
 import {
 	SaveArticleInputSchema,
-	SaveArticlesInputSchema,
-	MAX_URLS_PER_BULK_SAVE,
+	BulkSaveManifestSchema,
 	SaveHtmlInputSchema,
 	ArticleStatusSchema,
 	MinutesSchema,
@@ -27,28 +26,32 @@ describe("SaveArticleInputSchema", () => {
 	});
 });
 
-describe("SaveArticlesInputSchema", () => {
-	it("accepts an array of url strings", () => {
-		const result = SaveArticlesInputSchema.safeParse({
-			urls: ["https://example.com/a", "https://example.com/b"],
-		});
+describe("BulkSaveManifestSchema", () => {
+	it("accepts an array of url-only page entries", () => {
+		const result = BulkSaveManifestSchema.safeParse([
+			{ url: "https://example.com/a" },
+			{ url: "https://example.com/b" },
+		]);
+
+		expect(result.success).toBe(true);
+	});
+
+	it("accepts entries carrying an optional title and mediaType", () => {
+		const result = BulkSaveManifestSchema.safeParse([
+			{ url: "https://example.com/a", title: "A", mediaType: "text/html" },
+		]);
 
 		expect(result.success).toBe(true);
 	});
 
 	it("rejects an empty array", () => {
-		const result = SaveArticlesInputSchema.safeParse({ urls: [] });
+		const result = BulkSaveManifestSchema.safeParse([]);
 
 		expect(result.success).toBe(false);
 	});
 
-	it("rejects more urls than MAX_URLS_PER_BULK_SAVE", () => {
-		const urls = Array.from(
-			{ length: MAX_URLS_PER_BULK_SAVE + 1 },
-			(_v, i) => `https://example.com/${i}`,
-		);
-
-		const result = SaveArticlesInputSchema.safeParse({ urls });
+	it("rejects an entry without a url", () => {
+		const result = BulkSaveManifestSchema.safeParse([{ title: "no url" }]);
 
 		expect(result.success).toBe(false);
 	});

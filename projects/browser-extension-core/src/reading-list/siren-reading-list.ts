@@ -15,10 +15,10 @@ import type {
 	InvokeAction,
 	Message,
 	SaveUrl,
-	SaveUrls,
+	SavePages,
 	SaveWarning,
 } from "./reading-list.types";
-import { pdfContentBody, htmlContentBody, type ContentBodyBuilder } from "./content-body-parsers";
+import { pdfContentBody, htmlContentBody, base64ToBytes, type ContentBodyBuilder } from "./content-body-parsers";
 
 const SIREN_MEDIA_TYPE = "application/vnd.siren+json";
 
@@ -225,6 +225,7 @@ const SaveArticlesResultSchema = z.object({
 		saved: z.number(),
 		skipped: z.number(),
 		failed: z.number(),
+		tooBig: z.array(z.object({ url: z.string(), mb: z.number() })),
 		skippedUrls: z.array(z.object({ url: z.string(), code: z.string() })),
 	}),
 });
@@ -377,22 +378,42 @@ export function initSaveArticleUnderstanding(): Map<string, ActionHandler> {
 	return handlers;
 }
 
+const SaveArticlesManifestSchema = z.array(
+	z.object({
+		url: z.string(),
+		title: z.string().optional(),
+		mediaType: z.string().optional(),
+	}),
+);
+
 export function initSaveArticlesUnderstanding(): Map<string, ActionHandler> {
 	const handlers = new Map<string, ActionHandler>();
 	handlers.set("save-articles", (sirenAction, context) => {
 		return async (fields) => {
-			assert(fields?.urls, "save-articles requires a urls field");
-			/** Siren fields are strings, so the caller JSON-encodes the URL
-			 * array; decode it back into the request body the server expects. */
-			const urls = z.array(z.string()).parse(JSON.parse(fields.urls));
+			assert(fields?.manifest, "save-articles requires a manifest field");
+			/** Siren fields are strings, so the caller JSON-encodes the per-page
+			 * manifest and base64-encodes each captured page's bytes under a
+			 * `contentBase64-<index>` field. Rebuild the multipart body the server
+			 * expects: the manifest as a text part, each captured page as a binary
+			 * `content-<index>` file part. */
+			const manifest = SaveArticlesManifestSchema.parse(JSON.parse(fields.manifest));
+			const formData = new FormData();
+			formData.append("manifest", fields.manifest);
+			manifest.forEach((entry, index) => {
+				if (!entry.mediaType) return;
+				const base64 = fields[`contentBase64-${index}`];
+				assert(
+					base64 !== undefined,
+					`save-articles manifest entry ${index} declares a mediaType but carries no content`,
+				);
+				const bytes = base64ToBytes(base64);
+				formData.append(`content-${index}`, new Blob([bytes], { type: entry.mediaType }), `content-${index}`);
+			});
 			const response = await context.doFetch(
 				`${context.serverUrl}${sirenAction.href}`,
 				{
 					method: sirenAction.method,
-					headers: {
-						"Content-Type": sirenAction.type ?? "application/json",
-					},
-					body: JSON.stringify({ urls }),
+					body: formData,
 				},
 			);
 			assert(response.ok, `Bulk save failed: ${response.status}`);
@@ -874,7 +895,7 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 	invokeAction: InvokeAction;
 	findByUrl: FindByUrl;
 	getAllItems: GetAllItems;
-	saveUrls: SaveUrls;
+	savePages: SavePages;
 } {
 	const understandings = groupOf(
 		initSaveArticleUnderstanding(),
@@ -1014,17 +1035,34 @@ export function initSirenReadingList(deps: SirenReadingListDeps): {
 		return collection.items;
 	};
 
-	const saveUrls: SaveUrls = async ({ urls }) => {
+	const savePages: SavePages = async ({ pages }) => {
 		const collection = await start();
 		const action = collection.actions["save-articles"];
 		assert(
 			action,
 			'Expected Siren action "save-articles" not found in response',
 		);
-		const result = await action({ urls: JSON.stringify(urls) });
+		/** The bound action takes only string fields, so the manifest is JSON and
+		 * each captured page's bytes ride along base64-encoded under a
+		 * `contentBase64-<index>` field; the understanding rebuilds the multipart
+		 * body from them. */
+		const fields: Record<string, string> = {
+			manifest: JSON.stringify(
+				pages.map((page) => {
+					const entry: { url: string; title?: string; mediaType?: string } = { url: page.url };
+					if (page.title !== undefined) entry.title = page.title;
+					if (page.content) entry.mediaType = page.content.mediaType;
+					return entry;
+				}),
+			),
+		};
+		pages.forEach((page, index) => {
+			if (page.content) fields[`contentBase64-${index}`] = arrayBufferToBase64(page.content.bytes);
+		});
+		const result = await action(fields);
 		assert(result.bulk, "save-articles response missing bulk summary");
 		return result.bulk;
 	};
 
-	return { saveUrl, invokeAction, findByUrl, getAllItems, saveUrls };
+	return { saveUrl, invokeAction, findByUrl, getAllItems, savePages };
 }

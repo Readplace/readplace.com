@@ -86,10 +86,16 @@ export function toArticleCollectionEntity(
 				name: "save-articles",
 				href: "/queue/save-articles",
 				method: "POST",
-				type: "application/json",
-				/** Siren has no array field type; `urls` carries a JSON-encoded
-				 * array of URL strings, so `text` is the closest hint. */
-				fields: [{ name: "urls", type: "text" }],
+				type: "multipart/form-data",
+				/** Bulk "Save All Tabs": one captured page per open tab. Siren has
+				 * no array field type, so `manifest` carries a JSON-encoded array
+				 * of `{ url, title?, mediaType? }` (one per page), and each page
+				 * whose entry declares a `mediaType` has its captured bytes in a
+				 * sibling `content-<index>` file part. */
+				fields: [
+					{ name: "manifest", type: "text" },
+					{ name: "content", type: "file" },
+				],
 			},
 			{
 				name: "save-html",

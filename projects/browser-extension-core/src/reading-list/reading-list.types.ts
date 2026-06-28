@@ -76,7 +76,19 @@ export type BulkSaveResult = {
 	saved: number;
 	skipped: number;
 	failed: number;
+	/** Pages whose captured content was over the per-page cap: saved URL-only and
+	 * reported here with their size (MB) so the popup can tell the user. */
+	tooBig: { url: string; mb: number }[];
 	skippedUrls: { url: string; code: string }[];
 };
 
-export type SaveUrls = (params: { urls: string[] }) => Promise<BulkSaveResult>;
+/** One page in a bulk "Save All Tabs" request. `content` carries the captured
+ * bytes when the tab was scriptable; its absence means a URL-only save (an
+ * unscriptable or discarded tab the background could not capture). */
+export type BulkSavePage = {
+	url: string;
+	title?: string;
+	content?: TabContent;
+};
+
+export type SavePages = (params: { pages: BulkSavePage[] }) => Promise<BulkSaveResult>;

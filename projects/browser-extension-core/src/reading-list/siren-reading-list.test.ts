@@ -2038,8 +2038,11 @@ describe("save-articles action", () => {
 			name: "save-articles",
 			href: "/queue/save-articles",
 			method: "POST",
-			type: "application/json",
-			fields: [{ name: "urls", type: "text" }],
+			type: "multipart/form-data",
+			fields: [
+				{ name: "manifest", type: "text" },
+				{ name: "content", type: "file" },
+			],
 		},
 		COLLECTION_ACTIONS[1],
 	];
@@ -2057,9 +2060,16 @@ describe("save-articles action", () => {
 		saved: number;
 		skipped: number;
 		failed: number;
+		tooBig: { url: string; mb: number }[];
 		skippedUrls: { url: string; code: string }[];
 	}) {
 		return JSON.stringify({ class: ["save-articles-result"], properties });
+	}
+
+	function bytesToBase64(bytes: Uint8Array): string {
+		let binary = "";
+		for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i] as number);
+		return btoa(binary);
 	}
 
 	function createUnderstandingsWithSaveArticles() {
@@ -2071,8 +2081,8 @@ describe("save-articles action", () => {
 		);
 	}
 
-	it("POSTs the urls array as JSON and returns the parsed bulk summary", async () => {
-		let capturedBody: string | undefined;
+	it("builds a multipart body — manifest part plus one content part per captured page — and returns the parsed bulk summary", async () => {
+		let capturedBody: FormData | undefined;
 		const { fetchFn, calls } = createRoutingFetch(
 			withEntryPoint({
 				"GET http://localhost:3000/queue": {
@@ -2080,13 +2090,14 @@ describe("save-articles action", () => {
 					body: collectionWithSaveArticlesResponse(),
 				},
 				"POST http://localhost:3000/queue/save-articles": (init) => {
-					capturedBody = typeof init?.body === "string" ? init.body : undefined;
+					capturedBody = init?.body instanceof FormData ? init.body : undefined;
 					return {
 						status: 200,
 						body: bulkResultResponse({
 							saved: 2,
 							skipped: 1,
 							failed: 0,
+							tooBig: [{ url: "https://example.com/big", mb: 25 }],
 							skippedUrls: [{ url: "chrome://x", code: "unsupported_scheme" }],
 						}),
 					};
@@ -2095,29 +2106,35 @@ describe("save-articles action", () => {
 		);
 		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
 		const collection = await start();
+		const htmlBytes = new TextEncoder().encode("<html>captured</html>");
+		const manifest = JSON.stringify([
+			{ url: "https://example.com/a", title: "A", mediaType: "text/html" },
+			{ url: "https://example.com/b" },
+		]);
 		const result = await collection.actions["save-articles"]({
-			urls: JSON.stringify([
-				"https://example.com/a",
-				"https://example.com/b",
-				"chrome://x",
-			]),
+			manifest,
+			"contentBase64-0": bytesToBase64(htmlBytes),
 		});
 		expect(result.items).toEqual([]);
 		expect(result.bulk).toEqual({
 			saved: 2,
 			skipped: 1,
 			failed: 0,
+			tooBig: [{ url: "https://example.com/big", mb: 25 }],
 			skippedUrls: [{ url: "chrome://x", code: "unsupported_scheme" }],
 		});
 		expect(calls).toContain("POST http://localhost:3000/queue/save-articles");
-		expect(capturedBody).toBe(
-			JSON.stringify({
-				urls: ["https://example.com/a", "https://example.com/b", "chrome://x"],
-			}),
-		);
+		assert(capturedBody, "bulk save must carry a FormData body");
+		expect(capturedBody.get("manifest")).toBe(manifest);
+		const contentPart = capturedBody.get("content-0");
+		assert(contentPart instanceof Blob, "captured page must ride as a content-0 Blob");
+		expect(contentPart.type).toBe("text/html");
+		expect(await contentPart.text()).toBe("<html>captured</html>");
+		// The url-only entry (index 1) carries no content part.
+		expect(capturedBody.get("content-1")).toBeNull();
 	});
 
-	it("asserts when the urls field is missing", async () => {
+	it("asserts when the manifest field is missing", async () => {
 		const { fetchFn } = createRoutingFetch(
 			withEntryPoint({
 				"GET http://localhost:3000/queue": {
@@ -2130,45 +2147,25 @@ describe("save-articles action", () => {
 		const collection = await start();
 		await expect(
 			collection.actions["save-articles"](),
-		).rejects.toThrow("save-articles requires a urls field");
+		).rejects.toThrow("save-articles requires a manifest field");
 	});
 
-	it("falls back to application/json when the action has no type", async () => {
-		const actionsWithoutType = [
-			COLLECTION_ACTIONS[0],
-			{
-				name: "save-articles",
-				href: "/queue/save-articles",
-				method: "POST",
-				fields: [{ name: "urls", type: "text" }],
-			},
-			COLLECTION_ACTIONS[1],
-		];
-		const headers: Record<string, string>[] = [];
+	it("asserts when a manifest entry declares a mediaType but carries no content", async () => {
 		const { fetchFn } = createRoutingFetch(
 			withEntryPoint({
 				"GET http://localhost:3000/queue": {
 					status: 200,
-					body: JSON.stringify({
-						actions: actionsWithoutType,
-						links: [{ rel: ["self"], href: "/queue" }],
-					}),
-				},
-				"POST http://localhost:3000/queue/save-articles": (init) => {
-					headers.push((init?.headers ?? {}) as Record<string, string>);
-					return {
-						status: 200,
-						body: bulkResultResponse({ saved: 1, skipped: 0, failed: 0, skippedUrls: [] }),
-					};
+					body: collectionWithSaveArticlesResponse(),
 				},
 			}),
 		);
 		const start = initExtension(createUnderstandingsWithSaveArticles(), createDeps(fetchFn));
 		const collection = await start();
-		await collection.actions["save-articles"]({
-			urls: JSON.stringify(["https://example.com/a"]),
-		});
-		expect(headers[0]["Content-Type"]).toBe("application/json");
+		await expect(
+			collection.actions["save-articles"]({
+				manifest: JSON.stringify([{ url: "https://example.com/a", mediaType: "text/html" }]),
+			}),
+		).rejects.toThrow("declares a mediaType but carries no content");
 	});
 
 	it("throws when the bulk save POST fails", async () => {
@@ -2185,7 +2182,7 @@ describe("save-articles action", () => {
 		const collection = await start();
 		await expect(
 			collection.actions["save-articles"]({
-				urls: JSON.stringify(["https://example.com/a"]),
+				manifest: JSON.stringify([{ url: "https://example.com/a" }]),
 			}),
 		).rejects.toThrow("Bulk save failed: 500");
 	});
@@ -2210,7 +2207,7 @@ describe("save-articles action", () => {
 		const collection = await start();
 		await expect(
 			collection.actions["save-articles"]({
-				urls: JSON.stringify(["https://example.com/a"]),
+				manifest: JSON.stringify([{ url: "https://example.com/a" }]),
 			}),
 		).rejects.toBeInstanceOf(UnauthorizedError);
 		expect(onUnauthorizedCallCount).toBe(1);
@@ -3553,15 +3550,18 @@ describe("initSirenReadingList", () => {
 		});
 	});
 
-	describe("saveUrls", () => {
+	describe("savePages", () => {
 		const COLLECTION_ACTIONS_WITH_SAVE_ARTICLES = [
 			COLLECTION_ACTIONS[0],
 			{
 				name: "save-articles",
 				href: "/queue/save-articles",
 				method: "POST",
-				type: "application/json",
-				fields: [{ name: "urls", type: "text" }],
+				type: "multipart/form-data",
+				fields: [
+					{ name: "manifest", type: "text" },
+					{ name: "content", type: "file" },
+				],
 			},
 			COLLECTION_ACTIONS[1],
 		];
@@ -3575,8 +3575,8 @@ describe("initSirenReadingList", () => {
 			});
 		}
 
-		it("discovers the collection, POSTs the urls, and returns the bulk summary", async () => {
-			let capturedBody: string | undefined;
+		it("discovers the collection, encodes the pages into a multipart body, and returns the bulk summary", async () => {
+			let capturedBody: FormData | undefined;
 			const { fetchFn } = createRoutingFetch(
 				withEntryPoint({
 					"GET http://localhost:3000/queue": {
@@ -3584,7 +3584,7 @@ describe("initSirenReadingList", () => {
 						body: collectionWithSaveArticles(),
 					},
 					"POST http://localhost:3000/queue/save-articles": (init) => {
-						capturedBody = typeof init?.body === "string" ? init.body : undefined;
+						capturedBody = init?.body instanceof FormData ? init.body : undefined;
 						return {
 							status: 200,
 							body: JSON.stringify({
@@ -3593,6 +3593,7 @@ describe("initSirenReadingList", () => {
 									saved: 1,
 									skipped: 1,
 									failed: 0,
+									tooBig: [],
 									skippedUrls: [{ url: "chrome://x", code: "unsupported_scheme" }],
 								},
 							}),
@@ -3601,18 +3602,30 @@ describe("initSirenReadingList", () => {
 				}),
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
-			const result = await list.saveUrls({
-				urls: ["https://example.com/a", "chrome://x"],
+			const result = await list.savePages({
+				pages: [
+					{ url: "https://example.com/a", title: "A", content: { bytes: new TextEncoder().encode("<html>a</html>").buffer, mediaType: "text/html" } },
+					{ url: "chrome://x" },
+				],
 			});
 			expect(result).toEqual({
 				saved: 1,
 				skipped: 1,
 				failed: 0,
+				tooBig: [],
 				skippedUrls: [{ url: "chrome://x", code: "unsupported_scheme" }],
 			});
-			expect(capturedBody).toBe(
-				JSON.stringify({ urls: ["https://example.com/a", "chrome://x"] }),
+			assert(capturedBody, "savePages must POST a FormData body");
+			expect(capturedBody.get("manifest")).toBe(
+				JSON.stringify([
+					{ url: "https://example.com/a", title: "A", mediaType: "text/html" },
+					{ url: "chrome://x" },
+				]),
 			);
+			const contentPart = capturedBody.get("content-0");
+			assert(contentPart instanceof Blob, "the captured page rides as a content-0 Blob");
+			expect(await contentPart.text()).toBe("<html>a</html>");
+			expect(capturedBody.get("content-1")).toBeNull();
 		});
 
 		it("asserts when the collection has no save-articles action", async () => {
@@ -3626,7 +3639,7 @@ describe("initSirenReadingList", () => {
 			);
 			const list = initSirenReadingList(createAdapterDeps(fetchFn));
 			await expect(
-				list.saveUrls({ urls: ["https://example.com/a"] }),
+				list.savePages({ pages: [{ url: "https://example.com/a" }] }),
 			).rejects.toThrow('Expected Siren action "save-articles" not found in response');
 		});
 	});

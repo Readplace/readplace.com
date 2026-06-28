@@ -4,7 +4,7 @@ function assert(value: unknown, message: string): asserts value {
 	if (!value) throw new Error(message);
 }
 
-function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
+export function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
 	const binaryString = atob(base64);
 	const bytes = new Uint8Array(binaryString.length);
 	for (let i = 0; i < binaryString.length; i += 1) {

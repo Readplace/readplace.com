@@ -4,23 +4,40 @@ export const SaveArticleInputSchema = z.object({
 	url: z.url({ message: "Please enter a valid URL" }),
 });
 
-export const MAX_URLS_PER_BULK_SAVE = 500;
+/** Bulk "Save All Tabs" sends one captured page per open tab. The window is
+ * chunked into requests of at most this many pages so a window with more tabs
+ * saves across several requests instead of one the server rejects, and so the
+ * worst-case request body stays bounded (see MAX_BULK_CONTENT_REQUEST_BYTES). */
+export const MAX_PAGES_PER_BULK_SAVE = 20;
 
-export const BULK_SAVE_CONCURRENCY = 25;
+/** Per-page captured-content ceiling. A page whose uploaded content exceeds this
+ * is reported in the result's `tooBig` list and falls back to a URL-only save —
+ * the same degrade-to-URL-only path save-content takes for an oversize upload —
+ * so the link is never lost, only its inline capture. */
+export const MAX_PAGE_CONTENT_BYTES = 20 * 1024 * 1024;
 
-/** `urls` are plain strings, not `z.url()`: each URL is classified per-entry by
- * `validateSaveableUrl` in the route so an unsupported scheme (chrome://, file:)
- * is reported as skipped rather than failing the whole batch with a 422. */
-export const SaveArticlesInputSchema = z.object({
-	urls: z.array(z.string()).min(1).max(MAX_URLS_PER_BULK_SAVE),
+/** Body-parser limit for the multipart POST /queue/save-articles. Sized to a
+ * full MAX_PAGES_PER_BULK_SAVE batch of MAX_PAGE_CONTENT_BYTES pages, plus
+ * headroom for the JSON manifest part and multipart boundaries, so a legitimate
+ * cap-sized batch is never rejected by the parser before the route runs. The
+ * per-page check still flags individual oversize pages; only a whole batch above
+ * this ceiling trips saveArticlesLimitHandler. */
+export const MAX_BULK_CONTENT_REQUEST_BYTES =
+	MAX_PAGES_PER_BULK_SAVE * MAX_PAGE_CONTENT_BYTES + 5 * 1024 * 1024;
+
+/** One entry in the bulk-save `manifest` multipart part. `url` is a plain string
+ * (not `z.url()`) so an unsaveable scheme is classified per-entry in the route
+ * and reported as skipped rather than failing the whole batch. `mediaType`
+ * present means a sibling `content-<index>` file part carries that page's
+ * captured bytes; absent means a URL-only save (an unscriptable or discarded
+ * tab the client could not capture). */
+export const BulkSavePageSchema = z.object({
+	url: z.string(),
+	title: z.string().optional(),
+	mediaType: z.string().optional(),
 });
 
-/** Body-parser limit for POST /queue/save-articles. express.json()'s 100 KB
- * default would reject a full MAX_URLS_PER_BULK_SAVE batch of long
- * (tracking-param-laden) URLs with a 413 before the route's schema runs, so the
- * parser limit is sized to the cap: up to 2 KiB per URL covers long tracking
- * URLs with JSON punctuation headroom. */
-export const MAX_BULK_SAVE_REQUEST_BYTES = MAX_URLS_PER_BULK_SAVE * 2048;
+export const BulkSaveManifestSchema = z.array(BulkSavePageSchema).min(1);
 
 export const MAX_RAW_HTML_BYTES = 10 * 1024 * 1024;
 

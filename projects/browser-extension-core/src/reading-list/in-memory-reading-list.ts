@@ -7,7 +7,7 @@ import type {
 	GetAllItems,
 	InvokeAction,
 	SaveUrl,
-	SaveUrls,
+	SavePages,
 } from "./reading-list.types";
 
 export function initInMemoryReadingList(): {
@@ -15,7 +15,7 @@ export function initInMemoryReadingList(): {
 	invokeAction: InvokeAction;
 	findByUrl: FindByUrl;
 	getAllItems: GetAllItems;
-	saveUrls: SaveUrls;
+	savePages: SavePages;
 } {
 	const items = new Map<ReadingListItemId, ReadingListItem>();
 
@@ -73,18 +73,18 @@ export function initInMemoryReadingList(): {
 		return Array.from(items.values());
 	};
 
-	const saveUrls: SaveUrls = async ({ urls }) => {
+	const savePages: SavePages = async ({ pages }) => {
 		let saved = 0;
 		const skippedUrls: { url: string; code: string }[] = [];
-		for (const url of urls) {
-			const result = await saveUrl({ url, title: url });
+		for (const page of pages) {
+			const result = await saveUrl({ url: page.url, title: page.title ?? page.url });
 			if (result.ok) {
 				saved += 1;
 			} else {
-				skippedUrls.push({ url, code: "already-saved" });
+				skippedUrls.push({ url: page.url, code: "already-saved" });
 			}
 		}
-		return { saved, skipped: skippedUrls.length, failed: 0, skippedUrls };
+		return { saved, skipped: skippedUrls.length, failed: 0, tooBig: [], skippedUrls };
 	};
 
 	return {
@@ -92,6 +92,6 @@ export function initInMemoryReadingList(): {
 		invokeAction,
 		findByUrl,
 		getAllItems,
-		saveUrls,
+		savePages,
 	};
 }
