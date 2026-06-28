@@ -15,7 +15,6 @@ function makeViewModel(
 		siteName: "example.com",
 		excerpt: "An excerpt.",
 		url: "https://example.com/article",
-		readTimeLabel: "3 min read",
 		status: "unread",
 		isUnread: true,
 		savedAgo: "10m ago",

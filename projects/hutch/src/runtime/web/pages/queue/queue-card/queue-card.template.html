@@ -6,9 +6,8 @@
 			<a class="queue-article__title" href="{{linkUrl}}" data-test-article-title>{{title}}</a>
 		</div>
 		<div class="queue-article__meta">
-			{{#if isUnread}}<span class="queue-article__status queue-article__status--unread" data-test-read-status="unread">Unread</span>{{else}}<span class="queue-article__status queue-article__status--read" data-test-read-status="read">Read</span>{{/if}}
+			{{#if isUnread}}<span class="queue-article__status queue-article__status--unread" data-test-read-status="unread"><span class="sr-only">Unread</span></span>{{else}}<span class="queue-article__status queue-article__status--read" data-test-read-status="read"><span class="sr-only">Read</span></span>{{/if}}
 			<a class="queue-article__url{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" data-test-article-url>{{siteName}}</a>
-			<span>{{readTimeLabel}}</span>
 			<span>{{savedAgo}}</span>
 		</div>
 		<p class="queue-article__excerpt">{{excerpt}}</p>

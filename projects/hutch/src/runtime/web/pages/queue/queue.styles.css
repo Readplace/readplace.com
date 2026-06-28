@@ -317,6 +317,10 @@
   color: var(--foreground);
   display: block;
   text-decoration: none;
+  min-width: 0; /* flex items default to min-width:auto, which blocks text-overflow */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .queue-article__title:hover {

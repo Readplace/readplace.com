@@ -1,4 +1,5 @@
 import { noopLogger } from "@packages/hutch-logger";
+import { MAX_EXCERPT_LENGTH } from "@packages/provider-contracts/article-summary";
 import { initLinkSummariser } from "./link-summariser";
 import type { CreateAiMessage } from "./create-ai-message.types";
 import type { MarkSummaryStage } from "../../providers/article-crawl/mark-summary-stage";
@@ -192,7 +193,7 @@ describe("initLinkSummariser", () => {
 
 		expect(result.kind).toBe("ready");
 		if (result.kind !== "ready") throw new Error("unreachable");
-		expect(result.excerpt.length).toBeLessThanOrEqual(160);
+		expect(result.excerpt.length).toBeLessThanOrEqual(MAX_EXCERPT_LENGTH);
 		expect(result.excerpt.endsWith("…")).toBe(true);
 	});
 
@@ -218,7 +219,7 @@ describe("initLinkSummariser", () => {
 
 		expect(result.kind).toBe("ready");
 		if (result.kind !== "ready") throw new Error("unreachable");
-		expect(result.excerpt).toBe(`${"x".repeat(159)}…`);
+		expect(result.excerpt).toBe(`${"x".repeat(MAX_EXCERPT_LENGTH - 1)}…`);
 	});
 
 	it("passes article content as a document block to createMessage", async () => {

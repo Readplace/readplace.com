@@ -38,7 +38,6 @@ export interface QueueArticleViewModel {
 	siteName: string;
 	excerpt: string;
 	url: string;
-	readTimeLabel: string;
 	status: string;
 	isUnread: boolean;
 	savedAgo: string;
@@ -186,7 +185,6 @@ export function toQueueArticleViewModel(params: {
 }): QueueArticleViewModel {
 	const { article, now, returnQuery, summary, crawl, filters, maxPolls } = params;
 	const pollCount = params.pollCount ?? 1;
-	const readTime = article.estimatedReadTime;
 	const id = article.id.value;
 	const reachedTerminal = isCardTerminal(crawl, summary);
 	const cardPollUrl =
@@ -200,7 +198,6 @@ export function toQueueArticleViewModel(params: {
 		siteName: article.metadata.siteName,
 		excerpt: pickExcerpt(summary, article.metadata.excerpt),
 		url: article.url,
-		readTimeLabel: `${readTime} min read`,
 		status: article.status,
 		isUnread: article.status === "unread",
 		savedAgo: formatRelativeDate(article.savedAt, now),

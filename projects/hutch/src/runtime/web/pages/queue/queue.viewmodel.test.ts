@@ -55,16 +55,6 @@ describe("toQueueViewModel", () => {
 		expect(vm.articles[0].url).toBe("https://example.com/post");
 	});
 
-	it("should format read time label", () => {
-		const vm = toQueueViewModel(
-			makeResult([makeArticle({ estimatedReadTime: 5 as Minutes })]),
-			DEFAULT_FILTERS,
-			{ now: NOW },
-		);
-
-		expect(vm.articles[0].readTimeLabel).toBe("5 min read");
-	});
-
 	it("should format relative date as hours ago", () => {
 		const vm = toQueueViewModel(makeResult([makeArticle()]), DEFAULT_FILTERS, {
 			now: NOW,

@@ -1,3 +1,4 @@
+import { MAX_EXCERPT_LENGTH } from "@packages/provider-contracts/article-summary";
 import { devSummariseInline } from "./dev-summarise-inline";
 
 describe("devSummariseInline", () => {
@@ -16,7 +17,7 @@ describe("devSummariseInline", () => {
 		if (result.kind !== "ready") return;
 		expect(result.summary.startsWith("[dev summary] ")).toBe(true);
 		expect(result.summary.endsWith("…")).toBe(true);
-		expect(result.excerpt.length).toBe(160);
+		expect(result.excerpt.length).toBe(MAX_EXCERPT_LENGTH);
 	});
 
 	it("strips HTML tags so the summary is plain text, not markup", () => {
