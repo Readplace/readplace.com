@@ -15,11 +15,11 @@
 PR #829's review ran successfully but auto-apply never fired. Verified against the GitHub API, there were **two distinct breaks on two attempts**:
 
 1. **06-26 — listener crashed (infra).** The code-reviewer posted the proper review request (marker present), but the listener run hit the agent-SDK `#852` startup crash. The artifact step is gated on `steps.claude.outcome == 'success'`, so it was skipped. This is `claude-PR-crash-retry.yml`'s job; that it was not recovered (crash exceeded the ≤240 s window or exhausted its 4 attempts) is a **crash-retry gap, not a contract failure** — out of scope for this ADR.
-2. **06-28 — human bare re-trigger (routing).** A human typed a bare `@claude Review this PR…` that contained **neither** the `<!-- CLAUDE_REVIEW_REQUEST -->` marker **nor** a pointer to `claude-PR-code-reviewer.md`. The run succeeded (2 medium issues) but, lacking the marker, the artifact step was skipped again → no artifact → `post-review-comment` logged `nothing to do`.
+2. **06-28 — human manual re-trigger (routing).** A human re-typed the review request. It **referenced** `claude-PR-code-reviewer.md` (verified — so the agent loaded the reviewer prompt and the review ran fine, 2 medium findings) but **omitted** the `<!-- CLAUDE_REVIEW_REQUEST -->` HTML marker. The artifact step is gated on that marker, so it was skipped again → no artifact → `post-review-comment` logged `nothing to do`. (An earlier note here called this comment "bare"; that was wrong — it pointed at the reviewer prompt, which is why the stop-gap in §6 covers it.)
 
 Two things are worth separating cleanly, because v0.1 conflated them:
 
-- **The marker is workflow-authored and is doing its job.** On the automated path, `claude-PR-code-reviewer.yml` always emits it. It is both the review-run discriminator *and* an authenticity binding (only a workflow-initiated review carries it).
+- **The marker is workflow-authored and is doing its job.** On the automated path, `claude-PR-code-reviewer.yml` always emits it. It is the review-run discriminator — the only signal that tells the generic listener a given run is a review.
 - **The model-authored prose count contract is the fragile part.** The routing decision "does this review warrant an auto-fix?" is read from `<!-- HIGH/MEDIUM_PRIORITY_COUNT: N -->` markers the *model hand-types* into prose (`claude-PR-code-reviewer.md:96-107` ships a "CRITICAL" checklist begging it to). That is the model-format dependency to delete.
 
 ### 1.2 The contract surface (why the fix is narrow)
@@ -45,7 +45,7 @@ The review → auto-fix routing decision is read from **prose the model formats*
 - **Unverifiable:** `COUNT: 2` is trusted even if the list has 3 items.
 - **Untested:** the parse/route logic lives in inline `github-script` inside YAML — the one place the repo's zod-at-boundaries / 100%-coverage / no-`as` standards do not reach.
 
-Out of scope (handled elsewhere, named here to avoid re-conflation): the crash/success-gate path (`crash-retry`) and the bare manual re-trigger that never loads the reviewer prompt (§6).
+Out of scope (handled elsewhere, named here to avoid re-conflation): the crash/success-gate path (`crash-retry`) and a *truly* bare manual `@claude` comment that references no reviewer prompt at all (§6).
 
 ---
 
@@ -53,7 +53,7 @@ Out of scope (handled elsewhere, named here to avoid re-conflation): the crash/s
 
 **Keep the workflow-authored marker; replace only the model-authored prose-count contract with a schema-validated findings object; render the routing-critical comment deterministically.**
 
-1. **Keep `<!-- CLAUDE_REVIEW_REQUEST -->` as the workflow-authored review-run + authenticity gate.** It is emitted by `claude-PR-code-reviewer.yml`, not the model. The upload/render step stays gated on it. *(Reverses v0.1.)*
+1. **Keep `<!-- CLAUDE_REVIEW_REQUEST -->` as the workflow-authored review-run discriminator.** It is emitted by `claude-PR-code-reviewer.yml`, not the model, and is the only thing that tells the generic listener a given run is a review. The upload/render step stays gated on it. *(Reverses v0.1.)*
 2. **Model emits findings as JSON in its final message; counts are derived.** The review's deliverable becomes a single fenced ` ```json ` block carrying `high/medium/low/summary` only — captured by the already-uploaded `execution_file` transcript (the proven channel). `highCount = high.length`; the model never types a count.
 3. **The workflow injects identity; the model never authors it.** `prNumber`, `headSha`, `runId` come from GH context (event payload / artifact name / run id), validated and **branded** per repo standard. The model-authored payload carries no identifiers.
 4. **A tested module renders the comment, run inside the listener.** The listener already checks out the **PR head** and has the Node/pnpm toolchain, so the render module runs at the *same ref as the prompt that produced the JSON* — eliminating producer/consumer schema skew. It parses+validates the transcript JSON (zod `.safeParse`), renders the deterministic review comment (including the derived `HIGH/MEDIUM_PRIORITY_COUNT` markers), and uploads the **rendered comment** as the artifact. `post-review-comment` posts it verbatim.
@@ -131,7 +131,7 @@ The model emits the ` ```json ` findings block as its **final message**. The lis
 
 | Alternative | Why rejected |
 |---|---|
-| **Remove the `CLAUDE_REVIEW_REQUEST` trigger marker** (v0.1) | It is workflow-authored, not model prose; it is also the authenticity binding. Removing it makes review-run detection depend on the model writing a file — strictly *more* model-fragile, and it lets any privileged `@claude` run masquerade as a review. |
+| **Remove the `CLAUDE_REVIEW_REQUEST` trigger marker** (v0.1) | It is workflow-authored, not model prose. Removing it makes review-run detection depend on the model writing a file — strictly *more* model-fragile — and it is the only thing that tells the generic listener a run is a review at all. |
 | **Rewire `request-fix` onto the `workflow_run` path** (v0.1) | Breaks the documented per-PR concurrency-group serialization, relocates the 5× cap, and the comment-triggered job has no artifact in scope. Once the comment is workflow-rendered, the existing trigger is already deterministic — zero rewire needed. |
 | **Model writes `prNumber`/`headSha` into the JSON** (v0.1) | Re-introduces the hand-typed-value bug the ADR deletes; the workflow already holds these authoritatively. Inject + brand them instead. |
 | **Ask the model to "correct" a malformed comment** | Re-introduces the dependency being deleted; loops. Deterministic render makes a malformed routing comment unrepresentable. |
@@ -143,9 +143,10 @@ The model emits the ` ```json ` findings block as its **final message**. The lis
 ## 6. What this fixes, honestly
 
 - **Fixes (the count-trust class):** a new model, reworded prompt, or sticky-comment channel can no longer drop or mis-state the routing-critical counts — they are derived from validated findings and the comment is workflow-rendered. This is the durable, model-agnostic win.
+- **Fixes the #829 incident specifically:** case 2 (the manual re-trigger that referenced the reviewer prompt but dropped the HTML marker) is covered by the **stop-gap** below — broadening the upload gate to also accept a comment that references `claude-PR-code-reviewer.md` matches exactly that comment.
 - **Does NOT fix, by itself:**
   - #829 **case 1** (listener crash) — orthogonal; owned by `claude-PR-crash-retry`. Residual dependency on its ≤240 s / 4-attempt bounds remains.
-  - #829 **case 2** (bare manual re-trigger that never loads the reviewer prompt) — the agent writes no findings, so nothing routes. The honest fixes are (a) the **stop-gap** below, and (b) documenting the canonical re-trigger (re-run the failed listener run, or comment via the code-reviewer's exact marker-bearing format). This ADR does not claim to make an arbitrary free-form comment route.
+  - A *truly* bare `@claude` comment that carries neither the marker nor a reference to any reviewer prompt — the agent never produces findings, so nothing routes. That is a documentation concern (use the canonical re-trigger: re-run the failed listener run, or comment via the code-reviewer's exact marker-bearing format), not a contract bug.
 
 **Independent stop-gap (ship anytime, no dependency on this ADR):** broaden the artifact gate to also accept a manual re-trigger that references the reviewer prompt — `contains(body,'CLAUDE_REVIEW_REQUEST') || contains(body,'claude-PR-code-reviewer.md')` — and re-post the proper marker request to un-stick #829.
 
@@ -163,15 +164,16 @@ The model emits the ` ```json ` findings block as its **final message**. The lis
 
 ---
 
-## 8. Security, risks, open questions, consequences
+## 8. Risks, open questions, consequences
 
-**Security / permissions** (was absent in v0.1): the workflow-authored marker is retained partly as an **authenticity** gate — only a workflow-initiated review carries it, and the render step stays gated on it, so a privileged-but-careless `@claude` comment cannot fabricate a review that drives an auto-fix. The `@claude` fix re-trigger must keep posting via `PAT_TOKEN` (a `GITHUB_TOKEN`-authored comment does not re-trigger the listener). Trigger eligibility stays bound to the `OWNER/MEMBER/COLLABORATOR` `author_association` gate in `claude-listener.yml`.
+> **Trust model.** GitHub PR access is restricted to contributors and contributors are trusted fully, so this design carries **no authenticity or permission controls**. The workflow-authored marker is kept purely as the review-run *discriminator*, not as a security boundary.
 
 **Risks & mitigations**
 - *Model emits invalid JSON* → `.safeParse` + salvage (dual-emit) / bounded re-trigger (steady state); telemetry surfaces frequency.
 - *Schema skew* → render runs in the listener at the **PR-head ref**, same as the prompt; consumer uses `schemaVersion <= N`, never `z.literal`, so a bump never bricks in-flight PRs.
 - *Stale-commit race* → `headSha` staleness guard in `decideNext` (§4.4).
 - *Build/install failure in the render step* → fail **loud** (the run fails), never silently skip routing.
+- *Re-trigger plumbing* (mechanism, not a security control) → the `@claude` fix comment must keep being posted via `PAT_TOKEN`; a `GITHUB_TOKEN`-authored comment does not re-trigger the listener. Unchanged from today.
 
 **Open questions for the reviewer**
 1. **Telemetry sink shape:** a single long-lived tracking issue with appended rows (proposed) vs. a committed metrics file. Which, and what exact deviation-rate threshold + window gates §7.4?
@@ -179,7 +181,7 @@ The model emits the ` ```json ` findings block as its **final message**. The lis
 3. **Package boundary:** confirm `@packages/review-result` as a standalone nx project kept **out of** the hutch app's build/coverage graph (it is CI tooling — neither product `runtime` nor Pulumi `infra`; v0.1's "runtime, not infra" framing was a false dichotomy).
 
 **Consequences**
-- (+) Routing-critical counts are derived and the comment is workflow-rendered → model-agnostic; the decision/rendering is unit-tested; the per-PR serialization, 5× cap, and authenticity gate are preserved.
+- (+) Routing-critical counts are derived and the comment is workflow-rendered → model-agnostic; the decision/rendering is unit-tested; the per-PR serialization and 5× cap are preserved.
 - (−) One render step + built artifact in the listener; a dual-emit migration window; the reviewer prompt's deliverable changes from a marker block to a JSON block; the IO glue in `auto-apply` stays untested YAML.
 
 ---
@@ -190,7 +192,7 @@ A five-lens review of v0.1 produced 40+ grounded findings. The load-bearing corr
 
 | v0.1 claim | Finding | v0.2 |
 |---|---|---|
-| Remove the trigger marker; "gate on the review task" | The listener is one generic `@claude` job; the marker is its *only*, and *workflow-authored*, review-run signal. Removing it is more model-fragile and breaks authenticity. | Marker kept (§3.1, §5, §8). |
+| Remove the trigger marker; "gate on the review task" | The listener is one generic `@claude` job; the marker is its *only*, and *workflow-authored*, review-run signal. Removing it is more model-fragile. | Marker kept (§3.1, §5). |
 | Manual re-trigger "still routes" | #829 case 2 was a *bare* comment that never loaded the reviewer prompt → no findings → no route. | Scoped honestly (§6) + stop-gap. |
 | Model writes `prNumber`/`headSha` | Re-introduces hand-typed-value bug; un-branded; `length(40)` hardcodes SHA-1. | Workflow-injected, branded, SHA-1/256 regex (§3.3, §4.1). |
 | Workspace file as the data channel | Contradicts OQ2; transcript is the proven channel. | Transcript-only (§4.2). |
