@@ -275,7 +275,7 @@ export type NavigationResult = {
 	items: ArticleItem[];
 	actions: Record<string, BoundAction>;
 	/** Set only by the save-articles understanding; carries the bulk-save
-	 * summary so `saveUrls` can surface it. Other actions leave it undefined. */
+	 * summary so `savePages` can surface it. Other actions leave it undefined. */
 	bulk?: BulkSaveResult;
 };
 
