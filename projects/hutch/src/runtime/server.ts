@@ -631,6 +631,10 @@ export function createApp(dependencies: AppDependencies): Express {
 	/** Firefox extensions enforce CORS preflight for fetches with non-simple headers (Accept: application/vnd.siren+json, Authorization). Register OPTIONS so the preflight succeeds; without this it returns 404 and firefox aborts the fetch with NetworkError. */
 	app.options("/", extensionCors);
 	app.get("/", extensionCors, async (req: Request, res: Response) => {
+		if (req.userId) {
+			res.redirect(303, QUEUE_PATH);
+			return;
+		}
 		if (wantsSiren(req) && !wantsMarkdown(req)) {
 			res.redirect(303, QUEUE_PATH);
 			return;

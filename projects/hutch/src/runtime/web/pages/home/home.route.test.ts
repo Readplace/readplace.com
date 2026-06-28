@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
-import { useTestServer } from "../../../test-app";
+import { useTestServer, loginAgent } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
@@ -10,6 +10,19 @@ import {
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 
 const useApp = useTestServer();
+
+describe("GET / (authenticated)", () => {
+	it("should redirect a logged-in visitor straight to /queue", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { auth } = harness;
+		const agent = await loginAgent(harness.server, auth);
+
+		const response = await agent.get("/");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/queue");
+	});
+});
 
 describe("GET /", () => {
 	it("should return 200 and HTML content", async () => {
