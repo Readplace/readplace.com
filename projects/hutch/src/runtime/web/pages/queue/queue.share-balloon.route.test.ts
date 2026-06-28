@@ -12,7 +12,7 @@ import {
 } from "@packages/test-fixtures";
 import { initReadabilityParser } from "@packages/article-parser";
 import { useTestServer } from "../../../test-app";
-import { SESSION_COOKIE_NAME } from "../../auth/session-cookie";
+import { SESSION_COOKIE_NAME } from "@packages/web-session";
 
 const ARTICLE_URL = "https://example.com/shareable";
 const ARTICLE_HTML = `

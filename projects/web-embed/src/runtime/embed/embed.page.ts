@@ -1,12 +1,17 @@
-import express, { type Router } from "express";
+import express, { type Request, type Router } from "express";
 import helmet from "helmet";
-import { sendComponent } from "@packages/web-shell";
+import { bannerStateFromRequest, type RenderBase, sendComponent } from "@packages/web-shell";
+import type { ResolveLogin } from "@packages/web-session";
 import { EmbedPage } from "./embed.component";
 import { PreviewPage } from "./preview.component";
 import { EMBED_ICON_SVG } from "./icon";
 import { EMBED_CLIENT_JS } from "./embed-client-script";
 
-export function initEmbedRoutes(deps: { appOrigin: string }): Router {
+export function initEmbedRoutes(deps: {
+	appOrigin: string;
+	base: RenderBase;
+	resolveLogin: ResolveLogin;
+}): Router {
 	const embedOrigin = `${deps.appOrigin}/embed`;
 	const router = express.Router();
 
@@ -18,12 +23,28 @@ export function initEmbedRoutes(deps: { appOrigin: string }): Router {
 		}),
 	);
 
-	router.get("/", (req, res) => {
-		sendComponent(req, res, EmbedPage({ appOrigin: deps.appOrigin, embedOrigin }));
+	/** Reads the host-only session cookie the browser already sends to /embed
+	 * (hutch owns it; same-origin) and turns it into the banner state that flips
+	 * the shared header between guest and authenticated nav. No cookie or an
+	 * invalid/expired session resolves to guest. */
+	async function bannerStateFor(req: Request) {
+		const login = await deps.resolveLogin(req.headers.cookie);
+		return bannerStateFromRequest({
+			userId: login.isAuthenticated ? login.userId : undefined,
+			emailVerified: login.isAuthenticated ? login.emailVerified : undefined,
+			originalUrl: req.originalUrl,
+			query: req.query,
+		});
+	}
+
+	router.get("/", async (req, res) => {
+		const state = await bannerStateFor(req);
+		sendComponent(req, res, deps.base(EmbedPage({ appOrigin: deps.appOrigin, embedOrigin }), state));
 	});
 
-	router.get("/preview", (req, res) => {
-		sendComponent(req, res, PreviewPage({ appOrigin: deps.appOrigin, embedOrigin }));
+	router.get("/preview", async (req, res) => {
+		const state = await bannerStateFor(req);
+		sendComponent(req, res, deps.base(PreviewPage({ appOrigin: deps.appOrigin, embedOrigin }), state));
 	});
 
 	router.get("/icon.svg", (_req, res) => {

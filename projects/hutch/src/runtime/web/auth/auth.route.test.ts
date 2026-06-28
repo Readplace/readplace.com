@@ -11,7 +11,7 @@ import {
 import { completeStripeSignup } from "./test-helpers/complete-stripe-signup";
 import { createAccessToken, saveAccessTokenForUser } from "../test-helpers/oauth-token";
 import { DISPOSABLE_EMAIL_MESSAGE } from "./disposable-email";
-import { SESSION_COOKIE_NAME } from "./session-cookie";
+import { SESSION_COOKIE_NAME } from "@packages/web-session";
 
 const TEST_FOUNDING_MEMBER_LIMIT = 3;
 

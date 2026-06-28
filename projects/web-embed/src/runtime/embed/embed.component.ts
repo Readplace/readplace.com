@@ -1,8 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { EmbedBase } from "./embed-base.component";
 import { render } from "@packages/web-shell";
-import type { Component } from "@packages/web-shell";
+import type { PageBody } from "@packages/web-shell";
 import { EMBED_PAGE_STYLES } from "./embed.styles";
 
 import { byteLength, renderCanonicalSnippet, renderSnippet } from "./snippet.component";
@@ -16,7 +15,7 @@ export interface EmbedPageInput {
 	embedOrigin: string;
 }
 
-export function EmbedPage(input: EmbedPageInput): Component {
+export function EmbedPage(input: EmbedPageInput): PageBody {
 	const origins = { appOrigin: input.appOrigin, embedOrigin: input.embedOrigin, pageUrl: `${input.embedOrigin}/` };
 	const previewA = renderSnippet("a", origins);
 	const previewB = renderSnippet("b", origins);
@@ -39,17 +38,16 @@ export function EmbedPage(input: EmbedPageInput): Component {
 		appOrigin: input.appOrigin,
 	});
 
-	return EmbedBase({
+	return {
 		seo: {
 			title: "Readplace embed kit — a save button for your readers",
 			description:
 				"A copy-paste save button for bloggers and newsletter operators. Under 1 KB, no JavaScript, no tracking.",
 			canonicalUrl: `${CANONICAL_EMBED_ORIGIN}/`,
 		},
-		pageStyles: EMBED_PAGE_STYLES,
+		styles: EMBED_PAGE_STYLES,
 		bodyClass: "page-embed",
-		content,
+		content: { html: content },
 		scripts: `<script src="${input.embedOrigin}/embed.client.js" defer></script>`,
-		appOrigin: input.appOrigin,
-	});
+	};
 }

@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import type { Server } from "node:http";
+import { authenticatedUserIdFrom } from "@packages/domain/user";
+import { initBase } from "@packages/web-shell";
+import type { ResolveLogin } from "@packages/web-session";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import express from "express";
@@ -14,9 +17,28 @@ afterEach(async () => {
 	await Promise.all(servers.splice(0).map((s) => new Promise<void>((resolve) => s.close(() => resolve()))));
 });
 
-function makeServer(overrides?: { appOrigin?: string }): Server {
+/** Every reader resolves to guest unless a test injects a different resolver. */
+const guestResolver: ResolveLogin = async () => ({ isAuthenticated: false });
+
+/** Resolves the canonical `hutch_sid=valid` cookie to an authenticated reader,
+ * everything else to guest — the seam that drives the authenticated-nav test
+ * without standing up a real session store (DI, not mocks). */
+const authedResolver: ResolveLogin = async (cookieHeader) =>
+	cookieHeader === "hutch_sid=valid"
+		? { isAuthenticated: true, userId: authenticatedUserIdFrom("user-1"), emailVerified: true }
+		: { isAuthenticated: false };
+
+function makeServer(overrides?: { appOrigin?: string; resolveLogin?: ResolveLogin }): Server {
 	const app = express();
-	app.use("/embed", initEmbedRoutes({ appOrigin: overrides?.appOrigin ?? "https://readplace.com" }));
+	const base = initBase({ staticBaseUrl: "", liveReload: false });
+	app.use(
+		"/embed",
+		initEmbedRoutes({
+			appOrigin: overrides?.appOrigin ?? "https://readplace.com",
+			base,
+			resolveLogin: overrides?.resolveLogin ?? guestResolver,
+		}),
+	);
 	const server = app.listen(0);
 	servers.push(server);
 	return server;
@@ -171,6 +193,28 @@ describe("GET /embed", () => {
 		const link = doc.querySelector('[data-test="link-app"]');
 		assert(link, "app link must be rendered");
 		expect(link.getAttribute("href")).toBe("https://readplace.com");
+	});
+
+	it("should render the shared guest header nav when no session cookie resolves to a user", async () => {
+		const response = await request(makeServer()).get("/embed");
+		const doc = new JSDOM(response.text).window.document;
+		const nav = doc.querySelector("[data-test-nav-variant]");
+		assert(nav, "shared nav must be rendered");
+		expect(nav.getAttribute("data-test-nav-variant")).toBe("guest");
+	});
+
+	it("should render the shared authenticated header nav when the session cookie resolves to a user", async () => {
+		const response = await request(makeServer({ resolveLogin: authedResolver }))
+			.get("/embed")
+			.set("Cookie", "hutch_sid=valid");
+		const doc = new JSDOM(response.text).window.document;
+		const nav = doc.querySelector("[data-test-nav-variant]");
+		assert(nav, "shared nav must be rendered");
+		expect(nav.getAttribute("data-test-nav-variant")).toBe("authenticated");
+		const items = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map((el) =>
+			el.getAttribute("data-test-nav-item"),
+		);
+		expect(items).toEqual(expect.arrayContaining(["queue", "import", "export", "account", "logout"]));
 	});
 });
 

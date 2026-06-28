@@ -12,7 +12,6 @@ import {
 import { z } from "zod";
 import {
 	UserIdSchema,
-	authenticatedUserIdFrom,
 	userIdPrefixFrom,
 	normalizeEmail,
 	canonicalizeEmail,
@@ -22,6 +21,7 @@ import {
 	type UserId,
 	type CanonicalEmail,
 } from "@packages/domain/user";
+import { SESSION_TTL_SECONDS, SessionRow, initGetSessionUserId } from "@packages/web-session";
 import type {
 	CountUsers,
 	CreateGoogleUser,
@@ -53,15 +53,6 @@ const UserRow = z.object({
 	userIdPrefix: dynamoField(z.string()),
 	/* Optional so reads of pre-backfill rows don't throw; new writes always set it. */
 	canonicalEmail: dynamoField(z.string()),
-});
-
-const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
-
-const SessionRow = z.object({
-	sessionId: z.string(),
-	userId: UserIdSchema,
-	expiresAt: z.number(),
-	emailVerified: dynamoField(z.boolean()),
 });
 
 /* Gmail uniqueness claims live in the users table under this PK prefix. Zod
@@ -262,15 +253,10 @@ export function initDynamoDbAuth(deps: {
 		return sessionId;
 	};
 
-	const getSessionUserId: GetSessionUserId = async (sessionId) => {
-		const row = await sessions.get({ sessionId });
-		if (!row) return null;
-		if (row.expiresAt < Math.floor(Date.now() / 1000)) return null;
-		return {
-			userId: authenticatedUserIdFrom(row.userId),
-			emailVerified: row.emailVerified === true,
-		};
-	};
+	const getSessionUserId: GetSessionUserId = initGetSessionUserId({
+		client: deps.client,
+		sessionsTableName: deps.sessionsTableName,
+	});
 
 	const destroySession: DestroySession = async (sessionId) => {
 		await sessions.delete({ Key: { sessionId } });

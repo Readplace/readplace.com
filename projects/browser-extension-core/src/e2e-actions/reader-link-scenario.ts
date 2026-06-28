@@ -3,7 +3,7 @@ import { By, until } from "selenium-webdriver";
 import type { WebDriver } from "selenium-webdriver";
 import { CSS_SELECTORS, READER_PERMALINK_PATTERN } from "../e2e";
 
-/** hutch's session cookie (projects/hutch/src/runtime/web/auth/session-cookie.ts).
+/** hutch's session cookie (SESSION_COOKIE_NAME in @packages/web-session).
  * The reader at /queue/:id/view resolves its owner from this cookie, never from
  * the bearer, so the extension mints it out-of-band (POST /auth/session) before
  * surfacing reader links. */

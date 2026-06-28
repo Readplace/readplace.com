@@ -72,6 +72,7 @@ const registeredOverrides = [
 			"**/providers/auth/dynamodb-auth.ts",
 			"**/providers/oauth/validate-access-token.ts",
 			"**/providers/auth/in-memory-auth.ts",
+			"**/get-session-user-id.ts",
 		],
 		withheld: ["@packages/domain/user"],
 	},

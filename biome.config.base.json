@@ -59,7 +59,8 @@
 				"**/*.test.ts",
 				"**/providers/auth/dynamodb-auth.ts",
 				"**/providers/oauth/validate-access-token.ts",
-				"**/providers/auth/in-memory-auth.ts"
+				"**/providers/auth/in-memory-auth.ts",
+				"**/get-session-user-id.ts"
 			],
 			"linter": {
 				"rules": {

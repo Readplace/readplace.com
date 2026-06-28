@@ -5,7 +5,7 @@ import type {
 	MarkSessionEmailVerified,
 } from "@packages/test-fixtures/providers/auth";
 import { initResolveVerificationStatus } from "./resolve-verification-status.middleware";
-import { SESSION_COOKIE_NAME } from "../auth/session-cookie";
+import { SESSION_COOKIE_NAME } from "@packages/web-session";
 
 const USER_ID = authenticatedUserIdFrom("user-1");
 const NOW = new Date("2026-01-08T00:00:00.000Z");

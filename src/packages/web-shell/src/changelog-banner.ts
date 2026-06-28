@@ -106,28 +106,3 @@ export function renderChangelogBannerShell(banner?: ChangelogBanner, returnTo?: 
 		returnTo,
 	});
 }
-
-/** Pure reader for a single cookie out of a raw `Cookie:` header. Lets blog-site
- * check the dismissal cookie without taking a cookie-parser dependency — it
- * stays stateless and reads one header. hutch uses cookie-parser instead, but
- * shares this so both deployables agree on the cookie name. A value that is not
- * a valid percent-escape (e.g. an attacker-sent `rp_changelog_dismissed=%`)
- * decodes to its raw substring rather than throwing — mirroring cookie-parser's
- * tryDecode, so both deployables read the same malformed cookie identically and
- * this decorative banner's cookie read can never 500 a page (the raw value just
- * fails the byte-for-byte version match and the banner stays visible). */
-export function readCookie(cookieHeader: string | undefined, name: string): string | undefined {
-	if (!cookieHeader) return undefined;
-	for (const cookie of cookieHeader.split(";")) {
-		const [key, ...rest] = cookie.trim().split("=");
-		if (key === name) {
-			const raw = rest.join("=");
-			try {
-				return decodeURIComponent(raw);
-			} catch {
-				return raw;
-			}
-		}
-	}
-	return undefined;
-}

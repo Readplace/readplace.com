@@ -14,7 +14,11 @@
     "check": "nx run web-embed:check"
   },
   "dependencies": {
+    "@packages/domain": "workspace:*",
+    "@packages/hutch-logger": "workspace:*",
+    "@packages/hutch-storage-client": "workspace:*",
     "@packages/require-env": "workspace:*",
+    "@packages/web-session": "workspace:*",
     "@packages/web-shell": "workspace:*",
     "express": "5.2.1",
     "helmet": "8.2.0",
@@ -22,6 +26,7 @@
   },
   "devDependencies": {
     "@packages/hutch-infra-components": "workspace:*",
+    "@packages/test-fixtures": "workspace:*",
     "@packages/test-phase-runner": "workspace:*",
     "@playwright/test": "1.60.0",
     "@pulumi/aws": "7.32.0",

@@ -1,13 +1,27 @@
 import assert from "node:assert/strict";
 import express from "express";
+import { authenticatedUserIdFrom } from "@packages/domain/user";
 import { type ChangelogBanner, initBase, isChangelogVersion } from "@packages/web-shell";
+import type { ResolveLogin } from "@packages/web-session";
 import { JSDOM } from "jsdom";
 import request from "supertest";
 import { createBlogApp } from "../../../app";
 import { initBlogRoutes } from "./blog.page";
 import { type BlogPosts, initBlogPosts } from "./blog.posts";
 
-const app = createBlogApp({ staticBaseUrl: "", liveReload: false });
+/** Every reader resolves to guest unless a test injects a different resolver —
+ * the default that public crawler traffic hits. */
+const guestResolver: ResolveLogin = async () => ({ isAuthenticated: false });
+
+/** Resolves the canonical `hutch_sid=valid` cookie to an authenticated reader,
+ * everything else to guest — the seam that drives the authenticated-nav test
+ * without standing up a real session store (DI, not mocks). */
+const authedResolver: ResolveLogin = async (cookieHeader) =>
+	cookieHeader === "hutch_sid=valid"
+		? { isAuthenticated: true, userId: authenticatedUserIdFrom("user-1"), emailVerified: true }
+		: { isAuthenticated: false };
+
+const app = createBlogApp({ staticBaseUrl: "", liveReload: false }, { resolveLogin: guestResolver });
 const blogPosts = initBlogPosts();
 const firstPost = blogPosts.getAllPosts()[0];
 
@@ -32,7 +46,20 @@ function appWithChangelogBanner(banner: ChangelogBanner | undefined) {
 	const expressApp = express();
 	expressApp.disable("x-powered-by");
 	const base = initBase({ staticBaseUrl: "", liveReload: false });
-	expressApp.use("/blog", initBlogRoutes({ blogPosts: blogPostsStub, base }));
+	expressApp.use(
+		"/blog",
+		initBlogRoutes({ blogPosts: blogPostsStub, base, resolveLogin: guestResolver }),
+	);
+	return expressApp;
+}
+
+/** Builds an app whose blog routes resolve login via the given resolver, so a
+ * test can drive the header between guest and authenticated nav by cookie. */
+function appWithResolver(resolveLogin: ResolveLogin) {
+	const expressApp = express();
+	expressApp.disable("x-powered-by");
+	const base = initBase({ staticBaseUrl: "", liveReload: false });
+	expressApp.use("/blog", initBlogRoutes({ blogPosts, base, resolveLogin }));
 	return expressApp;
 }
 
@@ -103,11 +130,26 @@ describe("GET /blog", () => {
 		]);
 	});
 
-	it("renders the guest header nav (the blog site has no authenticated state)", async () => {
+	it("renders the guest header nav when no session cookie resolves to a user", async () => {
 		const response = await request(app).get("/blog");
 		const doc = new JSDOM(response.text).window.document;
 		const nav = doc.querySelector("[data-test-nav-variant]");
-		expect(nav?.getAttribute("data-test-nav-variant")).toBe("guest");
+		assert(nav, "nav must be rendered");
+		expect(nav.getAttribute("data-test-nav-variant")).toBe("guest");
+	});
+
+	it("renders the authenticated header nav when the session cookie resolves to a user", async () => {
+		const response = await request(appWithResolver(authedResolver))
+			.get("/blog")
+			.set("Cookie", "hutch_sid=valid");
+		const doc = new JSDOM(response.text).window.document;
+		const nav = doc.querySelector("[data-test-nav-variant]");
+		assert(nav, "nav must be rendered");
+		expect(nav.getAttribute("data-test-nav-variant")).toBe("authenticated");
+		const items = Array.from(doc.querySelectorAll("[data-test-nav-item]")).map((el) =>
+			el.getAttribute("data-test-nav-item"),
+		);
+		expect(items).toEqual(expect.arrayContaining(["queue", "import", "export", "account", "logout"]));
 	});
 });
 
@@ -347,7 +389,10 @@ describe("changelog banner on /blog pages", () => {
 		const expressApp = express();
 		expressApp.disable("x-powered-by");
 		const base = initBase({ staticBaseUrl: "", liveReload: false });
-		expressApp.use("/blog", initBlogRoutes({ blogPosts: blogPostsStub, base }));
+		expressApp.use(
+			"/blog",
+			initBlogRoutes({ blogPosts: blogPostsStub, base, resolveLogin: guestResolver }),
+		);
 
 		const response = await request(expressApp).get(`/blog/${slug}`);
 		const doc = new JSDOM(response.text).window.document;
