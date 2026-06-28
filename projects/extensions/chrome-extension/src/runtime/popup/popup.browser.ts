@@ -170,17 +170,15 @@ function renderLinks(items: ReadingListItem[]) {
 	const linkList = document.getElementById("link-list");
 	const emptyList = document.getElementById("empty-list");
 	const noMatches = document.getElementById("no-matches");
-	const listError = document.getElementById("list-error");
 
 	if (!linkList) throw new Error("link-list element not found");
 	if (!emptyList) throw new Error("empty-list element not found");
 	if (!noMatches) throw new Error("no-matches element not found");
-	if (!listError) throw new Error("list-error element not found");
 
 	linkList.innerHTML = "";
 	emptyList.hidden = true;
 	noMatches.hidden = true;
-	listError.hidden = true;
+	setListError(null);
 
 	if (allItems.length === 0) {
 		emptyList.hidden = false;
@@ -298,6 +296,12 @@ function renderLinks(items: ReadingListItem[]) {
 						 * longer advertises this action. Reload so the stale phantom row
 						 * drops instead of lingering until the popup is reopened. */
 						await loadAllItems();
+					} else {
+						/** Generic failure (server 5xx / transient network) — the
+						 * not-logged-in case already returned above. The action didn't
+						 * apply and the row is unchanged, so surface an error instead of
+						 * hiding the spinner with no feedback at all. */
+						setListError("Couldn't complete that action. Try again?");
 					}
 				} finally {
 					if (overlay) overlay.hidden = true;
@@ -329,9 +333,7 @@ async function loadAllItems() {
 	}
 
 	if (!result.ok) {
-		const listError = document.getElementById("list-error");
-		if (!listError) throw new Error("list-error element not found");
-		listError.hidden = false;
+		setListError("Failed to load links");
 		return;
 	}
 
@@ -348,6 +350,20 @@ function setListWarning(message: string | null): void {
 	} else {
 		warningEl.textContent = "";
 		warningEl.hidden = true;
+	}
+}
+
+// Each caller passes its own message so the surface never shows a stale one — a
+// failed action and a failed load read differently. Error counterpart of
+// setListWarning.
+function setListError(message: string | null): void {
+	const errorEl = document.getElementById("list-error");
+	if (!errorEl) throw new Error("list-error element not found");
+	if (message) {
+		errorEl.textContent = message;
+		errorEl.hidden = false;
+	} else {
+		errorEl.hidden = true;
 	}
 }
 
