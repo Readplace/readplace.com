@@ -45,7 +45,11 @@ export function toArticleCollectionEntity(
 
 	// The add-links-help rel is the client contract; the href stays
 	// server-internal so the bare help page can move without a client release.
-	links.push({ rel: ["add-links-help"], href: "/help/add-links" });
+	links.push({
+		rel: ["add-links-help"],
+		title: "How to add links",
+		href: "/help/add-links",
+	});
 
 	if (page > 1) {
 		links.push({

@@ -53,7 +53,7 @@ describe("toArticleSubEntity", () => {
 				readAt: null,
 			},
 			links: [
-				{ rel: ["read"], href: `/queue/${ARTICLE_ID}/view` },
+				{ rel: ["read"], title: "Read", href: `/queue/${ARTICLE_ID}/view` },
 			],
 			actions: [
 				{ name: "delete", title: "Delete", href: `/queue/${ARTICLE_ID}/delete`, method: "POST" },
@@ -113,8 +113,18 @@ describe("toArticleSubEntity", () => {
 		const subEntity = toArticleSubEntity(article);
 
 		expect(subEntity.links).toEqual([
-			{ rel: ["read"], href: `/queue/${ARTICLE_ID}/view` },
+			{ rel: ["read"], title: "Read", href: `/queue/${ARTICLE_ID}/view` },
 		]);
+	});
+
+	it("titles the read link so looping clients use a server-authored label", () => {
+		const subEntity = toArticleSubEntity(makeArticle());
+		const readLink = subEntity.links?.find((l) => l.rel.includes("read"));
+		expect(readLink).toEqual({
+			rel: ["read"],
+			title: "Read",
+			href: `/queue/${ARTICLE_ID}/view`,
+		});
 	});
 
 	it("maps readAt when present", () => {

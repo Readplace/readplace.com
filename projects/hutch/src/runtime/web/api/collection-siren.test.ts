@@ -112,7 +112,7 @@ describe("toArticleCollectionEntity", () => {
 		expect(entity.links).toContainEqual({ rel: ["root"], href: "/queue" });
 	});
 
-	it("advertises the add-links-help link", () => {
+	it("advertises a titled add-links-help link so looping clients use a server-authored label", () => {
 		const result: FindArticlesResult = {
 			articles: [],
 			total: 0,
@@ -124,6 +124,7 @@ describe("toArticleCollectionEntity", () => {
 
 		expect(entity.links).toContainEqual({
 			rel: ["add-links-help"],
+			title: "How to add links",
 			href: "/help/add-links",
 		});
 	});

@@ -4,7 +4,7 @@ import type { SirenEntity, SirenLink, SirenSubEntity } from "./siren";
 export function toArticleSubEntity(article: SavedArticle): SirenSubEntity {
 	const id = article.id.value;
 	const links: SirenLink[] = [
-		{ rel: ["read"], href: `/queue/${id}/view` },
+		{ rel: ["read"], title: "Read", href: `/queue/${id}/view` },
 	];
 
 	const isRead = article.status === "read";
