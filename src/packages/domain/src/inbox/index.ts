@@ -31,6 +31,7 @@ export { capEmailLinks } from "./cap-email-links";
 export {
 	EmailLinkOrdinalSchema,
 	type EmailLinkOrdinal,
+	MAX_EMAIL_LINKS_PER_EMAIL,
 	EmailLinkStatusSchema,
 	type EmailLinkStatus,
 } from "./inbox-email-link.schema";

@@ -1,4 +1,8 @@
-import { EmailLinkOrdinalSchema, EmailLinkStatusSchema } from "./inbox-email-link.schema";
+import {
+	EmailLinkOrdinalSchema,
+	EmailLinkStatusSchema,
+	MAX_EMAIL_LINKS_PER_EMAIL,
+} from "./inbox-email-link.schema";
 
 describe("EmailLinkOrdinalSchema", () => {
 	it("accepts a four-digit zero-padded ordinal", () => {
@@ -10,6 +14,22 @@ describe("EmailLinkOrdinalSchema", () => {
 		expect(EmailLinkOrdinalSchema.safeParse("12").success).toBe(false);
 		expect(EmailLinkOrdinalSchema.safeParse("12345").success).toBe(false);
 		expect(EmailLinkOrdinalSchema.safeParse("abcd").success).toBe(false);
+	});
+});
+
+describe("MAX_EMAIL_LINKS_PER_EMAIL", () => {
+	const ordinalFor = (index: number) => String(index).padStart(4, "0");
+
+	it("is the largest cap whose last index still parses", () => {
+		expect(EmailLinkOrdinalSchema.safeParse(ordinalFor(MAX_EMAIL_LINKS_PER_EMAIL - 1)).success).toBe(
+			true,
+		);
+	});
+
+	it("rejects the first index a one-larger cap would mint", () => {
+		expect(EmailLinkOrdinalSchema.safeParse(ordinalFor(MAX_EMAIL_LINKS_PER_EMAIL)).success).toBe(
+			false,
+		);
 	});
 });
 
