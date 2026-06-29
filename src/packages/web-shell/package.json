@@ -12,11 +12,16 @@
     "./trial-countdown.format": {
       "types": "./dist/trial-countdown.format.d.ts",
       "default": "./dist/trial-countdown.format.js"
+    },
+    "./local-time.format": {
+      "types": "./dist/local-time.format.d.ts",
+      "default": "./dist/local-time.format.js"
     }
   },
   "typesVersions": {
     "*": {
-      "trial-countdown.format": ["./dist/trial-countdown.format.d.ts"]
+      "trial-countdown.format": ["./dist/trial-countdown.format.d.ts"],
+      "local-time.format": ["./dist/local-time.format.d.ts"]
     }
   },
   "private": true,

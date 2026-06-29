@@ -8,7 +8,7 @@
 		<div class="queue-article__meta">
 			{{#if isUnread}}<span class="queue-article__status queue-article__status--unread" data-test-read-status="unread"><span class="sr-only">Unread</span></span>{{else}}<span class="queue-article__status queue-article__status--read" data-test-read-status="read"><span class="sr-only">Read</span></span>{{/if}}
 			<a class="queue-article__url{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" data-test-article-url>{{siteName}}</a>
-			<span>{{savedAgo}}</span>
+			<time datetime="{{saved.iso}}" data-local-time="{{saved.mode}}">{{saved.label}}</time>
 		</div>
 		<p class="queue-article__excerpt">{{excerpt}}</p>
 		<p class="queue-article__processing{{processingHiddenClass}}" data-test-processing>Processing…</p>

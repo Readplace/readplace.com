@@ -60,7 +60,8 @@ describe("toQueueViewModel", () => {
 			now: NOW,
 		});
 
-		expect(vm.articles[0].savedAgo).toBe("1h ago");
+		expect(vm.articles[0].saved.label).toBe("1h ago");
+		expect(vm.articles[0].saved.mode).toBe("relative");
 	});
 
 	it("should format recent date as minutes ago", () => {
@@ -71,7 +72,7 @@ describe("toQueueViewModel", () => {
 			now: NOW,
 		});
 
-		expect(vm.articles[0].savedAgo).toBe("10m ago");
+		expect(vm.articles[0].saved.label).toBe("10m ago");
 	});
 
 	it("should calculate totalPages", () => {
@@ -181,7 +182,7 @@ describe("toQueueViewModel", () => {
 			now: NOW,
 		});
 
-		expect(vm.articles[0].savedAgo).toBe("3d ago");
+		expect(vm.articles[0].saved.label).toBe("3d ago");
 	});
 
 	it("should format date older than 30 days as full date", () => {
@@ -192,7 +193,11 @@ describe("toQueueViewModel", () => {
 			now: NOW,
 		});
 
-		expect(vm.articles[0].savedAgo).toBe("1 Apr 2025");
+		expect(vm.articles[0].saved).toEqual({
+			iso: "2025-04-01T12:00:00.000Z",
+			label: "1 Apr 2025",
+			mode: "date",
+		});
 	});
 
 	it("should format very recent date as just now", () => {
@@ -203,7 +208,7 @@ describe("toQueueViewModel", () => {
 			now: NOW,
 		});
 
-		expect(vm.articles[0].savedAgo).toBe("just now");
+		expect(vm.articles[0].saved.label).toBe("just now");
 	});
 
 	it("should generate next pagination URL when more pages exist", () => {

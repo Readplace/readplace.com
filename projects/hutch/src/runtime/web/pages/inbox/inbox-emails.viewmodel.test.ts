@@ -71,28 +71,34 @@ describe("toInboxEmailsViewModel", () => {
 		}
 	});
 
-	it("formats the received time relative to now across each granularity", () => {
+	it("formats the received time as a relative LocalTime across each granularity", () => {
 		const rows = toInboxEmailsViewModel(
 			[
 				entry({ receivedAt: ago(30_000) }),
 				entry({ receivedAt: ago(5 * 60_000) }),
 				entry({ receivedAt: ago(3 * 3_600_000) }),
 				entry({ receivedAt: ago(2 * 86_400_000) }),
-				entry({ receivedAt: ago(60 * 86_400_000) }),
 			],
 			{ now: NOW },
 		).rows;
 
-		expect(rows[0].receivedAgo).toBe("just now");
-		expect(rows[1].receivedAgo).toBe("5m ago");
-		expect(rows[2].receivedAgo).toBe("3h ago");
-		expect(rows[3].receivedAgo).toBe("2d ago");
-		expect(rows[4].receivedAgo).toBe(
-			new Date(ago(60 * 86_400_000)).toLocaleDateString("en-AU", {
-				day: "numeric",
-				month: "short",
-				year: "numeric",
-			}),
-		);
+		expect(rows.map((row) => row.received.label)).toEqual([
+			"just now",
+			"5m ago",
+			"3h ago",
+			"2d ago",
+		]);
+		expect(rows.every((row) => row.received.mode === "relative")).toBe(true);
+	});
+
+	it("falls back to a UTC-baselined absolute date past the 30-day cutoff", () => {
+		const iso = ago(60 * 86_400_000);
+		const [row] = toInboxEmailsViewModel([entry({ receivedAt: iso })], { now: NOW }).rows;
+
+		expect(row.received).toEqual({
+			iso,
+			label: "25 Apr 2026",
+			mode: "date",
+		});
 	});
 });

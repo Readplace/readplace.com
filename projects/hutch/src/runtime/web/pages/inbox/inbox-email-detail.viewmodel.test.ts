@@ -35,6 +35,19 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.tabs[0].ariaCurrent).toBe("page");
 	});
 
+	it("exposes the received instant as a UTC-baselined datetime LocalTime", () => {
+		const vm = toInboxEmailDetailViewModel({
+			entry: entry({ receivedAt: "2026-06-24T09:00:00.000Z" }),
+			bodyHtml: "<p>hi</p>",
+		});
+
+		expect(vm.received).toEqual({
+			iso: "2026-06-24T09:00:00.000Z",
+			label: "24 June 2026, 09:00 UTC",
+			mode: "datetime",
+		});
+	});
+
 	it("shows the unavailable panel for a received email whose body is not readable", () => {
 		const vm = toInboxEmailDetailViewModel({
 			entry: entry({ status: "received" }),

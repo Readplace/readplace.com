@@ -5,6 +5,10 @@ import { getEnv, requireEnv } from "@packages/require-env";
  * WebMCP tools (save_link) on load, regardless of which page it landed on. */
 const WEBMCP_SCRIPT = `<script src="/client-dist/webmcp.client.js" defer></script>`;
 
+/** Loaded on every page so any server-rendered `<time data-local-time>` baseline
+ * (inbox, queue, account) is rewritten into the viewer's local timezone. */
+const LOCAL_TIME_SCRIPT = `<script src="/client-dist/local-time.client.js" defer></script>`;
+
 /** Hutch's configured shell renderer. The presentational layout lives in
  * @packages/web-shell; this composition point binds it to hutch's runtime
  * config (the static-asset origin and the dev livereload flag) so every page
@@ -12,5 +16,5 @@ const WEBMCP_SCRIPT = `<script src="/client-dist/webmcp.client.js" defer></scrip
 export const Base = initBase({
 	staticBaseUrl: requireEnv("STATIC_BASE_URL"),
 	liveReload: Boolean(getEnv("LIVERELOAD")),
-	siteScripts: WEBMCP_SCRIPT,
+	siteScripts: WEBMCP_SCRIPT + LOCAL_TIME_SCRIPT,
 });

@@ -17,7 +17,7 @@ function makeViewModel(
 		url: "https://example.com/article",
 		status: "unread",
 		isUnread: true,
-		savedAgo: "10m ago",
+		saved: { iso: "2025-06-01T12:50:00.000Z", label: "10m ago", mode: "relative" },
 		hasContent: false,
 		actions: [],
 		isStalePending: false,

@@ -107,6 +107,10 @@ describe("Inbox emails list route", () => {
 
 	it("renders received, unparsed, and rejected emails newest-first with badges and links", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		// Pin the clock so the relative-mode assertion stays deterministic: under the
+		// default real-time clock these fixed receivedAt instants would eventually
+		// cross the relative cutoff and render as `date` instead of `relative`.
+		fixture.shared.now = () => new Date("2026-06-24T12:00:00.000Z");
 		const harness = useApp(fixture);
 		const agent = await loginAgent(harness.server, harness.auth);
 		await seedEmails(fixture, (userId) => [
@@ -157,6 +161,14 @@ describe("Inbox emails list route", () => {
 		expect(rows[2].querySelector("[data-test-inbox-email-subject]")?.textContent).toBe(
 			"(no subject)",
 		);
+
+		// The received time renders as a localisable <time> baseline carrying the
+		// stored UTC ISO in datetime and an enhancement mode for the client script.
+		const time = rows[0].querySelector("[data-test-inbox-email-time]");
+		assert(time, "received time element must render");
+		expect(time.tagName).toBe("TIME");
+		expect(time.getAttribute("datetime")).toBe("2026-06-24T09:00:00.000Z");
+		expect(time.getAttribute("data-local-time")).toBe("relative");
 
 		// Non-received rows surface a status badge; the received row does not.
 		expect(rows[0].querySelector("[data-test-inbox-email-status]")).toBeNull();
