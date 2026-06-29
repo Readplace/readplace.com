@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { HutchLogger, noopLogger } from "@packages/hutch-logger";
 import { initInMemoryAuth } from "./auth/in-memory-auth";
 import { UnauthorizedError } from "./auth/unauthorized-error";
-import { BrowserExtensionCore, BULK_SAVE_BATCH_SIZE } from "./core";
+import { BrowserExtensionCore, BULK_SAVE_BATCH_SIZE, MAX_BULK_SAVE_PAGE_CONTENT_BYTES } from "./core";
 import type { CoreError, ReadingList } from "./core";
 import { initInMemoryReadingList } from "./reading-list/in-memory-reading-list";
 import type { BulkSaveResult, BulkSavePage, SaveUrl, SavePages, SaveUrlResult } from "./reading-list/reading-list.types";
@@ -927,6 +927,88 @@ describe("BrowserExtensionCore saveAll", () => {
 		});
 
 		expect(result.tooBig).toEqual([{ url: "https://big.example", mb: 25 }]);
+	});
+
+	it("drops a page whose captured content exceeds the per-page cap and sends it url-only, surfacing it in tooBig", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList();
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
+			core.once("saved-all-tabs", { success: resolve, failure: reject });
+			core.saveAll("tabs", {
+				pages: [
+					{
+						url: "https://oversize.example",
+						content: { bytes: new ArrayBuffer(MAX_BULK_SAVE_PAGE_CONTENT_BYTES + 1), mediaType: "text/html" },
+					},
+				],
+			});
+		});
+
+		expect(result.saved).toBe(1);
+		expect(result.tooBig).toEqual([{ url: "https://oversize.example", mb: 20 }]);
+		expect(readingList.savePagesCalls).toEqual([{ pages: [{ url: "https://oversize.example" }] }]);
+	});
+
+	it("keeps content for a page at exactly the per-page cap", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList();
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const content = { bytes: new ArrayBuffer(MAX_BULK_SAVE_PAGE_CONTENT_BYTES), mediaType: "text/html" };
+		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
+			core.once("saved-all-tabs", { success: resolve, failure: reject });
+			core.saveAll("tabs", { pages: [{ url: "https://atcap.example", content }] });
+		});
+
+		expect(result.tooBig).toEqual([]);
+		expect(readingList.savePagesCalls).toEqual([{ pages: [{ url: "https://atcap.example", content }] }]);
+	});
+
+	it("degrades a batch of several oversize pages per-page instead of failing wholesale", async () => {
+		const auth = initInMemoryAuth();
+		await auth.login();
+		const readingList = createRecordingReadingList();
+		const { shell } = createFakeShell();
+		const core = BrowserExtensionCore(shell, {
+			auth,
+			logger: HutchLogger.from(noopLogger),
+			readingList,
+		});
+
+		const pages = Array.from({ length: 3 }, (_v, i) => ({
+			url: `https://oversize.example/${i}`,
+			content: { bytes: new ArrayBuffer(MAX_BULK_SAVE_PAGE_CONTENT_BYTES + 1), mediaType: "text/html" },
+		}));
+
+		const result = await new Promise<BulkSaveResult>((resolve, reject) => {
+			core.once("saved-all-tabs", { success: resolve, failure: reject });
+			core.saveAll("tabs", { pages });
+		});
+
+		expect(result.saved).toBe(3);
+		expect(result.failed).toBe(0);
+		expect(result.tooBig).toEqual([
+			{ url: "https://oversize.example/0", mb: 20 },
+			{ url: "https://oversize.example/1", mb: 20 },
+			{ url: "https://oversize.example/2", mb: 20 },
+		]);
+		expect(readingList.savePagesCalls).toEqual([
+			{ pages: pages.map((p) => ({ url: p.url })) },
+		]);
 	});
 
 	it("folds a failing chunk into the failed count and keeps saving the remaining chunks", async () => {
