@@ -5,11 +5,6 @@ struct ReadingListView: View {
 	@StateObject private var viewModel: ReadingListViewModel
 
 	@State private var showingAddInstructions = false
-	@State private var saveText = ""
-	/// The `save-article` action whose toolbar control was tapped, driving the
-	/// native URL dialog. Non-nil presents the dialog; the action is carried
-	/// through so the save follows it rather than rediscovering it by name.
-	@State private var pendingSaveAction: SirenAction?
 	/// A destructive item action awaiting confirmation, carried with the row it acts
 	/// on. A destructive control (e.g. `delete`) is irreversible, so it routes here
 	/// for an explicit confirm before the invoke fires, rather than acting on the tap.
@@ -74,23 +69,6 @@ struct ReadingListView: View {
 						onClose: { showingAddInstructions = false }
 					)
 				}
-				.alert("Save a URL", isPresented: Binding(
-					get: { pendingSaveAction != nil },
-					set: { if !$0 { pendingSaveAction = nil } }
-				)) {
-					TextField("https://example.com/article", text: $saveText)
-						.textInputAutocapitalization(.never)
-						.autocorrectionDisabled()
-					Button("Save") {
-						if let action = pendingSaveAction {
-							Task { await viewModel.saveURL(saveText, action: action) }
-						}
-						pendingSaveAction = nil
-					}
-					Button("Cancel", role: .cancel) { pendingSaveAction = nil }
-				} message: {
-					Text("Saves the URL only. Use the iOS Share Sheet to save a page with its rendered content.")
-				}
 				.confirmationDialog(
 					pendingDestructive?.affordance.label ?? "Are you sure?",
 					isPresented: Binding(
@@ -123,9 +101,6 @@ struct ReadingListView: View {
 			showingAddInstructions = true
 		case let .open(link):
 			viewModel.open(link: link)
-		case let .promptSave(action):
-			saveText = ""
-			pendingSaveAction = action
 		case let .invoke(action):
 			Task { await viewModel.invokeCollection(action) }
 		}

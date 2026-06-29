@@ -43,8 +43,10 @@ export function toArticleCollectionEntity(
 		{ rel: ["root"], href: "/queue" },
 	];
 
-	// The add-links-help rel is the client contract; the href stays
-	// server-internal so the bare help page can move without a client release.
+	// Older iOS builds resolve the Share-help URL from this rel; the current client
+	// holds the path itself and ignores this link, but it stays advertised so those
+	// installed builds keep their server-rendered help instead of a bundled fallback.
+	// The href is server-internal, so the help page can move without a client release.
 	links.push({
 		rel: ["add-links-help"],
 		title: "How to add links",

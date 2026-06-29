@@ -663,9 +663,10 @@ export function createApp(dependencies: AppDependencies): Express {
 	});
 
 	// Bare (HtmlPage, not Base) so the iOS Share-help sheet can render it in a
-	// WKWebView without site chrome; public like /privacy. The iOS client reaches
-	// it via the add-links-help link rel in the /queue Siren collection, so the
-	// copy ships via a hutch deploy rather than an App Store review.
+	// WKWebView without site chrome; public like /privacy. The current iOS client
+	// holds this path client-side; the /queue collection still advertises it via the
+	// add-links-help rel so older installed clients resolve the help URL from there.
+	// Either way the copy ships via a hutch deploy rather than an App Store review.
 	app.get("/help/add-links", (req: Request, res: Response) => {
 		sendComponent(req, res, HelpAddLinksPage());
 	});

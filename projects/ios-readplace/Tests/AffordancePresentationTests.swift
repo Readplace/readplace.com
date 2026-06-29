@@ -6,8 +6,10 @@ import XCTest
 /// default so an affordance the client has never seen still renders rather than
 /// vanishing. The token is never used as a style string verbatim.
 final class AffordancePresentationTests: XCTestCase {
-	func testSaveArticleMapsToANeutralAddControlInTheToolbar() {
-		let presentation = AffordancePresentation(token: "save-article")
+	func testAddLinksHelpMapsToANeutralAddControlInTheToolbar() {
+		// The reading list's + control is a client-injected add-links-help affordance:
+		// a neutral add (+) glyph that opens the Share help sheet.
+		let presentation = AffordancePresentation(token: "add-links-help")
 		XCTAssertEqual(presentation.systemImage, "plus")
 		XCTAssertNil(presentation.tint)
 		XCTAssertFalse(presentation.isDestructive)
@@ -141,13 +143,14 @@ final class AffordancePresentationTests: XCTestCase {
 		XCTAssertFalse(affordance.isToolbarControl, "so it is not surfaced as a toolbar control")
 	}
 
-	func testSaveArticleStaysABareToolbarControlViaItsBespokeDialog() throws {
-		// save-article's url field also carries no server value, but iOS has a
-		// bespoke native dialog that supplies the URL, so it remains invokable.
+	func testSaveArticleIsNotABareToolbarControlBecauseItsURLFieldHasNoServerValue() throws {
+		// save-article declares a url field with no server value, and iOS does not
+		// prompt for it from the toolbar (saving a URL is a Share-Sheet capability),
+		// so it is not invokable from a bare control and must not be surfaced.
 		let save = action(name: "save-article", href: "/queue", fields: [SirenField(name: "url", type: "url", value: nil)])
 		let affordance = try XCTUnwrap(Affordance(action: save))
-		XCTAssertTrue(affordance.isInvokableByBareControl, "the native save dialog supplies the URL the field lacks")
-		XCTAssertTrue(affordance.isToolbarControl)
+		XCTAssertFalse(affordance.isInvokableByBareControl, "a field-requiring action with no server value is not bare-invokable")
+		XCTAssertFalse(affordance.isToolbarControl, "so it is not surfaced as a toolbar control")
 	}
 
 	func testAnActionWhoseFieldsAllCarryAServerValueIsBareInvokable() throws {

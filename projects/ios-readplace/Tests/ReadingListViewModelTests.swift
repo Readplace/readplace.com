@@ -17,59 +17,13 @@ final class ReadingListViewModelTests: XCTestCase {
 		return ReadingListViewModel(api: api, onSessionExpired: {})
 	}
 
-	// MARK: - Add-links help discovery
+	// MARK: - Add-links help (client-side)
 
-	/// A single-page `/queue` whose collection carries the given extra links.
-	private func queueHandler(extraLinks: String = "") -> (URLRequest, Data) -> StubURLProtocol.Stub {
-		return { request, _ in
-			switch request.url?.path ?? "" {
-			case "/":
-				return .redirect(to: "/queue")
-			case "/queue":
-				return .json(200, Fixtures.collection(
-					entitiesJSON: [Fixtures.article(id: "a1")],
-					extraLinks: extraLinks
-				))
-			default:
-				return .json(404, "{}")
-			}
-		}
-	}
-
-	/// A two-page `/queue`: the first page advertises both a `next` link and the
-	/// `add-links-help` link; the second page (followed via `next`) omits the help
-	/// link, modelling a server that stops advertising it on a later page.
-	private func twoPageHelpHandler() -> (URLRequest, Data) -> StubURLProtocol.Stub {
-		return { request, _ in
-			switch (request.url?.path ?? "", request.url?.query ?? "") {
-			case ("/", _):
-				return .redirect(to: "/queue")
-			case ("/queue", "page=2"):
-				return .json(200, Fixtures.collection(
-					entitiesJSON: [Fixtures.article(id: "a2")],
-					page: 2,
-					total: 2
-				))
-			case ("/queue", _):
-				return .json(200, Fixtures.collection(
-					entitiesJSON: [Fixtures.article(id: "a1")],
-					extraLinks: ", { \"rel\": [\"next\"], \"href\": \"/queue?page=2\" }"
-						+ ", { \"rel\": [\"add-links-help\"], \"href\": \"/help/add-links\" }",
-					total: 2
-				))
-			default:
-				return .json(404, "{}")
-			}
-		}
-	}
-
-	func testRefreshDiscoversAddLinksHelpURL() async {
-		StubURLProtocol.setHandler(queueHandler(
-			extraLinks: ", { \"rel\": [\"add-links-help\"], \"href\": \"/help/add-links\" }"
-		))
+	func testAddLinksHelpURLIsTheClientHeldHelpPath() {
+		// The + control opens the help page at a path the client holds, resolved
+		// against the API base — not a link discovered from the server — so it is
+		// available before (and regardless of) any queue load.
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
-
-		await viewModel.refresh()
 
 		XCTAssertEqual(
 			viewModel.addLinksHelpURL?.absoluteString,
@@ -77,66 +31,17 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
-	func testAddLinksHelpURLIsNilWhenCollectionOmitsTheLink() async {
-		StubURLProtocol.setHandler(queueHandler())
-		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
-
-		await viewModel.refresh()
-
-		XCTAssertNil(viewModel.addLinksHelpURL)
-	}
-
-	func testAddLinksHelpURLSurvivesALaterPageThatOmitsTheLink() async {
-		StubURLProtocol.setHandler(twoPageHelpHandler())
-		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
-
-		await viewModel.refresh()
-		let resolved = viewModel.addLinksHelpURL
-		XCTAssertNotNil(resolved, "the first page advertises the help link")
-
-		await viewModel.loadMore()
-
-		XCTAssertEqual(viewModel.articles.map(\.id), ["a1", "a2"], "the next page is appended")
-		XCTAssertEqual(
-			viewModel.addLinksHelpURL, resolved,
-			"a later page that omits the help link must not clear an already-resolved URL"
-		)
-	}
-
-	func testAddLinksHelpURLStaysNilForAnUnresolvableHelpHref() async {
-		StubURLProtocol.setHandler(queueHandler(
-			extraLinks: ", { \"rel\": [\"add-links-help\"], \"href\": \"mailto:help@example.com\" }"
-		))
-		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
-
-		await viewModel.refresh()
-
-		XCTAssertNil(
-			viewModel.addLinksHelpURL,
-			"a help href the client can't resolve (foreign scheme) is treated as absent"
-		)
-	}
-
-
-	/// The `save-article` action the toolbar control carries, found by iterating
-	/// the collection's advertised affordances — the same path the view's toolbar
-	/// loop takes — so the test saves via the action the loop would render.
-	private func saveArticleAction(of viewModel: ReadingListViewModel) throws -> SirenAction {
-		try XCTUnwrap(viewModel.collectionAffordances.first { $0.token == "save-article" }?.action)
-	}
-
-	/// A locked account: the queue loads (so the `save-article` action is
-	/// discovered) but every save POST is refused with a server-authored message.
+	/// A locked account: the queue loads, but invoking a collection action is refused
+	/// with a server-authored message.
 	private func lockedAccountHandler() -> (URLRequest, Data) -> StubURLProtocol.Stub {
 		return { request, _ in
 			let path = request.url?.path ?? ""
-			let method = request.httpMethod ?? "GET"
-			switch (path, method) {
-			case ("/", _):
+			switch path {
+			case "/":
 				return .redirect(to: "/queue")
-			case ("/queue", "POST"):
+			case "/queue/purge":
 				return .json(403, Fixtures.accountLockedError())
-			case ("/queue", _):
+			case "/queue":
 				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
 			default:
 				return .json(404, "{}")
@@ -144,12 +49,16 @@ final class ReadingListViewModelTests: XCTestCase {
 		}
 	}
 
-	func testRefusedSaveSurfacesServerMessages() async throws {
+	private let purgeAction = SirenAction(
+		name: "purge-all", href: "/queue/purge", method: "POST", title: "Purge", type: nil, fields: nil
+	)
+
+	func testRefusedCollectionInvokeSurfacesServerMessages() async {
 		StubURLProtocol.setHandler(lockedAccountHandler())
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
 		await viewModel.refresh()
-		await viewModel.saveURL("https://example.com/x", action: try saveArticleAction(of: viewModel))
+		await viewModel.invokeCollection(purgeAction)
 
 		XCTAssertEqual(viewModel.messages.first?.type, "warning")
 		XCTAssertEqual(viewModel.messages.first?.content.type, "text/html")
@@ -159,13 +68,13 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
-	func testSuccessfulRefreshClearsStaleRefusalBanner() async throws {
+	func testSuccessfulRefreshClearsStaleRefusalBanner() async {
 		StubURLProtocol.setHandler(lockedAccountHandler())
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
 		await viewModel.refresh()
-		await viewModel.saveURL("https://example.com/x", action: try saveArticleAction(of: viewModel))
-		XCTAssertFalse(viewModel.messages.isEmpty, "precondition: a refused save shows the banner")
+		await viewModel.invokeCollection(purgeAction)
+		XCTAssertFalse(viewModel.messages.isEmpty, "precondition: a refused invoke shows the banner")
 
 		await viewModel.refresh()
 
@@ -175,40 +84,9 @@ final class ReadingListViewModelTests: XCTestCase {
 		)
 	}
 
-	func testSaveResetsMessagesSoASucceedingSaveClearsTheBanner() async throws {
-		var savePOSTs = 0
-		StubURLProtocol.setHandler { request, _ in
-			let path = request.url?.path ?? ""
-			let method = request.httpMethod ?? "GET"
-			switch (path, method) {
-			case ("/", _):
-				return .redirect(to: "/queue")
-			case ("/queue", "POST"):
-				savePOSTs += 1
-				return savePOSTs == 1
-					? .json(403, Fixtures.accountLockedError())
-					: .json(201, Fixtures.article(id: "saved"))
-			case ("/queue", _):
-				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")]))
-			default:
-				return .json(404, "{}")
-			}
-		}
-		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
-
-		await viewModel.refresh()
-		let action = try saveArticleAction(of: viewModel)
-		await viewModel.saveURL("https://example.com/x", action: action)
-		XCTAssertFalse(viewModel.messages.isEmpty, "precondition: the first save is refused")
-
-		await viewModel.saveURL("https://example.com/y", action: action)
-
-		XCTAssertTrue(viewModel.messages.isEmpty, "saveURL resets messages before the next attempt")
-	}
-
 	// MARK: - Save affordance gating
 
-	func testToolbarLoopsTheCollectionsToolbarPresentableAffordances() async {
+	func testToolbarSurfacesOnlyTheClientAddControlForADefaultCollection() async {
 		StubURLProtocol.setHandler { request, _ in
 			switch request.url?.path {
 			case "/":
@@ -220,14 +98,54 @@ final class ReadingListViewModelTests: XCTestCase {
 			}
 		}
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
-		XCTAssertTrue(viewModel.collectionAffordances.isEmpty, "no controls before any response advertises affordances")
+		XCTAssertEqual(
+			viewModel.collectionAffordances.map(\.token), ["add-links-help"],
+			"the client-side + control is present before any response advertises affordances"
+		)
 
 		await viewModel.refresh()
 
 		XCTAssertEqual(
-			viewModel.collectionAffordances.compactMap(\.action).map(\.name),
-			["save-article"],
-			"the toolbar renders the toolbar-presentable subset by iterating — capture-only saves (save-html/save-content) and the field-requiring search (no server value, no native query UI) are dropped client-side, not name-gated as a known capability"
+			viewModel.collectionAffordances.map(\.token), ["add-links-help"],
+			"the server's collection actions — save-article, the capture-only saves (save-html/save-content), and the field-requiring search — are all dropped client-side, leaving only the client + control"
+		)
+		XCTAssertFalse(
+			viewModel.collectionAffordances.contains { $0.token == "save-article" },
+			"the server-advertised save-article is ignored: saving a URL is a Share-Sheet capability, not a toolbar control"
+		)
+	}
+
+	func testToolbarKeepsExactlyOneAddControlWhenTheServerAlsoAdvertisesAddLinksHelp() async {
+		// The + is now client-owned and always injected. Should the server ever
+		// re-advertise add-links-help (a rollback of the server change, or another
+		// surface re-adding it), the client drops the server's same-token affordance so
+		// the toolbar renders exactly one + — the client's canonical one — never a
+		// duplicate. The server's advertised href differs so the survivor is identifiable.
+		let serverAddLinksHelp = """
+			,{ "rel": ["add-links-help"], "href": "/help/legacy-add-links", "title": "Old help" }
+			"""
+		StubURLProtocol.setHandler { request, _ in
+			switch request.url?.path {
+			case "/":
+				return .redirect(to: "/queue")
+			case "/queue":
+				return .json(200, Fixtures.collection(entitiesJSON: [Fixtures.article(id: "a1")], extraLinks: serverAddLinksHelp))
+			default:
+				return .json(404, "{}")
+			}
+		}
+		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
+
+		await viewModel.refresh()
+
+		let addControls = viewModel.collectionAffordances.filter { $0.token == "add-links-help" }
+		XCTAssertEqual(
+			addControls.count, 1,
+			"a server-advertised add-links-help is de-duped against the client-injected + — exactly one renders, never a duplicate"
+		)
+		XCTAssertEqual(
+			addControls.first?.link?.href, AppConfig.addLinksHelpPath,
+			"the surviving + is the client's canonical control (its own help path), not the server's advertised href"
 		)
 	}
 
@@ -251,7 +169,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertFalse(
 			viewModel.collectionAffordances.contains { $0.token == "search" },
-			"a field-requiring action with no server value and no bespoke handler is not surfaced"
+			"a field-requiring action with no server value is not surfaced as a toolbar control"
 		)
 	}
 
@@ -281,8 +199,8 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		XCTAssertEqual(
 			viewModel.collectionAffordances.map(\.token),
-			["save-article", "save"],
-			"capture-only saves, the field-requiring search, and structural rels (self/root/prev/next) never render as toolbar controls"
+			["save", "add-links-help"],
+			"save-article, capture-only saves, the field-requiring search, and structural rels (self/root/prev/next) never render; a navigable save link does, and the client + control is always appended"
 		)
 	}
 
@@ -334,16 +252,16 @@ final class ReadingListViewModelTests: XCTestCase {
 		let viewModel = makeViewModel(store: TestSupport.loggedInStore())
 
 		await viewModel.refresh()
-		XCTAssertTrue(
-			viewModel.collectionAffordances.contains { $0.token == "save-article" },
-			"precondition: the first collection advertises save-article"
+		XCTAssertEqual(
+			viewModel.collectionAffordances.map(\.token), ["add-links-help"],
+			"precondition: the first collection advertises no toolbar-presentable server action, so only the client + control shows"
 		)
 
 		await viewModel.refresh()
 
 		XCTAssertEqual(
 			viewModel.collectionAffordances.compactMap(\.action).map(\.name), ["purge-all"],
-			"the toolbar reflects the current response: a later collection's affordances replace the earlier ones"
+			"the toolbar reflects the current response: a later collection's bare-invokable action renders alongside the client + control"
 		)
 	}
 
@@ -372,7 +290,7 @@ final class ReadingListViewModelTests: XCTestCase {
 
 		await viewModel.refresh()
 		let firstPageToolbar = viewModel.collectionAffordances.map(\.token)
-		XCTAssertFalse(firstPageToolbar.isEmpty, "precondition: the first page advertises a toolbar")
+		XCTAssertFalse(firstPageToolbar.isEmpty, "precondition: the first-page load owns a toolbar (the client + control)")
 
 		await viewModel.loadMore()
 

@@ -50,10 +50,10 @@ final class SirenDecodingTests: XCTestCase {
 	}
 
 	func testRowControlsDropAFieldRequiringItemActionWithNoServerValue() throws {
-		// A future item action that requires a field the server didn't pre-fill — and
-		// that has no bespoke client handler — is not invokable from a bare control, so
-		// the row must not surface it as a swipe that would error on tap. `delete`
-		// (field-less) and `update-status` (its only field carries a server value) stay.
+		// A future item action that requires a field the server didn't pre-fill is not
+		// invokable from a bare control, so the row must not surface it as a swipe that
+		// would error on tap. `delete` (field-less) and `update-status` (its only field
+		// carries a server value) stay.
 		let json = """
 		{ "properties": { "id": "x", "url": "https://example.com/x" },
 		  "actions": [
@@ -299,18 +299,6 @@ final class SirenDecodingTests: XCTestCase {
 		let lastPage = QueuePage(collection: try decodeCollection(noNext))
 		XCTAssertNil(lastPage.nextHref)
 		XCTAssertNil(lastPage.prevHref)
-	}
-
-	func testAddLinksHelpLinkDecodes() throws {
-		let withHelp = Fixtures.collection(
-			entitiesJSON: [Fixtures.article()],
-			extraLinks: ", { \"rel\": [\"add-links-help\"], \"href\": \"/help/add-links\" }"
-		)
-		let page = QueuePage(collection: try decodeCollection(withHelp))
-		XCTAssertEqual(page.addLinksHelpHref, "/help/add-links")
-
-		let withoutHelp = Fixtures.collection(entitiesJSON: [Fixtures.article()])
-		XCTAssertNil(QueuePage(collection: try decodeCollection(withoutHelp)).addLinksHelpHref)
 	}
 
 	func testEmptyCollection() throws {
