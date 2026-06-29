@@ -8,8 +8,9 @@ the server's `save-html` Siren action — exactly what the extension does.
 
 It lives under `projects/` as an nx project
 (`ios-readplace`). It builds with its own Swift/fastlane toolchain rather
-than pnpm, and its code touches no other project. The production build needs
-**no server-side change**: it reuses the existing public OAuth client and Siren API.
+than pnpm, and its app code touches no other project. It authenticates with its
+own public OAuth client (`ios-app`), registered server-side in
+`built-in-clients.ts`, and otherwise reuses the existing Siren API.
 
 ---
 
@@ -306,15 +307,24 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
   `update-status` action and `POST /auth/session` — that must be **deployed
   before** this build ships to TestFlight. They are additive and non-breaking, so
   the server can deploy independently; an older app simply wouldn't see them.
-- **Both Login and Sign up use one small additive server change.** They
-  authenticate as the app's own `ios-app` client. The external-browser flow can't
-  observe an HTTPS redirect in another app's tab, so it returns via a native
-  `readplace://oauth-callback` deep link — that scheme is registered on the
-  `ios-app` client, and `/oauth/authorize` accepts an optional `screen_hint`
-  (`login`/`signup`). Both changes are additive in `built-in-clients.ts` /
-  `oauth.routes.ts` and don't affect the extension. The native scheme is
-  identical across production and staging, so sign-in needs no per-environment
-  callback registration.
+- **Both Login and Sign up authenticate as the app's own `ios-app` client.** The
+  external-browser flow can't observe an HTTPS redirect in another app's tab, so
+  it returns via a native `readplace://oauth-callback` deep link, registered on
+  the `ios-app` client; `/oauth/authorize` accepts an optional `screen_hint`
+  (`login`/`signup`). Adding the `ios-app` client is additive, but switching the
+  app onto it is a one-time breaking change for existing installs: earlier builds
+  authenticated as `hutch-chrome-extension`, and `readplace://oauth-callback` has
+  been removed from that client so the deep link belongs to `ios-app` alone. A
+  refresh token minted under the old client is rejected once the app sends
+  `client_id=ios-app`, so each existing install must sign in again once (the live
+  access token keeps working until it expires, so the forced re-login is deferred,
+  not immediate). Deploy the server with the `ios-app` client before the build
+  that uses it — an older build still sending `hutch-chrome-extension` +
+  `readplace://oauth-callback` can no longer start a login. This one-time
+  re-login is an acceptable cost for proper client isolation because the app
+  ships only via TestFlight / sideload (not the App Store), where the tester pool
+  updates quickly. The native scheme is identical across production and staging,
+  so sign-in needs no per-environment callback registration.
 - **The server URL is fixed at build time** in `AppConfig.serverBaseURL` — there
   is no Server field on the sign-in screen. `make ipa` targets production;
   `make ipa-staging` compiles with the `STAGING` condition to target staging.
