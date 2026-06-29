@@ -2,4 +2,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const stylesPath = join(__dirname, "article-body.styles.css");
-export const ARTICLE_BODY_STYLES = readFileSync(stylesPath, "utf-8");
+const crawlBookmarkStylesPath = join(__dirname, "crawl-bookmark", "crawl-bookmark.styles.css");
+
+/** The crawl-bookmark ships with the shared article body so both readers
+ * receive its styles automatically (no per-page <link>). */
+export const ARTICLE_BODY_STYLES =
+	readFileSync(stylesPath, "utf-8") + readFileSync(crawlBookmarkStylesPath, "utf-8");

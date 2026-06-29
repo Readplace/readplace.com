@@ -113,6 +113,7 @@ function flattenFixtureToAppDependencies(
 		findEmailByUserId: fixture.auth.findEmailByUserId,
 		findArticleById: fixture.articleStore.findArticleById,
 		findArticleByUrl: fixture.articleStore.findArticleByUrl,
+		findArticleFreshness: fixture.articleStore.findArticleFreshness,
 		findArticleUrlById: fixture.articleStore.findArticleUrlById,
 		findArticlesByUser: fixture.articleStore.findArticlesByUser,
 		countArticlesByUser: fixture.articleStore.countArticlesByUser,

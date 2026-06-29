@@ -39,6 +39,13 @@ describe("initLocalTime", () => {
 		);
 	});
 
+	it("rewrites a short-datetime element into the browser zone", () => {
+		const { document } = initWithDom(
+			`<time datetime="2026-03-26T14:32:00.000Z" data-local-time="short-datetime">26 Mar '26, 14:32</time>`,
+		);
+		expect(document.querySelector("time")?.textContent).toBe("27 Mar '26, 01:32");
+	});
+
 	it("rewrites a date element into the browser zone, fixing midnight ±1-day drift", () => {
 		const { document } = initWithDom(
 			`<time datetime="2026-06-23T15:00:00.000Z" data-local-time="date">Jun 23, 2026</time>`,

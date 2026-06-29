@@ -102,6 +102,7 @@ export function initInMemoryArticleStore(): {
 	writeContent: (params: { url: string; content: string }) => Promise<void>;
 	writeMetadata: (params: { url: string; metadata: ArticleMetadata; estimatedReadTime: Minutes }) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
+	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
 } {
 	const articles = new Map<string, GlobalArticle>();
 	const userArticles = new Map<string, UserArticle>();
@@ -384,6 +385,16 @@ export function initInMemoryArticleStore(): {
 		article.contentSourceTier = params.tier;
 	};
 
+	/** Stamps the crawl-freshness timestamp the way the real pipeline does on
+	 * crawl success. Lets tests drive the "Last crawled at" bookmark from a known
+	 * instant instead of a wall-clock now(). */
+	const setContentFetchedAt = async (params: { url: string; at: string }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
+		const article = articles.get(articleResourceUniqueId.value);
+		assert(article, `Article not found for URL: ${articleResourceUniqueId.value}`);
+		article.contentFetchedAt = params.at;
+	};
+
 	return {
 		saveArticle,
 		saveArticleGlobally,
@@ -407,5 +418,6 @@ export function initInMemoryArticleStore(): {
 		writeContent,
 		writeMetadata,
 		setContentSourceTier,
+		setContentFetchedAt,
 	};
 }

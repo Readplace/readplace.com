@@ -23,6 +23,16 @@ function isParseableIso(iso: string | null): iso is string {
 	return iso !== null && !Number.isNaN(Date.parse(iso));
 }
 
+/** Maps a `data-local-time` mode (already past the relative early-return) to
+ * the absolute format style. Explicit so a newly-added mode round-trips
+ * through the same client/server formatter instead of silently collapsing to
+ * the "date" default. */
+function absoluteStyleFor(mode: string | null): LocalTimeStyle {
+	if (mode === "datetime") return "datetime";
+	if (mode === "short-datetime") return "short-datetime";
+	return "date";
+}
+
 export function initLocalTime(deps: LocalTimeDeps): { attach(): void } {
 	function localize(el: Element, timeZone: string): void {
 		const iso = el.getAttribute("datetime");
@@ -34,8 +44,7 @@ export function initLocalTime(deps: LocalTimeDeps): { attach(): void } {
 			el.setAttribute("title", formatLocalInstant({ iso, style: "datetime", timeZone }));
 			return;
 		}
-		const style: LocalTimeStyle = mode === "datetime" ? "datetime" : "date";
-		el.textContent = formatLocalInstant({ iso, style, timeZone });
+		el.textContent = formatLocalInstant({ iso, style: absoluteStyleFor(mode), timeZone });
 	}
 
 	function scan(): void {

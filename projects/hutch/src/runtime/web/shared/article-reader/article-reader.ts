@@ -20,6 +20,7 @@ import {
 } from "@packages/domain/article";
 import { renderReaderSlot } from "../article-body/reader-slot/reader-slot.component";
 import { renderSummarySlot } from "../article-body/summary-slot/summary-slot.component";
+import { toAbsoluteShortDateTime } from "@packages/web-shell/local-time.format";
 import type {
 	ArticleReaderDeps,
 	HandlePollParams,
@@ -205,6 +206,7 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 		const { article, pollUrlBuilder } = params;
 		const crawl = await deps.findArticleCrawlStatus(article.url);
 		const summary = await deps.findGeneratedSummary(article.url);
+		const freshness = await deps.findArticleFreshness(article.url);
 
 		const content = await deps.readArticleContent(article.url);
 		const summaryStatus = summary?.status ?? "pending";
@@ -222,6 +224,9 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			readerPollUrl,
 			summaryPollUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
+			lastCrawledAt: freshness?.contentFetchedAt
+				? toAbsoluteShortDateTime({ iso: freshness.contentFetchedAt })
+				: undefined,
 		};
 	}
 

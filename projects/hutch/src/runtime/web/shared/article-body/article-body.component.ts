@@ -6,8 +6,10 @@ import type { GeneratedSummary } from "@packages/provider-contracts/article-summ
 import { requireEnv } from "@packages/require-env";
 import { render } from "@packages/web-shell";
 import { renderArticleHeader } from "./article-header/article-header.component";
+import { renderCrawlBookmark } from "./crawl-bookmark/crawl-bookmark.component";
 import { renderProgressBar } from "./progress-bar.component";
 import type { ProgressTick } from "@packages/domain/article";
+import type { LocalTime } from "@packages/web-shell/local-time.format";
 import { renderReaderSlot } from "./reader-slot/reader-slot.component";
 import { renderSummarySlot } from "./summary-slot/summary-slot.component";
 
@@ -44,6 +46,9 @@ export interface ArticleBodyInput {
 	 */
 	progress?: ProgressTick;
 	appOrigin: string;
+	/** Drives the "Last crawled at" bookmark. Absent until the first crawl
+	 * records a `contentFetchedAt`, in which case the bookmark is hidden. */
+	lastCrawledAt?: LocalTime;
 }
 
 export function renderArticleBody(input: ArticleBodyInput): string {
@@ -67,6 +72,8 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 
 	const progressBarHtml = renderProgressBar({ progress: input.progress });
 
+	const crawlBookmarkHtml = renderCrawlBookmark({ lastCrawledAt: input.lastCrawledAt });
+
 	const headerHtml = renderArticleHeader({
 		title: input.title,
 		siteName: input.siteName,
@@ -80,6 +87,7 @@ export function renderArticleBody(input: ArticleBodyInput): string {
 		readerSlotHtml,
 		summarySlotHtml,
 		progressBarHtml,
+		crawlBookmarkHtml,
 		audioEnabled: input.audioEnabled,
 		staticBaseUrl: STATIC_BASE_URL,
 		bottomActionsHtml: input.bottomActionsHtml,

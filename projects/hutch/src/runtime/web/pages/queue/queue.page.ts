@@ -27,6 +27,7 @@ import type {
 	DeleteArticle,
 	FindArticleById,
 	FindArticleByUrl,
+	FindArticleFreshness,
 	FindArticleUrlById,
 	FindArticlesByUser,
 	MarkArticleViewed,
@@ -162,6 +163,7 @@ interface QueueDependencies {
 	countArticlesByUser: CountArticlesByUser;
 	findArticleById: FindArticleById;
 	findArticleByUrl: FindArticleByUrl;
+	findArticleFreshness: FindArticleFreshness;
 	findArticleUrlById: FindArticleUrlById;
 	saveArticle: SaveArticle;
 	deleteArticle: DeleteArticle;
@@ -358,6 +360,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		findGeneratedSummary: deps.findGeneratedSummary,
 		readArticleContent: deps.readArticleContent,
 		findArticleByUrl: deps.findArticleByUrl,
+		findArticleFreshness: deps.findArticleFreshness,
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatReaderDocumentTitle,
 		summaryOpen: false,
@@ -484,6 +487,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				extensionInstallUrl: extensionInstallUrlIfMissing(req),
 				backLink: VIEW_BACK_LINK,
 				renderActions: deps.regularReader,
+				lastCrawledAt: state.lastCrawledAt,
 			}), {
 				...(await deps.buildBannerState(req)),
 				showExtensionSuggestionBanner,

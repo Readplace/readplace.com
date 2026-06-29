@@ -15,7 +15,9 @@ import type { PageBody } from "@packages/web-shell";
 
 import { renderArticleBody } from "../../shared/article-body/article-body.component";
 import { RegularReader } from "../../shared/article-body/reader-actions/reader-actions.component";
+import { CRAWL_BOOKMARK_SCRIPT } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
 import type { ProgressTick } from "@packages/domain/article";
+import type { LocalTime } from "@packages/web-shell/local-time.format";
 import {
 	SHARE_BALLOON_SCRIPT,
 	renderShareBalloon,
@@ -117,6 +119,7 @@ export interface ViewPageInput {
 	expiresAt: Date | null;
 	now: Date;
 	sharerUserIdPrefix?: SharedUserId;
+	lastCrawledAt?: LocalTime;
 }
 
 export function ViewPage(input: ViewPageInput): PageBody {
@@ -137,6 +140,7 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		appOrigin: input.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
+		lastCrawledAt: input.lastCrawledAt,
 	});
 
 	const viewPath = viewPathFor(input.articleUrl);
@@ -218,6 +222,6 @@ export function ViewPage(input: ViewPageInput): PageBody {
 		styles: VIEW_STYLES,
 		bodyClass: "page-view",
 		content: { html: content },
-		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + EXPIRY_COUNTER_SCRIPT + VIEW_PAYWALL_SCRIPT,
+		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + EXPIRY_COUNTER_SCRIPT + VIEW_PAYWALL_SCRIPT + CRAWL_BOOKMARK_SCRIPT,
 	};
 }

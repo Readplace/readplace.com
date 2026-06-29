@@ -5,7 +5,7 @@
  * the same formatter with the browser's resolved zone to localise it.
  */
 
-export type LocalTimeMode = "datetime" | "date" | "relative";
+export type LocalTimeMode = "datetime" | "date" | "short-datetime" | "relative";
 
 /** The view-model → template contract for a single stored instant. The template
  * renders one uniform `<time datetime="{{iso}}" data-local-time="{{mode}}">` */
@@ -15,7 +15,7 @@ export interface LocalTime {
 	mode: LocalTimeMode;
 }
 
-export type LocalTimeStyle = "datetime" | "date";
+export type LocalTimeStyle = "datetime" | "date" | "short-datetime";
 
 export const LOCALE = "en-US";
 
@@ -39,11 +39,36 @@ const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
 	year: "numeric",
 };
 
+/** A compact "26 Mar '26, 14:32" form: 2-digit year (apostrophe-prefixed at
+ * assembly) plus 24-hour time to the minute, no timezone suffix. The label is
+ * the only place the apostrophe is injected, which is why this branch assembles
+ * from formatToParts rather than a single toLocaleString call. */
+const SHORT_DATETIME_OPTIONS: Intl.DateTimeFormatOptions = {
+	day: "numeric",
+	month: "short",
+	year: "2-digit",
+	hour: "2-digit",
+	minute: "2-digit",
+	hour12: false,
+};
+
 export function formatLocalInstant(input: {
 	iso: string;
 	style: LocalTimeStyle;
 	timeZone: string;
 }): string {
+	if (input.style === "short-datetime") {
+		/** Mapping the parts (rather than indexing by type) keeps the assembly
+		 * branch-free: every part the formatter emits is consumed, and only the
+		 * 2-digit year is rewritten to carry the leading apostrophe. */
+		return new Intl.DateTimeFormat(LOCALE, {
+			...SHORT_DATETIME_OPTIONS,
+			timeZone: input.timeZone,
+		})
+			.formatToParts(new Date(input.iso))
+			.map((part) => (part.type === "year" ? `'${part.value}` : part.value))
+			.join("");
+	}
 	const base = input.style === "datetime" ? DATETIME_OPTIONS : DATE_OPTIONS;
 	return new Date(input.iso).toLocaleString(LOCALE, { ...base, timeZone: input.timeZone });
 }
@@ -61,6 +86,14 @@ export function toAbsoluteDate(input: { iso: string }): LocalTime {
 		iso: input.iso,
 		label: formatLocalInstant({ iso: input.iso, style: "date", timeZone: "UTC" }),
 		mode: "date",
+	};
+}
+
+export function toAbsoluteShortDateTime(input: { iso: string }): LocalTime {
+	return {
+		iso: input.iso,
+		label: formatLocalInstant({ iso: input.iso, style: "short-datetime", timeZone: "UTC" }),
+		mode: "short-datetime",
 	};
 }
 

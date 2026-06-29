@@ -216,6 +216,7 @@ export interface ArticleStoreBundle {
 		estimatedReadTime: Minutes;
 	}) => Promise<void>;
 	setContentSourceTier: (params: { url: string; tier: "tier-0" | "tier-1" }) => Promise<void>;
+	setContentFetchedAt: (params: { url: string; at: string }) => Promise<void>;
 }
 
 export interface ArticleCrawlBundle {

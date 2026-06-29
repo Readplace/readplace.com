@@ -12,7 +12,9 @@ import type {
 	MarkReadAction,
 	RenderReaderActions,
 } from "../../shared/article-body/reader-actions/reader-actions.component";
+import { CRAWL_BOOKMARK_SCRIPT } from "../../shared/article-body/crawl-bookmark/crawl-bookmark.component";
 import type { ProgressTick } from "@packages/domain/article";
+import type { LocalTime } from "@packages/web-shell/local-time.format";
 import {
 	SHARE_BALLOON_SCRIPT,
 	renderShareBalloon,
@@ -62,6 +64,7 @@ export function ReaderPage(
 		 * The variant also carries the page body class, so the sticky-toolbar markup
 		 * and its content offset are decided by one value and can never drift apart. */
 		renderActions: RenderReaderActions;
+		lastCrawledAt?: LocalTime;
 	},
 ): PageBody {
 	const articleId = article.id.value;
@@ -100,6 +103,7 @@ export function ReaderPage(
 		appOrigin: options.appOrigin,
 		topActionsHtml: actions.top.to("text/html").body,
 		bottomActionsHtml: actions.bottom.to("text/html").body,
+		lastCrawledAt: options.lastCrawledAt,
 		extensionInstallUrl: options.extensionInstallUrl,
 	});
 	const shareBalloon = renderShareBalloon({
@@ -121,6 +125,11 @@ export function ReaderPage(
 		styles: READER_STYLES,
 		bodyClass: actions.bodyClass,
 		content: { html: content },
-		scripts: SHARE_BALLOON_SCRIPT + PROGRESS_BAR_SCRIPT + READER_IFRAME_SCRIPT + SUMMARY_TOGGLE_SCRIPT,
+		scripts:
+			SHARE_BALLOON_SCRIPT +
+			PROGRESS_BAR_SCRIPT +
+			READER_IFRAME_SCRIPT +
+			SUMMARY_TOGGLE_SCRIPT +
+			CRAWL_BOOKMARK_SCRIPT,
 	};
 }

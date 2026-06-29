@@ -174,6 +174,24 @@ const BUNDLES = [
 	{
 		entry: path.join(
 			PROJECT_ROOT,
+			"src/runtime/web/shared/article-body/crawl-bookmark/crawl-bookmark.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "crawl-bookmark.client.js"),
+		globalName: "CrawlBookmark",
+		footer: [
+			// Loaded with `defer`, so the DOM is parsed before this runs and the
+			// initial sync sees the server-rendered bookmark. The swap listener
+			// re-applies the per-viewport default after a boosted navigation.
+			"CrawlBookmark.initCrawlBookmark({",
+			"  document: window.document,",
+			"  isNarrow: function () { return window.matchMedia('(max-width: 767px)').matches; },",
+			"  addSwapListener: function (cb) { window.document.body.addEventListener('htmx:afterSwap', cb); }",
+			"}).attach();",
+		].join("\n"),
+	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
 			"src/runtime/web/shared/extension-suggestion-banner/extension-suggestion-banner.client.ts",
 		),
 		outfile: path.join(OUT_DIR, "extension-suggestion-banner.client.js"),

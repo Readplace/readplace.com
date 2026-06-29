@@ -128,6 +128,57 @@ describe("View routes", () => {
 			expect(iframeDoc.body.innerHTML.trim()).toBe("<p>Body copy.</p>");
 		});
 
+		it("renders the Last crawled at bookmark once a crawl timestamp exists", async () => {
+			const parseArticle: ParseArticle = async () => buildParseResult();
+			const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+			const applyParseResult = createFakeApplyParseResult({
+				articleStore: fixture.articleStore,
+				articleCrawl: fixture.articleCrawl,
+				parseArticle,
+			});
+			const harness = useApp({
+				...fixture,
+				parser: { parseArticle, crawlArticle: fixture.parser.crawlArticle },
+				events: {
+					publishLinkSaved: createFakePublishLinkSaved(applyParseResult),
+					publishRecrawlLinkInitiated: createFakePublishRecrawlLinkInitiated(applyParseResult),
+					publishSaveAnonymousLink: createFakePublishSaveAnonymousLink(applyParseResult),
+					publishSaveLinkRawHtmlCommand: fixture.events.publishSaveLinkRawHtmlCommand,
+					publishSaveLinkRawPdfCommand: fixture.events.publishSaveLinkRawPdfCommand,
+					publishStaleCheckRequested: fixture.events.publishStaleCheckRequested,
+					publishUpdateFetchTimestamp: fixture.events.publishUpdateFetchTimestamp,
+					publishExportUserDataCommand: fixture.events.publishExportUserDataCommand,
+					publishCancelSubscriptionCommand: fixture.events.publishCancelSubscriptionCommand,
+					publishSubscriptionReactivated: fixture.events.publishSubscriptionReactivated,
+				},
+			});
+
+			// First visit creates the row and runs the synchronous worker; no crawl
+			// timestamp has been recorded yet, so the bookmark stays hidden.
+			const before = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+			const beforeDoc = new JSDOM(before.text).window.document;
+			assert(
+				beforeDoc.querySelector("[data-test-reader-title]"),
+				"the reader must render so the absence check below is meaningful",
+			);
+			expect(beforeDoc.querySelectorAll("[data-test-crawl-bookmark-tab]").length).toBe(0);
+
+			await fixture.articleStore.setContentFetchedAt({
+				url: ARTICLE_URL,
+				at: "2026-03-26T14:32:00.000Z",
+			});
+
+			const after = await request(harness.server).get(`/view/${CANONICAL_PATH}`);
+			const afterDoc = new JSDOM(after.text).window.document;
+			const tab = afterDoc.querySelector('[data-test-crawl-bookmark-tab="canonical"]');
+			assert(tab, "the canonical bookmark tab must render once contentFetchedAt exists");
+			const time = tab.querySelector("time");
+			assert(time, "the bookmark tab must carry a <time> for the crawl instant");
+			expect(time.getAttribute("datetime")).toBe("2026-03-26T14:32:00.000Z");
+			expect(time.getAttribute("data-local-time")).toBe("short-datetime");
+			expect(time.textContent).toBe("26 Mar '26, 14:32");
+		});
+
 		it("301-redirects the legacy percent-encoded format to the scheme-less canonical", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
