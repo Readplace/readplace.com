@@ -75,6 +75,42 @@ describe("Inbox link-preview card route", () => {
 		expect(card.querySelector("[data-test-inbox-article-pending]")).not.toBeNull();
 	});
 
+	it("treats a non-numeric poll cursor as the start of the budget instead of polling unbounded", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, { status: "pending" });
+
+		const response = await agent.get(`${cardPath}&poll=not-a-number`);
+
+		expect(response.status).toBe(200);
+		const card = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-inbox-article-card]",
+		);
+		assert(card, "the card fragment must render");
+		expect(card.getAttribute("data-card-status")).toBe("pending");
+		expect(card.getAttribute("hx-get")).toContain("poll=1");
+	});
+
+	it("stops polling and shows the give-up state once the poll budget is spent", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, { status: "pending" });
+
+		const response = await agent.get(`${cardPath}&poll=300`);
+
+		expect(response.status).toBe(200);
+		const card = new JSDOM(response.text).window.document.querySelector(
+			"[data-test-inbox-article-card]",
+		);
+		assert(card, "the card fragment must render");
+		expect(card.getAttribute("data-card-status")).toBe("terminal");
+		expect(card.getAttribute("hx-get")).toBeNull();
+		expect(card.querySelector("[data-test-inbox-article-stale-pending]")).not.toBeNull();
+		expect(card.querySelector("[data-test-inbox-article-pending]")).toBeNull();
+	});
+
 	it("returns a crawled card fragment with no further polling", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);

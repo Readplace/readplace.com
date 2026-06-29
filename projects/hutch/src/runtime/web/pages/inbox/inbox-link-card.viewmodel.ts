@@ -13,6 +13,11 @@ export interface InboxLinkCardViewModel {
 	 * reaches a terminal state (`crawled`/`failed`) or the poll budget is spent,
 	 * which is what stops the htmx `every 3s` trigger. */
 	cardPollUrl: string | undefined;
+	/** A still-pending link whose poll budget is spent: polling has stopped but
+	 * no preview ever arrived. Mirrors the queue card's give-up state so the
+	 * reader gets an "open on the source" escape hatch instead of a frozen
+	 * "Loading preview…". */
+	isStalePending: boolean;
 }
 
 export function toInboxLinkCardViewModel(input: {
@@ -27,6 +32,7 @@ export function toInboxLinkCardViewModel(input: {
 		reachedTerminal || pollCount > maxPolls
 			? undefined
 			: buildInboxLinkPollUrl({ emailId, ordinal: link.ordinal, pollCount });
+	const isStalePending = !reachedTerminal && pollCount > maxPolls;
 	return {
 		ordinal: link.ordinal,
 		url: link.url,
@@ -36,5 +42,6 @@ export function toInboxLinkCardViewModel(input: {
 		siteName: link.siteName ?? "",
 		imageUrl: link.imageUrl,
 		cardPollUrl,
+		isStalePending,
 	};
 }

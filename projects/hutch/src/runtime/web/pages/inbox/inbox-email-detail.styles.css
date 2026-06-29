@@ -135,8 +135,14 @@
 }
 
 .inbox-article-card__pending,
-.inbox-article-card__failed {
+.inbox-article-card__failed,
+.inbox-article-card__stale-pending {
   margin: 0;
   font-size: 0.85rem;
   color: var(--muted-foreground);
+}
+
+.inbox-article-card__stale-pending a {
+  color: var(--color-brand);
+  text-decoration: underline;
 }

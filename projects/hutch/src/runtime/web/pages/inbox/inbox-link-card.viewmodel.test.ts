@@ -32,6 +32,7 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(vm.cardPollUrl).toContain("/links/0002/card");
 		expect(vm.cardPollUrl).toContain("poll=1");
 		expect(vm.title).toBe("");
+		expect(vm.isStalePending).toBe(false);
 	});
 
 	it("stops polling once a link reaches a terminal state", () => {
@@ -51,9 +52,10 @@ describe("toInboxLinkCardViewModel", () => {
 		expect(crawled.cardPollUrl).toBeUndefined();
 		expect(crawled.title).toBe("T");
 		expect(crawled.imageUrl).toBe("https://cdn.test/x.jpg");
+		expect(crawled.isStalePending).toBe(false);
 	});
 
-	it("stops polling a still-pending link once the poll budget is spent", () => {
+	it("stops polling a still-pending link once the poll budget is spent and marks it stale", () => {
 		const vm = toInboxLinkCardViewModel({
 			link: link({ status: "pending" }),
 			emailId: EMAIL_ID,
@@ -62,5 +64,6 @@ describe("toInboxLinkCardViewModel", () => {
 		});
 
 		expect(vm.cardPollUrl).toBeUndefined();
+		expect(vm.isStalePending).toBe(true);
 	});
 });
