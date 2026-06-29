@@ -32,18 +32,18 @@ function initWithDom(
 describe("initLocalTime", () => {
 	it("rewrites a datetime element into the browser zone with the abbreviation", () => {
 		const { document } = initWithDom(
-			`<time datetime="2026-06-24T09:00:00.000Z" data-local-time="datetime">24 June 2026, 09:00 UTC</time>`,
+			`<time datetime="2026-06-24T09:00:00.000Z" data-local-time="datetime">Jun 24, 2026, 09:00 UTC</time>`,
 		);
 		expect(document.querySelector("time")?.textContent).toBe(
-			"24 June 2026, 19:00 AEST",
+			"Jun 24, 2026, 19:00 GMT+10",
 		);
 	});
 
 	it("rewrites a date element into the browser zone, fixing midnight ±1-day drift", () => {
 		const { document } = initWithDom(
-			`<time datetime="2026-06-23T15:00:00.000Z" data-local-time="date">23 June 2026</time>`,
+			`<time datetime="2026-06-23T15:00:00.000Z" data-local-time="date">Jun 23, 2026</time>`,
 		);
-		expect(document.querySelector("time")?.textContent).toBe("24 June 2026");
+		expect(document.querySelector("time")?.textContent).toBe("Jun 24, 2026");
 	});
 
 	it("leaves relative text in place and only sets the localised absolute instant as a title", () => {
@@ -53,7 +53,7 @@ describe("initLocalTime", () => {
 		const el = document.querySelector("time");
 		assert(el, "time element must render");
 		expect(el.textContent).toBe("5m ago");
-		expect(el.getAttribute("title")).toBe("24 June 2026, 19:00 AEST");
+		expect(el.getAttribute("title")).toBe("Jun 24, 2026, 19:00 GMT+10");
 	});
 
 	it("skips an element with a missing or unparseable datetime", () => {
@@ -67,10 +67,10 @@ describe("initLocalTime", () => {
 
 	it("re-localises elements inserted after an htmx swap", () => {
 		const { document, triggerSwap } = initWithDom("");
-		document.body.innerHTML = `<time datetime="2026-06-24T09:00:00.000Z" data-local-time="datetime">24 June 2026, 09:00 UTC</time>`;
+		document.body.innerHTML = `<time datetime="2026-06-24T09:00:00.000Z" data-local-time="datetime">Jun 24, 2026, 09:00 UTC</time>`;
 		triggerSwap();
 		expect(document.querySelector("time")?.textContent).toBe(
-			"24 June 2026, 19:00 AEST",
+			"Jun 24, 2026, 19:00 GMT+10",
 		);
 	});
 });

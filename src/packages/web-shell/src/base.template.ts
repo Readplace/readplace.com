@@ -1,5 +1,5 @@
 export const BASE_TEMPLATE = `<!DOCTYPE html>
-<html lang="en-AU">
+<html lang="en-US">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -24,7 +24,7 @@ export const BASE_TEMPLATE = `<!DOCTYPE html>
   {{#if ogImageType}}<meta property="og:image:type" content="{{ogImageType}}">{{/if}}
   {{#if ogImageAlt}}<meta property="og:image:alt" content="{{ogImageAlt}}">{{/if}}
   {{/if}}
-  <meta property="og:locale" content="en_AU">
+  <meta property="og:locale" content="en_US">
 
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="{{title}}">

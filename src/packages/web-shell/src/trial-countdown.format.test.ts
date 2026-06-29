@@ -126,7 +126,7 @@ describe("formatTrialDisplay", () => {
 
 	it("renders cancellation-scheduled as 'Subscription ends on <date>' so the user sees the cutoff date in the header", () => {
 		const endsAtIso = "2026-06-22T10:00:00.000Z";
-		const expectedDate = new Date(endsAtIso).toLocaleDateString("en-AU", {
+		const expectedDate = new Date(endsAtIso).toLocaleDateString("en-US", {
 			day: "numeric",
 			month: "short",
 			year: "numeric",

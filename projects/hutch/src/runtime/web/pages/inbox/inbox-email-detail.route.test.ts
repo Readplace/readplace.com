@@ -113,7 +113,7 @@ describe("Inbox email detail route", () => {
 		assert(received, "received time element must render");
 		expect(received.getAttribute("datetime")).toBe("2026-06-24T09:00:00.000Z");
 		expect(received.getAttribute("data-local-time")).toBe("datetime");
-		expect(received.textContent).toBe("24 June 2026, 09:00 UTC");
+		expect(received.textContent).toBe("Jun 24, 2026, 09:00 UTC");
 	});
 
 	it("renders a text-only received email's plain text in the View tab, not a blank frame", async () => {

@@ -97,7 +97,7 @@ describe("toInboxEmailsViewModel", () => {
 
 		expect(row.received).toEqual({
 			iso,
-			label: "25 Apr 2026",
+			label: "Apr 25, 2026",
 			mode: "date",
 		});
 	});

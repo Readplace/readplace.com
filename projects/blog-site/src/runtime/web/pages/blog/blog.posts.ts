@@ -98,7 +98,7 @@ export function deriveChangelogBanner(
 
 function formatDate(isoDate: string): string {
 	const date = new Date(`${isoDate}T00:00:00Z`);
-	return date.toLocaleDateString("en-AU", {
+	return date.toLocaleDateString("en-US", {
 		day: "numeric",
 		month: "long",
 		year: "numeric",

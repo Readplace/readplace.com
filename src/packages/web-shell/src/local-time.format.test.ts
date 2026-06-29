@@ -10,28 +10,28 @@ const ISO = "2026-06-24T09:00:00.000Z";
 describe("formatLocalInstant", () => {
 	it("renders a UTC datetime with a 24-hour clock and the zone abbreviation", () => {
 		expect(formatLocalInstant({ iso: ISO, style: "datetime", timeZone: "UTC" })).toBe(
-			"24 June 2026, 09:00 UTC",
+			"Jun 24, 2026, 09:00 UTC",
 		);
 	});
 
 	it("localises the datetime into the given zone, shifting the clock and the abbreviation", () => {
 		expect(
 			formatLocalInstant({ iso: ISO, style: "datetime", timeZone: "Australia/Sydney" }),
-		).toBe("24 June 2026, 19:00 AEST");
+		).toBe("Jun 24, 2026, 19:00 GMT+10");
 		expect(
 			formatLocalInstant({ iso: ISO, style: "datetime", timeZone: "America/New_York" }),
-		).toBe("24 June 2026, 05:00 GMT-4");
+		).toBe("Jun 24, 2026, 05:00 EDT");
 	});
 
 	it("falls back to a GMT offset for a zone without an abbreviation", () => {
 		expect(
 			formatLocalInstant({ iso: ISO, style: "datetime", timeZone: "Asia/Kolkata" }),
-		).toBe("24 June 2026, 14:30 GMT+5:30");
+		).toBe("Jun 24, 2026, 14:30 GMT+5:30");
 	});
 
 	it("renders a bare calendar date with no zone suffix", () => {
 		expect(formatLocalInstant({ iso: ISO, style: "date", timeZone: "UTC" })).toBe(
-			"24 June 2026",
+			"Jun 24, 2026",
 		);
 	});
 });
@@ -40,7 +40,7 @@ describe("toAbsoluteDateTime", () => {
 	it("carries the iso, datetime mode, and UTC baseline label", () => {
 		expect(toAbsoluteDateTime({ iso: ISO })).toEqual({
 			iso: ISO,
-			label: "24 June 2026, 09:00 UTC",
+			label: "Jun 24, 2026, 09:00 UTC",
 			mode: "datetime",
 		});
 	});
@@ -50,7 +50,7 @@ describe("toAbsoluteDate", () => {
 	it("carries the iso, date mode, and UTC baseline label", () => {
 		expect(toAbsoluteDate({ iso: ISO })).toEqual({
 			iso: ISO,
-			label: "24 June 2026",
+			label: "Jun 24, 2026",
 			mode: "date",
 		});
 	});
@@ -84,7 +84,7 @@ describe("toRelativeOrDate", () => {
 		const iso = ago(60 * 86_400_000);
 		expect(toRelativeOrDate({ iso, now })).toEqual({
 			iso,
-			label: "25 Apr 2026",
+			label: "Apr 25, 2026",
 			mode: "date",
 		});
 	});
