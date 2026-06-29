@@ -69,6 +69,11 @@ import type {
 	FindOAuthClient,
 	RegisterOAuthClient,
 	ValidateOAuthRedirectUri,
+	BeginAddCard,
+	ListCards,
+	RemoveCard,
+	SavedCard,
+	SetPrimaryCard,
 	PublishCancelSubscriptionCommand,
 	PublishExportUserDataCommand,
 	PublishLinkSaved,
@@ -169,6 +174,14 @@ export interface TrialSchedulerBundle {
 	getDeferredCancellationSchedule: (userId: UserId) => string | undefined;
 	allDeferredCancellationSchedules: () => readonly { userId: UserId; firesAt: string }[];
 	deferredCancellationDeleteCalls: () => readonly UserId[];
+}
+
+export interface PaymentMethodsBundle {
+	listCards: ListCards;
+	beginAddCard: BeginAddCard;
+	removeCard: RemoveCard;
+	setPrimaryCard: SetPrimaryCard;
+	seedCards: (input: { customerId: string; cards: SavedCard[] }) => void;
 }
 
 export interface StripeSubscriptionsBundle {
@@ -382,7 +395,12 @@ export interface TestAppFixture {
 	subscriptionProviders: SubscriptionProvidersBundle;
 	trialScheduler: TrialSchedulerBundle;
 	stripeSubscriptions: StripeSubscriptionsBundle;
+	paymentMethods: PaymentMethodsBundle;
 	stripePriceId: string;
+	/** Public Stripe publishable key embedded in the card-add Elements form.
+	 * `undefined` models local dev without a key — the page then renders the
+	 * list/remove/promote actions but not the add form. */
+	stripePublishableKey: string | undefined;
 	botDefense: BotDefenseBundle;
 	conversions: ConversionsBundle;
 	foundingAllocation: FoundingAllocationBundle;

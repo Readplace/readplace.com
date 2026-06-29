@@ -1,11 +1,19 @@
 import { decomposeTimeLeft } from "@packages/time-left";
+import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import type { EffectiveAccess } from "../../../domain/access/effective-access";
 import { type LocalTime, toAbsoluteDate, withInternalTracking } from "@packages/web-shell";
 import {
 	ACCOUNT_CANCEL_URL,
+	ACCOUNT_CARDS_NEW_URL,
 	ACCOUNT_REACTIVATE_URL,
 	ACCOUNT_SUBSCRIBE_URL,
+	buildCardPrimaryUrl,
+	buildCardRemoveUrl,
 } from "./account.url";
+
+/** Server-authoritative card cap. The web layer never trusts the client: every
+ * add/remove/promote re-reads the live card set and re-checks these rules. */
+export const MAX_CARDS = 3;
 
 export type AccountCardState =
 	| "founding"
@@ -50,15 +58,25 @@ function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number
 	return { daysLeft, daysLeftWord: daysLeft === 1 ? "day" : "days" };
 }
 
+export type CardError = "card_limit" | "cannot_remove_primary";
+
 export interface AccountUrlState {
 	cancelling: boolean;
 	errorPaymentMethod: boolean;
+	cardError: CardError | undefined;
+}
+
+function parseCardError(error: unknown): CardError | undefined {
+	if (error === "card_limit") return "card_limit";
+	if (error === "cannot_remove_primary") return "cannot_remove_primary";
+	return undefined;
 }
 
 export function parseAccountQuery(query: Record<string, unknown> | undefined): AccountUrlState {
 	return {
 		cancelling: query?.cancelling === "1",
 		errorPaymentMethod: query?.error === "payment_method",
+		cardError: parseCardError(query?.error),
 	};
 }
 
@@ -92,6 +110,157 @@ const REACTIVATE_FORM_ACTION = action({
 	method: "POST",
 	href: ACCOUNT_REACTIVATE_URL,
 });
+
+export type CardSectionState = "no-customer" | "loaded" | "provider-error";
+
+export type CardActionKey = "promote" | "remove";
+
+export interface CardActionView {
+	key: CardActionKey;
+	name: string;
+	variant: "secondary" | "destructive";
+	href: string;
+}
+
+export interface CardViewItem {
+	itemClass: string;
+	/** Either "data-test-card-primary" or "" — interpolated raw into the row tag
+	 * so the primary row is addressable without a per-item {{#if}} in the template. */
+	primaryTestAttr: string;
+	brandLabel: string;
+	last4: string;
+	expLabel: string;
+	badges: { label: string }[];
+	actions: CardActionView[];
+}
+
+export interface CardSectionViewModel {
+	state: CardSectionState;
+	stateClass: string;
+	heading: string;
+	isLoaded: boolean;
+	message: string;
+	hasNotice: boolean;
+	notice: string;
+	cards: CardViewItem[];
+	showAddButton: boolean;
+	addUrl: string;
+	showLimitHint: boolean;
+	limitHint: string;
+	isAdding: boolean;
+	adding: { publishableKey: string; clientSecret: string } | undefined;
+}
+
+export type CardSectionInput =
+	| { kind: "no-customer" }
+	| { kind: "provider-error" }
+	| {
+			kind: "loaded";
+			cards: SavedCard[];
+			publishableKey: string | undefined;
+			cardError: CardError | undefined;
+			adding: { clientSecret: string } | undefined;
+	  };
+
+const CARD_NOTICES: Record<CardError, string> = {
+	card_limit: "You can save up to 3 cards. Remove a backup before adding another.",
+	cannot_remove_primary:
+		"Your primary card can't be removed. Promote a backup to primary first, then remove it.",
+};
+
+const NO_CUSTOMER_MESSAGE = "Add a payment method once you start your subscription.";
+const PROVIDER_ERROR_MESSAGE =
+	"We couldn't load your saved cards just now. Refresh the page to try again.";
+const LIMIT_HINT = "You've reached the 3-card limit. Remove a backup to add a different card.";
+
+function titleCaseBrand(brand: string): string {
+	if (brand.length === 0) return brand;
+	return brand.charAt(0).toUpperCase() + brand.slice(1);
+}
+
+function formatExpiry(card: SavedCard): string {
+	const month = String(card.expMonth).padStart(2, "0");
+	const year = String(card.expYear % 100).padStart(2, "0");
+	return `${month}/${year}`;
+}
+
+function cardActions(card: SavedCard): CardActionView[] {
+	if (card.isPrimary) return [];
+	return [
+		{ key: "promote", name: "Make primary", variant: "secondary", href: buildCardPrimaryUrl(card.id) },
+		{ key: "remove", name: "Remove", variant: "destructive", href: buildCardRemoveUrl(card.id) },
+	];
+}
+
+function toCardViewItem(card: SavedCard): CardViewItem {
+	return {
+		itemClass: `account-cards__item account-cards__item--${card.isPrimary ? "primary" : "backup"}`,
+		primaryTestAttr: card.isPrimary ? "data-test-card-primary" : "",
+		brandLabel: titleCaseBrand(card.brand),
+		last4: card.last4,
+		expLabel: formatExpiry(card),
+		badges: card.isPrimary ? [{ label: "Primary" }] : [],
+		actions: cardActions(card),
+	};
+}
+
+function unavailableSection(
+	state: "no-customer" | "provider-error",
+	message: string,
+): CardSectionViewModel {
+	return {
+		state,
+		stateClass: `account-cards account-cards--${state}`,
+		heading: "Payment methods",
+		isLoaded: false,
+		message,
+		hasNotice: false,
+		notice: "",
+		cards: [],
+		showAddButton: false,
+		addUrl: ACCOUNT_CARDS_NEW_URL,
+		showLimitHint: false,
+		limitHint: "",
+		isAdding: false,
+		adding: undefined,
+	};
+}
+
+export function buildCardSectionViewModel(input: CardSectionInput): CardSectionViewModel {
+	if (input.kind === "no-customer") {
+		return unavailableSection("no-customer", NO_CUSTOMER_MESSAGE);
+	}
+	if (input.kind === "provider-error") {
+		return unavailableSection("provider-error", PROVIDER_ERROR_MESSAGE);
+	}
+
+	const canAddCard = input.cards.length < MAX_CARDS;
+	const hasKey = input.publishableKey !== undefined && input.publishableKey.length > 0;
+	const isAdding = input.adding !== undefined && hasKey;
+	const notice = input.cardError ? CARD_NOTICES[input.cardError] : "";
+
+	return {
+		state: "loaded",
+		stateClass: "account-cards account-cards--loaded",
+		heading: "Payment methods",
+		isLoaded: true,
+		message: "",
+		hasNotice: notice.length > 0,
+		notice,
+		cards: input.cards.map(toCardViewItem),
+		// The add button only appears when there's room AND a publishable key to
+		// drive Elements; without a key (local dev) the list/manage actions still render.
+		showAddButton: canAddCard && hasKey && !isAdding,
+		addUrl: ACCOUNT_CARDS_NEW_URL,
+		showLimitHint: !canAddCard,
+		limitHint: LIMIT_HINT,
+		isAdding,
+		adding:
+			isAdding && input.adding !== undefined && input.publishableKey !== undefined
+				? { publishableKey: input.publishableKey, clientSecret: input.adding.clientSecret }
+				: undefined,
+	};
+}
 
 function baseFor(state: AccountCardState, actions: AccountAction[]): {
 	state: AccountCardState;

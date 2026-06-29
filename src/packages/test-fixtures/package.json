@@ -57,6 +57,10 @@
       "types": "./dist/providers/reader-ready-state/index.d.ts",
       "default": "./dist/providers/reader-ready-state/index.js"
     },
+    "./providers/payment-methods": {
+      "types": "./dist/providers/payment-methods/index.d.ts",
+      "default": "./dist/providers/payment-methods/index.js"
+    },
     "./providers/pending-html": {
       "types": "./dist/providers/pending-html/index.d.ts",
       "default": "./dist/providers/pending-html/index.js"
@@ -140,6 +144,7 @@
       "providers/password-reset": ["./dist/providers/password-reset/index.d.ts"],
       "providers/rate-limit": ["./dist/providers/rate-limit/index.d.ts"],
       "providers/reader-ready-state": ["./dist/providers/reader-ready-state/index.d.ts"],
+      "providers/payment-methods": ["./dist/providers/payment-methods/index.d.ts"],
       "providers/pending-html": ["./dist/providers/pending-html/index.d.ts"],
       "providers/pending-pdf": ["./dist/providers/pending-pdf/index.d.ts"],
       "providers/refresh-html": ["./dist/providers/refresh-html/index.d.ts"],

@@ -1,6 +1,20 @@
 import assert from "node:assert/strict";
-import { toAccountViewModel, parseAccountQuery } from "./account.view-model";
+import { PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
+import type { SavedCard } from "@packages/provider-contracts/payment-methods";
+import { buildCardSectionViewModel, toAccountViewModel, parseAccountQuery } from "./account.view-model";
 import type { EffectiveAccess } from "../../../domain/access/effective-access";
+
+function savedCard(id: string, isPrimary: boolean, overrides?: Partial<SavedCard>): SavedCard {
+	return {
+		id: PaymentMethodIdSchema.parse(id),
+		brand: "visa",
+		last4: "4242",
+		expMonth: 12,
+		expYear: 2030,
+		isPrimary,
+		...overrides,
+	};
+}
 
 const ONE_DAY_MS = 86_400_000;
 
@@ -16,7 +30,7 @@ describe("toAccountViewModel — state", () => {
 		};
 		const vm = toAccountViewModel(
 			access,
-			{ cancelling: false, errorPaymentMethod: false },
+			{ cancelling: false, errorPaymentMethod: false, cardError: undefined },
 			now,
 		);
 		assert.equal(vm.statusLine, "Your free trial ends on ");
@@ -39,7 +53,7 @@ describe("toAccountViewModel — state", () => {
 		};
 		const vm = toAccountViewModel(
 			access,
-			{ cancelling: false, errorPaymentMethod: false },
+			{ cancelling: false, errorPaymentMethod: false, cardError: undefined },
 			now,
 		);
 		assert.equal(vm.statusDateTail, " — 1 day left.");
@@ -48,7 +62,7 @@ describe("toAccountViewModel — state", () => {
 
 describe("toAccountViewModel — actions", () => {
 	const now = new Date();
-	const baseQuery = { cancelling: false, errorPaymentMethod: false };
+	const baseQuery = { cancelling: false, errorPaymentMethod: false, cardError: undefined };
 
 	it("founding members get no actions", () => {
 		const vm = toAccountViewModel(
@@ -177,6 +191,140 @@ describe("parseAccountQuery", () => {
 		assert.deepEqual(result, {
 			cancelling: false,
 			errorPaymentMethod: false,
+			cardError: undefined,
 		});
+	});
+
+	it("parses the card_limit error", () => {
+		assert.equal(parseAccountQuery({ error: "card_limit" }).cardError, "card_limit");
+	});
+
+	it("parses the cannot_remove_primary error", () => {
+		assert.equal(
+			parseAccountQuery({ error: "cannot_remove_primary" }).cardError,
+			"cannot_remove_primary",
+		);
+	});
+});
+
+describe("buildCardSectionViewModel", () => {
+	it("no-customer state shows the start-subscription copy and no cards", () => {
+		const vm = buildCardSectionViewModel({ kind: "no-customer" });
+		assert.equal(vm.state, "no-customer");
+		assert.equal(vm.stateClass, "account-cards account-cards--no-customer");
+		assert.equal(vm.isLoaded, false);
+		assert.match(vm.message, /start your subscription/);
+		assert.deepEqual(vm.cards, []);
+		assert.equal(vm.showAddButton, false);
+	});
+
+	it("provider-error state degrades to a retry message", () => {
+		const vm = buildCardSectionViewModel({ kind: "provider-error" });
+		assert.equal(vm.state, "provider-error");
+		assert.equal(vm.isLoaded, false);
+		assert.match(vm.message, /couldn't load your saved cards/);
+	});
+
+	it("loaded state badges the primary, gives it no actions, and gives backups promote + remove", () => {
+		const vm = buildCardSectionViewModel({
+			kind: "loaded",
+			cards: [
+				savedCard("pm_primary", true, { brand: "mastercard", last4: "1111", expMonth: 3, expYear: 2027 }),
+				savedCard("pm_backup", false),
+			],
+			publishableKey: "pk_test",
+			cardError: undefined,
+			adding: undefined,
+		});
+
+		assert.equal(vm.isLoaded, true);
+		const [primary, backup] = vm.cards;
+		assert.equal(primary.primaryTestAttr, "data-test-card-primary");
+		assert.equal(primary.brandLabel, "Mastercard");
+		assert.equal(primary.expLabel, "03/27");
+		assert.deepEqual(primary.badges, [{ label: "Primary" }]);
+		assert.deepEqual(primary.actions, []);
+
+		assert.equal(backup.primaryTestAttr, "");
+		assert.deepEqual(backup.badges, []);
+		assert.deepEqual(
+			backup.actions.map((a) => a.key),
+			["promote", "remove"],
+		);
+		assert.equal(backup.actions[0].href, "/account/cards/pm_backup/primary");
+		assert.equal(backup.actions[1].href, "/account/cards/pm_backup/remove");
+		assert.equal(backup.actions[1].variant, "destructive");
+	});
+
+	it("shows the add button when there is room and a publishable key", () => {
+		const vm = buildCardSectionViewModel({
+			kind: "loaded",
+			cards: [savedCard("pm_a", true)],
+			publishableKey: "pk_test",
+			cardError: undefined,
+			adding: undefined,
+		});
+		assert.equal(vm.showAddButton, true);
+		assert.equal(vm.showLimitHint, false);
+	});
+
+	it("hides the add button and shows the limit hint at the 3-card cap", () => {
+		const vm = buildCardSectionViewModel({
+			kind: "loaded",
+			cards: [savedCard("pm_a", true), savedCard("pm_b", false), savedCard("pm_c", false)],
+			publishableKey: "pk_test",
+			cardError: undefined,
+			adding: undefined,
+		});
+		assert.equal(vm.showAddButton, false);
+		assert.equal(vm.showLimitHint, true);
+	});
+
+	it("hides the add button when there is no publishable key, even with room", () => {
+		const vm = buildCardSectionViewModel({
+			kind: "loaded",
+			cards: [savedCard("pm_a", true)],
+			publishableKey: undefined,
+			cardError: undefined,
+			adding: undefined,
+		});
+		assert.equal(vm.showAddButton, false);
+	});
+
+	it("surfaces the card_limit notice", () => {
+		const vm = buildCardSectionViewModel({
+			kind: "loaded",
+			cards: [savedCard("pm_a", true)],
+			publishableKey: "pk_test",
+			cardError: "card_limit",
+			adding: undefined,
+		});
+		assert.equal(vm.hasNotice, true);
+		assert.match(vm.notice, /up to 3 cards/);
+	});
+
+	it("enters the adding state with the publishable key and client secret", () => {
+		const vm = buildCardSectionViewModel({
+			kind: "loaded",
+			cards: [savedCard("pm_a", true)],
+			publishableKey: "pk_test",
+			cardError: undefined,
+			adding: { clientSecret: "seti_secret" },
+		});
+		assert.equal(vm.isAdding, true);
+		assert.deepEqual(vm.adding, { publishableKey: "pk_test", clientSecret: "seti_secret" });
+		assert.equal(vm.showAddButton, false);
+	});
+
+	it("cannot enter the adding state without a publishable key", () => {
+		const vm = buildCardSectionViewModel({
+			kind: "loaded",
+			cards: [savedCard("pm_a", true)],
+			publishableKey: undefined,
+			cardError: undefined,
+			adding: { clientSecret: "seti_secret" },
+		});
+		assert.equal(vm.isAdding, false);
+		assert.equal(vm.adding, undefined);
 	});
 });

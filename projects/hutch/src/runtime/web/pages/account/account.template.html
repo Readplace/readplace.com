@@ -26,4 +26,59 @@
           {{/each}}
         </div>
       </section>
+      <section class="{{cardSection.stateClass}}" data-test-cards-section data-test-cards-state="{{cardSection.state}}">
+        <h2 class="account-cards__heading">{{cardSection.heading}}</h2>
+        {{#if cardSection.isLoaded}}
+        {{#if cardSection.hasNotice}}
+        <p class="account-cards__notice" data-test-cards-notice>{{cardSection.notice}}</p>
+        {{/if}}
+        <ul class="account-cards__list">
+          {{#each cardSection.cards}}
+          <li class="{{itemClass}}" data-test-card {{primaryTestAttr}}>
+            <div class="account-cards__summary">
+              <span class="account-cards__brand">{{brandLabel}}</span>
+              <span class="account-cards__sep">·</span>
+              <span class="account-cards__digits">•••• {{last4}}</span>
+              <span class="account-cards__sep">·</span>
+              <span class="account-cards__exp">exp {{expLabel}}</span>
+              {{#each badges}}<span class="account-cards__badge" data-test-card-badge>{{label}}</span>{{/each}}
+            </div>
+            <div class="account-cards__actions">
+              {{#each actions}}
+              <form method="POST" action="{{href}}" class="account-cards__action-form"
+                    hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
+                    data-test-card-action="{{key}}">
+                <button type="submit" class="account-cards__action account-cards__action--{{variant}}">{{name}}</button>
+              </form>
+              {{/each}}
+            </div>
+          </li>
+          {{/each}}
+        </ul>
+        {{#if cardSection.showLimitHint}}
+        <p class="account-cards__hint" data-test-cards-limit-hint>{{cardSection.limitHint}}</p>
+        {{/if}}
+        {{#if cardSection.showAddButton}}
+        <form method="POST" action="{{cardSection.addUrl}}" class="account-cards__add-form"
+              hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
+              data-test-add-card>
+          <button type="submit" class="account-cards__action account-cards__action--primary">Add a card</button>
+        </form>
+        {{/if}}
+        {{#if cardSection.isAdding}}
+        <div class="account-cards__elements" data-test-card-elements data-card-elements
+             data-publishable-key="{{cardSection.adding.publishableKey}}"
+             data-client-secret="{{cardSection.adding.clientSecret}}">
+          <div class="account-cards__element-mount" data-card-element></div>
+          <p class="account-cards__element-error" data-card-error role="alert"></p>
+          <div class="account-cards__elements-actions">
+            <button type="button" class="account-cards__action account-cards__action--primary" data-card-submit>Save card</button>
+            <a class="account-cards__cancel" href="/account" data-card-cancel>Cancel</a>
+          </div>
+        </div>
+        {{/if}}
+        {{else}}
+        <p class="account-cards__body" data-test-cards-message>{{cardSection.message}}</p>
+        {{/if}}
+      </section>
     </main>

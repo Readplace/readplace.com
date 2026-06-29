@@ -10,6 +10,7 @@ export type * from "./google-auth";
 export type * from "./ios-onboarding-signal";
 export type * from "./oauth";
 export * from "./password-reset";
+export * from "./payment-methods";
 export type * from "./pending-html";
 export type * from "./pending-pdf";
 export type * from "./pending-signup";

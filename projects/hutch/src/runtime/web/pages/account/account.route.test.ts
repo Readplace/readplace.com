@@ -1,11 +1,34 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import request from "supertest";
+import { PaymentMethodIdSchema } from "@packages/provider-contracts/payment-methods";
+import type { SavedCard } from "@packages/provider-contracts/payment-methods";
 import { useTestServer, loginAgent } from "../../../test-app";
 import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
+
+function card(id: string, isPrimary: boolean, last4: string): SavedCard {
+	return {
+		id: PaymentMethodIdSchema.parse(id),
+		brand: "visa",
+		last4,
+		expMonth: 12,
+		expYear: 2030,
+		isPrimary,
+	};
+}
+
+function cardRows(doc: Document): Element[] {
+	return Array.from(doc.querySelectorAll("[data-test-card]"));
+}
+
+function cardActionKeys(row: Element): string[] {
+	return Array.from(row.querySelectorAll("[data-test-card-action]")).map(
+		(el) => el.getAttribute("data-test-card-action") ?? "",
+	);
+}
 
 const useApp = useTestServer();
 const ONE_DAY_MS = 86_400_000;
@@ -824,6 +847,226 @@ describe("POST /account/reactivate", () => {
 	it("redirects unauthenticated POST /account/reactivate to /login", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).post("/account/reactivate");
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/login");
+	});
+});
+
+async function activeUserWithCards(
+	harness: ReturnType<ReturnType<typeof useTestServer>>,
+	email: string,
+	cards: SavedCard[],
+	customerId = "cus_cards",
+) {
+	const { agent, userId } = await loginUser(harness, email);
+	await harness.subscriptionProviders.upsertActive({
+		userId,
+		subscriptionId: "sub_cards",
+		customerId,
+	});
+	harness.paymentMethods.seedCards({ customerId, cards });
+	return { agent, userId, customerId };
+}
+
+describe("GET /account — card management section", () => {
+	it("always loads the account-cards client bundle", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/account");
+
+		const doc = new JSDOM(response.text).window.document;
+		const script = doc.querySelector('script[src="/client-dist/account-cards.client.js"]');
+		assert(script, "account-cards.client.js bundle must be loaded on /account");
+	});
+
+	it("renders the no-customer state for a founding member with no Stripe customer", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent.get("/account");
+
+		const doc = new JSDOM(response.text).window.document;
+		const section = doc.querySelector("[data-test-cards-section]");
+		assert(section, "card section must render");
+		expect(section.getAttribute("data-test-cards-state")).toBe("no-customer");
+		assert(doc.querySelector("[data-test-cards-message]"), "no-customer message must render");
+		expect(cardRows(doc)).toHaveLength(0);
+	});
+
+	it("renders each saved card with the primary badged and backups carrying promote + remove", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await activeUserWithCards(harness, "cards-list@example.com", [
+			card("pm_primary", true, "4242"),
+			card("pm_backup", false, "1111"),
+		]);
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(cardRows(doc)).toHaveLength(2);
+
+		const primaryRow = doc.querySelector("[data-test-card-primary]");
+		assert(primaryRow, "primary row must be addressable");
+		expect(primaryRow.textContent).toContain("4242");
+		expect(cardActionKeys(primaryRow)).toEqual([]);
+
+		const backupRow = cardRows(doc).find((row) => !row.hasAttribute("data-test-card-primary"));
+		assert(backupRow, "backup row must render");
+		expect(backupRow.textContent).toContain("1111");
+		expect(cardActionKeys(backupRow)).toEqual(["promote", "remove"]);
+	});
+
+	it("renders the add-card button when below the cap", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await activeUserWithCards(harness, "cards-add@example.com", [
+			card("pm_primary", true, "4242"),
+		]);
+
+		const response = await agent.get("/account");
+
+		const doc = new JSDOM(response.text).window.document;
+		assert(doc.querySelector("[data-test-add-card]"), "add-card button must render below the cap");
+	});
+
+	it("degrades gracefully when the live card read fails — still renders the subscription card", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.paymentMethods.listCards = async () => {
+			throw new Error("Stripe is down");
+		};
+		const harness = useApp(fixture);
+		const { agent, userId } = await loginUser(harness, "cards-error@example.com");
+		await harness.subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_err",
+			customerId: "cus_err",
+		});
+
+		const response = await agent.get("/account");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		expect(
+			doc.querySelector("[data-test-cards-section]")?.getAttribute("data-test-cards-state"),
+		).toBe("provider-error");
+		assert(doc.querySelector("[data-test-account-card]"), "subscription card still renders");
+	});
+});
+
+describe("POST /account/cards/:id/primary", () => {
+	it("promotes a backup to primary and redirects to /account", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "promote@example.com", [
+			card("pm_primary", true, "4242"),
+			card("pm_backup", false, "1111"),
+		]);
+
+		const response = await agent.post("/account/cards/pm_backup/primary");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.find((c) => c.id === "pm_backup")?.isPrimary).toBe(true);
+		expect(cards.find((c) => c.id === "pm_primary")?.isPrimary).toBe(false);
+	});
+
+	it("noops when the card is already primary", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "promote-noop@example.com", [
+			card("pm_primary", true, "4242"),
+		]);
+
+		const response = await agent.post("/account/cards/pm_primary/primary");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.find((c) => c.id === "pm_primary")?.isPrimary).toBe(true);
+	});
+
+	it("redirects unauthenticated callers to /login", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).post("/account/cards/pm_x/primary");
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/login");
+	});
+});
+
+describe("POST /account/cards/:id/remove", () => {
+	it("removes a backup and redirects to /account", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "remove@example.com", [
+			card("pm_primary", true, "4242"),
+			card("pm_backup", false, "1111"),
+		]);
+
+		const response = await agent.post("/account/cards/pm_backup/remove");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_primary"]);
+	});
+
+	it("refuses to remove the primary card", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "remove-primary@example.com", [
+			card("pm_primary", true, "4242"),
+			card("pm_backup", false, "1111"),
+		]);
+
+		const response = await agent.post("/account/cards/pm_primary/remove");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=cannot_remove_primary");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_primary", "pm_backup"]);
+	});
+
+	it("redirects unauthenticated callers to /login", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).post("/account/cards/pm_x/remove");
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/login");
+	});
+});
+
+describe("POST /account/cards/new", () => {
+	it("creates a SetupIntent and re-renders /account in the adding state", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await activeUserWithCards(harness, "add-new@example.com", [
+			card("pm_primary", true, "4242"),
+		]);
+
+		const response = await agent.post("/account/cards/new");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const elements = doc.querySelector("[data-test-card-elements]");
+		assert(elements, "Elements container must render in the adding state");
+		expect(elements.getAttribute("data-publishable-key")).toBe("pk_test_default");
+		const secret = elements.getAttribute("data-client-secret") ?? "";
+		assert(secret.length > 0, "client secret must be embedded for Stripe.js");
+	});
+
+	it("redirects to the card-limit error when already at 3 cards", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await activeUserWithCards(harness, "add-limit@example.com", [
+			card("pm_a", true, "4242"),
+			card("pm_b", false, "1111"),
+			card("pm_c", false, "2222"),
+		]);
+
+		const response = await agent.post("/account/cards/new");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=card_limit");
+	});
+
+	it("redirects unauthenticated callers to /login", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).post("/account/cards/new");
 		expect(response.status).toBe(303);
 		expect(response.headers.location).toBe("/login");
 	});
