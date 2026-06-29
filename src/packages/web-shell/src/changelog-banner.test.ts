@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import {
-	CHANGELOG_DISMISS_COOKIE_NAME,
 	type ChangelogBanner,
 	isChangelogVersion,
 	parseChangelogBannerFragment,
-	readCookie,
 	renderChangelogBannerFragment,
 	renderChangelogBannerShell,
 } from "./changelog-banner";
@@ -229,31 +227,3 @@ describe("renderChangelogBannerShell", () => {
 	});
 });
 
-describe("readCookie", () => {
-	it("reads a single cookie value", () => {
-		expect(readCookie(`${CHANGELOG_DISMISS_COOKIE_NAME}=a1b2c3d4`, CHANGELOG_DISMISS_COOKIE_NAME)).toBe(
-			"a1b2c3d4",
-		);
-	});
-
-	it("returns undefined when the header is absent", () => {
-		expect(readCookie(undefined, CHANGELOG_DISMISS_COOKIE_NAME)).toBeUndefined();
-	});
-
-	it("finds the named cookie among several", () => {
-		const header = `session=abc; ${CHANGELOG_DISMISS_COOKIE_NAME}=a1b2c3d4; theme=dark`;
-		expect(readCookie(header, CHANGELOG_DISMISS_COOKIE_NAME)).toBe("a1b2c3d4");
-	});
-
-	it("returns undefined when the named cookie is not present", () => {
-		expect(readCookie("session=abc; theme=dark", CHANGELOG_DISMISS_COOKIE_NAME)).toBeUndefined();
-	});
-
-	it("decodes percent-encoded values", () => {
-		expect(readCookie("k=a%20b", "k")).toBe("a b");
-	});
-
-	it("returns the raw value rather than throwing when it is not a valid percent-escape", () => {
-		expect(readCookie("k=%", "k")).toBe("%");
-	});
-});

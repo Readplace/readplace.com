@@ -1,6 +1,7 @@
 import * as pulumi from "@pulumi/pulumi";
 import {
 	HutchAPIGatewayLambdaRoute,
+	HutchDynamoDBAccess,
 	HutchLambda,
 } from "@packages/hutch-infra-components/infra";
 
@@ -22,6 +23,17 @@ const apiGatewayId = hutchStack.requireOutput("apiGatewayId");
 const apiGatewayExecutionArn = hutchStack.requireOutput("apiGatewayExecutionArn");
 const hutchApiUrl = hutchStack.requireOutput("apiUrl");
 const appOrigin = hutchStack.requireOutput("appOrigin");
+const staticBaseUrl = hutchStack.requireOutput("staticBaseUrl");
+const sessionsTableName = hutchStack.requireOutput("sessionsTableName");
+const sessionsTableArn = hutchStack.requireOutput("sessionsTableArn");
+
+/** Least-privilege: the embed only reads a single session row per logged-in page
+ * view to flip the header nav, so it gets GetItem on the sessions table and
+ * nothing else (no indexes, no write actions). */
+const sessionsRead = new HutchDynamoDBAccess("web-embed-sessions-read", {
+	tables: [{ arn: sessionsTableArn, includeIndexes: false }],
+	actions: ["dynamodb:GetItem"],
+});
 
 const lambda = new HutchLambda("web-embed", {
 	entryPoint: "./src/runtime/lambda.main.ts",
@@ -32,8 +44,10 @@ const lambda = new HutchLambda("web-embed", {
 	environment: {
 		NODE_ENV: nodeEnv,
 		APP_ORIGIN: appOrigin,
+		STATIC_BASE_URL: staticBaseUrl,
+		DYNAMODB_SESSIONS_TABLE: sessionsTableName,
 	},
-	policies: [],
+	policies: [...sessionsRead.policies],
 });
 
 const embedRoutes = new HutchAPIGatewayLambdaRoute("web-embed", {

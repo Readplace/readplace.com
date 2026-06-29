@@ -1161,6 +1161,13 @@ export const apiGatewayId = gateway.apiGatewayId;
 export const apiGatewayExecutionArn = gateway.apiGatewayExecutionArn;
 export const functionName = lambda.functionName;
 export const staticBaseUrl = staticAssets.baseUrl;
+// Consumed by the content deployables (blog-site, web-embed) via StackReference
+// so they can read the same session a logged-in reader presents to hutch and
+// render the authenticated nav. The arn drives their least-privilege GetItem
+// grant; the name is their DYNAMODB_SESSIONS_TABLE env. hutch must deploy first
+// so these outputs exist before those stacks consume them.
+export const sessionsTableName = storage.sessionsTable.name;
+export const sessionsTableArn = storage.sessionsTable.arn;
 export const exportUserDataQueueUrl = exportUserDataQueue.queueUrl;
 export const exportUserDataDlqUrl = exportUserDataQueue.dlqUrl;
 export const userExportBucketOutputName = userExportBucket.bucket;

@@ -14,8 +14,11 @@
     "check": "nx run blog-site:check"
   },
   "dependencies": {
+    "@packages/domain": "workspace:*",
     "@packages/hutch-logger": "workspace:*",
+    "@packages/hutch-storage-client": "workspace:*",
     "@packages/require-env": "workspace:*",
+    "@packages/web-session": "workspace:*",
     "@packages/web-shell": "workspace:*",
     "compression": "1.8.1",
     "express": "5.2.1",
@@ -27,6 +30,7 @@
   },
   "devDependencies": {
     "@packages/hutch-infra-components": "workspace:*",
+    "@packages/test-fixtures": "workspace:*",
     "@pulumi/aws": "7.32.0",
     "@pulumi/pulumi": "3.244.0",
     "@types/aws-lambda": "8.10.161",

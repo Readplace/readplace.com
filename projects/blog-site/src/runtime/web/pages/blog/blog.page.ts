@@ -1,6 +1,6 @@
 import express, { type Request, type Response, type Router } from "express";
 import {
-	type BannerState,
+	bannerStateFromRequest,
 	CHANGELOG_DISMISS_COOKIE_NAME,
 	type ChangelogBanner,
 	readCookie,
@@ -8,6 +8,7 @@ import {
 	renderChangelogBannerFragment,
 	sendComponent,
 } from "@packages/web-shell";
+import type { ResolveLogin } from "@packages/web-session";
 import { BlogIndexPage } from "./blog-index.component";
 import { BlogPostPage } from "./blog-post.component";
 import { NotFoundPage } from "../not-found";
@@ -15,10 +16,20 @@ import type { BlogPosts } from "./blog.posts";
 
 const CANONICAL_ORIGIN = "https://readplace.com";
 
-/** The blog site has no DB or auth, so it cannot build an authenticated banner
- * state. Every page renders the guest header; a logged-in reader sees the
- * guest nav on /blog (the session cookie is never read here). */
-const GUEST_STATE: BannerState = { isAuthenticated: false, emailVerified: undefined };
+/** Reads the host-only session cookie the browser already sends to /blog (hutch
+ * owns it; path "/" makes it same-origin here) and turns it into the banner
+ * state that flips the header between guest and authenticated nav. No cookie or
+ * an invalid/expired session resolves to guest — exactly the previous
+ * behaviour, now driven by the live session rather than a hardcoded guest. */
+async function bannerStateFor(resolveLogin: ResolveLogin, req: Request) {
+	const login = await resolveLogin(req.headers.cookie);
+	return bannerStateFromRequest({
+		userId: login.isAuthenticated ? login.userId : undefined,
+		emailVerified: login.isAuthenticated ? login.emailVerified : undefined,
+		originalUrl: req.originalUrl,
+		query: req.query,
+	});
+}
 
 /** Suppresses the banner when the reader's dismissal cookie matches its version.
  * Read straight off the raw Cookie header — blog-site takes no cookie-parser
@@ -70,9 +81,13 @@ function renderSitemap(blogPosts: BlogPosts): string {
 	return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`;
 }
 
-export function initBlogRoutes(deps: { blogPosts: BlogPosts; base: RenderBase }): Router {
+export function initBlogRoutes(deps: {
+	blogPosts: BlogPosts;
+	base: RenderBase;
+	resolveLogin: ResolveLogin;
+}): Router {
 	const router = express.Router();
-	const { blogPosts, base } = deps;
+	const { blogPosts, base, resolveLogin } = deps;
 
 	/** Registered before `/:slug` so "sitemap.xml" is served as the sitemap
 	 * rather than matched as a post slug. */
@@ -93,17 +108,14 @@ export function initBlogRoutes(deps: { blogPosts: BlogPosts; base: RenderBase })
 		res.type("html").send(renderChangelogBannerFragment(banner));
 	});
 
-	router.get("/", (req: Request, res: Response) => {
+	router.get("/", async (req: Request, res: Response) => {
 		const posts = blogPosts.getAllPosts();
 		const changelogBanner = hideIfDismissed(blogPosts.getLatestChangelogBanner(), req);
-		sendComponent(
-			req,
-			res,
-			base(BlogIndexPage({ posts }), { ...GUEST_STATE, changelogBanner, currentPath: req.originalUrl }),
-		);
+		const state = await bannerStateFor(resolveLogin, req);
+		sendComponent(req, res, base(BlogIndexPage({ posts }), { ...state, changelogBanner }));
 	});
 
-	router.get("/:slug", (req: Request<{ slug: string }>, res: Response) => {
+	router.get("/:slug", async (req: Request<{ slug: string }>, res: Response) => {
 		const newSlug = SLUG_REDIRECTS[req.params.slug];
 		if (newSlug) {
 			res.redirect(301, `/blog/${newSlug}`);
@@ -111,19 +123,12 @@ export function initBlogRoutes(deps: { blogPosts: BlogPosts; base: RenderBase })
 		}
 		const post = blogPosts.findPostBySlug(req.params.slug);
 		const changelogBanner = hideIfDismissed(blogPosts.getLatestChangelogBanner(), req);
+		const state = await bannerStateFor(resolveLogin, req);
 		if (!post) {
-			sendComponent(
-				req,
-				res,
-				base(NotFoundPage(), { ...GUEST_STATE, changelogBanner, currentPath: req.originalUrl }),
-			);
+			sendComponent(req, res, base(NotFoundPage(), { ...state, changelogBanner }));
 			return;
 		}
-		sendComponent(
-			req,
-			res,
-			base(BlogPostPage({ post }), { ...GUEST_STATE, changelogBanner, currentPath: req.originalUrl }),
-		);
+		sendComponent(req, res, base(BlogPostPage({ post }), { ...state, changelogBanner }));
 	});
 
 	return router;

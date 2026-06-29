@@ -44,12 +44,21 @@ importers:
 
   projects/blog-site:
     dependencies:
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../../src/packages/domain
       '@packages/hutch-logger':
         specifier: workspace:*
         version: link:../../src/packages/hutch-logger
+      '@packages/hutch-storage-client':
+        specifier: workspace:*
+        version: link:../../src/packages/hutch-storage-client
       '@packages/require-env':
         specifier: workspace:*
         version: link:../../src/packages/require-env
+      '@packages/web-session':
+        specifier: workspace:*
+        version: link:../../src/packages/web-session
       '@packages/web-shell':
         specifier: workspace:*
         version: link:../../src/packages/web-shell
@@ -78,6 +87,9 @@ importers:
       '@packages/hutch-infra-components':
         specifier: workspace:*
         version: link:../../src/packages/hutch-infra-components
+      '@packages/test-fixtures':
+        specifier: workspace:*
+        version: link:../../src/packages/test-fixtures
       '@pulumi/aws':
         specifier: 7.32.0
         version: 7.32.0(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))(typescript@6.0.3)
@@ -345,6 +357,9 @@ importers:
       '@packages/time-left':
         specifier: workspace:*
         version: link:../../src/packages/time-left
+      '@packages/web-session':
+        specifier: workspace:*
+        version: link:../../src/packages/web-session
       '@packages/web-shell':
         specifier: workspace:*
         version: link:../../src/packages/web-shell
@@ -658,9 +673,21 @@ importers:
 
   projects/web-embed:
     dependencies:
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../../src/packages/domain
+      '@packages/hutch-logger':
+        specifier: workspace:*
+        version: link:../../src/packages/hutch-logger
+      '@packages/hutch-storage-client':
+        specifier: workspace:*
+        version: link:../../src/packages/hutch-storage-client
       '@packages/require-env':
         specifier: workspace:*
         version: link:../../src/packages/require-env
+      '@packages/web-session':
+        specifier: workspace:*
+        version: link:../../src/packages/web-session
       '@packages/web-shell':
         specifier: workspace:*
         version: link:../../src/packages/web-shell
@@ -677,6 +704,9 @@ importers:
       '@packages/hutch-infra-components':
         specifier: workspace:*
         version: link:../../src/packages/hutch-infra-components
+      '@packages/test-fixtures':
+        specifier: workspace:*
+        version: link:../../src/packages/test-fixtures
       '@packages/test-phase-runner':
         specifier: workspace:*
         version: link:../../src/packages/test-phase-runner
@@ -1341,8 +1371,45 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  src/packages/web-session:
+    dependencies:
+      '@packages/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@packages/hutch-logger':
+        specifier: workspace:*
+        version: link:../hutch-logger
+      '@packages/hutch-storage-client':
+        specifier: workspace:*
+        version: link:../hutch-storage-client
+      '@packages/provider-contracts':
+        specifier: workspace:*
+        version: link:../provider-contracts
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/jest':
+        specifier: 30.0.0
+        version: 30.0.0
+      c8:
+        specifier: 11.0.0
+        version: 11.0.0
+      concurrently:
+        specifier: 10.0.0
+        version: 10.0.0
+      jest:
+        specifier: 30.4.2
+        version: 30.4.2(@types/node@22.19.19)(node-notifier@10.0.1)(ts-node@10.9.2(@types/node@22.19.19)(typescript@6.0.3))
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   src/packages/web-shell:
     dependencies:
+      '@packages/web-session':
+        specifier: workspace:*
+        version: link:../web-session
       handlebars:
         specifier: 4.7.9
         version: 4.7.9
@@ -1899,23 +1966,14 @@ packages:
   '@emnapi/core@1.4.5':
     resolution: {integrity: sha512-XsLw1dEOpkSX/WucdqUhPWP7hDxSvZiY+fsUC14h+FtQ2Ifni4znbBt8punRX+Uj2JG/uDb8nEHVKvrVlvdZ5Q==}
 
-  '@emnapi/core@1.8.1':
-    resolution: {integrity: sha512-AvT9QFpxK0Zd8J0jopedNm+w/2fIzvtPKPjqyw9jwvBaReTTqPBk9Hixaz7KbjimP+QNz605/XnjFcDAL2pqBg==}
-
   '@emnapi/runtime@1.10.0':
     resolution: {integrity: sha512-ewvYlk86xUoGI0zQRNq/mC+16R1QeDlKQy21Ki3oSYXNgLb45GV1P6A0M+/s6nyCuNDqe5VpaY84BzXGwVbwFA==}
 
   '@emnapi/runtime@1.4.5':
     resolution: {integrity: sha512-++LApOtY0pEEz1zrd9vy1/zXVaVJJ/EbAF3u0fXIzPJEDtnITsBGbbK0EkM72amhl/R5b+5xx0Y/QhcVOpuulg==}
 
-  '@emnapi/runtime@1.8.1':
-    resolution: {integrity: sha512-mehfKSMWjjNol8659Z8KxEMrdSJDDot5SXMq00dM8BN4o+CLNXQ0xH2V7EchNHV4RmbZLmmPdEaXZc5H2FXmDg==}
-
   '@emnapi/wasi-threads@1.0.4':
     resolution: {integrity: sha512-PJR+bOmMOPH8AtcTGAyYNiuJ3/Fcoj2XN/gBEWzDIKh254XO+mM9XoXHk5GNEhodxeMznbg7BlRojVbKN+gC6g==}
-
-  '@emnapi/wasi-threads@1.1.0':
-    resolution: {integrity: sha512-WI0DdZ8xFSbgMjR1sFsKABJ/C5OnRrjT06JXbZKexJGrDuPTzZdDYfFlsgcCXCyf+suG5QU2e/y1Wo2V/OapLQ==}
 
   '@emnapi/wasi-threads@1.2.1':
     resolution: {integrity: sha512-uTII7OYF+/Mes/MrcIOYp5yOtSMLBWSIoLPpcgwipoiKbli6k322tcoFsxoIIxPDqW01SQGAgko4EzZi2BNv2w==}
@@ -2412,21 +2470,25 @@ packages:
     resolution: {integrity: sha512-QLnkJl3HkHsPfpLiNiAiMfpfAeFpic0U1diAxF8RqChOkCpQ7ulvyBVgE1UrQxvhd+gFQ3ed5RNDxtCRw8nTiw==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@nx/nx-linux-arm64-musl@22.7.5':
     resolution: {integrity: sha512-cEP6KmwBgnb38+jTTaibWCjwXcHmigqhTfy0tN1be7WZr6bHxbqNLsXqKRN70PSNA3HouZcxw1cdRL8tqbPBBA==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@nx/nx-linux-x64-gnu@22.7.5':
     resolution: {integrity: sha512-tbaX1tZCSpGifDNBfDdEZAMxVF3Yg4bhFP/bm1needc0diqb+Zflc0u5tM5/6BWDMITQDwenJVsNiQ8ZdtJURA==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@nx/nx-linux-x64-musl@22.7.5':
     resolution: {integrity: sha512-H0M7csOZIgPT822LqjxSXzf4MXRND15vIkAQe3F3Jlr3Si8LC3tzbL52aVcRfgb8MF/xOB5U47mSwxWt1M2bPQ==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@nx/nx-win32-arm64-msvc@22.7.5':
     resolution: {integrity: sha512-JTcZch9YAnDL1gbhqePz3DZ4x7iYemLn1yJzrjbbXAmXju2eiiJiZvJJHbV06+SP9HKXDT8RjTKuAWTdVxnHug==}
@@ -7133,28 +7195,17 @@ snapshots:
     dependencies:
       '@emnapi/wasi-threads': 1.2.1
       tslib: 2.8.1
-    optional: true
 
   '@emnapi/core@1.4.5':
     dependencies:
       '@emnapi/wasi-threads': 1.0.4
       tslib: 2.8.1
 
-  '@emnapi/core@1.8.1':
-    dependencies:
-      '@emnapi/wasi-threads': 1.1.0
-      tslib: 2.8.1
-
   '@emnapi/runtime@1.10.0':
     dependencies:
       tslib: 2.8.1
-    optional: true
 
   '@emnapi/runtime@1.4.5':
-    dependencies:
-      tslib: 2.8.1
-
-  '@emnapi/runtime@1.8.1':
     dependencies:
       tslib: 2.8.1
 
@@ -7162,14 +7213,9 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@emnapi/wasi-threads@1.1.0':
-    dependencies:
-      tslib: 2.8.1
-
   '@emnapi/wasi-threads@1.2.1':
     dependencies:
       tslib: 2.8.1
-    optional: true
 
   '@esbuild/aix-ppc64@0.28.0':
     optional: true
@@ -7570,8 +7616,8 @@ snapshots:
 
   '@napi-rs/wasm-runtime@0.2.4':
     dependencies:
-      '@emnapi/core': 1.8.1
-      '@emnapi/runtime': 1.8.1
+      '@emnapi/core': 1.10.0
+      '@emnapi/runtime': 1.10.0
       '@tybys/wasm-util': 0.9.0
 
   '@napi-rs/wasm-runtime@1.1.5(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
@@ -11954,7 +12000,7 @@ snapshots:
       is-npm: 6.1.0
       latest-version: 9.0.0
       pupa: 3.3.0
-      semver: 7.7.4
+      semver: 7.8.0
       xdg-basedir: 5.1.0
 
   uri-js@4.4.1:

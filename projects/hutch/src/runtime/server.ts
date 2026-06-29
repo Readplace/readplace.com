@@ -114,7 +114,7 @@ import type { ConversionEvent } from "./conversions";
 import { createClickAttributionMiddleware } from "./web/click-attribution.middleware";
 import { createVisitorIdMiddleware } from "./web/visitor-id.middleware";
 import { initGoogleAuthRoutes } from "./web/auth/google-auth.page";
-import { SESSION_COOKIE_NAME } from "./web/auth/session-cookie";
+import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { isHttpsOrigin } from "./web/cookie-options";
 import { initForgotPasswordRoutes } from "./web/auth/forgot-password.page";
 import { initQueueRoutes } from "./web/pages/queue/queue.page";

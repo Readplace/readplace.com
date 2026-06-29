@@ -5,7 +5,7 @@ import {
 	TEST_APP_ORIGIN,
 	createDefaultTestAppFixture,
 } from "@packages/test-fixtures";
-import { SESSION_COOKIE_NAME } from "./auth/session-cookie";
+import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { CLICK_COOKIE_NAME } from "./click-attribution.middleware";
 import { VISITOR_COOKIE_NAME } from "./visitor-id.middleware";
 

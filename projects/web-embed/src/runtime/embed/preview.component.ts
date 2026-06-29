@@ -1,8 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { EmbedBase } from "./embed-base.component";
 import { render } from "@packages/web-shell";
-import type { Component } from "@packages/web-shell";
+import type { PageBody } from "@packages/web-shell";
 import { PREVIEW_PAGE_STYLES } from "./preview.styles";
 
 import { renderSnippet } from "./snippet.component";
@@ -14,7 +13,7 @@ export interface PreviewPageInput {
 	embedOrigin: string;
 }
 
-export function PreviewPage(input: PreviewPageInput): Component {
+export function PreviewPage(input: PreviewPageInput): PageBody {
 	const origins = { appOrigin: input.appOrigin, embedOrigin: input.embedOrigin, pageUrl: `${input.embedOrigin}/preview` };
 	const content = render(PREVIEW_TEMPLATE, {
 		previewA: renderSnippet("a", origins),
@@ -22,16 +21,15 @@ export function PreviewPage(input: PreviewPageInput): Component {
 		previewC: renderSnippet("c", origins),
 	});
 
-	return EmbedBase({
+	return {
 		seo: {
 			title: "Embed preview — Readplace embed kit",
 			description: "Developer tool for previewing Readplace embed variants against multiple backgrounds.",
 			canonicalUrl: `${input.embedOrigin}/preview`,
 			robots: "noindex, nofollow",
 		},
-		pageStyles: PREVIEW_PAGE_STYLES,
+		styles: PREVIEW_PAGE_STYLES,
 		bodyClass: "page-embed-preview",
-		content,
-		appOrigin: input.appOrigin,
-	});
+		content: { html: content },
+	};
 }

@@ -23,7 +23,7 @@ import { bannerStateFromRequest, sendComponent } from "@packages/web-shell";
 
 import { extractReturnUrl, parseReturnUrl } from "./parse-return-url";
 import { baseCookieOptions } from "../cookie-options";
-import { SESSION_COOKIE_NAME } from "./session-cookie";
+import { SESSION_COOKIE_NAME } from "@packages/web-session";
 import { LoginPage } from "./auth.component";
 import { initFetchUserCount } from "./fetch-user-count";
 import { readClickAttribution } from "../click-attribution.middleware";

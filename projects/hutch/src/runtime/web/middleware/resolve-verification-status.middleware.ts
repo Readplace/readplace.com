@@ -4,7 +4,7 @@ import type {
 	MarkSessionEmailVerified,
 } from "@packages/provider-contracts/auth";
 import { computeVerificationStatus } from "../../domain/access/verification-deadline";
-import { SESSION_COOKIE_NAME } from "../auth/session-cookie";
+import { SESSION_COOKIE_NAME } from "@packages/web-session";
 
 /**
  * Resolves the verification countdown/lockout standing for the current request

@@ -39,10 +39,14 @@ export {
 	CHANGELOG_VERSION_LENGTH,
 	isChangelogVersion,
 	parseChangelogBannerFragment,
-	readCookie,
 	renderChangelogBannerFragment,
 	renderChangelogBannerShell,
 } from "./changelog-banner";
+/** Re-exported from @packages/web-session (its home, since cookie parsing is now
+ * shared with the session-cookie reader) so existing web-shell consumers keep
+ * importing it from here. web-shell → web-session is one-way: the auth package
+ * never depends on this view shell. */
+export { readCookie } from "@packages/web-session";
 export type { ChangelogBanner, ChangelogVersion } from "./changelog-banner";
 export { Nav } from "./nav.component";
 export type { NavProps } from "./nav.component";
