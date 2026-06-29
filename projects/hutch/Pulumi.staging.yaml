@@ -5,6 +5,7 @@ config:
   hutch:stage: staging
   hutch:nodeEnv: development
   hutch:platformStack: organization/platform/staging
+  hutch:saveLinkStack: organization/save-link/staging
   hutch:domains:
     - readplace-staging.com
   hutch:redirectSubdomains:
@@ -26,6 +27,7 @@ config:
   hutch:dynamodbImportSessionsTable: hutch-import-sessions-staging
   hutch:dynamodbInboxAddressesTable: hutch-inbox-addresses-staging
   hutch:dynamodbInboxEmailsTable: hutch-inbox-emails-staging
+  hutch:dynamodbInboxEmailLinksTable: hutch-inbox-email-links-staging
   hutch:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-staging
   hutch:dynamodbOnboardingTable: hutch-onboarding-staging
   hutch:dynamodbRateLimitsTable: hutch-rate-limits-staging

@@ -28,6 +28,7 @@ import { initInMemoryTrialScheduler } from "./providers/trial-scheduler/in-memor
 import { initInMemoryImportSession } from "./providers/import-session/in-memory-import-session";
 import { initInMemoryInboxAddress } from "./providers/inbox-address/in-memory-inbox-address";
 import { initInMemoryInboxEmail } from "./providers/inbox-email/in-memory-inbox-email";
+import { initInMemoryInboxEmailLink } from "./providers/inbox-email/in-memory-inbox-email-link";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import { initInMemorySaveLinkRawHtmlCommand } from "./providers/events/in-memory-save-link-raw-html-command";
 import { initInMemorySaveLinkRawPdfCommand } from "./providers/events/in-memory-save-link-raw-pdf-command";
@@ -390,6 +391,7 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 		},
 		inboxEmail: {
 			inboxEmailStore: initInMemoryInboxEmail(),
+			inboxEmailLinkStore: initInMemoryInboxEmailLink(),
 			readEmailContent: async () => undefined,
 		},
 		shared: {

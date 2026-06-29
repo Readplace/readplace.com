@@ -75,6 +75,8 @@ export {
 	type ReaderReadyEmailSentDetail,
 	EmailReceivedEvent,
 	type EmailReceivedDetail,
+	CrawlEmailLinkPreview,
+	type CrawlEmailLinkPreviewDetail,
 	type HutchEvent,
 	type HutchCommand,
 } from "./events";

@@ -3,7 +3,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type { ArticleMetadata, Minutes, ValidateSaveableUrl } from "@packages/domain/article";
 import type { ImportSessionStore } from "@packages/domain/import-session";
-import type { InboxAddressStore, InboxEmailStore } from "@packages/domain/inbox";
+import type { InboxAddressStore, InboxEmailLinkStore, InboxEmailStore } from "@packages/domain/inbox";
 import type { ExtractLinksFromPageUrl } from "@packages/extract-links-from-page";
 import type { ParseArticle } from "@packages/article-parser";
 import type {
@@ -324,6 +324,7 @@ export interface InboxAddressBundle {
 
 export interface InboxEmailBundle {
 	inboxEmailStore: InboxEmailStore;
+	inboxEmailLinkStore: InboxEmailLinkStore;
 	readEmailContent: ContentProvider;
 }
 
