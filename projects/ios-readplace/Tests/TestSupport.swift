@@ -50,6 +50,76 @@ enum TestSupport {
 	static func jsonObject(_ data: Data) -> [String: Any] {
 		(try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
 	}
+
+	/// Parses a `multipart/form-data` body into its parts — a Swift port of the
+	/// server's `extractAllParts`, so a test asserts the exact wire bytes the
+	/// server will parse rather than a client-side re-serialisation.
+	static func multipartParts(contentType: String?, body: Data) -> [MultipartPart] {
+		guard let contentType, let boundary = multipartBoundary(contentType) else { return [] }
+		let bytes = [UInt8](body)
+		let dash = [UInt8]("--\(boundary)".utf8)
+		let headerSep = [UInt8]("\r\n\r\n".utf8)
+		var parts: [MultipartPart] = []
+		guard var cursor = findBytes(dash, in: bytes, from: 0) else { return parts }
+		while cursor < bytes.count {
+			cursor += dash.count
+			// Either "--" (end of message) or CRLF (another part follows).
+			if cursor + 1 < bytes.count, bytes[cursor] == 0x2d, bytes[cursor + 1] == 0x2d { return parts }
+			guard cursor + 1 < bytes.count, bytes[cursor] == 0x0d, bytes[cursor + 1] == 0x0a else { return parts }
+			cursor += 2
+			guard let headerEnd = findBytes(headerSep, in: bytes, from: cursor) else { return parts }
+			let headers = String(decoding: bytes[cursor..<headerEnd], as: UTF8.self)
+			let bodyStart = headerEnd + headerSep.count
+			guard let nextBoundary = findBytes(dash, in: bytes, from: bodyStart) else { return parts }
+			let bodyEnd = nextBoundary - 2 // strip the CRLF that precedes the boundary line
+			parts.append(MultipartPart(
+				name: multipartHeaderValue(#"name="([^"]*)""#, in: headers),
+				filename: multipartHeaderValue(#"filename="([^"]*)""#, in: headers),
+				contentType: multipartHeaderValue(#"(?i)content-type:\s*([^\r\n]+)"#, in: headers),
+				body: Data(bytes[bodyStart..<bodyEnd])
+			))
+			cursor = nextBoundary
+		}
+		return parts
+	}
+
+	private static func multipartBoundary(_ contentType: String) -> String? {
+		guard let range = contentType.range(of: "boundary=") else { return nil }
+		var value = String(contentType[range.upperBound...])
+		if let semicolon = value.firstIndex(of: ";") { value = String(value[..<semicolon]) }
+		value = value.trimmingCharacters(in: .whitespaces)
+			.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+		return value.isEmpty ? nil : value
+	}
+
+	private static func findBytes(_ needle: [UInt8], in haystack: [UInt8], from start: Int) -> Int? {
+		guard !needle.isEmpty, haystack.count >= needle.count else { return nil }
+		var i = start
+		while i <= haystack.count - needle.count {
+			if Array(haystack[i..<(i + needle.count)]) == needle { return i }
+			i += 1
+		}
+		return nil
+	}
+
+	private static func multipartHeaderValue(_ pattern: String, in headers: String) -> String? {
+		guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+		let range = NSRange(headers.startIndex..., in: headers)
+		guard let match = regex.firstMatch(in: headers, range: range),
+			match.numberOfRanges > 1,
+			let captureRange = Range(match.range(at: 1), in: headers)
+		else { return nil }
+		return String(headers[captureRange])
+	}
+}
+
+/// One part of a parsed `multipart/form-data` body.
+struct MultipartPart {
+	let name: String?
+	let filename: String?
+	let contentType: String?
+	let body: Data
+	var text: String? { String(data: body, encoding: .utf8) }
 }
 
 // MARK: - Siren JSON fixtures

@@ -24,10 +24,11 @@ protocol HTMLCapturing {
 /// decision tree runs against the real API and token types under test — only the
 /// UIKit shell and the WKWebView are left behind in the extension target.
 ///
-/// Capture the page → list the queue → when HTML was captured, attempt the
-/// content save and let the server decide (it routes an over-its-cap payload to
-/// the URL-only fallback it advertises); when no HTML was captured, save the URL
-/// only; if the server offered no save action, give up.
+/// Capture the page → list the queue → when there is content to upload (captured
+/// HTML, or the bytes of a shared PDF the captor declined to render), attempt the
+/// `save-content` upload and let the server decide (it routes an over-its-cap
+/// payload to the URL-only fallback it advertises); when there is no content to
+/// upload, save the URL only; if the server offered no save action, give up.
 @MainActor
 struct SaveSharedPage {
 	let store: TokenStore
@@ -45,20 +46,38 @@ struct SaveSharedPage {
 			let page = try await api.loadQueue()
 			let urlString = url.absoluteString
 
-			if let html = captured.rawHtml, let action = page.action(named: "save-html") {
-				let result = try await api.saveHTML(action: action, url: urlString, rawHtml: html, title: title)
+			if let action = page.action(named: "save-content"),
+				let payload = await resolveContentPayload(captured: captured, url: url) {
+				let result = try await api.saveContent(action: action, url: urlString,
+					content: payload.bytes, mediaType: payload.mediaType, title: title)
 				return result.usedFallback ? .savedLinkOnly : .savedWithContent
-			} else if let action = page.action(named: "save-article") {
+			}
+			if let action = page.action(named: "save-article") {
 				_ = try await api.saveArticle(action: action, url: urlString)
 				return .savedLinkOnly
-			} else {
-				return .noSaveAction
 			}
+			return .noSaveAction
 		} catch let APIError.refused(messages) {
 			return .refused(messages)
 		} catch {
 			let message = (error as? LocalizedError)?.errorDescription ?? "Save failed."
 			return .failed(message)
 		}
+	}
+
+	/// The bytes and media type to upload via `save-content`, or nil when there is
+	/// nothing uploadable so the caller degrades to a URL-only save. A PDF is
+	/// fetched directly (the captor never renders it) and accepted only when the
+	/// bytes carry the `%PDF-` magic header, so a 200-but-not-a-PDF response (a
+	/// bot-defence challenge page, say) degrades cleanly rather than uploading
+	/// junk. HTML uses the bytes the captor already rendered.
+	private func resolveContentPayload(captured: CapturedPage, url: URL) async -> (bytes: Data, mediaType: String)? {
+		if captured.mediaType == "application/pdf" {
+			guard let (bytes, _) = await api.fetchExternalContent(url),
+				bytes.starts(with: Data("%PDF-".utf8)) else { return nil }
+			return (bytes, "application/pdf")
+		}
+		if let html = captured.rawHtml, !html.isEmpty { return (Data(html.utf8), "text/html") }
+		return nil
 	}
 }
