@@ -438,6 +438,9 @@
 }
 
 .queue-article__action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -447,7 +450,8 @@
   color: var(--muted-foreground);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-  min-height: 32px;
+  min-height: 44px;
+  min-width: 44px;
 }
 
 .queue-article__action-btn:hover {
