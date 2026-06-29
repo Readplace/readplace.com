@@ -24,6 +24,7 @@ import type {
 } from "@packages/provider-contracts/reader-ready-state";
 import type { SendEmail } from "@packages/provider-contracts/email";
 import { buildReaderReadyEmailHtml } from "../web/reader-ready-email";
+import { buildOwnerReaderPath } from "../web/pages/queue/owner-reader-link";
 
 const EMAIL_FROM = "Fayner from Readplace <readplace@readplace.com>";
 const READER_READY_BCC = "readplace+reader_ready@readplace.com";
@@ -101,7 +102,7 @@ async function processNotification(
 	const claimed = await deps.claimReaderReadyEmailSlot({ userId, now, cooldownMs: deps.cooldownMs });
 	if (!claimed) return skip("rate-limited");
 
-	const readerUrl = `${deps.appOrigin}/queue/${article.id.value}/view`;
+	const readerUrl = `${deps.appOrigin}${buildOwnerReaderPath(article.id)}`;
 	try {
 		await deps.sendEmail({
 			from: EMAIL_FROM,
