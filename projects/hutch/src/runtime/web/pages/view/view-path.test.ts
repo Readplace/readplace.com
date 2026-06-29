@@ -1,4 +1,4 @@
-import { parseViewPath, viewPathFor } from "./view-path";
+import { originalUrlFromViewPath, parseViewPath, viewPathFor } from "./view-path";
 
 function parse(decodedAndEncoded: string): ReturnType<typeof parseViewPath>;
 function parse(args: { rawPath: string; encodedPath: string }): ReturnType<typeof parseViewPath>;
@@ -192,5 +192,33 @@ describe("parseViewPath", () => {
 		const path = viewPathFor(url);
 		const rawWildcard = decodeURIComponent(path.slice("/view/".length));
 		expect(parse(rawWildcard)).toEqual({ kind: "render", articleUrl: url });
+	});
+});
+
+describe("originalUrlFromViewPath", () => {
+	it("recovers the https article URL from a scheme-less tail", () => {
+		expect(originalUrlFromViewPath("example.com/post")).toBe("https://example.com/post");
+	});
+
+	it("decodes the percent-encoded query separator back into the article URL", () => {
+		expect(originalUrlFromViewPath("example.com/post%3Ffoo=bar")).toBe(
+			"https://example.com/post?foo=bar",
+		);
+	});
+
+	it("preserves an explicit http:// scheme", () => {
+		expect(originalUrlFromViewPath("http://example.com/post")).toBe("http://example.com/post");
+	});
+
+	it("resolves a redirect tail (legacy https:// prefix) to the canonical article URL", () => {
+		expect(originalUrlFromViewPath("https://example.com/post")).toBe("https://example.com/post");
+	});
+
+	it("resolves a collapsed http:/ redirect tail to the http article URL", () => {
+		expect(originalUrlFromViewPath("http:/example.com/post")).toBe("http://example.com/post");
+	});
+
+	it("returns undefined when the tail cannot be percent-decoded", () => {
+		expect(originalUrlFromViewPath("example.com/path%foo")).toBeUndefined();
 	});
 });

@@ -106,6 +106,28 @@ describe("POST /queue/save-articles", () => {
 		expect(urls).toContain("https://example.com/b");
 	});
 
+	it("unwraps a Readplace /view self-URL and saves the underlying original article", async () => {
+		const { testApp } = setup();
+		const accessToken = await createAccessToken(testApp);
+
+		const response = await request(testApp.server)
+			.post("/queue/save-articles")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`)
+			.field("manifest", manifest([
+				{ url: "http://localhost:3000/view/fagnerbrack.com/business-success" },
+			]));
+
+		expect(response.status).toBe(200);
+		expect(response.body.properties).toEqual(
+			expect.objectContaining({ saved: 1, skipped: 0, failed: 0 }),
+		);
+		const stored = await testApp.articleStore.findArticlesByUser({ userId: TEST_USER_ID });
+		const urls = stored.articles.map((a) => a.url);
+		expect(urls).toContain("https://fagnerbrack.com/business-success");
+		expect(urls).not.toContain("http://localhost:3000/view/fagnerbrack.com/business-success");
+	});
+
 	it("dispatches a pdf content page through the pdf pipeline", async () => {
 		const { testApp, publishedSavePdf } = setup();
 		const accessToken = await createAccessToken(testApp);

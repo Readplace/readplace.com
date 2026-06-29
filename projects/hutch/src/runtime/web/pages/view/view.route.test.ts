@@ -183,6 +183,21 @@ describe("View routes", () => {
 			expect(time.textContent).toBe("26 Mar '26, 14:32");
 		});
 
+		it("unwraps a nested Readplace self-URL and renders the underlying article", async () => {
+			const harness = buildReaderHarness();
+			const selfHost = new URL(TEST_APP_ORIGIN).host;
+
+			const response = await request(harness.server).get(
+				`/view/${selfHost}/view/${CANONICAL_PATH}`,
+			);
+
+			expect(response.status).toBe(200);
+			const doc = new JSDOM(response.text).window.document;
+			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe(
+				"Hello World",
+			);
+		});
+
 		it("301-redirects the legacy percent-encoded format to the scheme-less canonical", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 
