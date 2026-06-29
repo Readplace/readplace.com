@@ -24,7 +24,7 @@ final class SignupFlowTests: XCTestCase {
 		XCTAssertEqual(components.host, "readplace.com")
 		XCTAssertEqual(components.path, "/oauth/authorize")
 		let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
-		XCTAssertEqual(items["client_id"], "hutch-chrome-extension")
+		XCTAssertEqual(items["client_id"], "ios-app")
 		XCTAssertEqual(items["redirect_uri"], AppConfig.nativeCallbackURL)
 		XCTAssertEqual(items["response_type"], "code")
 		XCTAssertEqual(items["code_challenge_method"], "S256")
@@ -71,12 +71,12 @@ final class SignupFlowTests: XCTestCase {
 		XCTAssertEqual(body["grant_type"], "authorization_code")
 		XCTAssertEqual(body["code"], "abc")
 		XCTAssertEqual(body["code_verifier"], "v")
-		XCTAssertEqual(body["client_id"], "hutch-chrome-extension")
+		XCTAssertEqual(body["client_id"], "ios-app")
 		XCTAssertEqual(body["redirect_uri"], AppConfig.nativeCallbackURL)
 	}
 
 	func testChromeURLForHTTPSRewritesSchemeWhenChromeAvailable() {
-		let https = URL(string: "https://readplace.com/oauth/authorize?client_id=hutch-chrome-extension&state=abc")!
+		let https = URL(string: "https://readplace.com/oauth/authorize?client_id=ios-app&state=abc")!
 		var probed: URL?
 		let chrome = chromeURLForHTTPS(https, canOpen: { probed = $0; return true })
 
@@ -85,11 +85,11 @@ final class SignupFlowTests: XCTestCase {
 		XCTAssertEqual(components.scheme, "googlechromes")
 		XCTAssertEqual(components.host, "readplace.com")
 		XCTAssertEqual(components.path, "/oauth/authorize")
-		XCTAssertEqual(components.percentEncodedQuery, "client_id=hutch-chrome-extension&state=abc")
+		XCTAssertEqual(components.percentEncodedQuery, "client_id=ios-app&state=abc")
 	}
 
 	func testChromeURLForHTTPSReturnsHTTPSUnchangedWhenChromeUnavailable() {
-		let https = URL(string: "https://readplace.com/oauth/authorize?client_id=hutch-chrome-extension&state=abc")!
+		let https = URL(string: "https://readplace.com/oauth/authorize?client_id=ios-app&state=abc")!
 		let fallback = chromeURLForHTTPS(https, canOpen: { _ in false })
 
 		XCTAssertEqual(fallback, https)
@@ -139,7 +139,7 @@ final class SignupFlowTests: XCTestCase {
 
 	func testNativeCallbackURLPinnedToServerRegisteredValue() {
 		// Pinned cross-language contract: the server registers this exact string as
-		// a redirect_uri for the hutch-chrome-extension client
+		// a redirect_uri for the ios-app client
 		// (IOS_NATIVE_OAUTH_CALLBACK_URI in built-in-clients.ts) and matches it by
 		// exact string at token time. A change here must be mirrored there, and
 		// composing the URI from scheme + host keeps the deep-link parser in step.

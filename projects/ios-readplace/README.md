@@ -58,8 +58,8 @@ That produces `build/Readplace-unsigned.ipa` (the app + its share extension).
 
 ## What it does
 
-- **Sign in** with OAuth 2.0 + PKCE against `https://readplace.com`, reusing the
-  extension's public client (`hutch-chrome-extension`). The authorize page opens
+- **Sign in** with OAuth 2.0 + PKCE against `https://readplace.com`, using the
+  app's own public client (`ios-app`). The authorize page opens
   in the **external browser** via the same flow as **Sign up** (below), carrying
   `screen_hint=login` so a logged-out user lands on the web `/login` page and
   returns authenticated through the native `readplace://oauth-callback` deep link.
@@ -307,17 +307,17 @@ exercised on every run, not only when someone builds `make ipa-staging` by hand.
   before** this build ships to TestFlight. They are additive and non-breaking, so
   the server can deploy independently; an older app simply wouldn't see them.
 - **Both Login and Sign up use one small additive server change.** They
-  authenticate as the existing `hutch-chrome-extension` client. The
-  external-browser flow can't observe an HTTPS redirect in another app's tab, so
-  it returns via a native `readplace://oauth-callback` deep link — that scheme is
-  registered on the same client, and `/oauth/authorize` accepts an optional
-  `screen_hint` (`login`/`signup`). Both changes are additive in
-  `built-in-clients.ts` / `oauth.routes.ts` and don't affect the extension. The
-  native scheme is identical across production and staging, so sign-in needs no
-  per-environment callback registration.
+  authenticate as the app's own `ios-app` client. The external-browser flow can't
+  observe an HTTPS redirect in another app's tab, so it returns via a native
+  `readplace://oauth-callback` deep link — that scheme is registered on the
+  `ios-app` client, and `/oauth/authorize` accepts an optional `screen_hint`
+  (`login`/`signup`). Both changes are additive in `built-in-clients.ts` /
+  `oauth.routes.ts` and don't affect the extension. The native scheme is
+  identical across production and staging, so sign-in needs no per-environment
+  callback registration.
 - **The server URL is fixed at build time** in `AppConfig.serverBaseURL` — there
   is no Server field on the sign-in screen. `make ipa` targets production;
   `make ipa-staging` compiles with the `STAGING` condition to target staging.
   Sign-in returns through the native `readplace://oauth-callback` deep link
-  (`AppConfig.nativeCallbackURL`), registered for `hutch-chrome-extension` in
+  (`AppConfig.nativeCallbackURL`), registered for `ios-app` in
   `built-in-clients.ts` and identical across production and staging.
