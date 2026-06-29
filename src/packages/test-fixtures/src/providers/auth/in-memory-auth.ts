@@ -15,6 +15,7 @@ import type {
 	CreateUser,
 	CreateUserWithPasswordHash,
 	DestroySession,
+	DestroyUserSessions,
 	ExistsUserByIdPrefix,
 	FindEmailByUserId,
 	FindUserById,
@@ -55,6 +56,7 @@ export function initInMemoryAuth(opts: {
 	createSession: CreateSession;
 	getSessionUserId: GetSessionUserId;
 	destroySession: DestroySession;
+	destroyUserSessions: DestroyUserSessions;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
@@ -197,6 +199,12 @@ export function initInMemoryAuth(opts: {
 		sessions.delete(sessionId);
 	};
 
+	const destroyUserSessions: DestroyUserSessions = async (userId) => {
+		for (const [sessionId, session] of sessions) {
+			if (session.userId === userId) sessions.delete(sessionId);
+		}
+	};
+
 	const countUsers: CountUsers = async () => {
 		return users.size;
 	};
@@ -282,6 +290,7 @@ export function initInMemoryAuth(opts: {
 		createSession,
 		getSessionUserId,
 		destroySession,
+		destroyUserSessions,
 		countUsers,
 		markEmailVerified,
 		markSessionEmailVerified,

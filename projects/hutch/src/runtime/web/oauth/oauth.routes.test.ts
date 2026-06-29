@@ -448,6 +448,36 @@ describe("OAuth routes", () => {
 			expect(revokedRefresh).toBeNull();
 		});
 
+		it("destroys all of the user's sessions, not just the revoked token", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const client = await harness.oauthModel.getClient(TEST_CLIENT_ID, "");
+			assert(client, "Test client must exist");
+
+			await harness.oauthModel.saveToken(
+				{
+					accessToken: "revoke-access-sessions",
+					accessTokenExpiresAt: new Date(Date.now() + 3600000),
+					refreshToken: "revoke-refresh-sessions",
+					refreshTokenExpiresAt: new Date(Date.now() + 30 * 24 * 3600000),
+					client,
+					user: { id: TEST_USER_ID },
+				},
+				client,
+				{ id: TEST_USER_ID },
+			);
+
+			const sessionA = await harness.auth.createSession({ userId: TEST_USER_ID, emailVerified: true });
+			const sessionB = await harness.auth.createSession({ userId: TEST_USER_ID, emailVerified: true });
+
+			const response = await request(harness.server)
+				.post("/oauth/revoke")
+				.send({ token: "revoke-refresh-sessions" });
+
+			expect(response.status).toBe(200);
+			expect(await harness.auth.getSessionUserId(sessionA)).toBeNull();
+			expect(await harness.auth.getSessionUserId(sessionB)).toBeNull();
+		});
+
 		it("returns 200 for non-existent token (RFC compliance)", async () => {
 			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 

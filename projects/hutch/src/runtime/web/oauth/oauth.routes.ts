@@ -11,6 +11,8 @@ import type {
 	ValidateOAuthRedirectUri,
 } from "@packages/provider-contracts/oauth";
 import type { ConsumeRateLimit } from "@packages/provider-contracts/rate-limit";
+import type { DestroyUserSessions } from "@packages/provider-contracts/auth";
+import { UserIdSchema } from "@packages/domain/user";
 import { Base } from "../base.component";
 import type { BuildBannerState } from "../banner-state";
 import { createRateLimitMiddleware } from "../middleware/rate-limit";
@@ -125,6 +127,7 @@ interface OAuthRouteDeps {
 	findClient: FindOAuthClient;
 	validateRedirectUri: ValidateOAuthRedirectUri;
 	registerClient: RegisterOAuthClient;
+	destroyUserSessions: DestroyUserSessions;
 	consumeRateLimit: ConsumeRateLimit;
 	registerRateLimitRule: RateLimitRule;
 }
@@ -288,9 +291,11 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 
 		const { token } = parsed.data;
 
+		let revokedUserId: unknown;
 		const refreshToken = await deps.model.getRefreshToken(token);
 		if (refreshToken) {
 			await deps.model.revokeToken(refreshToken);
+			revokedUserId = refreshToken.user.id;
 		} else {
 			const accessTokenResult = await deps.model.getAccessToken(token);
 			// biome-ignore lint/complexity/useOptionalChain: oauth2-server's Falsey type (false | "" | 0 | null | undefined) cannot be narrowed via ?. — needs a truthy guard
@@ -298,8 +303,17 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 				const associatedRefresh = await deps.model.getRefreshToken(accessTokenResult.refreshToken);
 				if (associatedRefresh) {
 					await deps.model.revokeToken(associatedRefresh);
+					revokedUserId = associatedRefresh.user.id;
 				}
 			}
+		}
+
+		// Revoking the token only kills that one token. iOS sign-out calls revoke,
+		// but a user accumulates a server session per reader open and iOS holds none
+		// of their ids, so destroy every session by userId here — otherwise they stay
+		// live until the 7-day TTL. Browser POST /logout keeps its single-session destroy.
+		if (revokedUserId !== undefined) {
+			await deps.destroyUserSessions(UserIdSchema.parse(revokedUserId));
 		}
 
 		res.status(200).json({});

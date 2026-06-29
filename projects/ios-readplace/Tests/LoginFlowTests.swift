@@ -87,7 +87,15 @@ final class LoginFlowTests: XCTestCase {
 	func testForceLogoutClearsTheMintedSessionCookie() {
 		let config = TestSupport.stubbedConfiguration()
 		config.httpCookieStorage?.setCookie(TestSupport.sessionCookie(value: "sess-abc"))
-		let session = AppSession(store: TestSupport.loggedInStore(), sessionConfiguration: config)
+		var readerWipeInvoked = false
+		let session = AppSession(
+			store: TestSupport.loggedInStore(),
+			sessionConfiguration: config,
+			wipeReaderSessionCookie: { completion in
+				readerWipeInvoked = true
+				completion()
+			}
+		)
 
 		session.forceLogout()
 
@@ -96,13 +104,25 @@ final class LoginFlowTests: XCTestCase {
 			config.httpCookieStorage?.cookies?.first { $0.name == AppConfig.sessionCookieName },
 			"the minted hutch_sid cookie must not survive a forced sign-out"
 		)
+		XCTAssertTrue(
+			readerWipeInvoked,
+			"sign-out must wipe the reader's persisted hutch_sid from the WebKit store"
+		)
 	}
 
 	func testLogoutClearsTheMintedSessionCookie() async {
 		let config = TestSupport.stubbedConfiguration()
 		config.httpCookieStorage?.setCookie(TestSupport.sessionCookie(value: "sess-abc"))
 		StubURLProtocol.setHandler { _, _ in .json(200, "{}") }
-		let session = AppSession(store: TestSupport.loggedInStore(), sessionConfiguration: config)
+		var readerWipeInvoked = false
+		let session = AppSession(
+			store: TestSupport.loggedInStore(),
+			sessionConfiguration: config,
+			wipeReaderSessionCookie: { completion in
+				readerWipeInvoked = true
+				completion()
+			}
+		)
 
 		await session.logout()
 
@@ -110,6 +130,10 @@ final class LoginFlowTests: XCTestCase {
 		XCTAssertNil(
 			config.httpCookieStorage?.cookies?.first { $0.name == AppConfig.sessionCookieName },
 			"the minted hutch_sid cookie must not survive sign-out"
+		)
+		XCTAssertTrue(
+			readerWipeInvoked,
+			"sign-out must wipe the reader's persisted hutch_sid from the WebKit store"
 		)
 	}
 

@@ -30,6 +30,7 @@ import type {
 	DeleteDeferredCancellationSchedule,
 	DeleteTrialEndSchedule,
 	DestroySession,
+	DestroyUserSessions,
 	EmailMessage,
 	ExchangeGoogleCode,
 	ExistsUserByIdPrefix,
@@ -123,6 +124,7 @@ export interface AuthBundle {
 	createSession: CreateSession;
 	getSessionUserId: GetSessionUserId;
 	destroySession: DestroySession;
+	destroyUserSessions: DestroyUserSessions;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;

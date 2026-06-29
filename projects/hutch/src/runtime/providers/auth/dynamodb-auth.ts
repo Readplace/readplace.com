@@ -29,6 +29,7 @@ import type {
 	CreateUser,
 	CreateUserWithPasswordHash,
 	DestroySession,
+	DestroyUserSessions,
 	ExistsUserByIdPrefix,
 	FindEmailByUserId,
 	FindUserById,
@@ -84,6 +85,7 @@ export function initDynamoDbAuth(deps: {
 	createSession: CreateSession;
 	getSessionUserId: GetSessionUserId;
 	destroySession: DestroySession;
+	destroyUserSessions: DestroyUserSessions;
 	countUsers: CountUsers;
 	markEmailVerified: MarkEmailVerified;
 	markSessionEmailVerified: MarkSessionEmailVerified;
@@ -275,6 +277,22 @@ export function initDynamoDbAuth(deps: {
 		await sessions.delete({ Key: { sessionId } });
 	};
 
+	const destroyUserSessions: DestroyUserSessions = async (userId) => {
+		let exclusiveStartKey: Record<string, unknown> | undefined;
+		do {
+			const { items, lastEvaluatedKey } = await sessions.query({
+				IndexName: "userId-index",
+				KeyConditionExpression: "userId = :userId",
+				ExpressionAttributeValues: { ":userId": userId },
+				ExclusiveStartKey: exclusiveStartKey,
+			});
+			exclusiveStartKey = lastEvaluatedKey;
+			for (const session of items) {
+				await sessions.delete({ Key: { sessionId: session.sessionId } });
+			}
+		} while (exclusiveStartKey);
+	};
+
 	const countUsers: CountUsers = async () => {
 		// Claim items share the table but carry ownerUserId, not userId, so this
 		// filter counts only real user rows (the founding-member gate reads this).
@@ -384,6 +402,7 @@ export function initDynamoDbAuth(deps: {
 		createSession,
 		getSessionUserId,
 		destroySession,
+		destroyUserSessions,
 		countUsers,
 		markEmailVerified,
 		markSessionEmailVerified,

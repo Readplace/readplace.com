@@ -286,6 +286,33 @@ describe("initDynamoDbAuth", () => {
 		});
 	});
 
+	describe("destroyUserSessions", () => {
+		it("queries the sessions userId-index and deletes each session by id", async () => {
+			const { client, commands } = createQueryFakeClient({
+				row: { sessionId: "sess-1", userId: "abc123", expiresAt: 9999999999, emailVerified: true },
+			});
+
+			await initAuth(client).destroyUserSessions(USER);
+
+			const query = commands.find((c) => c.name === "QueryCommand");
+			expect(query?.input).toMatchObject({
+				IndexName: "userId-index",
+				KeyConditionExpression: "userId = :userId",
+				ExpressionAttributeValues: { ":userId": "abc123" },
+			});
+			const del = commands.find((c) => c.name === "DeleteCommand");
+			expect(del?.input).toMatchObject({ Key: { sessionId: "sess-1" } });
+		});
+
+		it("deletes nothing when the user has no sessions", async () => {
+			const { client, commands } = createQueryFakeClient({});
+
+			await initAuth(client).destroyUserSessions(USER);
+
+			expect(commands.some((c) => c.name === "DeleteCommand")).toBe(false);
+		});
+	});
+
 	describe("countUsers", () => {
 		it("counts only delivery rows, filtering out claim items", async () => {
 			const { client, commands } = createWriteFakeClient();
