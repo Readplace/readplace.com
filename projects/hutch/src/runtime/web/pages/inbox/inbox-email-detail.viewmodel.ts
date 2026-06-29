@@ -17,9 +17,15 @@ export interface ArticlesPanelViewModel {
 	cards: InboxLinkCardViewModel[];
 	isEmpty: boolean;
 	/** True while extraction has not yet written its meta barrier (a just-received
-	 * email): the panel shows a polling "Looking for links…" state instead of the
-	 * terminal "No links found", so a non-terminal state is never shown as terminal. */
+	 * email) and the poll budget is unspent: the panel shows a polling "Looking for
+	 * links…" state instead of the terminal "No links found", so a non-terminal
+	 * state is never shown as terminal. Goes false once `isStalePending` takes over. */
 	isExtracting: boolean;
+	/** True when the poll budget is spent but extraction never wrote its meta
+	 * barrier — a permanent extract-DLQ failure or a pre-feature email that predates
+	 * the meta row. The panel gives up on "Looking for links…" and shows a terminal
+	 * notice instead of polling forever. Mirrors the queue card's `isStalePending`. */
+	isStalePending: boolean;
 	/** Present only while `isExtracting` and within the poll budget — drives the
 	 * page-level htmx poll that swaps the finished card set in on completion. */
 	panelPollUrl: string | undefined;
@@ -67,15 +73,20 @@ export function toInboxEmailDetailViewModel(input: {
 	// No meta row yet means the async extractor has not finished for this received
 	// email — keep polling rather than asserting it has zero links. Non-received
 	// emails never run extraction, so they are terminal immediately.
-	const isExtracting = input.entry.status === "received" && input.linksMeta === undefined;
+	const awaitingMeta = input.entry.status === "received" && input.linksMeta === undefined;
 	const panelPollCount = input.panelPollCount ?? INITIAL_POLL_COUNT;
-	const panelPollUrl =
-		isExtracting && panelPollCount <= input.maxPolls
-			? buildInboxArticlesPollUrl({
-					emailId: input.entry.receivedAtMessageId,
-					pollCount: panelPollCount,
-				})
-			: undefined;
+	const withinPollBudget = panelPollCount <= input.maxPolls;
+	// Once the budget is spent without a meta barrier the extractor is never coming
+	// back (permanent extract-DLQ failure, or a pre-feature email with no meta row),
+	// so we give up on the spinner and show a terminal notice instead of polling on.
+	const isStalePending = awaitingMeta && !withinPollBudget;
+	const isExtracting = awaitingMeta && withinPollBudget;
+	const panelPollUrl = isExtracting
+		? buildInboxArticlesPollUrl({
+				emailId: input.entry.receivedAtMessageId,
+				pollCount: panelPollCount,
+			})
+		: undefined;
 	return {
 		subject: input.entry.subject === "" ? "(no subject)" : input.entry.subject,
 		sender: input.entry.senderEmail === "" ? "(unknown sender)" : input.entry.senderEmail,
@@ -86,15 +97,17 @@ export function toInboxEmailDetailViewModel(input: {
 		bodyHtml: input.bodyHtml ?? "",
 		unavailableMessage:
 			"This message couldn’t be displayed here; the original email is preserved.",
-		// Suppressed mid-extraction so the header never claims a count before the
-		// panel does; shown once extraction has written its barrier.
-		linkCountLabel: isExtracting
+		// Suppressed until extraction writes its barrier so the header never claims a
+		// count the panel can't back — this covers both the live spinner and the
+		// terminal give-up, neither of which has a trustworthy count.
+		linkCountLabel: awaitingMeta
 			? undefined
 			: buildLinkCountLabel({ count: cards.length, truncated }),
 		articles: {
 			cards,
 			isEmpty: cards.length === 0,
 			isExtracting,
+			isStalePending,
 			panelPollUrl,
 			truncatedNotice: truncated
 				? `Showing the first ${cards.length} links found in this email.`

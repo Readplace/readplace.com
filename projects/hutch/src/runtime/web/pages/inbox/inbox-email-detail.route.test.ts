@@ -362,6 +362,24 @@ describe("Inbox Articles panel poll route", () => {
 		expect(panel.getAttribute("hx-get")).toContain("poll=2");
 	});
 
+	it("gives up to a terminal stale notice once the poll budget is spent without a meta barrier", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		const harness = useApp(fixture);
+		const agent = await loginAgent(harness.server, harness.auth);
+		await seed(fixture, "received");
+
+		const response = await agent.get(`${articlesPath}&poll=301`);
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
+		assert(panel, "the panel fragment must render");
+		expect(panel.getAttribute("data-articles-status")).toBe("stale");
+		expect(panel.getAttribute("hx-get")).toBeNull();
+		expect(doc.querySelector("[data-test-articles-stale]")).not.toBeNull();
+		expect(doc.querySelector("[data-test-articles-extracting]")).toBeNull();
+	});
+
 	it("swaps in the finished card set once extraction wrote its meta", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		const harness = useApp(fixture);

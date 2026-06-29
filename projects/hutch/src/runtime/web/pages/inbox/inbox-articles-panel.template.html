@@ -9,6 +9,11 @@
 		Looking for links…
 	</p>
 	{{else}}
+	{{#if isStalePending}}
+	<p class="inbox-email-detail__articles-stale" data-test-articles-stale>
+		We couldn’t scan this email for links. The original message is still available on the View tab.
+	</p>
+	{{else}}
 	{{#if isEmpty}}
 	<p class="inbox-email-detail__articles-empty" data-test-articles-empty>
 		No links found in this email.
@@ -21,6 +26,7 @@
 	<div class="inbox-email-detail__articles" data-test-inbox-articles>
 		{{#each articleHtmls}}{{{this}}}{{/each}}
 	</div>
+	{{/if}}
 	{{/if}}
 	{{/if}}
 </section>
