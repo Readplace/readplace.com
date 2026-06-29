@@ -1,7 +1,7 @@
 {
   "name": "chrome-extension",
   "version": "0.0.0-managed-by-tag",
-  "description": "Readplace — Where reading still matters",
+  "description": "Readplace — Read the Web, not the Slop",
   "main": "src/infra/index.ts",
   "private": true,
   "scripts": {

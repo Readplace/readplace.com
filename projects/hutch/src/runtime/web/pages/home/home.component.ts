@@ -37,15 +37,15 @@ export function HomePage(params: {
 		: "home-pricing__progress--hidden";
 	return {
 		seo: {
-			title: "Readplace — Read the web, not the slop. | Read-It-Later App",
+			title: "Readplace — Read the Web, not the Slop. | Read-It-Later App",
 			description:
-				"The read-it-later app and online reader for distraction-free reading — save any article or web page in one click and read it later in a clean reader view. A privacy-first Pocket alternative with real Tesseract OCR for scanned PDFs (no LLM hallucination). Read the web, not the slop.",
+				"The read-it-later app and online reader for distraction-free reading — save any article or web page in one click and read it later in a clean reader view. A privacy-first Pocket alternative with real Tesseract OCR for scanned PDFs (no LLM hallucination). Read the Web, not the Slop.",
 			canonicalUrl: "https://readplace.com",
 			ogType: "website",
 			ogImage: `${staticBaseUrl}/og-image-1200x630.png`,
 			ogImageType: "image/png",
 			ogImageAlt:
-				"Readplace — Read the web, not the slop. A read-it-later app and Pocket alternative.",
+				"Readplace — Read the Web, not the Slop. A read-it-later app and Pocket alternative.",
 			twitterImage: `${staticBaseUrl}/twitter-card-1200x600.png`,
 				author: "Fayner Brack",
 			keywords:
@@ -60,7 +60,7 @@ export function HomePage(params: {
 					alternateName: ["Readplace Read-It-Later App", "Readplace App"],
 					url: "https://readplace.com",
 					description:
-						"Read the web, not the slop. A privacy-first read-it-later app and Pocket alternative. Save articles with one click, read them later. Real Tesseract OCR for scanned PDFs — no LLM hallucination.",
+						"Read the Web, not the Slop. A privacy-first read-it-later app and Pocket alternative. Save articles with one click, read them later. Real Tesseract OCR for scanned PDFs — no LLM hallucination.",
 					applicationCategory: "ProductivityApplication",
 					applicationSubCategory: "Read-It-Later",
 					operatingSystem: "Web",
@@ -145,7 +145,7 @@ export function HomePage(params: {
 						award: "Creator of js-cookie — 22 billion+ annual downloads on jsDelivr CDN",
 					},
 					description:
-						"Readplace is a privacy-first read-it-later app and Pocket alternative. Read the web, not the slop.",
+						"Readplace is a privacy-first read-it-later app and Pocket alternative. Read the Web, not the Slop.",
 					foundingDate: "2025",
 					areaServed: "Worldwide",
 					address: {
@@ -214,8 +214,8 @@ export function HomePage(params: {
 					name: "Readplace — Read-It-Later App",
 					alternateName: "Readplace App",
 					url: "https://readplace.com",
-					description: "Read the web, not the slop. A privacy-first read-it-later app with real Tesseract OCR for PDFs — no LLM hallucination.",
-					slogan: "Read the web, not the slop.",
+					description: "Read the Web, not the Slop. A privacy-first read-it-later app with real Tesseract OCR for PDFs — no LLM hallucination.",
+					slogan: "Read the Web, not the Slop.",
 				},
 			],
 		},

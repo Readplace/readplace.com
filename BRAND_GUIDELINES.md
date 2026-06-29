@@ -7,7 +7,7 @@
 
 ## Brand Identity
 
-**Tagline:** Where reading still matters.
+**Tagline:** Read the Web, not the Slop.
 
 **What Readplace is:** A read-it-later app that saves articles, blog posts, and web pages for later reading. Born from a personal reading system refined over 10 years.
 
