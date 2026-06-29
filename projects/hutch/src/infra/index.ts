@@ -621,11 +621,14 @@ const extractEmailLinksQueue = new HutchSQS("extract-email-links", {
 // There it would (a) make the DLQ depth alarm ambiguous between a genuine "email
 // never extracted" and a benign "email truncated", and (b) re-enter the source
 // queue on redrive and bounce straight back (the synthetic body has no `.detail`).
-// It gets a dedicated sink with its own depth alarm → SNS email instead, so the
+// It gets a dedicated sink whose send-rate alarm → SNS email instead, so the
 // failure DLQ's "messages awaiting redrive" contract stays unambiguous.
 const truncationAlertQueue = new aws.sqs.Queue("extract-email-links-truncated-alert", {
 	name: "extract-email-links-truncated-alert",
-	messageRetentionSeconds: 1209600, // 14 days — operators have time to notice
+	// Nothing consumes this queue — it is an audit trail of truncated emails. The
+	// alarm below fires on send RATE, not depth, so these retained messages no
+	// longer pin it in ALARM; 14 days is just how long the audit trail survives.
+	messageRetentionSeconds: 1209600,
 });
 
 const truncationAlertTopic = new aws.sns.Topic("extract-email-links-truncated-alert-topic", {
@@ -638,15 +641,23 @@ new aws.sns.TopicSubscription("extract-email-links-truncated-alert-email", {
 	endpoint: alertEmail,
 });
 
+// Alarm on the SEND RATE (a count metric), not queue DEPTH (a gauge). Nothing
+// consumes this queue, so an ApproximateNumberOfMessagesVisible>=1 depth alarm
+// would stay in ALARM until the message expires 14 days later (or an operator
+// purges it), and a second truncation while already in ALARM would never
+// re-notify. NumberOfMessagesSent has a datapoint only in the period a message is
+// enqueued, so with treatMissingData "notBreaching" the alarm fires on each
+// truncation burst and auto-resets the next empty period — re-firing for the next.
 new aws.cloudwatch.MetricAlarm("extract-email-links-truncated-alarm", {
 	name: "extract-email-links-truncated-alarm",
 	comparisonOperator: "GreaterThanOrEqualToThreshold",
 	evaluationPeriods: 1,
-	metricName: "ApproximateNumberOfMessagesVisible",
+	metricName: "NumberOfMessagesSent",
 	namespace: "AWS/SQS",
 	period: 300,
 	statistic: "Sum",
 	threshold: 1,
+	treatMissingData: "notBreaching",
 	alarmDescription:
 		"extract-email-links hit the per-email link cap and truncated an email (the first N previews still shipped)",
 	dimensions: { QueueName: truncationAlertQueue.name },
@@ -674,7 +685,7 @@ const extractEmailLinksLambda = new HutchLambda("extract-email-links", {
 		// Reads the raw .eml to re-derive the body; never writes any bucket.
 		...HutchS3ReadWrite.readPoliciesForBucket("extract-email-links-raw-read", rawEmailBucketName),
 		// The truncated-degrade alert is an explicit SendMessage to the dedicated
-		// alert queue (NOT the failure DLQ), whose own depth alarm pages the operator.
+		// alert queue (NOT the failure DLQ), whose own send-rate alarm pages the operator.
 		{
 			name: "extract-email-links-truncated-alert-send-pol",
 			policy: pulumi.output(truncationAlertQueue.arn).apply((arn) =>

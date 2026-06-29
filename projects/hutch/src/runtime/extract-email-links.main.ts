@@ -41,7 +41,7 @@ export const handler = initExtractEmailLinksHandler({
 	publishCrawlPreview: (input) => publishEvent(CrawlEmailLinkPreview, input),
 	alertTruncated: async (input) => {
 		// Dedicated alert queue, not the failure DLQ: truncation is a successful
-		// degradation, so its depth alarm is a distinct signal from genuine faults.
+		// degradation, so its send-rate alarm is a distinct signal from genuine faults.
 		await sqsClient.send(
 			new SendMessageCommand({
 				QueueUrl: truncationAlertQueueUrl,

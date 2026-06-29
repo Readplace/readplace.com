@@ -68,7 +68,7 @@ flowchart TD
 	putLink[(inbox-email-links table<br/>putLink one pending row per url)]:::new
 	meta[(inbox-email-links table<br/>putLinksMeta — always, extraction-finished barrier)]:::new
 	alert[alertTruncated<br/>SendMessage -> dedicated alert queue]:::policy
-	alertq[extract-email-links truncated-alert queue<br/>+ depth alarm -> SNS email]:::dlq
+	alertq[extract-email-links truncated-alert queue<br/>+ send-rate alarm -> SNS email]:::dlq
 	pub[publish CrawlEmailLinkPreview<br/>one per link]:::new
 
 	ERE --> rule --> q --> h
@@ -174,7 +174,7 @@ flowchart TD
 | Command / trigger | System (handler) | Event(s) emitted | Next |
 |---|---|---|---|
 | `EmailReceivedEvent` | `extract-email-links` Lambda | **`CrawlEmailLinkPreview`** (one per link) | crawl consumer |
-| link cap hit | `extract-email-links` Lambda | none — `truncated` flag on the meta barrier + dedicated alert-queue message | alert-queue depth alarm → operator |
+| link cap hit | `extract-email-links` Lambda | none — `truncated` flag on the meta barrier + dedicated alert-queue message | alert-queue send-rate alarm → operator |
 | `CrawlEmailLinkPreview` | `crawl-email-link-preview` Lambda | none — `setLinkOutcome` write | — (nothing to /queue) |
 | `GET /inbox/:id` | `inbox.page.ts` `GET /:id` | none (read model) | per-card poll |
 | `GET /inbox/:id/links/:ordinal/card` | `inbox.page.ts` poll route | none (read model) | self until terminal |
