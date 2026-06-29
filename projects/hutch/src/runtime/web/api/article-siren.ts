@@ -1,10 +1,18 @@
 import type { SavedArticle } from "@packages/domain/article";
 import type { SirenEntity, SirenLink, SirenSubEntity } from "./siren";
 
-export function toArticleSubEntity(article: SavedArticle): SirenSubEntity {
+/** Which reader the `read` link points at. The hypermedia `rel` stays `read`;
+ * only the href varies, so swapping it is non-breaking. The iOS app gets `app`
+ * (the chromeless reader); browsers and the extension get `view` (the full shell). */
+export type ReaderLinkPath = "view" | "app";
+
+export function toArticleSubEntity(
+	article: SavedArticle,
+	options: { readerPath: ReaderLinkPath },
+): SirenSubEntity {
 	const id = article.id.value;
 	const links: SirenLink[] = [
-		{ rel: ["read"], title: "Read", href: `/queue/${id}/view` },
+		{ rel: ["read"], title: "Read", href: `/queue/${id}/${options.readerPath}` },
 	];
 
 	const isRead = article.status === "read";
@@ -40,7 +48,10 @@ export function toArticleSubEntity(article: SavedArticle): SirenSubEntity {
 	};
 }
 
-export function toArticleEntity(article: SavedArticle): SirenEntity {
-	const { rel: _rel, ...entity } = toArticleSubEntity(article);
+export function toArticleEntity(
+	article: SavedArticle,
+	options: { readerPath: ReaderLinkPath },
+): SirenEntity {
+	const { rel: _rel, ...entity } = toArticleSubEntity(article, options);
 	return entity;
 }

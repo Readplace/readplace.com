@@ -63,4 +63,6 @@ export { Nav } from "./nav.component";
 export type { NavProps } from "./nav.component";
 export { initBase } from "./base.component";
 export type { BaseConfig, RenderBase } from "./base.component";
+export { initChromelessPage } from "./chromeless-page";
+export type { ChromelessPageConfig, RenderChromelessPage } from "./chromeless-page";
 export { VERIFICATION_CONTACT_EMAIL } from "./shared/verify-banner/verify-banner.component";

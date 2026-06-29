@@ -34,7 +34,7 @@ function makeArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 describe("toArticleSubEntity", () => {
 	it("maps sub-entity with exact properties (no content) and structure", () => {
 		const article = makeArticle({ content: "<p>Full text</p>" });
-		const subEntity = toArticleSubEntity(article);
+		const subEntity = toArticleSubEntity(article, { readerPath: "view" });
 
 		expect(subEntity).toEqual({
 			class: ["article"],
@@ -68,14 +68,25 @@ describe("toArticleSubEntity", () => {
 		});
 	});
 
+	it("points the read link at the chromeless /app reader when readerPath is app", () => {
+		const readLink = toArticleSubEntity(makeArticle(), { readerPath: "app" }).links?.find(
+			(l) => l.rel.includes("read"),
+		);
+		expect(readLink).toEqual({
+			rel: ["read"],
+			title: "Read",
+			href: `/queue/${ARTICLE_ID}/app`,
+		});
+	});
+
 	it("does not advertise a delete action — deletion is website-only", () => {
-		const subEntity = toArticleSubEntity(makeArticle());
+		const subEntity = toArticleSubEntity(makeArticle(), { readerPath: "view" });
 		const deleteAction = subEntity.actions?.find((a) => a.name === "delete");
 		expect(deleteAction).toBeUndefined();
 	});
 
 	it("toggles an unread item to a server-driven Mark as read with the target value", () => {
-		const subEntity = toArticleSubEntity(makeArticle({ status: "unread" }));
+		const subEntity = toArticleSubEntity(makeArticle({ status: "unread" }), { readerPath: "view" });
 		const updateStatus = subEntity.actions?.find((a) => a.name === "update-status");
 		expect(updateStatus).toEqual({
 			name: "update-status",
@@ -90,6 +101,7 @@ describe("toArticleSubEntity", () => {
 	it("toggles a read item to a server-driven Mark as unread with the target value", () => {
 		const subEntity = toArticleSubEntity(
 			makeArticle({ status: "read", readAt: new Date("2026-03-04T12:00:00.000Z") }),
+			{ readerPath: "view" },
 		);
 		const updateStatus = subEntity.actions?.find((a) => a.name === "update-status");
 		expect(updateStatus).toEqual({
@@ -104,7 +116,7 @@ describe("toArticleSubEntity", () => {
 
 	it("includes read link when article has no content", () => {
 		const article = makeArticle({ content: undefined });
-		const subEntity = toArticleSubEntity(article);
+		const subEntity = toArticleSubEntity(article, { readerPath: "view" });
 
 		expect(subEntity.links).toEqual([
 			{ rel: ["read"], title: "Read", href: `/queue/${ARTICLE_ID}/view` },
@@ -112,7 +124,7 @@ describe("toArticleSubEntity", () => {
 	});
 
 	it("titles the read link so looping clients use a server-authored label", () => {
-		const subEntity = toArticleSubEntity(makeArticle());
+		const subEntity = toArticleSubEntity(makeArticle(), { readerPath: "view" });
 		const readLink = subEntity.links?.find((l) => l.rel.includes("read"));
 		expect(readLink).toEqual({
 			rel: ["read"],
@@ -126,7 +138,7 @@ describe("toArticleSubEntity", () => {
 			status: "read",
 			readAt: new Date("2026-03-04T12:00:00.000Z"),
 		});
-		const subEntity = toArticleSubEntity(article);
+		const subEntity = toArticleSubEntity(article, { readerPath: "view" });
 
 		expect(subEntity.properties?.readAt).toBe("2026-03-04T12:00:00.000Z");
 	});
@@ -135,13 +147,19 @@ describe("toArticleSubEntity", () => {
 describe("toArticleEntity", () => {
 	it("returns same structure as sub-entity without rel", () => {
 		const article = makeArticle();
-		const entity = toArticleEntity(article);
-		const subEntity = toArticleSubEntity(article);
+		const entity = toArticleEntity(article, { readerPath: "view" });
+		const subEntity = toArticleSubEntity(article, { readerPath: "view" });
 
 		expect(entity).not.toHaveProperty("rel");
 		expect(entity.class).toEqual(subEntity.class);
 		expect(entity.properties).toEqual(subEntity.properties);
 		expect(entity.links).toEqual(subEntity.links);
 		expect(entity.actions).toEqual(subEntity.actions);
+	});
+
+	it("carries the chromeless /app read href through when readerPath is app", () => {
+		const entity = toArticleEntity(makeArticle(), { readerPath: "app" });
+		const readLink = entity.links?.find((l) => l.rel.includes("read"));
+		expect(readLink?.href).toBe(`/queue/${ARTICLE_ID}/app`);
 	});
 });

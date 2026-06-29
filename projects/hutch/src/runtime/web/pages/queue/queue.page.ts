@@ -58,11 +58,11 @@ import type { PublishLinkSaved } from "@packages/provider-contracts/events";
 import type { PublishSaveLinkRawHtmlCommand } from "@packages/provider-contracts/events";
 import type { PutPendingHtml } from "@packages/provider-contracts/pending-html";
 import { initSaveArticleFromUrl } from "../../shared/save-article/save-article-from-url";
-import { Base } from "../../base.component";
+import { Base, ChromelessPage } from "../../base.component";
 import type { BuildBannerState } from "../../banner-state";
 import { sendComponent } from "@packages/web-shell";
 import { requireNotLocked } from "../../middleware/require-not-locked.middleware";
-import { RedirectComponent } from "../../redirect.component";
+import { RedirectComponent, type Redirect } from "../../redirect.component";
 import { CacheableComponent } from "../../conditional-get";
 import { isFullyParsed } from "../../shared/article-state/is-fully-parsed";
 import { initReaderPermalink } from "./reader-permalink";
@@ -71,7 +71,7 @@ import type { QuerystringFeatureToggle } from "../../feature-toggle";
 import { SIREN_MEDIA_TYPE, sirenError } from "../../api/siren";
 import { toArticleCollectionEntity } from "../../api/collection-siren";
 import { toBulkSaveResultEntity } from "../../api/bulk-save-siren";
-import { toArticleEntity } from "../../api/article-siren";
+import { toArticleEntity, type ReaderLinkPath } from "../../api/article-siren";
 import { parseQueueUrl, buildQueueUrl, QUEUE_PATH, canonicalQueuePageRedirect } from "./queue.url";
 import { collectUtmParams } from "../../shared/utm";
 import { tabQuery } from "./queue.tabs";
@@ -256,6 +256,28 @@ const SAVE_INTENT_PATH = {
 	saveContent: saveIntentPath(SAVE_ROUTE.saveContent),
 } as const;
 
+/** The `/view` reader's "← Back to queue" returns to the in-app web queue. */
+const VIEW_BACK_LINK = {
+	topHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-top",
+	bottomHref: "/queue?utm_source=reader&utm_medium=internal&utm_content=back-bottom",
+	label: "← Back to queue",
+} as const;
+
+/** Deep link the iOS WKWebView delegate intercepts (and cancels) to close the
+ * reader sheet, returning the user to the native reading list. The chromeless
+ * `/app` reader's "← Back to queue" points here for both top and bottom slots. */
+const READER_CLOSE_HREF = "readplace://reader/close";
+const APP_BACK_LINK = {
+	topHref: READER_CLOSE_HREF,
+	bottomHref: READER_CLOSE_HREF,
+	label: "← Back to queue",
+} as const;
+
+/** The iOS app gets the chromeless `/app` reader href; browsers and the
+ * extension get the full-shell `/view`. Applied to every Siren `read` link. */
+const readerLinkPathFor = (req: Request): ReaderLinkPath =>
+	isIosClient(req) ? "app" : "view";
+
 export function initQueueRoutes(deps: QueueDependencies): Router {
 	const router = express.Router();
 	const saveArticleFromUrl = initSaveArticleFromUrl(deps);
@@ -370,7 +392,19 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		res.redirect(301, `${QUEUE_PATH}/${req.params.id}/view${queryString}`);
 	});
 
-	router.get("/:id/view", async (req: Request<{ id: string }>, res: Response) => {
+	type ResolvedReaderState = Awaited<ReturnType<typeof reader.resolveReaderState>>;
+	type OwnerReaderResolution =
+		| { kind: "redirect"; redirect: Redirect }
+		| { kind: "ready"; article: SavedArticle; state: ResolvedReaderState; audioEnabled: boolean };
+
+	/** Resolves the owner's reader for both the full `/view` and the chromeless
+	 * `/app` renders. Ownership/access behaviour (owner → reader; non-owner or
+	 * anonymous → permalink redirect) comes entirely from resolveReaderPermalink,
+	 * so both routes inherit it identically. Stamps reader-view presence on the
+	 * owner open — the only server-side signal that the reader was opened. */
+	const resolveOwnerReader = async (
+		req: Request<{ id: string }>,
+	): Promise<OwnerReaderResolution> => {
 		const result = await resolveReaderPermalink({
 			rawId: req.params.id,
 			requesterId: req.userId,
@@ -378,15 +412,11 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		});
 
 		if (result.kind === "redirect") {
-			sendComponent(req, res, RedirectComponent(result.redirect));
-			return;
+			return { kind: "redirect", redirect: result.redirect };
 		}
 
 		const ownedArticle = result.article;
 
-		/* Server-side reader-view presence: stamp every owner open so the
-		 * reader-ready notifier can tell "viewed while loading, then left" from
-		 * "never opened". No client JS — this request is the only signal. */
 		await deps.markArticleViewed({
 			userId: ownedArticle.userId,
 			url: ownedArticle.url,
@@ -402,6 +432,18 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			},
 			pollUrlBuilder: pollUrlBuilderForId(ownedArticle.id.value),
 		});
+
+		return { kind: "ready", article: ownedArticle, state, audioEnabled };
+	};
+
+	router.get("/:id/view", async (req: Request<{ id: string }>, res: Response) => {
+		const resolved = await resolveOwnerReader(req);
+		if (resolved.kind === "redirect") {
+			sendComponent(req, res, RedirectComponent(resolved.redirect));
+			return;
+		}
+
+		const { article: ownedArticle, state, audioEnabled } = resolved;
 
 		const showExtensionSuggestionBanner = !isFullyParsed({
 			crawlStatus: state.crawl?.status,
@@ -419,11 +461,44 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				progress: state.progress,
 				audioEnabled,
 				extensionInstallUrl: extensionInstallUrlIfMissing(req),
+				backLink: VIEW_BACK_LINK,
 			}), {
 				...(await deps.buildBannerState(req)),
 				showExtensionSuggestionBanner,
 				extensionInstalled: isExtensionInstalled(req),
 			}),
+		);
+	});
+
+	/** The iOS app's chromeless reader. Same owner content as `/view` — including
+	 * the AI summary, progress bar, share balloon, and "View original" — but
+	 * rendered without the web shell, so the native reading list is the only
+	 * chrome. "← Back to queue" and the in-reader links are handled by the
+	 * WKWebView delegate (close the sheet; open external links in a browser).
+	 * Declared before `router.use(deps.dualAuth)` so it inherits `/view`'s exact
+	 * anonymous/non-owner permalink-redirect behaviour. */
+	router.get("/:id/app", async (req: Request<{ id: string }>, res: Response) => {
+		const resolved = await resolveOwnerReader(req);
+		if (resolved.kind === "redirect") {
+			sendComponent(req, res, RedirectComponent(resolved.redirect));
+			return;
+		}
+
+		const { article: ownedArticle, state, audioEnabled } = resolved;
+
+		sendComponent(
+			req, res,
+			ChromelessPage(ReaderPage({ ...ownedArticle, content: state.content }, {
+				appOrigin: deps.appOrigin,
+				summary: state.summary,
+				summaryPollUrl: state.summaryPollUrl,
+				crawl: state.crawl,
+				readerPollUrl: state.readerPollUrl,
+				progress: state.progress,
+				audioEnabled,
+				extensionInstallUrl: extensionInstallUrlIfMissing(req),
+				backLink: APP_BACK_LINK,
+			})),
 		);
 	});
 
@@ -469,7 +544,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					page: urlState.page,
 					pageSize: result.pageSize,
 					url: filterUrl,
-				}),
+				}, { readerPath: readerLinkPathFor(req) }),
 			);
 			return;
 		}
@@ -570,7 +645,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				toArticleCollectionEntity(
 					collection,
 					{ page: collection.page, pageSize: collection.pageSize },
-					{ warning: { code: validation.error.code, message: validation.error.message } },
+					{ readerPath: readerLinkPathFor(req), warning: { code: validation.error.code, message: validation.error.message } },
 				),
 			);
 			return;
@@ -581,7 +656,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			const result = await saveArticleFromUrl({ userId, url: validation.url, freshness });
 			await recordSaveSignal(req, res, userId);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
-			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
+			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved, { readerPath: readerLinkPathFor(req) }));
 		} catch (error) {
 			deps.logError("Failed to save article", error instanceof Error ? error : undefined);
 			emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveArticle, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });
@@ -791,7 +866,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					const result = await saveArticleFromUrl({ userId, url: urlOnlyValidation.url, freshness });
 					await recordSaveSignal(req, res, userId);
 					emitSaveIntent({ req, url: urlOnlyValidation.url, path: SAVE_INTENT_PATH.saveHtml, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
-					res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
+					res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved, { readerPath: readerLinkPathFor(req) }));
 					return;
 				}
 				res.status(422).type(SIREN_MEDIA_TYPE).json(
@@ -822,7 +897,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			const result = await saveArticleFromUrl({ userId, url: articleUrl, freshness });
 			await recordSaveSignal(req, res, userId);
 			emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveHtml, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
-			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
+			res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved, { readerPath: readerLinkPathFor(req) }));
 		} catch (error) {
 			deps.logError("Failed to save article from html", error instanceof Error ? error : undefined);
 			assert(validatedArticleUrl, "save-html reaches the save pipeline only after the article URL is validated");
@@ -954,7 +1029,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				const result = await saveArticleFromUrl({ userId, url: articleUrl, freshness });
 				await recordSaveSignal(req, res, userId);
 				emitSaveIntent({ req, url: articleUrl, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.saved });
-				res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved));
+				res.status(201).type(SIREN_MEDIA_TYPE).json(toArticleEntity(result.saved, { readerPath: readerLinkPathFor(req) }));
 			} catch (error) {
 				deps.logError("Failed to save article from content", error instanceof Error ? error : undefined);
 				emitSaveIntent({ req, url: validation.url, path: SAVE_INTENT_PATH.saveContent, surface: SAVE_SURFACES.extension, outcome: SAVE_OUTCOMES.error });

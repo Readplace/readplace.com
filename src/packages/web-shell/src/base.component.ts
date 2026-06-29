@@ -1,5 +1,4 @@
 import assert from "node:assert";
-import { parseHTML } from "linkedom";
 import {
 	BANNER_AREA_STYLES,
 	BASE_CSS_VARIABLES,
@@ -19,6 +18,8 @@ import type { BannerState } from "./banner-state";
 import { renderChangelogBannerShell } from "./changelog-banner";
 import type { Component, ParsedComponent } from "./component.types";
 import { HtmlPage } from "./html-page";
+import { HTMX_SCRIPTS } from "./htmx-script";
+import { injectPageStylesIntoMain } from "./inject-page-styles";
 import { htmlToMarkdown } from "./html-to-markdown";
 import { MarkdownPage } from "./markdown-page";
 import { buildMarkdownFrontmatter } from "./markdown-frontmatter";
@@ -76,8 +77,6 @@ function externalCanonicalUrl(canonicalUrl: string): string {
 	);
 	return new URL(canonicalUrl).href;
 }
-
-const HTMX_SCRIPTS = `<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js" integrity="sha384-/TgkGk7p307TH7EXJDuUlgG3Ce1UVolAOFopFekQkkXihi5u/6OCvVKyz1W+idaz" crossorigin="anonymous"></script><script>htmx.config.scrollBehavior='smooth';</script>`;
 
 const TRIAL_COUNTDOWN_SCRIPT = `<script src="/client-dist/trial-countdown.client.js" defer></script>`;
 
@@ -138,23 +137,6 @@ const OFFLINE_INDICATOR_SCRIPT = `
   updateOnlineStatus();
 })();
 </script>`;
-
-/**
- * Inject page-specific CSS as a <style> element inside <main>, so that htmx
- * navigation (hx-target="main" hx-select="main" hx-swap="outerHTML") swaps the
- * page's CSS atomically with its content. Without this, htmx leaves the
- * previous page's <style> stranded in <head>, defacing the new page's layout.
- */
-function injectPageStylesIntoMain(content: string, styles: string): string {
-	if (!styles) return content;
-	const { document } = parseHTML(`<!DOCTYPE html><html><body>${content}</body></html>`);
-	const main = document.querySelector("main");
-	assert(main, "PageBody.content must contain a <main> element when styles are provided");
-	const styleEl = document.createElement("style");
-	styleEl.textContent = styles;
-	main.insertBefore(styleEl, main.firstChild);
-	return document.body.innerHTML;
-}
 
 /**
  * Escape HTML-significant code points inside a JSON string before embedding it

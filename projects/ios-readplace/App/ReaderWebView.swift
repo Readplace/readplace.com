@@ -14,9 +14,13 @@ struct ReaderWebView: UIViewControllerRepresentable {
 	let url: URL
 	let cookie: HTTPCookie
 	let onMarkedRead: () -> Void
+	let onClose: () -> Void
+	/// Injected so the composition point wires the live browser and tests inject
+	/// their own; there is deliberately no internal default.
+	let externalBrowser: ExternalBrowser
 
 	func makeCoordinator() -> Coordinator {
-		Coordinator(onMarkedRead: onMarkedRead)
+		Coordinator(onMarkedRead: onMarkedRead, onClose: onClose, externalBrowser: externalBrowser)
 	}
 
 	func makeUIViewController(context: Context) -> UIViewController {
@@ -40,6 +44,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 		let webView = WKWebView(frame: .zero, configuration: configuration)
 		webView.customUserAgent = AppConfig.webViewUserAgent
 		webView.allowsBackForwardNavigationGestures = true
+		webView.navigationDelegate = context.coordinator
 		controller.view = webView
 
 		// Inject the prefetched session cookie into the web view's own store before
@@ -53,18 +58,55 @@ struct ReaderWebView: UIViewControllerRepresentable {
 
 	func updateUIViewController(_ controller: UIViewController, context: Context) {}
 
-	final class Coordinator: NSObject, WKScriptMessageHandler {
+	final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
 		private let onMarkedRead: () -> Void
+		private let onClose: () -> Void
+		private let externalBrowser: ExternalBrowser
 		private var handled = false
 
-		init(onMarkedRead: @escaping () -> Void) {
+		init(
+			onMarkedRead: @escaping () -> Void,
+			onClose: @escaping () -> Void,
+			externalBrowser: ExternalBrowser,
+		) {
 			self.onMarkedRead = onMarkedRead
+			self.onClose = onClose
+			self.externalBrowser = externalBrowser
 		}
 
 		func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
 			guard !handled, ReaderBridge.isMarkedRead(message: message.name, body: message.body) else { return }
 			handled = true
 			onMarkedRead()
+		}
+
+		/// Routes each navigation through the pure `ReaderNavigation` decider: the
+		/// close deep link cancels and closes the sheet; a tapped external link
+		/// cancels and opens in Chrome (or the default browser), reusing the OAuth
+		/// flow's `chromeURLForHTTPS` rewrite; everything else proceeds in place.
+		func webView(
+			_ webView: WKWebView,
+			decidePolicyFor navigationAction: WKNavigationAction,
+			decisionHandler: @escaping (WKNavigationActionPolicy) -> Void,
+		) {
+			guard let url = navigationAction.request.url else {
+				decisionHandler(.allow)
+				return
+			}
+			switch ReaderNavigation.decide(
+				url: url,
+				navigationType: navigationAction.navigationType,
+				currentURL: webView.url,
+			) {
+			case .allow:
+				decisionHandler(.allow)
+			case .close:
+				decisionHandler(.cancel)
+				onClose()
+			case let .openExternally(target):
+				decisionHandler(.cancel)
+				externalBrowser.open(chromeURLForHTTPS(target, canOpen: externalBrowser.canOpen))
+			}
 		}
 	}
 }

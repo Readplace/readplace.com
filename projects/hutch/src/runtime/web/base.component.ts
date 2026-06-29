@@ -1,4 +1,4 @@
-import { initBase } from "@packages/web-shell";
+import { initBase, initChromelessPage } from "@packages/web-shell";
 import { getEnv, requireEnv } from "@packages/require-env";
 
 /** Loaded on every page so an in-browser AI agent discovers Readplace's
@@ -17,4 +17,11 @@ export const Base = initBase({
 	staticBaseUrl: requireEnv("STATIC_BASE_URL"),
 	liveReload: Boolean(getEnv("LIVERELOAD")),
 	siteScripts: WEBMCP_SCRIPT + LOCAL_TIME_SCRIPT,
+});
+
+/** The shell the iOS app loads the reader through: the same reader content with
+ * no logo, nav, or footer, so the native reading list provides the chrome. */
+export const ChromelessPage = initChromelessPage({
+	staticBaseUrl: requireEnv("STATIC_BASE_URL"),
+	liveReload: Boolean(getEnv("LIVERELOAD")),
 });
