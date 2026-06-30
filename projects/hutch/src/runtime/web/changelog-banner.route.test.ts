@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { type ChangelogBanner, isChangelogVersion } from "@packages/web-shell";
+import {
+	CHANGELOG_SEEN_SCRIPT,
+	type ChangelogBanner,
+	isChangelogVersion,
+} from "@packages/web-shell";
 import { TEST_APP_ORIGIN, createDefaultTestAppFixture } from "@packages/test-fixtures";
 import { JSDOM } from "jsdom";
 import request from "supertest";
@@ -30,6 +34,8 @@ describe("changelog banner on hutch pages", () => {
 		expect(banner?.querySelector(".changelog-banner__link")?.getAttribute("href")).toBe(
 			BANNER.href,
 		);
+		expect(banner?.getAttribute("data-changelog-version")).toBe(VERSION);
+		expect(banner?.querySelector("script")?.textContent).toBe(CHANGELOG_SEEN_SCRIPT);
 	});
 
 	it("renders the hidden shell when the source has nothing to announce", async () => {

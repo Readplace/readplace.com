@@ -47,6 +47,8 @@ export type {
 } from "./banner-state";
 export {
 	CHANGELOG_DISMISS_COOKIE_NAME,
+	CHANGELOG_SEEN_SCRIPT,
+	CHANGELOG_SEEN_STORAGE_KEY,
 	CHANGELOG_VERSION_LENGTH,
 	isChangelogVersion,
 	parseChangelogBannerFragment,
