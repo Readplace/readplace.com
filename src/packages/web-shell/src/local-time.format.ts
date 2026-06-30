@@ -57,13 +57,12 @@ export function formatLocalInstant(input: {
 	timeZone: string;
 }): string {
 	if (input.style === "short-datetime") {
-		return new Intl.DateTimeFormat(LOCALE, {
+		const parts = new Intl.DateTimeFormat(LOCALE, {
 			...SHORT_DATETIME_OPTIONS,
 			timeZone: input.timeZone,
-		})
-			.formatToParts(new Date(input.iso))
-			.map((part) => (part.type === "year" ? `'${part.value}` : part.value))
-			.join("");
+		}).formatToParts(new Date(input.iso));
+		const value = new Map(parts.map((part) => [part.type, part.value] as const));
+		return `${value.get("day")} ${value.get("month")} '${value.get("year")}, ${value.get("hour")}:${value.get("minute")}`;
 	}
 	const base = input.style === "datetime" ? DATETIME_OPTIONS : DATE_OPTIONS;
 	return new Date(input.iso).toLocaleString(LOCALE, { ...base, timeZone: input.timeZone });
