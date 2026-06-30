@@ -39,10 +39,9 @@ const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
 	year: "numeric",
 };
 
-/** A compact "26 Mar '26, 14:32" form: 2-digit year (apostrophe-prefixed at
- * assembly) plus 24-hour time to the minute, no timezone suffix. The label is
- * the only place the apostrophe is injected, which is why this branch assembles
- * from formatToParts rather than a single toLocaleString call. */
+/** The label is the only place the apostrophe is injected, which is why this
+ * branch assembles from formatToParts rather than a single toLocaleString
+ * call. */
 const SHORT_DATETIME_OPTIONS: Intl.DateTimeFormatOptions = {
 	day: "numeric",
 	month: "short",
@@ -58,9 +57,6 @@ export function formatLocalInstant(input: {
 	timeZone: string;
 }): string {
 	if (input.style === "short-datetime") {
-		/** Mapping the parts (rather than indexing by type) keeps the assembly
-		 * branch-free: every part the formatter emits is consumed, and only the
-		 * 2-digit year is rewritten to carry the leading apostrophe. */
 		return new Intl.DateTimeFormat(LOCALE, {
 			...SHORT_DATETIME_OPTIONS,
 			timeZone: input.timeZone,

@@ -385,9 +385,6 @@ export function initInMemoryArticleStore(): {
 		article.contentSourceTier = params.tier;
 	};
 
-	/** Stamps the crawl-freshness timestamp the way the real pipeline does on
-	 * crawl success. Lets tests drive the "Last crawled at" bookmark from a known
-	 * instant instead of a wall-clock now(). */
 	const setContentFetchedAt = async (params: { url: string; at: string }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(params.url);
 		const article = articles.get(articleResourceUniqueId.value);

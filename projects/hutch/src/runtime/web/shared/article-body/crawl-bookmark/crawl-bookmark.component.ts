@@ -20,12 +20,6 @@ interface CrawlBookmarkTab {
 	label: string;
 }
 
-/**
- * Renders the "Last crawled at …" bookmark, or "" before the first crawl
- * completes (no `lastCrawledAt` yet → no tab). Only the instant sits inside the
- * `<time>` so the local-time client localises just the date; "Last crawled at"
- * stays static text.
- */
 export function renderCrawlBookmark(input: { lastCrawledAt?: LocalTime }): string {
 	if (!input.lastCrawledAt) return "";
 	const tabs: CrawlBookmarkTab[] = [

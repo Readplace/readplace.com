@@ -23,10 +23,8 @@ function isParseableIso(iso: string | null): iso is string {
 	return iso !== null && !Number.isNaN(Date.parse(iso));
 }
 
-/** Maps a `data-local-time` mode (already past the relative early-return) to
- * the absolute format style. Explicit so a newly-added mode round-trips
- * through the same client/server formatter instead of silently collapsing to
- * the "date" default. */
+/** Explicit so a newly-added mode round-trips through the same client/server
+ * formatter instead of silently collapsing to the "date" default. */
 function absoluteStyleFor(mode: string | null): LocalTimeStyle {
 	if (mode === "datetime") return "datetime";
 	if (mode === "short-datetime") return "short-datetime";

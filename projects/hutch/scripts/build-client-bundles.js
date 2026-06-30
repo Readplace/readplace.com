@@ -179,9 +179,6 @@ const BUNDLES = [
 		outfile: path.join(OUT_DIR, "crawl-bookmark.client.js"),
 		globalName: "CrawlBookmark",
 		footer: [
-			// Loaded with `defer`, so the DOM is parsed before this runs and the
-			// initial sync sees the server-rendered bookmark. The swap listener
-			// re-applies the per-viewport default after a boosted navigation.
 			"CrawlBookmark.initCrawlBookmark({",
 			"  document: window.document,",
 			"  isNarrow: function () { return window.matchMedia('(max-width: 767px)').matches; },",

@@ -23,9 +23,8 @@ export interface ArticleReaderDeps {
 	findGeneratedSummary: FindGeneratedSummary;
 	readArticleContent: ReadArticleContent;
 	/**
-	 * Reads `contentFetchedAt` for the "Last crawled at" bookmark. Reuses the
-	 * existing freshness provider rather than widening the ArticleCrawl
-	 * contract, which is consumed far more widely.
+	 * Reuses the existing freshness provider rather than widening the
+	 * ArticleCrawl contract, which is consumed far more widely.
 	 */
 	findArticleFreshness: FindArticleFreshness;
 	/**

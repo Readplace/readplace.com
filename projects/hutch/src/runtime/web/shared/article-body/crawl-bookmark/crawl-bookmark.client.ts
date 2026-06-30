@@ -1,10 +1,3 @@
-/**
- * Collapses the "Last crawled at" bookmark on narrow viewports and opens it on
- * wide ones. The no-JS baseline ships `<details open>` so the tab is visible on
- * every device; this enhancer overrides that default per viewport. It re-runs
- * on every htmx swap so a boosted navigation keeps the per-viewport default,
- * and otherwise leaves the native <details> toggle to the reader.
- */
 export interface CrawlBookmarkDeps {
 	document: Document;
 	isNarrow: () => boolean;
