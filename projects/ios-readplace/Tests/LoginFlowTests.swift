@@ -26,7 +26,7 @@ final class LoginFlowTests: XCTestCase {
 		XCTAssertEqual(components.host, "readplace.com")
 		XCTAssertEqual(components.path, "/oauth/authorize")
 		let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
-		XCTAssertEqual(items["client_id"], "hutch-chrome-extension")
+		XCTAssertEqual(items["client_id"], "ios-app")
 		XCTAssertEqual(items["redirect_uri"], AppConfig.nativeCallbackURL)
 		XCTAssertEqual(items["response_type"], "code")
 		XCTAssertEqual(items["code_challenge_method"], "S256")
@@ -63,7 +63,7 @@ final class LoginFlowTests: XCTestCase {
 		XCTAssertEqual(body["grant_type"], "authorization_code")
 		XCTAssertEqual(body["code"], "abc")
 		XCTAssertEqual(body["code_verifier"], "v")
-		XCTAssertEqual(body["client_id"], "hutch-chrome-extension")
+		XCTAssertEqual(body["client_id"], "ios-app")
 		XCTAssertEqual(body["redirect_uri"], AppConfig.nativeCallbackURL)
 	}
 
