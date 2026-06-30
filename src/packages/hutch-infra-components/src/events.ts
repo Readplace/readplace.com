@@ -700,4 +700,23 @@ export const EmailReceivedEvent = defineEvent({
 });
 export type EmailReceivedDetail = z.infer<typeof EmailReceivedEvent.detailSchema>;
 
+/** One command per link found inside a received email, fanned out by the
+ * extract-email-links consumer (mirroring how /queue fans each import URL into
+ * its own SaveLinkCommand). Its consumer crawls a preview of the single URL
+ * WITHOUT saving it to the reading queue. Per-link granularity gives SQS-native
+ * concurrency, retry, and DLQ isolation — one dead link never re-runs extraction
+ * or re-crawls its siblings. */
+export const CrawlEmailLinkPreview = defineEvent({
+	name: "crawl-email-link-preview",
+	source: "hutch.inbox",
+	detailType: "CrawlEmailLinkPreview",
+	detailSchema: z.object({
+		userId: z.string(),
+		receivedAtMessageId: z.string(),
+		ordinal: z.string(),
+		url: z.string(),
+	}),
+});
+export type CrawlEmailLinkPreviewDetail = z.infer<typeof CrawlEmailLinkPreview.detailSchema>;
+
 export type { HutchEvent, HutchCommand };

@@ -97,6 +97,7 @@ function buildArticleReaderDeps(deps: ViewDependencies): ArticleReaderDeps {
 		findArticleByUrl: deps.findArticleByUrl,
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatViewDocumentTitle,
+		summaryOpen: true,
 		now: deps.now,
 	};
 }
@@ -299,6 +300,7 @@ function handleViewSummary(deps: ViewDependencies, reader: ReturnType<typeof ini
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
+			summaryToggleUrl: undefined,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	};
@@ -319,6 +321,7 @@ function handleViewReader(deps: ViewDependencies, reader: ReturnType<typeof init
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
+			summaryToggleUrl: undefined,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	};

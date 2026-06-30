@@ -187,10 +187,14 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		const safeReturnUrl = extractReturnUrl({ return: stateData.returnUrl });
 
 		const userCount = await fetchUserCount();
+		/* Read once, then persisted on the user row (durable) AND emitted on the
+		 * user_created conversion event (30-day retention). */
+		const attribution = readClickAttribution(req);
 		if (!deps.foundingAllocation.isFoundingAllocationExhausted(userCount)) {
 			const created = await deps.createGoogleUser({
 				email: tokenResult.email,
 				userId: newUserId,
+				attribution,
 			});
 			if (!created.ok) {
 				const lookup = await deps.findUserByEmail(tokenResult.email);
@@ -217,7 +221,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 					email: tokenResult.email,
 					method: "google",
 					tier: "free",
-					attribution: readClickAttribution(req),
+					attribution,
 					visitorId: req.visitorId,
 					pendingSaveId: consumePendingSaveId({ req, res }),
 				},
@@ -229,6 +233,7 @@ export const initGoogleAuthRoutes = (deps: GoogleAuthDependencies): Router => {
 		const created = await deps.createGoogleUser({
 			email: tokenResult.email,
 			userId: newUserId,
+			attribution,
 		});
 		if (!created.ok) {
 			const lookup = await deps.findUserByEmail(tokenResult.email);

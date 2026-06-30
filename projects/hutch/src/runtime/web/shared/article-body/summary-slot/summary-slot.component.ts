@@ -18,6 +18,9 @@ export interface SummarySlotInput {
 	summary: GeneratedSummary | undefined;
 	summaryPollUrl?: string;
 	summaryOpen?: boolean;
+	/* Tracking URL forwarded to the ready summary's `<details>` so the
+	 * summary-toggle beacon can bind. Present only on the internal reader. */
+	summaryToggleUrl?: string;
 	/* The reader content. Gates the pending indicator: the summary pipeline is
 	 * only triggered once the crawl publishes canonical content, so until the
 	 * reader view is ready nothing is generating the summary and the indicator
@@ -71,6 +74,7 @@ export function renderSummarySlot(input: SummarySlotInput): string {
 			return renderSummaryReady({
 				summary: summary.summary,
 				open: input.summaryOpen === true,
+				summaryToggleUrl: input.summaryToggleUrl,
 				oob,
 			});
 		case "pending":

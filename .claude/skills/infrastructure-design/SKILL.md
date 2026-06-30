@@ -122,6 +122,19 @@ Before introducing a new env var name, grep for existing use across `.github/wor
 
 ACM cert validation DNS records conflict when a domain moves between `redirectDomains` and `domains` in the same deploy because Pulumi creates before it deletes. Remove the domain from its old list first, deploy, then add it to the new list.
 
+## Don't StackReference a Value You Could Put in Config
+
+A consumer that reads a producer stack's output with `StackReference.requireOutput` couples their deploy order, but the CI deploy matrix (`ci.yml`) deploys every project stack **in parallel with no producer→consumer ordering**. The first deploy after a new output is introduced therefore fails with `Required output 'X' does not exist on stack '...'`.
+
+**Why:** `StackReference` reads the producer's **last-persisted checkpoint**, not its in-flight deploy. When a new output and its consumer land together — often squashed through a merge train that cancels the producer's own deploy — the consumer reads a checkpoint that predates the output and `requireOutput` throws. Already-persisted outputs from the same reference keep resolving, so only the brand-new value fails. This broke `blog-site`/`web-embed` (reading hutch `sessionsTableName`/`sessionsTableArn`) and `hutch` (reading save-link `contentMediaCdnBaseUrl`).
+
+**How to avoid, in order of preference:**
+1. **If the value is a config constant, read the same config in both stacks instead of cross-referencing it.** A CDN base URL is `https://${config.require("contentMediaCdnDomain")}` — known before either stack deploys — so deriving it in the consumer deletes the edge and deploy order stops mattering. This is how hutch already wires the shared content *bucket* via `contentBucketName` config rather than a StackReference.
+2. **If the value is only known at deploy time and must exist before another project deploys, put the producing resource in the `platform` stack.** `deploy-platform` runs before the project matrix (`ci.yml` `needs: [..., deploy-platform]`) precisely so anything every project depends on is already persisted — that is what the platform stack is for.
+3. **Only keep a project→project `StackReference` for a genuinely deploy-time value owned by one specific project, and then enforce the order explicitly** (a CI `needs:` edge) — never rely on the parallel matrix.
+
+**Red flag in review:** a `requireOutput` whose value is a domain, bucket name, or any string you could write in `Pulumi.<env>.yaml`. If it can live in config, it belongs in config — not in a cross-stack read.
+
 ## Wire-Format Values Are Deployment Contracts
 
 The `source` and `detailType` strings in event definitions are stored in deployed EventBridge rules. Renaming them requires coordinated redeployment of all stacks that publish or subscribe. Change TypeScript identifiers freely, but treat wire values as immutable unless you coordinate the deployment.

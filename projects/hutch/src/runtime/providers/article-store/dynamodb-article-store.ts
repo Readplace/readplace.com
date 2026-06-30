@@ -27,6 +27,7 @@ import type {
 	MarkArticleViewed,
 	MarkReaderReadyEmailSent,
 	MarkReaderViewSucceeded,
+	MarkSummaryToggled,
 	SaveArticle,
 	SaveArticleGlobally,
 	UpdateArticleStatus,
@@ -78,6 +79,10 @@ const UserArticleRow = z.object({
 	succeededAt: dynamoField(z.string()),
 	viewedAt: dynamoField(z.string()),
 	emailSentAt: dynamoField(z.string()),
+	/* Latest TL;DR open/close toggle, last-write-wins. Optional via dynamoField:
+	 * legacy rows and never-toggled rows simply lack them. */
+	lastSummaryOpenedAt: dynamoField(z.string()),
+	lastSummaryClosedAt: dynamoField(z.string()),
 });
 
 function toSavedArticle(
@@ -120,6 +125,7 @@ export function initDynamoDbArticleStore(deps: {
 	updateArticleStatus: UpdateArticleStatus;
 	findArticleFreshness: FindArticleFreshness;
 	markArticleViewed: MarkArticleViewed;
+	markSummaryToggled: MarkSummaryToggled;
 	markReaderViewSucceeded: MarkReaderViewSucceeded;
 	findUserArticlesByUrl: FindUserArticlesByUrl;
 	markReaderReadyEmailSent: MarkReaderReadyEmailSent;
@@ -440,6 +446,16 @@ export function initDynamoDbArticleStore(deps: {
 		});
 	};
 
+	const markSummaryToggled: MarkSummaryToggled = async ({ userId, url, state, at }) => {
+		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
+		const attribute = state === "open" ? "lastSummaryOpenedAt" : "lastSummaryClosedAt";
+		await userArticles.update({
+			Key: { userId, url: articleResourceUniqueId.value },
+			UpdateExpression: `SET ${attribute} = :at`,
+			ExpressionAttributeValues: { ":at": at.toISOString() },
+		});
+	};
+
 	const markReaderViewSucceeded: MarkReaderViewSucceeded = async ({ userId, url, at }) => {
 		const articleResourceUniqueId = ArticleResourceUniqueId.parse(url);
 		await userArticles.update({
@@ -563,6 +579,7 @@ export function initDynamoDbArticleStore(deps: {
 		updateArticleStatus,
 		findArticleFreshness,
 		markArticleViewed,
+		markSummaryToggled,
 		markReaderViewSucceeded,
 		findUserArticlesByUrl,
 		markReaderReadyEmailSent,

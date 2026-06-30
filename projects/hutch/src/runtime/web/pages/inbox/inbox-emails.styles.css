@@ -81,6 +81,12 @@
   padding: 2px 8px;
 }
 
+.inbox-emails__link-count {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
 .inbox-emails__time {
   flex: 0 0 auto;
   font-size: 0.85rem;

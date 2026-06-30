@@ -26,3 +26,17 @@ export {
 	type ParseEmailResult,
 } from "./parse-email";
 export { sanitizeEmailHtml } from "./sanitize-email-html";
+export { deriveSanitizedBody } from "./derive-sanitized-body";
+export { capEmailLinks } from "./cap-email-links";
+export {
+	EmailLinkOrdinalSchema,
+	type EmailLinkOrdinal,
+	EmailLinkStatusSchema,
+	type EmailLinkStatus,
+} from "./inbox-email-link.schema";
+export type {
+	InboxEmailLinkEntry,
+	InboxEmailLinksMeta,
+	InboxEmailLinkStore,
+	EmailLinkOutcome,
+} from "./inbox-email-link.types";
