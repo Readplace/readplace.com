@@ -247,9 +247,9 @@
 .queue-article {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "content thumbnail";
-  align-items: start;
-  padding: clamp(14px, 3.5vw, 20px);
+  align-items: stretch;
+  column-gap: clamp(12px, 3vw, 16px);
+  padding: clamp(12px, 3vw, 16px);
   background: var(--card);
 }
 
@@ -257,15 +257,17 @@
   background: var(--secondary);
 }
 
+/**
+ * 1. visibility (not display) reserves the thumbnail box before the bitmap
+ *    loads — the img is sized by width + aspect-ratio — so the rail height is
+ *    fixed at first paint and never jumps on load or on the 3s self-swap.
+ */
 .queue-article__thumbnail-link {
-  display: none;
-  grid-area: thumbnail;
-  align-self: start;
-  margin-left: clamp(12px, 3vw, 16px);
+  visibility: hidden; /* 1 */
 }
 
 .queue-article__thumbnail-link--loaded {
-  display: block;
+  visibility: visible;
 }
 
 .queue-article__thumbnail {
@@ -277,11 +279,22 @@
 }
 
 .queue-article__content {
-  grid-area: content;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+}
+
+/**
+ * 1. The rail stretches to the card height (grid align-items: stretch), and the
+ *    actions are pinned to its bottom (margin-top: auto on __actions) so they
+ *    fill the space under the thumbnail instead of leaving it empty.
+ */
+.queue-article__rail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end; /* 1 */
+  gap: 8px;
 }
 
 .queue-article__url {
@@ -383,15 +396,6 @@
   text-decoration: underline;
 }
 
-.queue-article__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  margin-top: 2px;
-}
-
 .queue-article__meta {
   display: flex;
   align-items: center;
@@ -432,8 +436,8 @@
 
 .queue-article__actions {
   display: flex;
-  flex: 0 0 auto;
   gap: 4px;
+  margin-top: auto;
 }
 
 .queue-article__action-form {
