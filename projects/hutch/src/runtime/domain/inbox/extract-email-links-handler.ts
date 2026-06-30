@@ -9,7 +9,7 @@ import type { HutchLogger } from "@packages/hutch-logger";
 import {
 	capEmailLinks,
 	type EmailLinkOrdinal,
-	EmailLinkOrdinalSchema,
+	formatEmailLinkOrdinal,
 	type InboxEmailLinkStore,
 	type InboxEmailStore,
 	type ParseEmailResult,
@@ -114,7 +114,7 @@ export function initExtractEmailLinksHandler(deps: {
 				const { urls, truncated } = capEmailLinks(extracted, { maxLinks });
 
 				for (const [index, url] of urls.entries()) {
-					const ordinal = EmailLinkOrdinalSchema.parse(String(index).padStart(4, "0"));
+					const ordinal = formatEmailLinkOrdinal(index);
 					// Put the pending row BEFORE publishing so the Articles tab shows N
 					// pending cards immediately; a re-delivery hits the conditional put as
 					// a no-op duplicate, then re-publishes (the crawl consumer is idempotent).
