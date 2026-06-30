@@ -34,6 +34,16 @@
   color: var(--muted-foreground);
 }
 
+.inbox-email-detail__link-count {
+  color: var(--muted-foreground);
+}
+
+/* Withheld during extraction: the badge is an always-present OOB swap anchor, so
+   keep the empty placeholder out of the meta row's flex flow until it has a count. */
+.inbox-email-detail__link-count:empty {
+  display: none;
+}
+
 .inbox-email-detail__tabs {
   display: flex;
   gap: 4px;
@@ -78,7 +88,62 @@
   border-radius: var(--radius);
 }
 
-.inbox-email-detail__placeholder {
+.inbox-email-detail__articles-empty,
+.inbox-email-detail__articles-truncated,
+.inbox-email-detail__articles-stale,
+.inbox-email-detail__articles-pending {
   color: var(--muted-foreground);
   font-size: 0.9rem;
+}
+
+.inbox-email-detail__articles {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.inbox-article-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.inbox-article-card__image {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  margin-bottom: 4px;
+}
+
+.inbox-article-card__title {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.inbox-article-card__title--bare {
+  font-weight: 400;
+  word-break: break-all;
+  color: var(--muted-foreground);
+}
+
+.inbox-article-card__excerpt {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted-foreground);
+}
+
+.inbox-article-card__site {
+  font-size: 0.8rem;
+  color: var(--muted-foreground);
+}
+
+.inbox-article-card__pending,
+.inbox-article-card__failed {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted-foreground);
 }

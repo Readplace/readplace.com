@@ -87,9 +87,10 @@ import { initInMemoryPendingPdf } from "@packages/test-fixtures/providers/pendin
 import { initInMemoryImportSession } from "@packages/test-fixtures/providers/import-session";
 import { initDynamoDbImportSession } from "./providers/import-session/dynamodb-import-session";
 import { initInMemoryInboxAddress } from "@packages/test-fixtures/providers/inbox-address";
-import { initInMemoryInboxEmail } from "@packages/test-fixtures/providers/inbox-email";
+import { initInMemoryInboxEmail, initInMemoryInboxEmailLink } from "@packages/test-fixtures/providers/inbox-email";
 import { initDynamoDbInboxAddress } from "./providers/inbox-address/dynamodb-inbox-address";
 import { initDynamoDbInboxEmail } from "./providers/inbox-email/dynamodb-inbox-email";
+import { initDynamoDbInboxEmailLink } from "./providers/inbox-email/dynamodb-inbox-email-link";
 import { initExchangeGoogleCode } from "./providers/google-auth/google-token";
 import { initInMemoryStripeCheckout } from "@packages/test-fixtures/providers/stripe-checkout";
 import { initStripeCheckout } from "./providers/stripe-checkout/stripe-checkout";
@@ -157,6 +158,7 @@ function initProviders() {
 		const importSessionsTable = requireEnv("DYNAMODB_IMPORT_SESSIONS_TABLE");
 		const inboxAddressesTable = requireEnv("DYNAMODB_INBOX_ADDRESSES_TABLE");
 		const inboxEmailsTable = requireEnv("DYNAMODB_INBOX_EMAILS_TABLE");
+		const inboxEmailLinksTable = requireEnv("DYNAMODB_INBOX_EMAIL_LINKS_TABLE");
 		const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
 		const subscriptionProvidersTable = requireEnv("DYNAMODB_SUBSCRIPTION_PROVIDERS_TABLE");
 		const onboardingTable = requireEnv("DYNAMODB_ONBOARDING_TABLE");
@@ -277,6 +279,7 @@ function initProviders() {
 			now: () => new Date(),
 		});
 		const inboxEmailStore = initDynamoDbInboxEmail({ client, tableName: inboxEmailsTable });
+		const inboxEmailLinkStore = initDynamoDbInboxEmailLink({ client, tableName: inboxEmailLinksTable });
 		const readEmailContent = initS3ReadContent({
 			send: (cmd) => s3Client.send(cmd),
 			bucketName: contentBucketName,
@@ -305,6 +308,7 @@ function initProviders() {
 			extractLinksFromPageUrl,
 			inboxAddressStore,
 			inboxEmailStore,
+			inboxEmailLinkStore,
 			readEmailContent,
 			inboxAddressDomain,
 			subscriptionProviders,
@@ -479,6 +483,7 @@ function initProviders() {
 	const importSessionStore = initInMemoryImportSession({ now: () => new Date() });
 	const inboxAddressStore = initInMemoryInboxAddress({ now: () => new Date() });
 	const inboxEmailStore = initInMemoryInboxEmail();
+	const inboxEmailLinkStore = initInMemoryInboxEmailLink();
 	const inboxAddressDomain = requireEnv("INBOX_ADDRESS_DOMAIN");
 
 	// In-process counters are valid here because dev runs a single long-lived
@@ -504,6 +509,7 @@ function initProviders() {
 		extractLinksFromPageUrl,
 		inboxAddressStore,
 		inboxEmailStore,
+		inboxEmailLinkStore,
 		readEmailContent: articleStore.readContent,
 		inboxAddressDomain,
 		subscriptionProviders: devSubscriptionProviders,

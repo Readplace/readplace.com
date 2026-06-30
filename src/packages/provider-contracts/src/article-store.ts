@@ -139,6 +139,19 @@ export type MarkArticleViewed = (params: {
 	at: Date;
 }) => Promise<void>;
 
+/** Record the latest TL;DR open/close toggle for a (user, article) on the
+ * per-user row. Last-write-wins: `state: "open"` stamps `lastSummaryOpenedAt`,
+ * `state: "closed"` stamps `lastSummaryClosedAt`, each overwriting the previous
+ * value so the row always holds the latest of each. The durable record is the
+ * row; a `summary_toggled` analytics event (30-day retention) carries the
+ * history. Fired by the reader's summary-toggle beacon. */
+export type MarkSummaryToggled = (params: {
+	userId: UserId;
+	url: string;
+	state: "open" | "closed";
+	at: Date;
+}) => Promise<void>;
+
 /** Set-once stamp of the moment the reader view reached the successful terminal
  * state, per saver. Written by the reader-ready fan-out for every user who saved
  * the URL. Set-once so it always reflects the first success, never a later

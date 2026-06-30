@@ -39,6 +39,13 @@ export interface ArticleReaderDeps {
 	 */
 	formatDocumentTitle: (articleTitle: string) => string;
 	/**
+	 * Whether the TL;DR <details> renders expanded on poll responses. Required
+	 * (not optional) so every reader makes the choice explicit: the internal
+	 * /queue and admin readers default collapsed — an expand is then a
+	 * deliberate, measurable act — while the public /view reader stays open.
+	 */
+	summaryOpen: boolean;
+	/**
 	 * Static for a given reader (queue → /queue, view → none). Lives at init
 	 * time, not per-poll, because it never changes during a reader session.
 	 */
@@ -103,4 +110,12 @@ export interface HandlePollParams {
 	pollCount: number;
 	pollUrlBuilder: PollUrlBuilder;
 	extensionInstallUrl: string | undefined;
+	/**
+	 * Per-poll tracking URL stamped on the re-rendered TL;DR `<details>` so the
+	 * client beacon can report open/close toggles. `undefined` on the public
+	 * /view and admin readers, which do not record anonymous summary toggles;
+	 * `string` only on the internal /queue reader. Required (not optional) so
+	 * each poll path makes the decision explicit, mirroring `extensionInstallUrl`.
+	 */
+	summaryToggleUrl: string | undefined;
 }

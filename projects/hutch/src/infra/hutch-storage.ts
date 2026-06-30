@@ -14,6 +14,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 	public readonly importSessionsTable: aws.dynamodb.Table;
 	public readonly inboxAddressesTable: aws.dynamodb.Table;
 	public readonly inboxEmailsTable: aws.dynamodb.Table;
+	public readonly inboxEmailLinksTable: aws.dynamodb.Table;
 	public readonly subscriptionProvidersTable: aws.dynamodb.Table;
 	public readonly onboardingTable: aws.dynamodb.Table;
 	public readonly rateLimitsTable: aws.dynamodb.Table;
@@ -31,6 +32,7 @@ export class HutchStorage extends pulumi.ComponentResource {
 		importSessions: string;
 		inboxAddresses: string;
 		inboxEmails: string;
+		inboxEmailLinks: string;
 		subscriptionProviders: string;
 		onboarding: string;
 		rateLimits: string;
@@ -239,6 +241,27 @@ export class HutchStorage extends pulumi.ComponentResource {
 			attributes: [
 				{ name: "userId", type: "S" },
 				{ name: "receivedAtMessageId", type: "S" },
+			],
+		}, { parent: this });
+
+		/* Crawled previews of the links found inside a received email, one row per
+		 * link. PK=`${userId}#${receivedAtMessageId}` colocates every link of one
+		 * email (and a reserved `meta` sort-key item holding the truncated flag) so
+		 * the Articles tab reads them in a single Query — no GSI, no scan. Each link
+		 * transitions (pending→crawled/failed) and is polled independently, so it
+		 * needs its own row rather than inlining onto the email. Kept forever (no
+		 * TTL); re-derivable from the raw .eml, so deletion protection + PITR guard
+		 * the cache without making it the system of record. */
+		this.inboxEmailLinksTable = new aws.dynamodb.Table(`hutch-inbox-email-links`, {
+			name: args.tableNames.inboxEmailLinks,
+			billingMode: "PAY_PER_REQUEST",
+			deletionProtectionEnabled: args.deletionProtection,
+			pointInTimeRecovery: { enabled: true },
+			hashKey: "userLinkGroup",
+			rangeKey: "ordinal",
+			attributes: [
+				{ name: "userLinkGroup", type: "S" },
+				{ name: "ordinal", type: "S" },
 			],
 		}, { parent: this });
 
