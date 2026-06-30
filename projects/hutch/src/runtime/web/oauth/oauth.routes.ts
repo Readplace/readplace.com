@@ -311,7 +311,11 @@ export function initOAuthRoutes(deps: OAuthRouteDeps): Router {
 		// Revoking the token only kills that one token. iOS sign-out calls revoke,
 		// but a user accumulates a server session per reader open and iOS holds none
 		// of their ids, so destroy every session by userId here — otherwise they stay
-		// live until the 7-day TTL. Browser POST /logout keeps its single-session destroy.
+		// live until the 7-day TTL. This is intentionally sign-out-everywhere: the
+		// userId-index query spans the whole sessions table, so it also clears the
+		// user's browser/desktop hutch_sid sessions, not just iOS reader ones.
+		// Browser POST /logout keeps its single-session destroy (it holds the one
+		// cookie it needs to clear).
 		if (revokedUserId !== undefined) {
 			await deps.destroyUserSessions(UserIdSchema.parse(revokedUserId));
 		}

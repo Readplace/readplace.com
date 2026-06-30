@@ -45,6 +45,29 @@ function createQueryFakeClient(opts: {
 	return { client: client as typeof client & DynamoDBDocumentClient, commands };
 }
 
+/** Replays a sequence of query pages so the destroyUserSessions pagination loop
+ * runs more than once: each page carries its rows and the LastEvaluatedKey that
+ * drives the next iteration (omitted on the final page to end the loop). */
+function createPaginatedQueryFakeClient(
+	pages: { rows: Record<string, unknown>[]; lastEvaluatedKey?: Record<string, unknown> }[],
+): { client: DynamoDBDocumentClient; commands: CapturedCommand[] } {
+	const commands: CapturedCommand[] = [];
+	let queryCount = 0;
+	const client = {
+		send: (async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+			const name = command.constructor.name;
+			commands.push({ name, input: command.input });
+			if (name === "QueryCommand") {
+				const page = pages[queryCount];
+				queryCount += 1;
+				return { Items: page.rows, Count: page.rows.length, LastEvaluatedKey: page.lastEvaluatedKey };
+			}
+			return {};
+		}) as DynamoDBDocumentClient["send"],
+	};
+	return { client: client as typeof client & DynamoDBDocumentClient, commands };
+}
+
 /** Records write commands and optionally fails every send with a given error. */
 function createWriteFakeClient(opts: { fail?: Error } = {}): {
 	client: DynamoDBDocumentClient;
@@ -310,6 +333,25 @@ describe("initDynamoDbAuth", () => {
 			await initAuth(client).destroyUserSessions(USER);
 
 			expect(commands.some((c) => c.name === "DeleteCommand")).toBe(false);
+		});
+
+		it("paginates the userId-index, feeding each page's key back as ExclusiveStartKey", async () => {
+			const { client, commands } = createPaginatedQueryFakeClient([
+				{
+					rows: [{ sessionId: "sess-1", userId: "abc123", expiresAt: 9999999999, emailVerified: true }],
+					lastEvaluatedKey: { sessionId: "sess-1" },
+				},
+				{ rows: [{ sessionId: "sess-2", userId: "abc123", expiresAt: 9999999999, emailVerified: true }] },
+			]);
+
+			await initAuth(client).destroyUserSessions(USER);
+
+			const queries = commands.filter((c) => c.name === "QueryCommand");
+			expect(queries).toHaveLength(2);
+			expect(queries[0]?.input.ExclusiveStartKey).toBeUndefined();
+			expect(queries[1]?.input.ExclusiveStartKey).toEqual({ sessionId: "sess-1" });
+			const deleted = commands.filter((c) => c.name === "DeleteCommand").map((c) => c.input.Key);
+			expect(deleted).toEqual([{ sessionId: "sess-1" }, { sessionId: "sess-2" }]);
 		});
 	});
 

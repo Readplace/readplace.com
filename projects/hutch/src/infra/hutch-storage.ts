@@ -136,7 +136,22 @@ export class HutchStorage extends pulumi.ComponentResource {
 			name: args.tableNames.sessions,
 			billingMode: "PAY_PER_REQUEST",
 			hashKey: "sessionId",
-			attributes: [{ name: "sessionId", type: "S" }],
+			attributes: [
+				{ name: "sessionId", type: "S" },
+				{ name: "userId", type: "S" },
+			],
+			/* OAuth revoke (iOS sign-out) destroys every live session for a user, who
+			 * accumulates one per reader open; this GSI answers that by-userId delete.
+			 * Projection must be ALL — destroyUserSessions parses each hit through
+			 * SessionRow (needs expiresAt/emailVerified), so a KEYS_ONLY projection
+			 * would make the row parse throw, the same gotcha as userIdPrefix-index. */
+			globalSecondaryIndexes: [
+				{
+					name: "userId-index",
+					hashKey: "userId",
+					projectionType: "ALL",
+				},
+			],
 			ttl: {
 				attributeName: "expiresAt",
 				enabled: true,
