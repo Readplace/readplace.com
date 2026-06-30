@@ -42,6 +42,10 @@ const StripeCustomer = z.object({
 	}),
 });
 
+const StripeSubscription = z.object({
+	default_payment_method: z.string().nullish(),
+});
+
 const StripeSetupIntentResponse = z.object({
 	client_secret: z.string(),
 });
@@ -76,7 +80,20 @@ export function initStripePaymentMethods(deps: {
 		return new Error(`Stripe ${operation} failed (${response.status}): ${message}`);
 	}
 
-	const listCards: ListCards = async ({ customerId }) => {
+	async function readSubscriptionDefaultPaymentMethod(
+		subscriptionId: string,
+	): Promise<string | null | undefined> {
+		const response = await deps.fetch(
+			`${STRIPE_API}/subscriptions/${encodeURIComponent(subscriptionId)}`,
+			{ headers: stripeHeaders },
+		);
+		if (!response.ok) {
+			throw await failed("listCards", response);
+		}
+		return StripeSubscription.parse(await response.json()).default_payment_method;
+	}
+
+	const listCards: ListCards = async ({ customerId, subscriptionId }) => {
 		const id = encodeURIComponent(customerId);
 
 		const listResponse = await deps.fetch(
@@ -95,7 +112,19 @@ export function initStripePaymentMethods(deps: {
 			throw await failed("listCards", customerResponse);
 		}
 		const customer = StripeCustomer.parse(await customerResponse.json());
-		const defaultPaymentMethodId = customer.invoice_settings.default_payment_method;
+
+		// The card that actually funds renewals is the subscription's
+		// default_payment_method; Stripe charges invoices against it and only
+		// falls back to the customer default when the subscription has none.
+		// Checkout sets the subscription default without always setting the
+		// customer default, so reading the customer default alone can leave the
+		// live funding card looking like a removable backup.
+		const subscriptionDefault =
+			subscriptionId === undefined
+				? undefined
+				: await readSubscriptionDefaultPaymentMethod(subscriptionId);
+		const fundingPaymentMethodId =
+			subscriptionDefault ?? customer.invoice_settings.default_payment_method;
 
 		return list.data.map(
 			(pm): SavedCard => ({
@@ -104,7 +133,7 @@ export function initStripePaymentMethods(deps: {
 				last4: pm.card.last4,
 				expMonth: pm.card.exp_month,
 				expYear: pm.card.exp_year,
-				isPrimary: pm.id === defaultPaymentMethodId,
+				isPrimary: pm.id === fundingPaymentMethodId,
 			}),
 		);
 	};

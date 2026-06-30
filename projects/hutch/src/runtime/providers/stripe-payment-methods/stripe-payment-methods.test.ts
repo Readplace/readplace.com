@@ -127,6 +127,75 @@ describe("initStripePaymentMethods", () => {
 				/Stripe listCards failed \(503\): Stripe error/,
 			);
 		});
+
+		it("marks the subscription's default_payment_method as primary even when the customer default differs", async () => {
+			const receivedUrls: string[] = [];
+			const fakeFetch: typeof globalThis.fetch = async (input) => {
+				const url = typeof input === "string" ? input : input.toString();
+				receivedUrls.push(url);
+				if (url.includes("/payment_methods")) {
+					return jsonResponse(200, {
+						data: [cardPayload("pm_sub"), cardPayload("pm_customer_default")],
+					});
+				}
+				if (url.includes("/subscriptions/")) {
+					return jsonResponse(200, { default_payment_method: "pm_sub" });
+				}
+				return jsonResponse(200, {
+					invoice_settings: { default_payment_method: "pm_customer_default" },
+				});
+			};
+
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const cards = await stripe.listCards({ customerId: "cus_abc", subscriptionId: "sub_abc" });
+
+			assert.ok(receivedUrls.includes("https://api.stripe.com/v1/subscriptions/sub_abc"));
+			assert.equal(cards.find((c) => c.id === "pm_sub")?.isPrimary, true);
+			assert.equal(cards.find((c) => c.id === "pm_customer_default")?.isPrimary, false);
+		});
+
+		it("falls back to the customer default when the subscription has no default_payment_method", async () => {
+			const fakeFetch: typeof globalThis.fetch = async (input) => {
+				const url = typeof input === "string" ? input : input.toString();
+				if (url.includes("/payment_methods")) {
+					return jsonResponse(200, {
+						data: [cardPayload("pm_customer_default"), cardPayload("pm_backup")],
+					});
+				}
+				if (url.includes("/subscriptions/")) {
+					return jsonResponse(200, { default_payment_method: null });
+				}
+				return jsonResponse(200, {
+					invoice_settings: { default_payment_method: "pm_customer_default" },
+				});
+			};
+
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+			const cards = await stripe.listCards({ customerId: "cus_abc", subscriptionId: "sub_abc" });
+
+			assert.equal(cards.find((c) => c.id === "pm_customer_default")?.isPrimary, true);
+			assert.equal(cards.find((c) => c.id === "pm_backup")?.isPrimary, false);
+		});
+
+		it("throws when the subscription read fails", async () => {
+			const fakeFetch: typeof globalThis.fetch = async (input) => {
+				const url = typeof input === "string" ? input : input.toString();
+				if (url.includes("/payment_methods")) {
+					return jsonResponse(200, { data: [cardPayload("pm_only")] });
+				}
+				if (url.includes("/subscriptions/")) {
+					return jsonResponse(404, { error: { message: "No such subscription" } });
+				}
+				return jsonResponse(200, { invoice_settings: { default_payment_method: null } });
+			};
+
+			const stripe = initStripePaymentMethods({ apiKey: "sk_test_abc", fetch: fakeFetch });
+
+			await assert.rejects(
+				() => stripe.listCards({ customerId: "cus_abc", subscriptionId: "sub_abc" }),
+				/Stripe listCards failed \(404\): No such subscription/,
+			);
+		});
 	});
 
 	describe("beginAddCard", () => {

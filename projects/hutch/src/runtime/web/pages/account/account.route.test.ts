@@ -1071,3 +1071,123 @@ describe("POST /account/cards/new", () => {
 		expect(response.headers.location).toBe("/login");
 	});
 });
+
+describe("POST /account/cards/confirm — post-attach cap reconciliation", () => {
+	it("detaches the just-added card and surfaces the limit error when a concurrent add pushed past the cap", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "confirm-over@example.com", [
+			card("pm_a", true, "4242"),
+			card("pm_b", false, "1111"),
+			card("pm_c", false, "2222"),
+			card("pm_d", false, "3333"),
+		]);
+
+		const response = await agent
+			.post("/account/cards/confirm")
+			.type("form")
+			.send({ paymentMethodId: "pm_d" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=card_limit");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_a", "pm_b", "pm_c"]);
+	});
+
+	it("redirects to /account without detaching when the live set is within the cap", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "confirm-within@example.com", [
+			card("pm_a", true, "4242"),
+			card("pm_b", false, "1111"),
+			card("pm_c", false, "2222"),
+		]);
+
+		const response = await agent
+			.post("/account/cards/confirm")
+			.type("form")
+			.send({ paymentMethodId: "pm_c" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_a", "pm_b", "pm_c"]);
+	});
+
+	it("redirects to /account without detaching when no payment method id is posted", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "confirm-nobody@example.com", [
+			card("pm_a", true, "4242"),
+			card("pm_b", false, "1111"),
+			card("pm_c", false, "2222"),
+			card("pm_d", false, "3333"),
+		]);
+
+		const response = await agent.post("/account/cards/confirm");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_a", "pm_b", "pm_c", "pm_d"]);
+	});
+
+	it("never detaches the funding (primary) card even if its id is posted over the cap", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent, customerId } = await activeUserWithCards(harness, "confirm-primary@example.com", [
+			card("pm_a", true, "4242"),
+			card("pm_b", false, "1111"),
+			card("pm_c", false, "2222"),
+			card("pm_d", false, "3333"),
+		]);
+
+		const response = await agent
+			.post("/account/cards/confirm")
+			.type("form")
+			.send({ paymentMethodId: "pm_a" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+		const cards = await harness.paymentMethods.listCards({ customerId });
+		expect(cards.map((c) => c.id)).toEqual(["pm_a", "pm_b", "pm_c", "pm_d"]);
+	});
+
+	it("redirects a member with no Stripe customer back to /account", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const agent = await loginAgent(harness.server, harness.auth);
+
+		const response = await agent
+			.post("/account/cards/confirm")
+			.type("form")
+			.send({ paymentMethodId: "pm_x" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+	});
+
+	it("redirects to /account when the live read fails (no crash)", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.paymentMethods.listCards = async () => {
+			throw new Error("Stripe is down");
+		};
+		const harness = useApp(fixture);
+		const { agent, userId } = await loginUser(harness, "confirm-error@example.com");
+		await harness.subscriptionProviders.upsertActive({
+			userId,
+			subscriptionId: "sub_confirm_err",
+			customerId: "cus_confirm_err",
+		});
+
+		const response = await agent
+			.post("/account/cards/confirm")
+			.type("form")
+			.send({ paymentMethodId: "pm_x" });
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account");
+	});
+
+	it("redirects unauthenticated callers to /login", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const response = await request(harness.server).post("/account/cards/confirm");
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/login");
+	});
+});

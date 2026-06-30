@@ -177,7 +177,25 @@ const BUNDLES = [
 			"      window.document.head.appendChild(script);",
 			"    });",
 			"  },",
-			"  navigate: function (url) { window.location.assign(url); },",
+			// The card was attached to the customer client-side; post it back so the
+			// server reconciles the 3-card cap against the live set (a second tab can
+			// out-race the begin-time check) before redirecting to /account. A native
+			// form POST follows the server's 303, so it behaves like the old direct
+			// navigation when the cap is fine.
+			"  confirmAdd: function (paymentMethodId) {",
+			"    var form = window.document.createElement('form');",
+			"    form.method = 'POST';",
+			"    form.action = '/account/cards/confirm';",
+			"    if (paymentMethodId) {",
+			"      var input = window.document.createElement('input');",
+			"      input.type = 'hidden';",
+			"      input.name = 'paymentMethodId';",
+			"      input.value = paymentMethodId;",
+			"      form.appendChild(input);",
+			"    }",
+			"    window.document.body.appendChild(form);",
+			"    form.submit();",
+			"  },",
 			"  addSettleListener: function (cb) { window.document.body.addEventListener('htmx:afterSettle', cb); }",
 			"});",
 		].join("\n"),

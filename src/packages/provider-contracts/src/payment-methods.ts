@@ -12,7 +12,10 @@ export interface SavedCard {
 	isPrimary: boolean;
 }
 
-export type ListCards = (input: { customerId: string }) => Promise<SavedCard[]>;
+export type ListCards = (input: {
+	customerId: string;
+	subscriptionId?: string;
+}) => Promise<SavedCard[]>;
 
 export type BeginAddCard = (input: {
 	customerId: string;

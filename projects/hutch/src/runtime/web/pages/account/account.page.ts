@@ -91,6 +91,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 	 * provider on every render and every mutation — the UI is never trusted. */
 	async function loadCardSection(input: {
 		customerId: string | undefined;
+		subscriptionId: string | undefined;
 		access: EffectiveAccess;
 		cardError: CardError | undefined;
 		adding: { clientSecret: string } | undefined;
@@ -99,7 +100,10 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 			return buildCardSectionViewModel({ kind: "no-customer" });
 		}
 		try {
-			const cards = await deps.listCards({ customerId: input.customerId });
+			const cards = await deps.listCards({
+				customerId: input.customerId,
+				subscriptionId: input.subscriptionId,
+			});
 			return buildCardSectionViewModel({
 				kind: "loaded",
 				cards,
@@ -134,6 +138,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 		const row = await deps.findSubscriptionByUserId(req.userId);
 		const cardSection = await loadCardSection({
 			customerId: row?.customerId,
+			subscriptionId: row?.subscriptionId,
 			access,
 			cardError: parseAccountQuery(req.query).cardError,
 			adding: undefined,
@@ -153,7 +158,10 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				return;
 			}
 			const cardId = parsed.data;
-			const cards = await deps.listCards({ customerId: row.customerId });
+			const cards = await deps.listCards({
+				customerId: row.customerId,
+				subscriptionId: row.subscriptionId,
+			});
 			const target = cards.find((card) => card.id === cardId);
 			// Unknown card or already-primary → idempotent noop; the next render
 			// shows whatever the live read actually contains.
@@ -188,7 +196,10 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				return;
 			}
 			const cardId = parsed.data;
-			const cards = await deps.listCards({ customerId: row.customerId });
+			const cards = await deps.listCards({
+				customerId: row.customerId,
+				subscriptionId: row.subscriptionId,
+			});
 			const target = cards.find((card) => card.id === cardId);
 			if (!target) {
 				res.redirect(303, buildAccountUrl());
@@ -227,7 +238,10 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				res.redirect(303, buildAccountUrl());
 				return;
 			}
-			const cards = await deps.listCards({ customerId: row.customerId });
+			const cards = await deps.listCards({
+				customerId: row.customerId,
+				subscriptionId: row.subscriptionId,
+			});
 			if (cards.length >= MAX_CARDS) {
 				res.redirect(303, ACCOUNT_ERROR_CARD_LIMIT_URL);
 				return;
@@ -247,6 +261,49 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				error: err instanceof Error ? err.message : String(err),
 			});
 			res.redirect(303, ACCOUNT_ERROR_PAYMENT_METHOD_URL);
+		}
+	});
+
+	/** Post-attach reconciliation. The card is attached to the customer
+	 * client-side when Stripe.js confirms the SetupIntent, so the begin-time cap
+	 * check in /cards/new can be out-raced by a second add opened in another tab.
+	 * The client posts the just-added payment method here; we re-read the live
+	 * set and, if it now exceeds MAX_CARDS, detach that card so the cap stays
+	 * server-authoritative. The funding (primary) card is never detached. */
+	router.post("/cards/confirm", async (req: Request, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		try {
+			const row = await deps.findSubscriptionByUserId(userId);
+			const access = await deps.getEffectiveAccess(userId);
+			if (!row?.customerId || access.access !== "full") {
+				res.redirect(303, buildAccountUrl());
+				return;
+			}
+			const cards = await deps.listCards({
+				customerId: row.customerId,
+				subscriptionId: row.subscriptionId,
+			});
+			if (cards.length <= MAX_CARDS) {
+				res.redirect(303, buildAccountUrl());
+				return;
+			}
+			const parsed = PaymentMethodIdSchema.safeParse(req.body?.paymentMethodId);
+			const surplus = parsed.success
+				? cards.find((card) => card.id === parsed.data && !card.isPrimary)
+				: undefined;
+			if (!surplus) {
+				res.redirect(303, buildAccountUrl());
+				return;
+			}
+			await deps.removeCard({ customerId: row.customerId, cardId: surplus.id });
+			res.redirect(303, ACCOUNT_ERROR_CARD_LIMIT_URL);
+		} catch (err) {
+			deps.logger.error("[account/cards/confirm] failed", {
+				userId,
+				error: err instanceof Error ? err.message : String(err),
+			});
+			res.redirect(303, buildAccountUrl());
 		}
 	});
 
