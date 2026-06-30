@@ -483,4 +483,30 @@ describe("initInMemoryAuth", () => {
 			expect(resolved).toBeNull();
 		});
 	});
+
+	describe("getAcquisitionAttribution", () => {
+		it("returns the attribution stored at signup", async () => {
+			const auth = makeAuth();
+			const attribution = {
+				utm_source: "hackernews",
+				first_seen_at: "2026-06-01T00:00:00.000Z",
+				landing_path: "/",
+			};
+			await auth.createUser({ email: "attr@example.com", password: "password123", attribution });
+
+			expect(await auth.getAcquisitionAttribution("attr@example.com")).toEqual(attribution);
+		});
+
+		it("returns undefined when the user was created without attribution", async () => {
+			const auth = makeAuth();
+			await auth.createUser({ email: "organic@example.com", password: "password123" });
+
+			expect(await auth.getAcquisitionAttribution("organic@example.com")).toBeUndefined();
+		});
+
+		it("returns undefined for an unknown email (no matching row)", async () => {
+			const auth = makeAuth();
+			expect(await auth.getAcquisitionAttribution("missing@example.com")).toBeUndefined();
+		});
+	});
 });

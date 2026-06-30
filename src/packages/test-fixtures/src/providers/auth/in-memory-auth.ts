@@ -24,6 +24,7 @@ import type {
 	MarkEmailVerified,
 	MarkSessionEmailVerified,
 	UpdatePassword,
+	UserAcquisitionAttribution,
 	UserExistsByEmail,
 	VerifyCredentials,
 } from "@packages/provider-contracts/auth";
@@ -34,6 +35,7 @@ interface StoredUser {
 	passwordHash: string | undefined;
 	emailVerified: boolean;
 	registeredAt: string;
+	attribution?: UserAcquisitionAttribution;
 }
 
 interface StoredSession {
@@ -63,6 +65,9 @@ export function initInMemoryAuth(opts: {
 	findUserContactByUserId: FindUserContactByUserId;
 	findUserById: FindUserById;
 	deleteUser: (email: string) => Promise<void>;
+	/** Test-only accessor for the attribution persisted at signup, so signup
+	 * tests can assert the raw utm/referrer/landing fields reached the row. */
+	getAcquisitionAttribution: (email: string) => Promise<UserAcquisitionAttribution | undefined>;
 } {
 	const _hashPassword = opts.hashPassword;
 	const _verifyPassword = opts.verifyPassword;
@@ -86,7 +91,7 @@ export function initInMemoryAuth(opts: {
 		return normalizedEmail;
 	};
 
-	const createUser: CreateUser = async ({ email, password }) => {
+	const createUser: CreateUser = async ({ email, password, attribution }) => {
 		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
 		const normalizedEmail = reserveIdentity(email, userId);
 		if (normalizedEmail === null) {
@@ -100,13 +105,14 @@ export function initInMemoryAuth(opts: {
 			passwordHash,
 			emailVerified: false,
 			registeredAt: new Date().toISOString(),
+			attribution,
 		});
 		userIdPrefixes.add(userIdPrefixFrom(userId));
 
 		return { ok: true, userId };
 	};
 
-	const createUserWithPasswordHash: CreateUserWithPasswordHash = async ({ email, passwordHash }) => {
+	const createUserWithPasswordHash: CreateUserWithPasswordHash = async ({ email, passwordHash, attribution }) => {
 		const userId = UserIdSchema.parse(randomBytes(16).toString("hex"));
 		const normalizedEmail = reserveIdentity(email, userId);
 		if (normalizedEmail === null) {
@@ -119,13 +125,14 @@ export function initInMemoryAuth(opts: {
 			passwordHash,
 			emailVerified: false,
 			registeredAt: new Date().toISOString(),
+			attribution,
 		});
 		userIdPrefixes.add(userIdPrefixFrom(userId));
 
 		return { ok: true, userId };
 	};
 
-	const createGoogleUser: CreateGoogleUser = async ({ email, userId }) => {
+	const createGoogleUser: CreateGoogleUser = async ({ email, userId, attribution }) => {
 		const normalizedEmail = reserveIdentity(email, userId);
 		if (normalizedEmail === null) {
 			return { ok: false, reason: "email-already-exists" };
@@ -137,6 +144,7 @@ export function initInMemoryAuth(opts: {
 			passwordHash: undefined,
 			emailVerified: true,
 			registeredAt: new Date().toISOString(),
+			attribution,
 		});
 		userIdPrefixes.add(userIdPrefixFrom(userId));
 
@@ -252,6 +260,11 @@ export function initInMemoryAuth(opts: {
 		user.passwordHash = await _hashPassword(password);
 	};
 
+	const getAcquisitionAttribution = async (email: string): Promise<UserAcquisitionAttribution | undefined> => {
+		const user = users.get(normalizeEmail(email));
+		return user?.attribution;
+	};
+
 	const deleteUser = async (email: string): Promise<void> => {
 		users.delete(normalizeEmail(email));
 		const claimKey = gmailIdentityKey(email);
@@ -278,6 +291,7 @@ export function initInMemoryAuth(opts: {
 		findEmailByUserId,
 		findUserContactByUserId,
 		findUserById,
+		getAcquisitionAttribution,
 		deleteUser,
 	};
 }

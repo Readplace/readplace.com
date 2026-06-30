@@ -94,6 +94,26 @@ describe("initDynamoDbArticleStore reader-ready columns", () => {
 		);
 	});
 
+	it("markSummaryToggled with state=open overwrites lastSummaryOpenedAt (last-write-wins, no if_not_exists)", async () => {
+		const { client, commands } = createFakeClient();
+		await initStore(client).markSummaryToggled({ userId: USER, url: URL, state: "open", at: new Date("2026-05-30T10:00:00.000Z") });
+
+		const update = commands.find((c) => c.name === "UpdateCommand");
+		expect(update?.input.UpdateExpression).toBe("SET lastSummaryOpenedAt = :at");
+		expect(update?.input.ConditionExpression).toBeUndefined();
+		expect((update?.input.ExpressionAttributeValues as Record<string, unknown>)[":at"]).toBe(
+			"2026-05-30T10:00:00.000Z",
+		);
+	});
+
+	it("markSummaryToggled with state=closed overwrites lastSummaryClosedAt", async () => {
+		const { client, commands } = createFakeClient();
+		await initStore(client).markSummaryToggled({ userId: USER, url: URL, state: "closed", at: new Date("2026-05-30T10:01:00.000Z") });
+
+		const update = commands.find((c) => c.name === "UpdateCommand");
+		expect(update?.input.UpdateExpression).toBe("SET lastSummaryClosedAt = :at");
+	});
+
 	it("markReaderViewSucceeded writes succeededAt set-once via if_not_exists", async () => {
 		const { client, commands } = createFakeClient();
 		await initStore(client).markReaderViewSucceeded({ userId: USER, url: URL, at: new Date("2026-05-30T10:00:00.000Z") });
