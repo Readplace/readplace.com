@@ -67,9 +67,6 @@ export function initReaderPermalink(deps: ReaderPermalinkDeps) {
 		const parsedId = ReaderArticleHashIdSchema.safeParse(input.rawId);
 		if (!parsedId.success) return REDIRECT_TO_QUEUE;
 
-		/* A logged-out visitor arriving via the reader-ready email (marker
-		 * present) already owns the article, so send them to login and back to
-		 * their private reader rather than the public /view share page. */
 		if (input.requesterId === undefined && wantsOwnerLogin(input.query)) {
 			return {
 				kind: "redirect",
