@@ -300,8 +300,11 @@ describe("Inbox email detail route", () => {
 		expect(panel.getAttribute("data-articles-status")).toBe("extracting");
 		expect(panel.getAttribute("hx-get")).toContain("/articles");
 		expect(doc.querySelector("[data-test-articles-extracting]")).not.toBeNull();
-		// The header count is withheld until extraction finishes.
-		expect(doc.querySelector("[data-test-inbox-detail-link-count]")).toBeNull();
+		// The header badge is an always-present OOB swap anchor, but withholds the
+		// count until extraction finishes, so it renders empty rather than absent.
+		const linkCount = doc.querySelector("[data-test-inbox-detail-link-count]");
+		assert(linkCount, "the header link-count anchor must render as an OOB swap target");
+		expect(linkCount.textContent).toBe("");
 	});
 
 	it("shows the terminal no-links state once extraction wrote its meta with zero links", async () => {
@@ -354,12 +357,17 @@ describe("Inbox Articles panel poll route", () => {
 		const response = await agent.get(`${articlesPath}&poll=1`);
 
 		expect(response.status).toBe(200);
-		const panel = new JSDOM(response.text).window.document.querySelector(
-			'[data-test-tab-panel="articles"]',
-		);
+		const doc = new JSDOM(response.text).window.document;
+		const panel = doc.querySelector('[data-test-tab-panel="articles"]');
 		assert(panel, "the panel fragment must render");
 		expect(panel.getAttribute("data-articles-status")).toBe("extracting");
 		expect(panel.getAttribute("hx-get")).toContain("poll=2");
+		// The OOB header badge ships with every tick but stays empty while extracting,
+		// so the header keeps withholding the count in lockstep with the panel.
+		const linkCount = doc.querySelector("[data-test-inbox-detail-link-count]");
+		assert(linkCount, "the poll fragment must carry the OOB link-count anchor");
+		expect(linkCount.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(linkCount.textContent).toBe("");
 	});
 
 	it("swaps in the finished card set once extraction wrote its meta", async () => {
@@ -390,5 +398,11 @@ describe("Inbox Articles panel poll route", () => {
 		expect(doc.querySelector("[data-test-inbox-article-title]")?.textContent).toBe(
 			"Crawled headline",
 		);
+		// The terminal tick carries the count as an OOB swap so the header badge catches
+		// up to the swapped-in card set without waiting for a full page reload.
+		const linkCount = doc.querySelector("[data-test-inbox-detail-link-count]");
+		assert(linkCount, "the terminal poll fragment must carry the OOB link-count update");
+		expect(linkCount.getAttribute("hx-swap-oob")).toBe("outerHTML");
+		expect(linkCount.textContent).toBe("1 link");
 	});
 });
