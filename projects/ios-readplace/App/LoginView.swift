@@ -19,7 +19,7 @@ struct LoginView: View {
 						.accessibilityHidden(true)
 					(Text("Read") + Text("place").foregroundColor(.brandHighlight))
 						.font(.largeTitle.bold())
-					Text("Your reading list")
+					Text("Read the Web, not the Slop")
 						.font(.subheadline)
 						.foregroundStyle(.secondary)
 				}

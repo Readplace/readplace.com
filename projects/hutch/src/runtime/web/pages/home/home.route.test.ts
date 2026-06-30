@@ -363,10 +363,10 @@ describe("GET /", () => {
 		const doc = new JSDOM(response.text).window.document;
 
 		expect(doc.title).toContain("Readplace");
-		expect(doc.title).toContain("Read the web, not the slop.");
+		expect(doc.title).toContain("Read the Web, not the Slop.");
 		expect(doc.title).toContain("Read-It-Later App");
 		const description = doc.querySelector('meta[name="description"]');
-		expect(description?.getAttribute("content")).toContain("Read the web, not the slop.");
+		expect(description?.getAttribute("content")).toContain("Read the Web, not the Slop.");
 		expect(description?.getAttribute("content")).toContain("no LLM hallucination");
 		expect(description?.getAttribute("content")).toContain("read-it-later");
 
@@ -376,14 +376,14 @@ describe("GET /", () => {
 		expect(keywords?.getAttribute("content")).toContain("real OCR");
 	});
 
-	it("should render the 'Read the web. Not the slop.' tagline as the hero heading", async () => {
+	it("should render the 'Read the Web, not the Slop.' tagline as the hero heading", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).get("/");
 		const doc = new JSDOM(response.text).window.document;
 
 		const tagline = doc.querySelector("[data-test-tagline]");
 		assert(tagline, "tagline must be rendered");
-		expect(tagline.textContent?.trim()).toBe("Read the web. Not the slop.");
+		expect(tagline.textContent?.trim()).toBe("Read the Web, not the Slop.");
 	});
 
 	it("should render the correctness-over-hallucination emphasis paragraph in the cost transparency section", async () => {

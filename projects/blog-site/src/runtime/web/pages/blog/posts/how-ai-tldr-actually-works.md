@@ -90,4 +90,4 @@ So Readplace won't generate "smart highlights" that let you skip the article, wr
 
 The TL;DR helps you choose what to read. Then you read it.
 
-Read the web, not the slop.
+Read the Web, not the Slop.
