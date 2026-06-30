@@ -186,7 +186,7 @@ describe("Queue routes", () => {
 			).toBe(true);
 		});
 
-		it("should render a ready summary expanded on /queue/:id/view (matches the public /view)", async () => {
+		it("should render a ready summary collapsed on /queue/:id/view (internal reader; an expand is a deliberate, measurable act)", async () => {
 			const articleHtml = `<html><head><title>Post</title></head><body><article><p>Body.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const findGeneratedSummary = async () => ({
@@ -238,10 +238,13 @@ describe("Queue routes", () => {
 			const doc = new JSDOM(readerResponse.text).window.document;
 			const details = doc.querySelector(".article-body__summary");
 			assert(details, "summary details element must be rendered");
-			expect(details.hasAttribute("open")).toBe(true);
+			expect(details.hasAttribute("open")).toBe(false);
+			expect(details.getAttribute("data-summary-toggle-url")).toBe(
+				`/queue/${articleId}/summary-toggle`,
+			);
 		});
 
-		it("GET /queue/:id/summary renders a ready summary expanded on poll (matches /view)", async () => {
+		it("GET /queue/:id/summary renders a ready summary collapsed on poll (internal reader)", async () => {
 			const articleHtml = `<html><head><title>Post</title></head><body><article><p>Body.</p></article></body></html>`;
 			const crawlArticle = async () => ({ status: "fetched" as const, html: articleHtml, bodyHash: "a".repeat(64) });
 			const findGeneratedSummary = async () => ({
@@ -293,7 +296,10 @@ describe("Queue routes", () => {
 			const doc = new JSDOM(pollResponse.text).window.document;
 			const details = doc.querySelector(".article-body__summary");
 			assert(details, "summary details element must be rendered");
-			expect(details.hasAttribute("open")).toBe(true);
+			expect(details.hasAttribute("open")).toBe(false);
+			expect(details.getAttribute("data-summary-toggle-url")).toBe(
+				`/queue/${articleId}/summary-toggle`,
+			);
 		});
 
 		it("GET /queue/:id/reader returns the reader-pending fragment with next-poll URL when crawl is pending", async () => {

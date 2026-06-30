@@ -97,11 +97,58 @@ export interface ImportFromUrlAcquiredEvent {
 	is_authenticated: 0 | 1;
 }
 
+/**
+ * Coarse device buckets for slicing authenticated reads by cohort. `other`
+ * covers an absent User-Agent (no signal); `desktop` is the fallback for a
+ * present UA that matches none of the mobile/tablet/bot fingerprints.
+ */
+export type DeviceClass =
+	| "desktop"
+	| "mobile_ios"
+	| "mobile_android"
+	| "tablet"
+	| "bot"
+	| "other";
+
+/**
+ * Derives a `DeviceClass` from the request User-Agent. Only the class is ever
+ * returned or logged — the raw UA is discarded here, preserving the no-raw-UA /
+ * hashed-IP posture the rest of the analytics layer keeps. Android tablets omit
+ * `Mobile` from the UA token, which separates them from Android phones.
+ */
+export function classifyDeviceClass(userAgent: string | undefined): DeviceClass {
+	if (!userAgent) return "other";
+	if (isbot(userAgent)) return "bot";
+	const isAndroid = userAgent.includes("Android");
+	if (userAgent.includes("iPad") || (isAndroid && !userAgent.includes("Mobile"))) return "tablet";
+	if (userAgent.includes("iPhone") || userAgent.includes("iPod")) return "mobile_ios";
+	if (isAndroid) return "mobile_android";
+	return "desktop";
+}
+
 export interface ArticleReadEvent {
 	stream: typeof STREAMS.analytics;
 	event: typeof ANALYTICS_EVENTS.articleRead;
 	timestamp: string;
 	user_id: UserId;
+	visitor_hash: string | null;
+	device_class: DeviceClass;
+}
+
+/**
+ * Emitted on every TL;DR open/close toggle in the internal authenticated reader
+ * (the public reader doesn't record anonymous toggles). `state` distinguishes
+ * open from close so the dashboard can count engagement vs dismissals. The
+ * durable per-user row holds the latest state; this event carries the 30-day
+ * history. `user_id` joins per cohort; `visitor_hash` applies the dashboard's
+ * exclusion list.
+ */
+export interface SummaryToggledEvent {
+	stream: typeof STREAMS.analytics;
+	event: typeof ANALYTICS_EVENTS.summaryToggled;
+	timestamp: string;
+	user_id: UserId;
+	state: "open" | "closed";
 	visitor_hash: string | null;
 }
 
@@ -158,6 +205,7 @@ export type AnalyticsEvent =
 	| ImportCommittedEvent
 	| ImportFromUrlAcquiredEvent
 	| ArticleReadEvent
+	| SummaryToggledEvent
 	| ViewOpenedEvent
 	| ViewSaveIntentEvent;
 

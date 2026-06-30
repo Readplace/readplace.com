@@ -25,6 +25,7 @@ import { etagMatches } from "../queue/queue-card/queue-card.etag";
 import { renderInboxArticleCard } from "./inbox-article-card.component";
 import { renderInboxArticlesPanel } from "./inbox-articles-panel.component";
 import { InboxEmailDetailPage } from "./inbox-email-detail.component";
+import { renderInboxLinkCount } from "./inbox-link-count.component";
 import { toInboxEmailDetailViewModel } from "./inbox-email-detail.viewmodel";
 import { InboxEmailsPage } from "./inbox-emails.component";
 import { type InboxEmailLinkSummary, toInboxEmailsViewModel } from "./inbox-emails.viewmodel";
@@ -171,7 +172,18 @@ export function initInboxRoutes(deps: InboxDependencies): Router {
 			maxPolls: MAX_POLLS,
 			panelPollCount: requestedPoll + 1,
 		});
-		res.status(200).type("html").send(renderInboxArticlesPanel(vm.articles));
+		// The panel swap only replaces the Articles section, so pair it with an
+		// out-of-band swap of the header badge — otherwise the count would lag the
+		// swapped-in card set until a full reload. While extraction is still pending
+		// the label is undefined, so the OOB badge stays empty and the header keeps
+		// withholding the count in lockstep with the panel.
+		res
+			.status(200)
+			.type("html")
+			.send(
+				renderInboxArticlesPanel(vm.articles) +
+					renderInboxLinkCount({ label: vm.linkCountLabel, oob: true }),
+			);
 	});
 
 	// The literal `links/:ordinal/card` suffix means `/:id` (single segment)

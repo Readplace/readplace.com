@@ -38,6 +38,12 @@
   color: var(--muted-foreground);
 }
 
+/* Withheld during extraction: the badge is an always-present OOB swap anchor, so
+   keep the empty placeholder out of the meta row's flex flow until it has a count. */
+.inbox-email-detail__link-count:empty {
+  display: none;
+}
+
 .inbox-email-detail__tabs {
   display: flex;
   gap: 4px;
@@ -84,6 +90,7 @@
 
 .inbox-email-detail__articles-empty,
 .inbox-email-detail__articles-truncated,
+.inbox-email-detail__articles-stale,
 .inbox-email-detail__articles-pending {
   color: var(--muted-foreground);
   font-size: 0.9rem;

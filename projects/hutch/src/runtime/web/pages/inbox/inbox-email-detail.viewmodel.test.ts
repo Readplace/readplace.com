@@ -114,11 +114,24 @@ describe("toInboxEmailDetailViewModel", () => {
 		expect(vm.linkCountLabel).toBeUndefined();
 	});
 
-	it("stops the page-level poll once the budget is spent but keeps the extracting state", () => {
+	it("gives up to a terminal stale state once the budget is spent without a meta barrier", () => {
 		const vm = build({ links: [], linksMeta: undefined, panelPollCount: 301 });
 
-		expect(vm.articles.isExtracting).toBe(true);
+		// A permanent extract-DLQ failure or a pre-feature email never writes its
+		// meta barrier, so the spinner must terminate rather than poll forever.
+		expect(vm.articles.isExtracting).toBe(false);
+		expect(vm.articles.isStalePending).toBe(true);
 		expect(vm.articles.panelPollUrl).toBeUndefined();
+		// No trustworthy count while extraction never finished.
+		expect(vm.linkCountLabel).toBeUndefined();
+	});
+
+	it("stays extracting on the last budgeted poll, before the give-up threshold", () => {
+		const vm = build({ links: [], linksMeta: undefined, panelPollCount: 300 });
+
+		expect(vm.articles.isExtracting).toBe(true);
+		expect(vm.articles.isStalePending).toBe(false);
+		expect(vm.articles.panelPollUrl).toContain("poll=300");
 	});
 
 	it("never polls a non-received email's articles panel", () => {

@@ -7,12 +7,13 @@ import {
 } from "@packages/onboarding-extension-signal";
 import type { ErrorRequestHandler, Request, RequestHandler, Response, Router } from "express";
 import express from "express";
+import { z } from "zod";
 import type { HutchLogger } from "@packages/hutch-logger";
 import type { LogParseError } from "@packages/hutch-infra-components";
 import type { SaveableUrl, ValidateSaveableUrl } from "@packages/domain/article";
 import type { UserId } from "@packages/domain/user";
 import { SaveArticleInputSchema, BulkSaveManifestSchema, MAX_PAGES_PER_BULK_SAVE, MAX_PAGE_CONTENT_BYTES, MAX_BULK_CONTENT_REQUEST_BYTES, SaveHtmlInputSchema, ArticleStatusSchema, MAX_RAW_HTML_REQUEST_BYTES, RAW_HTML_FIELD, saveableUrlErrorMessage } from "@packages/domain/article";
-import { buildSaveIntentEvent, hashIp, type AnalyticsEvent } from "../../middleware/analytics";
+import { buildSaveIntentEvent, classifyDeviceClass, hashIp, type AnalyticsEvent } from "../../middleware/analytics";
 import { ANALYTICS_EVENTS, SAVE_OUTCOMES, SAVE_SURFACES, STREAMS, type SaveOutcome, type SaveSurface } from "../../../observability/events";
 import {
 	IMPORT_SKIPPED_COOKIE_NAME,
@@ -29,6 +30,7 @@ import type {
 	FindArticleUrlById,
 	FindArticlesByUser,
 	MarkArticleViewed,
+	MarkSummaryToggled,
 	SaveArticle,
 	UpdateArticleStatus,
 } from "@packages/provider-contracts/article-store";
@@ -163,6 +165,7 @@ interface QueueDependencies {
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
+	markSummaryToggled: MarkSummaryToggled;
 	publishLinkSaved: PublishLinkSaved;
 	publishSaveLinkRawHtmlCommand: PublishSaveLinkRawHtmlCommand;
 	publishSaveLinkRawPdfCommand: PublishSaveLinkRawPdfCommand;
@@ -326,6 +329,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		findArticleByUrl: deps.findArticleByUrl,
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatReaderDocumentTitle,
+		summaryOpen: false,
 		backLink: { href: QUEUE_PATH, label: "← Back to queue" },
 		markReadAction: (articleId) => ({
 			postUrl: markReadPostUrl(articleId, "top"),
@@ -1019,6 +1023,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderForId(article.id.value),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
+			summaryToggleUrl: `${QUEUE_PATH}/${article.id.value}/summary-toggle`,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
 	});
@@ -1044,8 +1049,50 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderForId(article.id.value),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
+			summaryToggleUrl: `${QUEUE_PATH}/${article.id.value}/summary-toggle`,
 		});
 		sendComponent(req, res, CacheableComponent(component, req));
+	});
+
+	/** Fire-and-forget beacon target for the TL;DR open/close toggle. Records the
+	 * latest state on the per-user row (last-write-wins) and emits a
+	 * `summary_toggled` analytics event. Always answers 204 with no body — a
+	 * beacon must never surface an error to the page — so an unparseable/absent
+	 * `state` is a silent no-op rather than a 4xx. */
+	router.post("/:id/summary-toggle", async (req: Request<{ id: string }>, res: Response) => {
+		assert(req.userId, "userId required - route must be protected by requireAuth");
+		const userId = req.userId;
+		const parsedId = ReaderArticleHashIdSchema.safeParse(req.params.id);
+		const article = parsedId.success
+			? await deps.findArticleById(parsedId.data, userId)
+			: null;
+
+		if (!article) {
+			res.status(404).type("html").send("");
+			return;
+		}
+
+		const parsedState = z.enum(["open", "closed"]).safeParse(req.query.state);
+		if (!parsedState.success) {
+			res.status(204).end();
+			return;
+		}
+
+		await deps.markSummaryToggled({
+			userId,
+			url: article.url,
+			state: parsedState.data,
+			at: deps.now(),
+		});
+		deps.analytics.info({
+			stream: STREAMS.analytics,
+			event: ANALYTICS_EVENTS.summaryToggled,
+			timestamp: deps.now().toISOString(),
+			user_id: userId,
+			state: parsedState.data,
+			visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+		});
+		res.status(204).end();
 	});
 
 	router.get("/:id/card", async (req: Request, res: Response) => {
@@ -1121,6 +1168,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 					timestamp: deps.now().toISOString(),
 					user_id: userId,
 					visitor_hash: hashIp({ ip: req.ip, salt: deps.salt }),
+					device_class: classifyDeviceClass(req.get("user-agent")),
 				});
 			}
 		}
