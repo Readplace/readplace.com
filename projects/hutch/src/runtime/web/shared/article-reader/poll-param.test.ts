@@ -1,4 +1,4 @@
-import { parsePollParam } from "./inbox-poll-param";
+import { parsePollParam } from "./poll-param";
 
 describe("parsePollParam", () => {
 	it("parses a valid numeric poll cursor", () => {

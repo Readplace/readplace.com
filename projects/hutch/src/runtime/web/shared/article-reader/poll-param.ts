@@ -6,7 +6,8 @@ import { z } from "zod";
  * `pollCount > maxPolls` budget check (every comparison with NaN is false), so
  * the card would poll forever and never reach its give-up state. Coerce invalid
  * input to 0 and clamp the upper bound so a client can never request beyond the
- * budget.
+ * budget. Shared by the queue card and the inbox link-preview card, which run
+ * the identical poll-budget protocol against MAX_POLLS.
  */
 const PollCountSchema = z.coerce.number().int().nonnegative();
 

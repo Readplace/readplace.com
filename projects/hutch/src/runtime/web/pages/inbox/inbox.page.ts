@@ -31,7 +31,7 @@ import { InboxEmailsPage } from "./inbox-emails.component";
 import { type InboxEmailLinkSummary, toInboxEmailsViewModel } from "./inbox-emails.viewmodel";
 import { computeInboxLinkCardEtag } from "./inbox-link-card.etag";
 import { toInboxLinkCardViewModel } from "./inbox-link-card.viewmodel";
-import { parsePollParam } from "./inbox-poll-param";
+import { parsePollParam } from "../../shared/article-reader/poll-param";
 import { InboxPage } from "./inbox.component";
 
 interface InboxDependencies {
