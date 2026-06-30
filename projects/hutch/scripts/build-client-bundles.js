@@ -179,9 +179,7 @@ const BUNDLES = [
 			"  },",
 			// The card was attached to the customer client-side; post it back so the
 			// server reconciles the 3-card cap against the live set (a second tab can
-			// out-race the begin-time check) before redirecting to /account. A native
-			// form POST follows the server's 303, so it behaves like the old direct
-			// navigation when the cap is fine.
+			// out-race the begin-time check) before redirecting to /account.
 			"  confirmAdd: function (paymentMethodId) {",
 			"    var form = window.document.createElement('form');",
 			"    form.method = 'POST';",

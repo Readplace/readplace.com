@@ -11,7 +11,7 @@ import {
 const STRIPE_API = "https://api.stripe.com/v1";
 
 /** Pinned so the response shape cannot shift under us when Stripe advances the
- * account's default version — same reason and value as stripe-subscriptions.ts. */
+ * account's default version. */
 const STRIPE_API_VERSION = "2026-04-22.dahlia";
 
 const StripeErrorResponse = z.object({
@@ -164,7 +164,7 @@ export function initStripePaymentMethods(deps: {
 		);
 
 		// 404 means the card is already detached — the desired end state, so
-		// succeed silently (same idempotency contract as cancelImmediately).
+		// succeed silently.
 		if (response.status === 404) {
 			return;
 		}
