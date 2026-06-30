@@ -20,11 +20,11 @@ enum ServerEnvironment {
 
 /// Central configuration for the Readplace iOS app.
 ///
-/// The app reuses the server's existing public OAuth/PKCE client
-/// (`hutch-chrome-extension`) and talks to the Siren API like the browser
-/// extension. The native `readplace://oauth-callback` redirect is registered on
-/// that client in `built-in-clients.ts` and is identical across production and
-/// staging, so sign-in needs no per-environment callback registration.
+/// The app authenticates with its own dedicated public OAuth/PKCE client
+/// (`ios-app`) registered in `built-in-clients.ts`, and talks to the Siren API
+/// like the browser extension. The native `readplace://oauth-callback` redirect
+/// is registered on that client and is identical across production and staging,
+/// so sign-in needs no per-environment callback registration.
 enum AppConfig {
 	/// The server this build targets, fixed at compile time. Builds with the
 	/// `STAGING` Swift compilation condition select staging; every other build
@@ -38,7 +38,7 @@ enum AppConfig {
 
 	/// A registered public PKCE client whose allow-listed redirect URIs include the
 	/// native `readplace://oauth-callback` deep link the auth flow returns through.
-	static let clientId = "hutch-chrome-extension"
+	static let clientId = "ios-app"
 
 	/// The Siren hypermedia media type the API speaks.
 	static let sirenMediaType = "application/vnd.siren+json"

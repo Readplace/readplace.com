@@ -58,6 +58,7 @@ interface PollResponseBodyInput {
 	readerPollUrl: string | undefined;
 	summaryPollUrl: string | undefined;
 	summaryOpen: boolean;
+	summaryToggleUrl: string | undefined;
 	extensionInstallUrl: string | undefined;
 	progress: ProgressTick | undefined;
 	metadataOob: string;
@@ -79,6 +80,7 @@ function renderPollResponseBody(input: PollResponseBodyInput): string {
 		summary: input.summary,
 		summaryPollUrl: input.summaryPollUrl,
 		summaryOpen: input.summaryOpen,
+		summaryToggleUrl: input.summaryToggleUrl,
 		content: input.content,
 		oob: input.primary !== "summary",
 	});
@@ -272,7 +274,8 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			content,
 			readerPollUrl,
 			summaryPollUrl,
-			summaryOpen: true,
+			summaryOpen: deps.summaryOpen,
+			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 			metadataOob: buildMetadataOob(article, articleUrl),
@@ -299,7 +302,8 @@ export function initArticleReader(deps: ArticleReaderDeps): {
 			content,
 			readerPollUrl,
 			summaryPollUrl,
-			summaryOpen: true,
+			summaryOpen: deps.summaryOpen,
+			summaryToggleUrl: params.summaryToggleUrl,
 			extensionInstallUrl,
 			progress: buildUnifiedProgress(crawl, summary, deps.now()),
 			metadataOob: buildMetadataOob(article, articleUrl),

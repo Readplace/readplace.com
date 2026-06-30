@@ -61,6 +61,7 @@ import type {
 	FindArticleUrlById,
 	FindArticlesByUser,
 	MarkArticleViewed,
+	MarkSummaryToggled,
 	SaveArticle,
 	SaveArticleGlobally,
 	UpdateArticleStatus,
@@ -208,6 +209,7 @@ interface AppDependencies {
 	deleteArticle: DeleteArticle;
 	updateArticleStatus: UpdateArticleStatus;
 	markArticleViewed: MarkArticleViewed;
+	markSummaryToggled: MarkSummaryToggled;
 	sendEmail: SendEmail;
 	createVerificationToken: CreateVerificationToken;
 	verifyEmailToken: VerifyEmailToken;
@@ -861,6 +863,7 @@ export function createApp(dependencies: AppDependencies): Express {
 		deleteArticle: deps.deleteArticle,
 		updateArticleStatus: deps.updateArticleStatus,
 		markArticleViewed: deps.markArticleViewed,
+		markSummaryToggled: deps.markSummaryToggled,
 		publishLinkSaved: deps.publishLinkSaved,
 		publishSaveLinkRawHtmlCommand: deps.publishSaveLinkRawHtmlCommand,
 		publishSaveLinkRawPdfCommand: deps.publishSaveLinkRawPdfCommand,
