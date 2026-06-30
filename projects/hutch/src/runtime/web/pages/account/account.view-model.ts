@@ -58,7 +58,7 @@ function formatTrialDaysLeft(trialEndsAt: string, now: Date): { daysLeft: number
 	return { daysLeft, daysLeftWord: daysLeft === 1 ? "day" : "days" };
 }
 
-export type CardError = "card_limit" | "cannot_remove_primary";
+export type CardError = "card_limit" | "cannot_remove_primary" | "add_card_failed";
 
 export interface AccountUrlState {
 	cancelling: boolean;
@@ -69,6 +69,7 @@ export interface AccountUrlState {
 function parseCardError(error: unknown): CardError | undefined {
 	if (error === "card_limit") return "card_limit";
 	if (error === "cannot_remove_primary") return "cannot_remove_primary";
+	if (error === "add_card_failed") return "add_card_failed";
 	return undefined;
 }
 
@@ -166,6 +167,7 @@ const CARD_NOTICES: Record<CardError, string> = {
 	card_limit: "You can save up to 3 cards. Remove a backup before adding another.",
 	cannot_remove_primary:
 		"Your primary card can't be removed. Promote a backup to primary first, then remove it.",
+	add_card_failed: "We couldn't start adding a card just now. Please try again.",
 };
 
 const NO_CUSTOMER_MESSAGE = "Add a payment method once you start your subscription.";

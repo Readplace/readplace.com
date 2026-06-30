@@ -48,6 +48,7 @@ import {
 	toAccountViewModel,
 } from "./account.view-model";
 import {
+	ACCOUNT_ERROR_ADD_CARD_FAILED_URL,
 	ACCOUNT_ERROR_CANNOT_REMOVE_PRIMARY_URL,
 	ACCOUNT_ERROR_CARD_LIMIT_URL,
 	ACCOUNT_ERROR_PAYMENT_METHOD_URL,
@@ -260,7 +261,7 @@ export function initAccountRoutes(deps: AccountDependencies): Router {
 				userId,
 				error: err instanceof Error ? err.message : String(err),
 			});
-			res.redirect(303, ACCOUNT_ERROR_PAYMENT_METHOD_URL);
+			res.redirect(303, ACCOUNT_ERROR_ADD_CARD_FAILED_URL);
 		}
 	});
 

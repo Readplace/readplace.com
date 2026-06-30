@@ -205,6 +205,13 @@ describe("parseAccountQuery", () => {
 			"cannot_remove_primary",
 		);
 	});
+
+	it("parses the add_card_failed error", () => {
+		assert.equal(
+			parseAccountQuery({ error: "add_card_failed" }).cardError,
+			"add_card_failed",
+		);
+	});
 });
 
 describe("buildCardSectionViewModel", () => {
@@ -301,6 +308,18 @@ describe("buildCardSectionViewModel", () => {
 		});
 		assert.equal(vm.hasNotice, true);
 		assert.match(vm.notice, /up to 3 cards/);
+	});
+
+	it("surfaces the add_card_failed notice", () => {
+		const vm = buildCardSectionViewModel({
+			kind: "loaded",
+			cards: [savedCard("pm_a", true)],
+			publishableKey: "pk_test",
+			cardError: "add_card_failed",
+			adding: undefined,
+		});
+		assert.equal(vm.hasNotice, true);
+		assert.match(vm.notice, /couldn't start adding a card/);
 	});
 
 	it("enters the adding state with the publishable key and client secret", () => {

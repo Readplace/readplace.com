@@ -1064,6 +1064,40 @@ describe("POST /account/cards/new", () => {
 		expect(response.headers.location).toBe("/account?error=card_limit");
 	});
 
+	it("surfaces a card-scoped add-failed notice — not the resubscribe error — when beginAddCard throws", async () => {
+		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
+		fixture.paymentMethods.beginAddCard = async () => {
+			throw new Error("Stripe is down");
+		};
+		const harness = useApp(fixture);
+		const { agent } = await activeUserWithCards(harness, "add-failed@example.com", [
+			card("pm_primary", true, "4242"),
+		]);
+
+		const response = await agent.post("/account/cards/new");
+
+		expect(response.status).toBe(303);
+		expect(response.headers.location).toBe("/account?error=add_card_failed");
+	});
+
+	it("renders the add-failed notice scoped to the card section, leaving the subscription card untouched", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await activeUserWithCards(harness, "add-failed-render@example.com", [
+			card("pm_primary", true, "4242"),
+		]);
+
+		const response = await agent.get("/account?error=add_card_failed");
+
+		expect(response.status).toBe(200);
+		const doc = new JSDOM(response.text).window.document;
+		const notice = doc.querySelector("[data-test-cards-notice]");
+		assert(notice, "card-section notice must render for add_card_failed");
+		expect(notice.textContent).toContain("couldn't start adding a card");
+		// The subscription card must NOT show the resubscribe / email-support error.
+		expect(doc.querySelector("[data-test-account-error-heading]")).toBeNull();
+		expect(findCard(doc).getAttribute("data-test-account-state")).toBe("active");
+	});
+
 	it("redirects unauthenticated callers to /login", async () => {
 		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
 		const response = await request(harness.server).post("/account/cards/new");
