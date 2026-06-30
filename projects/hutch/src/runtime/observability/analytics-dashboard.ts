@@ -464,6 +464,28 @@ export function buildAnalyticsDashboardBody(deps: BuildAnalyticsDashboardDeps): 
 		}),
 	);
 
+	// --- Summary (TL;DR) engagement ---
+	// Driven by the summary_toggled event the internal reader's beacon emits on
+	// every TL;DR open/close. Counting by state distinguishes deliberate opens
+	// from dismissals now that the internal reader ships the TL;DR collapsed.
+
+	widgets.push(
+		logWidget({
+			region,
+			title: "TL;DR toggles by state (open vs closed)",
+			logGroupNames: [hutchLogGroupName],
+			query: [
+				"fields @timestamp, state",
+				`| filter stream = "${STREAMS.analytics}" and event = "${ANALYTICS_EVENTS.summaryToggled}"`,
+				...exclude,
+				"| stats count(*) as toggles by state",
+				"| sort toggles desc",
+			].join(" "),
+			x: 12, y: 98, width: 12, height: 8,
+			view: "bar",
+		}),
+	);
+
 	// --- Errors ---
 	// A standing table of the most recent error output across every wired log
 	// group, so surfacing "the latest logError occurrences" is a live view rather

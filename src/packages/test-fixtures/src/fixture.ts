@@ -321,10 +321,12 @@ export function createDefaultTestAppFixture(appOrigin: string): TestAppFixture {
 			deleteArticle: articleStoreMemory.deleteArticle,
 			updateArticleStatus: articleStoreMemory.updateArticleStatus,
 			markArticleViewed: articleStoreMemory.markArticleViewed,
+			markSummaryToggled: articleStoreMemory.markSummaryToggled,
 			markReaderViewSucceeded: articleStoreMemory.markReaderViewSucceeded,
 			findUserArticlesByUrl: articleStoreMemory.findUserArticlesByUrl,
 			markReaderReadyEmailSent: articleStoreMemory.markReaderReadyEmailSent,
 			findUserArticleNotificationState: articleStoreMemory.findUserArticleNotificationState,
+			getSummaryToggleState: articleStoreMemory.getSummaryToggleState,
 			readArticleContent: (url) =>
 				articleStoreMemory.readContent(ArticleResourceUniqueId.parse(url)),
 			readContent: articleStoreMemory.readContent,

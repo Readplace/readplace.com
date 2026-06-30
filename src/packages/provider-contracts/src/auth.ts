@@ -4,6 +4,23 @@ export type CreateUserResult =
 	| { ok: true; userId: UserId }
 	| { ok: false; reason: "email-already-exists" };
 
+/** Raw acquisition attribution captured from the `hutch_click` cookie at signup
+ * and persisted on the durable user row, so a cohort can be sliced by where the
+ * account came from without joining 30-day-retention CloudWatch logs. The raw
+ * UTM/referrer fields are stored (not a derived channel) so bucketing stays
+ * flexible. Structurally identical to the runtime `ClickAttribution` — declared
+ * here because provider-contracts must not import runtime code (the
+ * `ConversionEvent` fields below inline the same shape for the same reason). */
+export interface UserAcquisitionAttribution {
+	utm_source?: string;
+	utm_medium?: string;
+	utm_campaign?: string;
+	utm_content?: string;
+	referrer_host?: string;
+	first_seen_at: string;
+	landing_path: string;
+}
+
 export type VerifyCredentialsResult =
 	| { ok: true; userId: UserId; emailVerified: boolean }
 	| { ok: false; reason: "invalid-credentials" };
@@ -11,11 +28,13 @@ export type VerifyCredentialsResult =
 export type CreateUser = (credentials: {
 	email: string;
 	password: string;
+	attribution?: UserAcquisitionAttribution;
 }) => Promise<CreateUserResult>;
 
 export type CreateUserWithPasswordHash = (credentials: {
 	email: string;
 	passwordHash: string;
+	attribution?: UserAcquisitionAttribution;
 }) => Promise<CreateUserResult>;
 
 export type VerifyCredentials = (credentials: {
@@ -71,6 +90,7 @@ export type ExistsUserByIdPrefix = (prefix: UserIdPrefix) => Promise<boolean>;
 export type CreateGoogleUser = (user: {
 	email: string;
 	userId: UserId;
+	attribution?: UserAcquisitionAttribution;
 }) => Promise<CreateUserResult>;
 
 export type BotDefenseRejectReason =

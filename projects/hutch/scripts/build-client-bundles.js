@@ -298,6 +298,24 @@ const BUNDLES = [
 	{
 		entry: path.join(
 			PROJECT_ROOT,
+			"src/runtime/web/shared/article-body/summary-slot/summary-toggle.client.ts",
+		),
+		outfile: path.join(OUT_DIR, "summary-toggle.client.js"),
+		globalName: "SummaryToggle",
+		footer: [
+			// navigator.sendBeacon keeps the request alive past the toggle even if
+			// the reader navigates away immediately after; the swap listener re-binds
+			// to the fresh <details> a poll response splices in.
+			"SummaryToggle.initSummaryToggleBeacon({",
+			"  document: window.document,",
+			"  sendBeacon: function (url) { window.navigator.sendBeacon(url); },",
+			"  addSwapListener: function (cb) { document.body.addEventListener('htmx:afterSwap', cb); }",
+			"});",
+		].join("\n"),
+	},
+	{
+		entry: path.join(
+			PROJECT_ROOT,
 			"src/runtime/web/shared/toast/toast.client.ts",
 		),
 		outfile: path.join(OUT_DIR, "toast.client.js"),
