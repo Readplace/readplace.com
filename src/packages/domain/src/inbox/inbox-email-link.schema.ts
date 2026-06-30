@@ -13,10 +13,6 @@ export const EmailLinkOrdinalSchema = z
 	.brand<"EmailLinkOrdinal">();
 export type EmailLinkOrdinal = z.infer<typeof EmailLinkOrdinalSchema>;
 
-/** The one ordinal-minting site: pads a link's extraction-order `index` to
- * `EMAIL_LINK_ORDINAL_DIGITS` and brands it, so width, cap and render move
- * together. Throws once `index` reaches `EMAIL_LINK_ORDINAL_CAPACITY` — the
- * padded value would be too wide for the schema to parse. */
 export const formatEmailLinkOrdinal = (index: number): EmailLinkOrdinal =>
 	EmailLinkOrdinalSchema.parse(String(index).padStart(EMAIL_LINK_ORDINAL_DIGITS, "0"));
 
