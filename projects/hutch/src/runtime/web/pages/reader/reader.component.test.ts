@@ -36,10 +36,15 @@ function makeArticle(overrides: Partial<SavedArticle> = {}): SavedArticle {
 }
 
 const DEFAULT_APP_ORIGIN = "http://localhost:3000";
+const TEST_BACK_LINK = {
+	topHref: "/queue?back=top",
+	bottomHref: "/queue?back=bottom",
+	label: "← Back to queue",
+};
 
 describe("ReaderPage", () => {
 	it("renders the share balloon wrap so client init can attach to it", () => {
-		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN }), {
+		const html = Base(ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;
@@ -49,12 +54,30 @@ describe("ReaderPage", () => {
 		assert(wrap, "share balloon wrap must be rendered");
 	});
 
+	it("points both back links at the supplied backLink hrefs", () => {
+		const html = Base(
+			ReaderPage(makeArticle(), { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK }),
+			{ isAuthenticated: true, emailVerified: undefined },
+		).to("text/html").body;
+		const doc = new JSDOM(html).window.document;
+
+		assert.equal(
+			doc.querySelector("[data-test-back-link]")?.getAttribute("href"),
+			TEST_BACK_LINK.topHref,
+		);
+		assert.equal(
+			doc.querySelector("[data-test-back-bottom-link]")?.getAttribute("href"),
+			TEST_BACK_LINK.bottomHref,
+		);
+	});
+
 	it("renders the TL;DR collapsed by default (internal reader) — an expand is then a deliberate, measurable act", () => {
 		const html = Base(
 			ReaderPage(makeArticle(), {
 				appOrigin: DEFAULT_APP_ORIGIN,
 				summary: { status: "ready", summary: "Key points." },
 				crawl: { status: "ready" },
+				backLink: TEST_BACK_LINK,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined },
 		).to("text/html").body;
@@ -71,6 +94,7 @@ describe("ReaderPage", () => {
 				appOrigin: DEFAULT_APP_ORIGIN,
 				summary: { status: "ready", summary: "Key points." },
 				crawl: { status: "ready" },
+				backLink: TEST_BACK_LINK,
 			}),
 			{ isAuthenticated: true, emailVerified: undefined },
 		).to("text/html").body;
@@ -88,7 +112,7 @@ describe("ReaderPage", () => {
 		const article = makeArticle({
 			userId: UserIdSchema.parse("abcdef0123456789abcdef0123456789"),
 		});
-		const html = Base(ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN }), {
+		const html = Base(ReaderPage(article, { appOrigin: DEFAULT_APP_ORIGIN, backLink: TEST_BACK_LINK }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;
@@ -115,7 +139,7 @@ describe("ReaderPage", () => {
 				'<a href="https://readplace.com/queue" target="_blank">my queue</a>' +
 				'<a href="https://example.com/other" target="_blank">elsewhere</a>',
 		});
-		const html = Base(ReaderPage(article, { appOrigin: "https://readplace.com" }), {
+		const html = Base(ReaderPage(article, { appOrigin: "https://readplace.com", backLink: TEST_BACK_LINK }), {
 			isAuthenticated: true,
 			emailVerified: undefined,
 		}).to("text/html").body;
@@ -142,7 +166,7 @@ describe("ReaderPage", () => {
 
 	it("renders the share-balloon URLs against the supplied appOrigin, not a hardcoded host", () => {
 		const html = Base(
-			ReaderPage(makeArticle(), { appOrigin: "https://staging.readplace.com" }),
+			ReaderPage(makeArticle(), { appOrigin: "https://staging.readplace.com", backLink: TEST_BACK_LINK }),
 			{ isAuthenticated: true, emailVerified: undefined },
 		).to("text/html").body;
 		const doc = new JSDOM(html).window.document;

@@ -17,7 +17,13 @@ struct ReaderSheet: View {
 	var body: some View {
 		Group {
 			if let cookie {
-				ReaderWebView(url: presentation.readerURL, cookie: cookie, onMarkedRead: onMarkedRead)
+				ReaderWebView(
+					url: presentation.readerURL,
+					cookie: cookie,
+					onMarkedRead: onMarkedRead,
+					onClose: onClose,
+					externalBrowser: .system
+				)
 			} else if bootstrapFailed {
 				ReaderUnavailableView(onClose: onClose)
 			} else {
