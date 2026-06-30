@@ -68,7 +68,6 @@ hr::before {
   text-decoration: underline;
 }
 
-/* Hero Section */
 .home-hero {
   background: linear-gradient(135deg, #2B3A55 0%, #1E2A40 100%);
   color: var(--color-on-brand);
@@ -184,7 +183,6 @@ hr::before {
   opacity: 0.7;
 }
 
-/* Buttons */
 .btn {
   display: inline-block;
   padding: 16px 28px;
@@ -372,7 +370,6 @@ hr::before {
   }
 }
 
-/* Demo Section */
 .home-demo {
   padding: 80px 20px;
   background: var(--muted);
@@ -429,7 +426,6 @@ hr::before {
   }
 }
 
-/* Features Section — Varied Weight Layout */
 .home-features {
   padding: 80px 20px;
 }
@@ -661,7 +657,6 @@ hr::before {
   }
 }
 
-/* Roadmap Section */
 .home-roadmap {
   padding: 48px 20px 80px;
   background: var(--muted);
@@ -708,7 +703,6 @@ hr::before {
   font-size: 0.9375rem;
 }
 
-/* Backstory Section */
 .home-backstory {
   padding: 80px 20px;
   background: var(--muted);
@@ -763,7 +757,6 @@ hr::before {
   color: inherit;
 }
 
-/* Comparison Section */
 .home-comparison {
   padding: 80px 20px;
   background: var(--muted);
@@ -1026,7 +1019,6 @@ hr::before {
   }
 }
 
-/* Pricing Section */
 .home-pricing {
   padding: 80px 20px;
 }
@@ -1169,7 +1161,6 @@ hr::before {
   text-align: center;
 }
 
-/* Trust Section */
 .home-trust {
   padding: 80px 20px;
   background: var(--muted);
@@ -1206,7 +1197,6 @@ hr::before {
   line-height: 1.6;
 }
 
-/* Footer CTA Section */
 .home-cta {
   padding: 80px 20px;
   text-align: center;
@@ -1246,7 +1236,6 @@ hr::before {
   font-weight: 500;
 }
 
-/* Responsive */
 @media (min-width: 768px) {
   .home-hero__title {
     font-size: 3.5rem;

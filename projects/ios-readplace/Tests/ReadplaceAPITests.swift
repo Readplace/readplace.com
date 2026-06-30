@@ -81,7 +81,6 @@ final class ReadplaceAPITests: XCTestCase {
 		XCTAssertEqual(entryAttempts, 2, "should retry exactly once after a refresh")
 		XCTAssertEqual(StubURLProtocol.records(path: "/oauth/token").count, 1, "refresh should happen exactly once")
 		XCTAssertEqual(store.tokens?.accessToken, "fresh-access")
-		// The retry must carry the refreshed token.
 		let retried = StubURLProtocol.records(path: "/").last?.request
 		XCTAssertEqual(retried?.value(forHTTPHeaderField: "Authorization"), "Bearer fresh-access")
 	}

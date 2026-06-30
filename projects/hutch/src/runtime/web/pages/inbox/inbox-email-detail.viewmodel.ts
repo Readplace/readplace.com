@@ -29,7 +29,6 @@ export interface ArticlesPanelViewModel {
 	/** Present only while `isExtracting` and within the poll budget — drives the
 	 * page-level htmx poll that swaps the finished card set in on completion. */
 	panelPollUrl: string | undefined;
-	/** Present only when the per-email cap truncated the link list. */
 	truncatedNotice: string | undefined;
 }
 
@@ -45,7 +44,6 @@ export interface InboxEmailDetailViewModel {
 	canRenderBody: boolean;
 	bodyHtml: string;
 	unavailableMessage: string;
-	/** "12 links" in the header; omitted before extraction or when there are none. */
 	linkCountLabel: string | undefined;
 	articles: ArticlesPanelViewModel;
 }

@@ -152,13 +152,11 @@ describe("Inbox emails list route", () => {
 		);
 		expect(senders).toEqual(["c@example.com", "b@example.com", "a@example.com"]);
 
-		// Newest row links to its detail page, carrying the feature flag.
 		const newestHref = rows[0].querySelector("a")?.getAttribute("href");
 		expect(newestHref).toBe(
 			`/inbox/${encodeURIComponent("2026-06-24T09:00:00.000Z#<r3@x>")}?feature=email`,
 		);
 
-		// The no-subject rejected row falls back to a placeholder subject.
 		expect(rows[2].querySelector("[data-test-inbox-email-subject]")?.textContent).toBe(
 			"(no subject)",
 		);
@@ -171,7 +169,6 @@ describe("Inbox emails list route", () => {
 		expect(time.getAttribute("datetime")).toBe("2026-06-24T09:00:00.000Z");
 		expect(time.getAttribute("data-local-time")).toBe("relative");
 
-		// Non-received rows surface a status badge; the received row does not.
 		expect(rows[0].querySelector("[data-test-inbox-email-status]")).toBeNull();
 		expect(
 			rows[1].querySelector('[data-test-inbox-email-status="unparsed"]'),
@@ -212,7 +209,6 @@ describe("Inbox emails list route", () => {
 		const rows = Array.from(
 			new JSDOM(response.text).window.document.querySelectorAll("[data-test-inbox-emails-row]"),
 		);
-		// Newest row (with links) shows the count; the older link-free row does not.
 		expect(rows[0].querySelector("[data-test-inbox-email-link-count]")?.textContent).toBe("2 links");
 		expect(rows[1].querySelector("[data-test-inbox-email-link-count]")).toBeNull();
 	});

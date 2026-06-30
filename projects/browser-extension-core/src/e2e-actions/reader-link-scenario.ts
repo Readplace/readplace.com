@@ -74,7 +74,6 @@ export async function assertReaderLinkOpensPrivateReader(
 	assert.ok(readerWindowHandle, "reader tab window handle was not captured");
 	await driver.switchTo().window(readerWindowHandle);
 
-	// Settle on whichever page rendered, then assert it is the private reader.
 	await driver.wait(
 		until.elementLocated(
 			By.css(`body.${PRIVATE_READER_BODY_CLASS}, body.${PUBLIC_VIEW_BODY_CLASS}`),

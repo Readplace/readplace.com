@@ -433,13 +433,11 @@ struct Affordance: Identifiable {
 			.joined(separator: " ")
 	}
 
-	/// The action this control invokes, or nil when it is a navigable link.
 	var action: SirenAction? {
 		guard case let .action(action) = invocation else { return nil }
 		return action
 	}
 
-	/// The navigable link this control opens, or nil when it is an action.
 	var link: SirenLink? {
 		guard case let .link(link) = invocation else { return nil }
 		return link

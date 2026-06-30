@@ -372,9 +372,6 @@ describe("initExtension", () => {
 			);
 			const start = initExtension(createUnderstandings(), createDeps(fetchFn));
 			const result = await start();
-			/** The structural `self` rel is dropped; the semantic `read` and `summary`
-			 * rels are serialized as descriptors carrying their resolved hrefs, and a
-			 * server-authored link title rides along. */
 			expect(result.items[0].links).toEqual([
 				{ rel: "read", href: "http://localhost:3000/queue/1/view" },
 				{

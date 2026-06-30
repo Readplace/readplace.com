@@ -253,7 +253,6 @@ describe("Inbox email detail route", () => {
 		expect(cards).toHaveLength(3);
 		expect(doc.querySelector("[data-test-articles-empty]")).toBeNull();
 		expect(doc.querySelector("[data-test-inbox-detail-link-count]")?.textContent).toBe("3 links");
-		// Crawled card shows the title; pending card keeps polling; failed card degrades.
 		expect(doc.querySelector("[data-test-inbox-article-title]")?.textContent).toBe(
 			"Crawled headline",
 		);

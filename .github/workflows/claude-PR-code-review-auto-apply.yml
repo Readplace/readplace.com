@@ -17,9 +17,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # ┌─────────────────────────────────────────────────────────────────┐
-  # │ CI PASSED: Reset the auto-fix attempt counter                  │
-  # └─────────────────────────────────────────────────────────────────┘
   reset-counter:
     if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
@@ -51,12 +48,7 @@ jobs:
               }).catch(() => {});
             }
 
-  # ┌─────────────────────────────────────────────────────────────────┐
-  # │ REVIEW COMMENT: Post @claude comment to fix issues (up to 5x)  │
-  # └─────────────────────────────────────────────────────────────────┘
   request-fix:
-    # Only run on issue_comment events for PR comments with review issues
-    # Triggers when Claude posts a review with HIGH or MEDIUM priority issues
     if: |
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
@@ -147,9 +139,6 @@ jobs:
 
             console.log(`Posted @claude auto-fix request for PR #${prNumber} (attempt ${newAttempt})`);
 
-  # ┌─────────────────────────────────────────────────────────────────┐
-  # │ REVIEW RUN DONE: Post the review comment from the saved output │
-  # └─────────────────────────────────────────────────────────────────┘
   # The review marker comment must be a NEW, unsanitized comment for request-fix (above)
   # to trigger. The agent intermittently routed the review through the action's sticky
   # comment instead of `gh pr comment`; that path strips HTML markers (sanitizeContent)

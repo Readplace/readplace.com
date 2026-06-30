@@ -266,7 +266,6 @@ describe("MCP server over the real app", () => {
 		const read = await callTool(harness, otherToken, tool("mark_as_read", { id }));
 		expect(read.body.result.structuredContent.performed).toBe(false);
 
-		// The owner's queue is untouched by another user's write-tool calls.
 		const owner = await callTool(harness, ownerToken, tool("get_article", { id }));
 		expect(owner.body.result.structuredContent.article.status).toBe("unread");
 		const ownerList = await callTool(harness, ownerToken, tool("list_queue"));

@@ -3,7 +3,6 @@ import XCTest
 @testable import Readplace
 
 enum TestSupport {
-	/// A throwaway, isolated UserDefaults suite for a single test.
 	static func ephemeralDefaults() -> UserDefaults {
 		let name = "test.\(UUID().uuidString)"
 		let defaults = UserDefaults(suiteName: name)!
@@ -11,7 +10,6 @@ enum TestSupport {
 		return defaults
 	}
 
-	/// A URLSession configuration routed through the stub protocol.
 	static func stubbedConfiguration() -> URLSessionConfiguration {
 		let config = URLSessionConfiguration.ephemeral
 		config.protocolClasses = [StubURLProtocol.self]
@@ -29,7 +27,6 @@ enum TestSupport {
 		])!
 	}
 
-	/// A token store pre-seeded with a logged-in session.
 	static func loggedInStore(
 		access: String = "access-1",
 		refresh: String = "refresh-1"
@@ -39,7 +36,6 @@ enum TestSupport {
 		return store
 	}
 
-	/// Parses an `application/x-www-form-urlencoded` body into a dictionary.
 	static func formFields(_ data: Data) -> [String: String] {
 		guard let string = String(data: data, encoding: .utf8) else { return [:] }
 		var result: [String: String] = [:]
@@ -51,7 +47,6 @@ enum TestSupport {
 		return result
 	}
 
-	/// Parses a JSON object body into `[String: Any]`.
 	static func jsonObject(_ data: Data) -> [String: Any] {
 		(try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
 	}

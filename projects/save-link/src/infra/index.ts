@@ -734,10 +734,6 @@ const comprehensiveCrawlCommandLambdaWithSQS = new HutchSQSBackedLambda("compreh
 eventBus.subscribe(ComprehensiveCrawlCommand, comprehensiveCrawlCommandLambdaWithSQS);
 
 // --- ComprehensiveCrawlCommand DLQ consumer ---
-// Mirrors save-link-dlq: flips crawlStatus to "exhausted" and publishes
-// CrawlArticleFailedEvent when a comprehensive-crawl-command message exhausts
-// maxReceiveCount on its queue. The entry point is derived from the component
-// name, i.e. ./src/runtime/comprehensive-crawl-dlq.main.ts.
 new HutchDLQEventHandler("comprehensive-crawl-dlq", {
 	sourceQueue: comprehensiveCrawlCommandQueue,
 	tableArn: articlesTableArn,
@@ -1031,9 +1027,6 @@ new HutchSQSBackedLambda("generate-summary", {
 });
 
 // --- GenerateSummary DLQ consumer ---
-// Flips the summaryStatus row to "failed" and publishes SummaryGenerationFailedEvent
-// when a message lands in generate-summary-dlq. The entry point is derived from the
-// component name, i.e. ./src/runtime/generate-summary-dlq.main.ts.
 new HutchDLQEventHandler("generate-summary-dlq", {
 	sourceQueue: generateSummaryQueue,
 	tableArn: articlesTableArn,

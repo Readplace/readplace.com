@@ -40,7 +40,6 @@ enum AppConfig {
 	/// native `readplace://oauth-callback` deep link the auth flow returns through.
 	static let clientId = "ios-app"
 
-	/// The Siren hypermedia media type the API speaks.
 	static let sirenMediaType = "application/vnd.siren+json"
 
 	/// Path of the server's "add links via Share" help page, opened by the reading

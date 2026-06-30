@@ -65,7 +65,6 @@ final class AppSession: ObservableObject {
 		}
 	}
 
-	/// Graceful sign-out: revoke server-side, then clear local state.
 	func logout() async {
 		await makeOAuth().revoke()
 		clearSessionCookie()

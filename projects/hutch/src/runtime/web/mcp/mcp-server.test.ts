@@ -703,7 +703,6 @@ describe("initMcpServer", () => {
 				id: 70,
 				result: { isError: true, content: [{ type: "text", text: UPSELL }] },
 			});
-			// The gate refuses before the save pipeline runs.
 			expect(saveLink).not.toHaveBeenCalled();
 		});
 
@@ -727,7 +726,6 @@ describe("initMcpServer", () => {
 				"delete_article",
 			]) {
 				const response = await call(server, 71, tool, { id: "x".repeat(32) });
-				// Each tool returns its own result, never the renewal upsell error.
 				expect(response).not.toMatchObject({ result: { isError: true } });
 				expect(response).not.toMatchObject({ result: { content: [{ text: UPSELL }] } });
 			}

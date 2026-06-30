@@ -172,9 +172,6 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// `.html` form 302-loops through `/oauth2authorize` for anonymous fetchers,
 	// while the slashless `…/WebView` is the canonical page.
 	/^https:\/\/developer\.android\.com\/reference\/android\/webkit\/WebView\.html$/i,
-	// Operator-curated excludes drained from the issue #573 worklist — each is a
-	// known-broken save the operator will not re-investigate.
-	//
 	// npmjs.com package-registry page — a package listing, not the readable
 	// article content the product renders; the crawl exhausts retries and there
 	// is nothing worth re-saving behind it.
@@ -183,8 +180,6 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// egress (the same residential-egress requirement as the medium.com and
 	// edge-firewall entries above), so the AWS crawler exhausts retries.
 	/^https:\/\/itnext\.io\/youre-not-praised-for-the-bugs-you-didn-t-create-ef3df6894d5c$/i,
-	// Operator-curated exclude drained from the issue #591 worklist.
-	//
 	// castorama.fr product listing for a Keter garden storage box — an
 	// e-commerce product page, not the readable article content the product
 	// renders, so the crawl exhausts retries with nothing worth re-saving behind
@@ -193,8 +188,6 @@ export const EXCLUDE_PATTERNS: readonly RegExp[] = [
 	// tolerates the one-digit transcription variant so the exclude holds whether
 	// the row reads `l-l-118` or `l-l-18`.
 	/^https:\/\/www\.castorama\.fr\/coffre-de-jardin-resine-effet-rotin-tresse-270-l-l-1?18-x-h-57-x-p-45-cm-marron-keter-emily\/7290112634603_CAFR\.prd$/i,
-	// Operator-curated exclude drained from the issue #594 worklist.
-	//
 	// Doubled save: the fagnerbrack.com article URL with a scheme-collapsed copy
 	// of itself appended to the slug — a paste/link-extraction artifact with no
 	// real page behind it, so the crawl exhausts retries. Anchored to the doubled

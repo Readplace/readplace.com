@@ -437,10 +437,6 @@ new aws.s3.BucketLifecycleConfigurationV2("user-export-bucket-lifecycle", {
 });
 
 // --- Inbound email (SES receiving) ---
-// Provisions the SES domain identity + DKIM, MX/TXT/CNAME records into the
-// existing read.place zone, the immutable raw-email bucket (kept forever), and
-// the receipt rule that stores each .eml to S3 and publishes the receipt to SNS.
-// The receive Lambda's queue subscribes to inboxMail.notificationTopicArn (PR7).
 const inboxMail = new InboxMail("inbox-mail", {
 	mailDomain: inboxAddressDomain,
 	inboxMailParentZone,
@@ -448,12 +444,6 @@ const inboxMail = new InboxMail("inbox-mail", {
 });
 
 // --- ExportUserData worker Lambda ---
-// Subscribes to ExportUserDataCommand published by the web Lambda when a logged-in
-// user clicks "Email Me My Data". Paginates the user's articles, streams a JSON
-// blob to userExportBucket, generates a presigned GetObject URL valid for the
-// shared TTL, emails the user the link via Resend, and publishes
-// UserDataExportedEvent. SQS retry → DLQ on transient failure; the
-// HutchSQSBackedLambda CloudWatch alarm pages the operator on DLQ arrival.
 
 const exportUserDataDynamodb = new HutchDynamoDBAccess("export-user-data-dynamodb", {
 	tables: [
@@ -686,7 +676,6 @@ const extractEmailLinksLambda = new HutchLambda("extract-email-links", {
 	],
 });
 
-// Publishes CrawlEmailLinkPreview per link.
 eventBus.grantPublish(extractEmailLinksLambda);
 
 const extractEmailLinksWithSQS = new HutchSQSBackedLambda("extract-email-links", {
@@ -1061,8 +1050,6 @@ const subscriptionStartRequestWithSQS = new HutchSQSBackedLambda("subscription-s
 eventBus.subscribe(SubscriptionStartRequestCommand, subscriptionStartRequestWithSQS);
 
 // --- Subscription Charge Succeeded ---
-// SQS-backed Lambda that flips the row to status='active' when the trial-end
-// charge attempt succeeds. Failed messages land in a DLQ.
 
 const subscriptionChargeSucceededDynamodb = new HutchDynamoDBAccess("subscription-charge-succeeded-dynamodb", {
 	tables: [{ arn: storage.subscriptionProvidersTable.arn, includeIndexes: false }],
@@ -1096,9 +1083,6 @@ const subscriptionChargeSucceededWithSQS = new HutchSQSBackedLambda("subscriptio
 eventBus.subscribe(SubscriptionChargeSucceededEvent, subscriptionChargeSucceededWithSQS);
 
 // --- Subscription Charge Failed ---
-// SQS-backed Lambda that dispatches CancelSubscriptionCommand when the
-// trial-end charge attempt fails (no card on file or Stripe error). The
-// downstream cancel chain takes over from there.
 
 const subscriptionChargeFailedQueue = new HutchSQS("subscription-charge-failed", {
 	visibilityTimeoutSeconds: 30,

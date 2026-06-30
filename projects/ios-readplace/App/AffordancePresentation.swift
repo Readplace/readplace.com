@@ -7,7 +7,6 @@ import SwiftUI
 /// falls back to a neutral default, so an affordance the client has never seen
 /// still renders (with a generic look) rather than vanishing.
 struct AffordancePresentation {
-	/// The SF Symbol the control draws.
 	let systemImage: String
 	/// The control's tint, or nil to inherit the surrounding style.
 	let tint: Color?
@@ -88,7 +87,6 @@ struct AffordancePresentation {
 }
 
 extension Affordance {
-	/// This affordance's client-side presentation, derived from its wire token.
 	var presentation: AffordancePresentation { AffordancePresentation(token: token) }
 
 	/// The structural navigation link rels the client follows for its own
