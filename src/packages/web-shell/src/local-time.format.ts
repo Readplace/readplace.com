@@ -39,9 +39,6 @@ const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
 	year: "numeric",
 };
 
-/** The label is the only place the apostrophe is injected, which is why this
- * branch assembles from formatToParts rather than a single toLocaleString
- * call. */
 const SHORT_DATETIME_OPTIONS: Intl.DateTimeFormatOptions = {
 	day: "numeric",
 	month: "short",
