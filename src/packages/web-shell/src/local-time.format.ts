@@ -17,7 +17,7 @@ export interface LocalTime {
 
 export type LocalTimeStyle = "datetime" | "date";
 
-const LOCALE = "en-US";
+export const LOCALE = "en-US";
 
 /** Explicit component options rather than dateStyle/timeStyle, which cannot be
  * combined with timeZoneName. hour12:false yields a 24-hour clock (09:00, not
