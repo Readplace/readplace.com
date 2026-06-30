@@ -668,4 +668,28 @@ describe("initInMemoryArticleStore", () => {
 			expect(content).toBeUndefined();
 		});
 	});
+
+	describe("markSummaryToggled + getSummaryToggleState", () => {
+		const URL = "https://example.com/article";
+
+		it("stamps lastSummaryOpenedAt on state=open and lastSummaryClosedAt on state=closed (last-write-wins)", async () => {
+			const store = initInMemoryArticleStore();
+			await store.saveArticle(makeArticleParams());
+
+			await store.markSummaryToggled({ userId: USER_A, url: URL, state: "open", at: new Date("2026-06-01T10:00:00.000Z") });
+			await store.markSummaryToggled({ userId: USER_A, url: URL, state: "closed", at: new Date("2026-06-01T10:01:00.000Z") });
+			// Overwrite the open stamp to prove last-write-wins (not set-once).
+			await store.markSummaryToggled({ userId: USER_A, url: URL, state: "open", at: new Date("2026-06-01T10:02:00.000Z") });
+
+			const state = await store.getSummaryToggleState({ userId: USER_A, url: URL });
+			assert(state);
+			assert.deepEqual(state.lastSummaryOpenedAt, new Date("2026-06-01T10:02:00.000Z"));
+			assert.deepEqual(state.lastSummaryClosedAt, new Date("2026-06-01T10:01:00.000Z"));
+		});
+
+		it("getSummaryToggleState returns null when no user-article row exists", async () => {
+			const store = initInMemoryArticleStore();
+			expect(await store.getSummaryToggleState({ userId: USER_A, url: URL })).toBeNull();
+		});
+	});
 });

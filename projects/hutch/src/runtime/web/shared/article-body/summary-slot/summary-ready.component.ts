@@ -10,6 +10,11 @@ const TEMPLATE = readFileSync(
 export interface SummaryReadyInput {
 	summary: string;
 	open: boolean;
+	/** When present, the `<details>` carries `data-summary-toggle-url` so the
+	 * summary-toggle beacon binds to it. Omitted on readers that don't record
+	 * toggles (public /view, admin recrawl), where the `<details>` still toggles
+	 * natively with no beacon. */
+	summaryToggleUrl?: string;
 	oob?: boolean;
 }
 

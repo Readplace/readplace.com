@@ -34,6 +34,7 @@ config:
   hutch:dynamodbImportSessionsTable: hutch-import-sessions-prod
   hutch:dynamodbInboxAddressesTable: hutch-inbox-addresses-prod
   hutch:dynamodbInboxEmailsTable: hutch-inbox-emails-prod
+  hutch:dynamodbInboxEmailLinksTable: hutch-inbox-email-links-prod
   hutch:dynamodbSubscriptionProvidersTable: hutch-subscription-providers-prod
   hutch:dynamodbOnboardingTable: hutch-onboarding-prod
   hutch:dynamodbRateLimitsTable: hutch-rate-limits-prod
@@ -46,6 +47,7 @@ config:
   hutch:apiThrottleRateLimit: 50
   hutch:trialSchedulerGroupName: hutch-trial-end-prod
   hutch:contentBucketName: hutch-article-content-prod
+  hutch:contentMediaCdnDomain: cdn.readplace.com
   hutch:pendingHtmlBucketName: hutch-pending-html-prod
   hutch:pendingPdfBucketName: hutch-pending-pdf-prod
   hutch:userExportBucketName: hutch-user-exports-prod

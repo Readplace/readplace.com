@@ -5,6 +5,7 @@
 		<p class="inbox-email-detail__meta">
 			<span data-test-inbox-detail-sender>{{sender}}</span>
 			<time class="inbox-email-detail__received" datetime="{{received.iso}}" data-local-time="{{received.mode}}">{{received.label}}</time>
+			{{{linkCountHtml}}}
 		</p>
 	</header>
 
@@ -36,12 +37,5 @@
 		{{/if}}
 	</section>
 
-	<section
-		class="inbox-email-detail__panel inbox-email-detail__panel--articles"
-		data-test-tab-panel="articles"
-	>
-		<div class="inbox-email-detail__placeholder" data-test-inbox-articles-placeholder>
-			<p>{{articlesPlaceholder}}</p>
-		</div>
-	</section>
+	{{{articlesPanelHtml}}}
 </main>

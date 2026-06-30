@@ -480,6 +480,129 @@ describe("Queue routes", () => {
 				const reads = harness.analytics.events.filter((e) => e.event === "article_read");
 				assert.equal(reads.length, 0, "no article_read when row update did not happen");
 			});
+
+			it("stamps device_class derived from the request User-Agent (raw UA never logged)", async () => {
+				const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+				const { auth } = harness;
+				const agent = await loginAgent(harness.server, auth);
+
+				await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
+				const queueResponse = await agent.get("/queue");
+				const doc = new JSDOM(queueResponse.text).window.document;
+				const articleId = doc
+					.querySelector("[data-test-article-list] .queue-article")
+					?.getAttribute("data-test-article");
+
+				await agent
+					.post(`/queue/${articleId}/status`)
+					.set(
+						"user-agent",
+						"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+					)
+					.type("form")
+					.send({ status: "read" });
+
+				const reads = harness.analytics.events.filter(
+					(e): e is ArticleReadEvent => e.event === "article_read",
+				);
+				assert.equal(reads.length, 1);
+				assert.equal(reads[0].device_class, "mobile_ios");
+			});
+		});
+	});
+
+	describe("POST /queue/:id/summary-toggle", () => {
+		async function saveAndGetArticleId(agent: Awaited<ReturnType<typeof loginAgent>>): Promise<string> {
+			await agent.post("/queue/save").type("form").send({ url: "https://example.com/article" });
+			const queueResponse = await agent.get("/queue");
+			const doc = new JSDOM(queueResponse.text).window.document;
+			const articleId = doc
+				.querySelector("[data-test-article-list] .queue-article")
+				?.getAttribute("data-test-article");
+			assert(articleId, "saved article must have an id");
+			return articleId;
+		}
+
+		it("records lastSummaryOpenedAt and emits summary_toggled(state=open) on ?state=open", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+			const articleId = await saveAndGetArticleId(agent);
+
+			const response = await agent.post(`/queue/${articleId}/summary-toggle?state=open`);
+			expect(response.status).toBe(204);
+
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId);
+			const state = await harness.articleStore.getSummaryToggleState({
+				userId,
+				url: "https://example.com/article",
+			});
+			assert(state?.lastSummaryOpenedAt, "lastSummaryOpenedAt must be stamped");
+			assert.equal(state.lastSummaryClosedAt, undefined);
+
+			const toggles = harness.analytics.events.filter((e) => e.event === "summary_toggled");
+			assert.equal(toggles.length, 1);
+			assert.equal(toggles[0].state, "open");
+			assert.equal(toggles[0].user_id, userId);
+		});
+
+		it("records lastSummaryClosedAt and emits summary_toggled(state=closed) on ?state=closed", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+			const articleId = await saveAndGetArticleId(agent);
+
+			const response = await agent.post(`/queue/${articleId}/summary-toggle?state=closed`);
+			expect(response.status).toBe(204);
+
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId);
+			const state = await harness.articleStore.getSummaryToggleState({
+				userId,
+				url: "https://example.com/article",
+			});
+			assert(state?.lastSummaryClosedAt, "lastSummaryClosedAt must be stamped");
+
+			const toggles = harness.analytics.events.filter((e) => e.event === "summary_toggled");
+			assert.equal(toggles.length, 1);
+			assert.equal(toggles[0].state, "closed");
+		});
+
+		it("answers 204 with no event and no row write when state is absent or invalid (a beacon must never error)", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+			const articleId = await saveAndGetArticleId(agent);
+
+			const response = await agent.post(`/queue/${articleId}/summary-toggle?state=banana`);
+			expect(response.status).toBe(204);
+
+			const userId = (await auth.findUserByEmail("test@example.com"))?.userId;
+			assert(userId);
+			const state = await harness.articleStore.getSummaryToggleState({
+				userId,
+				url: "https://example.com/article",
+			});
+			assert.equal(state?.lastSummaryOpenedAt, undefined);
+			assert.equal(state?.lastSummaryClosedAt, undefined);
+
+			const toggles = harness.analytics.events.filter((e) => e.event === "summary_toggled");
+			assert.equal(toggles.length, 0, "no event for an unparseable state");
+		});
+
+		it("returns 404 for an id that resolves to no owned article", async () => {
+			const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+			const { auth } = harness;
+			const agent = await loginAgent(harness.server, auth);
+
+			const response = await agent.post(
+				"/queue/00000000000000000000000000000000/summary-toggle?state=open",
+			);
+			expect(response.status).toBe(404);
+
+			const toggles = harness.analytics.events.filter((e) => e.event === "summary_toggled");
+			assert.equal(toggles.length, 0);
 		});
 	});
 

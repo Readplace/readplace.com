@@ -22,6 +22,7 @@ export const ANALYTICS_EVENTS = {
 	importFromUrlAcquired: "import_from_url_acquired",
 	importCommitted: "import_committed",
 	articleRead: "article_read",
+	summaryToggled: "summary_toggled",
 	viewOpened: "view_opened",
 	viewSaveIntent: "view_save_intent",
 } as const;

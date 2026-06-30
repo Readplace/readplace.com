@@ -221,6 +221,7 @@ function handleSummaryPoll(reader: ReturnType<typeof initArticleReader>) {
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
+			summaryToggleUrl: undefined,
 		});
 		const html = component.to("text/html");
 		res.status(html.statusCode).type("html").send(html.body);
@@ -241,6 +242,7 @@ function handleReaderPoll(reader: ReturnType<typeof initArticleReader>) {
 			pollCount,
 			pollUrlBuilder: pollUrlBuilderFor(articleUrl),
 			extensionInstallUrl: extensionInstallUrlIfMissing(req),
+			summaryToggleUrl: undefined,
 		});
 		const html = component.to("text/html");
 		res.status(html.statusCode).type("html").send(html.body);
@@ -262,6 +264,7 @@ export function initAdminRecrawlRoutes(deps: AdminRecrawlDependencies): Router {
 		findArticleByUrl: deps.findArticleByUrl,
 		appOrigin: deps.appOrigin,
 		formatDocumentTitle: formatRecrawlDocumentTitle,
+		summaryOpen: false,
 		now: deps.now,
 	});
 

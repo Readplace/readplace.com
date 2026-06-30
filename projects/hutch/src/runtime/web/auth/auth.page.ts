@@ -275,9 +275,12 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 		const { email, password } = result;
 		const passwordHash = await deps.hashPassword(password);
 		const userCount = await fetchUserCount();
+		/* Read once, then persisted on the user row (durable) AND emitted on the
+		 * user_created conversion event (30-day retention). */
+		const attribution = readClickAttribution(req);
 
 		if (!deps.foundingAllocation.isFoundingAllocationExhausted(userCount)) {
-			const created = await deps.createUserWithPasswordHash({ email, passwordHash });
+			const created = await deps.createUserWithPasswordHash({ email, passwordHash, attribution });
 			if (!created.ok) {
 				await renderFailure(email, [{ message: "An account with this email already exists" }]);
 				return;
@@ -293,7 +296,7 @@ export function initAuthRoutes(deps: AuthDependencies): Router {
 					email,
 					method: "email",
 					tier: "free",
-					attribution: readClickAttribution(req),
+					attribution,
 					visitorId: req.visitorId,
 					pendingSaveId: consumePendingSaveId({ req, res }),
 				},
