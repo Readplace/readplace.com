@@ -23,12 +23,6 @@ protocol HTMLCapturing {
 /// The share-sheet save journey, lifted out of `ShareViewController` so the full
 /// decision tree runs against the real API and token types under test — only the
 /// UIKit shell and the WKWebView are left behind in the extension target.
-///
-/// Capture the page → list the queue → when there is content to upload (captured
-/// HTML, or the bytes of a shared PDF the captor declined to render), attempt the
-/// `save-content` upload and let the server decide (it routes an over-its-cap
-/// payload to the URL-only fallback it advertises); when there is no content to
-/// upload, save the URL only; if the server offered no save action, give up.
 @MainActor
 struct SaveSharedPage {
 	let store: TokenStore

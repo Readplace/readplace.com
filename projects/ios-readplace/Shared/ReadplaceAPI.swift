@@ -512,8 +512,6 @@ private final class RedirectHeaderPreservingDelegate: NSObject, URLSessionTaskDe
 }
 
 private extension Data {
-	/// Appends a string's UTF-8 bytes, for assembling a multipart body whose text
-	/// segments interleave with raw binary content.
 	mutating func append(_ string: String) {
 		append(Data(string.utf8))
 	}

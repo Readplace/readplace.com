@@ -113,7 +113,6 @@ enum TestSupport {
 	}
 }
 
-/// One part of a parsed `multipart/form-data` body.
 struct MultipartPart {
 	let name: String?
 	let filename: String?
