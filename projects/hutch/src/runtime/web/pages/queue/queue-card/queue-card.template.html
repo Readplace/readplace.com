@@ -2,7 +2,6 @@
 	{{!-- The thumbnail link is display:none until onload adds --loaded (queue.styles.css), so onload is the reveal-on-load for every thumbnail, including S3 saves — removing it hides all thumbnails. onerror is the 404 safety net for legacy DynamoDB rows whose imageUrl points at an external host that can rot over time: a broken image removes its container instead of showing a placeholder. New saves use the S3-only thumbnail path in @packages/crawl-article. --}}
 	{{#if imageUrl}}<a href="{{linkUrl}}" class="queue-article__thumbnail-link" tabindex="-1" aria-hidden="true"><img class="queue-article__thumbnail" src="{{imageUrl}}" alt="" onload="this.parentElement.classList.add('queue-article__thumbnail-link--loaded')" onerror="this.parentElement.remove()"></a>{{/if}}
 	<div class="queue-article__content">
-		<a class="queue-article__url{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" data-test-article-url>{{siteName}}</a>
 		<a class="queue-article__title" href="{{linkUrl}}" data-test-article-title>{{title}}</a>
 		<p class="queue-article__excerpt">{{excerpt}}</p>
 		<p class="queue-article__processing{{processingHiddenClass}}" data-test-processing>Processing…</p>
@@ -10,6 +9,7 @@
 		<div class="queue-article__footer">
 			<div class="queue-article__meta">
 				{{#if isUnread}}<span class="queue-article__status queue-article__status--unread" data-test-read-status="unread"><span class="sr-only">Unread</span></span>{{else}}<span class="queue-article__status queue-article__status--read" data-test-read-status="read"><span class="sr-only">Read</span></span>{{/if}}
+				<a class="queue-article__url{{urlEmptyClass}}" href="{{url}}" target="_blank" rel="noopener" data-test-article-url>{{siteName}}</a>
 				<time class="queue-article__time" datetime="{{saved.iso}}" data-local-time="{{saved.mode}}">{{saved.label}}</time>
 			</div>
 			<div class="queue-article__actions">

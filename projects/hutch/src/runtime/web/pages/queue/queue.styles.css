@@ -237,7 +237,11 @@
 .queue__list {
   display: flex;
   flex-direction: column;
-  gap: clamp(10px, 2.5vw, 14px);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
 }
 
 .queue-article {
@@ -247,9 +251,6 @@
   align-items: start;
   padding: clamp(14px, 3.5vw, 20px);
   background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
 }
 
 .queue-article--unread {
@@ -284,10 +285,7 @@
 }
 
 .queue-article__url {
-  align-self: flex-start;
-  max-width: 100%;
-  font-size: 0.8125rem;
-  font-weight: 600;
+  min-width: 0;
   color: var(--muted-foreground);
   text-decoration: none;
   white-space: nowrap;
