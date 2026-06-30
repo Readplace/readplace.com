@@ -930,6 +930,20 @@ describe("GET /account — card management section", () => {
 		assert(doc.querySelector("[data-test-add-card]"), "add-card button must render below the cap");
 	});
 
+	it("disables htmx history push on the add-card form (boosted POST renders 200, not a redirect) so a refresh can't 404 on /account/cards/new", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		const { agent } = await activeUserWithCards(harness, "cards-add-history@example.com", [
+			card("pm_primary", true, "4242"),
+		]);
+
+		const response = await agent.get("/account");
+
+		const doc = new JSDOM(response.text).window.document;
+		const addForm = doc.querySelector("[data-test-add-card]");
+		assert(addForm, "add-card form must render below the cap");
+		expect(addForm.getAttribute("hx-push-url")).toBe("false");
+	});
+
 	it("degrades gracefully when the live card read fails — still renders the subscription card", async () => {
 		const fixture = createDefaultTestAppFixture(TEST_APP_ORIGIN);
 		fixture.paymentMethods.listCards = async () => {

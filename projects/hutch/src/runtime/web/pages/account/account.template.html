@@ -61,7 +61,7 @@
         {{#if cardSection.showAddButton}}
         <form method="POST" action="{{cardSection.addUrl}}" class="account-cards__add-form"
               hx-boost="true" hx-target="main" hx-select="main" hx-swap="outerHTML show:none"
-              data-test-add-card>
+              hx-push-url="false" data-test-add-card>
           <button type="submit" class="account-cards__action account-cards__action--primary">Add a card</button>
         </form>
         {{/if}}
