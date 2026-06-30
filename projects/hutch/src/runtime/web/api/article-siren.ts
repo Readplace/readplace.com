@@ -1,9 +1,7 @@
 import type { SavedArticle } from "@packages/domain/article";
 import type { SirenEntity, SirenLink, SirenSubEntity } from "./siren";
 
-/** Which reader the `read` link points at. The hypermedia `rel` stays `read`;
- * only the href varies, so swapping it is non-breaking. The iOS app gets `app`
- * (the chromeless reader); browsers and the extension get `view` (the full shell). */
+/** The hypermedia `rel` stays `read`; only the href varies, so swapping it is non-breaking. */
 export type ReaderLinkPath = "view" | "app";
 
 export function toArticleSubEntity(
