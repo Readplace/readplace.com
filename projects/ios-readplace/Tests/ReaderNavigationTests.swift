@@ -21,6 +21,14 @@ final class ReaderNavigationTests: XCTestCase {
 		)
 	}
 
+	func testCloseDeepLinkMatchesCaseInsensitivelyOnSchemeAndHost() {
+		let url = URL(string: "READPLACE://READER/close")!
+		XCTAssertEqual(
+			ReaderNavigation.decide(url: url, navigationType: .linkActivated, currentURL: current),
+			.close
+		)
+	}
+
 	func testTappedExternalHTTPSLinkOpensExternallyWithRawTarget() {
 		let url = URL(string: "https://example.com/post")!
 		XCTAssertEqual(
@@ -31,6 +39,14 @@ final class ReaderNavigationTests: XCTestCase {
 
 	func testTappedReadplaceLinkAlsoOpensExternally() {
 		let url = URL(string: "https://readplace.com/about")!
+		XCTAssertEqual(
+			ReaderNavigation.decide(url: url, navigationType: .linkActivated, currentURL: current),
+			.openExternally(url)
+		)
+	}
+
+	func testTappedNonHTTPSchemeLinkOpensExternally() {
+		let url = URL(string: "mailto:hello@readplace.com")!
 		XCTAssertEqual(
 			ReaderNavigation.decide(url: url, navigationType: .linkActivated, currentURL: current),
 			.openExternally(url)

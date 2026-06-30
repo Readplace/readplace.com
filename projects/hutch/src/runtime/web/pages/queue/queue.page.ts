@@ -93,7 +93,7 @@ import {
 	isExtensionInstalled,
 	isExtensionSavedArticle,
 } from "../../onboarding/extension-install";
-import { isIosClient } from "../../onboarding/ios-client";
+import { isIosClient, IOS_CLIENT_HEADER } from "../../onboarding/ios-client";
 import type { GetIosAppSignals, RecordIosAnyActivity, RecordIosSavedArticle } from "@packages/provider-contracts/ios-onboarding-signal";
 import type { GetEffectiveAccess } from "../../../domain/access/effective-access";
 function readImportSkippedFlash(
@@ -394,10 +394,9 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		| { kind: "redirect"; redirect: Redirect }
 		| { kind: "ready"; article: SavedArticle; state: ResolvedReaderState; audioEnabled: boolean };
 
-	/** Resolves the owner's reader for both the full `/view` and the chromeless
-	 * `/app` renders. Ownership/access behaviour (owner → reader; non-owner or
-	 * anonymous → permalink redirect) comes entirely from resolveReaderPermalink,
-	 * so both routes inherit it identically. Stamps reader-view presence on the
+	/** Ownership/access (owner → reader; non-owner or anonymous → permalink
+	 * redirect) comes entirely from resolveReaderPermalink, so the `/view` and
+	 * `/app` routes inherit it identically. Stamps reader-view presence on the
 	 * owner open — the only server-side signal that the reader was opened. */
 	const resolveOwnerReader = async (
 		req: Request<{ id: string }>,
@@ -467,12 +466,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 		);
 	});
 
-	/** The iOS app's chromeless reader. Same owner content as `/view` — including
-	 * the AI summary, progress bar, share balloon, and "View original" — but
-	 * rendered without the web shell, so the native reading list is the only
-	 * chrome. "← Back to queue" and the in-reader links are handled by the
-	 * WKWebView delegate (close the sheet; open external links in a browser).
-	 * Declared before `router.use(deps.dualAuth)` so it inherits `/view`'s exact
+	/** Declared before `router.use(deps.dualAuth)` so it inherits `/view`'s exact
 	 * anonymous/non-owner permalink-redirect behaviour. */
 	router.get("/:id/app", async (req: Request<{ id: string }>, res: Response) => {
 		const resolved = await resolveOwnerReader(req);
@@ -493,7 +487,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				readerPollUrl: state.readerPollUrl,
 				progress: state.progress,
 				audioEnabled,
-				extensionInstallUrl: extensionInstallUrlIfMissing(req),
+				extensionInstallUrl: undefined,
 				backLink: APP_BACK_LINK,
 			})),
 		);
@@ -534,6 +528,7 @@ export function initQueueRoutes(deps: QueueDependencies): Router {
 				? { ...result, articles: filteredArticles, total: filteredArticles.length }
 				: result;
 
+			res.vary(IOS_CLIENT_HEADER);
 			res.type(SIREN_MEDIA_TYPE).json(
 				toArticleCollectionEntity(filtered, {
 					status: tab.status,

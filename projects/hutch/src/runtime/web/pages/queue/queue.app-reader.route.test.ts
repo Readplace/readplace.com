@@ -202,4 +202,20 @@ describe("Siren read-href varies by client (GET /queue)", () => {
 		expect(await readHref({})).toMatch(/\/queue\/.+\/view$/);
 		expect(await readHref({ [IOS_CLIENT_HEADER]: IOS_CLIENT_VALUE })).toMatch(/\/queue\/.+\/app$/);
 	});
+
+	it("varies the Siren response on the client header so a shared cache can't cross client kinds", async () => {
+		const harness = useApp(createDefaultTestAppFixture(TEST_APP_ORIGIN));
+		await harness.auth.createUser({ email: "vary@example.com", password: "password123" });
+		const loginResult = await harness.auth.verifyCredentials({ email: "vary@example.com", password: "password123" });
+		assert(loginResult.ok);
+		const accessToken = await saveAccessTokenForUser(harness, loginResult.userId);
+
+		const response = await request(harness.server)
+			.get("/queue")
+			.set("Accept", SIREN_MEDIA_TYPE)
+			.set("Authorization", `Bearer ${accessToken}`);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.vary).toMatch(new RegExp(IOS_CLIENT_HEADER, "i"));
+	});
 });

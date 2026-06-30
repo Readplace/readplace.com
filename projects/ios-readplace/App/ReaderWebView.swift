@@ -101,7 +101,7 @@ struct ReaderWebView: UIViewControllerRepresentable {
 				onClose()
 			case let .openExternally(target):
 				decisionHandler(.cancel)
-				externalBrowser.open(chromeURLForHTTPS(target, canOpen: externalBrowser.canOpen))
+				externalBrowser.open(target)
 			}
 		}
 	}

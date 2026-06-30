@@ -20,7 +20,9 @@ enum ReaderNavigation {
 		navigationType: WKNavigationType,
 		currentURL: URL?,
 	) -> ReaderNavigationDecision {
-		if url.scheme == "readplace", url.host == "reader", url.path == "/close" {
+		if url.scheme?.lowercased() == "readplace",
+		   url.host?.lowercased() == "reader",
+		   url.path == "/close" {
 			return .close
 		}
 
@@ -28,9 +30,7 @@ enum ReaderNavigation {
 			return .allow
 		}
 
-		if navigationType == .linkActivated,
-		   let scheme = url.scheme?.lowercased(),
-		   scheme == "http" || scheme == "https" {
+		if navigationType == .linkActivated {
 			return .openExternally(url)
 		}
 
