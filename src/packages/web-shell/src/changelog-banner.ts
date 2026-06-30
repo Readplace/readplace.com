@@ -92,16 +92,10 @@ export function parseChangelogBannerFragment(html: string): ChangelogBanner | un
  * and its test, single-sourced here so they cannot drift. */
 export const CHANGELOG_SEEN_STORAGE_KEY = "readplace.changelog-seen";
 
-/** Runs synchronously before paint as the visible banner's last child, so an
- * already-seen banner never flashes its NEW chip. It reads the version off the
- * banner's data attribute — never interpolated into this JS, so the script is a
- * static string with no injection surface — and toggles `--seen` (which hides
- * the chip via CSS) the moment this browser has already seen that version. The
- * first sight of a version records it, so reloads of the same announcement drop
- * NEW while a newer post re-lights it. Dismissal is unaffected: the server
- * suppresses the whole banner for a dismissed version regardless of this key.
- * Storage access is guarded so private-mode throws leave NEW visible (no-JS and
- * storage-blocked browsers keep today's always-NEW behaviour). */
+/** Runs synchronously before paint, so an already-seen banner never flashes its
+ * NEW chip. It reads the version off the banner's data attribute — never
+ * interpolated into this JS, so the script is a static string with no injection
+ * surface. Storage access is guarded so private-mode throws leave NEW visible. */
 export const CHANGELOG_SEEN_SCRIPT = `(function(){var banner=document.querySelector('.changelog-banner[data-changelog-version]');if(!banner)return;var version=banner.getAttribute('data-changelog-version');try{if(localStorage.getItem('${CHANGELOG_SEEN_STORAGE_KEY}')===version){banner.classList.add('changelog-banner--seen');}else{localStorage.setItem('${CHANGELOG_SEEN_STORAGE_KEY}',version);}}catch(e){}})();`;
 
 /** The visible banner, rendered identically by both deployables through the
@@ -112,9 +106,7 @@ export const CHANGELOG_SEEN_SCRIPT = `(function(){var banner=document.querySelec
  * exactly the announcement the reader saw) and the page's own path as `returnTo`
  * (so the dismiss route sends the reader back where they were rather than the
  * homepage — it cannot read `Referer`, which helmet's default `no-referrer`
- * policy strips from the POST). The visible branch also carries the version as a
- * data attribute and a trailing inline script that turns the always-rendered NEW
- * chip into an unseen-only signal per browser (CHANGELOG_SEEN_SCRIPT). */
+ * policy strips from the POST). */
 const CHANGELOG_SHELL_TEMPLATE = `<div class="changelog-banner {{#if visible}}changelog-banner--visible{{else}}changelog-banner--hidden{{/if}}" role="status" aria-live="polite" data-test-changelog-banner{{#if visible}} data-changelog-version="{{version}}"{{/if}}>{{#if visible}}<div class="changelog-banner__inner"><span class="changelog-banner__chip" aria-hidden="true">NEW</span><span class="changelog-banner__hook">{{hook}}</span><a class="changelog-banner__link" href="{{href}}">Read more <span class="changelog-banner__arrow" aria-hidden="true">&rarr;</span></a><form class="changelog-banner__dismiss" method="POST" action="/banner/changelog/dismiss"><input type="hidden" name="version" value="{{version}}"><input type="hidden" name="returnTo" value="{{returnTo}}"><button type="submit" class="changelog-banner__close" aria-label="Dismiss changelog banner"><span aria-hidden="true">&times;</span></button></form></div><script>${CHANGELOG_SEEN_SCRIPT}</script>{{/if}}</div>`;
 
 export function renderChangelogBannerShell(banner?: ChangelogBanner, returnTo?: string): string {
