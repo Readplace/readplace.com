@@ -356,6 +356,50 @@ final class ReadplaceAPITests: XCTestCase {
 		)
 	}
 
+	func testFetchExternalContentAbortsWhenStreamedBytesExceedCeiling() async {
+		// No Content-Length, so the size is unknown up front: the running total must
+		// trip the ceiling mid-stream and degrade to nil rather than buffering the whole
+		// oversize body into the share extension's memory budget.
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { _, _ in
+			StubURLProtocol.Stub(
+				status: 200,
+				headers: ["Content-Type": "application/pdf"],
+				body: Data(repeating: 0x41, count: 64)
+			)
+		}
+		let api = ReadplaceAPI(
+			baseURL: AppConfig.serverBaseURL, store: store,
+			sessionConfiguration: TestSupport.stubbedConfiguration(), maxExternalContentBytes: 16
+		)
+
+		let fetched = await api.fetchExternalContent(URL(string: "https://example.com/big.pdf")!)
+
+		XCTAssertNil(fetched, "a body that crosses the ceiling mid-stream must abort to nil")
+	}
+
+	func testFetchExternalContentRejectsResponseAnnouncingOversizeLength() async {
+		// A response whose declared Content-Length already exceeds the ceiling is refused
+		// before the body is read — the cheap early-out that keeps an honestly-sized
+		// oversize resource off the wire entirely.
+		let store = TestSupport.loggedInStore()
+		StubURLProtocol.setHandler { _, _ in
+			StubURLProtocol.Stub(
+				status: 200,
+				headers: ["Content-Type": "application/pdf", "Content-Length": "1000000"],
+				body: Data("%PDF-".utf8)
+			)
+		}
+		let api = ReadplaceAPI(
+			baseURL: AppConfig.serverBaseURL, store: store,
+			sessionConfiguration: TestSupport.stubbedConfiguration(), maxExternalContentBytes: 16
+		)
+
+		let fetched = await api.fetchExternalContent(URL(string: "https://example.com/big.pdf")!)
+
+		XCTAssertNil(fetched, "a response announcing an oversize Content-Length must be refused up front")
+	}
+
 	// MARK: - Saving URL only
 
 	func testSaveArticleSuccess() async throws {

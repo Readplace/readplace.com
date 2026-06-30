@@ -81,13 +81,6 @@ struct QueuePage {
 final class ReadplaceAPI {
 	private static let logger = Logger(subsystem: "com.readplace", category: "ReadplaceAPI")
 
-	/// Conservative ceiling on bytes pulled into the extension for an external
-	/// content fetch. Well under the server's `MAX_PDF_BYTES` OCR ceiling: that is
-	/// an origin-side limit, whereas the share extension holds the fetched bytes
-	/// plus a duplicated multipart body in a tight memory budget, so an oversize
-	/// resource degrades to a URL-only save before the buffers are ever built.
-	private static let maxExternalContentBytes = 25 * 1024 * 1024
-
 	let baseURL: String
 	private let store: TokenStore
 	private let oauth: OAuthService
@@ -96,12 +89,25 @@ final class ReadplaceAPI {
 	// and never via `send()`, so neither the bearer nor the redirect-preserving
 	// re-attachment can leak the Readplace `Authorization` header to that origin.
 	private let externalSession: URLSession
+	/// Conservative ceiling on bytes pulled into the extension for an external
+	/// content fetch. Well under the server's `MAX_PDF_BYTES` OCR ceiling: that is
+	/// an origin-side limit, whereas the share extension holds the fetched bytes
+	/// plus a duplicated multipart body in a tight memory budget. `fetchExternalContent`
+	/// streams the body and stops the moment the running total crosses this ceiling
+	/// (refusing outright when the response announces an oversize length), so an
+	/// oversize resource degrades to a URL-only save without ever being buffered whole.
+	private let maxExternalContentBytes: Int
 
 	// Defaults to an ephemeral configuration so the session's cookie jar is its
 	// own isolated, in-memory store rather than process-wide `HTTPCookieStorage.shared`:
 	// the `hutch_sid` cookie minted by `bootstrapSession` must not linger in the
 	// shared jar where it would outlive the session and leak across sign-outs.
-	init(baseURL: String, store: TokenStore, sessionConfiguration: URLSessionConfiguration = .ephemeral) {
+	init(
+		baseURL: String,
+		store: TokenStore,
+		sessionConfiguration: URLSessionConfiguration = .ephemeral,
+		maxExternalContentBytes: Int = 25 * 1024 * 1024
+	) {
 		self.baseURL = baseURL
 		self.store = store
 		self.oauth = OAuthService(baseURL: baseURL, store: store, sessionConfiguration: sessionConfiguration)
@@ -113,6 +119,7 @@ final class ReadplaceAPI {
 			delegateQueue: nil
 		)
 		self.externalSession = URLSession(configuration: sessionConfiguration)
+		self.maxExternalContentBytes = maxExternalContentBytes
 	}
 
 	// MARK: - Reading list
@@ -250,17 +257,30 @@ final class ReadplaceAPI {
 
 	/// Fetches third-party content the user shared (e.g. a PDF) so the bytes can
 	/// be uploaded via `save-content`. Uses `externalSession` — never `send()` —
-	/// so the Readplace bearer is never attached, and rejects anything that isn't
-	/// a 2xx within `maxExternalContentBytes`, returning nil so the caller degrades
-	/// to a URL-only save.
+	/// so the Readplace bearer is never attached. Streams the body and aborts the
+	/// moment the running total exceeds `maxExternalContentBytes` (and refuses a
+	/// response whose announced length already exceeds it), so an oversize resource
+	/// — a large scanned PDF, say — never lands in the extension's memory budget
+	/// whole; returns nil on any non-2xx, oversize, or transport failure so the
+	/// caller degrades to a URL-only save.
 	func fetchExternalContent(_ url: URL) async -> (Data, String)? {
 		var request = URLRequest(url: url)
 		request.httpMethod = "GET"
-		guard let (data, response) = try? await externalSession.data(for: request),
+		guard let (stream, response) = try? await externalSession.bytes(for: request),
 			let http = response as? HTTPURLResponse,
 			(200...299).contains(http.statusCode),
-			data.count <= Self.maxExternalContentBytes
+			http.expectedContentLength <= Int64(maxExternalContentBytes)
 		else { return nil }
+		var data = Data()
+		if http.expectedContentLength > 0 { data.reserveCapacity(Int(http.expectedContentLength)) }
+		do {
+			for try await byte in stream {
+				data.append(byte)
+				if data.count > maxExternalContentBytes { return nil }
+			}
+		} catch {
+			return nil
+		}
 		let contentType = http.value(forHTTPHeaderField: "Content-Type") ?? ""
 		return (data, contentType)
 	}
