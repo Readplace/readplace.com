@@ -196,6 +196,10 @@ describe("View routes", () => {
 			expect(doc.querySelector("[data-test-reader-title]")?.textContent).toBe(
 				"Hello World",
 			);
+			const href = ctaAction(doc).getAttribute("href");
+			assert(href, "cta action must have an href");
+			const parsed = new URL(href, "http://localhost");
+			expect(parsed.searchParams.get("url")).toBe(ARTICLE_URL);
 		});
 
 		it("301-redirects the legacy percent-encoded format to the scheme-less canonical", async () => {
